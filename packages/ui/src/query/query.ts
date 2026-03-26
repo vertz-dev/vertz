@@ -206,6 +206,19 @@ export function query<T, E = unknown>(
     return cacheKeyComputed.value;
   }
 
+  /**
+   * Resolve the current cache key using the same logic as the effect path.
+   * For descriptor-in-thunk queries, combines the descriptor _key with the
+   * dep hash. For plain thunks, delegates to getCacheKey().
+   */
+  function resolveCurrentCacheKey(): string {
+    if (currentEffectKey) {
+      const depHash = depHashSignal.peek();
+      return depHash ? `${currentEffectKey}:${depHash}` : currentEffectKey;
+    }
+    return getCacheKey();
+  }
+
   // -- Orphan-aware cache eviction --
   // Track the cache key currently retained by this query instance.
   // When the key changes (dep change) or the query disposes, release the old key.
@@ -266,6 +279,13 @@ export function query<T, E = unknown>(
   // data reads from EntityStore instead of rawData.
   // Uses a signal so the computed properly tracks the transition.
   const entityBacked: Signal<boolean> = signal<boolean>(false);
+
+  // Track the descriptor _key from the last effect run so that refetch()
+  // and clearData() use the same cache key format as the effect path.
+  // Without this, descriptor-in-thunk queries use getCacheKey() which
+  // produces a different key (baseKey:depHash) than the effect path
+  // (effectKey:depHash), causing cache eviction to miss (#1891).
+  let currentEffectKey: string | undefined;
 
   /**
    * Normalize fetch result into EntityStore for entity-backed queries.
@@ -657,7 +677,7 @@ export function query<T, E = unknown>(
    * Public refetch — clears cache for this key and re-executes.
    */
   function refetch(): void {
-    const key = getCacheKey();
+    const key = resolveCurrentCacheKey();
     // Reset retained key so retainKey() re-establishes the ref count
     // after cache.delete() wipes _refs.
     currentRetainedKey = null;
@@ -832,8 +852,12 @@ export function query<T, E = unknown>(
     // params are in the fetch closure or request body, not the URL).
     // For plain thunks (no descriptor), use the dep-hash-derived key.
     const depHash = untrack(() => depHashSignal.value);
+    // Persist effectKey so refetch()/clearData() use the same key format.
+    currentEffectKey = effectKey;
     const key = effectKey
-      ? (depHash ? `${effectKey}:${depHash}` : effectKey)
+      ? depHash
+        ? `${effectKey}:${depHash}`
+        : effectKey
       : untrack(() => getCacheKey());
 
     // Deduplication check for derived keys: now that the thunk has been
@@ -978,8 +1002,8 @@ export function query<T, E = unknown>(
         rawData.value = undefined;
         loading.value = true;
       });
-      // Use the actual cache key (may be dep-hash-derived) for cache deletion.
-      const cacheKey = untrack(() => getCacheKey());
+      // Use the same key format as the effect path for cache deletion (#1891).
+      const cacheKey = untrack(() => resolveCurrentCacheKey());
       cache.delete(cacheKey);
       // queryIndices and envelopeStore are keyed by entity type or custom key.
       const queryKey = customKey ?? meta.entityType;
