@@ -1,5 +1,14 @@
 # @vertz-benchmarks/vertz-app
 
+## 0.0.35
+
+### Patch Changes
+
+- Updated dependencies [[`12231be`](https://github.com/vertz-dev/vertz/commit/12231be46d322526be6d8b6752911d88f025e4d0)]:
+  - @vertz/ui@0.2.37
+  - @vertz/theme-shadcn@0.2.37
+  - @vertz/ui-server@0.2.37
+
 ## 0.0.34
 
 ### Patch Changes
