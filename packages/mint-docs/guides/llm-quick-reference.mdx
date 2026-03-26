@@ -1,6 +1,6 @@
 ---
 title: LLM Quick Reference
-description: 'Critical patterns for AI code generation — data fetching via typed SDK, forms, reactivity, entities, and schema. Read this before generating any Vertz code.'
+description: 'Critical patterns for AI code generation — data fetching via typed SDK, forms, reactivity, entities, schema, and testing. Read this before generating any Vertz code.'
 ---
 
 This page summarizes the patterns that matter most when generating Vertz code. Reading this first prevents the most common class of mistakes.
@@ -166,3 +166,69 @@ const tasksModel = d.model(tasksTable);
 ```
 
 Column annotations: `.hidden()` excludes from API responses, `.readOnly()` excludes from create/update inputs, `.default(value)` makes the field optional on create.
+
+## Testing (Server)
+
+Use `createTestClient()` for type-safe server integration tests. Pass your server instance — get back a client with typed entity and service proxies:
+
+```ts
+import { createTestClient } from '@vertz/testing';
+import { createServer } from '@vertz/server';
+
+const server = createServer({ entities: [tasksEntity], services: [healthService], db });
+const client = createTestClient(server);
+```
+
+### Entity proxy
+
+```ts
+const tasks = client.entity(tasksEntity);
+
+const created = await tasks.create({ title: 'Buy milk' });
+const list = await tasks.list({ where: { completed: false }, limit: 10 });
+const item = await tasks.get(created.body.id);
+const updated = await tasks.update(created.body.id, { completed: true });
+await tasks.delete(created.body.id);
+```
+
+### Service proxy
+
+```ts
+const health = client.service(healthService);
+const result = await health.check();
+```
+
+### Response handling
+
+Every method returns `TestResponse<T>` — a discriminated union on `ok`:
+
+```ts
+const result = await tasks.get('some-id');
+if (result.ok) {
+  result.body.title; // typed to $response
+} else {
+  result.body.message; // ErrorBody { error, message, statusCode }
+}
+```
+
+### Auth headers
+
+```ts
+const authed = client.withHeaders({ authorization: 'Bearer token' });
+await authed.entity(tasksEntity).list();
+```
+
+<Warning>
+Don't use raw `server.handler(new Request(...))` with manual casts. Use `createTestClient()` for full type safety:
+
+```ts
+// WRONG — no type safety
+const res = await server.handler(new Request('http://localhost/api/tasks'));
+const body = (await res.json()) as Task[];
+
+// RIGHT — fully typed
+const res = await client.entity(tasksEntity).list();
+res.body.items; // typed array
+```
+
+</Warning>
