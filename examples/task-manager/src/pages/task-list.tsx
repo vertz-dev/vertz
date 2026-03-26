@@ -159,7 +159,7 @@ export function TaskListPage() {
                 type="button"
                 className={button({ intent: 'ghost', size: 'sm' })}
                 data-testid="pagination-prev"
-                disabled={pageNum <= 1 || isFetching}
+                disabled={pageNum <= 1 || tasksQuery.loading}
                 onClick={() => {
                   sp.page = pageNum - 1;
                 }}
@@ -177,7 +177,7 @@ export function TaskListPage() {
                 type="button"
                 className={button({ intent: 'ghost', size: 'sm' })}
                 data-testid="pagination-next"
-                disabled={pageNum >= tasksQuery.data.totalPages || isFetching}
+                disabled={pageNum >= tasksQuery.data.totalPages || tasksQuery.loading}
                 onClick={() => {
                   sp.page = pageNum + 1;
                 }}
