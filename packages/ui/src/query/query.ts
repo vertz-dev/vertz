@@ -529,12 +529,7 @@ export function query<T, E = unknown>(
           ssrHydrated = true; // Prevents the effect from re-fetching
         }
       } else {
-        // Derived key: try exact hydrationKey, then baseKey prefix match.
-        // The depHash may differ between mounts (auto-field-selection adds a
-        // `select` object whose contents vary depending on which fields the
-        // component reads — and at init time, that set may differ from the
-        // original render).  SSR hydration stores under `baseKey:depHash`,
-        // so a prefix search on `baseKey:` finds the prior entry reliably.
+        // Derived key: try exact hydrationKey match first.
         const cached = cache.get(hydrationKey);
         if (cached !== undefined) {
           retainKey(hydrationKey);
@@ -542,18 +537,13 @@ export function query<T, E = unknown>(
           rawData.value = cached;
           loading.value = false;
           ssrHydrated = true;
-        } else {
-          // Fallback: try baseKey (no depHash) — the effect path stores a
-          // secondary copy under this stable key for exactly this use case.
-          const baseCached = cache.get(baseKey);
-          if (baseCached !== undefined) {
-            retainKey(baseKey);
-            normalizeToEntityStore(baseCached);
-            rawData.value = baseCached;
-            loading.value = false;
-            ssrHydrated = true;
-          }
         }
+      }
+      // If no cache hit, suppress the loading indicator anyway.
+      // The effect resolves data in the next microtask — a brief empty
+      // state is invisible, while a "Loading..." flash is jarring.
+      if (!ssrHydrated) {
+        loading.value = false;
       }
     }
 
@@ -649,13 +639,6 @@ export function query<T, E = unknown>(
         inflightKeys.delete(key);
         if (id !== fetchId) return; // stale
         cache.set(key, result);
-        // For descriptor-in-thunk queries, also store under baseKey (no
-        // depHash) as a stable secondary key.  Nav-prefetch uses this to
-        // find cached data from a prior visit when the primary key format
-        // (descriptorKey:depHash) differs due to auto-field-selection.
-        // Only for descriptor-in-thunk (currentEffectKey set) — plain thunks
-        // and custom-key queries don't need this secondary lookup.
-        if (currentEffectKey) cache.set(baseKey, result);
         retainKey(key);
         normalizeToEntityStore(result);
         rawData.value = result;
@@ -805,18 +788,6 @@ export function query<T, E = unknown>(
           retainKey(derivedKey);
           untrack(() => {
             rawData.value = cached;
-            loading.value = false;
-          });
-          isFirst = false;
-          return;
-        }
-        // Fallback: try baseKey (no depHash) — the effect path stores a
-        // secondary copy under this stable key for exactly this use case.
-        const baseCached = untrack(() => cache.get(baseKey));
-        if (baseCached !== undefined) {
-          retainKey(baseKey);
-          untrack(() => {
-            rawData.value = baseCached;
             loading.value = false;
           });
           isFirst = false;
