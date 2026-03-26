@@ -2363,6 +2363,56 @@ describe('query()', () => {
       result.dispose();
     });
 
+    test('descriptor-in-thunk refetch() after reactive dep change uses correct key (#1891)', async () => {
+      resetDefaultQueryCache();
+
+      const page = signal(1);
+      let fetchCallCount = 0;
+
+      const result = query(() => {
+        const p = page.value;
+        fetchCallCount++;
+        return {
+          _tag: 'QueryDescriptor' as const,
+          _key: 'GET:/tasks',
+          _fetch: () =>
+            Promise.resolve(ok({ items: [`page-${p}-call-${fetchCallCount}`] })),
+          // eslint-disable-next-line unicorn/no-thenable -- intentional PromiseLike mock
+          then(onFulfilled: any, onRejected: any) {
+            return this._fetch().then(onFulfilled, onRejected);
+          },
+        };
+      });
+
+      vi.advanceTimersByTime(0);
+      await Promise.resolve();
+      await Promise.resolve();
+
+      expect(result.data.value).toEqual({ items: ['page-1-call-1'] });
+
+      // Change reactive dep — new dep hash, same effectKey
+      page.value = 2;
+
+      vi.advanceTimersByTime(0);
+      await Promise.resolve();
+      await Promise.resolve();
+
+      expect(result.data.value).toEqual({ items: ['page-2-call-2'] });
+
+      // refetch() should clear cache for the current dep hash (page=2),
+      // not the old dep hash or a baseKey-derived key.
+      result.refetch();
+
+      vi.advanceTimersByTime(0);
+      await Promise.resolve();
+      await Promise.resolve();
+
+      expect(fetchCallCount).toBeGreaterThanOrEqual(3);
+      expect(result.data.value).toEqual({ items: ['page-2-call-3'] });
+
+      result.dispose();
+    });
+
     test('descriptor-in-thunk clearData() via invalidation uses correct cache key (#1891)', async () => {
       resetDefaultQueryCache();
       resetMutationEventBus();
