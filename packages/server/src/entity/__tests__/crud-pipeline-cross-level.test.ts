@@ -152,6 +152,35 @@ describe('Feature: Level-aware tenant filtering', () => {
     });
   });
 
+  describe('Given entity scoped to account, user scoped to project, but ancestor not found', () => {
+    it('Then list falls back to ctx.tenantId', async () => {
+      // Create a closure store where the project has NO account ancestor
+      const emptyClosureStore = new InMemoryClosureStore();
+      await emptyClosureStore.addResource('project', 'proj-orphan');
+      // No account ancestor added — getAncestors returns only self-reference
+
+      const def = entity('settings', {
+        model: settingsModel,
+        access: { list: () => true },
+      });
+
+      const db = createStubDb();
+      const handlers = createCrudHandlers(def, db, {
+        closureStore: emptyClosureStore,
+        tenantLevels,
+      });
+
+      const ctx = makeCtx({ tenantId: 'proj-orphan', tenantLevel: 'project' });
+      await handlers.list(ctx);
+
+      expect(db.list).toHaveBeenCalledTimes(1);
+      const listOpts = db.list.mock.calls[0]![0] as Record<string, unknown>;
+      const where = listOpts.where as Record<string, unknown>;
+      // Falls back to ctx.tenantId since no account ancestor found
+      expect(where.accountId).toBe('proj-orphan');
+    });
+  });
+
   describe('Given single-level tenancy (no tenantLevel in context)', () => {
     it('Then behavior is identical to pre-multi-level', async () => {
       const def = entity('settings', {
