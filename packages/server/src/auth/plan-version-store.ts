@@ -56,7 +56,7 @@ export interface PlanVersionStore {
 export class InMemoryPlanVersionStore implements PlanVersionStore {
   // planId -> version[]
   private versions = new Map<string, PlanVersionInfo[]>();
-  // tenantId:planId -> version
+  // resourceType:resourceId:planId -> version
   private tenantVersions = new Map<string, number>();
 
   async createVersion(planId: string, hash: string, snapshot: PlanSnapshot): Promise<number> {

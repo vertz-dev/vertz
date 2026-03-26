@@ -45,8 +45,7 @@ export interface TenantPlanState {
 }
 
 export interface MigrateOpts {
-  resourceType?: string;
-  resourceId?: string;
+  resource?: { type: string; id: string };
 }
 
 export interface ScheduleOpts {
@@ -196,9 +195,9 @@ export function createPlanManager(config: PlanManagerConfig): PlanManager {
     const currentVersion = await versionStore.getCurrentVersion(planId);
     if (currentVersion === null) return;
 
-    if (opts?.resourceType && opts?.resourceId) {
+    if (opts?.resource) {
       // Immediate migration for specific resource
-      await migrateResource(opts.resourceType, opts.resourceId, planId, currentVersion, now);
+      await migrateResource(opts.resource.type, opts.resource.id, planId, currentVersion, now);
       return;
     }
 

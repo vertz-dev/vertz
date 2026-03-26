@@ -107,7 +107,11 @@ export function createWebhookHandler(
           const planId = extractPlanId(obj);
           if (resource && planId) {
             await subscriptionStore.assign(resource.type, resource.id, planId);
-            emitter.emit('subscription:created', { tenantId: resource.id, planId });
+            emitter.emit('subscription:created', {
+              resourceType: resource.type,
+              resourceId: resource.id,
+              planId,
+            });
           }
           break;
         }
@@ -127,7 +131,8 @@ export function createWebhookHandler(
           if (resource) {
             await subscriptionStore.assign(resource.type, resource.id, defaultPlan);
             emitter.emit('subscription:canceled', {
-              tenantId: resource.id,
+              resourceType: resource.type,
+              resourceId: resource.id,
               planId: planId ?? defaultPlan,
             });
           }
@@ -140,7 +145,8 @@ export function createWebhookHandler(
           const attemptCount = (obj.attempt_count as number) ?? 1;
           if (resource) {
             emitter.emit('billing:payment_failed', {
-              tenantId: resource.id,
+              resourceType: resource.type,
+              resourceId: resource.id,
               planId: planId ?? '',
               attempt: attemptCount,
             });

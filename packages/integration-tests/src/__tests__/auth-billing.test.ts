@@ -166,7 +166,8 @@ describe('Feature: Billing E2E lifecycle', () => {
 
     // Verify event emitted
     expect(receivedEvents).toHaveLength(1);
-    expect(receivedEvents[0].tenantId).toBe('org-acme');
+    expect(receivedEvents[0].resourceType).toBe('tenant');
+    expect(receivedEvents[0].resourceId).toBe('org-acme');
     expect(receivedEvents[0].planId).toBe('pro_monthly');
 
     // ── Step 3: Webhook — subscription deleted ──
@@ -201,7 +202,8 @@ describe('Feature: Billing E2E lifecycle', () => {
 
     // Verify cancelation event
     expect(receivedEvents).toHaveLength(2);
-    expect(receivedEvents[1].tenantId).toBe('org-acme');
+    expect(receivedEvents[1].resourceType).toBe('tenant');
+    expect(receivedEvents[1].resourceId).toBe('org-acme');
 
     // ── Step 4: Overage computation ──
     const overage = computeOverage({ consumed: 150, max: 100, rate: 0.01, cap: 5 });

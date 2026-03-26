@@ -450,7 +450,7 @@ describe('Feature: Plan migration', () => {
         clock,
       });
 
-      await manager.migrate('pro', { resourceType: 'tenant', resourceId: 'org-1' });
+      await manager.migrate('pro', { resource: { type: 'tenant', id: 'org-1' } });
 
       const tenantVersion = await versionStore.getTenantVersion('tenant', 'org-1', 'pro');
       expect(tenantVersion).toBe(2);

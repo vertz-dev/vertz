@@ -63,7 +63,8 @@ describe('Webhook Metadata Edge Cases', () => {
         expect(response.status).toBe(200);
         expect(events).toHaveLength(1);
         expect(events[0]).toEqual({
-          tenantId: 'org-nested',
+          resourceType: 'tenant',
+          resourceId: 'org-nested',
           planId: '',
           attempt: 2,
         });
@@ -125,6 +126,30 @@ describe('Webhook Metadata Edge Cases', () => {
         const plan = await subscriptionStore.get('tenant', 'org-1');
         expect(plan).not.toBeNull();
         expect(plan?.planId).toBe('extra_seats');
+      });
+    });
+  });
+
+  describe('Given a subscription event with resourceType + resourceId in metadata', () => {
+    describe('When the webhook handler processes the event', () => {
+      it('Then uses resourceType/resourceId instead of tenantId fallback', async () => {
+        const subscriptionStore = new InMemorySubscriptionStore();
+        const config = makeConfig({ subscriptionStore });
+        const handler = createWebhookHandler(config);
+
+        const body = makeStripeEvent('customer.subscription.created', {
+          id: 'sub_456',
+          metadata: { resourceType: 'project', resourceId: 'proj-1', vertzPlanId: 'pro' },
+          items: { data: [{ price: { metadata: { vertzPlanId: 'pro' } } }] },
+        });
+
+        const response = await handler(await makeRequest(body));
+
+        expect(response.status).toBe(200);
+        const plan = await subscriptionStore.get('project', 'proj-1');
+        expect(plan).not.toBeNull();
+        expect(plan?.planId).toBe('pro');
+        expect(plan?.resourceType).toBe('project');
       });
     });
   });

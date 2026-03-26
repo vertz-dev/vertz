@@ -229,7 +229,7 @@ describe('Feature: Grandfathering policy integration', () => {
     expect(await versionStore.getTenantVersion('tenant', 'org-1', 'enterprise')).toBe(1);
 
     // But forced migration with resourceType/resourceId works
-    await m3.migrate('enterprise', { resourceType: 'tenant', resourceId: 'org-1' });
+    await m3.migrate('enterprise', { resource: { type: 'tenant', id: 'org-1' } });
     expect(await versionStore.getTenantVersion('tenant', 'org-1', 'enterprise')).toBe(2);
   });
 });

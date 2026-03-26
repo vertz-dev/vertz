@@ -14,7 +14,8 @@ export type BillingEventType =
   | 'billing:payment_failed';
 
 export interface BillingEvent {
-  tenantId: string;
+  resourceType: string;
+  resourceId: string;
   planId: string;
   attempt?: number;
 }

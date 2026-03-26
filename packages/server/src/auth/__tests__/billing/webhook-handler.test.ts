@@ -120,7 +120,8 @@ describe('Feature: Stripe webhook handler', () => {
 
       expect(response.status).toBe(200);
       expect(received).toHaveLength(1);
-      expect(received[0].tenantId).toBe('org-1');
+      expect(received[0].resourceType).toBe('tenant');
+      expect(received[0].resourceId).toBe('org-1');
       expect(received[0].attempt).toBe(2);
     });
   });
