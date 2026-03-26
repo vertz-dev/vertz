@@ -20,6 +20,9 @@ class FailingWalletStore implements WalletStore {
   async getConsumption(): Promise<number> {
     throw new Error('Cloud unavailable');
   }
+  async getBatchConsumption(): Promise<Map<string, number>> {
+    throw new Error('Cloud unavailable');
+  }
   dispose(): void {}
 }
 

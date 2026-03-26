@@ -104,6 +104,17 @@ export class CachedWalletStore implements WalletStore {
     this.cache.delete(key);
   }
 
+  async getBatchConsumption(
+    tenantId: string,
+    limitKeys: string[],
+    periodStart: Date,
+    periodEnd: Date,
+  ): Promise<Map<string, number>> {
+    // Delegate to inner store — batch reads bypass the per-key cache
+    // to ensure consistency across all returned keys.
+    return this.inner.getBatchConsumption(tenantId, limitKeys, periodStart, periodEnd);
+  }
+
   dispose(): void {
     this.cache.clear();
     this.inner.dispose();

@@ -47,6 +47,13 @@ export interface ResourceRef {
   id: string;
 }
 
+/** An entry in the ancestor chain from child to root. */
+export interface AncestorChainEntry {
+  type: string;
+  id: string;
+  depth: number;
+}
+
 export interface AccessContextConfig {
   userId: string | null;
   accessDef: AccessDefinition;
@@ -68,6 +75,10 @@ export interface AccessContextConfig {
   planVersionStore?: PlanVersionStore;
   /** Cloud failure mode — how to handle wallet store errors. Only set when using cloud wallet. */
   cloudFailMode?: CloudFailMode;
+  /** Tenant level — entity type of the current tenant (e.g., 'project'). Required for cascaded consumption. */
+  tenantLevel?: string;
+  /** Resolves the ancestor chain from a tenant. Returns entries from child to root (sorted by depth ascending). */
+  ancestorResolver?: (tenantLevel: string, tenantId: string) => Promise<AncestorChainEntry[]>;
 }
 
 /**
@@ -121,6 +132,8 @@ export function createAccessContext(config: AccessContextConfig): AccessContext 
     orgResolver,
     planVersionStore,
     cloudFailMode,
+    tenantLevel,
+    ancestorResolver,
   } = config;
 
   // ==========================================================================
@@ -545,6 +558,9 @@ export function createAccessContext(config: AccessContextConfig): AccessContext 
   /**
    * Runs Layers 1-3 access check, then atomically attempts to consume from ALL
    * limits gating the entitlement. All-or-nothing: if any limit fails, no consumption.
+   *
+   * With multi-level tenancy (ancestorResolver + tenantLevel), consumption cascades
+   * to all ancestor levels. Lock ordering: root-to-leaf (prevents deadlocks).
    */
   async function canAndConsume(
     entitlement: string,
@@ -570,88 +586,82 @@ export function createAccessContext(config: AccessContextConfig): AccessContext 
 
     if (!resolvedOrgId) return false;
 
-    const subscription = await subscriptionStore.get(resolvedOrgId);
-    if (!subscription) return false;
-    const effectivePlanId = resolveEffectivePlan(
-      subscription,
-      accessDef.plans,
-      accessDef.defaultPlan,
-    );
-    if (!effectivePlanId) return false;
+    // Build consumption chain: root-to-leaf ordering for lock ordering.
+    // Each entry is { tenantId, subscription, planId, overrides }.
+    const chain = await buildConsumptionChain(resolvedOrgId, entitlement);
 
-    // Resolve all limits and consume atomically
+    if (!chain.length) return false; // No valid plan at any level
+
     try {
-      const limitsToConsume = await resolveAllLimitConsumptions(
-        resolvedOrgId,
-        entitlement,
-        effectivePlanId,
-        accessDef,
-        subscriptionStore,
-        walletStore,
-        subscription,
-        planVersionStore,
-        overrides,
-      );
-
-      if (!limitsToConsume.length) return true; // No applicable limits
-
-      // Atomic all-or-nothing consumption
-      const consumed: Array<{
+      // Track all consumed entries across all levels for rollback
+      const allConsumed: Array<{
+        tenantId: string;
         key: string;
         periodStart: Date;
         periodEnd: Date;
       }> = [];
 
-      for (const lc of limitsToConsume) {
-        if (lc.effectiveMax === -1) continue; // Unlimited — skip
-        if (lc.effectiveMax === 0) {
-          // Disabled — rollback any prior consumption and fail
-          await rollbackConsumptions(resolvedOrgId, consumed, walletStore, amount);
-          return false;
-        }
-
-        // Determine max for wallet consumption — with overage, use a very high cap
-        let consumeMax = lc.effectiveMax;
-        if (lc.hasOverage) {
-          // Check overage cap first
-          if (lc.overageCap !== undefined) {
-            const currentConsumed = await walletStore.getConsumption(
-              resolvedOrgId,
-              lc.walletKey,
-              lc.periodStart,
-              lc.periodEnd,
-            );
-            const overageUnits = Math.max(0, currentConsumed + amount - lc.effectiveMax);
-            const overageCost = (overageUnits * (lc.overageAmount ?? 0)) / (lc.overagePer ?? 1);
-            if (overageCost > lc.overageCap) {
-              await rollbackConsumptions(resolvedOrgId, consumed, walletStore, amount);
-              return false; // Cap would be exceeded
-            }
-          }
-          // Allow overage by raising the effective max for wallet
-          consumeMax = Number.MAX_SAFE_INTEGER;
-        }
-
-        const result = await walletStore.consume(
-          resolvedOrgId,
-          lc.walletKey,
-          lc.periodStart,
-          lc.periodEnd,
-          consumeMax,
-          amount,
+      // Consume root-to-leaf (lock ordering: root first)
+      for (const entry of chain) {
+        const limitsToConsume = await resolveAllLimitConsumptions(
+          entry.tenantId,
+          entitlement,
+          entry.planId,
+          accessDef,
+          subscriptionStore,
+          walletStore,
+          entry.subscription,
+          planVersionStore,
+          entry.overrides,
         );
 
-        if (!result.success) {
-          // Rollback prior consumptions
-          await rollbackConsumptions(resolvedOrgId, consumed, walletStore, amount);
-          return false;
-        }
+        for (const lc of limitsToConsume) {
+          if (lc.effectiveMax === -1) continue; // Unlimited — skip
+          if (lc.effectiveMax === 0) {
+            await rollbackCascadedConsumptions(allConsumed, walletStore, amount);
+            return false;
+          }
 
-        consumed.push({
-          key: lc.walletKey,
-          periodStart: lc.periodStart,
-          periodEnd: lc.periodEnd,
-        });
+          let consumeMax = lc.effectiveMax;
+          if (lc.hasOverage) {
+            if (lc.overageCap !== undefined) {
+              const currentConsumed = await walletStore.getConsumption(
+                entry.tenantId,
+                lc.walletKey,
+                lc.periodStart,
+                lc.periodEnd,
+              );
+              const overageUnits = Math.max(0, currentConsumed + amount - lc.effectiveMax);
+              const overageCost = (overageUnits * (lc.overageAmount ?? 0)) / (lc.overagePer ?? 1);
+              if (overageCost > lc.overageCap) {
+                await rollbackCascadedConsumptions(allConsumed, walletStore, amount);
+                return false;
+              }
+            }
+            consumeMax = Number.MAX_SAFE_INTEGER;
+          }
+
+          const result = await walletStore.consume(
+            entry.tenantId,
+            lc.walletKey,
+            lc.periodStart,
+            lc.periodEnd,
+            consumeMax,
+            amount,
+          );
+
+          if (!result.success) {
+            await rollbackCascadedConsumptions(allConsumed, walletStore, amount);
+            return false;
+          }
+
+          allConsumed.push({
+            tenantId: entry.tenantId,
+            key: lc.walletKey,
+            periodStart: lc.periodStart,
+            periodEnd: lc.periodEnd,
+          });
+        }
       }
 
       return true;
@@ -659,6 +669,80 @@ export function createAccessContext(config: AccessContextConfig): AccessContext 
       if (!cloudFailMode) throw error;
       return cloudFailMode === 'open';
     }
+  }
+
+  /**
+   * Build the ordered consumption chain (root-to-leaf) for cascaded wallet operations.
+   * Each entry represents a tenant level with a valid subscription and plan.
+   */
+  async function buildConsumptionChain(
+    currentTenantId: string,
+    entitlement: string,
+  ): Promise<
+    Array<{
+      tenantId: string;
+      subscription: Subscription;
+      planId: string;
+      overrides: TenantOverrides | null;
+    }>
+  > {
+    if (!subscriptionStore) return [];
+
+    const chain: Array<{
+      tenantId: string;
+      subscription: Subscription;
+      planId: string;
+      overrides: TenantOverrides | null;
+    }> = [];
+
+    // If multi-level, resolve ancestors (root-to-leaf order)
+    if (ancestorResolver && tenantLevel) {
+      const ancestors = await ancestorResolver(tenantLevel, currentTenantId);
+      // ancestors are child-to-root (by depth ascending), reverse for root-to-leaf
+      const rootToLeaf = [...ancestors].reverse();
+
+      for (const ancestor of rootToLeaf) {
+        const entry = await resolveChainEntry(ancestor.id, entitlement);
+        if (entry) chain.push(entry);
+      }
+    }
+
+    // Add current level (leaf)
+    const currentEntry = await resolveChainEntry(currentTenantId, entitlement);
+    if (currentEntry) chain.push(currentEntry);
+
+    return chain;
+  }
+
+  /**
+   * Resolve a single chain entry: subscription, plan, and overrides for a tenant.
+   * Returns null if the tenant has no valid subscription or plan with limits for the entitlement.
+   */
+  async function resolveChainEntry(
+    tenantId: string,
+    entitlement: string,
+  ): Promise<{
+    tenantId: string;
+    subscription: Subscription;
+    planId: string;
+    overrides: TenantOverrides | null;
+  } | null> {
+    if (!subscriptionStore) return null;
+
+    const subscription = await subscriptionStore.get(tenantId);
+    if (!subscription) return null;
+
+    const planId = resolveEffectivePlan(subscription, accessDef.plans, accessDef.defaultPlan);
+    if (!planId) return null;
+
+    // Check if this plan has limits for the entitlement
+    const limitKeys = accessDef._entitlementToLimitKeys[entitlement];
+    const planDef = accessDef.plans?.[planId];
+    if (!planDef?.limits || !limitKeys?.some((k) => k in planDef.limits!)) return null;
+
+    const tenantOverrides = overrideStore ? await overrideStore.get(tenantId) : null;
+
+    return { tenantId, subscription, planId, overrides: tenantOverrides };
   }
 
   // ==========================================================================
@@ -674,34 +758,33 @@ export function createAccessContext(config: AccessContextConfig): AccessContext 
     const orgId = await orgResolver(resource);
     if (!orgId) return;
 
-    // Fetch overrides once
-    const overrides = overrideStore ? await overrideStore.get(orgId) : null;
+    // Build the same consumption chain as canAndConsume (root-to-leaf)
+    const chain = await buildConsumptionChain(orgId, entitlement);
 
-    const subscription = await subscriptionStore.get(orgId);
-    if (!subscription) return;
-    const effectivePlanId = resolveEffectivePlan(
-      subscription,
-      accessDef.plans,
-      accessDef.defaultPlan,
-    );
-    if (!effectivePlanId) return;
+    // Unconsume from all levels in the chain
+    for (const entry of chain) {
+      const limitsToUnconsume = await resolveAllLimitConsumptions(
+        entry.tenantId,
+        entitlement,
+        entry.planId,
+        accessDef,
+        subscriptionStore,
+        walletStore,
+        entry.subscription,
+        planVersionStore,
+        entry.overrides,
+      );
 
-    // Unconsume from all limits that gate this entitlement
-    const limitsToUnconsume = await resolveAllLimitConsumptions(
-      orgId,
-      entitlement,
-      effectivePlanId,
-      accessDef,
-      subscriptionStore,
-      walletStore,
-      subscription,
-      planVersionStore,
-      overrides,
-    );
-
-    for (const lc of limitsToUnconsume) {
-      if (lc.effectiveMax === -1) continue; // Unlimited — no wallet entry
-      await walletStore.unconsume(orgId, lc.walletKey, lc.periodStart, lc.periodEnd, amount);
+      for (const lc of limitsToUnconsume) {
+        if (lc.effectiveMax === -1) continue; // Unlimited — no wallet entry
+        await walletStore.unconsume(
+          entry.tenantId,
+          lc.walletKey,
+          lc.periodStart,
+          lc.periodEnd,
+          amount,
+        );
+      }
     }
   }
 
@@ -1054,15 +1137,15 @@ async function computeEffectiveLimit(
 }
 
 /**
- * Rollback previously consumed wallet entries (for all-or-nothing canAndConsume).
+ * Rollback previously consumed wallet entries across multiple tenants
+ * (for all-or-nothing cascaded canAndConsume).
  */
-async function rollbackConsumptions(
-  orgId: string,
-  consumed: Array<{ key: string; periodStart: Date; periodEnd: Date }>,
+async function rollbackCascadedConsumptions(
+  consumed: Array<{ tenantId: string; key: string; periodStart: Date; periodEnd: Date }>,
   walletStore: WalletStore,
   amount: number,
 ): Promise<void> {
   for (const c of consumed) {
-    await walletStore.unconsume(orgId, c.key, c.periodStart, c.periodEnd, amount);
+    await walletStore.unconsume(c.tenantId, c.key, c.periodStart, c.periodEnd, amount);
   }
 }

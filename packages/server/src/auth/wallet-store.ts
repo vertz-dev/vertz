@@ -46,6 +46,12 @@ export interface WalletStore {
     periodStart: Date,
     periodEnd: Date,
   ): Promise<number>;
+  getBatchConsumption(
+    tenantId: string,
+    limitKeys: string[],
+    periodStart: Date,
+    periodEnd: Date,
+  ): Promise<Map<string, number>>;
   dispose(): void;
 }
 
@@ -121,6 +127,21 @@ export class InMemoryWalletStore implements WalletStore {
     const k = this.key(tenantId, entitlement, periodStart);
     const entry = this.entries.get(k);
     return entry?.consumed ?? 0;
+  }
+
+  async getBatchConsumption(
+    tenantId: string,
+    limitKeys: string[],
+    periodStart: Date,
+    _periodEnd: Date,
+  ): Promise<Map<string, number>> {
+    const result = new Map<string, number>();
+    for (const key of limitKeys) {
+      const k = this.key(tenantId, key, periodStart);
+      const entry = this.entries.get(k);
+      result.set(key, entry?.consumed ?? 0);
+    }
+    return result;
   }
 
   dispose(): void {

@@ -47,6 +47,20 @@ class MockWalletStore implements WalletStore {
     return this.consumption;
   }
 
+  async getBatchConsumption(
+    _tenantId: string,
+    limitKeys: string[],
+    _periodStart: Date,
+    _periodEnd: Date,
+  ): Promise<Map<string, number>> {
+    if (this.shouldThrow) throw new Error('Cloud error');
+    const result = new Map<string, number>();
+    for (const key of limitKeys) {
+      result.set(key, this.consumption);
+    }
+    return result;
+  }
+
   dispose(): void {}
 }
 
