@@ -30,7 +30,7 @@ test.describe('Production SSR', () => {
 
     // Task cards should be pre-rendered via SSR
     const cards = page.getByTestId('task-list').locator('[data-testid^="task-card-"]');
-    await expect(cards).toHaveCount(3);
+    await expect(cards).toHaveCount(10);
   });
 
   test('static assets served with correct headers', async ({ page }) => {
@@ -75,7 +75,7 @@ test.describe('Production SSR', () => {
     await expect(page.getByTestId('task-list-page')).toBeVisible();
     await expect(page.getByTestId('task-list')).toBeVisible();
     const cards = page.getByTestId('task-list').locator('[data-testid^="task-card-"]');
-    await expect(cards).toHaveCount(3);
+    await expect(cards).toHaveCount(10);
   });
 
   test('hydration works — interactive elements respond to clicks', async ({ page }) => {

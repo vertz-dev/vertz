@@ -1,9 +1,12 @@
 /**
- * Task List page — displays all tasks with filtering.
+ * Task List page — displays tasks with filtering and URL-based pagination.
  *
  * Demonstrates:
  * - JSX for page layout and component composition
- * - query() for reactive data fetching
+ * - query() for reactive data fetching with pagination
+ * - useSearchParams() for URL-driven reactive state
+ * - Compiler auto-thunk: query(api.tasks.list({ page: sp.page })) is
+ *   auto-wrapped in a thunk so that search param changes re-fetch data
  * - Direct conditional rendering for loading/error/data states
  * - Compiler `let` → signal transform for local filter state
  * - Compiler `const` → computed transform for derived values from query()
@@ -11,29 +14,35 @@
  * - <TaskCard /> JSX component embedding
  */
 
-import { InboxIcon, PlusIcon } from '@vertz/icons';
-import { query, useRouter } from '@vertz/ui';
+import { ChevronLeftIcon, ChevronRightIcon, InboxIcon, PlusIcon } from '@vertz/icons';
+import { query, useRouter, useSearchParams } from '@vertz/ui';
 import { api } from '../api/mock-data';
 import { TaskCard } from '../components/task-card';
 import type { Task, TaskStatus } from '../lib/types';
 import { button, emptyStateStyles, layoutStyles } from '../styles/components';
 
+const PAGE_SIZE = 10;
+
 /**
  * Render the task list page.
  *
- * Uses direct conditional rendering for loading/error/data states.
- * The filter bar and header remain outside the conditionals.
- * Navigation is accessed via useRouter() context — no props needed.
+ * Uses useSearchParams() for URL-based pagination and direct conditional
+ * rendering for loading/error/data states. The filter bar and header
+ * remain outside the conditionals. Navigation is accessed via useRouter()
+ * context — no props needed.
  */
 export function TaskListPage() {
   const { navigate } = useRouter();
+  const sp = useSearchParams<{ page: string }>();
+
   // ── Reactive state ─────────────────────────────────
+  const pageNum = Number(sp.page) || 1;
 
   // Local state: compiler transforms `let` to signal()
   let statusFilter: TaskStatus | 'all' = 'all';
 
-  // query() — compiler auto-unwraps signal properties in JSX
-  const tasksQuery = query(api.tasks.list());
+  // query() with reactive search param — compiler auto-wraps in thunk
+  const tasksQuery = query(api.tasks.list({ page: pageNum, limit: PAGE_SIZE }));
 
   // Derived value — the compiler classifies this as computed (depends on
   // signal API properties) and wraps in computed() automatically.
@@ -100,9 +109,7 @@ export function TaskListPage() {
                 <InboxIcon size={48} />
               </div>
               <h3 className={emptyStateStyles.title}>No tasks found</h3>
-              <p className={emptyStateStyles.description}>
-                Create your first task to get started.
-              </p>
+              <p className={emptyStateStyles.description}>Create your first task to get started.</p>
               <button
                 type="button"
                 className={button({ intent: 'primary', size: 'md' })}
@@ -124,6 +131,49 @@ export function TaskListPage() {
               />
             ))}
           </div>
+          {tasksQuery.data.totalPages > 1 && (
+            <div
+              data-testid="pagination"
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '0.75rem',
+                marginTop: '1.5rem',
+              }}
+            >
+              <button
+                type="button"
+                className={button({ intent: 'ghost', size: 'sm' })}
+                data-testid="pagination-prev"
+                disabled={pageNum <= 1}
+                onClick={() => {
+                  sp.page = String(pageNum - 1);
+                }}
+              >
+                <ChevronLeftIcon size={14} />
+                Previous
+              </button>
+              <span
+                data-testid="pagination-info"
+                style={{ fontSize: '0.875rem', color: 'var(--color-muted-foreground)' }}
+              >
+                {`Page ${tasksQuery.data.page} of ${tasksQuery.data.totalPages}`}
+              </span>
+              <button
+                type="button"
+                className={button({ intent: 'ghost', size: 'sm' })}
+                data-testid="pagination-next"
+                disabled={pageNum >= tasksQuery.data.totalPages}
+                onClick={() => {
+                  sp.page = String(pageNum + 1);
+                }}
+              >
+                Next
+                <ChevronRightIcon size={14} />
+              </button>
+            </div>
+          )}
         </>
       )}
     </div>

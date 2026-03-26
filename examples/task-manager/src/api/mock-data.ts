@@ -8,52 +8,105 @@
 
 import { ok } from '@vertz/errors';
 import { createDescriptor } from '@vertz/fetch';
-import type { CreateTaskBody, Task, TaskStatus, UpdateTaskBody } from '../lib/types';
+import type {
+  CreateTaskBody,
+  Task,
+  TaskListParams,
+  TaskStatus,
+  UpdateTaskBody,
+} from '../lib/types';
 
-let nextId = 4;
-
-const tasks: Task[] = [
-  {
-    id: '1',
-    title: 'Set up CI/CD pipeline',
-    description:
-      'Configure GitHub Actions for automated testing and deployment. Include lint, typecheck, and test stages.',
-    status: 'done',
-    priority: 'high',
-    createdAt: '2026-02-01T10:00:00Z',
-    updatedAt: '2026-02-05T14:30:00Z',
-  },
-  {
-    id: '2',
-    title: 'Implement user authentication',
-    description:
-      'Add JWT-based auth with login, register, and token refresh endpoints. Use bcrypt for password hashing.',
-    status: 'in-progress',
-    priority: 'urgent',
-    createdAt: '2026-02-03T09:00:00Z',
-    updatedAt: '2026-02-10T16:00:00Z',
-  },
-  {
-    id: '3',
-    title: 'Write API documentation',
-    description:
-      'Document all REST endpoints using OpenAPI spec. Include request/response examples and error codes.',
-    status: 'todo',
-    priority: 'medium',
-    createdAt: '2026-02-08T11:00:00Z',
-    updatedAt: '2026-02-08T11:00:00Z',
-  },
+const TASK_TITLES = [
+  'Set up CI/CD pipeline',
+  'Implement user authentication',
+  'Write API documentation',
+  'Design database schema',
+  'Create user dashboard',
+  'Add email notifications',
+  'Implement rate limiting',
+  'Set up error monitoring',
+  'Write unit tests for auth',
+  'Configure staging environment',
+  'Add password reset flow',
+  'Implement file upload API',
+  'Create admin panel',
+  'Set up log aggregation',
+  'Add WebSocket support',
+  'Implement search indexing',
+  'Create onboarding flow',
+  'Add two-factor authentication',
+  'Set up CDN for static assets',
+  'Implement API versioning',
+  'Create billing integration',
+  'Add audit logging',
+  'Implement data export',
+  'Set up performance monitoring',
+  'Create mobile API endpoints',
+  'Add OAuth2 providers',
+  'Implement caching layer',
+  'Create API rate dashboard',
+  'Add CORS configuration',
+  'Implement webhook system',
+  'Create deployment scripts',
+  'Add health check endpoints',
+  'Implement data migration tools',
+  'Create developer documentation',
+  'Add request validation middleware',
+  'Implement session management',
+  'Create integration test suite',
+  'Add API key management',
+  'Implement role-based access',
+  'Create CI build notifications',
+  'Add database connection pooling',
+  'Implement response compression',
+  'Create feature flag system',
+  'Add structured logging',
+  'Implement graceful shutdown',
+  'Create load testing scripts',
+  'Add input sanitization',
+  'Implement backup automation',
+  'Create API changelog',
+  'Add SSL certificate automation',
 ];
+
+const STATUSES: TaskStatus[] = ['todo', 'in-progress', 'done'];
+const PRIORITIES: Array<'low' | 'medium' | 'high' | 'urgent'> = ['low', 'medium', 'high', 'urgent'];
+
+function generateTasks(): Task[] {
+  return TASK_TITLES.map((title, i) => ({
+    id: String(i + 1),
+    title,
+    description: `Task ${i + 1}: ${title}. This is a detailed description of the work involved.`,
+    status: STATUSES[i % STATUSES.length] as TaskStatus,
+    priority: PRIORITIES[i % PRIORITIES.length] as 'low' | 'medium' | 'high' | 'urgent',
+    createdAt: new Date(2026, 1, 1 + i).toISOString(),
+    updatedAt: new Date(2026, 1, 2 + i).toISOString(),
+  }));
+}
+
+let nextId = TASK_TITLES.length + 1;
+const tasks: Task[] = generateTasks();
 
 /** Simulate network latency. */
 function delay(ms = 1000): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-/** Fetch all tasks. */
-export async function fetchTasks(): Promise<{ items: Task[]; total: number }> {
+/** Fetch tasks with pagination. */
+export async function fetchTasks(
+  params: TaskListParams = {},
+): Promise<{ items: Task[]; total: number; page: number; totalPages: number }> {
   await delay();
-  return { items: [...tasks], total: tasks.length };
+  const page = params.page ?? 1;
+  const limit = params.limit ?? 10;
+  const start = (page - 1) * limit;
+  const items = tasks.slice(start, start + limit);
+  return {
+    items: items.map((t) => ({ ...t })),
+    total: tasks.length,
+    page,
+    totalPages: Math.ceil(tasks.length / limit),
+  };
 }
 
 /** Fetch a single task by ID. */
@@ -121,11 +174,11 @@ function mockFetchResponse<T>(fn: () => Promise<T>) {
 export const api = {
   tasks: {
     list: Object.assign(
-      () =>
-        createDescriptor<{ items: Task[]; total: number }>(
+      (params?: TaskListParams) =>
+        createDescriptor<{ items: Task[]; total: number; page: number; totalPages: number }>(
           'GET',
           '/tasks',
-          mockFetchResponse(() => fetchTasks()),
+          mockFetchResponse(() => fetchTasks(params)),
         ),
       { url: '/tasks', method: 'GET' as const },
     ),
@@ -196,25 +249,6 @@ export const taskApi = {
 /** Reset mock data to initial state (for tests). */
 export function resetMockData(): void {
   tasks.length = 0;
-  tasks.push(
-    {
-      id: '1',
-      title: 'Set up CI/CD pipeline',
-      description: 'Configure GitHub Actions for automated testing and deployment.',
-      status: 'done' as TaskStatus,
-      priority: 'high',
-      createdAt: '2026-02-01T10:00:00Z',
-      updatedAt: '2026-02-05T14:30:00Z',
-    },
-    {
-      id: '2',
-      title: 'Implement user authentication',
-      description: 'Add JWT-based auth with login, register, and token refresh.',
-      status: 'in-progress' as TaskStatus,
-      priority: 'urgent',
-      createdAt: '2026-02-03T09:00:00Z',
-      updatedAt: '2026-02-10T16:00:00Z',
-    },
-  );
-  nextId = 3;
+  tasks.push(...generateTasks());
+  nextId = TASK_TITLES.length + 1;
 }

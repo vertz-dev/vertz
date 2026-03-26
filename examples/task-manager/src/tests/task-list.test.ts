@@ -89,11 +89,12 @@ describe('TaskListPage', () => {
     const doneFilter = find('filter-done');
     await click(doneFilter);
 
-    // Should show only completed tasks
+    // Should show only completed tasks from page 1
+    // With cycling statuses, task 3 ("Write API documentation") is done
     await waitFor(() => {
-      expect(queryByText('Set up CI/CD pipeline')).not.toBeNull();
-      // "Implement user authentication" is in-progress, should not be shown
-      expect(queryByText('Implement user authentication')).toBeNull();
+      expect(queryByText('Write API documentation')).not.toBeNull();
+      // "Set up CI/CD pipeline" is todo, should not be shown
+      expect(queryByText('Set up CI/CD pipeline')).toBeNull();
     });
 
     unmount();
