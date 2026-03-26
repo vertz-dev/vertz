@@ -148,6 +148,34 @@ const tasks = entity('tasks', {
 
 Access rules are required. Operations without access rules don't generate routes (deny-by-default).
 
+## Domains (Server)
+
+Group related entities and services into bounded contexts with automatic route prefixing:
+
+```ts
+import { createServer, domain, entity } from 'vertz/server';
+
+const invoices = entity('invoices', { model: invoicesModel, access: { list: rules.authenticated() } });
+const payments = service('payments', { /* ... */ });
+
+const billing = domain('billing', {
+  entities: [invoices],
+  services: [payments],
+});
+
+const app = createServer({ domains: [billing], db });
+```
+
+This generates routes prefixed with the domain name:
+
+```
+GET  /api/billing/invoices        → list
+GET  /api/billing/invoices/:id    → get
+POST /api/billing/payments/charge → action
+```
+
+Domains can have scoped middleware (runs only for routes in that domain), support cross-domain entity injection via `inject`, and validate against name collisions at startup. Tenant scoping works seamlessly inside domains.
+
 ## Schema (Database)
 
 Define tables with `d.table()` and models with `d.model()`:
