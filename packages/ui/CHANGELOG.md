@@ -1,5 +1,16 @@
 # @vertz/ui
 
+## 0.2.36
+
+### Patch Changes
+
+- [#1899](https://github.com/vertz-dev/vertz/pull/1899) [`94a3244`](https://github.com/vertz-dev/vertz/commit/94a32446298cc6d8b76849abec315e980d5a4341) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - Fix refetch()/clearData() cache key divergence for descriptor-in-thunk queries. Previously, these methods used a different key format than the effect path, causing cache eviction to miss the correct entry and return stale data.
+
+- [#1903](https://github.com/vertz-dev/vertz/pull/1903) [`9281153`](https://github.com/vertz-dev/vertz/commit/9281153c407654e4cf26c5c41af3274128301e3e) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - Fix `useSearchParams<'/path'>()` returning `unknown` for routes nested inside parent layout `children`. `ExtractSearchParams` and `RoutePattern` now recursively traverse children with concatenated parent+child paths.
+
+- Updated dependencies []:
+  - @vertz/fetch@0.2.36
+
 ## 0.2.35
 
 ### Patch Changes

@@ -1,5 +1,18 @@
 # @vertz/ui-server
 
+## 0.2.36
+
+### Patch Changes
+
+- [#1895](https://github.com/vertz-dev/vertz/pull/1895) [`0e655d6`](https://github.com/vertz-dev/vertz/commit/0e655d60183badb73103feffbc70c34f6b442e6c) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - Add `aotDataResolver` option to `createSSRHandler` and `ssrRenderAot` for custom data sources in AOT rendering
+
+- [#1900](https://github.com/vertz-dev/vertz/pull/1900) [`ae4859c`](https://github.com/vertz-dev/vertz/commit/ae4859c5b836b083fd563189521ccc6c4be5ffe8) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - Surface plugin syntax errors as build errors in the dev server overlay instead of showing misleading "must export App" message
+
+- Updated dependencies [[`94a3244`](https://github.com/vertz-dev/vertz/commit/94a32446298cc6d8b76849abec315e980d5a4341), [`9281153`](https://github.com/vertz-dev/vertz/commit/9281153c407654e4cf26c5c41af3274128301e3e)]:
+  - @vertz/ui@0.2.36
+  - @vertz/core@0.2.36
+  - @vertz/ui-compiler@0.2.36
+
 ## 0.2.35
 
 ### Patch Changes
