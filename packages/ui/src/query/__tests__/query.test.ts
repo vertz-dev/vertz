@@ -2322,6 +2322,91 @@ describe('query()', () => {
       result.dispose();
     });
 
+    test('descriptor-in-thunk refetch() clears cache using correct key (#1891)', async () => {
+      resetDefaultQueryCache();
+
+      let fetchCallCount = 0;
+
+      const result = query(() => {
+        fetchCallCount++;
+        return {
+          _tag: 'QueryDescriptor' as const,
+          _key: 'GET:/tasks',
+          _fetch: () => Promise.resolve(ok({ items: [`call-${fetchCallCount}`] })),
+          // eslint-disable-next-line unicorn/no-thenable -- intentional PromiseLike mock
+          then(onFulfilled: any, onRejected: any) {
+            return this._fetch().then(onFulfilled, onRejected);
+          },
+        };
+      });
+
+      vi.advanceTimersByTime(0);
+      await Promise.resolve();
+      await Promise.resolve();
+
+      expect(result.data.value).toEqual({ items: ['call-1'] });
+
+      // refetch() should clear cache using the same key the effect used,
+      // causing a fresh fetch rather than a stale cache hit.
+      result.refetch();
+
+      vi.advanceTimersByTime(0);
+      await Promise.resolve();
+      await Promise.resolve();
+
+      // If refetch() used a different key than the effect, cache.delete()
+      // would miss, and the old cached data would be returned instead of
+      // triggering a new fetch.
+      expect(fetchCallCount).toBeGreaterThanOrEqual(2);
+      expect(result.data.value).toEqual({ items: ['call-2'] });
+
+      result.dispose();
+    });
+
+    test('descriptor-in-thunk clearData() via invalidation uses correct cache key (#1891)', async () => {
+      resetDefaultQueryCache();
+      resetMutationEventBus();
+      resetEntityStore();
+
+      const scope = pushScope();
+      let fetchCallCount = 0;
+
+      const result = query(() => {
+        fetchCallCount++;
+        return {
+          _tag: 'QueryDescriptor' as const,
+          _key: 'GET:/tasks',
+          _entity: {
+            entityType: 'task',
+            operation: 'list' as const,
+            tenantScoped: true,
+          },
+          _fetch: () => Promise.resolve(ok({ items: [`call-${fetchCallCount}`] })),
+          // eslint-disable-next-line unicorn/no-thenable -- intentional PromiseLike mock
+          then(onFulfilled: any, onRejected: any) {
+            return this._fetch().then(onFulfilled, onRejected);
+          },
+        };
+      });
+
+      vi.advanceTimersByTime(0);
+      await Promise.resolve();
+      await Promise.resolve();
+
+      expect(result.data.value).toEqual({ items: ['call-1'] });
+
+      // invalidateTenantQueries() calls clearData() internally, which should
+      // clear cache using the correct descriptor-based key.
+      const { invalidateTenantQueries } = await import('../invalidate');
+      invalidateTenantQueries();
+
+      expect(result.data.value).toBeUndefined();
+      expect(result.loading.value).toBe(true);
+
+      runCleanups(scope);
+      popScope();
+    });
+
     test('descriptor-in-thunk cleans up via scope disposal without TDZ (#1819)', async () => {
       resetDefaultQueryCache();
       resetMutationEventBus();
