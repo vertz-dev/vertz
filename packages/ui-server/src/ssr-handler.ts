@@ -11,7 +11,7 @@
 import type { FontFallbackMetrics } from '@vertz/ui';
 import type { SSRAuth } from '@vertz/ui/internals';
 import { toPrefetchSession } from './ssr-access-evaluator';
-import type { AotManifest } from './ssr-aot-pipeline';
+import type { AotDataResolver, AotManifest } from './ssr-aot-pipeline';
 import { ssrRenderAot } from './ssr-aot-pipeline';
 import {
   precomputeHandlerState,
@@ -97,6 +97,14 @@ export interface SSRHandlerOptions {
    * Load via `loadAotManifest(serverDir)` at startup.
    */
   aotManifest?: AotManifest;
+  /**
+   * Custom data resolver for AOT routes with non-entity data sources.
+   *
+   * Called after entity prefetch, with only the unresolved query keys.
+   * Enables AOT rendering for routes that use custom data layers
+   * (JSON files, third-party APIs, custom DB clients).
+   */
+  aotDataResolver?: AotDataResolver;
 }
 
 import type { SessionResolver } from './ssr-session';
@@ -115,6 +123,7 @@ export function createSSRHandler(
     manifest,
     progressiveHTML,
     aotManifest,
+    aotDataResolver,
   } = options;
 
   const { template, linkHeader, modulepreloadTags, splitResult } = precomputeHandlerState(options);
@@ -178,6 +187,7 @@ export function createSSRHandler(
       ssrAuth,
       manifest,
       aotManifest,
+      aotDataResolver,
     );
   };
 }
@@ -323,6 +333,7 @@ async function handleHTMLRequest(
   ssrAuth?: SSRAuth,
   manifest?: SSRPrefetchManifest,
   aotManifest?: AotManifest,
+  aotDataResolver?: AotDataResolver,
 ): Promise<Response> {
   try {
     // Derive prefetch session from ssrAuth for access rule evaluation
@@ -338,6 +349,7 @@ async function handleHTMLRequest(
           fallbackMetrics,
           ssrAuth,
           prefetchSession,
+          aotDataResolver,
         })
       : await ssrRenderSinglePass(module, url, {
           ssrTimeout,
