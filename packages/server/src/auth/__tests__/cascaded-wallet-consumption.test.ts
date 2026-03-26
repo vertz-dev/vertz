@@ -533,7 +533,7 @@ describe('Feature: Cascaded wallet consumption', () => {
       });
 
       await roleStore.assign('user-1', 'workspace', 'ws-1', 'admin');
-      await subscriptionStore.assign('tenant', 'org-1', 'free', fixedStartedAt);
+      await subscriptionStore.assign('org', 'org-1', 'free', fixedStartedAt);
 
       const ctx = createAccessContext({
         userId: 'user-1',

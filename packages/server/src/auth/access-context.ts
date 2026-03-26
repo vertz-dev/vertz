@@ -601,7 +601,7 @@ export function createAccessContext(config: AccessContextConfig): AccessContext 
       // Consume root-to-leaf (lock ordering: root first)
       for (const entry of chain) {
         const limitsToConsume = await resolveAllLimitConsumptions(
-          entry.resourceId,
+          { type: entry.resourceType, id: entry.resourceId },
           entitlement,
           entry.planId,
           accessDef,
@@ -769,7 +769,7 @@ export function createAccessContext(config: AccessContextConfig): AccessContext 
     // Unconsume from all levels in the chain
     for (const entry of chain) {
       const limitsToUnconsume = await resolveAllLimitConsumptions(
-        entry.resourceId,
+        { type: entry.resourceType, id: entry.resourceId },
         entitlement,
         entry.planId,
         accessDef,
