@@ -179,6 +179,7 @@ export const api = {
           'GET',
           '/tasks',
           mockFetchResponse(() => fetchTasks(params)),
+          params as Record<string, unknown>,
         ),
       { url: '/tasks', method: 'GET' as const },
     ),
