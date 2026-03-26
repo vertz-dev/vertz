@@ -47,12 +47,9 @@ export interface ResourceRef {
   id: string;
 }
 
-/** An entry in the ancestor chain from child to root. */
-export interface AncestorChainEntry {
-  type: string;
-  id: string;
-  depth: number;
-}
+import type { AncestorChainEntry } from './access-set';
+// Re-export for consumers of access-context
+export type { AncestorChainEntry } from './access-set';
 
 export interface AccessContextConfig {
   userId: string | null;
@@ -702,13 +699,13 @@ export function createAccessContext(config: AccessContextConfig): AccessContext 
       const rootToLeaf = [...ancestors].reverse();
 
       for (const ancestor of rootToLeaf) {
-        const entry = await resolveChainEntry(ancestor.id, entitlement);
+        const entry = await resolveChainEntry(ancestor.id, entitlement, ancestor.type);
         if (entry) chain.push(entry);
       }
     }
 
     // Add current level (leaf)
-    const currentEntry = await resolveChainEntry(currentTenantId, entitlement);
+    const currentEntry = await resolveChainEntry(currentTenantId, entitlement, tenantLevel);
     if (currentEntry) chain.push(currentEntry);
 
     return chain;
@@ -717,10 +714,12 @@ export function createAccessContext(config: AccessContextConfig): AccessContext 
   /**
    * Resolve a single chain entry: subscription, plan, and overrides for a tenant.
    * Returns null if the tenant has no valid subscription or plan with limits for the entitlement.
+   * Uses level-specific defaultPlans when available, falling back to defaultPlan for single-level.
    */
   async function resolveChainEntry(
     tenantId: string,
     entitlement: string,
+    level?: string,
   ): Promise<{
     tenantId: string;
     subscription: Subscription;
@@ -732,7 +731,9 @@ export function createAccessContext(config: AccessContextConfig): AccessContext 
     const subscription = await subscriptionStore.get(tenantId);
     if (!subscription) return null;
 
-    const planId = resolveEffectivePlan(subscription, accessDef.plans, accessDef.defaultPlan);
+    // Use level-specific default plan when available (multi-level), else global default
+    const defaultPlan = (level && accessDef.defaultPlans?.[level]) ?? accessDef.defaultPlan;
+    const planId = resolveEffectivePlan(subscription, accessDef.plans, defaultPlan);
     if (!planId) return null;
 
     // Check if this plan has limits for the entitlement
@@ -1139,6 +1140,8 @@ async function computeEffectiveLimit(
 /**
  * Rollback previously consumed wallet entries across multiple tenants
  * (for all-or-nothing cascaded canAndConsume).
+ * Best-effort: individual unconsume failures are swallowed to ensure
+ * remaining entries are still attempted.
  */
 async function rollbackCascadedConsumptions(
   consumed: Array<{ tenantId: string; key: string; periodStart: Date; periodEnd: Date }>,
@@ -1146,6 +1149,11 @@ async function rollbackCascadedConsumptions(
   amount: number,
 ): Promise<void> {
   for (const c of consumed) {
-    await walletStore.unconsume(c.tenantId, c.key, c.periodStart, c.periodEnd, amount);
+    try {
+      await walletStore.unconsume(c.tenantId, c.key, c.periodStart, c.periodEnd, amount);
+    } catch {
+      // Best-effort rollback — log would be nice but we don't have a logger here.
+      // The alternative (letting one failure orphan the rest) is worse.
+    }
   }
 }

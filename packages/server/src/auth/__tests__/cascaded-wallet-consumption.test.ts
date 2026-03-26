@@ -340,6 +340,177 @@ describe('Feature: Cascaded wallet consumption', () => {
     });
   });
 
+  describe('Given 3-level hierarchy: agency → org → brand', () => {
+    const threeLevelDef = defineAccess({
+      entities: {
+        agency: { roles: ['owner'] },
+        org: {
+          roles: ['admin'],
+          inherits: { 'agency:owner': 'admin' },
+        },
+        brand: {
+          roles: ['editor'],
+          inherits: { 'org:admin': 'editor' },
+        },
+      },
+      entitlements: {
+        'brand:ai-generate': { roles: ['editor'] },
+      },
+      plans: {
+        'agency-platform': {
+          group: 'agency-plans',
+          level: 'agency',
+          features: ['brand:ai-generate'],
+          limits: {
+            'ai-credits': { max: 1000, gates: 'brand:ai-generate', per: 'month' },
+          },
+        },
+        'org-standard': {
+          group: 'org-plans',
+          level: 'org',
+          features: ['brand:ai-generate'],
+          limits: {
+            'ai-credits': { max: 500, gates: 'brand:ai-generate', per: 'month' },
+          },
+        },
+        'brand-basic': {
+          group: 'brand-plans',
+          level: 'brand',
+          features: ['brand:ai-generate'],
+          limits: {
+            'ai-credits': { max: 200, gates: 'brand:ai-generate', per: 'month' },
+          },
+        },
+      },
+      defaultPlans: {
+        agency: 'agency-platform',
+        org: 'org-standard',
+        brand: 'brand-basic',
+      },
+    });
+
+    it('Then consumes at all 3 levels', async () => {
+      // Setup 3-level hierarchy
+      const localClosure = new InMemoryClosureStore();
+      const localRole = new InMemoryRoleAssignmentStore();
+      const localSub = new InMemorySubscriptionStore();
+      const localWallet = new InMemoryWalletStore();
+
+      await localClosure.addResource('agency', 'agency-1');
+      await localClosure.addResource('org', 'org-1', {
+        parentType: 'agency',
+        parentId: 'agency-1',
+      });
+      await localClosure.addResource('brand', 'brand-1', {
+        parentType: 'org',
+        parentId: 'org-1',
+      });
+      await localRole.assign('user-1', 'brand', 'brand-1', 'editor');
+      await localSub.assign('agency-1', 'agency-platform', fixedStartedAt);
+      await localSub.assign('org-1', 'org-standard', fixedStartedAt);
+      await localSub.assign('brand-1', 'brand-basic', fixedStartedAt);
+
+      const ctx = createAccessContext({
+        userId: 'user-1',
+        accessDef: threeLevelDef,
+        closureStore: localClosure,
+        roleStore: localRole,
+        subscriptionStore: localSub,
+        walletStore: localWallet,
+        orgResolver: () => Promise.resolve('brand-1'),
+        ancestorResolver: createMockAncestorResolver({
+          'brand-1': [
+            { type: 'org', id: 'org-1', depth: 1 },
+            { type: 'agency', id: 'agency-1', depth: 2 },
+          ],
+        }),
+        tenantLevel: 'brand',
+      });
+
+      const result = await ctx.canAndConsume('brand:ai-generate', {
+        type: 'brand',
+        id: 'brand-1',
+      });
+      expect(result).toBe(true);
+
+      // Verify all 3 levels incremented
+      const { periodStart, periodEnd } = calculateBillingPeriod(fixedStartedAt, 'month');
+      const brandConsumed = await localWallet.getConsumption(
+        'brand-1', 'ai-credits', periodStart, periodEnd,
+      );
+      const orgConsumed = await localWallet.getConsumption(
+        'org-1', 'ai-credits', periodStart, periodEnd,
+      );
+      const agencyConsumed = await localWallet.getConsumption(
+        'agency-1', 'ai-credits', periodStart, periodEnd,
+      );
+
+      expect(brandConsumed).toBe(1);
+      expect(orgConsumed).toBe(1);
+      expect(agencyConsumed).toBe(1);
+    });
+
+    it('Then mid-level denial rolls back root but skips leaf', async () => {
+      const localClosure = new InMemoryClosureStore();
+      const localRole = new InMemoryRoleAssignmentStore();
+      const localSub = new InMemorySubscriptionStore();
+      const localWallet = new InMemoryWalletStore();
+
+      await localClosure.addResource('agency', 'agency-1');
+      await localClosure.addResource('org', 'org-1', {
+        parentType: 'agency',
+        parentId: 'agency-1',
+      });
+      await localClosure.addResource('brand', 'brand-1', {
+        parentType: 'org',
+        parentId: 'org-1',
+      });
+      await localRole.assign('user-1', 'brand', 'brand-1', 'editor');
+      await localSub.assign('agency-1', 'agency-platform', fixedStartedAt);
+      await localSub.assign('org-1', 'org-standard', fixedStartedAt);
+      await localSub.assign('brand-1', 'brand-basic', fixedStartedAt);
+
+      // Exhaust org-level limit (500)
+      const { periodStart, periodEnd } = calculateBillingPeriod(fixedStartedAt, 'month');
+      await localWallet.consume('org-1', 'ai-credits', periodStart, periodEnd, 500, 500);
+
+      const ctx = createAccessContext({
+        userId: 'user-1',
+        accessDef: threeLevelDef,
+        closureStore: localClosure,
+        roleStore: localRole,
+        subscriptionStore: localSub,
+        walletStore: localWallet,
+        orgResolver: () => Promise.resolve('brand-1'),
+        ancestorResolver: createMockAncestorResolver({
+          'brand-1': [
+            { type: 'org', id: 'org-1', depth: 1 },
+            { type: 'agency', id: 'agency-1', depth: 2 },
+          ],
+        }),
+        tenantLevel: 'brand',
+      });
+
+      const result = await ctx.canAndConsume('brand:ai-generate', {
+        type: 'brand',
+        id: 'brand-1',
+      });
+      expect(result).toBe(false);
+
+      // Agency should have been rolled back (consumed then unconsumed)
+      const agencyConsumed = await localWallet.getConsumption(
+        'agency-1', 'ai-credits', periodStart, periodEnd,
+      );
+      expect(agencyConsumed).toBe(0);
+
+      // Brand should NOT have been touched (never reached)
+      const brandConsumed = await localWallet.getConsumption(
+        'brand-1', 'ai-credits', periodStart, periodEnd,
+      );
+      expect(brandConsumed).toBe(0);
+    });
+  });
+
   describe('Given single-level tenancy', () => {
     it('Then canAndConsume works unchanged', async () => {
       const singleLevelDef = defineAccess({
