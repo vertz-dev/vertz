@@ -1,3 +1,4 @@
+import { injectCSS } from '@vertz/ui';
 import type { VariantFunction } from '@vertz/ui';
 import type {
   ComposedAlertProps,
@@ -513,244 +514,297 @@ export interface ResolvedTheme extends ResolvedThemeBase {
 export function configureTheme(config?: ThemeConfig): ResolvedTheme {
   const { theme, globals } = configureThemeBase(config);
 
-  // Build style definitions (simple + primitive)
-  const buttonStyles = createButton();
-  const badgeStyles = createBadge();
-  const cardStyles = createCard();
-  const inputStyles = createInput();
-  const labelStyles = createLabel();
-  const separatorStyles = createSeparator();
-  const formGroupStyles = createFormGroup();
-  const dialogStyles = createDialogStyles();
-  // Inject global CSS for stack-rendered dialogs (targets data attributes)
+  // Inject global CSS for stack-rendered dialogs eagerly (small, always needed)
   createDialogGlobalStyles();
-  const dropdownMenuStyles = createDropdownMenuStyles();
-  const selectStyles = createSelectStyles();
-  const tabsStyles = createTabsStyles();
-  const checkboxStyles = createCheckboxStyles();
-  const switchStyles = createSwitchStyles();
-  const popoverStyles = createPopoverStyles();
-  const progressStyles = createProgressStyles();
-  const radioGroupStyles = createRadioGroupStyles();
-  const sliderStyles = createSliderStyles();
-  const alertStyles = createAlertStyles();
-  const accordionStyles = createAccordionStyles();
-  const textareaStyles = createTextarea();
-  const toastStyles = createToastStyles();
-  const tooltipStyles = createTooltipStyles();
-  const avatarStyles = createAvatarStyles();
-  const emptyStateStyles = createEmptyStateStyles();
-  const skeletonStyles = createSkeletonStyles();
-  const tableStyles = createTableStyles();
-  const sheetStyles = createSheetStyles();
-  const breadcrumbStyles = createBreadcrumbStyles();
-  const calendarStyles = createCalendarStyles();
-  const carouselStyles = createCarouselStyles();
-  const collapsibleStyles = createCollapsibleStyles();
-  const commandStyles = createCommandStyles();
-  const contextMenuStyles = createContextMenuStyles();
-  const datePickerStyles = createDatePickerStyles();
-  const drawerStyles = createDrawerStyles();
-  const hoverCardStyles = createHoverCardStyles();
-  const listStyles = createListStyles();
-  const menubarStyles = createMenubarStyles();
-  const navigationMenuStyles = createNavigationMenuStyles();
-  const paginationStyles = createPaginationStyles();
-  const resizablePanelStyles = createResizablePanelStyles();
-  const scrollAreaStyles = createScrollAreaStyles();
-  const toggleStyles = createToggleStyles();
-  const toggleGroupStyles = createToggleGroupStyles();
 
-  const styles: ThemeStyles = {
-    alert: alertStyles,
-    button: buttonStyles,
-    badge: badgeStyles,
-    card: cardStyles,
-    input: inputStyles,
-    textarea: textareaStyles,
-    label: labelStyles,
-    separator: separatorStyles,
-    formGroup: formGroupStyles,
-    dialog: dialogStyles,
-    dropdownMenu: dropdownMenuStyles,
-    select: selectStyles,
-    tabs: tabsStyles,
-    checkbox: checkboxStyles,
-    switch: switchStyles,
-    popover: popoverStyles,
-    progress: progressStyles,
-    radioGroup: radioGroupStyles,
-    slider: sliderStyles,
-    accordion: accordionStyles,
-    toast: toastStyles,
-    tooltip: tooltipStyles,
-    avatar: avatarStyles,
-    emptyState: emptyStateStyles,
-    skeleton: skeletonStyles,
-    table: tableStyles,
-    sheet: sheetStyles,
-    breadcrumb: breadcrumbStyles,
-    calendar: calendarStyles,
-    carousel: carouselStyles,
-    collapsible: collapsibleStyles,
-    command: commandStyles,
-    contextMenu: contextMenuStyles,
-    datePicker: datePickerStyles,
-    drawer: drawerStyles,
-    hoverCard: hoverCardStyles,
-    list: listStyles,
-    menubar: menubarStyles,
-    navigationMenu: navigationMenuStyles,
-    pagination: paginationStyles,
-    resizablePanel: resizablePanelStyles,
-    scrollArea: scrollAreaStyles,
-    toggle: toggleStyles,
-    toggleGroup: toggleGroupStyles,
-  };
+  // ── Lazy style initialization ──────────────────────────────────
+  // Style factories are deferred until first access. This avoids ~40KB of CSS
+  // compilation when configureTheme() is called but only a subset of components
+  // are actually rendered (e.g., SSR pages that use Button + Card but not Dialog).
 
-  // Inline color styles for Badge (defined once, not per-call)
-  const badgeColorInlineStyles: Record<string, Record<string, string>> = {
-    blue: { backgroundColor: 'oklch(0.55 0.15 250)', color: '#fff' },
-    green: { backgroundColor: 'oklch(0.55 0.15 155)', color: '#fff' },
-    yellow: { backgroundColor: 'oklch(0.75 0.15 85)', color: 'oklch(0.25 0.05 85)' },
-  };
+  const styleCache = new Map<string, unknown>();
 
-  // Alert variant wrapper — selects class set based on variant prop
-  const DefaultAlert = withStyles(ComposedAlert, {
-    root: alertStyles.root,
-    title: alertStyles.title,
-    description: alertStyles.description,
-  });
-  const DestructiveAlert = withStyles(ComposedAlert, {
-    root: [alertStyles.root, alertStyles.destructive].join(' '),
-    title: alertStyles.title,
-    description: alertStyles.description,
-  });
-  function ThemedAlert({ variant, ...rest }: ThemedAlertProps) {
-    return (variant === 'destructive' ? DestructiveAlert : DefaultAlert)(rest);
+  /** Shared lazy initializer — caches factory result by key. */
+  function getOrInit<T>(key: string, factory: () => T): T {
+    let value = styleCache.get(key) as T | undefined;
+    if (value === undefined) {
+      value = factory();
+      styleCache.set(key, value);
+    }
+    return value;
   }
-  const Alert = Object.assign(ThemedAlert, {
-    Title: ComposedAlert.Title,
-    Description: ComposedAlert.Description,
-  }) as ThemeComponents['Alert'];
 
-  // Build component functions
-  const components: ThemeComponents = {
-    Alert,
-    Button: ({ intent, size, ...rest }: ThemedButtonProps) =>
-      ComposedButton({ ...rest, classes: { base: buttonStyles({ intent, size }) } }),
-    Badge: ({ color, ...rest }: ThemedBadgeProps) => {
-      const style = color ? badgeColorInlineStyles[color] : undefined;
-      return ComposedBadge({ ...rest, classes: { base: badgeStyles({ color }) }, style });
-    },
-    Breadcrumb: withStyles(ComposedBreadcrumb, {
-      nav: breadcrumbStyles.nav,
-      list: breadcrumbStyles.list,
-      item: breadcrumbStyles.item,
-      link: breadcrumbStyles.link,
-      page: breadcrumbStyles.page,
-      separator: breadcrumbStyles.separator,
-    }),
-    Card: withStyles(ComposedCard, {
-      root: cardStyles.root,
-      header: cardStyles.header,
-      title: cardStyles.title,
-      description: cardStyles.description,
-      content: cardStyles.content,
-      footer: cardStyles.footer,
-      action: cardStyles.action,
-    }),
-    Input: withStyles(ComposedInput, { base: inputStyles.base }),
-    Textarea: withStyles(ComposedTextarea, { base: textareaStyles.base }),
-    Label: withStyles(ComposedLabel, { base: labelStyles.base }),
-    Pagination: (props: Omit<ComposedPaginationProps, 'classes'>) =>
-      ComposedPagination({
-        ...props,
-        classes: {
-          nav: paginationStyles.nav,
-          list: paginationStyles.list,
-          item: paginationStyles.item,
-          link: paginationStyles.link,
-          linkActive: paginationStyles.linkActive,
-          navButton: paginationStyles.navButton,
-          ellipsis: paginationStyles.ellipsis,
-        },
-      }),
-    Separator: withStyles(ComposedSeparator, {
-      base: separatorStyles.base,
-      horizontal: separatorStyles.horizontal,
-      vertical: separatorStyles.vertical,
-    }),
-    FormGroup: withStyles(ComposedFormGroup, {
-      base: formGroupStyles.base,
-      error: formGroupStyles.error,
-    }),
-    Avatar: withStyles(ComposedAvatar, {
-      root: avatarStyles.root,
-      image: avatarStyles.image,
-      fallback: avatarStyles.fallback,
-    }),
-    EmptyState: withStyles(ComposedEmptyState, {
-      root: emptyStateStyles.root,
-      icon: emptyStateStyles.icon,
-      title: emptyStateStyles.title,
-      description: emptyStateStyles.description,
-      action: emptyStateStyles.action,
-    }),
-    Skeleton: Object.assign(withStyles(ComposedSkeleton, { root: skeletonStyles.root }), {
-      Text: withStyles(ComposedSkeleton.Text, {
-        root: skeletonStyles.textRoot,
-        line: skeletonStyles.textLine,
-      }),
-      Circle: withStyles(ComposedSkeleton.Circle, {
-        root: skeletonStyles.circleRoot,
-      }),
-    }) as ThemeComponents['Skeleton'],
-    Table: withStyles(ComposedTable, {
-      root: tableStyles.root,
-      header: tableStyles.header,
-      body: tableStyles.body,
-      row: tableStyles.row,
-      head: tableStyles.head,
-      cell: tableStyles.cell,
-      caption: tableStyles.caption,
-      footer: tableStyles.footer,
-    }),
-    primitives: {
-      Dialog: createThemedDialog(),
-      DropdownMenu: createThemedDropdownMenu(dropdownMenuStyles),
-      Select: createThemedSelect(selectStyles),
-      Tabs: createThemedTabs(tabsStyles),
-      Checkbox: createThemedCheckbox(checkboxStyles),
-      Switch: createThemedSwitch(switchStyles),
-      Popover: createThemedPopover(popoverStyles),
-      Progress: createThemedProgress(progressStyles),
-      RadioGroup: createThemedRadioGroup(radioGroupStyles),
-      Slider: createThemedSlider(sliderStyles),
-      Accordion: createThemedAccordion(accordionStyles),
-      Toast: createThemedToast(toastStyles),
-      Tooltip: createThemedTooltip(tooltipStyles),
-      Sheet: createThemedSheet(sheetStyles),
-      Calendar: createThemedCalendar(calendarStyles),
-      Carousel: createThemedCarousel(carouselStyles),
-      Collapsible: createThemedCollapsible(collapsibleStyles),
-      Command: createThemedCommand(commandStyles),
-      ContextMenu: createThemedContextMenu(contextMenuStyles),
-      DatePicker: createThemedDatePicker(datePickerStyles, {
-        ...calendarStyles,
-        root: calendarStyles.rootNoBorder,
-      }),
-      Drawer: createThemedDrawer(drawerStyles),
-      HoverCard: createThemedHoverCard(hoverCardStyles),
-      List: createThemedList(listStyles),
-      Menubar: createThemedMenubar(menubarStyles),
-      NavigationMenu: createThemedNavigationMenu(navigationMenuStyles),
-      ResizablePanel: createThemedResizablePanel(resizablePanelStyles),
-      ScrollArea: createThemedScrollArea(scrollAreaStyles),
-      Toggle: createThemedToggle(toggleStyles),
-      ToggleGroup: createThemedToggleGroup(toggleGroupStyles),
-    },
-  };
+  /** Define a lazy getter on the styles object. Re-injects CSS on every
+   *  access so the per-request SSR tracker captures it (Option A). The
+   *  global injectedCSS Set dedup prevents duplicate DOM injection. */
+  function defineLazyStyle(key: string, factory: () => unknown): void {
+    Object.defineProperty(styles, key, {
+      get() {
+        const result = getOrInit(key, factory);
+        // Re-inject CSS for per-request tracking (global Set dedup prevents duplicates)
+        const cssText = (result as { css?: string }).css;
+        if (cssText) injectCSS(cssText);
+        return result;
+      },
+      enumerable: true,
+      configurable: true,
+    });
+  }
 
-  return { theme, globals, styles, components };
+  const styles = {} as ThemeStyles;
+
+  defineLazyStyle('alert', createAlertStyles);
+  defineLazyStyle('button', createButton);
+  defineLazyStyle('badge', createBadge);
+  defineLazyStyle('card', createCard);
+  defineLazyStyle('input', createInput);
+  defineLazyStyle('textarea', createTextarea);
+  defineLazyStyle('label', createLabel);
+  defineLazyStyle('separator', createSeparator);
+  defineLazyStyle('formGroup', createFormGroup);
+  defineLazyStyle('dialog', createDialogStyles);
+  defineLazyStyle('dropdownMenu', createDropdownMenuStyles);
+  defineLazyStyle('select', createSelectStyles);
+  defineLazyStyle('tabs', createTabsStyles);
+  defineLazyStyle('checkbox', createCheckboxStyles);
+  defineLazyStyle('switch', createSwitchStyles);
+  defineLazyStyle('popover', createPopoverStyles);
+  defineLazyStyle('progress', createProgressStyles);
+  defineLazyStyle('radioGroup', createRadioGroupStyles);
+  defineLazyStyle('slider', createSliderStyles);
+  defineLazyStyle('accordion', createAccordionStyles);
+  defineLazyStyle('toast', createToastStyles);
+  defineLazyStyle('tooltip', createTooltipStyles);
+  defineLazyStyle('avatar', createAvatarStyles);
+  defineLazyStyle('emptyState', createEmptyStateStyles);
+  defineLazyStyle('skeleton', createSkeletonStyles);
+  defineLazyStyle('table', createTableStyles);
+  defineLazyStyle('sheet', createSheetStyles);
+  defineLazyStyle('breadcrumb', createBreadcrumbStyles);
+  defineLazyStyle('calendar', createCalendarStyles);
+  defineLazyStyle('carousel', createCarouselStyles);
+  defineLazyStyle('collapsible', createCollapsibleStyles);
+  defineLazyStyle('command', createCommandStyles);
+  defineLazyStyle('contextMenu', createContextMenuStyles);
+  defineLazyStyle('datePicker', createDatePickerStyles);
+  defineLazyStyle('drawer', createDrawerStyles);
+  defineLazyStyle('hoverCard', createHoverCardStyles);
+  defineLazyStyle('list', createListStyles);
+  defineLazyStyle('menubar', createMenubarStyles);
+  defineLazyStyle('navigationMenu', createNavigationMenuStyles);
+  defineLazyStyle('pagination', createPaginationStyles);
+  defineLazyStyle('resizablePanel', createResizablePanelStyles);
+  defineLazyStyle('scrollArea', createScrollAreaStyles);
+  defineLazyStyle('toggle', createToggleStyles);
+  defineLazyStyle('toggleGroup', createToggleGroupStyles);
+
+  // ── Lazy component initialization ──────────────────────────────
+  // Components reference styles at creation time (withStyles, createThemed*),
+  // so they must also be deferred. Built on first access of result.components.
+
+  let cachedComponents: ThemeComponents | undefined;
+
+  function buildComponents(): ThemeComponents {
+    // Access styles through shared cache — no double initialization
+    const alertS = getOrInit('alert', createAlertStyles);
+    const buttonS = getOrInit('button', createButton);
+    const badgeS = getOrInit('badge', createBadge);
+    const cardS = getOrInit('card', createCard);
+    const inputS = getOrInit('input', createInput);
+    const textareaS = getOrInit('textarea', createTextarea);
+    const labelS = getOrInit('label', createLabel);
+    const separatorS = getOrInit('separator', createSeparator);
+    const formGroupS = getOrInit('formGroup', createFormGroup);
+    const breadcrumbS = getOrInit('breadcrumb', createBreadcrumbStyles);
+    const paginationS = getOrInit('pagination', createPaginationStyles);
+    const avatarS = getOrInit('avatar', createAvatarStyles);
+    const emptyStateS = getOrInit('emptyState', createEmptyStateStyles);
+    const skeletonS = getOrInit('skeleton', createSkeletonStyles);
+    const tableS = getOrInit('table', createTableStyles);
+    const dropdownMenuS = getOrInit('dropdownMenu', createDropdownMenuStyles);
+    const selectS = getOrInit('select', createSelectStyles);
+    const tabsS = getOrInit('tabs', createTabsStyles);
+    const checkboxS = getOrInit('checkbox', createCheckboxStyles);
+    const switchS = getOrInit('switch', createSwitchStyles);
+    const popoverS = getOrInit('popover', createPopoverStyles);
+    const progressS = getOrInit('progress', createProgressStyles);
+    const radioGroupS = getOrInit('radioGroup', createRadioGroupStyles);
+    const sliderS = getOrInit('slider', createSliderStyles);
+    const accordionS = getOrInit('accordion', createAccordionStyles);
+    const toastS = getOrInit('toast', createToastStyles);
+    const tooltipS = getOrInit('tooltip', createTooltipStyles);
+    const sheetS = getOrInit('sheet', createSheetStyles);
+    const calendarS = getOrInit('calendar', createCalendarStyles);
+    const carouselS = getOrInit('carousel', createCarouselStyles);
+    const collapsibleS = getOrInit('collapsible', createCollapsibleStyles);
+    const commandS = getOrInit('command', createCommandStyles);
+    const contextMenuS = getOrInit('contextMenu', createContextMenuStyles);
+    const datePickerS = getOrInit('datePicker', createDatePickerStyles);
+    const drawerS = getOrInit('drawer', createDrawerStyles);
+    const hoverCardS = getOrInit('hoverCard', createHoverCardStyles);
+    const listS = getOrInit('list', createListStyles);
+    const menubarS = getOrInit('menubar', createMenubarStyles);
+    const navigationMenuS = getOrInit('navigationMenu', createNavigationMenuStyles);
+    const resizablePanelS = getOrInit('resizablePanel', createResizablePanelStyles);
+    const scrollAreaS = getOrInit('scrollArea', createScrollAreaStyles);
+    const toggleS = getOrInit('toggle', createToggleStyles);
+    const toggleGroupS = getOrInit('toggleGroup', createToggleGroupStyles);
+
+    // Inline color styles for Badge (defined once, not per-call)
+    const badgeColorInlineStyles: Record<string, Record<string, string>> = {
+      blue: { backgroundColor: 'oklch(0.55 0.15 250)', color: '#fff' },
+      green: { backgroundColor: 'oklch(0.55 0.15 155)', color: '#fff' },
+      yellow: { backgroundColor: 'oklch(0.75 0.15 85)', color: 'oklch(0.25 0.05 85)' },
+    };
+
+    // Alert variant wrapper — selects class set based on variant prop
+    const DefaultAlert = withStyles(ComposedAlert, {
+      root: alertS.root,
+      title: alertS.title,
+      description: alertS.description,
+    });
+    const DestructiveAlert = withStyles(ComposedAlert, {
+      root: [alertS.root, alertS.destructive].join(' '),
+      title: alertS.title,
+      description: alertS.description,
+    });
+    function ThemedAlert({ variant, ...rest }: ThemedAlertProps) {
+      return (variant === 'destructive' ? DestructiveAlert : DefaultAlert)(rest);
+    }
+    const Alert = Object.assign(ThemedAlert, {
+      Title: ComposedAlert.Title,
+      Description: ComposedAlert.Description,
+    }) as ThemeComponents['Alert'];
+
+    return {
+      Alert,
+      Button: ({ intent, size, ...rest }: ThemedButtonProps) =>
+        ComposedButton({ ...rest, classes: { base: buttonS({ intent, size }) } }),
+      Badge: ({ color, ...rest }: ThemedBadgeProps) => {
+        const style = color ? badgeColorInlineStyles[color] : undefined;
+        return ComposedBadge({ ...rest, classes: { base: badgeS({ color }) }, style });
+      },
+      Breadcrumb: withStyles(ComposedBreadcrumb, {
+        nav: breadcrumbS.nav,
+        list: breadcrumbS.list,
+        item: breadcrumbS.item,
+        link: breadcrumbS.link,
+        page: breadcrumbS.page,
+        separator: breadcrumbS.separator,
+      }),
+      Card: withStyles(ComposedCard, {
+        root: cardS.root,
+        header: cardS.header,
+        title: cardS.title,
+        description: cardS.description,
+        content: cardS.content,
+        footer: cardS.footer,
+        action: cardS.action,
+      }),
+      Input: withStyles(ComposedInput, { base: inputS.base }),
+      Textarea: withStyles(ComposedTextarea, { base: textareaS.base }),
+      Label: withStyles(ComposedLabel, { base: labelS.base }),
+      Pagination: (props: Omit<ComposedPaginationProps, 'classes'>) =>
+        ComposedPagination({
+          ...props,
+          classes: {
+            nav: paginationS.nav,
+            list: paginationS.list,
+            item: paginationS.item,
+            link: paginationS.link,
+            linkActive: paginationS.linkActive,
+            navButton: paginationS.navButton,
+            ellipsis: paginationS.ellipsis,
+          },
+        }),
+      Separator: withStyles(ComposedSeparator, {
+        base: separatorS.base,
+        horizontal: separatorS.horizontal,
+        vertical: separatorS.vertical,
+      }),
+      FormGroup: withStyles(ComposedFormGroup, {
+        base: formGroupS.base,
+        error: formGroupS.error,
+      }),
+      Avatar: withStyles(ComposedAvatar, {
+        root: avatarS.root,
+        image: avatarS.image,
+        fallback: avatarS.fallback,
+      }),
+      EmptyState: withStyles(ComposedEmptyState, {
+        root: emptyStateS.root,
+        icon: emptyStateS.icon,
+        title: emptyStateS.title,
+        description: emptyStateS.description,
+        action: emptyStateS.action,
+      }),
+      Skeleton: Object.assign(withStyles(ComposedSkeleton, { root: skeletonS.root }), {
+        Text: withStyles(ComposedSkeleton.Text, {
+          root: skeletonS.textRoot,
+          line: skeletonS.textLine,
+        }),
+        Circle: withStyles(ComposedSkeleton.Circle, {
+          root: skeletonS.circleRoot,
+        }),
+      }) as ThemeComponents['Skeleton'],
+      Table: withStyles(ComposedTable, {
+        root: tableS.root,
+        header: tableS.header,
+        body: tableS.body,
+        row: tableS.row,
+        head: tableS.head,
+        cell: tableS.cell,
+        caption: tableS.caption,
+        footer: tableS.footer,
+      }),
+      primitives: {
+        Dialog: createThemedDialog(),
+        DropdownMenu: createThemedDropdownMenu(dropdownMenuS),
+        Select: createThemedSelect(selectS),
+        Tabs: createThemedTabs(tabsS),
+        Checkbox: createThemedCheckbox(checkboxS),
+        Switch: createThemedSwitch(switchS),
+        Popover: createThemedPopover(popoverS),
+        Progress: createThemedProgress(progressS),
+        RadioGroup: createThemedRadioGroup(radioGroupS),
+        Slider: createThemedSlider(sliderS),
+        Accordion: createThemedAccordion(accordionS),
+        Toast: createThemedToast(toastS),
+        Tooltip: createThemedTooltip(tooltipS),
+        Sheet: createThemedSheet(sheetS),
+        Calendar: createThemedCalendar(calendarS),
+        Carousel: createThemedCarousel(carouselS),
+        Collapsible: createThemedCollapsible(collapsibleS),
+        Command: createThemedCommand(commandS),
+        ContextMenu: createThemedContextMenu(contextMenuS),
+        DatePicker: createThemedDatePicker(datePickerS, {
+          ...calendarS,
+          root: calendarS.rootNoBorder,
+        }),
+        Drawer: createThemedDrawer(drawerS),
+        HoverCard: createThemedHoverCard(hoverCardS),
+        List: createThemedList(listS),
+        Menubar: createThemedMenubar(menubarS),
+        NavigationMenu: createThemedNavigationMenu(navigationMenuS),
+        ResizablePanel: createThemedResizablePanel(resizablePanelS),
+        ScrollArea: createThemedScrollArea(scrollAreaS),
+        Toggle: createThemedToggle(toggleS),
+        ToggleGroup: createThemedToggleGroup(toggleGroupS),
+      },
+    };
+  }
+
+  const result = { theme, globals, styles } as ResolvedTheme;
+  Object.defineProperty(result, 'components', {
+    get() {
+      if (cachedComponents === undefined) {
+        cachedComponents = buildComponents();
+      }
+      return cachedComponents;
+    },
+    enumerable: true,
+    configurable: true,
+  });
+
+  return result;
 }

@@ -1,5 +1,142 @@
-import { describe, expect, it } from 'bun:test';
+import { afterEach, describe, expect, it } from 'bun:test';
+import { getInjectedCSS, resetInjectedStyles } from '../css';
 import { variants } from '../variants';
+
+describe('variants() lazy compilation', () => {
+  afterEach(() => {
+    resetInjectedStyles();
+  });
+
+  it('only injects base CSS when the variant function is created but never called', () => {
+    resetInjectedStyles();
+    const button = variants({
+      base: ['p:4'],
+      variants: {
+        intent: {
+          primary: ['bg:primary'],
+          secondary: ['bg:secondary'],
+        },
+        size: {
+          sm: ['h:8'],
+          md: ['h:10'],
+        },
+      },
+      defaultVariants: { intent: 'primary', size: 'md' },
+    });
+
+    const injected = getInjectedCSS();
+    // Base CSS should be injected
+    expect(injected.some((css) => css.includes('padding: 1rem'))).toBe(true);
+    // Variant option CSS should NOT be injected yet
+    expect(injected.some((css) => css.includes('height: 2rem'))).toBe(false); // h:8
+    expect(injected.some((css) => css.includes('height: 2.5rem'))).toBe(false); // h:10
+    // Suppress unused var
+    void button;
+  });
+
+  it('injects CSS for only the used variant options when called', () => {
+    resetInjectedStyles();
+    const button = variants({
+      base: ['p:4'],
+      variants: {
+        intent: {
+          primary: ['bg:primary'],
+          secondary: ['bg:secondary'],
+        },
+        size: {
+          sm: ['h:8'],
+          md: ['h:10'],
+        },
+      },
+      defaultVariants: { intent: 'primary', size: 'md' },
+    });
+
+    // Call with specific options
+    button({ intent: 'primary', size: 'sm' });
+
+    const injected = getInjectedCSS();
+    // Used options should be injected
+    expect(injected.some((css) => css.includes('height: 2rem'))).toBe(true); // h:8 = sm
+    // Unused options should NOT be injected
+    expect(injected.some((css) => css.includes('height: 2.5rem'))).toBe(false); // h:10 = md
+  });
+
+  it('does not re-inject CSS for already-compiled variant options', () => {
+    resetInjectedStyles();
+    const button = variants({
+      base: ['p:4'],
+      variants: {
+        size: {
+          sm: ['h:8'],
+          md: ['h:10'],
+        },
+      },
+      defaultVariants: { size: 'md' },
+    });
+
+    button({ size: 'sm' });
+    const afterFirst = getInjectedCSS().length;
+    button({ size: 'sm' }); // same option again
+    const afterSecond = getInjectedCSS().length;
+
+    expect(afterSecond).toBe(afterFirst);
+  });
+
+  it('lazily compiles compound variants only when all conditions match', () => {
+    resetInjectedStyles();
+    const button = variants({
+      base: ['rounded:md'],
+      variants: {
+        intent: {
+          primary: ['bg:primary.600'],
+          secondary: ['bg:background'],
+        },
+        size: {
+          sm: ['h:8'],
+          md: ['h:10'],
+        },
+      },
+      defaultVariants: { intent: 'primary', size: 'md' },
+      compoundVariants: [{ intent: 'primary', size: 'sm', styles: ['px:2'] }],
+    });
+
+    // Call without matching compound conditions
+    button({ intent: 'secondary', size: 'sm' });
+    const beforeCompound = getInjectedCSS();
+    expect(
+      beforeCompound.some((css) => css.includes('padding-left:') && css.includes('0.5rem')),
+    ).toBe(false);
+
+    // Call with matching compound conditions
+    button({ intent: 'primary', size: 'sm' });
+    const afterCompound = getInjectedCSS();
+    expect(afterCompound.some((css) => css.includes('0.5rem'))).toBe(true);
+  });
+
+  it('fn.css returns only CSS for base + used options', () => {
+    resetInjectedStyles();
+    const button = variants({
+      base: ['p:4'],
+      variants: {
+        size: {
+          sm: ['h:8'],
+          md: ['h:10'],
+        },
+      },
+      defaultVariants: { size: 'md' },
+    });
+
+    // Before any call — only base CSS
+    expect(button.css).toContain('padding: 1rem');
+    expect(button.css).not.toContain('height: 2rem');
+    expect(button.css).not.toContain('height: 2.5rem');
+
+    // After calling with size: 'sm'
+    button({ size: 'sm' });
+    expect(button.css).toContain('height: 2rem'); // h:8
+    expect(button.css).not.toContain('height: 2.5rem'); // h:10 still unused
+  });
+});
 
 describe('variants()', () => {
   // IT-2B-1: variants() generates classes per variant combination
@@ -194,7 +331,7 @@ describe('variants()', () => {
     expect(className.length).toBeGreaterThan(0);
   });
 
-  it('produces CSS output for each variant combination', () => {
+  it('produces CSS output for each used variant combination', () => {
     const button = variants({
       base: ['p:4'],
       variants: {
@@ -206,7 +343,11 @@ describe('variants()', () => {
       defaultVariants: { size: 'md' },
     });
 
-    // The css property should contain all generated CSS rules
+    // Trigger lazy compilation of both options
+    button({ size: 'sm' });
+    button({ size: 'md' });
+
+    // The css property should contain all generated CSS rules for used options
     expect(button.css).toBeDefined();
     expect(typeof button.css).toBe('string');
     expect(button.css.length).toBeGreaterThan(0);
