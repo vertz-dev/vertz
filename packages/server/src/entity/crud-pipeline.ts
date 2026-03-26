@@ -216,15 +216,63 @@ export function createCrudHandlers<TModel extends ModelDef = ModelDef>(
     return err(new EntityNotFoundError(`${def.name} with id "${id}" not found`));
   }
 
+  /**
+   * Resolves the correct tenant ID for filtering, handling cross-level scenarios.
+   * When the user is at a deeper level than the entity's scope, resolves the
+   * ancestor ID from the closure store.
+   */
+  async function resolveTenantIdForFilter(ctx: EntityContext): Promise<string | null> {
+    if (!ctx.tenantId) return null;
+
+    // Cross-level resolution: when user is deeper than entity scope
+    if (closureStore && tenantLevels?.length && ctx.tenantLevel) {
+      // Find the tenant table that the tenantColumn points to
+      // tenantColumn = 'accountId' → accounts table → account level
+      let targetLevel = tenantLevels.find((l) => {
+        // Check if any child level has this tenantColumn as parentFk
+        return tenantLevels.some(
+          (child) => child.parentFk === tenantColumn && child.parentKey === l.key,
+        );
+      });
+      // If no child references this column, the entity might directly reference a tenant table
+      if (!targetLevel) {
+        // Try matching by FK pattern: 'accountId' → 'accounts' table
+        for (const level of tenantLevels) {
+          // Simple heuristic: tenantColumn without 'Id' suffix matches table key
+          const fkBase = tenantColumn.replace(/Id$/, '');
+          if (level.key === fkBase) {
+            targetLevel = level;
+            break;
+          }
+        }
+      }
+
+      if (targetLevel) {
+        const userLevel = tenantLevels.find((l) => l.key === ctx.tenantLevel);
+        if (userLevel && targetLevel.depth < userLevel.depth) {
+          // User is deeper than entity scope — resolve ancestor
+          const ancestors = await closureStore.getAncestors(ctx.tenantLevel!, ctx.tenantId);
+          const ancestor = ancestors.find((a) => a.type === targetLevel!.key && a.depth > 0);
+          if (ancestor) {
+            return ancestor.id;
+          }
+        }
+      }
+    }
+
+    return ctx.tenantId;
+  }
+
   /** Merges tenant filter into a where clause for DB queries (list, get, update, delete). */
-  function withTenantFilter(
+  async function withTenantFilter(
     ctx: EntityContext,
     where: Record<string, unknown> | undefined,
-  ): Record<string, unknown> | undefined {
+  ): Promise<Record<string, unknown> | undefined> {
     if (!isTenantScoped) return where;
     // Indirect scoping is handled separately via resolveIndirectTenantWhere
     if (isIndirectlyScoped) return where;
-    return { ...where, [tenantColumn]: ctx.tenantId };
+    const resolvedTenantId = await resolveTenantIdForFilter(ctx);
+    return { ...where, [tenantColumn]: resolvedTenantId };
   }
 
   /**
@@ -278,7 +326,7 @@ export function createCrudHandlers<TModel extends ModelDef = ModelDef>(
       const safeWhere = rawWhere ? stripHiddenFields(table, rawWhere) : undefined;
       const cleanWhere = safeWhere && Object.keys(safeWhere).length > 0 ? safeWhere : undefined;
       // Merge: tenant filter + access where conditions + user-provided where
-      const directWhere = withTenantFilter(ctx, { ...accessWhere, ...cleanWhere });
+      const directWhere = await withTenantFilter(ctx, { ...accessWhere, ...cleanWhere });
 
       // Resolve indirect tenant filter (walks chain to find allowed parent IDs)
       const indirectWhere = await resolveIndirectTenantWhere(ctx);
@@ -316,7 +364,7 @@ export function createCrudHandlers<TModel extends ModelDef = ModelDef>(
     async get(ctx, id, options) {
       // Extract where conditions from access rules and push to DB query
       const accessWhere = extractWhereConditions('get', def.access, ctx);
-      const tenantWhere = withTenantFilter(ctx, accessWhere ?? undefined);
+      const tenantWhere = await withTenantFilter(ctx, accessWhere ?? undefined);
       const indirectWhere = isIndirectlyScoped ? await resolveIndirectTenantWhere(ctx) : null;
       const dbWhere = indirectWhere ? { ...(tenantWhere ?? {}), ...indirectWhere } : tenantWhere;
 
@@ -403,7 +451,8 @@ export function createCrudHandlers<TModel extends ModelDef = ModelDef>(
 
       // Auto-set tenant column from context for directly scoped entities
       if (isTenantScoped && !isIndirectlyScoped && ctx.tenantId) {
-        input = { ...input, [tenantColumn]: ctx.tenantId };
+        const resolvedTenantId = await resolveTenantIdForFilter(ctx);
+        input = { ...input, [tenantColumn]: resolvedTenantId };
       }
 
       // Apply before.create hook
@@ -481,7 +530,7 @@ export function createCrudHandlers<TModel extends ModelDef = ModelDef>(
     async update(ctx, id, data) {
       // Extract where conditions from access rules and push to DB query
       const accessWhere = extractWhereConditions('update', def.access, ctx);
-      const tenantWhere = withTenantFilter(ctx, accessWhere ?? undefined);
+      const tenantWhere = await withTenantFilter(ctx, accessWhere ?? undefined);
       const indirectWhere = isIndirectlyScoped ? await resolveIndirectTenantWhere(ctx) : null;
       const dbWhere = indirectWhere ? { ...(tenantWhere ?? {}), ...indirectWhere } : tenantWhere;
 
@@ -546,7 +595,7 @@ export function createCrudHandlers<TModel extends ModelDef = ModelDef>(
     async delete(ctx, id) {
       // Extract where conditions from access rules and push to DB query
       const accessWhere = extractWhereConditions('delete', def.access, ctx);
-      const tenantWhere = withTenantFilter(ctx, accessWhere ?? undefined);
+      const tenantWhere = await withTenantFilter(ctx, accessWhere ?? undefined);
       const indirectWhere = isIndirectlyScoped ? await resolveIndirectTenantWhere(ctx) : null;
       const dbWhere = indirectWhere ? { ...(tenantWhere ?? {}), ...indirectWhere } : tenantWhere;
 

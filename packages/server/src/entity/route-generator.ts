@@ -64,6 +64,7 @@ function extractRequestInfo(ctx: Record<string, unknown>): EntityRequestInfo {
   return {
     userId: (ctx.userId as string | null | undefined) ?? null,
     tenantId: (ctx.tenantId as string | null | undefined) ?? null,
+    tenantLevel: (ctx.tenantLevel as string | null | undefined) ?? null,
     roles: (ctx.roles as string[] | undefined) ?? [],
   };
 }

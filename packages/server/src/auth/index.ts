@@ -2602,8 +2602,51 @@ export function createAuth(config: AuthConfig): AuthInstance {
           return bodyResult.response;
         }
 
-        const { tenantId, tenantLevel } = bodyResult.data;
+        const { tenantId, tenantLevel: clientTenantLevel } = bodyResult.data;
         const userId = sessionResult.data.user.id;
+
+        // Resolve tenantLevel server-side when multi-level is configured
+        let resolvedTenantLevel: string | undefined = clientTenantLevel;
+        if (tenantConfig._resolveTenantLevel) {
+          if (clientTenantLevel) {
+            // Validate provided level against known levels
+            if (
+              tenantConfig._tenantLevelNames?.length &&
+              !tenantConfig._tenantLevelNames.includes(clientTenantLevel)
+            ) {
+              return new Response(
+                JSON.stringify({
+                  error: {
+                    code: 'INVALID_TENANT_LEVEL',
+                    message: `Unknown tenant level: ${clientTenantLevel}`,
+                  },
+                }),
+                {
+                  status: 400,
+                  headers: { 'Content-Type': 'application/json', ...securityHeaders() },
+                },
+              );
+            }
+          } else {
+            // Auto-resolve tenantLevel from ID
+            const resolved = await tenantConfig._resolveTenantLevel(tenantId);
+            if (!resolved) {
+              return new Response(
+                JSON.stringify({
+                  error: {
+                    code: 'TENANT_NOT_FOUND',
+                    message: `Tenant ID "${tenantId}" not found in any tenant table`,
+                  },
+                }),
+                {
+                  status: 400,
+                  headers: { 'Content-Type': 'application/json', ...securityHeaders() },
+                },
+              );
+            }
+            resolvedTenantLevel = resolved;
+          }
+        }
 
         const hasMembership = await tenantConfig.verifyMembership(userId, tenantId);
         if (!hasMembership) {
@@ -2623,7 +2666,7 @@ export function createAuth(config: AuthConfig): AuthInstance {
         const tokens = await createSessionTokens(sessionResult.data.user, currentPayload.sid, {
           fva: currentPayload.fva,
           tenantId,
-          tenantLevel,
+          tenantLevel: resolvedTenantLevel,
         });
 
         // Update session store with new tokens

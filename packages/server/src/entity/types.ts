@@ -27,6 +27,8 @@ type InjectToOperations<TInject extends Record<string, EntityDefinition> = {}> =
 export interface BaseContext {
   readonly userId: string | null;
   readonly tenantId: string | null;
+  /** Tenant level key (e.g., 'project'). Set when multi-level tenancy is active. */
+  readonly tenantLevel?: string | null;
   authenticated(): boolean;
   tenant(): boolean;
   role(...roles: string[]): boolean;
