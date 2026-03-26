@@ -544,9 +544,7 @@ describe('query() nav prefetch integration', () => {
 
     // Thunk should NOT have been called — query is deferring
     expect(fetchFn).not.toHaveBeenCalled();
-    // loading is suppressed to false during nav-prefetch to prevent
-    // a visible "Loading..." flash — the effect resolves data shortly after.
-    expect(result.loading.value).toBe(false);
+    expect(result.loading.value).toBe(true);
 
     result.dispose();
   });

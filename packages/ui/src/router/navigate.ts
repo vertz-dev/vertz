@@ -544,6 +544,17 @@ export function createRouter<T extends Record<string, RouteConfigLike> = RouteDe
 
     const match = preMatch !== undefined ? preMatch : matchRoute(routes, url);
 
+    // Update search params BEFORE the route change so that components
+    // mounting in response to `current.value = match` can read the
+    // new search params immediately (e.g. query() thunk probes need
+    // sp.page to compute the correct cache key).
+    if (match) {
+      visitedUrls.add(normalizeUrl(url));
+      searchParams.value = match.search;
+    } else {
+      searchParams.value = {};
+    }
+
     // Wrap only the synchronous DOM swap in the view transition.
     // Loaders run after the transition completes so the new page
     // skeleton animates in immediately, then data loads reactively.
@@ -558,19 +569,14 @@ export function createRouter<T extends Record<string, RouteConfigLike> = RouteDe
     }
 
     if (match) {
-      visitedUrls.add(normalizeUrl(url));
-      searchParams.value = match.search;
       // Skip loaders for search-param-only changes — the reactive query()
       // system handles data fetching with its own cache.
       if (!skipLoaders) {
         await runLoaders(match, gen, abort.signal);
       }
-    } else {
-      searchParams.value = {};
-      if (gen === navigationGen) {
-        loaderData.value = [];
-        loaderError.value = null;
-      }
+    } else if (gen === navigationGen) {
+      loaderData.value = [];
+      loaderError.value = null;
     }
   }
 

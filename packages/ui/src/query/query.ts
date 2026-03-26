@@ -470,6 +470,11 @@ export function query<T, E = unknown>(
     // eslint-disable-next-line @typescript-eslint/no-explicit-any -- SSR global
     const hasSSRData = !!(globalThis as any).__VERTZ_SSR_DATA__;
 
+    // Descriptor key from the init-time thunk probe — used as a prefix for
+    // cache lookups when the exact key misses (auto-field-selection adds params
+    // like `select` that aren't present at init time).
+    let initDescriptorKey: string | undefined;
+
     if (customKey) {
       hydrationKey = customKey;
     } else if (hasSSRData) {
@@ -480,6 +485,7 @@ export function query<T, E = unknown>(
         if (raw !== null) {
           if (isQueryDescriptor<T, E>(raw)) {
             // Descriptor: capture entity metadata but don't call _fetch()
+            initDescriptorKey = raw._key;
             if (raw._entity && !entityMeta) {
               entityMeta = raw._entity;
             }
@@ -537,13 +543,25 @@ export function query<T, E = unknown>(
           rawData.value = cached;
           loading.value = false;
           ssrHydrated = true;
+        } else if (initDescriptorKey && 'findByPrefix' in cache) {
+          // Fallback: auto-field-selection adds params (e.g. `select`) to the
+          // descriptor key that aren't present at init time, causing the exact
+          // match above to miss.  The init descriptor key (without field-selection)
+          // is a prefix of the cached key (with field-selection + depHash).
+          // Use delimiter-aware prefix search to avoid false matches
+          // (e.g. page=1 matching page=10).
+          const mc = cache as MemoryCache<T>;
+          const found =
+            mc.findByPrefix(initDescriptorKey + '&') ??
+            mc.findByPrefix(initDescriptorKey + ':');
+          if (found) {
+            retainKey(found.key);
+            normalizeToEntityStore(found.value);
+            rawData.value = found.value;
+            loading.value = false;
+            ssrHydrated = true;
+          }
         }
-      }
-      // If no cache hit, suppress the loading indicator anyway.
-      // The effect resolves data in the next microtask — a brief empty
-      // state is invisible, while a "Loading..." flash is jarring.
-      if (!ssrHydrated) {
-        loading.value = false;
       }
     }
 
@@ -792,6 +810,26 @@ export function query<T, E = unknown>(
           });
           isFirst = false;
           return;
+        }
+        // Fallback: prefix match on descriptor key (without field-selection
+        // params added by auto-field-selection).
+        if (descriptorKey && 'findByPrefix' in cache) {
+          const mc = cache as MemoryCache<T>;
+          const found = untrack(
+            () =>
+              mc.findByPrefix(descriptorKey + '&') ??
+              mc.findByPrefix(descriptorKey + ':'),
+          );
+          if (found) {
+            retainKey(found.key);
+            untrack(() => {
+              normalizeToEntityStore(found.value);
+              rawData.value = found.value;
+              loading.value = false;
+            });
+            isFirst = false;
+            return;
+          }
         }
       }
       // No cache hit — defer to the SSE stream / doneHandler fallback.
