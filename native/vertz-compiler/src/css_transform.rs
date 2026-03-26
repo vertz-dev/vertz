@@ -159,29 +159,27 @@ fn is_static_css_value(expr: &Expression) -> bool {
 fn is_static_nested_object(obj: &ObjectExpression) -> bool {
     for prop in &obj.properties {
         match prop {
-            ObjectPropertyKind::ObjectProperty(p) => {
-                match &p.value {
-                    Expression::ArrayExpression(arr) => {
-                        for el in &arr.elements {
-                            match el {
-                                ArrayExpressionElement::StringLiteral(_) => {}
-                                ArrayExpressionElement::ObjectExpression(inner) => {
-                                    if !is_static_css_declarations(inner) {
-                                        return false;
-                                    }
+            ObjectPropertyKind::ObjectProperty(p) => match &p.value {
+                Expression::ArrayExpression(arr) => {
+                    for el in &arr.elements {
+                        match el {
+                            ArrayExpressionElement::StringLiteral(_) => {}
+                            ArrayExpressionElement::ObjectExpression(inner) => {
+                                if !is_static_css_declarations(inner) {
+                                    return false;
                                 }
-                                _ => return false,
                             }
+                            _ => return false,
                         }
                     }
-                    Expression::ObjectExpression(inner) => {
-                        if !is_static_css_declarations(inner) {
-                            return false;
-                        }
-                    }
-                    _ => return false,
                 }
-            }
+                Expression::ObjectExpression(inner) => {
+                    if !is_static_css_declarations(inner) {
+                        return false;
+                    }
+                }
+                _ => return false,
+            },
             ObjectPropertyKind::SpreadProperty(_) => return false,
         }
     }
@@ -336,7 +334,8 @@ fn build_css_rules(class_name: &str, entries: &[CssEntry]) -> Vec<String> {
                     if let Some(resolved) = resolve_shorthand(&parsed) {
                         if let Some(pseudo) = &parsed.pseudo {
                             // Find or create pseudo entry
-                            if let Some(existing) = pseudo_decls.iter_mut().find(|(p, _)| p == pseudo)
+                            if let Some(existing) =
+                                pseudo_decls.iter_mut().find(|(p, _)| p == pseudo)
                             {
                                 existing.1.extend(resolved);
                             } else {
@@ -368,7 +367,11 @@ fn build_css_rules(class_name: &str, entries: &[CssEntry]) -> Vec<String> {
                 }
                 if !nested_decls.is_empty() {
                     if selector.starts_with('@') {
-                        rules.push(format_at_rule(selector, &format!(".{class_name}"), &nested_decls));
+                        rules.push(format_at_rule(
+                            selector,
+                            &format!(".{class_name}"),
+                            &nested_decls,
+                        ));
                     } else {
                         let resolved_selector = selector.replace('&', &format!(".{class_name}"));
                         rules.push(format_css_rule(&resolved_selector, &nested_decls));
@@ -390,7 +393,11 @@ fn build_css_rules(class_name: &str, entries: &[CssEntry]) -> Vec<String> {
 }
 
 fn format_css_rule(selector: &str, declarations: &[String]) -> String {
-    let props: String = declarations.iter().map(|d| format!("  {d}")).collect::<Vec<_>>().join("\n");
+    let props: String = declarations
+        .iter()
+        .map(|d| format!("  {d}"))
+        .collect::<Vec<_>>()
+        .join("\n");
     format!("{selector} {{\n{props}\n}}")
 }
 
