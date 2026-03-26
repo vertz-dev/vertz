@@ -80,9 +80,9 @@ async function twoPassRender<AppFn extends () => VNode>(
   // Pass 2: Render with data — signals now have resolved values.
   const vnode = options.app();
 
-  // Collect CSS tracked by injectCSS() during SSR.
-  // In SSR, injectCSS() adds to the injectedCSS Set but skips DOM injection.
-  const collectedCSS = getInjectedCSS();
+  // Prefer render-scoped CSS tracker; fall back to global for backward compat
+  const ssrCtx = ssrStorage.getStore();
+  const collectedCSS = ssrCtx?.cssTracker ? Array.from(ssrCtx.cssTracker) : getInjectedCSS();
 
   // Compile theme CSS
   const themeCss = options.theme
