@@ -80,21 +80,24 @@ export function generateAuthDDL(dialect: DbDialectName): string[] {
   // 6. auth_plans
   statements.push(`CREATE TABLE IF NOT EXISTS auth_plans (
   id ${t.textPrimary()},
-  tenant_id ${t.text()} NOT NULL UNIQUE,
+  resource_type ${t.text()} NOT NULL,
+  resource_id ${t.text()} NOT NULL,
   plan_id ${t.text()} NOT NULL,
   started_at ${t.timestamp()},
-  expires_at ${t.timestampNullable()}
+  expires_at ${t.timestampNullable()},
+  UNIQUE(resource_type, resource_id)
 )`);
 
   // 7. auth_plan_addons
   statements.push(`CREATE TABLE IF NOT EXISTS auth_plan_addons (
   id ${t.textPrimary()},
-  tenant_id ${t.text()} NOT NULL,
+  resource_type ${t.text()} NOT NULL,
+  resource_id ${t.text()} NOT NULL,
   addon_id ${t.text()} NOT NULL,
   is_one_off ${t.boolean(false)},
   quantity ${t.integer()} NOT NULL DEFAULT 1,
   created_at ${t.timestamp()},
-  UNIQUE(tenant_id, addon_id)
+  UNIQUE(resource_type, resource_id, addon_id)
 )`);
 
   // 8. auth_flags
@@ -109,9 +112,11 @@ export function generateAuthDDL(dialect: DbDialectName): string[] {
   // 9. auth_overrides
   statements.push(`CREATE TABLE IF NOT EXISTS auth_overrides (
   id ${t.textPrimary()},
-  tenant_id ${t.text()} NOT NULL UNIQUE,
+  resource_type ${t.text()} NOT NULL,
+  resource_id ${t.text()} NOT NULL,
   overrides ${t.text()} NOT NULL,
-  updated_at ${t.timestamp()}
+  updated_at ${t.timestamp()},
+  UNIQUE(resource_type, resource_id)
 )`);
 
   return statements;

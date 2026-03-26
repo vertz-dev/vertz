@@ -368,7 +368,7 @@ describe('computeAccessSet — plan/wallet enrichment', () => {
     await closureStore.addResource('organization', 'org-1');
     await roleStore.assign('user-1', 'organization', 'org-1', 'admin');
     const planStartedAt = new Date('2026-01-01T00:00:00Z');
-    await subscriptionStore.assign('org-1', 'pro', planStartedAt);
+    await subscriptionStore.assign('tenant', 'org-1', 'pro', planStartedAt);
 
     const { periodStart, periodEnd } = calculateBillingPeriod(planStartedAt, 'month');
     await walletStore.consume('org-1', 'projects', periodStart, periodEnd, 10, 3);
@@ -397,7 +397,7 @@ describe('computeAccessSet — plan/wallet enrichment', () => {
 
     await closureStore.addResource('organization', 'org-1');
     await roleStore.assign('user-1', 'organization', 'org-1', 'admin');
-    await subscriptionStore.assign('org-1', 'free');
+    await subscriptionStore.assign('tenant', 'org-1', 'free');
 
     const result = await computeAccessSet({
       userId: 'user-1',
@@ -425,7 +425,7 @@ describe('computeAccessSet — plan/wallet enrichment', () => {
     await closureStore.addResource('organization', 'org-1');
     await roleStore.assign('user-1', 'organization', 'org-1', 'admin');
     const planStartedAt = new Date('2026-01-01T00:00:00Z');
-    await subscriptionStore.assign('org-1', 'pro', planStartedAt);
+    await subscriptionStore.assign('tenant', 'org-1', 'pro', planStartedAt);
 
     const { periodStart, periodEnd } = calculateBillingPeriod(planStartedAt, 'month');
     await walletStore.consume('org-1', 'projects', periodStart, periodEnd, 10, 10);
@@ -609,7 +609,7 @@ describe('JWT access set with plan features', () => {
       parentId: 'org-1',
     });
     await roleStore.assign('user-1', 'organization', 'org-1', 'owner');
-    await subscriptionStore.assign('org-1', 'free');
+    await subscriptionStore.assign('tenant', 'org-1', 'free');
 
     const accessSet = await computeAccessSet({
       userId: 'user-1',
@@ -642,7 +642,7 @@ describe('JWT access set with plan features', () => {
       parentId: 'org-1',
     });
     await roleStore.assign('user-1', 'organization', 'org-1', 'owner');
-    await subscriptionStore.assign('org-1', 'pro');
+    await subscriptionStore.assign('tenant', 'org-1', 'pro');
 
     const accessSet = await computeAccessSet({
       userId: 'user-1',
@@ -676,7 +676,7 @@ describe('JWT access set with plan features', () => {
       parentId: 'org-1',
     });
     await roleStore.assign('user-1', 'organization', 'org-1', 'owner');
-    await subscriptionStore.assign('org-1', 'free');
+    await subscriptionStore.assign('tenant', 'org-1', 'free');
 
     // Compute with free plan
     const freeSet = await computeAccessSet({
@@ -690,7 +690,7 @@ describe('JWT access set with plan features', () => {
     const freeEncoded = encodeAccessSet(freeSet);
 
     // Change to pro plan
-    await subscriptionStore.assign('org-1', 'pro');
+    await subscriptionStore.assign('tenant', 'org-1', 'pro');
 
     // Compute with pro plan
     const proSet = await computeAccessSet({
@@ -779,8 +779,8 @@ describe('Feature: Multi-level computeAccessSet (#1787)', () => {
       });
       await roleStore.assign('user-1', 'account', 'acct-1', 'owner');
 
-      await subscriptionStore.assign('acct-1', 'enterprise');
-      await subscriptionStore.assign('proj-1', 'pro');
+      await subscriptionStore.assign('account', 'acct-1', 'enterprise');
+      await subscriptionStore.assign('project', 'proj-1', 'pro');
 
       const result = await computeAccessSet({
         userId: 'user-1',
@@ -816,9 +816,9 @@ describe('Feature: Multi-level computeAccessSet (#1787)', () => {
       await roleStore.assign('user-1', 'account', 'acct-1', 'member');
 
       // Account on enterprise (has account:create-project feature)
-      await subscriptionStore.assign('acct-1', 'enterprise');
+      await subscriptionStore.assign('account', 'acct-1', 'enterprise');
       // Project on free (no features)
-      await subscriptionStore.assign('proj-1', 'free');
+      await subscriptionStore.assign('project', 'proj-1', 'free');
 
       const result = await computeAccessSet({
         userId: 'user-1',
@@ -885,9 +885,9 @@ describe('Feature: Multi-level computeAccessSet (#1787)', () => {
       await roleStore.assign('user-1', 'account', 'acct-1', 'owner');
 
       // Account on enterprise (has project:ai-generate)
-      await subscriptionStore.assign('acct-1', 'enterprise');
+      await subscriptionStore.assign('account', 'acct-1', 'enterprise');
       // Project on free (no features)
-      await subscriptionStore.assign('proj-1', 'free');
+      await subscriptionStore.assign('project', 'proj-1', 'free');
 
       const result = await computeAccessSet({
         userId: 'user-1',
@@ -914,7 +914,7 @@ describe('Feature: Multi-level computeAccessSet (#1787)', () => {
       const { roleStore, closureStore, subscriptionStore } = createMultiLevelStores();
       await closureStore.addResource('account', 'acct-1');
       await roleStore.assign('user-1', 'account', 'acct-1', 'owner');
-      await subscriptionStore.assign('acct-1', 'enterprise');
+      await subscriptionStore.assign('tenant', 'acct-1', 'enterprise');
 
       const result = await computeAccessSet({
         userId: 'user-1',
@@ -990,9 +990,9 @@ describe('Feature: Multi-level computeAccessSet (#1787)', () => {
         parentId: 'ws-1',
       });
       await roleStore.assign('user-1', 'account', 'acct-1', 'owner');
-      await subscriptionStore.assign('acct-1', 'enterprise');
-      await subscriptionStore.assign('ws-1', 'team');
-      await subscriptionStore.assign('proj-1', 'free');
+      await subscriptionStore.assign('account', 'acct-1', 'enterprise');
+      await subscriptionStore.assign('workspace', 'ws-1', 'team');
+      await subscriptionStore.assign('project', 'proj-1', 'free');
 
       const result = await computeAccessSet({
         userId: 'user-1',
@@ -1047,11 +1047,11 @@ describe('Feature: Multi-level computeAccessSet (#1787)', () => {
       await roleStore.assign('user-1', 'project', 'proj-1', 'editor');
 
       // Account on starter (no ai-generate feature)
-      await subscriptionStore.assign('acct-1', 'starter');
+      await subscriptionStore.assign('account', 'acct-1', 'starter');
       // Project on free (no features)
-      await subscriptionStore.assign('proj-1', 'free');
+      await subscriptionStore.assign('project', 'proj-1', 'free');
       // Add-on on project level that provides ai-generate
-      await subscriptionStore.attachAddOn('proj-1', 'pro');
+      await subscriptionStore.attachAddOn('project', 'proj-1', 'pro');
 
       const result = await computeAccessSet({
         userId: 'user-1',
@@ -1080,8 +1080,8 @@ describe('Feature: Multi-level computeAccessSet (#1787)', () => {
         parentId: 'acct-1',
       });
       await roleStore.assign('user-1', 'account', 'acct-1', 'owner');
-      await subscriptionStore.assign('acct-1', 'enterprise');
-      await subscriptionStore.assign('proj-1', 'pro');
+      await subscriptionStore.assign('account', 'acct-1', 'enterprise');
+      await subscriptionStore.assign('project', 'proj-1', 'pro');
 
       const result = await computeAccessSet({
         userId: 'user-1',

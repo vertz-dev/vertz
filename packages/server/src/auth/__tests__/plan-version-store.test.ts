@@ -65,12 +65,12 @@ describe('InMemoryPlanVersionStore', () => {
     expect(await store.getVersion('pro', 99)).toBeNull();
   });
 
-  it('getTenantVersion returns the version a tenant is on', async () => {
+  it('getTenantVersion returns the version a resource is on', async () => {
     const store = new InMemoryPlanVersionStore();
-    expect(await store.getTenantVersion('org-1', 'pro')).toBeNull();
+    expect(await store.getTenantVersion('tenant', 'org-1', 'pro')).toBeNull();
 
-    await store.setTenantVersion('org-1', 'pro', 1);
-    expect(await store.getTenantVersion('org-1', 'pro')).toBe(1);
+    await store.setTenantVersion('tenant', 'org-1', 'pro', 1);
+    expect(await store.getTenantVersion('tenant', 'org-1', 'pro')).toBe(1);
   });
 
   it('getCurrentHash returns the hash of the latest version', async () => {
@@ -87,11 +87,11 @@ describe('InMemoryPlanVersionStore', () => {
   it('dispose clears all data', async () => {
     const store = new InMemoryPlanVersionStore();
     await store.createVersion('pro', 'hash-1', { features: [], limits: {}, price: null });
-    await store.setTenantVersion('org-1', 'pro', 1);
+    await store.setTenantVersion('tenant', 'org-1', 'pro', 1);
 
     store.dispose();
 
     expect(await store.getCurrentVersion('pro')).toBeNull();
-    expect(await store.getTenantVersion('org-1', 'pro')).toBeNull();
+    expect(await store.getTenantVersion('tenant', 'org-1', 'pro')).toBeNull();
   });
 });

@@ -190,7 +190,7 @@ describe('Access Set — Server Integration', () => {
     await roleStore.assign('user-1', 'organization', 'org-1', 'admin');
 
     const subscriptionStore = new InMemorySubscriptionStore();
-    await subscriptionStore.assign('org-1', 'pro');
+    await subscriptionStore.assign('tenant', 'org-1', 'pro');
 
     const accessSet = await computeAccessSet({
       userId: 'user-1',

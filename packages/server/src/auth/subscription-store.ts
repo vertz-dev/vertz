@@ -1,8 +1,11 @@
 /**
- * SubscriptionStore — tenant-level plan assignments with overrides.
+ * SubscriptionStore — resource-level plan assignments with overrides.
  *
- * Stores which plan a tenant is on, when it started,
- * optional expiration, and per-tenant limit overrides.
+ * Stores which plan a resource (identified by resourceType + resourceId) is on,
+ * when it started, optional expiration, and per-resource limit overrides.
+ *
+ * Single-level apps use resourceType = 'tenant'. Multi-level tenancy uses
+ * entity-specific types (e.g., 'account', 'project').
  */
 
 import type { AccessDefinition } from './define-access';
@@ -11,13 +14,14 @@ import type { AccessDefinition } from './define-access';
 // Types
 // ============================================================================
 
-/** Per-tenant limit override. Only affects the cap, not the billing period. */
+/** Per-resource limit override. Only affects the cap, not the billing period. */
 export interface LimitOverride {
   max: number;
 }
 
 export interface Subscription {
-  tenantId: string;
+  resourceType: string;
+  resourceId: string;
   planId: string;
   startedAt: Date;
   expiresAt: Date | null;
@@ -26,26 +30,31 @@ export interface Subscription {
 
 export interface SubscriptionStore {
   /**
-   * Assign a plan to a tenant. Resets per-tenant overrides (overrides are plan-specific).
+   * Assign a plan to a resource. Resets per-resource overrides (overrides are plan-specific).
    * To preserve overrides across plan changes, re-apply them after calling assign().
    */
   assign(
-    tenantId: string,
+    resourceType: string,
+    resourceId: string,
     planId: string,
     startedAt?: Date,
     expiresAt?: Date | null,
   ): Promise<void>;
-  get(tenantId: string): Promise<Subscription | null>;
-  updateOverrides(tenantId: string, overrides: Record<string, LimitOverride>): Promise<void>;
-  remove(tenantId: string): Promise<void>;
-  /** Attach an add-on to a tenant. */
-  attachAddOn?(tenantId: string, addOnId: string): Promise<void>;
-  /** Detach an add-on from a tenant. */
-  detachAddOn?(tenantId: string, addOnId: string): Promise<void>;
-  /** Get all active add-on IDs for a tenant. */
-  getAddOns?(tenantId: string): Promise<string[]>;
-  /** List all tenant IDs assigned to a specific plan. */
-  listByPlan?(planId: string): Promise<string[]>;
+  get(resourceType: string, resourceId: string): Promise<Subscription | null>;
+  updateOverrides(
+    resourceType: string,
+    resourceId: string,
+    overrides: Record<string, LimitOverride>,
+  ): Promise<void>;
+  remove(resourceType: string, resourceId: string): Promise<void>;
+  /** Attach an add-on to a resource. */
+  attachAddOn?(resourceType: string, resourceId: string, addOnId: string): Promise<void>;
+  /** Detach an add-on from a resource. */
+  detachAddOn?(resourceType: string, resourceId: string, addOnId: string): Promise<void>;
+  /** Get all active add-on IDs for a resource. */
+  getAddOns?(resourceType: string, resourceId: string): Promise<string[]>;
+  /** List all resources assigned to a specific plan. */
+  listByPlan?(planId: string): Promise<Array<{ resourceType: string; resourceId: string }>>;
   dispose(): void;
 }
 
@@ -94,14 +103,20 @@ export class InMemorySubscriptionStore implements SubscriptionStore {
   private subscriptions = new Map<string, Subscription>();
   private addOns = new Map<string, Set<string>>();
 
+  private key(resourceType: string, resourceId: string): string {
+    return `${resourceType}:${resourceId}`;
+  }
+
   async assign(
-    tenantId: string,
+    resourceType: string,
+    resourceId: string,
     planId: string,
     startedAt: Date = new Date(),
     expiresAt: Date | null = null,
   ): Promise<void> {
-    this.subscriptions.set(tenantId, {
-      tenantId,
+    this.subscriptions.set(this.key(resourceType, resourceId), {
+      resourceType,
+      resourceId,
       planId,
       startedAt,
       expiresAt,
@@ -109,40 +124,45 @@ export class InMemorySubscriptionStore implements SubscriptionStore {
     });
   }
 
-  async get(tenantId: string): Promise<Subscription | null> {
-    return this.subscriptions.get(tenantId) ?? null;
+  async get(resourceType: string, resourceId: string): Promise<Subscription | null> {
+    return this.subscriptions.get(this.key(resourceType, resourceId)) ?? null;
   }
 
-  async updateOverrides(tenantId: string, overrides: Record<string, LimitOverride>): Promise<void> {
-    const sub = this.subscriptions.get(tenantId);
+  async updateOverrides(
+    resourceType: string,
+    resourceId: string,
+    overrides: Record<string, LimitOverride>,
+  ): Promise<void> {
+    const sub = this.subscriptions.get(this.key(resourceType, resourceId));
     if (!sub) return;
     sub.overrides = { ...sub.overrides, ...overrides };
   }
 
-  async remove(tenantId: string): Promise<void> {
-    this.subscriptions.delete(tenantId);
+  async remove(resourceType: string, resourceId: string): Promise<void> {
+    this.subscriptions.delete(this.key(resourceType, resourceId));
   }
 
-  async attachAddOn(tenantId: string, addOnId: string): Promise<void> {
-    if (!this.addOns.has(tenantId)) {
-      this.addOns.set(tenantId, new Set());
+  async attachAddOn(resourceType: string, resourceId: string, addOnId: string): Promise<void> {
+    const k = this.key(resourceType, resourceId);
+    if (!this.addOns.has(k)) {
+      this.addOns.set(k, new Set());
     }
-    this.addOns.get(tenantId)!.add(addOnId);
+    this.addOns.get(k)!.add(addOnId);
   }
 
-  async detachAddOn(tenantId: string, addOnId: string): Promise<void> {
-    this.addOns.get(tenantId)?.delete(addOnId);
+  async detachAddOn(resourceType: string, resourceId: string, addOnId: string): Promise<void> {
+    this.addOns.get(this.key(resourceType, resourceId))?.delete(addOnId);
   }
 
-  async getAddOns(tenantId: string): Promise<string[]> {
-    return [...(this.addOns.get(tenantId) ?? [])];
+  async getAddOns(resourceType: string, resourceId: string): Promise<string[]> {
+    return [...(this.addOns.get(this.key(resourceType, resourceId)) ?? [])];
   }
 
-  async listByPlan(planId: string): Promise<string[]> {
-    const result: string[] = [];
-    for (const [tenantId, sub] of this.subscriptions.entries()) {
+  async listByPlan(planId: string): Promise<Array<{ resourceType: string; resourceId: string }>> {
+    const result: Array<{ resourceType: string; resourceId: string }> = [];
+    for (const sub of this.subscriptions.values()) {
       if (sub.planId === planId) {
-        result.push(tenantId);
+        result.push({ resourceType: sub.resourceType, resourceId: sub.resourceId });
       }
     }
     return result;

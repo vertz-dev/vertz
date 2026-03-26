@@ -31,19 +31,25 @@ interface StripeEventPayload {
 // Helpers
 // ============================================================================
 
-function extractTenantId(obj: Record<string, unknown>): string | null {
-  // Try direct metadata.tenantId
+function extractResource(
+  obj: Record<string, unknown>,
+): { type: string; id: string } | null {
+  // Try direct metadata first
   const meta = obj.metadata as Record<string, string> | undefined;
-  if (meta?.tenantId) return meta.tenantId;
+  let resourceId = meta?.resourceId ?? meta?.tenantId;
+  let resourceType = meta?.resourceType ?? 'tenant';
 
-  // Try subscription_details.metadata.tenantId (for invoice events)
-  const subDetails = obj.subscription_details as Record<string, unknown> | undefined;
-  if (subDetails?.metadata) {
-    const subMeta = subDetails.metadata as Record<string, string>;
-    if (subMeta.tenantId) return subMeta.tenantId;
+  // Fallback: try subscription_details.metadata (for invoice events)
+  if (!resourceId) {
+    const subDetails = obj.subscription_details as Record<string, unknown> | undefined;
+    if (subDetails?.metadata) {
+      const subMeta = subDetails.metadata as Record<string, string>;
+      resourceId = subMeta.resourceId ?? subMeta.tenantId;
+      resourceType = subMeta.resourceType ?? 'tenant';
+    }
   }
 
-  return null;
+  return resourceId ? { type: resourceType, id: resourceId } : null;
 }
 
 function extractPlanId(obj: Record<string, unknown>): string | null {
@@ -97,31 +103,36 @@ export function createWebhookHandler(
     try {
       switch (event.type) {
         case 'customer.subscription.created': {
-          const tenantId = extractTenantId(obj);
+          const resource = extractResource(obj);
           const planId = extractPlanId(obj);
-          if (tenantId && planId) {
-            await subscriptionStore.assign(tenantId, planId);
-            emitter.emit('subscription:created', { tenantId, planId });
+          if (resource && planId) {
+            await subscriptionStore.assign(resource.type, resource.id, planId);
+            emitter.emit('subscription:created', {
+              resourceType: resource.type,
+              resourceId: resource.id,
+              planId,
+            });
           }
           break;
         }
 
         case 'customer.subscription.updated': {
-          const tenantId = extractTenantId(obj);
+          const resource = extractResource(obj);
           const planId = extractPlanId(obj);
-          if (tenantId && planId) {
-            await subscriptionStore.assign(tenantId, planId);
+          if (resource && planId) {
+            await subscriptionStore.assign(resource.type, resource.id, planId);
           }
           break;
         }
 
         case 'customer.subscription.deleted': {
-          const tenantId = extractTenantId(obj);
+          const resource = extractResource(obj);
           const planId = extractPlanId(obj);
-          if (tenantId) {
-            await subscriptionStore.assign(tenantId, defaultPlan);
+          if (resource) {
+            await subscriptionStore.assign(resource.type, resource.id, defaultPlan);
             emitter.emit('subscription:canceled', {
-              tenantId,
+              resourceType: resource.type,
+              resourceId: resource.id,
               planId: planId ?? defaultPlan,
             });
           }
@@ -129,12 +140,13 @@ export function createWebhookHandler(
         }
 
         case 'invoice.payment_failed': {
-          const tenantId = extractTenantId(obj);
+          const resource = extractResource(obj);
           const planId = extractPlanId(obj);
           const attemptCount = (obj.attempt_count as number) ?? 1;
-          if (tenantId) {
+          if (resource) {
             emitter.emit('billing:payment_failed', {
-              tenantId,
+              resourceType: resource.type,
+              resourceId: resource.id,
               planId: planId ?? '',
               attempt: attemptCount,
             });
@@ -143,16 +155,16 @@ export function createWebhookHandler(
         }
 
         case 'checkout.session.completed': {
-          const tenantId = extractTenantId(obj);
+          const resource = extractResource(obj);
           const planId = extractPlanId(obj);
           const meta = obj.metadata as Record<string, string> | undefined;
           const isAddOn = meta?.isAddOn === 'true';
 
-          if (tenantId && planId) {
+          if (resource && planId) {
             if (isAddOn && subscriptionStore.attachAddOn) {
-              await subscriptionStore.attachAddOn(tenantId, planId);
+              await subscriptionStore.attachAddOn(resource.type, resource.id, planId);
             } else {
-              await subscriptionStore.assign(tenantId, planId);
+              await subscriptionStore.assign(resource.type, resource.id, planId);
             }
           }
           break;

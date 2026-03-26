@@ -79,8 +79,8 @@ describe('Feature: Cascaded wallet consumption', () => {
     await roleStore.assign('user-1', 'project', 'proj-1', 'admin');
 
     // Assign plans with fixed start date
-    await subscriptionStore.assign('acct-1', 'account-enterprise', fixedStartedAt);
-    await subscriptionStore.assign('proj-1', 'project-pro', fixedStartedAt);
+    await subscriptionStore.assign('account', 'acct-1', 'account-enterprise', fixedStartedAt);
+    await subscriptionStore.assign('project', 'proj-1', 'project-pro', fixedStartedAt);
   });
 
   function getBillingPeriod() {
@@ -97,7 +97,7 @@ describe('Feature: Cascaded wallet consumption', () => {
           roleStore,
           subscriptionStore,
           walletStore,
-          orgResolver: () => Promise.resolve('proj-1'),
+          orgResolver: () => Promise.resolve({ type: 'project', id: 'proj-1' }),
           ancestorResolver: createMockAncestorResolver({
             'proj-1': [{ type: 'account', id: 'acct-1', depth: 1 }],
           }),
@@ -140,7 +140,7 @@ describe('Feature: Cascaded wallet consumption', () => {
           roleStore,
           subscriptionStore,
           walletStore,
-          orgResolver: () => Promise.resolve('proj-1'),
+          orgResolver: () => Promise.resolve({ type: 'project', id: 'proj-1' }),
           ancestorResolver: createMockAncestorResolver({
             'proj-1': [{ type: 'account', id: 'acct-1', depth: 1 }],
           }),
@@ -179,7 +179,7 @@ describe('Feature: Cascaded wallet consumption', () => {
           roleStore,
           subscriptionStore,
           walletStore,
-          orgResolver: () => Promise.resolve('proj-1'),
+          orgResolver: () => Promise.resolve({ type: 'project', id: 'proj-1' }),
           ancestorResolver: createMockAncestorResolver({
             'proj-1': [{ type: 'account', id: 'acct-1', depth: 1 }],
           }),
@@ -216,7 +216,7 @@ describe('Feature: Cascaded wallet consumption', () => {
         parentId: 'acct-1',
       });
       await roleStore.assign('user-1', 'project', 'proj-2', 'admin');
-      await subscriptionStore.assign('proj-2', 'project-pro', fixedStartedAt);
+      await subscriptionStore.assign('project', 'proj-2', 'project-pro', fixedStartedAt);
     });
 
     describe('When project_a consumes 9,500 and project_b tries to consume 501', () => {
@@ -233,7 +233,7 @@ describe('Feature: Cascaded wallet consumption', () => {
           roleStore,
           subscriptionStore,
           walletStore,
-          orgResolver: () => Promise.resolve('proj-2'),
+          orgResolver: () => Promise.resolve({ type: 'project', id: 'proj-2' }),
           ancestorResolver: createMockAncestorResolver({
             'proj-2': [{ type: 'account', id: 'acct-1', depth: 1 }],
           }),
@@ -269,7 +269,7 @@ describe('Feature: Cascaded wallet consumption', () => {
         roleStore,
         subscriptionStore,
         walletStore,
-        orgResolver: () => Promise.resolve('proj-1'),
+        orgResolver: () => Promise.resolve({ type: 'project', id: 'proj-1' }),
         ancestorResolver: createMockAncestorResolver({
           'proj-1': [{ type: 'account', id: 'acct-1', depth: 1 }],
         }),
@@ -314,7 +314,7 @@ describe('Feature: Cascaded wallet consumption', () => {
         roleStore,
         subscriptionStore,
         walletStore,
-        orgResolver: () => Promise.resolve('acct-1'),
+        orgResolver: () => Promise.resolve({ type: 'account', id: 'acct-1' }),
         ancestorResolver: createMockAncestorResolver({
           'acct-1': [], // Root — no ancestors
         }),
@@ -406,9 +406,9 @@ describe('Feature: Cascaded wallet consumption', () => {
         parentId: 'org-1',
       });
       await localRole.assign('user-1', 'brand', 'brand-1', 'editor');
-      await localSub.assign('agency-1', 'agency-platform', fixedStartedAt);
-      await localSub.assign('org-1', 'org-standard', fixedStartedAt);
-      await localSub.assign('brand-1', 'brand-basic', fixedStartedAt);
+      await localSub.assign('agency', 'agency-1', 'agency-platform', fixedStartedAt);
+      await localSub.assign('org', 'org-1', 'org-standard', fixedStartedAt);
+      await localSub.assign('brand', 'brand-1', 'brand-basic', fixedStartedAt);
 
       const ctx = createAccessContext({
         userId: 'user-1',
@@ -417,7 +417,7 @@ describe('Feature: Cascaded wallet consumption', () => {
         roleStore: localRole,
         subscriptionStore: localSub,
         walletStore: localWallet,
-        orgResolver: () => Promise.resolve('brand-1'),
+        orgResolver: () => Promise.resolve({ type: 'brand', id: 'brand-1' }),
         ancestorResolver: createMockAncestorResolver({
           'brand-1': [
             { type: 'org', id: 'org-1', depth: 1 },
@@ -466,9 +466,9 @@ describe('Feature: Cascaded wallet consumption', () => {
         parentId: 'org-1',
       });
       await localRole.assign('user-1', 'brand', 'brand-1', 'editor');
-      await localSub.assign('agency-1', 'agency-platform', fixedStartedAt);
-      await localSub.assign('org-1', 'org-standard', fixedStartedAt);
-      await localSub.assign('brand-1', 'brand-basic', fixedStartedAt);
+      await localSub.assign('agency', 'agency-1', 'agency-platform', fixedStartedAt);
+      await localSub.assign('org', 'org-1', 'org-standard', fixedStartedAt);
+      await localSub.assign('brand', 'brand-1', 'brand-basic', fixedStartedAt);
 
       // Exhaust org-level limit (500)
       const { periodStart, periodEnd } = calculateBillingPeriod(fixedStartedAt, 'month');
@@ -481,7 +481,7 @@ describe('Feature: Cascaded wallet consumption', () => {
         roleStore: localRole,
         subscriptionStore: localSub,
         walletStore: localWallet,
-        orgResolver: () => Promise.resolve('brand-1'),
+        orgResolver: () => Promise.resolve({ type: 'brand', id: 'brand-1' }),
         ancestorResolver: createMockAncestorResolver({
           'brand-1': [
             { type: 'org', id: 'org-1', depth: 1 },
@@ -533,7 +533,7 @@ describe('Feature: Cascaded wallet consumption', () => {
       });
 
       await roleStore.assign('user-1', 'workspace', 'ws-1', 'admin');
-      await subscriptionStore.assign('org-1', 'free', fixedStartedAt);
+      await subscriptionStore.assign('org', 'org-1', 'free', fixedStartedAt);
 
       const ctx = createAccessContext({
         userId: 'user-1',
@@ -542,7 +542,7 @@ describe('Feature: Cascaded wallet consumption', () => {
         roleStore,
         subscriptionStore,
         walletStore,
-        orgResolver: () => Promise.resolve('org-1'),
+        orgResolver: () => Promise.resolve({ type: 'org', id: 'org-1' }),
         // No ancestorResolver, no tenantLevel — single-level
       });
 

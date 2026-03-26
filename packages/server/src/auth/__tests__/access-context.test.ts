@@ -234,7 +234,7 @@ describe('createAccessContext', () => {
         parentId: 'org-1',
       });
 
-      const orgResolver = async (_resource?: ResourceRef) => 'org-1';
+      const orgResolver = async (_resource?: ResourceRef) => ({ type: 'tenant', id: 'org-1' });
 
       return { accessDef, closureStore, roleStore, subscriptionStore, walletStore, orgResolver };
     }
@@ -243,7 +243,7 @@ describe('createAccessContext', () => {
       const { accessDef, closureStore, roleStore, subscriptionStore, walletStore, orgResolver } =
         await setupWithPlans();
       await roleStore.assign('user-1', 'organization', 'org-1', 'admin');
-      await subscriptionStore.assign('org-1', 'pro');
+      await subscriptionStore.assign('tenant', 'org-1', 'pro');
 
       const ctx = createAccessContext({
         userId: 'user-1',
@@ -266,7 +266,7 @@ describe('createAccessContext', () => {
       const { accessDef, closureStore, roleStore, subscriptionStore, walletStore, orgResolver } =
         await setupWithPlans();
       await roleStore.assign('user-1', 'organization', 'org-1', 'owner');
-      await subscriptionStore.assign('org-1', 'free');
+      await subscriptionStore.assign('tenant', 'org-1', 'free');
 
       const ctx = createAccessContext({
         userId: 'user-1',
@@ -444,7 +444,7 @@ describe('createAccessContext', () => {
       flagStore.setFlag('org-1', 'export-v2', false);
       await roleStore.assign('user-1', 'project', 'proj-1', 'manager');
 
-      const orgResolver = async () => 'org-1';
+      const orgResolver = async () => ({ type: 'tenant', id: 'org-1' });
 
       const ctx = createAccessContext({
         userId: 'user-1',
@@ -468,7 +468,7 @@ describe('createAccessContext', () => {
       flagStore.setFlag('org-1', 'export-v2', true);
       await roleStore.assign('user-1', 'project', 'proj-1', 'manager');
 
-      const orgResolver = async () => 'org-1';
+      const orgResolver = async () => ({ type: 'tenant', id: 'org-1' });
 
       const ctx = createAccessContext({
         userId: 'user-1',
@@ -529,7 +529,7 @@ describe('createAccessContext', () => {
       const roleStore = new InMemoryRoleAssignmentStore();
       const subscriptionStore = new InMemorySubscriptionStore();
       const walletStore = new InMemoryWalletStore();
-      const orgResolver = async (_resource?: ResourceRef) => 'org-1';
+      const orgResolver = async (_resource?: ResourceRef) => ({ type: 'tenant', id: 'org-1' });
 
       return { accessDef, closureStore, roleStore, subscriptionStore, walletStore, orgResolver };
     }
@@ -541,7 +541,7 @@ describe('createAccessContext', () => {
       const now = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), 15, 12, 0, 0));
       await closureStore.addResource('organization', 'org-1');
       await roleStore.assign('user-1', 'organization', 'org-1', 'admin');
-      await subscriptionStore.assign('org-1', 'free', now);
+      await subscriptionStore.assign('tenant', 'org-1', 'free', now);
 
       // Consume 49 of 50
       const { periodStart, periodEnd } = calculateBillingPeriod(now, 'month');
@@ -571,7 +571,7 @@ describe('createAccessContext', () => {
       const now = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), 15, 12, 0, 0));
       await closureStore.addResource('organization', 'org-1');
       await roleStore.assign('user-1', 'organization', 'org-1', 'admin');
-      await subscriptionStore.assign('org-1', 'free', now);
+      await subscriptionStore.assign('tenant', 'org-1', 'free', now);
 
       const { periodStart, periodEnd } = calculateBillingPeriod(now, 'month');
       await walletStore.consume('org-1', 'prompts', periodStart, periodEnd, 50, 50);
@@ -598,7 +598,7 @@ describe('createAccessContext', () => {
         setupWithLimits();
       await closureStore.addResource('organization', 'org-1');
       await roleStore.assign('user-1', 'organization', 'org-1', 'admin');
-      await subscriptionStore.assign('org-1', 'enterprise');
+      await subscriptionStore.assign('tenant', 'org-1', 'enterprise');
 
       const ctx = createAccessContext({
         userId: 'user-1',
@@ -624,7 +624,7 @@ describe('createAccessContext', () => {
       const now = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), 15, 12, 0, 0));
       await closureStore.addResource('organization', 'org-1');
       await roleStore.assign('user-1', 'organization', 'org-1', 'admin');
-      await subscriptionStore.assign('org-1', 'free', now);
+      await subscriptionStore.assign('tenant', 'org-1', 'free', now);
 
       const { periodStart, periodEnd } = calculateBillingPeriod(now, 'month');
       await walletStore.consume('org-1', 'prompts', periodStart, periodEnd, 50, 50);
@@ -692,7 +692,7 @@ describe('createAccessContext', () => {
       const roleStore = new InMemoryRoleAssignmentStore();
       const subscriptionStore = new InMemorySubscriptionStore();
       const walletStore = new InMemoryWalletStore();
-      const orgResolver = async (_resource?: ResourceRef) => 'org-1';
+      const orgResolver = async (_resource?: ResourceRef) => ({ type: 'tenant', id: 'org-1' });
 
       return { accessDef, closureStore, roleStore, subscriptionStore, walletStore, orgResolver };
     }
@@ -704,7 +704,7 @@ describe('createAccessContext', () => {
       const now = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), 15, 12, 0, 0));
       await closureStore.addResource('organization', 'org-1');
       await roleStore.assign('user-1', 'organization', 'org-1', 'admin');
-      await subscriptionStore.assign('org-1', 'free', now);
+      await subscriptionStore.assign('tenant', 'org-1', 'free', now);
 
       // Tenant-level: 3 of 50 (ok), per-brand: 5 of 5 (exceeded)
       const { periodStart, periodEnd } = calculateBillingPeriod(now, 'month');
@@ -735,7 +735,7 @@ describe('createAccessContext', () => {
       const now = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), 15, 12, 0, 0));
       await closureStore.addResource('organization', 'org-1');
       await roleStore.assign('user-1', 'organization', 'org-1', 'admin');
-      await subscriptionStore.assign('org-1', 'free', now);
+      await subscriptionStore.assign('tenant', 'org-1', 'free', now);
 
       const { periodStart, periodEnd } = calculateBillingPeriod(now, 'month');
       await walletStore.consume('org-1', 'prompts', periodStart, periodEnd, 50, 3);
@@ -788,7 +788,7 @@ describe('createAccessContext', () => {
       const roleStore = new InMemoryRoleAssignmentStore();
       const subscriptionStore = new InMemorySubscriptionStore();
       const walletStore = new InMemoryWalletStore();
-      const orgResolver = async (_resource?: ResourceRef) => 'org-1';
+      const orgResolver = async (_resource?: ResourceRef) => ({ type: 'tenant', id: 'org-1' });
 
       return { accessDef, closureStore, roleStore, subscriptionStore, walletStore, orgResolver };
     }
@@ -799,7 +799,7 @@ describe('createAccessContext', () => {
       await closureStore.addResource('organization', 'org-1');
       await roleStore.assign('user-1', 'organization', 'org-1', 'admin');
       const startedAt = new Date();
-      await subscriptionStore.assign('org-1', 'free', startedAt);
+      await subscriptionStore.assign('tenant', 'org-1', 'free', startedAt);
 
       const ctx = createAccessContext({
         userId: 'user-1',
@@ -829,7 +829,7 @@ describe('createAccessContext', () => {
       await closureStore.addResource('organization', 'org-1');
       await roleStore.assign('user-1', 'organization', 'org-1', 'admin');
       const startedAt = new Date();
-      await subscriptionStore.assign('org-1', 'free', startedAt);
+      await subscriptionStore.assign('tenant', 'org-1', 'free', startedAt);
 
       // Pre-consume 5 (the limit)
       const { periodStart, periodEnd } = calculateBillingPeriod(startedAt, 'month');
@@ -858,7 +858,7 @@ describe('createAccessContext', () => {
       await closureStore.addResource('organization', 'org-1');
       await roleStore.assign('user-1', 'organization', 'org-1', 'admin');
       const startedAt = new Date();
-      await subscriptionStore.assign('org-1', 'free', startedAt);
+      await subscriptionStore.assign('tenant', 'org-1', 'free', startedAt);
 
       const ctx = createAccessContext({
         userId: 'user-1',
@@ -925,7 +925,7 @@ describe('createAccessContext', () => {
       const roleStore = new InMemoryRoleAssignmentStore();
       const subscriptionStore = new InMemorySubscriptionStore();
       const walletStore = new InMemoryWalletStore();
-      const orgResolver = async (_resource?: ResourceRef) => 'org-1';
+      const orgResolver = async (_resource?: ResourceRef) => ({ type: 'tenant', id: 'org-1' });
 
       return { accessDef, closureStore, roleStore, subscriptionStore, walletStore, orgResolver };
     }
@@ -935,8 +935,8 @@ describe('createAccessContext', () => {
         setupWithAddOns();
       await closureStore.addResource('organization', 'org-1');
       await roleStore.assign('user-1', 'organization', 'org-1', 'admin');
-      await subscriptionStore.assign('org-1', 'free');
-      await subscriptionStore.attachAddOn('org-1', 'export_addon');
+      await subscriptionStore.assign('tenant', 'org-1', 'free');
+      await subscriptionStore.attachAddOn('tenant', 'org-1', 'export_addon');
 
       const ctx = createAccessContext({
         userId: 'user-1',
@@ -962,8 +962,8 @@ describe('createAccessContext', () => {
       const now = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), 15, 12, 0, 0));
       await closureStore.addResource('organization', 'org-1');
       await roleStore.assign('user-1', 'organization', 'org-1', 'admin');
-      await subscriptionStore.assign('org-1', 'free', now);
-      await subscriptionStore.attachAddOn('org-1', 'extra_prompts_50');
+      await subscriptionStore.assign('tenant', 'org-1', 'free', now);
+      await subscriptionStore.attachAddOn('tenant', 'org-1', 'extra_prompts_50');
 
       // Consume 75 — over base (50) but within effective (100)
       const { periodStart, periodEnd } = calculateBillingPeriod(now, 'month');
@@ -991,7 +991,7 @@ describe('createAccessContext', () => {
         setupWithAddOns();
       await closureStore.addResource('organization', 'org-1');
       await roleStore.assign('user-1', 'organization', 'org-1', 'admin');
-      await subscriptionStore.assign('org-1', 'free');
+      await subscriptionStore.assign('tenant', 'org-1', 'free');
 
       const ctx = createAccessContext({
         userId: 'user-1',
@@ -1101,7 +1101,7 @@ describe('createAccessContext', () => {
       const subscriptionStore = new InMemorySubscriptionStore();
       const walletStore = new InMemoryWalletStore();
       const planVersionStore = new InMemoryPlanVersionStore();
-      const orgResolver = async (_resource?: ResourceRef) => 'org-1';
+      const orgResolver = async (_resource?: ResourceRef) => ({ type: 'tenant', id: 'org-1' });
 
       return {
         accessDef,
@@ -1131,7 +1131,7 @@ describe('createAccessContext', () => {
         parentId: 'org-1',
       });
       await roleStore.assign('user-1', 'organization', 'org-1', 'owner');
-      await subscriptionStore.assign('org-1', 'pro');
+      await subscriptionStore.assign('tenant', 'org-1', 'pro');
 
       // Create version 1 snapshot — only has project:view and project:export, NOT project:analytics
       await planVersionStore.createVersion('pro', 'hash-v1', {
@@ -1153,7 +1153,7 @@ describe('createAccessContext', () => {
       });
 
       // Tenant is on v1 (grandfathered)
-      await planVersionStore.setTenantVersion('org-1', 'pro', 1);
+      await planVersionStore.setTenantVersion('tenant', 'org-1', 'pro', 1);
 
       const ctx = createAccessContext({
         userId: 'user-1',
@@ -1195,7 +1195,7 @@ describe('createAccessContext', () => {
       await closureStore.addResource('organization', 'org-1');
       await roleStore.assign('user-1', 'organization', 'org-1', 'owner');
       const startedAt = new Date();
-      await subscriptionStore.assign('org-1', 'pro', startedAt);
+      await subscriptionStore.assign('tenant', 'org-1', 'pro', startedAt);
 
       // Create version 1 snapshot — limit is 50
       await planVersionStore.createVersion('pro', 'hash-v1', {
@@ -1217,7 +1217,7 @@ describe('createAccessContext', () => {
       });
 
       // Tenant is on v1 (grandfathered) — limit should be 50 not 100
-      await planVersionStore.setTenantVersion('org-1', 'pro', 1);
+      await planVersionStore.setTenantVersion('tenant', 'org-1', 'pro', 1);
 
       // Consume 51 — over v1 limit (50) but within v2 limit (100)
       const { periodStart, periodEnd } = calculateBillingPeriod(startedAt, 'month');
@@ -1259,7 +1259,7 @@ describe('createAccessContext', () => {
         parentId: 'org-1',
       });
       await roleStore.assign('user-1', 'organization', 'org-1', 'owner');
-      await subscriptionStore.assign('org-1', 'pro');
+      await subscriptionStore.assign('tenant', 'org-1', 'pro');
 
       // Version store exists but tenant has NO version set (new tenant)
       await planVersionStore.createVersion('pro', 'hash-v1', {
@@ -1304,7 +1304,7 @@ describe('createAccessContext', () => {
         parentId: 'org-1',
       });
       await roleStore.assign('user-1', 'organization', 'org-1', 'owner');
-      await subscriptionStore.assign('org-1', 'pro');
+      await subscriptionStore.assign('tenant', 'org-1', 'pro');
 
       // Create v1 without project:analytics
       await planVersionStore.createVersion('pro', 'hash-v1', {
@@ -1326,7 +1326,7 @@ describe('createAccessContext', () => {
       });
 
       // Simulate migration: tenant is now on v2
-      await planVersionStore.setTenantVersion('org-1', 'pro', 2);
+      await planVersionStore.setTenantVersion('tenant', 'org-1', 'pro', 2);
 
       const ctx = createAccessContext({
         userId: 'user-1',
@@ -1399,7 +1399,7 @@ describe('createAccessContext', () => {
       const subscriptionStore = new InMemorySubscriptionStore();
       const walletStore = new InMemoryWalletStore();
       const overrideStore = new InMemoryOverrideStore();
-      const orgResolver = async (_resource?: ResourceRef) => 'org-1';
+      const orgResolver = async (_resource?: ResourceRef) => ({ type: 'tenant', id: 'org-1' });
 
       return {
         accessDef,
@@ -1429,7 +1429,7 @@ describe('createAccessContext', () => {
           parentId: 'org-1',
         });
         await roleStore.assign('user-1', 'organization', 'org-1', 'owner');
-        await subscriptionStore.assign('org-1', 'free');
+        await subscriptionStore.assign('tenant', 'org-1', 'free');
         await overrideStore.set('org-1', { features: ['project:export'] });
 
         const ctx = createAccessContext({
@@ -1466,7 +1466,7 @@ describe('createAccessContext', () => {
         await closureStore.addResource('organization', 'org-1');
         await roleStore.assign('user-1', 'organization', 'org-1', 'admin');
         const planStart = new Date('2026-01-01T00:00:00Z');
-        await subscriptionStore.assign('org-1', 'free', planStart);
+        await subscriptionStore.assign('tenant', 'org-1', 'free', planStart);
         await overrideStore.set('org-1', { limits: { prompts: { add: 200 } } });
 
         // Consume 250 (above base limit of 100, below effective of 300)
@@ -1506,7 +1506,7 @@ describe('createAccessContext', () => {
         await closureStore.addResource('organization', 'org-1');
         await roleStore.assign('user-1', 'organization', 'org-1', 'admin');
         const planStart = new Date('2026-01-01T00:00:00Z');
-        await subscriptionStore.assign('org-1', 'free', planStart);
+        await subscriptionStore.assign('tenant', 'org-1', 'free', planStart);
         await overrideStore.set('org-1', { limits: { prompts: { max: 1000 } } });
 
         // Consume 500 (above base limit of 100, below max override of 1000)
@@ -1545,7 +1545,7 @@ describe('createAccessContext', () => {
         } = setupOverrideAccess();
         await closureStore.addResource('organization', 'org-1');
         await roleStore.assign('user-1', 'organization', 'org-1', 'admin');
-        await subscriptionStore.assign('org-1', 'free');
+        await subscriptionStore.assign('tenant', 'org-1', 'free');
         await overrideStore.set('org-1', { limits: { prompts: { max: 0 } } });
 
         const ctx = createAccessContext({
@@ -1581,7 +1581,7 @@ describe('createAccessContext', () => {
         await closureStore.addResource('organization', 'org-1');
         await roleStore.assign('user-1', 'organization', 'org-1', 'admin');
         const planStart = new Date('2026-01-01T00:00:00Z');
-        await subscriptionStore.assign('org-1', 'free', planStart);
+        await subscriptionStore.assign('tenant', 'org-1', 'free', planStart);
         await overrideStore.set('org-1', { limits: { prompts: { max: -1 } } });
 
         // Consume 999999 — should still be allowed
@@ -1621,7 +1621,7 @@ describe('createAccessContext', () => {
         await closureStore.addResource('organization', 'org-1');
         await roleStore.assign('user-1', 'organization', 'org-1', 'admin');
         const planStart = new Date('2026-01-01T00:00:00Z');
-        await subscriptionStore.assign('org-1', 'free', planStart);
+        await subscriptionStore.assign('tenant', 'org-1', 'free', planStart);
         await overrideStore.set('org-1', { limits: { prompts: { add: -50 } } });
 
         // Effective limit = 100 - 50 = 50. Consume 50 → should be blocked
@@ -1684,8 +1684,8 @@ describe('createAccessContext', () => {
         await closureStore.addResource('organization', 'org-1');
         await roleStore.assign('user-1', 'organization', 'org-1', 'admin');
         const planStart = new Date('2026-01-01T00:00:00Z');
-        await subscriptionStore.assign('org-1', 'pro', planStart);
-        await subscriptionStore.attachAddOn?.('org-1', 'extra_prompts');
+        await subscriptionStore.assign('tenant', 'org-1', 'pro', planStart);
+        await subscriptionStore.attachAddOn?.('tenant', 'org-1', 'extra_prompts');
         await overrideStore.set('org-1', { limits: { prompts: { add: 200 } } });
 
         // Effective = 100 (base) + 50 (addon) + 200 (override add) = 350
@@ -1701,7 +1701,7 @@ describe('createAccessContext', () => {
           subscriptionStore,
           walletStore,
           overrideStore,
-          orgResolver: async () => 'org-1',
+          orgResolver: async () => ({ type: 'tenant', id: 'org-1' }),
         });
 
         const allowed = await ctx.can('organization:create', {
@@ -1748,7 +1748,7 @@ describe('createAccessContext', () => {
         await closureStore.addResource('organization', 'org-1');
         await roleStore.assign('user-1', 'organization', 'org-1', 'admin');
         const planStart = new Date('2026-01-01T00:00:00Z');
-        await subscriptionStore.assign('org-1', 'pro', planStart);
+        await subscriptionStore.assign('tenant', 'org-1', 'pro', planStart);
 
         // Consume beyond the limit
         const { periodStart, periodEnd } = calculateBillingPeriod(planStart, 'month');
@@ -1761,7 +1761,7 @@ describe('createAccessContext', () => {
           roleStore,
           subscriptionStore,
           walletStore,
-          orgResolver: async () => 'org-1',
+          orgResolver: async () => ({ type: 'tenant', id: 'org-1' }),
         });
 
         const allowed = await ctx.can('organization:create', {
@@ -1806,7 +1806,7 @@ describe('createAccessContext', () => {
         await closureStore.addResource('organization', 'org-1');
         await roleStore.assign('user-1', 'organization', 'org-1', 'admin');
         const planStart = new Date('2026-01-01T00:00:00Z');
-        await subscriptionStore.assign('org-1', 'pro', planStart);
+        await subscriptionStore.assign('tenant', 'org-1', 'pro', planStart);
 
         const { periodStart, periodEnd } = calculateBillingPeriod(planStart, 'month');
         await walletStore.consume('org-1', 'prompts', periodStart, periodEnd, 200, 150);
@@ -1818,7 +1818,7 @@ describe('createAccessContext', () => {
           roleStore,
           subscriptionStore,
           walletStore,
-          orgResolver: async () => 'org-1',
+          orgResolver: async () => ({ type: 'tenant', id: 'org-1' }),
         });
 
         const result = await ctx.check('organization:create', {
@@ -1864,7 +1864,7 @@ describe('createAccessContext', () => {
         await closureStore.addResource('organization', 'org-1');
         await roleStore.assign('user-1', 'organization', 'org-1', 'admin');
         const planStart = new Date('2026-01-01T00:00:00Z');
-        await subscriptionStore.assign('org-1', 'pro', planStart);
+        await subscriptionStore.assign('tenant', 'org-1', 'pro', planStart);
 
         // 100 base + 500 overage units (500 * 0.01 = $5.00 = cap) → hard block
         const { periodStart, periodEnd } = calculateBillingPeriod(planStart, 'month');
@@ -1877,7 +1877,7 @@ describe('createAccessContext', () => {
           roleStore,
           subscriptionStore,
           walletStore,
-          orgResolver: async () => 'org-1',
+          orgResolver: async () => ({ type: 'tenant', id: 'org-1' }),
         });
 
         const allowed = await ctx.can('organization:create', {
@@ -1935,7 +1935,7 @@ describe('createAccessContext', () => {
       const walletStore = new InMemoryWalletStore();
       const planVersionStore = new InMemoryPlanVersionStore();
       const overrideStore = new InMemoryOverrideStore();
-      const orgResolver = async (_resource?: ResourceRef) => 'org-1';
+      const orgResolver = async (_resource?: ResourceRef) => ({ type: 'tenant', id: 'org-1' });
 
       return {
         accessDef,
@@ -1967,7 +1967,7 @@ describe('createAccessContext', () => {
         parentId: 'org-1',
       });
       await roleStore.assign('user-1', 'organization', 'org-1', 'owner');
-      await subscriptionStore.assign('org-1', 'pro');
+      await subscriptionStore.assign('tenant', 'org-1', 'pro');
 
       // v1 snapshot: does NOT include project:analytics
       await planVersionStore.createVersion('pro', 'hash-v1', {
@@ -1989,7 +1989,7 @@ describe('createAccessContext', () => {
       });
 
       // Tenant is grandfathered on v1
-      await planVersionStore.setTenantVersion('org-1', 'pro', 1);
+      await planVersionStore.setTenantVersion('tenant', 'org-1', 'pro', 1);
 
       // Override grants the missing feature
       await overrideStore.set('org-1', { features: ['project:analytics'] });
@@ -2032,7 +2032,7 @@ describe('createAccessContext', () => {
         parentId: 'org-1',
       });
       await roleStore.assign('user-1', 'organization', 'org-1', 'owner');
-      await subscriptionStore.assign('org-1', 'pro');
+      await subscriptionStore.assign('tenant', 'org-1', 'pro');
 
       await planVersionStore.createVersion('pro', 'hash-v1', {
         features: ['organization:create-project', 'project:view', 'project:export'],
@@ -2040,7 +2040,7 @@ describe('createAccessContext', () => {
         price: null,
       });
 
-      await planVersionStore.setTenantVersion('org-1', 'pro', 1);
+      await planVersionStore.setTenantVersion('tenant', 'org-1', 'pro', 1);
 
       // No override — should be denied
       const ctx = createAccessContext({
@@ -2093,7 +2093,7 @@ describe('createAccessContext', () => {
       const subscriptionStore = new InMemorySubscriptionStore();
       const walletStore = new InMemoryWalletStore();
       const overrideStore = new InMemoryOverrideStore();
-      const orgResolver = async (_resource?: ResourceRef) => 'org-1';
+      const orgResolver = async (_resource?: ResourceRef) => ({ type: 'tenant', id: 'org-1' });
 
       return {
         accessDef,
@@ -2120,7 +2120,7 @@ describe('createAccessContext', () => {
       await closureStore.addResource('organization', 'org-1');
       await roleStore.assign('user-1', 'organization', 'org-1', 'admin');
       const planStart = new Date('2026-01-01T00:00:00Z');
-      await subscriptionStore.assign('org-1', 'free', planStart);
+      await subscriptionStore.assign('tenant', 'org-1', 'free', planStart);
 
       // Override adds 200 → effective limit = 300
       await overrideStore.set('org-1', { limits: { prompts: { add: 200 } } });
@@ -2162,7 +2162,7 @@ describe('createAccessContext', () => {
       await closureStore.addResource('organization', 'org-1');
       await roleStore.assign('user-1', 'organization', 'org-1', 'admin');
       const planStart = new Date('2026-01-01T00:00:00Z');
-      await subscriptionStore.assign('org-1', 'free', planStart);
+      await subscriptionStore.assign('tenant', 'org-1', 'free', planStart);
 
       // Override max: 500 → effective limit = 500
       await overrideStore.set('org-1', { limits: { prompts: { max: 500 } } });
@@ -2203,7 +2203,7 @@ describe('createAccessContext', () => {
 
       await closureStore.addResource('organization', 'org-1');
       await roleStore.assign('user-1', 'organization', 'org-1', 'admin');
-      await subscriptionStore.assign('org-1', 'free');
+      await subscriptionStore.assign('tenant', 'org-1', 'free');
 
       // Override max: 0 — disabled
       await overrideStore.set('org-1', { limits: { prompts: { max: 0 } } });
@@ -2260,7 +2260,7 @@ describe('createAccessContext', () => {
       await closureStore.addResource('organization', 'org-1');
       await roleStore.assign('user-1', 'organization', 'org-1', 'admin');
       const planStart = new Date('2026-01-01T00:00:00Z');
-      await subscriptionStore.assign('org-1', 'pro', planStart);
+      await subscriptionStore.assign('tenant', 'org-1', 'pro', planStart);
 
       // Override adds 50 → effective = 150, but overage cap is still $5.
       // 150 base + 500 overage (500 * 0.01 = $5 = cap) → should block
@@ -2277,7 +2277,7 @@ describe('createAccessContext', () => {
         subscriptionStore,
         walletStore,
         overrideStore,
-        orgResolver: async () => 'org-1',
+        orgResolver: async () => ({ type: 'tenant', id: 'org-1' }),
       });
 
       // 650 consumed, effective max 150, overage units = 500, cost = $5 = cap → block
@@ -2319,12 +2319,12 @@ describe('createAccessContext', () => {
       const subscriptionStore = new InMemorySubscriptionStore();
       const walletStore = new InMemoryWalletStore();
       const overrideStore = new InMemoryOverrideStore();
-      const orgResolver = async (_resource?: ResourceRef) => 'org-1';
+      const orgResolver = async (_resource?: ResourceRef) => ({ type: 'tenant', id: 'org-1' });
 
       await closureStore.addResource('organization', 'org-1');
       await roleStore.assign('user-1', 'organization', 'org-1', 'admin');
       const planStart = new Date('2026-01-01T00:00:00Z');
-      await subscriptionStore.assign('org-1', 'free', planStart);
+      await subscriptionStore.assign('tenant', 'org-1', 'free', planStart);
 
       // Override add: 200 → effective = 300
       await overrideStore.set('org-1', { limits: { prompts: { add: 200 } } });
@@ -2446,7 +2446,7 @@ describe('createAccessContext', () => {
 
       const flagStore = new InMemoryFlagStore();
       // Don't enable the 'export-v2' flag
-      const orgResolver = async () => 'org-1';
+      const orgResolver = async () => ({ type: 'tenant', id: 'org-1' });
 
       const ctx = createAccessContext({
         userId: 'user-1',
@@ -2506,11 +2506,11 @@ describe('createAccessContext', () => {
       const closureStore = new InMemoryClosureStore();
       const roleStore = new InMemoryRoleAssignmentStore();
       const subscriptionStore = new InMemorySubscriptionStore();
-      const orgResolver = async () => 'org-1';
+      const orgResolver = async () => ({ type: 'tenant', id: 'org-1' });
 
       await closureStore.addResource('organization', 'org-1');
       await roleStore.assign('user-1', 'organization', 'org-1', 'admin');
-      await subscriptionStore.assign('org-1', 'free', new Date());
+      await subscriptionStore.assign('tenant', 'org-1', 'free', new Date());
 
       const ctx = createAccessContext({
         userId: 'user-1',
@@ -2562,12 +2562,12 @@ describe('createAccessContext', () => {
       const roleStore = new InMemoryRoleAssignmentStore();
       const subscriptionStore = new InMemorySubscriptionStore();
       const walletStore = new InMemoryWalletStore();
-      const orgResolver = async () => 'org-1';
+      const orgResolver = async () => ({ type: 'tenant', id: 'org-1' });
 
       await closureStore.addResource('organization', 'org-1');
       await roleStore.assign('user-1', 'organization', 'org-1', 'admin');
       const planStart = new Date('2026-01-01T00:00:00Z');
-      await subscriptionStore.assign('org-1', 'starter', planStart);
+      await subscriptionStore.assign('tenant', 'org-1', 'starter', planStart);
 
       const { periodStart, periodEnd } = calculateBillingPeriod(planStart, 'month');
 
@@ -2631,11 +2631,11 @@ describe('createAccessContext', () => {
       const roleStore = new InMemoryRoleAssignmentStore();
       const subscriptionStore = new InMemorySubscriptionStore();
       const planVersionStore = new InMemoryPlanVersionStore();
-      const orgResolver = async () => 'org-1';
+      const orgResolver = async () => ({ type: 'tenant', id: 'org-1' });
 
       await closureStore.addResource('organization', 'org-1');
       await roleStore.assign('user-1', 'organization', 'org-1', 'admin');
-      await subscriptionStore.assign('org-1', 'pro', new Date());
+      await subscriptionStore.assign('tenant', 'org-1', 'pro', new Date());
 
       // Register a version and pin tenant to it
       const v1 = await planVersionStore.createVersion('pro', 'hash-v1', {
@@ -2643,10 +2643,10 @@ describe('createAccessContext', () => {
         limits: {},
         price: null,
       });
-      await planVersionStore.setTenantVersion('org-1', 'pro', v1);
+      await planVersionStore.setTenantVersion('tenant', 'org-1', 'pro', v1);
 
       // Add an add-on subscription
-      await subscriptionStore.attachAddOn('org-1', 'api_addon');
+      await subscriptionStore.attachAddOn('tenant', 'org-1', 'api_addon');
 
       const ctx = createAccessContext({
         userId: 'user-1',
@@ -2692,11 +2692,11 @@ describe('createAccessContext', () => {
       const roleStore = new InMemoryRoleAssignmentStore();
       const subscriptionStore = new InMemorySubscriptionStore();
       const planVersionStore = new InMemoryPlanVersionStore();
-      const orgResolver = async () => 'org-1';
+      const orgResolver = async () => ({ type: 'tenant', id: 'org-1' });
 
       await closureStore.addResource('organization', 'org-1');
       await roleStore.assign('user-1', 'organization', 'org-1', 'admin');
-      await subscriptionStore.assign('org-1', 'pro', new Date());
+      await subscriptionStore.assign('tenant', 'org-1', 'pro', new Date());
 
       // Versioned snapshot only includes organization:export, NOT organization:advanced
       const v1 = await planVersionStore.createVersion('pro', 'hash-v1', {
@@ -2704,7 +2704,7 @@ describe('createAccessContext', () => {
         limits: {},
         price: null,
       });
-      await planVersionStore.setTenantVersion('org-1', 'pro', v1);
+      await planVersionStore.setTenantVersion('tenant', 'org-1', 'pro', v1);
 
       const ctx = createAccessContext({
         userId: 'user-1',
@@ -2751,12 +2751,12 @@ describe('createAccessContext', () => {
       const subscriptionStore = new InMemorySubscriptionStore();
       const walletStore = new InMemoryWalletStore();
       const planVersionStore = new InMemoryPlanVersionStore();
-      const orgResolver = async () => 'org-1';
+      const orgResolver = async () => ({ type: 'tenant', id: 'org-1' });
 
       await closureStore.addResource('organization', 'org-1');
       await roleStore.assign('user-1', 'organization', 'org-1', 'admin');
       const planStart = new Date('2026-01-01T00:00:00Z');
-      await subscriptionStore.assign('org-1', 'starter', planStart);
+      await subscriptionStore.assign('tenant', 'org-1', 'starter', planStart);
 
       // Versioned limit: max 200 instead of current config's 100
       const v1 = await planVersionStore.createVersion('starter', 'hash-v1', {
@@ -2764,7 +2764,7 @@ describe('createAccessContext', () => {
         limits: { api_calls: { max: 200, gates: 'organization:call', per: 'month' } },
         price: null,
       });
-      await planVersionStore.setTenantVersion('org-1', 'starter', v1);
+      await planVersionStore.setTenantVersion('tenant', 'org-1', 'starter', v1);
 
       const { periodStart, periodEnd } = calculateBillingPeriod(planStart, 'month');
 
@@ -2818,12 +2818,12 @@ describe('createAccessContext', () => {
       const roleStore = new InMemoryRoleAssignmentStore();
       const subscriptionStore = new InMemorySubscriptionStore();
       const walletStore = new InMemoryWalletStore();
-      const orgResolver = async () => 'org-1';
+      const orgResolver = async () => ({ type: 'tenant', id: 'org-1' });
 
       await closureStore.addResource('organization', 'org-1');
       await roleStore.assign('user-1', 'organization', 'org-1', 'admin');
       const planStart = new Date('2026-01-01T00:00:00Z');
-      await subscriptionStore.assign('org-1', 'starter', planStart);
+      await subscriptionStore.assign('tenant', 'org-1', 'starter', planStart);
 
       const { periodStart, periodEnd } = calculateBillingPeriod(planStart, 'month');
 
@@ -2874,15 +2874,15 @@ describe('createAccessContext', () => {
       const roleStore = new InMemoryRoleAssignmentStore();
       const subscriptionStore = new InMemorySubscriptionStore();
       const walletStore = new InMemoryWalletStore();
-      const orgResolver = async () => 'org-1';
+      const orgResolver = async () => ({ type: 'tenant', id: 'org-1' });
 
       await closureStore.addResource('organization', 'org-1');
       await roleStore.assign('user-1', 'organization', 'org-1', 'admin');
       const planStart = new Date('2026-01-01T00:00:00Z');
-      await subscriptionStore.assign('org-1', 'starter', planStart);
+      await subscriptionStore.assign('tenant', 'org-1', 'starter', planStart);
 
       // Set old-style override on subscription via proper API
-      await subscriptionStore.updateOverrides('org-1', { api_calls: { max: 500 } });
+      await subscriptionStore.updateOverrides('tenant', 'org-1', { api_calls: { max: 500 } });
 
       const { periodStart, periodEnd } = calculateBillingPeriod(planStart, 'month');
 

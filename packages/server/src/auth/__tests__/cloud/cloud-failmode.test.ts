@@ -59,7 +59,7 @@ describe('Feature: Cloud failure modes', () => {
     roleStore = new InMemoryRoleAssignmentStore();
     subscriptionStore = new InMemorySubscriptionStore();
     await roleStore.assign('user-1', 'workspace', 'ws-1', 'admin');
-    await subscriptionStore.assign('org-1', 'free');
+    await subscriptionStore.assign('tenant', 'org-1', 'free');
   });
 
   describe('Given failMode: "closed" (default) and cloud is down', () => {
@@ -72,7 +72,7 @@ describe('Feature: Cloud failure modes', () => {
           roleStore,
           subscriptionStore,
           walletStore: new FailingWalletStore(),
-          orgResolver: () => Promise.resolve('org-1'),
+          orgResolver: () => Promise.resolve({ type: 'tenant', id: 'org-1' }),
           cloudFailMode: 'closed',
         });
 
@@ -93,7 +93,7 @@ describe('Feature: Cloud failure modes', () => {
           roleStore,
           subscriptionStore,
           walletStore: new FailingWalletStore(),
-          orgResolver: () => Promise.resolve('org-1'),
+          orgResolver: () => Promise.resolve({ type: 'tenant', id: 'org-1' }),
           cloudFailMode: 'closed',
         });
 
@@ -118,7 +118,7 @@ describe('Feature: Cloud failure modes', () => {
           roleStore,
           subscriptionStore,
           walletStore: new FailingWalletStore(),
-          orgResolver: () => Promise.resolve('org-1'),
+          orgResolver: () => Promise.resolve({ type: 'tenant', id: 'org-1' }),
           cloudFailMode: 'open',
         });
 
@@ -139,7 +139,7 @@ describe('Feature: Cloud failure modes', () => {
           roleStore,
           subscriptionStore,
           walletStore: new FailingWalletStore(),
-          orgResolver: () => Promise.resolve('org-1'),
+          orgResolver: () => Promise.resolve({ type: 'tenant', id: 'org-1' }),
           cloudFailMode: 'open',
         });
 
@@ -163,7 +163,7 @@ describe('Feature: Cloud failure modes', () => {
           roleStore,
           subscriptionStore,
           walletStore: new FailingWalletStore(),
-          orgResolver: () => Promise.resolve('org-1'),
+          orgResolver: () => Promise.resolve({ type: 'tenant', id: 'org-1' }),
           cloudFailMode: 'cached',
         });
 
@@ -184,7 +184,7 @@ describe('Feature: Cloud failure modes', () => {
           roleStore,
           subscriptionStore,
           walletStore: new FailingWalletStore(),
-          orgResolver: () => Promise.resolve('org-1'),
+          orgResolver: () => Promise.resolve({ type: 'tenant', id: 'org-1' }),
           cloudFailMode: 'cached',
         });
 
@@ -207,7 +207,7 @@ describe('Feature: Cloud failure modes', () => {
           roleStore,
           subscriptionStore,
           walletStore: new FailingWalletStore(),
-          orgResolver: () => Promise.resolve('org-1'),
+          orgResolver: () => Promise.resolve({ type: 'tenant', id: 'org-1' }),
           cloudFailMode: 'cached',
         });
 
@@ -230,7 +230,7 @@ describe('Feature: Cloud failure modes', () => {
           roleStore,
           subscriptionStore,
           walletStore: new FailingWalletStore(),
-          orgResolver: () => Promise.resolve('org-1'),
+          orgResolver: () => Promise.resolve({ type: 'tenant', id: 'org-1' }),
           // No cloudFailMode — error propagates
         });
 
@@ -251,7 +251,7 @@ describe('Feature: Cloud failure modes', () => {
           roleStore,
           subscriptionStore,
           walletStore: new FailingWalletStore(),
-          orgResolver: () => Promise.resolve('org-1'),
+          orgResolver: () => Promise.resolve({ type: 'tenant', id: 'org-1' }),
           cloudFailMode: 'closed',
         });
 
@@ -272,7 +272,7 @@ describe('Feature: Cloud failure modes', () => {
           roleStore,
           subscriptionStore,
           walletStore: new FailingWalletStore(),
-          orgResolver: () => Promise.resolve('org-1'),
+          orgResolver: () => Promise.resolve({ type: 'tenant', id: 'org-1' }),
           cloudFailMode: 'open',
         });
 

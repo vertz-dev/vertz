@@ -24,7 +24,8 @@ export type PlanEventType =
 export interface PlanEvent {
   type: PlanEventType;
   planId: string;
-  tenantId?: string;
+  resourceType?: string;
+  resourceId?: string;
   version?: number;
   previousVersion?: number;
   currentVersion?: number;
@@ -44,7 +45,7 @@ export interface TenantPlanState {
 }
 
 export interface MigrateOpts {
-  tenantId?: string;
+  resource?: { type: string; id: string };
 }
 
 export interface ScheduleOpts {
@@ -62,15 +63,15 @@ export interface PlanManagerConfig {
 export interface PlanManager {
   /** Hash plan configs, compare with stored, create new versions if different. Idempotent. */
   initialize(): Promise<void>;
-  /** Migrate tenants past grace period (or specific tenant immediately). */
+  /** Migrate resources past grace period (or specific resource immediately). */
   migrate(planId: string, opts?: MigrateOpts): Promise<void>;
-  /** Schedule future migration date for all grandfathered tenants. */
+  /** Schedule future migration date for all grandfathered resources. */
   schedule(planId: string, opts: ScheduleOpts): Promise<void>;
-  /** Return tenant's plan state (planId, version, grandfathered, snapshot). */
-  resolve(tenantId: string): Promise<TenantPlanState | null>;
-  /** List all grandfathered tenants for a plan. */
+  /** Return resource's plan state (planId, version, grandfathered, snapshot). */
+  resolve(resourceType: string, resourceId: string): Promise<TenantPlanState | null>;
+  /** List all grandfathered resources for a plan. */
   grandfathered(planId: string): Promise<GrandfatheringState[]>;
-  /** Check all grandfathered tenants and emit grace_approaching / grace_expiring events. */
+  /** Check all grandfathered resources and emit grace_approaching / grace_expiring events. */
   checkGraceEvents(): Promise<void>;
   /** Register an event handler. */
   on(handler: PlanEventHandler): void;
@@ -154,23 +155,35 @@ export function createPlanManager(config: PlanManagerConfig): PlanManager {
         timestamp: now,
       });
 
-      // If this is version > 1, grandfather existing tenants
+      // If this is version > 1, grandfather existing resources
       if (version > 1) {
-        const grandfatheredTenants = await listTenantsOnPlan(planId);
+        const resources = await listResourcesOnPlan(planId);
         const graceEnds = resolveGraceEnd(planDef, now);
 
-        for (const tenantId of grandfatheredTenants) {
-          const tenantVersion = await versionStore.getTenantVersion(tenantId, planId);
-          // Only grandfather if tenant is on an older version
+        for (const resource of resources) {
+          const tenantVersion = await versionStore.getTenantVersion(
+            resource.resourceType,
+            resource.resourceId,
+            planId,
+          );
+          // Only grandfather if resource is on an older version
           if (tenantVersion !== null && tenantVersion < version) {
-            await grandfatheringStore.setGrandfathered(tenantId, planId, tenantVersion, graceEnds);
+            await grandfatheringStore.setGrandfathered(
+              resource.resourceType,
+              resource.resourceId,
+              planId,
+              tenantVersion,
+              graceEnds,
+            );
           }
         }
       }
     }
   }
 
-  async function listTenantsOnPlan(planId: string): Promise<string[]> {
+  async function listResourcesOnPlan(
+    planId: string,
+  ): Promise<Array<{ resourceType: string; resourceId: string }>> {
     if (subscriptionStore.listByPlan) {
       return subscriptionStore.listByPlan(planId);
     }
@@ -182,29 +195,36 @@ export function createPlanManager(config: PlanManagerConfig): PlanManager {
     const currentVersion = await versionStore.getCurrentVersion(planId);
     if (currentVersion === null) return;
 
-    if (opts?.tenantId) {
-      // Immediate migration for specific tenant
-      await migrateTenant(opts.tenantId, planId, currentVersion, now);
+    if (opts?.resource) {
+      // Immediate migration for specific resource
+      await migrateResource(opts.resource.type, opts.resource.id, planId, currentVersion, now);
       return;
     }
 
-    // Migrate all tenants past grace period
+    // Migrate all resources past grace period
     const grandfatheredList = await grandfatheringStore.listGrandfathered(planId);
     for (const state of grandfatheredList) {
       if (state.graceEnds === null) continue; // indefinite — skip
       if (state.graceEnds.getTime() <= now.getTime()) {
-        await migrateTenant(state.tenantId, planId, currentVersion, now);
+        await migrateResource(
+          state.resourceType,
+          state.resourceId,
+          planId,
+          currentVersion,
+          now,
+        );
       }
     }
   }
 
-  async function migrateTenant(
-    tenantId: string,
+  async function migrateResource(
+    resourceType: string,
+    resourceId: string,
     planId: string,
     targetVersion: number,
     now: Date,
   ): Promise<void> {
-    const previousVersion = await versionStore.getTenantVersion(tenantId, planId);
+    const previousVersion = await versionStore.getTenantVersion(resourceType, resourceId, planId);
 
     // Check for downgrade warning
     if (previousVersion !== null) {
@@ -223,13 +243,14 @@ export function createPlanManager(config: PlanManagerConfig): PlanManager {
       }
     }
 
-    await versionStore.setTenantVersion(tenantId, planId, targetVersion);
-    await grandfatheringStore.removeGrandfathered(tenantId, planId);
+    await versionStore.setTenantVersion(resourceType, resourceId, planId, targetVersion);
+    await grandfatheringStore.removeGrandfathered(resourceType, resourceId, planId);
 
     emit({
       type: 'plan:migrated',
       planId,
-      tenantId,
+      resourceType,
+      resourceId,
       version: targetVersion,
       previousVersion: previousVersion ?? undefined,
       timestamp: now,
@@ -241,23 +262,36 @@ export function createPlanManager(config: PlanManagerConfig): PlanManager {
     const grandfatheredList = await grandfatheringStore.listGrandfathered(planId);
 
     for (const state of grandfatheredList) {
-      await grandfatheringStore.setGrandfathered(state.tenantId, planId, state.version, at);
+      await grandfatheringStore.setGrandfathered(
+        state.resourceType,
+        state.resourceId,
+        planId,
+        state.version,
+        at,
+      );
     }
   }
 
-  async function resolve(tenantId: string): Promise<TenantPlanState | null> {
-    // Get tenant's assigned plan
-    const subscription = await subscriptionStore.get(tenantId);
+  async function resolve(
+    resourceType: string,
+    resourceId: string,
+  ): Promise<TenantPlanState | null> {
+    // Get resource's assigned plan
+    const subscription = await subscriptionStore.get(resourceType, resourceId);
     if (!subscription) return null;
 
     const planId = subscription.planId;
     const currentVersion = await versionStore.getCurrentVersion(planId);
     if (currentVersion === null) return null;
 
-    const tenantVersion = await versionStore.getTenantVersion(tenantId, planId);
+    const tenantVersion = await versionStore.getTenantVersion(resourceType, resourceId, planId);
     const effectiveVersion = tenantVersion ?? currentVersion;
 
-    const grandfatheringState = await grandfatheringStore.getGrandfathered(tenantId, planId);
+    const grandfatheringState = await grandfatheringStore.getGrandfathered(
+      resourceType,
+      resourceId,
+      planId,
+    );
 
     const versionInfo = await versionStore.getVersion(planId, effectiveVersion);
     if (!versionInfo) return null;
@@ -293,7 +327,8 @@ export function createPlanManager(config: PlanManagerConfig): PlanManager {
           emit({
             type: 'plan:grace_expiring',
             planId,
-            tenantId: state.tenantId,
+            resourceType: state.resourceType,
+            resourceId: state.resourceId,
             version: state.version,
             graceEnds: state.graceEnds,
             timestamp: now,
@@ -302,7 +337,8 @@ export function createPlanManager(config: PlanManagerConfig): PlanManager {
           emit({
             type: 'plan:grace_approaching',
             planId,
-            tenantId: state.tenantId,
+            resourceType: state.resourceType,
+            resourceId: state.resourceId,
             version: state.version,
             graceEnds: state.graceEnds,
             timestamp: now,

@@ -70,8 +70,8 @@ describe('Access Set Add-on & Limit Edge Cases', () => {
 
         await closureStore.addResource('organization', 'org-1');
         await roleStore.assign('user-1', 'organization', 'org-1', 'admin');
-        await subscriptionStore.assign('org-1', 'pro', new Date('2026-01-01'));
-        await subscriptionStore.attachAddOn('org-1', 'extra_projects');
+        await subscriptionStore.assign('tenant', 'org-1', 'pro', new Date('2026-01-01'));
+        await subscriptionStore.attachAddOn('tenant', 'org-1', 'extra_projects');
 
         const result = await computeAccessSet({
           userId: 'user-1',
@@ -96,8 +96,8 @@ describe('Access Set Add-on & Limit Edge Cases', () => {
 
         await closureStore.addResource('organization', 'org-1');
         await roleStore.assign('user-1', 'organization', 'org-1', 'admin');
-        await subscriptionStore.assign('org-1', 'pro', new Date('2026-01-01'));
-        await subscriptionStore.attachAddOn('org-1', 'extra_projects');
+        await subscriptionStore.assign('tenant', 'org-1', 'pro', new Date('2026-01-01'));
+        await subscriptionStore.attachAddOn('tenant', 'org-1', 'extra_projects');
 
         const result = await computeAccessSet({
           userId: 'user-1',
@@ -125,9 +125,9 @@ describe('Access Set Add-on & Limit Edge Cases', () => {
         // Use unlimited_base plan which has max: -1 for projects
         await closureStore.addResource('organization', 'org-1');
         await roleStore.assign('user-1', 'organization', 'org-1', 'admin');
-        await subscriptionStore.assign('org-1', 'unlimited_base', new Date('2026-01-01'));
+        await subscriptionStore.assign('tenant', 'org-1', 'unlimited_base', new Date('2026-01-01'));
         // Attach an add-on to hit line 242 (effectiveMax === -1 break)
-        await subscriptionStore.attachAddOn('org-1', 'extra_projects');
+        await subscriptionStore.attachAddOn('tenant', 'org-1', 'extra_projects');
 
         const result = await computeAccessSet({
           userId: 'user-1',
@@ -156,7 +156,7 @@ describe('Access Set Add-on & Limit Edge Cases', () => {
         await closureStore.addResource('organization', 'org-1');
         await roleStore.assign('user-1', 'organization', 'org-1', 'admin');
         const startDate = new Date('2026-01-01');
-        await subscriptionStore.assign('org-1', 'lifetime_plan', startDate);
+        await subscriptionStore.assign('tenant', 'org-1', 'lifetime_plan', startDate);
 
         const result = await computeAccessSet({
           userId: 'user-1',
