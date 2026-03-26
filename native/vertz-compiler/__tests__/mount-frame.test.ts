@@ -114,6 +114,33 @@ describe('Feature: Mount frame transform', () => {
     });
   });
 
+  describe('Given a file with multiple component functions', () => {
+    describe('When compiled', () => {
+      it('Then wraps each component independently without corrupting the other', () => {
+        const code = compileAndGetCode(`
+function Header() {
+  return <h1>Header</h1>;
+}
+
+function Footer() {
+  return <footer>Footer</footer>;
+}
+        `);
+        // Both components should have mount frame wrapping
+        const pushCount = (code.match(/__pushMountFrame\(\)/g) ?? []).length;
+        expect(pushCount).toBe(2);
+
+        // The output must be valid JS — catch blocks must be INSIDE each function
+        const catchCount = (code.match(/catch \(__mfErr\)/g) ?? []).length;
+        expect(catchCount).toBe(2);
+
+        // Each function's catch block must appear before its closing brace,
+        // not after it (which would produce invalid JS)
+        expect(code).not.toMatch(/\}\s*\n\s*\} catch \(__mfErr\)/);
+      });
+    });
+  });
+
   describe('Given a component with nested function containing return', () => {
     describe('When compiled', () => {
       it('Then does NOT wrap the nested function return', () => {

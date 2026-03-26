@@ -81,8 +81,9 @@ pub fn transform_mount_frame(
     }
 
     // Step 3: Insert catch/finally before closing brace
+    // Note: body_end is exclusive (points AFTER the `}`), so subtract 1 to insert BEFORE it
     ms.prepend_left(
-        component.body_end,
+        component.body_end - 1,
         "\n} catch (__mfErr) { __discardMountFrame(__mfDepth); throw __mfErr; }\n",
     );
 }
