@@ -1,4 +1,5 @@
-import { afterEach, describe, expect, test, vi } from 'bun:test';
+import { afterEach, beforeEach, describe, expect, test, vi } from 'bun:test';
+import { domEffect } from '../../runtime/signal';
 import { createTestSSRContext, disableTestSSR, enableTestSSR } from '../../ssr/test-ssr-helpers';
 import type { SearchParamSchema } from '../define-routes';
 import { defineRoutes } from '../define-routes';
@@ -51,6 +52,10 @@ describe('parseSearchParams', () => {
 });
 
 describe('router.searchParams signal', () => {
+  beforeEach(() => {
+    window.history.replaceState(null, '', '/');
+  });
+
   test('exposes searchParams signal on router', () => {
     const routes = defineRoutes({
       '/': { component: () => document.createElement('div') },
@@ -96,6 +101,140 @@ describe('router.searchParams signal', () => {
     // matchRoute parses once; navigate should NOT parse again
     expect(parseSpy).toHaveBeenCalledTimes(1);
     expect(router.searchParams.value).toEqual({ page: 2 });
+  });
+
+  test('schema defaults applied on SPA navigation without query params (#1927)', async () => {
+    const schema = {
+      parse(data: unknown) {
+        const raw = data as Record<string, string>;
+        return { ok: true as const, data: { page: Number(raw.page ?? '1') } };
+      },
+    };
+    const routes = defineRoutes({
+      '/': { component: () => document.createElement('div') },
+      '/items': { component: () => document.createElement('div'), searchParams: schema },
+    });
+    const router = createRouter(routes, '/');
+
+    await router.navigate({ to: '/items' });
+
+    expect(router.searchParams.value).toEqual({ page: 1 });
+    router.dispose();
+  });
+
+  test('schema defaults available atomically with route change (#1927)', async () => {
+    const schema = {
+      parse(data: unknown) {
+        const raw = data as Record<string, string>;
+        return { ok: true as const, data: { page: Number(raw.page ?? '1') } };
+      },
+    };
+    const routes = defineRoutes({
+      '/': { component: () => document.createElement('div') },
+      '/items': { component: () => document.createElement('div'), searchParams: schema },
+    });
+    const router = createRouter(routes, '/');
+
+    // Simulate what RouterView/components do: observe current and read searchParams
+    const snapshots: Array<{ pattern: string | undefined; page: unknown }> = [];
+    const dispose = domEffect(() => {
+      const curr = router.current.value;
+      const search = router.searchParams.value;
+      if (curr?.route.pattern === '/items') {
+        snapshots.push({ pattern: curr.route.pattern, page: search.page });
+      }
+    });
+
+    await router.navigate({ to: '/items' });
+
+    // The FIRST time the effect sees /items, page must already be 1 (schema default).
+    // Before the fix, current was updated before searchParams, so the first
+    // snapshot had page: undefined.
+    expect(snapshots.length).toBeGreaterThanOrEqual(1);
+    expect(snapshots[0]?.page).toBe(1);
+
+    dispose();
+    router.dispose();
+  });
+
+  test('schema defaults on nested route SPA navigation (#1927)', async () => {
+    const schema = {
+      parse(data: unknown) {
+        const raw = data as Record<string, string>;
+        return { ok: true as const, data: { page: Number(raw.page ?? '1') } };
+      },
+    };
+    const routes = defineRoutes({
+      '/': {
+        component: () => document.createElement('div'),
+        children: {
+          '/brands': {
+            component: () => document.createElement('div'),
+            searchParams: schema,
+          },
+        },
+      },
+    });
+    const router = createRouter(routes, '/');
+
+    const snapshots: Array<{ page: unknown }> = [];
+    const dispose = domEffect(() => {
+      const curr = router.current.value;
+      const search = router.searchParams.value;
+      if (curr?.route.pattern === '/brands') {
+        snapshots.push({ page: search.page });
+      }
+    });
+
+    await router.navigate({ to: '/brands' });
+
+    expect(snapshots.length).toBeGreaterThanOrEqual(1);
+    expect(snapshots[0]?.page).toBe(1);
+
+    dispose();
+    router.dispose();
+  });
+
+  test('schema defaults applied on popstate (back/forward) navigation (#1927)', async () => {
+    const schema = {
+      parse(data: unknown) {
+        const raw = data as Record<string, string>;
+        return { ok: true as const, data: { page: Number(raw.page ?? '1') } };
+      },
+    };
+    const routes = defineRoutes({
+      '/': { component: () => document.createElement('div') },
+      '/items': { component: () => document.createElement('div'), searchParams: schema },
+    });
+    const router = createRouter(routes, '/');
+
+    // Navigate forward to /items?page=3
+    await router.navigate({ to: '/items', search: { page: 3 } });
+    expect(router.searchParams.value).toEqual({ page: 3 });
+
+    const snapshots: Array<{ page: unknown }> = [];
+    const dispose = domEffect(() => {
+      const curr = router.current.value;
+      const search = router.searchParams.value;
+      if (curr?.route.pattern === '/items') {
+        snapshots.push({ page: search.page });
+      }
+    });
+
+    // Simulate browser back to /items (no ?page param → schema default).
+    // happy-dom doesn't dispatch popstate on history.back(), so we
+    // manually set location and dispatch the event.
+    window.history.replaceState(null, '', '/items');
+    window.dispatchEvent(new Event('popstate'));
+    // Allow the async applyNavigation to settle
+    await new Promise((r) => setTimeout(r, 50));
+
+    expect(snapshots.length).toBeGreaterThanOrEqual(1);
+    // After popstate to /items (no query), page should be 1 (schema default)
+    expect(snapshots[snapshots.length - 1]?.page).toBe(1);
+
+    dispose();
+    router.dispose();
   });
 });
 

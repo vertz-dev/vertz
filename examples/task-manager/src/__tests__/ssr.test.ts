@@ -8,9 +8,10 @@
  * via SSR-aware getters — no manual router.current.value assignment needed.
  */
 
-import { afterAll, describe, expect, test } from 'bun:test';
+import { afterAll, beforeAll, describe, expect, test } from 'bun:test';
 import { GlobalWindow } from 'happy-dom';
-import { ssrRenderToString } from '@vertz/ui-server';
+import { registerSSRResolver } from '@vertz/ui/internals';
+import { ssrRenderToString, ssrStorage } from '@vertz/ui-server';
 import { removeDomShim } from '@vertz/ui-server/dom-shim';
 
 /**
@@ -25,8 +26,19 @@ async function renderApp(url: string): Promise<string> {
 }
 
 describe('SSR integration (zero-config)', () => {
+  // Importing @vertz/ui-server registers an SSR resolver on globalThis as a
+  // module-level side effect. Re-register explicitly so this file works even
+  // when a previous test file cleared the resolver.
+  beforeAll(() => {
+    registerSSRResolver(() => ssrStorage.getStore());
+  });
+
   afterAll(() => {
     removeDomShim();
+    // Clear the SSR resolver so subsequent test files see isBrowser()=true.
+    // Without this cleanup, navigation tests in later files get the SSR
+    // (read-only) router, breaking client-side navigation assertions.
+    registerSSRResolver(null);
     // installDomShim() replaces window.location with a plain object and
     // removeDomShim() can't undo in-place mutations on the saved window
     // reference. Re-create fresh happy-dom globals so component/navigation
