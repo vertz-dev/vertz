@@ -1,5 +1,12 @@
 # @vertz/cli-runtime
 
+## 0.2.36
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @vertz/fetch@0.2.36
+
 ## 0.2.35
 
 ### Patch Changes
