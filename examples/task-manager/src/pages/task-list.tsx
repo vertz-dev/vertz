@@ -132,6 +132,7 @@ export function TaskListPage() {
               flexDirection: 'column',
               gap: '0.75rem',
               opacity: isFetching ? 0.6 : 1,
+              pointerEvents: isFetching ? 'none' : undefined,
               transition: 'opacity 150ms ease',
             }}
           >
@@ -158,7 +159,7 @@ export function TaskListPage() {
                 type="button"
                 className={button({ intent: 'ghost', size: 'sm' })}
                 data-testid="pagination-prev"
-                disabled={pageNum <= 1 || tasksQuery.loading}
+                disabled={pageNum <= 1 || isFetching}
                 onClick={() => {
                   sp.page = pageNum - 1;
                 }}
@@ -176,7 +177,7 @@ export function TaskListPage() {
                 type="button"
                 className={button({ intent: 'ghost', size: 'sm' })}
                 data-testid="pagination-next"
-                disabled={pageNum >= tasksQuery.data.totalPages || tasksQuery.loading}
+                disabled={pageNum >= tasksQuery.data.totalPages || isFetching}
                 onClick={() => {
                   sp.page = pageNum + 1;
                 }}
