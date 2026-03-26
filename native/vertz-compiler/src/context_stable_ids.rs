@@ -1,7 +1,6 @@
 use oxc_ast::ast::{
-    BindingPattern, Expression, Statement, VariableDeclarationKind,
+    BindingPattern, Declaration, Expression, Program, Statement, VariableDeclaration,
 };
-use oxc_ast::ast::Program;
 use oxc_span::GetSpan;
 
 use crate::magic_string::MagicString;
@@ -13,14 +12,18 @@ use crate::magic_string::MagicString;
 /// The ID format is `filePath::varName`.
 pub fn inject_context_stable_ids(ms: &mut MagicString, program: &Program, rel_file_path: &str) {
     for stmt in &program.body {
-        let Statement::VariableDeclaration(var_decl) = stmt else {
-            continue;
+        // Unwrap export declarations to get the inner variable declaration
+        let var_decl: &VariableDeclaration = match stmt {
+            Statement::VariableDeclaration(vd) => vd,
+            Statement::ExportNamedDeclaration(export) => {
+                if let Some(Declaration::VariableDeclaration(vd)) = &export.declaration {
+                    vd
+                } else {
+                    continue;
+                }
+            }
+            _ => continue,
         };
-
-        // Only const declarations at module level
-        if var_decl.kind != VariableDeclarationKind::Const {
-            continue;
-        }
 
         for declarator in &var_decl.declarations {
             // Must have an initializer that is a call expression
@@ -45,13 +48,12 @@ pub fn inject_context_stable_ids(ms: &mut MagicString, program: &Program, rel_fi
             };
 
             let var_name = binding.name.as_str();
-            let escaped_path = rel_file_path.replace('\'', "\\'").replace('\\', "\\\\");
+            let escaped_path = rel_file_path.replace('\\', "\\\\").replace('\'', "\\'");
             let stable_id = format!("{escaped_path}::{var_name}");
 
             let args = &call_expr.arguments;
             if args.is_empty() {
                 // createContext<T>() → createContext<T>(undefined, 'id')
-                // Insert before the closing paren
                 let close_paren = call_expr.span.end - 1;
                 ms.prepend_left(close_paren, &format!("undefined, '{stable_id}'"));
             } else {

@@ -430,13 +430,13 @@ fn resolve_size(value: &str, property: &str) -> Option<String> {
     if let Some(v) = size_keywords(value) {
         return Some(v.to_string());
     }
-    // Fraction: N/M → percentage
+    // Fraction: N/M → percentage (integers only, matching TS regex /^(\d+)\/(\d+)$/)
     if let Some(slash_idx) = value.find('/') {
         let num_str = &value[..slash_idx];
         let den_str = &value[slash_idx + 1..];
-        if let (Ok(num), Ok(den)) = (num_str.parse::<f64>(), den_str.parse::<f64>()) {
-            if den != 0.0 {
-                let pct = (num / den) * 100.0;
+        if let (Ok(num), Ok(den)) = (num_str.parse::<u64>(), den_str.parse::<u64>()) {
+            if den != 0 {
+                let pct = (num as f64 / den as f64) * 100.0;
                 if pct % 1.0 == 0.0 {
                     return Some(format!("{}%", pct as i64));
                 }

@@ -20,7 +20,7 @@ pub fn inject_fast_refresh(
         return;
     }
 
-    let escaped_id = module_id.replace('\'', "\\'").replace('\\', "\\\\");
+    let escaped_id = module_id.replace('\\', "\\\\").replace('\'', "\\'");
     let preamble = generate_preamble(&escaped_id);
     ms.prepend(&preamble);
 

@@ -96,13 +96,24 @@ describe('Feature: Context stable ID injection', () => {
     });
   });
 
+  describe('Given an exported createContext() call', () => {
+    describe('When compiled with fastRefresh enabled', () => {
+      it('Then injects stable ID for export const pattern', () => {
+        const { compile } = loadCompiler();
+        const source = "export const RouterCtx = createContext<Router>();";
+        const result = compile(source, { filename: 'src/router.tsx', fastRefresh: true });
+        expect(result.code).toContain("'src/router.tsx::RouterCtx'");
+      });
+    });
+  });
+
   describe('Given a let declaration with createContext', () => {
     describe('When compiled with fastRefresh enabled', () => {
-      it('Then does not inject stable ID (only const is supported)', () => {
+      it('Then also injects stable ID (matches TS behavior)', () => {
         const { compile } = loadCompiler();
         const source = "let Ctx = createContext<string>();";
         const result = compile(source, { filename: 'src/ctx.tsx', fastRefresh: true });
-        expect(result.code).not.toContain('::Ctx');
+        expect(result.code).toContain("'src/ctx.tsx::Ctx'");
       });
     });
   });
