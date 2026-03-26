@@ -272,6 +272,42 @@ describe('Feature: CachedWalletStore', () => {
     });
   });
 
+  describe('Given a getBatchConsumption() call', () => {
+    describe('When the inner store succeeds', () => {
+      it('Then delegates to the inner store and returns the result', async () => {
+        inner.consumption = 10;
+        const cached = new CachedWalletStore(inner, { cacheTtlMs: 5000 });
+
+        const result = await cached.getBatchConsumption(
+          'tenant_abc',
+          ['prompt:create', 'task:create'],
+          periodStart,
+          periodEnd,
+        );
+
+        expect(result).toBeInstanceOf(Map);
+        expect(result.get('prompt:create')).toBe(10);
+        expect(result.get('task:create')).toBe(10);
+      });
+    });
+
+    describe('When the inner store fails', () => {
+      it('Then propagates the error (no cache fallback for batch)', async () => {
+        inner.shouldThrow = true;
+        const cached = new CachedWalletStore(inner, { cacheTtlMs: 5000 });
+
+        await expect(
+          cached.getBatchConsumption(
+            'tenant_abc',
+            ['prompt:create'],
+            periodStart,
+            periodEnd,
+          ),
+        ).rejects.toThrow('Cloud error');
+      });
+    });
+  });
+
   describe('Given default TTL', () => {
     it('Then uses 30 seconds', () => {
       const cached = new CachedWalletStore(inner);

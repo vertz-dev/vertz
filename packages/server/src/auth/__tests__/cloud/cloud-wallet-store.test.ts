@@ -206,6 +206,67 @@ describe('Feature: CloudWalletStore', () => {
     });
   });
 
+  describe('Given a CloudWalletStore for getBatchConsumption', () => {
+    describe('When calling getBatchConsumption()', () => {
+      it('Then calls POST /api/v1/wallet/batch-check with correct payload', async () => {
+        const port = startMockServer();
+        mockResponse = {
+          status: 200,
+          body: { consumption: { 'prompt:create': 42, 'task:create': 7 } },
+        };
+
+        const store = new CloudWalletStore({
+          apiKey: 'vtz_live_test123',
+          baseUrl: `http://localhost:${port}`,
+        });
+
+        const periodStart = new Date('2026-03-01T00:00:00Z');
+        const periodEnd = new Date('2026-04-01T00:00:00Z');
+
+        const result = await store.getBatchConsumption(
+          'tenant_abc',
+          ['prompt:create', 'task:create'],
+          periodStart,
+          periodEnd,
+        );
+
+        expect(result).toBeInstanceOf(Map);
+        expect(result.get('prompt:create')).toBe(42);
+        expect(result.get('task:create')).toBe(7);
+        expect(lastRequest?.method).toBe('POST');
+        expect(lastRequest?.url).toBe('/api/v1/wallet/batch-check');
+        expect(lastRequest?.body).toEqual({
+          tenantId: 'tenant_abc',
+          limitKeys: ['prompt:create', 'task:create'],
+          periodStart: periodStart.toISOString(),
+          periodEnd: periodEnd.toISOString(),
+        });
+      });
+
+      it('Then returns an empty Map when no limit keys provided', async () => {
+        const port = startMockServer();
+        mockResponse = {
+          status: 200,
+          body: { consumption: {} },
+        };
+
+        const store = new CloudWalletStore({
+          apiKey: 'vtz_live_test123',
+          baseUrl: `http://localhost:${port}`,
+        });
+
+        const result = await store.getBatchConsumption(
+          'tenant_abc',
+          [],
+          new Date('2026-03-01'),
+          new Date('2026-04-01'),
+        );
+
+        expect(result.size).toBe(0);
+      });
+    });
+  });
+
   describe('Given the cloud API returns an error', () => {
     describe('When calling any wallet method', () => {
       it('Then throws an error with the response details', async () => {

@@ -406,6 +406,43 @@ describe('Feature: Closure table auto-population', () => {
     });
   });
 
+  describe('Given closureStore.addResource throws for a root tenant entity', () => {
+    it('Then entity is still created successfully', async () => {
+      const def = entity('accounts', {
+        model: accountsModel,
+        access: { create: () => true },
+      });
+
+      const db = createStubDb();
+      db.create = mock(async (data: Record<string, unknown>) => ({
+        id: 'acct-fail',
+        name: 'Failing Account',
+        ...data,
+      }));
+
+      const failingClosureStore = new InMemoryClosureStore();
+      spyOn(failingClosureStore, 'addResource').mockRejectedValue(
+        new Error('DB connection lost'),
+      );
+      const warnSpy = spyOn(console, 'warn').mockImplementation(() => {});
+
+      const handlers = createCrudHandlers(def, db, {
+        closureStore: failingClosureStore,
+        tenantLevels,
+      });
+
+      const ctx = makeCtx({ tenantId: null });
+      const result = await handlers.create(ctx, { name: 'Failing Account' });
+
+      expect(result.ok).toBe(true);
+      expect(warnSpy).toHaveBeenCalled();
+      const warnMsg = warnSpy.mock.calls[0]![0] as string;
+      expect(warnMsg).toContain('Failed to populate closure table for root');
+
+      warnSpy.mockRestore();
+    });
+  });
+
   describe('Given no closureStore provided (single-level backward compat)', () => {
     it('Then entity creation works without closure population', async () => {
       const def = entity('projects', {
