@@ -6,6 +6,19 @@ use oxc_ast_visit::Visit;
 use crate::component_analyzer::ComponentInfo;
 use crate::signal_api_registry::{get_signal_api_config, REACTIVE_SOURCE_APIS};
 
+/// A manifest entry describing the reactivity of an exported function/variable.
+#[derive(Debug, Clone)]
+pub struct ManifestExportInfo {
+    pub reactivity_type: String,
+    pub signal_properties: Option<HashSet<String>>,
+    pub plain_properties: Option<HashSet<String>>,
+    pub field_signal_properties: Option<HashSet<String>>,
+}
+
+/// Registry of cross-file reactivity manifests.
+/// Keyed by module specifier → export name → info.
+pub type ManifestRegistry = HashMap<String, HashMap<String, ManifestExportInfo>>;
+
 /// Classification of a variable's reactivity.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ReactivityKind {
@@ -58,22 +71,31 @@ struct VarMeta {
 pub fn analyze_reactivity<'a>(
     program: &Program<'a>,
     component: &ComponentInfo,
-    import_aliases: &HashMap<String, String>,
+    import_ctx: &ImportContext,
 ) -> Vec<VariableInfo> {
     // Phase 1: Collect variable declarations and their dependencies
-    let var_metas = collect_variables(program, component, import_aliases);
+    let var_metas = collect_variables(program, component, import_ctx);
 
     // Phase 2: Classify based on JSX reachability
-    classify_variables(program, component, var_metas)
+    classify_variables(program, component, var_metas, import_ctx)
 }
 
 /// Build import alias map: local_name → original_api_name
-/// for signal API imports.
-pub fn build_import_aliases<'a>(program: &Program<'a>) -> HashMap<String, String> {
+/// for signal API imports. Also registers manifest-derived APIs.
+///
+/// Returns (aliases, dynamic_configs) where dynamic_configs contains
+/// signal API configs derived from cross-file manifests.
+pub fn build_import_aliases<'a>(
+    program: &Program<'a>,
+    manifests: &ManifestRegistry,
+) -> (HashMap<String, String>, HashMap<String, DynamicApiConfig>) {
     let mut aliases = HashMap::new();
+    let mut dynamic_configs: HashMap<String, DynamicApiConfig> = HashMap::new();
 
     for stmt in &program.body {
         if let Statement::ImportDeclaration(import) = stmt {
+            let module_specifier = import.source.value.as_str();
+
             if let Some(ref specifiers) = import.specifiers {
                 for spec in specifiers {
                     if let ImportDeclarationSpecifier::ImportSpecifier(named) = spec {
@@ -93,6 +115,138 @@ pub fn build_import_aliases<'a>(program: &Program<'a>) -> HashMap<String, String
                         if REACTIVE_SOURCE_APIS.contains(imported_name) {
                             aliases.insert(local_name.to_string(), imported_name.to_string());
                         }
+
+                        // Check manifests for cross-file reactivity info
+                        if let Some(module_exports) = manifests.get(module_specifier) {
+                            if let Some(export_info) = module_exports.get(imported_name) {
+                                match export_info.reactivity_type.as_str() {
+                                    "signal-api" => {
+                                        // Register as a dynamic signal API
+                                        let key = format!(
+                                            "__manifest__{module_specifier}__{imported_name}"
+                                        );
+                                        aliases.insert(local_name.to_string(), key.clone());
+                                        dynamic_configs.insert(
+                                            key,
+                                            DynamicApiConfig {
+                                                signal_properties: export_info
+                                                    .signal_properties
+                                                    .clone()
+                                                    .unwrap_or_default(),
+                                                plain_properties: export_info
+                                                    .plain_properties
+                                                    .clone()
+                                                    .unwrap_or_default(),
+                                                field_signal_properties: export_info
+                                                    .field_signal_properties
+                                                    .clone(),
+                                            },
+                                        );
+                                    }
+                                    "reactive-source" => {
+                                        // Register as a reactive source
+                                        let key = format!(
+                                            "__manifest__{module_specifier}__{imported_name}"
+                                        );
+                                        aliases.insert(local_name.to_string(), key.clone());
+                                        dynamic_configs.insert(
+                                            key,
+                                            DynamicApiConfig {
+                                                signal_properties: HashSet::new(),
+                                                plain_properties: HashSet::new(),
+                                                field_signal_properties: None,
+                                            },
+                                        );
+                                    }
+                                    _ => {}
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    (aliases, dynamic_configs)
+}
+
+/// Dynamic signal API config derived from a cross-file manifest.
+#[derive(Debug, Clone)]
+pub struct DynamicApiConfig {
+    pub signal_properties: HashSet<String>,
+    pub plain_properties: HashSet<String>,
+    pub field_signal_properties: Option<HashSet<String>>,
+}
+
+/// Combined import context: static aliases + dynamic manifest configs.
+pub struct ImportContext {
+    pub aliases: HashMap<String, String>,
+    pub dynamic_configs: HashMap<String, DynamicApiConfig>,
+}
+
+impl ImportContext {
+    /// Check if the resolved API name is a reactive source (static or dynamic).
+    pub fn is_reactive_source(&self, resolved_name: &str) -> bool {
+        if REACTIVE_SOURCE_APIS.contains(resolved_name) {
+            return true;
+        }
+        // Dynamic manifest reactive sources have keys starting with __manifest__
+        // and their DynamicApiConfig has empty signal/plain properties
+        if let Some(config) = self.dynamic_configs.get(resolved_name) {
+            return config.signal_properties.is_empty() && config.plain_properties.is_empty();
+        }
+        false
+    }
+
+    /// Get signal API config: first check static registry, then dynamic.
+    pub fn get_signal_api_config(&self, resolved_name: &str) -> Option<DynamicApiConfig> {
+        // Check static registry first
+        if let Some(static_config) = get_signal_api_config(resolved_name) {
+            return Some(DynamicApiConfig {
+                signal_properties: static_config
+                    .signal_properties
+                    .iter()
+                    .map(|s| s.to_string())
+                    .collect(),
+                plain_properties: static_config
+                    .plain_properties
+                    .iter()
+                    .map(|s| s.to_string())
+                    .collect(),
+                field_signal_properties: static_config
+                    .field_signal_properties
+                    .as_ref()
+                    .map(|fs| fs.iter().map(|s| s.to_string()).collect()),
+            });
+        }
+        // Check dynamic configs
+        self.dynamic_configs.get(resolved_name).cloned()
+    }
+}
+
+/// Build query alias set: local names that resolve to `query` from @vertz/ui.
+pub fn build_query_aliases<'a>(program: &Program<'a>) -> HashSet<String> {
+    let mut aliases = HashSet::new();
+
+    for stmt in &program.body {
+        if let Statement::ImportDeclaration(import) = stmt {
+            let source = import.source.value.as_str();
+            // Only match @vertz/ui imports
+            if !source.starts_with("@vertz/ui") && !source.starts_with("vertz/ui") {
+                continue;
+            }
+            if let Some(ref specifiers) = import.specifiers {
+                for spec in specifiers {
+                    if let ImportDeclarationSpecifier::ImportSpecifier(named) = spec {
+                        let imported_name = match &named.imported {
+                            ModuleExportName::IdentifierName(id) => id.name.as_str(),
+                            ModuleExportName::IdentifierReference(id) => id.name.as_str(),
+                            ModuleExportName::StringLiteral(s) => s.value.as_str(),
+                        };
+                        if imported_name == "query" {
+                            aliases.insert(named.local.name.as_str().to_string());
+                        }
                     }
                 }
             }
@@ -106,13 +260,13 @@ pub fn build_import_aliases<'a>(program: &Program<'a>) -> HashMap<String, String
 fn collect_variables<'a>(
     program: &Program<'a>,
     component: &ComponentInfo,
-    import_aliases: &HashMap<String, String>,
+    import_ctx: &ImportContext,
 ) -> Vec<VarMeta> {
     let mut metas = Vec::new();
 
     // Walk statements in the program body, filtering to component range
     for stmt in &program.body {
-        collect_vars_from_statement(stmt, component, import_aliases, &mut metas);
+        collect_vars_from_statement(stmt, component, import_ctx, &mut metas);
     }
 
     metas
@@ -121,7 +275,7 @@ fn collect_variables<'a>(
 fn collect_vars_from_statement<'a>(
     stmt: &Statement<'a>,
     component: &ComponentInfo,
-    import_aliases: &HashMap<String, String>,
+    import_ctx: &ImportContext,
     metas: &mut Vec<VarMeta>,
 ) {
     // Handle function declarations that are the component itself
@@ -130,7 +284,7 @@ fn collect_vars_from_statement<'a>(
             if id.name.as_str() == component.name {
                 if let Some(ref body) = func.body {
                     for body_stmt in &body.statements {
-                        collect_vars_from_body_stmt(body_stmt, import_aliases, metas);
+                        collect_vars_from_body_stmt(body_stmt, import_ctx, metas);
                     }
                 }
                 return;
@@ -141,7 +295,7 @@ fn collect_vars_from_statement<'a>(
     // Handle export declarations wrapping the component
     if let Statement::ExportNamedDeclaration(export_decl) = stmt {
         if let Some(ref decl) = export_decl.declaration {
-            collect_vars_from_exported_decl(decl, component, import_aliases, metas);
+            collect_vars_from_exported_decl(decl, component, import_ctx, metas);
             return;
         }
     }
@@ -152,7 +306,7 @@ fn collect_vars_from_statement<'a>(
             if let BindingPattern::BindingIdentifier(ref id) = declarator.id {
                 if id.name.as_str() == component.name {
                     if let Some(ref init) = declarator.init {
-                        collect_vars_from_component_init(init, import_aliases, metas);
+                        collect_vars_from_component_init(init, import_ctx, metas);
                     }
                 }
             }
@@ -168,7 +322,7 @@ fn collect_vars_from_statement<'a>(
                 if id.name.as_str() == component.name {
                     if let Some(ref body) = func.body {
                         for body_stmt in &body.statements {
-                            collect_vars_from_body_stmt(body_stmt, import_aliases, metas);
+                            collect_vars_from_body_stmt(body_stmt, import_ctx, metas);
                         }
                     }
                 }
@@ -180,7 +334,7 @@ fn collect_vars_from_statement<'a>(
 fn collect_vars_from_exported_decl<'a>(
     decl: &Declaration<'a>,
     component: &ComponentInfo,
-    import_aliases: &HashMap<String, String>,
+    import_ctx: &ImportContext,
     metas: &mut Vec<VarMeta>,
 ) {
     match decl {
@@ -189,7 +343,7 @@ fn collect_vars_from_exported_decl<'a>(
                 if id.name.as_str() == component.name {
                     if let Some(ref body) = func.body {
                         for body_stmt in &body.statements {
-                            collect_vars_from_body_stmt(body_stmt, import_aliases, metas);
+                            collect_vars_from_body_stmt(body_stmt, import_ctx, metas);
                         }
                     }
                 }
@@ -200,7 +354,7 @@ fn collect_vars_from_exported_decl<'a>(
                 if let BindingPattern::BindingIdentifier(ref id) = declarator.id {
                     if id.name.as_str() == component.name {
                         if let Some(ref init) = declarator.init {
-                            collect_vars_from_component_init(init, import_aliases, metas);
+                            collect_vars_from_component_init(init, import_ctx, metas);
                         }
                     }
                 }
@@ -212,30 +366,30 @@ fn collect_vars_from_exported_decl<'a>(
 
 fn collect_vars_from_component_init<'a>(
     expr: &Expression<'a>,
-    import_aliases: &HashMap<String, String>,
+    import_ctx: &ImportContext,
     metas: &mut Vec<VarMeta>,
 ) {
     match expr {
         Expression::ArrowFunctionExpression(arrow) => {
             for stmt in &arrow.body.statements {
-                collect_vars_from_body_stmt(stmt, import_aliases, metas);
+                collect_vars_from_body_stmt(stmt, import_ctx, metas);
             }
         }
         Expression::FunctionExpression(func) => {
             if let Some(ref body) = func.body {
                 for stmt in &body.statements {
-                    collect_vars_from_body_stmt(stmt, import_aliases, metas);
+                    collect_vars_from_body_stmt(stmt, import_ctx, metas);
                 }
             }
         }
         Expression::ParenthesizedExpression(paren) => {
-            collect_vars_from_component_init(&paren.expression, import_aliases, metas);
+            collect_vars_from_component_init(&paren.expression, import_ctx, metas);
         }
         Expression::TSAsExpression(ts_as) => {
-            collect_vars_from_component_init(&ts_as.expression, import_aliases, metas);
+            collect_vars_from_component_init(&ts_as.expression, import_ctx, metas);
         }
         Expression::TSSatisfiesExpression(ts_sat) => {
-            collect_vars_from_component_init(&ts_sat.expression, import_aliases, metas);
+            collect_vars_from_component_init(&ts_sat.expression, import_ctx, metas);
         }
         _ => {}
     }
@@ -243,7 +397,7 @@ fn collect_vars_from_component_init<'a>(
 
 fn collect_vars_from_body_stmt<'a>(
     stmt: &Statement<'a>,
-    import_aliases: &HashMap<String, String>,
+    import_ctx: &ImportContext,
     metas: &mut Vec<VarMeta>,
 ) {
     if let Statement::VariableDeclaration(var_decl) = stmt {
@@ -252,7 +406,7 @@ fn collect_vars_from_body_stmt<'a>(
         for declarator in &var_decl.declarations {
             match &declarator.id {
                 BindingPattern::BindingIdentifier(id) => {
-                    collect_binding_identifier(id, declarator, is_let, import_aliases, metas);
+                    collect_binding_identifier(id, declarator, is_let, import_ctx, metas);
                 }
                 BindingPattern::ObjectPattern(obj_pattern) => {
                     // Handle destructured bindings: const { data, error } = query(...)
@@ -261,7 +415,7 @@ fn collect_vars_from_body_stmt<'a>(
                             obj_pattern,
                             init,
                             declarator,
-                            import_aliases,
+                            import_ctx,
                             metas,
                         );
                     }
@@ -276,7 +430,7 @@ fn collect_binding_identifier<'a>(
     id: &BindingIdentifier<'a>,
     declarator: &VariableDeclarator<'a>,
     is_let: bool,
-    import_aliases: &HashMap<String, String>,
+    import_ctx: &ImportContext,
     metas: &mut Vec<VarMeta>,
 ) {
     let name = id.name.to_string();
@@ -304,17 +458,18 @@ fn collect_binding_identifier<'a>(
         // Check if init is a call to a signal API (unwrap NonNull first)
         let unwrapped_init = unwrap_ts_non_null(init);
         if let Some(callee_name) = get_call_expression_name(unwrapped_init) {
-            // Resolve through aliases
-            let original_name = import_aliases
+            // Resolve through aliases (static + manifest)
+            let original_name = import_ctx
+                .aliases
                 .get(&callee_name)
                 .cloned()
                 .unwrap_or_else(|| callee_name.clone());
 
-            if REACTIVE_SOURCE_APIS.contains(original_name.as_str()) {
+            if import_ctx.is_reactive_source(&original_name) {
                 is_reactive_source = true;
             }
 
-            if get_signal_api_config(&original_name).is_some() {
+            if import_ctx.get_signal_api_config(&original_name).is_some() {
                 is_signal_api = true;
                 signal_api_name = Some(original_name);
             }
@@ -341,14 +496,15 @@ fn collect_destructured_bindings<'a>(
     obj_pattern: &ObjectPattern<'a>,
     init: &Expression<'a>,
     declarator: &VariableDeclarator<'a>,
-    import_aliases: &HashMap<String, String>,
+    import_ctx: &ImportContext,
     metas: &mut Vec<VarMeta>,
 ) {
     // Check if the init is a call to a signal API
     let unwrapped_init = unwrap_ts_non_null(init);
     let callee_name = get_call_expression_name(unwrapped_init);
     let original_api_name = callee_name.as_ref().map(|name| {
-        import_aliases
+        import_ctx
+            .aliases
             .get(name)
             .cloned()
             .unwrap_or_else(|| name.clone())
@@ -356,11 +512,11 @@ fn collect_destructured_bindings<'a>(
 
     let signal_config = original_api_name
         .as_ref()
-        .and_then(|name| get_signal_api_config(name));
+        .and_then(|name| import_ctx.get_signal_api_config(name));
 
     let is_reactive_source = original_api_name
         .as_ref()
-        .is_some_and(|name| REACTIVE_SOURCE_APIS.contains(name.as_str()));
+        .is_some_and(|name| import_ctx.is_reactive_source(name));
 
     for prop in &obj_pattern.properties {
         if let BindingPattern::BindingIdentifier(ref binding_id) = prop.value {
@@ -372,9 +528,11 @@ fn collect_destructured_bindings<'a>(
 
             // Determine the kind based on signal API config
             let is_signal_prop = signal_config
-                .is_some_and(|config| config.signal_properties.contains(source_prop_name.as_str()));
+                .as_ref()
+                .is_some_and(|config| config.signal_properties.contains(&source_prop_name));
             let is_plain_prop = signal_config
-                .is_some_and(|config| config.plain_properties.contains(source_prop_name.as_str()));
+                .as_ref()
+                .is_some_and(|config| config.plain_properties.contains(&source_prop_name));
 
             // Destructured signal properties become signal variables,
             // destructured plain properties become static
@@ -419,6 +577,7 @@ fn classify_variables<'a>(
     program: &Program<'a>,
     component: &ComponentInfo,
     metas: Vec<VarMeta>,
+    import_ctx: &ImportContext,
 ) -> Vec<VariableInfo> {
     // Step 1: Collect identifiers referenced in JSX
     let jsx_refs = collect_jsx_refs(program, component);
@@ -478,7 +637,7 @@ fn classify_variables<'a>(
                 ReactivityKind::Static
             } else {
                 // Check if this const depends on any reactive thing
-                if depends_on_reactive(meta, &meta_map, &jsx_reachable) {
+                if depends_on_reactive(meta, &meta_map, &jsx_reachable, import_ctx) {
                     ReactivityKind::Computed
                 } else {
                     ReactivityKind::Static
@@ -488,26 +647,13 @@ fn classify_variables<'a>(
             // Build signal/plain/field properties for signal API vars
             let (signal_props, plain_props, field_props) = if meta.is_signal_api {
                 if let Some(ref api_name) = meta.signal_api_name {
-                    if let Some(config) = get_signal_api_config(api_name) {
+                    if let Some(config) = import_ctx.get_signal_api_config(api_name) {
                         (
-                            Some(
-                                config
-                                    .signal_properties
-                                    .iter()
-                                    .map(|s| s.to_string())
-                                    .collect(),
-                            ),
-                            Some(
-                                config
-                                    .plain_properties
-                                    .iter()
-                                    .map(|s| s.to_string())
-                                    .collect(),
-                            ),
+                            Some(config.signal_properties.into_iter().collect()),
+                            Some(config.plain_properties.into_iter().collect()),
                             config
                                 .field_signal_properties
-                                .as_ref()
-                                .map(|fps| fps.iter().map(|s| s.to_string()).collect()),
+                                .map(|fps| fps.into_iter().collect()),
                         )
                     } else {
                         (None, None, None)
@@ -538,15 +684,17 @@ fn depends_on_reactive(
     meta: &VarMeta,
     meta_map: &HashMap<&str, &VarMeta>,
     jsx_reachable: &HashSet<String>,
+    import_ctx: &ImportContext,
 ) -> bool {
     let mut visited = HashSet::new();
-    depends_on_reactive_inner(meta, meta_map, jsx_reachable, &mut visited)
+    depends_on_reactive_inner(meta, meta_map, jsx_reachable, import_ctx, &mut visited)
 }
 
 fn depends_on_reactive_inner(
     meta: &VarMeta,
     meta_map: &HashMap<&str, &VarMeta>,
     jsx_reachable: &HashSet<String>,
+    import_ctx: &ImportContext,
     visited: &mut HashSet<String>,
 ) -> bool {
     if !visited.insert(meta.name.clone()) {
@@ -564,9 +712,9 @@ fn depends_on_reactive_inner(
             if dep_meta.is_signal_api {
                 if let Some(props_accessed) = meta.property_accesses.get(dep.as_str()) {
                     if let Some(ref api_name) = dep_meta.signal_api_name {
-                        if let Some(config) = get_signal_api_config(api_name) {
+                        if let Some(config) = import_ctx.get_signal_api_config(api_name) {
                             for prop in props_accessed {
-                                if config.signal_properties.contains(prop.as_str()) {
+                                if config.signal_properties.contains(prop) {
                                     return true;
                                 }
                             }
@@ -585,7 +733,7 @@ fn depends_on_reactive_inner(
             if !dep_meta.is_function_def
                 && !dep_meta.is_structural_literal
                 && !dep_meta.is_signal_api
-                && depends_on_reactive_inner(dep_meta, meta_map, jsx_reachable, visited)
+                && depends_on_reactive_inner(dep_meta, meta_map, jsx_reachable, import_ctx, visited)
             {
                 return true;
             }

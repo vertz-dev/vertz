@@ -592,6 +592,53 @@ describe('Feature: JSX element transform', () => {
     });
   });
 
+  // ─── S-12: JSX inside non-.map() callbacks (Array.from, etc.) ───────────
+
+  describe('Given JSX inside Array.from() callback', () => {
+    describe('When compiled', () => {
+      it('Then transforms the JSX inside the callback', () => {
+        const code = compileAndGetCode(`
+          function Grid() {
+            return (
+              <div>
+                {Array.from({ length: 5 }, (_, i) => (
+                  <span key={i}>{i}</span>
+                ))}
+              </div>
+            );
+          }
+        `);
+
+        expect(code).not.toMatch(/<span/);
+        expect(code).toContain('__element("span")');
+        expect(code).toContain('__element("div")');
+      });
+    });
+  });
+
+  describe('Given JSX inside .filter().map() chain', () => {
+    describe('When compiled', () => {
+      it('Then transforms JSX in both callbacks', () => {
+        const code = compileAndGetCode(`
+          function App() {
+            let items = [];
+            return (
+              <ul>
+                {items.filter(i => i.active).map(item => (
+                  <li key={item.id}>{item.name}</li>
+                ))}
+              </ul>
+            );
+          }
+        `);
+
+        expect(code).not.toMatch(/<li/);
+        expect(code).toContain('__list(');
+        expect(code).toContain('__element("li")');
+      });
+    });
+  });
+
   // ─── Non-IDL disabled stays as setAttribute ──────────────────────────────
 
   describe('Given a non-IDL boolean shorthand on non-input element', () => {
@@ -601,6 +648,97 @@ describe('Feature: JSX element transform', () => {
           `function App() {\n  return <button disabled />;\n}`,
         );
         expect(code).toContain('.setAttribute("disabled", "")');
+      });
+    });
+  });
+
+  // ─── F-10: Signal API properties in JSX must use reactive wrappers ────────
+
+  describe('Given a signal API variable (query) used in JSX children', () => {
+    describe('When compiled', () => {
+      it('Then wraps signal API property access in __child(() => ...)', () => {
+        const { compile } = loadCompiler();
+        const result = compile(
+          `import { query } from '@vertz/ui';
+          function App() {
+            const tasks = query(() => fetchTasks());
+            return <div>{tasks.data}</div>;
+          }`,
+          { filename: 'test.tsx' },
+        );
+        // tasks.data is a signal property → must be reactive
+        expect(result.code).toContain('__child(() => tasks.data.value)');
+        expect(result.code).not.toMatch(/__insert\([^,]+,\s*tasks\.data/);
+      });
+    });
+  });
+
+  describe('Given a signal API variable used in JSX attribute', () => {
+    describe('When compiled', () => {
+      it('Then wraps signal API property in __attr(() => ...)', () => {
+        const { compile } = loadCompiler();
+        const result = compile(
+          `import { query } from '@vertz/ui';
+          function App() {
+            const tasks = query(() => fetchTasks());
+            return <div className={tasks.loading ? 'loading' : ''}>content</div>;
+          }`,
+          { filename: 'test.tsx' },
+        );
+        // tasks.loading is a signal property → must use reactive __attr
+        expect(result.code).toContain('__attr(');
+        expect(result.code).toContain('tasks.loading.value');
+      });
+    });
+  });
+
+  describe('Given a signal API plain property in JSX children', () => {
+    describe('When compiled', () => {
+      it('Then does NOT wrap plain properties in reactive wrappers', () => {
+        const { compile } = loadCompiler();
+        const result = compile(
+          `import { query } from '@vertz/ui';
+          function App() {
+            const tasks = query(() => fetchTasks());
+            return <div>{tasks.refetch}</div>;
+          }`,
+          { filename: 'test.tsx' },
+        );
+        // tasks.refetch is a plain property → should NOT be reactive
+        expect(result.code).not.toContain('__child(() => tasks.refetch');
+        expect(result.code).toContain('__insert(');
+      });
+    });
+  });
+
+  // ─── F-11: Hyphenated reactive prop names on components ───────────────────
+
+  describe('Given a component with hyphenated reactive prop', () => {
+    describe('When compiled', () => {
+      it('Then produces valid JS getter with computed property key', () => {
+        const code = compileAndGetCode(`
+          function App() {
+            let count = 0;
+            return <CustomComp data-testid={count} />;
+          }
+        `);
+        // Hyphenated getter must use computed property syntax
+        expect(code).toContain('get ["data-testid"]()');
+        expect(code).not.toContain('get data-testid()');
+      });
+    });
+  });
+
+  describe('Given a component with non-hyphenated reactive prop', () => {
+    describe('When compiled', () => {
+      it('Then produces getter with plain identifier key', () => {
+        const code = compileAndGetCode(`
+          function App() {
+            let count = 0;
+            return <CustomComp title={count} />;
+          }
+        `);
+        expect(code).toContain('get title()');
       });
     });
   });

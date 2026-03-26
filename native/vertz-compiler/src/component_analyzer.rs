@@ -8,6 +8,8 @@ pub struct ComponentInfo {
     pub body_end: u32,
     /// Whether this component is an arrow function with expression body (no block).
     pub is_arrow_expression: bool,
+    /// Props parameter name (e.g., "props"), or None if no params or destructured.
+    pub props_param: Option<String>,
 }
 
 /// Analyze a program and detect function components (functions that return JSX).
@@ -33,6 +35,7 @@ fn collect_from_statement<'a>(stmt: &Statement<'a>, components: &mut Vec<Compone
                             body_start: body.span.start,
                             body_end: body.span.end,
                             is_arrow_expression: false,
+                            props_param: extract_props_param(&func.params),
                         });
                     }
                 }
@@ -64,6 +67,7 @@ fn collect_from_statement<'a>(stmt: &Statement<'a>, components: &mut Vec<Compone
                                 body_start: body.span.start,
                                 body_end: body.span.end,
                                 is_arrow_expression: false,
+                                props_param: extract_props_param(&func.params),
                             });
                         }
                     }
@@ -86,6 +90,7 @@ fn collect_from_declaration<'a>(decl: &Declaration<'a>, components: &mut Vec<Com
                             body_start: body.span.start,
                             body_end: body.span.end,
                             is_arrow_expression: false,
+                            props_param: extract_props_param(&func.params),
                         });
                     }
                 }
@@ -126,6 +131,7 @@ fn check_expression_for_component<'a>(
                     body_start: start,
                     body_end: end,
                     is_arrow_expression: arrow.expression,
+                    props_param: extract_props_param_from_items(&arrow.params.items),
                 });
             }
         }
@@ -139,6 +145,7 @@ fn check_expression_for_component<'a>(
                         body_start: body.span.start,
                         body_end: body.span.end,
                         is_arrow_expression: false,
+                        props_param: extract_props_param(&func.params),
                     });
                 }
             }
@@ -158,6 +165,24 @@ fn check_expression_for_component<'a>(
         }
 
         _ => {}
+    }
+}
+
+/// Extract the props parameter name from a FormalParameters node.
+/// Returns Some("paramName") for simple identifier parameters, None for destructured or no params.
+fn extract_props_param<'a>(params: &FormalParameters<'a>) -> Option<String> {
+    extract_props_param_from_items(&params.items)
+}
+
+/// Extract the props parameter name from a list of FormalParameter items.
+fn extract_props_param_from_items<'a>(items: &[FormalParameter<'a>]) -> Option<String> {
+    if items.len() != 1 {
+        return None;
+    }
+    if let BindingPattern::BindingIdentifier(ref id) = items[0].pattern {
+        Some(id.name.to_string())
+    } else {
+        None // Destructured pattern
     }
 }
 

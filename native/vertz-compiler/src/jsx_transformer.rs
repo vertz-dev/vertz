@@ -1,4 +1,4 @@
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 use oxc_ast::ast::*;
 use oxc_ast_visit::Visit;
@@ -7,6 +7,16 @@ use oxc_span::GetSpan;
 use crate::component_analyzer::ComponentInfo;
 use crate::magic_string::MagicString;
 use crate::reactivity_analyzer::{ReactivityKind, VariableInfo};
+
+/// Bundles all reactivity info the JSX transformer needs for deciding
+/// between static and reactive codegen paths.
+struct ReactivityContext {
+    /// Names of signal/computed variables (their `.value` access is reactive)
+    names: HashSet<String>,
+    /// Signal API variables → their reactive property names
+    /// (e.g., "tasks" → {"data", "loading", "error"})
+    signal_api_props: HashMap<String, HashSet<String>>,
+}
 
 // ─── IDL properties ──────────────────────────────────────────────────────────
 
@@ -31,30 +41,94 @@ pub fn transform_jsx(
     program: &Program,
     component: &ComponentInfo,
     variables: &[VariableInfo],
+    hydration_id: Option<&str>,
 ) {
-    let reactive_names: HashSet<String> = variables
-        .iter()
-        .filter(|v| v.kind == ReactivityKind::Signal || v.kind == ReactivityKind::Computed)
-        .map(|v| v.name.clone())
-        .collect();
+    let rx = ReactivityContext {
+        names: variables
+            .iter()
+            .filter(|v| v.kind == ReactivityKind::Signal || v.kind == ReactivityKind::Computed)
+            .map(|v| v.name.clone())
+            .collect(),
+        signal_api_props: variables
+            .iter()
+            .filter_map(|v| {
+                v.signal_properties
+                    .as_ref()
+                    .map(|props| (v.name.clone(), props.iter().cloned().collect()))
+            })
+            .collect(),
+    };
 
     let mut counter = 0;
 
-    // Find all top-level JSX nodes in the component body and transform them
-    let jsx_nodes = collect_top_level_jsx(program, component);
+    // Find all top-level JSX nodes in the component body and transform them.
+    // Nodes are collected depth-first, so inner (callback) JSX comes after outer JSX.
+    // We process in REVERSE order so that inner JSX is transformed first — its IIFE
+    // is then visible via get_transformed_slice() when the outer JSX reads expression text.
+    let mut jsx_nodes = collect_top_level_jsx(program, component);
+    jsx_nodes.reverse();
+
+    // The first JSX node in source order (last after reverse) gets the hydration marker.
+    // We use `is_first_root` to track this.
+    let mut hydration_used = false;
 
     for jsx_info in &jsx_nodes {
-        let transformed = transform_jsx_node(
+        let mut transformed = transform_jsx_node(
             ms,
             program,
             jsx_info.start,
             jsx_info.end,
             &jsx_info.kind,
-            &reactive_names,
+            &rx,
             &mut counter,
         );
+
+        // Inject hydration marker into the first root element's IIFE.
+        // The IIFE looks like: (() => { const __el0 = __element("tag"); ... return __el0; })()
+        // We inject: __el0.setAttribute("data-v-id", "Name");
+        if !hydration_used {
+            if let Some(id) = hydration_id {
+                if let Some(injected) = inject_hydration_attr(&transformed, id) {
+                    transformed = injected;
+                    hydration_used = true;
+                }
+            }
+        }
+
         ms.overwrite(jsx_info.start, jsx_info.end, &transformed);
     }
+}
+
+/// Inject a `data-v-id` setAttribute call into the first __element() IIFE.
+fn inject_hydration_attr(code: &str, component_name: &str) -> Option<String> {
+    // Find pattern: `const __elN = __element("tag")`
+    // Insert after the semicolon: `__elN.setAttribute("data-v-id", "Name");`
+    let el_prefix = "const __el";
+    let pos = code.find(el_prefix)?;
+    let after = &code[pos..];
+
+    // Extract the variable name (e.g., "__el0")
+    let eq_pos = after.find(" = __element(")?;
+    let var_name = &after[6..eq_pos]; // skip "const "
+    let full_var = format!("__el{}", var_name);
+
+    // Find the end of this statement (the semicolon after __element(...))
+    let stmt_end = after.find("__element(")?;
+    let rest = &after[stmt_end..];
+    let paren_end = rest.find(')')?;
+    let insert_pos = pos + stmt_end + paren_end + 1;
+
+    // Check if there's already a semicolon
+    let insert_text = format!(
+        ";\n  {}.setAttribute(\"data-v-id\", \"{}\")",
+        full_var, component_name
+    );
+
+    let mut result = String::with_capacity(code.len() + insert_text.len());
+    result.push_str(&code[..insert_pos]);
+    result.push_str(&insert_text);
+    result.push_str(&code[insert_pos..]);
+    Some(result)
 }
 
 // ─── JSX node collection ────────────────────────────────────────────────────
@@ -109,8 +183,14 @@ impl<'a, 'c> Visit<'c> for JsxCollector<'a> {
             return;
         }
         if self.in_component && self.is_in_component(span.start, span.end) {
-            // Nested function — still walk it to find JSX inside callbacks
+            // Nested function inside component — if we're inside JSX, reset in_jsx
+            // so that JSX inside callback expressions is collected separately.
+            let was_in_jsx = self.in_jsx;
+            if self.in_jsx {
+                self.in_jsx = false;
+            }
             oxc_ast_visit::walk::walk_function(self, func, flags);
+            self.in_jsx = was_in_jsx;
             return;
         }
         oxc_ast_visit::walk::walk_function(self, func, flags);
@@ -126,8 +206,15 @@ impl<'a, 'c> Visit<'c> for JsxCollector<'a> {
             return;
         }
         if self.in_component && self.is_in_component(span.start, span.end) {
-            // Nested arrow — still walk to find JSX
+            // Nested arrow inside component — if we're inside JSX, reset in_jsx
+            // so that JSX inside callback expressions (Array.from, .filter, etc.)
+            // is collected as a separate node to be transformed independently.
+            let was_in_jsx = self.in_jsx;
+            if self.in_jsx {
+                self.in_jsx = false;
+            }
             oxc_ast_visit::walk::walk_arrow_function_expression(self, func);
+            self.in_jsx = was_in_jsx;
             return;
         }
         oxc_ast_visit::walk::walk_arrow_function_expression(self, func);
@@ -179,7 +266,7 @@ fn transform_jsx_node(
     start: u32,
     end: u32,
     kind: &JsxNodeKind,
-    reactive_names: &HashSet<String>,
+    rx: &ReactivityContext,
     counter: &mut u32,
 ) -> String {
     match kind {
@@ -196,7 +283,7 @@ fn transform_jsx_node(
                 }
             }
             if let Some(info) = finder.result {
-                transform_element(ms, program, &info, reactive_names, counter)
+                transform_element(ms, program, &info, rx, counter)
             } else {
                 ms.slice(start, end).to_string()
             }
@@ -214,7 +301,7 @@ fn transform_jsx_node(
                 }
             }
             if let Some(info) = finder.result {
-                transform_fragment(ms, program, &info, reactive_names, counter)
+                transform_fragment(ms, program, &info, rx, counter)
             } else {
                 ms.slice(start, end).to_string()
             }
@@ -686,11 +773,11 @@ fn transform_element(
     ms: &MagicString,
     program: &Program,
     info: &ElementInfo,
-    reactive_names: &HashSet<String>,
+    rx: &ReactivityContext,
     counter: &mut u32,
 ) -> String {
     if info.is_component {
-        return transform_component(ms, program, info, reactive_names, counter);
+        return transform_component(ms, program, info, rx, counter);
     }
 
     let el_var = gen_var(counter);
@@ -704,7 +791,7 @@ fn transform_element(
 
     // Process attributes
     for attr in &info.attrs {
-        if let Some(stmt) = process_attr(ms, attr, &el_var, &info.tag_name, reactive_names) {
+        if let Some(stmt) = process_attr(ms, attr, &el_var, &info.tag_name, rx) {
             stmts.push(stmt);
         }
     }
@@ -716,7 +803,7 @@ fn transform_element(
     }
 
     for child in &info.children {
-        if let Some(stmt) = transform_child(ms, program, child, &el_var, reactive_names, counter) {
+        if let Some(stmt) = transform_child(ms, program, child, &el_var, rx, counter) {
             stmts.push(stmt);
         }
     }
@@ -740,7 +827,7 @@ fn transform_component(
     ms: &MagicString,
     program: &Program,
     info: &ElementInfo,
-    reactive_names: &HashSet<String>,
+    rx: &ReactivityContext,
     counter: &mut u32,
 ) -> String {
     let mut props: Vec<String> = Vec::new();
@@ -764,19 +851,17 @@ fn transform_component(
                 }
                 // Use slice_with_transformed_jsx to handle JSX nested inside prop values
                 // (e.g., fallback={() => <div>Not found</div>})
-                let expr_text = slice_with_transformed_jsx(
-                    ms,
-                    program,
-                    *expr_start,
-                    *expr_end,
-                    reactive_names,
-                    counter,
-                );
+                let expr_text =
+                    slice_with_transformed_jsx(ms, program, *expr_start, *expr_end, rx, counter);
                 // For component props, ALL non-literal expressions become getters.
                 // This is by design: getter-backed props enable cross-component
                 // reactivity — the child reads lazily when signals change.
                 if *is_reactive {
-                    props.push(format!("get {}() {{ return {}; }}", name, expr_text));
+                    props.push(format!(
+                        "get {}() {{ return {}; }}",
+                        quote_getter_key(name),
+                        expr_text
+                    ));
                 } else {
                     props.push(format!("{}: {}", quote_prop_key(name), expr_text));
                 }
@@ -809,8 +894,7 @@ fn transform_component(
             .collect();
 
         if !non_empty.is_empty() {
-            let children_thunk =
-                build_children_thunk(ms, program, &non_empty, reactive_names, counter);
+            let children_thunk = build_children_thunk(ms, program, &non_empty, rx, counter);
             if !children_thunk.is_empty() {
                 props.push(format!("children: {}", children_thunk));
             }
@@ -828,13 +912,13 @@ fn build_children_thunk(
     ms: &MagicString,
     program: &Program,
     children: &[&ChildInfo],
-    reactive_names: &HashSet<String>,
+    rx: &ReactivityContext,
     counter: &mut u32,
 ) -> String {
     let mut values: Vec<String> = Vec::new();
 
     for child in children {
-        if let Some(v) = transform_child_as_value(ms, program, child, reactive_names, counter) {
+        if let Some(v) = transform_child_as_value(ms, program, child, rx, counter) {
             values.push(v);
         }
     }
@@ -852,7 +936,7 @@ fn transform_child_as_value(
     ms: &MagicString,
     program: &Program,
     child: &ChildInfo,
-    reactive_names: &HashSet<String>,
+    rx: &ReactivityContext,
     counter: &mut u32,
 ) -> Option<String> {
     match child {
@@ -867,20 +951,12 @@ fn transform_child_as_value(
             // Conditionals
             if let ExprKind::Conditional { .. } = expr_kind {
                 return Some(transform_conditional_code(
-                    ms,
-                    program,
-                    expr_kind,
-                    reactive_names,
-                    counter,
+                    ms, program, expr_kind, rx, counter,
                 ));
             }
             if let ExprKind::LogicalAnd { .. } = expr_kind {
                 return Some(transform_conditional_code(
-                    ms,
-                    program,
-                    expr_kind,
-                    reactive_names,
-                    counter,
+                    ms, program, expr_kind, rx, counter,
                 ));
             }
 
@@ -903,15 +979,7 @@ fn transform_child_as_value(
                     let body_jsx =
                         find_jsx_in_span(program, *callback_body_start, *callback_body_end);
                     if let Some(jsx) = body_jsx {
-                        transform_jsx_node(
-                            ms,
-                            program,
-                            jsx.start,
-                            jsx.end,
-                            &jsx.kind,
-                            reactive_names,
-                            counter,
-                        )
+                        transform_jsx_node(ms, program, jsx.start, jsx.end, &jsx.kind, rx, counter)
                     } else {
                         ms.get_transformed_slice(*callback_body_start, *callback_body_end)
                     }
@@ -927,28 +995,16 @@ fn transform_child_as_value(
             }
 
             let expr_text = ms.get_transformed_slice(*expr_start, *expr_end);
-            let is_truly_reactive = !is_literal
-                && is_expr_reactive_in_scope(ms, *expr_start, *expr_end, reactive_names);
+            let is_truly_reactive =
+                !is_literal && is_expr_reactive_in_scope(ms, *expr_start, *expr_end, rx);
             if is_truly_reactive {
                 Some(format!("__child(() => {})", expr_text))
             } else {
                 Some(expr_text)
             }
         }
-        ChildInfo::Element(info) => Some(transform_element(
-            ms,
-            program,
-            info,
-            reactive_names,
-            counter,
-        )),
-        ChildInfo::Fragment(info) => Some(transform_fragment(
-            ms,
-            program,
-            info,
-            reactive_names,
-            counter,
-        )),
+        ChildInfo::Element(info) => Some(transform_element(ms, program, info, rx, counter)),
+        ChildInfo::Fragment(info) => Some(transform_fragment(ms, program, info, rx, counter)),
     }
 }
 
@@ -956,7 +1012,7 @@ fn transform_fragment(
     ms: &MagicString,
     program: &Program,
     info: &FragmentInfo,
-    reactive_names: &HashSet<String>,
+    rx: &ReactivityContext,
     counter: &mut u32,
 ) -> String {
     let frag_var = gen_var(counter);
@@ -968,8 +1024,7 @@ fn transform_fragment(
     ));
 
     for child in &info.children {
-        if let Some(stmt) = transform_child(ms, program, child, &frag_var, reactive_names, counter)
-        {
+        if let Some(stmt) = transform_child(ms, program, child, &frag_var, rx, counter) {
             stmts.push(stmt);
         }
     }
@@ -990,7 +1045,7 @@ fn process_attr(
     attr: &AttrInfo,
     el_var: &str,
     tag_name: &str,
-    reactive_names: &HashSet<String>,
+    rx: &ReactivityContext,
 ) -> Option<String> {
     match attr {
         AttrInfo::Static { name, value } => {
@@ -1049,8 +1104,8 @@ fn process_attr(
             }
 
             // Reactive expression → __attr or __prop
-            let is_reactive_in_scope = *is_reactive
-                && is_expr_reactive_in_scope(ms, *expr_start, *expr_end, reactive_names);
+            let is_reactive_in_scope =
+                *is_reactive && is_expr_reactive_in_scope(ms, *expr_start, *expr_end, rx);
 
             if is_reactive_in_scope {
                 if use_property {
@@ -1127,7 +1182,7 @@ fn transform_child(
     program: &Program,
     child: &ChildInfo,
     parent_var: &str,
-    reactive_names: &HashSet<String>,
+    rx: &ReactivityContext,
     counter: &mut u32,
 ) -> Option<String> {
     match child {
@@ -1145,13 +1200,11 @@ fn transform_child(
         } => {
             // Conditional
             if let ExprKind::Conditional { .. } = expr_kind {
-                let code =
-                    transform_conditional_code(ms, program, expr_kind, reactive_names, counter);
+                let code = transform_conditional_code(ms, program, expr_kind, rx, counter);
                 return Some(format!("__append({}, {})", parent_var, code));
             }
             if let ExprKind::LogicalAnd { .. } = expr_kind {
-                let code =
-                    transform_conditional_code(ms, program, expr_kind, reactive_names, counter);
+                let code = transform_conditional_code(ms, program, expr_kind, rx, counter);
                 return Some(format!("__append({}, {})", parent_var, code));
             }
 
@@ -1175,15 +1228,7 @@ fn transform_child(
                     let body_jsx =
                         find_jsx_in_span(program, *callback_body_start, *callback_body_end);
                     if let Some(jsx) = body_jsx {
-                        transform_jsx_node(
-                            ms,
-                            program,
-                            jsx.start,
-                            jsx.end,
-                            &jsx.kind,
-                            reactive_names,
-                            counter,
-                        )
+                        transform_jsx_node(ms, program, jsx.start, jsx.end, &jsx.kind, rx, counter)
                     } else {
                         ms.get_transformed_slice(*callback_body_start, *callback_body_end)
                     }
@@ -1202,8 +1247,8 @@ fn transform_child(
 
             // Use __child() only for truly reactive expressions (references a signal/computed).
             // Use __insert() for static non-literal expressions (no effect overhead).
-            let is_truly_reactive = !is_literal
-                && is_expr_reactive_in_scope(ms, *expr_start, *expr_end, reactive_names);
+            let is_truly_reactive =
+                !is_literal && is_expr_reactive_in_scope(ms, *expr_start, *expr_end, rx);
             if is_truly_reactive {
                 Some(format!(
                     "__append({}, __child(() => {}))",
@@ -1214,11 +1259,11 @@ fn transform_child(
             }
         }
         ChildInfo::Element(info) => {
-            let code = transform_element(ms, program, info, reactive_names, counter);
+            let code = transform_element(ms, program, info, rx, counter);
             Some(format!("__append({}, {})", parent_var, code))
         }
         ChildInfo::Fragment(info) => {
-            let code = transform_fragment(ms, program, info, reactive_names, counter);
+            let code = transform_fragment(ms, program, info, rx, counter);
             Some(format!("__append({}, {})", parent_var, code))
         }
     }
@@ -1228,7 +1273,7 @@ fn transform_conditional_code(
     ms: &MagicString,
     program: &Program,
     kind: &ExprKind,
-    reactive_names: &HashSet<String>,
+    rx: &ReactivityContext,
     counter: &mut u32,
 ) -> String {
     match kind {
@@ -1249,7 +1294,7 @@ fn transform_conditional_code(
                 *true_start,
                 *true_end,
                 *true_is_jsx,
-                reactive_names,
+                rx,
                 counter,
             );
             let false_branch = transform_branch(
@@ -1258,7 +1303,7 @@ fn transform_conditional_code(
                 *false_start,
                 *false_end,
                 *false_is_jsx,
-                reactive_names,
+                rx,
                 counter,
             );
             format!(
@@ -1280,7 +1325,7 @@ fn transform_conditional_code(
                 *right_start,
                 *right_end,
                 *right_is_jsx,
-                reactive_names,
+                rx,
                 counter,
             );
             format!(
@@ -1298,21 +1343,13 @@ fn transform_branch(
     start: u32,
     end: u32,
     is_jsx: bool,
-    reactive_names: &HashSet<String>,
+    rx: &ReactivityContext,
     counter: &mut u32,
 ) -> String {
     if is_jsx {
         let jsx = find_jsx_in_span(program, start, end);
         if let Some(jsx) = jsx {
-            return transform_jsx_node(
-                ms,
-                program,
-                jsx.start,
-                jsx.end,
-                &jsx.kind,
-                reactive_names,
-                counter,
-            );
+            return transform_jsx_node(ms, program, jsx.start, jsx.end, &jsx.kind, rx, counter);
         }
     }
     ms.get_transformed_slice(start, end)
@@ -1325,7 +1362,7 @@ fn slice_with_transformed_jsx(
     program: &Program,
     start: u32,
     end: u32,
-    reactive_names: &HashSet<String>,
+    rx: &ReactivityContext,
     counter: &mut u32,
 ) -> String {
     // Collect all JSX nodes in this span
@@ -1345,15 +1382,8 @@ fn slice_with_transformed_jsx(
             result.push_str(&ms.get_transformed_slice(cursor, jsx.start));
         }
         // Transform and insert the JSX
-        let transformed = transform_jsx_node(
-            ms,
-            program,
-            jsx.start,
-            jsx.end,
-            &jsx.kind,
-            reactive_names,
-            counter,
-        );
+        let transformed =
+            transform_jsx_node(ms, program, jsx.start, jsx.end, &jsx.kind, rx, counter);
         result.push_str(&transformed);
         cursor = jsx.end;
     }
@@ -1475,15 +1505,25 @@ fn is_expr_reactive_in_scope(
     ms: &MagicString,
     start: u32,
     end: u32,
-    reactive_names: &HashSet<String>,
+    rx: &ReactivityContext,
 ) -> bool {
     let text = ms.get_transformed_slice(start, end);
-    for name in reactive_names {
+    // Check for signal/computed .value access
+    for name in &rx.names {
         let pattern = format!("{}.value", name);
         // Use word-boundary matching to avoid false positives
         // (e.g., signal "x" matching "fox.value")
         if contains_word_boundary(&text, &pattern) {
             return true;
+        }
+    }
+    // Check for signal API property access (e.g., tasks.data, tasks.loading)
+    for (api_var, props) in &rx.signal_api_props {
+        for prop in props {
+            let pattern = format!("{}.{}", api_var, prop);
+            if contains_word_boundary(&text, &pattern) {
+                return true;
+            }
         }
     }
     false
@@ -1579,18 +1619,29 @@ fn json_quote(s: &str) -> String {
 
 fn quote_prop_key(name: &str) -> String {
     // Check if the name is a valid JS identifier
-    if name
-        .chars()
+    if is_valid_js_identifier(name) {
+        name.to_string()
+    } else {
+        json_quote(name)
+    }
+}
+
+/// Quote a property name for use in a getter (`get name() {}` or `get ['hyphenated']() {}`).
+fn quote_getter_key(name: &str) -> String {
+    if is_valid_js_identifier(name) {
+        name.to_string()
+    } else {
+        format!("[{}]", json_quote(name))
+    }
+}
+
+fn is_valid_js_identifier(name: &str) -> bool {
+    name.chars()
         .all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '$')
         && name
             .chars()
             .next()
             .is_some_and(|c| c.is_ascii_alphabetic() || c == '_' || c == '$')
-    {
-        name.to_string()
-    } else {
-        json_quote(name)
-    }
 }
 
 /// Collapse JSX text whitespace per React/Babel rules.

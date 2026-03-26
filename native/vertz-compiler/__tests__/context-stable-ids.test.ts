@@ -27,7 +27,8 @@ describe('Feature: Context stable ID injection', () => {
         const { compile } = loadCompiler();
         const source = "const Ctx = createContext<string>();";
         const result = compile(source, { filename: 'src/ctx.tsx', fastRefresh: true });
-        expect(result.code).toContain("createContext<string>(undefined, 'src/ctx.tsx::Ctx')");
+        // TS type parameter <string> is stripped; only the JS args remain
+        expect(result.code).toContain("createContext(undefined, 'src/ctx.tsx::Ctx')");
       });
     });
   });

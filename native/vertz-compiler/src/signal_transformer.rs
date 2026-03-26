@@ -217,8 +217,22 @@ impl<'a, 'b, 'c> Visit<'c> for RefTransformer<'a, 'b> {
     }
 
     fn visit_object_property(&mut self, prop: &ObjectProperty<'c>) {
-        // Skip shorthand properties — signals must flow as objects
         if prop.shorthand {
+            // Expand signal shorthand: { count } → { count: count.value }
+            if let PropertyKey::StaticIdentifier(ref key) = prop.key {
+                let name = key.name.as_str();
+                if self.is_signal(name)
+                    && !self.is_shadowed(name)
+                    && self.is_in_component(prop.span.start, prop.span.end)
+                    && !self.is_in_mutation_range(prop.span.start)
+                {
+                    self.ms.overwrite(
+                        prop.span.start,
+                        prop.span.end,
+                        &format!("{name}: {name}.value"),
+                    );
+                }
+            }
             return;
         }
         oxc_ast_visit::walk::walk_object_property(self, prop);

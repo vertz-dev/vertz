@@ -27,6 +27,7 @@ function isNativeBinaryAvailable(): boolean {
 
 const HAS_NATIVE_BINARY = isNativeBinaryAvailable();
 
+
 // ── Helpers ──────────────────────────────────────────────────────
 
 function createTempProject(): {

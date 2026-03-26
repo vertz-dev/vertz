@@ -1,3 +1,4 @@
+mod aot_string_transformer;
 mod body_jsx_diagnostics;
 mod component_analyzer;
 mod computed_transformer;
@@ -6,6 +7,8 @@ mod css_diagnostics;
 mod css_token_tables;
 mod css_transform;
 mod fast_refresh;
+mod field_selection;
+mod hydration_markers;
 mod import_injection;
 mod jsx_transformer;
 mod magic_string;
@@ -13,11 +16,15 @@ mod mount_frame_transformer;
 mod mutation_analyzer;
 mod mutation_diagnostics;
 mod mutation_transformer;
+mod prefetch_manifest;
 mod props_transformer;
+mod query_auto_thunk;
 mod reactivity_analyzer;
+mod route_splitting;
 mod signal_api_registry;
 mod signal_transformer;
 mod ssr_safety_diagnostics;
+mod typescript_strip;
 mod utils;
 
 use napi_derive::napi;
@@ -54,12 +61,59 @@ pub struct NapiComponentInfo {
 }
 
 #[napi(object)]
+pub struct NapiNestedFieldAccess {
+    pub field: String,
+    pub nested_path: Vec<String>,
+}
+
+#[napi(object)]
+pub struct NapiFieldSelection {
+    pub query_var: String,
+    pub injection_pos: u32,
+    pub injection_kind: String,
+    pub fields: Vec<String>,
+    pub has_opaque_access: bool,
+    pub nested_access: Vec<NapiNestedFieldAccess>,
+    pub inferred_entity_name: Option<String>,
+}
+
+#[napi(object)]
+pub struct NapiExtractedRoute {
+    pub pattern: String,
+    pub component_name: String,
+    pub route_type: String,
+}
+
+#[napi(object)]
+pub struct NapiExtractedQuery {
+    pub descriptor_chain: String,
+    pub entity: Option<String>,
+    pub operation: Option<String>,
+    pub id_param: Option<String>,
+}
+
+#[napi(object)]
 pub struct CompileResult {
     pub code: String,
     pub css: Option<String>,
     pub map: Option<String>,
     pub diagnostics: Option<Vec<Diagnostic>>,
     pub components: Option<Vec<NapiComponentInfo>>,
+    pub hydration_ids: Option<Vec<String>>,
+    pub field_selections: Option<Vec<NapiFieldSelection>>,
+    pub extracted_routes: Option<Vec<NapiExtractedRoute>>,
+    pub extracted_queries: Option<Vec<NapiExtractedQuery>>,
+    pub route_params: Option<Vec<String>>,
+}
+
+#[napi(object)]
+pub struct NapiManifestEntry {
+    pub module_specifier: String,
+    pub export_name: String,
+    pub reactivity_type: String,
+    pub signal_properties: Option<Vec<String>>,
+    pub plain_properties: Option<Vec<String>>,
+    pub field_signal_properties: Option<Vec<String>>,
 }
 
 #[napi(object)]
@@ -67,6 +121,11 @@ pub struct CompileOptions {
     pub filename: Option<String>,
     pub fast_refresh: Option<bool>,
     pub target: Option<String>,
+    pub manifests: Option<Vec<NapiManifestEntry>>,
+    pub hydration_markers: Option<bool>,
+    pub route_splitting: Option<bool>,
+    pub field_selection: Option<bool>,
+    pub prefetch_manifest: Option<bool>,
 }
 
 #[napi]
@@ -85,6 +144,26 @@ pub fn compile(source: String, options: Option<CompileOptions>) -> CompileResult
         .as_ref()
         .and_then(|o| o.target.as_deref())
         .unwrap_or("dom");
+
+    let enable_hydration_markers = options
+        .as_ref()
+        .and_then(|o| o.hydration_markers)
+        .unwrap_or(false);
+
+    let enable_route_splitting = options
+        .as_ref()
+        .and_then(|o| o.route_splitting)
+        .unwrap_or(false);
+
+    let enable_field_selection = options
+        .as_ref()
+        .and_then(|o| o.field_selection)
+        .unwrap_or(false);
+
+    let enable_prefetch_manifest = options
+        .as_ref()
+        .and_then(|o| o.prefetch_manifest)
+        .unwrap_or(false);
 
     let source_type = SourceType::from_path(filename).unwrap_or_default();
     let allocator = Allocator::default();
@@ -121,18 +200,71 @@ pub fn compile(source: String, options: Option<CompileOptions>) -> CompileResult
             map: None,
             diagnostics: Some(diagnostics),
             components: None,
+            hydration_ids: None,
+            field_selections: None,
+            extracted_routes: None,
+            extracted_queries: None,
+            route_params: None,
         };
     }
 
     // Run component analysis
     let components = component_analyzer::analyze_components(&parser_ret.program);
 
-    // Build import aliases for signal API detection
-    let import_aliases = reactivity_analyzer::build_import_aliases(&parser_ret.program);
+    // Build manifest registry from NAPI options
+    let manifest_registry = build_manifest_registry(&options);
+
+    // Build import aliases for signal API detection (includes manifest-derived entries)
+    let (import_aliases, dynamic_configs) =
+        reactivity_analyzer::build_import_aliases(&parser_ret.program, &manifest_registry);
+
+    let import_ctx = reactivity_analyzer::ImportContext {
+        aliases: import_aliases,
+        dynamic_configs,
+    };
+
+    // Build query aliases for auto-thunk transform
+    let query_aliases = reactivity_analyzer::build_query_aliases(&parser_ret.program);
 
     // Run reactivity analysis and transforms per component
     let mut ms = magic_string::MagicString::new(&source);
     let mut all_diagnostics: Vec<Diagnostic> = Vec::new();
+
+    // Strip TypeScript syntax first (interfaces, type aliases, as casts, type annotations, etc.)
+    // Must run before JSX transform so that get_transformed_slice() returns clean JavaScript.
+    typescript_strip::strip_typescript_syntax(&mut ms, &parser_ret.program, &source);
+
+    // Route code splitting — convert static imports in defineRoutes to dynamic imports.
+    // Must run before component transforms (it rewrites module-level import/export statements).
+    if enable_route_splitting {
+        route_splitting::transform_route_splitting(&mut ms, &parser_ret.program, &source);
+    }
+
+    // Field selection analysis — extract field access patterns from query() calls.
+    let field_selections = if enable_field_selection {
+        field_selection::analyze_field_selection(&parser_ret.program, &source)
+    } else {
+        Vec::new()
+    };
+
+    // Prefetch manifest analysis — extract routes and queries for SSR prefetching.
+    let prefetch_analysis = if enable_prefetch_manifest {
+        Some(prefetch_manifest::analyze_prefetch(
+            &parser_ret.program,
+            &source,
+        ))
+    } else {
+        None
+    };
+
+    // Hydration markers — determine which components are interactive.
+    // The JSX transformer will inject data-v-id setAttribute calls for these.
+    let hydration_ids = if enable_hydration_markers {
+        hydration_markers::find_interactive_components(&parser_ret.program, &components)
+    } else {
+        Vec::new()
+    };
+    let hydration_set: std::collections::HashSet<String> = hydration_ids.iter().cloned().collect();
 
     let napi_components: Vec<NapiComponentInfo> = components
         .iter()
@@ -141,7 +273,7 @@ pub fn compile(source: String, options: Option<CompileOptions>) -> CompileResult
             props_transformer::transform_props(&mut ms, &parser_ret.program, comp, &source);
 
             let variables =
-                reactivity_analyzer::analyze_reactivity(&parser_ret.program, comp, &import_aliases);
+                reactivity_analyzer::analyze_reactivity(&parser_ret.program, comp, &import_ctx);
 
             // Run per-component diagnostics BEFORE transforms (on original AST positions)
             all_diagnostics.extend(ssr_safety_diagnostics::analyze_ssr_safety(
@@ -167,8 +299,19 @@ pub fn compile(source: String, options: Option<CompileOptions>) -> CompileResult
             let mutation_ranges: Vec<(u32, u32)> =
                 mutations.iter().map(|m| (m.start, m.end)).collect();
 
-            // Apply transforms: mutations first, then signals, then computeds
+            // Apply transforms: mutations first, then query auto-thunk, then signals, then computeds
             mutation_transformer::transform_mutations(&mut ms, &mutations);
+
+            // Query auto-thunk must run BEFORE signal transform so that
+            // .value reads happen inside the generated thunk
+            query_auto_thunk::transform_query_auto_thunk(
+                &mut ms,
+                &parser_ret.program,
+                comp,
+                &variables,
+                &query_aliases,
+            );
+
             signal_transformer::transform_signals(
                 &mut ms,
                 &parser_ret.program,
@@ -185,7 +328,18 @@ pub fn compile(source: String, options: Option<CompileOptions>) -> CompileResult
 
             // JSX transform runs AFTER signal/computed transforms so that
             // MagicString already has .value insertions when we read expression text.
-            jsx_transformer::transform_jsx(&mut ms, &parser_ret.program, comp, &variables);
+            let hydration_id = if hydration_set.contains(&comp.name) {
+                Some(comp.name.as_str())
+            } else {
+                None
+            };
+            jsx_transformer::transform_jsx(
+                &mut ms,
+                &parser_ret.program,
+                comp,
+                &variables,
+                hydration_id,
+            );
 
             // Mount frame wrapping runs AFTER all other transforms
             // Check if this is an arrow expression body first
@@ -280,5 +434,211 @@ pub fn compile(source: String, options: Option<CompileOptions>) -> CompileResult
             Some(all_diagnostics)
         },
         components: Some(napi_components),
+        hydration_ids: if hydration_ids.is_empty() {
+            None
+        } else {
+            Some(hydration_ids)
+        },
+        field_selections: if field_selections.is_empty() {
+            None
+        } else {
+            Some(
+                field_selections
+                    .into_iter()
+                    .map(|fs| NapiFieldSelection {
+                        query_var: fs.query_var,
+                        injection_pos: fs.injection_pos,
+                        injection_kind: fs.injection_kind.as_str().to_string(),
+                        fields: fs.fields,
+                        has_opaque_access: fs.has_opaque_access,
+                        nested_access: fs
+                            .nested_access
+                            .into_iter()
+                            .map(|n| NapiNestedFieldAccess {
+                                field: n.field,
+                                nested_path: n.nested_path,
+                            })
+                            .collect(),
+                        inferred_entity_name: fs.inferred_entity_name,
+                    })
+                    .collect(),
+            )
+        },
+        extracted_routes: prefetch_analysis.as_ref().and_then(|pa| {
+            if pa.routes.is_empty() {
+                None
+            } else {
+                Some(
+                    pa.routes
+                        .iter()
+                        .map(|r| NapiExtractedRoute {
+                            pattern: r.pattern.clone(),
+                            component_name: r.component_name.clone(),
+                            route_type: r.route_type.clone(),
+                        })
+                        .collect(),
+                )
+            }
+        }),
+        extracted_queries: prefetch_analysis.as_ref().and_then(|pa| {
+            if pa.queries.is_empty() {
+                None
+            } else {
+                Some(
+                    pa.queries
+                        .iter()
+                        .map(|q| NapiExtractedQuery {
+                            descriptor_chain: q.descriptor_chain.clone(),
+                            entity: q.entity.clone(),
+                            operation: q.operation.clone(),
+                            id_param: q.id_param.clone(),
+                        })
+                        .collect(),
+                )
+            }
+        }),
+        route_params: prefetch_analysis.and_then(|pa| {
+            if pa.route_params.is_empty() {
+                None
+            } else {
+                Some(pa.route_params)
+            }
+        }),
     }
+}
+
+#[napi(object)]
+pub struct NapiAotComponentInfo {
+    pub name: String,
+    pub tier: String,
+    pub holes: Vec<String>,
+    pub query_keys: Vec<String>,
+}
+
+#[napi(object)]
+pub struct AotCompileResult {
+    pub code: String,
+    pub components: Vec<NapiAotComponentInfo>,
+}
+
+#[napi(object)]
+pub struct AotCompileOptions {
+    pub filename: Option<String>,
+}
+
+#[napi]
+pub fn compile_for_ssr_aot(source: String, options: Option<AotCompileOptions>) -> AotCompileResult {
+    let filename = options
+        .as_ref()
+        .and_then(|o| o.filename.as_deref())
+        .unwrap_or("input.tsx");
+
+    let source_type = SourceType::from_path(filename).unwrap_or_default();
+    let allocator = Allocator::default();
+
+    let parser_ret = Parser::new(&allocator, &source, source_type).parse();
+
+    if !parser_ret.errors.is_empty() {
+        return AotCompileResult {
+            code: source,
+            components: Vec::new(),
+        };
+    }
+
+    // Run component analysis
+    let components = component_analyzer::analyze_components(&parser_ret.program);
+
+    if components.is_empty() {
+        return AotCompileResult {
+            code: source,
+            components: Vec::new(),
+        };
+    }
+
+    // Build import context for reactivity analysis
+    let empty_registry = std::collections::HashMap::new();
+    let (import_aliases, dynamic_configs) =
+        reactivity_analyzer::build_import_aliases(&parser_ret.program, &empty_registry);
+    let import_ctx = reactivity_analyzer::ImportContext {
+        aliases: import_aliases,
+        dynamic_configs,
+    };
+
+    // Run props transform + reactivity analysis per component
+    let mut ms = magic_string::MagicString::new(&source);
+
+    // Strip TypeScript syntax first
+    typescript_strip::strip_typescript_syntax(&mut ms, &parser_ret.program, &source);
+
+    let mut variables_per_component: Vec<Vec<reactivity_analyzer::VariableInfo>> = Vec::new();
+
+    for comp in &components {
+        // Props destructuring must run BEFORE reactivity analysis
+        props_transformer::transform_props(&mut ms, &parser_ret.program, comp, &source);
+
+        let variables =
+            reactivity_analyzer::analyze_reactivity(&parser_ret.program, comp, &import_ctx);
+        variables_per_component.push(variables);
+    }
+
+    // Run AOT transform
+    let aot_result = aot_string_transformer::compile_for_ssr_aot(
+        &ms,
+        &parser_ret.program,
+        &source,
+        &components,
+        &variables_per_component,
+    );
+
+    AotCompileResult {
+        code: aot_result.code,
+        components: aot_result
+            .components
+            .into_iter()
+            .map(|c| NapiAotComponentInfo {
+                name: c.name,
+                tier: c.tier.as_str().to_string(),
+                holes: c.holes,
+                query_keys: c.query_keys,
+            })
+            .collect(),
+    }
+}
+
+/// Build manifest registry from NAPI compile options.
+fn build_manifest_registry(
+    options: &Option<CompileOptions>,
+) -> reactivity_analyzer::ManifestRegistry {
+    let mut registry = std::collections::HashMap::new();
+
+    if let Some(ref opts) = options {
+        if let Some(ref manifests) = opts.manifests {
+            for entry in manifests {
+                let module_exports = registry
+                    .entry(entry.module_specifier.clone())
+                    .or_insert_with(std::collections::HashMap::new);
+
+                module_exports.insert(
+                    entry.export_name.clone(),
+                    reactivity_analyzer::ManifestExportInfo {
+                        reactivity_type: entry.reactivity_type.clone(),
+                        signal_properties: entry
+                            .signal_properties
+                            .as_ref()
+                            .map(|props| props.iter().cloned().collect()),
+                        plain_properties: entry
+                            .plain_properties
+                            .as_ref()
+                            .map(|props| props.iter().cloned().collect()),
+                        field_signal_properties: entry
+                            .field_signal_properties
+                            .as_ref()
+                            .map(|props| props.iter().cloned().collect()),
+                    },
+                );
+            }
+        }
+    }
+
+    registry
 }
