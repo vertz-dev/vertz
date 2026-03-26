@@ -631,6 +631,62 @@ describe('query() nav prefetch integration', () => {
     result2.dispose();
   });
 
+  it('serves cached data for descriptor-in-thunk query during navigation', async () => {
+    // Pre-populate cache by running a descriptor-in-thunk query on first visit
+    const cache = new MemoryCache<unknown>();
+    const dep = signal(1);
+
+    const fetchFn = vi.fn(async (page: number) => ({
+      ok: true as const,
+      data: { items: [`page-${page}`], total: 10 },
+    }));
+
+    // Shared thunk — same function reference produces same base key
+    const thunk = () => {
+      const currentPage = dep.value;
+      return {
+        _tag: 'QueryDescriptor' as const,
+        _key: `GET:/tasks?page=${currentPage}`,
+        _fetch: () => fetchFn(currentPage),
+        // eslint-disable-next-line unicorn/no-thenable -- intentional PromiseLike mock
+        then(onFulfilled: any, onRejected: any) {
+          return this._fetch().then(onFulfilled, onRejected);
+        },
+      };
+    };
+
+    // First visit: NOT a navigation — populate the cache normally
+    delete (globalThis as Record<string, unknown>).__VERTZ_NAV_PREFETCH_ACTIVE__;
+    delete (globalThis as Record<string, unknown>).__VERTZ_SSR_DATA__;
+    delete (globalThis as Record<string, unknown>).__VERTZ_SSR_PUSH__;
+
+    const result = query(thunk, { cache });
+
+    await new Promise((r) => setTimeout(r, 50));
+    expect(result.data.value).toEqual({ items: ['page-1'], total: 10 });
+    expect(fetchFn).toHaveBeenCalledTimes(1);
+    result.dispose();
+
+    // Second visit: simulate navigation context
+    (globalThis as Record<string, unknown>).__VERTZ_SSR_DATA__ = [];
+    (globalThis as Record<string, unknown>).__VERTZ_SSR_PUSH__ = () => {};
+    (globalThis as Record<string, unknown>).__VERTZ_NAV_PREFETCH_ACTIVE__ = true;
+
+    fetchFn.mockClear();
+
+    const result2 = query(thunk, { cache });
+
+    await new Promise((r) => setTimeout(r, 50));
+
+    // Descriptor-in-thunk queries cache under effectKey:depHash.
+    // Nav-prefetch must use the same key format to find cached data.
+    expect(result2.data.value).toEqual({ items: ['page-1'], total: 10 });
+    expect(result2.loading.value).toBe(false);
+    expect(fetchFn).not.toHaveBeenCalled();
+
+    result2.dispose();
+  });
+
   it('late prefetch done does not double-fetch when SSR data arrived via stream', async () => {
     (globalThis as Record<string, unknown>).__VERTZ_SSR_DATA__ = [];
     (globalThis as Record<string, unknown>).__VERTZ_SSR_PUSH__ = () => {};
