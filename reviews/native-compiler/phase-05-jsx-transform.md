@@ -299,15 +299,28 @@ This test asserts `value: someVar` (plain property), but the TS compiler produce
 
 ## Resolution
 
-Awaiting fixes for blockers B-1, B-2, B-3 and should-fix items before approval.
+### Fixed (commit 8462a4e7f)
 
-**Priority for fixes:**
-1. B-1 (component getter props) — most critical, breaks reactivity contract
-2. B-2 (child over-wrapping) — changes execution model
-3. B-3 (guarded setAttribute) — runtime behavior bugs
-4. S-2 (false positive reactivity) — subtle correctness issue
-5. S-3/S-4 (IDL properties) — form input correctness
-6. S-5 (style handling) — runtime crash for style objects
-7. S-7 (JSX in props) — invalid output for render props
-8. S-9 through S-11 — correctness gaps
-9. S-6, S-8 — feature completeness gaps (acceptable for Phase 0.5 if documented as known gaps)
+- **B-1**: ALL non-literal component prop expressions now become getters. Test updated.
+- **B-2**: `transform_child` uses `is_expr_reactive_in_scope()` for actual reactivity check.
+- **B-3**: Guarded `setAttribute` with null/false/true handling for all expression attrs.
+- **S-2**: Word-boundary matching in `is_expr_reactive_in_scope` via `contains_word_boundary()`.
+- **S-9**: `clean_jsx_text` normalizes `\r\n` and `\r` to `\n` before splitting.
+- **N-7**: `json_quote` escapes `\n`, `\r`, `\t`.
+
+### Fixed (commit 62b2bd2dd)
+
+- **S-3/S-4**: IDL property handling — `is_idl_property()` for `input.value`, `input.checked`, `select.value`, `textarea.value`. Direct property assignment for static, `__prop()` for reactive. Boolean IDL shorthand (`checked`) uses `.prop = true`.
+- **S-5**: Style attribute uses `__styleStr()` for objects, `String()` for non-objects.
+- **S-7**: `slice_with_transformed_jsx()` collects and transforms nested JSX in prop values.
+- **S-8**: `__listValue()` for `.map()` patterns inside component children thunks.
+- **S-10**: Index parameter extracted from `.map()` callbacks and included in key function when referenced.
+
+### Deferred (documented as known gaps)
+
+- **S-1**: MagicString boundary — documented, callers don't use overlapping ranges.
+- **S-6**: `__bindElement` for form integration — lower priority, not blocking.
+- **S-11**: Callback-const inlining (`inlineCallbackConsts`) — advanced optimization, not blocking.
+- **N-1**: `format_expr_text` lossy for complex key expressions — acceptable for Phase 0.5.
+- **N-2**: Destructured `.map()` parameters — not handled, silently skipped.
+- **N-5**: Missing test scenarios vs TS compiler — partial gap addressed (10 new tests added).
