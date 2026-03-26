@@ -459,12 +459,148 @@ describe('Feature: JSX element transform', () => {
 
   describe('Given a literal expression attribute', () => {
     describe('When compiled', () => {
-      it('Then uses direct setAttribute (no guard needed)', () => {
+      it('Then uses guarded setAttribute (guards null/false/true)', () => {
         const code = compileAndGetCode(
           `function App() {\n  return <div tabIndex={0}></div>;\n}`,
         );
-        expect(code).toContain('.setAttribute("tabIndex", 0)');
-        expect(code).not.toContain('const __v');
+        expect(code).toContain('const __v = 0');
+        expect(code).toContain('.setAttribute("tabIndex"');
+      });
+    });
+  });
+
+  // ─── S-3/S-4: IDL properties ──────────────────────────────────────────────
+
+  describe('Given an input with IDL value attribute (static)', () => {
+    describe('When compiled', () => {
+      it('Then uses direct property assignment instead of setAttribute', () => {
+        const code = compileAndGetCode(
+          `function App() {\n  return <input value={someVar} />;\n}`,
+        );
+        expect(code).toContain('.value = __v');
+        expect(code).not.toContain('.setAttribute("value"');
+      });
+    });
+  });
+
+  describe('Given an input with IDL checked attribute (boolean shorthand)', () => {
+    describe('When compiled', () => {
+      it('Then uses direct property assignment with true', () => {
+        const code = compileAndGetCode(
+          `function App() {\n  return <input checked />;\n}`,
+        );
+        expect(code).toContain('.checked = true');
+        expect(code).not.toContain('.setAttribute("checked"');
+      });
+    });
+  });
+
+  describe('Given an input with reactive IDL value attribute', () => {
+    describe('When compiled', () => {
+      it('Then uses __prop instead of __attr', () => {
+        const code = compileAndGetCode(
+          `function App() {\n  let val = "";\n  return <input value={val} />;\n}`,
+        );
+        expect(code).toContain('__prop(');
+        expect(code).toContain('"value"');
+        expect(code).toContain('val.value');
+        expect(code).not.toContain('__attr(');
+      });
+    });
+  });
+
+  describe('Given a textarea with IDL value attribute', () => {
+    describe('When compiled', () => {
+      it('Then uses direct property assignment', () => {
+        const code = compileAndGetCode(
+          `function App() {\n  return <textarea value={someVar} />;\n}`,
+        );
+        expect(code).toContain('.value = __v');
+        expect(code).not.toContain('.setAttribute("value"');
+      });
+    });
+  });
+
+  // ─── S-5: Style attribute handling ────────────────────────────────────────
+
+  describe('Given a style attribute with expression', () => {
+    describe('When compiled', () => {
+      it('Then handles objects via __styleStr', () => {
+        const code = compileAndGetCode(
+          `function App() {\n  return <div style={myStyle}></div>;\n}`,
+        );
+        expect(code).toContain('__styleStr');
+        expect(code).toContain('typeof __v === "object"');
+      });
+    });
+  });
+
+  // ─── S-7: JSX in prop values ──────────────────────────────────────────────
+
+  describe('Given a component with JSX inside a prop value', () => {
+    describe('When compiled', () => {
+      it('Then transforms the nested JSX', () => {
+        const code = compileAndGetCode(
+          `function App() {\n  return <Router fallback={() => <div>Not found</div>} />;\n}`,
+        );
+        expect(code).toContain('Router(');
+        expect(code).toContain('__element("div")');
+        expect(code).toContain('__staticText("Not found")');
+        expect(code).not.toContain('<div>');
+      });
+    });
+  });
+
+  // ─── S-8: __listValue in component children ──────────────────────────────
+
+  describe('Given a list rendering inside a component child', () => {
+    describe('When compiled', () => {
+      it('Then uses __listValue instead of __list', () => {
+        const code = compileAndGetCode(
+          `function App() {\n  let items = [];\n  return <List>{items.map(item => <li key={item.id}>{item.name}</li>)}</List>;\n}`,
+        );
+        expect(code).toContain('__listValue(');
+        expect(code).not.toContain('__list(');
+      });
+    });
+  });
+
+  // ─── S-10: Index parameter in .map() ─────────────────────────────────────
+
+  describe('Given a list rendering with index-based key', () => {
+    describe('When compiled', () => {
+      it('Then includes index param in key function', () => {
+        const code = compileAndGetCode(
+          `function App() {\n  let items = [];\n  return <ul>{items.map((item, index) => <li key={index}>{item}</li>)}</ul>;\n}`,
+        );
+        expect(code).toContain('__list(');
+        expect(code).toContain('(item, index) => index');
+      });
+    });
+  });
+
+  describe('Given a list rendering with item-based key (not index)', () => {
+    describe('When compiled', () => {
+      it('Then does not include index param in key function', () => {
+        const code = compileAndGetCode(
+          `function App() {\n  let items = [];\n  return <ul>{items.map((item, index) => <li key={item.id}>{item.name}</li>)}</ul>;\n}`,
+        );
+        expect(code).toContain('__list(');
+        expect(code).toContain('(item) => item.id');
+        expect(code).not.toContain('(item, index)');
+      });
+    });
+  });
+
+  // ─── Non-IDL disabled stays as setAttribute ──────────────────────────────
+
+  describe('Given a non-IDL boolean shorthand on non-input element', () => {
+    describe('When compiled', () => {
+      it('Then uses setAttribute (not property assignment)', () => {
+        const code = compileAndGetCode(
+          `function App() {\n  return <button disabled />;\n}`,
+        );
+        expect(code).toContain('.setAttribute("disabled", "")');
       });
     });
   });

@@ -8,6 +8,23 @@ use crate::component_analyzer::ComponentInfo;
 use crate::magic_string::MagicString;
 use crate::reactivity_analyzer::{ReactivityKind, VariableInfo};
 
+// ─── IDL properties ──────────────────────────────────────────────────────────
+
+/// IDL properties that must use direct property assignment instead of setAttribute.
+/// setAttribute doesn't reflect the displayed state for these after user interaction.
+fn is_idl_property(tag_name: &str, attr_name: &str) -> bool {
+    match tag_name {
+        "input" => attr_name == "value" || attr_name == "checked",
+        "select" | "textarea" => attr_name == "value",
+        _ => false,
+    }
+}
+
+/// Boolean IDL properties — boolean shorthand emits `.prop = true`.
+fn is_boolean_idl_property(attr_name: &str) -> bool {
+    attr_name == "checked"
+}
+
 /// Transform all JSX in a component body into DOM helper calls.
 pub fn transform_jsx(
     ms: &mut MagicString,
@@ -279,6 +296,7 @@ enum ExprKind {
         callback_body_end: u32,
         callback_body_is_jsx: bool,
         item_param: String,
+        index_param: Option<String>,
         key_expr: Option<String>,
     },
 }
@@ -548,6 +566,14 @@ fn classify_inner_expression(expr: &Expression) -> ExprKind {
                             }
                         });
 
+                        let index_param: Option<String> = arrow.params.items.get(1).and_then(|p| {
+                            if let BindingPattern::BindingIdentifier(id) = &p.pattern {
+                                Some(id.name.to_string())
+                            } else {
+                                None
+                            }
+                        });
+
                         if let Some(item_param) = item_param {
                             let source_start = member.object.span().start;
                             let source_end = member.object.span().end;
@@ -576,6 +602,7 @@ fn classify_inner_expression(expr: &Expression) -> ExprKind {
                                 callback_body_end: cb_end,
                                 callback_body_is_jsx: cb_is_jsx,
                                 item_param: item_param.clone(),
+                                index_param,
                                 key_expr,
                             };
                         }
@@ -735,7 +762,16 @@ fn transform_component(
                 if name == "key" {
                     continue;
                 }
-                let expr_text = ms.get_transformed_slice(*expr_start, *expr_end);
+                // Use slice_with_transformed_jsx to handle JSX nested inside prop values
+                // (e.g., fallback={() => <div>Not found</div>})
+                let expr_text = slice_with_transformed_jsx(
+                    ms,
+                    program,
+                    *expr_start,
+                    *expr_end,
+                    reactive_names,
+                    counter,
+                );
                 // For component props, ALL non-literal expressions become getters.
                 // This is by design: getter-backed props enable cross-component
                 // reactivity — the child reads lazily when signals change.
@@ -848,6 +884,48 @@ fn transform_child_as_value(
                 ));
             }
 
+            // List in component children → __listValue
+            if let ExprKind::List {
+                source_start,
+                source_end,
+                callback_body_start,
+                callback_body_end,
+                callback_body_is_jsx,
+                item_param,
+                index_param,
+                key_expr,
+            } = expr_kind
+            {
+                let source_text = ms.get_transformed_slice(*source_start, *source_end);
+                let key_fn = build_key_fn(key_expr, item_param, index_param.as_deref());
+
+                let render_body = if *callback_body_is_jsx {
+                    let body_jsx =
+                        find_jsx_in_span(program, *callback_body_start, *callback_body_end);
+                    if let Some(jsx) = body_jsx {
+                        transform_jsx_node(
+                            ms,
+                            program,
+                            jsx.start,
+                            jsx.end,
+                            &jsx.kind,
+                            reactive_names,
+                            counter,
+                        )
+                    } else {
+                        ms.get_transformed_slice(*callback_body_start, *callback_body_end)
+                    }
+                } else {
+                    ms.get_transformed_slice(*callback_body_start, *callback_body_end)
+                };
+
+                let render_fn = format!("({}) => {}", item_param, render_body);
+                return Some(format!(
+                    "__listValue(() => {}, {}, {})",
+                    source_text, key_fn, render_fn
+                ));
+            }
+
             let expr_text = ms.get_transformed_slice(*expr_start, *expr_end);
             let is_truly_reactive = !is_literal
                 && is_expr_reactive_in_scope(ms, *expr_start, *expr_end, reactive_names);
@@ -911,7 +989,7 @@ fn process_attr(
     ms: &MagicString,
     attr: &AttrInfo,
     el_var: &str,
-    _tag_name: &str,
+    tag_name: &str,
     reactive_names: &HashSet<String>,
 ) -> Option<String> {
     match attr {
@@ -948,6 +1026,7 @@ fn process_attr(
             };
 
             let expr_text = ms.get_transformed_slice(*expr_start, *expr_end);
+            let use_property = is_idl_property(tag_name, attr_name);
 
             // Ref
             if attr_name == "ref" {
@@ -969,11 +1048,19 @@ fn process_attr(
                 ));
             }
 
-            // Reactive expression → __attr
+            // Reactive expression → __attr or __prop
             let is_reactive_in_scope = *is_reactive
                 && is_expr_reactive_in_scope(ms, *expr_start, *expr_end, reactive_names);
 
             if is_reactive_in_scope {
+                if use_property {
+                    return Some(format!(
+                        "__prop({}, {}, () => {})",
+                        el_var,
+                        json_quote(attr_name),
+                        expr_text
+                    ));
+                }
                 return Some(format!(
                     "__attr({}, {}, () => {})",
                     el_var,
@@ -982,21 +1069,42 @@ fn process_attr(
                 ));
             }
 
-            // Static non-literal expression → guarded setAttribute
-            // Guards against null/false/undefined and handles boolean true → ""
+            // Static non-literal expression → guarded setAttribute/property
             if *is_reactive {
-                Some(format!(
-                    "{{ const __v = {}; if (__v != null && __v !== false) {}.setAttribute({}, __v === true ? \"\" : __v); }}",
-                    expr_text, el_var, json_quote(attr_name)
-                ))
+                if attr_name == "style" {
+                    Some(format!(
+                        "{{ const __v = {}; if (__v != null && __v !== false) {}.setAttribute(\"style\", typeof __v === \"object\" ? __styleStr(__v) : __v === true ? \"\" : String(__v)); }}",
+                        expr_text, el_var
+                    ))
+                } else if use_property {
+                    Some(format!(
+                        "{{ const __v = {}; if (__v != null) {}.{} = __v; }}",
+                        expr_text, el_var, attr_name
+                    ))
+                } else {
+                    Some(format!(
+                        "{{ const __v = {}; if (__v != null && __v !== false) {}.setAttribute({}, __v === true ? \"\" : __v); }}",
+                        expr_text, el_var, json_quote(attr_name)
+                    ))
+                }
             } else {
-                // Literal expressions are safe to pass directly
-                Some(format!(
-                    "{}.setAttribute({}, {})",
-                    el_var,
-                    json_quote(attr_name),
-                    expr_text
-                ))
+                // Literal expressions — guarded to handle null/false/true correctly
+                if attr_name == "style" {
+                    Some(format!(
+                        "{{ const __v = {}; if (__v != null && __v !== false) {}.setAttribute(\"style\", typeof __v === \"object\" ? __styleStr(__v) : __v === true ? \"\" : String(__v)); }}",
+                        expr_text, el_var
+                    ))
+                } else if use_property {
+                    Some(format!(
+                        "{{ const __v = {}; if (__v != null) {}.{} = __v; }}",
+                        expr_text, el_var, attr_name
+                    ))
+                } else {
+                    Some(format!(
+                        "{{ const __v = {}; if (__v != null && __v !== false) {}.setAttribute({}, __v === true ? \"\" : __v); }}",
+                        expr_text, el_var, json_quote(attr_name)
+                    ))
+                }
             }
         }
         AttrInfo::BooleanShorthand { name } => {
@@ -1008,6 +1116,15 @@ fn process_attr(
             } else {
                 name.as_str()
             };
+            // IDL boolean properties use direct assignment
+            if is_idl_property(tag_name, attr_name) {
+                let value = if is_boolean_idl_property(attr_name) {
+                    "true"
+                } else {
+                    "\"\""
+                };
+                return Some(format!("{}.{} = {}", el_var, attr_name, value));
+            }
             Some(format!(
                 "{}.setAttribute({}, \"\")",
                 el_var,
@@ -1065,14 +1182,12 @@ fn transform_child(
                 callback_body_end,
                 callback_body_is_jsx,
                 item_param,
+                index_param,
                 key_expr,
             } = expr_kind
             {
                 let source_text = ms.get_transformed_slice(*source_start, *source_end);
-                let key_fn = match key_expr {
-                    Some(k) => format!("({}) => {}", item_param, k),
-                    None => "null".to_string(),
-                };
+                let key_fn = build_key_fn(key_expr, item_param, index_param.as_deref());
 
                 let render_body = if *callback_body_is_jsx {
                     // Find and transform the JSX in the callback body
@@ -1222,6 +1337,101 @@ fn transform_branch(
     ms.get_transformed_slice(start, end)
 }
 
+/// Read a slice from MagicString, transforming any JSX nodes found within.
+/// This handles patterns like `() => <div>Not found</div>` inside prop values.
+fn slice_with_transformed_jsx(
+    ms: &MagicString,
+    program: &Program,
+    start: u32,
+    end: u32,
+    reactive_names: &HashSet<String>,
+    counter: &mut u32,
+) -> String {
+    // Collect all JSX nodes in this span
+    let jsx_nodes = collect_jsx_in_span(program, start, end);
+
+    if jsx_nodes.is_empty() {
+        return ms.get_transformed_slice(start, end);
+    }
+
+    // Build text by reading gaps from MagicString and inserting transformed JSX
+    let mut result = String::new();
+    let mut cursor = start;
+
+    for jsx in &jsx_nodes {
+        // Read gap before this JSX node
+        if cursor < jsx.start {
+            result.push_str(&ms.get_transformed_slice(cursor, jsx.start));
+        }
+        // Transform and insert the JSX
+        let transformed = transform_jsx_node(
+            ms,
+            program,
+            jsx.start,
+            jsx.end,
+            &jsx.kind,
+            reactive_names,
+            counter,
+        );
+        result.push_str(&transformed);
+        cursor = jsx.end;
+    }
+
+    // Read remaining text after last JSX node
+    if cursor < end {
+        result.push_str(&ms.get_transformed_slice(cursor, end));
+    }
+
+    result
+}
+
+/// Collect all JSX nodes within a span, sorted by position.
+fn collect_jsx_in_span(program: &Program, start: u32, end: u32) -> Vec<JsxNodeInfo> {
+    let mut collector = JsxInSpanCollector {
+        target_start: start,
+        target_end: end,
+        results: Vec::new(),
+    };
+    for stmt in &program.body {
+        collector.visit_statement(stmt);
+    }
+    collector.results.sort_by_key(|n| n.start);
+    collector.results
+}
+
+struct JsxInSpanCollector {
+    target_start: u32,
+    target_end: u32,
+    results: Vec<JsxNodeInfo>,
+}
+
+impl<'c> Visit<'c> for JsxInSpanCollector {
+    fn visit_jsx_element(&mut self, elem: &JSXElement<'c>) {
+        if elem.span.start >= self.target_start && elem.span.end <= self.target_end {
+            self.results.push(JsxNodeInfo {
+                start: elem.span.start,
+                end: elem.span.end,
+                kind: JsxNodeKind::Element,
+            });
+            // Don't recurse into JSX children — we transform the outermost JSX node
+            return;
+        }
+        oxc_ast_visit::walk::walk_jsx_element(self, elem);
+    }
+
+    fn visit_jsx_fragment(&mut self, frag: &JSXFragment<'c>) {
+        if frag.span.start >= self.target_start && frag.span.end <= self.target_end {
+            self.results.push(JsxNodeInfo {
+                start: frag.span.start,
+                end: frag.span.end,
+                kind: JsxNodeKind::Fragment,
+            });
+            return;
+        }
+        oxc_ast_visit::walk::walk_jsx_fragment(self, frag);
+    }
+}
+
 fn find_jsx_in_span(program: &Program, start: u32, end: u32) -> Option<JsxNodeInfo> {
     let mut finder = JsxSpanFinder {
         target_start: start,
@@ -1312,6 +1522,55 @@ fn contains_word_boundary(text: &str, pattern: &str) -> bool {
             !prev.is_ascii_alphanumeric() && prev != b'_' && prev != b'$'
         };
         if ok_before {
+            return true;
+        }
+        start = abs_pos + 1;
+    }
+    false
+}
+
+/// Build a key function string for __list/__listValue.
+/// Includes index param when the key expression references it as a variable.
+fn build_key_fn(key_expr: &Option<String>, item_param: &str, index_param: Option<&str>) -> String {
+    match key_expr {
+        Some(k) => {
+            // Include index param when the key expression references it
+            // (not as part of a property access like item.index)
+            if let Some(idx) = index_param {
+                if key_references_index(k, idx) {
+                    return format!("({}, {}) => {}", item_param, idx, k);
+                }
+            }
+            format!("({}) => {}", item_param, k)
+        }
+        None => "null".to_string(),
+    }
+}
+
+/// Check if a key expression references the index parameter as a standalone variable.
+fn key_references_index(key_expr: &str, index_param: &str) -> bool {
+    let mut start = 0;
+    while let Some(pos) = key_expr[start..].find(index_param) {
+        let abs_pos = start + pos;
+        let after_pos = abs_pos + index_param.len();
+
+        // Check char before is not part of identifier or a dot (property access)
+        let ok_before = if abs_pos == 0 {
+            true
+        } else {
+            let prev = key_expr.as_bytes()[abs_pos - 1];
+            !prev.is_ascii_alphanumeric() && prev != b'_' && prev != b'$' && prev != b'.'
+        };
+
+        // Check char after is not part of identifier
+        let ok_after = if after_pos >= key_expr.len() {
+            true
+        } else {
+            let next = key_expr.as_bytes()[after_pos];
+            !next.is_ascii_alphanumeric() && next != b'_' && next != b'$'
+        };
+
+        if ok_before && ok_after {
             return true;
         }
         start = abs_pos + 1;
