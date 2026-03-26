@@ -1,5 +1,20 @@
 # @vertz/cli
 
+## 0.2.35
+
+### Patch Changes
+
+- [#1882](https://github.com/vertz-dev/vertz/pull/1882) [`bb784d0`](https://github.com/vertz-dev/vertz/commit/bb784d052fe4abf27f5f499923de0a1f20a06c1b) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - Fix AOT route extraction to handle dynamic imports, function calls, and bare identifiers alongside existing JSX patterns. Fix AOT bundle failures caused by missing helper imports and query variable scope leaks. Fix AOT route matcher to use exact matching instead of prefix matching, preventing `/` from matching all URLs. Externalize relative imports in AOT bundle step to prevent resolution failures in .aot-tmp. Improve AOT bundle error logging with detailed messages and stack traces.
+
+- Updated dependencies [[`bb784d0`](https://github.com/vertz-dev/vertz/commit/bb784d052fe4abf27f5f499923de0a1f20a06c1b)]:
+  - @vertz/ui-server@0.2.35
+  - @vertz/codegen@0.2.35
+  - @vertz/compiler@0.2.35
+  - @vertz/create-vertz-app@0.2.35
+  - @vertz/db@0.2.35
+  - @vertz/errors@0.2.35
+  - @vertz/tui@0.2.35
+
 ## 0.2.34
 
 ### Patch Changes

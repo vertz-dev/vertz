@@ -1,5 +1,16 @@
 # @vertz/ui
 
+## 0.2.35
+
+### Patch Changes
+
+- [#1884](https://github.com/vertz-dev/vertz/pull/1884) [`5a80932`](https://github.com/vertz-dev/vertz/commit/5a8093299d96eefd00f0208af61eeb37aef28014) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - Fix query() SSR hydration data loss and reactive re-fetch (#1859, #1861)
+
+  Runtime: compute full dep-hash cache key during client hydration so it matches the SSR key format, fixing SSR data being discarded. Set idle=false in hydration resolve callback.
+
+- Updated dependencies []:
+  - @vertz/fetch@0.2.35
+
 ## 0.2.34
 
 ### Patch Changes
