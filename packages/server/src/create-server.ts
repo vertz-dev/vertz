@@ -455,11 +455,6 @@ export function createServer(config: ServerConfig): AppBuilder | ServerInstance 
       }
     }
 
-    // Resolve tenant levels for closure auto-population
-    const resolvedTenantLevels = hasDbClient
-      ? (db as DatabaseClient<Record<string, ModelEntry>>)._internals.tenantGraph.levels
-      : undefined;
-
     // Generate routes for each entity
     for (const entityDef of config.entities) {
       const entityDb = dbFactory(entityDef as EntityDefinition);
