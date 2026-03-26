@@ -17,6 +17,7 @@ mod mutation_transformer;
 mod props_transformer;
 mod query_auto_thunk;
 mod reactivity_analyzer;
+mod route_splitting;
 mod signal_api_registry;
 mod signal_transformer;
 mod ssr_safety_diagnostics;
@@ -83,6 +84,7 @@ pub struct CompileOptions {
     pub target: Option<String>,
     pub manifests: Option<Vec<NapiManifestEntry>>,
     pub hydration_markers: Option<bool>,
+    pub route_splitting: Option<bool>,
 }
 
 #[napi]
@@ -105,6 +107,11 @@ pub fn compile(source: String, options: Option<CompileOptions>) -> CompileResult
     let enable_hydration_markers = options
         .as_ref()
         .and_then(|o| o.hydration_markers)
+        .unwrap_or(false);
+
+    let enable_route_splitting = options
+        .as_ref()
+        .and_then(|o| o.route_splitting)
         .unwrap_or(false);
 
     let source_type = SourceType::from_path(filename).unwrap_or_default();
@@ -171,6 +178,12 @@ pub fn compile(source: String, options: Option<CompileOptions>) -> CompileResult
     // Strip TypeScript syntax first (interfaces, type aliases, as casts, type annotations, etc.)
     // Must run before JSX transform so that get_transformed_slice() returns clean JavaScript.
     typescript_strip::strip_typescript_syntax(&mut ms, &parser_ret.program, &source);
+
+    // Route code splitting — convert static imports in defineRoutes to dynamic imports.
+    // Must run before component transforms (it rewrites module-level import/export statements).
+    if enable_route_splitting {
+        route_splitting::transform_route_splitting(&mut ms, &parser_ret.program, &source);
+    }
 
     // Hydration markers — determine which components are interactive.
     // The JSX transformer will inject data-v-id setAttribute calls for these.
