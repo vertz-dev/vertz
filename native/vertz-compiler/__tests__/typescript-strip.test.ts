@@ -293,7 +293,34 @@ describe('Feature: TypeScript syntax stripping', () => {
         `);
 
         expect(code).not.toContain('declare');
-        expect(code).not.toContain('export');
+        expect(code).not.toMatch(/export\s+declare/);
+      });
+
+      it('Then preserves non-declare namespace with runtime code', () => {
+        const code = compileAndGetCode(`
+          namespace Utils {
+            export function add(a: number, b: number) { return a + b; }
+          }
+
+          function App() {
+            return <div>hello</div>;
+          }
+        `);
+
+        // Runtime namespace must NOT be stripped
+        expect(code).toContain('Utils');
+      });
+
+      it('Then preserves non-declare enum', () => {
+        const code = compileAndGetCode(`
+          enum Direction { Up, Down, Left, Right }
+
+          function App() {
+            return <div>hello</div>;
+          }
+        `);
+
+        expect(code).toContain('Direction');
       });
     });
   });

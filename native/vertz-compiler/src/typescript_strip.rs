@@ -51,8 +51,10 @@ fn get_removable_statement_span(stmt: &Statement) -> Option<(u32, u32)> {
         {
             Some((cls.span.start, cls.span.end))
         }
-        // declare module / declare namespace
-        Statement::TSModuleDeclaration(decl) => Some((decl.span.start, decl.span.end)),
+        // declare module / declare namespace (NOT runtime namespaces without declare)
+        Statement::TSModuleDeclaration(decl) if decl.declare => {
+            Some((decl.span.start, decl.span.end))
+        }
         // declare enum / declare const enum
         Statement::TSEnumDeclaration(decl) if decl.declare => {
             Some((decl.span.start, decl.span.end))
@@ -77,7 +79,7 @@ fn get_removable_statement_span(stmt: &Statement) -> Option<(u32, u32)> {
                         Some((export_decl.span.start, export_decl.span.end))
                     }
                     // export declare module / namespace
-                    Declaration::TSModuleDeclaration(_) => {
+                    Declaration::TSModuleDeclaration(decl) if decl.declare => {
                         Some((export_decl.span.start, export_decl.span.end))
                     }
                     // export declare enum
