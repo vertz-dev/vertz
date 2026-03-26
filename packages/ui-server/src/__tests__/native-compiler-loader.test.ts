@@ -1,6 +1,22 @@
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 import { tryLoadNativeCompiler } from '../bun-plugin/native-compiler-loader';
 
+// Check if the native binary is available on this platform
+function isNativeBinaryAvailable(): boolean {
+  const prev = process.env.VERTZ_NATIVE_COMPILER;
+  process.env.VERTZ_NATIVE_COMPILER = '1';
+  const compiler = tryLoadNativeCompiler();
+  if (prev === undefined) {
+    delete process.env.VERTZ_NATIVE_COMPILER;
+  } else {
+    process.env.VERTZ_NATIVE_COMPILER = prev;
+  }
+  return compiler !== null;
+}
+
+const HAS_NATIVE_BINARY = isNativeBinaryAvailable();
+const describeWithBinary = HAS_NATIVE_BINARY ? describe : describe.skip;
+
 describe('Feature: Native compiler loader', () => {
   const originalEnv = process.env.VERTZ_NATIVE_COMPILER;
 
@@ -25,7 +41,7 @@ describe('Feature: Native compiler loader', () => {
     });
   });
 
-  describe('Given VERTZ_NATIVE_COMPILER=1 and the binary exists', () => {
+  describeWithBinary('Given VERTZ_NATIVE_COMPILER=1 and the binary exists', () => {
     beforeEach(() => {
       process.env.VERTZ_NATIVE_COMPILER = '1';
     });

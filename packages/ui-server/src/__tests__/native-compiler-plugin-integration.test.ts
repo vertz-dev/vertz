@@ -9,7 +9,23 @@ import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { tryLoadNativeCompiler } from '../bun-plugin/native-compiler-loader';
 import { createVertzBunPlugin } from '../bun-plugin/plugin';
+
+// Check if the native binary is available on this platform
+function isNativeBinaryAvailable(): boolean {
+  const prev = process.env.VERTZ_NATIVE_COMPILER;
+  process.env.VERTZ_NATIVE_COMPILER = '1';
+  const compiler = tryLoadNativeCompiler();
+  if (prev === undefined) {
+    delete process.env.VERTZ_NATIVE_COMPILER;
+  } else {
+    process.env.VERTZ_NATIVE_COMPILER = prev;
+  }
+  return compiler !== null;
+}
+
+const HAS_NATIVE_BINARY = isNativeBinaryAvailable();
 
 // ── Helpers ──────────────────────────────────────────────────────
 
@@ -81,7 +97,10 @@ describe('Feature: Native compiler plugin integration', () => {
     }
   });
 
-  describe('Given VERTZ_NATIVE_COMPILER=1 and a simple component', () => {
+  // Tests below require the native binary — skip on platforms where it's not built
+  const describeWithBinary = HAS_NATIVE_BINARY ? describe : describe.skip;
+
+  describeWithBinary('Given VERTZ_NATIVE_COMPILER=1 and a simple component', () => {
     beforeEach(() => {
       process.env.VERTZ_NATIVE_COMPILER = '1';
     });
@@ -107,7 +126,7 @@ describe('Feature: Native compiler plugin integration', () => {
     });
   });
 
-  describe('Given VERTZ_NATIVE_COMPILER=1 and a component with signals', () => {
+  describeWithBinary('Given VERTZ_NATIVE_COMPILER=1 and a component with signals', () => {
     beforeEach(() => {
       process.env.VERTZ_NATIVE_COMPILER = '1';
     });
@@ -163,7 +182,7 @@ describe('Feature: Native compiler plugin integration', () => {
     });
   });
 
-  describe('Given VERTZ_NATIVE_COMPILER=1 and target=tui', () => {
+  describeWithBinary('Given VERTZ_NATIVE_COMPILER=1 and target=tui', () => {
     beforeEach(() => {
       process.env.VERTZ_NATIVE_COMPILER = '1';
     });
@@ -192,7 +211,7 @@ describe('Feature: Native compiler plugin integration', () => {
     });
   });
 
-  describe('Given VERTZ_NATIVE_COMPILER=1 and source map chaining', () => {
+  describeWithBinary('Given VERTZ_NATIVE_COMPILER=1 and source map chaining', () => {
     beforeEach(() => {
       process.env.VERTZ_NATIVE_COMPILER = '1';
     });
