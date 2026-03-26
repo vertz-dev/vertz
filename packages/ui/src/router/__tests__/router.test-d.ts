@@ -566,7 +566,12 @@ void _p7DeepTab;
 const _p7DeepBadTab: P7DeepExtracted['tab'] = 42;
 void _p7DeepBadTab;
 
-// Phase 7 Cycle 5: RoutePattern backward compat — index signature returns string
+// Phase 7 Cycle 5: ExtractSearchParams falls back for nonexistent path in nested map
+type P7NestedUnknown = ExtractSearchParams<'/nonexistent', P7RouteMap>;
+const _p7NestedUnknownRaw: P7NestedUnknown = { anyKey: 'value' };
+void _p7NestedUnknownRaw;
+
+// Phase 7 Cycle 6: RoutePattern backward compat — index signature returns string
 type P7FallbackPatterns = RoutePattern<RouteDefinitionMap>;
 const _p7Fallback: P7FallbackPatterns = '/anything-goes';
 void _p7Fallback;
