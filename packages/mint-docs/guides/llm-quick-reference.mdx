@@ -207,7 +207,7 @@ const result = await tasks.get('some-id');
 if (result.ok) {
   result.body.title; // typed to $response
 } else {
-  result.body.message; // ErrorBody { error, message, statusCode }
+  result.body.message; // ErrorBody { error, message, statusCode, details? }
 }
 ```
 
