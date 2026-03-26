@@ -585,7 +585,7 @@ export function createRouter<T extends Record<string, RouteConfigLike> = RouteDe
     const currentMatch = _current.peek();
     const isSameRoute =
       currentMatch && navMatch && currentMatch.route.pattern === navMatch.route.pattern;
-    const isSearchParamOnly = isSameRoute && input.replace;
+    const isSearchParamOnly = !!(isSameRoute && input.replace);
 
     // Capture generation at start — if a newer navigate() starts while we
     // await prefetch, this navigate should skip applyNavigation.
