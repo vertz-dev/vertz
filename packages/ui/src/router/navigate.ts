@@ -531,6 +531,7 @@ export function createRouter<T extends Record<string, RouteConfigLike> = RouteDe
     url: string,
     preMatch?: RouteMatch | null,
     transitionConfig?: boolean | ViewTransitionConfig,
+    skipLoaders?: boolean,
   ): Promise<void> {
     // Abort any in-flight navigation
     if (currentAbort) {
@@ -559,7 +560,11 @@ export function createRouter<T extends Record<string, RouteConfigLike> = RouteDe
     if (match) {
       visitedUrls.add(normalizeUrl(url));
       searchParams.value = match.search;
-      await runLoaders(match, gen, abort.signal);
+      // Skip loaders for search-param-only changes — the reactive query()
+      // system handles data fetching with its own cache.
+      if (!skipLoaders) {
+        await runLoaders(match, gen, abort.signal);
+      }
     } else {
       searchParams.value = {};
       if (gen === navigationGen) {
@@ -572,12 +577,22 @@ export function createRouter<T extends Record<string, RouteConfigLike> = RouteDe
   async function navigate(input: NavigateInput): Promise<void> {
     const navUrl = buildNavigationUrl(input.to, input);
 
+    // Detect search-param-only change: same route pattern, different search.
+    // These should be lightweight — no SSE prefetch wait, no view transition,
+    // no loader re-run.  The reactive query() system handles data fetching
+    // with its own cache, so the UI updates instantly.
+    const navMatch = matchRoute(routes, navUrl);
+    const currentMatch = _current.peek();
+    const isSameRoute =
+      currentMatch && navMatch && currentMatch.route.pattern === navMatch.route.pattern;
+    const isSearchParamOnly = isSameRoute && input.replace;
+
     // Capture generation at start — if a newer navigate() starts while we
     // await prefetch, this navigate should skip applyNavigation.
     const gen = ++navigateGen;
 
-    // Start server nav prefetch before navigation
-    const handle = startPrefetch(navUrl);
+    // Start server nav prefetch before navigation (skip for search-param changes)
+    const handle = isSearchParamOnly ? null : startPrefetch(navUrl);
 
     // Update browser history
     if (input.replace) {
@@ -598,12 +613,14 @@ export function createRouter<T extends Record<string, RouteConfigLike> = RouteDe
     // and then bailing out inside the callback.
     if (gen !== navigateGen) return;
 
-    // Resolve transition config: navigate-level > route-level > global
-    const match = matchRoute(routes, navUrl);
-    const transitionConfig =
-      input.viewTransition ?? match?.route.viewTransition ?? options?.viewTransition;
+    // Resolve transition config: navigate-level > route-level > global.
+    // Search-param-only changes skip view transitions — the page content
+    // updates reactively in place, no full-page animation needed.
+    const transitionConfig = isSearchParamOnly
+      ? undefined
+      : (input.viewTransition ?? navMatch?.route.viewTransition ?? options?.viewTransition);
 
-    await applyNavigation(navUrl, match, transitionConfig);
+    await applyNavigation(navUrl, navMatch, transitionConfig, isSearchParamOnly);
   }
 
   async function revalidate(): Promise<void> {

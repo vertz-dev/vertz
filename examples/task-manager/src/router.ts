@@ -36,9 +36,6 @@ export const routes = defineRoutes({
   '/': {
     component: () => TaskListPage(),
     searchParams: taskListSearchParams,
-    loader: async () => {
-      return await api.tasks.list();
-    },
   },
 
   '/tasks/new': {
