@@ -34,6 +34,7 @@ import type { BunPlugin } from 'bun';
 import MagicString from 'magic-string';
 import { Project, ts } from 'ts-morph';
 import { injectContextStableIds } from './context-stable-ids';
+import { tryLoadNativeCompiler } from './native-compiler-loader';
 import { loadEntitySchema } from './entity-schema-loader';
 import { generateRefreshCode } from './fast-refresh-codegen';
 import type { EntitySchemaManifest } from './field-selection-inject';
@@ -210,6 +211,9 @@ export function createVertzBunPlugin(options?: VertzBunPluginOptions): VertzBunP
     });
   }
 
+  // ── Native compiler (optional, behind VERTZ_NATIVE_COMPILER=1) ──
+  const nativeCompiler = tryLoadNativeCompiler();
+
   // Ensure CSS output directory exists
   mkdirSync(cssOutDir, { recursive: true });
 
@@ -373,11 +377,33 @@ export function createVertzBunPlugin(options?: VertzBunPluginOptions): VertzBunP
           }
 
           // ── 3. Compile (reactive + JSX transforms) ─────────────
-          const compileResult = compile(codeAfterImageTransform, {
-            filename: args.path,
-            target: options?.target,
-            manifests: getManifestsRecord(),
-          });
+          // Use native Rust compiler when available (20-50x faster),
+          // otherwise fall back to ts-morph TypeScript compiler.
+          const compileResult = nativeCompiler
+            ? (() => {
+                const nativeResult = nativeCompiler.compile(codeAfterImageTransform, {
+                  filename: args.path,
+                  target: options?.target,
+                  // Plugin handles context stable IDs and fast refresh separately
+                  fastRefresh: false,
+                });
+                return {
+                  code: nativeResult.code,
+                  map: nativeResult.map
+                    ? (JSON.parse(nativeResult.map) as EncodedSourceMap)
+                    : ({ version: 3, sources: [], mappings: '', names: [] } as EncodedSourceMap),
+                  diagnostics: (nativeResult.diagnostics ?? []).map((d) => ({
+                    message: d.message,
+                    line: d.line,
+                    column: d.column,
+                  })),
+                };
+              })()
+            : compile(codeAfterImageTransform, {
+                filename: args.path,
+                target: options?.target,
+                manifests: getManifestsRecord(),
+              });
 
           // ── 4. Source map chaining ──────────────────────────────
           // Chain maps in output→source order: compile → image → hydration

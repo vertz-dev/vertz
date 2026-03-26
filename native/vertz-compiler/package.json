@@ -6,5 +6,8 @@
     "build": "cargo build --release --manifest-path ../Cargo.toml && cp ../target/release/libvertz_compiler.dylib ./vertz-compiler.darwin-arm64.node",
     "build:debug": "cargo build --manifest-path ../Cargo.toml && cp ../target/debug/libvertz_compiler.dylib ./vertz-compiler.darwin-arm64.node",
     "test": "bun test __tests__/"
+  },
+  "devDependencies": {
+    "@vertz/ui-compiler": "workspace:^"
   }
 }

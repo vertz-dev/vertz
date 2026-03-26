@@ -1,0 +1,216 @@
+/**
+ * Tests for native compiler integration with the Bun plugin.
+ *
+ * Verifies that the plugin correctly uses the native Rust compiler
+ * when VERTZ_NATIVE_COMPILER=1 is set, and falls back to ts-morph otherwise.
+ */
+
+import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { createVertzBunPlugin } from '../bun-plugin/plugin';
+
+// ── Helpers ──────────────────────────────────────────────────────
+
+function createTempProject(): {
+  dir: string;
+  srcDir: string;
+  write: (path: string, content: string) => string;
+  cleanup: () => void;
+} {
+  const dir = mkdtempSync(join(tmpdir(), 'vertz-native-integration-'));
+  const srcDir = join(dir, 'src');
+  mkdirSync(srcDir, { recursive: true });
+  mkdirSync(join(dir, '.vertz', 'css'), { recursive: true });
+
+  return {
+    dir,
+    srcDir,
+    write(relativePath: string, content: string): string {
+      const fullPath = join(srcDir, relativePath);
+      mkdirSync(join(fullPath, '..'), { recursive: true });
+      writeFileSync(fullPath, content);
+      return fullPath;
+    },
+    cleanup() {
+      rmSync(dir, { recursive: true, force: true });
+    },
+  };
+}
+
+async function runPluginOnLoad(
+  plugin: { name: string; setup: (build: any) => void },
+  filePath: string,
+): Promise<{ contents: string; loader: string }> {
+  let handler: ((args: { path: string }) => Promise<any>) | null = null;
+
+  plugin.setup({
+    onLoad(opts: any, cb: any) {
+      // Capture the first (tsx) handler
+      if (!handler && String(opts.filter).includes('tsx')) {
+        handler = cb;
+      }
+    },
+  });
+
+  if (!handler) throw new Error('Plugin did not register an onLoad handler');
+  const onLoad = handler as (args: { path: string }) => Promise<any>;
+  return onLoad({ path: filePath });
+}
+
+// ── Tests ────────────────────────────────────────────────────────
+
+describe('Feature: Native compiler plugin integration', () => {
+  const originalEnv = process.env.VERTZ_NATIVE_COMPILER;
+  let project: ReturnType<typeof createTempProject>;
+
+  beforeEach(() => {
+    project = createTempProject();
+  });
+
+  afterEach(() => {
+    project.cleanup();
+    if (originalEnv === undefined) {
+      delete process.env.VERTZ_NATIVE_COMPILER;
+    } else {
+      process.env.VERTZ_NATIVE_COMPILER = originalEnv;
+    }
+  });
+
+  describe('Given VERTZ_NATIVE_COMPILER=1 and a simple component', () => {
+    beforeEach(() => {
+      process.env.VERTZ_NATIVE_COMPILER = '1';
+    });
+
+    describe('When the plugin processes the file', () => {
+      it('Then produces compiled output with native compiler marker', async () => {
+        const filePath = project.write(
+          'App.tsx',
+          'function App() { return <div>Hello</div>; }',
+        );
+
+        const { plugin } = createVertzBunPlugin({
+          projectRoot: project.dir,
+          srcDir: project.srcDir,
+          hmr: false,
+          fastRefresh: false,
+        });
+
+        const result = await runPluginOnLoad(plugin, filePath);
+        expect(result.contents).toContain('// compiled by vertz-native');
+        expect(result.contents).toContain('__element');
+      });
+    });
+  });
+
+  describe('Given VERTZ_NATIVE_COMPILER=1 and a component with signals', () => {
+    beforeEach(() => {
+      process.env.VERTZ_NATIVE_COMPILER = '1';
+    });
+
+    describe('When the plugin processes the file', () => {
+      it('Then produces reactive transforms (signal/computed)', async () => {
+        const filePath = project.write(
+          'Counter.tsx',
+          `function Counter() {
+  let count = 0;
+  const doubled = count * 2;
+  return <div>{doubled}</div>;
+}`,
+        );
+
+        const { plugin } = createVertzBunPlugin({
+          projectRoot: project.dir,
+          srcDir: project.srcDir,
+          hmr: false,
+          fastRefresh: false,
+        });
+
+        const result = await runPluginOnLoad(plugin, filePath);
+        expect(result.contents).toContain('signal(');
+        expect(result.contents).toContain('computed(');
+      });
+    });
+  });
+
+  describe('Given VERTZ_NATIVE_COMPILER is not set', () => {
+    beforeEach(() => {
+      delete process.env.VERTZ_NATIVE_COMPILER;
+    });
+
+    describe('When the plugin processes the file', () => {
+      it('Then uses ts-morph compiler (no native marker)', async () => {
+        const filePath = project.write(
+          'App.tsx',
+          'function App() { return <div>Hello</div>; }',
+        );
+
+        const { plugin } = createVertzBunPlugin({
+          projectRoot: project.dir,
+          srcDir: project.srcDir,
+          hmr: false,
+          fastRefresh: false,
+        });
+
+        const result = await runPluginOnLoad(plugin, filePath);
+        expect(result.contents).not.toContain('// compiled by vertz-native');
+        expect(result.contents).toContain('__element');
+      });
+    });
+  });
+
+  describe('Given VERTZ_NATIVE_COMPILER=1 and target=tui', () => {
+    beforeEach(() => {
+      process.env.VERTZ_NATIVE_COMPILER = '1';
+    });
+
+    describe('When the plugin processes the file', () => {
+      it('Then uses tui internals import', async () => {
+        const filePath = project.write(
+          'App.tsx',
+          `function App() {
+  let count = 0;
+  return <div>{count}</div>;
+}`,
+        );
+
+        const { plugin } = createVertzBunPlugin({
+          projectRoot: project.dir,
+          srcDir: project.srcDir,
+          hmr: false,
+          fastRefresh: false,
+          target: 'tui',
+        });
+
+        const result = await runPluginOnLoad(plugin, filePath);
+        expect(result.contents).toContain('@vertz/tui/internals');
+      });
+    });
+  });
+
+  describe('Given VERTZ_NATIVE_COMPILER=1 and source map chaining', () => {
+    beforeEach(() => {
+      process.env.VERTZ_NATIVE_COMPILER = '1';
+    });
+
+    describe('When the plugin processes the file', () => {
+      it('Then produces output with inline source map', async () => {
+        const filePath = project.write(
+          'App.tsx',
+          'function App() { return <div>Hello</div>; }',
+        );
+
+        const { plugin } = createVertzBunPlugin({
+          projectRoot: project.dir,
+          srcDir: project.srcDir,
+          hmr: false,
+          fastRefresh: false,
+        });
+
+        const result = await runPluginOnLoad(plugin, filePath);
+        expect(result.contents).toContain('//# sourceMappingURL=data:application/json;base64,');
+      });
+    });
+  });
+});
