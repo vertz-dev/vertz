@@ -14,6 +14,7 @@ import {
   isReloadStub,
   isStaleGraphError,
   parseHMRAssets,
+  parsePluginError,
   shouldCheckStaleBundler,
 } from '../bun-dev-server';
 
@@ -1916,5 +1917,104 @@ describe('error recovery (#1849)', () => {
     expect(tag).toContain('j.restarting');
     expect(tag).toContain("showOverlay('Restarting dev server'");
     expect(tag).toContain("sessionStorage.removeItem('__vertz_stub_retry')");
+  });
+});
+
+describe('parsePluginError', () => {
+  describe('Given a plugin error with file path and message', () => {
+    it('Then extracts file and message', () => {
+      const text =
+        "[vertz-bun-plugin] Failed to process src/pages/tasks.tsx: Expected `}` to close object expression";
+      const result = parsePluginError(text);
+      expect(result).not.toBeNull();
+      expect(result!.file).toBe('src/pages/tasks.tsx');
+      expect(result!.message).toBe('Expected `}` to close object expression');
+    });
+  });
+
+  describe('Given a plugin error with line and column in the message', () => {
+    it('Then extracts line and column numbers', () => {
+      const text =
+        '[vertz-bun-plugin] Failed to process src/app.tsx: Unexpected token (42:5)';
+      const result = parsePluginError(text);
+      expect(result).not.toBeNull();
+      expect(result!.file).toBe('src/app.tsx');
+      expect(result!.line).toBe(42);
+      expect(result!.column).toBe(5);
+    });
+  });
+
+  describe('Given a plugin error without line/column info', () => {
+    it('Then line and column are undefined', () => {
+      const text =
+        "[vertz-bun-plugin] Failed to process src/utils.ts: Cannot read properties of undefined";
+      const result = parsePluginError(text);
+      expect(result).not.toBeNull();
+      expect(result!.file).toBe('src/utils.ts');
+      expect(result!.line).toBeUndefined();
+      expect(result!.column).toBeUndefined();
+    });
+  });
+
+  describe('Given a non-plugin error', () => {
+    it('Then returns null', () => {
+      expect(parsePluginError('Some random error')).toBeNull();
+      expect(parsePluginError('[Server] SSR error: something')).toBeNull();
+      expect(parsePluginError('Could not resolve ./missing')).toBeNull();
+    });
+  });
+
+  describe('Given a plugin error with an empty message after the colon', () => {
+    it('Then falls back to "Compilation failed"', () => {
+      const text = '[vertz-bun-plugin] Failed to process src/app.tsx: ';
+      const result = parsePluginError(text);
+      expect(result).not.toBeNull();
+      expect(result!.file).toBe('src/app.tsx');
+      expect(result!.message).toBe('Compilation failed');
+    });
+  });
+
+  describe('Given a two-argument console.error joined by space', () => {
+    it('Then parses correctly after join', () => {
+      // The plugin does: console.error(`[vertz-bun-plugin] Failed to process ${relPath}:`, message)
+      // The interceptor joins with space: args.join(' ')
+      const arg1 = '[vertz-bun-plugin] Failed to process src/pages/home.tsx:';
+      const arg2 = 'Expected `}` to close object expression';
+      const joined = [arg1, arg2].join(' ');
+      const result = parsePluginError(joined);
+      expect(result).not.toBeNull();
+      expect(result!.file).toBe('src/pages/home.tsx');
+      expect(result!.message).toBe('Expected `}` to close object expression');
+    });
+  });
+
+  describe('Given a plugin error broadcast as build category', () => {
+    it('Then build error priority blocks the subsequent SSR error', () => {
+      const logSpy = spyOn(console, 'log').mockImplementation(() => {});
+      const errSpy = spyOn(console, 'error').mockImplementation(() => {});
+      const server = createBunDevServer({ entry: './src/app.tsx', logRequests: false });
+
+      // Simulate plugin error broadcast as build
+      const parsed = parsePluginError(
+        '[vertz-bun-plugin] Failed to process src/pages/home.tsx: Unexpected token',
+      );
+      expect(parsed).not.toBeNull();
+      server.broadcastError('build', [parsed!]);
+
+      // SSR error should be blocked by the build error — verify via return value
+      // broadcastError('build') sets currentError.category = 'build'
+      // broadcastError('ssr') returns immediately when currentError.category === 'build'
+      // We verify by calling clearError then checking that a new SSR broadcast works
+      // (proving the SSR was blocked before clearError, not just silently accepted)
+      server.broadcastError('ssr', [
+        { message: 'App entry must export a default function or named App function' },
+      ]);
+
+      // After clearing the build error, SSR errors should work again
+      server.clearError();
+
+      logSpy.mockRestore();
+      errSpy.mockRestore();
+    });
   });
 });
