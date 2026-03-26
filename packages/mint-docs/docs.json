@@ -202,5 +202,8 @@
       "source": "/manifesto"
     }
   ],
-  "theme": "mint"
+  "theme": "mint",
+  "llmsTxt": {
+    "enabled": true
+  }
 }

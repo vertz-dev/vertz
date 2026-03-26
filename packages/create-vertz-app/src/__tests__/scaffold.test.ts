@@ -11,7 +11,7 @@ describe('scaffold', () => {
     tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'vertz-scaffold-'));
   });
 
-  const defaultOptions: ScaffoldOptions = { projectName: 'test-app' };
+  const defaultOptions: ScaffoldOptions = { projectName: 'test-app', template: 'todo-app' };
 
   function projectPath(...segments: string[]): string {
     return path.join(tempDir, 'test-app', ...segments);
@@ -30,7 +30,7 @@ describe('scaffold', () => {
 
   describe('directory structure', () => {
     it('creates the project directory with the given name', async () => {
-      await scaffold(tempDir, { projectName: 'my-vertz-app' });
+      await scaffold(tempDir, { projectName: 'my-vertz-app', template: 'todo-app' });
 
       const stat = await fs.stat(path.join(tempDir, 'my-vertz-app'));
       expect(stat.isDirectory()).toBe(true);
@@ -87,9 +87,9 @@ describe('scaffold', () => {
     it('throws error if project directory already exists', async () => {
       await fs.mkdir(path.join(tempDir, 'existing-app'));
 
-      await expect(scaffold(tempDir, { projectName: 'existing-app' })).rejects.toThrow(
-        'already exists',
-      );
+      await expect(
+        scaffold(tempDir, { projectName: 'existing-app', template: 'todo-app' }),
+      ).rejects.toThrow('already exists');
     });
   });
 
@@ -97,7 +97,7 @@ describe('scaffold', () => {
 
   describe('config files', () => {
     it('generates package.json with project name', async () => {
-      await scaffold(tempDir, { projectName: 'my-awesome-app' });
+      await scaffold(tempDir, { projectName: 'my-awesome-app', template: 'todo-app' });
 
       const content = await fs.readFile(
         path.join(tempDir, 'my-awesome-app', 'package.json'),
@@ -326,7 +326,7 @@ describe('scaffold', () => {
 
   describe('LLM rules files', () => {
     it('generates CLAUDE.md with project name', async () => {
-      await scaffold(tempDir, { projectName: 'my-cool-app' });
+      await scaffold(tempDir, { projectName: 'my-cool-app', template: 'todo-app' });
 
       const content = await fs.readFile(path.join(tempDir, 'my-cool-app', 'CLAUDE.md'), 'utf-8');
       expect(content).toContain('# my-cool-app');
@@ -354,6 +354,169 @@ describe('scaffold', () => {
       expect(content).toContain('query(');
       expect(content).toContain("from 'vertz/ui'");
       expect(content).toContain('css(');
+    });
+  });
+
+  // ── Hello World template ────────────────────────────────
+
+  describe('hello-world template', () => {
+    const helloOptions: ScaffoldOptions = { projectName: 'test-app', template: 'hello-world' };
+
+    it('creates src/pages/ subdirectory', async () => {
+      await scaffold(tempDir, helloOptions);
+
+      const stat = await fs.stat(projectPath('src', 'pages'));
+      expect(stat.isDirectory()).toBe(true);
+    });
+
+    it('creates src/styles/ subdirectory', async () => {
+      await scaffold(tempDir, helloOptions);
+
+      const stat = await fs.stat(projectPath('src', 'styles'));
+      expect(stat.isDirectory()).toBe(true);
+    });
+
+    it('creates .claude/rules/ subdirectory', async () => {
+      await scaffold(tempDir, helloOptions);
+
+      const stat = await fs.stat(projectPath('.claude', 'rules'));
+      expect(stat.isDirectory()).toBe(true);
+    });
+
+    it('creates public/ subdirectory', async () => {
+      await scaffold(tempDir, helloOptions);
+
+      const stat = await fs.stat(projectPath('public'));
+      expect(stat.isDirectory()).toBe(true);
+    });
+
+    it('does NOT create src/api/ directory', async () => {
+      await scaffold(tempDir, helloOptions);
+
+      expect(await exists(projectPath('src', 'api'))).toBe(false);
+    });
+
+    it('does NOT create .env file', async () => {
+      await scaffold(tempDir, helloOptions);
+
+      expect(await exists(projectPath('.env'))).toBe(false);
+    });
+
+    it('does NOT create src/client.ts', async () => {
+      await scaffold(tempDir, helloOptions);
+
+      expect(await exists(projectPath('src', 'client.ts'))).toBe(false);
+    });
+
+    it('package.json has no #generated imports', async () => {
+      await scaffold(tempDir, helloOptions);
+
+      const content = await fs.readFile(projectPath('package.json'), 'utf-8');
+      const pkg = JSON.parse(content);
+      expect(pkg.imports).toBeUndefined();
+    });
+
+    it('package.json has no codegen script', async () => {
+      await scaffold(tempDir, helloOptions);
+
+      const content = await fs.readFile(projectPath('package.json'), 'utf-8');
+      const pkg = JSON.parse(content);
+      expect(pkg.scripts.codegen).toBeUndefined();
+      expect(pkg.scripts.dev).toBe('vertz dev');
+      expect(pkg.scripts.build).toBe('vertz build');
+    });
+
+    it('package.json has no start script', async () => {
+      await scaffold(tempDir, helloOptions);
+
+      const content = await fs.readFile(projectPath('package.json'), 'utf-8');
+      const pkg = JSON.parse(content);
+      expect(pkg.scripts.start).toBeUndefined();
+    });
+
+    it('vertz.config.ts has no entryFile', async () => {
+      await scaffold(tempDir, helloOptions);
+
+      const content = await fs.readFile(projectPath('vertz.config.ts'), 'utf-8');
+      expect(content).not.toContain('entryFile');
+      expect(content).not.toContain('codegen');
+    });
+
+    it('home.tsx has a reactive counter with let', async () => {
+      await scaffold(tempDir, helloOptions);
+
+      const content = await fs.readFile(projectPath('src', 'pages', 'home.tsx'), 'utf-8');
+      expect(content).toContain('let count = 0');
+      expect(content).toContain('count++');
+      expect(content).toContain('Hello, Vertz!');
+      expect(content).toContain('export function HomePage()');
+    });
+
+    it('app.tsx has ThemeProvider and HomePage', async () => {
+      await scaffold(tempDir, helloOptions);
+
+      const content = await fs.readFile(projectPath('src', 'app.tsx'), 'utf-8');
+      expect(content).toContain('ThemeProvider');
+      expect(content).toContain('HomePage');
+      expect(content).toContain('export function App()');
+    });
+
+    it('CLAUDE.md describes UI-only project', async () => {
+      await scaffold(tempDir, helloOptions);
+
+      const content = await fs.readFile(projectPath('CLAUDE.md'), 'utf-8');
+      expect(content).toContain('# test-app');
+      expect(content).toContain('UI-only');
+      expect(content).toContain('Adding a Backend');
+    });
+
+    it('does NOT generate .claude/rules/api-development.md', async () => {
+      await scaffold(tempDir, helloOptions);
+
+      expect(await exists(projectPath('.claude', 'rules', 'api-development.md'))).toBe(false);
+    });
+
+    it('generates .claude/rules/ui-development.md', async () => {
+      await scaffold(tempDir, helloOptions);
+
+      const content = await fs.readFile(
+        projectPath('.claude', 'rules', 'ui-development.md'),
+        'utf-8',
+      );
+      expect(content).toContain('query(');
+      expect(content).toContain("from 'vertz/ui'");
+    });
+
+    it('reuses shared templates (tsconfig, bunfig, gitignore, theme, favicon)', async () => {
+      await scaffold(tempDir, helloOptions);
+
+      // tsconfig
+      const tsconfig = JSON.parse(
+        await fs.readFile(projectPath('tsconfig.json'), 'utf-8'),
+      );
+      expect(tsconfig.compilerOptions.jsx).toBe('react-jsx');
+
+      // bunfig
+      const bunfig = await fs.readFile(projectPath('bunfig.toml'), 'utf-8');
+      expect(bunfig).toContain('[serve.static]');
+
+      // gitignore
+      const gitignore = await fs.readFile(projectPath('.gitignore'), 'utf-8');
+      expect(gitignore).toContain('node_modules');
+
+      // theme
+      const theme = await fs.readFile(projectPath('src', 'styles', 'theme.ts'), 'utf-8');
+      expect(theme).toContain('configureTheme');
+
+      // favicon
+      const favicon = await fs.readFile(projectPath('public', 'favicon.svg'), 'utf-8');
+      expect(favicon).toContain('viewBox');
+    });
+
+    it('throws error if project directory already exists', async () => {
+      await fs.mkdir(path.join(tempDir, 'test-app'));
+
+      await expect(scaffold(tempDir, helloOptions)).rejects.toThrow('already exists');
     });
   });
 });

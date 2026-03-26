@@ -13,10 +13,11 @@ program
   .description('Scaffold a new Vertz project')
   .version(pkg.version)
   .argument('[name]', 'Project name')
-  .action(async (name: string | undefined) => {
+  .option('--template <type>', 'Template to use (hello-world, todo-app)', 'todo-app')
+  .action(async (name: string | undefined, opts: { template?: string }) => {
     const { resolveOptions, scaffold } = await import('../dist/index.js');
     try {
-      const resolved = await resolveOptions({ projectName: name });
+      const resolved = await resolveOptions({ projectName: name, template: opts.template });
 
       console.log(`Creating Vertz app: ${resolved.projectName} (v${pkg.version})`);
 

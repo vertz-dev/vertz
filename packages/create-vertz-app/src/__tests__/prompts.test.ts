@@ -64,4 +64,27 @@ describe('prompts', () => {
       expect(result.projectName).toBe('my-app');
     });
   });
+
+  describe('template handling', () => {
+    it('defaults to todo-app when no template is provided', async () => {
+      const result = await resolveOptions({ projectName: 'my-app' });
+      expect(result.template).toBe('todo-app');
+    });
+
+    it('accepts hello-world template', async () => {
+      const result = await resolveOptions({ projectName: 'my-app', template: 'hello-world' });
+      expect(result.template).toBe('hello-world');
+    });
+
+    it('accepts todo-app template', async () => {
+      const result = await resolveOptions({ projectName: 'my-app', template: 'todo-app' });
+      expect(result.template).toBe('todo-app');
+    });
+
+    it('throws InvalidTemplateError for unknown template', async () => {
+      await expect(
+        resolveOptions({ projectName: 'my-app', template: 'nonexistent' }),
+      ).rejects.toThrow('Invalid template "nonexistent"');
+    });
+  });
 });
