@@ -334,6 +334,11 @@ export function createServer(config: ServerConfig): AppBuilder | ServerInstance 
   // Access config for CRUD pipeline, hoisted for reuse in auth wiring
   let crudAccessConfig: import('./entity/crud-pipeline').CrudAccessConfig | undefined;
 
+  // Resolve tenant levels for closure auto-population + multi-level auth
+  const resolvedTenantLevels = hasDbClient
+    ? (db as DatabaseClient<Record<string, ModelEntry>>)._internals.tenantGraph.levels
+    : undefined;
+
   // Process entities first (so registry has all entities registered for DI)
   if (config.entities && config.entities.length > 0) {
     let dbFactory: (entityDef: EntityDefinition) => EntityDbAdapter;
@@ -462,6 +467,8 @@ export function createServer(config: ServerConfig): AppBuilder | ServerInstance 
         queryParentIds: tenantChain ? (queryParentIds ?? config._queryParentIds) : undefined,
         accessConfig: crudAccessConfig,
         tenantResourceType,
+        closureStore: resolvedClosureStore ?? undefined,
+        tenantLevels: resolvedTenantLevels,
       });
       // Wrap handlers with domain middleware
       const domainMw = domainName ? domainMiddlewareMap.get(domainName) : undefined;
@@ -684,6 +691,33 @@ export function createServer(config: ServerConfig): AppBuilder | ServerInstance 
           return results.filter(Boolean) as import('./auth/types').TenantInfo[];
         },
       };
+    }
+
+    // Wire multi-level tenant resolution when tenant levels are available
+    if (resolvedTenantLevels?.length && resolvedTenantLevels.length > 1) {
+      const levels = resolvedTenantLevels;
+      const entityProxy = registry.createProxy();
+      const resolveTenantLevel = async (tenantId: string): Promise<string | null> => {
+        // Query all tenant-level entity tables in parallel — first match wins
+        const results = await Promise.all(
+          levels.map(async (level) => {
+            const entityName = level.tableName;
+            const entity = entityProxy[entityName];
+            if (!entity) return null;
+            const row = await entity.get(tenantId);
+            return row ? level.key : null;
+          }),
+        );
+        return results.find((r) => r !== null) ?? null;
+      };
+      const tenantLevelNames = levels.map((l) => l.key);
+
+      // Attach to auto-tenant or explicit tenant config
+      const tenantTarget = autoTenant ?? (config.auth.tenant as import('./auth/types').TenantConfig | undefined);
+      if (tenantTarget) {
+        tenantTarget._resolveTenantLevel = resolveTenantLevel;
+        tenantTarget._tenantLevelNames = tenantLevelNames;
+      }
     }
 
     // Reuse the auto-wired access stores for auth config (same instances as CRUD pipeline)

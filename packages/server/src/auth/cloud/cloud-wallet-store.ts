@@ -94,6 +94,27 @@ export class CloudWalletStore implements WalletStore {
     await this.post('/api/v1/wallet/unconsume', body);
   }
 
+  async getBatchConsumption(
+    tenantId: string,
+    limitKeys: string[],
+    periodStart: Date,
+    periodEnd: Date,
+  ): Promise<Map<string, number>> {
+    const body = {
+      tenantId,
+      limitKeys,
+      periodStart: periodStart.toISOString(),
+      periodEnd: periodEnd.toISOString(),
+    };
+
+    const data = await this.post<{ consumption: Record<string, number> }>(
+      '/api/v1/wallet/batch-check',
+      body,
+    );
+
+    return new Map(Object.entries(data.consumption));
+  }
+
   dispose(): void {
     // No-op — HTTP client has no persistent resources to clean up
   }

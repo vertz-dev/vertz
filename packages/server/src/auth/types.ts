@@ -428,6 +428,10 @@ export interface TenantConfig {
   listTenants?: (userId: string) => Promise<TenantInfo[]>;
   /** Resolve which tenant to auto-switch to when session has no tenantId. Falls back to lastTenantId > first tenant. */
   resolveDefault?: (userId: string, tenants: TenantInfo[]) => Promise<string | undefined>;
+  /** @internal Resolve tenant level from tenant ID. Set by createServer() for multi-level tenancy. */
+  _resolveTenantLevel?: (tenantId: string) => Promise<string | null>;
+  /** @internal Known tenant level names. Set by createServer() for multi-level tenancy. */
+  _tenantLevelNames?: readonly string[];
 }
 
 /** Access control configuration for JWT acl claim computation.

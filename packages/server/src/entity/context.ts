@@ -8,6 +8,7 @@ import type { EntityContext } from './types';
 export interface RequestInfo {
   readonly userId?: string | null;
   readonly tenantId?: string | null;
+  readonly tenantLevel?: string | null;
   readonly roles?: readonly string[];
 }
 
@@ -22,10 +23,12 @@ export function createEntityContext<TModel extends ModelDef = ModelDef>(
   const userId = request.userId ?? null;
   const roles = request.roles ?? [];
   const tenantId = request.tenantId ?? null;
+  const tenantLevel = request.tenantLevel ?? null;
 
   return {
     userId,
     tenantId,
+    tenantLevel,
     authenticated() {
       return userId !== null;
     },
