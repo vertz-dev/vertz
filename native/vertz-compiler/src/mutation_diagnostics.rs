@@ -145,8 +145,10 @@ impl<'a, 'b> Visit<'b> for MutationDetector<'a> {
                 if MUTATION_METHODS.contains(&method_name) {
                     if let Some(root_name) = get_root_identifier(&mem.object) {
                         if self.consts_in_jsx.contains(root_name) {
-                            let (line, column) =
-                                offset_to_line_column(self.source, call.span.start as usize);
+                            let (line, column) = crate::utils::offset_to_line_column(
+                                self.source,
+                                call.span.start as usize,
+                            );
                             self.diagnostics.push(crate::Diagnostic {
                                 message: format!(
                                     "[non-reactive-mutation] `.{method_name}()` on `const {root_name}` \
@@ -170,8 +172,10 @@ impl<'a, 'b> Visit<'b> for MutationDetector<'a> {
                 if let Expression::Identifier(obj) = &mem.object {
                     let root_name = obj.name.as_str();
                     if self.consts_in_jsx.contains(root_name) {
-                        let (line, column) =
-                            offset_to_line_column(self.source, assign.span.start as usize);
+                        let (line, column) = crate::utils::offset_to_line_column(
+                            self.source,
+                            assign.span.start as usize,
+                        );
                         self.diagnostics.push(crate::Diagnostic {
                             message: format!(
                                 "[non-reactive-mutation] Property assignment on `const {root_name}` \
@@ -195,21 +199,4 @@ fn get_root_identifier<'a>(expr: &'a Expression) -> Option<&'a str> {
         Expression::ComputedMemberExpression(mem) => get_root_identifier(&mem.object),
         _ => None,
     }
-}
-
-fn offset_to_line_column(source: &str, offset: usize) -> (u32, u32) {
-    let mut line = 1u32;
-    let mut col = 1u32;
-    for (i, ch) in source.char_indices() {
-        if i >= offset {
-            break;
-        }
-        if ch == '\n' {
-            line += 1;
-            col = 1;
-        } else {
-            col += 1;
-        }
-    }
-    (line, col)
 }

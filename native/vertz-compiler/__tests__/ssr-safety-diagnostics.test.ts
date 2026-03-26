@@ -209,4 +209,77 @@ export default theme;`;
       });
     });
   });
+
+  describe('Given a component using browser-only global inside ternary typeof guard', () => {
+    describe('When compiled', () => {
+      it('Then produces no diagnostic', () => {
+        const { compile } = loadCompiler();
+        const source = `function App() {
+  const theme = typeof localStorage !== 'undefined' ? localStorage.getItem('theme') : 'default';
+  return <div>{theme}</div>;
+}`;
+        const result = compile(source, { filename: 'src/App.tsx' });
+        const ssrDiags = (result.diagnostics ?? []).filter((d) =>
+          d.message.includes('ssr-unsafe-api'),
+        );
+        expect(ssrDiags.length).toBe(0);
+      });
+    });
+  });
+
+  describe('Given a component using browser-only global inside logical AND typeof guard', () => {
+    describe('When compiled', () => {
+      it('Then produces no diagnostic', () => {
+        const { compile } = loadCompiler();
+        const source = `function App() {
+  typeof localStorage !== 'undefined' && localStorage.setItem('x', '1');
+  return <div>Hello</div>;
+}`;
+        const result = compile(source, { filename: 'src/App.tsx' });
+        const ssrDiags = (result.diagnostics ?? []).filter((d) =>
+          d.message.includes('ssr-unsafe-api'),
+        );
+        expect(ssrDiags.length).toBe(0);
+      });
+    });
+  });
+
+  describe('Given a component using typeof window guard', () => {
+    describe('When compiled', () => {
+      it('Then suppresses all browser globals inside the guard', () => {
+        const { compile } = loadCompiler();
+        const source = `function App() {
+  if (typeof window !== 'undefined') {
+    localStorage.getItem('theme');
+  }
+  return <div>Hello</div>;
+}`;
+        const result = compile(source, { filename: 'src/App.tsx' });
+        const ssrDiags = (result.diagnostics ?? []).filter((d) =>
+          d.message.includes('ssr-unsafe-api'),
+        );
+        expect(ssrDiags.length).toBe(0);
+      });
+    });
+  });
+
+  describe('Given a typeof guard for one global does not protect another', () => {
+    describe('When compiled', () => {
+      it('Then flags the unprotected global', () => {
+        const { compile } = loadCompiler();
+        const source = `function App() {
+  if (typeof localStorage !== 'undefined') {
+    navigator.userAgent;
+  }
+  return <div>Hello</div>;
+}`;
+        const result = compile(source, { filename: 'src/App.tsx' });
+        const ssrDiags = (result.diagnostics ?? []).filter((d) =>
+          d.message.includes('ssr-unsafe-api'),
+        );
+        expect(ssrDiags.length).toBe(1);
+        expect(ssrDiags[0].message).toContain('navigator');
+      });
+    });
+  });
 });

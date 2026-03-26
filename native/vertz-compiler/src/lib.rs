@@ -18,6 +18,7 @@ mod reactivity_analyzer;
 mod signal_api_registry;
 mod signal_transformer;
 mod ssr_safety_diagnostics;
+mod utils;
 
 use napi_derive::napi;
 use oxc_allocator::Allocator;
@@ -102,7 +103,7 @@ pub fn compile(source: String, options: Option<CompileOptions>) -> CompileResult
                     .and_then(|labels| labels.first())
                     .map(|label| {
                         let offset = label.offset();
-                        offset_to_line_column(&source, offset)
+                        utils::offset_to_line_column(&source, offset)
                     })
                     .unwrap_or((1, 1));
 
@@ -280,22 +281,4 @@ pub fn compile(source: String, options: Option<CompileOptions>) -> CompileResult
         },
         components: Some(napi_components),
     }
-}
-
-/// Convert a byte offset in source text to (line, column), both 1-based.
-fn offset_to_line_column(source: &str, offset: usize) -> (u32, u32) {
-    let mut line = 1u32;
-    let mut col = 1u32;
-    for (i, ch) in source.char_indices() {
-        if i >= offset {
-            break;
-        }
-        if ch == '\n' {
-            line += 1;
-            col = 1;
-        } else {
-            col += 1;
-        }
-    }
-    (line, col)
 }

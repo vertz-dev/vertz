@@ -64,7 +64,7 @@ pub fn analyze_body_jsx(
             continue;
         }
 
-        let (line, column) = offset_to_line_column(source, jsx_start as usize);
+        let (line, column) = crate::utils::offset_to_line_column(source, jsx_start as usize);
         diagnostics.push(crate::Diagnostic {
             message: "[jsx-outside-tree] JSX outside the return tree creates DOM elements eagerly \
                  during hydration, stealing SSR nodes from the render tree. Move this JSX \
@@ -152,21 +152,4 @@ impl<'a, 'b> Visit<'b> for JsxCollector<'a> {
         }
         oxc_ast_visit::walk::walk_jsx_fragment(self, frag);
     }
-}
-
-fn offset_to_line_column(source: &str, offset: usize) -> (u32, u32) {
-    let mut line = 1u32;
-    let mut col = 1u32;
-    for (i, ch) in source.char_indices() {
-        if i >= offset {
-            break;
-        }
-        if ch == '\n' {
-            line += 1;
-            col = 1;
-        } else {
-            col += 1;
-        }
-    }
-    (line, col)
 }

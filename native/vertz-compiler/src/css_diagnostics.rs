@@ -47,7 +47,7 @@ impl<'a> CssDiagnosticFinder<'a> {
     }
 
     fn validate_shorthand(&mut self, input: &str, span_start: u32) {
-        let (line, column) = offset_to_line_column(self.source, span_start as usize);
+        let (line, column) = crate::utils::offset_to_line_column(self.source, span_start as usize);
         let parts: Vec<&str> = input.split(':').collect();
 
         if parts.is_empty() || (parts.len() == 1 && parts[0].is_empty()) {
@@ -165,21 +165,4 @@ impl<'a> CssDiagnosticFinder<'a> {
             });
         }
     }
-}
-
-fn offset_to_line_column(source: &str, offset: usize) -> (u32, u32) {
-    let mut line = 1u32;
-    let mut col = 1u32;
-    for (i, ch) in source.char_indices() {
-        if i >= offset {
-            break;
-        }
-        if ch == '\n' {
-            line += 1;
-            col = 1;
-        } else {
-            col += 1;
-        }
-    }
-    (line, col)
 }

@@ -4,7 +4,6 @@ use crate::magic_string::MagicString;
 const DOM_HELPERS: &[&str] = &[
     "__append",
     "__attr",
-    "__bindElement",
     "__child",
     "__classList",
     "__conditional",

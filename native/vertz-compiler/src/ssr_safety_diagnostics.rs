@@ -28,6 +28,15 @@ const DOCUMENT_PROPERTIES: &[&str] = &[
     "cookie",
 ];
 
+/// A guarded span with the identifier(s) it protects.
+/// "window" acts as a universal guard that protects ALL browser globals.
+struct GuardedSpan {
+    start: u32,
+    end: u32,
+    /// The identifier name the typeof checks for (e.g., "localStorage", "window")
+    guarded_name: String,
+}
+
 /// Analyze a component body for browser-only API usage that would crash during SSR.
 pub fn analyze_ssr_safety(
     program: &Program,
@@ -48,7 +57,7 @@ pub fn analyze_ssr_safety(
     };
     typeof_collector.visit_program(program);
 
-    // Phase 3: Collect spans of if-block consequents guarded by typeof checks
+    // Phase 3: Collect guarded spans from if-blocks, ternaries, and logical AND
     let mut guard_collector = TypeofGuardCollector {
         comp,
         guarded_spans: Vec::new(),
@@ -126,24 +135,67 @@ impl<'a, 'b> Visit<'b> for TypeofOperandCollector<'a> {
 
 struct TypeofGuardCollector<'a> {
     comp: &'a ComponentInfo,
-    guarded_spans: Vec<(u32, u32)>,
+    guarded_spans: Vec<GuardedSpan>,
 }
 
-impl<'a, 'b> Visit<'b> for TypeofGuardCollector<'a> {
-    fn visit_if_statement(&mut self, stmt: &IfStatement<'b>) {
-        if stmt.span.start >= self.comp.body_start
-            && stmt.span.end <= self.comp.body_end
-            && is_typeof_guard_test(&stmt.test)
-        {
-            let s = &stmt.consequent;
-            self.guarded_spans.push((s.span().start, s.span().end));
-        }
-        oxc_ast_visit::walk::walk_if_statement(self, stmt);
+impl<'a> TypeofGuardCollector<'a> {
+    fn in_component(&self, start: u32, end: u32) -> bool {
+        start >= self.comp.body_start && end <= self.comp.body_end
     }
 }
 
-/// Check if an expression is a typeof guard test for a browser global or window.
-fn is_typeof_guard_test(expr: &Expression) -> bool {
+impl<'a, 'b> Visit<'b> for TypeofGuardCollector<'a> {
+    // Pattern 2: if (typeof X !== 'undefined') { ...X... }
+    fn visit_if_statement(&mut self, stmt: &IfStatement<'b>) {
+        if self.in_component(stmt.span.start, stmt.span.end) {
+            if let Some(guarded_name) = extract_typeof_guard_name(&stmt.test) {
+                let s = &stmt.consequent;
+                self.guarded_spans.push(GuardedSpan {
+                    start: s.span().start,
+                    end: s.span().end,
+                    guarded_name,
+                });
+            }
+        }
+        oxc_ast_visit::walk::walk_if_statement(self, stmt);
+    }
+
+    // Pattern 3: typeof X !== 'undefined' ? X.method() : fallback
+    fn visit_conditional_expression(&mut self, expr: &ConditionalExpression<'b>) {
+        if self.in_component(expr.span.start, expr.span.end) {
+            if let Some(guarded_name) = extract_typeof_guard_name(&expr.test) {
+                self.guarded_spans.push(GuardedSpan {
+                    start: expr.consequent.span().start,
+                    end: expr.consequent.span().end,
+                    guarded_name,
+                });
+            }
+        }
+        oxc_ast_visit::walk::walk_conditional_expression(self, expr);
+    }
+
+    // Pattern 4: typeof X !== 'undefined' && X.method()
+    fn visit_logical_expression(&mut self, expr: &LogicalExpression<'b>) {
+        if self.in_component(expr.span.start, expr.span.end)
+            && expr.operator == LogicalOperator::And
+        {
+            if let Some(guarded_name) = extract_typeof_guard_name(&expr.left) {
+                self.guarded_spans.push(GuardedSpan {
+                    start: expr.right.span().start,
+                    end: expr.right.span().end,
+                    guarded_name,
+                });
+            }
+        }
+        oxc_ast_visit::walk::walk_logical_expression(self, expr);
+    }
+}
+
+/// Extract the guarded identifier name from a typeof guard expression.
+/// Returns the name of the identifier being checked (e.g., "localStorage", "window").
+/// Matches: `typeof X !== 'undefined'`, `typeof X != 'undefined'`, and their
+/// reversed forms (`'undefined' !== typeof X`).
+fn extract_typeof_guard_name(expr: &Expression) -> Option<String> {
     match expr {
         Expression::BinaryExpression(bin) => {
             let typeof_side = match (&bin.left, &bin.right) {
@@ -156,13 +208,15 @@ fn is_typeof_guard_test(expr: &Expression) -> bool {
                 if unary.operator == UnaryOperator::Typeof {
                     if let Expression::Identifier(id) = &unary.argument {
                         let name = id.name.as_str();
-                        return BROWSER_GLOBALS.contains(&name) || name == "window";
+                        if BROWSER_GLOBALS.contains(&name) || name == "window" {
+                            return Some(name.to_string());
+                        }
                     }
                 }
             }
-            false
+            None
         }
-        _ => false,
+        _ => None,
     }
 }
 
@@ -173,7 +227,7 @@ struct SsrUnsafeDetector<'a> {
     source: &'a str,
     nested_fn_spans: &'a [(u32, u32)],
     typeof_safe_spans: &'a HashSet<(u32, u32)>,
-    guarded_spans: &'a [(u32, u32)],
+    guarded_spans: &'a [GuardedSpan],
     diagnostics: Vec<crate::Diagnostic>,
 }
 
@@ -192,14 +246,18 @@ impl<'a> SsrUnsafeDetector<'a> {
         self.typeof_safe_spans.contains(&(start, end))
     }
 
-    fn in_typeof_guard(&self, start: u32) -> bool {
-        self.guarded_spans
-            .iter()
-            .any(|(guard_start, guard_end)| start >= *guard_start && start < *guard_end)
+    /// Check if the identifier at `start` is guarded by a typeof check for `name`.
+    /// A "window" guard universally protects all browser globals.
+    fn in_typeof_guard(&self, start: u32, name: &str) -> bool {
+        self.guarded_spans.iter().any(|guard| {
+            start >= guard.start
+                && start < guard.end
+                && (guard.guarded_name == name || guard.guarded_name == "window")
+        })
     }
 
     fn report(&mut self, api_name: &str, span_start: u32) {
-        let (line, column) = offset_to_line_column(self.source, span_start as usize);
+        let (line, column) = crate::utils::offset_to_line_column(self.source, span_start as usize);
         self.diagnostics.push(crate::Diagnostic {
             message: format!(
                 "[ssr-unsafe-api] `{}` is a browser-only API that is not available during SSR. \
@@ -220,7 +278,7 @@ impl<'a, 'b> Visit<'b> for SsrUnsafeDetector<'a> {
                 if obj.name.as_str() == "document" {
                     let prop = member.property.name.as_str();
                     if DOCUMENT_PROPERTIES.contains(&prop)
-                        && !self.in_typeof_guard(member.span.start)
+                        && !self.in_typeof_guard(member.span.start, "document")
                     {
                         let api_name = format!("document.{prop}");
                         self.report(&api_name, member.span.start);
@@ -247,7 +305,7 @@ impl<'a, 'b> Visit<'b> for SsrUnsafeDetector<'a> {
         if self.is_typeof_operand(start, end) {
             return;
         }
-        if self.in_typeof_guard(start) {
+        if self.in_typeof_guard(start, name) {
             return;
         }
 
@@ -255,21 +313,4 @@ impl<'a, 'b> Visit<'b> for SsrUnsafeDetector<'a> {
             self.report(name, start);
         }
     }
-}
-
-fn offset_to_line_column(source: &str, offset: usize) -> (u32, u32) {
-    let mut line = 1u32;
-    let mut col = 1u32;
-    for (i, ch) in source.char_indices() {
-        if i >= offset {
-            break;
-        }
-        if ch == '\n' {
-            line += 1;
-            col = 1;
-        } else {
-            col += 1;
-        }
-    }
-    (line, col)
 }
