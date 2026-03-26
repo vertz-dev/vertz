@@ -84,8 +84,8 @@ test.describe('Task List', () => {
     await expect(cards).toHaveCount(10);
 
     // First task on page 2 should be different from page 1
-    // Page 2 starts with task 11 ("Add WebSocket support")
-    await expect(cards.first()).toContainText('Add WebSocket support');
+    // Page 2 starts with task 11 ("Add password reset flow")
+    await expect(cards.first()).toContainText('Add password reset flow');
   });
 
   test('pagination: direct navigation to page via URL', async ({ page }) => {
