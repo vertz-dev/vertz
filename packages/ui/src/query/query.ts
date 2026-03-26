@@ -528,6 +528,32 @@ export function query<T, E = unknown>(
           loading.value = false;
           ssrHydrated = true; // Prevents the effect from re-fetching
         }
+      } else {
+        // Derived key: try exact hydrationKey, then baseKey prefix match.
+        // The depHash may differ between mounts (auto-field-selection adds a
+        // `select` object whose contents vary depending on which fields the
+        // component reads — and at init time, that set may differ from the
+        // original render).  SSR hydration stores under `baseKey:depHash`,
+        // so a prefix search on `baseKey:` finds the prior entry reliably.
+        const cached = cache.get(hydrationKey);
+        if (cached !== undefined) {
+          retainKey(hydrationKey);
+          normalizeToEntityStore(cached);
+          rawData.value = cached;
+          loading.value = false;
+          ssrHydrated = true;
+        } else {
+          // Fallback: try baseKey (no depHash) — the effect path stores a
+          // secondary copy under this stable key for exactly this use case.
+          const baseCached = cache.get(baseKey);
+          if (baseCached !== undefined) {
+            retainKey(baseKey);
+            normalizeToEntityStore(baseCached);
+            rawData.value = baseCached;
+            loading.value = false;
+            ssrHydrated = true;
+          }
+        }
       }
     }
 
@@ -623,6 +649,13 @@ export function query<T, E = unknown>(
         inflightKeys.delete(key);
         if (id !== fetchId) return; // stale
         cache.set(key, result);
+        // For descriptor-in-thunk queries, also store under baseKey (no
+        // depHash) as a stable secondary key.  Nav-prefetch uses this to
+        // find cached data from a prior visit when the primary key format
+        // (descriptorKey:depHash) differs due to auto-field-selection.
+        // Only for descriptor-in-thunk (currentEffectKey set) — plain thunks
+        // and custom-key queries don't need this secondary lookup.
+        if (currentEffectKey) cache.set(baseKey, result);
         retainKey(key);
         normalizeToEntityStore(result);
         rawData.value = result;
@@ -777,40 +810,17 @@ export function query<T, E = unknown>(
           isFirst = false;
           return;
         }
-        // Fallback: the depHash may differ between component mounts when
-        // auto-field-selection produces a different `select` object before
-        // the component renders.  The effectKey (descriptor _key) already
-        // encodes the user-controlled params (page, limit, etc.), so
-        // matching any entry with the same effectKey prefix is safe — it's
-        // the same logical query, just with a different field-selection
-        // snapshot.  Also check baseKey:depHash (SSR hydration format).
-        if (descriptorKey) {
-          // Try baseKey:depHash format (SSR hydration stores under this key)
-          const baseKeyFallback = untrack(() => getCacheKey());
-          const baseCached = untrack(() => cache.get(baseKeyFallback));
-          if (baseCached !== undefined) {
-            retainKey(baseKeyFallback);
-            untrack(() => {
-              rawData.value = baseCached;
-              loading.value = false;
-            });
-            isFirst = false;
-            return;
-          }
-          // Try effectKey prefix match — depHash may differ due to
-          // auto-field-selection tracking differences across mounts
-          if (cache instanceof MemoryCache) {
-            const match = cache.findByPrefix(`${descriptorKey}:`);
-            if (match) {
-              retainKey(match.key);
-              untrack(() => {
-                rawData.value = match.value;
-                loading.value = false;
-              });
-              isFirst = false;
-              return;
-            }
-          }
+        // Fallback: try baseKey (no depHash) — the effect path stores a
+        // secondary copy under this stable key for exactly this use case.
+        const baseCached = untrack(() => cache.get(baseKey));
+        if (baseCached !== undefined) {
+          retainKey(baseKey);
+          untrack(() => {
+            rawData.value = baseCached;
+            loading.value = false;
+          });
+          isFirst = false;
+          return;
         }
       }
       // No cache hit — defer to the SSE stream / doneHandler fallback.
