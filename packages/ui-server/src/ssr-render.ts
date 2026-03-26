@@ -60,6 +60,8 @@ export function createRequestContext(url: string): SSRRenderContext {
     inflight: new Map(),
     queries: [],
     errors: [],
+    // Per-request CSS tracker for render-scoped collection
+    cssTracker: new Set<string>(),
   };
 }
 
@@ -155,9 +157,14 @@ function collectCSS(themeCss: string, module: SSRModule): string {
     for (const s of module.styles) alreadyIncluded.add(s);
   }
 
-  const componentCss = module.getInjectedCSS
-    ? module.getInjectedCSS().filter((s) => !alreadyIncluded.has(s))
-    : [];
+  // Prefer render-scoped CSS tracker when it captured CSS during this render;
+  // fall back to global getInjectedCSS() when the tracker is empty (e.g.,
+  // styles were eagerly created at import time via buildComponents()).
+  const ssrCtx = ssrStorage.getStore();
+  const rawComponentCss = ssrCtx?.cssTracker?.size
+    ? Array.from(ssrCtx.cssTracker)
+    : (module.getInjectedCSS?.() ?? []);
+  const componentCss = rawComponentCss.filter((s) => !alreadyIncluded.has(s));
 
   // Consolidate each category into a single <style> tag to minimize HTML size.
   // Categories are kept separate (theme, globals, components) to preserve

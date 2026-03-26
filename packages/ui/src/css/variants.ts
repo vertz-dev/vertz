@@ -69,7 +69,7 @@ export interface VariantsConfig<V extends VariantDefinitions> {
 /** The function returned by variants(). Takes optional variant props and returns a className string. */
 export interface VariantFunction<V extends VariantDefinitions> {
   (props?: VariantProps<V>): string;
-  /** The extracted CSS for all variant combinations. */
+  /** @internal The extracted CSS for variant combinations compiled so far. */
   css: string;
 }
 
@@ -108,6 +108,10 @@ function deriveConfigKey(config: VariantsConfig<VariantDefinitions>): string {
 /**
  * Create a typed variant function from a config object.
  *
+ * Variant option CSS is compiled lazily on first use — only the base styles
+ * are compiled eagerly. This ensures unused variant options never produce CSS,
+ * reducing SSR response size for pages that use a subset of available variants.
+ *
  * @param config - Variant configuration (base, variants, defaultVariants, compoundVariants).
  * @returns A function that accepts variant props and returns a className string.
  */
@@ -117,67 +121,69 @@ export function variants<V extends VariantDefinitions>(
   const { base, variants: variantDefs, defaultVariants, compoundVariants } = config;
   const filePath = deriveConfigKey(config as VariantsConfig<VariantDefinitions>);
 
-  // Pre-compute: generate a css() block for the base styles
+  // Eagerly compile base styles (always used when the variant function is called)
   const baseResult = css({ base: base as StyleEntry[] }, filePath);
 
-  // Pre-compute: generate css() blocks for each variant value
-  const variantResults: Record<string, Record<string, { className: string; css: string }>> = {};
+  // Lazy caches for variant options and compound variants
+  const variantCache = new Map<string, { className: string; css: string }>();
 
+  // Store raw config for lazy compilation
+  const variantStyles: Record<string, Record<string, StyleEntry[]>> = {};
   for (const [variantName, options] of Object.entries(variantDefs)) {
-    variantResults[variantName] = {};
+    variantStyles[variantName] = {};
     for (const [optionName, styles] of Object.entries(options as Record<string, StyleEntry[]>)) {
       if (styles.length > 0) {
-        const blockName = `${variantName}_${optionName}`;
-        const result = css({ [blockName]: styles }, filePath);
-        const className = (result as Record<string, string>)[blockName];
-        if (className) {
-          variantResults[variantName][optionName] = {
-            className,
-            css: result.css,
-          };
-        }
+        variantStyles[variantName][optionName] = styles;
       }
     }
   }
 
-  // Pre-compute: generate css() blocks for compound variants
-  const compoundResults: Array<{
-    conditions: Record<string, string>;
-    className: string;
-    css: string;
-  }> = [];
+  const compoundCache = new Map<number, { className: string; css: string }>();
 
-  if (compoundVariants) {
-    for (let i = 0; i < compoundVariants.length; i++) {
-      const compound = compoundVariants[i];
-      if (!compound) continue;
+  /** Lazily compile a variant option, returning its className. */
+  function ensureVariantOption(variantName: string, optionName: string): string | undefined {
+    const cacheKey = `${variantName}::${optionName}`;
+    const cached = variantCache.get(cacheKey);
+    if (cached) return cached.className;
 
-      const { styles, ...conditions } = compound;
-      if (styles.length > 0) {
-        const blockName = `compound_${i}`;
-        const result = css({ [blockName]: styles }, filePath);
-        const className = (result as Record<string, string>)[blockName];
-        if (className) {
-          compoundResults.push({
-            conditions: conditions as Record<string, string>,
-            className,
-            css: result.css,
-          });
-        }
-      }
+    const styles = variantStyles[variantName]?.[optionName];
+    if (!styles) return undefined;
+
+    const blockName = cacheKey;
+    const result = css({ [blockName]: styles }, filePath);
+    const className = (result as Record<string, string>)[blockName];
+    if (className) {
+      variantCache.set(cacheKey, { className, css: result.css });
+      return className;
     }
+    return undefined;
   }
 
-  // Aggregate all CSS
-  const allCss: string[] = [];
-  if (baseResult.css) allCss.push(baseResult.css);
-  for (const options of Object.values(variantResults)) {
-    for (const result of Object.values(options)) {
-      if (result.css) allCss.push(result.css);
+  /** Lazily compile a compound variant, returning its className if conditions match. */
+  function ensureCompoundVariant(
+    index: number,
+    compound: CompoundVariant<VariantDefinitions>,
+    resolved: Record<string, string>,
+  ): string | undefined {
+    const { styles, ...conditions } = compound;
+    const matches = Object.entries(conditions).every(
+      ([key, value]) => resolved[key] === String(value),
+    );
+    if (!matches) return undefined;
+
+    const cached = compoundCache.get(index);
+    if (cached) return cached.className;
+
+    if (styles.length === 0) return undefined;
+
+    const blockName = `compound_${index}`;
+    const result = css({ [blockName]: styles }, filePath);
+    const className = (result as Record<string, string>)[blockName];
+    if (className) {
+      compoundCache.set(index, { className, css: result.css });
+      return className;
     }
-  }
-  for (const result of compoundResults) {
-    if (result.css) allCss.push(result.css);
+    return undefined;
   }
 
   // The variant selector function
@@ -207,32 +213,49 @@ export function variants<V extends VariantDefinitions>(
       }
     }
 
-    // 3. Add variant classes
+    // 3. Add variant classes (lazily compiled)
     for (const [variantName, optionName] of Object.entries(resolved)) {
-      const variantGroup = variantResults[variantName];
-      if (variantGroup) {
-        const result = variantGroup[optionName];
-        if (result) {
-          classNames.push(result.className);
-        }
+      const className = ensureVariantOption(variantName, optionName);
+      if (className) {
+        classNames.push(className);
       }
     }
 
-    // 4. Add compound variant classes
-    for (const compound of compoundResults) {
-      const matches = Object.entries(compound.conditions).every(([key, value]) => {
-        return resolved[key] === String(value);
-      });
-      if (matches) {
-        classNames.push(compound.className);
+    // 4. Add compound variant classes (lazily compiled)
+    if (compoundVariants) {
+      for (let i = 0; i < compoundVariants.length; i++) {
+        const compound = compoundVariants[i];
+        if (!compound) continue;
+        const className = ensureCompoundVariant(
+          i,
+          compound as CompoundVariant<VariantDefinitions>,
+          resolved,
+        );
+        if (className) {
+          classNames.push(className);
+        }
       }
     }
 
     return classNames.join(' ');
   };
 
-  // Attach the CSS as a property
-  fn.css = allCss.join('\n');
+  // Attach CSS as a getter that returns the aggregate of base + all compiled options
+  Object.defineProperty(fn, 'css', {
+    get() {
+      const parts: string[] = [];
+      if (baseResult.css) parts.push(baseResult.css);
+      for (const entry of variantCache.values()) {
+        if (entry.css) parts.push(entry.css);
+      }
+      for (const entry of compoundCache.values()) {
+        if (entry.css) parts.push(entry.css);
+      }
+      return parts.join('\n');
+    },
+    enumerable: false,
+    configurable: false,
+  });
 
   return fn as VariantFunction<V>;
 }

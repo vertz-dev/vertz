@@ -62,6 +62,14 @@ export interface SSRRenderContext {
    * return a redirect response instead.
    */
   ssrRedirect?: { to: string };
+
+  /**
+   * Per-request CSS tracker for render-scoped collection.
+   * Populated by injectCSS() during SSR render. collectCSS() reads
+   * from this Set instead of the global injectedCSS to ensure each
+   * response only includes CSS for components actually rendered.
+   */
+  cssTracker?: Set<string>;
 }
 
 /** Auth state injected into SSRRenderContext by the server. */

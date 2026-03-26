@@ -88,17 +88,20 @@ const vertzSheets = new Set<CSSStyleSheet>();
 export function injectCSS(cssText: string): void {
   if (!cssText) return;
 
-  const isSSR = getSSRContext() !== undefined;
+  const ssrCtx = getSSRContext();
+  const isSSR = ssrCtx !== undefined;
 
   // Always track CSS for SSR collection via getInjectedCSS().
   // In browser mode, also use it for dedup (skip if already injected).
   if (!isSSR && injectedCSS.has(cssText)) return;
   injectedCSS.add(cssText);
 
-  // In SSR, skip DOM injection entirely — CSS is tracked in injectedCSS
-  // and available via getInjectedCSS(). Writing to document.head is not
-  // safe with concurrent SSR renders (shared global DOM shim).
-  if (isSSR) return;
+  // In SSR, write to per-request tracker for render-scoped collection,
+  // then skip DOM injection (not safe with concurrent SSR renders).
+  if (isSSR) {
+    ssrCtx.cssTracker?.add(cssText);
+    return;
+  }
 
   // Skip DOM injection when document is unavailable (e.g. module-level
   // css() calls during SSR import, before the DOM shim is installed).

@@ -596,38 +596,38 @@ describe('per-request isolation', () => {
     }
   });
 
-  it('collects CSS via module.getInjectedCSS', async () => {
-    const trackedCSS = ['.my-component { color: red; }'];
+  it('collects CSS injected during render via cssTracker', async () => {
+    const { injectCSS } = await import('@vertz/ui');
     const module = {
       default: () => {
+        // Simulate component CSS injection during render (realistic flow)
+        injectCSS('.my-component { color: red; }');
         const el = document.createElement('div');
         el.setAttribute('class', 'my-component');
         el.textContent = 'Styled';
         return el;
       },
-      getInjectedCSS: () => trackedCSS,
     };
 
     const result = await ssrRenderToString(module, '/');
 
-    // CSS collected via module.getInjectedCSS should be in output
+    // CSS injected during render should be in output
     expect(result.css).toContain('.my-component { color: red; }');
     expect(result.css).toContain('data-vertz-css');
   });
 
   it('consolidates multiple component CSS strings into a single style tag', async () => {
-    const trackedCSS = [
-      '.panel { background: white; }',
-      '.button { color: blue; }',
-      '.card { border: 1px solid; }',
-    ];
+    const { injectCSS } = await import('@vertz/ui');
     const module = {
       default: () => {
+        // Simulate multiple component CSS injections during render
+        injectCSS('.panel { background: white; }');
+        injectCSS('.button { color: blue; }');
+        injectCSS('.card { border: 1px solid; }');
         const el = document.createElement('div');
         el.textContent = 'Multi CSS';
         return el;
       },
-      getInjectedCSS: () => trackedCSS,
     };
 
     const result = await ssrRenderToString(module, '/');
@@ -663,20 +663,22 @@ describe('per-request isolation', () => {
   });
 
   it('produces at most 3 style tags (theme + globals + components)', async () => {
+    const { injectCSS } = await import('@vertz/ui');
     const theme = defineTheme({
       colors: { primary: { DEFAULT: '#3b82f6' } },
     });
 
-    const trackedCSS = ['.a { color: red; }', '.b { color: blue; }'];
     const module = {
       default: () => {
+        // Inject component CSS during render
+        injectCSS('.a { color: red; }');
+        injectCSS('.b { color: blue; }');
         const el = document.createElement('div');
         el.textContent = 'Full';
         return el;
       },
       theme,
       styles: ['body { margin: 0; }', 'h1 { font-size: 2rem; }'],
-      getInjectedCSS: () => trackedCSS,
     };
 
     const result = await ssrRenderToString(module, '/');
