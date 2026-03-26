@@ -67,6 +67,23 @@ export interface AotManifest {
   routes: Record<string, AotRouteEntry>;
 }
 
+/**
+ * Resolves custom data for AOT-rendered routes.
+ *
+ * Called after the entity prefetch pipeline, before the `allKeysResolved` bail check.
+ * Only called when there are unresolved query keys remaining.
+ *
+ * @param pattern - Matched route pattern (e.g., '/products/:id')
+ * @param params - Route params (e.g., \{ id: 'abc-123' \})
+ * @param unresolvedKeys - Query keys not yet populated by entity prefetch
+ * @returns Map of cache key → data, or empty Map to skip
+ */
+export type AotDataResolver = (
+  pattern: string,
+  params: Record<string, string>,
+  unresolvedKeys: string[],
+) => Promise<Map<string, unknown>> | Map<string, unknown>;
+
 /** Options for `ssrRenderAot()`. */
 export interface SSRRenderAotOptions {
   /** AOT manifest with pre-compiled render functions. */
@@ -83,6 +100,8 @@ export interface SSRRenderAotOptions {
   prefetchSession?: PrefetchSession;
   /** AOT diagnostics collector (dev mode). When provided with VERTZ_DEBUG=aot, enables dual rendering and divergence detection. */
   diagnostics?: AotDiagnostics;
+  /** Custom data resolver for non-entity AOT routes. */
+  aotDataResolver?: AotDataResolver;
 }
 
 // ─── createHoles ─────────────────────────────────────────────────
@@ -245,6 +264,22 @@ export async function ssrRenderAot(
         ssrTimeout,
         queryCache,
       );
+    }
+  }
+
+  // Custom data resolver: fill remaining gaps after entity prefetch
+  if (aotEntry.queryKeys && aotEntry.queryKeys.length > 0 && options.aotDataResolver) {
+    const unresolvedKeys = aotEntry.queryKeys.filter((k) => !queryCache.has(k));
+    if (unresolvedKeys.length > 0) {
+      try {
+        const resolved = await options.aotDataResolver(match.pattern, match.params, unresolvedKeys);
+        for (const [key, value] of resolved) {
+          queryCache.set(key, value);
+        }
+      } catch {
+        // Resolver failed — fall back to single-pass
+        return ssrRenderSinglePass(module, normalizedUrl, fallbackOptions);
+      }
     }
   }
 

@@ -48,6 +48,7 @@ export type {
 } from './ssr-aot-manifest-dev';
 export { createAotManifestManager } from './ssr-aot-manifest-dev';
 export type {
+  AotDataResolver,
   AotManifest,
   AotRenderFn,
   AotRouteEntry,

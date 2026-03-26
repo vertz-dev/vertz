@@ -6,7 +6,13 @@
  */
 import { describe, expect, it } from 'bun:test';
 import { installDomShim } from '../dom-shim';
-import { type AotManifest, type AotRenderFn, createHoles, ssrRenderAot } from '../ssr-aot-pipeline';
+import {
+  type AotDataResolver,
+  type AotManifest,
+  type AotRenderFn,
+  createHoles,
+  ssrRenderAot,
+} from '../ssr-aot-pipeline';
 import { __esc } from '../ssr-aot-runtime';
 import type { SSRModule } from '../ssr-render';
 
@@ -589,6 +595,398 @@ describe('Feature: Runtime holes and SSR integration', () => {
           const result = await ssrRenderAot(module, '/cart', { aotManifest });
 
           expect(result.html).toBe('<div>Cart</div>');
+        });
+      });
+    });
+
+    // ─── aotDataResolver Tests ──────────────────────────────────────
+
+    describe('Feature: aotDataResolver for non-entity data sources', () => {
+      describe('Given an AOT route with queryKeys and an aotDataResolver', () => {
+        describe('When the resolver provides all keys', () => {
+          it('Then AOT renders with resolved data (no single-pass fallback)', async () => {
+            let aotCalled = false;
+            const aotFn: AotRenderFn = (_data, ctx) => {
+              aotCalled = true;
+              const hero = ctx.getData('home-hero') as string;
+              return `<h1>${__esc(hero)}</h1>`;
+            };
+
+            const module = createMockModule();
+            const aotManifest: AotManifest = {
+              routes: {
+                '/': {
+                  render: aotFn,
+                  holes: [],
+                  queryKeys: ['home-hero'],
+                },
+              },
+            };
+
+            const aotDataResolver: AotDataResolver = async (_pattern, _params, keys) => {
+              const data = new Map<string, unknown>();
+              if (keys.includes('home-hero')) data.set('home-hero', 'Welcome');
+              return data;
+            };
+
+            const result = await ssrRenderAot(module, '/', {
+              aotManifest,
+              aotDataResolver,
+            });
+
+            expect(aotCalled).toBe(true);
+            expect(result.html).toContain('<h1>Welcome</h1>');
+          });
+
+          it('Then resolver receives the correct pattern, params, and queryKeys', async () => {
+            let capturedPattern: string | undefined;
+            let capturedParams: Record<string, string> | undefined;
+            let capturedKeys: string[] | undefined;
+
+            const aotFn: AotRenderFn = (_data, ctx) => {
+              const name = ctx.getData('product-get') as string;
+              return `<div>${__esc(name)}</div>`;
+            };
+
+            const module = createMockModule();
+            const aotManifest: AotManifest = {
+              routes: {
+                '/products/:id': {
+                  render: aotFn,
+                  holes: [],
+                  queryKeys: ['product-get'],
+                },
+              },
+            };
+
+            const aotDataResolver: AotDataResolver = async (pattern, params, keys) => {
+              capturedPattern = pattern;
+              capturedParams = params;
+              capturedKeys = keys;
+              const data = new Map<string, unknown>();
+              data.set('product-get', 'Widget');
+              return data;
+            };
+
+            await ssrRenderAot(module, '/products/abc-123', {
+              aotManifest,
+              aotDataResolver,
+            });
+
+            expect(capturedPattern).toBe('/products/:id');
+            expect(capturedParams).toEqual({ id: 'abc-123' });
+            expect(capturedKeys).toEqual(['product-get']);
+          });
+
+          it('Then query cache entries appear in ssrData for client hydration', async () => {
+            const aotFn: AotRenderFn = (_data, ctx) => {
+              return `<div>${__esc(String(ctx.getData('items-list')))}</div>`;
+            };
+
+            const module = createMockModule();
+            const aotManifest: AotManifest = {
+              routes: {
+                '/items': {
+                  render: aotFn,
+                  holes: [],
+                  queryKeys: ['items-list'],
+                },
+              },
+            };
+
+            const items = [{ id: '1', name: 'A' }];
+            const aotDataResolver: AotDataResolver = async (_p, _pa, _k) => {
+              return new Map([['items-list', items]]);
+            };
+
+            const result = await ssrRenderAot(module, '/items', {
+              aotManifest,
+              aotDataResolver,
+            });
+
+            expect(result.ssrData).toEqual([{ key: 'items-list', data: items }]);
+          });
+        });
+      });
+
+      describe('Given an AOT route with queryKeys and NO aotDataResolver', () => {
+        describe('When no entity prefetch is available', () => {
+          it('Then falls back to ssrRenderSinglePass (existing behavior)', async () => {
+            const aotFn: AotRenderFn = (_data, ctx) => {
+              const items = ctx.getData('tasks-list') as unknown[];
+              return '<ul>' + items.map(() => '<li>x</li>').join('') + '</ul>';
+            };
+
+            const module = createMockModule();
+            const aotManifest: AotManifest = {
+              routes: {
+                '/tasks': { render: aotFn, holes: [], queryKeys: ['tasks-list'] },
+              },
+            };
+
+            // No aotDataResolver, no manifest → fallback
+            const result = await ssrRenderAot(module, '/tasks', { aotManifest });
+            // Single-pass fallback renders via DOM shim
+            expect(result.html).toBeDefined();
+            expect(result.html).toContain('app');
+          });
+        });
+      });
+
+      describe('Given an AOT route where entity prefetch resolves some keys', () => {
+        describe('When aotDataResolver fills the remaining keys', () => {
+          it('Then AOT renders with combined data from both sources', async () => {
+            let aotCalled = false;
+            const aotFn: AotRenderFn = (_data, ctx) => {
+              aotCalled = true;
+              const tasks = ctx.getData('tasks-list') as string;
+              const trending = ctx.getData('trending-custom') as string;
+              return `<div>${__esc(String(tasks))}-${__esc(String(trending))}</div>`;
+            };
+
+            const module = createMockModule();
+            // Simulate API client for entity prefetch
+            (module as Record<string, unknown>).api = {
+              tasks: {
+                list: () => ({
+                  _key: 'vertz:tasks:list:{}',
+                  _fetch: () =>
+                    Promise.resolve({ ok: true, data: 'entity-data' }),
+                }),
+              },
+            };
+
+            const aotManifest: AotManifest = {
+              routes: {
+                '/dashboard': {
+                  render: aotFn,
+                  holes: [],
+                  queryKeys: ['tasks-list', 'trending-custom'],
+                },
+              },
+            };
+
+            const manifest = {
+              routePatterns: ['/dashboard'],
+              routeEntries: {
+                '/dashboard': {
+                  queries: [
+                    { descriptorChain: 'api.tasks.list', entity: 'tasks', operation: 'list' },
+                  ],
+                },
+              },
+            };
+
+            const aotDataResolver: AotDataResolver = async (_pattern, _params, unresolvedKeys) => {
+              const data = new Map<string, unknown>();
+              // Should only receive 'trending-custom' since 'tasks-list' was resolved by entity prefetch
+              for (const key of unresolvedKeys) {
+                if (key === 'trending-custom') data.set(key, 'custom-data');
+              }
+              return data;
+            };
+
+            const result = await ssrRenderAot(module, '/dashboard', {
+              aotManifest,
+              manifest,
+              aotDataResolver,
+            });
+
+            expect(aotCalled).toBe(true);
+            expect(result.html).toContain('entity-data');
+            expect(result.html).toContain('custom-data');
+          });
+
+          it('Then resolver only receives unresolved keys', async () => {
+            let capturedUnresolvedKeys: string[] | undefined;
+
+            const aotFn: AotRenderFn = (_data, ctx) => {
+              return `<div>${__esc(String(ctx.getData('tasks-list')))}</div>`;
+            };
+
+            const module = createMockModule();
+            (module as Record<string, unknown>).api = {
+              tasks: {
+                list: () => ({
+                  _key: 'vertz:tasks:list:{}',
+                  _fetch: () =>
+                    Promise.resolve({ ok: true, data: 'from-entity' }),
+                }),
+              },
+            };
+
+            const aotManifest: AotManifest = {
+              routes: {
+                '/mixed': {
+                  render: aotFn,
+                  holes: [],
+                  queryKeys: ['tasks-list', 'custom-data'],
+                },
+              },
+            };
+
+            const manifest = {
+              routePatterns: ['/mixed'],
+              routeEntries: {
+                '/mixed': {
+                  queries: [
+                    { descriptorChain: 'api.tasks.list', entity: 'tasks', operation: 'list' },
+                  ],
+                },
+              },
+            };
+
+            const aotDataResolver: AotDataResolver = async (_p, _pa, unresolvedKeys) => {
+              capturedUnresolvedKeys = unresolvedKeys;
+              return new Map([['custom-data', 'resolved']]);
+            };
+
+            await ssrRenderAot(module, '/mixed', {
+              aotManifest,
+              manifest,
+              aotDataResolver,
+            });
+
+            // Entity prefetch resolved 'tasks-list', so resolver only gets 'custom-data'
+            expect(capturedUnresolvedKeys).toEqual(['custom-data']);
+          });
+        });
+      });
+
+      describe('Given an AOT route where aotDataResolver provides partial keys', () => {
+        describe('When not all keys are resolved after both pipelines', () => {
+          it('Then falls back to ssrRenderSinglePass', async () => {
+            const aotFn: AotRenderFn = (_data, ctx) => {
+              // Would crash if called — getData returns undefined for missing keys
+              const a = ctx.getData('key-a') as string;
+              const b = ctx.getData('key-b') as string;
+              return `<div>${a}-${b}</div>`;
+            };
+
+            const module = createMockModule();
+            const aotManifest: AotManifest = {
+              routes: {
+                '/partial': {
+                  render: aotFn,
+                  holes: [],
+                  queryKeys: ['key-a', 'key-b'],
+                },
+              },
+            };
+
+            // Resolver only provides one of two keys
+            const aotDataResolver: AotDataResolver = async () => {
+              return new Map([['key-a', 'value-a']]);
+            };
+
+            const result = await ssrRenderAot(module, '/partial', {
+              aotManifest,
+              aotDataResolver,
+            });
+
+            // Fallback to single-pass — renders the default module
+            expect(result.html).toContain('app');
+          });
+        });
+      });
+
+      describe('Given an aotDataResolver that throws', () => {
+        describe('When ssrRenderAot is called', () => {
+          it('Then falls back to ssrRenderSinglePass (graceful degradation)', async () => {
+            const aotFn: AotRenderFn = (_data, ctx) => {
+              const d = ctx.getData('data-key') as string;
+              return `<div>${d}</div>`;
+            };
+
+            const module = createMockModule();
+            const aotManifest: AotManifest = {
+              routes: {
+                '/error': {
+                  render: aotFn,
+                  holes: [],
+                  queryKeys: ['data-key'],
+                },
+              },
+            };
+
+            const aotDataResolver: AotDataResolver = async () => {
+              throw new Error('DB connection failed');
+            };
+
+            const result = await ssrRenderAot(module, '/error', {
+              aotManifest,
+              aotDataResolver,
+            });
+
+            // Fallback to single-pass — renders the default module
+            expect(result.html).toBeDefined();
+            expect(result.html).toContain('app');
+          });
+        });
+      });
+
+      describe('Given an AOT route without queryKeys', () => {
+        describe('When aotDataResolver is provided', () => {
+          it('Then resolver is NOT called (no unresolved keys)', async () => {
+            let resolverCalled = false;
+            const aotFn: AotRenderFn = () => '<div>Static</div>';
+
+            const module = createMockModule();
+            const aotManifest: AotManifest = {
+              routes: {
+                '/static': { render: aotFn, holes: [] },
+              },
+            };
+
+            const aotDataResolver: AotDataResolver = async () => {
+              resolverCalled = true;
+              return new Map();
+            };
+
+            const result = await ssrRenderAot(module, '/static', {
+              aotManifest,
+              aotDataResolver,
+            });
+
+            expect(resolverCalled).toBe(false);
+            expect(result.html).toBe('<div>Static</div>');
+          });
+        });
+      });
+
+      describe('Given an aotDataResolver that returns synchronously', () => {
+        describe('When ssrRenderAot is called', () => {
+          it('Then the sync Map is used without issues', async () => {
+            let aotCalled = false;
+            const aotFn: AotRenderFn = (_data, ctx) => {
+              aotCalled = true;
+              return `<div>${__esc(String(ctx.getData('sync-key')))}</div>`;
+            };
+
+            const module = createMockModule();
+            const aotManifest: AotManifest = {
+              routes: {
+                '/sync': {
+                  render: aotFn,
+                  holes: [],
+                  queryKeys: ['sync-key'],
+                },
+              },
+            };
+
+            // Synchronous resolver (returns Map directly, not Promise<Map>)
+            const aotDataResolver: AotDataResolver = () => {
+              return new Map([['sync-key', 'sync-value']]);
+            };
+
+            const result = await ssrRenderAot(module, '/sync', {
+              aotManifest,
+              aotDataResolver,
+            });
+
+            expect(aotCalled).toBe(true);
+            expect(result.html).toContain('sync-value');
+          });
         });
       });
     });
