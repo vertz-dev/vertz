@@ -336,6 +336,160 @@ describe('Feature: E2E AOT Pipeline', () => {
     });
   });
 
+  describe('Given a parameterized AOT route with custom query key (Pattern B)', () => {
+    describe('When the full pipeline resolves ${param} placeholders', () => {
+      it('Then aotDataResolver receives resolved keys and AOT renders with data', async () => {
+        // 1. Write AOT manifest with parameterized queryKeys
+        writeFileSync(
+          join(serverDir, 'aot-manifest.json'),
+          JSON.stringify({
+            routes: {
+              '/games/:slug': {
+                renderFn: '__ssr_GamePage',
+                holes: [],
+                queryKeys: ['game-${slug}'],
+                paramBindings: ['slug'],
+              },
+            },
+          }),
+        );
+        writeFileSync(
+          join(serverDir, 'aot-routes.js'),
+          `export function __ssr_GamePage(data, ctx) {
+  const game = ctx.getData('game-' + ctx.params.slug);
+  return '<div class="game">' + (game ? game.name : 'unknown') + '</div>';
+}`,
+        );
+
+        // 2. Load manifest
+        const { loadAotManifest } = await import('../aot-manifest-loader');
+        const aotManifest = await loadAotManifest(serverDir);
+        expect(aotManifest).not.toBeNull();
+
+        // 3. Render with aotDataResolver
+        const { ssrRenderAot } = await import('../ssr-aot-pipeline');
+        const module = createMockModule();
+
+        const result = await ssrRenderAot(module, '/games/pokemon-tcg', {
+          aotManifest: aotManifest!,
+          aotDataResolver: async (_pattern, params, unresolvedKeys) => {
+            // Verify keys are resolved (not templates)
+            expect(unresolvedKeys).toEqual(['game-pokemon-tcg']);
+            expect(params.slug).toBe('pokemon-tcg');
+            return new Map([['game-pokemon-tcg', { name: 'Pokemon TCG' }]]);
+          },
+        });
+
+        expect(result.html).toContain('Pokemon TCG');
+        expect(result.matchedRoutePatterns).toEqual(['/games/:slug']);
+        // Verify ssrData uses resolved key
+        expect(result.ssrData).toEqual([
+          { key: 'game-pokemon-tcg', data: { name: 'Pokemon TCG' } },
+        ]);
+      });
+
+      it('Then falls back to single-pass when resolver cannot populate resolved keys', async () => {
+        writeFileSync(
+          join(serverDir, 'aot-manifest.json'),
+          JSON.stringify({
+            routes: {
+              '/games/:slug': {
+                renderFn: '__ssr_GamePage',
+                holes: [],
+                queryKeys: ['game-${slug}'],
+              },
+            },
+          }),
+        );
+        writeFileSync(
+          join(serverDir, 'aot-routes.js'),
+          `export function __ssr_GamePage(data, ctx) { return '<div>Game</div>'; }`,
+        );
+
+        const { loadAotManifest } = await import('../aot-manifest-loader');
+        const aotManifest = await loadAotManifest(serverDir);
+
+        const { ssrRenderAot } = await import('../ssr-aot-pipeline');
+        const module = createMockModule();
+
+        // Resolver returns empty map → allKeysResolved = false → fallback
+        const result = await ssrRenderAot(module, '/games/chess', {
+          aotManifest: aotManifest!,
+          aotDataResolver: async () => new Map(),
+        });
+
+        // Fallback to single-pass
+        expect(result.html).toContain('fallback app');
+      });
+    });
+  });
+
+  describe('Given a parameterized AOT route with entity prefetch (Pattern A)', () => {
+    describe('When the route has static cache keys from entity descriptors', () => {
+      it('Then entity prefetch resolves data without param substitution', async () => {
+        // Pattern A: cache key is 'cards-get' (static), not 'cards-${id}'
+        // The entity prefetch pipeline resolves params internally
+        const { ssrRenderAot } = await import('../ssr-aot-pipeline');
+
+        const aotManifest = {
+          routes: {
+            '/cards/:id': {
+              render: (
+                _data: Record<string, unknown>,
+                ctx: { getData: (key: string) => unknown; params: Record<string, string> },
+              ) => {
+                const card = ctx.getData('cards-get') as { name: string } | undefined;
+                return '<div>' + (card ? card.name : 'loading') + '</div>';
+              },
+              holes: [],
+              queryKeys: ['cards-get'],
+            },
+          },
+        };
+
+        const module = createMockModule();
+        (module as Record<string, unknown>).api = {
+          cards: {
+            get: (id: string) => ({
+              _key: `vertz:cards:get:{"id":"${id}"}`,
+              _fetch: () =>
+                Promise.resolve({
+                  ok: true,
+                  data: { name: 'Pikachu' },
+                }),
+            }),
+          },
+        };
+
+        const manifest = {
+          routePatterns: ['/cards/:id'],
+          routeEntries: {
+            '/cards/:id': {
+              queries: [
+                {
+                  descriptorChain: 'api.cards.get',
+                  entity: 'cards',
+                  operation: 'get',
+                  idParam: 'id',
+                },
+              ],
+            },
+          },
+        };
+
+        const result = await ssrRenderAot(module, '/cards/abc-123', {
+          aotManifest,
+          manifest,
+        });
+
+        expect(result.html).toContain('Pikachu');
+        expect(result.ssrData).toEqual([
+          { key: 'cards-get', data: { name: 'Pikachu' } },
+        ]);
+      });
+    });
+  });
+
   describe('Given graceful degradation', () => {
     describe('When AOT manifest is missing', () => {
       it('Then loadAotManifest returns null and handler uses single-pass', async () => {

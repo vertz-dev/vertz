@@ -249,15 +249,20 @@ export async function ssrRenderAot(
   // 2. Build query cache from AOT entry's query keys
   const queryCache = new Map<string, unknown>();
 
+  // Resolve parameterized query keys (e.g., 'game-${slug}' → 'game-pokemon-tcg')
+  const resolvedQueryKeys = aotEntry.queryKeys
+    ? resolveParamQueryKeys(aotEntry.queryKeys, match.params)
+    : undefined;
+
   // Prefetch query data via the SSR prefetch manifest (zero-discovery)
-  if (aotEntry.queryKeys && aotEntry.queryKeys.length > 0 && manifest?.routeEntries) {
+  if (resolvedQueryKeys && resolvedQueryKeys.length > 0 && manifest?.routeEntries) {
     const apiClient = (module as Record<string, unknown>).api as
       | Record<string, Record<string, (...args: unknown[]) => unknown>>
       | undefined;
 
     if (apiClient) {
       await prefetchForAot(
-        aotEntry.queryKeys,
+        resolvedQueryKeys,
         manifest.routeEntries,
         match,
         apiClient,
@@ -268,8 +273,8 @@ export async function ssrRenderAot(
   }
 
   // Custom data resolver: fill remaining gaps after entity prefetch
-  if (aotEntry.queryKeys && aotEntry.queryKeys.length > 0 && options.aotDataResolver) {
-    const unresolvedKeys = aotEntry.queryKeys.filter((k) => !queryCache.has(k));
+  if (resolvedQueryKeys && resolvedQueryKeys.length > 0 && options.aotDataResolver) {
+    const unresolvedKeys = resolvedQueryKeys.filter((k) => !queryCache.has(k));
     if (unresolvedKeys.length > 0) {
       try {
         const resolved = await options.aotDataResolver(match.pattern, match.params, unresolvedKeys);
@@ -285,8 +290,8 @@ export async function ssrRenderAot(
 
   // If the AOT route needs query data but not all keys were resolved,
   // fall back to runtime SSR — the AOT function would crash on undefined data.
-  if (aotEntry.queryKeys && aotEntry.queryKeys.length > 0) {
-    const allKeysResolved = aotEntry.queryKeys.every((k) => queryCache.has(k));
+  if (resolvedQueryKeys && resolvedQueryKeys.length > 0) {
+    const allKeysResolved = resolvedQueryKeys.every((k) => queryCache.has(k));
     if (!allKeysResolved) {
       return ssrRenderSinglePass(module, normalizedUrl, fallbackOptions);
     }
@@ -412,6 +417,24 @@ function unwrapResult(result: unknown): unknown {
     if (r.ok) return r.data;
   }
   return result;
+}
+
+// ─── Parameterized query key resolution ──────────────────────────
+
+/**
+ * Resolve `${paramName}` placeholders in query keys with actual route param values.
+ *
+ * Used by the AOT pipeline to convert template-based query keys
+ * (e.g., `game-${slug}`) into concrete cache keys (e.g., `game-pokemon-tcg`)
+ * before prefetching and cache lookups.
+ */
+export function resolveParamQueryKeys(
+  queryKeys: string[],
+  params: Record<string, string>,
+): string[] {
+  return queryKeys.map((key) =>
+    key.replace(/\$\{(\w+)\}/g, (_, paramName) => params[paramName] ?? ''),
+  );
 }
 
 // ─── Internal helpers ────────────────────────────────────────────

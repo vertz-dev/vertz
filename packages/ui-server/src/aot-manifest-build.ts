@@ -32,8 +32,10 @@ export interface AotRouteMapEntry {
   renderFn: string;
   /** Component names that need runtime fallback rendering. */
   holes: string[];
-  /** Query cache keys this route reads via ctx.getData(). */
+  /** Query cache keys this route reads via ctx.getData(). May contain ${paramName} placeholders. */
   queryKeys: string[];
+  /** Route param names referenced in queryKeys. Present only when queryKeys have ${...} placeholders. */
+  paramBindings?: string[];
 }
 
 export interface AotBuildManifest {
@@ -123,11 +125,26 @@ export function buildAotRouteMap(
     const comp = components[route.componentName];
     if (!comp || comp.tier === 'runtime-fallback') continue;
 
-    routeMap[route.pattern] = {
+    // Extract param names from ${...} placeholders in queryKeys
+    const paramNames = new Set<string>();
+    for (const key of comp.queryKeys) {
+      const matches = key.matchAll(/\$\{(\w+)\}/g);
+      for (const m of matches) {
+        paramNames.add(m[1]!);
+      }
+    }
+
+    const entry: AotRouteMapEntry = {
       renderFn: `__ssr_${route.componentName}`,
       holes: comp.holes,
       queryKeys: comp.queryKeys,
     };
+
+    if (paramNames.size > 0) {
+      entry.paramBindings = [...paramNames];
+    }
+
+    routeMap[route.pattern] = entry;
   }
 
   return routeMap;
