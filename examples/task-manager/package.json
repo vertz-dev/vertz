@@ -20,6 +20,7 @@
     "@vertz/errors": "workspace:*",
     "@vertz/fetch": "workspace:*",
     "@vertz/icons": "workspace:*",
+    "@vertz/schema": "workspace:*",
     "@vertz/theme-shadcn": "workspace:*",
     "@vertz/ui": "workspace:*",
     "@vertz/ui-primitives": "workspace:*",

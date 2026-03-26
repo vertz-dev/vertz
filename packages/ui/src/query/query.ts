@@ -753,10 +753,20 @@ export function query<T, E = unknown>(
           isFirst = false;
           return;
         }
-        if (!isQueryDescriptor(trackRaw)) {
+        // For descriptor-in-thunk, the normal effect path caches under
+        // `effectKey:depHash` (e.g., `GET:/tasks?page=1:<hash>`), not
+        // `baseKey:depHash`. Use the same key format here so nav-prefetch
+        // finds data cached by a previous visit.
+        const descriptorKey = isQueryDescriptor(trackRaw) ? trackRaw._key : undefined;
+        if (!descriptorKey) {
           (trackRaw as Promise<T>).catch(() => {});
         }
-        const derivedKey = untrack(() => getCacheKey());
+        const depHash = untrack(() => depHashSignal.value);
+        const derivedKey = descriptorKey
+          ? depHash
+            ? `${descriptorKey}:${depHash}`
+            : descriptorKey
+          : untrack(() => getCacheKey());
         const cached = untrack(() => cache.get(derivedKey));
         if (cached !== undefined) {
           retainKey(derivedKey);

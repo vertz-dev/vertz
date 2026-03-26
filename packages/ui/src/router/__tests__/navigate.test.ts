@@ -409,6 +409,96 @@ describe('createRouter serverNav', () => {
     router.dispose();
   });
 
+  test('search-param-only navigation skips prefetch', async () => {
+    const routes = defineRoutes({
+      '/': { component: () => document.createElement('div') },
+    });
+    const mockPrefetch = vi.fn(() => ({ abort: () => {} }));
+    const router = createRouter(routes, '/', {
+      serverNav: true,
+      _prefetchNavData: mockPrefetch,
+    });
+
+    // Same route + replace = search-param-only change → skip prefetch
+    await router.navigate({ to: '/?page=2', replace: true });
+
+    expect(mockPrefetch).not.toHaveBeenCalled();
+    router.dispose();
+  });
+
+  test('search-param-only navigation skips loaders', async () => {
+    const loader = vi.fn().mockResolvedValue({ items: [] });
+    const routes = defineRoutes({
+      '/': { component: () => document.createElement('div'), loader },
+    });
+    const router = createRouter(routes, '/');
+
+    // Wait for initial load
+    await new Promise((r) => setTimeout(r, 10));
+    loader.mockClear();
+
+    // Same route + replace = search-param-only change → skip loader
+    await router.navigate({ to: '/?page=2', replace: true });
+
+    expect(loader).not.toHaveBeenCalled();
+    router.dispose();
+  });
+
+  test('different-route navigation still runs prefetch and loader', async () => {
+    const loader = vi.fn().mockResolvedValue({ items: [] });
+    const routes = defineRoutes({
+      '/': { component: () => document.createElement('div') },
+      '/about': { component: () => document.createElement('div'), loader },
+    });
+    const mockPrefetch = vi.fn(() => ({ abort: () => {} }));
+    const router = createRouter(routes, '/', {
+      serverNav: true,
+      _prefetchNavData: mockPrefetch,
+    });
+
+    await router.navigate({ to: '/about', replace: true });
+
+    // Different route — prefetch and loader should run even with replace
+    expect(mockPrefetch).toHaveBeenCalledWith('/about', {});
+    expect(loader).toHaveBeenCalled();
+    router.dispose();
+  });
+
+  test('same-pathname navigation without replace also skips prefetch', async () => {
+    const routes = defineRoutes({
+      '/': { component: () => document.createElement('div') },
+    });
+    const mockPrefetch = vi.fn(() => ({ abort: () => {} }));
+    const router = createRouter(routes, '/', {
+      serverNav: true,
+      _prefetchNavData: mockPrefetch,
+    });
+
+    // Same pathname with different search params → search-param-only
+    // regardless of replace flag
+    await router.navigate({ to: '/?page=2' });
+
+    expect(mockPrefetch).not.toHaveBeenCalled();
+    router.dispose();
+  });
+
+  test('different-pathname with same pattern still runs prefetch (dynamic route params)', async () => {
+    const routes = defineRoutes({
+      '/tasks/:id': { component: () => document.createElement('div') },
+    });
+    const mockPrefetch = vi.fn(() => ({ abort: () => {} }));
+    const router = createRouter(routes, '/tasks/1', {
+      serverNav: true,
+      _prefetchNavData: mockPrefetch,
+    });
+
+    // Different path param values → different resource → NOT search-param-only
+    await router.navigate({ to: '/tasks/:id', params: { id: '2' }, replace: true });
+
+    expect(mockPrefetch).toHaveBeenCalled();
+    router.dispose();
+  });
+
   test('rapid navigation aborts previous prefetch', async () => {
     const routes = defineRoutes({
       '/': { component: () => document.createElement('div') },
@@ -1275,6 +1365,21 @@ describe('createRouter viewTransition', () => {
     await router.navigate({ to: '/no-transition', viewTransition: true });
 
     expect(mockStartVT).toHaveBeenCalledTimes(1);
+  });
+
+  test('search-param-only navigation skips view transitions', async () => {
+    const routes = defineRoutes({
+      '/': { component: () => document.createElement('div') },
+    });
+    const router = createRouter(routes, '/', { viewTransition: true });
+
+    // Navigate with same route + replace (search-param-only pattern)
+    await router.navigate({ to: '/?page=2', replace: true });
+
+    // View transition should NOT have been called
+    expect(mockStartVT).not.toHaveBeenCalled();
+
+    router.dispose();
   });
 
   test('popstate wraps navigation in view transition when globally enabled', async () => {

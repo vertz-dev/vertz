@@ -21,7 +21,7 @@ import { TaskCard } from '../components/task-card';
 import type { Task, TaskStatus } from '../lib/types';
 import { button, emptyStateStyles, layoutStyles } from '../styles/components';
 
-const PAGE_SIZE = 10;
+const PAGE_SIZE = 4;
 
 /**
  * Render the task list page.
@@ -33,16 +33,22 @@ const PAGE_SIZE = 10;
  */
 export function TaskListPage() {
   const { navigate } = useRouter();
-  const sp = useSearchParams<{ page: string }>();
+  const sp = useSearchParams<{ page: number }>();
 
   // ── Reactive state ─────────────────────────────────
-  const pageNum = Number(sp.page) || 1;
+  // Schema on the route provides defaults: sp.page is always a number (1 when absent).
+  // This ensures consistent dep hashes whether the URL has ?page=1 or no param at all.
+  const pageNum = sp.page as number;
 
   // Local state: compiler transforms `let` to signal()
   let statusFilter: TaskStatus | 'all' = 'all';
 
   // query() with reactive search param — compiler auto-wraps in thunk
   const tasksQuery = query(api.tasks.list({ page: pageNum, limit: PAGE_SIZE }));
+
+  // When switching pages, query has stale data from the previous page so it
+  // sets `revalidating` (not `loading`).  We treat either as "fetching".
+  const isFetching = tasksQuery.loading || tasksQuery.revalidating;
 
   // Derived value — the compiler classifies this as computed (depends on
   // signal API properties) and wraps in computed() automatically.
@@ -95,7 +101,7 @@ export function TaskListPage() {
           </button>
         ))}
       </div>
-      {tasksQuery.loading && <div data-testid="loading">Loading tasks...</div>}
+      {!tasksQuery.data && tasksQuery.loading && <div data-testid="loading">Loading tasks...</div>}
       {tasksQuery.error && (
         <div style={{ color: 'var(--color-destructive)' }} data-testid="error">
           {`Failed to load tasks: ${tasksQuery.error instanceof Error ? tasksQuery.error.message : String(tasksQuery.error)}`}
@@ -103,7 +109,7 @@ export function TaskListPage() {
       )}
       {tasksQuery.data && (
         <>
-          {filteredTasks.length === 0 && (
+          {filteredTasks.length === 0 && !isFetching && (
             <div className={emptyStateStyles.container}>
               <div className={emptyStateStyles.icon}>
                 <InboxIcon size={48} />
@@ -121,7 +127,13 @@ export function TaskListPage() {
           )}
           <div
             data-testid="task-list"
-            style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}
+            style={{
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '0.75rem',
+              opacity: isFetching ? 0.6 : 1,
+              transition: 'opacity 150ms ease',
+            }}
           >
             {filteredTasks.map((task) => (
               <TaskCard
@@ -146,9 +158,9 @@ export function TaskListPage() {
                 type="button"
                 className={button({ intent: 'ghost', size: 'sm' })}
                 data-testid="pagination-prev"
-                disabled={pageNum <= 1}
+                disabled={pageNum <= 1 || tasksQuery.loading}
                 onClick={() => {
-                  sp.page = String(pageNum - 1);
+                  sp.page = pageNum - 1;
                 }}
               >
                 <ChevronLeftIcon size={14} />
@@ -164,9 +176,9 @@ export function TaskListPage() {
                 type="button"
                 className={button({ intent: 'ghost', size: 'sm' })}
                 data-testid="pagination-next"
-                disabled={pageNum >= tasksQuery.data.totalPages}
+                disabled={pageNum >= tasksQuery.data.totalPages || tasksQuery.loading}
                 onClick={() => {
-                  sp.page = String(pageNum + 1);
+                  sp.page = pageNum + 1;
                 }}
               >
                 Next

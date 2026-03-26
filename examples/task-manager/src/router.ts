@@ -9,12 +9,18 @@
  * - Pages access navigation via useRouter() context (no prop threading)
  */
 
+import { s } from '@vertz/schema';
 import { computed, createLink, createRouter, defineRoutes, Outlet, OutletContext } from '@vertz/ui';
 import { api } from './api/mock-data';
 import { CreateTaskPage } from './pages/create-task';
 import { SettingsPage } from './pages/settings';
 import { TaskDetailPage } from './pages/task-detail';
 import { TaskListPage } from './pages/task-list';
+
+/** Search params schema for the task list page — provides defaults. */
+const taskListSearchParams = s.object({
+  page: s.coerce.number().gte(1).default(1),
+});
 
 /**
  * Define the app routes.
@@ -29,9 +35,7 @@ import { TaskListPage } from './pages/task-list';
 export const routes = defineRoutes({
   '/': {
     component: () => TaskListPage(),
-    loader: async () => {
-      return await api.tasks.list();
-    },
+    searchParams: taskListSearchParams,
   },
 
   '/tasks/new': {
