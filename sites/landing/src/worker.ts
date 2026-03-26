@@ -11,6 +11,8 @@
  * 7. Security headers — nosniff, DENY frame, strict referrer
  */
 
+import { LLMS_TXT } from './llms-txt';
+
 // Minimal ambient declarations for Cloudflare Worker APIs.
 // The landing page tsconfig uses bun-types, which doesn't include these.
 // At runtime, wrangler provides the real implementations.
@@ -65,6 +67,17 @@ export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
     const pathname = url.pathname;
+
+    // ── 0. LLM-friendly entry point ───────────────────────────
+    if (pathname === '/llms.txt') {
+      return new Response(LLMS_TXT, {
+        headers: {
+          'Content-Type': 'text/plain; charset=utf-8',
+          'Cache-Control': STATIC_CACHE,
+        },
+      });
+    }
+
     const isHTML = isHTMLRoute(pathname);
 
     // ── 1. Check Worker-level cache (Cache API) ─────────────────

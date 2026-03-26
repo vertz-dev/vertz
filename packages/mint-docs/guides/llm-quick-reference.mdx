@@ -5,6 +5,26 @@ description: 'Critical patterns for AI code generation — data fetching via typ
 
 This page summarizes the patterns that matter most when generating Vertz code. Reading this first prevents the most common class of mistakes.
 
+## Getting Started
+
+Scaffold a new project with one command:
+
+```bash
+# Full-stack app (database + API + UI)
+bunx @vertz/create-vertz-app@latest my-app
+
+# UI-only hello world (minimal starting point)
+bunx @vertz/create-vertz-app@latest my-app --template hello-world
+```
+
+Then install and run:
+
+```bash
+cd my-app
+bun install
+bun run dev
+```
+
 ## Data Fetching (UI)
 
 Vertz automatically generates a typed SDK at `.vertz/generated/client.ts` during development (`vertz dev`) and builds. Create a client wrapper, then pass SDK method calls to `query()` for reactive data. **Never pass raw entity name strings.**

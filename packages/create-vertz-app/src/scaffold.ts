@@ -14,6 +14,11 @@ import {
   envTemplate,
   faviconTemplate,
   gitignoreTemplate,
+  helloWorldAppTemplate,
+  helloWorldClaudeMdTemplate,
+  helloWorldHomePageTemplate,
+  helloWorldPackageJsonTemplate,
+  helloWorldVertzConfigTemplate,
   homePageTemplate,
   packageJsonTemplate,
   schemaTemplate,
@@ -42,7 +47,7 @@ export class DirectoryExistsError extends Error {
  * @param options - Scaffold options
  */
 export async function scaffold(parentDir: string, options: ScaffoldOptions): Promise<void> {
-  const { projectName } = options;
+  const { projectName, template } = options;
   const projectDir = path.join(parentDir, projectName);
 
   // Check if directory already exists
@@ -56,7 +61,58 @@ export async function scaffold(parentDir: string, options: ScaffoldOptions): Pro
     // Directory doesn't exist, which is what we want
   }
 
-  // Create project directory and subdirectories
+  if (template === 'hello-world') {
+    await scaffoldHelloWorld(projectDir, projectName);
+  } else {
+    await scaffoldTodoApp(projectDir, projectName);
+  }
+}
+
+/**
+ * Scaffolds the hello-world template — UI-only with a reactive counter
+ */
+async function scaffoldHelloWorld(projectDir: string, projectName: string): Promise<void> {
+  const srcDir = path.join(projectDir, 'src');
+  const pagesDir = path.join(srcDir, 'pages');
+  const stylesDir = path.join(srcDir, 'styles');
+  const claudeRulesDir = path.join(projectDir, '.claude', 'rules');
+  const publicDir = path.join(projectDir, 'public');
+
+  await Promise.all([
+    fs.mkdir(pagesDir, { recursive: true }),
+    fs.mkdir(stylesDir, { recursive: true }),
+    fs.mkdir(claudeRulesDir, { recursive: true }),
+    fs.mkdir(publicDir, { recursive: true }),
+  ]);
+
+  await Promise.all([
+    // Config files
+    writeFile(projectDir, 'package.json', helloWorldPackageJsonTemplate(projectName)),
+    writeFile(projectDir, 'tsconfig.json', tsconfigTemplate()),
+    writeFile(projectDir, 'vertz.config.ts', helloWorldVertzConfigTemplate()),
+    writeFile(projectDir, '.gitignore', gitignoreTemplate()),
+    writeFile(projectDir, 'bunfig.toml', bunfigTemplate()),
+    writeFile(projectDir, 'bun-plugin-shim.ts', bunPluginShimTemplate()),
+
+    // UI source files
+    writeFile(srcDir, 'app.tsx', helloWorldAppTemplate()),
+    writeFile(srcDir, 'entry-client.ts', entryClientTemplate()),
+    writeFile(pagesDir, 'home.tsx', helloWorldHomePageTemplate()),
+    writeFile(stylesDir, 'theme.ts', themeTemplate()),
+
+    // Static assets
+    writeFile(publicDir, 'favicon.svg', faviconTemplate()),
+
+    // LLM rules
+    writeFile(projectDir, 'CLAUDE.md', helloWorldClaudeMdTemplate(projectName)),
+    writeFile(claudeRulesDir, 'ui-development.md', uiDevelopmentRuleTemplate()),
+  ]);
+}
+
+/**
+ * Scaffolds the todo-app template — full-stack with DB, API, entities, and UI
+ */
+async function scaffoldTodoApp(projectDir: string, projectName: string): Promise<void> {
   const srcDir = path.join(projectDir, 'src');
   const apiDir = path.join(srcDir, 'api');
   const entitiesDir = path.join(apiDir, 'entities');
@@ -73,7 +129,6 @@ export async function scaffold(parentDir: string, options: ScaffoldOptions): Pro
     fs.mkdir(publicDir, { recursive: true }),
   ]);
 
-  // Write all files in parallel
   await Promise.all([
     // Config files
     writeFile(projectDir, 'package.json', packageJsonTemplate(projectName)),

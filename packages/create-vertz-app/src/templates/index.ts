@@ -1024,3 +1024,148 @@ export function HomePage() {
 }
 `;
 }
+
+// ── Hello World template functions ────────────────────────
+
+/**
+ * CLAUDE.md for hello-world template — UI-only project description
+ */
+export function helloWorldClaudeMdTemplate(projectName: string): string {
+  return `# ${projectName}
+
+A UI-only TypeScript application built with [Vertz](https://vertz.dev).
+
+## Stack
+
+- Runtime: Bun
+- Framework: Vertz (UI)
+- Language: TypeScript (strict mode)
+- Docs: https://docs.vertz.dev
+
+## Development
+
+\`\`\`bash
+bun install          # Install dependencies
+bun run dev          # Start dev server with HMR
+bun run build        # Production build
+\`\`\`
+
+## Adding a Backend
+
+To add API and database support, see https://docs.vertz.dev/guides/server/overview
+
+## Conventions
+
+- See \`.claude/rules/\` for UI development conventions
+- Refer to https://docs.vertz.dev for full framework documentation
+- The Vertz compiler handles all reactivity — never use \`.value\`, \`signal()\`, or \`computed()\` manually
+`;
+}
+
+/**
+ * Package.json for hello-world — no API deps, no #generated imports, no codegen
+ */
+export function helloWorldPackageJsonTemplate(projectName: string): string {
+  const pkg = {
+    name: projectName,
+    version: '0.1.0',
+    type: 'module',
+    license: 'MIT',
+    scripts: {
+      dev: 'vertz dev',
+      build: 'vertz build',
+    },
+    dependencies: {
+      vertz: '^0.2.0',
+      '@vertz/theme-shadcn': '^0.2.0',
+    },
+    devDependencies: {
+      '@vertz/cli': '^0.2.0',
+      '@vertz/ui-compiler': '^0.2.0',
+      'bun-types': '^1.0.0',
+      typescript: '^5.8.0',
+    },
+  };
+
+  return JSON.stringify(pkg, null, 2);
+}
+
+/**
+ * vertz.config.ts for hello-world — minimal, no server entry
+ */
+export function helloWorldVertzConfigTemplate(): string {
+  return `/** @type {import('@vertz/compiler').VertzConfig} */
+export default {};
+`;
+}
+
+/**
+ * src/app.tsx for hello-world — simple App with ThemeProvider
+ */
+export function helloWorldAppTemplate(): string {
+  return `import { css, getInjectedCSS, globalCss, ThemeProvider } from 'vertz/ui';
+import { HomePage } from './pages/home';
+import { appTheme, themeGlobals } from './styles/theme';
+
+const appGlobals = globalCss({
+  a: {
+    textDecoration: 'none',
+    color: 'inherit',
+  },
+});
+
+const styles = css({
+  shell: ['min-h:screen', 'bg:background', 'text:foreground'],
+});
+
+export { getInjectedCSS };
+export const theme = appTheme;
+export const globalStyles = [themeGlobals.css, appGlobals.css];
+
+export function App() {
+  return (
+    <div data-testid="app-root">
+      <ThemeProvider theme="light">
+        <div className={styles.shell}>
+          <HomePage />
+        </div>
+      </ThemeProvider>
+    </div>
+  );
+}
+`;
+}
+
+/**
+ * src/pages/home.tsx for hello-world — reactive counter demonstrating
+ * the Vertz compiler's signal transformation (let → signal)
+ */
+export function helloWorldHomePageTemplate(): string {
+  return `import { css } from 'vertz/ui';
+import { Button } from '@vertz/ui/components';
+
+const styles = css({
+  container: ['flex', 'flex-col', 'items:center', 'justify:center', 'min-h:screen', 'gap:6'],
+  title: ['font:4xl', 'font:bold', 'text:foreground'],
+  subtitle: ['text:muted-foreground', 'text:lg'],
+  count: ['font:6xl', 'font:bold', 'text:primary'],
+  actions: ['flex', 'gap:3'],
+});
+
+export function HomePage() {
+  let count = 0;
+
+  return (
+    <div className={styles.container} data-testid="home-page">
+      <h1 className={styles.title}>Hello, Vertz!</h1>
+      <p className={styles.subtitle}>A reactive counter powered by the Vertz compiler</p>
+      <p className={styles.count}>{count}</p>
+      <div className={styles.actions}>
+        <Button intent="ghost" onClick={() => { count = 0; }}>Reset</Button>
+        <Button onClick={() => { count++; }}>Count is {count}</Button>
+      </div>
+    </div>
+  );
+}
+`;
+}
