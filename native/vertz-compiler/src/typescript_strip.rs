@@ -35,11 +35,53 @@ fn get_removable_statement_span(stmt: &Statement) -> Option<(u32, u32)> {
     match stmt {
         Statement::TSInterfaceDeclaration(decl) => Some((decl.span.start, decl.span.end)),
         Statement::TSTypeAliasDeclaration(decl) => Some((decl.span.start, decl.span.end)),
+        // declare var/let/const
+        Statement::VariableDeclaration(decl) if decl.declare => {
+            Some((decl.span.start, decl.span.end))
+        }
+        // declare function
+        Statement::FunctionDeclaration(func)
+            if func.declare =>
+        {
+            Some((func.span.start, func.span.end))
+        }
+        // declare class
+        Statement::ClassDeclaration(cls)
+            if cls.declare =>
+        {
+            Some((cls.span.start, cls.span.end))
+        }
+        // declare module / declare namespace
+        Statement::TSModuleDeclaration(decl) => Some((decl.span.start, decl.span.end)),
+        // declare enum / declare const enum
+        Statement::TSEnumDeclaration(decl) if decl.declare => {
+            Some((decl.span.start, decl.span.end))
+        }
         Statement::ExportNamedDeclaration(export_decl) => {
             if let Some(ref decl) = export_decl.declaration {
                 match decl {
                     Declaration::TSInterfaceDeclaration(_)
                     | Declaration::TSTypeAliasDeclaration(_) => {
+                        Some((export_decl.span.start, export_decl.span.end))
+                    }
+                    // export declare var/let/const
+                    Declaration::VariableDeclaration(vd) if vd.declare => {
+                        Some((export_decl.span.start, export_decl.span.end))
+                    }
+                    // export declare function
+                    Declaration::FunctionDeclaration(func) if func.declare => {
+                        Some((export_decl.span.start, export_decl.span.end))
+                    }
+                    // export declare class
+                    Declaration::ClassDeclaration(cls) if cls.declare => {
+                        Some((export_decl.span.start, export_decl.span.end))
+                    }
+                    // export declare module / namespace
+                    Declaration::TSModuleDeclaration(_) => {
+                        Some((export_decl.span.start, export_decl.span.end))
+                    }
+                    // export declare enum
+                    Declaration::TSEnumDeclaration(ed) if ed.declare => {
                         Some((export_decl.span.start, export_decl.span.end))
                     }
                     _ => None,
@@ -61,6 +103,7 @@ fn get_removable_statement_span(stmt: &Statement) -> Option<(u32, u32)> {
 
 /// Remove type-only specifiers from mixed imports.
 /// `import { type FC, useState } from 'some-lib'` → `import { useState } from 'some-lib'`
+/// If ALL named specifiers are type-only (and no default/namespace import), remove the entire import.
 fn strip_type_import_specifiers(ms: &mut MagicString, stmt: &Statement, source: &str) {
     let import_decl = match stmt {
         Statement::ImportDeclaration(decl) => decl,
@@ -76,6 +119,35 @@ fn strip_type_import_specifiers(ms: &mut MagicString, stmt: &Statement, source: 
         return;
     };
 
+    // Count type vs value specifiers
+    let mut type_count = 0usize;
+    let mut value_count = 0usize;
+    let mut has_default_or_namespace = false;
+
+    for spec in specifiers {
+        match spec {
+            ImportDeclarationSpecifier::ImportSpecifier(named) => {
+                if matches!(named.import_kind, ImportOrExportKind::Type) {
+                    type_count += 1;
+                } else {
+                    value_count += 1;
+                }
+            }
+            ImportDeclarationSpecifier::ImportDefaultSpecifier(_)
+            | ImportDeclarationSpecifier::ImportNamespaceSpecifier(_) => {
+                has_default_or_namespace = true;
+            }
+        }
+    }
+
+    // If ALL named specifiers are type-only and no default/namespace import,
+    // remove the entire import declaration
+    if type_count > 0 && value_count == 0 && !has_default_or_namespace {
+        ms.overwrite(import_decl.span.start, import_decl.span.end, "");
+        return;
+    }
+
+    // Otherwise, remove individual type specifiers
     for spec in specifiers {
         if let ImportDeclarationSpecifier::ImportSpecifier(named) = spec {
             if matches!(named.import_kind, ImportOrExportKind::Type) {

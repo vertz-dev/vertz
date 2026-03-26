@@ -182,4 +182,162 @@ describe('Feature: TypeScript syntax stripping', () => {
       });
     });
   });
+
+  describe('Given all-type named import specifiers', () => {
+    describe('When compiled', () => {
+      it('Then removes the entire import declaration', () => {
+        const code = compileAndGetCode(`
+          import { type A, type B } from 'lib';
+
+          function App() {
+            return <div>hello</div>;
+          }
+        `);
+
+        expect(code).not.toContain("from 'lib'");
+        expect(code).not.toContain('type A');
+        expect(code).not.toContain('type B');
+      });
+
+      it('Then keeps import with default specifier when named are all type', () => {
+        const code = compileAndGetCode(`
+          import Lib, { type A } from 'lib';
+
+          function App() {
+            return <div>hello</div>;
+          }
+        `);
+
+        expect(code).not.toContain('type A');
+        expect(code).toContain('Lib');
+        expect(code).toContain("from 'lib'");
+      });
+    });
+  });
+
+  describe('Given declare statements', () => {
+    describe('When compiled', () => {
+      it('Then strips declare const', () => {
+        const code = compileAndGetCode(`
+          declare const foo: string;
+
+          function App() {
+            return <div>hello</div>;
+          }
+        `);
+
+        expect(code).not.toContain('declare');
+        expect(code).not.toContain('foo');
+      });
+
+      it('Then strips declare function', () => {
+        const code = compileAndGetCode(`
+          declare function bar(): void;
+
+          function App() {
+            return <div>hello</div>;
+          }
+        `);
+
+        expect(code).not.toContain('declare');
+        expect(code).not.toContain('bar');
+      });
+
+      it('Then strips declare class', () => {
+        const code = compileAndGetCode(`
+          declare class Baz {}
+
+          function App() {
+            return <div>hello</div>;
+          }
+        `);
+
+        expect(code).not.toContain('declare');
+        expect(code).not.toContain('Baz');
+      });
+
+      it('Then strips declare module', () => {
+        const code = compileAndGetCode(`
+          declare module "foo" {
+            export function hello(): void;
+          }
+
+          function App() {
+            return <div>hello</div>;
+          }
+        `);
+
+        expect(code).not.toContain('declare module');
+      });
+
+      it('Then strips declare enum', () => {
+        const code = compileAndGetCode(`
+          declare enum Color { Red, Green, Blue }
+
+          function App() {
+            return <div>hello</div>;
+          }
+        `);
+
+        expect(code).not.toContain('declare enum');
+        expect(code).not.toContain('Color');
+      });
+
+      it('Then strips export declare const', () => {
+        const code = compileAndGetCode(`
+          export declare const x: number;
+
+          function App() {
+            return <div>hello</div>;
+          }
+        `);
+
+        expect(code).not.toContain('declare');
+        expect(code).not.toContain('export');
+      });
+    });
+  });
+
+  describe('Given signal .value interaction with TS expression wrappers', () => {
+    describe('When compiled', () => {
+      it('Then preserves .value through as expression', () => {
+        const code = compileAndGetCode(`
+          function App() {
+            let x = 0;
+            const y = x as number;
+            return <div>{y}</div>;
+          }
+        `);
+
+        expect(code).toContain('x.value');
+        expect(code).not.toContain('as number');
+      });
+
+      it('Then preserves .value through non-null assertion', () => {
+        const code = compileAndGetCode(`
+          function App() {
+            let x = 0;
+            const y = x!;
+            return <div>{y}</div>;
+          }
+        `);
+
+        expect(code).toContain('x.value');
+        expect(code).not.toMatch(/x\.value!/);
+      });
+
+      it('Then preserves .value through satisfies expression', () => {
+        const code = compileAndGetCode(`
+          function App() {
+            let x = 0;
+            const y = x satisfies number;
+            return <div>{y}</div>;
+          }
+        `);
+
+        expect(code).toContain('x.value');
+        expect(code).not.toContain('satisfies');
+      });
+    });
+  });
 });

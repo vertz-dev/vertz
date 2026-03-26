@@ -139,8 +139,8 @@ impl MagicString {
             a.pos.cmp(&b.pos).then_with(|| {
                 let priority = |e: &EditEvent| match &e.kind {
                     EditEventKind::InsertBefore { .. } => 0,
-                    EditEventKind::OverwriteStart { .. } => 1,
-                    EditEventKind::InsertAfter { .. } => 2,
+                    EditEventKind::InsertAfter { .. } => 1,
+                    EditEventKind::OverwriteStart { .. } => 2,
                 };
                 priority(a).cmp(&priority(b)).then_with(|| {
                     let idx_a = match &a.kind {
@@ -251,13 +251,15 @@ impl fmt::Display for MagicString {
         }
 
         // Sort by position. For same position:
-        // InsertBefore comes first, then Overwrite, then InsertAfter
+        // InsertBefore comes first, then InsertAfter, then Overwrite.
+        // InsertAfter before Overwrite ensures .value insertions at an identifier's end
+        // are emitted before an Overwrite that removes trailing TS syntax (as T, !, satisfies T).
         events.sort_by(|a, b| {
             a.pos.cmp(&b.pos).then_with(|| {
                 let priority = |e: &EditEvent| match &e.kind {
                     EditEventKind::InsertBefore { .. } => 0,
-                    EditEventKind::OverwriteStart { .. } => 1,
-                    EditEventKind::InsertAfter { .. } => 2,
+                    EditEventKind::InsertAfter { .. } => 1,
+                    EditEventKind::OverwriteStart { .. } => 2,
                 };
                 priority(a).cmp(&priority(b)).then_with(|| {
                     // For same priority, preserve insertion order
