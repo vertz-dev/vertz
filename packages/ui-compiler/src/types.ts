@@ -21,6 +21,8 @@ export interface AotComponentInfo {
   holes: string[];
   /** Query cache keys this component reads via ctx.getData(). Empty for props-only components. */
   queryKeys: string[];
+  /** Reason for runtime-fallback classification, if applicable. Aids developer diagnostics. */
+  fallbackReason?: string;
 }
 
 /** Result of a compileForSSRAot() call. */
