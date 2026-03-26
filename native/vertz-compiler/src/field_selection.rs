@@ -228,12 +228,43 @@ fn check_query_declarator(
         return;
     }
 
-    // The inner argument should be a call expression (the descriptor call)
+    // The inner argument should be a call expression (the descriptor call).
+    // Supports both `query(api.task.list())` and `query(() => api.task.list())`.
     let inner_arg = call.arguments.first();
     let Some(inner_arg) = inner_arg else {
         return;
     };
-    let Expression::CallExpression(descriptor_call) = inner_arg.to_expression() else {
+    let inner_expr = inner_arg.to_expression();
+
+    // Unwrap arrow function: query(() => api.task.list()) → api.task.list()
+    let unwrapped: Option<&Expression> = match inner_expr {
+        Expression::ArrowFunctionExpression(arrow) => {
+            if arrow.expression && !arrow.body.statements.is_empty() {
+                // Expression body: () => expr
+                if let Statement::ExpressionStatement(es) = &arrow.body.statements[0] {
+                    Some(&es.expression)
+                } else {
+                    None
+                }
+            } else if arrow.body.statements.len() == 1 {
+                // Single return statement: () => { return expr }
+                if let Statement::ReturnStatement(ret) = &arrow.body.statements[0] {
+                    match &ret.argument {
+                        Some(arg) => Some(arg),
+                        None => None,
+                    }
+                } else {
+                    None
+                }
+            } else {
+                None
+            }
+        }
+        _ => None,
+    };
+    let effective_expr = unwrapped.unwrap_or(inner_expr);
+
+    let Expression::CallExpression(descriptor_call) = effective_expr else {
         return;
     };
 
@@ -243,8 +274,8 @@ fn check_query_declarator(
         _ => return,
     };
 
-    let (injection_pos, injection_kind) = compute_injection_point(descriptor_call);
-    let inferred_entity_name = infer_entity_name(descriptor_call);
+    let (injection_pos, injection_kind) = compute_injection_point(&descriptor_call);
+    let inferred_entity_name = infer_entity_name(&descriptor_call);
 
     results.push(QueryVarInfo {
         var_name,
@@ -551,6 +582,26 @@ fn track_field_access_in_expr(
                 }
             }
 
+            // Detect opaque access: passing query variable (or .data) as a function argument
+            // e.g., console.log(tasks.data) — tasks.data escapes without field access
+            for arg in &call.arguments {
+                let arg_expr = arg.to_expression();
+                let chain = build_property_chain(arg_expr);
+                if let Some(ref chain) = chain {
+                    if !chain.is_empty() && chain[0] == var_name {
+                        // Check if access stops at structural level (data, items)
+                        // without further field access
+                        let path = &chain[1..];
+                        let all_structural = path.iter().all(|p| {
+                            STRUCTURAL_PROPS.contains(&p.as_str())
+                        });
+                        if all_structural {
+                            *has_opaque_access = true;
+                        }
+                    }
+                }
+            }
+
             // Recurse into call arguments
             track_field_access_in_expr(&call.callee, var_name, fields, nested_access, has_opaque_access);
             for arg in &call.arguments {
@@ -682,6 +733,119 @@ fn track_field_access_in_expr(
                 }
             }
         }
+        Expression::ChainExpression(chain_expr) => {
+            // Optional chaining: tasks.data?.map(...)
+            match &chain_expr.expression {
+                ChainElement::CallExpression(call) => {
+                    // Treat like a regular call expression — check for array method patterns
+                    if let Some(callee_member) = call.callee.as_member_expression() {
+                        if let MemberExpression::StaticMemberExpression(static_member) =
+                            callee_member
+                        {
+                            let method_name = static_member.property.name.as_str();
+                            if matches!(
+                                method_name,
+                                "map" | "filter" | "find" | "forEach" | "some" | "every"
+                            ) {
+                                let obj_chain = build_property_chain(&static_member.object);
+                                if let Some(ref chain) = obj_chain {
+                                    if !chain.is_empty()
+                                        && chain[0] == var_name
+                                        && (chain.contains(&"items".to_string())
+                                            || chain.contains(&"data".to_string()))
+                                    {
+                                        if let Some(callback) = call.arguments.first() {
+                                            let callback_expr = callback.to_expression();
+                                            let param_name =
+                                                get_callback_param_name(callback_expr);
+                                            if let Some(param_name) = param_name {
+                                                let parent_result =
+                                                    extract_field_from_chain(chain);
+                                                let parent_field = parent_result
+                                                    .as_ref()
+                                                    .filter(|r| r.nested_path.is_empty())
+                                                    .map(|r| r.field.clone());
+
+                                                let mut cb_fields = Vec::new();
+                                                let mut cb_nested = Vec::new();
+                                                let mut cb_opaque = false;
+
+                                                track_callback_field_access(
+                                                    callback_expr,
+                                                    &param_name,
+                                                    &mut cb_fields,
+                                                    &mut cb_nested,
+                                                    &mut cb_opaque,
+                                                );
+
+                                                if let Some(ref pf) = parent_field {
+                                                    fields.push(pf.clone());
+                                                    for f in &cb_fields {
+                                                        nested_access.push(NestedFieldAccess {
+                                                            field: pf.clone(),
+                                                            nested_path: vec![f.clone()],
+                                                        });
+                                                    }
+                                                } else {
+                                                    fields.extend(cb_fields);
+                                                    nested_access.extend(cb_nested);
+                                                }
+
+                                                if cb_opaque {
+                                                    *has_opaque_access = true;
+                                                }
+
+                                                return;
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    // Recurse into call arguments
+                    track_field_access_in_expr(
+                        &call.callee,
+                        var_name,
+                        fields,
+                        nested_access,
+                        has_opaque_access,
+                    );
+                    for arg in &call.arguments {
+                        track_field_access_in_expr(
+                            arg.to_expression(),
+                            var_name,
+                            fields,
+                            nested_access,
+                            has_opaque_access,
+                        );
+                    }
+                }
+                ChainElement::StaticMemberExpression(member) => {
+                    // Check chain property access
+                    let chain = build_property_chain_from_chain_element(&chain_expr.expression);
+                    if let Some(ref chain) = chain {
+                        if !chain.is_empty() && chain[0] == var_name {
+                            if let Some(result) = extract_field_from_chain(chain) {
+                                fields.push(result.field.clone());
+                                if !result.nested_path.is_empty() {
+                                    nested_access.push(result);
+                                }
+                            }
+                        }
+                    }
+                    // Recurse into the object
+                    track_field_access_in_expr(
+                        &member.object,
+                        var_name,
+                        fields,
+                        nested_access,
+                        has_opaque_access,
+                    );
+                }
+                _ => {}
+            }
+        }
         _ if expr.as_member_expression().is_some() => {
             // Already handled at the top of this function
         }
@@ -748,6 +912,27 @@ fn build_property_chain(expr: &Expression) -> Option<Vec<String>> {
     let mut current = expr;
 
     loop {
+        if let Expression::ChainExpression(chain_expr) = current {
+            // Unwrap optional chaining: a?.b → a.b for chain analysis
+            match &chain_expr.expression {
+                ChainElement::StaticMemberExpression(member) => {
+                    chain.push(member.property.name.as_str().to_string());
+                    current = &member.object;
+                    continue;
+                }
+                ChainElement::ComputedMemberExpression(computed) => {
+                    current = &computed.object;
+                    continue;
+                }
+                ChainElement::CallExpression(call) => {
+                    // e.g., tasks.data?.map() — skip the call, continue with callee object
+                    current = &call.callee;
+                    continue;
+                }
+                _ => return None,
+            }
+        }
+
         if let Some(member) = current.as_member_expression() {
             match member {
                 MemberExpression::StaticMemberExpression(static_member) => {
@@ -767,6 +952,21 @@ fn build_property_chain(expr: &Expression) -> Option<Vec<String>> {
         } else {
             return None;
         }
+    }
+}
+
+/// Build property chain from a ChainElement (for optional chaining).
+fn build_property_chain_from_chain_element(elem: &ChainElement) -> Option<Vec<String>> {
+    match elem {
+        ChainElement::StaticMemberExpression(member) => {
+            let mut chain = build_property_chain(&member.object)?;
+            chain.push(member.property.name.as_str().to_string());
+            Some(chain)
+        }
+        ChainElement::ComputedMemberExpression(computed) => {
+            build_property_chain(&computed.object)
+        }
+        _ => None,
     }
 }
 

@@ -29,7 +29,19 @@ pub struct PrefetchAnalysis {
 /// Extracts routes from defineRoutes() and queries from query() calls.
 pub fn analyze_prefetch(program: &Program, source: &str) -> PrefetchAnalysis {
     let routes = extract_routes(program, source);
-    let route_params = collect_use_params(program);
+    let mut route_params = collect_use_params(program);
+
+    // Also extract params from route patterns (e.g., `:projectId` in `/projects/:projectId`)
+    for route in &routes {
+        for segment in route.pattern.split('/') {
+            if let Some(param) = segment.strip_prefix(':') {
+                if !route_params.contains(&param.to_string()) {
+                    route_params.push(param.to_string());
+                }
+            }
+        }
+    }
+
     let queries = extract_queries(program, &route_params);
 
     PrefetchAnalysis {

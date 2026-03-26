@@ -345,7 +345,10 @@ fn emit_aot_function(
         }
         ("data, ctx".to_string(), pre)
     } else {
-        let param = component.props_param.clone().unwrap_or_default();
+        let param = component
+            .props_param
+            .clone()
+            .unwrap_or_else(|| "__props".to_string());
         (param, String::new())
     };
 
