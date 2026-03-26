@@ -116,7 +116,10 @@ export function compile(
     // Wrap query(descriptor) in a thunk when descriptor args contain reactive deps,
     // so that reactive reads happen inside the effect's tracking context.
     // Must run BEFORE signal transform so .value is inserted inside the thunk.
-    if (hasSignals || hasComputeds) {
+    // Includes reactive sources (useSearchParams, useContext, useAuth) — a component
+    // may have only reactive sources with no signals or computeds.
+    const hasReactiveSources = variables.some((v) => v.isReactiveSource);
+    if (hasSignals || hasComputeds || hasReactiveSources) {
       const queryAutoThunk = new QueryAutoThunkTransformer();
       queryAutoThunk.transform(s, sourceFile, component, variables, queryAliases);
     }

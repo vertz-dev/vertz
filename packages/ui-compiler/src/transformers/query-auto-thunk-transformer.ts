@@ -17,7 +17,8 @@ import { findBodyNode, isShadowedInNestedScope } from '../utils';
  *
  * Only wraps when:
  * - The first argument is NOT already an arrow/function expression
- * - The first argument contains references to reactive variables (signals or computeds)
+ * - The first argument contains references to reactive variables
+ *   (signals, computeds, or reactive sources like useSearchParams/useContext/useAuth)
  */
 export class QueryAutoThunkTransformer {
   transform(
@@ -30,9 +31,11 @@ export class QueryAutoThunkTransformer {
     const bodyNode = findBodyNode(sourceFile, component);
     if (!bodyNode) return;
 
-    // Collect reactive variable names (signals + computeds)
+    // Collect reactive variable names (signals, computeds, and reactive sources)
     const reactiveVars = new Set(
-      variables.filter((v) => v.kind === 'signal' || v.kind === 'computed').map((v) => v.name),
+      variables
+        .filter((v) => v.kind === 'signal' || v.kind === 'computed' || v.isReactiveSource)
+        .map((v) => v.name),
     );
 
     if (reactiveVars.size === 0 || queryAliases.size === 0) return;
