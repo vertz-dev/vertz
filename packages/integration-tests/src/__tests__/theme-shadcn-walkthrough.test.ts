@@ -4,7 +4,7 @@
 // This test validates that a developer can use the configureTheme() API
 // using ONLY public imports from @vertz/theme-shadcn and @vertz/ui.
 //
-// Covers: configureTheme(), palette selection, token overrides, style
+// Covers: configureTheme(), palette selection, color overrides, style
 // definitions (button, badge, card, input, label, separator, formGroup),
 // and integration with compileTheme().
 //
@@ -46,29 +46,21 @@ describe('Theme Shadcn Walkthrough', () => {
 
   // ── Token overrides ──────────────────────────────────────────
 
-  it('token overrides are reflected in compiled CSS', () => {
+  it('color overrides are reflected in compiled CSS', () => {
     const { theme } = configureTheme({
       palette: 'zinc',
-      overrides: {
-        tokens: {
-          colors: {
-            primary: { DEFAULT: '#7c3aed', _dark: '#8b5cf6' },
-          },
-        },
+      colors: {
+        primary: { DEFAULT: '#7c3aed', _dark: '#8b5cf6' },
       },
     });
     const compiled = compileTheme(theme);
     expect(compiled.css).toContain('#7c3aed');
   });
 
-  it('token overrides can add new tokens', () => {
+  it('color overrides can add new tokens', () => {
     const { theme } = configureTheme({
-      overrides: {
-        tokens: {
-          colors: {
-            'brand-accent': { DEFAULT: '#ff6b6b', _dark: '#ee5a5a' },
-          },
-        },
+      colors: {
+        'brand-accent': { DEFAULT: '#ff6b6b', _dark: '#ee5a5a' },
       },
     });
     const compiled = compileTheme(theme);

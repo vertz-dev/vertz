@@ -678,14 +678,20 @@ See [Styling](/guides/ui/styling) for details on `css()` and `variants()`.
 
 ## Theme configuration
 
-`configureTheme()` accepts palette and radius options:
+`configureTheme()` accepts palette, radius, and color override options:
 
 ```tsx
 const config = configureTheme({
   palette: 'zinc', // zinc, slate, stone, gray, neutral
   radius: 'md', // none, sm, md, lg, full
+  colors: {
+    primary: { DEFAULT: 'oklch(0.55 0.2 260)', _dark: 'oklch(0.65 0.25 260)' },
+    'primary-foreground': { DEFAULT: '#fff', _dark: '#fff' },
+  },
 });
 ```
+
+The `colors` key deep-merges into the selected palette. Use `DEFAULT` for light mode and `_dark` for dark mode. You can also add custom token names.
 
 - `config.theme` — Resolved CSS variables
 - `config.globals` — Global CSS string to inject

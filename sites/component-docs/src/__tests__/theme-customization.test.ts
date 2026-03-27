@@ -38,9 +38,10 @@ describe('Feature: Theme customizer config export', () => {
     });
 
     describe('When accent color is non-default', () => {
-      it('Then generates configureTheme with overrides for accent tokens', () => {
+      it('Then generates configureTheme with colors for accent tokens', () => {
         const result = generateConfig({ palette: 'zinc', radius: 'md', accent: 'blue' });
-        expect(result).toContain('overrides: {');
+        expect(result).toContain('colors: {');
+        expect(result).not.toContain('overrides');
         expect(result).toContain("'primary':");
         expect(result).toContain("'primary-foreground':");
         expect(result).toContain("'ring':");
@@ -50,10 +51,11 @@ describe('Feature: Theme customizer config export', () => {
     });
 
     describe('When both palette and accent are non-default', () => {
-      it('Then generates configureTheme with palette and overrides', () => {
+      it('Then generates configureTheme with palette and colors', () => {
         const result = generateConfig({ palette: 'slate', radius: 'md', accent: 'rose' });
         expect(result).toContain("palette: 'slate',");
-        expect(result).toContain('overrides: {');
+        expect(result).toContain('colors: {');
+        expect(result).not.toContain('overrides');
         expect(result).toContain("'primary':");
       });
     });
