@@ -274,8 +274,8 @@ fn check_query_declarator(
         _ => return,
     };
 
-    let (injection_pos, injection_kind) = compute_injection_point(&descriptor_call);
-    let inferred_entity_name = infer_entity_name(&descriptor_call);
+    let (injection_pos, injection_kind) = compute_injection_point(descriptor_call);
+    let inferred_entity_name = infer_entity_name(descriptor_call);
 
     results.push(QueryVarInfo {
         var_name,
@@ -347,10 +347,10 @@ fn compute_injection_point(descriptor_call: &CallExpression) -> (u32, InjectionK
 fn infer_entity_name(call: &CallExpression) -> Option<String> {
     // Pattern: api.tasks.list() → callee is api.tasks.list
     if let Some(member) = call.callee.as_member_expression() {
-        if let Some(inner_member) = member.object().as_member_expression() {
-            if let MemberExpression::StaticMemberExpression(static_member) = inner_member {
-                return Some(static_member.property.name.as_str().to_string());
-            }
+        if let Some(MemberExpression::StaticMemberExpression(static_member)) =
+            member.object().as_member_expression()
+        {
+            return Some(static_member.property.name.as_str().to_string());
         }
     }
     None
@@ -499,76 +499,76 @@ fn track_field_access_in_expr(
     match expr {
         Expression::CallExpression(call) => {
             // Check for array method callbacks: varName.data.items.map(item => item.field)
-            if let Some(callee_member) = call.callee.as_member_expression() {
-                if let MemberExpression::StaticMemberExpression(static_member) = callee_member {
-                    let method_name = static_member.property.name.as_str();
-                    if matches!(
-                        method_name,
-                        "map" | "filter" | "find" | "forEach" | "some" | "every"
-                    ) {
-                        let obj_chain = build_property_chain(&static_member.object);
-                        if let Some(ref chain) = obj_chain {
-                            if !chain.is_empty()
-                                && chain[0] == var_name
-                                && (chain.contains(&"items".to_string())
-                                    || chain.contains(&"data".to_string()))
-                            {
-                                // Analyze callback
-                                if let Some(callback) = call.arguments.first() {
-                                    let callback_expr = callback.to_expression();
-                                    let param_name = get_callback_param_name(callback_expr);
-                                    if let Some(param_name) = param_name {
-                                        // Determine if this is a relation-level map
-                                        // (not on .items but on a relation field like .members)
-                                        let parent_result = extract_field_from_chain(chain);
-                                        let parent_field = parent_result
-                                            .as_ref()
-                                            .filter(|r| r.nested_path.is_empty())
-                                            .map(|r| r.field.clone());
+            if let Some(MemberExpression::StaticMemberExpression(static_member)) =
+                call.callee.as_member_expression()
+            {
+                let method_name = static_member.property.name.as_str();
+                if matches!(
+                    method_name,
+                    "map" | "filter" | "find" | "forEach" | "some" | "every"
+                ) {
+                    let obj_chain = build_property_chain(&static_member.object);
+                    if let Some(ref chain) = obj_chain {
+                        if !chain.is_empty()
+                            && chain[0] == var_name
+                            && (chain.contains(&"items".to_string())
+                                || chain.contains(&"data".to_string()))
+                        {
+                            // Analyze callback
+                            if let Some(callback) = call.arguments.first() {
+                                let callback_expr = callback.to_expression();
+                                let param_name = get_callback_param_name(callback_expr);
+                                if let Some(param_name) = param_name {
+                                    // Determine if this is a relation-level map
+                                    // (not on .items but on a relation field like .members)
+                                    let parent_result = extract_field_from_chain(chain);
+                                    let parent_field = parent_result
+                                        .as_ref()
+                                        .filter(|r| r.nested_path.is_empty())
+                                        .map(|r| r.field.clone());
 
-                                        let mut cb_fields = Vec::new();
-                                        let mut cb_nested = Vec::new();
-                                        let mut cb_opaque = false;
+                                    let mut cb_fields = Vec::new();
+                                    let mut cb_nested = Vec::new();
+                                    let mut cb_opaque = false;
 
-                                        track_callback_field_access(
-                                            callback_expr,
-                                            &param_name,
-                                            &mut cb_fields,
-                                            &mut cb_nested,
-                                            &mut cb_opaque,
-                                        );
+                                    track_callback_field_access(
+                                        callback_expr,
+                                        &param_name,
+                                        &mut cb_fields,
+                                        &mut cb_nested,
+                                        &mut cb_opaque,
+                                    );
 
-                                        if let Some(ref pf) = parent_field {
-                                            // Relation-level map — nest under parent
-                                            fields.push(pf.clone());
-                                            for f in &cb_fields {
-                                                nested_access.push(NestedFieldAccess {
-                                                    field: pf.clone(),
-                                                    nested_path: vec![f.clone()],
-                                                });
-                                            }
-                                            for n in &cb_nested {
-                                                nested_access.push(NestedFieldAccess {
-                                                    field: pf.clone(),
-                                                    nested_path: {
-                                                        let mut path = vec![n.field.clone()];
-                                                        path.extend(n.nested_path.clone());
-                                                        path
-                                                    },
-                                                });
-                                            }
-                                        } else {
-                                            // Standard .items.map() — top-level fields
-                                            fields.extend(cb_fields);
-                                            nested_access.extend(cb_nested);
+                                    if let Some(ref pf) = parent_field {
+                                        // Relation-level map — nest under parent
+                                        fields.push(pf.clone());
+                                        for f in &cb_fields {
+                                            nested_access.push(NestedFieldAccess {
+                                                field: pf.clone(),
+                                                nested_path: vec![f.clone()],
+                                            });
                                         }
-
-                                        if cb_opaque {
-                                            *has_opaque_access = true;
+                                        for n in &cb_nested {
+                                            nested_access.push(NestedFieldAccess {
+                                                field: pf.clone(),
+                                                nested_path: {
+                                                    let mut path = vec![n.field.clone()];
+                                                    path.extend(n.nested_path.clone());
+                                                    path
+                                                },
+                                            });
                                         }
-
-                                        return; // Don't recurse further into this call
+                                    } else {
+                                        // Standard .items.map() — top-level fields
+                                        fields.extend(cb_fields);
+                                        nested_access.extend(cb_nested);
                                     }
+
+                                    if cb_opaque {
+                                        *has_opaque_access = true;
+                                    }
+
+                                    return; // Don't recurse further into this call
                                 }
                             }
                         }
@@ -649,17 +649,17 @@ fn track_field_access_in_expr(
             // Check JSX attributes for prop flows and field access
             for attr in &jsx.opening_element.attributes {
                 if let JSXAttributeItem::Attribute(jsx_attr) = attr {
-                    if let Some(ref value) = jsx_attr.value {
-                        if let JSXAttributeValue::ExpressionContainer(container) = value {
-                            if let Some(expr) = container.expression.as_expression() {
-                                track_field_access_in_expr(
-                                    expr,
-                                    var_name,
-                                    fields,
-                                    nested_access,
-                                    has_opaque_access,
-                                );
-                            }
+                    if let Some(JSXAttributeValue::ExpressionContainer(container)) =
+                        jsx_attr.value.as_ref()
+                    {
+                        if let Some(expr) = container.expression.as_expression() {
+                            track_field_access_in_expr(
+                                expr,
+                                var_name,
+                                fields,
+                                nested_access,
+                                has_opaque_access,
+                            );
                         }
                     }
                 }
@@ -737,63 +737,61 @@ fn track_field_access_in_expr(
             match &chain_expr.expression {
                 ChainElement::CallExpression(call) => {
                     // Treat like a regular call expression — check for array method patterns
-                    if let Some(callee_member) = call.callee.as_member_expression() {
-                        if let MemberExpression::StaticMemberExpression(static_member) =
-                            callee_member
-                        {
-                            let method_name = static_member.property.name.as_str();
-                            if matches!(
-                                method_name,
-                                "map" | "filter" | "find" | "forEach" | "some" | "every"
-                            ) {
-                                let obj_chain = build_property_chain(&static_member.object);
-                                if let Some(ref chain) = obj_chain {
-                                    if !chain.is_empty()
-                                        && chain[0] == var_name
-                                        && (chain.contains(&"items".to_string())
-                                            || chain.contains(&"data".to_string()))
-                                    {
-                                        if let Some(callback) = call.arguments.first() {
-                                            let callback_expr = callback.to_expression();
-                                            let param_name = get_callback_param_name(callback_expr);
-                                            if let Some(param_name) = param_name {
-                                                let parent_result = extract_field_from_chain(chain);
-                                                let parent_field = parent_result
-                                                    .as_ref()
-                                                    .filter(|r| r.nested_path.is_empty())
-                                                    .map(|r| r.field.clone());
+                    if let Some(MemberExpression::StaticMemberExpression(static_member)) =
+                        call.callee.as_member_expression()
+                    {
+                        let method_name = static_member.property.name.as_str();
+                        if matches!(
+                            method_name,
+                            "map" | "filter" | "find" | "forEach" | "some" | "every"
+                        ) {
+                            let obj_chain = build_property_chain(&static_member.object);
+                            if let Some(ref chain) = obj_chain {
+                                if !chain.is_empty()
+                                    && chain[0] == var_name
+                                    && (chain.contains(&"items".to_string())
+                                        || chain.contains(&"data".to_string()))
+                                {
+                                    if let Some(callback) = call.arguments.first() {
+                                        let callback_expr = callback.to_expression();
+                                        let param_name = get_callback_param_name(callback_expr);
+                                        if let Some(param_name) = param_name {
+                                            let parent_result = extract_field_from_chain(chain);
+                                            let parent_field = parent_result
+                                                .as_ref()
+                                                .filter(|r| r.nested_path.is_empty())
+                                                .map(|r| r.field.clone());
 
-                                                let mut cb_fields = Vec::new();
-                                                let mut cb_nested = Vec::new();
-                                                let mut cb_opaque = false;
+                                            let mut cb_fields = Vec::new();
+                                            let mut cb_nested = Vec::new();
+                                            let mut cb_opaque = false;
 
-                                                track_callback_field_access(
-                                                    callback_expr,
-                                                    &param_name,
-                                                    &mut cb_fields,
-                                                    &mut cb_nested,
-                                                    &mut cb_opaque,
-                                                );
+                                            track_callback_field_access(
+                                                callback_expr,
+                                                &param_name,
+                                                &mut cb_fields,
+                                                &mut cb_nested,
+                                                &mut cb_opaque,
+                                            );
 
-                                                if let Some(ref pf) = parent_field {
-                                                    fields.push(pf.clone());
-                                                    for f in &cb_fields {
-                                                        nested_access.push(NestedFieldAccess {
-                                                            field: pf.clone(),
-                                                            nested_path: vec![f.clone()],
-                                                        });
-                                                    }
-                                                } else {
-                                                    fields.extend(cb_fields);
-                                                    nested_access.extend(cb_nested);
+                                            if let Some(ref pf) = parent_field {
+                                                fields.push(pf.clone());
+                                                for f in &cb_fields {
+                                                    nested_access.push(NestedFieldAccess {
+                                                        field: pf.clone(),
+                                                        nested_path: vec![f.clone()],
+                                                    });
                                                 }
-
-                                                if cb_opaque {
-                                                    *has_opaque_access = true;
-                                                }
-
-                                                return;
+                                            } else {
+                                                fields.extend(cb_fields);
+                                                nested_access.extend(cb_nested);
                                             }
+
+                                            if cb_opaque {
+                                                *has_opaque_access = true;
+                                            }
+
+                                            return;
                                         }
                                     }
                                 }
@@ -860,17 +858,16 @@ fn track_field_access_in_jsx_element(
 ) {
     for attr in &jsx.opening_element.attributes {
         if let JSXAttributeItem::Attribute(jsx_attr) = attr {
-            if let Some(ref value) = jsx_attr.value {
-                if let JSXAttributeValue::ExpressionContainer(container) = value {
-                    if let Some(expr) = container.expression.as_expression() {
-                        track_field_access_in_expr(
-                            expr,
-                            var_name,
-                            fields,
-                            nested_access,
-                            has_opaque_access,
-                        );
-                    }
+            if let Some(JSXAttributeValue::ExpressionContainer(container)) = jsx_attr.value.as_ref()
+            {
+                if let Some(expr) = container.expression.as_expression() {
+                    track_field_access_in_expr(
+                        expr,
+                        var_name,
+                        fields,
+                        nested_access,
+                        has_opaque_access,
+                    );
                 }
             }
         }
@@ -1059,17 +1056,16 @@ fn track_callback_expr_in_jsx(
 ) {
     for attr in &jsx.opening_element.attributes {
         if let JSXAttributeItem::Attribute(jsx_attr) = attr {
-            if let Some(ref value) = jsx_attr.value {
-                if let JSXAttributeValue::ExpressionContainer(container) = value {
-                    if let Some(inner_expr) = container.expression.as_expression() {
-                        track_callback_expr(
-                            inner_expr,
-                            param_name,
-                            fields,
-                            nested_access,
-                            has_opaque_access,
-                        );
-                    }
+            if let Some(JSXAttributeValue::ExpressionContainer(container)) = jsx_attr.value.as_ref()
+            {
+                if let Some(inner_expr) = container.expression.as_expression() {
+                    track_callback_expr(
+                        inner_expr,
+                        param_name,
+                        fields,
+                        nested_access,
+                        has_opaque_access,
+                    );
                 }
             }
         }
@@ -1194,17 +1190,17 @@ fn track_callback_expr(
         Expression::JSXElement(jsx) => {
             for attr in &jsx.opening_element.attributes {
                 if let JSXAttributeItem::Attribute(jsx_attr) = attr {
-                    if let Some(ref value) = jsx_attr.value {
-                        if let JSXAttributeValue::ExpressionContainer(container) = value {
-                            if let Some(inner_expr) = container.expression.as_expression() {
-                                track_callback_expr(
-                                    inner_expr,
-                                    param_name,
-                                    fields,
-                                    nested_access,
-                                    has_opaque_access,
-                                );
-                            }
+                    if let Some(JSXAttributeValue::ExpressionContainer(container)) =
+                        jsx_attr.value.as_ref()
+                    {
+                        if let Some(inner_expr) = container.expression.as_expression() {
+                            track_callback_expr(
+                                inner_expr,
+                                param_name,
+                                fields,
+                                nested_access,
+                                has_opaque_access,
+                            );
                         }
                     }
                 }

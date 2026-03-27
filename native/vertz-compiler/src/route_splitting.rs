@@ -163,12 +163,12 @@ fn collect_define_routes_calls_in_stmt<'a>(
             }
         }
         Statement::ExportNamedDeclaration(export_decl) => {
-            if let Some(ref decl) = export_decl.declaration {
-                if let Declaration::VariableDeclaration(var_decl) = decl {
-                    for declarator in &var_decl.declarations {
-                        if let Some(ref init) = declarator.init {
-                            collect_define_routes_calls_in_expr(init, calls);
-                        }
+            if let Some(Declaration::VariableDeclaration(var_decl)) =
+                export_decl.declaration.as_ref()
+            {
+                for declarator in &var_decl.declarations {
+                    if let Some(ref init) = declarator.init {
+                        collect_define_routes_calls_in_expr(init, calls);
                     }
                 }
             }
@@ -362,10 +362,8 @@ fn get_arrow_expression_body<'a>(
         return None;
     }
     // When expression is true, the body has a single ExpressionStatement
-    if let Some(stmt) = arrow.body.statements.first() {
-        if let Statement::ExpressionStatement(expr_stmt) = stmt {
-            return Some(&expr_stmt.expression);
-        }
+    if let Some(Statement::ExpressionStatement(expr_stmt)) = arrow.body.statements.first() {
+        return Some(&expr_stmt.expression);
     }
     None
 }
@@ -382,7 +380,7 @@ fn extract_jsx_symbol(expr: &Expression) -> Option<String> {
             };
             name.and_then(|n| {
                 // Only uppercase names (components), not lowercase (HTML elements)
-                if n.chars().next().map_or(false, |c| c.is_uppercase()) {
+                if n.chars().next().is_some_and(|c| c.is_uppercase()) {
                     Some(n.to_string())
                 } else {
                     None
@@ -503,22 +501,22 @@ fn visit_identifiers_in_stmt(
             visit_identifiers_in_expr(&expr_stmt.expression, symbol_name, factory_spans, found);
         }
         Statement::ExportNamedDeclaration(export_decl) => {
-            if let Some(ref decl) = export_decl.declaration {
-                if let Declaration::VariableDeclaration(var_decl) = decl {
-                    for declarator in &var_decl.declarations {
-                        if let Some(ref init) = declarator.init {
-                            visit_identifiers_in_expr(init, symbol_name, factory_spans, found);
-                        }
+            if let Some(Declaration::VariableDeclaration(var_decl)) =
+                export_decl.declaration.as_ref()
+            {
+                for declarator in &var_decl.declarations {
+                    if let Some(ref init) = declarator.init {
+                        visit_identifiers_in_expr(init, symbol_name, factory_spans, found);
                     }
                 }
             }
         }
-        Statement::ExportDefaultDeclaration(export_default) => match &export_default.declaration {
-            ExportDefaultDeclarationKind::CallExpression(call) => {
+        Statement::ExportDefaultDeclaration(export_default) => {
+            if let ExportDefaultDeclarationKind::CallExpression(call) = &export_default.declaration
+            {
                 visit_identifiers_in_call_expr(call, symbol_name, factory_spans, found);
             }
-            _ => {}
-        },
+        }
         _ => {}
     }
 }
