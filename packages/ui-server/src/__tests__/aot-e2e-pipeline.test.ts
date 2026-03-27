@@ -302,7 +302,7 @@ describe('Feature: E2E AOT Pipeline', () => {
         // 5. Verify the barrel + files contain valid, self-consistent code
         // The barrel re-exports from compiled files
         for (const [filename, code] of Object.entries(barrel.files)) {
-          expect(filename).toMatch(/\.tsx$/);
+          expect(filename).toMatch(/\.ts$/);
           expect(code).toContain('export function __ssr_');
         }
 
