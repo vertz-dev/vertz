@@ -129,11 +129,11 @@ export interface EntityDef {
 
 /** Resolved entitlement definition — roles + optional rules */
 export interface EntitlementDef {
-  roles: string[];
-  rules?: AccessRule[];
-  flags?: string[];
+  roles: readonly string[];
+  rules?: readonly AccessRule[];
+  flags?: readonly string[];
   /** Plan names that gate this entitlement (evaluated in Layer 4) */
-  plans?: string[];
+  plans?: readonly string[];
   /** How features resolve across ancestor levels. Default: 'inherit'. */
   featureResolution?: 'inherit' | 'local';
 }
@@ -550,7 +550,16 @@ export function defineAccess(input: DefineAccessInput): AccessDefinition {
     ),
     entitlements: Object.freeze(
       Object.fromEntries(
-        Object.entries(resolvedEntitlements).map(([k, v]) => [k, Object.freeze({ ...v })]),
+        Object.entries(resolvedEntitlements).map(([k, v]) => [
+          k,
+          Object.freeze({
+            ...v,
+            roles: Object.freeze([...v.roles]),
+            ...(v.rules ? { rules: Object.freeze([...v.rules]) } : {}),
+            ...(v.flags ? { flags: Object.freeze([...v.flags]) } : {}),
+            ...(v.plans ? { plans: Object.freeze([...v.plans]) } : {}),
+          }),
+        ]),
       ),
     ),
     _planGatedEntitlements: Object.freeze(planGatedEntitlements),

@@ -58,6 +58,12 @@ describe('Type-level: defineAccess', () => {
     void _bad;
   });
 
+  it('EntitlementDef.roles is readonly — push rejected', () => {
+    const ent: EntitlementDef = { roles: ['admin'] };
+    // @ts-expect-error — cannot push to readonly array
+    ent.roles.push('viewer');
+  });
+
   it('AccessCheckResult has correct shape', () => {
     const result: AccessCheckResult = {
       allowed: false,

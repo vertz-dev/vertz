@@ -311,6 +311,37 @@ describe('Feature: Entity-centric defineAccess()', () => {
       expect(Object.isFrozen(config.entitlements['project:view'])).toBe(true);
     });
 
+    it('deep-freezes EntitlementDef array properties (roles, rules, flags, plans)', () => {
+      const config = defineAccess({
+        entities: {
+          workspace: { roles: ['admin', 'member'] },
+        },
+        entitlements: {
+          'workspace:manage': {
+            roles: ['admin'],
+            rules: [rules.where({ createdBy: rules.user.id })],
+            flags: ['beta-manage'],
+            plans: ['pro'],
+          },
+          'workspace:view': { roles: ['member'] },
+        },
+      });
+      const ent = config.entitlements['workspace:manage'];
+      expect(Object.isFrozen(ent.roles)).toBe(true);
+      expect(Object.isFrozen(ent.rules)).toBe(true);
+      expect(Object.isFrozen(ent.flags)).toBe(true);
+      expect(Object.isFrozen(ent.plans)).toBe(true);
+      // Also verify the simple case — roles-only entitlement
+      const viewEnt = config.entitlements['workspace:view'];
+      expect(Object.isFrozen(viewEnt.roles)).toBe(true);
+      // Empty roles array is still frozen
+      const emptyConfig = defineAccess({
+        entities: { workspace: { roles: ['admin'] } },
+        entitlements: { 'workspace:manage': { roles: [] } },
+      });
+      expect(Object.isFrozen(emptyConfig.entitlements['workspace:manage'].roles)).toBe(true);
+    });
+
     it('freezes entities config', () => {
       const config = defineAccess({ ...validInput });
       expect(Object.isFrozen(config.entities)).toBe(true);
