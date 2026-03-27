@@ -713,14 +713,24 @@ fn map_call_to_string(
             }
         }
 
-        // Block body with return
-        for stmt in &arrow.body.statements {
-            if let Statement::ReturnStatement(ret) = stmt {
-                if let Some(ref arg) = ret.argument {
-                    if let Some(jsx_str) = try_jsx_expr_to_string(arg, reactive_names, ms, holes) {
-                        return format!(
-                            "'<!--list-->' + {caller_text}.map({param_name} => {jsx_str}).join('') + '<!--/list-->'"
-                        );
+        // Block body with return — only optimize when the block contains
+        // nothing besides return statements. Variable declarations before the
+        // return reference closure variables that the generated arrow function
+        // won't define, causing ReferenceError at runtime (#1936).
+        let has_non_return = arrow.body.statements.iter().any(|stmt| {
+            !matches!(stmt, Statement::ReturnStatement(_))
+        });
+        if !has_non_return {
+            for stmt in &arrow.body.statements {
+                if let Statement::ReturnStatement(ret) = stmt {
+                    if let Some(ref arg) = ret.argument {
+                        if let Some(jsx_str) =
+                            try_jsx_expr_to_string(arg, reactive_names, ms, holes)
+                        {
+                            return format!(
+                                "'<!--list-->' + {caller_text}.map({param_name} => {jsx_str}).join('') + '<!--/list-->'"
+                            );
+                        }
                     }
                 }
             }

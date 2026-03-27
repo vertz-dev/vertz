@@ -1259,16 +1259,23 @@ export class AotStringTransformer {
       return `'<!--list-->' + ${callerText}.map(${paramName} => ${jsxStr}).join('') + '<!--/list-->'`;
     }
 
-    // If body is a block, try to find return JSX
+    // If body is a block, try to find return JSX — but only when the block
+    // contains nothing besides the return. Variable declarations before the
+    // return reference closure variables that the generated arrow function
+    // won't define, causing ReferenceError at runtime (#1936).
     if (body.isKind(SyntaxKind.Block)) {
-      const returnStmts = body.getDescendantsOfKind(SyntaxKind.ReturnStatement);
-      for (const ret of returnStmts) {
-        const retExpr = ret.getExpression();
-        if (!retExpr) continue;
-        const retJsx = this._findJsx(retExpr);
-        if (retJsx) {
-          const jsxStr = this._jsxToString(retJsx, variables, s, null);
-          return `'<!--list-->' + ${callerText}.map(${paramName} => ${jsxStr}).join('') + '<!--/list-->'`;
+      const stmts = body.getStatements();
+      const hasNonReturnStatements = stmts.some((stmt) => !stmt.isKind(SyntaxKind.ReturnStatement));
+      if (!hasNonReturnStatements) {
+        const returnStmts = body.getDescendantsOfKind(SyntaxKind.ReturnStatement);
+        for (const ret of returnStmts) {
+          const retExpr = ret.getExpression();
+          if (!retExpr) continue;
+          const retJsx = this._findJsx(retExpr);
+          if (retJsx) {
+            const jsxStr = this._jsxToString(retJsx, variables, s, null);
+            return `'<!--list-->' + ${callerText}.map(${paramName} => ${jsxStr}).join('') + '<!--/list-->'`;
+          }
         }
       }
     }

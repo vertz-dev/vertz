@@ -526,4 +526,68 @@ function Empty() {
       expect(html).toBe('<div></div>');
     });
   });
+
+  describe('.map() with closure variables (#1936)', () => {
+    it('Then falls back to __esc() when block body has variable declarations', () => {
+      const result = compileAot(`
+function CardList({ listings, sellerMap }: { listings: any[]; sellerMap: Map<string, any> }) {
+  return (
+    <div>
+      {listings.map((listing) => {
+        const seller = sellerMap.get(listing.sellerId);
+        return (
+          <tr key={listing.id}>
+            <td>{seller?.name || 'Unknown'}</td>
+          </tr>
+        );
+      })}
+    </div>
+  );
+}
+      `.trim());
+
+      expect(result.components).toHaveLength(1);
+      expect(result.code).toContain('__esc(');
+      // Should NOT generate list markers (which imply inlined JSX)
+      expect(result.code).not.toMatch(/__ssr_CardList[^]*<!--list-->/);
+    });
+
+    it('Then still optimizes simple .map() with expression body', () => {
+      const result = compileAot(`
+function List({ items }: { items: string[] }) {
+  return <ul>{items.map(item => <li>{item}</li>)}</ul>;
+}
+      `.trim());
+
+      expect(result.code).toContain('<!--list-->');
+    });
+
+    it('Then still optimizes .map() with block body containing only return', () => {
+      const result = compileAot(`
+function List({ items }: { items: string[] }) {
+  return <ul>{items.map((item) => { return <li>{item}</li>; })}</ul>;
+}
+      `.trim());
+
+      expect(result.code).toContain('<!--list-->');
+    });
+
+    it('Then falls back for any non-return statement in block body', () => {
+      const result = compileAot(`
+function ListWithLog({ items }: { items: string[] }) {
+  return (
+    <ul>
+      {items.map((item) => {
+        const upper = item.toUpperCase();
+        return <li>{upper}</li>;
+      })}
+    </ul>
+  );
+}
+      `.trim());
+
+      expect(result.code).toContain('__esc(');
+      expect(result.code).not.toMatch(/__ssr_ListWithLog[^]*<!--list-->/);
+    });
+  });
 });

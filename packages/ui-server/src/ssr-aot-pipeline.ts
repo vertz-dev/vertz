@@ -318,7 +318,21 @@ export async function ssrRenderAot(
     for (const [key, value] of queryCache) {
       data[key] = value;
     }
-    const html = aotEntry.render(data, ctx);
+
+    let html: string;
+    try {
+      html = aotEntry.render(data, ctx);
+    } catch (renderErr) {
+      // AOT render function crashed (e.g., closure variable not defined in .map()
+      // callback — #1936). Fall back to single-pass SSR instead of returning 500.
+      console.error(
+        '[SSR] AOT render failed for',
+        match.pattern,
+        '— falling back to single-pass:',
+        renderErr instanceof Error ? renderErr.message : renderErr,
+      );
+      return ssrRenderSinglePass(module, normalizedUrl, fallbackOptions);
+    }
 
     // 5b. Dev-mode divergence detection: dual render and compare
     if (options.diagnostics && isAotDebugEnabled()) {

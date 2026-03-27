@@ -1254,4 +1254,89 @@ function SearchPage() {
       expect(result.components[0]!.tier).toBe('runtime-fallback');
     });
   });
+
+  describe('Given a .map() callback with inner variable definitions', () => {
+    it('Then falls back to __esc() instead of generating broken arrow function', () => {
+      const result = compileForSSRAot(
+        `
+function CardList({ listings, sellerMap }: { listings: any[]; sellerMap: Map<string, any> }) {
+  return (
+    <div>
+      {listings.map((listing) => {
+        const seller = sellerMap.get(listing.sellerId);
+        return (
+          <tr key={listing.id}>
+            <td>{seller?.name || 'Unknown'}</td>
+          </tr>
+        );
+      })}
+    </div>
+  );
+}
+        `.trim(),
+      );
+
+      expect(result.components).toHaveLength(1);
+      const aotFn = extractAotFn(result.code, '__ssr_CardList');
+      // The .map() callback has a variable declaration before return — must use __esc() fallback
+      expect(aotFn).toContain('__esc(');
+      // Should NOT generate list markers (which imply it tried to inline the JSX)
+      expect(aotFn).not.toContain('<!--list-->');
+      // Should NOT have a bare arrow that references `seller` without defining it
+      expect(aotFn).not.toMatch(/\.map\(listing\s*=>\s*'<tr>/);
+    });
+
+    it('Then still optimizes simple .map() without variable declarations', () => {
+      const result = compileForSSRAot(
+        `
+function SimpleList({ items }: { items: string[] }) {
+  return <ul>{items.map(item => <li>{item}</li>)}</ul>;
+}
+        `.trim(),
+      );
+
+      const aotFn = extractAotFn(result.code, '__ssr_SimpleList');
+      // Simple .map() without closure vars should still be optimized with list markers
+      expect(aotFn).toContain('<!--list-->');
+      expect(aotFn).toContain('.map(');
+      expect(aotFn).toContain(".join('')");
+    });
+
+    it('Then falls back for .map() with block body containing any non-return statements', () => {
+      const result = compileForSSRAot(
+        `
+function ListWithLog({ items }: { items: string[] }) {
+  return (
+    <ul>
+      {items.map((item) => {
+        const upper = item.toUpperCase();
+        return <li>{upper}</li>;
+      })}
+    </ul>
+  );
+}
+        `.trim(),
+      );
+
+      const aotFn = extractAotFn(result.code, '__ssr_ListWithLog');
+      // Should use __esc() fallback — not inline JSX that references `upper`
+      expect(aotFn).toContain('__esc(');
+      expect(aotFn).not.toContain('<!--list-->');
+    });
+
+    it('Then optimizes .map() with block body containing ONLY a return statement', () => {
+      const result = compileForSSRAot(
+        `
+function BlockReturnList({ items }: { items: string[] }) {
+  return <ul>{items.map((item) => { return <li>{item}</li>; })}</ul>;
+}
+        `.trim(),
+      );
+
+      const aotFn = extractAotFn(result.code, '__ssr_BlockReturnList');
+      // Block body with only a return is safe to optimize
+      expect(aotFn).toContain('<!--list-->');
+      expect(aotFn).toContain('.map(');
+    });
+  });
 });
