@@ -103,7 +103,7 @@ export function CodeGroup(props: Record<string, unknown>): string {
       const selected = i === 0;
       const borderColor = selected ? 'var(--docs-primary,#2563eb)' : 'transparent';
       const textColor = selected ? 'var(--docs-primary,#2563eb)' : 'var(--docs-muted,#6b7280)';
-      return `<button role="tab" aria-selected="${selected}" data-code-group-tab onclick="${escapeHtml(tabClickHandler(i))}" style="padding:8px 16px;font-size:13px;font-family:monospace;background:none;border:none;border-bottom:2px solid ${borderColor};color:${textColor};cursor:pointer">${escapeHtml(title)}</button>`;
+      return `<button type="button" role="tab" aria-selected="${selected}" data-code-group-tab onclick="${escapeHtml(tabClickHandler(i))}" style="padding:8px 16px;font-size:13px;font-family:monospace;background:none;border:none;border-bottom:2px solid ${borderColor};color:${textColor};cursor:pointer">${escapeHtml(title)}</button>`;
     })
     .join('');
 
@@ -114,7 +114,7 @@ export function CodeGroup(props: Record<string, unknown>): string {
     .map((block, i) => {
       const cleaned = stripBlockChrome(block);
       const style = i === 0 ? '' : ' style="display:none"';
-      return `<div data-code-group-panel${style}>${cleaned}</div>`;
+      return `<div role="tabpanel" data-code-group-panel${style}>${cleaned}</div>`;
     })
     .join('');
 

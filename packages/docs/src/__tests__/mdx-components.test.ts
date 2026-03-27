@@ -146,7 +146,7 @@ const x = 1;
 </CodeGroup>
 `;
       const html = await compileMdxToHtml(source);
-      const panelMatches = html.match(/<div data-code-group-panel[^>]*>/g) ?? [];
+      const panelMatches = html.match(/<div role="tabpanel" data-code-group-panel[^>]*>/g) ?? [];
       expect(panelMatches.length).toBe(2);
       // First panel visible, second hidden
       expect(panelMatches[0]).not.toContain('display:none');
