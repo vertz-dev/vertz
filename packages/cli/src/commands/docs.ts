@@ -10,6 +10,10 @@ export interface DocsBuildCommandOptions {
   baseUrl?: string;
 }
 
+export interface DocsCheckCommandOptions {
+  dir?: string;
+}
+
 export interface DocsDevCommandOptions {
   port?: number;
   host?: string;
@@ -32,6 +36,47 @@ export async function docsInitCommand(
     console.log('  Created vertz.config.ts');
     console.log('  Created pages/index.mdx');
     console.log('  Created pages/quickstart.mdx');
+    return ok(undefined);
+  } catch (error) {
+    return err(error instanceof Error ? error : new Error(String(error)));
+  }
+}
+
+/**
+ * CLI action: validate docs site integrity.
+ */
+export async function docsCheckCommand(
+  options: DocsCheckCommandOptions = {},
+): Promise<Result<void, Error>> {
+  try {
+    const { docsCheckAction } = await import('@vertz/docs');
+    const projectDir = resolve(process.cwd(), options.dir ?? '.');
+    const result = await docsCheckAction({ projectDir });
+    if (!result.ok) {
+      return err(result.error);
+    }
+
+    const { errors, warnings, stats } = result.data;
+
+    for (const diagnostic of errors) {
+      console.error(`\u2717 ${diagnostic.message}`);
+    }
+    for (const diagnostic of warnings) {
+      console.warn(`\u26A0 ${diagnostic.message}`);
+    }
+
+    if (errors.length === 0 && warnings.length === 0) {
+      console.log(
+        `\u2713 All checks passed (${stats.pages} pages, ${stats.internalLinks} internal links checked).`,
+      );
+    } else {
+      console.log(`\nFound ${errors.length} error(s), ${warnings.length} warning(s).`);
+    }
+
+    if (errors.length > 0) {
+      return err(new Error(`Docs check found ${errors.length} error(s).`));
+    }
+
     return ok(undefined);
   } catch (error) {
     return err(error instanceof Error ? error : new Error(String(error)));
