@@ -387,8 +387,18 @@ export function createRouter<T extends Record<string, RouteConfigLike> = RouteDe
     } as Router<T>;
   }
 
+  function extractPathname(rawUrl: string): string {
+    return rawUrl.split('?')[0]?.split('#')[0] || '/';
+  }
+
   // Determine the initial URL (browser only)
   const url = initialUrl ?? window.location.pathname + window.location.search;
+
+  // Track the currently-rendered pathname for popstate search-param-only detection.
+  // Updated synchronously in callers (navigate, onPopState) — NOT inside
+  // applyNavigation — to avoid async desync when pushState has already moved
+  // window.location but applyNavigation hasn't completed yet.
+  let lastPathname = extractPathname(url);
 
   const initialMatch = matchRoute(routes, url);
 
@@ -603,8 +613,8 @@ export function createRouter<T extends Record<string, RouteConfigLike> = RouteDe
     // changes like /tasks/1 → /tasks/2 are correctly treated as different
     // resources even though they match the same pattern (/tasks/:id).
     const navMatch = matchRoute(routes, navUrl);
-    const navPathname = navUrl.split('?')[0]?.split('#')[0] || '/';
-    const isSearchParamOnly = window.location.pathname === navPathname;
+    const navPathname = extractPathname(navUrl);
+    const isSearchParamOnly = lastPathname === navPathname;
 
     // Capture generation at start — if a newer navigate() starts while we
     // await prefetch, this navigate should skip applyNavigation.
@@ -619,6 +629,12 @@ export function createRouter<T extends Record<string, RouteConfigLike> = RouteDe
     } else {
       window.history.pushState(null, '', navUrl);
     }
+
+    // Update lastPathname synchronously after history change, before any async
+    // work. This ensures popstate events that fire during awaitPrefetch see the
+    // correct value, and covers the navigateGen early-return case where
+    // applyNavigation is never called but pushState already happened.
+    lastPathname = navPathname;
 
     // Skip SSE wait for previously visited URLs — query cache will
     // serve data instantly. SSE prefetch still fires for SWR revalidation.
@@ -659,11 +675,19 @@ export function createRouter<T extends Record<string, RouteConfigLike> = RouteDe
   // Listen for popstate (back/forward browser buttons)
   const onPopState = () => {
     const popUrl = window.location.pathname + window.location.search;
-    startPrefetch(popUrl);
+    const popPathname = extractPathname(popUrl);
+    const isSearchParamOnly = lastPathname === popPathname;
+
+    // Update lastPathname synchronously — browser has already moved window.location.
+    lastPathname = popPathname;
+
+    if (!isSearchParamOnly) startPrefetch(popUrl);
     // Match route first to resolve per-route transition config
     const match = matchRoute(routes, popUrl);
-    const transitionConfig = match?.route.viewTransition ?? options?.viewTransition;
-    applyNavigation(popUrl, match, transitionConfig).catch(() => {
+    const transitionConfig = isSearchParamOnly
+      ? undefined
+      : (match?.route.viewTransition ?? options?.viewTransition);
+    applyNavigation(popUrl, match, transitionConfig, isSearchParamOnly).catch(() => {
       // Error is stored in loaderError signal
     });
   };
