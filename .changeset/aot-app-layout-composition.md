@@ -2,9 +2,11 @@
 '@vertz/ui-server': patch
 '@vertz/ui-compiler': patch
 '@vertz/cli': patch
+'@vertz/ui': patch
+'@vertz/theme-shadcn': patch
 ---
 
-fix(ui-server, ui-compiler): AOT SSR pipeline composes App layout shell, portable holes, barrel extraction, CSS inlining, and CSS tree-shaking
+fix(ui-server, ui-compiler, ui, theme-shadcn): AOT SSR pipeline composes App layout shell, portable holes, barrel extraction, CSS inlining, and lazy theme CSS
 
 Five AOT SSR fixes:
 
@@ -16,4 +18,4 @@ Five AOT SSR fixes:
 
 4. **CSS class name inlining (#1985)**: The AOT compiler now inlines `css()` class names as literal strings in `__ssr_*` functions. Previously, the barrel extraction stripped module-level `const s = css({...})` declarations but functions still referenced `s.root` etc., causing ReferenceError. Now the compiler computes deterministic class names at compile time (same DJB2 hash as the CSS extractor) and replaces references inline.
 
-5. **CSS tree-shaking by HTML usage (#1979)**: SSR responses no longer include ~74KB of unused theme component CSS. `configureTheme()` eagerly compiles all ~40 component styles at import time (outside any SSR context), which previously caused `collectCSS()` to fall back to `getInjectedCSS()` and include everything. Now, when the per-request `cssTracker` is empty, the fallback CSS is filtered by matching class selectors against the rendered HTML — only CSS whose classes actually appear in the page output is included.
+5. **Lazy theme CSS compilation (#1979)**: SSR responses no longer include ~74KB of unused theme component CSS. `configureTheme()` previously compiled all ~40 component styles eagerly via `buildComponents()`. Now each component has its own lazy getter (`lazyComp`/`lazyPrim`) — styles are compiled only when a component is first accessed at render time. `registerTheme()` stores the theme object without accessing `.components`, preserving the per-component lazy getters. As a defense-in-depth fallback, when the per-request `cssTracker` is empty, `collectCSS()` filters the global CSS set by matching class selectors against the rendered HTML.

@@ -504,33 +504,6 @@ export interface ResolvedTheme extends ResolvedThemeBase {
 }
 
 /**
- * Create a primitives object where each property is lazily initialized on first access.
- * This prevents unused primitives from crashing theme initialization if their
- * composed primitive import fails to resolve in the client bundle.
- */
-function lazyPrimitives<T extends Record<string, unknown>>(factories: {
-  [K in keyof T]: () => T[K];
-}): T {
-  const obj = {} as T;
-  for (const key of Object.keys(factories) as (keyof T & string)[]) {
-    let cached: T[typeof key];
-    let initialized = false;
-    Object.defineProperty(obj, key, {
-      get() {
-        if (!initialized) {
-          cached = factories[key]();
-          initialized = true;
-        }
-        return cached;
-      },
-      enumerable: true,
-      configurable: true,
-    });
-  }
-  return obj;
-}
-
-/**
  * Configure the shadcn theme.
  *
  * Single entry point — selects palette, applies color overrides, builds globals, styles, and components.
@@ -625,66 +598,31 @@ export function configureTheme(config?: ThemeConfig): ResolvedTheme {
   defineLazyStyle('toggle', createToggleStyles);
   defineLazyStyle('toggleGroup', createToggleGroupStyles);
 
-  // ── Lazy component initialization ──────────────────────────────
-  // Components reference styles at creation time (withStyles, createThemed*),
-  // so they must also be deferred. Built on first access of result.components.
+  // ── Per-component lazy initialization (#1979) ──────────────────
+  // Each component compiles only its own styles when first accessed.
+  // Previously, buildComponents() eagerly compiled ALL ~40 styles (~74KB CSS)
+  // whenever .components was accessed (e.g., via registerTheme()).
+  // Now, accessing components.Button only compiles button styles, etc.
 
-  let cachedComponents: ThemeComponents | undefined;
+  const components = {} as ThemeComponents;
 
-  function buildComponents(): ThemeComponents {
-    // Access styles through shared cache — no double initialization
-    const alertS = getOrInit('alert', createAlertStyles);
-    const buttonS = getOrInit('button', createButton);
-    const badgeS = getOrInit('badge', createBadge);
-    const cardS = getOrInit('card', createCard);
-    const inputS = getOrInit('input', createInput);
-    const textareaS = getOrInit('textarea', createTextarea);
-    const labelS = getOrInit('label', createLabel);
-    const separatorS = getOrInit('separator', createSeparator);
-    const formGroupS = getOrInit('formGroup', createFormGroup);
-    const breadcrumbS = getOrInit('breadcrumb', createBreadcrumbStyles);
-    const paginationS = getOrInit('pagination', createPaginationStyles);
-    const avatarS = getOrInit('avatar', createAvatarStyles);
-    const emptyStateS = getOrInit('emptyState', createEmptyStateStyles);
-    const skeletonS = getOrInit('skeleton', createSkeletonStyles);
-    const tableS = getOrInit('table', createTableStyles);
-    const dropdownMenuS = getOrInit('dropdownMenu', createDropdownMenuStyles);
-    const selectS = getOrInit('select', createSelectStyles);
-    const tabsS = getOrInit('tabs', createTabsStyles);
-    const checkboxS = getOrInit('checkbox', createCheckboxStyles);
-    const switchS = getOrInit('switch', createSwitchStyles);
-    const popoverS = getOrInit('popover', createPopoverStyles);
-    const progressS = getOrInit('progress', createProgressStyles);
-    const radioGroupS = getOrInit('radioGroup', createRadioGroupStyles);
-    const sliderS = getOrInit('slider', createSliderStyles);
-    const accordionS = getOrInit('accordion', createAccordionStyles);
-    const toastS = getOrInit('toast', createToastStyles);
-    const tooltipS = getOrInit('tooltip', createTooltipStyles);
-    const sheetS = getOrInit('sheet', createSheetStyles);
-    const calendarS = getOrInit('calendar', createCalendarStyles);
-    const carouselS = getOrInit('carousel', createCarouselStyles);
-    const collapsibleS = getOrInit('collapsible', createCollapsibleStyles);
-    const commandS = getOrInit('command', createCommandStyles);
-    const contextMenuS = getOrInit('contextMenu', createContextMenuStyles);
-    const datePickerS = getOrInit('datePicker', createDatePickerStyles);
-    const drawerS = getOrInit('drawer', createDrawerStyles);
-    const hoverCardS = getOrInit('hoverCard', createHoverCardStyles);
-    const listS = getOrInit('list', createListStyles);
-    const menubarS = getOrInit('menubar', createMenubarStyles);
-    const navigationMenuS = getOrInit('navigationMenu', createNavigationMenuStyles);
-    const resizablePanelS = getOrInit('resizablePanel', createResizablePanelStyles);
-    const scrollAreaS = getOrInit('scrollArea', createScrollAreaStyles);
-    const toggleS = getOrInit('toggle', createToggleStyles);
-    const toggleGroupS = getOrInit('toggleGroup', createToggleGroupStyles);
+  /** Define a lazy component getter — compiles styles on first access only. */
+  function lazyComp(key: string, factory: () => unknown): void {
+    let cached: unknown;
+    Object.defineProperty(components, key, {
+      get() {
+        if (cached === undefined) cached = factory();
+        return cached;
+      },
+      enumerable: true,
+      configurable: true,
+    });
+  }
 
-    // Inline color styles for Badge (defined once, not per-call)
-    const badgeColorInlineStyles: Record<string, Record<string, string>> = {
-      blue: { backgroundColor: 'oklch(0.55 0.15 250)', color: '#fff' },
-      green: { backgroundColor: 'oklch(0.55 0.15 155)', color: '#fff' },
-      yellow: { backgroundColor: 'oklch(0.75 0.15 85)', color: 'oklch(0.25 0.05 85)' },
-    };
+  // ── Direct components ──────────────────────────────────────────
 
-    // Alert variant wrapper — selects class set based on variant prop
+  lazyComp('Alert', () => {
+    const alertS = styles.alert;
     const DefaultAlert = withStyles(ComposedAlert, {
       root: alertS.root,
       title: alertS.title,
@@ -698,141 +636,190 @@ export function configureTheme(config?: ThemeConfig): ResolvedTheme {
     function ThemedAlert({ variant, ...rest }: ThemedAlertProps) {
       return (variant === 'destructive' ? DestructiveAlert : DefaultAlert)(rest);
     }
-    const Alert = Object.assign(ThemedAlert, {
+    return Object.assign(ThemedAlert, {
       Title: ComposedAlert.Title,
       Description: ComposedAlert.Description,
-    }) as ThemeComponents['Alert'];
+    });
+  });
 
-    return {
-      Alert,
-      Button: ({ intent, size, ...rest }: ThemedButtonProps) =>
-        ComposedButton({ ...rest, classes: { base: buttonS({ intent, size }) } }),
-      Badge: ({ color, ...rest }: ThemedBadgeProps) => {
-        const style = color ? badgeColorInlineStyles[color] : undefined;
-        return ComposedBadge({ ...rest, classes: { base: badgeS({ color }) }, style });
-      },
-      Breadcrumb: withStyles(ComposedBreadcrumb, {
-        nav: breadcrumbS.nav,
-        list: breadcrumbS.list,
-        item: breadcrumbS.item,
-        link: breadcrumbS.link,
-        page: breadcrumbS.page,
-        separator: breadcrumbS.separator,
-      }),
-      Card: withStyles(ComposedCard, {
-        root: cardS.root,
-        header: cardS.header,
-        title: cardS.title,
-        description: cardS.description,
-        content: cardS.content,
-        footer: cardS.footer,
-        action: cardS.action,
-      }),
-      Input: withStyles(ComposedInput, { base: inputS.base }),
-      Textarea: withStyles(ComposedTextarea, { base: textareaS.base }),
-      Label: withStyles(ComposedLabel, { base: labelS.base }),
-      Pagination: (props: Omit<ComposedPaginationProps, 'classes'>) =>
-        ComposedPagination({
-          ...props,
-          classes: {
-            nav: paginationS.nav,
-            list: paginationS.list,
-            item: paginationS.item,
-            link: paginationS.link,
-            linkActive: paginationS.linkActive,
-            navButton: paginationS.navButton,
-            ellipsis: paginationS.ellipsis,
-          },
-        }),
-      Separator: withStyles(ComposedSeparator, {
-        base: separatorS.base,
-        horizontal: separatorS.horizontal,
-        vertical: separatorS.vertical,
-      }),
-      FormGroup: withStyles(ComposedFormGroup, {
-        base: formGroupS.base,
-        error: formGroupS.error,
-      }),
-      Avatar: withStyles(ComposedAvatar, {
-        root: avatarS.root,
-        image: avatarS.image,
-        fallback: avatarS.fallback,
-      }),
-      EmptyState: withStyles(ComposedEmptyState, {
-        root: emptyStateS.root,
-        icon: emptyStateS.icon,
-        title: emptyStateS.title,
-        description: emptyStateS.description,
-        action: emptyStateS.action,
-      }),
-      Skeleton: Object.assign(withStyles(ComposedSkeleton, { root: skeletonS.root }), {
-        Text: withStyles(ComposedSkeleton.Text, {
-          root: skeletonS.textRoot,
-          line: skeletonS.textLine,
-        }),
-        Circle: withStyles(ComposedSkeleton.Circle, {
-          root: skeletonS.circleRoot,
-        }),
-      }) as ThemeComponents['Skeleton'],
-      Table: withStyles(ComposedTable, {
-        root: tableS.root,
-        header: tableS.header,
-        body: tableS.body,
-        row: tableS.row,
-        head: tableS.head,
-        cell: tableS.cell,
-        caption: tableS.caption,
-        footer: tableS.footer,
-      }),
-      primitives: lazyPrimitives({
-        Dialog: () => createThemedDialog(),
-        DropdownMenu: () => createThemedDropdownMenu(dropdownMenuS),
-        Select: () => createThemedSelect(selectS),
-        Tabs: () => createThemedTabs(tabsS),
-        Checkbox: () => createThemedCheckbox(checkboxS),
-        Switch: () => createThemedSwitch(switchS),
-        Popover: () => createThemedPopover(popoverS),
-        Progress: () => createThemedProgress(progressS),
-        RadioGroup: () => createThemedRadioGroup(radioGroupS),
-        Slider: () => createThemedSlider(sliderS),
-        Accordion: () => createThemedAccordion(accordionS),
-        Toast: () => createThemedToast(toastS),
-        Tooltip: () => createThemedTooltip(tooltipS),
-        Sheet: () => createThemedSheet(sheetS),
-        Calendar: () => createThemedCalendar(calendarS),
-        Carousel: () => createThemedCarousel(carouselS),
-        Collapsible: () => createThemedCollapsible(collapsibleS),
-        Command: () => createThemedCommand(commandS),
-        ContextMenu: () => createThemedContextMenu(contextMenuS),
-        DatePicker: () =>
-          createThemedDatePicker(datePickerS, {
-            ...calendarS,
-            root: calendarS.rootNoBorder,
-          }),
-        Drawer: () => createThemedDrawer(drawerS),
-        HoverCard: () => createThemedHoverCard(hoverCardS),
-        List: () => createThemedList(listS),
-        Menubar: () => createThemedMenubar(menubarS),
-        NavigationMenu: () => createThemedNavigationMenu(navigationMenuS),
-        ResizablePanel: () => createThemedResizablePanel(resizablePanelS),
-        ScrollArea: () => createThemedScrollArea(scrollAreaS),
-        Toggle: () => createThemedToggle(toggleS),
-        ToggleGroup: () => createThemedToggleGroup(toggleGroupS),
-      }),
+  lazyComp('Button', () => {
+    const buttonS = styles.button;
+    return ({ intent, size, ...rest }: ThemedButtonProps) =>
+      ComposedButton({ ...rest, classes: { base: buttonS({ intent, size }) } });
+  });
+
+  lazyComp('Badge', () => {
+    const badgeS = styles.badge;
+    const badgeColorInlineStyles: Record<string, Record<string, string>> = {
+      blue: { backgroundColor: 'oklch(0.55 0.15 250)', color: '#fff' },
+      green: { backgroundColor: 'oklch(0.55 0.15 155)', color: '#fff' },
+      yellow: { backgroundColor: 'oklch(0.75 0.15 85)', color: 'oklch(0.25 0.05 85)' },
     };
+    return ({ color, ...rest }: ThemedBadgeProps) => {
+      const style = color ? badgeColorInlineStyles[color] : undefined;
+      return ComposedBadge({ ...rest, classes: { base: badgeS({ color }) }, style });
+    };
+  });
+
+  lazyComp('Breadcrumb', () => {
+    const s = styles.breadcrumb;
+    return withStyles(ComposedBreadcrumb, {
+      nav: s.nav,
+      list: s.list,
+      item: s.item,
+      link: s.link,
+      page: s.page,
+      separator: s.separator,
+    });
+  });
+
+  lazyComp('Card', () => {
+    const s = styles.card;
+    return withStyles(ComposedCard, {
+      root: s.root,
+      header: s.header,
+      title: s.title,
+      description: s.description,
+      content: s.content,
+      footer: s.footer,
+      action: s.action,
+    });
+  });
+
+  lazyComp('Input', () => withStyles(ComposedInput, { base: styles.input.base }));
+  lazyComp('Textarea', () => withStyles(ComposedTextarea, { base: styles.textarea.base }));
+  lazyComp('Label', () => withStyles(ComposedLabel, { base: styles.label.base }));
+
+  lazyComp('Pagination', () => {
+    const s = styles.pagination;
+    return (props: Omit<ComposedPaginationProps, 'classes'>) =>
+      ComposedPagination({
+        ...props,
+        classes: {
+          nav: s.nav,
+          list: s.list,
+          item: s.item,
+          link: s.link,
+          linkActive: s.linkActive,
+          navButton: s.navButton,
+          ellipsis: s.ellipsis,
+        },
+      });
+  });
+
+  lazyComp('Separator', () => {
+    const s = styles.separator as ReturnType<typeof createSeparator>;
+    return withStyles(ComposedSeparator, {
+      base: s.base,
+      horizontal: s.horizontal,
+      vertical: s.vertical,
+    });
+  });
+
+  lazyComp('FormGroup', () => {
+    const s = styles.formGroup;
+    return withStyles(ComposedFormGroup, { base: s.base, error: s.error });
+  });
+
+  lazyComp('Avatar', () => {
+    const s = styles.avatar;
+    return withStyles(ComposedAvatar, { root: s.root, image: s.image, fallback: s.fallback });
+  });
+
+  lazyComp('EmptyState', () => {
+    const s = styles.emptyState;
+    return withStyles(ComposedEmptyState, {
+      root: s.root,
+      icon: s.icon,
+      title: s.title,
+      description: s.description,
+      action: s.action,
+    });
+  });
+
+  lazyComp('Skeleton', () => {
+    const s = styles.skeleton;
+    return Object.assign(withStyles(ComposedSkeleton, { root: s.root }), {
+      Text: withStyles(ComposedSkeleton.Text, { root: s.textRoot, line: s.textLine }),
+      Circle: withStyles(ComposedSkeleton.Circle, { root: s.circleRoot }),
+    });
+  });
+
+  lazyComp('Table', () => {
+    const s = styles.table;
+    return withStyles(ComposedTable, {
+      root: s.root,
+      header: s.header,
+      body: s.body,
+      row: s.row,
+      head: s.head,
+      cell: s.cell,
+      caption: s.caption,
+      footer: s.footer,
+    });
+  });
+
+  // ── Primitive components ───────────────────────────────────────
+
+  const primitives = {} as ThemedPrimitives;
+
+  function lazyPrim(key: string, factory: () => unknown): void {
+    let cached: unknown;
+    Object.defineProperty(primitives, key, {
+      get() {
+        if (cached === undefined) cached = factory();
+        return cached;
+      },
+      enumerable: true,
+      configurable: true,
+    });
   }
 
-  const result = { theme, globals, styles } as ResolvedTheme;
-  Object.defineProperty(result, 'components', {
-    get() {
-      if (cachedComponents === undefined) {
-        cachedComponents = buildComponents();
-      }
-      return cachedComponents;
-    },
+  lazyPrim('Dialog', () => createThemedDialog());
+  lazyPrim('DropdownMenu', () => createThemedDropdownMenu(styles.dropdownMenu));
+  lazyPrim('Select', () =>
+    createThemedSelect(styles.select as ReturnType<typeof createSelectStyles>),
+  );
+  lazyPrim('Tabs', () => createThemedTabs(styles.tabs));
+  lazyPrim('Checkbox', () => createThemedCheckbox(styles.checkbox));
+  lazyPrim('Switch', () => createThemedSwitch(styles.switch));
+  lazyPrim('Popover', () => createThemedPopover(styles.popover));
+  lazyPrim('Progress', () => createThemedProgress(styles.progress));
+  lazyPrim('RadioGroup', () => createThemedRadioGroup(styles.radioGroup));
+  lazyPrim('Slider', () => createThemedSlider(styles.slider));
+  lazyPrim('Accordion', () => createThemedAccordion(styles.accordion));
+  lazyPrim('Toast', () => createThemedToast(styles.toast));
+  lazyPrim('Tooltip', () => createThemedTooltip(styles.tooltip));
+  lazyPrim('Sheet', () => createThemedSheet(styles.sheet));
+  lazyPrim('Calendar', () => createThemedCalendar(styles.calendar));
+  lazyPrim('Carousel', () => createThemedCarousel(styles.carousel));
+  lazyPrim('Collapsible', () => createThemedCollapsible(styles.collapsible));
+  lazyPrim('Command', () => createThemedCommand(styles.command));
+  lazyPrim('ContextMenu', () => createThemedContextMenu(styles.contextMenu));
+  lazyPrim('DatePicker', () => {
+    const calendarS = styles.calendar;
+    return createThemedDatePicker(styles.datePicker, {
+      ...calendarS,
+      root: calendarS.rootNoBorder,
+    });
+  });
+  lazyPrim('Drawer', () => createThemedDrawer(styles.drawer));
+  lazyPrim('HoverCard', () => createThemedHoverCard(styles.hoverCard));
+  lazyPrim('List', () => createThemedList(styles.list));
+  lazyPrim('Menubar', () => createThemedMenubar(styles.menubar));
+  lazyPrim('NavigationMenu', () => createThemedNavigationMenu(styles.navigationMenu));
+  lazyPrim('ResizablePanel', () => createThemedResizablePanel(styles.resizablePanel));
+  lazyPrim('ScrollArea', () => createThemedScrollArea(styles.scrollArea));
+  lazyPrim('Toggle', () => createThemedToggle(styles.toggle));
+  lazyPrim('ToggleGroup', () => createThemedToggleGroup(styles.toggleGroup));
+
+  // Assign primitives sub-object — not lazy (it's the container, individual
+  // primitives inside it have their own lazy getters).
+  Object.defineProperty(components, 'primitives', {
+    value: primitives,
     enumerable: true,
     configurable: true,
   });
 
-  return result;
+  return { theme, globals, styles, components } as ResolvedTheme;
 }
