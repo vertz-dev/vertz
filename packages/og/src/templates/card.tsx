@@ -17,11 +17,11 @@ export interface CardProps {
   title: string;
   /** Optional description below the title. */
   description?: string;
-  /** Optional badge text (e.g., "Public Beta"). */
+  /** Optional badge text (e.g., "Canary"). */
   badge?: string;
   /** Optional URL displayed in the bottom bar. */
   url?: string;
-  /** Accent/brand color for the badge dot. Defaults to '#3b82f6'. */
+  /** Accent/brand color for the badge dot. Defaults to '#f59e0b'. */
   brandColor?: string;
   /** Background color. Defaults to '#0a0a0b'. */
   backgroundColor?: string;
@@ -32,7 +32,7 @@ export function Card({
   description,
   badge,
   url,
-  brandColor = '#3b82f6',
+  brandColor = '#f59e0b',
   backgroundColor = '#0a0a0b',
 }: CardProps): SatoriElement {
   return (
