@@ -1,5 +1,5 @@
 import MagicString from 'magic-string';
-import { Project, SyntaxKind, ts } from 'ts-morph';
+import { type SourceFile, Project, SyntaxKind, ts } from 'ts-morph';
 import { ComponentAnalyzer } from './analyzers/component-analyzer';
 import { JsxAnalyzer } from './analyzers/jsx-analyzer';
 import { MutationAnalyzer } from './analyzers/mutation-analyzer';
@@ -270,6 +270,15 @@ export function compileForSSRAot(
   const aotTransformer = new AotStringTransformer();
   aotTransformer.setLocalComponents(components.map((c) => c.name));
 
+  // 2.6. Scan css() calls for AOT class name inlining (#1985)
+  // Detects `const X = css({...})` declarations and builds a varName→blockName→className map.
+  // The AOT transformer uses this to replace X.blockName refs with literal class names,
+  // making __ssr_* functions self-contained (no module-level css() dependency).
+  const cssClassNames = scanCssClassNames(sourceFile, filename);
+  if (cssClassNames.size > 0) {
+    aotTransformer.setCssClassNames(cssClassNames);
+  }
+
   // Process each component
   for (const component of components) {
     // 3. Reactivity analysis (for classification only — no signal/computed transforms)
@@ -292,6 +301,67 @@ export function compileForSSRAot(
     components: aotTransformer.components,
     diagnostics: allDiagnostics,
   };
+}
+
+/**
+ * Scan a source file for `const X = css({...})` declarations and build a
+ * class name map: varName → Map<blockName, className>.
+ *
+ * Uses the same DJB2 hash as the CSS extractor to produce identical class names
+ * that match the extracted CSS output (#1985).
+ */
+function scanCssClassNames(
+  sourceFile: SourceFile,
+  filePath: string,
+): Map<string, Map<string, string>> {
+  const result = new Map<string, Map<string, string>>();
+
+  // Find all css() call expressions
+  const callExpressions = sourceFile.getDescendantsOfKind(SyntaxKind.CallExpression);
+
+  for (const call of callExpressions) {
+    const expr = call.getExpression();
+    if (!expr.isKind(SyntaxKind.Identifier) || expr.getText() !== 'css') continue;
+
+    const args = call.getArguments();
+    if (args.length === 0) continue;
+
+    const firstArg = args[0]!;
+    if (!firstArg.isKind(SyntaxKind.ObjectLiteralExpression)) continue;
+
+    // Extract block names from the css() argument
+    const blockNames: string[] = [];
+    for (const prop of firstArg.getProperties()) {
+      if (prop.isKind(SyntaxKind.PropertyAssignment)) {
+        blockNames.push(prop.getName());
+      }
+    }
+    if (blockNames.length === 0) continue;
+
+    // Find the variable this css() call is assigned to:
+    // `const X = css({...})` → parent is VariableDeclaration, grandparent is VariableDeclarationList
+    const parent = call.getParent();
+    if (!parent || !parent.isKind(SyntaxKind.VariableDeclaration)) continue;
+
+    const varName = parent.getName();
+    const blocks = new Map<string, string>();
+    for (const blockName of blockNames) {
+      blocks.set(blockName, aotGenerateClassName(filePath, blockName));
+    }
+    result.set(varName, blocks);
+  }
+
+  return result;
+}
+
+/** Deterministic class name generation (mirrors @vertz/ui class-generator.ts). */
+function aotGenerateClassName(filePath: string, blockName: string): string {
+  const input = `${filePath}::${blockName}`;
+  let hash = 5381;
+  for (let i = 0; i < input.length; i++) {
+    hash = ((hash << 5) + hash + input.charCodeAt(i)) | 0;
+  }
+  return `_${(hash >>> 0).toString(16).padStart(8, '0')}`;
 }
 
 /** DOM helpers that the compiler may emit and need importing from @vertz/ui/internals. */

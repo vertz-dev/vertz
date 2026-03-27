@@ -1934,4 +1934,124 @@ function App() {
       expect(appInfo!.holes).toContain('Badge');
     });
   });
+
+  describe('CSS class name inlining (#1985)', () => {
+    it('inlines css() class names in __ssr_* functions instead of referencing module-level variables', () => {
+      const result = compileForSSRAot(
+        `
+import { css } from '@vertz/ui';
+
+const s = css({
+  root: ['bg:background', 'p:6'],
+  header: ['font:xl', 'text:foreground'],
+});
+
+function App() {
+  return (
+    <div className={s.root}>
+      <h1 className={s.header}>Title</h1>
+    </div>
+  );
+}
+        `.trim(),
+        { filename: 'src/app.tsx' },
+      );
+
+      const appInfo = result.components.find((c) => c.name === 'App');
+      expect(appInfo).toBeDefined();
+      expect(appInfo!.tier).not.toBe('runtime-fallback');
+
+      // The __ssr_App function should NOT reference s.root or s.header
+      const ssrFn = result.code.match(/export function __ssr_App[\s\S]*?\n\}/)?.[0] ?? '';
+      expect(ssrFn).not.toContain('s.root');
+      expect(ssrFn).not.toContain('s.header');
+
+      // It should contain literal class names (8-hex-char hashes prefixed with _)
+      expect(ssrFn).toMatch(/_[0-9a-f]{8}/);
+    });
+
+    it('inlines css() class names used in ternary expressions', () => {
+      const result = compileForSSRAot(
+        `
+import { css } from '@vertz/ui';
+
+const s = css({
+  active: ['bg:primary'],
+  inactive: ['bg:muted'],
+});
+
+function Tab({ isActive }: { isActive: boolean }) {
+  return <div className={isActive ? s.active : s.inactive}>Tab</div>;
+}
+        `.trim(),
+        { filename: 'src/tab.tsx' },
+      );
+
+      const ssrFn = result.code.match(/export function __ssr_Tab[\s\S]*?\n\}/)?.[0] ?? '';
+      expect(ssrFn).not.toContain('s.active');
+      expect(ssrFn).not.toContain('s.inactive');
+    });
+
+    it('handles multiple css() calls in the same file', () => {
+      const result = compileForSSRAot(
+        `
+import { css } from '@vertz/ui';
+
+const card = css({ root: ['p:4'] });
+const badge = css({ root: ['m:2'] });
+
+function Card() {
+  return <div className={card.root}><span className={badge.root}>New</span></div>;
+}
+        `.trim(),
+        { filename: 'src/card.tsx' },
+      );
+
+      const ssrFn = result.code.match(/export function __ssr_Card[\s\S]*?\n\}/)?.[0] ?? '';
+      expect(ssrFn).not.toContain('card.root');
+      expect(ssrFn).not.toContain('badge.root');
+    });
+
+    it('produces self-contained __ssr_* functions that execute without css() imports', () => {
+      const result = compileForSSRAot(
+        `
+import { css } from '@vertz/ui';
+
+const s = css({
+  wrapper: ['flex', 'gap:4'],
+  title: ['font:lg', 'font:semibold'],
+});
+
+function Header({ title }: { title: string }) {
+  return (
+    <header className={s.wrapper}>
+      <h1 className={s.title}>{title}</h1>
+    </header>
+  );
+}
+        `.trim(),
+        { filename: 'src/header.tsx' },
+      );
+
+      // The __ssr_* function should NOT reference the css variable (s.wrapper, s.title)
+      const ssrFn = result.code.match(/export function __ssr_Header[\s\S]*?\n\}/)?.[0] ?? '';
+      // Use word-boundary regex to avoid matching __props.title as containing 's.title'
+      expect(ssrFn).not.toMatch(/\bs\.wrapper\b/);
+      expect(ssrFn).not.toMatch(/\bs\.title\b/);
+
+      // Verify the function is self-contained by eval'ing it.
+      // Strip TS types and use runtime helpers for the eval context.
+      const evalCode = ssrFn
+        .replace(/^export /, '')
+        // Strip TS return type annotation: ): string { → ) {
+        .replace(/\):\s*string\s*\{/, ') {')
+        .replace(/__esc_attr\(/g, 'String(')
+        .replace(/__esc\(/g, 'String(');
+      const fn = new Function(`${evalCode}; return __ssr_Header({ title: 'Hello' });`);
+      const html = fn();
+      expect(html).toContain('Hello');
+      // Should contain an inlined class name, not 's.wrapper'
+      expect(html).toMatch(/_[0-9a-f]{8}/);
+    });
+  });
 });
