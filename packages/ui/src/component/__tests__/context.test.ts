@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import { query } from '../../query/query';
-import { domEffect, signal } from '../../runtime/signal';
+import { computed, domEffect, signal } from '../../runtime/signal';
 import { createContext, isSignalLike, useContext, wrapSignalProps } from '../context';
 
 describe('createContext / useContext', () => {
@@ -431,5 +431,159 @@ describe('createContext / useContext', () => {
 
     theme.value = 'blue';
     expect(observed).toEqual(['light', 'dark', 'blue']);
+  });
+
+  // ─── JSX pattern: getter-based value prop (compiler output simulation) ──
+
+  test('JSX pattern: signal in getter-based value prop tracks reactively', () => {
+    interface SettingsValue {
+      theme: string;
+      toggle: () => void;
+    }
+    const theme = signal<string>('light');
+    const toggle = () => {
+      theme.value = theme.value === 'light' ? 'dark' : 'light';
+    };
+    const SettingsCtx = createContext<SettingsValue>();
+    const observed: string[] = [];
+
+    // Simulate compiled JSX output:
+    // <SettingsCtx.Provider value={{ theme, toggle }}>
+    //   ...consumer with domEffect...
+    // </SettingsCtx.Provider>
+    //
+    // The compiler wraps non-literal JSX attribute values in getters.
+    // Signal `theme` stays as SignalImpl in shorthand (shorthand skip).
+    SettingsCtx.Provider({
+      get value() {
+        return { theme, toggle } as unknown as SettingsValue;
+      },
+      children: () => {
+        domEffect(() => {
+          const ctx = useContext(SettingsCtx)!;
+          observed.push(ctx.theme);
+        });
+        return null;
+      },
+    });
+
+    expect(observed).toEqual(['light']);
+
+    toggle();
+    expect(observed).toEqual(['light', 'dark']);
+
+    toggle();
+    expect(observed).toEqual(['light', 'dark', 'light']);
+  });
+
+  test('JSX pattern: computed derived value in getter-based value prop tracks reactively', () => {
+    interface CounterValue {
+      count: number;
+      doubled: number;
+      increment: () => void;
+    }
+    const count = signal(0);
+    const doubled = computed(() => count.value * 2);
+    const increment = () => {
+      count.value++;
+    };
+    const CounterCtx = createContext<CounterValue>();
+    const observed: number[] = [];
+
+    // Simulate compiled JSX output:
+    // <CounterCtx.Provider value={{ count, doubled, increment }}>
+    //
+    // After computed-transformer, `doubled` in shorthand becomes `doubled: doubled.value`.
+    // `count` stays as SignalImpl (signal shorthand skip).
+    CounterCtx.Provider({
+      get value() {
+        return {
+          count,
+          doubled: doubled.value,
+          increment,
+        } as unknown as CounterValue;
+      },
+      children: () => {
+        domEffect(() => {
+          const ctx = useContext(CounterCtx)!;
+          observed.push(ctx.doubled);
+        });
+        return null;
+      },
+    });
+
+    expect(observed).toEqual([0]);
+
+    increment();
+    // doubled should now be 2
+    expect(observed).toEqual([0, 2]);
+
+    increment();
+    // doubled should now be 4
+    expect(observed).toEqual([0, 2, 4]);
+  });
+
+  test('JSX pattern: expression involving signal in getter-based value prop tracks reactively', () => {
+    interface CounterValue {
+      doubled: number;
+      increment: () => void;
+    }
+    const count = signal(0);
+    const increment = () => {
+      count.value++;
+    };
+    const CounterCtx = createContext<CounterValue>();
+    const observed: number[] = [];
+
+    // Simulate compiled JSX output for non-shorthand expressions:
+    // <CounterCtx.Provider value={{ doubled: count * 2, increment }}>
+    //
+    // After signal transform, count becomes count.value in expressions.
+    // The JSX transformer wraps the whole thing in a getter.
+    CounterCtx.Provider({
+      get value() {
+        return {
+          doubled: count.value * 2,
+          increment,
+        } as unknown as CounterValue;
+      },
+      children: () => {
+        domEffect(() => {
+          const ctx = useContext(CounterCtx)!;
+          observed.push(ctx.doubled);
+        });
+        return null;
+      },
+    });
+
+    expect(observed).toEqual([0]);
+
+    increment();
+    expect(observed).toEqual([0, 2]);
+
+    increment();
+    expect(observed).toEqual([0, 2, 4]);
+  });
+
+  test('JSX pattern: callback pattern still works after lazy wrapping changes', () => {
+    interface SettingsValue {
+      theme: string;
+    }
+    const theme = signal<string>('light');
+    const SettingsCtx = createContext<SettingsValue>();
+    const observed: string[] = [];
+
+    // Callback pattern (not JSX): no getter on props
+    SettingsCtx.Provider({ theme } as unknown as SettingsValue, () => {
+      domEffect(() => {
+        const ctx = useContext(SettingsCtx)!;
+        observed.push(ctx.theme);
+      });
+    });
+
+    expect(observed).toEqual(['light']);
+
+    theme.value = 'dark';
+    expect(observed).toEqual(['light', 'dark']);
   });
 });
