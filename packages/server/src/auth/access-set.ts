@@ -346,7 +346,9 @@ export async function computeAccessSet(config: ComputeAccessSetConfig): Promise<
       if (walletStore && deepestPlan) {
         const deepestSub = await subscriptionStore.get(config.tenantLevel!, tenantId);
         const deepestPlanDef = accessDef.plans?.[deepestPlan];
-        if (deepestSub && deepestPlanDef) {
+        if (deepestPlanDef) {
+          // When no subscription exists (default-plan tenant), use epoch as period anchor
+          const periodAnchor = deepestSub?.startedAt ?? new Date(0);
           const deepestAddOns = await subscriptionStore.getAddOns?.(config.tenantLevel!, tenantId);
           for (const name of Object.keys(accessDef.entitlements)) {
             const limitKeys = accessDef._entitlementToLimitKeys[name];
@@ -367,7 +369,7 @@ export async function computeAccessSet(config: ComputeAccessSetConfig): Promise<
                 }
               }
             }
-            const override = deepestSub.overrides[limitKey];
+            const override = deepestSub?.overrides[limitKey];
             if (override) effectiveMax = Math.max(effectiveMax, override.max);
 
             if (effectiveMax === -1) {
@@ -381,9 +383,9 @@ export async function computeAccessSet(config: ComputeAccessSetConfig): Promise<
               };
             } else {
               const period = limitDef.per
-                ? calculateBillingPeriod(deepestSub.startedAt, limitDef.per)
+                ? calculateBillingPeriod(periodAnchor, limitDef.per)
                 : {
-                    periodStart: deepestSub.startedAt,
+                    periodStart: periodAnchor,
                     periodEnd: new Date('9999-12-31T23:59:59Z'),
                   };
               const consumed = await walletStore.getConsumption(

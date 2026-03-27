@@ -1103,4 +1103,138 @@ describe('Feature: Multi-level computeAccessSet (#1787)', () => {
       expect(decoded.plans).toEqual({ account: 'enterprise', project: 'pro' });
     });
   });
+
+  describe('Given default-plan tenants with limits and no subscription (#1830)', () => {
+    const limitAccessDef = defineAccess({
+      entities: {
+        account: { roles: ['owner'] },
+        project: {
+          roles: ['editor', 'viewer'],
+          inherits: { 'account:owner': 'editor' },
+        },
+      },
+      entitlements: {
+        'project:create-task': { roles: ['editor'] },
+        'project:view': { roles: ['viewer', 'editor'] },
+      },
+      plans: {
+        starter: {
+          level: 'project',
+          group: 'project-plans',
+          features: ['project:create-task', 'project:view'],
+          limits: {
+            tasks: { max: 50, gates: 'project:create-task', per: 'month' },
+          },
+        },
+      },
+      defaultPlans: {
+        project: 'starter',
+      },
+    });
+
+    it('enriches limit metadata when tenant has no subscription record', async () => {
+      const { roleStore, closureStore, subscriptionStore } = createMultiLevelStores();
+      const walletStore = new InMemoryWalletStore();
+
+      await closureStore.addResource('account', 'acct-1');
+      await closureStore.addResource('project', 'proj-1', {
+        parentType: 'account',
+        parentId: 'acct-1',
+      });
+      await roleStore.assign('user-1', 'account', 'acct-1', 'owner');
+      // NO subscriptionStore.assign() — tenant relies on defaultPlans
+
+      const result = await computeAccessSet({
+        userId: 'user-1',
+        accessDef: limitAccessDef,
+        roleStore,
+        closureStore,
+        subscriptionStore,
+        walletStore,
+        tenantId: 'proj-1',
+        tenantLevel: 'project',
+        ancestorResolver: async (_level, id) => {
+          if (id === 'proj-1') return [{ type: 'account', id: 'acct-1', depth: 1 }];
+          return [];
+        },
+      });
+
+      expect(result.plan).toBe('starter');
+      expect(result.entitlements['project:create-task'].allowed).toBe(true);
+      expect(result.entitlements['project:create-task'].meta?.limit).toBeDefined();
+      expect(result.entitlements['project:create-task'].meta?.limit?.max).toBe(50);
+      expect(result.entitlements['project:create-task'].meta?.limit?.consumed).toBe(0);
+      expect(result.entitlements['project:create-task'].meta?.limit?.remaining).toBe(50);
+    });
+
+    it('tracks consumption for default-plan tenants using epoch-anchored periods', async () => {
+      const { roleStore, closureStore, subscriptionStore } = createMultiLevelStores();
+      const walletStore = new InMemoryWalletStore();
+
+      await closureStore.addResource('account', 'acct-1');
+      await closureStore.addResource('project', 'proj-1', {
+        parentType: 'account',
+        parentId: 'acct-1',
+      });
+      await roleStore.assign('user-1', 'account', 'acct-1', 'owner');
+
+      // Record consumption using epoch-anchored period
+      const { periodStart, periodEnd } = calculateBillingPeriod(new Date(0), 'month');
+      await walletStore.consume('project', 'proj-1', 'tasks', periodStart, periodEnd, 50, 30);
+
+      const result = await computeAccessSet({
+        userId: 'user-1',
+        accessDef: limitAccessDef,
+        roleStore,
+        closureStore,
+        subscriptionStore,
+        walletStore,
+        tenantId: 'proj-1',
+        tenantLevel: 'project',
+        ancestorResolver: async (_level, id) => {
+          if (id === 'proj-1') return [{ type: 'account', id: 'acct-1', depth: 1 }];
+          return [];
+        },
+      });
+
+      expect(result.entitlements['project:create-task'].meta?.limit?.max).toBe(50);
+      expect(result.entitlements['project:create-task'].meta?.limit?.consumed).toBe(30);
+      expect(result.entitlements['project:create-task'].meta?.limit?.remaining).toBe(20);
+    });
+
+    it('denies when limit is reached for default-plan tenants', async () => {
+      const { roleStore, closureStore, subscriptionStore } = createMultiLevelStores();
+      const walletStore = new InMemoryWalletStore();
+
+      await closureStore.addResource('account', 'acct-1');
+      await closureStore.addResource('project', 'proj-1', {
+        parentType: 'account',
+        parentId: 'acct-1',
+      });
+      await roleStore.assign('user-1', 'account', 'acct-1', 'owner');
+
+      // Consume all 50 tasks
+      const { periodStart, periodEnd } = calculateBillingPeriod(new Date(0), 'month');
+      await walletStore.consume('project', 'proj-1', 'tasks', periodStart, periodEnd, 50, 50);
+
+      const result = await computeAccessSet({
+        userId: 'user-1',
+        accessDef: limitAccessDef,
+        roleStore,
+        closureStore,
+        subscriptionStore,
+        walletStore,
+        tenantId: 'proj-1',
+        tenantLevel: 'project',
+        ancestorResolver: async (_level, id) => {
+          if (id === 'proj-1') return [{ type: 'account', id: 'acct-1', depth: 1 }];
+          return [];
+        },
+      });
+
+      expect(result.entitlements['project:create-task'].allowed).toBe(false);
+      expect(result.entitlements['project:create-task'].reasons).toContain('limit_reached');
+      expect(result.entitlements['project:create-task'].meta?.limit?.remaining).toBe(0);
+    });
+  });
 });
