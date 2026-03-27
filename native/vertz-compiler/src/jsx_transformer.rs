@@ -745,11 +745,7 @@ fn extract_callback_locals(stmts: &[Statement]) -> Vec<(String, u32, u32)> {
                 for declarator in &var_decl.declarations {
                     if let BindingPattern::BindingIdentifier(id) = &declarator.id {
                         if let Some(ref init) = declarator.init {
-                            locals.push((
-                                id.name.to_string(),
-                                init.span().start,
-                                init.span().end,
-                            ));
+                            locals.push((id.name.to_string(), init.span().start, init.span().end));
                         }
                     }
                 }
@@ -792,9 +788,7 @@ fn classify_inner_expression(expr: &Expression) -> ExprKind {
                 right_is_jsx,
             }
         }
-        Expression::CallExpression(call) => {
-            classify_map_call(call).unwrap_or(ExprKind::Normal)
-        }
+        Expression::CallExpression(call) => classify_map_call(call).unwrap_or(ExprKind::Normal),
         Expression::ChainExpression(chain) => {
             // Handle optional chaining: projects.data?.items.map(...)
             if let ChainElement::CallExpression(call) = &chain.expression {
@@ -1087,7 +1081,15 @@ fn transform_child_as_value(
                     let body_jsx =
                         find_jsx_in_span(program, *callback_body_start, *callback_body_end);
                     if let Some(jsx) = body_jsx {
-                        let jsx_code = transform_jsx_node(ms, program, jsx.start, jsx.end, &jsx.kind, &extended_rx, counter);
+                        let jsx_code = transform_jsx_node(
+                            ms,
+                            program,
+                            jsx.start,
+                            jsx.end,
+                            &jsx.kind,
+                            &extended_rx,
+                            counter,
+                        );
                         // For block body callbacks, include full body with pre-return code
                         if !callback_locals.is_empty() {
                             let before = ms.get_transformed_slice(*callback_body_start, jsx.start);
@@ -1359,7 +1361,15 @@ fn transform_child(
                     let body_jsx =
                         find_jsx_in_span(program, *callback_body_start, *callback_body_end);
                     if let Some(jsx) = body_jsx {
-                        let jsx_code = transform_jsx_node(ms, program, jsx.start, jsx.end, &jsx.kind, &extended_rx, counter);
+                        let jsx_code = transform_jsx_node(
+                            ms,
+                            program,
+                            jsx.start,
+                            jsx.end,
+                            &jsx.kind,
+                            &extended_rx,
+                            counter,
+                        );
                         // For block body callbacks, include full body with pre-return code
                         if !callback_locals.is_empty() {
                             let before = ms.get_transformed_slice(*callback_body_start, jsx.start);
@@ -1425,10 +1435,8 @@ fn transform_conditional_code(
             false_end,
             false_is_jsx,
         } => {
-            let cond_text = apply_inline_subs(
-                &ms.get_transformed_slice(*cond_start, *cond_end),
-                rx,
-            );
+            let cond_text =
+                apply_inline_subs(&ms.get_transformed_slice(*cond_start, *cond_end), rx);
             let true_branch = transform_branch(
                 ms,
                 program,
@@ -1459,10 +1467,8 @@ fn transform_conditional_code(
             right_end,
             right_is_jsx,
         } => {
-            let cond_text = apply_inline_subs(
-                &ms.get_transformed_slice(*left_start, *left_end),
-                rx,
-            );
+            let cond_text =
+                apply_inline_subs(&ms.get_transformed_slice(*left_start, *left_end), rx);
             let true_branch = transform_branch(
                 ms,
                 program,
@@ -1527,7 +1533,11 @@ struct ConditionalSpanInfo {
     false_is_jsx: bool,
 }
 
-fn find_conditional_in_span(program: &Program, start: u32, end: u32) -> Option<ConditionalSpanInfo> {
+fn find_conditional_in_span(
+    program: &Program,
+    start: u32,
+    end: u32,
+) -> Option<ConditionalSpanInfo> {
     let mut finder = ConditionalSpanFinder {
         target_start: start,
         target_end: end,
