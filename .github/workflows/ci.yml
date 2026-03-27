@@ -118,7 +118,8 @@ jobs:
 
       - name: CI pipeline
         env:
-          TURBO_CONCURRENCY: 2
+          TURBO_CONCURRENCY: 1
+          NODE_OPTIONS: --max-old-space-size=6144
         run: |
           if [ "${{ github.event_name }}" = "push" ]; then
             bun run ci
