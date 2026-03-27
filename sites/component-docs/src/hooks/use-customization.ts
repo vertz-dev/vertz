@@ -247,22 +247,18 @@ export function generateConfig(state: CustomizationState): string {
   if (state.palette !== 'zinc') configParts.push(`  palette: '${state.palette}',`);
   if (state.radius !== 'md') configParts.push(`  radius: '${state.radius}',`);
 
-  // Build overrides block for accent colors
+  // Build colors block for accent overrides
   if (state.accent !== 'default') {
     const preset = ACCENT_PRESETS[state.accent];
-    const overrideLines: string[] = [];
-    overrideLines.push('  overrides: {');
-    overrideLines.push('    tokens: {');
-    overrideLines.push('      colors: {');
+    const colorLines: string[] = [];
+    colorLines.push('  colors: {');
     for (const [name, variants] of Object.entries(preset.tokens)) {
-      overrideLines.push(
-        `        '${name}': { DEFAULT: '${variants.DEFAULT}', _dark: '${variants._dark}' },`,
+      colorLines.push(
+        `    '${name}': { DEFAULT: '${variants.DEFAULT}', _dark: '${variants._dark}' },`,
       );
     }
-    overrideLines.push('      },');
-    overrideLines.push('    },');
-    overrideLines.push('  },');
-    configParts.push(...overrideLines);
+    colorLines.push('  },');
+    configParts.push(...colorLines);
   }
 
   const configArg = configParts.length > 0 ? `{\n${configParts.join('\n')}\n}` : '';

@@ -506,7 +506,7 @@ export interface ResolvedTheme extends ResolvedThemeBase {
 /**
  * Configure the shadcn theme.
  *
- * Single entry point — selects palette, applies overrides, builds globals, styles, and components.
+ * Single entry point — selects palette, applies color overrides, builds globals, styles, and components.
  *
  * For a lightweight alternative that only returns `{ theme, globals }` without
  * component styles, use `configureThemeBase()` from `@vertz/theme-shadcn/base`.

@@ -33,18 +33,24 @@ describe('configureTheme', () => {
     expect(zincCss).not.toBe(slateCss);
   });
 
-  it('token overrides appear in compiled CSS', () => {
+  it('flat colors key overrides appear in compiled CSS', () => {
     const { theme } = configureTheme({
-      overrides: {
-        tokens: {
-          colors: {
-            primary: { DEFAULT: '#7c3aed' },
-          },
-        },
+      colors: {
+        primary: { DEFAULT: '#7c3aed' },
       },
     });
     const compiled = compileTheme(theme);
     expect(compiled.css).toContain('#7c3aed');
+  });
+
+  it('flat colors key adds custom tokens to compiled CSS', () => {
+    const { theme } = configureTheme({
+      colors: {
+        'brand-accent': { DEFAULT: '#ff6b6b', _dark: '#ee5a5a' },
+      },
+    });
+    const compiled = compileTheme(theme);
+    expect(compiled.css).toContain('#ff6b6b');
   });
 
   it('globals contains CSS string', () => {

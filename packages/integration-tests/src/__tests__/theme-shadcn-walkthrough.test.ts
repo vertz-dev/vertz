@@ -46,29 +46,21 @@ describe('Theme Shadcn Walkthrough', () => {
 
   // ── Token overrides ──────────────────────────────────────────
 
-  it('token overrides are reflected in compiled CSS', () => {
+  it('color overrides are reflected in compiled CSS', () => {
     const { theme } = configureTheme({
       palette: 'zinc',
-      overrides: {
-        tokens: {
-          colors: {
-            primary: { DEFAULT: '#7c3aed', _dark: '#8b5cf6' },
-          },
-        },
+      colors: {
+        primary: { DEFAULT: '#7c3aed', _dark: '#8b5cf6' },
       },
     });
     const compiled = compileTheme(theme);
     expect(compiled.css).toContain('#7c3aed');
   });
 
-  it('token overrides can add new tokens', () => {
+  it('color overrides can add new tokens', () => {
     const { theme } = configureTheme({
-      overrides: {
-        tokens: {
-          colors: {
-            'brand-accent': { DEFAULT: '#ff6b6b', _dark: '#ee5a5a' },
-          },
-        },
+      colors: {
+        'brand-accent': { DEFAULT: '#ff6b6b', _dark: '#ee5a5a' },
       },
     });
     const compiled = compileTheme(theme);

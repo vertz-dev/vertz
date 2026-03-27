@@ -24,12 +24,11 @@ export interface ThemeConfig {
   radius?: 'sm' | 'md' | 'lg';
   /** Visual style preset. Default: 'nova'. */
   style?: ThemeStyle;
-  /** Token overrides — deep-merged into the selected palette. */
-  overrides?: {
-    tokens?: {
-      colors?: Record<string, Record<string, string> | undefined>;
-    };
-  };
+  /**
+   * Color token overrides — deep-merged into the selected palette.
+   * @example colors: { primary: { DEFAULT: 'oklch(0.55 0.2 260)', _dark: 'oklch(0.65 0.25 260)' } }
+   */
+  colors?: Record<string, Record<string, string> | undefined>;
 }
 
 /** Return type of configureThemeBase(). */
@@ -64,8 +63,8 @@ export function configureThemeBase(config?: ThemeConfig): ResolvedThemeBase {
   const radius = config?.radius ?? 'md';
   const baseTokens = palettes[palette];
 
-  // Apply token overrides
-  const colorOverrides = config?.overrides?.tokens?.colors ?? {};
+  // Apply color overrides
+  const colorOverrides = config?.colors ?? {};
   const mergedTokens: PaletteTokens = deepMergeTokens(baseTokens, colorOverrides);
 
   // Build theme via defineTheme()
