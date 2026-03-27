@@ -334,6 +334,12 @@ describe('Feature: Entity-centric defineAccess()', () => {
       // Also verify the simple case — roles-only entitlement
       const viewEnt = config.entitlements['workspace:view'];
       expect(Object.isFrozen(viewEnt.roles)).toBe(true);
+      // Empty roles array is still frozen
+      const emptyConfig = defineAccess({
+        entities: { workspace: { roles: ['admin'] } },
+        entitlements: { 'workspace:manage': { roles: [] } },
+      });
+      expect(Object.isFrozen(emptyConfig.entitlements['workspace:manage'].roles)).toBe(true);
     });
 
     it('freezes entities config', () => {
