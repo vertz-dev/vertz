@@ -17,7 +17,12 @@ import {
   dbStatusAction,
 } from './commands/db';
 import { devAction } from './commands/dev';
-import { docsBuildCommand, docsDevCommand, docsInitCommand } from './commands/docs';
+import {
+  docsBuildCommand,
+  docsCheckCommand,
+  docsDevCommand,
+  docsInitCommand,
+} from './commands/docs';
 import { generateAction } from './commands/generate';
 import { loadDbContext, loadIntrospectContext } from './commands/load-db-context';
 import { startAction } from './commands/start';
@@ -497,6 +502,18 @@ export function createCLI(): Command {
         port: parseInt(opts.port, 10),
         host: opts.host,
       });
+      if (!result.ok) {
+        console.error(result.error.message);
+        process.exit(1);
+      }
+    });
+
+  docsCommand
+    .command('check')
+    .description('Validate docs site configuration and content integrity')
+    .option('-d, --dir <dir>', 'Docs project directory', '.')
+    .action(async (opts) => {
+      const result = await docsCheckCommand({ dir: opts.dir });
       if (!result.ok) {
         console.error(result.error.message);
         process.exit(1);

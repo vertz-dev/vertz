@@ -1,5 +1,12 @@
-export type { DocsBuildOptions, DocsDevOptions, DocsInitOptions } from './cli/actions';
-export { docsBuildAction, docsDevAction, docsInitAction } from './cli/actions';
+export type {
+  DocsBuildOptions,
+  DocsCheckOptions,
+  DocsDevOptions,
+  DocsInitOptions,
+} from './cli/actions';
+export { docsBuildAction, docsCheckAction, docsDevAction, docsInitAction } from './cli/actions';
+export type { DocsCheckDiagnostic, DocsCheckResult } from './validate/docs-check';
+export { validateDocs } from './validate/docs-check';
 export { initDocs } from './cli/init';
 export { defineDocsConfig } from './config/define';
 export { loadDocsConfig } from './config/load';
