@@ -77,11 +77,7 @@ pub fn analyze_reactivity<'a>(
     let var_metas = collect_variables(program, component, import_ctx);
 
     // Build set of destructured prop names for reactivity classification
-    let prop_names: HashSet<String> = component
-        .destructured_prop_names
-        .iter()
-        .cloned()
-        .collect();
+    let prop_names: HashSet<String> = component.destructured_prop_names.iter().cloned().collect();
 
     // Phase 2: Classify based on JSX reachability
     classify_variables(program, component, var_metas, import_ctx, &prop_names)
