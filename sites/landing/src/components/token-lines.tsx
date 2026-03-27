@@ -1,9 +1,5 @@
 import { css } from '@vertz/ui';
-import type { HintedToken, Token, TokenLine } from './highlighted-code';
-
-function hasHint(token: Token): token is HintedToken {
-  return token.length > 2;
-}
+import type { TokenLine } from './highlighted-code';
 
 const s = css({
   pre: ['m:0'],
@@ -16,14 +12,7 @@ export function TokenLines({ lines }: { lines: TokenLine[] }) {
         {lines.map((line) => (
           <span key={line.map((t) => t[1]).join('')}>
             {line.map((token) => (
-              <span
-                key={token[1]}
-                style={
-                  hasHint(token)
-                    ? `${token[0]}; text-decoration: underline dashed; text-decoration-color: #52525b; text-underline-offset: 3px`
-                    : token[0]
-                }
-              >
+              <span key={token[1]} style={token[0]}>
                 {token[1]}
               </span>
             ))}

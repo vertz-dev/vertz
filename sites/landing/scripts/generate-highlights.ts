@@ -106,18 +106,19 @@ export const todosModel = d.model(todos, {
 });`;
 
 const CODE_ENTITY = `import { entity } from '@vertz/server';
+import { rules } from '@vertz/auth/rules';
 import { todosModel } from './schema';
 
 export const todos = entity('todos', {
   model: todosModel,
   access: {
-    list:   (ctx) => ctx.authenticated(),
-    create: (ctx) => ctx.authenticated(),
-    update: (ctx, row) => ctx.userId === row.userId,
-    delete: (ctx, row) => ctx.userId === row.userId,
-  },
-  before: {
-    create: (data, ctx) => ({ ...data, userId: ctx.userId }),
+    list:   rules.authenticated(),
+    create: rules.authenticated(),
+    update: rules.all(
+      rules.entitlement('todo:update'),
+      rules.where({ userId: rules.user.id }),
+    ),
+    delete: rules.entitlement('todo:delete'),
   },
 });
 // GET  /api/todos     — auto-generated
@@ -170,99 +171,9 @@ const CODE_ERROR_API = `api.todos.create({ title: 'Buy milk' });`;
 
 const CODE_ERROR_UI_RENDER = `<li>{t.title}</li>`;
 
-// ---------- type hint definitions ----------
-// Each hint maps: line (0-based) + token content → TypeScript type signature
-
-interface HintDef {
-  line: number;
-  match: string;
-  hint: string;
-}
-
-const HINTS_COUNTER: HintDef[] = [
-  { line: 2, match: 'css', hint: 'function css(config: CSSConfig): Record<string, string>' },
-  { line: 7, match: 'count', hint: 'let count: number  // reactive signal' },
-];
-
-const HINTS_PROFILE: HintDef[] = [
-  {
-    line: 4,
-    match: 'query',
-    hint: 'function query<T>(\n  thenable: Promise<T>\n): QueryResult<T>',
-  },
-  {
-    line: 4,
-    match: '{data, error, loading}',
-    hint: 'const data: User\nconst error: Error | null\nconst loading: boolean',
-  },
-];
-
-const HINTS_FORM: HintDef[] = [
-  {
-    line: 3,
-    match: 'form',
-    hint: 'function form<T>(\n  action: Action<T>,\n  opts?: FormOptions\n): FormState<T>',
-  },
-  { line: 3, match: 'loginForm', hint: 'const loginForm: FormState<LoginResponse>' },
-];
-
-const HINTS_CSS: HintDef[] = [
-  {
-    line: 2,
-    match: 'variants',
-    hint: 'function variants(config: VariantsConfig): (\n  props: { intent: "primary" | "ghost"; size: "sm" | "md" }\n) => string',
-  },
-];
-
-const HINTS_SCHEMA: HintDef[] = [
-  {
-    line: 2,
-    match: 'd',
-    hint: 'import d from "@vertz/db"  // schema builder',
-  },
-  {
-    line: 16,
-    match: 'one',
-    hint: 'd.ref.one(() => targetTable, foreignKey)\n// todos.userId → users.id',
-  },
-  { line: 15, match: 'todosModel', hint: 'const todosModel: Model<TodosTable>' },
-];
-
-const HINTS_ENTITY: HintDef[] = [
-  {
-    line: 3,
-    match: 'entity',
-    hint: 'function entity<T>(name: string, config: EntityConfig<T>): Entity<T>',
-  },
-  {
-    line: 6,
-    match: 'authenticated',
-    hint: 'ctx.authenticated(): boolean\n// Returns true if the request has a valid session.',
-  },
-  {
-    line: 8,
-    match: 'userId',
-    hint: "ctx.userId: string | null\n// The authenticated user's ID.\n// Row-level ownership check.",
-  },
-  {
-    line: 12,
-    match: 'create',
-    hint: 'before.create(data, ctx) => data\n// Stamps the current userId onto new rows.',
-  },
-];
-
-const HINTS_UI_FLOW: HintDef[] = [
-  {
-    line: 4,
-    match: 'query',
-    hint: 'function query<T>(\n  thenable: Promise<T>\n): QueryResult<T>',
-  },
-  {
-    line: 5,
-    match: 'form',
-    hint: 'function form<T>(\n  action: Action<T>,\n  opts?: FormOptions\n): FormState<T>',
-  },
-];
+// ---------- type hints removed ----------
+// Hints added unnecessary complexity (dashed underlines + tooltips) that didn't
+// land well visually. All snippets now use plain tokens only.
 
 // ---------- font style bitmask → CSS ----------
 
@@ -314,76 +225,27 @@ async function main() {
     );
   }
 
-  function highlightHint(hint: string): CompactToken[][] {
-    return highlightCode(hint);
-  }
-
-  function applyHints(lines: CompactToken[][], hints: HintDef[]): TokenLine[] {
-    // Index hints by line for fast lookup
-    const hintsByLine = new Map<number, HintDef[]>();
-    for (const h of hints) {
-      const existing = hintsByLine.get(h.line) ?? [];
-      existing.push(h);
-      hintsByLine.set(h.line, existing);
-    }
-
-    return lines.map((line, lineIdx): TokenLine => {
-      const lineHints = hintsByLine.get(lineIdx);
-      if (!lineHints) return line;
-
-      return line.map((token): Token => {
-        const content = token[1].trim();
-        const match = lineHints.find((h) => h.match === content);
-        if (!match) return token;
-
-        const hintTokens = highlightHint(match.hint);
-        return [token[0], token[1], hintTokens];
-      });
-    });
-  }
-
-  const counterLines = highlightCode(CODE_COUNTER);
-  const profileLines = highlightCode(CODE_PROFILE);
-  const formLines = highlightCode(CODE_FORM);
-  const cssLines = highlightCode(CODE_CSS);
-  const schemaLines = highlightCode(CODE_SCHEMA);
-  const entityLines = highlightCode(CODE_ENTITY);
-  const uiFlowLines = highlightCode(CODE_UI_FLOW);
-  const glueSchemaLines = highlightCode(CODE_GLUE_SCHEMA);
-  const glueUiLines = highlightCode(CODE_GLUE_UI);
-  const diffSchemaLines = highlightCode(CODE_DIFF_SCHEMA);
-  const errorApiLines = highlightCode(CODE_ERROR_API);
-  const errorUiRenderLines = highlightCode(CODE_ERROR_UI_RENDER);
-
   const data = {
-    counter: applyHints(counterLines, HINTS_COUNTER),
-    profile: applyHints(profileLines, HINTS_PROFILE),
-    form: applyHints(formLines, HINTS_FORM),
-    css: applyHints(cssLines, HINTS_CSS),
-    schema: applyHints(schemaLines, HINTS_SCHEMA),
-    entity: applyHints(entityLines, HINTS_ENTITY),
-    uiFlow: applyHints(uiFlowLines, HINTS_UI_FLOW),
-    glueSchema: glueSchemaLines,
-    glueUi: glueUiLines,
-    diffSchema: diffSchemaLines,
-    errorApi: errorApiLines,
-    errorUiRender: errorUiRenderLines,
+    counter: highlightCode(CODE_COUNTER),
+    profile: highlightCode(CODE_PROFILE),
+    form: highlightCode(CODE_FORM),
+    css: highlightCode(CODE_CSS),
+    schema: highlightCode(CODE_SCHEMA),
+    entity: highlightCode(CODE_ENTITY),
+    uiFlow: highlightCode(CODE_UI_FLOW),
+    glueSchema: highlightCode(CODE_GLUE_SCHEMA),
+    glueUi: highlightCode(CODE_GLUE_UI),
+    diffSchema: highlightCode(CODE_DIFF_SCHEMA),
+    errorApi: highlightCode(CODE_ERROR_API),
+    errorUiRender: highlightCode(CODE_ERROR_UI_RENDER),
   };
 
   const output = `// AUTO-GENERATED by scripts/generate-highlights.ts — do not edit manually.
 // Re-generate: bun sites/landing/scripts/generate-highlights.ts
 
-/**
- * Token format:
- *   [style, content]              — plain token
- *   [style, content, hintLines]   — token with type-hint tooltip
- *
- * hintLines: [style, content][][] — Shiki-highlighted type hint (lines of tokens).
- */
+/** Token format: [style, content] */
 
-export type CompactToken = [string, string];
-export type HintedToken = [string, string, CompactToken[][]];
-export type Token = CompactToken | HintedToken;
+export type Token = [string, string];
 export type TokenLine = Token[];
 
 export const TOKENS_COUNTER: TokenLine[] = ${JSON.stringify(data.counter)};
