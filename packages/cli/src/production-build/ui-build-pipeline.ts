@@ -62,6 +62,47 @@ export interface UIBuildResult {
 }
 
 /**
+ * Bun plugin that stubs out React JSX runtime imports for AOT bundling.
+ *
+ * Compiled AOT files (.tsx) contain preserved JSX from the original source.
+ * Bun's bundler auto-inserts `import { jsxDEV } from "react/jsx-dev-runtime"`
+ * for .tsx files. Since the barrel only re-exports __ssr_* functions (pure
+ * string concat), tree-shaking removes the JSX components, but the import
+ * persists if marked external — causing runtime failures when React is not
+ * installed. This plugin provides an empty stub so the import resolves inline
+ * and gets eliminated by tree-shaking.
+ *
+ * See: https://github.com/vertz-dev/vertz/issues/1935
+ */
+export const aotJsxStubPlugin: {
+  name: string;
+  setup(build: {
+    onResolve(
+      opts: { filter: RegExp },
+      cb: (args: { path: string }) => { namespace: string; path: string } | undefined,
+    ): void;
+    onLoad(
+      opts: { filter: RegExp; namespace: string },
+      cb: (args: { path: string }) => { contents: string; loader: string },
+    ): void;
+  }): void;
+} = {
+  name: 'aot-jsx-stub',
+  setup(build) {
+    build.onResolve({ filter: /^react\/(jsx-dev-runtime|jsx-runtime)$/ }, () => {
+      return { namespace: 'aot-jsx-stub', path: 'stub' };
+    });
+    build.onLoad({ filter: /.*/, namespace: 'aot-jsx-stub' }, () => {
+      return {
+        contents:
+          'export function jsxDEV() {} export function jsx() {} export function jsxs() {} export const Fragment = Symbol("Fragment");',
+        loader: 'js',
+      };
+    });
+  },
+};
+
+/**
  * Build a UI app for production.
  */
 export async function buildUI(config: UIBuildConfig): Promise<UIBuildResult> {
@@ -323,13 +364,7 @@ ${modulepreloadLinks}
               const barrelPath = resolve(aotTmpDir, 'aot-barrel.ts');
               writeFileSync(barrelPath, barrel.barrelSource);
 
-              // Bundle into aot-routes.js
-              // Externalize JSX runtime because compiled files contain original
-              // source (with JSX) alongside the generated __ssr_* functions.
-              // The barrel re-exports only __ssr_* fns; tree-shaking removes
-              // the JSX components but the bundler still needs to resolve imports.
-              //
-              // Relative imports (../lib/db, ./utils) must also be externalized
+              // Relative imports (../lib/db, ./utils) must be externalized
               // because compiled files are copied to .aot-tmp/ where relative
               // paths no longer resolve. The barrel's own ./imports to temp files
               // are excluded so they still resolve within .aot-tmp/.
@@ -338,9 +373,10 @@ ${modulepreloadLinks}
                 setup(build: {
                   onResolve(
                     opts: { filter: RegExp },
-                    cb: (args: { path: string; importer: string }) =>
-                      | { path: string; external: true }
-                      | undefined,
+                    cb: (args: {
+                      path: string;
+                      importer: string;
+                    }) => { path: string; external: true } | undefined,
                   ): void;
                 }) {
                   build.onResolve({ filter: /^\.\.?\// }, (args) => {
@@ -352,19 +388,12 @@ ${modulepreloadLinks}
 
               const bundleResult = await Bun.build({
                 entrypoints: [barrelPath],
-                plugins: [externalizeRelativePlugin],
+                plugins: [externalizeRelativePlugin, aotJsxStubPlugin],
                 target: 'bun',
                 format: 'esm',
                 outdir: distServer,
                 naming: 'aot-routes.[ext]',
-                external: [
-                  '@vertz/ui-server',
-                  '@vertz/ui',
-                  '@vertz/ui/internals',
-                  'react',
-                  'react/jsx-dev-runtime',
-                  'react/jsx-runtime',
-                ],
+                external: ['@vertz/ui-server', '@vertz/ui', '@vertz/ui/internals'],
               });
 
               // Clean up temp dir
