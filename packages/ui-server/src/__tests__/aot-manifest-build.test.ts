@@ -374,7 +374,7 @@ describe('generateAotBarrel', () => {
         // Should have a temp file with the compiled code
         const fileKeys = Object.keys(result.files);
         expect(fileKeys).toHaveLength(1);
-        expect(fileKeys[0]).toMatch(/^__aot_\d+_home\.tsx$/);
+        expect(fileKeys[0]).toMatch(/^__aot_\d+_home\.ts$/);
         const firstKey = fileKeys[0];
         expect(firstKey).toBeDefined();
         expect(result.files[firstKey as string]).toContain('__ssr_HomePage');
@@ -529,6 +529,76 @@ describe('generateAotBarrel', () => {
         expect(result.barrelSource).toContain('__ssr_App');
         expect(result.barrelSource).toContain('__ssr_HomePage');
       });
+    });
+  });
+
+  describe('Barrel files exclude original source side effects (#1982)', () => {
+    it('Then compiled files contain only __ssr_* functions, not original imports/code', () => {
+      const compiledFiles: Record<string, AotCompiledFile> = {
+        'app.tsx': {
+          code: [
+            'import { RouterView, createRouter } from "@vertz/ui";',
+            'import { routes } from "./router";',
+            'var router = createRouter(routes);',
+            'function App() { return <div><RouterView router={router} /></div>; }',
+            'export function __ssr_App(data, ctx) { return "<div>" + ctx.holes.RouterView() + "</div>"; }',
+          ].join('\n'),
+          components: [
+            { name: 'App', tier: 'data-driven', holes: ['RouterView'], queryKeys: [] },
+          ],
+        },
+      };
+      const routeMap: Record<string, AotRouteMapEntry> = {};
+      const appEntry: AotRouteMapEntry = {
+        renderFn: '__ssr_App',
+        holes: ['RouterView'],
+        queryKeys: [],
+      };
+
+      const result = generateAotBarrel(compiledFiles, routeMap, appEntry);
+      const fileKeys = Object.keys(result.files);
+      const appFile = result.files[fileKeys[0]!]!;
+
+      // Should contain the __ssr_App function
+      expect(appFile).toContain('__ssr_App');
+      // Should NOT contain original imports or side effects
+      expect(appFile).not.toContain('import { RouterView');
+      expect(appFile).not.toContain('import { routes }');
+      expect(appFile).not.toContain('createRouter');
+      expect(appFile).not.toContain('var router');
+    });
+
+    it('Then compiled files with multiple __ssr_* functions extract all of them', () => {
+      const compiledFiles: Record<string, AotCompiledFile> = {
+        'pages.tsx': {
+          code: [
+            'import { query } from "@vertz/ui";',
+            'function HomePage() { const tasks = query(() => fetch("/api")); return <div>{tasks.data}</div>; }',
+            'function AboutPage() { return <div>About</div>; }',
+            'export function __ssr_HomePage(data, ctx) { return "<div>" + __esc(ctx.getData("tasks-list")) + "</div>"; }',
+            'export function __ssr_AboutPage() { return "<div>About</div>"; }',
+          ].join('\n'),
+          components: [
+            { name: 'HomePage', tier: 'data-driven', holes: [], queryKeys: ['tasks-list'] },
+            { name: 'AboutPage', tier: 'static', holes: [], queryKeys: [] },
+          ],
+        },
+      };
+      const routeMap: Record<string, AotRouteMapEntry> = {
+        '/': { renderFn: '__ssr_HomePage', holes: [], queryKeys: ['tasks-list'] },
+        '/about': { renderFn: '__ssr_AboutPage', holes: [], queryKeys: [] },
+      };
+
+      const result = generateAotBarrel(compiledFiles, routeMap);
+      const fileKeys = Object.keys(result.files);
+      const pagesFile = result.files[fileKeys[0]!]!;
+
+      // Both functions extracted
+      expect(pagesFile).toContain('__ssr_HomePage');
+      expect(pagesFile).toContain('__ssr_AboutPage');
+      // Original source excluded
+      expect(pagesFile).not.toContain('import { query }');
+      expect(pagesFile).not.toContain('function HomePage()');
     });
   });
 });

@@ -213,15 +213,16 @@ export function generateAotBarrel(
     const moduleRef = `./${tempFileName}`;
     lines.push(`export { ${fns.sort().join(', ')} } from '${moduleRef}';`);
 
-    // Map the temp filename to the compiled source code.
-    // Use .tsx extension because compiled code includes the original source (with JSX)
-    // alongside the generated __ssr_* functions.
-    // Each file needs its own helper import — the barrel's import doesn't flow into re-exported modules.
+    // Extract only the __ssr_* functions from compiled code — NOT the original source.
+    // The original source has imports and side effects (createRouter, themeGlobals, etc.)
+    // that would pull entire dependency graphs into the barrel bundle (#1982).
+    // Use .ts extension — extracted functions are pure string concatenation, no JSX.
     const compiled = compiledFiles[filePath];
     if (compiled) {
       const helperImport =
         "import { __esc, __esc_attr, __ssr_spread, __ssr_style_object } from '@vertz/ui-server';\n";
-      files[`${tempFileName}.tsx`] = helperImport + compiled.code;
+      const extracted = extractSsrFunctions(compiled.code, fns);
+      files[`${tempFileName}.ts`] = helperImport + extracted;
     }
 
     fileIndex++;
@@ -231,6 +232,41 @@ export function generateAotBarrel(
     barrelSource: lines.join('\n'),
     files,
   };
+}
+
+/**
+ * Extract only the named `__ssr_*` function declarations from compiled source code.
+ *
+ * The AOT compiler appends `export function __ssr_Name(...) { ... }` to the
+ * original source. We extract ONLY these functions to avoid pulling in the
+ * original imports and side effects (createRouter, themeGlobals, etc.) that
+ * would bloat the bundle (#1982).
+ */
+export function extractSsrFunctions(code: string, fnNames: string[]): string {
+  const extracted: string[] = [];
+
+  for (const fnName of fnNames) {
+    // Find `export function __ssr_Name(` in the source
+    const marker = `export function ${fnName}(`;
+    const startIdx = code.indexOf(marker);
+    if (startIdx === -1) continue;
+
+    // Walk forward from the opening `{` counting braces to find the function end
+    const bodyStart = code.indexOf('{', startIdx + marker.length);
+    if (bodyStart === -1) continue;
+
+    let depth = 1;
+    let i = bodyStart + 1;
+    while (i < code.length && depth > 0) {
+      if (code[i] === '{') depth++;
+      else if (code[i] === '}') depth--;
+      i++;
+    }
+
+    extracted.push(code.slice(startIdx, i));
+  }
+
+  return extracted.join('\n');
 }
 
 /**
