@@ -105,15 +105,16 @@ describe('createRouter', () => {
     const routes = defineRoutes({
       '/data': { component: () => document.createElement('div'), loader },
     });
+    window.history.replaceState(null, '', '/data');
     const router = createRouter(routes, '/data');
 
     // Wait for initial load
-    await router.navigate({ to: '/data' });
-    expect(callCount).toBe(2); // initial + navigate
+    await new Promise((r) => setTimeout(r, 10));
+    expect(callCount).toBe(1); // initial load
     const firstData = router.loaderData.value;
 
     await router.revalidate();
-    expect(callCount).toBe(3);
+    expect(callCount).toBe(2);
     expect(router.loaderData.value).not.toBe(firstData);
   });
 
@@ -178,10 +179,14 @@ describe('createRouter', () => {
     await router.navigate({ to: '/data' });
     loader.mockClear();
 
-    // Simulate back to /, then forward to /data
+    // Simulate back to / (different pathname)
+    window.history.replaceState(null, '', '/');
+    window.dispatchEvent(new PopStateEvent('popstate'));
+    await new Promise((r) => setTimeout(r, 10));
+
+    // Forward to /data — loaders should run since pathname changed
     window.history.replaceState(null, '', '/data');
     window.dispatchEvent(new PopStateEvent('popstate'));
-
     await new Promise((r) => setTimeout(r, 10));
 
     expect(loader).toHaveBeenCalled();
@@ -1419,5 +1424,187 @@ describe('createRouter viewTransition', () => {
     await new Promise((r) => setTimeout(r, 50));
 
     expect(mockStartVT).toHaveBeenCalled();
+  });
+});
+
+// ─── Popstate search-param-only optimization ──────────────────
+describe('popstate search-param-only optimization', () => {
+  beforeEach(() => {
+    window.history.replaceState(null, '', '/');
+  });
+
+  test('popstate with same pathname but different search params skips prefetch', async () => {
+    const routes = defineRoutes({
+      '/': { component: () => document.createElement('div') },
+    });
+    const mockPrefetch = vi.fn(() => ({ abort: () => {} }));
+    const router = createRouter(routes, '/', {
+      serverNav: true,
+      _prefetchNavData: mockPrefetch,
+    });
+
+    // Navigate to /?page=2
+    await router.navigate({ to: '/?page=2' });
+    mockPrefetch.mockClear();
+
+    // Simulate popstate back to /?page=1 (same pathname, different search)
+    window.history.replaceState(null, '', '/?page=1');
+    window.dispatchEvent(new PopStateEvent('popstate'));
+    await new Promise((r) => setTimeout(r, 10));
+
+    expect(mockPrefetch).not.toHaveBeenCalled();
+    router.dispose();
+  });
+
+  test('popstate with search params removed entirely skips prefetch', async () => {
+    const routes = defineRoutes({
+      '/tasks': { component: () => document.createElement('div') },
+    });
+    const mockPrefetch = vi.fn(() => ({ abort: () => {} }));
+    const router = createRouter(routes, '/tasks', {
+      serverNav: true,
+      _prefetchNavData: mockPrefetch,
+    });
+
+    // Navigate to /tasks?q=foo
+    await router.navigate({ to: '/tasks?q=foo' });
+    mockPrefetch.mockClear();
+
+    // Simulate popstate back to /tasks (params removed entirely)
+    window.history.replaceState(null, '', '/tasks');
+    window.dispatchEvent(new PopStateEvent('popstate'));
+    await new Promise((r) => setTimeout(r, 10));
+
+    expect(mockPrefetch).not.toHaveBeenCalled();
+    router.dispose();
+  });
+
+  test('popstate with different pathname runs full pipeline', async () => {
+    const loader = vi.fn().mockResolvedValue({ items: [] });
+    const routes = defineRoutes({
+      '/tasks': { component: () => document.createElement('div') },
+      '/settings': { component: () => document.createElement('div'), loader },
+    });
+    const mockPrefetch = vi.fn(() => ({ abort: () => {} }));
+    const router = createRouter(routes, '/tasks', {
+      serverNav: true,
+      _prefetchNavData: mockPrefetch,
+    });
+
+    // Navigate to /settings
+    await router.navigate({ to: '/settings' });
+    mockPrefetch.mockClear();
+    loader.mockClear();
+
+    // Simulate popstate back to /tasks (different pathname)
+    window.history.replaceState(null, '', '/tasks');
+    window.dispatchEvent(new PopStateEvent('popstate'));
+    await new Promise((r) => setTimeout(r, 10));
+
+    expect(mockPrefetch).toHaveBeenCalled();
+    router.dispose();
+  });
+
+  test('popstate with different path param runs full pipeline', async () => {
+    const loader = vi.fn().mockResolvedValue({ data: 'task' });
+    const routes = defineRoutes({
+      '/tasks/:id': { component: () => document.createElement('div'), loader },
+    });
+    const mockPrefetch = vi.fn(() => ({ abort: () => {} }));
+    window.history.replaceState(null, '', '/tasks/1');
+    const router = createRouter(routes, '/tasks/1', {
+      serverNav: true,
+      _prefetchNavData: mockPrefetch,
+    });
+
+    // Navigate to /tasks/2
+    await router.navigate({ to: '/tasks/2' });
+    mockPrefetch.mockClear();
+    loader.mockClear();
+
+    // Simulate popstate back to /tasks/1 (different resolved pathname)
+    window.history.replaceState(null, '', '/tasks/1');
+    window.dispatchEvent(new PopStateEvent('popstate'));
+    await new Promise((r) => setTimeout(r, 10));
+
+    expect(mockPrefetch).toHaveBeenCalled();
+    expect(loader).toHaveBeenCalled();
+    router.dispose();
+  });
+
+  test('popstate search-param-only skips loaders', async () => {
+    const loader = vi.fn().mockResolvedValue({ items: [] });
+    const routes = defineRoutes({
+      '/': { component: () => document.createElement('div'), loader },
+    });
+    const router = createRouter(routes, '/');
+
+    // Wait for initial load
+    await new Promise((r) => setTimeout(r, 10));
+    loader.mockClear();
+
+    // Navigate to /?page=2
+    await router.navigate({ to: '/?page=2' });
+    loader.mockClear();
+
+    // Simulate popstate back to /?page=1
+    window.history.replaceState(null, '', '/?page=1');
+    window.dispatchEvent(new PopStateEvent('popstate'));
+    await new Promise((r) => setTimeout(r, 10));
+
+    expect(loader).not.toHaveBeenCalled();
+    router.dispose();
+  });
+
+  test('popstate search-param-only skips view transitions', async () => {
+    const mockStartVT = vi.fn((cb: () => void) => {
+      cb();
+      return { finished: Promise.resolve(), ready: Promise.resolve() };
+    });
+    (document as Record<string, unknown>).startViewTransition = mockStartVT;
+
+    const routes = defineRoutes({
+      '/': { component: () => document.createElement('div') },
+    });
+    const router = createRouter(routes, '/', { viewTransition: true });
+
+    // Navigate to /?page=2
+    await router.navigate({ to: '/?page=2' });
+    mockStartVT.mockClear();
+
+    // Simulate popstate back to /?page=1
+    window.history.replaceState(null, '', '/?page=1');
+    window.dispatchEvent(new PopStateEvent('popstate'));
+    await new Promise((r) => setTimeout(r, 10));
+
+    expect(mockStartVT).not.toHaveBeenCalled();
+
+    delete (document as Record<string, unknown>).startViewTransition;
+    router.dispose();
+  });
+
+  test('replaceState navigation correctly updates lastPathname for popstate', async () => {
+    const routes = defineRoutes({
+      '/': { component: () => document.createElement('div') },
+      '/about': { component: () => document.createElement('div') },
+    });
+    const mockPrefetch = vi.fn(() => ({ abort: () => {} }));
+    const router = createRouter(routes, '/', {
+      serverNav: true,
+      _prefetchNavData: mockPrefetch,
+    });
+
+    // Navigate with replace to /about
+    await router.navigate({ to: '/about', replace: true });
+    mockPrefetch.mockClear();
+
+    // Simulate popstate to /about?tab=settings (same pathname, different params)
+    window.history.replaceState(null, '', '/about?tab=settings');
+    window.dispatchEvent(new PopStateEvent('popstate'));
+    await new Promise((r) => setTimeout(r, 10));
+
+    // Should be treated as search-param-only — replaceState correctly set lastPathname
+    expect(mockPrefetch).not.toHaveBeenCalled();
+    router.dispose();
   });
 });
