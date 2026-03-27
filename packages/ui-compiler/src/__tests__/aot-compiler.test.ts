@@ -1831,4 +1831,107 @@ export default function Label({ text }: { text: string | null }) {
       });
     });
   });
+
+  describe('Imported component holes (#1981)', () => {
+    it('generates ctx.holes.* for imported components instead of __ssr_* calls', () => {
+      const result = compileForSSRAot(
+        `
+import { RouterView } from '@vertz/ui';
+
+function App({ router }: { router: unknown }) {
+  return <div class="app"><RouterView router={router} /></div>;
+}
+        `.trim(),
+      );
+
+      const aotFn = extractAotFn(result.code, '__ssr_App');
+      // Should use ctx.holes for imported component — NOT __ssr_RouterView
+      expect(aotFn).toContain('ctx.holes.RouterView()');
+      expect(aotFn).not.toContain('__ssr_RouterView');
+    });
+
+    it('keeps __ssr_* calls for locally-defined components in the same file', () => {
+      const result = compileForSSRAot(
+        `
+function Badge({ text }: { text: string }) {
+  return <span class="badge">{text}</span>;
+}
+
+function Card({ title }: { title: string }) {
+  return <div class="card"><Badge text={title} /></div>;
+}
+        `.trim(),
+      );
+
+      const aotFn = extractAotFn(result.code, '__ssr_Card');
+      // Badge is local → direct __ssr_ call (preserves props passing)
+      expect(aotFn).toContain('__ssr_Badge(');
+      expect(aotFn).not.toContain('ctx.holes.Badge');
+    });
+
+    it('adds ctx parameter when component has imported holes (even without queries)', () => {
+      const result = compileForSSRAot(
+        `
+import { RouterView } from '@vertz/ui';
+
+function App() {
+  return <div><RouterView /></div>;
+}
+        `.trim(),
+      );
+
+      const aotFn = extractAotFn(result.code, '__ssr_App');
+      // Must have ctx parameter to access ctx.holes
+      expect(aotFn).toContain('ctx');
+      expect(aotFn).toContain('ctx.holes.RouterView()');
+    });
+
+    it('distinguishes local vs imported holes in the same component', () => {
+      const result = compileForSSRAot(
+        `
+import { ThemeProvider } from '@vertz/ui';
+
+function Sidebar({ items }: { items: string[] }) {
+  return <aside>{items.join(', ')}</aside>;
+}
+
+function App() {
+  return (
+    <div>
+      <ThemeProvider />
+      <Sidebar items={['a', 'b']} />
+    </div>
+  );
+}
+        `.trim(),
+      );
+
+      const aotFn = extractAotFn(result.code, '__ssr_App');
+      // ThemeProvider is imported → ctx.holes
+      expect(aotFn).toContain('ctx.holes.ThemeProvider()');
+      // Sidebar is local → direct __ssr_ call
+      expect(aotFn).toContain('__ssr_Sidebar(');
+    });
+
+    it('tracks only imported components as external holes in metadata', () => {
+      const result = compileForSSRAot(
+        `
+import { RouterView } from '@vertz/ui';
+
+function Badge({ text }: { text: string }) {
+  return <span>{text}</span>;
+}
+
+function App() {
+  return <div><RouterView /><Badge text="hi" /></div>;
+}
+        `.trim(),
+      );
+
+      const appInfo = result.components.find((c) => c.name === 'App');
+      // Both are holes, but holes array tracks all referenced components
+      expect(appInfo!.holes).toContain('RouterView');
+      expect(appInfo!.holes).toContain('Badge');
+    });
+  });
 });

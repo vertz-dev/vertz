@@ -108,9 +108,16 @@ export class AotStringTransformer {
   private _currentHoles: Set<string> = new Set();
   /** Reactive variable names for the current component (signal/computed). */
   private _reactiveNames: Set<string> = new Set();
+  /** Component names defined in the current file (used to distinguish local vs imported). */
+  private _localComponentNames: Set<string> = new Set();
 
   get components(): AotComponentInfo[] {
     return this._components;
+  }
+
+  /** Register locally-defined component names so the transformer can distinguish local vs imported. */
+  setLocalComponents(names: string[]): void {
+    this._localComponentNames = new Set(names);
   }
 
   transform(
@@ -290,6 +297,10 @@ export class AotStringTransformer {
   ): void {
     const aotFnName = `__ssr_${component.name}`;
     const hasQueries = queryVars && queryVars.length > 0;
+    // Check if any referenced holes are imported (not locally defined) — needs ctx.holes access
+    const hasImportedHoles = [...this._currentHoles].some(
+      (h) => !this._localComponentNames.has(h),
+    );
 
     let paramStr: string;
     let preamble = '';
@@ -334,6 +345,16 @@ export class AotStringTransformer {
       if (derivedVars && derivedVars.length > 0) {
         for (const dv of derivedVars) {
           preamble += `\n  ${applyQueryReplacements(dv.sourceText)}`;
+        }
+      }
+    } else if (hasImportedHoles) {
+      // Component has imported holes but no queries — needs ctx for ctx.holes access (#1981)
+      paramStr = 'data: Record<string, unknown>, ctx: SSRAotContext';
+
+      // Emit derived variable declarations for props-based components
+      if (derivedVars && derivedVars.length > 0) {
+        for (const dv of derivedVars) {
+          preamble += `\n  ${dv.sourceText}`;
         }
       }
     } else {
@@ -392,6 +413,9 @@ export class AotStringTransformer {
   ): void {
     const aotFnName = `__ssr_${component.name}`;
     const hasQueries = queryVars && queryVars.length > 0;
+    const hasImportedHoles = [...this._currentHoles].some(
+      (h) => !this._localComponentNames.has(h),
+    );
 
     let paramStr: string;
     let body = '';
@@ -426,6 +450,9 @@ export class AotStringTransformer {
           body += `\n  const __q${qv.index} = ctx.getData('${qv.cacheKey}');`;
         }
       }
+    } else if (hasImportedHoles) {
+      // Imported holes need ctx for ctx.holes access (#1981)
+      paramStr = 'data: Record<string, unknown>, ctx: SSRAotContext';
     } else {
       paramStr = component.propsParam ? `${component.propsParam}` : '';
     }
@@ -1243,6 +1270,12 @@ export class AotStringTransformer {
         const childParts = children.map((child) => this._childToString(child, [], false, s));
         propsEntries.push(`children: ${childParts.join(' + ')}`);
       }
+    }
+
+    // Imported components use ctx.holes (no __ssr_* exists outside this module).
+    // Locally-defined components use direct __ssr_* calls (preserves props passing).
+    if (!this._localComponentNames.has(tagName)) {
+      return `ctx.holes.${tagName}()`;
     }
 
     const propsStr = propsEntries.length > 0 ? `{ ${propsEntries.join(', ')} }` : '{}';

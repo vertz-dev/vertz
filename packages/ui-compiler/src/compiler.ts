@@ -268,6 +268,7 @@ export function compileForSSRAot(
   }
 
   const aotTransformer = new AotStringTransformer();
+  aotTransformer.setLocalComponents(components.map((c) => c.name));
 
   // Process each component
   for (const component of components) {
