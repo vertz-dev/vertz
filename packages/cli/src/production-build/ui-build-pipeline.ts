@@ -95,7 +95,7 @@ export const aotJsxStubPlugin: {
     build.onLoad({ filter: /.*/, namespace: 'aot-jsx-stub' }, () => {
       return {
         contents:
-          'export function jsxDEV() {} export function jsx() {} export const Fragment = Symbol("Fragment");',
+          'export function jsxDEV() {} export function jsx() {} export function jsxs() {} export const Fragment = Symbol("Fragment");',
         loader: 'js',
       };
     });

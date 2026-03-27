@@ -16,11 +16,11 @@ import { aotJsxStubPlugin } from '../ui-build-pipeline';
 const COMPILED_TSX = `import { __esc } from '@vertz/ui-server';
 
 export function HomePage() {
-  return <div class="container"><h1>Welcome</h1></div>;
+  return <div class="container"><h1>Welcome</h1><p>Multi-child</p></div>;
 }
 
 export function __ssr_HomePage(): string {
-  return '<div class="container"><h1>Welcome</h1></div>';
+  return '<div class="container"><h1>Welcome</h1><p>Multi-child</p></div>';
 }
 `;
 
@@ -110,5 +110,27 @@ describe('AOT bundle JSX runtime (#1935)', () => {
 
     // Tree-shaking should remove the original HomePage component and JSX stub
     expect(output).not.toContain('function HomePage');
+  });
+
+  it('handles production mode JSX runtime (jsxs for multi-child elements)', async () => {
+    const { barrelPath, outDir } = setupFixture();
+
+    const result = await Bun.build({
+      entrypoints: [barrelPath],
+      plugins: [aotJsxStubPlugin],
+      target: 'bun',
+      format: 'esm',
+      outdir: outDir,
+      naming: 'aot-routes.[ext]',
+      external: ['@vertz/ui-server', '@vertz/ui', '@vertz/ui/internals'],
+      define: { 'process.env.NODE_ENV': '"production"' },
+    });
+
+    expect(result.success).toBe(true);
+
+    const output = readFileSync(join(outDir, 'aot-routes.js'), 'utf-8');
+    expect(output).not.toContain('react/jsx-runtime');
+    expect(output).not.toContain('react/jsx-dev-runtime');
+    expect(output).toContain('__ssr_HomePage');
   });
 });
