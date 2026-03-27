@@ -93,6 +93,65 @@ export function wrapSignalProps<T>(value: T): T {
   return wrapped as T;
 }
 
+/**
+ * Create lazy context value wrappers that re-read `props.value` on each
+ * property access. This ensures computed/derived values in the Provider's
+ * value prop are re-evaluated when accessed inside reactive effects.
+ *
+ * - Signal-like properties: captured once, `.value` read on access (reactive)
+ * - Function properties: captured once (stable references)
+ * - Other properties: re-read from `props.value` on each access (re-evaluates
+ *   the JSX getter, picking up computed changes inside the effect's tracking)
+ *
+ * NOTE: Keys are snapshotted from the first read of `props.value`. The
+ * compiler generates stable object literal shapes, so this is safe. If the
+ * getter ever produced objects with varying keys, later-appearing properties
+ * would be invisible to consumers.
+ */
+function wrapSignalPropsLazy<T>(
+  propsObj: ProviderJsxProps<T>,
+  initial: T,
+): T {
+  if (initial == null || typeof initial !== 'object' || Array.isArray(initial)) {
+    return wrapSignalProps(initial);
+  }
+
+  const source = initial as Record<string, unknown>;
+  const keys = Object.keys(source);
+  const wrapped = {} as Record<string, unknown>;
+
+  for (const key of keys) {
+    const propValue = source[key];
+    if (isSignalLike(propValue)) {
+      // Signal: capture once, read .value on access (same as wrapSignalProps)
+      Object.defineProperty(wrapped, key, {
+        get() {
+          return (propValue as { value: unknown }).value;
+        },
+        enumerable: true,
+        configurable: true,
+      });
+    } else if (typeof propValue === 'function') {
+      // Function: copy once (stable reference, never needs re-evaluation)
+      wrapped[key] = propValue;
+    } else {
+      // Non-signal, non-function: re-read from the value getter on each access.
+      // When accessed inside a reactive effect, the getter body re-evaluates
+      // computed expressions (e.g., `doubled.value`), and the signal reads
+      // inside the getter body subscribe the effect to those signals.
+      Object.defineProperty(wrapped, key, {
+        get() {
+          return (propsObj.value as Record<string, unknown>)[key];
+        },
+        enumerable: true,
+        configurable: true,
+      });
+    }
+  }
+
+  return wrapped as T;
+}
+
 /** Erase a typed Context<T> to the untyped key used by ContextScope maps. */
 function asKey<T>(ctx: Context<T>): Context<unknown> {
   return ctx as Context<unknown>;
@@ -158,8 +217,18 @@ export function createContext<T>(defaultValue?: T, __stableId?: string): Context
 
       // JSX pattern: Provider({ value, children })
       const props = valueOrProps as ProviderJsxProps<T>;
-      const { value: rawValue, children } = props;
-      const value = wrapSignalProps(rawValue);
+      const rawValue = props.value;
+      const { children } = props;
+
+      // When the compiler generates JSX, it wraps non-literal attribute values
+      // in getters: `get value() { return { count, doubled: doubled.value }; }`.
+      // Detect this and use lazy wrapping so non-signal properties (computed
+      // values, derived expressions) are re-evaluated on each access inside
+      // consumer effects, maintaining reactive tracking through the getter chain.
+      const valueDesc = Object.getOwnPropertyDescriptor(props, 'value');
+      const value = valueDesc?.get
+        ? wrapSignalPropsLazy(props, rawValue)
+        : wrapSignalProps(rawValue);
 
       const parentScope = getContextScope();
       const scope: ContextScope = parentScope ? new Map(parentScope) : new Map();

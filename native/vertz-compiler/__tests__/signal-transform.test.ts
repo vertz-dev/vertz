@@ -145,7 +145,7 @@ describe('Feature: Signal transform', () => {
 
   describe('Given a signal variable used in shorthand property', () => {
     describe('When compiled', () => {
-      it('Then expands shorthand to { name: name.value }', () => {
+      it('Then keeps shorthand as-is (Signal object flows through)', () => {
         const code = compileAndGetCode(`
           function App() {
             let count = 0;
@@ -153,9 +153,11 @@ describe('Feature: Signal transform', () => {
             return <div>{obj}</div>;
           }
         `);
-        // Shorthand expands: { count } → { count: count.value }
-        expect(code).toContain('count: count.value');
-        expect(code).not.toContain('{ count }');
+        // Signals must flow as SignalImpl objects through data structures
+        // (context values, props) so that consumers can subscribe to changes.
+        // Shorthand stays as-is: { count } (NOT { count: count.value }).
+        expect(code).toContain('{ count }');
+        expect(code).not.toContain('count: count.value');
       });
 
       it('Then does NOT expand shorthand for non-signal variables', () => {
