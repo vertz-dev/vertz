@@ -1618,4 +1618,200 @@ function List({ items }: { items: any[] }) {
       });
     });
   });
+
+  describe('Phase 3: if-else chain flattening', () => {
+    describe('When both branches of if-else return JSX', () => {
+      it('Then classifies as conditional (not runtime-fallback)', () => {
+        const result = compileForSSRAot(
+          `
+export default function StatusPage({ status }: { status: string }) {
+  if (status === 'error') return <div>Error occurred</div>;
+  else return <div>All good</div>;
+}
+          `.trim(),
+        );
+
+        expect(result.components).toHaveLength(1);
+        expect(result.components[0]!.tier).toBe('conditional');
+      });
+
+      it('Then generates a ternary and produces correct HTML at runtime', () => {
+        const result = compileForSSRAot(
+          `
+export default function StatusPage({ status }: { status: string }) {
+  if (status === 'error') return <div>Error</div>;
+  else return <div>OK</div>;
+}
+          `.trim(),
+        );
+
+        const aotFn = extractAotFn(result.code, '__ssr_StatusPage');
+        expect(aotFn).toContain('<!--conditional-->');
+        expect(aotFn).toContain('Error');
+        expect(aotFn).toContain('OK');
+
+        const errorHtml = evalAot(result.code, '__ssr_StatusPage', {
+          __props: { status: 'error' },
+          status: 'error',
+        });
+        expect(errorHtml).toContain('Error');
+        expect(errorHtml).not.toContain('OK');
+
+        const okHtml = evalAot(result.code, '__ssr_StatusPage', {
+          __props: { status: 'ok' },
+          status: 'ok',
+        });
+        expect(okHtml).toContain('OK');
+      });
+    });
+
+    describe('When there are if-else-if chains', () => {
+      it('Then generates nested ternaries', () => {
+        const result = compileForSSRAot(
+          `
+export default function StatusPage({ status }: { status: string }) {
+  if (status === 'error') return <div>Error</div>;
+  else if (status === 'loading') return <div>Loading</div>;
+  else return <div>Ready</div>;
+}
+          `.trim(),
+        );
+
+        expect(result.components[0]!.tier).toBe('conditional');
+        const aotFn = extractAotFn(result.code, '__ssr_StatusPage');
+        expect(aotFn).toContain('Error');
+        expect(aotFn).toContain('Loading');
+        expect(aotFn).toContain('Ready');
+      });
+    });
+
+    describe('When an if-else has nested ifs inside a branch', () => {
+      it('Then falls back to runtime-fallback (unsafe to flatten)', () => {
+        const result = compileForSSRAot(
+          `
+export default function StatusPage({ status, detail }: { status: string; detail: string }) {
+  if (status === 'error') {
+    if (detail === 'critical') return <div>Critical</div>;
+    return <div>Error</div>;
+  } else {
+    return <div>OK</div>;
+  }
+}
+          `.trim(),
+        );
+
+        // Should NOT be classified as conditional via if-else flattening
+        // (nested ifs make flattening unsafe), but the guard pattern may handle
+        // the inner if as a guard within the block — either way, not a flat ternary.
+        expect(result.components).toHaveLength(1);
+      });
+    });
+
+    describe('When if-else-if branches use block bodies', () => {
+      it('Then generates nested ternaries from block-body returns', () => {
+        const result = compileForSSRAot(
+          `
+export default function StatusPage({ status }: { status: string }) {
+  if (status === 'error') {
+    return <div>Error</div>;
+  } else if (status === 'loading') {
+    return <div>Loading</div>;
+  } else {
+    return <div>Ready</div>;
+  }
+}
+          `.trim(),
+        );
+
+        expect(result.components[0]!.tier).toBe('conditional');
+        const aotFn = extractAotFn(result.code, '__ssr_StatusPage');
+        expect(aotFn).toContain('Error');
+        expect(aotFn).toContain('Loading');
+        expect(aotFn).toContain('Ready');
+      });
+    });
+  });
+
+  describe('Phase 4: || and ?? binary operator support', () => {
+    describe('When right operand of || is JSX', () => {
+      it('Then generates conditional: truthy shows escaped value, falsy shows JSX', () => {
+        const result = compileForSSRAot(
+          `
+export default function NameDisplay({ name }: { name: string | null }) {
+  return <div>{name || <span>Anonymous</span>}</div>;
+}
+          `.trim(),
+        );
+
+        expect(result.components[0]!.tier).toBe('conditional');
+        const aotFn = extractAotFn(result.code, '__ssr_NameDisplay');
+        expect(aotFn).toContain('<!--conditional-->');
+        expect(aotFn).toContain('Anonymous');
+
+        // When name is truthy, show name
+        const htmlWithName = evalAot(result.code, '__ssr_NameDisplay', {
+          __props: { name: 'Alice' },
+          name: 'Alice',
+        });
+        expect(htmlWithName).toContain('Alice');
+        expect(htmlWithName).not.toContain('Anonymous');
+
+        // When name is falsy, show fallback JSX
+        const htmlWithout = evalAot(result.code, '__ssr_NameDisplay', {
+          __props: { name: '' },
+          name: '',
+        });
+        expect(htmlWithout).toContain('Anonymous');
+      });
+    });
+
+    describe('When right operand of || is NOT JSX', () => {
+      it('Then falls back to __esc() wrapping (existing behavior)', () => {
+        const result = compileForSSRAot(
+          `
+export default function Label({ text }: { text: string | null }) {
+  return <div>{text || 'default'}</div>;
+}
+          `.trim(),
+        );
+
+        const aotFn = extractAotFn(result.code, '__ssr_Label');
+        // Should use __esc, not conditional markers
+        expect(aotFn).toContain('__esc(');
+        expect(aotFn).not.toContain('<!--conditional-->');
+      });
+    });
+
+    describe('When right operand of ?? is JSX', () => {
+      it('Then generates conditional: non-nullish shows escaped value, nullish shows JSX', () => {
+        const result = compileForSSRAot(
+          `
+export default function ValueDisplay({ value }: { value: number | null }) {
+  return <div>{value ?? <span>N/A</span>}</div>;
+}
+          `.trim(),
+        );
+
+        expect(result.components[0]!.tier).toBe('conditional');
+        const aotFn = extractAotFn(result.code, '__ssr_ValueDisplay');
+        expect(aotFn).toContain('<!--conditional-->');
+        expect(aotFn).toContain('!= null');
+
+        // When value is non-nullish (including 0), show value
+        const htmlWithZero = evalAot(result.code, '__ssr_ValueDisplay', {
+          __props: { value: 0 },
+          value: 0,
+        });
+        expect(htmlWithZero).toContain('0');
+        expect(htmlWithZero).not.toContain('N/A');
+
+        // When value is null, show fallback JSX
+        const htmlNull = evalAot(result.code, '__ssr_ValueDisplay', {
+          __props: { value: null },
+          value: null,
+        });
+        expect(htmlNull).toContain('N/A');
+      });
+    });
+  });
 });

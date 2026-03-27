@@ -186,7 +186,16 @@ export class AotStringTransformer {
         this._emitAotFunction(s, component, 'conditional', stringExpr, queryVars, derivedVars);
         return;
       }
-      // Not a guard pattern → runtime-fallback
+      // Check for if-else pattern: all returns inside if-then/else branches
+      const ifElseResult = this._analyzeIfElsePattern(returnsWithJsx, bodyNode, s);
+      if (ifElseResult) {
+        this._resetTracking(variables);
+        const stringExpr = this._ifElsePatternToString(ifElseResult, variables, s);
+        this._emitAotFunction(s, component, 'conditional', stringExpr, queryVars, derivedVars);
+        return;
+      }
+
+      // Not a guard or if-else pattern → runtime-fallback
       this._components.push({
         name: component.name,
         tier: 'runtime-fallback',
@@ -882,6 +891,145 @@ export class AotStringTransformer {
   }
 
   /**
+   * Analyze an if-else pattern where ALL returns are inside if-then/else branches.
+   *
+   * Handles:
+   * - `if (c) return <A/>; else return <B/>;`
+   * - `if (c1) return <A/>; else if (c2) return <B/>; else return <C/>;`
+   *
+   * Returns an ordered list of { condition, jsx } branches where the last
+   * branch has condition null (the else fallback).
+   */
+  private _analyzeIfElsePattern(
+    _returnsWithJsx: Node[],
+    bodyNode: Node,
+    s: MagicString,
+  ): Array<{ condition: string | null; jsx: Node }> | null {
+    // Find the top-level if-statement that contains all returns
+    // All returns must be inside the same if-else chain
+    const topLevelIfs = (bodyNode.getChildSyntaxList()?.getChildren() ?? []).filter((stmt) =>
+      stmt.isKind(SyntaxKind.IfStatement),
+    );
+
+    // Collect branches from if-else-if chains
+    for (const topIf of topLevelIfs) {
+      const branches = this._collectIfElseBranches(topIf, s);
+      if (!branches) continue;
+
+      // Every branch must have a return with JSX.
+      // Branch body may be the ReturnStatement itself (no block braces) or a Block.
+      // getDescendantsOfKind does NOT include the node itself, so we must check both.
+      const allHaveJsx = branches.every((b) => {
+        if (b.body.isKind(SyntaxKind.ReturnStatement)) {
+          const expr = (b.body as ReturnStatement).getExpression();
+          return expr && this._findJsx(expr);
+        }
+        const returns = b.body.getDescendantsOfKind(SyntaxKind.ReturnStatement);
+        return returns.some((ret) => {
+          const expr = ret.getExpression();
+          return expr && this._findJsx(expr);
+        });
+      });
+      if (!allHaveJsx) continue;
+
+      // The last branch must be an else (no condition) — otherwise it's not exhaustive
+      const last = branches[branches.length - 1];
+      if (!last || last.condition !== null) continue;
+
+      // Extract JSX from each branch
+      const result: Array<{ condition: string | null; jsx: Node }> = [];
+      for (const b of branches) {
+        let jsx: Node | null = null;
+        if (b.body.isKind(SyntaxKind.ReturnStatement)) {
+          const expr = (b.body as ReturnStatement).getExpression();
+          if (expr) jsx = this._findJsx(expr);
+        } else {
+          const returns = b.body.getDescendantsOfKind(SyntaxKind.ReturnStatement);
+          for (const ret of returns) {
+            const expr = ret.getExpression();
+            if (expr) jsx = this._findJsx(expr);
+            if (jsx) break;
+          }
+        }
+        if (!jsx) return null;
+        result.push({ condition: b.condition, jsx });
+      }
+
+      return result;
+    }
+
+    return null;
+  }
+
+  /**
+   * Collect branches from an if-else-if chain.
+   * Returns { condition, body } for each branch, where condition is null for the final else.
+   */
+  private _collectIfElseBranches(
+    ifStmt: Node,
+    s: MagicString,
+  ): Array<{ condition: string | null; body: Node }> | null {
+    const branches: Array<{ condition: string | null; body: Node }> = [];
+
+    let current: Node | undefined = ifStmt;
+    while (current && current.isKind(SyntaxKind.IfStatement)) {
+      const children: Node[] = current.getChildren();
+      const condition = children[2]; // condition expression
+      const thenBody = children[4]; // then branch
+      if (!condition || !thenBody) return null;
+
+      // Reject nested ifs inside then-branch (unsafe to flatten)
+      if (
+        thenBody.getDescendantsOfKind(SyntaxKind.IfStatement).length > 0 &&
+        !thenBody.isKind(SyntaxKind.Block)
+      ) {
+        return null;
+      }
+
+      branches.push({
+        condition: s.slice(condition.getStart(), condition.getEnd()),
+        body: thenBody,
+      });
+
+      // Check for else clause: ElseKeyword(5), elseStmt(6)
+      if (children.length <= 5) return null; // No else clause — not exhaustive
+      const elseBody: Node | undefined = children[6];
+      if (!elseBody) return null;
+
+      if (elseBody.isKind(SyntaxKind.IfStatement)) {
+        // else if — continue the chain
+        current = elseBody;
+      } else {
+        // Final else
+        branches.push({ condition: null, body: elseBody });
+        return branches;
+      }
+    }
+
+    return null; // Chain didn't end with an else
+  }
+
+  /**
+   * Generate string expression for an if-else pattern: nested ternary with conditional markers.
+   */
+  private _ifElsePatternToString(
+    branches: Array<{ condition: string | null; jsx: Node }>,
+    variables: VariableInfo[],
+    s: MagicString,
+  ): string {
+    // Build from the last branch (else) backwards
+    let result = this._jsxToString(branches[branches.length - 1]!.jsx, variables, s, null);
+
+    for (let i = branches.length - 2; i >= 0; i--) {
+      const branch = branches[i]!;
+      const branchStr = this._jsxToString(branch.jsx, variables, s, null);
+      result = `(${branch.condition} ? ${branchStr} : ${result})`;
+    }
+
+    return `'<!--conditional-->' + ${result} + '<!--/conditional-->'`;
+  }
+
+  /**
    * Generate string expression for a guard pattern: nested ternary with conditional markers.
    * `if (!d) return <Loading/>; return <Main/>` →
    * `'<!--conditional-->' + (!d ? '<div>Loading</div>' : '<div>...</div>') + '<!--/conditional-->'`
@@ -1389,6 +1537,20 @@ export class AotStringTransformer {
       const leftText = s.slice(left.getStart(), left.getEnd());
       const rightStr = this._expressionNodeToString(right, variables, s);
       return `'<!--conditional-->' + (${leftText} ? ${rightStr} : '') + '<!--/conditional-->'`;
+    }
+
+    // Handle || operator: expr || <JSX /> (only when right operand is JSX)
+    if (opText === '||' && this._findJsx(right)) {
+      const leftText = s.slice(left.getStart(), left.getEnd());
+      const rightStr = this._expressionNodeToString(right, variables, s);
+      return `'<!--conditional-->' + (${leftText} ? __esc(${leftText}) : ${rightStr}) + '<!--/conditional-->'`;
+    }
+
+    // Handle ?? operator: expr ?? <JSX /> (only when right operand is JSX)
+    if (opText === '??' && this._findJsx(right)) {
+      const leftText = s.slice(left.getStart(), left.getEnd());
+      const rightStr = this._expressionNodeToString(right, variables, s);
+      return `'<!--conditional-->' + (${leftText} != null ? __esc(${leftText}) : ${rightStr}) + '<!--/conditional-->'`;
     }
 
     // For other binary operators, fall back to __esc
