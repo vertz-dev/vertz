@@ -427,6 +427,29 @@ describe('createAccessEventBroadcaster', () => {
 });
 
 describe('plan event broadcasts', () => {
+  it('broadcastPlanAssigned routes by orgId for child resources', () => {
+    const broadcaster = createAccessEventBroadcaster({
+      publicKey: testPublicKey,
+    });
+
+    const ws1 = createMockWs({ data: { userId: 'user-1', orgId: 'org-1' } });
+    const ws2 = createMockWs({ data: { userId: 'user-2', orgId: 'org-2' } });
+
+    broadcaster.websocket.open(ws1);
+    broadcaster.websocket.open(ws2);
+
+    // orgId routes to org-1, but event carries project-level resource
+    broadcaster.broadcastPlanAssigned('org-1', 'project', 'proj-1', 'pro');
+
+    expect(ws1.sentMessages.length).toBe(1);
+    const parsed = JSON.parse(ws1.sentMessages[0]);
+    expect(parsed.resourceType).toBe('project');
+    expect(parsed.resourceId).toBe('proj-1');
+    expect(parsed.planId).toBe('pro');
+
+    expect(ws2.sentMessages.length).toBe(0);
+  });
+
   it('broadcastPlanAssigned sends event with resource fields', () => {
     const broadcaster = createAccessEventBroadcaster({
       publicKey: testPublicKey,

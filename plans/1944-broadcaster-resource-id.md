@@ -1,7 +1,7 @@
 # AccessEventBroadcaster — Align with (resourceType, resourceId) Pattern
 
 **Issue:** #1944
-**Status:** Design
+**Status:** Implemented
 **Related:** #1945 (auth_flags alignment), #1943 (OverrideStore/WalletStore alignment), #1787 (multi-level tenancy)
 
 ## Audit Summary
