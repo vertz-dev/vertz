@@ -1,5 +1,21 @@
 # @vertz/cli
 
+## 0.2.39
+
+### Patch Changes
+
+- [#1954](https://github.com/vertz-dev/vertz/pull/1954) [`d49ca26`](https://github.com/vertz-dev/vertz/commit/d49ca260d25558ee042befbf115757f61fbedd55) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - Add `vertz docs check` command to validate docs site integrity — catches broken sidebar references, broken internal links, and warns about missing frontmatter.
+
+- Updated dependencies [[`d49ca26`](https://github.com/vertz-dev/vertz/commit/d49ca260d25558ee042befbf115757f61fbedd55)]:
+  - @vertz/docs@0.1.1
+  - @vertz/codegen@0.2.39
+  - @vertz/compiler@0.2.39
+  - @vertz/create-vertz-app@0.2.39
+  - @vertz/db@0.2.39
+  - @vertz/errors@0.2.39
+  - @vertz/tui@0.2.39
+  - @vertz/ui-server@0.2.39
+
 ## 0.2.38
 
 ### Patch Changes
