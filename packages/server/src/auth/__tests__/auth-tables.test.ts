@@ -91,11 +91,13 @@ describe('generateAuthDDL', () => {
     expect(addonsTable).toContain('UNIQUE(resource_type, resource_id, addon_id)');
   });
 
-  it('creates auth_flags with unique tenant/flag constraint', () => {
+  it('creates auth_flags with (resource_type, resource_id, flag) unique constraint', () => {
     const statements = generateAuthDDL('sqlite');
     const flagsTable = statements[7]!;
     expect(flagsTable).toContain('auth_flags');
-    expect(flagsTable).toContain('UNIQUE(tenant_id, flag)');
+    expect(flagsTable).toContain('resource_type');
+    expect(flagsTable).toContain('resource_id');
+    expect(flagsTable).toContain('UNIQUE(resource_type, resource_id, flag)');
   });
 
   it('creates auth_overrides with (resource_type, resource_id) unique constraint', () => {

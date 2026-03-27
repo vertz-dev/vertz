@@ -441,7 +441,7 @@ describe('createAccessContext', () => {
     it('flag disabled → can() returns false', async () => {
       const { accessDef, closureStore, roleStore } = await setup();
       const flagStore = new InMemoryFlagStore();
-      flagStore.setFlag('org-1', 'export-v2', false);
+      flagStore.setFlag('tenant', 'org-1', 'export-v2', false);
       await roleStore.assign('user-1', 'project', 'proj-1', 'manager');
 
       const orgResolver = async () => ({ type: 'tenant', id: 'org-1' });
@@ -465,7 +465,7 @@ describe('createAccessContext', () => {
     it('flag enabled → can() returns true', async () => {
       const { accessDef, closureStore, roleStore } = await setup();
       const flagStore = new InMemoryFlagStore();
-      flagStore.setFlag('org-1', 'export-v2', true);
+      flagStore.setFlag('tenant', 'org-1', 'export-v2', true);
       await roleStore.assign('user-1', 'project', 'proj-1', 'manager');
 
       const orgResolver = async () => ({ type: 'tenant', id: 'org-1' });

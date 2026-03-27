@@ -56,8 +56,8 @@ describe('Feature: Multi-level flag resolution (deepest wins)', () => {
       const accessDef = createAccessDef();
       const { roleStore, closureStore, flagStore } = await setupStores();
 
-      flagStore.setFlag('acct-1', 'beta_ai', true);
-      flagStore.setFlag('proj-1', 'beta_ai', false);
+      flagStore.setFlag('account', 'acct-1', 'beta_ai', true);
+      flagStore.setFlag('project', 'proj-1', 'beta_ai', false);
 
       const result = await computeAccessSet({
         userId: 'user-1',
@@ -81,7 +81,7 @@ describe('Feature: Multi-level flag resolution (deepest wins)', () => {
       const accessDef = createAccessDef();
       const { roleStore, closureStore, flagStore } = await setupStores();
 
-      flagStore.setFlag('acct-1', 'beta_ai', true);
+      flagStore.setFlag('account', 'acct-1', 'beta_ai', true);
       // Project has NO beta_ai flag set
 
       const result = await computeAccessSet({
@@ -131,8 +131,8 @@ describe('Feature: Multi-level flag resolution (deepest wins)', () => {
       const accessDef = createAccessDef();
       const { roleStore, closureStore, flagStore } = await setupStores();
 
-      flagStore.setFlag('acct-1', 'beta_ai', true);
-      flagStore.setFlag('proj-1', 'beta_ai', false);
+      flagStore.setFlag('account', 'acct-1', 'beta_ai', true);
+      flagStore.setFlag('project', 'proj-1', 'beta_ai', false);
 
       const result = await computeAccessSet({
         userId: 'user-1',
@@ -157,9 +157,9 @@ describe('Feature: Multi-level flag resolution (deepest wins)', () => {
       const accessDef = createAccessDef();
       const { roleStore, closureStore, flagStore } = await setupStores();
 
-      flagStore.setFlag('acct-1', 'beta_ai', true);
+      flagStore.setFlag('tenant', 'acct-1', 'beta_ai', true);
 
-      // No ancestorResolver — single-level
+      // No ancestorResolver — single-level (defaults to resourceType 'tenant')
       const result = await computeAccessSet({
         userId: 'user-1',
         accessDef,

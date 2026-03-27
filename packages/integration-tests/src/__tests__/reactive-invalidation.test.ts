@@ -100,7 +100,7 @@ async function createStores() {
 describe('Feature Flag Store + Layer 1 (public imports)', () => {
   it('flag disabled → can() returns false with flag_disabled', async () => {
     const { closureStore, roleStore, flagStore, orgResolver } = await createStores();
-    flagStore.setFlag('org-1', 'export-v2', false);
+    flagStore.setFlag('organization', 'org-1', 'export-v2', false);
 
     const ctx = createAccessContext({
       userId: 'user-1',
@@ -134,7 +134,7 @@ describe('Feature Flag Store + Layer 1 (public imports)', () => {
 
   it('flag enabled → can() returns true (passes Layer 1)', async () => {
     const { closureStore, roleStore, flagStore, orgResolver } = await createStores();
-    flagStore.setFlag('org-1', 'export-v2', true);
+    flagStore.setFlag('organization', 'org-1', 'export-v2', true);
     await roleStore.assign('user-1', 'project', 'proj-1', 'manager');
 
     const ctx = createAccessContext({
@@ -175,8 +175,8 @@ describe('Feature Flag Store + Layer 1 (public imports)', () => {
 
   it('multiple flags — all must be enabled', async () => {
     const { closureStore, roleStore, flagStore, orgResolver } = await createStores();
-    flagStore.setFlag('org-1', 'beta-feature', true);
-    flagStore.setFlag('org-1', 'beta-ui', false);
+    flagStore.setFlag('organization', 'org-1', 'beta-feature', true);
+    flagStore.setFlag('organization', 'org-1', 'beta-ui', false);
     await roleStore.assign('user-1', 'project', 'proj-1', 'manager');
 
     const ctx = createAccessContext({
@@ -195,7 +195,7 @@ describe('Feature Flag Store + Layer 1 (public imports)', () => {
     expect(result).toBe(false);
 
     // Enable both
-    flagStore.setFlag('org-1', 'beta-ui', true);
+    flagStore.setFlag('organization', 'org-1', 'beta-ui', true);
     const result2 = await ctx.can('project:beta', {
       type: 'project',
       id: 'proj-1',
@@ -205,8 +205,8 @@ describe('Feature Flag Store + Layer 1 (public imports)', () => {
 
   it('computeAccessSet includes flags from flagStore', async () => {
     const { closureStore, roleStore, flagStore } = await createStores();
-    flagStore.setFlag('org-1', 'export-v2', true);
-    flagStore.setFlag('org-1', 'ai-assist', false);
+    flagStore.setFlag('tenant', 'org-1', 'export-v2', true);
+    flagStore.setFlag('tenant', 'org-1', 'ai-assist', false);
 
     // admin on org → editor on team → contributor on project
     // project:export requires 'manager' role, so assign manager directly
@@ -234,8 +234,8 @@ describe('Feature Flag Store + Layer 1 (public imports)', () => {
 
   it('encode/decode round-trip preserves flag data', async () => {
     const { closureStore, roleStore, flagStore } = await createStores();
-    flagStore.setFlag('org-1', 'export-v2', true);
-    flagStore.setFlag('org-1', 'ai-assist', false);
+    flagStore.setFlag('tenant', 'org-1', 'export-v2', true);
+    flagStore.setFlag('tenant', 'org-1', 'ai-assist', false);
 
     const original = await computeAccessSet({
       userId: 'user-1',

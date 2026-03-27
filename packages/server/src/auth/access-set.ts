@@ -181,7 +181,7 @@ export async function computeAccessSet(config: ComputeAccessSetConfig): Promise<
       const allFlagKeys = new Set<string>();
       const flagsByLevel: { depth: number; flags: Record<string, boolean> }[] = [];
       for (const entry of chain) {
-        const levelFlags = flagStore.getFlags(entry.id);
+        const levelFlags = flagStore.getFlags(entry.type, entry.id);
         for (const key of Object.keys(levelFlags)) allFlagKeys.add(key);
         flagsByLevel.push({ depth: entry.depth, flags: levelFlags });
       }
@@ -203,7 +203,8 @@ export async function computeAccessSet(config: ComputeAccessSetConfig): Promise<
       }
     } else {
       // Single-level: existing behavior
-      const orgFlags = flagStore.getFlags(tenantId);
+      const resourceType = config.tenantLevel ?? 'tenant';
+      const orgFlags = flagStore.getFlags(resourceType, tenantId);
       Object.assign(resolvedFlags, orgFlags);
     }
 
