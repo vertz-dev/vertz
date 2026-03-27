@@ -1700,10 +1700,11 @@ export default function StatusPage({ status, detail }: { status: string; detail:
           `.trim(),
         );
 
-        // Should NOT be classified as conditional via if-else flattening
-        // (nested ifs make flattening unsafe), but the guard pattern may handle
-        // the inner if as a guard within the block — either way, not a flat ternary.
+        // Nested ifs inside a branch make flat ternary flattening unsafe.
+        // Neither if-else flattening nor guard pattern handles nested ifs,
+        // so the component correctly falls back to runtime.
         expect(result.components).toHaveLength(1);
+        expect(result.components[0]!.tier).toBe('runtime-fallback');
       });
     });
 
@@ -1811,6 +1812,22 @@ export default function ValueDisplay({ value }: { value: number | null }) {
           value: null,
         });
         expect(htmlNull).toContain('N/A');
+      });
+    });
+
+    describe('When right operand of ?? is NOT JSX', () => {
+      it('Then falls back to __esc() wrapping (existing behavior)', () => {
+        const result = compileForSSRAot(
+          `
+export default function Label({ text }: { text: string | null }) {
+  return <div>{text ?? 'fallback'}</div>;
+}
+          `.trim(),
+        );
+
+        const aotFn = extractAotFn(result.code, '__ssr_Label');
+        expect(aotFn).toContain('__esc(');
+        expect(aotFn).not.toContain('<!--conditional-->');
       });
     });
   });

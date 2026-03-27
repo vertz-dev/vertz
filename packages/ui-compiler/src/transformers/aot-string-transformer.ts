@@ -348,6 +348,11 @@ export class AotStringTransformer {
       }
     }
 
+    // Declare __t temp var when ||/?? with JSX fallback generates assignment expressions
+    if (stringExpr.includes('__t =')) {
+      preamble = `\n  let __t;` + preamble;
+    }
+
     const body = preamble
       ? `${preamble}\n  return ${stringExpr};\n`
       : `\n  return ${stringExpr};\n`;
@@ -442,6 +447,11 @@ export class AotStringTransformer {
     // Main return
     const mainExpr = applyQueryReplacements(mainStringExpr);
     body += `\n  return '<!--conditional-->' + ${mainExpr} + '<!--/conditional-->';\n`;
+
+    // Declare __t temp var when ||/?? with JSX fallback generates assignment expressions
+    if (mainExpr.includes('__t =') || guards.some((g) => g.html.includes('__t ='))) {
+      body = `\n  let __t;` + body;
+    }
 
     const aotFn = `\nexport function ${aotFnName}(${paramStr}): string {${body}}\n`;
     s.appendRight(component.bodyEnd + 1, aotFn);
@@ -712,6 +722,7 @@ export class AotStringTransformer {
     }
 
     const derived: DerivedVarDecl[] = [];
+    const emittedStmts = new Set<number>(); // track by start position to avoid duplicates
     // Walk top-level statements in source order
     const stmts = bodyNode.getChildSyntaxList()?.getChildren() ?? [];
     for (const stmt of stmts) {
@@ -730,8 +741,13 @@ export class AotStringTransformer {
           if (callee.isKind(SyntaxKind.Identifier) && callee.getText() === 'useParams') continue;
         }
 
+        // Avoid emitting the same VariableStatement twice (multi-declaration: const a=1, b=2)
+        const stmtStart = stmt.getStart();
+        if (emittedStmts.has(stmtStart)) continue;
+        emittedStmts.add(stmtStart);
+
         // Extract the full VariableStatement source text (includes const/let keyword)
-        const sourceText = s.slice(stmt.getStart(), stmt.getEnd());
+        const sourceText = s.slice(stmtStart, stmt.getEnd());
         derived.push({ name, sourceText });
       }
     }
@@ -979,10 +995,7 @@ export class AotStringTransformer {
       if (!condition || !thenBody) return null;
 
       // Reject nested ifs inside then-branch (unsafe to flatten)
-      if (
-        thenBody.getDescendantsOfKind(SyntaxKind.IfStatement).length > 0 &&
-        !thenBody.isKind(SyntaxKind.Block)
-      ) {
+      if (thenBody.getDescendantsOfKind(SyntaxKind.IfStatement).length > 0) {
         return null;
       }
 
@@ -1540,17 +1553,19 @@ export class AotStringTransformer {
     }
 
     // Handle || operator: expr || <JSX /> (only when right operand is JSX)
+    // Use temp var (__t) to avoid double-evaluating expressions with side effects.
     if (opText === '||' && this._findJsx(right)) {
       const leftText = s.slice(left.getStart(), left.getEnd());
       const rightStr = this._expressionNodeToString(right, variables, s);
-      return `'<!--conditional-->' + (${leftText} ? __esc(${leftText}) : ${rightStr}) + '<!--/conditional-->'`;
+      return `'<!--conditional-->' + ((__t = ${leftText}) ? __esc(__t) : ${rightStr}) + '<!--/conditional-->'`;
     }
 
     // Handle ?? operator: expr ?? <JSX /> (only when right operand is JSX)
+    // Use temp var (__t) to avoid double-evaluating expressions with side effects.
     if (opText === '??' && this._findJsx(right)) {
       const leftText = s.slice(left.getStart(), left.getEnd());
       const rightStr = this._expressionNodeToString(right, variables, s);
-      return `'<!--conditional-->' + (${leftText} != null ? __esc(${leftText}) : ${rightStr}) + '<!--/conditional-->'`;
+      return `'<!--conditional-->' + ((__t = ${leftText}) != null ? __esc(__t) : ${rightStr}) + '<!--/conditional-->'`;
     }
 
     // For other binary operators, fall back to __esc
