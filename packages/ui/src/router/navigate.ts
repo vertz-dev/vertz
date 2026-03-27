@@ -623,19 +623,6 @@ export function createRouter<T extends Record<string, RouteConfigLike> = RouteDe
     // Start server nav prefetch before navigation (skip for search-param changes)
     const handle = isSearchParamOnly ? null : startPrefetch(navUrl);
 
-    // Update browser history
-    if (input.replace) {
-      window.history.replaceState(null, '', navUrl);
-    } else {
-      window.history.pushState(null, '', navUrl);
-    }
-
-    // Update lastPathname synchronously after history change, before any async
-    // work. This ensures popstate events that fire during awaitPrefetch see the
-    // correct value, and covers the navigateGen early-return case where
-    // applyNavigation is never called but pushState already happened.
-    lastPathname = navPathname;
-
     // Skip SSE wait for previously visited URLs — query cache will
     // serve data instantly. SSE prefetch still fires for SWR revalidation.
     const isCachedNav = visitedUrls.has(normalizeUrl(navUrl));
@@ -644,9 +631,23 @@ export function createRouter<T extends Record<string, RouteConfigLike> = RouteDe
     }
 
     // Guard: skip if a newer navigation started while we waited.
-    // Must precede withViewTransition to avoid capturing a DOM snapshot
-    // and then bailing out inside the callback.
+    // Must precede pushState to avoid orphaned history entries — if we
+    // pushed before this check, a superseded navigation would leave a
+    // ghost entry in the history stack, requiring an extra back click.
     if (gen !== navigateGen) return;
+
+    // Update browser history — deferred until after the generation guard
+    // so that only the winning navigation pushes a history entry.
+    if (input.replace) {
+      window.history.replaceState(null, '', navUrl);
+    } else {
+      window.history.pushState(null, '', navUrl);
+    }
+
+    // Update lastPathname synchronously after history change, before any async
+    // work. This ensures popstate events that fire during awaitPrefetch see the
+    // correct value for search-param-only detection.
+    lastPathname = navPathname;
 
     // Resolve transition config: navigate-level > route-level > global.
     // Search-param-only changes skip view transitions — the page content

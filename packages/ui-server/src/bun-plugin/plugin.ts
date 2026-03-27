@@ -380,6 +380,9 @@ export function createVertzBunPlugin(options?: VertzBunPluginOptions): VertzBunP
           // ── 3. Compile (reactive + JSX transforms) ─────────────
           // Use native Rust compiler when available (20-50x faster),
           // otherwise fall back to ts-morph TypeScript compiler.
+          // When using native compiler, CSS is extracted during compilation
+          // (returned in nativeResult.css) instead of the TS cssExtractor.
+          let nativeCss: string | undefined;
           const compileResult = nativeCompiler
             ? (() => {
                 // Warn once that native compiler does not support cross-file
@@ -407,6 +410,10 @@ export function createVertzBunPlugin(options?: VertzBunPluginOptions): VertzBunP
                   // Plugin handles context stable IDs and fast refresh separately
                   fastRefresh: false,
                 });
+                // Capture CSS extracted by the native compiler for step 5
+                if (nativeResult.css) {
+                  nativeCss = nativeResult.css;
+                }
                 return {
                   code: nativeResult.code,
                   map: nativeResult.map
@@ -440,8 +447,26 @@ export function createVertzBunPlugin(options?: VertzBunPluginOptions): VertzBunP
           const remapped = remapping(mapsToChain, () => null);
 
           // ── 5. CSS extraction → sidecar file ───────────────────
-          const extraction = cssExtractor.extract(source, args.path);
+          // When native compiler is used, it already extracted CSS and replaced
+          // css() calls with class name objects. Use the native CSS directly.
+          // Otherwise, use the TS-based cssExtractor on the original source.
+          const extraction: { css: string; blockNames: string[] } = nativeCss
+            ? { css: nativeCss, blockNames: [] }
+            : cssExtractor.extract(source, args.path);
           let cssImportLine = '';
+
+          // When native compiler extracted CSS, we need to inject it at runtime
+          // so SSR's getInjectedCSS() can collect it. The native compiler replaces
+          // css() calls with plain class-name objects, skipping runtime injection.
+          let nativeCssInjection = '';
+          if (nativeCss && extraction.css.length > 0) {
+            // Escape the CSS for embedding in a JS string
+            const escaped = extraction.css
+              .replace(/\\/g, '\\\\')
+              .replace(/`/g, '\\`')
+              .replace(/\$/g, '\\$');
+            nativeCssInjection = `import { injectCSS as __injectCSS } from '@vertz/ui';\n__injectCSS(\`${escaped}\`);\n`;
+          }
 
           if (extraction.css.length > 0) {
             fileExtractions.set(args.path, extraction);
@@ -485,6 +510,9 @@ export function createVertzBunPlugin(options?: VertzBunPluginOptions): VertzBunP
           // offset the source map. Without this, breakpoints land on
           // the wrong line in browser DevTools.
           let contents = '';
+          if (nativeCssInjection) {
+            contents += nativeCssInjection;
+          }
           if (cssImportLine) {
             contents += cssImportLine;
           }

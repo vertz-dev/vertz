@@ -95,13 +95,13 @@ fn find_define_routes_in_stmt<'a>(stmt: &'a Statement<'a>) -> Option<&'a ObjectE
             }
         }
         Statement::ExportNamedDeclaration(export_decl) => {
-            if let Some(ref decl) = export_decl.declaration {
-                if let Declaration::VariableDeclaration(var_decl) = decl {
-                    for declarator in &var_decl.declarations {
-                        if let Some(ref init) = declarator.init {
-                            if let Some(obj) = find_define_routes_in_expr(init) {
-                                return Some(obj);
-                            }
+            if let Some(Declaration::VariableDeclaration(var_decl)) =
+                export_decl.declaration.as_ref()
+            {
+                for declarator in &var_decl.declarations {
+                    if let Some(ref init) = declarator.init {
+                        if let Some(obj) = find_define_routes_in_expr(init) {
+                            return Some(obj);
                         }
                     }
                 }
@@ -186,7 +186,7 @@ fn parse_route_object<'a>(obj: &'a ObjectExpression<'a>, source: &str) -> Vec<Ne
             };
 
             if key == "component" {
-                component_name = extract_component_name(&inner_property.value, source);
+                component_name = extract_component_name(&inner_property.value);
             } else if key == "children" {
                 if let Expression::ObjectExpression(children_obj) = &inner_property.value {
                     children = parse_route_object(children_obj, source);
@@ -234,12 +234,12 @@ fn get_identifier_key(prop: &ObjectProperty) -> Option<String> {
 }
 
 /// Extract component name from a route's component property value.
-fn extract_component_name(expr: &Expression, source: &str) -> Option<String> {
+fn extract_component_name(expr: &Expression) -> Option<String> {
     match expr {
         Expression::ArrowFunctionExpression(arrow) => {
             // () => ComponentName() or () => <ComponentName />
             let body_expr = get_arrow_body_expr(arrow)?;
-            extract_component_name_from_expr(body_expr, source)
+            extract_component_name_from_expr(body_expr)
         }
         Expression::Identifier(ident) => {
             // Bare identifier: component: HomePage
@@ -251,19 +251,17 @@ fn extract_component_name(expr: &Expression, source: &str) -> Option<String> {
 
 fn get_arrow_body_expr<'a>(arrow: &'a ArrowFunctionExpression<'a>) -> Option<&'a Expression<'a>> {
     if arrow.expression {
-        if let Some(stmt) = arrow.body.statements.first() {
-            if let Statement::ExpressionStatement(expr_stmt) = stmt {
-                return Some(&expr_stmt.expression);
-            }
+        if let Some(Statement::ExpressionStatement(expr_stmt)) = arrow.body.statements.first() {
+            return Some(&expr_stmt.expression);
         }
     }
     None
 }
 
-fn extract_component_name_from_expr(expr: &Expression, source: &str) -> Option<String> {
+fn extract_component_name_from_expr(expr: &Expression) -> Option<String> {
     match expr {
         Expression::ParenthesizedExpression(paren) => {
-            extract_component_name_from_expr(&paren.expression, source)
+            extract_component_name_from_expr(&paren.expression)
         }
         Expression::CallExpression(call) => {
             // ComponentName() — function call

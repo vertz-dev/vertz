@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, mock, spyOn } from 'bun:test';
+import { afterEach, beforeEach, describe, expect, it, mock, spyOn } from 'bun:test';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -163,7 +163,7 @@ describe('createBunDevServer', () => {
     await server.restart();
     consoleSpy.mockRestore();
     consoleErrSpy.mockRestore();
-  });
+  }, 10_000);
 
   it('broadcastError auto-triggers restart for stale-graph runtime errors', async () => {
     const logSpy = spyOn(console, 'log').mockImplementation(() => {});
@@ -1354,10 +1354,28 @@ describe('generateSSRPageHtml editor variants', () => {
 });
 
 describe('broadcastError state machine', () => {
+  // Track servers created in each test so afterEach can stop them.
+  // Some tests trigger fire-and-forget restart() via stale-graph errors,
+  // which does real I/O (Bun.serve, dynamic import) that hangs on CI.
+  const servers: ReturnType<typeof createBunDevServer>[] = [];
+
+  afterEach(async () => {
+    for (const s of servers) {
+      await s.stop();
+    }
+    servers.length = 0;
+  });
+
+  function makeServer(opts?: { logRequests?: boolean }) {
+    const s = createBunDevServer({ entry: './src/app.tsx', ...opts });
+    servers.push(s);
+    return s;
+  }
+
   it('build errors block subsequent SSR errors', () => {
     const logSpy = spyOn(console, 'log').mockImplementation(() => {});
     const errSpy = spyOn(console, 'error').mockImplementation(() => {});
-    const server = createBunDevServer({ entry: './src/app.tsx', logRequests: false });
+    const server = makeServer();
 
     // First: broadcast a build error
     server.broadcastError('build', [{ message: 'Build failed' }]);
@@ -1374,7 +1392,7 @@ describe('broadcastError state machine', () => {
   it('build errors block subsequent runtime errors', () => {
     const logSpy = spyOn(console, 'log').mockImplementation(() => {});
     const errSpy = spyOn(console, 'error').mockImplementation(() => {});
-    const server = createBunDevServer({ entry: './src/app.tsx', logRequests: false });
+    const server = makeServer();
 
     server.broadcastError('build', [{ message: 'Build failed' }]);
     server.broadcastError('runtime', [{ message: 'Runtime error' }]);
@@ -1392,7 +1410,7 @@ describe('broadcastError state machine', () => {
   it('build errors can be overwritten by newer build errors', () => {
     const logSpy = spyOn(console, 'log').mockImplementation(() => {});
     const errSpy = spyOn(console, 'error').mockImplementation(() => {});
-    const server = createBunDevServer({ entry: './src/app.tsx', logRequests: false });
+    const server = makeServer();
 
     server.broadcastError('build', [{ message: 'First build error' }]);
     // Another build error should replace the first one
@@ -1405,7 +1423,7 @@ describe('broadcastError state machine', () => {
   it('clearError sets grace period that suppresses runtime errors', async () => {
     const logSpy = spyOn(console, 'log').mockImplementation(() => {});
     const errSpy = spyOn(console, 'error').mockImplementation(() => {});
-    const server = createBunDevServer({ entry: './src/app.tsx', logRequests: false });
+    const server = makeServer();
 
     // Set an error, then clear it
     server.broadcastError('build', [{ message: 'Build error' }]);
@@ -1427,7 +1445,7 @@ describe('broadcastError state machine', () => {
   it('clearErrorForFileChange does not set grace period', async () => {
     const logSpy = spyOn(console, 'log').mockImplementation(() => {});
     const errSpy = spyOn(console, 'error').mockImplementation(() => {});
-    const server = createBunDevServer({ entry: './src/app.tsx', logRequests: true });
+    const server = makeServer({ logRequests: true });
 
     // Set an error, then clear it via file change (no grace period)
     server.broadcastError('build', [{ message: 'Build error' }]);
@@ -1450,7 +1468,7 @@ describe('broadcastError state machine', () => {
   it('clearError is no-op when no error is set', () => {
     const logSpy = spyOn(console, 'log').mockImplementation(() => {});
     const errSpy = spyOn(console, 'error').mockImplementation(() => {});
-    const server = createBunDevServer({ entry: './src/app.tsx', logRequests: false });
+    const server = makeServer();
 
     // Should not throw
     server.clearError();
@@ -1463,7 +1481,7 @@ describe('broadcastError state machine', () => {
   it('clearErrorForFileChange is no-op when no error is set', () => {
     const logSpy = spyOn(console, 'log').mockImplementation(() => {});
     const errSpy = spyOn(console, 'error').mockImplementation(() => {});
-    const server = createBunDevServer({ entry: './src/app.tsx', logRequests: false });
+    const server = makeServer();
 
     // Should not throw
     server.clearErrorForFileChange();
@@ -1476,7 +1494,7 @@ describe('broadcastError state machine', () => {
   it('runtime errors are debounced and most informative error wins', async () => {
     const logSpy = spyOn(console, 'log').mockImplementation(() => {});
     const errSpy = spyOn(console, 'error').mockImplementation(() => {});
-    const server = createBunDevServer({ entry: './src/app.tsx', logRequests: false });
+    const server = makeServer();
 
     // Fire multiple runtime errors in rapid succession
     server.broadcastError('runtime', [{ message: 'Error 1' }]);
@@ -1494,7 +1512,7 @@ describe('broadcastError state machine', () => {
   it('clearError cancels pending debounced runtime error', async () => {
     const logSpy = spyOn(console, 'log').mockImplementation(() => {});
     const errSpy = spyOn(console, 'error').mockImplementation(() => {});
-    const server = createBunDevServer({ entry: './src/app.tsx', logRequests: false });
+    const server = makeServer();
 
     // Broadcast a runtime error (will be debounced)
     server.broadcastError('runtime', [{ message: 'Debounced error' }]);
@@ -1513,7 +1531,7 @@ describe('broadcastError state machine', () => {
   it('clearErrorForFileChange cancels pending debounced runtime error', async () => {
     const logSpy = spyOn(console, 'log').mockImplementation(() => {});
     const errSpy = spyOn(console, 'error').mockImplementation(() => {});
-    const server = createBunDevServer({ entry: './src/app.tsx', logRequests: false });
+    const server = makeServer();
 
     // Broadcast a runtime error (will be debounced)
     server.broadcastError('runtime', [{ message: 'Debounced error' }]);
@@ -1531,7 +1549,7 @@ describe('broadcastError state machine', () => {
   it('non-build/non-runtime errors are broadcast immediately', () => {
     const logSpy = spyOn(console, 'log').mockImplementation(() => {});
     const errSpy = spyOn(console, 'error').mockImplementation(() => {});
-    const server = createBunDevServer({ entry: './src/app.tsx', logRequests: false });
+    const server = makeServer();
 
     // SSR and resolve errors should not be debounced
     server.broadcastError('ssr', [{ message: 'SSR error' }]);

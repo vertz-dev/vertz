@@ -408,8 +408,10 @@ impl<'c> Visit<'c> for ElementFinder {
         oxc_ast_visit::walk::walk_jsx_element(self, elem);
     }
 
-    fn visit_jsx_fragment(&mut self, _frag: &JSXFragment<'c>) {
-        // Don't recurse into fragments looking for elements
+    fn visit_jsx_fragment(&mut self, frag: &JSXFragment<'c>) {
+        // Must recurse into fragments — elements can be children of fragments,
+        // e.g. when a && conditional inside a fragment contains a <div>.
+        oxc_ast_visit::walk::walk_jsx_fragment(self, frag);
     }
 }
 
@@ -1108,19 +1110,27 @@ fn process_attr(
                 *is_reactive && is_expr_reactive_in_scope(ms, *expr_start, *expr_end, rx);
 
             if is_reactive_in_scope {
+                // If expr_text starts with '{', it's an object literal —
+                // wrap in parens so `() => { ... }` isn't parsed as a block body.
+                let needs_parens = expr_text.trim_start().starts_with('{');
+                let wrapped = if needs_parens {
+                    format!("({})", expr_text)
+                } else {
+                    expr_text.to_string()
+                };
                 if use_property {
                     return Some(format!(
                         "__prop({}, {}, () => {})",
                         el_var,
                         json_quote(attr_name),
-                        expr_text
+                        wrapped
                     ));
                 }
                 return Some(format!(
                     "__attr({}, {}, () => {})",
                     el_var,
                     json_quote(attr_name),
-                    expr_text
+                    wrapped
                 ));
             }
 
