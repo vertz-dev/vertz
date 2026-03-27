@@ -39,12 +39,13 @@ export class CachedWalletStore implements WalletStore {
   }
 
   async getConsumption(
-    tenantId: string,
+    resourceType: string,
+    resourceId: string,
     entitlement: string,
     periodStart: Date,
     periodEnd: Date,
   ): Promise<number> {
-    const key = this.cacheKey(tenantId, entitlement, periodStart);
+    const key = this.cacheKey(resourceType, resourceId, entitlement, periodStart);
 
     // Check cache first
     const cached = this.cache.get(key);
@@ -53,7 +54,13 @@ export class CachedWalletStore implements WalletStore {
     }
 
     try {
-      const value = await this.inner.getConsumption(tenantId, entitlement, periodStart, periodEnd);
+      const value = await this.inner.getConsumption(
+        resourceType,
+        resourceId,
+        entitlement,
+        periodStart,
+        periodEnd,
+      );
       this.cache.set(key, { value, expiresAt: Date.now() + this.cacheTtlMs });
       return value;
     } catch (error) {
@@ -66,7 +73,8 @@ export class CachedWalletStore implements WalletStore {
   }
 
   async consume(
-    tenantId: string,
+    resourceType: string,
+    resourceId: string,
     entitlement: string,
     periodStart: Date,
     periodEnd: Date,
@@ -75,7 +83,8 @@ export class CachedWalletStore implements WalletStore {
   ): Promise<ConsumeResult> {
     // Mutations always go through — never cached-fallback
     const result = await this.inner.consume(
-      tenantId,
+      resourceType,
+      resourceId,
       entitlement,
       periodStart,
       periodEnd,
@@ -84,35 +93,50 @@ export class CachedWalletStore implements WalletStore {
     );
 
     // Update cache with new consumed count
-    const key = this.cacheKey(tenantId, entitlement, periodStart);
+    const key = this.cacheKey(resourceType, resourceId, entitlement, periodStart);
     this.cache.set(key, { value: result.consumed, expiresAt: Date.now() + this.cacheTtlMs });
 
     return result;
   }
 
   async unconsume(
-    tenantId: string,
+    resourceType: string,
+    resourceId: string,
     entitlement: string,
     periodStart: Date,
     periodEnd: Date,
     amount = 1,
   ): Promise<void> {
-    await this.inner.unconsume(tenantId, entitlement, periodStart, periodEnd, amount);
+    await this.inner.unconsume(
+      resourceType,
+      resourceId,
+      entitlement,
+      periodStart,
+      periodEnd,
+      amount,
+    );
 
     // Invalidate cache — next read will hit the inner store
-    const key = this.cacheKey(tenantId, entitlement, periodStart);
+    const key = this.cacheKey(resourceType, resourceId, entitlement, periodStart);
     this.cache.delete(key);
   }
 
   async getBatchConsumption(
-    tenantId: string,
+    resourceType: string,
+    resourceId: string,
     limitKeys: string[],
     periodStart: Date,
     periodEnd: Date,
   ): Promise<Map<string, number>> {
     // Delegate to inner store — batch reads bypass the per-key cache
     // to ensure consistency across all returned keys.
-    return this.inner.getBatchConsumption(tenantId, limitKeys, periodStart, periodEnd);
+    return this.inner.getBatchConsumption(
+      resourceType,
+      resourceId,
+      limitKeys,
+      periodStart,
+      periodEnd,
+    );
   }
 
   dispose(): void {
@@ -124,7 +148,12 @@ export class CachedWalletStore implements WalletStore {
   // Private
   // ==========================================================================
 
-  private cacheKey(tenantId: string, entitlement: string, periodStart: Date): string {
-    return `${tenantId}:${entitlement}:${periodStart.getTime()}`;
+  private cacheKey(
+    resourceType: string,
+    resourceId: string,
+    entitlement: string,
+    periodStart: Date,
+  ): string {
+    return `${resourceType}:${resourceId}:${entitlement}:${periodStart.getTime()}`;
   }
 }

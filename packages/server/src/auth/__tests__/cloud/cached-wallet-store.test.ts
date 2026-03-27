@@ -13,7 +13,8 @@ class MockWalletStore implements WalletStore {
   shouldThrow = false;
 
   async consume(
-    _tenantId: string,
+    _resourceType: string,
+    _resourceId: string,
     _entitlement: string,
     _periodStart: Date,
     _periodEnd: Date,
@@ -26,7 +27,8 @@ class MockWalletStore implements WalletStore {
   }
 
   async unconsume(
-    _tenantId: string,
+    _resourceType: string,
+    _resourceId: string,
     _entitlement: string,
     _periodStart: Date,
     _periodEnd: Date,
@@ -37,7 +39,8 @@ class MockWalletStore implements WalletStore {
   }
 
   async getConsumption(
-    _tenantId: string,
+    _resourceType: string,
+    _resourceId: string,
     _entitlement: string,
     _periodStart: Date,
     _periodEnd: Date,
@@ -48,7 +51,8 @@ class MockWalletStore implements WalletStore {
   }
 
   async getBatchConsumption(
-    _tenantId: string,
+    _resourceType: string,
+    _resourceId: string,
     limitKeys: string[],
     _periodStart: Date,
     _periodEnd: Date,
@@ -84,6 +88,7 @@ describe('Feature: CachedWalletStore', () => {
         const cached = new CachedWalletStore(inner, { cacheTtlMs: 5000 });
 
         const result = await cached.getConsumption(
+          'tenant',
           'tenant_abc',
           'prompt:create',
           periodStart,
@@ -100,9 +105,16 @@ describe('Feature: CachedWalletStore', () => {
         inner.consumption = 42;
         const cached = new CachedWalletStore(inner, { cacheTtlMs: 5000 });
 
-        await cached.getConsumption('tenant_abc', 'prompt:create', periodStart, periodEnd);
+        await cached.getConsumption(
+          'tenant',
+          'tenant_abc',
+          'prompt:create',
+          periodStart,
+          periodEnd,
+        );
         inner.consumption = 99; // Change underlying value
         const result = await cached.getConsumption(
+          'tenant',
           'tenant_abc',
           'prompt:create',
           periodStart,
@@ -119,13 +131,20 @@ describe('Feature: CachedWalletStore', () => {
         inner.consumption = 42;
         const cached = new CachedWalletStore(inner, { cacheTtlMs: 50 }); // 50ms TTL
 
-        await cached.getConsumption('tenant_abc', 'prompt:create', periodStart, periodEnd);
+        await cached.getConsumption(
+          'tenant',
+          'tenant_abc',
+          'prompt:create',
+          periodStart,
+          periodEnd,
+        );
 
         // Wait for cache to expire
         await new Promise((resolve) => setTimeout(resolve, 60));
 
         inner.consumption = 99;
         const result = await cached.getConsumption(
+          'tenant',
           'tenant_abc',
           'prompt:create',
           periodStart,
@@ -145,7 +164,13 @@ describe('Feature: CachedWalletStore', () => {
         const cached = new CachedWalletStore(inner, { cacheTtlMs: 50 }); // 50ms TTL
 
         // Populate cache
-        await cached.getConsumption('tenant_abc', 'prompt:create', periodStart, periodEnd);
+        await cached.getConsumption(
+          'tenant',
+          'tenant_abc',
+          'prompt:create',
+          periodStart,
+          periodEnd,
+        );
 
         // Wait for cache to expire
         await new Promise((resolve) => setTimeout(resolve, 60));
@@ -153,6 +178,7 @@ describe('Feature: CachedWalletStore', () => {
         // Now fail — should serve stale cache
         inner.shouldThrow = true;
         const result = await cached.getConsumption(
+          'tenant',
           'tenant_abc',
           'prompt:create',
           periodStart,
@@ -169,11 +195,18 @@ describe('Feature: CachedWalletStore', () => {
         const cached = new CachedWalletStore(inner, { cacheTtlMs: 5000 });
 
         // Populate cache
-        await cached.getConsumption('tenant_abc', 'prompt:create', periodStart, periodEnd);
+        await cached.getConsumption(
+          'tenant',
+          'tenant_abc',
+          'prompt:create',
+          periodStart,
+          periodEnd,
+        );
 
         // Now fail
         inner.shouldThrow = true;
         const result = await cached.getConsumption(
+          'tenant',
           'tenant_abc',
           'prompt:create',
           periodStart,
@@ -191,7 +224,7 @@ describe('Feature: CachedWalletStore', () => {
         const cached = new CachedWalletStore(inner, { cacheTtlMs: 5000 });
 
         await expect(
-          cached.getConsumption('tenant_abc', 'prompt:create', periodStart, periodEnd),
+          cached.getConsumption('tenant', 'tenant_abc', 'prompt:create', periodStart, periodEnd),
         ).rejects.toThrow('Cloud error');
       });
     });
@@ -204,6 +237,7 @@ describe('Feature: CachedWalletStore', () => {
         const cached = new CachedWalletStore(inner, { cacheTtlMs: 5000 });
 
         const result = await cached.consume(
+          'tenant',
           'tenant_abc',
           'prompt:create',
           periodStart,
@@ -218,6 +252,7 @@ describe('Feature: CachedWalletStore', () => {
         // Cache should now reflect the new consumed count
         inner.shouldThrow = true; // Prevent any further cloud calls
         const consumption = await cached.getConsumption(
+          'tenant',
           'tenant_abc',
           'prompt:create',
           periodStart,
@@ -233,7 +268,7 @@ describe('Feature: CachedWalletStore', () => {
         const cached = new CachedWalletStore(inner, { cacheTtlMs: 5000 });
 
         await expect(
-          cached.consume('tenant_abc', 'prompt:create', periodStart, periodEnd, 100, 1),
+          cached.consume('tenant', 'tenant_abc', 'prompt:create', periodStart, periodEnd, 100, 1),
         ).rejects.toThrow('Cloud error');
       });
     });
@@ -246,14 +281,21 @@ describe('Feature: CachedWalletStore', () => {
         const cached = new CachedWalletStore(inner, { cacheTtlMs: 5000 });
 
         // Populate cache
-        await cached.getConsumption('tenant_abc', 'prompt:create', periodStart, periodEnd);
+        await cached.getConsumption(
+          'tenant',
+          'tenant_abc',
+          'prompt:create',
+          periodStart,
+          periodEnd,
+        );
 
         // Unconsume should invalidate cache
-        await cached.unconsume('tenant_abc', 'prompt:create', periodStart, periodEnd, 1);
+        await cached.unconsume('tenant', 'tenant_abc', 'prompt:create', periodStart, periodEnd, 1);
 
         // Next getConsumption should hit the inner store
         inner.consumption = 47;
         const result = await cached.getConsumption(
+          'tenant',
           'tenant_abc',
           'prompt:create',
           periodStart,
@@ -279,6 +321,7 @@ describe('Feature: CachedWalletStore', () => {
         const cached = new CachedWalletStore(inner, { cacheTtlMs: 5000 });
 
         const result = await cached.getBatchConsumption(
+          'tenant',
           'tenant_abc',
           ['prompt:create', 'task:create'],
           periodStart,
@@ -298,6 +341,7 @@ describe('Feature: CachedWalletStore', () => {
 
         await expect(
           cached.getBatchConsumption(
+            'tenant',
             'tenant_abc',
             ['prompt:create'],
             periodStart,

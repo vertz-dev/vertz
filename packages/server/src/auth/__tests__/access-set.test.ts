@@ -371,7 +371,7 @@ describe('computeAccessSet — plan/wallet enrichment', () => {
     await subscriptionStore.assign('tenant', 'org-1', 'pro', planStartedAt);
 
     const { periodStart, periodEnd } = calculateBillingPeriod(planStartedAt, 'month');
-    await walletStore.consume('org-1', 'projects', periodStart, periodEnd, 10, 3);
+    await walletStore.consume('tenant', 'org-1', 'projects', periodStart, periodEnd, 10, 3);
 
     const result = await computeAccessSet({
       userId: 'user-1',
@@ -428,7 +428,7 @@ describe('computeAccessSet — plan/wallet enrichment', () => {
     await subscriptionStore.assign('tenant', 'org-1', 'pro', planStartedAt);
 
     const { periodStart, periodEnd } = calculateBillingPeriod(planStartedAt, 'month');
-    await walletStore.consume('org-1', 'projects', periodStart, periodEnd, 10, 10);
+    await walletStore.consume('tenant', 'org-1', 'projects', periodStart, periodEnd, 10, 10);
 
     const result = await computeAccessSet({
       userId: 'user-1',

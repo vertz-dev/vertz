@@ -61,6 +61,7 @@ describe('Feature: CloudWalletStore', () => {
         const periodEnd = new Date('2026-04-01T00:00:00Z');
 
         const consumed = await store.getConsumption(
+          'tenant',
           'tenant_abc',
           'prompt:create',
           periodStart,
@@ -71,7 +72,8 @@ describe('Feature: CloudWalletStore', () => {
         expect(lastRequest?.method).toBe('POST');
         expect(lastRequest?.url).toBe('/api/v1/wallet/check');
         expect(lastRequest?.body).toEqual({
-          tenantId: 'tenant_abc',
+          resourceType: 'tenant',
+          resourceId: 'tenant_abc',
           limitKey: 'prompt:create',
           periodStart: periodStart.toISOString(),
           periodEnd: periodEnd.toISOString(),
@@ -91,6 +93,7 @@ describe('Feature: CloudWalletStore', () => {
         });
 
         await store.getConsumption(
+          'tenant',
           'tenant_abc',
           'prompt:create',
           new Date('2026-03-01'),
@@ -118,6 +121,7 @@ describe('Feature: CloudWalletStore', () => {
         const periodEnd = new Date('2026-04-01T00:00:00Z');
 
         const result = await store.consume(
+          'tenant',
           'tenant_abc',
           'prompt:create',
           periodStart,
@@ -134,7 +138,8 @@ describe('Feature: CloudWalletStore', () => {
         });
         expect(lastRequest?.url).toBe('/api/v1/wallet/consume');
         expect(lastRequest?.body).toEqual({
-          tenantId: 'tenant_abc',
+          resourceType: 'tenant',
+          resourceId: 'tenant_abc',
           limitKey: 'prompt:create',
           periodStart: periodStart.toISOString(),
           periodEnd: periodEnd.toISOString(),
@@ -162,6 +167,7 @@ describe('Feature: CloudWalletStore', () => {
         });
 
         const result = await store.consume(
+          'tenant',
           'tenant_abc',
           'prompt:create',
           new Date('2026-03-01'),
@@ -192,11 +198,12 @@ describe('Feature: CloudWalletStore', () => {
         const periodStart = new Date('2026-03-01T00:00:00Z');
         const periodEnd = new Date('2026-04-01T00:00:00Z');
 
-        await store.unconsume('tenant_abc', 'prompt:create', periodStart, periodEnd, 1);
+        await store.unconsume('tenant', 'tenant_abc', 'prompt:create', periodStart, periodEnd, 1);
 
         expect(lastRequest?.url).toBe('/api/v1/wallet/unconsume');
         expect(lastRequest?.body).toEqual({
-          tenantId: 'tenant_abc',
+          resourceType: 'tenant',
+          resourceId: 'tenant_abc',
           limitKey: 'prompt:create',
           periodStart: periodStart.toISOString(),
           periodEnd: periodEnd.toISOString(),
@@ -224,6 +231,7 @@ describe('Feature: CloudWalletStore', () => {
         const periodEnd = new Date('2026-04-01T00:00:00Z');
 
         const result = await store.getBatchConsumption(
+          'tenant',
           'tenant_abc',
           ['prompt:create', 'task:create'],
           periodStart,
@@ -236,7 +244,8 @@ describe('Feature: CloudWalletStore', () => {
         expect(lastRequest?.method).toBe('POST');
         expect(lastRequest?.url).toBe('/api/v1/wallet/batch-check');
         expect(lastRequest?.body).toEqual({
-          tenantId: 'tenant_abc',
+          resourceType: 'tenant',
+          resourceId: 'tenant_abc',
           limitKeys: ['prompt:create', 'task:create'],
           periodStart: periodStart.toISOString(),
           periodEnd: periodEnd.toISOString(),
@@ -256,6 +265,7 @@ describe('Feature: CloudWalletStore', () => {
         });
 
         const result = await store.getBatchConsumption(
+          'tenant',
           'tenant_abc',
           [],
           new Date('2026-03-01'),
@@ -283,6 +293,7 @@ describe('Feature: CloudWalletStore', () => {
 
         await expect(
           store.getConsumption(
+            'tenant',
             'tenant_abc',
             'prompt:create',
             new Date('2026-03-01'),
@@ -314,6 +325,7 @@ describe('Feature: CloudWalletStore', () => {
         try {
           await expect(
             store.getConsumption(
+              'tenant',
               'tenant_abc',
               'prompt:create',
               new Date('2026-03-01'),

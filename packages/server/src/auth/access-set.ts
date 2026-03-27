@@ -387,6 +387,7 @@ export async function computeAccessSet(config: ComputeAccessSetConfig): Promise<
                     periodEnd: new Date('9999-12-31T23:59:59Z'),
                   };
               const consumed = await walletStore.getConsumption(
+                config.tenantLevel!,
                 tenantId,
                 limitKey,
                 period.periodStart,
@@ -508,6 +509,7 @@ export async function computeAccessSet(config: ComputeAccessSetConfig): Promise<
                           periodEnd: new Date('9999-12-31T23:59:59Z'),
                         };
                     const consumed = await walletStore.getConsumption(
+                      resourceType,
                       tenantId,
                       limitKey,
                       period.periodStart,
