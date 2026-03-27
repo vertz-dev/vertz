@@ -10,6 +10,7 @@ export type {
 } from './aot-manifest-build';
 export {
   buildAotRouteMap,
+  findAppComponent,
   generateAotBarrel,
   generateAotBuildManifest,
 } from './aot-manifest-build';

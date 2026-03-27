@@ -170,11 +170,15 @@ export interface AotBarrelResult {
 export function generateAotBarrel(
   compiledFiles: Record<string, AotCompiledFile>,
   routeMap: Record<string, AotRouteMapEntry>,
+  appEntry?: AotRouteMapEntry,
 ): AotBarrelResult {
   // Collect all render function names needed
   const neededFns = new Set<string>();
   for (const entry of Object.values(routeMap)) {
     neededFns.add(entry.renderFn);
+  }
+  if (appEntry) {
+    neededFns.add(appEntry.renderFn);
   }
 
   // Map function names → source file paths
@@ -227,6 +231,28 @@ export function generateAotBarrel(
     barrelSource: lines.join('\n'),
     files,
   };
+}
+
+/**
+ * Find the root layout (App) component — the one with RouterView as a hole.
+ *
+ * Returns the component name and its AOT route map entry, or undefined if
+ * no component has a RouterView hole or it's a runtime-fallback.
+ */
+export function findAppComponent(
+  components: Record<string, AotBuildComponentEntry>,
+): AotRouteMapEntry | undefined {
+  for (const [name, comp] of Object.entries(components)) {
+    if (comp.tier === 'runtime-fallback') continue;
+    if (comp.holes.includes('RouterView')) {
+      return {
+        renderFn: `__ssr_${name}`,
+        holes: comp.holes,
+        queryKeys: comp.queryKeys,
+      };
+    }
+  }
+  return undefined;
 }
 
 /** Recursively collect all .tsx files in a directory. */

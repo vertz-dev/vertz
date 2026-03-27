@@ -322,8 +322,13 @@ ${modulepreloadLinks}
     console.log('📋 Generating AOT manifest...');
 
     try {
-      const { buildAotRouteMap, extractRoutes, generateAotBarrel, generateAotBuildManifest } =
-        await import('@vertz/ui-server');
+      const {
+        buildAotRouteMap,
+        extractRoutes,
+        findAppComponent,
+        generateAotBarrel,
+        generateAotBuildManifest,
+      } = await import('@vertz/ui-server');
       const srcDir = resolve(projectRoot, 'src');
       const aotManifest = generateAotBuildManifest(srcDir);
       const componentCount = Object.keys(aotManifest.components).length;
@@ -347,11 +352,12 @@ ${modulepreloadLinks}
               componentName: r.componentName,
             }));
             const routeMap = buildAotRouteMap(aotManifest.components, routeEntries);
+            const appEntry = findAppComponent(aotManifest.components);
             const routeCount = Object.keys(routeMap).length;
 
             if (routeCount > 0) {
               // Generate barrel + temp files and bundle with Bun.build()
-              const barrel = generateAotBarrel(aotManifest.compiledFiles, routeMap);
+              const barrel = generateAotBarrel(aotManifest.compiledFiles, routeMap, appEntry);
               const aotTmpDir = resolve(distServer, '.aot-tmp');
               mkdirSync(aotTmpDir, { recursive: true });
 
@@ -400,13 +406,16 @@ ${modulepreloadLinks}
               rmSync(aotTmpDir, { recursive: true, force: true });
 
               if (bundleResult.success) {
+                const appLabel = appEntry ? ' + app shell' : '';
                 console.log(
-                  `  AOT routes: ${routeCount} route(s) bundled → dist/server/aot-routes.js`,
+                  `  AOT routes: ${routeCount} route(s)${appLabel} bundled → dist/server/aot-routes.js`,
                 );
 
-                // Write aot-manifest.json with route mapping
+                // Write aot-manifest.json with route mapping + app entry
                 const manifestPath = resolve(distServer, 'aot-manifest.json');
-                writeFileSync(manifestPath, JSON.stringify({ routes: routeMap }, null, 2));
+                const manifestData: Record<string, unknown> = { routes: routeMap };
+                if (appEntry) manifestData.app = appEntry;
+                writeFileSync(manifestPath, JSON.stringify(manifestData, null, 2));
               } else {
                 const errors = bundleResult.logs
                   .map((l: { message: string }) => l.message)

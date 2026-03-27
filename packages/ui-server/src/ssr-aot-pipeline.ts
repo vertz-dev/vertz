@@ -65,6 +65,8 @@ export interface AotRouteEntry {
 export interface AotManifest {
   /** Route pattern → AOT entry. */
   routes: Record<string, AotRouteEntry>;
+  /** Root layout (App) entry — wraps page content via its RouterView hole. */
+  app?: AotRouteEntry;
 }
 
 /**
@@ -334,7 +336,34 @@ export async function ssrRenderAot(
       return ssrRenderSinglePass(module, normalizedUrl, fallbackOptions);
     }
 
-    // 5b. Dev-mode divergence detection: dual render and compare
+    // 5b. Wrap page HTML in App layout shell if available (#1977)
+    if (aotManifest.app) {
+      try {
+        // Create holes for the app — DOM shim for all except RouterView
+        const appHoleNames = aotManifest.app.holes.filter((h) => h !== 'RouterView');
+        const appHoles = createHoles(appHoleNames, module, normalizedUrl, queryCache, options.ssrAuth);
+
+        // RouterView hole returns the pre-rendered page HTML
+        appHoles.RouterView = () => html;
+
+        const appCtx: SSRAotContext = {
+          holes: appHoles,
+          getData: (key) => queryCache.get(key),
+          session: options.prefetchSession,
+          params: match.params,
+        };
+
+        html = aotManifest.app.render(data, appCtx);
+      } catch (appErr) {
+        // App shell render failed — return page HTML without layout
+        console.error(
+          '[SSR] AOT app shell render failed — serving page without layout:',
+          appErr instanceof Error ? appErr.message : appErr,
+        );
+      }
+    }
+
+    // 5c. Dev-mode divergence detection: dual render and compare
     if (options.diagnostics && isAotDebugEnabled()) {
       try {
         const domResult = await ssrRenderSinglePass(module, normalizedUrl, fallbackOptions);

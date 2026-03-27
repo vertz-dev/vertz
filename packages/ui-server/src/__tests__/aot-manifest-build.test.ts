@@ -8,6 +8,7 @@ import type {
 } from '../aot-manifest-build';
 import {
   buildAotRouteMap,
+  findAppComponent,
   generateAotBarrel,
   generateAotBuildManifest,
 } from '../aot-manifest-build';
@@ -441,6 +442,92 @@ describe('generateAotBarrel', () => {
 
         expect(result.barrelSource).toContain('__ssr_HomePage');
         expect(result.barrelSource).not.toContain('__ssr_UnusedComponent');
+      });
+    });
+  });
+
+  // ─── findAppComponent Tests (#1977) ────────────────────────────
+
+  describe('findAppComponent', () => {
+    describe('Given components where one has RouterView as a hole', () => {
+      it('Then returns the component with RouterView as the app entry', () => {
+        const components: Record<string, AotBuildComponentEntry> = {
+          App: { tier: 'data-driven', holes: ['RouterView'], queryKeys: [] },
+          HomePage: { tier: 'static', holes: [], queryKeys: [] },
+        };
+
+        const result = findAppComponent(components);
+
+        expect(result).toBeDefined();
+        expect(result!.renderFn).toBe('__ssr_App');
+        expect(result!.holes).toEqual(['RouterView']);
+      });
+    });
+
+    describe('Given components where the RouterView component has additional holes', () => {
+      it('Then returns the component with all its holes', () => {
+        const components: Record<string, AotBuildComponentEntry> = {
+          App: { tier: 'data-driven', holes: ['ThemeProvider', 'RouterView'], queryKeys: [] },
+        };
+
+        const result = findAppComponent(components);
+
+        expect(result).toBeDefined();
+        expect(result!.holes).toEqual(['ThemeProvider', 'RouterView']);
+      });
+    });
+
+    describe('Given no component has RouterView as a hole', () => {
+      it('Then returns undefined', () => {
+        const components: Record<string, AotBuildComponentEntry> = {
+          HomePage: { tier: 'static', holes: [], queryKeys: [] },
+          Sidebar: { tier: 'data-driven', holes: ['UserWidget'], queryKeys: [] },
+        };
+
+        const result = findAppComponent(components);
+
+        expect(result).toBeUndefined();
+      });
+    });
+
+    describe('Given the RouterView component is runtime-fallback', () => {
+      it('Then returns undefined (runtime-fallback cannot be AOT-rendered)', () => {
+        const components: Record<string, AotBuildComponentEntry> = {
+          App: { tier: 'runtime-fallback', holes: ['RouterView'], queryKeys: [] },
+        };
+
+        const result = findAppComponent(components);
+
+        expect(result).toBeUndefined();
+      });
+    });
+  });
+
+  describe('generateAotBarrel with app entry', () => {
+    describe('Given an app entry alongside routes', () => {
+      it('Then the barrel includes the app render function', () => {
+        const compiledFiles: Record<string, AotCompiledFile> = {
+          'app.tsx': {
+            code: 'export function __ssr_App() { return ""; }\nexport function __ssr_HomePage() { return ""; }',
+            components: [
+              { name: 'App', tier: 'data-driven', holes: ['RouterView'], queryKeys: [] },
+              { name: 'HomePage', tier: 'static', holes: [], queryKeys: [] },
+            ],
+          },
+        };
+        const routeMap: Record<string, AotRouteMapEntry> = {
+          '/': { renderFn: '__ssr_HomePage', holes: [], queryKeys: [] },
+        };
+        const appEntry: AotRouteMapEntry = {
+          renderFn: '__ssr_App',
+          holes: ['RouterView'],
+          queryKeys: [],
+        };
+
+        const result = generateAotBarrel(compiledFiles, routeMap, appEntry);
+
+        expect(result.barrelSource).toContain('__ssr_App');
+        expect(result.barrelSource).toContain('__ssr_HomePage');
       });
     });
   });
