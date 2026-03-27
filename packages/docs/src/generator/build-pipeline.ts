@@ -57,7 +57,10 @@ export async function buildDocs(options: BuildDocsOptions): Promise<BuildManifes
   const llmPages: LlmPage[] = [];
 
   for (const route of routes) {
-    const filePath = join(pagesDir, route.filePath);
+    const normalizedFilePath = route.filePath.endsWith('.mdx')
+      ? route.filePath
+      : `${route.filePath}.mdx`;
+    const filePath = join(pagesDir, normalizedFilePath);
     if (!existsSync(filePath)) continue;
 
     const rawContent = await Bun.file(filePath).text();

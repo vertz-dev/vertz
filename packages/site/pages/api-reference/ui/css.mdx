@@ -1,0 +1,404 @@
+---
+title: CSS
+description: 'API reference for css(), variants(), globalCss(), font(), and compileFonts()'
+---
+
+Vertz provides scoped, utility-driven styling with `css()` for component styles, `variants()` for parameterized variants, `globalCss()` for resets and base styles, and `font()` + `compileFonts()` for font management.
+
+## css()
+
+Define scoped style blocks. Returns an object with class name strings keyed by block name.
+
+```tsx
+import { css } from '@vertz/ui/css';
+
+const styles = css({
+  card: ['bg:white', 'rounded:lg', 'shadow:md', 'p:6'],
+  title: ['font:xl', 'font:bold', 'text:gray.900'],
+});
+
+// styles.card → 'card_a1b2c3' (scoped class name)
+// styles.title → 'title_a1b2c3'
+// styles.css → compiled CSS string (non-enumerable)
+
+function TaskCard() {
+  return (
+    <div className={styles.card}>
+      <h2 className={styles.title}>Task</h2>
+    </div>
+  );
+}
+```
+
+### Signature
+
+```ts
+function css<T extends CSSInput>(input: T, filePath?: string): CSSOutput<T>;
+```
+
+### Parameters
+
+| Parameter  | Type       | Description                                           |
+| ---------- | ---------- | ----------------------------------------------------- |
+| `input`    | `CSSInput` | Object mapping block names to arrays of style entries |
+| `filePath` | `string`   | Used internally by the compiler for scoping           |
+
+### Returns
+
+`CSSOutput<T>` — object with each block name mapped to its scoped class name string, plus a non-enumerable `css` property containing the compiled CSS.
+
+### Style entries
+
+Each style entry in the array can be:
+
+| Type             | Example                           | Description                                     |
+| ---------------- | --------------------------------- | ----------------------------------------------- |
+| Shorthand string | `'bg:white'`                      | Utility shorthand expanded to CSS               |
+| Nested selector  | `{ '&:hover': ['bg:gray.100'] }`  | Pseudo-classes, media queries, child selectors  |
+| CSS declaration  | `{ 'grid-template': '1fr auto' }` | Plain CSS property-value pair for arbitrary CSS |
+
+```tsx
+const styles = css({
+  button: [
+    'bg:primary.600',
+    'text:white',
+    'rounded:md',
+    'px:4',
+    'py:2',
+    { '&:hover': ['bg:primary.700'] },
+    { '&:disabled': ['opacity:50', 'cursor:not-allowed'] },
+  ],
+});
+```
+
+### Type-safe utility strings
+
+Style entry strings are type-checked against the `UtilityClass` union type. Invalid utility class names produce TypeScript errors and editors provide autocomplete for valid options.
+
+```tsx
+// ✅ Valid — full autocomplete
+const styles = css({
+  card: ['p:4', 'bg:primary', 'rounded:lg'],
+});
+
+// ❌ Type error — 'bgg' is not a valid property
+const bad = css({
+  card: ['bgg:primary'], // Error!
+});
+```
+
+**Property groups with validated values:** spacing (`p`, `m`, `gap`, etc.), color (`bg`), radius (`rounded`), shadow, alignment (`items`, `justify`), font weight (`weight`), line height (`leading`), content.
+
+**Multi-mode properties:** `text` (font-size, text-align, or color), `font` (size or weight), `border` (width or color), `ring` (width or color), `list` (style or position).
+
+**Raw properties (any value accepted):** `cursor`, `transition`, `resize`, `opacity`, `inset`, `z`, `tracking`, `decoration`, `grid-cols`, `border-r/l/t/b`, `vt-name`, `view-transition-name`, `overflow`, `overflow-x`, `overflow-y`.
+
+**Pseudo-prefixed:** Validates the prefix (`hover`, `focus`, `active`, etc.) and property name. Example: `'hover:bg:primary.700'`.
+
+### Color opacity modifier
+
+Append `/<opacity>` (0–100) to any color token to apply alpha transparency using `color-mix()`:
+
+```tsx
+const styles = css({
+  overlay: ['bg:primary/50'], // 50% opacity
+  subtle: ['text:muted/80'], // 80% opacity
+  faded: ['border:ring/30'], // 30% opacity
+  shade: ['bg:primary.700/50'], // works with shaded tokens too
+});
+```
+
+Output: `background-color: color-mix(in oklch, var(--color-primary) 50%, transparent)`
+
+Works with all color properties (`bg`, `text`, `border`) and multi-mode resolvers. Requires theme variables to be valid CSS color values (oklch, hsl, hex, etc.).
+
+### Fraction dimensions
+
+Use `N/M` syntax for percentage-based sizing:
+
+```tsx
+const styles = css({
+  sidebar: ['w:1/4'], // width: 25%
+  main: ['w:3/4'], // width: 75%
+  half: ['w:1/2'], // width: 50%
+  third: ['h:1/3'], // height: 33.333333%
+});
+```
+
+Works with all size properties (`w`, `h`, `min-w`, `max-w`, `min-h`, `max-h`). Fractions greater than 1 (e.g. `w:3/2` → `150%`) are allowed.
+
+### Transform scale keywords
+
+Preset scale transform values:
+
+```tsx
+const styles = css({
+  shrink: ['scale-90'], // transform: scale(0.9)
+  grow: ['scale-110'], // transform: scale(1.1)
+  hide: ['scale-0'], // transform: scale(0)
+});
+```
+
+Available: `scale-0`, `scale-75`, `scale-90`, `scale-95`, `scale-100`, `scale-105`, `scale-110`, `scale-125`, `scale-150`.
+
+### Overflow variants
+
+Axis-specific overflow control:
+
+```tsx
+const styles = css({
+  scrollX: ['overflow-x:auto'],
+  scrollY: ['overflow-y:scroll'],
+  clip: ['overflow:hidden'],
+});
+```
+
+The `overflow-hidden` keyword also remains available for backward compatibility.
+
+The `UtilityClass` type is exported from `@vertz/ui/css` for use in custom type definitions.
+
+---
+
+## variants()
+
+Create a typed variant function for component styling with multiple visual states.
+
+```tsx
+import { variants } from '@vertz/ui/css';
+
+const button = variants({
+  base: ['inline-flex', 'items:center', 'rounded:md', 'font:medium'],
+  variants: {
+    intent: {
+      primary: ['bg:primary.600', 'text:white'],
+      danger: ['bg:danger.500', 'text:white'],
+      ghost: ['bg:transparent', 'text:gray.700'],
+    },
+    size: {
+      sm: ['text:xs', 'px:3', 'py:1.5'],
+      md: ['text:sm', 'px:4', 'py:2'],
+      lg: ['text:base', 'px:6', 'py:3'],
+    },
+  },
+  defaultVariants: { intent: 'primary', size: 'md' },
+});
+
+// button() → 'btn_a1b2c3 primary_a1b2c3 md_a1b2c3'
+// button({ intent: 'danger', size: 'sm' }) → 'btn_a1b2c3 danger_a1b2c3 sm_a1b2c3'
+
+function SubmitButton() {
+  return <button className={button({ intent: 'primary', size: 'lg' })}>Save</button>;
+}
+```
+
+### Signature
+
+```ts
+function variants<V extends VariantDefinitions>(config: VariantsConfig<V>): VariantFunction<V>;
+```
+
+### VariantsConfig
+
+| Property           | Type                   | Description                                                                       |
+| ------------------ | ---------------------- | --------------------------------------------------------------------------------- |
+| `base`             | `StyleEntry[]`         | Base styles applied to all variants                                               |
+| `variants`         | `V`                    | Object mapping variant names to their options (each option maps to style entries) |
+| `defaultVariants`  | `Partial<V>`           | Default variant selections when not specified                                     |
+| `compoundVariants` | `CompoundVariant<V>[]` | Styles applied when specific variant combinations are active                      |
+
+### Returns
+
+`VariantFunction<V>` — a callable function that accepts variant props and returns a class name string. Also has a `.css` property with the compiled CSS.
+
+### Compound variants
+
+```tsx
+const badge = variants({
+  base: ['rounded:full', 'px:2', 'py:0.5', 'font:xs'],
+  variants: {
+    color: {
+      blue: ['bg:blue.100', 'text:blue.800'],
+      red: ['bg:red.100', 'text:red.800'],
+    },
+    outlined: {
+      true: ['bg:transparent', 'border:1'],
+      false: [],
+    },
+  },
+  compoundVariants: [
+    { color: 'blue', outlined: true, css: ['border:blue.300', 'text:blue.700'] },
+    { color: 'red', outlined: true, css: ['border:red.300', 'text:red.700'] },
+  ],
+  defaultVariants: { color: 'blue', outlined: false },
+});
+```
+
+---
+
+## globalCss()
+
+Define global styles — resets, base typography, body defaults. Properties use camelCase, converted to kebab-case in output.
+
+```ts
+import { globalCss } from '@vertz/ui/css';
+
+const reset = globalCss({
+  '*': { margin: '0', padding: '0', boxSizing: 'border-box' },
+  body: { fontFamily: 'system-ui, sans-serif', lineHeight: '1.5' },
+  a: { textDecoration: 'none', color: 'inherit' },
+});
+
+// reset.css → compiled global CSS string
+```
+
+### Signature
+
+```ts
+function globalCss(input: GlobalCSSInput): GlobalCSSOutput;
+```
+
+### Parameters
+
+| Parameter | Type                                     | Description                                  |
+| --------- | ---------------------------------------- | -------------------------------------------- |
+| `input`   | `Record<string, Record<string, string>>` | Object mapping selectors to CSS declarations |
+
+### Returns
+
+`GlobalCSSOutput` — object with a `css` property containing the compiled CSS string.
+
+---
+
+## font()
+
+Create a font descriptor that describes a font family and its sources. Only woff2 format is supported.
+
+```tsx
+import { font } from '@vertz/ui/css';
+
+const sans = font('DM Sans', {
+  weight: '100..1000',
+  src: '/fonts/dm-sans.woff2',
+  fallback: ['system-ui', 'sans-serif'],
+});
+```
+
+### Parameters
+
+| Parameter | Type          | Description                              |
+| --------- | ------------- | ---------------------------------------- |
+| `family`  | `string`      | The font family name (e.g., `'DM Sans'`) |
+| `options` | `FontOptions` | Font configuration (see types below)     |
+
+### Returns
+
+`FontDescriptor` — a branded object describing the font, for use with `compileFonts()`.
+
+---
+
+## compileFonts()
+
+Compile font descriptors into `@font-face` CSS, CSS custom properties, and preload link tags.
+
+```tsx
+import { font, compileFonts } from '@vertz/ui/css';
+
+const sans = font('DM Sans', {
+  weight: '100..1000',
+  src: '/fonts/dm-sans.woff2',
+  fallback: ['system-ui', 'sans-serif'],
+});
+
+const mono = font('JetBrains Mono', {
+  weight: '100..800',
+  src: '/fonts/jb-mono.woff2',
+  fallback: ['monospace'],
+});
+
+const compiled = compileFonts({ sans, mono });
+// compiled.fontFaceCss  — @font-face declarations
+// compiled.cssVarsCss   — :root { --font-sans: ...; --font-mono: ...; }
+// compiled.cssVarLines  — individual var lines for merging into an existing :root
+// compiled.preloadTags  — <link rel="preload" ...> HTML tags
+```
+
+### Parameters
+
+| Parameter | Type                             | Description                                                          |
+| --------- | -------------------------------- | -------------------------------------------------------------------- |
+| `fonts`   | `Record<string, FontDescriptor>` | Map of token key to font descriptor. Keys must match `[a-zA-Z0-9-]`. |
+
+### Returns
+
+`CompiledFonts` — object with `fontFaceCss`, `cssVarsCss`, `cssVarLines`, and `preloadTags`.
+
+---
+
+## Types
+
+```ts
+type CSSInput = Record<string, StyleEntry[]>;
+
+type CSSOutput<T extends CSSInput> = {
+  readonly [K in keyof T & string]: string;
+} & { readonly css: string };
+
+type StyleEntry = string | Record<string, StyleValue[] | Record<string, string>>;
+type StyleValue = string | Record<string, string>;
+
+type GlobalCSSInput = Record<string, Record<string, string>>;
+interface GlobalCSSOutput {
+  css: string;
+}
+
+interface VariantsConfig<V extends VariantDefinitions> {
+  base: StyleEntry[];
+  variants: V;
+  defaultVariants?: { [K in keyof V]?: keyof V[K] };
+  compoundVariants?: CompoundVariant<V>[];
+}
+
+interface VariantFunction<V extends VariantDefinitions> {
+  (props?: VariantProps<V>): string;
+  css: string;
+}
+
+type VariantProps<V extends VariantDefinitions> = {
+  [K in keyof V]?: keyof V[K];
+};
+
+interface FontSrc {
+  path: string;
+  weight?: string | number;
+  style?: 'normal' | 'italic';
+}
+
+interface FontOptions {
+  weight: string | number;
+  style?: 'normal' | 'italic';
+  display?: 'auto' | 'block' | 'swap' | 'fallback' | 'optional';
+  src?: string | FontSrc[];
+  fallback?: string[];
+  subsets?: string[];
+  unicodeRange?: string;
+}
+
+interface FontDescriptor {
+  readonly __brand: 'FontDescriptor';
+  readonly family: string;
+  readonly weight: string;
+  readonly style: 'normal' | 'italic';
+  readonly display: 'auto' | 'block' | 'swap' | 'fallback' | 'optional';
+  readonly src?: string | FontSrc[];
+  readonly fallback: string[];
+  readonly subsets: string[];
+  readonly unicodeRange?: string;
+}
+
+interface CompiledFonts {
+  fontFaceCss: string;
+  cssVarsCss: string;
+  cssVarLines: string[];
+  preloadTags: string;
+}
+```

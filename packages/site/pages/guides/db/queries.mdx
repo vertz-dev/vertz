@@ -1,0 +1,364 @@
+---
+title: Queries
+description: 'Typed CRUD operations, filters, pagination, and error handling'
+---
+
+The database client provides typed CRUD operations derived from your schema. Every query is type-checked — column names, filter values, and return types are all inferred from the model definition.
+
+## Creating the client
+
+<CodeGroup>
+```ts PostgreSQL
+import { createDb } from 'vertz/db';
+
+const db = createDb({
+url: process.env.DATABASE_URL!,
+models: { users: usersModel, tasks: tasksModel },
+});
+
+````
+
+```ts SQLite (local file)
+import { createDb } from 'vertz/db';
+
+const db = createDb({
+  dialect: 'sqlite',
+  path: '.vertz/data/app.db', // or ':memory:'
+  models: { users: usersModel, tasks: tasksModel },
+  migrations: { autoApply: true },
+});
+````
+
+</CodeGroup>
+
+Each model becomes a property on `db` with typed query methods. The query API is identical across all dialects — only the `createDb()` options differ.
+
+## Read operations
+
+### Get a single record
+
+```ts
+const result = await db.users.get({
+  where: { id: userId },
+});
+
+if (result.ok) {
+  console.log(result.data.name); // typed
+}
+```
+
+### List with filtering
+
+```ts
+const result = await db.tasks.list({
+  where: { status: 'todo', assigneeId: userId },
+  orderBy: { createdAt: 'desc' },
+  limit: 20,
+});
+
+if (result.ok) {
+  console.log(result.data.items); // Task[]
+  console.log(result.data.total); // total count
+  console.log(result.data.hasNextPage);
+}
+```
+
+### Filter operators
+
+```ts
+where: {
+  // Equality
+  status: 'active',
+
+  // Comparison
+  age: { gt: 18, lte: 65 },
+
+  // Set membership
+  role: { in: ['admin', 'editor'] },
+  status: { notIn: ['deleted'] },
+
+  // String matching
+  name: { contains: 'Smith' },
+  email: { startsWith: 'admin' },
+  email: { endsWith: '@example.com' },
+
+  // Null checks
+  deletedAt: { isNull: true },
+}
+```
+
+### Select specific fields
+
+```ts
+const result = await db.users.list({
+  select: { id: true, name: true, email: true },
+});
+// result.data.items is { id: string; name: string; email: string }[]
+```
+
+### Include relations
+
+Load related data in a single query instead of making separate API calls:
+
+```ts
+const result = await db.posts.list({
+  include: { author: true, comments: true },
+});
+// result.data.items[0].author — the related user
+// result.data.items[0].comments — array of related comments
+```
+
+Narrow included relations to specific fields:
+
+```ts
+include: {
+  author: { select: { id: true, name: true } },
+}
+```
+
+Filter, sort, and limit included relations:
+
+```ts
+include: {
+  comments: {
+    where: { status: 'approved' },
+    orderBy: { createdAt: 'desc' },
+    limit: 10,
+  },
+}
+```
+
+Nest includes up to 3 levels deep:
+
+```ts
+include: {
+  comments: {
+    orderBy: { createdAt: 'desc' },
+    include: {
+      author: { select: { id: true, name: true } },
+    },
+  },
+}
+// result.data.items[0].comments[0].author.name
+```
+
+Many-to-many relations work through join tables — define a `.through()` relation in your model and include it like any other:
+
+```ts
+// Schema
+const postsModel = d.model(postsTable, {
+  tags: d.ref.many(() => tagsTable).through(() => postTagsTable, 'postId', 'tagId'),
+});
+
+// Query — join table is traversed automatically
+const result = await db.posts.list({
+  include: { tags: true },
+});
+// result.data.items[0].tags — Tag[] resolved through the join table
+```
+
+### Count
+
+```ts
+const count = await db.users.count({
+  where: { isActive: true },
+});
+```
+
+### Aggregation
+
+```ts
+const stats = await db.orders.aggregate({
+  where: { status: 'completed' },
+  _count: true,
+  _sum: { price: true },
+  _avg: { amount: true },
+});
+```
+
+### Group by
+
+```ts
+const grouped = await db.orders.groupBy({
+  by: ['status'],
+  _count: true,
+  _sum: { total: true },
+});
+```
+
+## Write operations
+
+### Create
+
+```ts
+const result = await db.users.create({
+  data: { email: 'alice@example.com', name: 'Alice' },
+});
+
+if (result.ok) {
+  console.log(result.data.id); // auto-generated
+}
+```
+
+### Update
+
+```ts
+const result = await db.users.update({
+  where: { id: userId },
+  data: { name: 'Bob' },
+});
+```
+
+### Upsert
+
+Create if not found, update if exists:
+
+```ts
+const result = await db.users.upsert({
+  where: { email: 'alice@example.com' },
+  create: { email: 'alice@example.com', name: 'Alice' },
+  update: { name: 'Alice Updated' },
+});
+```
+
+### Delete
+
+```ts
+const result = await db.users.delete({
+  where: { id: userId },
+});
+```
+
+### Bulk operations
+
+```ts
+await db.users.createMany({
+  data: [
+    { email: 'alice@example.com', name: 'Alice' },
+    { email: 'bob@example.com', name: 'Bob' },
+  ],
+});
+
+await db.users.updateMany({
+  where: { isActive: false },
+  data: { isActive: true },
+});
+
+await db.users.deleteMany({
+  where: { deletedAt: { isNull: false } },
+});
+```
+
+## Transactions
+
+Wrap multiple operations in `db.transaction()` to make them atomic — either all succeed or all roll back:
+
+```ts
+const result = await db.transaction(async (tx) => {
+  const user = await tx.users.create({
+    data: { email: 'alice@example.com', name: 'Alice' },
+  });
+  if (!user.ok) throw new Error('Failed to create user');
+
+  await tx.tasks.create({
+    data: { title: 'Onboarding', assigneeId: user.data.id },
+  });
+
+  return user.data;
+});
+```
+
+The transaction client (`tx`) has the same model delegates as `db` — `tx.users.create()`, `tx.tasks.list()`, and `tx.query()` all work identically. The difference is that all operations share a single database transaction.
+
+### How it works
+
+- **Auto-commit:** If the callback returns normally, the transaction commits.
+- **Auto-rollback:** If the callback throws, the transaction rolls back and the error propagates to the caller.
+- **Return values:** The callback's return value is returned from `db.transaction()`.
+
+### Raw SQL in transactions
+
+You can mix model delegates with raw SQL in the same transaction:
+
+```ts
+await db.transaction(async (tx) => {
+  await tx.users.create({ data: { email: 'bob@example.com', name: 'Bob' } });
+  await tx.query(sql`UPDATE counters SET value = value + 1 WHERE name = ${'user_count'}`);
+});
+```
+
+### Limitations
+
+- **No nesting:** Calling `db.transaction()` inside a transaction callback throws `"Nested transactions are not supported."`.
+- **No D1 support:** Cloudflare D1 does not support interactive transactions. Use `D1Database.batch()` for atomic operations on D1.
+
+## Error handling
+
+All operations return `Result<T, Error>` — they never throw. Error types map to specific database conditions:
+
+| Error                   | HTTP equivalent | Cause                           |
+| ----------------------- | --------------- | ------------------------------- |
+| `NotFoundError`         | 404             | Record not found                |
+| `UniqueConstraintError` | 409             | Duplicate unique value          |
+| `ForeignKeyError`       | 409             | Referenced record doesn't exist |
+| `NotNullError`          | 422             | Required field missing          |
+| `CheckConstraintError`  | 422             | CHECK constraint violated       |
+| `ConnectionError`       | 503             | Database unreachable            |
+
+Handle errors with pattern matching:
+
+```ts
+const result = await db.users.create({ data: { email: 'alice@example.com', name: 'Alice' } });
+
+if (!result.ok) {
+  switch (result.error.code) {
+    case 'UNIQUE_VIOLATION':
+      console.log('Email already exists');
+      break;
+    case 'NOT_NULL_VIOLATION':
+      console.log('Missing required field');
+      break;
+    default:
+      console.error('Unexpected error:', result.error);
+  }
+}
+```
+
+## Raw SQL
+
+For queries that the builder can't express, use tagged template SQL:
+
+```ts
+import { sql } from 'vertz/db/sql';
+
+const result = await db.query(sql`SELECT * FROM users WHERE email = ${email} AND active = ${true}`);
+```
+
+Parameters are automatically escaped — no SQL injection risk.
+
+## Prepared statements
+
+All queries to PostgreSQL use prepared statements automatically — no configuration needed. The database driver sends each query with `prepare: true`, which enables PostgreSQL to cache the query plan and reuse it on subsequent executions of the same query shape.
+
+This applies to all query paths: typed client operations (`db.users.list()`), raw SQL (`db.query()`), and queries inside transactions. There is no opt-out — prepared statements are always enabled for PostgreSQL connections.
+
+<Note>
+  SQLite and Cloudflare D1 handle statement caching internally at the driver level, so this
+  optimization is specific to PostgreSQL.
+</Note>
+
+## Database support
+
+All databases use the same import and `createDb()` API:
+
+| Database      | Dialect                | Connection option | Notes                                |
+| ------------- | ---------------------- | ----------------- | ------------------------------------ |
+| PostgreSQL    | `'postgres'` (default) | `url: string`     | Full feature support                 |
+| SQLite        | `'sqlite'`             | `path: string`    | Development, embedded, and local use |
+| Cloudflare D1 | `'sqlite'`             | `d1: D1Database`  | Edge deployment                      |
+
+```ts
+import { createDb } from 'vertz/db';
+```
+
+See the [overview](/guides/db/overview#database-support) for setup examples for each dialect.

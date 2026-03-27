@@ -1,0 +1,428 @@
+---
+title: Server-Side Rendering
+description: 'SSR — single-pass rendering, query pre-fetch, and hydration'
+---
+
+Vertz SSR is built into the stack — not bolted on. The dev server renders every page on the server, pre-fetches query data, and hydrates on the client. No separate SSR configuration needed.
+
+## No server/client split
+
+There are no server components, no client components, no `'use client'` directives. Every component you write works on both the server and the client automatically.
+
+In frameworks like Next.js, you constantly decide: "Is this a server component or a client component? Can I use hooks here? Do I need a directive?" In Vertz, you don't think about it. Write your component with state, event handlers, and queries — the framework runs it on the server for the initial HTML and on the client for interactivity. Same code, both environments, zero configuration.
+
+## How it works
+
+1. **Discovery** — A lightweight execution of your app captures all `query()` calls without rendering to HTML
+2. **Prefetch** — The server awaits all discovered queries with per-query timeouts
+3. **Render** — A single render pass with pre-populated data produces the final HTML
+4. **Hydration** — The client picks up the server-rendered DOM and data without re-fetching
+
+The discovery phase runs your component tree just enough to register queries — it doesn't produce HTML. This is significantly cheaper than a full render, and means the actual render only happens once with all data already available.
+
+## App entry
+
+Your `app.tsx` exports the app component and metadata for SSR:
+
+```tsx
+// src/app.tsx
+import { getInjectedCSS } from 'vertz/ui';
+import { createRouter, RouterContext, RouterView } from 'vertz/ui';
+import { routes } from './router';
+import { appTheme } from './styles/theme';
+import { globalStyles } from './styles/globals';
+
+// SSR exports
+export { getInjectedCSS };
+export const theme = appTheme;
+export const styles = [globalStyles.css];
+
+export function App() {
+  const appRouter = createRouter(routes, initialPath);
+
+  return (
+    <RouterContext.Provider value={appRouter}>
+      <main>
+        <RouterView router={appRouter} />
+      </main>
+    </RouterContext.Provider>
+  );
+}
+```
+
+The SSR handler reads these exports:
+
+- `App` (or `default`) — the app component
+- `theme` — design tokens compiled to CSS
+- `styles` — global CSS strings injected into `<head>`
+- `getInjectedCSS` — collects component-level CSS from `css()` calls
+
+## Client entry
+
+The client entry hydrates the server-rendered HTML:
+
+```tsx
+// src/entry-client.ts
+import { mount } from 'vertz/ui';
+import { App, styles } from './app';
+import { appTheme } from './styles/theme';
+
+mount(App, {
+  theme: appTheme,
+  styles,
+});
+```
+
+`mount()` always targets `#app` — the framework controls the HTML in every context (SSR, dev server, templates), so there's no selector to configure. It performs tolerant hydration — walking the existing server-rendered DOM and adopting it instead of replacing it. If hydration fails, it falls back to full client-side rendering.
+
+## Query pre-fetching
+
+Queries declared with `query()` are automatically pre-fetched during SSR:
+
+```tsx
+export function TaskListPage() {
+  const tasks = query(api.tasks.list());
+
+  // During SSR:
+  // 1. Discovery captures this query
+  // 2. Server prefetches the data
+  // 3. Single render pass uses the resolved data
+  // 4. Client hydrates from server data — no re-fetch
+
+  return (
+    <div>
+      {tasks.data?.items.map((task) => (
+        <TaskCard key={task.id} task={task} />
+      ))}
+    </div>
+  );
+}
+```
+
+No special SSR configuration on the query — it just works.
+
+### Slow queries and streaming
+
+Queries have an SSR timeout (default 300ms). If a query doesn't resolve in time, the server sends the initial HTML with that query in its loading state — but it doesn't give up. The server keeps waiting for the query to resolve and **streams** the result to the client as an inline `<script>` chunk once it's ready.
+
+The client listens for these streamed chunks and hydrates the query data without making a new HTTP request. No double-fetch, no wasted work.
+
+You can override the timeout for a specific query if it's expected to be slow:
+
+```tsx
+const reports = query(api.reports.generate(), {
+  ssrTimeout: 1000, // Allow up to 1 second before streaming
+});
+```
+
+## Router SSR
+
+The router detects SSR automatically. During server rendering, it reads the URL from the SSR context instead of `window.location`:
+
+```tsx
+// src/router.ts
+const initialPath =
+  typeof window !== 'undefined' && window.location
+    ? window.location.pathname
+    : (globalThis as any).__SSR_URL__ || '/';
+
+export const appRouter = createRouter(routes, initialPath);
+```
+
+## Dev server
+
+The Vertz dev server handles SSR automatically:
+
+```bash
+bun run dev
+# or
+bunx vertz dev
+```
+
+The dev server:
+
+- Compiles `.tsx` files through the Vertz compiler
+- Server-side renders every page request
+- Pre-fetches query data during SSR
+- Injects scoped CSS into the response
+- Hot-reloads with state preservation (HMR)
+
+## CSS during SSR
+
+CSS is collected and injected during server rendering:
+
+1. **Theme CSS** — compiled from your `defineTheme()` tokens
+2. **Global styles** — from the `styles` export
+3. **Component CSS** — from `css()` and `globalCss()` calls, collected via `getInjectedCSS()`
+
+All CSS is inlined in the HTML response — no extra network requests, no flash of unstyled content.
+
+## AOT-compiled SSR
+
+Vertz production builds use **AOT (Ahead-of-Time) compiled SSR** by default — components are pre-compiled into direct string concatenation functions at build time. No configuration needed: `vertz build` compiles the functions and `vertz start` loads them. Components that can't be statically analyzed fall back to the DOM shim automatically.
+
+### How it works
+
+The compiler analyzes each component and classifies it into a tier:
+
+| Tier                 | What it means                                                      | Example                                     |
+| -------------------- | ------------------------------------------------------------------ | ------------------------------------------- |
+| **Static**           | No dynamic data — pure string                                      | `<footer>© 2026</footer>`                   |
+| **Data-driven**      | Uses props/data, but no reactivity                                 | `<h1>{title}</h1>`                          |
+| **Conditional**      | Has ternaries, `&&`, or `.map()`                                   | `{isAdmin && <AdminPanel />}`               |
+| **Runtime fallback** | Contains hooks, effects, or complex state — falls back to DOM shim | Components using `useContext()`, `effect()` |
+
+Components in the first three tiers are compiled to string-builder functions:
+
+```tsx
+// Your component:
+function Header({ title }: { title: string }) {
+  return (
+    <header>
+      <h1>{title}</h1>
+    </header>
+  );
+}
+
+// AOT output (simplified):
+function __ssr_Header(__props) {
+  return '<header><h1>' + __esc(__props.title) + '</h1></header>';
+}
+```
+
+No DOM shim, no virtual nodes, no serialization — just string concatenation. This is the same approach used by Svelte and Marko for their SSR compilation.
+
+Components that use `query()` are compiled with data access via the AOT context. The query data is pre-fetched using the same zero-discovery pipeline as the prefetch manifest, then passed to the AOT function:
+
+```tsx
+// Your component:
+function ProjectsPage() {
+  const projects = query(api.projects.list());
+  return (
+    <ul>
+      {projects.data?.items.map((p) => (
+        <li>{p.name}</li>
+      ))}
+    </ul>
+  );
+}
+
+// AOT output (simplified):
+export function __ssr_ProjectsPage(data, ctx) {
+  const __q = ctx.getData('projects-list');
+  return (
+    '<ul>' + (__q?.items ?? []).map((p) => '<li>' + __esc(p.name) + '</li>').join('') + '</ul>'
+  );
+}
+```
+
+### Runtime holes
+
+When the AOT compiler encounters a component it can't compile (tier: runtime-fallback), it creates a **hole** — a placeholder that falls back to DOM shim rendering at request time. The AOT function calls into the hole, which runs the component through the standard SSR pipeline and returns HTML:
+
+```tsx
+// AOT function with a hole:
+function __ssr_Dashboard(data, ctx) {
+  return (
+    '<div>' +
+    '<h1>Dashboard</h1>' +
+    ctx.holes['SidePanel']() + // ← runtime fallback
+    '</div>'
+  );
+}
+```
+
+Holes share the query cache with the AOT function, so data fetched for the page is available to hole-rendered components without re-fetching.
+
+### Hydration markers
+
+AOT output includes the same hydration comment markers as the DOM shim, ensuring the client-side hydration cursor can walk the server-rendered HTML identically regardless of which SSR path produced it:
+
+- `data-v-id="ComponentName"` — interactive components that need client-side hydration
+- `<!--conditional-->...<!--/conditional-->` — ternary and `&&` expressions
+- `<!--list-->...<!--/list-->` — `.map()` rendered lists
+- `<!--child-->` — reactive text content (start anchor)
+
+### Diagnostics
+
+In development, the AOT pipeline provides diagnostic tools:
+
+**Diagnostic endpoint** — `GET /__vertz_ssr_aot` returns a JSON snapshot with per-component tier classification, AOT coverage percentage, and any divergences detected:
+
+```json
+{
+  "components": {
+    "Header": { "tier": "static", "holes": [] },
+    "Dashboard": { "tier": "conditional", "holes": ["SidePanel"] }
+  },
+  "coverage": { "total": 5, "aot": 4, "runtime": 1, "percentage": 80 },
+  "divergences": []
+}
+```
+
+**Divergence detection** — With `VERTZ_DEBUG=aot`, the server dual-renders each page (AOT + DOM shim) and compares the output. Any mismatch is logged and recorded in the diagnostics snapshot. This catches hydration-breaking differences during development.
+
+**Classification logging** — With `VERTZ_DEBUG=aot`, the build pipeline logs per-component tier classification, making it easy to see which components are AOT-compiled and which fall back to the DOM shim.
+
+## Server-side navigation
+
+When navigating between pages on the client, Vertz can pre-fetch the next page's data from the server:
+
+```tsx
+const appRouter = createRouter(routes, initialPath, {
+  serverNav: true,
+});
+```
+
+With `serverNav` enabled:
+
+1. Client sends a pre-fetch request with `X-Vertz-Nav: 1` header
+2. Server runs discovery and prefetch for the target page
+3. Data streams back via Server-Sent Events
+4. Client receives data before rendering the new page
+
+This gives SPA navigation the data freshness of server rendering.
+
+## Production SSR handler
+
+For production deployments, `createSSRHandler()` creates a web-standard `(Request) => Promise<Response>` handler:
+
+```ts
+import { createSSRHandler } from '@vertz/ui-server';
+
+const module = await import('./dist/server/index.js');
+const template = await Bun.file('./dist/client/index.html').text();
+
+const handler = createSSRHandler({
+  module,
+  template,
+  ssrTimeout: 300,
+});
+
+Bun.serve({
+  fetch(request) {
+    // Serve static files first, then SSR
+    return handler(request);
+  },
+});
+```
+
+The handler uses single-pass rendering: a lightweight discovery pass captures queries without producing HTML, data is prefetched, then a single render pass produces the final output.
+
+### Zero-discovery with a prefetch manifest
+
+When you provide a prefetch manifest, the handler can skip the discovery pass entirely — queries are reconstructed from build-time metadata and prefetched without executing the component tree:
+
+```ts
+import manifest from './dist/server/prefetch-manifest.json';
+
+const handler = createSSRHandler({
+  module,
+  template,
+  manifest,
+  ssrTimeout: 300,
+});
+```
+
+This is the fastest SSR path: one render pass, no discovery, data already cached. The manifest is generated at build time by the Vertz compiler.
+
+### Handler options
+
+| Option               | Description                                      | Default  |
+| -------------------- | ------------------------------------------------ | -------- |
+| `module`             | The SSR module (server entry)                    | Required |
+| `template`           | HTML template string                             | Required |
+| `ssrTimeout`         | Per-query timeout in ms                          | `300`    |
+| `manifest`           | Prefetch manifest for zero-discovery SSR         | —        |
+| `inlineCSS`          | Map of CSS URLs to content for inlining          | —        |
+| `nonce`              | CSP nonce for inline scripts                     | —        |
+| `fallbackMetrics`    | Pre-computed font fallback metrics               | —        |
+| `modulepreload`      | Paths to inject as modulepreload links           | —        |
+| `routeChunkManifest` | Per-route chunk manifest for targeted preloading | —        |
+| `cacheControl`       | Cache-Control header for HTML responses          | —        |
+| `sessionResolver`    | Async function to resolve session from request   | —        |
+| `aotManifest`        | AOT manifest for pre-compiled SSR rendering      | —        |
+
+### AOT is enabled by default
+
+AOT rendering requires zero configuration. `vertz build` generates the AOT manifest automatically, and `vertz start` loads it at startup. Routes with AOT-compiled components are rendered via string-builder functions; routes without AOT entries fall back to `ssrRenderSinglePass()` transparently. The HTML output is identical either way — AOT is purely a performance optimization.
+
+If the build can't generate the AOT manifest (e.g., components that can't be statically analyzed), the server falls back to DOM shim rendering for those routes. There's nothing to configure — it just works.
+
+<Note>
+  If you're writing a custom production server instead of using `vertz start`, call
+  `loadAotManifest()` to load the manifest and pass it as the `aotManifest` option to
+  `createSSRHandler()`. See the [custom server example](#custom-server-with-aot) below.
+</Note>
+
+### Disabling AOT
+
+To disable AOT rendering (e.g., for benchmarking the DOM shim path), omit the `aotManifest` option when creating a custom handler, or delete the generated `aot-manifest.json` from `dist/server/`.
+
+### Custom server with AOT
+
+When writing a custom production server, load the manifest explicitly:
+
+```ts
+import { createSSRHandler, loadAotManifest } from '@vertz/ui-server';
+
+const module = await import('./dist/server/index.js');
+const template = await Bun.file('./dist/client/index.html').text();
+
+const aotManifest = await loadAotManifest('./dist/server');
+
+const handler = createSSRHandler({
+  module,
+  template,
+  ssrTimeout: 300,
+  aotManifest: aotManifest ?? undefined,
+});
+```
+
+`loadAotManifest()` returns `null` if the manifest files don't exist, so it degrades gracefully.
+
+## How hydration works
+
+When the client calls `mount()`, it finds server-rendered HTML already in the DOM. Instead of throwing it away and re-creating everything, hydration **walks the existing DOM** and adopts each node — attaching event handlers and reactive effects to what's already there.
+
+### Cursor-based claiming
+
+Hydration uses a global cursor that tracks position in the DOM tree. As your component tree executes on the client, each element or text node **claims** the corresponding SSR node at the cursor position:
+
+```
+SSR HTML: <div><h1>Hello</h1><button>Click</button></div>
+
+Client execution:
+  claim <div>         → adopts SSR <div>, cursor advances to next sibling
+  enter children      → pushes cursor to stack, cursor = <div>'s first child
+    claim <h1>        → adopts SSR <h1>, cursor advances to <button>
+    claim <button>    → adopts SSR <button>, attaches onClick handler
+  exit children       → pops cursor from stack
+```
+
+Claiming an element advances the cursor to the next sibling. Entering a child element pushes the current cursor position onto a stack and moves to the element's first child. Exiting pops the stack — like a depth-first tree walk.
+
+When scanning for a match, `claimElement` skips past non-matching elements and text nodes to find the expected tag further in the sibling list. This makes it tolerant of browser-injected nodes (extensions, whitespace). `claimText` is more conservative — it stops at element nodes without consuming them, preventing it from stealing an element that a subsequent claim expects.
+
+### Tolerant claiming
+
+Claim functions are **tolerant** — if no matching node is found, they return `null` and the framework creates the element from scratch (CSR fallback). This means minor SSR/client mismatches don't crash the page.
+
+Claim functions are also **transactional** — a failed claim restores the cursor to its position before the attempt. This prevents a failed claim from corrupting the cursor and breaking all subsequent claims in the same tree.
+
+```
+claim <span>   → no <span> in SSR → cursor restored → returns null
+claim <div>    → still finds <div> because cursor wasn't corrupted
+```
+
+This is important for compound components that may attempt to claim nodes that only exist in certain rendering paths.
+
+### Fallback behavior
+
+If an unhandled exception occurs during hydration, `mount()` falls back to full client-side rendering — clearing the SSR HTML and re-creating the DOM from scratch. This is a last resort. In practice, tolerant claiming handles individual mismatches silently by creating missing nodes from scratch without interrupting the rest of the tree.
+
+### Debugging hydration
+
+In development, hydration automatically logs warnings when claims fail or SSR nodes are left unclaimed after hydration finishes. These unclaimed-node warnings from `endHydration()` are often the first signal that something is mismatched.
+
+For production or browser-only debugging, set `window.__VERTZ_HYDRATION_DEBUG__ = true` before calling `mount()` to enable detailed cursor movement logging in the console. This shows exactly which nodes are claimed, skipped, or missed — useful for diagnosing why an element isn't interactive after page load.

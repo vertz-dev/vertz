@@ -1,0 +1,342 @@
+---
+title: Styling
+description: 'Scoped styles with css() and parameterized styles with variants()'
+---
+
+Vertz provides a built-in styling system based on design tokens. No CSS files, no class name collisions, no build-step CSS tooling. You write styles in TypeScript and get scoped class names at runtime.
+
+## `css()` -- scoped styles
+
+Create a group of scoped styles with `css()`:
+
+```tsx
+import { css } from 'vertz/ui';
+
+const styles = css({
+  card: ['bg:card', 'rounded:lg', 'p:4', 'border:1', 'border:border'],
+  title: ['font:lg', 'font:bold', 'text:foreground'],
+  meta: ['text:sm', 'text:muted-foreground'],
+});
+
+export function TaskCard({ task }: TaskCardProps) {
+  return (
+    <div className={styles.card}>
+      <h3 className={styles.title}>{task.title}</h3>
+      <span className={styles.meta}>Created {task.createdAt}</span>
+    </div>
+  );
+}
+```
+
+Each key in the object becomes a scoped class name. The token syntax (`bg:card`, `font:lg`, `rounded:lg`) maps to design tokens from your theme.
+
+### Token syntax
+
+Tokens follow the pattern `property:value`:
+
+| Token             | CSS output                            |
+| ----------------- | ------------------------------------- |
+| `bg:card`         | `background-color: var(--color-card)` |
+| `text:foreground` | `color: var(--color-foreground)`      |
+| `font:lg`         | `font-size: 1.125rem`                 |
+| `font:bold`       | `font-weight: 700`                    |
+| `rounded:lg`      | `border-radius: 0.5rem`               |
+| `p:4`             | `padding: 1rem`                       |
+| `px:4`            | `padding-inline: 1rem`                |
+| `flex`            | `display: flex`                       |
+| `items:center`    | `align-items: center`                 |
+| `gap:2`           | `gap: 0.5rem`                         |
+
+The full token set comes from your theme (`@vertz/theme-shadcn` or a custom theme defined with `defineTheme()`).
+
+### Shade color tokens
+
+Color properties (`bg`, `text`, `border`) support shade tokens using dot notation: `namespace.shade`. This gives you access to a full color scale beyond the semantic tokens.
+
+```tsx
+const styles = css({
+  heading: ['text:gray.900'],
+  subtitle: ['text:zinc.500'],
+  card: ['bg:gray.50', 'border:1', 'border:gray.200'],
+  accent: ['bg:blue.600', 'text:white'],
+  warning: ['bg:amber.100', 'text:amber.800', 'border:1', 'border:amber.300'],
+});
+```
+
+**Available namespaces** -- these are the color namespaces that support shade notation:
+
+| Namespace     | Example              | CSS output                                       |
+| ------------- | -------------------- | ------------------------------------------------ |
+| `primary`     | `bg:primary.600`     | `background-color: var(--color-primary-600)`     |
+| `secondary`   | `text:secondary.400` | `color: var(--color-secondary-400)`              |
+| `accent`      | `bg:accent.100`      | `background-color: var(--color-accent-100)`      |
+| `gray`        | `text:gray.500`      | `color: var(--color-gray-500)`                   |
+| `destructive` | `bg:destructive.600` | `background-color: var(--color-destructive-600)` |
+| `danger`      | `text:danger.500`    | `color: var(--color-danger-500)`                 |
+| `success`     | `bg:success.100`     | `background-color: var(--color-success-100)`     |
+| `warning`     | `border:warning.300` | `border-color: var(--color-warning-300)`         |
+| `info`        | `bg:info.50`         | `background-color: var(--color-info-50)`         |
+| `muted`       | `text:muted.600`     | `color: var(--color-muted-600)`                  |
+| `surface`     | `bg:surface.100`     | `background-color: var(--color-surface-100)`     |
+
+**Shade scale** -- each namespace supports shades from `50` (lightest) to `950` (darkest):
+
+`50`, `100`, `200`, `300`, `400`, `500`, `600`, `700`, `800`, `900`, `950`
+
+The actual color values are defined by your theme. When using palettes from `@vertz/ui/css`, the Tailwind v4 oklch color palettes are available (slate, gray, zinc, neutral, stone, red, orange, amber, yellow, lime, green, emerald, teal, cyan, sky, blue, indigo, violet, purple, fuchsia, pink, rose).
+
+**Using palettes in your theme:**
+
+```tsx
+import { defineTheme } from 'vertz/ui';
+import { palettes } from '@vertz/ui/css';
+
+const theme = defineTheme({
+  colors: {
+    primary: palettes.blue, // all shades 50-950
+    danger: palettes.red,
+    success: palettes.emerald,
+    gray: palettes.zinc,
+  },
+});
+```
+
+### Pseudo-state tokens
+
+Use nested selector objects to apply styles on pseudo-states:
+
+```tsx
+const styles = css({
+  link: [
+    'text:primary',
+    'decoration:none',
+    { '&:hover': ['text:primary.700', 'decoration:underline'] },
+  ],
+  input: [
+    'border:1',
+    'border:border',
+    'rounded:md',
+    'px:3',
+    'py:2',
+    { '&:focus': ['border:primary', 'ring:2'] },
+    { '&:disabled': ['opacity:50', 'cursor:not-allowed'] },
+  ],
+});
+```
+
+## `variants()` -- parameterized styles
+
+Use `variants()` for components with multiple visual states:
+
+```tsx
+import { variants } from 'vertz/ui';
+
+const button = variants({
+  base: ['inline-flex', 'items:center', 'rounded:md', 'font:medium', 'transition'],
+  variants: {
+    intent: {
+      primary: ['bg:primary', 'text:primary-foreground'],
+      secondary: ['bg:secondary', 'text:secondary-foreground'],
+      ghost: ['bg:transparent', 'text:foreground'],
+      danger: ['bg:destructive', 'text:white'],
+    },
+    size: {
+      sm: ['text:xs', 'px:3', 'py:1'],
+      md: ['text:sm', 'px:4', 'py:2'],
+      lg: ['text:base', 'px:6', 'py:3'],
+    },
+  },
+  defaultVariants: { intent: 'primary', size: 'md' },
+});
+```
+
+Use it in JSX by calling the function with variant values:
+
+```tsx
+<button className={button({ intent: 'primary', size: 'lg' })}>
+  Save
+</button>
+
+<button className={button({ intent: 'ghost', size: 'sm' })}>
+  Cancel
+</button>
+
+{/* Uses defaultVariants when omitted */}
+<button className={button()}>
+  Default
+</button>
+```
+
+### Reactive variants
+
+Variant values can be reactive -- the class name updates automatically when the signal changes:
+
+```tsx
+let isActive = false;
+
+return (
+  <button
+    className={button({ intent: isActive ? 'primary' : 'ghost' })}
+    onClick={() => {
+      isActive = !isActive;
+    }}
+  >
+    Toggle
+  </button>
+);
+```
+
+## When to use `css()` vs inline styles
+
+**Use `css()` for:**
+
+- Layout and spacing (`flex`, `grid`, `p:4`, `gap:2`)
+- Sizing (`w:full`, `h:screen`, `max-w:lg`)
+- Typography scales (`font:lg`, `font:semibold`, `text:sm`)
+- Borders and radius (`border:1`, `border:border`, `rounded:lg`)
+- Colors from the theme/shade system (`bg:primary.600`, `text:gray.500`)
+- Pseudo-states (`&:hover`, `&:focus`, `&:disabled`)
+
+**Use inline `style` for:**
+
+- Truly dynamic values computed at runtime (`transform`, `translate`)
+- Syntax highlight colors or external color values
+- Complex CSS that has no token equivalent (gradients, `clamp()`, `backdrop-filter`)
+- Custom shadows beyond the shadow scale
+- CSS custom property references (`var(--my-custom-prop)`)
+
+```tsx
+{
+  /* css() -- theme-aware, scoped, pseudo-state support */
+}
+const styles = css({
+  card: ['bg:card', 'rounded:lg', 'p:6', 'shadow:md'],
+  title: ['font:xl', 'font:bold', 'text:foreground'],
+});
+
+{
+  /* inline style -- dynamic runtime value */
+}
+<div style={`transform: translateX(${offset}px)`}>Sliding content</div>;
+
+{
+  /* inline style -- complex CSS without token equivalent */
+}
+<div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%)">
+  Gradient background
+</div>;
+```
+
+## Theme
+
+Vertz uses CSS custom properties for theming. The `@vertz/theme-shadcn` package provides a shadcn/ui-inspired token set with light and dark mode support.
+
+```tsx
+import { defineTheme, ThemeProvider } from 'vertz/ui';
+import { shadcnTheme } from '@vertz/theme-shadcn';
+
+// Use the built-in theme
+ThemeProvider({ theme: shadcnTheme }, () => <App />);
+```
+
+### Custom themes
+
+Define your own theme with `defineTheme()`:
+
+```tsx
+import { defineTheme } from 'vertz/ui';
+
+const myTheme = defineTheme({
+  colors: {
+    background: '#ffffff',
+    foreground: '#0f0f12',
+    primary: '#3b82f6',
+    // ... other tokens
+  },
+  dark: {
+    background: '#0f0f12',
+    foreground: '#fafafa',
+    primary: '#60a5fa',
+  },
+});
+```
+
+## Global styles
+
+For reset styles or global base rules, use `globalCss()`:
+
+```tsx
+import { globalCss } from 'vertz/ui';
+
+globalCss({
+  '*': ['box-sizing:border-box', 'm:0', 'p:0'],
+  body: ['bg:background', 'text:foreground', 'font:sans'],
+});
+```
+
+Global styles are injected once and aren't scoped -- use sparingly.
+
+## Fonts
+
+Declare font families with `font()` and compile them into `@font-face` CSS, custom properties (`--font-<key>`), and preload tags with `compileFonts()`. Only woff2 format is supported.
+
+```tsx
+import { font, compileFonts } from '@vertz/ui/css';
+
+const sans = font('DM Sans', {
+  weight: '100..1000',
+  src: '/fonts/dm-sans.woff2',
+  fallback: ['system-ui', 'sans-serif'],
+});
+
+const mono = font('JetBrains Mono', {
+  weight: '100..800',
+  src: '/fonts/jb-mono.woff2',
+  fallback: ['monospace'],
+});
+
+const compiled = compileFonts({ sans, mono });
+
+// compiled.fontFaceCss  — @font-face declarations
+// compiled.cssVarsCss   — :root { --font-sans: ...; --font-mono: ...; }
+// compiled.cssVarLines  — individual lines for merging into an existing :root
+// compiled.preloadTags  — <link rel="preload" ...> HTML tags
+```
+
+Reference the generated CSS vars in components:
+
+```tsx
+function CodeBlock({ code }: { code: string }) {
+  return (
+    <pre style="font-family: var(--font-mono)">
+      <code>{code}</code>
+    </pre>
+  );
+}
+```
+
+### Multiple font files
+
+Pass an array of `src` entries for variants like normal + italic:
+
+```tsx
+const sans = font('DM Sans', {
+  weight: '100..1000',
+  src: [
+    { path: '/fonts/dm-sans.woff2', weight: '100..1000', style: 'normal' },
+    { path: '/fonts/dm-sans-italic.woff2', weight: '100..1000', style: 'italic' },
+  ],
+  fallback: ['system-ui', 'sans-serif'],
+});
+```
+
+Each entry generates a separate `@font-face` block. Only the first file is preloaded.
+
+### System fonts (no `src`)
+
+Omit `src` to generate a CSS custom property without an `@font-face` block:
+
+```tsx
+const system = font('system-ui', { weight: '400' });
+// compileFonts({ system }) → --font-system: 'system-ui'; (no @font-face)
+```

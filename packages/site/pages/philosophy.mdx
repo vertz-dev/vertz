@@ -1,0 +1,75 @@
+---
+title: Philosophy
+description: 'The 8 principles behind Vertz — type-safe, LLM-native, no ceilings. Why every API is designed so an LLM gets it right on the first try.'
+---
+
+Vertz is the full development stack — from database to browser — where every layer is type-safe, every API is predictable, and every decision is optimized for both human developers and the AI agents that build alongside them.
+
+## The Problem
+
+Building a production application today means stitching together a dozen tools that don't talk to each other. Your ORM doesn't know about your API schema. Your API schema doesn't know about your frontend types. Your frontend types don't know about your validation rules. Every seam is a place where bugs hide and LLMs guess wrong.
+
+Vertz eliminates the seams. One type system. One set of conventions. One source of truth that flows through every layer: **schema → database → API → client → UI**.
+
+## The 8 Principles
+
+### 1. If it builds, it works
+
+The compiler is the quality gate. Not your eyes, not manual testing, not hoping the runtime resolves correctly. If TypeScript says it's good, it runs. Every API is designed so the type system can verify it.
+
+### 2. One way to do things
+
+Ambiguity is a tax. It's a tax on teams who find three patterns in one codebase. It's a tax on LLMs who guess which pattern to use. It's a tax on onboarding, on code review, on debugging. Vertz pays the cost of being opinionated once so that every user — human or AI — never pays the ambiguity tax again.
+
+### 3. AI agents are first-class users
+
+Every API decision is evaluated by one question: _"Can an LLM use this correctly on the first prompt?"_ This is a design constraint as hard as type safety. If an API is confusing to an LLM, it's confusing to a junior developer, and it's probably confusing to a senior developer moving fast. Designing for AI makes us design better for everyone.
+
+### 4. Test what matters, nothing more
+
+TDD is mandatory. But TDD doesn't mean "test everything" — it means test every _behavior_. Write the failing test. Write the minimum code to make it pass. Stop. No speculative code, no premature abstractions, no "while I'm here" additions. The code that doesn't exist has no bugs.
+
+### 5. If you can't test it, don't build it
+
+Testability is a design requirement, not something you add after the fact. If a feature can't be verified with a test, the design is wrong. If a bug can't be reproduced with a failing test, you don't understand it well enough to fix it. No test, no implementation. No reproduction, no fix.
+
+### 6. If you can't demo it, it's not done
+
+Every feature must be demonstrable. Not "it passes tests" — someone can _see it working_. This forces us to think about the real experience, not just the internal implementation.
+
+### 7. Performance is not optional
+
+Fast for end-users. Fast for developers. Fast for AI agents. We measure cold starts, request throughput, type-check speed, and build times. Performance is a feature, not a follow-up.
+
+### 8. No ceilings
+
+If a dependency limits us, we replace it. If the runtime is too slow, we build a faster one. If the compiler can't express what we need, we extend it. We don't accept someone else's limitations as our own.
+
+## LLM-First Design
+
+LLMs now write code alongside us. They're fast, capable, and getting better every day. But they have a problem: they can't run your code. They can't see that runtime error. They can't know that the DI container will fail to resolve a dependency until you tell them — and by then, you've wasted tokens, time, and patience.
+
+So we asked: **What if the framework caught these mistakes at build time?** What if types flowed naturally, so the compiler — not runtime — told you something was wrong? What if conventions were so clear and predictable that an LLM could nail it on the first try?
+
+### The tradeoffs we accept
+
+- **Explicit over implicit.** More visible code, fewer surprises.
+- **Convention over configuration.** One clear path, not infinite options.
+- **Compile-time over runtime.** Errors surface when you build, not when you deploy.
+- **Predictability over convenience.** If a shortcut creates ambiguity, we skip it.
+
+### The north star
+
+When a developer finishes their first Vertz project, we want them to say:
+
+**"My LLM nailed it on the first try."**
+
+## How This Drives Decisions
+
+These principles aren't abstract. They drive real decisions:
+
+- **Functions over decorators** — because types flow through functions and LLMs predict them accurately. Decorators look elegant but break type inference and confuse AI agents.
+- **Built the compiler** — because static analysis at build time catches what runtime never could. The compiler generates your OpenAPI spec, route table, and app manifest.
+- **Built the database layer** — because an ORM that doesn't share your schema language is just another seam to maintain. Same types from database to browser.
+- **Built the client SDK** — because if your API is type-safe but your frontend client isn't, you've only solved half the problem.
+- **Production-ready by default** — OpenAPI generation isn't a plugin — it's built in. Environment validation isn't an afterthought — it's required. Access control isn't optional — it's the only way.

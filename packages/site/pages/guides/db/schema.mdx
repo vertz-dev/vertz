@@ -1,0 +1,384 @@
+---
+title: Schema
+description: 'Tables, columns, types, relations, and annotations with the d builder'
+---
+
+The `d` builder is the API for defining your database schema. Every table, column type, constraint, and annotation is declared in TypeScript — no separate schema files, no decorators.
+
+## Tables
+
+```ts
+import { d } from 'vertz/db';
+
+const users = d.table('users', {
+  id: d.uuid().primary({ generate: 'cuid' }),
+  email: d.email().unique(),
+  name: d.text(),
+  bio: d.text().nullable(),
+  role: d.enum('user_role', ['admin', 'user']).default('user'),
+  createdAt: d.timestamp().default('now').readOnly(),
+  updatedAt: d.timestamp().autoUpdate(),
+});
+```
+
+The first argument is the table name in the database. The second is an object mapping column names to column definitions.
+
+## Column types
+
+| Builder                | SQL type           | TypeScript type |
+| ---------------------- | ------------------ | --------------- |
+| `d.text()`             | `TEXT`             | `string`        |
+| `d.varchar(n)`         | `VARCHAR(n)`       | `string`        |
+| `d.email()`            | `TEXT`             | `string`        |
+| `d.uuid()`             | `UUID`             | `string`        |
+| `d.integer()`          | `INTEGER`          | `number`        |
+| `d.bigint()`           | `BIGINT`           | `bigint`        |
+| `d.serial()`           | `SERIAL`           | `number`        |
+| `d.real()`             | `REAL`             | `number`        |
+| `d.doublePrecision()`  | `DOUBLE PRECISION` | `number`        |
+| `d.decimal(p, s)`      | `NUMERIC(p,s)`     | `string`        |
+| `d.boolean()`          | `BOOLEAN`          | `boolean`       |
+| `d.timestamp()`        | `TIMESTAMPTZ`      | `Date`          |
+| `d.date()`             | `DATE`             | `string`        |
+| `d.time()`             | `TIME`             | `string`        |
+| `d.jsonb<T>()`         | `JSONB`            | `T`             |
+| `d.textArray()`        | `TEXT[]`           | `string[]`      |
+| `d.integerArray()`     | `INTEGER[]`        | `number[]`      |
+| `d.enum(name, values)` | `ENUM`             | literal union   |
+
+## Column modifiers
+
+### Constraints
+
+```ts
+d.uuid().primary(); // PRIMARY KEY (no auto-generation)
+d.uuid().primary({ generate: 'cuid' }); // Primary key with CUID2 generation
+d.uuid().primary({ generate: 'uuid' }); // Primary key with UUID v7
+d.uuid().primary({ generate: 'nanoid' }); // Primary key with Nano ID
+d.email().unique(); // UNIQUE constraint
+d.text().nullable(); // Allows NULL (default: NOT NULL)
+d.text().default('untitled'); // DEFAULT value
+d.timestamp().default('now'); // DEFAULT NOW()
+d.text().check('length(name) > 0'); // SQL CHECK constraint
+```
+
+<Note>
+  Foreign key constraints are derived automatically from relations (`d.ref.one()`). You don't
+  declare them on columns — define the relation on the model and the FK constraint is generated for
+  you. See [Relations](#relations).
+</Note>
+
+### Annotations
+
+Annotations control how fields are exposed in the API — they don't affect the database schema:
+
+```ts
+d.text().hidden(); // Never sent to clients (e.g., password hashes)
+d.text().readOnly(); // Included in responses, excluded from create/update inputs
+d.timestamp().autoUpdate(); // Read-only + auto-updated on writes
+d.text().is('sensitive'); // Custom annotation for selective queries
+```
+
+### How annotations affect types
+
+Given this table:
+
+```ts
+const users = d.table('users', {
+  id: d.uuid().primary({ generate: 'cuid' }),
+  email: d.email(),
+  passwordHash: d.text().hidden(),
+  createdAt: d.timestamp().default('now').readOnly(),
+});
+```
+
+The framework derives different types for different contexts:
+
+| Type                               | Includes                   | Excludes                                                        |
+| ---------------------------------- | -------------------------- | --------------------------------------------------------------- |
+| **Response** (`$response`)         | `id`, `email`, `createdAt` | `passwordHash` (hidden)                                         |
+| **Create input** (`$create_input`) | `email`                    | `id` (primary), `passwordHash` (hidden), `createdAt` (readOnly) |
+| **Update input** (`$update_input`) | `email` (optional)         | Same as create                                                  |
+
+You never define these types manually — they're inferred from the column annotations.
+
+## Composite primary keys
+
+For tables with multi-column primary keys (e.g., join tables), use the `primaryKey` table option instead of column-level `.primary()`:
+
+```ts
+const tenantMembers = d.table(
+  'tenant_members',
+  {
+    tenantId: d.uuid(),
+    userId: d.uuid(),
+    role: d.text().default('member'),
+  },
+  { primaryKey: ['tenantId', 'userId'] },
+);
+```
+
+### Type behavior
+
+Composite PK columns affect the derived types:
+
+| Type                        | Composite PK columns                                      |
+| --------------------------- | --------------------------------------------------------- |
+| `$insert`                   | **Required** (unless the column has `.default()`)         |
+| `$update` / `$update_input` | **Excluded** — PKs are immutable after creation           |
+| `$create_input`             | **Required** — provided by the caller, not auto-generated |
+| `$infer`                    | Included (read-side)                                      |
+
+### Validation rules
+
+- Cannot mix column-level `.primary()` and table-level `primaryKey` on the same table
+- `primaryKey` array must contain at least one column
+- All column names must exist in the columns object
+- Invalid column names are caught at compile time via TypeScript
+
+### Entity CRUD limitation
+
+Entity CRUD (`entity()`) does not support composite primary keys — it requires a single-column PK for route parameters like `/api/tasks/:id`. If you need to use a table with a composite PK as an entity, add a surrogate single-column PK and use a unique index for the composite key:
+
+```ts
+const tenantMembers = d.table(
+  'tenant_members',
+  {
+    id: d.uuid().primary({ generate: 'cuid' }), // surrogate PK for entity CRUD
+    tenantId: d.uuid(),
+    userId: d.uuid(),
+    role: d.text().default('member'),
+  },
+  {
+    indexes: [
+      d.index(['tenantId', 'userId'], { unique: true }), // composite uniqueness
+    ],
+  },
+);
+```
+
+Tables that genuinely need composite PKs and don't participate in entity CRUD (e.g., join tables) can use `primaryKey` directly and be queried via the raw SQL API.
+
+## Models
+
+A model combines a table with its relations:
+
+```ts
+// Without relations
+const usersModel = d.model(usersTable);
+
+// With relations
+const postsModel = d.model(postsTable, {
+  author: d.ref.one(() => usersTable, 'authorId'),
+  comments: d.ref.many(() => commentsTable, 'postId'),
+});
+```
+
+Models are what you pass to `createDb()` and `entity()`.
+
+## Relations
+
+### One-to-many
+
+The parent has many children. The foreign key lives on the child table:
+
+```ts
+const usersModel = d.model(usersTable, {
+  posts: d.ref.many(() => postsTable, 'authorId'),
+});
+// "users has many posts via posts.authorId"
+```
+
+### Many-to-one
+
+The child belongs to a parent. The foreign key lives on the current table:
+
+```ts
+const postsModel = d.model(postsTable, {
+  author: d.ref.one(() => usersTable, 'authorId'),
+});
+// "posts belongs to users via posts.authorId"
+```
+
+### Many-to-many
+
+Two tables connected through a join table:
+
+```ts
+const studentsModel = d.model(studentsTable, {
+  courses: d.ref.many(() => coursesTable).through(() => enrollmentsTable, 'studentId', 'courseId'),
+});
+```
+
+### Foreign keys
+
+Foreign key constraints are derived from `d.ref.one()` relations — there's no separate `.references()` on columns. When you define a relation, the framework:
+
+1. Identifies the FK column on the source table (e.g., `authorId`)
+2. Resolves the target table's primary key
+3. Generates the `FOREIGN KEY` constraint in the migration
+
+This means relations are the single source of truth for both query-time eager loading and database-level referential integrity.
+
+## Indexes
+
+Define indexes in the third argument to `d.table()`:
+
+```ts
+const tasks = d.table(
+  'tasks',
+  {
+    id: d.uuid().primary(),
+    title: d.text(),
+    status: d.text(),
+    createdAt: d.timestamp(),
+  },
+  {
+    indexes: [
+      d.index('title'), // basic index
+      d.index(['status', 'createdAt']), // compound index
+      d.index('email', { unique: true }), // unique index
+      d.index('title', { type: 'gin' }), // GIN index (full-text)
+      d.index('status', { where: "status = 'active'" }), // partial index
+    ],
+  },
+);
+```
+
+### Index types
+
+| Type    | Use case                             | PostgreSQL | SQLite        |
+| ------- | ------------------------------------ | ---------- | ------------- |
+| `btree` | Default — equality and range queries | Yes        | N/A (default) |
+| `hash`  | Equality-only lookups                | Yes        | No            |
+| `gin`   | Full-text search, JSONB containment  | Yes        | No            |
+| `gist`  | Geospatial, range types              | Yes        | No            |
+| `brin`  | Large sequential datasets            | Yes        | No            |
+
+### Dialect validation
+
+If you use a Postgres-only index type (like `gin`) with SQLite, the framework warns at definition time — not at migration time with a cryptic SQL error. This aligns with the compile-time-over-runtime principle.
+
+## Enums
+
+Enums are defined with a name (for the database type) and an array of values:
+
+```ts
+const status = d.enum('task_status', ['todo', 'in_progress', 'done']);
+```
+
+The TypeScript type is inferred as the literal union `'todo' | 'in_progress' | 'done'`.
+
+## JSONB columns
+
+Store structured data with optional type safety:
+
+```ts
+// Typed but no runtime validation
+d.jsonb<{ tags: string[]; priority: number }>();
+
+// Typed with runtime validation
+d.jsonb<Settings>(settingsSchema);
+```
+
+## Multi-tenancy
+
+Declare the tenant root by calling `.tenant()` on the root table definition. The framework automatically derives all tenant scoping from the relation graph — no per-model configuration needed.
+
+```ts
+const orgsTable = d
+  .table('organizations', {
+    id: d.uuid().primary(),
+    name: d.text(),
+  })
+  .tenant();
+
+const usersTable = d.table('users', {
+  id: d.uuid().primary(),
+  orgId: d.uuid(),
+  email: d.email(),
+});
+
+const usersModel = d.model(usersTable, {
+  org: d.ref.one(() => orgsTable, 'orgId'),
+});
+```
+
+Only one table per application can be marked as `.tenant()`. The framework scans all `ref.one` relations to discover which models are scoped to the tenant root.
+
+### Any table can be the tenant root
+
+The tenant root is not limited to a table called "tenants". Any table can serve as the root — `organizations`, `workspaces`, `teams`, etc. Just call `.tenant()` on it.
+
+For example, the [Linear clone](/examples/task-manager) uses `workspaces` as the tenant root, matching Linear's domain model:
+
+```ts
+// Workspace is the tenant root (Linear's organizational unit)
+const workspacesTable = d
+  .table('workspaces', {
+    id: d.text().primary(),
+    name: d.text(),
+  })
+  .tenant();
+
+const workspacesModel = d.model(workspacesTable);
+
+// Users are directly scoped to a workspace via ref.one
+const usersModel = d.model(usersTable, {
+  workspace: d.ref.one(() => workspacesTable, 'workspaceId'),
+});
+
+// Projects are directly scoped to a workspace via ref.one
+const projectsModel = d.model(projectsTable, {
+  workspace: d.ref.one(() => workspacesTable, 'workspaceId'),
+  creator: d.ref.one(() => usersTable, 'createdBy'),
+});
+```
+
+<Note>
+  The tenant FK column name is automatically resolved from the `ref.one` relation targeting the
+  `.tenant()` root table. You can name it anything — `orgId`, `workspaceId`, `tenantId`, etc.
+</Note>
+
+### Direct vs indirect scoping
+
+Models with a `ref.one` relation pointing to the `.tenant()` root table are **directly scoped** — they are automatically filtered by the current tenant context at query time.
+
+Models without a direct relation to the root but reachable via `ref.one` chains from a directly-scoped model are **indirectly scoped**. The framework follows relations transitively using BFS to find the shortest path:
+
+```ts
+// Directly scoped — ref.one to the .tenant() root
+const projectsModel = d.model(projectsTable, {
+  workspace: d.ref.one(() => workspacesTable, 'workspaceId'),
+});
+
+// Indirectly scoped — project → workspace chain provides tenant context
+const issuesModel = d.model(issuesTable, {
+  project: d.ref.one(() => projectsTable, 'projectId'),
+});
+
+// Indirectly scoped — issue → project → workspace chain
+const commentsModel = d.model(commentsTable, {
+  issue: d.ref.one(() => issuesTable, 'issueId'),
+});
+```
+
+When multiple `ref.one` paths exist to the tenant root, the framework picks the shortest one.
+
+### Shared tables
+
+Tables that should be accessible across all tenants (system-wide config, feature flags, etc.) can opt out of tenant scoping with `.shared()`:
+
+```ts
+const featureFlags = d
+  .table('feature_flags', {
+    id: d.uuid().primary(),
+    name: d.text().unique(),
+    enabled: d.boolean().default(false),
+  })
+  .shared();
+
+const flagsModel = d.model(featureFlags);
+```
+
+Shared tables are never filtered by tenant context, regardless of their relations. A table cannot be both `.tenant()` and `.shared()` — calling one on a table already marked with the other throws an error.

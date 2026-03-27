@@ -1,0 +1,932 @@
+---
+title: Authentication & Access Control
+description: 'Email/password auth, JWT sessions, RBAC with hierarchy, plans & billing, and client-side access checks'
+---
+
+`createAuth()` gives you a complete authentication system: sign-up, sign-in, JWT sessions with refresh token rotation, session management, rate limiting, and CSRF protection. One function call, no boilerplate.
+
+## Quick start
+
+```ts
+import { createAuth, createServer } from 'vertz/server';
+
+const auth = createAuth({
+  session: { strategy: 'jwt', ttl: '60s' },
+});
+
+const app = createServer({
+  entities: [
+    /* ... */
+  ],
+  db,
+  auth,
+});
+```
+
+This generates:
+
+```
+POST   /api/auth/signup     → Create account
+POST   /api/auth/signin     → Sign in
+POST   /api/auth/signout    → Sign out (clears cookies)
+GET    /api/auth/session     → Get current session
+POST   /api/auth/refresh     → Refresh JWT
+GET    /api/auth/sessions    → List active sessions
+DELETE /api/auth/sessions/:id → Revoke a session
+DELETE /api/auth/sessions     → Revoke all other sessions
+```
+
+## How sessions work
+
+Vertz uses a **dual-token model** for sessions:
+
+| Token             | Cookie      | TTL        | Purpose                                                                |
+| ----------------- | ----------- | ---------- | ---------------------------------------------------------------------- |
+| **JWT**           | `vertz.sid` | 60 seconds | Stateless authentication — verified by signature, no DB lookup         |
+| **Refresh token** | `vertz.ref` | 7 days     | Long-lived, stored hashed in the session store. Used to get a new JWT. |
+
+Both cookies are `HttpOnly`, `Secure`, `SameSite=Lax` by default.
+
+**Why 60-second JWTs?** Short-lived JWTs are stateless (fast to verify, no DB hit) but limit the window of exposure if a token leaks. The refresh token handles continuity — your client refreshes transparently before the JWT expires.
+
+### Refresh token rotation
+
+Every time a refresh token is used, it's rotated — a new refresh token is issued and the old one is invalidated. This means a stolen refresh token can only be used once.
+
+A **10-second grace period** handles concurrent requests: if two tabs hit `/api/auth/refresh` simultaneously, the second request still works within the grace window using the previous token hash.
+
+## Configuration
+
+```ts
+const auth = createAuth({
+  // Required — session strategy and timing
+  session: {
+    strategy: 'jwt',
+    ttl: '60s', // JWT lifetime
+    refreshTtl: '7d', // Refresh token lifetime
+    cookie: {
+      secure: true, // HTTPS only (default: true)
+      sameSite: 'lax', // CSRF protection (default: 'lax')
+    },
+  },
+
+  // Optional — password policy
+  emailPassword: {
+    password: {
+      minLength: 8, // Default: 8
+      requireUppercase: true,
+      requireNumbers: true,
+    },
+    rateLimit: {
+      window: '15m',
+      maxAttempts: 5,
+    },
+  },
+
+  // Optional — custom JWT claims
+  claims: (user) => ({
+    orgId: user.orgId,
+  }),
+
+  // Optional — pluggable stores (default: in-memory)
+  sessionStore: mySessionStore,
+  userStore: myUserStore,
+  rateLimitStore: myRateLimitStore,
+});
+```
+
+### Key pair & algorithm
+
+JWT operations use asymmetric keys. The algorithm defaults to RS256 but can be changed to ES256:
+
+```ts
+const auth = createAuth({
+  session: {
+    strategy: 'jwt',
+    ttl: '60s',
+    algorithm: 'ES256', // optional — defaults to 'RS256'
+  },
+});
+```
+
+| Algorithm         | Key type | Use case                                                      |
+| ----------------- | -------- | ------------------------------------------------------------- |
+| `RS256` (default) | RSA 2048 | General-purpose, widest compatibility                         |
+| `ES256`           | EC P-256 | Smaller signatures (64 vs 256 bytes), faster on edge runtimes |
+
+- **Production:** You must provide `privateKey` and `publicKey` (PEM strings matching the algorithm). The auth system throws if they're missing or if the key type doesn't match the algorithm.
+- **Development:** A key pair is auto-generated and saved to `.vertz/jwt-private.pem` and `.vertz/jwt-public.pem`. Add `.vertz/` to your `.gitignore`. If you change the algorithm, the dev keys are automatically regenerated.
+
+The public key is served at `GET /api/auth/.well-known/jwks.json` for external verification.
+
+## Server-side API
+
+The `auth.api` object lets you call auth operations from server code — useful in custom actions, services, or tests.
+
+```ts
+// Sign up a user
+const result = await auth.api.signUp({
+  email: 'alice@example.com',
+  password: 'hunter2',
+});
+
+if (result.ok) {
+  const session = result.value;
+  console.log(session.user.id);
+}
+
+// Get session from request headers
+const session = await auth.api.getSession(request.headers);
+```
+
+### Session management
+
+List, revoke, and manage active sessions from server code. Every method requires the caller's `Headers` to authenticate the request — the user can only manage their own sessions.
+
+```ts
+// List all active sessions for the current user
+const listResult = await auth.api.listSessions(request.headers);
+if (listResult.ok) {
+  for (const session of listResult.data) {
+    console.log(session.id); // Session ID
+    console.log(session.deviceName); // Parsed from user-agent (e.g., "Chrome on macOS")
+    console.log(session.ipAddress); // Client IP
+    console.log(session.isCurrent); // true if this is the caller's session
+    console.log(session.createdAt); // When the session was created
+    console.log(session.lastActiveAt); // Last token refresh
+  }
+}
+
+// Revoke a specific session (must belong to the current user)
+const revokeResult = await auth.api.revokeSession(sessionId, request.headers);
+if (!revokeResult.ok) {
+  // revokeResult.error.code === 'SESSION_NOT_FOUND' if session doesn't exist or belongs to another user
+}
+
+// Revoke all sessions except the current one
+await auth.api.revokeAllSessions(request.headers);
+```
+
+These map to the HTTP endpoints:
+
+```
+GET    /api/auth/sessions      → List active sessions
+DELETE /api/auth/sessions/:id  → Revoke a specific session
+DELETE /api/auth/sessions      → Revoke all other sessions
+```
+
+## Email verification
+
+Enable email verification to require users to confirm their email address after sign-up. When enabled, new users are created with `emailVerified: false`, and a verification token is sent via your `onSend` callback.
+
+```ts
+const auth = createAuth({
+  session: { strategy: 'jwt', ttl: '60s' },
+  emailVerification: {
+    enabled: true,
+    tokenTtl: '24h', // Default: '24h'
+    onSend: async (user, token) => {
+      await sendEmail({
+        to: user.email,
+        subject: 'Verify your email',
+        body: `Click here to verify: https://myapp.com/verify?token=${token}`,
+      });
+    },
+  },
+});
+```
+
+This generates two additional routes:
+
+```
+POST /api/auth/verify-email         → { token } — marks email as verified
+POST /api/auth/resend-verification  → (authenticated) — sends a new verification email
+```
+
+### EmailVerificationStore
+
+```ts
+interface EmailVerificationStore {
+  createVerification(data: {
+    userId: string;
+    tokenHash: string;
+    expiresAt: Date;
+  }): Promise<StoredEmailVerification>;
+  findByTokenHash(tokenHash: string): Promise<StoredEmailVerification | null>;
+  deleteByUserId(userId: string): Promise<void>;
+  deleteByTokenHash(tokenHash: string): Promise<void>;
+  dispose(): void;
+}
+```
+
+The default `InMemoryEmailVerificationStore` works for development. Provide your own store for production persistence.
+
+## Password reset
+
+Enable password reset to let users recover their account when they forget their password. Tokens are single-use and expire after the configured TTL.
+
+```ts
+const auth = createAuth({
+  session: { strategy: 'jwt', ttl: '60s' },
+  passwordReset: {
+    enabled: true,
+    tokenTtl: '1h', // Default: '1h'
+    revokeSessionsOnReset: true, // Default: true — revokes all sessions after reset
+    onSend: async (user, token) => {
+      await sendEmail({
+        to: user.email,
+        subject: 'Reset your password',
+        body: `Reset your password: https://myapp.com/reset?token=${token}`,
+      });
+    },
+  },
+});
+```
+
+This generates two additional routes:
+
+```
+POST /api/auth/forgot-password  → { email } — sends reset email (always returns 200 to prevent enumeration)
+POST /api/auth/reset-password   → { token, password } — resets password and optionally revokes sessions
+```
+
+When `revokeSessionsOnReset` is `true` (the default), all active sessions for the user are revoked after the password is changed. This forces re-authentication on all devices.
+
+### PasswordResetStore
+
+```ts
+interface PasswordResetStore {
+  createReset(data: {
+    userId: string;
+    tokenHash: string;
+    expiresAt: Date;
+  }): Promise<StoredPasswordReset>;
+  findByTokenHash(tokenHash: string): Promise<StoredPasswordReset | null>;
+  deleteByUserId(userId: string): Promise<void>;
+  dispose(): void;
+}
+```
+
+The default `InMemoryPasswordResetStore` works for development. Provide your own store for production persistence.
+
+## Middleware
+
+The auth middleware injects `ctx.user` and `ctx.session` into your request context:
+
+```ts
+const auth = createAuth({
+  /* ... */
+});
+
+// In entity access rules, ctx has the authenticated user
+const posts = entity('posts', {
+  model: postsModel,
+  access: {
+    list: (ctx) => ctx.authenticated(),
+    create: (ctx) => ctx.role('admin', 'editor'),
+    update: (ctx, row) => row.ownerId === ctx.userId,
+    delete: (ctx) => ctx.role('admin'),
+  },
+});
+```
+
+## Rules builder API
+
+The `rules` object provides declarative access rule builders for entity access definitions. Each builder returns a plain data structure (no evaluation logic) that the access context evaluates at runtime.
+
+```ts
+import { rules } from '@vertz/server';
+```
+
+### `rules.public`
+
+Marks an endpoint as public — no authentication required. This is a constant (not a function call).
+
+```ts
+const posts = entity('posts', {
+  model: postsModel,
+  access: {
+    list: rules.public,
+  },
+});
+```
+
+### `rules.authenticated()`
+
+Requires the user to be authenticated. No specific role is needed.
+
+```ts
+const posts = entity('posts', {
+  model: postsModel,
+  access: {
+    list: rules.authenticated(),
+  },
+});
+```
+
+### `rules.role(...roles)`
+
+Requires the user to have at least one of the specified roles (OR logic).
+
+```ts
+access: {
+  create: rules.role('admin', 'editor'),
+  delete: rules.role('admin'),
+}
+```
+
+### `rules.entitlement(name)`
+
+Requires the user to have the specified entitlement. This resolves roles, plans, and feature flags from your `defineAccess()` configuration.
+
+```ts
+access: {
+  create: rules.entitlement('project:create'),
+  export: rules.entitlement('export:pdf'),
+}
+```
+
+### `rules.where(conditions)`
+
+Row-level access control. Adds conditions that are checked against the entity row. Use `rules.user.id` and `rules.user.tenantId` as dynamic placeholders that resolve to the current user's values at evaluation time.
+
+```ts
+access: {
+  update: rules.where({ ownerId: rules.user.id }),
+  list: rules.where({ tenantId: rules.user.tenantId }),
+}
+```
+
+#### Database-level enforcement
+
+`rules.where()` conditions are pushed directly into the SQL query for all operations — `list`, `get`, `update`, and `delete`. The row is never fetched from the database unless it matches the access rule.
+
+```ts
+access: {
+  update: rules.all(
+    rules.authenticated(),
+    rules.where({ ownerId: rules.user.id }),
+  ),
+}
+// PATCH /api/tasks/123 →
+// SELECT * FROM tasks WHERE id = '123' AND owner_id = '<current-user-id>'
+// If no row found → 404 (no information leakage about row existence)
+```
+
+This provides two security benefits:
+
+- **Zero row leakage** — the database filters rows before they reach application code. A user can't infer whether a row exists based on 403 vs 404 responses.
+- **TOCTOU protection** — for `update` and `delete`, the where condition is applied to both the initial lookup and the mutation query, preventing race conditions where a concurrent write could change the row between check and action.
+
+<Note>
+  `rules.where()` inside `rules.any()` is still evaluated in memory, not at the database level.
+  Database extraction only works with AND logic (`rules.all()`), because OR logic could bypass
+  enforcement.
+</Note>
+
+### `rules.all(...rules)`
+
+Combines multiple rules with AND logic. All sub-rules must pass.
+
+```ts
+access: {
+  update: rules.all(
+    rules.role('editor'),
+    rules.where({ ownerId: rules.user.id }),
+  ),
+}
+```
+
+### `rules.any(...rules)`
+
+Combines multiple rules with OR logic. At least one sub-rule must pass.
+
+```ts
+access: {
+  update: rules.any(
+    rules.role('admin'),
+    rules.all(
+      rules.role('editor'),
+      rules.where({ ownerId: rules.user.id }),
+    ),
+  ),
+}
+```
+
+### `rules.fva(maxAge)`
+
+Requires the user to have completed MFA verification within the specified number of seconds. This is used for step-up authentication on sensitive operations.
+
+```ts
+access: {
+  delete: rules.all(
+    rules.role('admin'),
+    rules.fva(300), // MFA verified within the last 5 minutes
+  ),
+}
+```
+
+### `rules.user`
+
+Declarative user markers resolved at evaluation time. Available markers:
+
+| Marker                | Resolves to                  |
+| --------------------- | ---------------------------- |
+| `rules.user.id`       | The current user's ID        |
+| `rules.user.tenantId` | The current user's tenant ID |
+
+Used inside `rules.where()` for row-level access checks (see example above).
+
+## AuthorizationError
+
+`AuthorizationError` is thrown by `ctx.authorize()` (and `accessContext.authorize()`) when the user lacks the required entitlement. It extends `Error` with two additional properties.
+
+```ts
+import { AuthorizationError } from '@vertz/server';
+
+try {
+  await ctx.authorize('project:delete', { type: 'project', id: 'proj-1' });
+} catch (error) {
+  if (error instanceof AuthorizationError) {
+    console.log(error.entitlement); // 'project:delete'
+    console.log(error.userId); // 'user-123' | undefined
+    console.log(error.message); // 'Not authorized: project:delete'
+  }
+}
+```
+
+| Property      | Type                  | Description                                                |
+| ------------- | --------------------- | ---------------------------------------------------------- |
+| `entitlement` | `string`              | The entitlement that was denied                            |
+| `userId`      | `string \| undefined` | The user ID that was denied (undefined if unauthenticated) |
+| `message`     | `string`              | Human-readable error message                               |
+| `name`        | `string`              | Always `'AuthorizationError'`                              |
+
+## DB-backed stores
+
+When you pass both `db` and `auth` to `createServer()`, Vertz auto-wires DB-backed stores and returns a `ServerInstance` with `.auth` and `.initialize()`:
+
+```ts
+import { authModels, createAuth, createDb, createServer } from '@vertz/server';
+
+const db = createDb({
+  dialect: 'sqlite',
+  models: {
+    ...authModels, // sessions, users, oauth_accounts, etc.
+    // ... your app models
+  },
+});
+
+const auth = createAuth({
+  session: { strategy: 'jwt', ttl: '60s' },
+});
+
+const app = createServer({
+  entities: [
+    /* ... */
+  ],
+  db,
+  auth,
+});
+
+// Initialize creates auth tables if they don't exist
+await app.initialize();
+
+// Access the auth instance
+const session = await app.auth.api.signUp({
+  email: 'alice@example.com',
+  password: 'hunter2',
+});
+```
+
+Reserved auth fields such as `role`, `emailVerified`, `id`, and timestamps are not
+assignable through `signUp()`. Set privilege-bearing fields through your own trusted admin or
+database flows instead.
+
+The `authModels` export provides table definitions for all auth stores: sessions, users, OAuth accounts, role assignments, closure table entries, plan assignments, flags, and more. These are registered in your `createDb()` call alongside your application models.
+
+### Individual DB stores
+
+If you need finer control, you can use the DB-backed store classes directly:
+
+```ts
+import {
+  DbUserStore,
+  DbSessionStore,
+  DbRoleAssignmentStore,
+  DbClosureStore,
+  DbFlagStore,
+  DbSubscriptionStore,
+  DbOAuthAccountStore,
+} from '@vertz/server';
+```
+
+Each accepts a database client and provides the same interface as its in-memory counterpart.
+
+## Pluggable stores
+
+All storage is abstracted behind interfaces. The defaults use in-memory stores — swap them for database-backed implementations in production.
+
+### SessionStore
+
+```ts
+interface SessionStore {
+  createSessionWithId(
+    id: string,
+    data: {
+      userId: string;
+      refreshTokenHash: string;
+      ipAddress: string;
+      userAgent: string;
+      expiresAt: Date;
+    },
+  ): Promise<StoredSession>;
+  findByRefreshHash(hash: string): Promise<StoredSession | null>;
+  findByPreviousRefreshHash(hash: string): Promise<StoredSession | null>;
+  revokeSession(id: string): Promise<void>;
+  listActiveSessions(userId: string): Promise<StoredSession[]>;
+  countActiveSessions(userId: string): Promise<number>;
+  updateSession(
+    id: string,
+    data: {
+      /* ... */
+    },
+  ): Promise<void>;
+  dispose(): void;
+}
+```
+
+### UserStore
+
+```ts
+interface UserStore {
+  createUser(user: AuthUser, passwordHash: string | null): Promise<void>;
+  findByEmail(email: string): Promise<{ user: AuthUser; passwordHash: string | null } | null>;
+  findById(id: string): Promise<AuthUser | null>;
+}
+```
+
+### RateLimitStore
+
+```ts
+interface RateLimitStore {
+  check(key: string, maxAttempts: number, windowMs: number): Promise<RateLimitResult>;
+  dispose(): void;
+}
+```
+
+## Security
+
+Built-in protections — no configuration required:
+
+| Protection           | How                                                                             |
+| -------------------- | ------------------------------------------------------------------------------- |
+| **CSRF**             | Validates `Origin`/`Referer` headers + requires `X-VTZ-Request: 1` on mutations |
+| **Rate limiting**    | Per-endpoint limits (see table below)                                           |
+| **Timing-safe**      | Constant-time hash comparison prevents timing attacks on passwords and tokens   |
+| **User enumeration** | Dummy bcrypt comparison on unknown emails — response timing is identical        |
+| **Session limits**   | Max 50 sessions per user — oldest auto-revoked on overflow                      |
+| **Secure cookies**   | HttpOnly, Secure, SameSite=Lax by default                                       |
+| **Cache headers**    | All auth responses include `Cache-Control: no-store`                            |
+
+### Rate limits per endpoint
+
+| Endpoint                    | Max attempts | Window | Key         |
+| --------------------------- | ------------ | ------ | ----------- |
+| `POST /signup`              | 3            | 1 hour | Per email   |
+| `POST /signin`              | 5            | 15 min | Per email   |
+| `POST /refresh`             | 10           | 1 min  | Per IP      |
+| `GET /oauth/:provider`      | 10           | 5 min  | Per IP      |
+| `POST /mfa/challenge`       | 5            | 15 min | Per IP      |
+| `POST /mfa/step-up`         | 5            | 15 min | Per IP      |
+| `POST /resend-verification` | 3            | 1 hour | Per user ID |
+| `POST /forgot-password`     | 3            | 1 hour | Per email   |
+
+Sign-in and sign-up limits are configurable via `emailPassword.rateLimit`. All other limits are fixed defaults. When a rate limit is hit, the endpoint returns `429 Too Many Requests` (except `/forgot-password`, which always returns `200` to prevent email enumeration).
+
+## Access control with `defineAccess()`
+
+Beyond basic `ctx.authenticated()` and `ctx.role()` checks, Vertz provides a full RBAC system with resource hierarchies, role inheritance, plan-based entitlements, and usage limits.
+
+### Defining the access model
+
+`defineAccess()` declares your entire authorization model in one place. The API is **entity-centric** — each entity is a self-contained group with its own roles. Hierarchy is inferred from `inherits` declarations.
+
+```ts
+import { defineAccess } from '@vertz/server';
+
+const access = defineAccess({
+  // Entities — each defines its own roles and inheritance
+  entities: {
+    organization: {
+      roles: ['owner', 'admin', 'member'],
+    },
+    workspace: {
+      roles: ['admin', 'editor', 'viewer'],
+      // Parent role → child role mapping
+      inherits: {
+        'organization:owner': 'admin',
+        'organization:admin': 'editor',
+        'organization:member': 'viewer',
+      },
+    },
+    project: {
+      roles: ['manager', 'contributor', 'viewer'],
+      inherits: {
+        'workspace:admin': 'manager',
+        'workspace:editor': 'contributor',
+        'workspace:viewer': 'viewer',
+      },
+    },
+  },
+
+  // Entitlements — map to required roles (and optionally plans)
+  entitlements: {
+    'project:create': { roles: ['admin', 'editor'] },
+    'project:delete': { roles: ['admin'] },
+    'project:read': { roles: ['admin', 'editor', 'viewer'] },
+    'ai:generate': { roles: ['editor'], plans: ['pro', 'enterprise'] },
+    'export:pdf': { roles: ['viewer'], plans: ['pro', 'enterprise'] },
+  },
+});
+```
+
+The hierarchy is inferred from `inherits` declarations. If a user is an `owner` on an `organization`, they inherit `admin` on all `workspace` children (via `'organization:owner': 'admin'`), which inherits `manager` on all `project` grandchildren. No need to assign roles at every level.
+
+### 5-layer resolution
+
+When you call `can()` or `check()`, the access context evaluates 5 layers in order:
+
+| Layer            | What it checks                                                        | Denial reason      |
+| ---------------- | --------------------------------------------------------------------- | ------------------ |
+| 1. Feature flags | Whether the feature is enabled (stub -- always passes for now)        | `flag_disabled`    |
+| 2. RBAC          | Does the user have a required role on the resource?                   | `role_required`    |
+| 3. Hierarchy     | Does the role propagate via the closure table? (implicit via Layer 2) | `hierarchy_denied` |
+| 4. Plan          | Is the org on a plan that includes this entitlement?                  | `plan_required`    |
+| 5. Wallet        | Has the org exceeded its usage limit for the billing period?          | `limit_reached`    |
+
+`can()` short-circuits on the first denial (cheapest first). `check()` evaluates all layers and returns every reason, ordered by actionability.
+
+### Creating an access context
+
+At request time, create an access context with the user's identity and your stores:
+
+```ts
+import { createAccessContext } from '@vertz/server';
+
+const ctx = createAccessContext({
+  userId: session.userId,
+  accessDef: access,
+  closureStore, // closure table for hierarchy lookups
+  roleStore, // user-to-role assignments
+  subscriptionStore, // tenant-to-plan assignments (optional)
+  walletStore, // usage counters (optional)
+  orgResolver: async (resource) => {
+    // resolve which org a resource belongs to
+    return resource ? lookupOrgId(resource) : session.orgId;
+  },
+});
+```
+
+### Checking entitlements
+
+```ts
+// Simple boolean check — short-circuits on first denial
+const allowed = await ctx.can('project:create', { type: 'workspace', id: 'ws-1' });
+
+// Full check — all layers, structured result
+const result = await ctx.check('ai:generate', { type: 'project', id: 'proj-1' });
+// result.allowed    → false
+// result.reasons    → ['plan_required']
+// result.reason     → 'plan_required' (most actionable)
+// result.meta       → { requiredPlans: ['pro', 'enterprise'] }
+
+// Throws AuthorizationError on denial
+await ctx.authorize('project:delete', { type: 'project', id: 'proj-1' });
+
+// Bulk check — up to 100 at once
+const results = await ctx.canAll([
+  { entitlement: 'project:read', resource: { type: 'project', id: 'p1' } },
+  { entitlement: 'project:read', resource: { type: 'project', id: 'p2' } },
+]);
+```
+
+### Access set for the client
+
+`computeAccessSet()` builds a global snapshot of all entitlements for a user. This is embedded in the JWT and sent to the client for UI-advisory checks (the server always re-validates before mutations).
+
+```ts
+import { computeAccessSet, encodeAccessSet } from '@vertz/server';
+
+const accessSet = await computeAccessSet({
+  userId: user.id,
+  accessDef: access,
+  roleStore,
+  closureStore,
+  subscriptionStore,
+  walletStore,
+  tenantId: session.tenantId,
+});
+
+// Encode for JWT — sparse format (only includes allowed + denied-with-meta)
+const encoded = encodeAccessSet(accessSet);
+
+// Embed in JWT claims
+const jwt = await signJWT({ sub: user.id, acl: { set: encoded, hash: '...' } });
+```
+
+On the client, `decodeAccessSet()` restores the full shape (missing entitlements default to denied).
+
+## Plans and billing
+
+Extend `defineAccess()` with plans to gate entitlements by subscription tier and enforce usage limits.
+
+### Defining plans
+
+Plans use a **feature-based** shape. Each plan declares which entitlements it unlocks (`features`) and what usage limits apply. Plans are organized into `group`s — a tenant can only have one base plan per group active at a time.
+
+```ts
+const access = defineAccess({
+  entities: {
+    /* ... */
+  },
+  entitlements: {
+    'ai:generate': { roles: ['editor'] },
+    'export:pdf': { roles: ['viewer'] },
+    'members:invite': { roles: ['admin'] },
+  },
+  plans: {
+    free: {
+      group: 'main',
+      features: ['members:invite'],
+      limits: {
+        'invite-limit': { gates: 'members:invite', per: 'month', max: 5 },
+      },
+    },
+    pro: {
+      group: 'main',
+      features: ['ai:generate', 'export:pdf', 'members:invite'],
+      limits: {
+        'ai-limit': { gates: 'ai:generate', per: 'month', max: 1000 },
+        'invite-limit': { gates: 'members:invite', per: 'month', max: 50 },
+      },
+    },
+    enterprise: {
+      group: 'main',
+      features: ['ai:generate', 'export:pdf', 'members:invite'],
+      // no limits — unlimited usage
+    },
+  },
+  defaultPlan: 'free', // fallback when a plan expires
+});
+```
+
+Billing periods are `'month'`, `'day'`, `'hour'`, `'quarter'`, or `'year'`. Periods are anchored to the org's plan start date, not calendar months.
+
+#### Plan groups and add-ons
+
+Base plans have a `group` — only one base plan per group can be active. **Add-ons** are supplementary plans that can be stacked on top of a base plan:
+
+```ts
+plans: {
+  pro: {
+    group: 'main',
+    features: ['ai:generate'],
+    limits: {
+      'ai-limit': { gates: 'ai:generate', per: 'month', max: 1000 },
+    },
+  },
+  'ai-boost': {
+    addOn: true,
+    features: ['ai:generate'],
+    limits: {
+      'ai-limit': { gates: 'ai:generate', per: 'month', max: 5000 },
+    },
+    // Optional: restrict which base plans this add-on works with
+    requires: { group: 'main', plans: ['pro', 'enterprise'] },
+  },
+}
+```
+
+Add-on limits are **additive** — if the base plan has 1000 and the add-on adds 5000, the effective limit is 6000.
+
+### SubscriptionStore
+
+Assign plans to tenants:
+
+```ts
+import { InMemorySubscriptionStore } from '@vertz/server';
+
+const subscriptionStore = new InMemorySubscriptionStore();
+
+// Assign a plan (startedAt defaults to now)
+await subscriptionStore.assign('tenant-1', 'pro');
+
+// With explicit dates
+await subscriptionStore.assign('tenant-1', 'pro', new Date('2026-01-01'), new Date('2027-01-01'));
+
+// Per-tenant limit overrides (can only increase, never decrease)
+await subscriptionStore.updateOverrides('tenant-1', {
+  'ai:generate': { max: 5000 }, // 5x the plan default
+});
+
+// Remove a subscription
+await subscriptionStore.remove('tenant-1');
+```
+
+When a plan expires, the system falls back to `defaultPlan` (or `'free'` if not configured). If the fallback plan doesn't exist in the definition, all plan-gated entitlements are denied.
+
+### WalletStore
+
+Track per-tenant usage within billing periods:
+
+```ts
+import { InMemoryWalletStore } from '@vertz/server';
+
+const walletStore = new InMemoryWalletStore();
+```
+
+The wallet store is used internally by `canAndConsume()` and `check()`. You don't call it directly in normal usage.
+
+### `canAndConsume()` -- atomic check + consume
+
+For operations that consume quota (AI generations, API calls, invites), use `canAndConsume()` instead of `can()`. It runs all access layers and atomically increments the usage counter:
+
+```ts
+// Check access AND consume 1 unit atomically
+const allowed = await ctx.canAndConsume('ai:generate', { type: 'project', id: 'proj-1' });
+
+if (!allowed) {
+  return { error: 'Upgrade your plan or wait for the next billing period.' };
+}
+
+// Do the actual work
+const result = await generateAI(prompt);
+```
+
+If the operation fails after consumption, roll back:
+
+```ts
+const allowed = await ctx.canAndConsume('ai:generate', { type: 'project', id: 'proj-1' });
+if (!allowed) return;
+
+try {
+  await generateAI(prompt);
+} catch (err) {
+  // Roll back the consumed unit
+  await ctx.unconsume('ai:generate', { type: 'project', id: 'proj-1' });
+  throw err;
+}
+```
+
+`canAndConsume()` avoids TOCTOU (time-of-check-time-of-use) races by skipping the read-only wallet check and going straight to an atomic consume that fails if the limit would be exceeded.
+
+## Entity access metadata
+
+For entity lists where each item has different permissions (e.g., some projects are editable, others read-only), pre-compute access metadata on the server so the client can check without extra requests.
+
+```ts
+import { computeEntityAccess } from '@vertz/server';
+
+// In your list handler
+const projects = await db.query('SELECT * FROM projects WHERE workspace_id = ?', [wsId]);
+
+const enriched = await Promise.all(
+  projects.map(async (project) => ({
+    ...project,
+    __access: await computeEntityAccess(
+      ['project:read', 'project:delete'],
+      { type: 'project', id: project.id },
+      accessContext,
+    ),
+  })),
+);
+```
+
+Each entity now carries `__access` metadata that the client-side `can()` function reads automatically. See the [client-side access control guide](/guides/ui/access-control) for usage.
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Multi-Tenancy" icon="building" href="/guides/server/multi-tenancy">
+    Tenant switching, listing, auto-resolve, and tenant-scoped JWTs.
+  </Card>
+  <Card title="Code Generation" icon="wand" href="/guides/server/codegen">
+    Type-safe entitlements and RLS policy generation from defineAccess().
+  </Card>
+  <Card title="Client-Side Auth" icon="user" href="/guides/ui/auth">
+    AuthProvider, useAuth(), sign-in forms, and token refresh.
+  </Card>
+  <Card title="Client-Side Access Control" icon="shield" href="/guides/ui/access-control">
+    Use `can()` and `AccessGate` in your UI components.
+  </Card>
+  <Card title="OAuth Providers" icon="key" href="/guides/server/oauth">
+    Add Google, GitHub, or Discord sign-in.
+  </Card>
+  <Card title="Entities" icon="database" href="/guides/server/entities">
+    Use access rules to protect entity operations.
+  </Card>
+  <Card title="Environment" icon="lock" href="/guides/env">
+    Validate JWT secrets and OAuth keys with `createEnv()`.
+  </Card>
+</CardGroup>

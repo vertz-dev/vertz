@@ -1,0 +1,693 @@
+---
+title: Component Library
+description: 'Accessible, styled components — Button, Dialog, Select, Tabs, Table, Card, and more. Use these instead of building from scratch.'
+---
+
+Vertz ships a full set of ready-to-use UI components with a shadcn-inspired theme. Use them instead of building from scratch.
+
+## Architecture
+
+The component system has two layers:
+
+- **`@vertz/ui-primitives`** — Headless, accessible components with WAI-ARIA patterns. No styling, just behavior.
+- **`@vertz/theme-shadcn`** — Wraps every primitive with shadcn-inspired styles, plus adds common components like Button, Input, Card, and Table.
+
+Most apps only import from `@vertz/theme-shadcn`.
+
+## Setup
+
+Call `configureTheme()` once and register it with `registerTheme()`:
+
+```tsx
+// src/styles/theme.ts
+import { configureTheme } from '@vertz/theme-shadcn';
+import { registerTheme } from '@vertz/ui';
+
+const config = configureTheme({ palette: 'zinc', radius: 'md' });
+registerTheme(config);
+
+export const appTheme = config.theme;
+export const themeGlobals = config.globals;
+```
+
+Then import components from `@vertz/ui/components` anywhere in your app:
+
+```tsx
+import { Button, Input, Dialog, Select } from '@vertz/ui/components';
+```
+
+<Note>
+  **Direct components** (`Button`, `Card`, etc.) are simple styled wrappers. **Primitive
+  components** (`Dialog`, `Select`, etc.) are themed wrappers around `@vertz/ui-primitives` with
+  compound sub-components (e.g., `Dialog.Title`, `Dialog.Footer`, `Select.Content`).
+</Note>
+
+---
+
+## Form
+
+### Button
+
+Triggers an action or event. Supports intents and sizes.
+
+```tsx
+import { Button } from '@vertz/ui/components';
+
+<Button intent="primary" size="md">Save</Button>
+<Button intent="outline" size="sm">Cancel</Button>
+<Button intent="destructive" size="md">Delete</Button>
+<Button intent="ghost" size="md">Ghost</Button>
+```
+
+Intents: `primary`, `secondary`, `outline`, `ghost`, `destructive`, `link`. Sizes: `sm`, `md`, `lg`.
+
+### Input
+
+Text input field for forms.
+
+```tsx
+import { Input } from '@vertz/ui/components';
+
+<Input placeholder="Enter your email..." />
+<Input type="password" placeholder="Password" />
+<Input disabled placeholder="Disabled" />
+```
+
+### Textarea
+
+Multi-line text input.
+
+```tsx
+import { Textarea } from '@vertz/ui/components';
+
+<Textarea placeholder="Write a message..." />;
+```
+
+### Label
+
+Accessible label for form controls.
+
+```tsx
+import { Label } from '@vertz/ui/components';
+
+<Label for="email">Email</Label>
+<Input id="email" name="email" placeholder="you@example.com" />
+```
+
+### FormGroup
+
+Groups form controls with error display.
+
+```tsx
+import { FormGroup, Label, Input } from '@vertz/ui/components';
+
+<FormGroup.FormGroup>
+  <Label>Email</Label>
+  <Input name="email" placeholder="Enter email" />
+  <FormGroup.FormError>Please enter a valid email address</FormGroup.FormError>
+</FormGroup.FormGroup>;
+```
+
+### Select
+
+Dropdown selection control.
+
+```tsx
+import { Select } from '@vertz/ui/components';
+
+<Select defaultValue="Select a fruit...">
+  <Select.Content>
+    <Select.Group label="Fruits">
+      <Select.Item value="apple">Apple</Select.Item>
+      <Select.Item value="banana">Banana</Select.Item>
+    </Select.Group>
+    <Select.Separator />
+    <Select.Group label="Vegetables">
+      <Select.Item value="carrot">Carrot</Select.Item>
+    </Select.Group>
+  </Select.Content>
+</Select>;
+```
+
+---
+
+## Layout
+
+### Card
+
+Container with header, content, and footer.
+
+```tsx
+import { Card, Button } from '@vertz/ui/components';
+
+<Card.Card>
+  <Card.CardHeader>
+    <Card.CardTitle>Card Title</Card.CardTitle>
+    <Card.CardDescription>Card description goes here.</Card.CardDescription>
+  </Card.CardHeader>
+  <Card.CardContent>This is the card content area.</Card.CardContent>
+  <Card.CardFooter>
+    <Button intent="outline" size="sm">
+      Cancel
+    </Button>
+    <Button intent="primary" size="sm">
+      Save
+    </Button>
+  </Card.CardFooter>
+</Card.Card>;
+```
+
+### Separator
+
+Visual divider between content.
+
+```tsx
+import { Separator } from '@vertz/ui/components';
+
+<Separator />;
+```
+
+### Accordion
+
+Expandable/collapsible content sections.
+
+```tsx
+import { Accordion } from '@vertz/ui/components';
+
+<Accordion>
+  <Accordion.Item value="item-1">
+    <Accordion.Trigger>Is it accessible?</Accordion.Trigger>
+    <Accordion.Content>Yes. It adheres to WAI-ARIA patterns.</Accordion.Content>
+  </Accordion.Item>
+  <Accordion.Item value="item-2">
+    <Accordion.Trigger>Is it styled?</Accordion.Trigger>
+    <Accordion.Content>Yes. It matches the theme.</Accordion.Content>
+  </Accordion.Item>
+</Accordion>;
+```
+
+### Tabs
+
+Tabbed content organization.
+
+```tsx
+import { Tabs } from '@vertz/ui/components';
+
+<Tabs defaultValue="account">
+  <Tabs.List>
+    <Tabs.Trigger value="account">Account</Tabs.Trigger>
+    <Tabs.Trigger value="password">Password</Tabs.Trigger>
+  </Tabs.List>
+  <Tabs.Content value="account">Account settings here.</Tabs.Content>
+  <Tabs.Content value="password">Password settings here.</Tabs.Content>
+</Tabs>;
+```
+
+Supports `variant="line"` for an underline tab style.
+
+---
+
+## Data Display
+
+### Badge
+
+Small status or count indicator.
+
+```tsx
+import { Badge } from '@vertz/ui/components';
+
+<Badge color="blue">New</Badge>
+<Badge color="green">Active</Badge>
+<Badge color="red">Error</Badge>
+<Badge color="yellow">Warning</Badge>
+<Badge color="gray">Draft</Badge>
+```
+
+### Avatar
+
+User profile image with fallback.
+
+```tsx
+import { Avatar } from '@vertz/ui/components';
+
+<Avatar.Avatar>
+  <Avatar.AvatarFallback>JD</Avatar.AvatarFallback>
+</Avatar.Avatar>;
+```
+
+### Table
+
+Tabular data display.
+
+```tsx
+import { Table } from '@vertz/ui/components';
+
+<Table.Table>
+  <Table.TableHeader>
+    <Table.TableRow>
+      <Table.TableHead>Name</Table.TableHead>
+      <Table.TableHead>Status</Table.TableHead>
+      <Table.TableHead>Role</Table.TableHead>
+    </Table.TableRow>
+  </Table.TableHeader>
+  <Table.TableBody>
+    <Table.TableRow>
+      <Table.TableCell>Alice Johnson</Table.TableCell>
+      <Table.TableCell>Active</Table.TableCell>
+      <Table.TableCell>Admin</Table.TableCell>
+    </Table.TableRow>
+  </Table.TableBody>
+</Table.Table>;
+```
+
+### Skeleton
+
+Loading placeholder with built-in pulse animation. Comes with `Text` and `Circle` sub-components for common patterns.
+
+```tsx
+import { Skeleton } from '@vertz/ui/components';
+
+{/* Basic box skeleton */}
+<Skeleton width="200px" height="16px" />
+
+{/* Multi-line text skeleton (3 lines by default, last line shorter) */}
+<Skeleton.Text />
+
+{/* Custom line count and last-line width */}
+<Skeleton.Text lines={5} lastLineWidth="50%" />
+
+{/* Circular skeleton for avatars */}
+<Skeleton.Circle />
+<Skeleton.Circle size="48px" />
+```
+
+### EmptyState
+
+Compound component for empty-data placeholders with icon, title, description, and action slots.
+
+```tsx
+import { Button, EmptyState } from '@vertz/ui/components';
+
+<EmptyState>
+  <EmptyState.Icon>
+    <InboxIcon />
+  </EmptyState.Icon>
+  <EmptyState.Title>No issues yet</EmptyState.Title>
+  <EmptyState.Description>Create your first issue to get started.</EmptyState.Description>
+  <EmptyState.Action>
+    <Button intent="primary" size="sm">
+      New Issue
+    </Button>
+  </EmptyState.Action>
+</EmptyState>;
+```
+
+All slots are optional — use only what you need:
+
+```tsx
+<EmptyState>
+  <EmptyState.Title>No results</EmptyState.Title>
+  <EmptyState.Description>Try adjusting your filters.</EmptyState.Description>
+</EmptyState>
+```
+
+---
+
+## Overlays
+
+### Dialog
+
+All dialogs use `useDialogStack()` with native `<dialog>` + `showModal()`. Dialog sub-components
+(`Dialog.Header`, `Dialog.Title`, etc.) are used inside the dialog component.
+
+```tsx
+import { useDialogStack } from '@vertz/ui';
+import type { DialogHandle } from '@vertz/ui';
+import { Button, Dialog } from '@vertz/ui/components';
+
+function EditProfileDialog({ dialog }: { dialog: DialogHandle<void> }) {
+  return (
+    <>
+      <Dialog.Header>
+        <Dialog.Title>Edit profile</Dialog.Title>
+        <Dialog.Description>Make changes to your profile here.</Dialog.Description>
+      </Dialog.Header>
+      <Dialog.Body>{/* Form fields go here */}</Dialog.Body>
+      <Dialog.Footer>
+        <Dialog.Cancel>Cancel</Dialog.Cancel>
+        <Button intent="primary" size="md" onClick={() => dialog.close()}>
+          Save changes
+        </Button>
+      </Dialog.Footer>
+    </>
+  );
+}
+
+// Open via DialogStack
+const dialogs = useDialogStack();
+await dialogs.open(EditProfileDialog, {});
+```
+
+### Confirm Dialog
+
+Quick confirmation via `useDialogStack().confirm()`:
+
+```tsx
+import { useDialogStack } from '@vertz/ui';
+import { Button } from '@vertz/ui/components';
+
+function DeleteButton() {
+  const dialogs = useDialogStack();
+
+  async function handleDelete() {
+    const confirmed = await dialogs.confirm({
+      title: 'Are you absolutely sure?',
+      description: 'This action cannot be undone.',
+      confirm: 'Continue',
+      cancel: 'Cancel',
+      intent: 'danger',
+    });
+    if (confirmed) {
+      // perform delete
+    }
+  }
+
+  return (
+    <Button intent="destructive" size="md" onClick={handleDelete}>
+      Delete Account
+    </Button>
+  );
+}
+```
+
+### Sheet
+
+Side panel that slides in from edge.
+
+```tsx
+import { Button } from '@vertz/ui/components';
+import { Sheet } from '@vertz/ui/components';
+
+<Sheet>
+  <Sheet.Trigger>
+    <Button intent="outline" size="md">
+      Open Sheet
+    </Button>
+  </Sheet.Trigger>
+  <Sheet.Content>
+    <Sheet.Title>Edit profile</Sheet.Title>
+    <Sheet.Description>Make changes to your profile here.</Sheet.Description>
+    {/* Content goes here */}
+  </Sheet.Content>
+</Sheet>;
+```
+
+Supports `side="left"`, `side="right"` (default), `side="top"`, `side="bottom"`.
+
+### Popover
+
+Floating content anchored to trigger.
+
+```tsx
+import { Button } from '@vertz/ui/components';
+import { Popover } from '@vertz/ui/components';
+
+<Popover>
+  <Popover.Trigger>
+    <Button intent="outline" size="md">
+      Open popover
+    </Button>
+  </Popover.Trigger>
+  <Popover.Content>
+    <div style="padding: 16px; width: 280px;">
+      <h4>Dimensions</h4>
+      <p>Set the dimensions for the layer.</p>
+    </div>
+  </Popover.Content>
+</Popover>;
+```
+
+### Tooltip
+
+Brief info on hover or focus.
+
+```tsx
+import { Button } from '@vertz/ui/components';
+import { Tooltip } from '@vertz/ui/components';
+
+<Tooltip>
+  <Tooltip.Trigger>
+    <Button intent="outline" size="md">
+      Hover me
+    </Button>
+  </Tooltip.Trigger>
+  <Tooltip.Content>Add to library</Tooltip.Content>
+</Tooltip>;
+```
+
+---
+
+## Navigation
+
+### Breadcrumb
+
+Navigation breadcrumb trail.
+
+```tsx
+import { Breadcrumb } from '@vertz/ui/components';
+
+<Breadcrumb
+  items={[
+    { label: 'Home', href: '/' },
+    { label: 'Projects', href: '/projects' },
+    { label: 'Current Project' },
+  ]}
+/>;
+```
+
+The last item renders as the current page (no link). Supports a custom `separator` prop (defaults to `/`).
+
+### Pagination
+
+Page navigation controls.
+
+```tsx
+import { Pagination } from '@vertz/ui/components';
+
+<Pagination
+  currentPage={2}
+  totalPages={10}
+  onPageChange={(page) => {
+    /* navigate to page */
+  }}
+/>;
+```
+
+Supports `siblingCount` to control how many page numbers show around the current page.
+
+### DropdownMenu
+
+Menu triggered by a button click.
+
+```tsx
+import { Button } from '@vertz/ui/components';
+import { DropdownMenu } from '@vertz/ui/components';
+
+<DropdownMenu>
+  <DropdownMenu.Trigger>
+    <Button intent="outline" size="md">
+      Open
+    </Button>
+  </DropdownMenu.Trigger>
+  <DropdownMenu.Content>
+    <DropdownMenu.Label>My Account</DropdownMenu.Label>
+    <DropdownMenu.Separator />
+    <DropdownMenu.Item value="profile">Profile</DropdownMenu.Item>
+    <DropdownMenu.Item value="billing">Billing</DropdownMenu.Item>
+    <DropdownMenu.Separator />
+    <DropdownMenu.Item value="logout">Log out</DropdownMenu.Item>
+  </DropdownMenu.Content>
+</DropdownMenu>;
+```
+
+---
+
+## Feedback
+
+### Alert
+
+Inline alert messages.
+
+```tsx
+import { Alert } from '@vertz/ui/components';
+
+<Alert.Alert>
+  <Alert.AlertTitle>Heads up!</Alert.AlertTitle>
+  <Alert.AlertDescription>You can add components using the CLI.</Alert.AlertDescription>
+</Alert.Alert>
+
+<A.Alert variant="destructive">
+  <Alert.AlertTitle>Error</Alert.AlertTitle>
+  <Alert.AlertDescription>Your session has expired.</Alert.AlertDescription>
+</Alert.Alert>
+```
+
+---
+
+## Factory-based primitives
+
+These components use an imperative factory API — they return DOM elements rather than JSX compound components. Import them from `@vertz/ui/components`.
+
+<Note>
+  These primitives haven't been converted to JSX compound components yet. They work by returning DOM
+  elements that you embed in your JSX tree. JSX versions are planned.
+</Note>
+
+### Checkbox
+
+Toggle control for boolean values.
+
+```tsx
+import { Checkbox } from '@vertz/ui/components';
+
+<label style="display: flex; align-items: center; gap: 8px">
+  {Checkbox({ defaultChecked: true })}
+  Accept terms and conditions
+</label>;
+```
+
+### Switch
+
+Toggle between on and off states.
+
+```tsx
+import { Switch } from '@vertz/ui/components';
+
+{
+  Switch({ defaultChecked: true });
+}
+```
+
+Supports `size: 'sm'` for compact variant.
+
+### RadioGroup
+
+Select one option from a set.
+
+```tsx
+import { RadioGroup } from '@vertz/ui/components';
+
+const radio = RadioGroup({ defaultValue: 'comfortable' });
+radio.Item('default', 'Default');
+radio.Item('comfortable', 'Comfortable');
+radio.Item('compact', 'Compact');
+
+// Use radio.root in your JSX
+{
+  radio.root;
+}
+```
+
+### Slider
+
+Range input with track and thumb.
+
+```tsx
+import { Slider } from '@vertz/ui/components';
+
+{
+  Slider({ defaultValue: 50, min: 0, max: 100 }).root;
+}
+```
+
+### Toggle
+
+Toggle button with pressed state.
+
+```tsx
+import { Toggle } from '@vertz/ui/components';
+
+{
+  Toggle();
+}
+```
+
+### Progress
+
+Shows task completion percentage.
+
+```tsx
+import { Progress } from '@vertz/ui/components';
+
+{
+  Progress({ defaultValue: 66 }).root;
+}
+```
+
+### Toast
+
+Temporary notification popup.
+
+```tsx
+import { Button } from '@vertz/ui/components';
+import { Toast } from '@vertz/ui/components';
+
+const t = Toast({});
+document.body.appendChild(t.region);
+
+<Button intent="outline" size="md" onClick={() => t.announce('Event has been created.')}>
+  Show Toast
+</Button>;
+```
+
+## Additional primitives
+
+These components are available via `@vertz/ui/components`, but are less commonly used:
+
+| Component      | Description                              |
+| -------------- | ---------------------------------------- |
+| Calendar       | Date grid with month navigation          |
+| DatePicker     | Date picker composing Calendar + Popover |
+| Carousel       | Slide navigation with prev/next controls |
+| Collapsible    | Expandable/collapsible content section   |
+| Command        | Searchable command palette               |
+| ContextMenu    | Right-click context menu                 |
+| Drawer         | Bottom/side panel wrapping Dialog        |
+| HoverCard      | Hover-triggered interactive card         |
+| Menubar        | Horizontal menu bar with dropdowns       |
+| NavigationMenu | Site navigation with hover dropdowns     |
+| ResizablePanel | Resizable panel layout with drag handles |
+| ScrollArea     | Custom scrollbars                        |
+| ToggleGroup    | Group of toggle buttons                  |
+
+All are importable from `@vertz/ui/components` after registering a theme with `registerTheme()`.
+
+---
+
+## Headless usage
+
+For custom styling, import directly from `@vertz/ui-primitives` and apply your own classes:
+
+```tsx
+import { Dialog } from '@vertz/ui-primitives';
+
+const dialog = Dialog.Root({ modal: true });
+```
+
+See [Styling](/guides/ui/styling) for details on `css()` and `variants()`.
+
+## Theme configuration
+
+`configureTheme()` accepts palette and radius options:
+
+```tsx
+const config = configureTheme({
+  palette: 'zinc', // zinc, slate, stone, gray, neutral
+  radius: 'md', // none, sm, md, lg, full
+});
+```
+
+- `config.theme` — Resolved CSS variables
+- `config.globals` — Global CSS string to inject
+- `config.styles` — Pre-built style objects for manual styling
+- `config.components` — Used internally by `registerTheme()` — import components from `@vertz/ui/components` instead

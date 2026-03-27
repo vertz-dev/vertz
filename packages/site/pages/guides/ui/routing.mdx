@@ -1,0 +1,267 @@
+---
+title: Routing
+description: 'Type-safe client-side routing with defineRoutes and createRouter'
+---
+
+Vertz routing is fully typed — route patterns, parameters, and navigation are all checked at compile time. If you add a route for `/tasks/:id`, then `navigate({ to: '/tasks/:id', params: { id: 'abc' } })` compiles but `navigate({ to: '/bogus' })` doesn't.
+
+## Define routes
+
+Use `defineRoutes()` to declare your route map:
+
+```tsx
+import { defineRoutes } from 'vertz/ui';
+
+export const routes = defineRoutes({
+  '/': {
+    component: () => HomePage(),
+  },
+  '/tasks/:id': {
+    component: () => TaskDetailPage(),
+  },
+});
+```
+
+Each key is a URL pattern. Each value is a route config with at least a `component` factory.
+
+### Dynamic segments
+
+Use `:param` in the path for dynamic segments:
+
+```tsx
+defineRoutes({
+  '/tasks/:id': {
+    component: () => TaskDetailPage(),
+  },
+});
+```
+
+## Create the router
+
+Pass your routes to `createRouter()`:
+
+```tsx
+import { createRouter } from 'vertz/ui';
+import { routes } from './router';
+
+const appRouter = createRouter(routes);
+```
+
+The router listens to `popstate` events and matches the current URL against your routes.
+
+## Render with RouterView
+
+`RouterView` renders the matched route's component and handles transitions:
+
+```tsx
+import { RouterContext, RouterView } from 'vertz/ui';
+
+export function App() {
+  const appRouter = createRouter(routes);
+
+  return (
+    <RouterContext.Provider value={appRouter}>
+      <div>
+        <Header />
+        <main>
+          <RouterView router={appRouter} fallback={() => <div>Page not found</div>} />
+        </main>
+      </div>
+    </RouterContext.Provider>
+  );
+}
+```
+
+`RouterView` handles:
+
+- Sync and async (lazy-loaded) components
+- Stale resolution guards — if a slow route resolves after a newer navigation, it's discarded
+- Automatic cleanup of the previous page
+
+## Navigate between pages
+
+### useRouter()
+
+Pages access navigation via context — no prop threading:
+
+```tsx
+import { useRouter } from 'vertz/ui';
+
+export function TaskListPage() {
+  const { navigate } = useRouter();
+
+  return <button onClick={() => navigate({ to: '/tasks/new' })}>New Task</button>;
+}
+```
+
+### Typed navigation
+
+Scaffolded apps get typed `useRouter()` automatically after codegen runs:
+
+```tsx
+// src/router.ts
+import { defineRoutes } from 'vertz/ui';
+
+export const routes = defineRoutes({
+  '/': { component: () => HomePage() },
+  '/tasks/:id': { component: () => TaskDetailPage() },
+});
+```
+
+Now `navigate()` is constrained to valid route patterns and params:
+
+```tsx
+import { useRouter } from 'vertz/ui';
+
+const { navigate } = useRouter();
+
+navigate({ to: '/' }); // OK
+navigate({ to: '/tasks/:id', params: { id: 'abc' } }); // OK
+navigate({ to: '/bogus' }); // Type error
+navigate({ to: '/tasks/:id' }); // Type error — params required
+```
+
+The generated typing lives in `.vertz/generated/router.d.ts`. If you build a
+project by hand, make sure `.vertz/generated` is included in `tsconfig.json`.
+
+### Replace vs push
+
+Use `{ replace: true }` to replace the current history entry instead of pushing:
+
+```tsx
+navigate({ to: '/', replace: true });
+```
+
+## Access route params
+
+Use `useParams()` to access typed route parameters:
+
+```tsx
+import { useParams } from 'vertz/ui';
+
+export function TaskDetailPage() {
+  const { id: taskId } = useParams<'/tasks/:id'>();
+  // taskId is typed as string
+
+  const task = query(api.tasks.get(taskId));
+
+  return <div>{task.data?.title}</div>;
+}
+```
+
+The type parameter tells TypeScript which path pattern to extract params from:
+
+- `useParams<'/tasks/:id'>()` returns `{ id: string }`
+- `useParams<'/users/:userId/posts/:postId'>()` returns `{ userId: string; postId: string }`
+
+### Param validation with schemas
+
+Routes can validate and parse params at the routing layer using a `params` schema:
+
+```tsx
+import { s } from 'vertz/schema';
+
+defineRoutes({
+  '/tasks/:id': {
+    params: s.object({
+      id: s.string().uuid(),
+    }),
+    component: () => TaskDetailPage(),
+  },
+});
+```
+
+When a route has a `params` schema:
+
+- Valid params are parsed and available via `useParams()` with the parsed types
+- Invalid params (e.g., `/tasks/not-a-uuid`) don't match the route — the fallback renders instead
+
+You can also parse params into non-string types:
+
+```tsx
+defineRoutes({
+  '/page/:num': {
+    params: s.object({
+      num: s.coerce.number().int().positive(),
+    }),
+    component: () => PaginatedPage(),
+  },
+});
+
+// In the component:
+const { num } = useParams<{ num: number }>();
+// num is number, not string
+```
+
+## Nested routes
+
+Use `children` for layout routes with nested pages:
+
+```tsx
+defineRoutes({
+  '/admin': {
+    component: () => AdminLayout(),
+    children: {
+      '/users': { component: () => UsersPage() },
+      '/settings': { component: () => SettingsPage() },
+    },
+  },
+});
+```
+
+The layout component uses `Outlet` to render the matched child:
+
+```tsx
+import { Outlet } from 'vertz/ui';
+
+export function AdminLayout() {
+  return (
+    <div>
+      <nav>Admin Navigation</nav>
+      <Outlet />
+    </div>
+  );
+}
+```
+
+## Pre-rendering (SSG)
+
+Routes can be pre-rendered to static HTML at build time. Add `prerender: true` for static routes, or `generateParams` for dynamic routes:
+
+```tsx
+defineRoutes({
+  '/about': {
+    component: () => AboutPage(),
+    prerender: true,
+  },
+  '/blog/:slug': {
+    component: () => BlogPost(),
+    loader: async (ctx) => fetchPost(ctx.params.slug),
+    generateParams: async () => {
+      const posts = await db.select().from(postsTable);
+      return posts.map((post) => ({ slug: post.slug }));
+    },
+  },
+  '/dashboard': {
+    component: () => Dashboard(),
+    prerender: false, // requires runtime data
+  },
+});
+```
+
+When you run `vertz build`, routes with `prerender: true` or `generateParams` are rendered to `dist/client/<path>/index.html`. See the [SSG guide](/guides/deploy/ssg) for details.
+
+## Lazy-loaded routes
+
+Return a dynamic import from `component` for code splitting:
+
+```tsx
+defineRoutes({
+  '/settings': {
+    component: () => import('./pages/settings'),
+    // expects: export default function SettingsPage() { ... }
+  },
+});
+```
+
+The router resolves the promise and renders the default export.

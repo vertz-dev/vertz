@@ -1,0 +1,273 @@
+---
+title: Components
+description: 'Writing components with JSX and TypeScript'
+---
+
+A Vertz component is a plain function that returns JSX. It runs once to create the DOM — reactivity is handled by signals and effects, not by re-running the function.
+
+## Basic component
+
+```tsx
+export function Greeting({ name }: { name: string }) {
+  return <h1>Hello, {name}!</h1>;
+}
+```
+
+Use it with JSX:
+
+```tsx
+<Greeting name="Vertz" />
+```
+
+## Props
+
+Define a `ComponentNameProps` interface with `on` prefix for callbacks. Destructure props in the function parameter:
+
+```tsx
+interface TaskCardProps {
+  task: Task;
+  onClick: (id: string) => void;
+  onDelete?: (id: string) => void;
+}
+
+export function TaskCard({ task, onClick, onDelete }: TaskCardProps) {
+  return <div onClick={() => onClick(task.id)}>{task.title}</div>;
+}
+```
+
+<Tip>See [Conventions](/conventions) for the full list of naming and style conventions.</Tip>
+
+## Children
+
+Use the `children` helper to access child content passed via JSX:
+
+```tsx
+import { children } from 'vertz/ui';
+
+interface PanelProps {
+  title: string;
+}
+
+export function Panel({ title }: PanelProps) {
+  const content = children();
+
+  return (
+    <div className={styles.panel}>
+      <h2>{title}</h2>
+      <div>{content}</div>
+    </div>
+  );
+}
+```
+
+Usage:
+
+```tsx
+<Panel title="Settings">
+  <p>Panel content goes here.</p>
+</Panel>
+```
+
+## Conditional rendering
+
+Use `&&` for show/hide and ternary for either/or:
+
+```tsx
+export function TaskStatus({ task }: { task: Task }) {
+  return (
+    <div>
+      {task.status === 'done' && <span className={styles.badge}>Completed</span>}
+
+      {task.priority === 'high' ? (
+        <span className={styles.urgent}>Urgent</span>
+      ) : (
+        <span className={styles.normal}>Normal</span>
+      )}
+    </div>
+  );
+}
+```
+
+The compiler transforms these into reactive conditionals — when `task.status` changes, only the affected branch updates. No re-render of the entire component.
+
+## Lists
+
+Use `.map()` with a `key` prop:
+
+```tsx
+export function TaskList({ tasks }: { tasks: Task[] }) {
+  return (
+    <ul>
+      {tasks.map((task) => (
+        <TaskCard key={task.id} task={task} onClick={handleClick} />
+      ))}
+    </ul>
+  );
+}
+```
+
+The `key` prop tells the runtime how to efficiently update the list when items are added, removed, or reordered.
+
+## Events
+
+Attach event handlers directly in JSX:
+
+```tsx
+export function Counter() {
+  let count = 0;
+
+  return (
+    <div>
+      <span>{count}</span>
+      <button onClick={() => count++}>+</button>
+      <button
+        onClick={() => {
+          count = 0;
+        }}
+      >
+        Reset
+      </button>
+    </div>
+  );
+}
+```
+
+Event handlers are standard DOM event handlers. The callback receives the native DOM event.
+
+```tsx
+<input
+  onInput={(e) => {
+    searchTerm = (e.target as HTMLInputElement).value;
+  }}
+/>
+```
+
+## Composition
+
+Compose components with JSX — never call them as functions.
+
+```tsx
+// Correct — declarative JSX
+export function TaskPage() {
+  return (
+    <div>
+      <Header />
+      <TaskList tasks={tasks} />
+      <Footer />
+    </div>
+  );
+}
+
+// Wrong — imperative function call
+export function TaskPage() {
+  const header = Header();
+  return <div>{header}</div>;
+}
+```
+
+Calling a component as a function bypasses the compiler's reactive prop generation. Always use JSX.
+
+## Refs
+
+Access the underlying DOM element with `ref()`:
+
+```tsx
+import { ref, onMount } from 'vertz/ui';
+
+export function AutoFocusInput() {
+  const inputRef = ref<HTMLInputElement>();
+
+  onMount(() => {
+    inputRef.current?.focus();
+  });
+
+  return <input ref={inputRef} />;
+}
+```
+
+## Lifecycle
+
+Components run once, but you can hook into mount with `onMount()`:
+
+```tsx
+import { onMount } from 'vertz/ui';
+
+export function Analytics({ pageId }: { pageId: string }) {
+  onMount(() => {
+    trackPageView(pageId);
+
+    // Return a cleanup function (runs on unmount)
+    return () => {
+      trackPageLeave(pageId);
+    };
+  });
+
+  return <div />;
+}
+```
+
+`onMount` runs after the component's DOM is inserted. The optional cleanup function runs when the component is removed.
+
+## Compound components
+
+Compound components are groups of related components designed to work together — like `Card` with `CardHeader`, `CardContent`, and `CardFooter`, or `Dialog` with `Dialog.Header`, `Dialog.Title`, and `Dialog.Footer`.
+
+### Render children in order
+
+Compound components should render children in the order the developer provides them. Don't inspect or reorganize children into "correct" slots:
+
+```tsx
+import { children } from 'vertz/ui';
+
+// Wrong — scanning children to enforce a specific order
+export function Card() {
+  const content = children();
+  const resolved = content();
+  // Sorting or filtering children by type to reorder them
+  // is fragile and causes hydration mismatches
+  return <div>{sortBySlot(resolved)}</div>;
+}
+
+// Right — render children as-is
+export function Card() {
+  const content = children();
+
+  return <div className={styles.card}>{content}</div>;
+}
+```
+
+If a developer puts `CardFooter` before `CardContent`, they'll see the footer first — that's their responsibility, not the component's. Reordering children adds complexity and can cause issues with hydration, where the client-side DOM structure must match what the server rendered.
+
+### Use props for structure, not child inspection
+
+When a component genuinely needs to control layout, use explicit props instead of scanning children:
+
+```tsx
+import { children } from 'vertz/ui';
+
+interface PageLayoutProps {
+  sidebar: () => JSX.Element;
+  header: () => JSX.Element;
+}
+
+export function PageLayout({ sidebar, header }: PageLayoutProps) {
+  const content = children();
+
+  return (
+    <div className={styles.layout}>
+      <aside>{sidebar()}</aside>
+      <div>
+        <header>{header()}</header>
+        <main>{content}</main>
+      </div>
+    </div>
+  );
+}
+
+// Usage
+<PageLayout sidebar={() => <NavMenu />} header={() => <TopBar />}>
+  <DashboardContent />
+</PageLayout>;
+```
+
+This makes the API explicit and avoids the fragility of child-type detection.

@@ -1,0 +1,339 @@
+---
+title: Services
+description: 'Standalone operations and cross-entity workflows'
+---
+
+Services are standalone operation groups that aren't tied to a single entity's CRUD lifecycle. Use them for domain services, cross-entity workflows, or any operation that doesn't fit the entity model.
+
+## Defining a service
+
+```ts
+import { service } from 'vertz/server';
+import { s } from 'vertz/schema';
+
+const notifications = service('notifications', {
+  inject: {
+    users: usersEntity,
+    tasks: tasksEntity,
+  },
+
+  access: {
+    sendEmail: () => true,
+    sendBulk: () => true,
+  },
+
+  actions: {
+    sendEmail: {
+      body: s.object({
+        to: s.string().email(),
+        subject: s.string(),
+        body: s.string(),
+      }),
+      response: s.object({
+        id: s.string().uuid(),
+        status: s.literal('sent'),
+      }),
+      handler: async (input, ctx) => {
+        await emailService.send(input);
+        return { id: crypto.randomUUID(), status: 'sent' as const };
+      },
+    },
+
+    sendBulk: {
+      body: s.object({
+        userIds: s.array(s.string().uuid()),
+        message: s.string(),
+      }),
+      response: s.object({ sent: s.number() }),
+      handler: async (input, ctx) => {
+        return { sent: input.userIds.length };
+      },
+    },
+  },
+});
+```
+
+## Services vs. entity custom actions
+
+|              | Entity custom actions                    | Services                                |
+| ------------ | ---------------------------------------- | --------------------------------------- |
+| **Scope**    | Tied to a single entity instance (`:id`) | Independent — no parent entity          |
+| **Route**    | `POST /api/tasks/:id/archive`            | `POST /api/notifications/send-email`    |
+| **Context**  | Gets the existing record as 3rd argument | No record — just input and context      |
+| **Use case** | Operations on a specific record          | Cross-entity workflows, domain services |
+
+Use entity custom actions when the operation targets a specific record (archive a task, mark as complete). Use services when the operation spans multiple entities or doesn't belong to any single entity.
+
+## Dependency injection
+
+Services access entities through `inject`, just like entity hooks:
+
+```ts
+const reports = service('reports', {
+  inject: {
+    tasks: tasksEntity,
+    users: usersEntity,
+  },
+  actions: {
+    generate: {
+      body: s.object({ month: s.number(), year: s.number() }),
+      response: s.object({ totalTasks: s.number(), completionRate: s.number() }),
+      handler: async (input, ctx) => {
+        const tasks = await ctx.entities.tasks.list({
+          where: { /* filter by month/year */ },
+        });
+        return {
+          totalTasks: tasks.total,
+          completionRate: /* calculate */,
+        };
+      },
+    },
+  },
+});
+```
+
+## Access rules
+
+Services use the same access control as entities — deny-by-default, with the action name as the key:
+
+```ts
+access: {
+  sendEmail: () => true,
+  sendBulk: () => true,
+  // generate: undefined → route not created
+}
+```
+
+## Content descriptors
+
+By default, service actions are JSON-in/JSON-out using `s.*` schemas. For non-JSON content types (XML, HTML, plain text, binary), use `content.*` descriptors:
+
+```ts
+import { content, service } from 'vertz/server';
+
+const saml = service('saml', {
+  actions: {
+    // XML GET — no body, returns XML
+    metadata: {
+      method: 'GET',
+      response: content.xml(),
+      handler: async () => '<EntityDescriptor xmlns="urn:oasis:names:tc:SAML:2.0:metadata"/>',
+    },
+
+    // HTML response
+    sso: {
+      method: 'GET',
+      response: content.html(),
+      handler: async (_input, ctx) => {
+        return `<html><body onload="document.forms[0].submit()">
+          <form method="POST" action="${acsUrl}">
+            <input type="hidden" name="SAMLResponse" value="${response}" />
+          </form>
+        </body></html>`;
+      },
+    },
+  },
+
+  access: {
+    metadata: () => true,
+    sso: () => true,
+  },
+});
+```
+
+### Available descriptors
+
+| Descriptor         | Content-Type               | TypeScript type |
+| ------------------ | -------------------------- | --------------- |
+| `content.xml()`    | `application/xml`          | `string`        |
+| `content.html()`   | `text/html`                | `string`        |
+| `content.text()`   | `text/plain`               | `string`        |
+| `content.binary()` | `application/octet-stream` | `Uint8Array`    |
+
+### How it works
+
+Content descriptors implement `SchemaLike`, so they work in the same `body` and `response` properties as `s.*` schemas. The framework handles everything:
+
+- **Response wrapping** — the framework sets the correct `Content-Type` header based on the descriptor
+- **Type inference** — `content.xml()` makes handler input/output typed as `string`, `content.binary()` as `Uint8Array`
+- **Content-type validation** — if a request's `Content-Type` doesn't match the descriptor, the framework returns `415 Unsupported Media Type`
+- **XML MIME flexibility** — `content.xml()` accepts both `application/xml` and `text/xml`
+
+### Mixing content types
+
+You can mix `content.*` and `s.*` in the same action — for example, XML input with JSON output:
+
+```ts
+const importer = service('import', {
+  actions: {
+    spreadsheet: {
+      method: 'POST',
+      body: content.xml(),
+      response: s.object({ imported: s.number() }),
+      handler: async (input) => {
+        const rows = parseSpreadsheetXml(input); // input: string
+        return { imported: rows.length };
+      },
+    },
+  },
+  access: { spreadsheet: () => true },
+});
+```
+
+### Optional body
+
+`body` is optional for actions that don't receive a request body (GET, DELETE). When omitted, the handler's `input` parameter is `unknown`:
+
+```ts
+actions: {
+  healthCheck: {
+    method: 'GET',
+    response: content.text(),
+    handler: async () => 'OK',
+  },
+}
+```
+
+<Note>
+  JSON endpoints **must** always use `s.*` schemas for `body` and `response`. Content descriptors
+  are for non-JSON content types only. This ensures all JSON endpoints are fully validated and
+  typed.
+</Note>
+
+## Custom response headers and status codes
+
+By default, service actions return `200` with `application/json`. To customize the HTTP response headers or status code, wrap your return value with `response()`:
+
+```ts
+import { response, service } from 'vertz/server';
+import { s } from 'vertz/schema';
+
+const cloud = service('cloud', {
+  access: { jwks: () => true, createToken: () => true },
+  actions: {
+    jwks: {
+      method: 'GET',
+      response: s.object({ keys: s.array(jwkSchema) }),
+      handler: async (_input, ctx) => {
+        const keys = await getPublicKeys(ctx);
+        return response(
+          { keys },
+          {
+            headers: { 'Cache-Control': 'public, max-age=3600' },
+          },
+        );
+      },
+    },
+
+    createToken: {
+      body: tokenRequestSchema,
+      response: s.object({ token: s.string() }),
+      handler: async (input) => {
+        const token = await generateToken(input);
+        return response({ token }, { status: 201 });
+      },
+    },
+  },
+});
+```
+
+Plain return values still work — `response()` is purely opt-in:
+
+```ts
+// These two are equivalent:
+handler: async () => ({ token: 'tok' });
+handler: async () => response({ token: 'tok' });
+```
+
+### Rules
+
+- `content-type` is protected and cannot be overridden — the framework always sets it based on the response schema
+- Custom headers are merged onto the response alongside the framework-managed `content-type`
+- Custom `status` overrides the default `200`. Error responses (4xx/5xx from access rules or validation) are not affected
+- `response()` works with both JSON and content descriptor responses
+
+<Note>
+  Entity custom actions also support `response()`. The same pattern applies — wrap the return value
+  to set custom headers or status codes.
+</Note>
+
+## Request metadata
+
+Service handlers can access raw request metadata via `ctx.request`:
+
+```ts
+handler: async (_input, ctx) => {
+  const authHeader = ctx.request.headers.get('authorization');
+  const requestUrl = ctx.request.url;
+  const httpMethod = ctx.request.method;
+  // ctx.request.body contains the pre-parsed body
+};
+```
+
+## Atomic request handling
+
+When a service handler performs multiple database writes that must succeed or fail together, wrap them in `db.transaction()`:
+
+```ts
+import { service } from 'vertz/server';
+
+const transfers = service('transfers', {
+  actions: {
+    transfer: {
+      body: s.object({
+        fromId: s.string().uuid(),
+        toId: s.string().uuid(),
+        amount: s.number().positive(),
+      }),
+      response: s.object({ success: s.boolean() }),
+      handler: async (input, ctx) => {
+        return db.transaction(async (tx) => {
+          await tx.accounts.update({
+            where: { id: input.fromId },
+            data: { balance: { decrement: input.amount } },
+          });
+          await tx.accounts.update({
+            where: { id: input.toId },
+            data: { balance: { increment: input.amount } },
+          });
+          return { success: true };
+        });
+      },
+    },
+  },
+  access: { transfer: () => true },
+});
+```
+
+If you have many handlers that need transactions, extract a reusable helper:
+
+```ts
+import type { TransactionClient } from 'vertz/db';
+
+function withTransaction<T>(
+  fn: (tx: TransactionClient<typeof models>) => Promise<T>,
+): Promise<T> {
+  return db.transaction(fn);
+}
+
+// Then in any handler:
+handler: async (input) => withTransaction(async (tx) => {
+  await tx.orders.create({ data: { ... } });
+  await tx.inventory.update({ ... });
+  return { orderId: '...' };
+}),
+```
+
+Use transactions for multi-table writes and financial operations. Read-heavy handlers that only perform a single write typically don't need them.
+
+## Server setup
+
+Pass services alongside entities:
+
+```ts
+createServer({
+  entities: [users, tasks],
+  services: [notifications, reports],
+  db,
+}).listen({ port: 3000 });
+```

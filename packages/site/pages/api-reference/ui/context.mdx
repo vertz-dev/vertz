@@ -1,0 +1,148 @@
+---
+title: Context
+description: 'API reference for createContext(), useContext(), and Provider'
+---
+
+Context provides dependency injection for components. Create a context, wrap a subtree with a Provider, and read it with `useContext()`. No prop threading required.
+
+## createContext()
+
+Create a context object that can hold a typed value.
+
+```ts
+import { createContext } from '@vertz/ui';
+
+interface SettingsValue {
+  theme: string;
+  locale: string;
+}
+
+const SettingsContext = createContext<SettingsValue>();
+```
+
+### Signature
+
+```ts
+function createContext<T>(defaultValue?: T): Context<T>;
+```
+
+### Parameters
+
+| Parameter      | Type | Description                                                 |
+| -------------- | ---- | ----------------------------------------------------------- |
+| `defaultValue` | `T`  | Value returned by `useContext()` when no Provider is active |
+
+### Returns
+
+`Context<T>` — an object with a `Provider` method for providing values and internal state for `useContext()` lookups.
+
+---
+
+## useContext()
+
+Read the current value from the nearest Provider in the component tree.
+
+```tsx
+import { useContext } from '@vertz/ui';
+
+function SettingsPanel() {
+  const settings = useContext(SettingsContext);
+  return <div>Theme: {settings.theme}</div>;
+}
+```
+
+### Signature
+
+```ts
+function useContext<T>(ctx: Context<T>): T | undefined;
+```
+
+### Parameters
+
+| Parameter | Type         | Description              |
+| --------- | ------------ | ------------------------ |
+| `ctx`     | `Context<T>` | The context to read from |
+
+### Returns
+
+The current context value from the nearest Provider, the default value if no Provider is active, or `undefined` if neither exists.
+
+---
+
+## Provider
+
+Provide a value to all descendants. Two usage patterns are supported:
+
+### JSX usage
+
+```tsx
+function App() {
+  const settings = { theme: 'dark', locale: 'en' };
+
+  return (
+    <SettingsContext.Provider value={settings}>
+      <SettingsPanel />
+    </SettingsContext.Provider>
+  );
+}
+```
+
+### Callback usage
+
+```ts
+SettingsContext.Provider({ theme: 'dark', locale: 'en' }, () => {
+  // Everything rendered here sees the provided value
+  renderApp();
+});
+```
+
+---
+
+## Pattern: typed accessor hook
+
+Always create a `use*` wrapper that throws on missing Provider. This gives consumers a clear error instead of silent `undefined`.
+
+```tsx
+import { createContext, useContext } from '@vertz/ui';
+
+interface AuthValue {
+  user: { id: string; name: string };
+  logout: () => void;
+}
+
+const AuthContext = createContext<AuthValue>();
+
+export function useAuth(): AuthValue {
+  const ctx = useContext(AuthContext);
+  if (!ctx) throw new Error('useAuth must be called within AuthContext.Provider');
+  return ctx;
+}
+```
+
+```tsx
+function UserMenu() {
+  const { user, logout } = useAuth();
+  return (
+    <div>
+      <span>{user.name}</span>
+      <button onClick={logout}>Logout</button>
+    </div>
+  );
+}
+```
+
+---
+
+## Types
+
+```ts
+interface Context<T> {
+  Provider(value: T, fn: () => void): void;
+  Provider(props: ProviderJsxProps<T>): HTMLElement;
+}
+
+interface ProviderJsxProps<T> {
+  value: T;
+  children: (() => unknown) | unknown;
+}
+```

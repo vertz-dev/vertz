@@ -1,0 +1,252 @@
+---
+title: OG Images
+description: 'Generate Open Graph images for social sharing using Satori'
+---
+
+When you share a link on Twitter, Discord, Slack, or LinkedIn, the platform renders a preview card. The image in that card comes from the `og:image` meta tag. This guide shows how to generate OG images programmatically — define the image as a component, render to PNG at build time.
+
+## How it works
+
+The approach is the same one Next.js uses under the hood with `@vercel/og`:
+
+1. **Satori** renders a component (JSX-like object) to SVG — supports flexbox, text, images, gradients
+2. **resvg** converts the SVG to a PNG bitmap
+3. The PNG is saved to `public/` and referenced in `og:image` meta tags
+
+No React required. Satori uses plain objects that look like React elements.
+
+## Setup
+
+Install `satori` and `@resvg/resvg-js`:
+
+```bash
+bun add -d satori @resvg/resvg-js
+```
+
+## Write the OG component
+
+Create a generation script at `scripts/generate-og.ts`. The "component" is a plain object tree — same structure as React elements, but no framework needed:
+
+```ts
+// scripts/generate-og.ts
+import satori from 'satori';
+import { Resvg } from '@resvg/resvg-js';
+
+const WIDTH = 1200;
+const HEIGHT = 630;
+
+// ── Font loading ────────────────────────────────────────────
+async function loadGoogleFont(family: string, weight: number): Promise<ArrayBuffer> {
+  const params = new URLSearchParams({
+    family: `${family}:wght@${weight}`,
+    display: 'swap',
+  });
+  const css = await fetch(
+    `https://fonts.googleapis.com/css2?${params}`,
+    // Request ttf format (Satori doesn't support woff2)
+    { headers: { 'User-Agent': 'Mozilla/5.0 (compatible; Googlebot/2.1)' } },
+  ).then((r) => r.text());
+
+  const match = css.match(/src:\s*url\(([^)]+)\)/);
+  if (!match?.[1]) throw new Error(`Could not load font: ${family}`);
+  return fetch(match[1]).then((r) => r.arrayBuffer());
+}
+
+// ── OG Image component ─────────────────────────────────────
+function OGImage() {
+  return {
+    type: 'div',
+    props: {
+      style: {
+        width: '100%',
+        height: '100%',
+        display: 'flex',
+        flexDirection: 'column',
+        justifyContent: 'center',
+        padding: '80px',
+        backgroundColor: '#0a0a0b',
+        color: '#fafafa',
+      },
+      children: [
+        {
+          type: 'div',
+          props: {
+            style: { fontSize: '72px', fontFamily: 'DM Serif Display', lineHeight: 1.1 },
+            children: 'Your headline here',
+          },
+        },
+        {
+          type: 'div',
+          props: {
+            style: { fontSize: '24px', color: '#a1a1aa', marginTop: '24px' },
+            children: 'Your subtitle or description',
+          },
+        },
+      ],
+    },
+  };
+}
+
+// ── Generate ────────────────────────────────────────────────
+const [displayFont, sansFont] = await Promise.all([
+  loadGoogleFont('DM Serif Display', 400),
+  loadGoogleFont('DM Sans', 400),
+]);
+
+const svg = await satori(OGImage() as React.ReactNode, {
+  width: WIDTH,
+  height: HEIGHT,
+  fonts: [
+    { name: 'DM Serif Display', data: displayFont, weight: 400, style: 'normal' },
+    { name: 'DM Sans', data: sansFont, weight: 400, style: 'normal' },
+  ],
+});
+
+const resvg = new Resvg(svg, { fitTo: { mode: 'width', value: WIDTH } });
+const png = resvg.render().asPng();
+
+await Bun.write('public/og.png', png);
+console.log(`✓ Generated OG image (${(png.byteLength / 1024).toFixed(1)} KB)`);
+```
+
+Run it:
+
+```bash
+bun run scripts/generate-og.ts
+```
+
+## Component patterns
+
+### Embedding images
+
+Use SVGs as data URIs in `<img>` tags:
+
+```ts
+const logoSvg = `<svg viewBox="0 0 100 100">...</svg>`;
+const logoUri = `data:image/svg+xml,${encodeURIComponent(logoSvg)}`;
+
+{
+  type: 'img',
+  props: { src: logoUri, width: 200, height: 80 },
+}
+```
+
+### Background gradients
+
+Satori supports `radialGradient` and `linearGradient` via CSS:
+
+```ts
+{
+  type: 'div',
+  props: {
+    style: {
+      position: 'absolute',
+      width: '600px',
+      height: '600px',
+      borderRadius: '50%',
+      background: 'radial-gradient(circle, rgba(59,130,246,0.15) 0%, transparent 70%)',
+    },
+  },
+}
+```
+
+### Bottom bar with badge + URL
+
+```ts
+{
+  type: 'div',
+  props: {
+    style: {
+      position: 'absolute',
+      bottom: '60px',
+      left: '80px',
+      right: '80px',
+      display: 'flex',
+      justifyContent: 'space-between',
+    },
+    children: [
+      { type: 'span', props: { children: 'Public Beta', style: { color: '#71717a' } } },
+      { type: 'span', props: { children: 'yoursite.com', style: { color: '#52525b' } } },
+    ],
+  },
+}
+```
+
+## Satori limitations
+
+Satori renders a subset of CSS. Key things to know:
+
+| Supported                        | Not supported                              |
+| -------------------------------- | ------------------------------------------ |
+| Flexbox (`display: flex`)        | Grid (`display: grid`)                     |
+| `border-radius`, `box-shadow`    | `filter`, `backdrop-filter`                |
+| `background` (gradients, colors) | `clip-path`                                |
+| `position: absolute/relative`    | `transform` (limited)                      |
+| Google Fonts (ttf/woff)          | Local system fonts, woff2                  |
+| `<img>` with data URIs or URLs   | `<svg>` inline (use `<img>` with data URI) |
+
+<Note>
+Satori doesn't support woff2 fonts. When loading from Google Fonts, use the Googlebot user agent to get ttf format: `{ headers: { 'User-Agent': 'Mozilla/5.0 (compatible; Googlebot/2.1)' } }`.
+</Note>
+
+## Adding OG meta tags
+
+Reference the generated image in your HTML `<head>`. In a [static site build script](/guides/deploy/static-sites), inject these after the `<title>`:
+
+```html
+<!-- Open Graph -->
+<meta property="og:type" content="website" />
+<meta property="og:url" content="https://yoursite.com" />
+<meta property="og:title" content="Your Site Title" />
+<meta property="og:description" content="Your description" />
+<meta property="og:image" content="https://yoursite.com/public/og.png" />
+<meta property="og:image:width" content="1200" />
+<meta property="og:image:height" content="630" />
+
+<!-- Twitter Card -->
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:title" content="Your Site Title" />
+<meta name="twitter:description" content="Your description" />
+<meta name="twitter:image" content="https://yoursite.com/public/og.png" />
+```
+
+<Warning>
+  The `og:image` URL must be an absolute URL (with `https://`), not a relative path. Social media
+  crawlers fetch images from the full URL, not relative to the page.
+</Warning>
+
+## Integrating with the build
+
+Call the OG generation script from your build script so images are always up to date:
+
+```ts
+// In scripts/build.ts
+const ogProc = Bun.spawnSync(['bun', 'run', 'scripts/generate-og.ts'], {
+  cwd: ROOT,
+  stdio: ['inherit', 'inherit', 'inherit'],
+});
+```
+
+## Future: `@vertz/og`
+
+We plan to ship OG image generation as a framework-level feature. The envisioned API:
+
+```ts
+import { generateOGImage } from '@vertz/og';
+
+const png = await generateOGImage(
+  <OGCard title="My Page" description="Built with Vertz" />,
+  { width: 1200, height: 630 }
+);
+```
+
+This would auto-load fonts from your theme config, provide pre-built templates matching `@vertz/theme-shadcn`, and integrate with `vertz build` to generate images automatically. See the [tracking issue](https://github.com/vertz-dev/vertz/issues) for progress.
+
+<CardGroup cols={2}>
+  <Card title="Static Sites" icon="rocket" href="/guides/deploy/static-sites">
+    Full guide on deploying static Vertz sites
+  </Card>
+  <Card title="Styling" icon="paintbrush" href="/guides/ui/styling">
+    Theme tokens and the css() API
+  </Card>
+</CardGroup>

@@ -1,0 +1,191 @@
+---
+title: Compiler Plugin
+description: 'vertz/ui-compiler — the build plugin that transforms JSX and signals'
+---
+
+The Vertz compiler is a build plugin that transforms your code at compile time. It turns idiomatic TypeScript into fine-grained reactive DOM operations — so you write simple code and get optimal performance.
+
+## What it does
+
+The compiler transforms three things:
+
+### 1. `let` → signals
+
+```tsx
+// You write:
+let count = 0;
+
+// Compiler outputs:
+const count = signal(0);
+```
+
+Every `let` declaration becomes a signal. Reads become `.value` accesses, and assignments become `.value =` writes:
+
+```tsx
+// You write:
+count++;
+console.log(count);
+
+// Compiler outputs:
+count.value++;
+console.log(count.value);
+```
+
+### 2. `const` → computed
+
+When a `const` depends on reactive values, the compiler wraps it in `computed()`:
+
+```tsx
+// You write:
+let count = 0;
+const doubled = count * 2;
+
+// Compiler outputs:
+const count = signal(0);
+const doubled = computed(() => count.value * 2);
+```
+
+The compiler analyzes dependencies automatically — you don't need to declare them.
+
+### 3. JSX → fine-grained DOM
+
+JSX is compiled into direct DOM creation with reactive bindings:
+
+```tsx
+// You write:
+<div className={styles.card}>{title}</div>;
+
+// Compiler outputs:
+const el = document.createElement('div');
+el.className = styles.card;
+effect(() => {
+  el.textContent = title.value;
+});
+```
+
+This is simplified — the actual output handles fragments, components, event delegation, and more. But the principle is the same: no virtual DOM, no diffing, direct DOM mutations.
+
+### 4. AOT SSR compilation
+
+For server-side rendering, the compiler can generate string-builder functions that bypass the DOM shim entirely:
+
+```tsx
+// Your component:
+function Header({ title }: { title: string }) {
+  return (
+    <header>
+      <h1>{title}</h1>
+    </header>
+  );
+}
+
+// AOT SSR output:
+function __ssr_Header(__props) {
+  return '<header><h1>' + __esc(__props.title) + '</h1></header>';
+}
+```
+
+The compiler classifies each component by complexity (static, data-driven, conditional, or runtime-fallback) and generates optimized string functions for the first three tiers. Components that use hooks or effects fall back to the standard DOM shim at render time.
+
+See [SSR — AOT-compiled SSR](/guides/ui/ssr#aot-compiled-ssr) for details.
+
+## What it doesn't do
+
+The compiler is **per-file, single-pass**. It does not:
+
+- Analyze across files — each file is compiled independently
+- Run type checking — that's still `tsc`
+- Bundle modules — that's the bundler (Bun)
+- Optimize at runtime — all transforms happen at build time
+
+## Reactive prop generation
+
+When you pass expressions to a component, the compiler generates getter-based props so reactivity flows through:
+
+```tsx
+// You write:
+<TaskCard task={tasks[0]} disabled={isLoading} />;
+
+// Compiler outputs:
+TaskCard({
+  get task() {
+    return tasks.value[0];
+  },
+  get disabled() {
+    return isLoading.value;
+  },
+});
+```
+
+The child component reads `task` and `disabled` as plain values. The getters re-evaluate whenever the underlying signals change — updating only the affected DOM nodes, not the entire component.
+
+### Destructured props
+
+You write idiomatic destructured parameters — the compiler reverses them to preserve getter-based reactivity:
+
+```tsx
+// You write:
+function TaskCard({ title, completed }: TaskCardProps) {
+  return <div className={completed ? 'done' : ''}>{title}</div>;
+}
+
+// Compiler outputs:
+function TaskCard(__props: TaskCardProps) {
+  return <div className={__props.completed ? 'done' : ''}>{__props.title}</div>;
+}
+```
+
+This works with aliases (`{ id: cardId }`), defaults (`{ size = 'md' }`), and rest patterns (`{ title, ...rest }`). You never need to think about it — write destructured props as usual and the compiler handles the rest.
+
+## Signal API awareness
+
+The compiler knows which APIs return objects with signal properties. For example, `query()` returns an object where `.data`, `.loading`, and `.error` are signals:
+
+```tsx
+const tasks = query(api.tasks.list());
+
+// The compiler knows tasks.data is a signal, so:
+<div>{tasks.data?.items.length}</div>;
+// becomes:
+effect(() => {
+  el.textContent = tasks.data.value?.items.length;
+});
+```
+
+This registry includes `query()`, `form()`, and other framework APIs.
+
+## How to use it
+
+The compiler runs automatically when you use the Vertz dev server or build command:
+
+```bash
+bun run dev     # Compiler runs via the Bun plugin
+bun run build   # Compiler runs during production build
+```
+
+For manual setup, add the compiler plugin to your Bun configuration:
+
+```tsx
+import { vertzPlugin } from 'vertz/ui-compiler';
+
+Bun.plugin(
+  vertzPlugin({
+    // Options
+  }),
+);
+```
+
+## TypeScript configuration
+
+The compiler requires these `tsconfig.json` settings:
+
+```json
+{
+  "compilerOptions": {
+    "jsx": "react-jsx",
+    "jsxImportSource": "@vertz/ui"
+  }
+}
+```
+
+This tells TypeScript to use the Vertz JSX factory, which maps HTML tags to their specific DOM element types (`<form>` → `HTMLFormElement`, `<input>` → `HTMLInputElement`).

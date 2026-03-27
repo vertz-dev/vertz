@@ -1,0 +1,240 @@
+---
+title: Server Testing
+description: 'Type-safe test client for entity CRUD, service actions, and raw HTTP requests'
+---
+
+The typed test client gives you 100% type-safe access to your server's entities and services in tests — no path strings, no manual casting, no guessing.
+
+```ts
+import { createTestClient } from '@vertz/testing';
+import { createServer } from '@vertz/server';
+import { todosEntity } from './entities';
+import { healthService } from './services';
+
+const server = createServer({
+  entities: [todosEntity],
+  services: [healthService],
+  db,
+});
+
+const client = createTestClient(server);
+```
+
+## Entity proxy
+
+Pass an entity definition to `client.entity()` — you get back a fully typed proxy with `list`, `get`, `create`, `update`, and `delete` methods:
+
+```ts
+const todos = client.entity(todosEntity);
+
+// create() — body is typed to $create_input
+const created = await todos.create({ title: 'Buy milk' });
+// created.body.title is string, created.body.id is string
+
+// list() — returns ListResult<$response>
+const list = await todos.list();
+// list.body.items is typed array, list.body.total is number
+
+// get() — body is typed to $response
+const item = await todos.get(created.body.id);
+
+// update() — body is typed to $update_input
+const updated = await todos.update(created.body.id, { completed: true });
+
+// delete()
+const deleted = await todos.delete(created.body.id);
+// deleted.status === 204
+```
+
+### List options
+
+The `list()` method accepts filter, sort, pagination, and field selection options:
+
+```ts
+const result = await todos.list({
+  where: { completed: false },
+  orderBy: { createdAt: 'desc' },
+  limit: 10,
+  after: 'cursor-value',
+  select: { id: true, title: true },
+});
+```
+
+## Service proxy
+
+Pass a service definition to `client.service()` — each action becomes a directly callable method:
+
+```ts
+const health = client.service(healthService);
+
+// Actions without body schema — call with no args (or options only)
+const result = await health.check();
+// result.body.status is string
+
+// Actions with body schema — pass the body as first arg
+const echo = client.service(echoService);
+const res = await echo.send({ message: 'hello' });
+// res.body.echo is string
+```
+
+The body parameter is required only when the action defines a `body` schema. Actions without a body schema accept an optional `{ headers }` options object.
+
+## TestResponse
+
+Every method returns a `TestResponse<T>` — a discriminated union on `ok`:
+
+```ts
+const result = await todos.get('some-id');
+
+if (result.ok) {
+  // result.body is typed to $response
+  console.log(result.body.title);
+} else {
+  // result.body is ErrorBody { error, message, statusCode, details? }
+  console.log(result.body.message);
+}
+
+// Always available:
+result.status; // HTTP status code
+result.headers; // Record<string, string>
+result.raw; // original Response object (escape hatch)
+```
+
+## Custom headers
+
+### Per-request headers
+
+Pass `headers` in the options for any method:
+
+```ts
+await todos.create(
+  { title: 'Test' },
+  {
+    headers: { 'x-custom': 'value' },
+  },
+);
+
+await health.check({ headers: { authorization: 'Bearer tok' } });
+```
+
+### Default headers with `withHeaders()`
+
+Create a new client with merged default headers. The original client is not modified:
+
+```ts
+const authed = client.withHeaders({
+  authorization: 'Bearer test-token',
+});
+
+// All requests from authed include the authorization header
+const result = await authed.entity(todosEntity).list();
+```
+
+This is useful for testing authenticated endpoints:
+
+```ts
+const admin = client.withHeaders({ authorization: 'Bearer admin-token' });
+const guest = client.withHeaders({}); // no auth
+
+// Admin can create
+const created = await admin.entity(todosEntity).create({ title: 'Admin task' });
+expect(created.ok).toBe(true);
+
+// Guest gets 401
+const denied = await guest.entity(todosEntity).create({ title: 'Nope' });
+expect(denied.ok).toBe(false);
+expect(denied.status).toBe(401);
+```
+
+## Raw HTTP methods
+
+For endpoints not covered by entity/service proxies, use the raw HTTP methods:
+
+```ts
+const result = await client.get('/api/custom-endpoint');
+const posted = await client.post('/api/webhooks', {
+  body: { event: 'test' },
+  headers: { 'x-webhook-secret': 'abc' },
+});
+```
+
+Available methods: `get`, `post`, `put`, `patch`, `delete`, `head`.
+
+## Auth-enabled servers
+
+When your server is created with `db` + `auth` (returning a `ServerInstance`), the test client automatically uses `requestHandler` — which routes `/api/auth/*` requests through the auth handler. No extra configuration needed.
+
+```ts
+const server = createServer({
+  entities: [todosEntity],
+  db,
+  auth: { session: { strategy: 'jwt', ttl: '15m' } },
+});
+
+await server.initialize();
+
+const client = createTestClient(server);
+// Auth routes like /api/auth/signup work automatically
+```
+
+## Full example
+
+```ts
+import { describe, expect, it } from 'bun:test';
+import { createServer, entity, rules, service } from '@vertz/server';
+import { createTestClient } from '@vertz/testing';
+import { db, todosEntity, healthService } from './fixtures';
+
+describe('Todos API', () => {
+  const server = createServer({
+    entities: [todosEntity],
+    services: [healthService],
+    db,
+  });
+
+  const client = createTestClient(server);
+
+  it('creates and retrieves a todo', async () => {
+    const todos = client.entity(todosEntity);
+
+    const created = await todos.create({ title: 'Write tests' });
+    expect(created.ok).toBe(true);
+    expect(created.status).toBe(201);
+
+    if (!created.ok) return;
+
+    const fetched = await todos.get(created.body.id);
+    expect(fetched.ok).toBe(true);
+    if (fetched.ok) {
+      expect(fetched.body.title).toBe('Write tests');
+    }
+  });
+
+  it('health check returns ok', async () => {
+    const health = client.service(healthService);
+    const result = await health.check();
+
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.body.status).toBe('ok');
+    }
+  });
+});
+```
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="E2E Testing" icon="globe" href="/guides/testing">
+    Browser-based tests with Playwright and authenticated users.
+  </Card>
+  <Card title="Entities" icon="database" href="/guides/server/entities">
+    Define entities with models, access rules, and hooks.
+  </Card>
+  <Card title="Services" icon="zap" href="/guides/server/services">
+    Custom service actions with typed input/output.
+  </Card>
+  <Card title="Authentication" icon="lock" href="/guides/server/auth">
+    Session config, stores, and access control.
+  </Card>
+</CardGroup>

@@ -1,0 +1,67 @@
+---
+title: Mount
+description: 'API reference for mount() — rendering your app to the DOM'
+---
+
+`mount()` renders your app component into the `#app` root element. It handles both fresh rendering and hydration of server-rendered HTML.
+
+## Signature
+
+```ts
+import { mount } from 'vertz/ui';
+
+mount(App, options?);
+```
+
+### Parameters
+
+| Parameter | Type                                | Description                                            |
+| --------- | ----------------------------------- | ------------------------------------------------------ |
+| `app`     | `() => Element \| DocumentFragment` | Component function that returns the app's root element |
+| `options` | `MountOptions`                      | Optional configuration                                 |
+
+### MountOptions
+
+| Option    | Type                          | Description                                                       |
+| --------- | ----------------------------- | ----------------------------------------------------------------- |
+| `theme`   | `Theme`                       | Design tokens from `defineTheme()` — compiled to CSS and injected |
+| `styles`  | `string[]`                    | Global CSS strings to inject into `<head>`                        |
+| `onMount` | `(root: HTMLElement) => void` | Callback fired after mount completes                              |
+
+### Returns
+
+`MountHandle` — an object with a `dispose()` method to unmount the app.
+
+## Usage
+
+### Basic
+
+```ts
+import { mount } from 'vertz/ui';
+import { App } from './app';
+
+mount(App);
+```
+
+### With theme and styles
+
+```ts
+import { mount } from 'vertz/ui';
+import { App, styles } from './app';
+import { appTheme } from './styles/theme';
+
+mount(App, {
+  theme: appTheme,
+  styles,
+});
+```
+
+## Root element
+
+`mount()` always targets `#app` — there is no selector parameter. The framework controls the HTML in every context (SSR, dev server, scaffolded templates), so the root element is always `<div id="app">`.
+
+If `#app` is not found in the document, `mount()` throws an error.
+
+## Hydration
+
+When server-rendered HTML exists inside `#app`, `mount()` performs tolerant hydration — it walks the existing DOM and adopts server-rendered nodes instead of replacing them. If hydration fails (mismatched structure), it falls back to full client-side rendering automatically.

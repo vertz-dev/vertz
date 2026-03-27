@@ -1,0 +1,300 @@
+---
+title: Schema
+description: 'Type-safe validation with end-to-end type inference'
+---
+
+`vertz/schema` is the validation layer used across the entire stack — entity inputs, form validation, action bodies, and custom checks. Define a schema once with the `s` builder, get TypeScript types automatically, and validate at runtime with structured errors.
+
+## The `s` builder
+
+```ts
+import { s } from 'vertz/schema';
+
+const createUserSchema = s.object({
+  name: s.string().min(1),
+  email: s.email(),
+  age: s.number().int().min(18),
+  role: s.enum(['admin', 'member']).default('member'),
+});
+```
+
+Every schema is immutable — methods return new instances, never mutate.
+
+## Primitives
+
+```ts
+s.string(); // string
+s.number(); // number
+s.boolean(); // boolean
+s.bigint(); // bigint
+s.date(); // Date
+s.int(); // number with integer constraint
+```
+
+## Format validators
+
+Built-in format schemas that validate structure, not just type:
+
+```ts
+s.email(); // valid email format
+s.uuid(); // UUID v4
+s.url(); // valid URL
+s.cuid(); // CUID
+s.ulid(); // ULID
+s.nanoid(); // Nano ID
+
+// ISO formats
+s.iso.date(); // YYYY-MM-DD
+s.iso.time(); // HH:MM:SS
+s.iso.datetime(); // ISO 8601
+s.iso.duration(); // P1Y2M3D
+```
+
+## Objects
+
+```ts
+const userSchema = s.object({
+  name: s.string(),
+  email: s.email(),
+  age: s.number().optional(),
+});
+```
+
+### Composition
+
+```ts
+// Add fields
+userSchema.extend({ role: s.enum(['admin', 'member']) });
+
+// Merge two schemas (overlapping keys take the second schema's type)
+userSchema.merge(otherSchema);
+
+// Select fields
+userSchema.pick('name', 'email');
+
+// Exclude fields
+userSchema.omit('age');
+
+// Make all fields optional
+userSchema.partial();
+
+// Make all fields required
+userSchema.required();
+
+// Reject unknown keys
+userSchema.strict();
+
+// Pass unknown keys through
+userSchema.passthrough();
+```
+
+## Arrays, tuples, and collections
+
+```ts
+s.array(s.string()); // string[]
+s.array(s.number()).min(1).max(10);
+
+s.tuple([s.string(), s.number()]); // [string, number]
+
+s.record(s.number()); // Record<string, number>
+s.set(s.string()); // Set<string>
+s.map(s.string(), s.number()); // Map<string, number>
+```
+
+## Enums and literals
+
+```ts
+const status = s.enum(['todo', 'in_progress', 'done']);
+
+status.values; // readonly ['todo', 'in_progress', 'done']
+status.exclude(['done']); // 'todo' | 'in_progress'
+status.extract(['todo']); // 'todo'
+
+s.literal('active'); // exactly 'active'
+s.literal(42); // exactly 42
+```
+
+## Unions
+
+```ts
+s.union([s.string(), s.number()]);
+
+// Discriminated unions — optimized matching by a shared key
+s.discriminatedUnion('type', [
+  s.object({ type: s.literal('text'), content: s.string() }),
+  s.object({ type: s.literal('image'), url: s.url() }),
+]);
+```
+
+## String constraints
+
+```ts
+s.string()
+  .min(1) // minimum length
+  .max(100) // maximum length
+  .regex(/^[a-z]+$/) // pattern matching
+  .startsWith('sk_') // prefix
+  .includes('@') // contains substring
+  .trim() // transform: trim whitespace
+  .toLowerCase(); // transform: lowercase
+```
+
+## Number constraints
+
+```ts
+s.number()
+  .min(0) // >= 0
+  .max(100) // <= 100
+  .int() // integer only
+  .positive() // > 0
+  .multipleOf(5); // divisible by 5
+```
+
+## Modifiers
+
+These work on any schema:
+
+```ts
+s.string().optional(); // string | undefined
+s.string().nullable(); // string | null
+s.string().default('hello'); // undefined → 'hello'
+s.string().catch('fallback'); // returns fallback on parse error
+s.string().readonly(); // Readonly<string> + Object.freeze at runtime
+```
+
+## Refinements
+
+For validation logic that goes beyond built-in constraints:
+
+```ts
+// Simple predicate
+const even = s.number().refine((n) => n % 2 === 0, 'Must be an even number');
+
+// Cross-field validation
+const passwordForm = s
+  .object({
+    password: s.string().min(8),
+    confirm: s.string(),
+  })
+  .superRefine((data, ctx) => {
+    if (data.password !== data.confirm) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['confirm'],
+        message: 'Passwords must match',
+      });
+    }
+  });
+```
+
+## Transforms
+
+Change the output type:
+
+```ts
+const toLength = s.string().transform((str) => str.length);
+// Input: string → Output: number
+```
+
+## Coercion
+
+Convert types before validation:
+
+```ts
+s.coerce.number(); // "42" → 42 via Number()
+s.coerce.boolean(); // "true" → true via Boolean()
+s.coerce.date(); // "2024-01-01" → Date via new Date()
+s.coerce.string(); // 42 → "42" via String()
+```
+
+## Type branding
+
+Prevent mixing values that share a primitive type:
+
+```ts
+const UserId = s.string().uuid().brand<'UserId'>();
+const PostId = s.string().uuid().brand<'PostId'>();
+
+type UserId = s.Infer<typeof UserId>; // string & { __brand: 'UserId' }
+type PostId = s.Infer<typeof PostId>; // string & { __brand: 'PostId' }
+
+// TypeScript prevents passing a PostId where UserId is expected
+```
+
+## Validation
+
+### `safeParse` — errors as values
+
+Returns a `Result` — never throws:
+
+```ts
+const result = schema.safeParse(input);
+
+if (result.ok) {
+  console.log(result.data); // typed, validated
+} else {
+  console.log(result.error.issues);
+  // [{ code: 'too_small', path: ['name'], message: 'String must contain at least 1 character(s)' }]
+}
+```
+
+### `parse` — throws on failure
+
+For cases where you want exceptions (scripts, tests):
+
+```ts
+const user = schema.parse(input); // throws ParseError if invalid
+```
+
+<Note>
+  `safeParse` is the recommended approach — it aligns with Vertz's errors-as-values philosophy. Use
+  `parse` only in contexts where throwing is acceptable (test setup, scripts).
+</Note>
+
+### Validation issues
+
+Every validation error includes structured issue objects:
+
+```ts
+interface ValidationIssue {
+  code: string; // 'invalid_type', 'too_small', 'custom', etc.
+  message: string; // human-readable description
+  path: (string | number)[]; // location in the data — e.g., ['address', 'street']
+}
+```
+
+Errors accumulate — all issues are reported, not just the first one.
+
+## Type inference
+
+Extract TypeScript types from schemas:
+
+```ts
+import type { Infer, Input, Output } from 'vertz/schema';
+
+const schema = s.object({
+  name: s.string(),
+  age: s.number().optional(),
+});
+
+type User = Infer<typeof schema>;
+// { name: string; age?: number }
+```
+
+When transforms change the type, `Input` and `Output` differ:
+
+```ts
+const schema = s.string().transform((s) => s.length);
+
+type In = Input<typeof schema>; // string
+type Out = Output<typeof schema>; // number
+```
+
+## Where schemas are used
+
+| Context               | How it's used                                                      |
+| --------------------- | ------------------------------------------------------------------ |
+| Entity custom actions | `body` defines the input schema, validated before the handler runs |
+| Services              | Same — `body` schema validates request input                       |
+| Forms (`form()`)      | Schema drives client-side validation and field error messages      |
+| DB column bridge      | `s.fromDbEnum(column)` converts database enum columns to schemas   |
