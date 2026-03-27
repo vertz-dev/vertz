@@ -1059,6 +1059,29 @@ function Pricing() {
     expect(result.code).not.toContain('const [doubled');
   });
 
+  it('array destructuring: let [a, b] depending on another signal → no MagicString crash', () => {
+    const result = compile(
+      `
+function Example() {
+  let count = 0;
+  let [doubled, tripled] = [count * 2, count * 3];
+  return <div onClick={() => count++}>{doubled} / {tripled}</div>;
+}
+    `.trim(),
+    );
+
+    // count should be a signal
+    expect(result.code).toContain("signal(");
+    expect(result.code).toContain("'count'");
+    // doubled and tripled should be signals too (they're let and in JSX)
+    expect(result.code).toContain("'doubled'");
+    expect(result.code).toContain("'tripled'");
+    // Signal reads should use .value
+    expect(result.code).toContain('count.value');
+    expect(result.code).toContain('doubled.value');
+    expect(result.code).toContain('tripled.value');
+  });
+
   it('array destructuring: static const [a, b] not depending on signal → untouched', () => {
     const result = compile(
       `

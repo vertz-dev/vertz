@@ -192,6 +192,17 @@ describe('ComputedTransformer', () => {
     expect(result).toContain('const stable = [count * 2, \'hello\'][1]');
   });
 
+  it('transforms array destructuring preserving default values', () => {
+    const code = `function App() {\n  const [first = 0, second = 'default'] = getData(count);\n  return <div>{first}</div>;\n}`;
+    const result = transform(code, [
+      { name: 'count', kind: 'signal', start: 0, end: 0 },
+      { name: 'first', kind: 'computed', start: 0, end: 0 },
+      { name: 'second', kind: 'static', start: 0, end: 0 },
+    ]);
+    expect(result).toContain("const first = computed(() => getData(count)[0] ?? 0)");
+    expect(result).toContain("const second = getData(count)[1] ?? 'default'");
+  });
+
   it('transforms array destructuring with skipped element', () => {
     const code = `function App() {\n  const [, second] = [count, count * 2];\n  return <div>{second}</div>;\n}`;
     const result = transform(code, [

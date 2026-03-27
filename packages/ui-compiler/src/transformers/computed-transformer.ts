@@ -71,7 +71,10 @@ export class ComputedTransformer {
                 index++;
                 continue;
               }
-              const bindingName = el.getName();
+              const bindingEl = el.asKindOrThrow(SyntaxKind.BindingElement);
+              const bindingName = bindingEl.getName();
+              const defaultInit = bindingEl.getInitializer();
+              const defaultSuffix = defaultInit ? ` ?? ${defaultInit.getText()}` : '';
               if (el.getDotDotDotToken()) {
                 if (computeds.has(bindingName)) {
                   replacements.push(
@@ -82,10 +85,10 @@ export class ComputedTransformer {
                 }
               } else if (computeds.has(bindingName)) {
                 replacements.push(
-                  `const ${bindingName} = computed(() => ${initText}[${index}])`,
+                  `const ${bindingName} = computed(() => ${initText}[${index}]${defaultSuffix})`,
                 );
               } else {
-                replacements.push(`const ${bindingName} = ${initText}[${index}]`);
+                replacements.push(`const ${bindingName} = ${initText}[${index}]${defaultSuffix}`);
               }
               index++;
             }
