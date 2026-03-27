@@ -74,7 +74,10 @@ function createItemProxy<T>(itemSignal: Signal<T>): T {
  *
  * @param items - A signal or getter function containing the array of items
  * @param keyFn - Extracts a unique key from each item. Pass null for unkeyed mode.
- * @param renderFn - Creates a DOM node for an item (called once per key)
+ * @param renderFn - Creates a DOM node for an item (called once per key).
+ *   Receives the item and its index in the array. Note: for keyed lists,
+ *   the index is the position at creation time and is NOT updated when
+ *   items reorder — use a key-based approach for stable ordering display.
  * @returns A DisposableNode (DocumentFragment with dispose method)
  */
 export function __listValue<T>(

@@ -504,5 +504,23 @@ function App() {
       // Block body render function must include index param
       expect(result.code).toMatch(/\(item,\s*i\)\s*=>\s*\{/);
     });
+
+    it('does not include index param in render function when only used in key prop', () => {
+      const result = compile(
+        `
+function App() {
+  let items = ["a", "b", "c"];
+  return <ul>{items.map((item, i) => <li key={i}>{item}</li>)}</ul>;
+}
+        `.trim(),
+      );
+
+      expect(result.code).toContain('__list(');
+      // Key function should include index: (item, i) => i
+      expect(result.code).toMatch(/\(item,\s*i\)\s*=>\s*i/);
+      // Render function should NOT include index since i is only in key
+      // The render fn is the 4th arg — after the key fn
+      expect(result.code).toMatch(/=>\s*i\s*,\s*\(item\)\s*=>/);
+    });
   });
 });

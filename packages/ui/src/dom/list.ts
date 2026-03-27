@@ -90,7 +90,10 @@ function createItemProxy<T>(itemSignal: Signal<T>): T {
  *   also accepts a raw Signal for direct use in tests.
  * @param keyFn - Extracts a unique key from each item (receives item and index).
  *   Pass `null` for unkeyed lists — triggers full-replacement mode (safe but slower).
- * @param renderFn - Creates a DOM node for an item (called once per key)
+ * @param renderFn - Creates a DOM node for an item (called once per key).
+ *   Receives the item and its index in the array. Note: for keyed lists,
+ *   the index is the position at creation time and is NOT updated when
+ *   items reorder — use a key-based approach for stable ordering display.
  * @returns A dispose function to stop the reactive list reconciliation
  */
 export function __list<T>(

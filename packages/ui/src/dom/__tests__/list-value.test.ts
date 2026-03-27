@@ -11,7 +11,7 @@ describe('__listValue', () => {
   function mount<T>(
     items: ReturnType<typeof signal<T[]>> | (() => T[]),
     keyFn: ((item: T, index: number) => string | number) | null,
-    renderFn: (item: T) => Node,
+    renderFn: (item: T, index: number) => Node,
   ) {
     const fragment = __listValue(items, keyFn, renderFn);
     const container = document.createElement('div');
@@ -448,5 +448,41 @@ describe('__listValue', () => {
     // Adding items works
     items.value = [{ id: 1, text: 'A' }];
     expect(container.childNodes.length).toBe(3);
+  });
+
+  describe('index parameter', () => {
+    it('passes index as second argument to renderFn (keyed)', () => {
+      const items = signal([
+        { id: 1, text: 'A' },
+        { id: 2, text: 'B' },
+        { id: 3, text: 'C' },
+      ]);
+      const container = mount(
+        items,
+        (item) => item.id,
+        (item, index) => {
+          const li = document.createElement('li');
+          li.textContent = `${index}: ${item.text}`;
+          return li;
+        },
+      );
+      const lis = container.querySelectorAll('li');
+      expect(lis[0]?.textContent).toBe('0: A');
+      expect(lis[1]?.textContent).toBe('1: B');
+      expect(lis[2]?.textContent).toBe('2: C');
+    });
+
+    it('passes index as second argument to renderFn (unkeyed)', () => {
+      const items = signal(['A', 'B', 'C']);
+      const container = mount(items, null, (item, index) => {
+        const li = document.createElement('li');
+        li.textContent = `${index}: ${item}`;
+        return li;
+      });
+      const lis = container.querySelectorAll('li');
+      expect(lis[0]?.textContent).toBe('0: A');
+      expect(lis[1]?.textContent).toBe('1: B');
+      expect(lis[2]?.textContent).toBe('2: C');
+    });
   });
 });

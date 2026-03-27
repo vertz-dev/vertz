@@ -962,6 +962,25 @@ function extractKeyPropValue(jsxNode: Node): string | null {
 }
 
 /**
+ * Check whether the index parameter is referenced in the callback body
+ * outside the key prop. This avoids including the index in the render
+ * function signature when it's only used for keying.
+ */
+function isIndexUsedInBody(callbackBody: Node, indexParam: string): boolean {
+  const re = new RegExp(`(?<![.])\\b${indexParam}\\b`);
+  const jsxNode = findJsxInBody(callbackBody);
+  if (!jsxNode) return re.test(callbackBody.getText());
+
+  const keyValue = extractKeyPropValue(jsxNode);
+  let bodyText = callbackBody.getText();
+  // Strip the key prop expression so we don't match index refs in key={...}
+  if (keyValue) {
+    bodyText = bodyText.replace(`key={${keyValue}}`, '');
+  }
+  return re.test(bodyText);
+}
+
+/**
  * Build the render function for __list.
  * Transforms the JSX in the callback body into DOM helper calls.
  */
@@ -973,10 +992,10 @@ function buildListRenderFunction(
   jsxMap: Map<number, JsxExpressionInfo>,
   source: MagicString,
 ): string {
-  // Check if the index param is actually referenced in the callback body.
-  // Only include it in the render function signature when needed.
-  const needsIndex =
-    indexParam != null && new RegExp(`(?<![.])\\b${indexParam}\\b`).test(callbackBody.getText());
+  // Check if the index param is actually referenced in the callback body
+  // OUTSIDE the key prop. The key prop is extracted separately by extractKeyFunction(),
+  // so we strip it from the text before checking to avoid false positives.
+  const needsIndex = indexParam != null && isIndexUsedInBody(callbackBody, indexParam);
   const params = needsIndex ? `${itemParam}, ${indexParam}` : itemParam;
 
   const jsxNode = findJsxInBody(callbackBody);
