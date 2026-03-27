@@ -788,4 +788,81 @@ describe('ReactivityAnalyzer', () => {
     `);
     expect(findVar(result?.variables, 'arr')?.kind).toBe('static');
   });
+
+  // ─── Array destructuring (#ARRAY_DESTR) ──────────────
+
+  it('classifies array-destructured const elements depending on a signal as computed', () => {
+    const [result] = analyze(`
+      function Pricing() {
+        let quantity = 1;
+        const [doubled, tripled] = [quantity * 2, quantity * 3];
+        return <div>{doubled} / {tripled}</div>;
+      }
+    `);
+    expect(findVar(result?.variables, 'quantity')?.kind).toBe('signal');
+    expect(findVar(result?.variables, 'doubled')?.kind).toBe('computed');
+    expect(findVar(result?.variables, 'tripled')?.kind).toBe('computed');
+  });
+
+  it('classifies let array-destructured elements referenced in JSX as signals', () => {
+    const [result] = analyze(`
+      function Counter() {
+        let [count, label] = [0, 'clicks'];
+        return <button onClick={() => count++}>{label}: {count}</button>;
+      }
+    `);
+    expect(findVar(result?.variables, 'count')?.kind).toBe('signal');
+    expect(findVar(result?.variables, 'label')?.kind).toBe('signal');
+  });
+
+  it('classifies array-destructured const from function call depending on signal as computed', () => {
+    const [result] = analyze(`
+      function App() {
+        let count = 0;
+        const [doubled, tripled] = compute(count);
+        return <div>{doubled}</div>;
+      }
+    `);
+    expect(findVar(result?.variables, 'count')?.kind).toBe('signal');
+    expect(findVar(result?.variables, 'doubled')?.kind).toBe('computed');
+    // tripled is not in JSX but shares deps — it's still computed because
+    // its dep (count) is a signal and it depends on it
+    expect(findVar(result?.variables, 'tripled')?.kind).toBe('computed');
+  });
+
+  it('classifies array-destructured const with no reactive deps as static', () => {
+    const [result] = analyze(`
+      function App() {
+        const [a, b] = getTuple();
+        return <div>{a}</div>;
+      }
+    `);
+    expect(findVar(result?.variables, 'a')?.kind).toBe('static');
+    expect(findVar(result?.variables, 'b')?.kind).toBe('static');
+  });
+
+  it('handles array destructuring with skipped elements', () => {
+    const [result] = analyze(`
+      function App() {
+        let count = 0;
+        const [, second] = [count, count * 2];
+        return <div>{second}</div>;
+      }
+    `);
+    expect(findVar(result?.variables, 'count')?.kind).toBe('signal');
+    expect(findVar(result?.variables, 'second')?.kind).toBe('computed');
+  });
+
+  it('handles array destructuring with rest element', () => {
+    const [result] = analyze(`
+      function App() {
+        let items = [1, 2, 3];
+        const [first, ...rest] = items;
+        return <div>{first}</div>;
+      }
+    `);
+    expect(findVar(result?.variables, 'items')?.kind).toBe('signal');
+    expect(findVar(result?.variables, 'first')?.kind).toBe('computed');
+    expect(findVar(result?.variables, 'rest')?.kind).toBe('computed');
+  });
 });

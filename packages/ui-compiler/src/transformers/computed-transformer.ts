@@ -48,6 +48,55 @@ export class ComputedTransformer {
         const init = decl.getInitializer();
         if (!init) continue;
 
+        // Handle array destructuring: const [a, b] = expr
+        if (nameNode.isKind(SyntaxKind.ArrayBindingPattern)) {
+          const elements = nameNode.getElements();
+          const bindingElements = elements.filter(
+            (el) => el.isKind(SyntaxKind.BindingElement),
+          );
+          const hasComputedElement = bindingElements.some((el) =>
+            computeds.has(el.asKindOrThrow(SyntaxKind.BindingElement).getName()),
+          );
+
+          if (hasComputedElement) {
+            const initText = source.slice(init.getStart(), init.getEnd());
+            const replacements: string[] = [];
+            let index = 0;
+            for (const el of elements) {
+              if (el.isKind(SyntaxKind.OmittedExpression)) {
+                index++;
+                continue;
+              }
+              if (!el.isKind(SyntaxKind.BindingElement)) {
+                index++;
+                continue;
+              }
+              const bindingEl = el.asKindOrThrow(SyntaxKind.BindingElement);
+              const bindingName = bindingEl.getName();
+              const defaultInit = bindingEl.getInitializer();
+              const defaultSuffix = defaultInit ? ` ?? ${defaultInit.getText()}` : '';
+              if (el.getDotDotDotToken()) {
+                if (computeds.has(bindingName)) {
+                  replacements.push(
+                    `const ${bindingName} = computed(() => ${initText}.slice(${index}))`,
+                  );
+                } else {
+                  replacements.push(`const ${bindingName} = ${initText}.slice(${index})`);
+                }
+              } else if (computeds.has(bindingName)) {
+                replacements.push(
+                  `const ${bindingName} = computed(() => ${initText}[${index}]${defaultSuffix})`,
+                );
+              } else {
+                replacements.push(`const ${bindingName} = ${initText}[${index}]${defaultSuffix}`);
+              }
+              index++;
+            }
+            source.overwrite(stmt.getStart(), stmt.getEnd(), `${replacements.join(';\n')};`);
+          }
+          continue;
+        }
+
         // Handle destructuring: const { name, age } = user
         if (nameNode.isKind(SyntaxKind.ObjectBindingPattern)) {
           const elements = nameNode.getElements();

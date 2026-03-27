@@ -227,6 +227,45 @@ describe('SignalTransformer', () => {
     expect(result).toContain('taskForm.items[0].name.error.value');
   });
 
+  // ─── Array destructuring ──────────────
+
+  it('transforms let array destructuring into individual signal declarations', () => {
+    const result = transform(
+      `function Counter() {\n  let [count, label] = [0, 'clicks'];\n  return <button>{label}: {count}</button>;\n}`,
+      [
+        { name: 'count', kind: 'signal', start: 0, end: 0 },
+        { name: 'label', kind: 'signal', start: 0, end: 0 },
+      ],
+    );
+    expect(result).toContain("const count = signal([0, 'clicks'][0], 'count')");
+    expect(result).toContain("const label = signal([0, 'clicks'][1], 'label')");
+    expect(result).not.toContain('let [');
+  });
+
+  it('transforms let array destructuring with mix of signal and static', () => {
+    const result = transform(
+      `function Counter() {\n  let [count, label] = [0, 'clicks'];\n  return <button>{count}</button>;\n}`,
+      [
+        { name: 'count', kind: 'signal', start: 0, end: 0 },
+        { name: 'label', kind: 'static', start: 0, end: 0 },
+      ],
+    );
+    expect(result).toContain("const count = signal([0, 'clicks'][0], 'count')");
+    expect(result).toContain("const label = [0, 'clicks'][1]");
+  });
+
+  it('transforms let array destructuring preserving default values', () => {
+    const result = transform(
+      `function Example() {\n  let [count = 0, label = 'clicks'] = getDefaults();\n  return <button>{label}: {count}</button>;\n}`,
+      [
+        { name: 'count', kind: 'signal', start: 0, end: 0 },
+        { name: 'label', kind: 'signal', start: 0, end: 0 },
+      ],
+    );
+    expect(result).toContain("const count = signal(getDefaults()[0] ?? 0, 'count')");
+    expect(result).toContain("const label = signal(getDefaults()[1] ?? 'clicks', 'label')");
+  });
+
   it('transforms multiple bracket notations: form[a][b].error', () => {
     const result = transform(
       `function DynForm() {\n  const taskForm = form({});\n  const a = 'x';\n  const b = 'y';\n  const err = taskForm[a][b].error;\n  return <div>{err}</div>;\n}`,

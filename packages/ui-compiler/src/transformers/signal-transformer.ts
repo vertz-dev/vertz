@@ -40,8 +40,8 @@ export class SignalTransformer {
     if (!bodyNode) return;
 
     if (signals.size > 0) {
-      transformDeclarations(source, bodyNode, signals);
-      transformReferences(source, bodyNode, signals, mutationRanges);
+      const overwrittenRanges = transformDeclarations(source, bodyNode, signals);
+      transformReferences(source, bodyNode, signals, [...mutationRanges, ...overwrittenRanges]);
     }
 
     if (signalApiVars.size > 0 || fieldSignalPropVars.size > 0) {
@@ -56,8 +56,13 @@ export class SignalTransformer {
   }
 }
 
-function transformDeclarations(source: MagicString, bodyNode: Node, signals: Set<string>): void {
+function transformDeclarations(
+  source: MagicString,
+  bodyNode: Node,
+  signals: Set<string>,
+): Array<{ start: number; end: number }> {
   const seenNames = new Map<string, number>();
+  const overwrittenRanges: Array<{ start: number; end: number }> = [];
 
   for (const stmt of bodyNode.getChildSyntaxList()?.getChildren() ?? []) {
     if (!stmt.isKind(SyntaxKind.VariableStatement)) continue;
@@ -65,11 +70,63 @@ function transformDeclarations(source: MagicString, bodyNode: Node, signals: Set
     if (!declList) continue;
 
     for (const decl of declList.getDeclarations()) {
-      const name = decl.getName();
-      if (!signals.has(name)) continue;
-
+      const nameNode = decl.getNameNode();
       const init = decl.getInitializer();
       if (!init) continue;
+
+      // Handle array destructuring: let [a, b] = expr
+      if (nameNode.isKind(SyntaxKind.ArrayBindingPattern)) {
+        const elements = nameNode.getElements();
+        const bindingElements = elements.filter(
+          (el) => el.isKind(SyntaxKind.BindingElement),
+        );
+        const hasSignalElement = bindingElements.some((el) =>
+          signals.has(el.asKindOrThrow(SyntaxKind.BindingElement).getName()),
+        );
+        if (!hasSignalElement) continue;
+
+        // Apply .value transforms for signal references within the initializer text
+        const initText = applySignalValues(init, signals);
+        const lines: string[] = [];
+        let index = 0;
+        for (const el of elements) {
+          if (el.isKind(SyntaxKind.OmittedExpression)) {
+            index++;
+            continue;
+          }
+          if (!el.isKind(SyntaxKind.BindingElement)) {
+            index++;
+            continue;
+          }
+          const bindingEl = el.asKindOrThrow(SyntaxKind.BindingElement);
+          const bindingName = bindingEl.getName();
+          const defaultInit = bindingEl.getInitializer();
+          const defaultSuffix = defaultInit ? ` ?? ${defaultInit.getText()}` : '';
+          if (signals.has(bindingName)) {
+            const count = seenNames.get(bindingName) ?? 0;
+            seenNames.set(bindingName, count + 1);
+            const hmrKey = count === 0 ? bindingName : `${bindingName}$${count}`;
+            if (el.getDotDotDotToken()) {
+              lines.push(`const ${bindingName} = signal(${initText}.slice(${index}), '${hmrKey}')`);
+            } else {
+              lines.push(`const ${bindingName} = signal(${initText}[${index}]${defaultSuffix}, '${hmrKey}')`);
+            }
+          } else {
+            if (el.getDotDotDotToken()) {
+              lines.push(`const ${bindingName} = ${initText}.slice(${index})`);
+            } else {
+              lines.push(`const ${bindingName} = ${initText}[${index}]${defaultSuffix}`);
+            }
+          }
+          index++;
+        }
+        overwrittenRanges.push({ start: stmt.getStart(), end: stmt.getEnd() });
+        source.overwrite(stmt.getStart(), stmt.getEnd(), `${lines.join(';\n')};`);
+        continue;
+      }
+
+      const name = decl.getName();
+      if (!signals.has(name)) continue;
 
       const letKeyword = declList.getFirstChildByKind(SyntaxKind.LetKeyword);
       if (letKeyword) {
@@ -85,6 +142,43 @@ function transformDeclarations(source: MagicString, bodyNode: Node, signals: Set
       source.appendRight(init.getEnd(), `, '${hmrKey}')`);
     }
   }
+
+  return overwrittenRanges;
+}
+
+/**
+ * Build init text with signal references replaced by `name.value`.
+ * Used when the init text will be embedded in an overwritten range
+ * (array destructuring expansion) where transformReferences cannot touch it.
+ */
+function applySignalValues(initNode: Node, signals: Set<string>): string {
+  const initStart = initNode.getStart();
+  let text = initNode.getText();
+
+  // Collect signal identifier positions (relative to init start)
+  const replacements: Array<{ relStart: number; relEnd: number }> = [];
+  initNode.forEachDescendant((node) => {
+    if (!node.isKind(SyntaxKind.Identifier)) return;
+    const name = node.getText();
+    if (!signals.has(name)) return;
+    const parent = node.getParent();
+    if (!parent) return;
+    if (parent.isKind(SyntaxKind.BindingElement)) return;
+    if (parent.isKind(SyntaxKind.PropertyAccessExpression) && parent.getNameNode() === node) return;
+    if (parent.isKind(SyntaxKind.PropertyAssignment) && parent.getNameNode() === node) return;
+    if (parent.isKind(SyntaxKind.ShorthandPropertyAssignment)) return;
+    replacements.push({
+      relStart: node.getStart() - initStart,
+      relEnd: node.getEnd() - initStart,
+    });
+  });
+
+  // Apply in reverse order to preserve positions
+  replacements.sort((a, b) => b.relStart - a.relStart);
+  for (const r of replacements) {
+    text = text.slice(0, r.relEnd) + '.value' + text.slice(r.relEnd);
+  }
+  return text;
 }
 
 function isInsideMutationRange(
