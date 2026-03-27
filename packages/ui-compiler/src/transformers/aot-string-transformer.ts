@@ -20,6 +20,14 @@ interface QueryVarMeta {
   paramMap: Map<string, string>;
 }
 
+/** A body-level derived variable that should be emitted in the AOT preamble. */
+interface DerivedVarDecl {
+  /** Variable name (e.g., 'sellerMap'). */
+  name: string;
+  /** Full declaration source text (e.g., 'const sellerMap = new Map(d.sellers.map(...))') */
+  sourceText: string;
+}
+
 /** Get node as a generic Node to avoid ts-morph's over-narrowing. */
 function asNode(n: unknown): Node {
   return n as Node;
@@ -117,6 +125,9 @@ export class AotStringTransformer {
     // Extract query variable metadata for standalone page functions
     const queryVars = this._extractQueryVars(sourceFile, component, variables);
 
+    // Collect derived variable declarations for AOT preamble (#1951)
+    const derivedVars = this._collectDerivedVarDecls(bodyNode, s, queryVars, variables);
+
     // If there are query-like variables that couldn't be resolved, fall back to runtime
     const signalApiVarCount = variables.filter(
       (v) => v.signalProperties && v.signalProperties.has('data'),
@@ -147,16 +158,44 @@ export class AotStringTransformer {
       if (guardResult) {
         const isInteractive = variables.some((v) => v.kind === 'signal');
         this._resetTracking(variables);
+
+        // When there are derived vars after guards, emit early-return guards
+        // instead of a ternary — derived vars must execute only in the main path.
+        if (derivedVars.length > 0) {
+          const guardStrs: Array<{ condition: string; html: string }> = [];
+          for (const guard of guardResult.guards) {
+            const guardHtml = this._jsxToString(guard.jsx, variables, s, null);
+            guardStrs.push({ condition: guard.condition, html: guardHtml });
+          }
+          const mainStr = this._jsxToString(
+            guardResult.mainJsx,
+            variables,
+            s,
+            isInteractive ? component.name : null,
+          );
+          this._emitAotFunctionWithGuards(s, component, mainStr, guardStrs, queryVars, derivedVars);
+          return;
+        }
+
         const stringExpr = this._guardPatternToString(
           guardResult,
           variables,
           s,
           isInteractive ? component.name : null,
         );
-        this._emitAotFunction(s, component, 'conditional', stringExpr, queryVars);
+        this._emitAotFunction(s, component, 'conditional', stringExpr, queryVars, derivedVars);
         return;
       }
-      // Not a guard pattern → runtime-fallback
+      // Check for if-else pattern: all returns inside if-then/else branches
+      const ifElseResult = this._analyzeIfElsePattern(returnsWithJsx, bodyNode, s);
+      if (ifElseResult) {
+        this._resetTracking(variables);
+        const stringExpr = this._ifElsePatternToString(ifElseResult, variables, s);
+        this._emitAotFunction(s, component, 'conditional', stringExpr, queryVars, derivedVars);
+        return;
+      }
+
+      // Not a guard or if-else pattern → runtime-fallback
       this._components.push({
         name: component.name,
         tier: 'runtime-fallback',
@@ -180,7 +219,7 @@ export class AotStringTransformer {
         } else {
           stringExpr = this._binaryToString(conditionalExpr, variables, s);
         }
-        this._emitAotFunction(s, component, 'conditional', stringExpr, queryVars);
+        this._emitAotFunction(s, component, 'conditional', stringExpr, queryVars, derivedVars);
         return;
       }
       return;
@@ -203,7 +242,7 @@ export class AotStringTransformer {
       isInteractive ? component.name : null,
     );
 
-    this._emitAotFunction(s, component, tier, stringExpr, queryVars);
+    this._emitAotFunction(s, component, tier, stringExpr, queryVars, derivedVars);
   }
 
   private _findReturnJsx(bodyNode: Node): Node | null {
@@ -247,6 +286,7 @@ export class AotStringTransformer {
     tier: AotTier,
     stringExpr: string,
     queryVars?: QueryVarMeta[],
+    derivedVars?: DerivedVarDecl[],
   ): void {
     const aotFnName = `__ssr_${component.name}`;
     const hasQueries = queryVars && queryVars.length > 0;
@@ -273,24 +313,44 @@ export class AotStringTransformer {
         }
       }
 
+      // Apply query variable replacements to a string (reused for stringExpr and preamble)
+      const applyQueryReplacements = (text: string): string => {
+        for (const qv of queryVars) {
+          const localVar = `__q${qv.index}`;
+          text = text.split(`${qv.varName}.data`).join(localVar);
+          text = text.split(`${qv.varName}.loading`).join('false');
+          text = text.split(`${qv.varName}.error`).join('undefined');
+          for (const alias of qv.derivedAliases) {
+            text = text.replace(new RegExp(`(?<!\\.)\\b${alias}\\b`, 'g'), localVar);
+          }
+        }
+        return text;
+      };
+
       // Post-process string expression to replace query variable references
-      for (const qv of queryVars) {
-        const localVar = `__q${qv.index}`;
-        // Replace queryVar.data with the local binding
-        stringExpr = stringExpr.split(`${qv.varName}.data`).join(localVar);
-        // Replace queryVar.loading with false (SSR always resolves)
-        stringExpr = stringExpr.split(`${qv.varName}.loading`).join('false');
-        // Replace queryVar.error with undefined
-        stringExpr = stringExpr.split(`${qv.varName}.error`).join('undefined');
-        // Replace derived aliases (e.g., const d = q.data → d becomes __q0)
-        // Use negative lookbehind for '.' to avoid matching property accesses like someObj.d
-        for (const alias of qv.derivedAliases) {
-          stringExpr = stringExpr.replace(new RegExp(`(?<!\\.)\\b${alias}\\b`, 'g'), localVar);
+      stringExpr = applyQueryReplacements(stringExpr);
+
+      // Emit derived variable declarations in source-order with replacements applied (#1951)
+      if (derivedVars && derivedVars.length > 0) {
+        for (const dv of derivedVars) {
+          preamble += `\n  ${applyQueryReplacements(dv.sourceText)}`;
         }
       }
     } else {
       const propsParam = component.propsParam;
       paramStr = propsParam ? `${propsParam}` : '';
+
+      // Emit derived variable declarations for props-based components
+      if (derivedVars && derivedVars.length > 0) {
+        for (const dv of derivedVars) {
+          preamble += `\n  ${dv.sourceText}`;
+        }
+      }
+    }
+
+    // Declare __t temp var when ||/?? with JSX fallback generates assignment expressions
+    if (stringExpr.includes('__t =')) {
+      preamble = `\n  let __t;` + preamble;
     }
 
     const body = preamble
@@ -302,6 +362,103 @@ export class AotStringTransformer {
     this._components.push({
       name: component.name,
       tier,
+      holes: [...this._currentHoles],
+      queryKeys: hasQueries ? queryVars.map((qv) => qv.cacheKey) : [],
+    });
+  }
+
+  /**
+   * Generate an AOT function with early-return guards followed by derived
+   * variable declarations and the main return. Used when derived vars appear
+   * after guard returns — the vars must only execute in the main path.
+   *
+   * Generated shape:
+   * ```
+   * function __ssr_F(data, ctx) {
+   *   const __q0 = ctx.getData('key');
+   *   if (!__q0) return '<!--conditional-->..guard..<!--/conditional-->';
+   *   const sellerMap = new Map(__q0.sellers.map(...));
+   *   return '<!--conditional-->..main..<!--/conditional-->';
+   * }
+   * ```
+   */
+  private _emitAotFunctionWithGuards(
+    s: MagicString,
+    component: ComponentInfo,
+    mainStringExpr: string,
+    guards: Array<{ condition: string; html: string }>,
+    queryVars?: QueryVarMeta[],
+    derivedVars?: DerivedVarDecl[],
+  ): void {
+    const aotFnName = `__ssr_${component.name}`;
+    const hasQueries = queryVars && queryVars.length > 0;
+
+    let paramStr: string;
+    let body = '';
+
+    // Build replacement helper for query var references
+    const applyQueryReplacements = hasQueries
+      ? (text: string): string => {
+          for (const qv of queryVars) {
+            const localVar = `__q${qv.index}`;
+            text = text.split(`${qv.varName}.data`).join(localVar);
+            text = text.split(`${qv.varName}.loading`).join('false');
+            text = text.split(`${qv.varName}.error`).join('undefined');
+            for (const alias of qv.derivedAliases) {
+              text = text.replace(new RegExp(`(?<!\\.)\\b${alias}\\b`, 'g'), localVar);
+            }
+          }
+          return text;
+        }
+      : (text: string): string => text;
+
+    if (hasQueries) {
+      paramStr = 'data: Record<string, unknown>, ctx: SSRAotContext';
+      // Query data bindings
+      for (const qv of queryVars) {
+        if (qv.paramRefs.length > 0) {
+          const resolvedKey = qv.cacheKey.replace(
+            /\$\{(\w+)\}/g,
+            (_, paramName) => '${ctx.params.' + paramName + '}',
+          );
+          body += `\n  const __q${qv.index} = ctx.getData(\`${resolvedKey}\`);`;
+        } else {
+          body += `\n  const __q${qv.index} = ctx.getData('${qv.cacheKey}');`;
+        }
+      }
+    } else {
+      paramStr = component.propsParam ? `${component.propsParam}` : '';
+    }
+
+    // Early-return guards
+    for (const guard of guards) {
+      const guardCondition = applyQueryReplacements(guard.condition);
+      const guardHtml = applyQueryReplacements(guard.html);
+      body += `\n  if (${guardCondition}) return '<!--conditional-->' + ${guardHtml} + '<!--/conditional-->';`;
+    }
+
+    // Derived variable declarations (after guards, so they only execute in main path)
+    if (derivedVars && derivedVars.length > 0) {
+      for (const dv of derivedVars) {
+        body += `\n  ${applyQueryReplacements(dv.sourceText)}`;
+      }
+    }
+
+    // Main return
+    const mainExpr = applyQueryReplacements(mainStringExpr);
+    body += `\n  return '<!--conditional-->' + ${mainExpr} + '<!--/conditional-->';\n`;
+
+    // Declare __t temp var when ||/?? with JSX fallback generates assignment expressions
+    if (mainExpr.includes('__t =') || guards.some((g) => g.html.includes('__t ='))) {
+      body = `\n  let __t;` + body;
+    }
+
+    const aotFn = `\nexport function ${aotFnName}(${paramStr}): string {${body}}\n`;
+    s.appendRight(component.bodyEnd + 1, aotFn);
+
+    this._components.push({
+      name: component.name,
+      tier: 'conditional',
       holes: [...this._currentHoles],
       queryKeys: hasQueries ? queryVars.map((qv) => qv.cacheKey) : [],
     });
@@ -537,6 +694,67 @@ export class AotStringTransformer {
     return queryVars;
   }
 
+  /**
+   * Collect body-level derived variable declarations that need to be included
+   * in the AOT function preamble (#1951).
+   *
+   * Returns declarations that are NOT: query vars, data aliases, useParams, or
+   * signal/signal-API vars. These are intermediate computations that must be
+   * emitted in source-order in the AOT function for references to resolve.
+   */
+  private _collectDerivedVarDecls(
+    bodyNode: Node,
+    s: MagicString,
+    queryVars: QueryVarMeta[],
+    variables: VariableInfo[],
+  ): DerivedVarDecl[] {
+    // Build the set of "known" variable names handled by the AOT system
+    const knownNames = new Set<string>();
+    for (const qv of queryVars) {
+      knownNames.add(qv.varName);
+      for (const alias of qv.derivedAliases) {
+        knownNames.add(alias);
+      }
+    }
+    for (const v of variables) {
+      if (v.kind === 'signal') knownNames.add(v.name);
+      if (v.signalProperties && v.signalProperties.size > 0) knownNames.add(v.name);
+    }
+
+    const derived: DerivedVarDecl[] = [];
+    const emittedStmts = new Set<number>(); // track by start position to avoid duplicates
+    // Walk top-level statements in source order
+    const stmts = bodyNode.getChildSyntaxList()?.getChildren() ?? [];
+    for (const stmt of stmts) {
+      if (!stmt.isKind(SyntaxKind.VariableStatement)) continue;
+      const declList = stmt.getChildrenOfKind(SyntaxKind.VariableDeclarationList)[0];
+      if (!declList) continue;
+
+      for (const decl of declList.getDeclarations()) {
+        const name = decl.getName();
+        if (knownNames.has(name)) continue;
+
+        // Skip useParams() calls — resolved via ctx.params
+        const init = decl.getInitializer();
+        if (init && init.isKind(SyntaxKind.CallExpression)) {
+          const callee = init.getExpression();
+          if (callee.isKind(SyntaxKind.Identifier) && callee.getText() === 'useParams') continue;
+        }
+
+        // Avoid emitting the same VariableStatement twice (multi-declaration: const a=1, b=2)
+        const stmtStart = stmt.getStart();
+        if (emittedStmts.has(stmtStart)) continue;
+        emittedStmts.add(stmtStart);
+
+        // Extract the full VariableStatement source text (includes const/let keyword)
+        const sourceText = s.slice(stmtStart, stmt.getEnd());
+        derived.push({ name, sourceText });
+      }
+    }
+
+    return derived;
+  }
+
   /** Extract a property access chain from a node. Returns segments like ['api', 'projects', 'list']. */
   private _extractPropertyAccessChain(node: Node): string[] | null {
     if (node.isKind(SyntaxKind.Identifier)) {
@@ -686,6 +904,142 @@ export class AotStringTransformer {
       current = parent;
     }
     return false;
+  }
+
+  /**
+   * Analyze an if-else pattern where ALL returns are inside if-then/else branches.
+   *
+   * Handles:
+   * - `if (c) return <A/>; else return <B/>;`
+   * - `if (c1) return <A/>; else if (c2) return <B/>; else return <C/>;`
+   *
+   * Returns an ordered list of { condition, jsx } branches where the last
+   * branch has condition null (the else fallback).
+   */
+  private _analyzeIfElsePattern(
+    _returnsWithJsx: Node[],
+    bodyNode: Node,
+    s: MagicString,
+  ): Array<{ condition: string | null; jsx: Node }> | null {
+    // Find the top-level if-statement that contains all returns
+    // All returns must be inside the same if-else chain
+    const topLevelIfs = (bodyNode.getChildSyntaxList()?.getChildren() ?? []).filter((stmt) =>
+      stmt.isKind(SyntaxKind.IfStatement),
+    );
+
+    // Collect branches from if-else-if chains
+    for (const topIf of topLevelIfs) {
+      const branches = this._collectIfElseBranches(topIf, s);
+      if (!branches) continue;
+
+      // Every branch must have a return with JSX.
+      // Branch body may be the ReturnStatement itself (no block braces) or a Block.
+      // getDescendantsOfKind does NOT include the node itself, so we must check both.
+      const allHaveJsx = branches.every((b) => {
+        if (b.body.isKind(SyntaxKind.ReturnStatement)) {
+          const expr = (b.body as ReturnStatement).getExpression();
+          return expr && this._findJsx(expr);
+        }
+        const returns = b.body.getDescendantsOfKind(SyntaxKind.ReturnStatement);
+        return returns.some((ret) => {
+          const expr = ret.getExpression();
+          return expr && this._findJsx(expr);
+        });
+      });
+      if (!allHaveJsx) continue;
+
+      // The last branch must be an else (no condition) — otherwise it's not exhaustive
+      const last = branches[branches.length - 1];
+      if (!last || last.condition !== null) continue;
+
+      // Extract JSX from each branch
+      const result: Array<{ condition: string | null; jsx: Node }> = [];
+      for (const b of branches) {
+        let jsx: Node | null = null;
+        if (b.body.isKind(SyntaxKind.ReturnStatement)) {
+          const expr = (b.body as ReturnStatement).getExpression();
+          if (expr) jsx = this._findJsx(expr);
+        } else {
+          const returns = b.body.getDescendantsOfKind(SyntaxKind.ReturnStatement);
+          for (const ret of returns) {
+            const expr = ret.getExpression();
+            if (expr) jsx = this._findJsx(expr);
+            if (jsx) break;
+          }
+        }
+        if (!jsx) return null;
+        result.push({ condition: b.condition, jsx });
+      }
+
+      return result;
+    }
+
+    return null;
+  }
+
+  /**
+   * Collect branches from an if-else-if chain.
+   * Returns { condition, body } for each branch, where condition is null for the final else.
+   */
+  private _collectIfElseBranches(
+    ifStmt: Node,
+    s: MagicString,
+  ): Array<{ condition: string | null; body: Node }> | null {
+    const branches: Array<{ condition: string | null; body: Node }> = [];
+
+    let current: Node | undefined = ifStmt;
+    while (current && current.isKind(SyntaxKind.IfStatement)) {
+      const children: Node[] = current.getChildren();
+      const condition = children[2]; // condition expression
+      const thenBody = children[4]; // then branch
+      if (!condition || !thenBody) return null;
+
+      // Reject nested ifs inside then-branch (unsafe to flatten)
+      if (thenBody.getDescendantsOfKind(SyntaxKind.IfStatement).length > 0) {
+        return null;
+      }
+
+      branches.push({
+        condition: s.slice(condition.getStart(), condition.getEnd()),
+        body: thenBody,
+      });
+
+      // Check for else clause: ElseKeyword(5), elseStmt(6)
+      if (children.length <= 5) return null; // No else clause — not exhaustive
+      const elseBody: Node | undefined = children[6];
+      if (!elseBody) return null;
+
+      if (elseBody.isKind(SyntaxKind.IfStatement)) {
+        // else if — continue the chain
+        current = elseBody;
+      } else {
+        // Final else
+        branches.push({ condition: null, body: elseBody });
+        return branches;
+      }
+    }
+
+    return null; // Chain didn't end with an else
+  }
+
+  /**
+   * Generate string expression for an if-else pattern: nested ternary with conditional markers.
+   */
+  private _ifElsePatternToString(
+    branches: Array<{ condition: string | null; jsx: Node }>,
+    variables: VariableInfo[],
+    s: MagicString,
+  ): string {
+    // Build from the last branch (else) backwards
+    let result = this._jsxToString(branches[branches.length - 1]!.jsx, variables, s, null);
+
+    for (let i = branches.length - 2; i >= 0; i--) {
+      const branch = branches[i]!;
+      const branchStr = this._jsxToString(branch.jsx, variables, s, null);
+      result = `(${branch.condition} ? ${branchStr} : ${result})`;
+    }
+
+    return `'<!--conditional-->' + ${result} + '<!--/conditional-->'`;
   }
 
   /**
@@ -1198,6 +1552,22 @@ export class AotStringTransformer {
       return `'<!--conditional-->' + (${leftText} ? ${rightStr} : '') + '<!--/conditional-->'`;
     }
 
+    // Handle || operator: expr || <JSX /> (only when right operand is JSX)
+    // Use temp var (__t) to avoid double-evaluating expressions with side effects.
+    if (opText === '||' && this._findJsx(right)) {
+      const leftText = s.slice(left.getStart(), left.getEnd());
+      const rightStr = this._expressionNodeToString(right, variables, s);
+      return `'<!--conditional-->' + ((__t = ${leftText}) ? __esc(__t) : ${rightStr}) + '<!--/conditional-->'`;
+    }
+
+    // Handle ?? operator: expr ?? <JSX /> (only when right operand is JSX)
+    // Use temp var (__t) to avoid double-evaluating expressions with side effects.
+    if (opText === '??' && this._findJsx(right)) {
+      const leftText = s.slice(left.getStart(), left.getEnd());
+      const rightStr = this._expressionNodeToString(right, variables, s);
+      return `'<!--conditional-->' + ((__t = ${leftText}) != null ? __esc(__t) : ${rightStr}) + '<!--/conditional-->'`;
+    }
+
     // For other binary operators, fall back to __esc
     return `__esc(${s.slice(expr.getStart(), expr.getEnd())})`;
   }
@@ -1259,22 +1629,34 @@ export class AotStringTransformer {
       return `'<!--list-->' + ${callerText}.map(${paramName} => ${jsxStr}).join('') + '<!--/list-->'`;
     }
 
-    // If body is a block, try to find return JSX — but only when the block
-    // contains nothing besides the return. Variable declarations before the
-    // return reference closure variables that the generated arrow function
-    // won't define, causing ReferenceError at runtime (#1936).
+    // If body is a block, extract non-return statements and convert return JSX.
+    // Non-return statements (variable declarations, etc.) are preserved verbatim
+    // in the generated callback — they're closures that execute per-item.
     if (body.isKind(SyntaxKind.Block)) {
       const stmts = body.getStatements();
-      const hasNonReturnStatements = stmts.some((stmt) => !stmt.isKind(SyntaxKind.ReturnStatement));
-      if (!hasNonReturnStatements) {
-        const returnStmts = body.getDescendantsOfKind(SyntaxKind.ReturnStatement);
-        for (const ret of returnStmts) {
-          const retExpr = ret.getExpression();
-          if (!retExpr) continue;
+      const returnStmt = stmts.find((stmt) => stmt.isKind(SyntaxKind.ReturnStatement));
+      if (returnStmt) {
+        const retExpr = (returnStmt as ReturnStatement).getExpression();
+        if (retExpr) {
           const retJsx = this._findJsx(retExpr);
           if (retJsx) {
             const jsxStr = this._jsxToString(retJsx, variables, s, null);
-            return `'<!--list-->' + ${callerText}.map(${paramName} => ${jsxStr}).join('') + '<!--/list-->'`;
+            // Collect non-return statements as raw source text
+            const nonReturnStmts = stmts.filter((stmt) => !stmt.isKind(SyntaxKind.ReturnStatement));
+            if (nonReturnStmts.length === 0) {
+              // No extra statements — simple arrow like before
+              return `'<!--list-->' + ${callerText}.map(${paramName} => ${jsxStr}).join('') + '<!--/list-->'`;
+            }
+            // Preserve declarations in a block-body arrow
+            const stmtTexts = nonReturnStmts
+              .map((stmt) => `    ${s.slice(stmt.getStart(), stmt.getEnd())}`)
+              .join('\n');
+            return (
+              `'<!--list-->' + ${callerText}.map((${paramName}) => {\n` +
+              `${stmtTexts}\n` +
+              `    return ${jsxStr};\n` +
+              `  }).join('') + '<!--/list-->'`
+            );
           }
         }
       }

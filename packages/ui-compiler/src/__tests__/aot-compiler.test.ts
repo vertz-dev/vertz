@@ -1278,10 +1278,9 @@ function CardList({ listings, sellerMap }: { listings: any[]; sellerMap: Map<str
 
       expect(result.components).toHaveLength(1);
       const aotFn = extractAotFn(result.code, '__ssr_CardList');
-      // The .map() callback has a variable declaration before return — must use __esc() fallback
-      expect(aotFn).toContain('__esc(');
-      // Should NOT generate list markers (which imply it tried to inline the JSX)
-      expect(aotFn).not.toContain('<!--list-->');
+      // The .map() callback now preserves block body with declarations
+      expect(aotFn).toContain('<!--list-->');
+      expect(aotFn).toContain('const seller');
       // Should NOT have a bare arrow that references `seller` without defining it
       expect(aotFn).not.toMatch(/\.map\(listing\s*=>\s*'<tr>/);
     });
@@ -1302,7 +1301,7 @@ function SimpleList({ items }: { items: string[] }) {
       expect(aotFn).toContain(".join('')");
     });
 
-    it('Then falls back for .map() with block body containing any non-return statements', () => {
+    it('Then preserves block body with non-return statements in the generated callback', () => {
       const result = compileForSSRAot(
         `
 function ListWithLog({ items }: { items: string[] }) {
@@ -1319,9 +1318,10 @@ function ListWithLog({ items }: { items: string[] }) {
       );
 
       const aotFn = extractAotFn(result.code, '__ssr_ListWithLog');
-      // Should use __esc() fallback — not inline JSX that references `upper`
-      expect(aotFn).toContain('__esc(');
-      expect(aotFn).not.toContain('<!--list-->');
+      // Block body with declarations should now be preserved with list markers
+      expect(aotFn).toContain('<!--list-->');
+      expect(aotFn).toContain('const upper');
+      expect(aotFn).toContain(".join('')");
     });
 
     it('Then optimizes .map() with block body containing ONLY a return statement', () => {
@@ -1337,6 +1337,498 @@ function BlockReturnList({ items }: { items: string[] }) {
       // Block body with only a return is safe to optimize
       expect(aotFn).toContain('<!--list-->');
       expect(aotFn).toContain('.map(');
+    });
+  });
+
+  describe('Given a component with derived variables from query data (#1951)', () => {
+    describe('When a simple query data alias is used', () => {
+      it('Then still uses the existing alias replacement (no preamble entry)', () => {
+        const result = compileForSSRAot(
+          `
+import { query } from '@vertz/ui';
+
+export default function Page() {
+  const q = query(async () => ({ name: 'x' }), { key: 'items' });
+  const d = q.data;
+  if (!d) return <div>Loading</div>;
+  return <div>{d.name}</div>;
+}
+          `.trim(),
+        );
+
+        expect(result.components).toHaveLength(1);
+        expect(result.components[0]!.tier).toBe('conditional');
+        const aotFn = extractAotFn(result.code, '__ssr_Page');
+        // d should be replaced with __q0 — no separate 'const d' in preamble
+        expect(aotFn).not.toContain('const d');
+        expect(aotFn).toContain('__q0');
+      });
+    });
+
+    describe('When a non-query component has intermediate derived variables', () => {
+      it('Then includes derived variable assignments referencing props', () => {
+        const result = compileForSSRAot(
+          `
+function UserPage({ users }: { users: any[] }) {
+  const userMap = new Map(users.map((u) => [u.id, u]));
+  return <div>{userMap.get('abc')?.name}</div>;
+}
+          `.trim(),
+        );
+
+        expect(result.components).toHaveLength(1);
+        expect(result.components[0]!.tier).not.toBe('runtime-fallback');
+        const aotFn = extractAotFn(result.code, '__ssr_UserPage');
+        expect(aotFn).toContain('const userMap');
+
+        // Runtime correctness
+        const html = evalAot(result.code, '__ssr_UserPage', {
+          __props: { users: [{ id: 'abc', name: 'Alice' }] },
+          users: [{ id: 'abc', name: 'Alice' }],
+        });
+        expect(html).toContain('Alice');
+      });
+    });
+
+    describe('When a derived variable references another derived variable', () => {
+      it('Then emits both in source-order so references resolve correctly', () => {
+        const result = compileForSSRAot(
+          `
+import { query } from '@vertz/ui';
+
+export default function Page() {
+  const q = query(async () => ({ sellers: [] as any[] }), { key: 'items' });
+  const d = q.data;
+  if (!d) return <div>Loading</div>;
+
+  const sellers = d.sellers.filter((s) => s.active);
+  const sellerMap = new Map(sellers.map((s) => [s.id, s]));
+
+  return <div>{sellerMap.size}</div>;
+}
+          `.trim(),
+        );
+
+        const aotFn = extractAotFn(result.code, '__ssr_Page');
+        // Both derived vars must appear, in source order
+        const sellersIdx = aotFn.indexOf('const sellers');
+        const sellerMapIdx = aotFn.indexOf('const sellerMap');
+        expect(sellersIdx).toBeGreaterThan(-1);
+        expect(sellerMapIdx).toBeGreaterThan(sellersIdx);
+
+        // Runtime correctness
+        const html = evalAot(result.code, '__ssr_Page', {
+          __ctx: createMockCtx({
+            items: {
+              sellers: [
+                { id: '1', active: true },
+                { id: '2', active: false },
+              ],
+            },
+          }),
+        });
+        expect(html).toContain('1'); // Only 1 active seller
+      });
+    });
+
+    describe('When a derived variable is computed from query data', () => {
+      it('Then classifies the component as conditional (AOT-eligible)', () => {
+        const result = compileForSSRAot(
+          `
+import { query } from '@vertz/ui';
+
+export default function Page() {
+  const q = query(async () => ({ sellers: [] as any[] }), { key: 'items' });
+  const d = q.data;
+  if (!d) return <div>Loading</div>;
+
+  const sellerMap = new Map(d.sellers.map((s) => [s.id, s]));
+
+  return <div>{sellerMap.size}</div>;
+}
+          `.trim(),
+        );
+
+        expect(result.components).toHaveLength(1);
+        expect(result.components[0]!.tier).not.toBe('runtime-fallback');
+      });
+
+      it('Then includes the derived variable assignment in the AOT function preamble', () => {
+        const result = compileForSSRAot(
+          `
+import { query } from '@vertz/ui';
+
+export default function Page() {
+  const q = query(async () => ({ sellers: [] as any[] }), { key: 'items' });
+  const d = q.data;
+  if (!d) return <div>Loading</div>;
+
+  const sellerMap = new Map(d.sellers.map((s) => [s.id, s]));
+
+  return <div>{sellerMap.size}</div>;
+}
+          `.trim(),
+        );
+
+        const aotFn = extractAotFn(result.code, '__ssr_Page');
+        // The derived variable must appear in the function body
+        expect(aotFn).toContain('const sellerMap');
+        // The data alias 'd' must be replaced with __q0
+        expect(aotFn).toContain('__q0.sellers.map');
+      });
+
+      it('Then the generated AOT function produces correct HTML at runtime', () => {
+        const result = compileForSSRAot(
+          `
+import { query } from '@vertz/ui';
+
+export default function Page() {
+  const q = query(async () => ({ sellers: [] as any[] }), { key: 'items' });
+  const d = q.data;
+  if (!d) return <div>Loading</div>;
+
+  const sellerMap = new Map(d.sellers.map((s) => [s.id, s]));
+
+  return <div>{sellerMap.size}</div>;
+}
+          `.trim(),
+        );
+
+        // Runtime: loading branch
+        const loadingHtml = evalAot(result.code, '__ssr_Page', {
+          __ctx: createMockCtx({ items: null }),
+        });
+        expect(loadingHtml).toContain('Loading');
+
+        // Runtime: main branch with data
+        const mainHtml = evalAot(result.code, '__ssr_Page', {
+          __ctx: createMockCtx({
+            items: {
+              sellers: [
+                { id: '1', name: 'Alice' },
+                { id: '2', name: 'Bob' },
+              ],
+            },
+          }),
+        });
+        expect(mainHtml).toContain('2'); // sellerMap.size === 2
+      });
+    });
+  });
+
+  describe('Phase 2: .map() callback block body preservation', () => {
+    describe('When the block body has const declarations before the return', () => {
+      it('Then preserves the declarations and converts JSX to string concatenation', () => {
+        const result = compileForSSRAot(
+          `
+function CardList({ listings, sellerMap }: { listings: any[]; sellerMap: Map<string, any> }) {
+  return (
+    <div>
+      {listings.map((listing) => {
+        const seller = sellerMap.get(listing.sellerId);
+        return (
+          <tr key={listing.id}>
+            <td>{seller?.name || 'Unknown'}</td>
+          </tr>
+        );
+      })}
+    </div>
+  );
+}
+          `.trim(),
+        );
+
+        const aotFn = extractAotFn(result.code, '__ssr_CardList');
+        // Must have list markers
+        expect(aotFn).toContain('<!--list-->');
+        expect(aotFn).toContain('<!--/list-->');
+        // Must preserve the const declaration (props are rewritten to __props.*)
+        expect(aotFn).toContain('const seller');
+        expect(aotFn).toContain('.get(listing.sellerId)');
+        // Must NOT use __esc() fallback for the whole .map()
+        expect(aotFn).not.toMatch(/__esc\(.*\.map/);
+      });
+
+      it('Then produces correct HTML at runtime', () => {
+        const result = compileForSSRAot(
+          `
+function CardList({ listings, sellerMap }: { listings: any[]; sellerMap: Map<string, any> }) {
+  return (
+    <div>
+      {listings.map((listing) => {
+        const seller = sellerMap.get(listing.sellerId);
+        return (
+          <tr key={listing.id}>
+            <td>{seller?.name || 'Unknown'}</td>
+          </tr>
+        );
+      })}
+    </div>
+  );
+}
+          `.trim(),
+        );
+
+        const sellerMap = new Map([['s1', { name: 'Alice' }]]);
+        const html = evalAot(result.code, '__ssr_CardList', {
+          __props: {
+            listings: [
+              { id: 'L1', sellerId: 's1' },
+              { id: 'L2', sellerId: 'nope' },
+            ],
+            sellerMap,
+          },
+          listings: [
+            { id: 'L1', sellerId: 's1' },
+            { id: 'L2', sellerId: 'nope' },
+          ],
+          sellerMap,
+        });
+        expect(html).toContain('Alice');
+        expect(html).toContain('Unknown');
+      });
+    });
+
+    describe('When the block body has multiple variable declarations', () => {
+      it('Then preserves all declarations in order', () => {
+        const result = compileForSSRAot(
+          `
+function List({ items }: { items: any[] }) {
+  return (
+    <ul>
+      {items.map((item) => {
+        const upper = item.name.toUpperCase();
+        const label = upper + ' (' + item.id + ')';
+        return <li>{label}</li>;
+      })}
+    </ul>
+  );
+}
+          `.trim(),
+        );
+
+        const aotFn = extractAotFn(result.code, '__ssr_List');
+        expect(aotFn).toContain('<!--list-->');
+        expect(aotFn).toContain('const upper');
+        expect(aotFn).toContain('const label');
+        // Verify order
+        const upperIdx = aotFn.indexOf('const upper');
+        const labelIdx = aotFn.indexOf('const label');
+        expect(labelIdx).toBeGreaterThan(upperIdx);
+      });
+    });
+  });
+
+  describe('Phase 3: if-else chain flattening', () => {
+    describe('When both branches of if-else return JSX', () => {
+      it('Then classifies as conditional (not runtime-fallback)', () => {
+        const result = compileForSSRAot(
+          `
+export default function StatusPage({ status }: { status: string }) {
+  if (status === 'error') return <div>Error occurred</div>;
+  else return <div>All good</div>;
+}
+          `.trim(),
+        );
+
+        expect(result.components).toHaveLength(1);
+        expect(result.components[0]!.tier).toBe('conditional');
+      });
+
+      it('Then generates a ternary and produces correct HTML at runtime', () => {
+        const result = compileForSSRAot(
+          `
+export default function StatusPage({ status }: { status: string }) {
+  if (status === 'error') return <div>Error</div>;
+  else return <div>OK</div>;
+}
+          `.trim(),
+        );
+
+        const aotFn = extractAotFn(result.code, '__ssr_StatusPage');
+        expect(aotFn).toContain('<!--conditional-->');
+        expect(aotFn).toContain('Error');
+        expect(aotFn).toContain('OK');
+
+        const errorHtml = evalAot(result.code, '__ssr_StatusPage', {
+          __props: { status: 'error' },
+          status: 'error',
+        });
+        expect(errorHtml).toContain('Error');
+        expect(errorHtml).not.toContain('OK');
+
+        const okHtml = evalAot(result.code, '__ssr_StatusPage', {
+          __props: { status: 'ok' },
+          status: 'ok',
+        });
+        expect(okHtml).toContain('OK');
+      });
+    });
+
+    describe('When there are if-else-if chains', () => {
+      it('Then generates nested ternaries', () => {
+        const result = compileForSSRAot(
+          `
+export default function StatusPage({ status }: { status: string }) {
+  if (status === 'error') return <div>Error</div>;
+  else if (status === 'loading') return <div>Loading</div>;
+  else return <div>Ready</div>;
+}
+          `.trim(),
+        );
+
+        expect(result.components[0]!.tier).toBe('conditional');
+        const aotFn = extractAotFn(result.code, '__ssr_StatusPage');
+        expect(aotFn).toContain('Error');
+        expect(aotFn).toContain('Loading');
+        expect(aotFn).toContain('Ready');
+      });
+    });
+
+    describe('When an if-else has nested ifs inside a branch', () => {
+      it('Then falls back to runtime-fallback (unsafe to flatten)', () => {
+        const result = compileForSSRAot(
+          `
+export default function StatusPage({ status, detail }: { status: string; detail: string }) {
+  if (status === 'error') {
+    if (detail === 'critical') return <div>Critical</div>;
+    return <div>Error</div>;
+  } else {
+    return <div>OK</div>;
+  }
+}
+          `.trim(),
+        );
+
+        // Nested ifs inside a branch make flat ternary flattening unsafe.
+        // Neither if-else flattening nor guard pattern handles nested ifs,
+        // so the component correctly falls back to runtime.
+        expect(result.components).toHaveLength(1);
+        expect(result.components[0]!.tier).toBe('runtime-fallback');
+      });
+    });
+
+    describe('When if-else-if branches use block bodies', () => {
+      it('Then generates nested ternaries from block-body returns', () => {
+        const result = compileForSSRAot(
+          `
+export default function StatusPage({ status }: { status: string }) {
+  if (status === 'error') {
+    return <div>Error</div>;
+  } else if (status === 'loading') {
+    return <div>Loading</div>;
+  } else {
+    return <div>Ready</div>;
+  }
+}
+          `.trim(),
+        );
+
+        expect(result.components[0]!.tier).toBe('conditional');
+        const aotFn = extractAotFn(result.code, '__ssr_StatusPage');
+        expect(aotFn).toContain('Error');
+        expect(aotFn).toContain('Loading');
+        expect(aotFn).toContain('Ready');
+      });
+    });
+  });
+
+  describe('Phase 4: || and ?? binary operator support', () => {
+    describe('When right operand of || is JSX', () => {
+      it('Then generates conditional: truthy shows escaped value, falsy shows JSX', () => {
+        const result = compileForSSRAot(
+          `
+export default function NameDisplay({ name }: { name: string | null }) {
+  return <div>{name || <span>Anonymous</span>}</div>;
+}
+          `.trim(),
+        );
+
+        expect(result.components[0]!.tier).toBe('conditional');
+        const aotFn = extractAotFn(result.code, '__ssr_NameDisplay');
+        expect(aotFn).toContain('<!--conditional-->');
+        expect(aotFn).toContain('Anonymous');
+
+        // When name is truthy, show name
+        const htmlWithName = evalAot(result.code, '__ssr_NameDisplay', {
+          __props: { name: 'Alice' },
+          name: 'Alice',
+        });
+        expect(htmlWithName).toContain('Alice');
+        expect(htmlWithName).not.toContain('Anonymous');
+
+        // When name is falsy, show fallback JSX
+        const htmlWithout = evalAot(result.code, '__ssr_NameDisplay', {
+          __props: { name: '' },
+          name: '',
+        });
+        expect(htmlWithout).toContain('Anonymous');
+      });
+    });
+
+    describe('When right operand of || is NOT JSX', () => {
+      it('Then falls back to __esc() wrapping (existing behavior)', () => {
+        const result = compileForSSRAot(
+          `
+export default function Label({ text }: { text: string | null }) {
+  return <div>{text || 'default'}</div>;
+}
+          `.trim(),
+        );
+
+        const aotFn = extractAotFn(result.code, '__ssr_Label');
+        // Should use __esc, not conditional markers
+        expect(aotFn).toContain('__esc(');
+        expect(aotFn).not.toContain('<!--conditional-->');
+      });
+    });
+
+    describe('When right operand of ?? is JSX', () => {
+      it('Then generates conditional: non-nullish shows escaped value, nullish shows JSX', () => {
+        const result = compileForSSRAot(
+          `
+export default function ValueDisplay({ value }: { value: number | null }) {
+  return <div>{value ?? <span>N/A</span>}</div>;
+}
+          `.trim(),
+        );
+
+        expect(result.components[0]!.tier).toBe('conditional');
+        const aotFn = extractAotFn(result.code, '__ssr_ValueDisplay');
+        expect(aotFn).toContain('<!--conditional-->');
+        expect(aotFn).toContain('!= null');
+
+        // When value is non-nullish (including 0), show value
+        const htmlWithZero = evalAot(result.code, '__ssr_ValueDisplay', {
+          __props: { value: 0 },
+          value: 0,
+        });
+        expect(htmlWithZero).toContain('0');
+        expect(htmlWithZero).not.toContain('N/A');
+
+        // When value is null, show fallback JSX
+        const htmlNull = evalAot(result.code, '__ssr_ValueDisplay', {
+          __props: { value: null },
+          value: null,
+        });
+        expect(htmlNull).toContain('N/A');
+      });
+    });
+
+    describe('When right operand of ?? is NOT JSX', () => {
+      it('Then falls back to __esc() wrapping (existing behavior)', () => {
+        const result = compileForSSRAot(
+          `
+export default function Label({ text }: { text: string | null }) {
+  return <div>{text ?? 'fallback'}</div>;
+}
+          `.trim(),
+        );
+
+        const aotFn = extractAotFn(result.code, '__ssr_Label');
+        expect(aotFn).toContain('__esc(');
+        expect(aotFn).not.toContain('<!--conditional-->');
+      });
     });
   });
 });
