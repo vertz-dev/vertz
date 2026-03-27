@@ -410,6 +410,33 @@ describe('Feature: Entity-centric defineAccess()', () => {
       });
       expect(Object.isFrozen(config.plans!.free)).toBe(true);
     });
+
+    it('deep-freezes LimitDef.overage sub-object', () => {
+      const config = defineAccess({
+        entities: { workspace: { roles: ['admin'] } },
+        entitlements: {
+          'workspace:create': { roles: ['admin'] },
+        },
+        plans: {
+          pro: {
+            group: 'main',
+            features: ['workspace:create'],
+            limits: {
+              workspace_creates: {
+                max: 100,
+                gates: 'workspace:create',
+                per: 'month',
+                overage: { amount: 0.01, per: 1, cap: 5 },
+              },
+            },
+          },
+        },
+      });
+
+      const limitDef = config.plans!.pro.limits!.workspace_creates;
+      expect(Object.isFrozen(limitDef)).toBe(true);
+      expect(Object.isFrozen(limitDef.overage)).toBe(true);
+    });
   });
 });
 

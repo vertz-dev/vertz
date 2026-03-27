@@ -585,7 +585,10 @@ export function defineAccess(input: DefineAccessInput): AccessDefinition {
                           Object.fromEntries(
                             Object.entries(planDef.limits).map(([k, v]) => [
                               k,
-                              Object.freeze({ ...v }),
+                              Object.freeze({
+                                ...v,
+                                ...(v.overage ? { overage: Object.freeze({ ...v.overage }) } : {}),
+                              }),
                             ]),
                           ),
                         ),
