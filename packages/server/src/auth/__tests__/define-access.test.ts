@@ -409,6 +409,7 @@ describe('Feature: Entity-centric defineAccess()', () => {
         per: 'month',
       });
       expect(Object.isFrozen(config.plans!.free)).toBe(true);
+      expect(Object.isFrozen(config.plans!.free.limits!.workspace_creates)).toBe(true);
     });
 
     it('deep-freezes LimitDef.overage sub-object', () => {
