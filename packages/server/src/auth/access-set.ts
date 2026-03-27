@@ -350,6 +350,10 @@ export async function computeAccessSet(config: ComputeAccessSetConfig): Promise<
           // When no subscription exists (default-plan tenant), use epoch as period anchor
           const periodAnchor = deepestSub?.startedAt ?? new Date(0);
           const deepestAddOns = await subscriptionStore.getAddOns?.(config.tenantLevel!, tenantId);
+
+          // Collect pending limits for batch consumption
+          const pendingLimits: PendingLimit[] = [];
+
           for (const name of Object.keys(accessDef.entitlements)) {
             const limitKeys = accessDef._entitlementToLimitKeys[name];
             if (!limitKeys?.length) continue;
@@ -388,40 +392,23 @@ export async function computeAccessSet(config: ComputeAccessSetConfig): Promise<
                     periodStart: periodAnchor,
                     periodEnd: new Date('9999-12-31T23:59:59Z'),
                   };
-              const consumed = await walletStore.getConsumption(
-                config.tenantLevel!,
-                tenantId,
+              pendingLimits.push({
+                entitlementName: name,
                 limitKey,
-                period.periodStart,
-                period.periodEnd,
-              );
-              const remaining = Math.max(0, effectiveMax - consumed);
-              const entry = entitlements[name];
-
-              if (consumed >= effectiveMax) {
-                const reasons: DenialReason[] = [...entry.reasons];
-                if (!reasons.includes('limit_reached')) reasons.push('limit_reached');
-                entitlements[name] = {
-                  ...entry,
-                  allowed: false,
-                  reasons,
-                  reason: reasons[0],
-                  meta: {
-                    ...entry.meta,
-                    limit: { key: limitKey, max: effectiveMax, consumed, remaining },
-                  },
-                };
-              } else {
-                entitlements[name] = {
-                  ...entry,
-                  meta: {
-                    ...entry.meta,
-                    limit: { key: limitKey, max: effectiveMax, consumed, remaining },
-                  },
-                };
-              }
+                effectiveMax,
+                periodStart: period.periodStart,
+                periodEnd: period.periodEnd,
+              });
             }
           }
+
+          await enrichLimitsFromBatch(
+            pendingLimits,
+            entitlements,
+            walletStore,
+            config.tenantLevel!,
+            tenantId,
+          );
         }
       }
     } else {
@@ -450,6 +437,8 @@ export async function computeAccessSet(config: ComputeAccessSetConfig): Promise<
               }
             }
 
+            const pendingLimits: PendingLimit[] = [];
+
             for (const name of Object.keys(accessDef.entitlements)) {
               // Plan check: if entitlement is plan-gated, verify effective features include it
               if (accessDef._planGatedEntitlements.has(name) && !effectiveFeatures.has(name)) {
@@ -470,15 +459,12 @@ export async function computeAccessSet(config: ComputeAccessSetConfig): Promise<
                 };
               }
 
-              // Wallet check: add limit info if entitlement has limits
+              // Wallet check: collect limit info for batch fetch
               const limitKeys = accessDef._entitlementToLimitKeys[name];
               if (walletStore && limitKeys?.length) {
-                // Use the first limit key for display in access set
-                // (multi-limit detail is for real-time checks, not JWT snapshots)
                 const limitKey = limitKeys[0];
                 const limitDef = planDef.limits?.[limitKey];
                 if (limitDef) {
-                  // Compute effective max (base + add-ons + overrides)
                   let effectiveMax = limitDef.max;
                   if (addOns) {
                     for (const addOnId of addOns) {
@@ -494,7 +480,6 @@ export async function computeAccessSet(config: ComputeAccessSetConfig): Promise<
                   if (override) effectiveMax = Math.max(effectiveMax, override.max);
 
                   if (effectiveMax === -1) {
-                    // Unlimited — no wallet check needed, but report in meta
                     const entry = entitlements[name];
                     entitlements[name] = {
                       ...entry,
@@ -510,41 +495,26 @@ export async function computeAccessSet(config: ComputeAccessSetConfig): Promise<
                           periodStart: subscription.startedAt,
                           periodEnd: new Date('9999-12-31T23:59:59Z'),
                         };
-                    const consumed = await walletStore.getConsumption(
-                      resourceType,
-                      tenantId,
+                    pendingLimits.push({
+                      entitlementName: name,
                       limitKey,
-                      period.periodStart,
-                      period.periodEnd,
-                    );
-                    const remaining = Math.max(0, effectiveMax - consumed);
-                    const entry = entitlements[name];
-
-                    if (consumed >= effectiveMax) {
-                      const reasons: DenialReason[] = [...entry.reasons];
-                      if (!reasons.includes('limit_reached')) reasons.push('limit_reached');
-                      entitlements[name] = {
-                        ...entry,
-                        allowed: false,
-                        reasons,
-                        reason: reasons[0],
-                        meta: {
-                          ...entry.meta,
-                          limit: { key: limitKey, max: effectiveMax, consumed, remaining },
-                        },
-                      };
-                    } else {
-                      entitlements[name] = {
-                        ...entry,
-                        meta: {
-                          ...entry.meta,
-                          limit: { key: limitKey, max: effectiveMax, consumed, remaining },
-                        },
-                      };
-                    }
+                      effectiveMax,
+                      periodStart: period.periodStart,
+                      periodEnd: period.periodEnd,
+                    });
                   }
                 }
               }
+            }
+
+            if (walletStore) {
+              await enrichLimitsFromBatch(
+                pendingLimits,
+                entitlements,
+                walletStore,
+                resourceType,
+                tenantId,
+              );
             }
           }
         }
@@ -672,4 +642,81 @@ function addRole(map: Map<string, Set<string>>, resourceType: string, role: stri
     map.set(resourceType, roles);
   }
   roles.add(role);
+}
+
+interface PendingLimit {
+  entitlementName: string;
+  limitKey: string;
+  effectiveMax: number;
+  periodStart: Date;
+  periodEnd: Date;
+}
+
+/**
+ * Batch-fetch consumption for pending limits grouped by billing period,
+ * then enrich entitlements with consumed/remaining metadata.
+ */
+async function enrichLimitsFromBatch(
+  pendingLimits: PendingLimit[],
+  entitlements: Record<string, AccessCheckData>,
+  walletStore: WalletStore,
+  resourceType: string,
+  resourceId: string,
+): Promise<void> {
+  if (pendingLimits.length === 0) return;
+
+  // Group by period
+  const byPeriod = new Map<
+    string,
+    { periodStart: Date; periodEnd: Date; entries: PendingLimit[] }
+  >();
+  for (const p of pendingLimits) {
+    const periodKey = `${p.periodStart.getTime()}:${p.periodEnd.getTime()}`;
+    let group = byPeriod.get(periodKey);
+    if (!group) {
+      group = { periodStart: p.periodStart, periodEnd: p.periodEnd, entries: [] };
+      byPeriod.set(periodKey, group);
+    }
+    group.entries.push(p);
+  }
+
+  for (const group of byPeriod.values()) {
+    const keys = group.entries.map((e) => e.limitKey);
+    const consumptionMap = await walletStore.getBatchConsumption(
+      resourceType,
+      resourceId,
+      keys,
+      group.periodStart,
+      group.periodEnd,
+    );
+
+    for (const pending of group.entries) {
+      const consumed = consumptionMap.get(pending.limitKey) ?? 0;
+      const remaining = Math.max(0, pending.effectiveMax - consumed);
+      const entry = entitlements[pending.entitlementName];
+
+      if (consumed >= pending.effectiveMax) {
+        const reasons: DenialReason[] = [...entry.reasons];
+        if (!reasons.includes('limit_reached')) reasons.push('limit_reached');
+        entitlements[pending.entitlementName] = {
+          ...entry,
+          allowed: false,
+          reasons,
+          reason: reasons[0],
+          meta: {
+            ...entry.meta,
+            limit: { key: pending.limitKey, max: pending.effectiveMax, consumed, remaining },
+          },
+        };
+      } else {
+        entitlements[pending.entitlementName] = {
+          ...entry,
+          meta: {
+            ...entry.meta,
+            limit: { key: pending.limitKey, max: pending.effectiveMax, consumed, remaining },
+          },
+        };
+      }
+    }
+  }
 }
