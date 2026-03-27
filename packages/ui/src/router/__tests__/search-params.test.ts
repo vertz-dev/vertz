@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from 'bun:test';
-import { domEffect } from '../../runtime/signal';
+import { computed, domEffect } from '../../runtime/signal';
+import { setReadValueCallback } from '../../runtime/tracking';
 import { createTestSSRContext, disableTestSSR, enableTestSSR } from '../../ssr/test-ssr-helpers';
 import type { SearchParamSchema } from '../define-routes';
 import { defineRoutes } from '../define-routes';
@@ -457,5 +458,118 @@ describe('SSR reactive search params safety', () => {
     });
 
     expect(Object.keys(sp!).sort()).toEqual(['page', 'q']);
+  });
+
+  test('SSR proxy triggers readValueCallback inside computed (#1925)', () => {
+    enableTestSSR(createTestSSRContext('/brands?page=2'));
+    const schema: SearchParamSchema<{ page: number }> = {
+      parse(data: unknown) {
+        const raw = data as Record<string, string>;
+        return {
+          ok: true as const,
+          data: { page: Number(raw.page ?? '1') },
+        };
+      },
+    };
+    const routes = defineRoutes({
+      '/brands': {
+        component: () => document.createElement('div'),
+        searchParams: schema,
+      },
+    });
+    const router = createRouter(routes);
+
+    let sp: ReturnType<typeof useSearchParams> | undefined;
+    RouterContext.Provider(router, () => {
+      sp = useSearchParams();
+    });
+
+    // Simulate callThunkWithCapture() reading search params through a
+    // computed (the compiler wraps derived expressions in computed).
+    // Inside a computed, getSubscriber() returns the computed itself,
+    // which gates the readValueCallback invocation in SignalImpl.value.
+    // The SSR proxy must match this behavior.
+    const captured: unknown[] = [];
+    const prevCb = setReadValueCallback((v) => captured.push(v));
+
+    // Create a computed that reads search params — mirrors what the
+    // compiler does with `const offset = (params.page - 1) * 20`
+    const offset = computed(() => ((sp!.page as number) - 1) * 20);
+
+    try {
+      // Trigger computed evaluation (simulates thunk reading `offset`)
+      const _val = offset.value;
+      expect(_val).toBe(20); // page=2 → offset=20
+    } finally {
+      setReadValueCallback(prevCb);
+    }
+
+    // Client signal reads invoke callback with the full object value.
+    // SSR must do the same so dep hashes match during hydration.
+    expect(captured.length).toBe(1);
+    expect(captured[0]).toEqual({ page: 2 });
+  });
+
+  test('SSR and client dep hash match for search-params-derived computed (#1925)', () => {
+    const PAGE_SIZE = 20;
+    const schema: SearchParamSchema<{ page: number }> = {
+      parse(data: unknown) {
+        const raw = data as Record<string, string>;
+        return {
+          ok: true as const,
+          data: { page: Number(raw.page ?? '1') },
+        };
+      },
+    };
+    const routes = defineRoutes({
+      '/brands': {
+        component: () => document.createElement('div'),
+        searchParams: schema,
+      },
+    });
+
+    // ── SSR side ──
+    enableTestSSR(createTestSSRContext('/brands?page=2'));
+    const ssrRouter = createRouter(routes);
+
+    let ssrSp: ReturnType<typeof useSearchParams> | undefined;
+    RouterContext.Provider(ssrRouter, () => {
+      ssrSp = useSearchParams();
+    });
+
+    // Compute dep hash as callThunkWithCapture() would during SSR
+    const ssrCaptured: unknown[] = [];
+    const prevCb1 = setReadValueCallback((v) => ssrCaptured.push(v));
+    const ssrOffset = computed(() => ((ssrSp!.page as number) - 1) * PAGE_SIZE);
+    try {
+      ssrOffset.value;
+    } finally {
+      setReadValueCallback(prevCb1);
+    }
+
+    disableTestSSR();
+
+    // ── Client side ──
+    // Pass initialUrl to avoid window.location dependency
+    const clientRouter = createRouter(routes, '/brands?page=2');
+
+    let clientSp: ReturnType<typeof useSearchParams> | undefined;
+    RouterContext.Provider(clientRouter, () => {
+      clientSp = useSearchParams();
+    });
+
+    const clientCaptured: unknown[] = [];
+    const prevCb2 = setReadValueCallback((v) => clientCaptured.push(v));
+    const clientOffset = computed(() => ((clientSp!.page as number) - 1) * PAGE_SIZE);
+    try {
+      clientOffset.value;
+    } finally {
+      setReadValueCallback(prevCb2);
+    }
+
+    // Core assertion: SSR and client captured the same values
+    // → dep hashes match → hydration key match → no content wipe
+    expect(ssrCaptured.length).toBe(clientCaptured.length);
+    expect(JSON.stringify(ssrCaptured)).toBe(JSON.stringify(clientCaptured));
   });
 });

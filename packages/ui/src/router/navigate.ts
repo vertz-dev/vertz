@@ -9,6 +9,7 @@ import { isBrowser } from '../env/is-browser';
 import { batch } from '../runtime/scheduler';
 import { signal } from '../runtime/signal';
 import type { Signal } from '../runtime/signal-types';
+import { getReadValueCallback, getSubscriber } from '../runtime/tracking';
 import { getSSRContext } from '../ssr/ssr-render-context';
 import type {
   CompiledRoute,
@@ -294,11 +295,23 @@ export function createRouter<T extends Record<string, RouteConfigLike> = RouteDe
         }
         if (typeof key === 'symbol') return undefined;
         const ctx = getSSRContext();
-        if (ctx) {
-          const m = matchRoute(routes, ctx.url);
-          return m?.search?.[key];
+        const search = ctx
+          ? (matchRoute(routes, ctx.url)?.search ?? {})
+          : (fallbackMatch?.search ?? {});
+
+        // Invoke read-value callback so callThunkWithCapture() captures
+        // search params values during SSR — matching client-side signal
+        // behavior where rawSearchParamsSignal.value triggers the callback.
+        // Gated behind getSubscriber() to mirror SignalImpl.value exactly:
+        // the callback only fires inside a tracking context (e.g., inside
+        // a computed evaluation), not for bare reads. (#1925)
+        const sub = getSubscriber();
+        if (sub) {
+          const cb = getReadValueCallback();
+          if (cb) cb(search);
         }
-        return fallbackMatch?.search?.[key];
+
+        return search[key];
       },
       set() {
         if (process.env.NODE_ENV !== 'production') {
