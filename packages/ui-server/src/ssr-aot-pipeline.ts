@@ -12,6 +12,7 @@
 import type { FontFallbackMetrics } from '@vertz/ui';
 import type { SSRAuth } from '@vertz/ui/internals';
 import type { ExtractedQuery } from '@vertz/ui-compiler';
+import { filterCSSByHTML } from './css-filter';
 import { installDomShim, toVNode } from './dom-shim';
 import { serializeToHtml } from './html-serializer';
 import type { PrefetchSession } from './ssr-access-evaluator';
@@ -375,8 +376,8 @@ export async function ssrRenderAot(
       }
     }
 
-    // 6. Collect CSS
-    const css = collectCSSFromModule(module, options.fallbackMetrics);
+    // 6. Collect CSS (pass rendered HTML for usage-based filtering #1979)
+    const css = collectCSSFromModule(module, html, options.fallbackMetrics);
 
     // 7. Build ssrData from query cache
     const ssrData: Array<{ key: string; data: unknown }> = [];
@@ -499,9 +500,14 @@ function ensureDomShim(): void {
 
 /**
  * Collect CSS from module theme + styles + injected CSS.
+ *
+ * When falling back to getInjectedCSS() (no per-request tracker), filters
+ * component CSS by class usage in the rendered HTML to eliminate unused
+ * theme component styles (#1979).
  */
 function collectCSSFromModule(
   module: SSRModule,
+  renderedHtml: string,
   fallbackMetrics?: Record<string, FontFallbackMetrics>,
 ): { cssString: string; preloadTags: string } {
   let themeCss = '';
@@ -530,10 +536,18 @@ function collectCSSFromModule(
   // fall back to global getInjectedCSS() when the tracker is empty (e.g.,
   // styles were eagerly created at import time via buildComponents()).
   const ssrCtx = ssrStorage.getStore();
-  const rawComponentCss = ssrCtx?.cssTracker?.size
-    ? Array.from(ssrCtx.cssTracker)
+  const tracker = ssrCtx?.cssTracker;
+  const useTracker = tracker && tracker.size > 0;
+  const rawComponentCss = useTracker
+    ? Array.from(tracker)
     : (module.getInjectedCSS?.() ?? []);
-  const componentCss = rawComponentCss.filter((s) => !alreadyIncluded.has(s));
+  let componentCss = rawComponentCss.filter((s) => !alreadyIncluded.has(s));
+
+  // When falling back to global CSS (no per-request tracker), filter by HTML
+  // usage to eliminate unused eagerly-compiled theme component styles (#1979).
+  if (!useTracker && componentCss.length > 0 && renderedHtml) {
+    componentCss = filterCSSByHTML(renderedHtml, componentCss);
+  }
 
   const themeTag = themeCss ? `<style data-vertz-css>${themeCss}</style>` : '';
   const globalTag =

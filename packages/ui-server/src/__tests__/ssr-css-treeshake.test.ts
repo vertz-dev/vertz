@@ -176,26 +176,49 @@ describe('SSR CSS tree-shaking (#1912)', () => {
     expect(result.css).toBe('');
   });
 
-  it('falls back to getInjectedCSS when cssTracker is empty (import-time CSS)', async () => {
+  it('falls back to getInjectedCSS when cssTracker is empty, filtered by HTML usage (#1979)', async () => {
     // Simulate the pattern where CSS is injected at module import time
     // (before any SSR context), e.g., via configureTheme() + registerTheme().
     // The global injectedCSS Set has entries but cssTracker is empty.
-    const importTimeCss = '.eagerly-loaded { padding: 16px; }';
+    const usedCss = '.eagerly-loaded { padding: 16px; }';
+    const unusedCss = '._unused_theme_comp { display: grid; }';
 
     const module = {
       default: () => {
-        // Render does NOT call injectCSS — CSS was created at import time
+        // Render uses the eagerly-loaded class but NOT the unused one
         const el = document.createElement('div');
+        el.className = 'eagerly-loaded';
         el.textContent = 'Eager Page';
         return el;
       },
       // getInjectedCSS bridges the global Set from the bundled @vertz/ui instance
-      getInjectedCSS: () => [importTimeCss],
+      getInjectedCSS: () => [usedCss, unusedCss],
     };
 
     const result = await ssrRenderToString(module, '/eager');
 
-    // Even though cssTracker is empty, collectCSS falls back to getInjectedCSS
-    expect(result.css).toContain(importTimeCss);
+    // Used CSS is included (class appears in HTML)
+    expect(result.css).toContain(usedCss);
+    // Unused CSS is filtered out (#1979) — eliminates 74KB of theme bloat
+    expect(result.css).not.toContain('_unused_theme_comp');
+  });
+
+  it('keeps non-class CSS rules from getInjectedCSS fallback (global resets, vars)', async () => {
+    // Non-class rules like :root, body, * should always be kept
+    const globalResetCss = ':root { --primary: blue; }';
+
+    const module = {
+      default: () => {
+        const el = document.createElement('div');
+        el.textContent = 'Page';
+        return el;
+      },
+      getInjectedCSS: () => [globalResetCss],
+    };
+
+    const result = await ssrRenderToString(module, '/page');
+
+    // Global CSS rules are always kept regardless of HTML classes
+    expect(result.css).toContain(globalResetCss);
   });
 });

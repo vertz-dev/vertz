@@ -8,6 +8,7 @@
 import { type CompiledRoute, compileTheme, type FontFallbackMetrics, type Theme } from '@vertz/ui';
 import type { SSRRenderContext } from '@vertz/ui/internals';
 import { EntityStore, MemoryCache, QueryEnvelopeStore } from '@vertz/ui/internals';
+import { filterCSSByHTML } from './css-filter';
 import { installDomShim, toVNode } from './dom-shim';
 import { renderToStream } from './render-to-stream';
 import { createSSRAdapter } from './ssr-adapter';
@@ -148,7 +149,7 @@ function resolveAppFactory(module: SSRModule): () => unknown {
  * To bridge the gap, the SSR module must export `getInjectedCSS` from
  * @vertz/ui, giving us access to the bundled instance's tracked CSS.
  */
-function collectCSS(themeCss: string, module: SSRModule): string {
+function collectCSS(themeCss: string, module: SSRModule, renderedHtml: string): string {
   // Build a set of CSS strings already included via theme and module.styles
   // to avoid duplicating them in the component CSS section.
   const alreadyIncluded = new Set<string>();
@@ -161,10 +162,18 @@ function collectCSS(themeCss: string, module: SSRModule): string {
   // fall back to global getInjectedCSS() when the tracker is empty (e.g.,
   // styles were eagerly created at import time via buildComponents()).
   const ssrCtx = ssrStorage.getStore();
-  const rawComponentCss = ssrCtx?.cssTracker?.size
-    ? Array.from(ssrCtx.cssTracker)
+  const tracker = ssrCtx?.cssTracker;
+  const useTracker = tracker && tracker.size > 0;
+  const rawComponentCss = useTracker
+    ? Array.from(tracker)
     : (module.getInjectedCSS?.() ?? []);
-  const componentCss = rawComponentCss.filter((s) => !alreadyIncluded.has(s));
+  let componentCss = rawComponentCss.filter((s) => !alreadyIncluded.has(s));
+
+  // When falling back to global CSS (no per-request tracker), filter by HTML
+  // usage to eliminate unused eagerly-compiled theme component styles (#1979).
+  if (!useTracker && componentCss.length > 0 && renderedHtml) {
+    componentCss = filterCSSByHTML(renderedHtml, componentCss);
+  }
 
   // Consolidate each category into a single <style> tag to minimize HTML size.
   // Categories are kept separate (theme, globals, components) to preserve
@@ -308,7 +317,7 @@ export async function ssrRenderToString(
       const vnode = toVNode(app);
       const stream = renderToStream(vnode);
       const html = await streamToString(stream);
-      const css = collectCSS(themeCss, module);
+      const css = collectCSS(themeCss, module, html);
 
       // Pass resolved query data for client-side hydration.
       // Data is JSON-safe (from fetch responses) — safeSerialize in
