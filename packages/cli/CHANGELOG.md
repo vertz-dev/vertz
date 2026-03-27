@@ -1,5 +1,20 @@
 # @vertz/cli
 
+## 0.2.38
+
+### Patch Changes
+
+- [#1937](https://github.com/vertz-dev/vertz/pull/1937) [`3aa67e1`](https://github.com/vertz-dev/vertz/commit/3aa67e1388186a70729c9e71cfeea92060c23e3a) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - Fix AOT routes bundle importing react/jsx-dev-runtime instead of Vertz JSX runtime, which caused loadAotManifest() to silently return null and degrade to single-pass SSR
+
+- Updated dependencies [[`93aa341`](https://github.com/vertz-dev/vertz/commit/93aa34166ad4934ec5c7e45fd7d7327e0843d174)]:
+  - @vertz/ui-server@0.2.38
+  - @vertz/codegen@0.2.38
+  - @vertz/compiler@0.2.38
+  - @vertz/create-vertz-app@0.2.38
+  - @vertz/db@0.2.38
+  - @vertz/errors@0.2.38
+  - @vertz/tui@0.2.38
+
 ## 0.2.37
 
 ### Patch Changes

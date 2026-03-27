@@ -1,5 +1,14 @@
 # @vertz/ui
 
+## 0.2.38
+
+### Patch Changes
+
+- [#1942](https://github.com/vertz-dev/vertz/pull/1942) [`20344c0`](https://github.com/vertz-dev/vertz/commit/20344c0a7df8260ce98034bd0e2de73ef11ecfcd) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - Fix popstate handler (browser back/forward) to apply search-param-only optimization — skips SSE prefetch, view transitions, and loaders when only search params changed, matching navigate() behavior
+
+- Updated dependencies []:
+  - @vertz/fetch@0.2.38
+
 ## 0.2.37
 
 ### Patch Changes
