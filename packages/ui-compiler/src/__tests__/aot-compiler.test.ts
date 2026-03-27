@@ -1339,4 +1339,180 @@ function BlockReturnList({ items }: { items: string[] }) {
       expect(aotFn).toContain('.map(');
     });
   });
+
+  describe('Given a component with derived variables from query data (#1951)', () => {
+    describe('When a simple query data alias is used', () => {
+      it('Then still uses the existing alias replacement (no preamble entry)', () => {
+        const result = compileForSSRAot(
+          `
+import { query } from '@vertz/ui';
+
+export default function Page() {
+  const q = query(async () => ({ name: 'x' }), { key: 'items' });
+  const d = q.data;
+  if (!d) return <div>Loading</div>;
+  return <div>{d.name}</div>;
+}
+          `.trim(),
+        );
+
+        expect(result.components).toHaveLength(1);
+        expect(result.components[0]!.tier).toBe('conditional');
+        const aotFn = extractAotFn(result.code, '__ssr_Page');
+        // d should be replaced with __q0 — no separate 'const d' in preamble
+        expect(aotFn).not.toContain('const d');
+        expect(aotFn).toContain('__q0');
+      });
+    });
+
+    describe('When a non-query component has intermediate derived variables', () => {
+      it('Then includes derived variable assignments referencing props', () => {
+        const result = compileForSSRAot(
+          `
+function UserPage({ users }: { users: any[] }) {
+  const userMap = new Map(users.map((u) => [u.id, u]));
+  return <div>{userMap.get('abc')?.name}</div>;
+}
+          `.trim(),
+        );
+
+        expect(result.components).toHaveLength(1);
+        expect(result.components[0]!.tier).not.toBe('runtime-fallback');
+        const aotFn = extractAotFn(result.code, '__ssr_UserPage');
+        expect(aotFn).toContain('const userMap');
+
+        // Runtime correctness
+        const html = evalAot(result.code, '__ssr_UserPage', {
+          __props: { users: [{ id: 'abc', name: 'Alice' }] },
+          users: [{ id: 'abc', name: 'Alice' }],
+        });
+        expect(html).toContain('Alice');
+      });
+    });
+
+    describe('When a derived variable references another derived variable', () => {
+      it('Then emits both in source-order so references resolve correctly', () => {
+        const result = compileForSSRAot(
+          `
+import { query } from '@vertz/ui';
+
+export default function Page() {
+  const q = query(async () => ({ sellers: [] as any[] }), { key: 'items' });
+  const d = q.data;
+  if (!d) return <div>Loading</div>;
+
+  const sellers = d.sellers.filter((s) => s.active);
+  const sellerMap = new Map(sellers.map((s) => [s.id, s]));
+
+  return <div>{sellerMap.size}</div>;
+}
+          `.trim(),
+        );
+
+        const aotFn = extractAotFn(result.code, '__ssr_Page');
+        // Both derived vars must appear, in source order
+        const sellersIdx = aotFn.indexOf('const sellers');
+        const sellerMapIdx = aotFn.indexOf('const sellerMap');
+        expect(sellersIdx).toBeGreaterThan(-1);
+        expect(sellerMapIdx).toBeGreaterThan(sellersIdx);
+
+        // Runtime correctness
+        const html = evalAot(result.code, '__ssr_Page', {
+          __ctx: createMockCtx({
+            items: {
+              sellers: [
+                { id: '1', active: true },
+                { id: '2', active: false },
+              ],
+            },
+          }),
+        });
+        expect(html).toContain('1'); // Only 1 active seller
+      });
+    });
+
+    describe('When a derived variable is computed from query data', () => {
+      it('Then classifies the component as conditional (AOT-eligible)', () => {
+        const result = compileForSSRAot(
+          `
+import { query } from '@vertz/ui';
+
+export default function Page() {
+  const q = query(async () => ({ sellers: [] as any[] }), { key: 'items' });
+  const d = q.data;
+  if (!d) return <div>Loading</div>;
+
+  const sellerMap = new Map(d.sellers.map((s) => [s.id, s]));
+
+  return <div>{sellerMap.size}</div>;
+}
+          `.trim(),
+        );
+
+        expect(result.components).toHaveLength(1);
+        expect(result.components[0]!.tier).not.toBe('runtime-fallback');
+      });
+
+      it('Then includes the derived variable assignment in the AOT function preamble', () => {
+        const result = compileForSSRAot(
+          `
+import { query } from '@vertz/ui';
+
+export default function Page() {
+  const q = query(async () => ({ sellers: [] as any[] }), { key: 'items' });
+  const d = q.data;
+  if (!d) return <div>Loading</div>;
+
+  const sellerMap = new Map(d.sellers.map((s) => [s.id, s]));
+
+  return <div>{sellerMap.size}</div>;
+}
+          `.trim(),
+        );
+
+        const aotFn = extractAotFn(result.code, '__ssr_Page');
+        // The derived variable must appear in the function body
+        expect(aotFn).toContain('const sellerMap');
+        // The data alias 'd' must be replaced with __q0
+        expect(aotFn).toContain('__q0.sellers.map');
+      });
+
+      it('Then the generated AOT function produces correct HTML at runtime', () => {
+        const result = compileForSSRAot(
+          `
+import { query } from '@vertz/ui';
+
+export default function Page() {
+  const q = query(async () => ({ sellers: [] as any[] }), { key: 'items' });
+  const d = q.data;
+  if (!d) return <div>Loading</div>;
+
+  const sellerMap = new Map(d.sellers.map((s) => [s.id, s]));
+
+  return <div>{sellerMap.size}</div>;
+}
+          `.trim(),
+        );
+
+        // Runtime: loading branch
+        const loadingHtml = evalAot(result.code, '__ssr_Page', {
+          __ctx: createMockCtx({ items: null }),
+        });
+        expect(loadingHtml).toContain('Loading');
+
+        // Runtime: main branch with data
+        const mainHtml = evalAot(result.code, '__ssr_Page', {
+          __ctx: createMockCtx({
+            items: {
+              sellers: [
+                { id: '1', name: 'Alice' },
+                { id: '2', name: 'Bob' },
+              ],
+            },
+          }),
+        });
+        expect(mainHtml).toContain('2'); // sellerMap.size === 2
+      });
+    });
+  });
 });
