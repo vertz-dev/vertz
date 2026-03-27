@@ -1,5 +1,34 @@
 # @vertz/ui
 
+## 0.2.39
+
+### Patch Changes
+
+- [#1949](https://github.com/vertz-dev/vertz/pull/1949) [`7bf733f`](https://github.com/vertz-dev/vertz/commit/7bf733fec92424d08a08dafe3b4c4a5984f084b0) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - chore(auth): align AccessEventBroadcaster with (resourceType, resourceId) pattern
+
+  AccessEvent type and broadcast method signatures now use (orgId, resourceType, resourceId, ...) instead of bare orgId. ClientAccessEvent includes resourceType/resourceId for client-side resource-level filtering. WebSocket connection routing unchanged.
+
+- [#1956](https://github.com/vertz-dev/vertz/pull/1956) [`a948ef1`](https://github.com/vertz-dev/vertz/commit/a948ef160c244fb2e42cd53e7190b8bf6a96f9db) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - fix(ui): context Provider now propagates computed/derived values reactively
+
+  Provider JSX pattern was reading the `value` prop once at initialization, so
+  computed values (e.g., `doubled: doubled.value` from computed-transformer
+  shorthand expansion) were captured as stale primitives. Consumers never saw
+  updates.
+
+  The fix detects when `value` is a getter (compiled JSX wraps non-literals in
+  getters) and creates lazy per-property wrappers that re-read the getter on
+  each access inside reactive effects, restoring dependency tracking for
+  computed and derived expressions.
+
+  Also fixes the native (Rust) compiler's signal transformer which was
+  incorrectly expanding signals in shorthand properties (`{ count }` →
+  `{ count: count.value }`), breaking signal flow-through to context
+  providers. Now matches the TypeScript compiler behavior: signals in
+  shorthand stay as SignalImpl objects.
+
+- Updated dependencies []:
+  - @vertz/fetch@0.2.39
+
 ## 0.2.38
 
 ### Patch Changes

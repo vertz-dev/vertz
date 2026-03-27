@@ -1,5 +1,25 @@
 # @vertz/server
 
+## 0.2.39
+
+### Patch Changes
+
+- [#1949](https://github.com/vertz-dev/vertz/pull/1949) [`7bf733f`](https://github.com/vertz-dev/vertz/commit/7bf733fec92424d08a08dafe3b4c4a5984f084b0) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - chore(auth): align AccessEventBroadcaster with (resourceType, resourceId) pattern
+
+  AccessEvent type and broadcast method signatures now use (orgId, resourceType, resourceId, ...) instead of bare orgId. ClientAccessEvent includes resourceType/resourceId for client-side resource-level filtering. WebSocket connection routing unchanged.
+
+- [#1947](https://github.com/vertz-dev/vertz/pull/1947) [`987a9b9`](https://github.com/vertz-dev/vertz/commit/987a9b9412d61fa3be3387373cc39c87a47676c5) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - fix(auth): deep-freeze LimitDef.overage sub-object in defineAccess()
+
+  The shallow `Object.freeze({ ...v })` on LimitDef left the nested `overage` config mutable. Now freezes the overage sub-object when present.
+
+- [#1953](https://github.com/vertz-dev/vertz/pull/1953) [`883b9fc`](https://github.com/vertz-dev/vertz/commit/883b9fc46177bd63d62d4b9da19f7c1bae2d26a2) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - Align OverrideStore and WalletStore with (resourceType, resourceId) pattern for multi-level tenancy support
+
+- Updated dependencies []:
+  - @vertz/core@0.2.39
+  - @vertz/db@0.2.39
+  - @vertz/errors@0.2.39
+  - @vertz/schema@0.2.39
+
 ## 0.2.38
 
 ### Patch Changes
