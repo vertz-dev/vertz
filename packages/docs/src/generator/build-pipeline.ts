@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync } from 'node:fs';
+import { cpSync, existsSync, mkdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { loadDocsConfig } from '../config/load';
 import { compileMdxToHtml } from '../dev/compile-mdx-html';
@@ -138,6 +138,12 @@ export async function buildDocs(options: BuildDocsOptions): Promise<BuildManifes
       mkdirSync(dirname(redirectPath), { recursive: true });
       await Bun.write(redirectPath, redirectHtml);
     }
+  }
+
+  // Copy public/ directory to output
+  const publicDir = join(projectDir, 'public');
+  if (existsSync(publicDir)) {
+    cpSync(publicDir, outDir, { recursive: true });
   }
 
   // Run Pagefind for search index (optional — only if search enabled and binary available)

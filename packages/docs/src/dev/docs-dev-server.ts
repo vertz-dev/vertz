@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { loadDocsConfig } from '../config/load';
 import { extractHeadings } from '../mdx/extract-headings';
@@ -67,6 +67,12 @@ export async function createDocsDevServer(options: DocsDevServerOptions): Promis
       // Find matching route
       const route = routeMap.get(pathname);
       if (!route) {
+        // Try serving from public/ directory
+        const publicPath = resolve(projectDir, 'public', pathname.slice(1));
+        if (publicPath.startsWith(resolve(projectDir, 'public')) && existsSync(publicPath)) {
+          const file = Bun.file(publicPath);
+          return new Response(file);
+        }
         return new Response('Not Found', { status: 404 });
       }
 

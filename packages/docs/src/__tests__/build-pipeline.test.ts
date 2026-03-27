@@ -218,6 +218,26 @@ Content here.
     expect(llmMd).toContain('title: Index');
   });
 
+  it('copies public/ directory to dist/ when it exists', async () => {
+    const publicDir = join(tempDir, 'public');
+    mkdirSync(publicDir, { recursive: true });
+    writeFileSync(join(publicDir, 'favicon.svg'), '<svg>icon</svg>');
+    mkdirSync(join(publicDir, 'logo'), { recursive: true });
+    writeFileSync(join(publicDir, 'logo', 'dark.svg'), '<svg>dark</svg>');
+
+    await buildDocs({ projectDir: tempDir, outDir });
+    expect(existsSync(join(outDir, 'favicon.svg'))).toBe(true);
+    expect(existsSync(join(outDir, 'logo', 'dark.svg'))).toBe(true);
+    const content = await Bun.file(join(outDir, 'favicon.svg')).text();
+    expect(content).toBe('<svg>icon</svg>');
+  });
+
+  it('skips public copy when public/ does not exist', async () => {
+    await buildDocs({ projectDir: tempDir, outDir });
+    // Should succeed without error even without public/
+    expect(existsSync(join(outDir, 'index.html'))).toBe(true);
+  });
+
   it('generates HTML for nested page paths', async () => {
     mkdirSync(join(tempDir, 'pages', 'guides'), { recursive: true });
     writeFileSync(

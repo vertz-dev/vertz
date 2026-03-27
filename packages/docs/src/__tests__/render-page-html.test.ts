@@ -93,6 +93,33 @@ describe('renderPageHtml', () => {
     expect(html).toContain('<header');
   });
 
+  it('renders favicon link when favicon is configured', () => {
+    const faviconConfig: DocsConfig = { ...config, favicon: '/favicon.svg' };
+    const html = renderPageHtml({ config: faviconConfig, route, contentHtml: '', headings: [] });
+    expect(html).toContain('<link rel="icon" href="/favicon.svg"');
+  });
+
+  it('does not render favicon link when favicon is not configured', () => {
+    const html = renderPageHtml({ config, route, contentHtml: '', headings: [] });
+    expect(html).not.toContain('rel="icon"');
+  });
+
+  it('renders logo image when logo is configured', () => {
+    const logoConfig: DocsConfig = {
+      ...config,
+      logo: { light: '/logo/light.svg', dark: '/logo/dark.svg' },
+    };
+    const html = renderPageHtml({ config: logoConfig, route, contentHtml: '', headings: [] });
+    expect(html).toContain('<img');
+    expect(html).toContain('/logo/light.svg');
+  });
+
+  it('renders site name text when logo is not configured', () => {
+    const html = renderPageHtml({ config, route, contentHtml: '', headings: [] });
+    expect(html).toContain('Test Docs');
+    expect(html).not.toContain('<img');
+  });
+
   it('includes live reload script by default', () => {
     const html = renderPageHtml({ config, route, contentHtml: '', headings: [] });
     expect(html).toContain('EventSource');

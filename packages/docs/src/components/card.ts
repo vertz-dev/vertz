@@ -1,13 +1,16 @@
 import { escapeHtml } from '../dev/escape-html';
 import { childrenToString } from './children';
+import { Icon } from './icon';
 
 export function Card(props: Record<string, unknown>): string {
   const title = props.title ? String(props.title) : '';
   const href = props.href ? String(props.href) : undefined;
+  const icon = props.icon ? String(props.icon) : undefined;
   const children = childrenToString(props.children);
 
+  const iconHtml = icon ? `${Icon({ name: icon, size: '16' })} ` : '';
   const titleHtml = title
-    ? `<div style="font-weight:600;margin-bottom:4px">${escapeHtml(title)}</div>`
+    ? `<div style="display:flex;align-items:center;gap:8px;font-weight:600;margin-bottom:4px">${iconHtml}${escapeHtml(title)}</div>`
     : '';
   const inner = `${titleHtml}<div>${children}</div>`;
 

@@ -250,6 +250,33 @@ const config = {};
       expect(html).toContain('Install');
       expect(html).toContain('Configure');
     });
+
+    it('renders step with icon when icon prop is provided', async () => {
+      const source = `
+<Steps>
+  <Step title="Set up database" icon="database">
+    Configure your database connection.
+  </Step>
+</Steps>
+`;
+      const html = await compileMdxToHtml(source);
+      expect(html).toContain('data-step');
+      expect(html).toContain('data-icon="database"');
+      expect(html).toContain('Set up database');
+    });
+
+    it('renders step without icon when icon prop is omitted', async () => {
+      const source = `
+<Steps>
+  <Step title="Install">
+    Run the install command.
+  </Step>
+</Steps>
+`;
+      const html = await compileMdxToHtml(source);
+      expect(html).toContain('data-step');
+      expect(html).not.toContain('data-icon');
+    });
   });
 
   describe('Tabs', () => {
@@ -282,6 +309,19 @@ const config = {};
       expect(html).toContain('data-card');
       expect(html).toContain('Getting Started');
       expect(html).toContain('Start building with Vertz.');
+      expect(html).toContain('data-icon="rocket"');
+    });
+
+    it('renders a card without icon when icon prop is omitted', async () => {
+      const source = `
+<Card title="No Icon" href="/page">
+  Content here.
+</Card>
+`;
+      const html = await compileMdxToHtml(source);
+      expect(html).toContain('data-card');
+      expect(html).toContain('No Icon');
+      expect(html).not.toContain('data-icon');
     });
 
     it('renders a responsive card grid', async () => {

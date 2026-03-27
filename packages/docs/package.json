@@ -36,6 +36,7 @@
     "@vertz/errors": "workspace:^",
     "@vertz/mdx": "workspace:^",
     "@vertz/ui": "workspace:^",
+    "lucide-static": "^1.7.0",
     "shiki": "^4.0.2",
     "unist-util-visit": "^5.1.0"
   },

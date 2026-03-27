@@ -101,7 +101,13 @@ function renderHeader(config: DocsConfig): string {
   if (config.search?.enabled) {
     searchHtml = `<button data-search style="display:flex;align-items:center;gap:8px;padding:6px 12px;border:1px solid var(--docs-border,#e5e7eb);border-radius:6px;background:var(--docs-bg,#ffffff);color:var(--docs-muted,#9ca3af);font-size:14px;cursor:pointer">Search<kbd style="font-size:11px;padding:2px 6px;border:1px solid var(--docs-border,#e5e7eb);border-radius:4px;background:var(--docs-bg,#f9fafb)">Cmd+K</kbd></button>`;
   }
-  return `<header style="position:sticky;top:0;z-index:50;display:flex;align-items:center;justify-content:space-between;padding:0 24px;height:56px;border-bottom:1px solid var(--docs-border,#e5e7eb);background:var(--docs-bg,#ffffff)"><div style="display:flex;align-items:center;gap:24px"><a href="/" style="font-size:18px;font-weight:700;text-decoration:none;color:var(--docs-text,#111827)">${escapeHtml(config.name)}</a><nav style="display:flex;gap:16px">${linksHtml}</nav></div><div style="display:flex;align-items:center;gap:12px">${searchHtml}${ctaHtml}</div></header>`;
+  let brandHtml: string;
+  if (config.logo) {
+    brandHtml = `<img src="${escapeHtml(config.logo.light)}" alt="${escapeHtml(config.name)}" style="height:24px" />`;
+  } else {
+    brandHtml = escapeHtml(config.name);
+  }
+  return `<header style="position:sticky;top:0;z-index:50;display:flex;align-items:center;justify-content:space-between;padding:0 24px;height:56px;border-bottom:1px solid var(--docs-border,#e5e7eb);background:var(--docs-bg,#ffffff)"><div style="display:flex;align-items:center;gap:24px"><a href="/" style="font-size:18px;font-weight:700;text-decoration:none;color:var(--docs-text,#111827)">${brandHtml}</a><nav style="display:flex;gap:16px">${linksHtml}</nav></div><div style="display:flex;align-items:center;gap:12px">${searchHtml}${ctaHtml}</div></header>`;
 }
 
 const LIVE_RELOAD_SCRIPT = `<script>
@@ -178,7 +184,7 @@ export function renderPageHtml({
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 ${noindexMeta}<title>${escapeHtml(route.title)} - ${escapeHtml(config.name)}</title>
-${BASE_STYLES}
+${config.favicon ? `<link rel="icon" href="${escapeHtml(config.favicon)}" />\n` : ''}${BASE_STYLES}
 ${searchStyles}${headTags}
 ${analyticsScript}
 </head>
