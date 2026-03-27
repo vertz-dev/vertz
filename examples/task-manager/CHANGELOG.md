@@ -1,5 +1,19 @@
 # @vertz-examples/task-manager
 
+## 0.2.38
+
+### Patch Changes
+
+- Updated dependencies [[`93aa341`](https://github.com/vertz-dev/vertz/commit/93aa34166ad4934ec5c7e45fd7d7327e0843d174), [`20344c0`](https://github.com/vertz-dev/vertz/commit/20344c0a7df8260ce98034bd0e2de73ef11ecfcd)]:
+  - @vertz/ui-server@0.2.38
+  - @vertz/ui@0.2.38
+  - @vertz/errors@0.2.38
+  - @vertz/fetch@0.2.38
+  - @vertz/icons@0.2.38
+  - @vertz/schema@0.2.38
+  - @vertz/theme-shadcn@0.2.38
+  - @vertz/ui-primitives@0.2.38
+
 ## 0.2.37
 
 ### Patch Changes

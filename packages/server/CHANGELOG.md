@@ -1,5 +1,22 @@
 # @vertz/server
 
+## 0.2.38
+
+### Patch Changes
+
+- [#1945](https://github.com/vertz-dev/vertz/pull/1945) [`37fc3c1`](https://github.com/vertz-dev/vertz/commit/37fc3c133be037ec139d93b6e9894ccad5bfac15) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - feat(auth): align auth_flags with (resource_type, resource_id) pattern
+
+  FlagStore interface now uses `(resourceType, resourceId, flag)` instead of `(tenantId, flag)`.
+  This aligns with the composite key pattern used by SubscriptionStore, ClosureStore, and other auth stores.
+
+  Breaking change: all FlagStore method signatures updated from 2/3 args to 3/4 args.
+
+- Updated dependencies []:
+  - @vertz/core@0.2.38
+  - @vertz/db@0.2.38
+  - @vertz/errors@0.2.38
+  - @vertz/schema@0.2.38
+
 ## 0.2.37
 
 ### Patch Changes
