@@ -751,8 +751,7 @@ describe('Feature: Runtime holes and SSR integration', () => {
               tasks: {
                 list: () => ({
                   _key: 'vertz:tasks:list:{}',
-                  _fetch: () =>
-                    Promise.resolve({ ok: true, data: 'entity-data' }),
+                  _fetch: () => Promise.resolve({ ok: true, data: 'entity-data' }),
                 }),
               },
             };
@@ -810,8 +809,7 @@ describe('Feature: Runtime holes and SSR integration', () => {
               tasks: {
                 list: () => ({
                   _key: 'vertz:tasks:list:{}',
-                  _fetch: () =>
-                    Promise.resolve({ ok: true, data: 'from-entity' }),
+                  _fetch: () => Promise.resolve({ ok: true, data: 'from-entity' }),
                 }),
               },
             };
@@ -998,36 +996,29 @@ describe('Feature: Runtime holes and SSR integration', () => {
       describe('resolveParamQueryKeys()', () => {
         describe('Given queryKeys with ${param} placeholders', () => {
           it('Then resolves placeholders from route params', () => {
-            const resolved = resolveParamQueryKeys(
-              ['game-${slug}'],
-              { slug: 'pokemon-tcg' },
-            );
+            const resolved = resolveParamQueryKeys(['game-${slug}'], { slug: 'pokemon-tcg' });
             expect(resolved).toEqual(['game-pokemon-tcg']);
           });
 
           it('Then resolves multiple params in a single key', () => {
-            const resolved = resolveParamQueryKeys(
-              ['org-${orgId}-team-${teamId}'],
-              { orgId: 'acme', teamId: 'eng' },
-            );
+            const resolved = resolveParamQueryKeys(['org-${orgId}-team-${teamId}'], {
+              orgId: 'acme',
+              teamId: 'eng',
+            });
             expect(resolved).toEqual(['org-acme-team-eng']);
           });
 
           it('Then leaves static keys unchanged', () => {
-            const resolved = resolveParamQueryKeys(
-              ['tasks-list', 'game-${slug}'],
-              { slug: 'chess' },
-            );
+            const resolved = resolveParamQueryKeys(['tasks-list', 'game-${slug}'], {
+              slug: 'chess',
+            });
             expect(resolved).toEqual(['tasks-list', 'game-chess']);
           });
         });
 
         describe('Given a missing param in the params record', () => {
           it('Then replaces with empty string', () => {
-            const resolved = resolveParamQueryKeys(
-              ['game-${slug}'],
-              {},
-            );
+            const resolved = resolveParamQueryKeys(['game-${slug}'], {});
             expect(resolved).toEqual(['game-']);
           });
         });
@@ -1055,7 +1046,11 @@ describe('Feature: Runtime holes and SSR integration', () => {
                 },
               };
 
-              const aotDataResolver: AotDataResolver = async (_pattern, _params, unresolvedKeys) => {
+              const aotDataResolver: AotDataResolver = async (
+                _pattern,
+                _params,
+                unresolvedKeys,
+              ) => {
                 capturedKeys = unresolvedKeys;
                 return new Map([['game-pokemon-tcg', 'Pokemon TCG']]);
               };
@@ -1094,9 +1089,7 @@ describe('Feature: Runtime holes and SSR integration', () => {
                 aotDataResolver,
               });
 
-              expect(result.ssrData).toEqual([
-                { key: 'card-abc-123', data: { name: 'Pikachu' } },
-              ]);
+              expect(result.ssrData).toEqual([{ key: 'card-abc-123', data: { name: 'Pikachu' } }]);
             });
           });
 
@@ -1133,6 +1126,65 @@ describe('Feature: Runtime holes and SSR integration', () => {
             });
           });
         });
+      });
+    });
+  });
+
+  describe('Given an AOT render function that throws at runtime', () => {
+    describe('When ssrRenderAot is called', () => {
+      it('Then falls back to ssrRenderSinglePass instead of crashing', async () => {
+        const throwingAotFn: AotRenderFn = () => {
+          // Simulates the bug: closure variable not defined inside .map()
+          throw new ReferenceError('seller is not defined');
+        };
+
+        const module = createMockModule();
+        const aotManifest: AotManifest = {
+          routes: {
+            '/cards/123': {
+              render: throwingAotFn,
+              holes: [],
+            },
+          },
+        };
+
+        const result = await ssrRenderAot(module, '/cards/123', {
+          aotManifest,
+        });
+
+        // Should gracefully fall back to single-pass, not crash
+        expect(result.html).toBeDefined();
+        expect(result.html).toContain('app');
+      });
+
+      it('Then falls back even when render throws with query data resolved', async () => {
+        const throwingAotFn: AotRenderFn = () => {
+          throw new TypeError('Cannot read properties of undefined');
+        };
+
+        const module = createMockModule();
+        const aotManifest: AotManifest = {
+          routes: {
+            '/detail': {
+              render: throwingAotFn,
+              holes: [],
+              queryKeys: ['data-key'],
+            },
+          },
+        };
+
+        const aotDataResolver: AotDataResolver = async () => {
+          return new Map([['data-key', { items: [] }]]);
+        };
+
+        const result = await ssrRenderAot(module, '/detail', {
+          aotManifest,
+          aotDataResolver,
+        });
+
+        // Should gracefully fall back to single-pass
+        expect(result.html).toBeDefined();
+        expect(result.html).toContain('app');
       });
     });
   });
