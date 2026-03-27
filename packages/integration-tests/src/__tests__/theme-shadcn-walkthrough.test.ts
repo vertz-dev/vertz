@@ -4,7 +4,7 @@
 // This test validates that a developer can use the configureTheme() API
 // using ONLY public imports from @vertz/theme-shadcn and @vertz/ui.
 //
-// Covers: configureTheme(), palette selection, token overrides, style
+// Covers: configureTheme(), palette selection, color overrides, style
 // definitions (button, badge, card, input, label, separator, formGroup),
 // and integration with compileTheme().
 //

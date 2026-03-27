@@ -53,6 +53,11 @@ describe('configureTheme', () => {
     expect(compiled.css).toContain('#ff6b6b');
   });
 
+  it('old overrides path is a type error', () => {
+    // @ts-expect-error — old overrides path removed in #1969
+    configureTheme({ overrides: { tokens: { colors: { primary: { DEFAULT: '#000' } } } } });
+  });
+
   it('globals contains CSS string', () => {
     const { globals } = configureTheme();
     expect(typeof globals.css).toBe('string');

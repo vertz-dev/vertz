@@ -2,7 +2,7 @@ import { describe, expect, it } from 'bun:test';
 import { deepMergeTokens } from '../merge';
 
 describe('deepMergeTokens', () => {
-  it('returns base unchanged when overrides is empty', () => {
+  it('returns base unchanged when colors is empty', () => {
     const base = {
       primary: { DEFAULT: '#000', _dark: '#fff' },
     };
@@ -10,7 +10,7 @@ describe('deepMergeTokens', () => {
     expect(result).toEqual(base);
   });
 
-  it('overrides specific token values', () => {
+  it('merges specific color token values', () => {
     const base = {
       primary: { DEFAULT: '#000', _dark: '#fff' },
       background: { DEFAULT: '#fff', _dark: '#000' },
