@@ -321,6 +321,62 @@ describe('Feature: vertz docs check', () => {
       });
     });
   });
+
+  describe('Given a page with a trailing-slash link to an existing page', () => {
+    describe('When running validateDocs', () => {
+      it('Then normalizes the trailing slash and does not report as broken', () => {
+        writeFileSync(
+          join(pagesDir, 'index.mdx'),
+          '---\ntitle: Home\ndescription: Welcome\n---\n\n# Home\n\nSee [Quickstart](/quickstart/).\n',
+        );
+        writeFileSync(
+          join(pagesDir, 'quickstart.mdx'),
+          '---\ntitle: Quickstart\ndescription: Get started\n---\n\n# Quickstart\n',
+        );
+
+        const config = makeConfig({
+          sidebar: [
+            {
+              tab: 'Guides',
+              groups: [{ title: 'Start', pages: ['index', 'quickstart'] }],
+            },
+          ],
+        });
+        const result = validateDocs(config, pagesDir);
+
+        const linkErrors = result.errors.filter((e) => e.type === 'broken-internal-link');
+        expect(linkErrors).toHaveLength(0);
+      });
+    });
+  });
+
+  describe('Given a page with a root link [Home](/)', () => {
+    describe('When running validateDocs', () => {
+      it('Then validates the root path exists', () => {
+        writeFileSync(
+          join(pagesDir, 'index.mdx'),
+          '---\ntitle: Home\ndescription: Welcome\n---\n\n# Home\n',
+        );
+        writeFileSync(
+          join(pagesDir, 'quickstart.mdx'),
+          '---\ntitle: Quickstart\ndescription: Get started\n---\n\n# Quickstart\n\nBack to [Home](/).\n',
+        );
+
+        const config = makeConfig({
+          sidebar: [
+            {
+              tab: 'Guides',
+              groups: [{ title: 'Start', pages: ['index', 'quickstart'] }],
+            },
+          ],
+        });
+        const result = validateDocs(config, pagesDir);
+
+        const linkErrors = result.errors.filter((e) => e.type === 'broken-internal-link');
+        expect(linkErrors).toHaveLength(0);
+      });
+    });
+  });
 });
 
 describe('docsCheckAction', () => {

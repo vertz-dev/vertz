@@ -1,5 +1,4 @@
-import { existsSync } from 'node:fs';
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { DocsConfig } from '../config/types';
 import { parseFrontmatter } from '../mdx/frontmatter';
@@ -25,10 +24,10 @@ export interface DocsCheckResult {
 
 /**
  * Regex for extracting internal markdown links.
- * Matches [text](/path) but not ![image](/path).
+ * Matches [text](/path) and [text](/) but not ![image](/path).
  * Handles title attributes: [text](/path "title") — captures only the path.
  */
-const INTERNAL_LINK_RE = /(?<!!)\[([^\]]+)\]\(\/((?:[^)\s])+)[^)]*\)/g;
+const INTERNAL_LINK_RE = /(?<!!)\[([^\]]+)\]\(\/((?:[^)\s])*)[^)]*\)/g;
 
 /**
  * Normalize a sidebar page entry to a file path.
@@ -67,8 +66,9 @@ function extractInternalLinks(content: string): string[] {
     INTERNAL_LINK_RE.lastIndex = 0;
     while ((match = INTERNAL_LINK_RE.exec(line)) !== null) {
       const rawPath = match[2] ?? '';
-      // Normalize: strip anchor and query string
-      const basePath = `/${rawPath.split('#')[0]!.split('?')[0]!}`;
+      // Normalize: strip anchor, query string, and trailing slash
+      const stripped = rawPath.split('#')[0]!.split('?')[0]!.replace(/\/$/, '');
+      const basePath = `/${stripped}`;
       if (!seen.has(basePath)) {
         seen.add(basePath);
         links.push(basePath);
