@@ -1452,22 +1452,34 @@ export class AotStringTransformer {
       return `'<!--list-->' + ${callerText}.map(${paramName} => ${jsxStr}).join('') + '<!--/list-->'`;
     }
 
-    // If body is a block, try to find return JSX — but only when the block
-    // contains nothing besides the return. Variable declarations before the
-    // return reference closure variables that the generated arrow function
-    // won't define, causing ReferenceError at runtime (#1936).
+    // If body is a block, extract non-return statements and convert return JSX.
+    // Non-return statements (variable declarations, etc.) are preserved verbatim
+    // in the generated callback — they're closures that execute per-item.
     if (body.isKind(SyntaxKind.Block)) {
       const stmts = body.getStatements();
-      const hasNonReturnStatements = stmts.some((stmt) => !stmt.isKind(SyntaxKind.ReturnStatement));
-      if (!hasNonReturnStatements) {
-        const returnStmts = body.getDescendantsOfKind(SyntaxKind.ReturnStatement);
-        for (const ret of returnStmts) {
-          const retExpr = ret.getExpression();
-          if (!retExpr) continue;
+      const returnStmt = stmts.find((stmt) => stmt.isKind(SyntaxKind.ReturnStatement));
+      if (returnStmt) {
+        const retExpr = (returnStmt as ReturnStatement).getExpression();
+        if (retExpr) {
           const retJsx = this._findJsx(retExpr);
           if (retJsx) {
             const jsxStr = this._jsxToString(retJsx, variables, s, null);
-            return `'<!--list-->' + ${callerText}.map(${paramName} => ${jsxStr}).join('') + '<!--/list-->'`;
+            // Collect non-return statements as raw source text
+            const nonReturnStmts = stmts.filter((stmt) => !stmt.isKind(SyntaxKind.ReturnStatement));
+            if (nonReturnStmts.length === 0) {
+              // No extra statements — simple arrow like before
+              return `'<!--list-->' + ${callerText}.map(${paramName} => ${jsxStr}).join('') + '<!--/list-->'`;
+            }
+            // Preserve declarations in a block-body arrow
+            const stmtTexts = nonReturnStmts
+              .map((stmt) => `    ${s.slice(stmt.getStart(), stmt.getEnd())}`)
+              .join('\n');
+            return (
+              `'<!--list-->' + ${callerText}.map((${paramName}) => {\n` +
+              `${stmtTexts}\n` +
+              `    return ${jsxStr};\n` +
+              `  }).join('') + '<!--/list-->'`
+            );
           }
         }
       }

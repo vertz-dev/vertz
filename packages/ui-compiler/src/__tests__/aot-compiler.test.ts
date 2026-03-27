@@ -1278,10 +1278,9 @@ function CardList({ listings, sellerMap }: { listings: any[]; sellerMap: Map<str
 
       expect(result.components).toHaveLength(1);
       const aotFn = extractAotFn(result.code, '__ssr_CardList');
-      // The .map() callback has a variable declaration before return — must use __esc() fallback
-      expect(aotFn).toContain('__esc(');
-      // Should NOT generate list markers (which imply it tried to inline the JSX)
-      expect(aotFn).not.toContain('<!--list-->');
+      // The .map() callback now preserves block body with declarations
+      expect(aotFn).toContain('<!--list-->');
+      expect(aotFn).toContain('const seller');
       // Should NOT have a bare arrow that references `seller` without defining it
       expect(aotFn).not.toMatch(/\.map\(listing\s*=>\s*'<tr>/);
     });
@@ -1302,7 +1301,7 @@ function SimpleList({ items }: { items: string[] }) {
       expect(aotFn).toContain(".join('')");
     });
 
-    it('Then falls back for .map() with block body containing any non-return statements', () => {
+    it('Then preserves block body with non-return statements in the generated callback', () => {
       const result = compileForSSRAot(
         `
 function ListWithLog({ items }: { items: string[] }) {
@@ -1319,9 +1318,10 @@ function ListWithLog({ items }: { items: string[] }) {
       );
 
       const aotFn = extractAotFn(result.code, '__ssr_ListWithLog');
-      // Should use __esc() fallback — not inline JSX that references `upper`
-      expect(aotFn).toContain('__esc(');
-      expect(aotFn).not.toContain('<!--list-->');
+      // Block body with declarations should now be preserved with list markers
+      expect(aotFn).toContain('<!--list-->');
+      expect(aotFn).toContain('const upper');
+      expect(aotFn).toContain(".join('')");
     });
 
     it('Then optimizes .map() with block body containing ONLY a return statement', () => {
@@ -1512,6 +1512,109 @@ export default function Page() {
           }),
         });
         expect(mainHtml).toContain('2'); // sellerMap.size === 2
+      });
+    });
+  });
+
+  describe('Phase 2: .map() callback block body preservation', () => {
+    describe('When the block body has const declarations before the return', () => {
+      it('Then preserves the declarations and converts JSX to string concatenation', () => {
+        const result = compileForSSRAot(
+          `
+function CardList({ listings, sellerMap }: { listings: any[]; sellerMap: Map<string, any> }) {
+  return (
+    <div>
+      {listings.map((listing) => {
+        const seller = sellerMap.get(listing.sellerId);
+        return (
+          <tr key={listing.id}>
+            <td>{seller?.name || 'Unknown'}</td>
+          </tr>
+        );
+      })}
+    </div>
+  );
+}
+          `.trim(),
+        );
+
+        const aotFn = extractAotFn(result.code, '__ssr_CardList');
+        // Must have list markers
+        expect(aotFn).toContain('<!--list-->');
+        expect(aotFn).toContain('<!--/list-->');
+        // Must preserve the const declaration (props are rewritten to __props.*)
+        expect(aotFn).toContain('const seller');
+        expect(aotFn).toContain('.get(listing.sellerId)');
+        // Must NOT use __esc() fallback for the whole .map()
+        expect(aotFn).not.toMatch(/__esc\(.*\.map/);
+      });
+
+      it('Then produces correct HTML at runtime', () => {
+        const result = compileForSSRAot(
+          `
+function CardList({ listings, sellerMap }: { listings: any[]; sellerMap: Map<string, any> }) {
+  return (
+    <div>
+      {listings.map((listing) => {
+        const seller = sellerMap.get(listing.sellerId);
+        return (
+          <tr key={listing.id}>
+            <td>{seller?.name || 'Unknown'}</td>
+          </tr>
+        );
+      })}
+    </div>
+  );
+}
+          `.trim(),
+        );
+
+        const sellerMap = new Map([['s1', { name: 'Alice' }]]);
+        const html = evalAot(result.code, '__ssr_CardList', {
+          __props: {
+            listings: [
+              { id: 'L1', sellerId: 's1' },
+              { id: 'L2', sellerId: 'nope' },
+            ],
+            sellerMap,
+          },
+          listings: [
+            { id: 'L1', sellerId: 's1' },
+            { id: 'L2', sellerId: 'nope' },
+          ],
+          sellerMap,
+        });
+        expect(html).toContain('Alice');
+        expect(html).toContain('Unknown');
+      });
+    });
+
+    describe('When the block body has multiple variable declarations', () => {
+      it('Then preserves all declarations in order', () => {
+        const result = compileForSSRAot(
+          `
+function List({ items }: { items: any[] }) {
+  return (
+    <ul>
+      {items.map((item) => {
+        const upper = item.name.toUpperCase();
+        const label = upper + ' (' + item.id + ')';
+        return <li>{label}</li>;
+      })}
+    </ul>
+  );
+}
+          `.trim(),
+        );
+
+        const aotFn = extractAotFn(result.code, '__ssr_List');
+        expect(aotFn).toContain('<!--list-->');
+        expect(aotFn).toContain('const upper');
+        expect(aotFn).toContain('const label');
+        // Verify order
+        const upperIdx = aotFn.indexOf('const upper');
+        const labelIdx = aotFn.indexOf('const label');
+        expect(labelIdx).toBeGreaterThan(upperIdx);
       });
     });
   });
