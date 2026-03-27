@@ -85,6 +85,41 @@ export class ReactivityAnalyzer {
         const nameNode = decl.getNameNode();
         const init = decl.getInitializer();
 
+        // Handle array destructuring: let [a, b] = expr
+        if (nameNode.isKind(SyntaxKind.ArrayBindingPattern)) {
+          const { refs: deps, propertyAccesses } = init
+            ? collectDeps(init)
+            : { refs: [] as string[], propertyAccesses: new Map<string, Set<string>>() };
+
+          for (const element of nameNode.getElements()) {
+            if (element.isKind(SyntaxKind.OmittedExpression)) continue;
+            if (!element.isKind(SyntaxKind.BindingElement)) continue;
+            const elName = element.getNameNode();
+            // Skip nested destructuring (e.g., const [[a, b], c] = ...)
+            if (
+              elName.isKind(SyntaxKind.ArrayBindingPattern) ||
+              elName.isKind(SyntaxKind.ObjectBindingPattern)
+            ) {
+              continue;
+            }
+            const bindingName = element.getName();
+            const entry = {
+              start: decl.getStart(),
+              end: decl.getEnd(),
+              deps,
+              propertyAccesses,
+              isFunctionDef: false,
+              isStructuralLiteral: false,
+            };
+            if (isLet) {
+              lets.set(bindingName, entry);
+            } else if (isConst) {
+              consts.set(bindingName, entry);
+            }
+          }
+          continue;
+        }
+
         // Handle destructuring: let { a, b } = expr
         if (nameNode.isKind(SyntaxKind.ObjectBindingPattern)) {
           // Check if the initializer is a signal API call
@@ -483,6 +518,19 @@ function collectDeclaredNames(bodyNode: Node): Set<string> {
       const nameNode = decl.getNameNode();
       if (nameNode.isKind(SyntaxKind.Identifier)) {
         names.add(nameNode.getText());
+      } else if (nameNode.isKind(SyntaxKind.ArrayBindingPattern)) {
+        for (const el of nameNode.getElements()) {
+          if (el.isKind(SyntaxKind.BindingElement)) {
+            const elName = el.getNameNode();
+            if (elName.isKind(SyntaxKind.Identifier)) {
+              names.add(elName.getText());
+            }
+          }
+        }
+      } else if (nameNode.isKind(SyntaxKind.ObjectBindingPattern)) {
+        for (const el of nameNode.getElements()) {
+          names.add(el.getName());
+        }
       }
     }
   }

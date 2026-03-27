@@ -1011,6 +1011,71 @@ function App() {
     expect(result.diagnostics).toHaveLength(0);
   });
 
+  // ─── Array destructuring ──────────────
+
+  it('array destructuring: let [count, label] → individual signals', () => {
+    const result = compile(
+      `
+function Counter() {
+  let [count, label] = [0, 'clicks'];
+  return <button onClick={() => count++}>{label}: {count}</button>;
+}
+    `.trim(),
+    );
+
+    // Each binding should be expanded into individual signal declarations
+    expect(result.code).toContain("signal(");
+    expect(result.code).toContain("'count'");
+    expect(result.code).toContain("'label'");
+    // Reads in JSX should use .value
+    expect(result.code).toContain('count.value');
+    expect(result.code).toContain('label.value');
+    // Original array destructuring should be gone
+    expect(result.code).not.toContain('let [');
+    expect(result.code).not.toContain('const [count');
+  });
+
+  it('array destructuring: const [a, b] depending on signal → individual computeds', () => {
+    const result = compile(
+      `
+function Pricing() {
+  let quantity = 1;
+  const [doubled, tripled] = [quantity * 2, quantity * 3];
+  return <div>{doubled} / {tripled}</div>;
+}
+    `.trim(),
+    );
+
+    // quantity should be a signal
+    expect(result.code).toContain("signal(1, 'quantity')");
+    // Array destructured vars should be individual computeds
+    expect(result.code).toContain('computed(');
+    expect(result.code).toContain('doubled');
+    expect(result.code).toContain('tripled');
+    // Reads should use .value
+    expect(result.code).toContain('doubled.value');
+    expect(result.code).toContain('tripled.value');
+    // Original array destructuring should be gone
+    expect(result.code).not.toContain('const [doubled');
+  });
+
+  it('array destructuring: static const [a, b] not depending on signal → untouched', () => {
+    const result = compile(
+      `
+function Example() {
+  const [a, b] = getTuple();
+  return <div>{a}</div>;
+}
+    `.trim(),
+    );
+
+    // No signals or computeds
+    expect(result.code).not.toContain('signal(');
+    expect(result.code).not.toContain('computed(');
+    // Original destructuring preserved
+    expect(result.code).toContain('const [a, b] = getTuple()');
+  });
+
   it('prop-backed array in .map() uses __list (Phase 0 regression guard)', () => {
     const result = compile(
       `

@@ -65,11 +65,58 @@ function transformDeclarations(source: MagicString, bodyNode: Node, signals: Set
     if (!declList) continue;
 
     for (const decl of declList.getDeclarations()) {
-      const name = decl.getName();
-      if (!signals.has(name)) continue;
-
+      const nameNode = decl.getNameNode();
       const init = decl.getInitializer();
       if (!init) continue;
+
+      // Handle array destructuring: let [a, b] = expr
+      if (nameNode.isKind(SyntaxKind.ArrayBindingPattern)) {
+        const elements = nameNode.getElements();
+        const bindingElements = elements.filter(
+          (el) => el.isKind(SyntaxKind.BindingElement),
+        );
+        const hasSignalElement = bindingElements.some((el) =>
+          signals.has(el.asKindOrThrow(SyntaxKind.BindingElement).getName()),
+        );
+        if (!hasSignalElement) continue;
+
+        const initText = source.slice(init.getStart(), init.getEnd());
+        const lines: string[] = [];
+        let index = 0;
+        for (const el of elements) {
+          if (el.isKind(SyntaxKind.OmittedExpression)) {
+            index++;
+            continue;
+          }
+          if (!el.isKind(SyntaxKind.BindingElement)) {
+            index++;
+            continue;
+          }
+          const bindingName = el.getName();
+          if (signals.has(bindingName)) {
+            const count = seenNames.get(bindingName) ?? 0;
+            seenNames.set(bindingName, count + 1);
+            const hmrKey = count === 0 ? bindingName : `${bindingName}$${count}`;
+            if (el.getDotDotDotToken()) {
+              lines.push(`const ${bindingName} = signal(${initText}.slice(${index}), '${hmrKey}')`);
+            } else {
+              lines.push(`const ${bindingName} = signal(${initText}[${index}], '${hmrKey}')`);
+            }
+          } else {
+            if (el.getDotDotDotToken()) {
+              lines.push(`const ${bindingName} = ${initText}.slice(${index})`);
+            } else {
+              lines.push(`const ${bindingName} = ${initText}[${index}]`);
+            }
+          }
+          index++;
+        }
+        source.overwrite(stmt.getStart(), stmt.getEnd(), `${lines.join(';\n')};`);
+        continue;
+      }
+
+      const name = decl.getName();
+      if (!signals.has(name)) continue;
 
       const letKeyword = declList.getFirstChildByKind(SyntaxKind.LetKeyword);
       if (letKeyword) {

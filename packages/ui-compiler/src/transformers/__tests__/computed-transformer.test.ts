@@ -170,6 +170,48 @@ describe('ComputedTransformer', () => {
     expect(result).toContain('limit: 20');
   });
 
+  it('transforms array destructuring into individual computed declarations', () => {
+    const code = `function Pricing() {\n  const [doubled, tripled] = [quantity * 2, quantity * 3];\n  return <div>{doubled} / {tripled}</div>;\n}`;
+    const result = transform(code, [
+      { name: 'quantity', kind: 'signal', start: 0, end: 0 },
+      { name: 'doubled', kind: 'computed', start: 0, end: 0 },
+      { name: 'tripled', kind: 'computed', start: 0, end: 0 },
+    ]);
+    expect(result).toContain('const doubled = computed(() => [quantity * 2, quantity * 3][0])');
+    expect(result).toContain('const tripled = computed(() => [quantity * 2, quantity * 3][1])');
+  });
+
+  it('handles array destructuring with mix of computed and static elements', () => {
+    const code = `function Example() {\n  const [reactive, stable] = [count * 2, 'hello'];\n  return <div>{reactive}</div>;\n}`;
+    const result = transform(code, [
+      { name: 'count', kind: 'signal', start: 0, end: 0 },
+      { name: 'reactive', kind: 'computed', start: 0, end: 0 },
+      { name: 'stable', kind: 'static', start: 0, end: 0 },
+    ]);
+    expect(result).toContain('const reactive = computed(() => [count * 2, \'hello\'][0])');
+    expect(result).toContain('const stable = [count * 2, \'hello\'][1]');
+  });
+
+  it('transforms array destructuring with skipped element', () => {
+    const code = `function App() {\n  const [, second] = [count, count * 2];\n  return <div>{second}</div>;\n}`;
+    const result = transform(code, [
+      { name: 'count', kind: 'signal', start: 0, end: 0 },
+      { name: 'second', kind: 'computed', start: 0, end: 0 },
+    ]);
+    expect(result).toContain('const second = computed(() => [count, count * 2][1])');
+  });
+
+  it('transforms array destructuring with rest element', () => {
+    const code = `function App() {\n  const [first, ...rest] = items;\n  return <div>{first}</div>;\n}`;
+    const result = transform(code, [
+      { name: 'items', kind: 'signal', start: 0, end: 0 },
+      { name: 'first', kind: 'computed', start: 0, end: 0 },
+      { name: 'rest', kind: 'computed', start: 0, end: 0 },
+    ]);
+    expect(result).toContain('const first = computed(() => items[0])');
+    expect(result).toContain('const rest = computed(() => items.slice(1))');
+  });
+
   it('does NOT expand shorthand when computed name is shadowed by nested scope (#1858)', () => {
     const code = `function Page() {\n  const offset = (page - 1) * 10;\n  const result = items.map((offset) => ({ offset }));\n  return <div>{offset}</div>;\n}`;
     const result = transform(code, [
