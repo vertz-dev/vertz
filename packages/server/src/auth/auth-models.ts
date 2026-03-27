@@ -87,7 +87,8 @@ const authPlanAddonsTable = d.table('auth_plan_addons', {
 
 const authFlagsTable = d.table('auth_flags', {
   id: d.text().primary(),
-  tenantId: d.text(),
+  resourceType: d.text(),
+  resourceId: d.text(),
   flag: d.text(),
   enabled: d.boolean().default(false),
 });

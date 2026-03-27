@@ -103,10 +103,11 @@ export function generateAuthDDL(dialect: DbDialectName): string[] {
   // 8. auth_flags
   statements.push(`CREATE TABLE IF NOT EXISTS auth_flags (
   id ${t.textPrimary()},
-  tenant_id ${t.text()} NOT NULL,
+  resource_type ${t.text()} NOT NULL,
+  resource_id ${t.text()} NOT NULL,
   flag ${t.text()} NOT NULL,
   enabled ${t.boolean(false)},
-  UNIQUE(tenant_id, flag)
+  UNIQUE(resource_type, resource_id, flag)
 )`);
 
   // 9. auth_overrides

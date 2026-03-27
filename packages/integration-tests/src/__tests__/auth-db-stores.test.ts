@@ -247,13 +247,13 @@ describe('DB-Backed Auth Stores Integration', () => {
     const flagStore = new DbFlagStore(db);
 
     // Set flags
-    flagStore.setFlag('org-1', 'beta_feature', true);
-    flagStore.setFlag('org-1', 'new_ui', false);
+    flagStore.setFlag('tenant', 'org-1', 'beta_feature', true);
+    flagStore.setFlag('tenant', 'org-1', 'new_ui', false);
 
     // Read from cache (synchronous)
-    expect(flagStore.getFlag('org-1', 'beta_feature')).toBe(true);
-    expect(flagStore.getFlag('org-1', 'new_ui')).toBe(false);
-    expect(flagStore.getFlag('org-1', 'nonexistent')).toBe(false);
+    expect(flagStore.getFlag('tenant', 'org-1', 'beta_feature')).toBe(true);
+    expect(flagStore.getFlag('tenant', 'org-1', 'new_ui')).toBe(false);
+    expect(flagStore.getFlag('tenant', 'org-1', 'nonexistent')).toBe(false);
 
     // Simulate restart by creating new store and loading from DB
     // Wait a tick for fire-and-forget writes to complete
@@ -262,8 +262,8 @@ describe('DB-Backed Auth Stores Integration', () => {
     const flagStore2 = new DbFlagStore(db);
     await flagStore2.loadFlags();
 
-    expect(flagStore2.getFlag('org-1', 'beta_feature')).toBe(true);
-    expect(flagStore2.getFlag('org-1', 'new_ui')).toBe(false);
+    expect(flagStore2.getFlag('tenant', 'org-1', 'beta_feature')).toBe(true);
+    expect(flagStore2.getFlag('tenant', 'org-1', 'new_ui')).toBe(false);
   });
 
   it('DbSubscriptionStore persists plans and overrides across tables', async () => {
@@ -381,7 +381,7 @@ describe('DB-Backed Auth Stores Integration', () => {
     await subscriptionStore.assign('tenant', 'org-1', 'pro');
 
     // 4. Set feature flags
-    flagStore.setFlag('org-1', 'advanced_analytics', true);
+    flagStore.setFlag('tenant', 'org-1', 'advanced_analytics', true);
 
     // 5. Link OAuth account
     await oauthStore.linkAccount('user-1', 'github', 'gh-789');
@@ -399,7 +399,7 @@ describe('DB-Backed Auth Stores Integration', () => {
     const plan = await subscriptionStore.get('tenant', 'org-1');
     expect(plan?.planId).toBe('pro');
 
-    expect(flagStore.getFlag('org-1', 'advanced_analytics')).toBe(true);
+    expect(flagStore.getFlag('tenant', 'org-1', 'advanced_analytics')).toBe(true);
 
     const linkedAccounts = await oauthStore.findByUserId('user-1');
     expect(linkedAccounts).toHaveLength(1);

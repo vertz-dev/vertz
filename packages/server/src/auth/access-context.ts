@@ -153,7 +153,7 @@ export function createAccessContext(config: AccessContextConfig): AccessContext 
     if (entDef.flags?.length && flagStore && orgResolver) {
       if (!resolvedOrg) return false;
       for (const flag of entDef.flags) {
-        if (!flagStore.getFlag(resolvedOrg.id, flag)) {
+        if (!flagStore.getFlag(resolvedOrg.type, resolvedOrg.id, flag)) {
           return false;
         }
       }
@@ -310,7 +310,7 @@ export function createAccessContext(config: AccessContextConfig): AccessContext 
       if (resolvedOrg) {
         const disabledFlags: string[] = [];
         for (const flag of entDef.flags) {
-          if (!flagStore.getFlag(resolvedOrg.id, flag)) {
+          if (!flagStore.getFlag(resolvedOrg.type, resolvedOrg.id, flag)) {
             disabledFlags.push(flag);
           }
         }

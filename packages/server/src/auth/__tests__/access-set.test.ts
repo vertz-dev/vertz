@@ -505,8 +505,8 @@ describe('encode/decode round-trip', () => {
     });
     await roleStore.assign('user-1', 'organization', 'org-1', 'admin');
 
-    flagStore.setFlag('org-1', 'export-v2', true);
-    flagStore.setFlag('org-1', 'some-other-flag', false);
+    flagStore.setFlag('tenant', 'org-1', 'export-v2', true);
+    flagStore.setFlag('tenant', 'org-1', 'some-other-flag', false);
 
     const result = await computeAccessSet({
       userId: 'user-1',
@@ -549,7 +549,7 @@ describe('encode/decode round-trip', () => {
     });
     await roleStore.assign('user-1', 'organization', 'org-1', 'admin');
 
-    flagStore.setFlag('org-1', 'export-v2', false);
+    flagStore.setFlag('tenant', 'org-1', 'export-v2', false);
 
     const result = await computeAccessSet({
       userId: 'user-1',
