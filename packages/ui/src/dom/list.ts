@@ -90,14 +90,17 @@ function createItemProxy<T>(itemSignal: Signal<T>): T {
  *   also accepts a raw Signal for direct use in tests.
  * @param keyFn - Extracts a unique key from each item (receives item and index).
  *   Pass `null` for unkeyed lists — triggers full-replacement mode (safe but slower).
- * @param renderFn - Creates a DOM node for an item (called once per key)
+ * @param renderFn - Creates a DOM node for an item (called once per key).
+ *   Receives the item and its index in the array. Note: for keyed lists,
+ *   the index is the position at creation time and is NOT updated when
+ *   items reorder — use a key-based approach for stable ordering display.
  * @returns A dispose function to stop the reactive list reconciliation
  */
 export function __list<T>(
   container: HTMLElement,
   items: Signal<T[]> | (() => T[]),
   keyFn: ((item: T, index: number) => string | number) | null,
-  renderFn: (item: T) => Node,
+  renderFn: (item: T, index: number) => Node,
 ): DisposeFn {
   // Normalize items access: compiler passes a getter `() => signal.value`,
   // while tests pass a raw Signal. Both work inside effect() for tracking.
@@ -152,12 +155,12 @@ export function __list<T>(
           // Keyed: wrap in proxy for reactive updates on key reuse
           const itemSig = signal(item);
           const proxy = createItemProxy(itemSig);
-          const node = renderFn(proxy);
+          const node = renderFn(proxy, i);
           itemSignalMap.set(key, itemSig);
           nodeMap.set(key, node);
         } else {
           // Unkeyed: no proxy needed — nodes will be fully replaced on updates
-          const node = renderFn(item);
+          const node = renderFn(item, i);
           nodeMap.set(key, node);
         }
         popScope();
@@ -185,9 +188,9 @@ export function __list<T>(
       itemSignalMap.clear();
 
       // Create fresh nodes for all items
-      for (const item of newItems) {
+      for (const [i, item] of newItems.entries()) {
         const scope = pushScope();
-        const node = renderFn(item);
+        const node = renderFn(item, i);
         popScope();
         container.appendChild(node);
         const internalKey = nodeMap.size;
@@ -226,7 +229,7 @@ export function __list<T>(
         const itemSig = signal(item);
         const proxy = createItemProxy(itemSig);
         const scope = pushScope();
-        node = renderFn(proxy);
+        node = renderFn(proxy, i);
         popScope();
         nodeMap.set(key, node);
         scopeMap.set(key, scope);

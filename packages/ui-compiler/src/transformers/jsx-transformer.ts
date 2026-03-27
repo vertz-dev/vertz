@@ -811,8 +811,15 @@ function tryTransformList(
   // Extract key function from the JSX element's key prop
   const keyFn = extractKeyFunction(callbackBody, itemParam, indexParam);
 
-  // Build the render function
-  const renderFn = buildListRenderFunction(callbackBody, itemParam, reactiveNames, jsxMap, source);
+  // Build the render function (pass indexParam so it's included when used in the body)
+  const renderFn = buildListRenderFunction(
+    callbackBody,
+    itemParam,
+    indexParam,
+    reactiveNames,
+    jsxMap,
+    source,
+  );
 
   return `__list(${parentVar}, () => ${sourceObjText}, ${keyFn}, ${renderFn})`;
 }
@@ -863,7 +870,14 @@ function tryTransformListValue(
   if (!itemParam || !callbackBody) return null;
 
   const keyFn = extractKeyFunction(callbackBody, itemParam, indexParam);
-  const renderFn = buildListRenderFunction(callbackBody, itemParam, reactiveNames, jsxMap, source);
+  const renderFn = buildListRenderFunction(
+    callbackBody,
+    itemParam,
+    indexParam,
+    reactiveNames,
+    jsxMap,
+    source,
+  );
 
   return `__listValue(() => ${sourceObjText}, ${keyFn}, ${renderFn})`;
 }
@@ -948,16 +962,42 @@ function extractKeyPropValue(jsxNode: Node): string | null {
 }
 
 /**
+ * Check whether the index parameter is referenced in the callback body
+ * outside the key prop. This avoids including the index in the render
+ * function signature when it's only used for keying.
+ */
+function isIndexUsedInBody(callbackBody: Node, indexParam: string): boolean {
+  const re = new RegExp(`(?<![.])\\b${indexParam}\\b`);
+  const jsxNode = findJsxInBody(callbackBody);
+  if (!jsxNode) return re.test(callbackBody.getText());
+
+  const keyValue = extractKeyPropValue(jsxNode);
+  let bodyText = callbackBody.getText();
+  // Strip the key prop expression so we don't match index refs in key={...}
+  if (keyValue) {
+    bodyText = bodyText.replace(`key={${keyValue}}`, '');
+  }
+  return re.test(bodyText);
+}
+
+/**
  * Build the render function for __list.
  * Transforms the JSX in the callback body into DOM helper calls.
  */
 function buildListRenderFunction(
   callbackBody: Node,
   itemParam: string,
+  indexParam: string | null,
   reactiveNames: Set<string>,
   jsxMap: Map<number, JsxExpressionInfo>,
   source: MagicString,
 ): string {
+  // Check if the index param is actually referenced in the callback body
+  // OUTSIDE the key prop. The key prop is extracted separately by extractKeyFunction(),
+  // so we strip it from the text before checking to avoid false positives.
+  const needsIndex = indexParam != null && isIndexUsedInBody(callbackBody, indexParam);
+  const params = needsIndex ? `${itemParam}, ${indexParam}` : itemParam;
+
   const jsxNode = findJsxInBody(callbackBody);
   if (jsxNode) {
     const transformed = transformJsxNode(jsxNode, reactiveNames, jsxMap, source);
@@ -968,15 +1008,15 @@ function buildListRenderFunction(
     if (callbackBody.isKind(SyntaxKind.Block)) {
       source.overwrite(jsxNode.getStart(), jsxNode.getEnd(), transformed);
       const bodyText = source.slice(callbackBody.getStart(), callbackBody.getEnd());
-      return `(${itemParam}) => ${bodyText}`;
+      return `(${params}) => ${bodyText}`;
     }
 
-    return `(${itemParam}) => ${transformed}`;
+    return `(${params}) => ${transformed}`;
   }
 
   // Fallback: use the body text
   const bodyText = source.slice(callbackBody.getStart(), callbackBody.getEnd());
-  return `(${itemParam}) => ${bodyText}`;
+  return `(${params}) => ${bodyText}`;
 }
 
 /**

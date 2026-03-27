@@ -415,4 +415,112 @@ function App() {
       expect(internalsImport).toContain('__listValue');
     });
   });
+
+  describe('index parameter in render function', () => {
+    it('includes index param in render function when used in JSX body', () => {
+      const result = compile(
+        `
+function App() {
+  let items = ["a", "b", "c"];
+  return <ul>{items.map((item, i) => <li>{i}: {item}</li>)}</ul>;
+}
+        `.trim(),
+      );
+
+      expect(result.code).toContain('__list(');
+      // Render function must include index param: (item, i) => ...
+      // NOT (item) => ... which would leave i undefined
+      expect(result.code).toMatch(/\(item,\s*i\)\s*=>/);
+    });
+
+    it('includes index param in render function for __listValue', () => {
+      const result = compile(
+        `
+function Wrapper({ children }) {
+  return <div>{children}</div>;
+}
+function App() {
+  let items = ["a", "b", "c"];
+  return <Wrapper>{items.map((item, idx) => <span>{idx}. {item}</span>)}</Wrapper>;
+}
+        `.trim(),
+      );
+
+      expect(result.code).toContain('__listValue(');
+      // Render function must include index param
+      expect(result.code).toMatch(/\(item,\s*idx\)\s*=>/);
+    });
+
+    it('does not include index param when not used in render body', () => {
+      const result = compile(
+        `
+function App() {
+  let items = [{ id: 1, name: "a" }];
+  return <ul>{items.map((item, i) => <li key={item.id}>{item.name}</li>)}</ul>;
+}
+        `.trim(),
+      );
+
+      expect(result.code).toContain('__list(');
+      // Index not used in the render body — render fn should be (item) => ...
+      // Key fn is (item) => item.id (no index)
+      // The render function (4th arg to __list) should NOT include index
+      expect(result.code).toMatch(/item\.id,\s*\(item\)\s*=>/);
+    });
+
+    it('includes index param in both key and render functions when used in both', () => {
+      const result = compile(
+        `
+function App() {
+  let items = ["a", "b", "c"];
+  return <ul>{items.map((item, i) => <li key={i}>{i}: {item}</li>)}</ul>;
+}
+        `.trim(),
+      );
+
+      expect(result.code).toContain('__list(');
+      // Key function should include index
+      expect(result.code).toMatch(/\(item,\s*i\)\s*=>\s*i/);
+      // Render function should also include index
+      // Find the render function (last arrow function in __list args)
+      const renderMatch = result.code.match(/,\s*\(item,\s*i\)\s*=>\s*i\s*,\s*\(item,\s*i\)\s*=>/);
+      expect(renderMatch).not.toBeNull();
+    });
+
+    it('includes index param in block-body render function when used', () => {
+      const result = compile(
+        `
+function App() {
+  let items = ["a", "b", "c"];
+  return <ul>{items.map((item, i) => {
+    const label = i + ": " + item;
+    return <li>{label}</li>;
+  })}</ul>;
+}
+        `.trim(),
+      );
+
+      expect(result.code).toContain('__list(');
+      // Block body render function must include index param
+      expect(result.code).toMatch(/\(item,\s*i\)\s*=>\s*\{/);
+    });
+
+    it('does not include index param in render function when only used in key prop', () => {
+      const result = compile(
+        `
+function App() {
+  let items = ["a", "b", "c"];
+  return <ul>{items.map((item, i) => <li key={i}>{item}</li>)}</ul>;
+}
+        `.trim(),
+      );
+
+      expect(result.code).toContain('__list(');
+      // Key function should include index: (item, i) => i
+      expect(result.code).toMatch(/\(item,\s*i\)\s*=>\s*i/);
+      // Render function should NOT include index since i is only in key
+      // The render fn is the 4th arg — after the key fn
+      expect(result.code).toMatch(/=>\s*i\s*,\s*\(item\)\s*=>/);
+    });
+  });
 });
