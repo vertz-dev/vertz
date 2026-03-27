@@ -717,9 +717,11 @@ fn map_call_to_string(
         // nothing besides return statements. Variable declarations before the
         // return reference closure variables that the generated arrow function
         // won't define, causing ReferenceError at runtime (#1936).
-        let has_non_return = arrow.body.statements.iter().any(|stmt| {
-            !matches!(stmt, Statement::ReturnStatement(_))
-        });
+        let has_non_return = arrow
+            .body
+            .statements
+            .iter()
+            .any(|stmt| !matches!(stmt, Statement::ReturnStatement(_)));
         if !has_non_return {
             for stmt in &arrow.body.statements {
                 if let Statement::ReturnStatement(ret) = stmt {
