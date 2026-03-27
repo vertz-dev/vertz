@@ -1,8 +1,8 @@
 /**
- * OverrideStore — per-tenant feature and limit overrides.
+ * OverrideStore — per-resource feature and limit overrides.
  *
  * Overrides sit on top of plan + add-ons. They are runtime,
- * per-tenant adjustments applied by the business (admin/sales).
+ * per-resource adjustments applied by the business (admin/sales).
  */
 
 import type { AccessDefinition } from './define-access';

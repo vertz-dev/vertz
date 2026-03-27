@@ -1,7 +1,7 @@
 /**
  * WalletStore — consumption tracking for plan-limited entitlements.
  *
- * Tracks per-tenant usage within billing periods with atomic
+ * Tracks per-resource usage within billing periods with atomic
  * check-and-increment operations.
  */
 

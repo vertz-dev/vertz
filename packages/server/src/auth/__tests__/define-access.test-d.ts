@@ -183,6 +183,7 @@ describe('Type-level: WalletStore', () => {
   it('WalletStore.consume returns Promise<ConsumeResult>', () => {
     const store: WalletStore = {} as WalletStore;
     const _result: Promise<ConsumeResult> = store.consume(
+      'organization',
       'org-1',
       'ent',
       new Date(),
@@ -194,13 +195,25 @@ describe('Type-level: WalletStore', () => {
 
   it('WalletStore.unconsume returns Promise<void>', () => {
     const store: WalletStore = {} as WalletStore;
-    const _result: Promise<void> = store.unconsume('org-1', 'ent', new Date(), new Date());
+    const _result: Promise<void> = store.unconsume(
+      'organization',
+      'org-1',
+      'ent',
+      new Date(),
+      new Date(),
+    );
     void _result;
   });
 
   it('WalletStore.getConsumption returns Promise<number>', () => {
     const store: WalletStore = {} as WalletStore;
-    const _result: Promise<number> = store.getConsumption('org-1', 'ent', new Date(), new Date());
+    const _result: Promise<number> = store.getConsumption(
+      'organization',
+      'org-1',
+      'ent',
+      new Date(),
+      new Date(),
+    );
     void _result;
   });
 
@@ -218,18 +231,21 @@ describe('Type-level: WalletStore', () => {
 
   it('WalletEntry has correct shape', () => {
     const entry: WalletEntry = {
-      tenantId: 'org-1',
+      resourceType: 'organization',
+      resourceId: 'org-1',
       entitlement: 'project:create',
       periodStart: new Date(),
       periodEnd: new Date(),
       consumed: 5,
     };
-    const _tenantId: string = entry.tenantId;
+    const _resourceType: string = entry.resourceType;
+    const _resourceId: string = entry.resourceId;
     const _ent: string = entry.entitlement;
     const _start: Date = entry.periodStart;
     const _end: Date = entry.periodEnd;
     const _consumed: number = entry.consumed;
-    void _tenantId;
+    void _resourceType;
+    void _resourceId;
     void _ent;
     void _start;
     void _end;
