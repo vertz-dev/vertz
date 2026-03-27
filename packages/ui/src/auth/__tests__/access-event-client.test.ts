@@ -132,6 +132,8 @@ describe('createAccessEventClient', () => {
     ws.onmessage?.({
       data: JSON.stringify({
         type: 'access:flag_toggled',
+        resourceType: 'tenant',
+        resourceId: 'org-1',
         flag: 'export-v2',
         enabled: true,
       }),
@@ -140,6 +142,8 @@ describe('createAccessEventClient', () => {
     expect(onEvent).toHaveBeenCalledTimes(1);
     expect(onEvent).toHaveBeenCalledWith({
       type: 'access:flag_toggled',
+      resourceType: 'tenant',
+      resourceId: 'org-1',
       flag: 'export-v2',
       enabled: true,
     });
@@ -161,6 +165,8 @@ describe('createAccessEventClient', () => {
     ws.onmessage?.({
       data: JSON.stringify({
         type: 'access:limit_updated',
+        resourceType: 'tenant',
+        resourceId: 'org-1',
         entitlement: 'project:create',
         consumed: 43,
         remaining: 57,
@@ -171,6 +177,8 @@ describe('createAccessEventClient', () => {
     expect(onEvent).toHaveBeenCalledTimes(1);
     expect(onEvent).toHaveBeenCalledWith({
       type: 'access:limit_updated',
+      resourceType: 'tenant',
+      resourceId: 'org-1',
       entitlement: 'project:create',
       consumed: 43,
       remaining: 57,
@@ -458,6 +466,8 @@ describe('createAccessEventClient', () => {
     ws.onmessage?.({
       data: JSON.stringify({
         type: 'access:plan_assigned',
+        resourceType: 'tenant',
+        resourceId: 'org-1',
         planId: 'pro_monthly',
       }),
     });
@@ -465,6 +475,8 @@ describe('createAccessEventClient', () => {
     expect(onEvent).toHaveBeenCalledTimes(1);
     expect(onEvent).toHaveBeenCalledWith({
       type: 'access:plan_assigned',
+      resourceType: 'tenant',
+      resourceId: 'org-1',
       planId: 'pro_monthly',
     });
   });
@@ -485,6 +497,8 @@ describe('createAccessEventClient', () => {
     ws.onmessage?.({
       data: JSON.stringify({
         type: 'access:addon_attached',
+        resourceType: 'tenant',
+        resourceId: 'org-1',
         addonId: 'export_addon',
       }),
     });
@@ -492,6 +506,8 @@ describe('createAccessEventClient', () => {
     expect(onEvent).toHaveBeenCalledTimes(1);
     expect(onEvent).toHaveBeenCalledWith({
       type: 'access:addon_attached',
+      resourceType: 'tenant',
+      resourceId: 'org-1',
       addonId: 'export_addon',
     });
   });
@@ -512,6 +528,8 @@ describe('createAccessEventClient', () => {
     ws.onmessage?.({
       data: JSON.stringify({
         type: 'access:addon_detached',
+        resourceType: 'tenant',
+        resourceId: 'org-1',
         addonId: 'export_addon',
       }),
     });
@@ -519,6 +537,8 @@ describe('createAccessEventClient', () => {
     expect(onEvent).toHaveBeenCalledTimes(1);
     expect(onEvent).toHaveBeenCalledWith({
       type: 'access:addon_detached',
+      resourceType: 'tenant',
+      resourceId: 'org-1',
       addonId: 'export_addon',
     });
   });
@@ -539,6 +559,8 @@ describe('createAccessEventClient', () => {
     ws.onmessage?.({
       data: JSON.stringify({
         type: 'access:limit_reset',
+        resourceType: 'tenant',
+        resourceId: 'org-1',
         entitlement: 'prompt:create',
         max: 100,
       }),
@@ -547,6 +569,8 @@ describe('createAccessEventClient', () => {
     expect(onEvent).toHaveBeenCalledTimes(1);
     expect(onEvent).toHaveBeenCalledWith({
       type: 'access:limit_reset',
+      resourceType: 'tenant',
+      resourceId: 'org-1',
       entitlement: 'prompt:create',
       max: 100,
     });

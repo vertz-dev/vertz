@@ -16,6 +16,8 @@ describe('handleAccessEvent — reactive cascade', () => {
 
     handleAccessEvent(accessSet, {
       type: 'access:flag_toggled',
+      resourceType: 'tenant',
+      resourceId: 'org-1',
       flag: 'export-v2',
       enabled: false,
     });
@@ -36,7 +38,13 @@ describe('handleAccessEvent — reactive cascade', () => {
 
     handleAccessEvent(
       accessSet,
-      { type: 'access:flag_toggled', flag: 'export-v2', enabled: false },
+      {
+        type: 'access:flag_toggled',
+        resourceType: 'tenant',
+        resourceId: 'org-1',
+        flag: 'export-v2',
+        enabled: false,
+      },
       { 'project:export': ['export-v2'] },
     );
 
@@ -66,7 +74,13 @@ describe('handleAccessEvent — reactive cascade', () => {
 
     handleAccessEvent(
       accessSet,
-      { type: 'access:flag_toggled', flag: 'export-v2', enabled: true },
+      {
+        type: 'access:flag_toggled',
+        resourceType: 'tenant',
+        resourceId: 'org-1',
+        flag: 'export-v2',
+        enabled: true,
+      },
       { 'project:export': ['export-v2'] },
     );
 
@@ -91,6 +105,8 @@ describe('handleAccessEvent — reactive cascade', () => {
 
     handleAccessEvent(accessSet, {
       type: 'access:limit_updated',
+      resourceType: 'tenant',
+      resourceId: 'org-1',
       entitlement: 'project:create',
       consumed: 99,
       remaining: 1,
@@ -120,6 +136,8 @@ describe('handleAccessEvent — reactive cascade', () => {
 
     handleAccessEvent(accessSet, {
       type: 'access:limit_updated',
+      resourceType: 'tenant',
+      resourceId: 'org-1',
       entitlement: 'project:create',
       consumed: 100,
       remaining: 0,
@@ -136,6 +154,8 @@ describe('handleAccessEvent — reactive cascade', () => {
     // Should not throw
     handleAccessEvent(accessSet, {
       type: 'access:flag_toggled',
+      resourceType: 'tenant',
+      resourceId: 'org-1',
       flag: 'export-v2',
       enabled: true,
     });
@@ -171,7 +191,11 @@ describe('handleAccessEvent — reactive cascade', () => {
     };
     const accessSet = signal<AccessSet | null>(original);
 
-    handleAccessEvent(accessSet, { type: 'access:plan_changed' });
+    handleAccessEvent(accessSet, {
+      type: 'access:plan_changed',
+      resourceType: 'tenant',
+      resourceId: 'org-1',
+    });
 
     // Should be the same object (no inline update for plan changes)
     expect(accessSet.value).toBe(original);
@@ -189,6 +213,8 @@ describe('handleAccessEvent — reactive cascade', () => {
 
     handleAccessEvent(accessSet, {
       type: 'access:plan_assigned',
+      resourceType: 'tenant',
+      resourceId: 'org-1',
       planId: 'pro_monthly',
     });
 
@@ -208,6 +234,8 @@ describe('handleAccessEvent — reactive cascade', () => {
 
     handleAccessEvent(accessSet, {
       type: 'access:addon_attached',
+      resourceType: 'tenant',
+      resourceId: 'org-1',
       addonId: 'export_addon',
     });
 
@@ -228,6 +256,8 @@ describe('handleAccessEvent — reactive cascade', () => {
 
     handleAccessEvent(accessSet, {
       type: 'access:addon_detached',
+      resourceType: 'tenant',
+      resourceId: 'org-1',
       addonId: 'export_addon',
     });
 
@@ -252,6 +282,8 @@ describe('handleAccessEvent — reactive cascade', () => {
 
     handleAccessEvent(accessSet, {
       type: 'access:limit_reset',
+      resourceType: 'tenant',
+      resourceId: 'org-1',
       entitlement: 'prompt:create',
       max: 100,
     });
@@ -278,6 +310,8 @@ describe('handleAccessEvent — reactive cascade', () => {
 
     handleAccessEvent(accessSet, {
       type: 'access:limit_reset',
+      resourceType: 'tenant',
+      resourceId: 'org-1',
       entitlement: 'prompt:create',
       max: 200,
     });

@@ -11,22 +11,41 @@ import { isBrowser } from '../env/is-browser';
 // Types
 // ============================================================================
 
-/** Client-side access events (no orgId/userId — server scopes the broadcast) */
+/**
+ * Client-side access events.
+ *
+ * Includes resourceType/resourceId for client-side resource-level filtering.
+ * orgId is stripped (routing is server-side only via WebSocket connection keying).
+ */
 export type ClientAccessEvent =
-  | { type: 'access:flag_toggled'; flag: string; enabled: boolean }
+  | {
+      type: 'access:flag_toggled';
+      resourceType: string;
+      resourceId: string;
+      flag: string;
+      enabled: boolean;
+    }
   | {
       type: 'access:limit_updated';
+      resourceType: string;
+      resourceId: string;
       entitlement: string;
       consumed: number;
       remaining: number;
       max: number;
     }
   | { type: 'access:role_changed' }
-  | { type: 'access:plan_changed' }
-  | { type: 'access:plan_assigned'; planId: string }
-  | { type: 'access:addon_attached'; addonId: string }
-  | { type: 'access:addon_detached'; addonId: string }
-  | { type: 'access:limit_reset'; entitlement: string; max: number };
+  | { type: 'access:plan_changed'; resourceType: string; resourceId: string }
+  | { type: 'access:plan_assigned'; resourceType: string; resourceId: string; planId: string }
+  | { type: 'access:addon_attached'; resourceType: string; resourceId: string; addonId: string }
+  | { type: 'access:addon_detached'; resourceType: string; resourceId: string; addonId: string }
+  | {
+      type: 'access:limit_reset';
+      resourceType: string;
+      resourceId: string;
+      entitlement: string;
+      max: number;
+    };
 
 export interface AccessEventClientOptions {
   /** WebSocket URL. Defaults to deriving from window.location. */
