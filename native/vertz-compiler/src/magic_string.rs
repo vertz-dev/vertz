@@ -70,6 +70,11 @@ impl MagicString {
         });
     }
 
+    /// Length of the original source in bytes.
+    pub fn len(&self) -> u32 {
+        self.original.len() as u32
+    }
+
     /// Get a slice of the original source.
     pub fn slice(&self, start: u32, end: u32) -> &str {
         &self.original[start as usize..end as usize]

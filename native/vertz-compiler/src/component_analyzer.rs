@@ -10,6 +10,9 @@ pub struct ComponentInfo {
     pub is_arrow_expression: bool,
     /// Props parameter name (e.g., "props"), or None if no params or destructured.
     pub props_param: Option<String>,
+    /// Names of destructured props (e.g., ["title", "onClick"]).
+    /// Empty if no destructured props or non-destructured parameter.
+    pub destructured_prop_names: Vec<String>,
 }
 
 /// Analyze a program and detect function components (functions that return JSX).
@@ -36,6 +39,7 @@ fn collect_from_statement<'a>(stmt: &Statement<'a>, components: &mut Vec<Compone
                             body_end: body.span.end,
                             is_arrow_expression: false,
                             props_param: extract_props_param(&func.params),
+                            destructured_prop_names: extract_destructured_prop_names(&func.params),
                         });
                     }
                 }
@@ -68,6 +72,9 @@ fn collect_from_statement<'a>(stmt: &Statement<'a>, components: &mut Vec<Compone
                                 body_end: body.span.end,
                                 is_arrow_expression: false,
                                 props_param: extract_props_param(&func.params),
+                                destructured_prop_names: extract_destructured_prop_names(
+                                    &func.params,
+                                ),
                             });
                         }
                     }
@@ -91,6 +98,7 @@ fn collect_from_declaration<'a>(decl: &Declaration<'a>, components: &mut Vec<Com
                             body_end: body.span.end,
                             is_arrow_expression: false,
                             props_param: extract_props_param(&func.params),
+                            destructured_prop_names: extract_destructured_prop_names(&func.params),
                         });
                     }
                 }
@@ -132,6 +140,9 @@ fn check_expression_for_component<'a>(
                     body_end: end,
                     is_arrow_expression: arrow.expression,
                     props_param: extract_props_param_from_items(&arrow.params.items),
+                    destructured_prop_names: extract_destructured_props_from_items(
+                        &arrow.params.items,
+                    ),
                 });
             }
         }
@@ -146,6 +157,7 @@ fn check_expression_for_component<'a>(
                         body_end: body.span.end,
                         is_arrow_expression: false,
                         props_param: extract_props_param(&func.params),
+                        destructured_prop_names: extract_destructured_prop_names(&func.params),
                     });
                 }
             }
@@ -183,6 +195,33 @@ fn extract_props_param_from_items<'a>(items: &[FormalParameter<'a>]) -> Option<S
         Some(id.name.to_string())
     } else {
         None // Destructured pattern
+    }
+}
+
+/// Extract destructured prop names from a FormalParameters node.
+/// Returns names like ["title", "onClick"] for `({ title, onClick }: Props)`.
+fn extract_destructured_prop_names<'a>(params: &FormalParameters<'a>) -> Vec<String> {
+    extract_destructured_props_from_items(&params.items)
+}
+
+fn extract_destructured_props_from_items<'a>(items: &[FormalParameter<'a>]) -> Vec<String> {
+    if items.len() != 1 {
+        return Vec::new();
+    }
+    if let BindingPattern::ObjectPattern(ref obj_pattern) = items[0].pattern {
+        obj_pattern
+            .properties
+            .iter()
+            .filter_map(|prop| {
+                if let BindingPattern::BindingIdentifier(ref id) = prop.value {
+                    Some(id.name.to_string())
+                } else {
+                    None
+                }
+            })
+            .collect()
+    } else {
+        Vec::new()
     }
 }
 

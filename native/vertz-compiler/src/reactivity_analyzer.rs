@@ -76,8 +76,15 @@ pub fn analyze_reactivity<'a>(
     // Phase 1: Collect variable declarations and their dependencies
     let var_metas = collect_variables(program, component, import_ctx);
 
+    // Build set of destructured prop names for reactivity classification
+    let prop_names: HashSet<String> = component
+        .destructured_prop_names
+        .iter()
+        .cloned()
+        .collect();
+
     // Phase 2: Classify based on JSX reachability
-    classify_variables(program, component, var_metas, import_ctx)
+    classify_variables(program, component, var_metas, import_ctx, &prop_names)
 }
 
 /// Build import alias map: local_name → original_api_name
@@ -578,6 +585,7 @@ fn classify_variables<'a>(
     component: &ComponentInfo,
     metas: Vec<VarMeta>,
     import_ctx: &ImportContext,
+    prop_names: &HashSet<String>,
 ) -> Vec<VariableInfo> {
     // Step 1: Collect identifiers referenced in JSX
     let jsx_refs = collect_jsx_refs(program, component);
@@ -637,7 +645,7 @@ fn classify_variables<'a>(
                 ReactivityKind::Static
             } else {
                 // Check if this const depends on any reactive thing
-                if depends_on_reactive(meta, &meta_map, &jsx_reachable, import_ctx) {
+                if depends_on_reactive(meta, &meta_map, &jsx_reachable, import_ctx, prop_names) {
                     ReactivityKind::Computed
                 } else {
                     ReactivityKind::Static
@@ -685,9 +693,17 @@ fn depends_on_reactive(
     meta_map: &HashMap<&str, &VarMeta>,
     jsx_reachable: &HashSet<String>,
     import_ctx: &ImportContext,
+    prop_names: &HashSet<String>,
 ) -> bool {
     let mut visited = HashSet::new();
-    depends_on_reactive_inner(meta, meta_map, jsx_reachable, import_ctx, &mut visited)
+    depends_on_reactive_inner(
+        meta,
+        meta_map,
+        jsx_reachable,
+        import_ctx,
+        prop_names,
+        &mut visited,
+    )
 }
 
 fn depends_on_reactive_inner(
@@ -695,6 +711,7 @@ fn depends_on_reactive_inner(
     meta_map: &HashMap<&str, &VarMeta>,
     jsx_reachable: &HashSet<String>,
     import_ctx: &ImportContext,
+    prop_names: &HashSet<String>,
     visited: &mut HashSet<String>,
 ) -> bool {
     if !visited.insert(meta.name.clone()) {
@@ -702,6 +719,11 @@ fn depends_on_reactive_inner(
     }
 
     for dep in &meta.deps {
+        // Depends on a destructured prop → reactive (props are getter-based)
+        if prop_names.contains(dep.as_str()) {
+            return true;
+        }
+
         if let Some(dep_meta) = meta_map.get(dep.as_str()) {
             // Depends on a let variable that is JSX-reachable (i.e., a signal)
             if dep_meta.is_let && jsx_reachable.contains(&dep_meta.name) {
@@ -733,7 +755,14 @@ fn depends_on_reactive_inner(
             if !dep_meta.is_function_def
                 && !dep_meta.is_structural_literal
                 && !dep_meta.is_signal_api
-                && depends_on_reactive_inner(dep_meta, meta_map, jsx_reachable, import_ctx, visited)
+                && depends_on_reactive_inner(
+                    dep_meta,
+                    meta_map,
+                    jsx_reachable,
+                    import_ctx,
+                    prop_names,
+                    visited,
+                )
             {
                 return true;
             }
