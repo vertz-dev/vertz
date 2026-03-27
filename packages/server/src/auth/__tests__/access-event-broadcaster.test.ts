@@ -105,7 +105,7 @@ describe('createAccessEventBroadcaster', () => {
     expect(server.upgraded[0].data.userId).toBe('user-1');
   });
 
-  it('broadcastFlagToggle sends to all connections with matching orgId', () => {
+  it('broadcastFlagToggle sends event with resourceType and resourceId', () => {
     const broadcaster = createAccessEventBroadcaster({
       publicKey: testPublicKey,
     });
@@ -114,16 +114,17 @@ describe('createAccessEventBroadcaster', () => {
     const ws2 = createMockWs({ data: { userId: 'user-2', orgId: 'org-1' } });
     const ws3 = createMockWs({ data: { userId: 'user-3', orgId: 'org-2' } });
 
-    // Simulate connections
     broadcaster.websocket.open(ws1);
     broadcaster.websocket.open(ws2);
     broadcaster.websocket.open(ws3);
 
-    broadcaster.broadcastFlagToggle('org-1', 'export-v2', true);
+    broadcaster.broadcastFlagToggle('org-1', 'tenant', 'org-1', 'export-v2', true);
 
     expect(ws1.sentMessages.length).toBe(1);
     const parsed1 = JSON.parse(ws1.sentMessages[0]);
     expect(parsed1.type).toBe('access:flag_toggled');
+    expect(parsed1.resourceType).toBe('tenant');
+    expect(parsed1.resourceId).toBe('org-1');
     expect(parsed1.flag).toBe('export-v2');
     expect(parsed1.enabled).toBe(true);
 
@@ -131,7 +132,30 @@ describe('createAccessEventBroadcaster', () => {
     expect(ws3.sentMessages.length).toBe(0); // different org
   });
 
-  it('broadcastLimitUpdate sends correct payload', () => {
+  it('broadcastFlagToggle routes by orgId for child resources', () => {
+    const broadcaster = createAccessEventBroadcaster({
+      publicKey: testPublicKey,
+    });
+
+    const ws1 = createMockWs({ data: { userId: 'user-1', orgId: 'org-1' } });
+    const ws2 = createMockWs({ data: { userId: 'user-2', orgId: 'org-2' } });
+
+    broadcaster.websocket.open(ws1);
+    broadcaster.websocket.open(ws2);
+
+    // orgId routes to org-1, but event payload carries project-level resource
+    broadcaster.broadcastFlagToggle('org-1', 'project', 'proj-1', 'beta', true);
+
+    expect(ws1.sentMessages.length).toBe(1);
+    const parsed = JSON.parse(ws1.sentMessages[0]);
+    expect(parsed.resourceType).toBe('project');
+    expect(parsed.resourceId).toBe('proj-1');
+    expect(parsed.flag).toBe('beta');
+
+    expect(ws2.sentMessages.length).toBe(0);
+  });
+
+  it('broadcastLimitUpdate sends correct payload with resource fields', () => {
     const broadcaster = createAccessEventBroadcaster({
       publicKey: testPublicKey,
     });
@@ -139,18 +163,20 @@ describe('createAccessEventBroadcaster', () => {
     const ws = createMockWs({ data: { userId: 'user-1', orgId: 'org-1' } });
     broadcaster.websocket.open(ws);
 
-    broadcaster.broadcastLimitUpdate('org-1', 'project:create', 43, 57, 100);
+    broadcaster.broadcastLimitUpdate('org-1', 'tenant', 'org-1', 'project:create', 43, 57, 100);
 
     expect(ws.sentMessages.length).toBe(1);
     const parsed = JSON.parse(ws.sentMessages[0]);
     expect(parsed.type).toBe('access:limit_updated');
+    expect(parsed.resourceType).toBe('tenant');
+    expect(parsed.resourceId).toBe('org-1');
     expect(parsed.entitlement).toBe('project:create');
     expect(parsed.consumed).toBe(43);
     expect(parsed.remaining).toBe(57);
     expect(parsed.max).toBe(100);
   });
 
-  it('broadcastRoleChange sends to connections with matching userId', () => {
+  it('broadcastRoleChange sends to connections with matching userId (unchanged)', () => {
     const broadcaster = createAccessEventBroadcaster({
       publicKey: testPublicKey,
     });
@@ -174,7 +200,7 @@ describe('createAccessEventBroadcaster', () => {
     expect(parsed.userId).toBe('user-1');
   });
 
-  it('broadcastPlanChange sends to all connections for affected org', () => {
+  it('broadcastPlanChange sends event with resource fields', () => {
     const broadcaster = createAccessEventBroadcaster({
       publicKey: testPublicKey,
     });
@@ -185,14 +211,15 @@ describe('createAccessEventBroadcaster', () => {
     broadcaster.websocket.open(ws1);
     broadcaster.websocket.open(ws2);
 
-    broadcaster.broadcastPlanChange('org-1');
+    broadcaster.broadcastPlanChange('org-1', 'tenant', 'org-1');
 
     expect(ws1.sentMessages.length).toBe(1);
     expect(ws2.sentMessages.length).toBe(0);
 
     const parsed = JSON.parse(ws1.sentMessages[0]);
     expect(parsed.type).toBe('access:plan_changed');
-    expect(parsed.orgId).toBe('org-1');
+    expect(parsed.resourceType).toBe('tenant');
+    expect(parsed.resourceId).toBe('org-1');
   });
 
   it('getConnectionCount returns correct count', () => {
@@ -228,7 +255,7 @@ describe('createAccessEventBroadcaster', () => {
     expect(broadcaster.getConnectionCount).toBe(1);
 
     // Broadcast should only reach ws2 now
-    broadcaster.broadcastFlagToggle('org-1', 'test', true);
+    broadcaster.broadcastFlagToggle('org-1', 'tenant', 'org-1', 'test', true);
     expect(ws1.sentMessages.length).toBe(0);
     expect(ws2.sentMessages.length).toBe(1);
   });
@@ -370,7 +397,7 @@ describe('createAccessEventBroadcaster', () => {
     });
 
     // No connections — should not throw
-    broadcaster.broadcastFlagToggle('nonexistent-org', 'flag', true);
+    broadcaster.broadcastFlagToggle('nonexistent-org', 'tenant', 'nonexistent-org', 'flag', true);
   });
 
   it('broadcastToUser is no-op when no connections for user', () => {
@@ -394,13 +421,13 @@ describe('createAccessEventBroadcaster', () => {
     // After close, broadcasting to org-1 should be no-op (no connections)
     const ws2 = createMockWs({ data: { userId: 'user-2', orgId: 'org-2' } });
     broadcaster.websocket.open(ws2);
-    broadcaster.broadcastFlagToggle('org-1', 'flag', true);
+    broadcaster.broadcastFlagToggle('org-1', 'tenant', 'org-1', 'flag', true);
     expect(ws2.sentMessages.length).toBe(0);
   });
 });
 
 describe('plan event broadcasts', () => {
-  it('broadcastPlanAssigned sends plan:assigned event to org connections', () => {
+  it('broadcastPlanAssigned routes by orgId for child resources', () => {
     const broadcaster = createAccessEventBroadcaster({
       publicKey: testPublicKey,
     });
@@ -411,17 +438,41 @@ describe('plan event broadcasts', () => {
     broadcaster.websocket.open(ws1);
     broadcaster.websocket.open(ws2);
 
-    broadcaster.broadcastPlanAssigned('org-1', 'pro_monthly');
+    // orgId routes to org-1, but event carries project-level resource
+    broadcaster.broadcastPlanAssigned('org-1', 'project', 'proj-1', 'pro');
+
+    expect(ws1.sentMessages.length).toBe(1);
+    const parsed = JSON.parse(ws1.sentMessages[0]);
+    expect(parsed.resourceType).toBe('project');
+    expect(parsed.resourceId).toBe('proj-1');
+    expect(parsed.planId).toBe('pro');
+
+    expect(ws2.sentMessages.length).toBe(0);
+  });
+
+  it('broadcastPlanAssigned sends event with resource fields', () => {
+    const broadcaster = createAccessEventBroadcaster({
+      publicKey: testPublicKey,
+    });
+
+    const ws1 = createMockWs({ data: { userId: 'user-1', orgId: 'org-1' } });
+    const ws2 = createMockWs({ data: { userId: 'user-2', orgId: 'org-2' } });
+
+    broadcaster.websocket.open(ws1);
+    broadcaster.websocket.open(ws2);
+
+    broadcaster.broadcastPlanAssigned('org-1', 'account', 'org-1', 'pro_monthly');
 
     expect(ws1.sentMessages.length).toBe(1);
     const parsed = JSON.parse(ws1.sentMessages[0]);
     expect(parsed.type).toBe('access:plan_assigned');
-    expect(parsed.orgId).toBe('org-1');
+    expect(parsed.resourceType).toBe('account');
+    expect(parsed.resourceId).toBe('org-1');
     expect(parsed.planId).toBe('pro_monthly');
     expect(ws2.sentMessages.length).toBe(0);
   });
 
-  it('broadcastAddonAttached sends addon_attached event to org connections', () => {
+  it('broadcastAddonAttached sends event with resource fields', () => {
     const broadcaster = createAccessEventBroadcaster({
       publicKey: testPublicKey,
     });
@@ -429,16 +480,17 @@ describe('plan event broadcasts', () => {
     const ws = createMockWs({ data: { userId: 'user-1', orgId: 'org-1' } });
     broadcaster.websocket.open(ws);
 
-    broadcaster.broadcastAddonAttached('org-1', 'export_addon');
+    broadcaster.broadcastAddonAttached('org-1', 'tenant', 'org-1', 'export_addon');
 
     expect(ws.sentMessages.length).toBe(1);
     const parsed = JSON.parse(ws.sentMessages[0]);
     expect(parsed.type).toBe('access:addon_attached');
-    expect(parsed.orgId).toBe('org-1');
+    expect(parsed.resourceType).toBe('tenant');
+    expect(parsed.resourceId).toBe('org-1');
     expect(parsed.addonId).toBe('export_addon');
   });
 
-  it('broadcastAddonDetached sends addon_detached event to org connections', () => {
+  it('broadcastAddonDetached sends event with resource fields', () => {
     const broadcaster = createAccessEventBroadcaster({
       publicKey: testPublicKey,
     });
@@ -446,16 +498,17 @@ describe('plan event broadcasts', () => {
     const ws = createMockWs({ data: { userId: 'user-1', orgId: 'org-1' } });
     broadcaster.websocket.open(ws);
 
-    broadcaster.broadcastAddonDetached('org-1', 'export_addon');
+    broadcaster.broadcastAddonDetached('org-1', 'tenant', 'org-1', 'export_addon');
 
     expect(ws.sentMessages.length).toBe(1);
     const parsed = JSON.parse(ws.sentMessages[0]);
     expect(parsed.type).toBe('access:addon_detached');
-    expect(parsed.orgId).toBe('org-1');
+    expect(parsed.resourceType).toBe('tenant');
+    expect(parsed.resourceId).toBe('org-1');
     expect(parsed.addonId).toBe('export_addon');
   });
 
-  it('broadcastLimitReset sends limit_reset event to org connections', () => {
+  it('broadcastLimitReset sends event with resource fields', () => {
     const broadcaster = createAccessEventBroadcaster({
       publicKey: testPublicKey,
     });
@@ -463,12 +516,13 @@ describe('plan event broadcasts', () => {
     const ws = createMockWs({ data: { userId: 'user-1', orgId: 'org-1' } });
     broadcaster.websocket.open(ws);
 
-    broadcaster.broadcastLimitReset('org-1', 'prompt:create', 100);
+    broadcaster.broadcastLimitReset('org-1', 'tenant', 'org-1', 'prompt:create', 100);
 
     expect(ws.sentMessages.length).toBe(1);
     const parsed = JSON.parse(ws.sentMessages[0]);
     expect(parsed.type).toBe('access:limit_reset');
-    expect(parsed.orgId).toBe('org-1');
+    expect(parsed.resourceType).toBe('tenant');
+    expect(parsed.resourceId).toBe('org-1');
     expect(parsed.entitlement).toBe('prompt:create');
     expect(parsed.max).toBe(100);
   });
@@ -484,10 +538,10 @@ describe('plan event broadcasts', () => {
     broadcaster.websocket.open(ws1);
     broadcaster.websocket.open(ws2);
 
-    broadcaster.broadcastPlanAssigned('org-1', 'enterprise');
-    broadcaster.broadcastAddonAttached('org-1', 'extra_prompts');
-    broadcaster.broadcastAddonDetached('org-1', 'old_addon');
-    broadcaster.broadcastLimitReset('org-1', 'prompt:create', 200);
+    broadcaster.broadcastPlanAssigned('org-1', 'account', 'org-1', 'enterprise');
+    broadcaster.broadcastAddonAttached('org-1', 'tenant', 'org-1', 'extra_prompts');
+    broadcaster.broadcastAddonDetached('org-1', 'tenant', 'org-1', 'old_addon');
+    broadcaster.broadcastLimitReset('org-1', 'tenant', 'org-1', 'prompt:create', 200);
 
     expect(ws1.sentMessages.length).toBe(4);
     expect(ws2.sentMessages.length).toBe(0);

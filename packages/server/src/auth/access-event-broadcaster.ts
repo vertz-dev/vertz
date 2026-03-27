@@ -13,21 +13,34 @@ import { verifyJWT } from './jwt';
 // ============================================================================
 
 export type AccessEvent =
-  | { type: 'access:flag_toggled'; orgId: string; flag: string; enabled: boolean }
+  | {
+      type: 'access:flag_toggled';
+      resourceType: string;
+      resourceId: string;
+      flag: string;
+      enabled: boolean;
+    }
   | {
       type: 'access:limit_updated';
-      orgId: string;
+      resourceType: string;
+      resourceId: string;
       entitlement: string;
       consumed: number;
       remaining: number;
       max: number;
     }
   | { type: 'access:role_changed'; userId: string }
-  | { type: 'access:plan_changed'; orgId: string }
-  | { type: 'access:plan_assigned'; orgId: string; planId: string }
-  | { type: 'access:addon_attached'; orgId: string; addonId: string }
-  | { type: 'access:addon_detached'; orgId: string; addonId: string }
-  | { type: 'access:limit_reset'; orgId: string; entitlement: string; max: number };
+  | { type: 'access:plan_changed'; resourceType: string; resourceId: string }
+  | { type: 'access:plan_assigned'; resourceType: string; resourceId: string; planId: string }
+  | { type: 'access:addon_attached'; resourceType: string; resourceId: string; addonId: string }
+  | { type: 'access:addon_detached'; resourceType: string; resourceId: string; addonId: string }
+  | {
+      type: 'access:limit_reset';
+      resourceType: string;
+      resourceId: string;
+      entitlement: string;
+      max: number;
+    };
 
 export interface AccessWsData {
   userId: string;
@@ -54,20 +67,49 @@ export interface AccessEventBroadcaster {
     message(ws: BunWebSocket<AccessWsData>, msg: string | Buffer): void;
     close(ws: BunWebSocket<AccessWsData>): void;
   };
-  broadcastFlagToggle(orgId: string, flag: string, enabled: boolean): void;
+  broadcastFlagToggle(
+    orgId: string,
+    resourceType: string,
+    resourceId: string,
+    flag: string,
+    enabled: boolean,
+  ): void;
   broadcastLimitUpdate(
     orgId: string,
+    resourceType: string,
+    resourceId: string,
     entitlement: string,
     consumed: number,
     remaining: number,
     max: number,
   ): void;
   broadcastRoleChange(userId: string): void;
-  broadcastPlanChange(orgId: string): void;
-  broadcastPlanAssigned(orgId: string, planId: string): void;
-  broadcastAddonAttached(orgId: string, addonId: string): void;
-  broadcastAddonDetached(orgId: string, addonId: string): void;
-  broadcastLimitReset(orgId: string, entitlement: string, max: number): void;
+  broadcastPlanChange(orgId: string, resourceType: string, resourceId: string): void;
+  broadcastPlanAssigned(
+    orgId: string,
+    resourceType: string,
+    resourceId: string,
+    planId: string,
+  ): void;
+  broadcastAddonAttached(
+    orgId: string,
+    resourceType: string,
+    resourceId: string,
+    addonId: string,
+  ): void;
+  broadcastAddonDetached(
+    orgId: string,
+    resourceType: string,
+    resourceId: string,
+    addonId: string,
+  ): void;
+  broadcastLimitReset(
+    orgId: string,
+    resourceType: string,
+    resourceId: string,
+    entitlement: string,
+    max: number,
+  ): void;
   getConnectionCount: number;
 }
 
@@ -234,13 +276,27 @@ export function createAccessEventBroadcaster(
     },
   };
 
-  function broadcastFlagToggle(orgId: string, flag: string, enabled: boolean): void {
-    const event: AccessEvent = { type: 'access:flag_toggled', orgId, flag, enabled };
+  function broadcastFlagToggle(
+    orgId: string,
+    resourceType: string,
+    resourceId: string,
+    flag: string,
+    enabled: boolean,
+  ): void {
+    const event: AccessEvent = {
+      type: 'access:flag_toggled',
+      resourceType,
+      resourceId,
+      flag,
+      enabled,
+    };
     broadcastToOrg(orgId, JSON.stringify(event));
   }
 
   function broadcastLimitUpdate(
     orgId: string,
+    resourceType: string,
+    resourceId: string,
     entitlement: string,
     consumed: number,
     remaining: number,
@@ -248,7 +304,8 @@ export function createAccessEventBroadcaster(
   ): void {
     const event: AccessEvent = {
       type: 'access:limit_updated',
-      orgId,
+      resourceType,
+      resourceId,
       entitlement,
       consumed,
       remaining,
@@ -262,28 +319,74 @@ export function createAccessEventBroadcaster(
     broadcastToUser(userId, JSON.stringify(event));
   }
 
-  function broadcastPlanChange(orgId: string): void {
-    const event: AccessEvent = { type: 'access:plan_changed', orgId };
+  function broadcastPlanChange(
+    orgId: string,
+    resourceType: string,
+    resourceId: string,
+  ): void {
+    const event: AccessEvent = { type: 'access:plan_changed', resourceType, resourceId };
     broadcastToOrg(orgId, JSON.stringify(event));
   }
 
-  function broadcastPlanAssigned(orgId: string, planId: string): void {
-    const event: AccessEvent = { type: 'access:plan_assigned', orgId, planId };
+  function broadcastPlanAssigned(
+    orgId: string,
+    resourceType: string,
+    resourceId: string,
+    planId: string,
+  ): void {
+    const event: AccessEvent = {
+      type: 'access:plan_assigned',
+      resourceType,
+      resourceId,
+      planId,
+    };
     broadcastToOrg(orgId, JSON.stringify(event));
   }
 
-  function broadcastAddonAttached(orgId: string, addonId: string): void {
-    const event: AccessEvent = { type: 'access:addon_attached', orgId, addonId };
+  function broadcastAddonAttached(
+    orgId: string,
+    resourceType: string,
+    resourceId: string,
+    addonId: string,
+  ): void {
+    const event: AccessEvent = {
+      type: 'access:addon_attached',
+      resourceType,
+      resourceId,
+      addonId,
+    };
     broadcastToOrg(orgId, JSON.stringify(event));
   }
 
-  function broadcastAddonDetached(orgId: string, addonId: string): void {
-    const event: AccessEvent = { type: 'access:addon_detached', orgId, addonId };
+  function broadcastAddonDetached(
+    orgId: string,
+    resourceType: string,
+    resourceId: string,
+    addonId: string,
+  ): void {
+    const event: AccessEvent = {
+      type: 'access:addon_detached',
+      resourceType,
+      resourceId,
+      addonId,
+    };
     broadcastToOrg(orgId, JSON.stringify(event));
   }
 
-  function broadcastLimitReset(orgId: string, entitlement: string, max: number): void {
-    const event: AccessEvent = { type: 'access:limit_reset', orgId, entitlement, max };
+  function broadcastLimitReset(
+    orgId: string,
+    resourceType: string,
+    resourceId: string,
+    entitlement: string,
+    max: number,
+  ): void {
+    const event: AccessEvent = {
+      type: 'access:limit_reset',
+      resourceType,
+      resourceId,
+      entitlement,
+      max,
+    };
     broadcastToOrg(orgId, JSON.stringify(event));
   }
 

@@ -1092,7 +1092,13 @@ describe('AuthProvider', () => {
 
       expect(capturedOnEvent).toBeDefined();
 
-      capturedOnEvent?.({ type: 'access:flag_toggled', flag: 'export-v2', enabled: false });
+      capturedOnEvent?.({
+        type: 'access:flag_toggled',
+        resourceType: 'tenant',
+        resourceId: 'org-1',
+        flag: 'export-v2',
+        enabled: false,
+      });
 
       createSpy.mockRestore();
       fetchSpy.mockRestore();
@@ -1124,6 +1130,8 @@ describe('AuthProvider', () => {
 
       capturedOnEvent?.({
         type: 'access:limit_updated',
+        resourceType: 'tenant',
+        resourceId: 'org-1',
         entitlement: 'project:create',
         consumed: 99,
         remaining: 1,
@@ -1162,7 +1170,11 @@ describe('AuthProvider', () => {
       });
 
       capturedOnEvent?.({ type: 'access:role_changed' });
-      capturedOnEvent?.({ type: 'access:plan_changed' });
+      capturedOnEvent?.({
+        type: 'access:plan_changed',
+        resourceType: 'tenant',
+        resourceId: 'org-1',
+      });
 
       createSpy.mockRestore();
       fetchSpy.mockRestore();

@@ -291,7 +291,7 @@ describe('Access Event Broadcaster (public imports)', () => {
     };
 
     broadcaster.websocket.open(mockWs);
-    broadcaster.broadcastFlagToggle('org-1', 'export-v2', true);
+    broadcaster.broadcastFlagToggle('org-1', 'tenant', 'org-1', 'export-v2', true);
 
     expect(sentMessages.length).toBe(1);
     const event = JSON.parse(sentMessages[0]) as AccessEvent;
@@ -299,7 +299,8 @@ describe('Access Event Broadcaster (public imports)', () => {
     if (event.type === 'access:flag_toggled') {
       expect(event.flag).toBe('export-v2');
       expect(event.enabled).toBe(true);
-      expect(event.orgId).toBe('org-1');
+      expect(event.resourceType).toBe('tenant');
+      expect(event.resourceId).toBe('org-1');
     }
   });
 });
