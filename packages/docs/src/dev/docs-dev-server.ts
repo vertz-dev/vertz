@@ -1,4 +1,4 @@
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readFileSync, statSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { loadDocsConfig } from '../config/load';
 import { extractHeadings } from '../mdx/extract-headings';
@@ -69,7 +69,11 @@ export async function createDocsDevServer(options: DocsDevServerOptions): Promis
       if (!route) {
         // Try serving from public/ directory
         const publicPath = resolve(projectDir, 'public', pathname.slice(1));
-        if (publicPath.startsWith(resolve(projectDir, 'public')) && existsSync(publicPath)) {
+        if (
+          publicPath.startsWith(resolve(projectDir, 'public')) &&
+          existsSync(publicPath) &&
+          statSync(publicPath).isFile()
+        ) {
           const file = Bun.file(publicPath);
           return new Response(file);
         }
@@ -77,7 +81,10 @@ export async function createDocsDevServer(options: DocsDevServerOptions): Promis
       }
 
       try {
-        const mdxPath = resolve(pagesDir, route.filePath);
+        const normalizedFilePath = route.filePath.endsWith('.mdx')
+          ? route.filePath
+          : `${route.filePath}.mdx`;
+        const mdxPath = resolve(pagesDir, normalizedFilePath);
 
         // Guard against path traversal
         if (!mdxPath.startsWith(pagesDir)) {

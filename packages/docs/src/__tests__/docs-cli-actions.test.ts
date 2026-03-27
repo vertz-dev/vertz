@@ -69,6 +69,31 @@ describe('createDocsDevServer — static files', () => {
     const res = await fetch(`http://${server.hostname}:${server.port}/nonexistent.txt`);
     expect(res.status).toBe(404);
   });
+
+  it('returns 404 for directory paths in public/', async () => {
+    mkdirSync(join(testDir, 'public', 'subdir'), { recursive: true });
+    writeFileSync(join(testDir, 'public', 'subdir', 'file.txt'), 'nested');
+    const { createDocsDevServer } = await import('../dev/docs-dev-server');
+    server = await createDocsDevServer({ projectDir: testDir, port: 0 });
+    const res = await fetch(`http://${server.hostname}:${server.port}/subdir`);
+    expect(res.status).toBe(404);
+  });
+
+  it('blocks path traversal attempts in static file serving', async () => {
+    const { createDocsDevServer } = await import('../dev/docs-dev-server');
+    server = await createDocsDevServer({ projectDir: testDir, port: 0 });
+    const res = await fetch(`http://${server.hostname}:${server.port}/../package.json`);
+    expect(res.status).toBe(404);
+  });
+
+  it('serves pages with extensionless sidebar paths', async () => {
+    const { createDocsDevServer } = await import('../dev/docs-dev-server');
+    server = await createDocsDevServer({ projectDir: testDir, port: 0 });
+    const res = await fetch(`http://${server.hostname}:${server.port}/`);
+    expect(res.status).toBe(200);
+    const html = await res.text();
+    expect(html).toContain('Hello');
+  });
 });
 
 describe('docsBuildAction', () => {
