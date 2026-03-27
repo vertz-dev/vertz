@@ -565,6 +565,41 @@ describe('createContext / useContext', () => {
     expect(observed).toEqual([0, 2, 4]);
   });
 
+  test('JSX pattern: null getter value passes through unchanged', () => {
+    const NullCtx = createContext<null>(null);
+    let captured: null | undefined;
+
+    NullCtx.Provider({
+      get value() {
+        return null;
+      },
+      children: () => {
+        captured = useContext(NullCtx);
+        return null;
+      },
+    });
+
+    expect(captured).toBe(null);
+  });
+
+  test('JSX pattern: array getter value passes through unchanged', () => {
+    const arr = [1, 2, 3];
+    const ArrCtx = createContext<number[]>();
+    let captured: number[] | undefined;
+
+    ArrCtx.Provider({
+      get value() {
+        return arr;
+      },
+      children: () => {
+        captured = useContext(ArrCtx);
+        return null;
+      },
+    });
+
+    expect(captured).toBe(arr);
+  });
+
   test('JSX pattern: callback pattern still works after lazy wrapping changes', () => {
     interface SettingsValue {
       theme: string;

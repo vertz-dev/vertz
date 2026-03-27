@@ -102,6 +102,11 @@ export function wrapSignalProps<T>(value: T): T {
  * - Function properties: captured once (stable references)
  * - Other properties: re-read from `props.value` on each access (re-evaluates
  *   the JSX getter, picking up computed changes inside the effect's tracking)
+ *
+ * NOTE: Keys are snapshotted from the first read of `props.value`. The
+ * compiler generates stable object literal shapes, so this is safe. If the
+ * getter ever produced objects with varying keys, later-appearing properties
+ * would be invisible to consumers.
  */
 function wrapSignalPropsLazy<T>(
   propsObj: ProviderJsxProps<T>,
