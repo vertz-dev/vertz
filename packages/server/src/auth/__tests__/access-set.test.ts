@@ -1236,5 +1236,64 @@ describe('Feature: Multi-level computeAccessSet (#1787)', () => {
       expect(result.entitlements['project:create-task'].reasons).toContain('limit_reached');
       expect(result.entitlements['project:create-task'].meta?.limit?.remaining).toBe(0);
     });
+
+    it('handles unlimited limits (-1) for default-plan tenants', async () => {
+      const unlimitedAccessDef = defineAccess({
+        entities: {
+          account: { roles: ['owner'] },
+          project: {
+            roles: ['editor'],
+            inherits: { 'account:owner': 'editor' },
+          },
+        },
+        entitlements: {
+          'project:create-task': { roles: ['editor'] },
+        },
+        plans: {
+          unlimited: {
+            level: 'project',
+            group: 'project-plans',
+            features: ['project:create-task'],
+            limits: {
+              tasks: { max: -1, gates: 'project:create-task', per: 'month' },
+            },
+          },
+        },
+        defaultPlans: { project: 'unlimited' },
+      });
+
+      const { roleStore, closureStore, subscriptionStore } = createMultiLevelStores();
+      const walletStore = new InMemoryWalletStore();
+
+      await closureStore.addResource('account', 'acct-1');
+      await closureStore.addResource('project', 'proj-1', {
+        parentType: 'account',
+        parentId: 'acct-1',
+      });
+      await roleStore.assign('user-1', 'account', 'acct-1', 'owner');
+
+      const result = await computeAccessSet({
+        userId: 'user-1',
+        accessDef: unlimitedAccessDef,
+        roleStore,
+        closureStore,
+        subscriptionStore,
+        walletStore,
+        tenantId: 'proj-1',
+        tenantLevel: 'project',
+        ancestorResolver: async (_level, id) => {
+          if (id === 'proj-1') return [{ type: 'account', id: 'acct-1', depth: 1 }];
+          return [];
+        },
+      });
+
+      expect(result.entitlements['project:create-task'].allowed).toBe(true);
+      expect(result.entitlements['project:create-task'].meta?.limit).toEqual({
+        key: 'tasks',
+        max: -1,
+        consumed: 0,
+        remaining: -1,
+      });
+    });
   });
 });
