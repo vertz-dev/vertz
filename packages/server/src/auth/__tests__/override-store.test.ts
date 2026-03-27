@@ -3,109 +3,109 @@ import { defineAccess } from '../define-access';
 import { InMemoryOverrideStore, validateOverrides } from '../override-store';
 
 describe('InMemoryOverrideStore', () => {
-  it('set() stores feature overrides for a tenant', async () => {
+  it('set() stores feature overrides for a resource', async () => {
     const store = new InMemoryOverrideStore();
-    await store.set('org-1', { features: ['project:export'] });
-    const overrides = await store.get('org-1');
+    await store.set('organization', 'org-1', { features: ['project:export'] });
+    const overrides = await store.get('organization', 'org-1');
     expect(overrides?.features).toEqual(['project:export']);
   });
 
   it('set() stores limit overrides with add mode', async () => {
     const store = new InMemoryOverrideStore();
-    await store.set('org-1', { limits: { prompts: { add: 200 } } });
-    const overrides = await store.get('org-1');
+    await store.set('organization', 'org-1', { limits: { prompts: { add: 200 } } });
+    const overrides = await store.get('organization', 'org-1');
     expect(overrides?.limits?.prompts).toEqual({ add: 200 });
   });
 
   it('set() stores limit overrides with max mode', async () => {
     const store = new InMemoryOverrideStore();
-    await store.set('org-1', { limits: { prompts: { max: 1000 } } });
-    const overrides = await store.get('org-1');
+    await store.set('organization', 'org-1', { limits: { prompts: { max: 1000 } } });
+    const overrides = await store.get('organization', 'org-1');
     expect(overrides?.limits?.prompts).toEqual({ max: 1000 });
   });
 
-  it('get() returns all overrides for a tenant', async () => {
+  it('get() returns all overrides for a resource', async () => {
     const store = new InMemoryOverrideStore();
-    await store.set('org-1', {
+    await store.set('organization', 'org-1', {
       features: ['project:export'],
       limits: { prompts: { add: 200 } },
     });
-    const overrides = await store.get('org-1');
+    const overrides = await store.get('organization', 'org-1');
     expect(overrides?.features).toEqual(['project:export']);
     expect(overrides?.limits?.prompts).toEqual({ add: 200 });
   });
 
   it('get() returns null when no overrides exist', async () => {
     const store = new InMemoryOverrideStore();
-    const overrides = await store.get('org-unknown');
+    const overrides = await store.get('organization', 'org-unknown');
     expect(overrides).toBeNull();
   });
 
   it('remove() clears specific limit overrides', async () => {
     const store = new InMemoryOverrideStore();
-    await store.set('org-1', {
+    await store.set('organization', 'org-1', {
       limits: { prompts: { add: 200 }, members: { max: 50 } },
     });
-    await store.remove('org-1', { limits: ['prompts'] });
-    const overrides = await store.get('org-1');
+    await store.remove('organization', 'org-1', { limits: ['prompts'] });
+    const overrides = await store.get('organization', 'org-1');
     expect(overrides?.limits?.prompts).toBeUndefined();
     expect(overrides?.limits?.members).toEqual({ max: 50 });
   });
 
   it('remove() clears specific feature overrides', async () => {
     const store = new InMemoryOverrideStore();
-    await store.set('org-1', { features: ['project:export', 'ai-assistant'] });
-    await store.remove('org-1', { features: ['project:export'] });
-    const overrides = await store.get('org-1');
+    await store.set('organization', 'org-1', { features: ['project:export', 'ai-assistant'] });
+    await store.remove('organization', 'org-1', { features: ['project:export'] });
+    const overrides = await store.get('organization', 'org-1');
     expect(overrides?.features).toEqual(['ai-assistant']);
   });
 
   it('set() with both add and max stores both', async () => {
     const store = new InMemoryOverrideStore();
-    await store.set('org-1', { limits: { prompts: { add: 100, max: 1000 } } });
-    const overrides = await store.get('org-1');
+    await store.set('organization', 'org-1', { limits: { prompts: { add: 100, max: 1000 } } });
+    const overrides = await store.get('organization', 'org-1');
     expect(overrides?.limits?.prompts).toEqual({ add: 100, max: 1000 });
   });
 
   it('remove() of max reveals the add value', async () => {
     const store = new InMemoryOverrideStore();
-    await store.set('org-1', { limits: { prompts: { add: 100, max: 1000 } } });
+    await store.set('organization', 'org-1', { limits: { prompts: { add: 100, max: 1000 } } });
 
     // Remove only the max by setting max to undefined via a new set
     // Actually, remove() removes entire limit keys. For removing just max,
     // we re-set with only add.
-    await store.set('org-1', { limits: { prompts: { add: 100 } } });
-    const overrides = await store.get('org-1');
+    await store.set('organization', 'org-1', { limits: { prompts: { add: 100 } } });
+    const overrides = await store.get('organization', 'org-1');
     expect(overrides?.limits?.prompts).toEqual({ add: 100 });
   });
 
   it('set() merges features without duplicates', async () => {
     const store = new InMemoryOverrideStore();
-    await store.set('org-1', { features: ['project:export'] });
-    await store.set('org-1', { features: ['project:export', 'ai-assistant'] });
-    const overrides = await store.get('org-1');
+    await store.set('organization', 'org-1', { features: ['project:export'] });
+    await store.set('organization', 'org-1', { features: ['project:export', 'ai-assistant'] });
+    const overrides = await store.get('organization', 'org-1');
     expect(overrides?.features).toEqual(['project:export', 'ai-assistant']);
   });
 
   it('dispose() clears all data', async () => {
     const store = new InMemoryOverrideStore();
-    await store.set('org-1', { features: ['project:export'] });
+    await store.set('organization', 'org-1', { features: ['project:export'] });
     store.dispose();
-    const overrides = await store.get('org-1');
+    const overrides = await store.get('organization', 'org-1');
     expect(overrides).toBeNull();
   });
 
-  it('remove() is a no-op for unknown tenant', async () => {
+  it('remove() is a no-op for unknown resource', async () => {
     const store = new InMemoryOverrideStore();
     // Should not throw
-    await store.remove('org-unknown', { features: ['x'], limits: ['y'] });
+    await store.remove('organization', 'org-unknown', { features: ['x'], limits: ['y'] });
   });
 
-  it('remove() clears tenant entry when all overrides are removed', async () => {
+  it('remove() clears entry when all overrides are removed', async () => {
     const store = new InMemoryOverrideStore();
-    await store.set('org-1', { features: ['project:export'] });
-    await store.remove('org-1', { features: ['project:export'] });
-    const overrides = await store.get('org-1');
+    await store.set('organization', 'org-1', { features: ['project:export'] });
+    await store.remove('organization', 'org-1', { features: ['project:export'] });
+    const overrides = await store.get('organization', 'org-1');
     expect(overrides).toBeNull();
   });
 });

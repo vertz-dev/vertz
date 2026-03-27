@@ -229,7 +229,9 @@ export function createAccessContext(config: AccessContextConfig): AccessContext 
 
     // Fetch overrides once
     const overrides =
-      resolvedOrg && overrideStore ? await overrideStore.get(resolvedOrg.id) : null;
+      resolvedOrg && overrideStore
+        ? await overrideStore.get(resolvedOrg.type, resolvedOrg.id)
+        : null;
 
     if (!(await checkLayers1to3(entitlement, resource, resolvedOrg, overrides))) return false;
 
@@ -303,7 +305,9 @@ export function createAccessContext(config: AccessContextConfig): AccessContext 
 
     // Fetch overrides once
     const overrides =
-      resolvedOrg && overrideStore ? await overrideStore.get(resolvedOrg.id) : null;
+      resolvedOrg && overrideStore
+        ? await overrideStore.get(resolvedOrg.type, resolvedOrg.id)
+        : null;
 
     // Layer 1: Feature flags
     if (entDef.flags?.length && flagStore && orgResolver) {
@@ -569,7 +573,9 @@ export function createAccessContext(config: AccessContextConfig): AccessContext 
 
     // Fetch overrides once
     const overrides =
-      resolvedOrg && overrideStore ? await overrideStore.get(resolvedOrg.id) : null;
+      resolvedOrg && overrideStore
+        ? await overrideStore.get(resolvedOrg.type, resolvedOrg.id)
+        : null;
 
     // Run Layers 1-3 (auth, flags, roles, plan features — skips limit layer)
     if (!(await checkLayers1to3(entitlement, resource, resolvedOrg, overrides))) return false;
@@ -592,6 +598,7 @@ export function createAccessContext(config: AccessContextConfig): AccessContext 
     try {
       // Track all consumed entries across all levels for rollback
       const allConsumed: Array<{
+        resourceType: string;
         resourceId: string;
         key: string;
         periodStart: Date;
@@ -623,6 +630,7 @@ export function createAccessContext(config: AccessContextConfig): AccessContext 
           if (lc.hasOverage) {
             if (lc.overageCap !== undefined) {
               const currentConsumed = await walletStore.getConsumption(
+                entry.resourceType,
                 entry.resourceId,
                 lc.walletKey,
                 lc.periodStart,
@@ -639,6 +647,7 @@ export function createAccessContext(config: AccessContextConfig): AccessContext 
           }
 
           const result = await walletStore.consume(
+            entry.resourceType,
             entry.resourceId,
             lc.walletKey,
             lc.periodStart,
@@ -653,6 +662,7 @@ export function createAccessContext(config: AccessContextConfig): AccessContext 
           }
 
           allConsumed.push({
+            resourceType: entry.resourceType,
             resourceId: entry.resourceId,
             key: lc.walletKey,
             periodStart: lc.periodStart,
@@ -745,7 +755,9 @@ export function createAccessContext(config: AccessContextConfig): AccessContext 
     const planDef = accessDef.plans?.[planId];
     if (!planDef?.limits || !limitKeys?.some((k) => k in planDef.limits!)) return null;
 
-    const tenantOverrides = overrideStore ? await overrideStore.get(resourceId) : null;
+    const tenantOverrides = overrideStore
+      ? await overrideStore.get(resourceType, resourceId)
+      : null;
 
     return { resourceType, resourceId, subscription, planId, overrides: tenantOverrides };
   }
@@ -783,6 +795,7 @@ export function createAccessContext(config: AccessContextConfig): AccessContext 
       for (const lc of limitsToUnconsume) {
         if (lc.effectiveMax === -1) continue; // Unlimited — no wallet entry
         await walletStore.unconsume(
+          entry.resourceType,
           entry.resourceId,
           lc.walletKey,
           lc.periodStart,
@@ -830,7 +843,11 @@ async function resolveEffectiveFeatures(
 ): Promise<boolean> {
   // Check if tenant has a versioned snapshot to use
   if (planVersionStore) {
-    const tenantVersion = await planVersionStore.getTenantVersion(org.type, org.id, effectivePlanId);
+    const tenantVersion = await planVersionStore.getTenantVersion(
+      org.type,
+      org.id,
+      effectivePlanId,
+    );
     if (tenantVersion !== null) {
       const versionInfo = await planVersionStore.getVersion(effectivePlanId, tenantVersion);
       if (versionInfo) {
@@ -916,7 +933,11 @@ async function resolveAllLimitStates(
   // Resolve versioned limits if available
   let versionedLimits: Record<string, unknown> | null = null;
   if (planVersionStore) {
-    const tenantVersion = await planVersionStore.getTenantVersion(org.type, org.id, effectivePlanId);
+    const tenantVersion = await planVersionStore.getTenantVersion(
+      org.type,
+      org.id,
+      effectivePlanId,
+    );
     if (tenantVersion !== null) {
       const versionInfo = await planVersionStore.getVersion(effectivePlanId, tenantVersion);
       if (versionInfo) {
@@ -968,6 +989,7 @@ async function resolveAllLimitStates(
       : { periodStart: subscription.startedAt, periodEnd: new Date('9999-12-31T23:59:59Z') };
 
     const consumed = await walletStore.getConsumption(
+      org.type,
       org.id,
       walletKey,
       period.periodStart,
@@ -1026,7 +1048,11 @@ async function resolveAllLimitConsumptions(
   // Resolve versioned limits if available
   let versionedLimits: Record<string, unknown> | null = null;
   if (planVersionStore) {
-    const tenantVersion = await planVersionStore.getTenantVersion(org.type, org.id, effectivePlanId);
+    const tenantVersion = await planVersionStore.getTenantVersion(
+      org.type,
+      org.id,
+      effectivePlanId,
+    );
     if (tenantVersion !== null) {
       const versionInfo = await planVersionStore.getVersion(effectivePlanId, tenantVersion);
       if (versionInfo) {
@@ -1148,13 +1174,26 @@ async function computeEffectiveLimit(
  * remaining entries are still attempted.
  */
 async function rollbackCascadedConsumptions(
-  consumed: Array<{ resourceId: string; key: string; periodStart: Date; periodEnd: Date }>,
+  consumed: Array<{
+    resourceType: string;
+    resourceId: string;
+    key: string;
+    periodStart: Date;
+    periodEnd: Date;
+  }>,
   walletStore: WalletStore,
   amount: number,
 ): Promise<void> {
   for (const c of consumed) {
     try {
-      await walletStore.unconsume(c.resourceId, c.key, c.periodStart, c.periodEnd, amount);
+      await walletStore.unconsume(
+        c.resourceType,
+        c.resourceId,
+        c.key,
+        c.periodStart,
+        c.periodEnd,
+        amount,
+      );
     } catch {
       // Best-effort rollback — log would be nice but we don't have a logger here.
       // The alternative (letting one failure orphan the rest) is worse.

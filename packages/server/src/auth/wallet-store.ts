@@ -1,7 +1,7 @@
 /**
  * WalletStore — consumption tracking for plan-limited entitlements.
  *
- * Tracks per-tenant usage within billing periods with atomic
+ * Tracks per-resource usage within billing periods with atomic
  * check-and-increment operations.
  */
 
@@ -10,7 +10,8 @@
 // ============================================================================
 
 export interface WalletEntry {
-  tenantId: string;
+  resourceType: string;
+  resourceId: string;
   entitlement: string;
   periodStart: Date;
   periodEnd: Date;
@@ -26,7 +27,8 @@ export interface ConsumeResult {
 
 export interface WalletStore {
   consume(
-    tenantId: string,
+    resourceType: string,
+    resourceId: string,
     entitlement: string,
     periodStart: Date,
     periodEnd: Date,
@@ -34,20 +36,23 @@ export interface WalletStore {
     amount?: number,
   ): Promise<ConsumeResult>;
   unconsume(
-    tenantId: string,
+    resourceType: string,
+    resourceId: string,
     entitlement: string,
     periodStart: Date,
     periodEnd: Date,
     amount?: number,
   ): Promise<void>;
   getConsumption(
-    tenantId: string,
+    resourceType: string,
+    resourceId: string,
     entitlement: string,
     periodStart: Date,
     periodEnd: Date,
   ): Promise<number>;
   getBatchConsumption(
-    tenantId: string,
+    resourceType: string,
+    resourceId: string,
     limitKeys: string[],
     periodStart: Date,
     periodEnd: Date,
@@ -62,23 +67,36 @@ export interface WalletStore {
 export class InMemoryWalletStore implements WalletStore {
   private entries = new Map<string, WalletEntry>();
 
-  private key(tenantId: string, entitlement: string, periodStart: Date): string {
-    return `${tenantId}:${entitlement}:${periodStart.getTime()}`;
+  private key(
+    resourceType: string,
+    resourceId: string,
+    entitlement: string,
+    periodStart: Date,
+  ): string {
+    return `${resourceType}:${resourceId}:${entitlement}:${periodStart.getTime()}`;
   }
 
   async consume(
-    tenantId: string,
+    resourceType: string,
+    resourceId: string,
     entitlement: string,
     periodStart: Date,
     periodEnd: Date,
     limit: number,
     amount = 1,
   ): Promise<ConsumeResult> {
-    const k = this.key(tenantId, entitlement, periodStart);
+    const k = this.key(resourceType, resourceId, entitlement, periodStart);
 
     // Lazy init
     if (!this.entries.has(k)) {
-      this.entries.set(k, { tenantId, entitlement, periodStart, periodEnd, consumed: 0 });
+      this.entries.set(k, {
+        resourceType,
+        resourceId,
+        entitlement,
+        periodStart,
+        periodEnd,
+        consumed: 0,
+      });
     }
 
     const entry = this.entries.get(k)!;
@@ -105,13 +123,14 @@ export class InMemoryWalletStore implements WalletStore {
   }
 
   async unconsume(
-    tenantId: string,
+    resourceType: string,
+    resourceId: string,
     entitlement: string,
     periodStart: Date,
     _periodEnd: Date,
     amount = 1,
   ): Promise<void> {
-    const k = this.key(tenantId, entitlement, periodStart);
+    const k = this.key(resourceType, resourceId, entitlement, periodStart);
     const entry = this.entries.get(k);
     if (!entry) return;
 
@@ -119,25 +138,27 @@ export class InMemoryWalletStore implements WalletStore {
   }
 
   async getConsumption(
-    tenantId: string,
+    resourceType: string,
+    resourceId: string,
     entitlement: string,
     periodStart: Date,
     _periodEnd: Date,
   ): Promise<number> {
-    const k = this.key(tenantId, entitlement, periodStart);
+    const k = this.key(resourceType, resourceId, entitlement, periodStart);
     const entry = this.entries.get(k);
     return entry?.consumed ?? 0;
   }
 
   async getBatchConsumption(
-    tenantId: string,
+    resourceType: string,
+    resourceId: string,
     limitKeys: string[],
     periodStart: Date,
     _periodEnd: Date,
   ): Promise<Map<string, number>> {
     const result = new Map<string, number>();
     for (const key of limitKeys) {
-      const k = this.key(tenantId, key, periodStart);
+      const k = this.key(resourceType, resourceId, key, periodStart);
       const entry = this.entries.get(k);
       result.set(key, entry?.consumed ?? 0);
     }

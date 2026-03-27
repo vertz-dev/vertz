@@ -545,7 +545,7 @@ describe('createAccessContext', () => {
 
       // Consume 49 of 50
       const { periodStart, periodEnd } = calculateBillingPeriod(now, 'month');
-      await walletStore.consume('org-1', 'prompts', periodStart, periodEnd, 50, 49);
+      await walletStore.consume('tenant', 'org-1', 'prompts', periodStart, periodEnd, 50, 49);
 
       const ctx = createAccessContext({
         userId: 'user-1',
@@ -574,7 +574,7 @@ describe('createAccessContext', () => {
       await subscriptionStore.assign('tenant', 'org-1', 'free', now);
 
       const { periodStart, periodEnd } = calculateBillingPeriod(now, 'month');
-      await walletStore.consume('org-1', 'prompts', periodStart, periodEnd, 50, 50);
+      await walletStore.consume('tenant', 'org-1', 'prompts', periodStart, periodEnd, 50, 50);
 
       const ctx = createAccessContext({
         userId: 'user-1',
@@ -627,7 +627,7 @@ describe('createAccessContext', () => {
       await subscriptionStore.assign('tenant', 'org-1', 'free', now);
 
       const { periodStart, periodEnd } = calculateBillingPeriod(now, 'month');
-      await walletStore.consume('org-1', 'prompts', periodStart, periodEnd, 50, 50);
+      await walletStore.consume('tenant', 'org-1', 'prompts', periodStart, periodEnd, 50, 50);
 
       const ctx = createAccessContext({
         userId: 'user-1',
@@ -708,8 +708,16 @@ describe('createAccessContext', () => {
 
       // Tenant-level: 3 of 50 (ok), per-brand: 5 of 5 (exceeded)
       const { periodStart, periodEnd } = calculateBillingPeriod(now, 'month');
-      await walletStore.consume('org-1', 'prompts', periodStart, periodEnd, 50, 3);
-      await walletStore.consume('org-1', 'prompts_per_brand', periodStart, periodEnd, 5, 5);
+      await walletStore.consume('tenant', 'org-1', 'prompts', periodStart, periodEnd, 50, 3);
+      await walletStore.consume(
+        'tenant',
+        'org-1',
+        'prompts_per_brand',
+        periodStart,
+        periodEnd,
+        5,
+        5,
+      );
 
       const ctx = createAccessContext({
         userId: 'user-1',
@@ -738,8 +746,16 @@ describe('createAccessContext', () => {
       await subscriptionStore.assign('tenant', 'org-1', 'free', now);
 
       const { periodStart, periodEnd } = calculateBillingPeriod(now, 'month');
-      await walletStore.consume('org-1', 'prompts', periodStart, periodEnd, 50, 3);
-      await walletStore.consume('org-1', 'prompts_per_brand', periodStart, periodEnd, 5, 5);
+      await walletStore.consume('tenant', 'org-1', 'prompts', periodStart, periodEnd, 50, 3);
+      await walletStore.consume(
+        'tenant',
+        'org-1',
+        'prompts_per_brand',
+        periodStart,
+        periodEnd,
+        5,
+        5,
+      );
 
       const ctx = createAccessContext({
         userId: 'user-1',
@@ -819,7 +835,13 @@ describe('createAccessContext', () => {
 
       // Verify consumption — use same startedAt as plan anchor
       const { periodStart, periodEnd } = calculateBillingPeriod(startedAt, 'month');
-      const consumed = await walletStore.getConsumption('org-1', 'prompts', periodStart, periodEnd);
+      const consumed = await walletStore.getConsumption(
+        'tenant',
+        'org-1',
+        'prompts',
+        periodStart,
+        periodEnd,
+      );
       expect(consumed).toBe(1);
     });
 
@@ -833,7 +855,7 @@ describe('createAccessContext', () => {
 
       // Pre-consume 5 (the limit)
       const { periodStart, periodEnd } = calculateBillingPeriod(startedAt, 'month');
-      await walletStore.consume('org-1', 'prompts', periodStart, periodEnd, 5, 5);
+      await walletStore.consume('tenant', 'org-1', 'prompts', periodStart, periodEnd, 5, 5);
 
       const ctx = createAccessContext({
         userId: 'user-1',
@@ -876,13 +898,17 @@ describe('createAccessContext', () => {
       });
 
       const { periodStart, periodEnd } = calculateBillingPeriod(startedAt, 'month');
-      expect(await walletStore.getConsumption('org-1', 'prompts', periodStart, periodEnd)).toBe(1);
+      expect(
+        await walletStore.getConsumption('tenant', 'org-1', 'prompts', periodStart, periodEnd),
+      ).toBe(1);
 
       await ctx.unconsume('organization:create-prompt', {
         type: 'organization',
         id: 'org-1',
       });
-      expect(await walletStore.getConsumption('org-1', 'prompts', periodStart, periodEnd)).toBe(0);
+      expect(
+        await walletStore.getConsumption('tenant', 'org-1', 'prompts', periodStart, periodEnd),
+      ).toBe(0);
     });
   });
 
@@ -967,7 +993,7 @@ describe('createAccessContext', () => {
 
       // Consume 75 — over base (50) but within effective (100)
       const { periodStart, periodEnd } = calculateBillingPeriod(now, 'month');
-      await walletStore.consume('org-1', 'prompts', periodStart, periodEnd, 100, 75);
+      await walletStore.consume('tenant', 'org-1', 'prompts', periodStart, periodEnd, 100, 75);
 
       const ctx = createAccessContext({
         userId: 'user-1',
@@ -1221,7 +1247,7 @@ describe('createAccessContext', () => {
 
       // Consume 51 — over v1 limit (50) but within v2 limit (100)
       const { periodStart, periodEnd } = calculateBillingPeriod(startedAt, 'month');
-      await walletStore.consume('org-1', 'projects', periodStart, periodEnd, 100, 51);
+      await walletStore.consume('tenant', 'org-1', 'projects', periodStart, periodEnd, 100, 51);
 
       const ctx = createAccessContext({
         userId: 'user-1',
@@ -1430,7 +1456,7 @@ describe('createAccessContext', () => {
         });
         await roleStore.assign('user-1', 'organization', 'org-1', 'owner');
         await subscriptionStore.assign('tenant', 'org-1', 'free');
-        await overrideStore.set('org-1', { features: ['project:export'] });
+        await overrideStore.set('tenant', 'org-1', { features: ['project:export'] });
 
         const ctx = createAccessContext({
           userId: 'user-1',
@@ -1467,11 +1493,11 @@ describe('createAccessContext', () => {
         await roleStore.assign('user-1', 'organization', 'org-1', 'admin');
         const planStart = new Date('2026-01-01T00:00:00Z');
         await subscriptionStore.assign('tenant', 'org-1', 'free', planStart);
-        await overrideStore.set('org-1', { limits: { prompts: { add: 200 } } });
+        await overrideStore.set('tenant', 'org-1', { limits: { prompts: { add: 200 } } });
 
         // Consume 250 (above base limit of 100, below effective of 300)
         const { periodStart, periodEnd } = calculateBillingPeriod(planStart, 'month');
-        await walletStore.consume('org-1', 'prompts', periodStart, periodEnd, 300, 250);
+        await walletStore.consume('tenant', 'org-1', 'prompts', periodStart, periodEnd, 300, 250);
 
         const ctx = createAccessContext({
           userId: 'user-1',
@@ -1507,11 +1533,11 @@ describe('createAccessContext', () => {
         await roleStore.assign('user-1', 'organization', 'org-1', 'admin');
         const planStart = new Date('2026-01-01T00:00:00Z');
         await subscriptionStore.assign('tenant', 'org-1', 'free', planStart);
-        await overrideStore.set('org-1', { limits: { prompts: { max: 1000 } } });
+        await overrideStore.set('tenant', 'org-1', { limits: { prompts: { max: 1000 } } });
 
         // Consume 500 (above base limit of 100, below max override of 1000)
         const { periodStart, periodEnd } = calculateBillingPeriod(planStart, 'month');
-        await walletStore.consume('org-1', 'prompts', periodStart, periodEnd, 1000, 500);
+        await walletStore.consume('tenant', 'org-1', 'prompts', periodStart, periodEnd, 1000, 500);
 
         const ctx = createAccessContext({
           userId: 'user-1',
@@ -1546,7 +1572,7 @@ describe('createAccessContext', () => {
         await closureStore.addResource('organization', 'org-1');
         await roleStore.assign('user-1', 'organization', 'org-1', 'admin');
         await subscriptionStore.assign('tenant', 'org-1', 'free');
-        await overrideStore.set('org-1', { limits: { prompts: { max: 0 } } });
+        await overrideStore.set('tenant', 'org-1', { limits: { prompts: { max: 0 } } });
 
         const ctx = createAccessContext({
           userId: 'user-1',
@@ -1582,11 +1608,19 @@ describe('createAccessContext', () => {
         await roleStore.assign('user-1', 'organization', 'org-1', 'admin');
         const planStart = new Date('2026-01-01T00:00:00Z');
         await subscriptionStore.assign('tenant', 'org-1', 'free', planStart);
-        await overrideStore.set('org-1', { limits: { prompts: { max: -1 } } });
+        await overrideStore.set('tenant', 'org-1', { limits: { prompts: { max: -1 } } });
 
         // Consume 999999 — should still be allowed
         const { periodStart, periodEnd } = calculateBillingPeriod(planStart, 'month');
-        await walletStore.consume('org-1', 'prompts', periodStart, periodEnd, 999999, 999999);
+        await walletStore.consume(
+          'tenant',
+          'org-1',
+          'prompts',
+          periodStart,
+          periodEnd,
+          999999,
+          999999,
+        );
 
         const ctx = createAccessContext({
           userId: 'user-1',
@@ -1622,11 +1656,11 @@ describe('createAccessContext', () => {
         await roleStore.assign('user-1', 'organization', 'org-1', 'admin');
         const planStart = new Date('2026-01-01T00:00:00Z');
         await subscriptionStore.assign('tenant', 'org-1', 'free', planStart);
-        await overrideStore.set('org-1', { limits: { prompts: { add: -50 } } });
+        await overrideStore.set('tenant', 'org-1', { limits: { prompts: { add: -50 } } });
 
         // Effective limit = 100 - 50 = 50. Consume 50 → should be blocked
         const { periodStart, periodEnd } = calculateBillingPeriod(planStart, 'month');
-        await walletStore.consume('org-1', 'prompts', periodStart, periodEnd, 50, 50);
+        await walletStore.consume('tenant', 'org-1', 'prompts', periodStart, periodEnd, 50, 50);
 
         const ctx = createAccessContext({
           userId: 'user-1',
@@ -1686,12 +1720,12 @@ describe('createAccessContext', () => {
         const planStart = new Date('2026-01-01T00:00:00Z');
         await subscriptionStore.assign('tenant', 'org-1', 'pro', planStart);
         await subscriptionStore.attachAddOn?.('tenant', 'org-1', 'extra_prompts');
-        await overrideStore.set('org-1', { limits: { prompts: { add: 200 } } });
+        await overrideStore.set('tenant', 'org-1', { limits: { prompts: { add: 200 } } });
 
         // Effective = 100 (base) + 50 (addon) + 200 (override add) = 350
         // Consume 340 — should pass
         const { periodStart, periodEnd } = calculateBillingPeriod(planStart, 'month');
-        await walletStore.consume('org-1', 'prompts', periodStart, periodEnd, 350, 340);
+        await walletStore.consume('tenant', 'org-1', 'prompts', periodStart, periodEnd, 350, 340);
 
         const ctx = createAccessContext({
           userId: 'user-1',
@@ -1752,7 +1786,7 @@ describe('createAccessContext', () => {
 
         // Consume beyond the limit
         const { periodStart, periodEnd } = calculateBillingPeriod(planStart, 'month');
-        await walletStore.consume('org-1', 'prompts', periodStart, periodEnd, 200, 150);
+        await walletStore.consume('tenant', 'org-1', 'prompts', periodStart, periodEnd, 200, 150);
 
         const ctx = createAccessContext({
           userId: 'user-1',
@@ -1809,7 +1843,7 @@ describe('createAccessContext', () => {
         await subscriptionStore.assign('tenant', 'org-1', 'pro', planStart);
 
         const { periodStart, periodEnd } = calculateBillingPeriod(planStart, 'month');
-        await walletStore.consume('org-1', 'prompts', periodStart, periodEnd, 200, 150);
+        await walletStore.consume('tenant', 'org-1', 'prompts', periodStart, periodEnd, 200, 150);
 
         const ctx = createAccessContext({
           userId: 'user-1',
@@ -1868,7 +1902,7 @@ describe('createAccessContext', () => {
 
         // 100 base + 500 overage units (500 * 0.01 = $5.00 = cap) → hard block
         const { periodStart, periodEnd } = calculateBillingPeriod(planStart, 'month');
-        await walletStore.consume('org-1', 'prompts', periodStart, periodEnd, 1000, 600);
+        await walletStore.consume('tenant', 'org-1', 'prompts', periodStart, periodEnd, 1000, 600);
 
         const ctx = createAccessContext({
           userId: 'user-1',
@@ -1992,7 +2026,7 @@ describe('createAccessContext', () => {
       await planVersionStore.setTenantVersion('tenant', 'org-1', 'pro', 1);
 
       // Override grants the missing feature
-      await overrideStore.set('org-1', { features: ['project:analytics'] });
+      await overrideStore.set('tenant', 'org-1', { features: ['project:analytics'] });
 
       const ctx = createAccessContext({
         userId: 'user-1',
@@ -2123,11 +2157,11 @@ describe('createAccessContext', () => {
       await subscriptionStore.assign('tenant', 'org-1', 'free', planStart);
 
       // Override adds 200 → effective limit = 300
-      await overrideStore.set('org-1', { limits: { prompts: { add: 200 } } });
+      await overrideStore.set('tenant', 'org-1', { limits: { prompts: { add: 200 } } });
 
       // Pre-consume 250 (above base 100, below effective 300)
       const { periodStart, periodEnd } = calculateBillingPeriod(planStart, 'month');
-      await walletStore.consume('org-1', 'prompts', periodStart, periodEnd, 300, 250);
+      await walletStore.consume('tenant', 'org-1', 'prompts', periodStart, periodEnd, 300, 250);
 
       const ctx = createAccessContext({
         userId: 'user-1',
@@ -2165,11 +2199,11 @@ describe('createAccessContext', () => {
       await subscriptionStore.assign('tenant', 'org-1', 'free', planStart);
 
       // Override max: 500 → effective limit = 500
-      await overrideStore.set('org-1', { limits: { prompts: { max: 500 } } });
+      await overrideStore.set('tenant', 'org-1', { limits: { prompts: { max: 500 } } });
 
       // Pre-consume 400
       const { periodStart, periodEnd } = calculateBillingPeriod(planStart, 'month');
-      await walletStore.consume('org-1', 'prompts', periodStart, periodEnd, 500, 400);
+      await walletStore.consume('tenant', 'org-1', 'prompts', periodStart, periodEnd, 500, 400);
 
       const ctx = createAccessContext({
         userId: 'user-1',
@@ -2206,7 +2240,7 @@ describe('createAccessContext', () => {
       await subscriptionStore.assign('tenant', 'org-1', 'free');
 
       // Override max: 0 — disabled
-      await overrideStore.set('org-1', { limits: { prompts: { max: 0 } } });
+      await overrideStore.set('tenant', 'org-1', { limits: { prompts: { max: 0 } } });
 
       const ctx = createAccessContext({
         userId: 'user-1',
@@ -2264,10 +2298,10 @@ describe('createAccessContext', () => {
 
       // Override adds 50 → effective = 150, but overage cap is still $5.
       // 150 base + 500 overage (500 * 0.01 = $5 = cap) → should block
-      await overrideStore.set('org-1', { limits: { prompts: { add: 50 } } });
+      await overrideStore.set('tenant', 'org-1', { limits: { prompts: { add: 50 } } });
 
       const { periodStart, periodEnd } = calculateBillingPeriod(planStart, 'month');
-      await walletStore.consume('org-1', 'prompts', periodStart, periodEnd, 1000, 650);
+      await walletStore.consume('tenant', 'org-1', 'prompts', periodStart, periodEnd, 1000, 650);
 
       const ctx = createAccessContext({
         userId: 'user-1',
@@ -2327,12 +2361,12 @@ describe('createAccessContext', () => {
       await subscriptionStore.assign('tenant', 'org-1', 'free', planStart);
 
       // Override add: 200 → effective = 300
-      await overrideStore.set('org-1', { limits: { prompts: { add: 200 } } });
+      await overrideStore.set('tenant', 'org-1', { limits: { prompts: { add: 200 } } });
 
       const { periodStart, periodEnd } = calculateBillingPeriod(planStart, 'month');
 
       // Consume to exactly 300 (at limit)
-      await walletStore.consume('org-1', 'prompts', periodStart, periodEnd, 300, 300);
+      await walletStore.consume('tenant', 'org-1', 'prompts', periodStart, periodEnd, 300, 300);
 
       const ctx = createAccessContext({
         userId: 'user-1',
@@ -2572,7 +2606,7 @@ describe('createAccessContext', () => {
       const { periodStart, periodEnd } = calculateBillingPeriod(planStart, 'month');
 
       // Consume 105 units — 5 over limit, overage cost = (5 * 10) / 1 = 50, equals cap
-      await walletStore.consume('org-1', 'api_calls', periodStart, periodEnd, 999, 105);
+      await walletStore.consume('tenant', 'org-1', 'api_calls', periodStart, periodEnd, 999, 105);
 
       const ctx = createAccessContext({
         userId: 'user-1',
@@ -2769,7 +2803,7 @@ describe('createAccessContext', () => {
       const { periodStart, periodEnd } = calculateBillingPeriod(planStart, 'month');
 
       // Consume 150 — above current config (100) but below versioned (200)
-      await walletStore.consume('org-1', 'api_calls', periodStart, periodEnd, 999, 150);
+      await walletStore.consume('tenant', 'org-1', 'api_calls', periodStart, periodEnd, 999, 150);
 
       const ctx = createAccessContext({
         userId: 'user-1',
@@ -2829,7 +2863,7 @@ describe('createAccessContext', () => {
 
       // Consume to 105 — overage cost = (5 * 10) / 1 = 50 = cap
       // Next consume of 1 would make cost = (6 * 10) / 1 = 60 > cap
-      await walletStore.consume('org-1', 'api_calls', periodStart, periodEnd, 999, 105);
+      await walletStore.consume('tenant', 'org-1', 'api_calls', periodStart, periodEnd, 999, 105);
 
       const ctx = createAccessContext({
         userId: 'user-1',
@@ -2887,7 +2921,7 @@ describe('createAccessContext', () => {
       const { periodStart, periodEnd } = calculateBillingPeriod(planStart, 'month');
 
       // Consume 200 — above plan max (100) but below override (500)
-      await walletStore.consume('org-1', 'api_calls', periodStart, periodEnd, 999, 200);
+      await walletStore.consume('tenant', 'org-1', 'api_calls', periodStart, periodEnd, 999, 200);
 
       const ctx = createAccessContext({
         userId: 'user-1',

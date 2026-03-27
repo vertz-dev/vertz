@@ -24,13 +24,15 @@ export class CloudWalletStore implements WalletStore {
   }
 
   async getConsumption(
-    tenantId: string,
+    resourceType: string,
+    resourceId: string,
     entitlement: string,
     periodStart: Date,
     periodEnd: Date,
   ): Promise<number> {
     const body = {
-      tenantId,
+      resourceType,
+      resourceId,
       limitKey: entitlement,
       periodStart: periodStart.toISOString(),
       periodEnd: periodEnd.toISOString(),
@@ -41,7 +43,8 @@ export class CloudWalletStore implements WalletStore {
   }
 
   async consume(
-    tenantId: string,
+    resourceType: string,
+    resourceId: string,
     entitlement: string,
     periodStart: Date,
     periodEnd: Date,
@@ -49,7 +52,8 @@ export class CloudWalletStore implements WalletStore {
     amount = 1,
   ): Promise<ConsumeResult> {
     const body = {
-      tenantId,
+      resourceType,
+      resourceId,
       limitKey: entitlement,
       periodStart: periodStart.toISOString(),
       periodEnd: periodEnd.toISOString(),
@@ -77,14 +81,16 @@ export class CloudWalletStore implements WalletStore {
   }
 
   async unconsume(
-    tenantId: string,
+    resourceType: string,
+    resourceId: string,
     entitlement: string,
     periodStart: Date,
     periodEnd: Date,
     amount = 1,
   ): Promise<void> {
     const body = {
-      tenantId,
+      resourceType,
+      resourceId,
       limitKey: entitlement,
       periodStart: periodStart.toISOString(),
       periodEnd: periodEnd.toISOString(),
@@ -95,13 +101,15 @@ export class CloudWalletStore implements WalletStore {
   }
 
   async getBatchConsumption(
-    tenantId: string,
+    resourceType: string,
+    resourceId: string,
     limitKeys: string[],
     periodStart: Date,
     periodEnd: Date,
   ): Promise<Map<string, number>> {
     const body = {
-      tenantId,
+      resourceType,
+      resourceId,
       limitKeys,
       periodStart: periodStart.toISOString(),
       periodEnd: periodEnd.toISOString(),

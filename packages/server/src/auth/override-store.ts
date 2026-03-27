@@ -1,8 +1,8 @@
 /**
- * OverrideStore — per-tenant feature and limit overrides.
+ * OverrideStore — per-resource feature and limit overrides.
  *
  * Overrides sit on top of plan + add-ons. They are runtime,
- * per-tenant adjustments applied by the business (admin/sales).
+ * per-resource adjustments applied by the business (admin/sales).
  */
 
 import type { AccessDefinition } from './define-access';
@@ -24,9 +24,13 @@ export interface TenantOverrides {
 }
 
 export interface OverrideStore {
-  set(tenantId: string, overrides: TenantOverrides): Promise<void>;
-  remove(tenantId: string, keys: { features?: string[]; limits?: string[] }): Promise<void>;
-  get(tenantId: string): Promise<TenantOverrides | null>;
+  set(resourceType: string, resourceId: string, overrides: TenantOverrides): Promise<void>;
+  remove(
+    resourceType: string,
+    resourceId: string,
+    keys: { features?: string[]; limits?: string[] },
+  ): Promise<void>;
+  get(resourceType: string, resourceId: string): Promise<TenantOverrides | null>;
   dispose(): void;
 }
 
@@ -37,8 +41,13 @@ export interface OverrideStore {
 export class InMemoryOverrideStore implements OverrideStore {
   private overrides = new Map<string, TenantOverrides>();
 
-  async set(tenantId: string, overrides: TenantOverrides): Promise<void> {
-    const existing = this.overrides.get(tenantId) ?? {};
+  private key(resourceType: string, resourceId: string): string {
+    return `${resourceType}:${resourceId}`;
+  }
+
+  async set(resourceType: string, resourceId: string, overrides: TenantOverrides): Promise<void> {
+    const k = this.key(resourceType, resourceId);
+    const existing = this.overrides.get(k) ?? {};
 
     if (overrides.features) {
       const featureSet = new Set(existing.features ?? []);
@@ -52,11 +61,16 @@ export class InMemoryOverrideStore implements OverrideStore {
       existing.limits = { ...existing.limits, ...overrides.limits };
     }
 
-    this.overrides.set(tenantId, existing);
+    this.overrides.set(k, existing);
   }
 
-  async remove(tenantId: string, keys: { features?: string[]; limits?: string[] }): Promise<void> {
-    const existing = this.overrides.get(tenantId);
+  async remove(
+    resourceType: string,
+    resourceId: string,
+    keys: { features?: string[]; limits?: string[] },
+  ): Promise<void> {
+    const k = this.key(resourceType, resourceId);
+    const existing = this.overrides.get(k);
     if (!existing) return;
 
     if (keys.features && existing.features) {
@@ -78,12 +92,12 @@ export class InMemoryOverrideStore implements OverrideStore {
 
     // Clean up empty records
     if (!existing.features && !existing.limits) {
-      this.overrides.delete(tenantId);
+      this.overrides.delete(k);
     }
   }
 
-  async get(tenantId: string): Promise<TenantOverrides | null> {
-    return this.overrides.get(tenantId) ?? null;
+  async get(resourceType: string, resourceId: string): Promise<TenantOverrides | null> {
+    return this.overrides.get(this.key(resourceType, resourceId)) ?? null;
   }
 
   dispose(): void {

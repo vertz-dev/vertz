@@ -8,10 +8,11 @@ describe('Feature: getBatchConsumption', () => {
     const periodEnd = new Date('2026-04-01');
 
     // Consume some credits
-    await store.consume('tenant-1', 'api-calls', periodStart, periodEnd, 1000, 50);
-    await store.consume('tenant-1', 'storage', periodStart, periodEnd, 500, 100);
+    await store.consume('tenant', 'tenant-1', 'api-calls', periodStart, periodEnd, 1000, 50);
+    await store.consume('tenant', 'tenant-1', 'storage', periodStart, periodEnd, 500, 100);
 
     const result = await store.getBatchConsumption(
+      'tenant',
       'tenant-1',
       ['api-calls', 'storage'],
       periodStart,
@@ -28,6 +29,7 @@ describe('Feature: getBatchConsumption', () => {
     const periodEnd = new Date('2026-04-01');
 
     const result = await store.getBatchConsumption(
+      'tenant',
       'tenant-1',
       ['api-calls', 'storage'],
       periodStart,

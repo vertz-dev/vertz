@@ -114,12 +114,14 @@ describe('Feature: Cascaded wallet consumption', () => {
         // Check both levels were incremented
         const { periodStart, periodEnd } = getBillingPeriod();
         const projectConsumed = await walletStore.getConsumption(
+          'project',
           'proj-1',
           'ai-credits',
           periodStart,
           periodEnd,
         );
         const accountConsumed = await walletStore.getConsumption(
+          'account',
           'acct-1',
           'ai-credits',
           periodStart,
@@ -149,8 +151,24 @@ describe('Feature: Cascaded wallet consumption', () => {
 
         // Pre-consume 500 credits at project level and 500 at account
         const { periodStart, periodEnd } = getBillingPeriod();
-        await walletStore.consume('proj-1', 'ai-credits', periodStart, periodEnd, 500, 500);
-        await walletStore.consume('acct-1', 'ai-credits', periodStart, periodEnd, 10_000, 500);
+        await walletStore.consume(
+          'project',
+          'proj-1',
+          'ai-credits',
+          periodStart,
+          periodEnd,
+          500,
+          500,
+        );
+        await walletStore.consume(
+          'account',
+          'acct-1',
+          'ai-credits',
+          periodStart,
+          periodEnd,
+          10_000,
+          500,
+        );
 
         const result = await ctx.canAndConsume('project:ai-generate', {
           type: 'project',
@@ -161,6 +179,7 @@ describe('Feature: Cascaded wallet consumption', () => {
 
         // Account should NOT have been incremented further
         const accountConsumed = await walletStore.getConsumption(
+          'account',
           'acct-1',
           'ai-credits',
           periodStart,
@@ -188,7 +207,15 @@ describe('Feature: Cascaded wallet consumption', () => {
 
         // Pre-consume 10,000 credits at account level
         const { periodStart, periodEnd } = getBillingPeriod();
-        await walletStore.consume('acct-1', 'ai-credits', periodStart, periodEnd, 10_000, 10_000);
+        await walletStore.consume(
+          'account',
+          'acct-1',
+          'ai-credits',
+          periodStart,
+          periodEnd,
+          10_000,
+          10_000,
+        );
 
         const result = await ctx.canAndConsume('project:ai-generate', {
           type: 'project',
@@ -199,6 +226,7 @@ describe('Feature: Cascaded wallet consumption', () => {
 
         // Project should NOT have been incremented
         const projectConsumed = await walletStore.getConsumption(
+          'project',
           'proj-1',
           'ai-credits',
           periodStart,
@@ -223,8 +251,24 @@ describe('Feature: Cascaded wallet consumption', () => {
       it('Then project_b is denied at account level', async () => {
         const { periodStart, periodEnd } = getBillingPeriod();
         // Project A consumed 500 at project level, 9,500 at account level
-        await walletStore.consume('proj-1', 'ai-credits', periodStart, periodEnd, 500, 500);
-        await walletStore.consume('acct-1', 'ai-credits', periodStart, periodEnd, 10_000, 9_500);
+        await walletStore.consume(
+          'project',
+          'proj-1',
+          'ai-credits',
+          periodStart,
+          periodEnd,
+          500,
+          500,
+        );
+        await walletStore.consume(
+          'account',
+          'acct-1',
+          'ai-credits',
+          periodStart,
+          periodEnd,
+          10_000,
+          9_500,
+        );
 
         const ctx = createAccessContext({
           userId: 'user-1',
@@ -250,6 +294,7 @@ describe('Feature: Cascaded wallet consumption', () => {
 
         // Account total remains 9,500
         const accountConsumed = await walletStore.getConsumption(
+          'account',
           'acct-1',
           'ai-credits',
           periodStart,
@@ -285,12 +330,14 @@ describe('Feature: Cascaded wallet consumption', () => {
       // Both levels should be back to 0
       const { periodStart, periodEnd } = getBillingPeriod();
       const projectConsumed = await walletStore.getConsumption(
+        'project',
         'proj-1',
         'ai-credits',
         periodStart,
         periodEnd,
       );
       const accountConsumed = await walletStore.getConsumption(
+        'account',
         'acct-1',
         'ai-credits',
         periodStart,
@@ -331,6 +378,7 @@ describe('Feature: Cascaded wallet consumption', () => {
       // Only account-level consumption
       const { periodStart, periodEnd } = getBillingPeriod();
       const accountConsumed = await walletStore.getConsumption(
+        'account',
         'acct-1',
         'ai-credits',
         periodStart,
@@ -436,13 +484,25 @@ describe('Feature: Cascaded wallet consumption', () => {
       // Verify all 3 levels incremented
       const { periodStart, periodEnd } = calculateBillingPeriod(fixedStartedAt, 'month');
       const brandConsumed = await localWallet.getConsumption(
-        'brand-1', 'ai-credits', periodStart, periodEnd,
+        'brand',
+        'brand-1',
+        'ai-credits',
+        periodStart,
+        periodEnd,
       );
       const orgConsumed = await localWallet.getConsumption(
-        'org-1', 'ai-credits', periodStart, periodEnd,
+        'org',
+        'org-1',
+        'ai-credits',
+        periodStart,
+        periodEnd,
       );
       const agencyConsumed = await localWallet.getConsumption(
-        'agency-1', 'ai-credits', periodStart, periodEnd,
+        'agency',
+        'agency-1',
+        'ai-credits',
+        periodStart,
+        periodEnd,
       );
 
       expect(brandConsumed).toBe(1);
@@ -472,7 +532,7 @@ describe('Feature: Cascaded wallet consumption', () => {
 
       // Exhaust org-level limit (500)
       const { periodStart, periodEnd } = calculateBillingPeriod(fixedStartedAt, 'month');
-      await localWallet.consume('org-1', 'ai-credits', periodStart, periodEnd, 500, 500);
+      await localWallet.consume('org', 'org-1', 'ai-credits', periodStart, periodEnd, 500, 500);
 
       const ctx = createAccessContext({
         userId: 'user-1',
@@ -499,13 +559,21 @@ describe('Feature: Cascaded wallet consumption', () => {
 
       // Agency should have been rolled back (consumed then unconsumed)
       const agencyConsumed = await localWallet.getConsumption(
-        'agency-1', 'ai-credits', periodStart, periodEnd,
+        'agency',
+        'agency-1',
+        'ai-credits',
+        periodStart,
+        periodEnd,
       );
       expect(agencyConsumed).toBe(0);
 
       // Brand should NOT have been touched (never reached)
       const brandConsumed = await localWallet.getConsumption(
-        'brand-1', 'ai-credits', periodStart, periodEnd,
+        'brand',
+        'brand-1',
+        'ai-credits',
+        periodStart,
+        periodEnd,
       );
       expect(brandConsumed).toBe(0);
     });
