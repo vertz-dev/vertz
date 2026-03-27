@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'bun:test';
 import { Callout } from '../components/callout';
 import { CardGroup } from '../components/card';
+import { CodeGroup } from '../components/code-group';
 import { Columns } from '../components/columns';
 import { compileMdxToHtml } from '../dev/compile-mdx-html';
 
@@ -86,7 +87,7 @@ Custom content.
   });
 
   describe('CodeGroup', () => {
-    it('renders tabbed code blocks', async () => {
+    it('renders tab headers from child code block titles', async () => {
       const source = `
 <CodeGroup>
 
@@ -102,6 +103,133 @@ const x = 1;
 `;
       const html = await compileMdxToHtml(source);
       expect(html).toContain('data-code-group');
+      expect(html).toContain('data-code-group-tabs');
+      expect(html).toContain('data-code-group-tab');
+      expect(html).toContain('TypeScript');
+      expect(html).toContain('JavaScript');
+    });
+
+    it('first tab is active by default', async () => {
+      const source = `
+<CodeGroup>
+
+\`\`\`ts title="TypeScript"
+const x = 1;
+\`\`\`
+
+\`\`\`js title="JavaScript"
+const x = 1;
+\`\`\`
+
+</CodeGroup>
+`;
+      const html = await compileMdxToHtml(source);
+      // First tab should have aria-selected="true"
+      const tabMatches = html.match(/<button[^>]*data-code-group-tab[^>]*>/g) ?? [];
+      expect(tabMatches.length).toBe(2);
+      expect(tabMatches[0]).toContain('aria-selected="true"');
+      expect(tabMatches[1]).toContain('aria-selected="false"');
+    });
+
+    it('only first panel is visible by default', async () => {
+      const source = `
+<CodeGroup>
+
+\`\`\`ts title="TypeScript"
+const x = 1;
+\`\`\`
+
+\`\`\`js title="JavaScript"
+const x = 1;
+\`\`\`
+
+</CodeGroup>
+`;
+      const html = await compileMdxToHtml(source);
+      const panelMatches = html.match(/<div role="tabpanel" data-code-group-panel[^>]*>/g) ?? [];
+      expect(panelMatches.length).toBe(2);
+      // First panel visible, second hidden
+      expect(panelMatches[0]).not.toContain('display:none');
+      expect(panelMatches[1]).toContain('display:none');
+    });
+
+    it('tab bar has tablist role', async () => {
+      const source = `
+<CodeGroup>
+
+\`\`\`ts title="schema.ts"
+const schema = {};
+\`\`\`
+
+</CodeGroup>
+`;
+      const html = await compileMdxToHtml(source);
+      expect(html).toContain('role="tablist"');
+    });
+
+    it('includes inline JS for tab switching', async () => {
+      const source = `
+<CodeGroup>
+
+\`\`\`ts title="TypeScript"
+const x = 1;
+\`\`\`
+
+\`\`\`js title="JavaScript"
+const x = 1;
+\`\`\`
+
+</CodeGroup>
+`;
+      const html = await compileMdxToHtml(source);
+      // Should have onclick handlers for switching
+      expect(html).toContain('onclick=');
+    });
+
+    it('falls back to wrapper div when no code blocks are found', () => {
+      const html = CodeGroup({ children: '<p>No code here</p>' });
+      expect(html).toContain('data-code-group');
+      expect(html).toContain('<p>No code here</p>');
+      expect(html).not.toContain('data-code-group-tabs');
+    });
+
+    it('falls back to language class when no title is present', () => {
+      const block =
+        '<div data-code-block style="position:relative;overflow:hidden"><pre><code class="language-python"><span>x = 1</span></code></pre></div>';
+      const html = CodeGroup({ children: block });
+      expect(html).toContain('data-code-group-tabs');
+      expect(html).toContain('>python</button>');
+    });
+
+    it('falls back to "Code" when no title and no language', () => {
+      const block =
+        '<div data-code-block style="position:relative;overflow:hidden"><pre><code>plain</code></pre></div>';
+      const html = CodeGroup({ children: block });
+      expect(html).toContain('>Code</button>');
+    });
+
+    it('strips data-code-title from panels (shown in tab bar instead)', async () => {
+      const source = `
+<CodeGroup>
+
+\`\`\`ts title="schema.ts"
+const schema = {};
+\`\`\`
+
+\`\`\`js title="config.js"
+const config = {};
+\`\`\`
+
+</CodeGroup>
+`;
+      const html = await compileMdxToHtml(source);
+      // Titles should appear in the tab bar buttons
+      const tabSection = html.match(/<div data-code-group-tabs[^>]*>[\s\S]*?<\/div>/)?.[0] ?? '';
+      expect(tabSection).toContain('schema.ts');
+      expect(tabSection).toContain('config.js');
+      // But NOT in the panel content (stripped)
+      const panels = html.match(/<div data-code-group-panel[\s\S]*$/)?.[0] ?? '';
+      expect(panels).not.toContain('data-code-title');
     });
   });
 
