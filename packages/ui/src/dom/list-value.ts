@@ -80,7 +80,7 @@ function createItemProxy<T>(itemSignal: Signal<T>): T {
 export function __listValue<T>(
   items: Signal<T[]> | (() => T[]),
   keyFn: ((item: T, index: number) => string | number) | null,
-  renderFn: (item: T) => Node,
+  renderFn: (item: T, index: number) => Node,
 ): DisposableNode {
   const getItems = typeof items === 'function' ? items : () => items.value;
 
@@ -131,7 +131,7 @@ export function __listValue<T>(
 
         for (const [i, item] of newItems.entries()) {
           const scope = pushScope();
-          const node = renderFn(item);
+          const node = renderFn(item, i);
           popScope();
           endMarker.parentNode?.insertBefore(node, endMarker);
           nodeMap.set(i, node);
@@ -148,7 +148,7 @@ export function __listValue<T>(
           const itemSig = signal(item);
           const proxy = createItemProxy(itemSig);
           const scope = pushScope();
-          const node = renderFn(proxy as T);
+          const node = renderFn(proxy as T, i);
           popScope();
           nodeMap.set(key, node);
           scopeMap.set(key, scope);
@@ -215,7 +215,7 @@ export function __listValue<T>(
           const itemSig = signal(item);
           const proxy = createItemProxy(itemSig);
           const scope = pushScope();
-          node = renderFn(proxy as T);
+          node = renderFn(proxy as T, i);
           popScope();
           nodeMap.set(key, node);
           scopeMap.set(key, scope);

@@ -1111,4 +1111,41 @@ describe('__list', () => {
       expect(select.value).toBe('b');
     });
   });
+
+  describe('index parameter', () => {
+    it('passes index as second argument to renderFn (keyed)', () => {
+      const items = signal([
+        { id: 1, text: 'A' },
+        { id: 2, text: 'B' },
+        { id: 3, text: 'C' },
+      ]);
+      const container = document.createElement('ul');
+      __list(
+        container,
+        items,
+        (item) => item.id,
+        (item, index) => {
+          const li = document.createElement('li');
+          li.textContent = `${index}: ${item.text}`;
+          return li;
+        },
+      );
+      expect(container.children[0]?.textContent).toBe('0: A');
+      expect(container.children[1]?.textContent).toBe('1: B');
+      expect(container.children[2]?.textContent).toBe('2: C');
+    });
+
+    it('passes index as second argument to renderFn (unkeyed)', () => {
+      const items = signal(['A', 'B', 'C']);
+      const container = document.createElement('ul');
+      __list(container, items, null, (item, index) => {
+        const li = document.createElement('li');
+        li.textContent = `${index}: ${item}`;
+        return li;
+      });
+      expect(container.children[0]?.textContent).toBe('0: A');
+      expect(container.children[1]?.textContent).toBe('1: B');
+      expect(container.children[2]?.textContent).toBe('2: C');
+    });
+  });
 });

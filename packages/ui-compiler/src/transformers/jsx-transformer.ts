@@ -811,8 +811,15 @@ function tryTransformList(
   // Extract key function from the JSX element's key prop
   const keyFn = extractKeyFunction(callbackBody, itemParam, indexParam);
 
-  // Build the render function
-  const renderFn = buildListRenderFunction(callbackBody, itemParam, reactiveNames, jsxMap, source);
+  // Build the render function (pass indexParam so it's included when used in the body)
+  const renderFn = buildListRenderFunction(
+    callbackBody,
+    itemParam,
+    indexParam,
+    reactiveNames,
+    jsxMap,
+    source,
+  );
 
   return `__list(${parentVar}, () => ${sourceObjText}, ${keyFn}, ${renderFn})`;
 }
@@ -863,7 +870,14 @@ function tryTransformListValue(
   if (!itemParam || !callbackBody) return null;
 
   const keyFn = extractKeyFunction(callbackBody, itemParam, indexParam);
-  const renderFn = buildListRenderFunction(callbackBody, itemParam, reactiveNames, jsxMap, source);
+  const renderFn = buildListRenderFunction(
+    callbackBody,
+    itemParam,
+    indexParam,
+    reactiveNames,
+    jsxMap,
+    source,
+  );
 
   return `__listValue(() => ${sourceObjText}, ${keyFn}, ${renderFn})`;
 }
@@ -954,10 +968,17 @@ function extractKeyPropValue(jsxNode: Node): string | null {
 function buildListRenderFunction(
   callbackBody: Node,
   itemParam: string,
+  indexParam: string | null,
   reactiveNames: Set<string>,
   jsxMap: Map<number, JsxExpressionInfo>,
   source: MagicString,
 ): string {
+  // Check if the index param is actually referenced in the callback body.
+  // Only include it in the render function signature when needed.
+  const needsIndex =
+    indexParam != null && new RegExp(`(?<![.])\\b${indexParam}\\b`).test(callbackBody.getText());
+  const params = needsIndex ? `${itemParam}, ${indexParam}` : itemParam;
+
   const jsxNode = findJsxInBody(callbackBody);
   if (jsxNode) {
     const transformed = transformJsxNode(jsxNode, reactiveNames, jsxMap, source);
@@ -968,15 +989,15 @@ function buildListRenderFunction(
     if (callbackBody.isKind(SyntaxKind.Block)) {
       source.overwrite(jsxNode.getStart(), jsxNode.getEnd(), transformed);
       const bodyText = source.slice(callbackBody.getStart(), callbackBody.getEnd());
-      return `(${itemParam}) => ${bodyText}`;
+      return `(${params}) => ${bodyText}`;
     }
 
-    return `(${itemParam}) => ${transformed}`;
+    return `(${params}) => ${transformed}`;
   }
 
   // Fallback: use the body text
   const bodyText = source.slice(callbackBody.getStart(), callbackBody.getEnd());
-  return `(${itemParam}) => ${bodyText}`;
+  return `(${params}) => ${bodyText}`;
 }
 
 /**
