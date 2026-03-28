@@ -21,7 +21,7 @@ const QUESTIONS = [
   },
   {
     q: 'What if I only want the UI?',
-    a: 'Use @vertz/ui standalone. The full stack is optional — each layer works independently.',
+    a: 'Use vertz/ui standalone. The full stack is optional — each layer works independently.',
   },
   {
     q: 'What about React / Next.js?',

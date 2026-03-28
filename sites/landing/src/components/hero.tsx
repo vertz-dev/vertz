@@ -1,9 +1,15 @@
-import { css, Island } from '@vertz/ui';
+import { css, Island, keyframes } from '@vertz/ui';
+import { ComposedList as List } from '@vertz/ui-primitives';
+
+const listEnter = keyframes('todo-enter', {
+  from: { opacity: '0', transform: 'translateY(-0.5rem)' },
+  to: { opacity: '1', transform: 'translateY(0)' },
+});
 import CopyButton from './copy-button';
 import { TOKENS_ENTITY, TOKENS_SCHEMA, TOKENS_UI } from './highlighted-code';
 import { TokenLines } from './token-lines';
 
-const TABS = [
+const CODE_TABS = [
   { id: 'ui', label: 'UI', filename: 'TodoList.tsx', tokens: TOKENS_UI },
   { id: 'api', label: 'API', filename: 'todos.entity.ts', tokens: TOKENS_ENTITY },
   { id: 'schema', label: 'Schema', filename: 'schema.ts', tokens: TOKENS_SCHEMA },
@@ -68,7 +74,37 @@ const s = css({
   h1: [],
   h1Line: ['block'],
   h1LineFaded: ['block', { '&': { color: '#6B6560' } }],
-  description: ['mt:6', 'font:base', 'max-w:xl', 'leading:relaxed', { '&': { color: '#6B6560' } }],
+  rotatingWrap: [
+    'relative',
+    {
+      '&': {
+        display: 'inline-block',
+        overflow: 'hidden',
+        'vertical-align': 'bottom',
+        height: '1.15em',
+      },
+    },
+  ],
+  rotatingWord: [
+    'block',
+    {
+      '&': {
+        position: 'absolute',
+        left: '0',
+        top: '0',
+        width: '100%',
+      },
+    },
+  ],
+  rotatingWordActive: [
+    'block',
+    {
+      '&': {
+        position: 'relative',
+      },
+    },
+  ],
+  description: ['mt:6', 'font:base', 'max-w:xl', 'leading:relaxed', { '&': { color: '#9C9690' } }],
   descriptionHighlight: ['weight:medium', { '&': { color: '#E8E4DC' } }],
   ctas: [
     'mt:10',
@@ -142,13 +178,348 @@ const s = css({
   ],
 });
 
+// ── Mini todo app styles ────────────────────────────────────
+
+const app = css({
+  wrap: [
+    'p:5',
+    {
+      '&': {
+        'font-family': 'var(--font-sans)',
+        'font-size': '0.8rem',
+      },
+    },
+  ],
+  inputRow: ['flex', 'gap:2', 'mb:3'],
+  input: [
+    {
+      '&': {
+        flex: '1',
+        height: '36px',
+        padding: '0 0.75rem',
+        background: '#111110',
+        border: '1px solid #2A2826',
+        'border-radius': '6px',
+        'box-sizing': 'border-box',
+        color: '#E8E4DC',
+        'font-size': '0.8rem',
+        'font-family': 'var(--font-sans)',
+        outline: 'none',
+      },
+      '&::placeholder': { color: '#4A4540' },
+      '&:focus': { 'border-color': '#C8451B' },
+    },
+  ],
+  addBtn: [
+    {
+      '&': {
+        height: '36px',
+        padding: '0 1rem',
+        background: '#C8451B',
+        border: 'none',
+        'border-radius': '6px',
+        'box-sizing': 'border-box',
+        color: '#fff',
+        'font-size': '0.8rem',
+        'font-family': 'var(--font-sans)',
+        cursor: 'pointer',
+        'white-space': 'nowrap',
+      },
+      '&:hover': { background: '#d65229' },
+    },
+  ],
+  listWrap: [
+    {
+      '&': {
+        position: 'relative',
+        'max-height': '280px',
+        'overflow-y': 'auto',
+        'scrollbar-width': 'thin',
+        'scrollbar-color': '#4A4540 transparent',
+      },
+    },
+  ],
+  listFade: [
+    {
+      '&': {
+        left: '0',
+        right: '0',
+        height: '28px',
+        'pointer-events': 'none',
+        'z-index': '1',
+        transition: 'opacity 250ms ease',
+      },
+    },
+  ],
+  listFadeTop: [
+    {
+      '&': {
+        background: 'linear-gradient(to bottom, #1C1B1A, transparent)',
+      },
+    },
+  ],
+  listFadeBottom: [
+    {
+      '&': {
+        background: 'linear-gradient(to top, #1C1B1A, transparent)',
+      },
+    },
+  ],
+  list: [
+    'flex',
+    'flex-col',
+    'gap:1',
+  ],
+  todo: [
+    'flex',
+    'items:center',
+    'gap:3',
+    {
+      '&': {
+        padding: '0.5rem 0.75rem',
+        background: '#111110',
+        'border-radius': '2px',
+        border: '1px solid #2A2826',
+      },
+      '&[data-presence="enter"]': {
+        animation: `${listEnter} 200ms ease-out`,
+      },
+      '&[data-presence="exit"]': {
+        overflow: 'hidden',
+        'pointer-events': 'none',
+      },
+    },
+  ],
+  checkbox: [
+    {
+      '&': {
+        width: '1rem',
+        height: '1rem',
+        'border-radius': '2px',
+        cursor: 'pointer',
+        display: 'flex',
+        'align-items': 'center',
+        'justify-content': 'center',
+        'flex-shrink': '0',
+        padding: '0',
+        'line-height': '1',
+        transition: 'background 0.15s, border-color 0.15s',
+      },
+    },
+  ],
+  todoText: [
+    {
+      '&': {
+        flex: '1',
+        transition: 'color 0.15s',
+        'min-width': '0',
+      },
+    },
+  ],
+  deleteBtn: [
+    {
+      '&': {
+        background: 'none',
+        border: 'none',
+        color: '#4A4540',
+        cursor: 'pointer',
+        padding: '0.25rem',
+        'font-size': '0.7rem',
+        'line-height': '1',
+        'flex-shrink': '0',
+        transition: 'color 0.15s',
+      },
+      '&:hover': { color: '#ef4444' },
+    },
+  ],
+  counter: [
+    {
+      '&': {
+        'margin-top': '0.75rem',
+        'font-size': '0.7rem',
+        color: '#4A4540',
+        'font-family': 'var(--font-mono)',
+      },
+    },
+  ],
+});
+
+// ── Mini todo app component ─────────────────────────────────
+
+type Todo = { id: number; text: string; done: boolean };
+
+const INITIAL_TODOS: Todo[] = [
+  { id: 1, text: 'Design the schema', done: true },
+  { id: 2, text: 'Generate the API', done: true },
+  { id: 3, text: 'Build the UI', done: false },
+  { id: 4, text: 'Ship to production', done: false },
+];
+
+function MiniTodoApp() {
+  let todos: Todo[] = [...INITIAL_TODOS];
+  let nextId = 5;
+  let inputValue = '';
+  let showTopFade = false;
+  let showBottomFade = false;
+
+  function updateFadeFromEl(el: HTMLElement) {
+    const { scrollTop, scrollHeight, clientHeight } = el;
+    const overflows = scrollHeight > clientHeight + 2;
+    showTopFade = overflows && scrollTop > 2;
+    showBottomFade = overflows && scrollTop + clientHeight < scrollHeight - 2;
+  }
+
+  function handleScroll(e: Event) {
+    updateFadeFromEl(e.currentTarget as HTMLElement);
+  }
+
+  function deferUpdateFade() {
+    setTimeout(() => {
+      const el = document.querySelector('[data-todo-scroll]') as HTMLElement | null;
+      if (el) updateFadeFromEl(el);
+    }, 50);
+  }
+
+  function addTodo() {
+    if (!inputValue.trim()) return;
+    todos = [...todos, { id: nextId, text: inputValue.trim(), done: false }];
+    nextId = nextId + 1;
+    inputValue = '';
+    deferUpdateFade();
+  }
+
+  function toggleTodo(id: number) {
+    todos = todos.map((t) => (t.id === id ? { ...t, done: !t.done } : t));
+  }
+
+  function deleteTodo(id: number) {
+    todos = todos.filter((t) => t.id !== id);
+    deferUpdateFade();
+  }
+
+  return (
+    <div className={app.wrap}>
+      <div className={app.inputRow}>
+        <input
+          type="text"
+          className={app.input}
+          style={{ height: '36px', padding: '0 0.75rem', border: '1px solid #2A2826', borderRadius: '6px', background: '#111110', color: '#E8E4DC', fontSize: '0.8rem' }}
+          placeholder="What needs to be done?"
+          value={inputValue}
+          onInput={(e: Event) => { inputValue = (e.target as HTMLInputElement).value; }}
+          onKeyDown={(e: KeyboardEvent) => { if (e.key === 'Enter') addTodo(); }}
+        />
+        <button type="button" className={app.addBtn} style={{ height: '36px', borderRadius: '6px', border: '1px solid #2A2826' }} onClick={addTodo}>
+          Add
+        </button>
+      </div>
+
+      <div
+        className={app.listWrap}
+        data-todo-scroll
+        onScroll={handleScroll}
+      >
+        <div
+          className={`${app.listFade} ${app.listFadeTop}`}
+          style={{ opacity: showTopFade ? 1 : 0, position: 'sticky', top: '0', marginBottom: '-28px' }}
+        />
+        <List animate={{ duration: 200, easing: 'ease-out' }} className={app.list}>
+          {todos.map((todo) => (
+            <List.Item key={todo.id} className={app.todo}>
+              <button
+                type="button"
+                className={app.checkbox}
+                style={{
+                  border: todo.done ? 'none' : '1px solid #4A4540',
+                  background: todo.done ? '#C8451B' : 'transparent',
+                  color: '#fff',
+                  fontSize: '0.6rem',
+                }}
+                onClick={() => toggleTodo(todo.id)}
+              >
+                {todo.done ? '✓' : ''}
+              </button>
+              <span
+                className={app.todoText}
+                style={{
+                  color: todo.done ? '#4A4540' : '#E8E4DC',
+                  textDecoration: todo.done ? 'line-through' : 'none',
+                }}
+              >
+                {todo.text}
+              </span>
+              <button
+                type="button"
+                className={app.deleteBtn}
+                onClick={() => deleteTodo(todo.id)}
+              >
+                ×
+              </button>
+            </List.Item>
+          ))}
+        </List>
+        <div
+          className={`${app.listFade} ${app.listFadeBottom}`}
+          style={{ opacity: showBottomFade ? 1 : 0, position: 'sticky', bottom: '0', marginTop: '-28px' }}
+        />
+      </div>
+
+      <div className={app.counter}>
+        {todos.filter((t) => !t.done).length} remaining
+      </div>
+    </div>
+  );
+}
+
+const ROTATING_WORDS = ['framework.', 'stack.', 'ecosystem.', 'compiler.', 'runtime.', 'devtool.'];
+
+function RotatingWord() {
+  let activeIndex = 0;
+  let prevIndex = -1;
+
+  setInterval(() => {
+    prevIndex = activeIndex;
+    activeIndex = (activeIndex + 1) % ROTATING_WORDS.length;
+  }, 2500);
+
+  return (
+    <span className={s.rotatingWrap}>
+      {ROTATING_WORDS.map((word, i) => {
+        const isActive = activeIndex === i;
+        const isLeaving = prevIndex === i;
+        const shouldAnimate = isActive || isLeaving;
+
+        return (
+          <span
+            key={word}
+            className={isActive ? s.rotatingWordActive : s.rotatingWord}
+            style={{
+              opacity: isActive ? 1 : 0,
+              transform: isActive
+                ? 'translateY(0)'
+                : isLeaving
+                  ? 'translateY(100%)'
+                  : 'translateY(-100%)',
+              transition: shouldAnimate
+                ? 'transform 0.35s ease, opacity 0.35s ease'
+                : 'none',
+            }}
+          >
+            {word}
+          </span>
+        );
+      })}
+    </span>
+  );
+}
+
 function HeroCodeGroup() {
   let activeTab = 'ui';
 
   return (
     <div className={s.codeGroup} style={{ borderColor: '#2A2826' }}>
       <div className={s.tabBar}>
-        {TABS.map((tab) => (
+        {CODE_TABS.map((tab) => (
           <button
             key={tab.id}
             type="button"
@@ -163,9 +534,21 @@ function HeroCodeGroup() {
             {tab.label}
           </button>
         ))}
+        <button
+          type="button"
+          className={s.tab}
+          style={{
+            fontFamily: 'var(--font-mono)',
+            color: activeTab === 'app' ? '#C8451B' : '#6B6560',
+            borderBottomColor: activeTab === 'app' ? '#C8451B' : 'transparent',
+          }}
+          onClick={() => { activeTab = 'app'; }}
+        >
+          App
+        </button>
       </div>
       <div style={{ display: 'grid' }}>
-        {TABS.map((tab) => (
+        {CODE_TABS.map((tab) => (
           <div
             key={tab.id}
             className={s.codeBody}
@@ -177,6 +560,14 @@ function HeroCodeGroup() {
             <TokenLines lines={tab.tokens} />
           </div>
         ))}
+        <div
+          style={{
+            gridArea: '1 / 1',
+            visibility: activeTab === 'app' ? 'visible' : 'hidden',
+          }}
+        >
+          <MiniTodoApp />
+        </div>
       </div>
     </div>
   );
@@ -202,7 +593,9 @@ export function Hero() {
             style={{ fontFamily: 'var(--font-display)', fontSize: 'clamp(2rem, 4vw, 3.5rem)', letterSpacing: '-0.025em', lineHeight: '1.15' }}
           >
             <span className={s.h1Line}>The agent-native</span>
-            <span className={s.h1LineFaded}>full-stack framework.</span>
+            <span className={s.h1LineFaded}>
+              <Island component={RotatingWord} />
+            </span>
           </h1>
 
           <p className={s.description}>

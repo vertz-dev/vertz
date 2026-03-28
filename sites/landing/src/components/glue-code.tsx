@@ -42,10 +42,6 @@ export function GlueCode() {
   return (
     <section className={s.section}>
       <div className={s.wrapper}>
-        <p className={s.label} style={{ fontFamily: 'var(--font-mono)' }}>
-          The problem
-        </p>
-
         <div className={s.grid}>
           <div className={s.gridItem}>
             <p className={s.columnLabel} style={{ fontFamily: 'var(--font-mono)', color: '#a1a1aa' }}>

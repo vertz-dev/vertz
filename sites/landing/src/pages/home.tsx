@@ -1,13 +1,12 @@
+import { Benchmarks } from '../components/benchmarks';
 import { FAQ } from '../components/faq';
+import { Features } from '../components/features';
 import { Footer } from '../components/footer';
 import { Founders } from '../components/founders';
 import { GetStarted } from '../components/get-started';
-import { GlueCode } from '../components/glue-code';
 import { Hero } from '../components/hero';
 import { Nav } from '../components/nav';
-import { SchemaFlow } from '../components/schema-flow';
 import { TheStack } from '../components/the-stack';
-import { TypeErrorDemo } from '../components/type-error-demo';
 import { WhyVertz } from '../components/why-vertz';
 
 function Divider() {
@@ -25,6 +24,8 @@ function HeroGlow() {
   );
 }
 
+const SHOW_BENCHMARKS = false;
+
 export function HomePage() {
   return (
     <div>
@@ -32,9 +33,9 @@ export function HomePage() {
       <HeroGlow />
       <main style={{ position: 'relative', overflowX: 'hidden' }}>
         <Hero />
-        <GlueCode />
-        <SchemaFlow />
-        <TypeErrorDemo />
+        {SHOW_BENCHMARKS && <><Divider /><Benchmarks /></>}
+        <Divider />
+        <Features />
         <Divider />
         <WhyVertz />
         <TheStack />
