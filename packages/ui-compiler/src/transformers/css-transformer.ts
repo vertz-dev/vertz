@@ -128,17 +128,18 @@ export class CSSTransformer {
   /**
    * Extract CSS from static css() calls without modifying source.
    *
-   * Used by the AOT pipeline to embed CSS in the manifest so it doesn't
-   * depend on runtime css() side effects surviving bundler tree-shaking (#1989).
+   * Returns individual CSS rule blocks (one per selector) for fine-grained
+   * filtering. Used by the AOT pipeline to embed CSS in the manifest so it
+   * doesn't depend on runtime css() side effects surviving bundler tree-shaking (#1989).
    */
-  extractCSS(sourceFile: SourceFile, cssCalls: CSSCallInfo[], filePath: string): string {
+  extractCSS(sourceFile: SourceFile, cssCalls: CSSCallInfo[], filePath: string): string[] {
     const allCssRules: string[] = [];
     for (const call of cssCalls) {
       if (call.kind !== 'static') continue;
       const { cssRules } = this.processStaticCall(sourceFile, call, filePath);
       allCssRules.push(...cssRules);
     }
-    return allCssRules.join('\n');
+    return allCssRules;
   }
 
   /** Build the replacement JS expression: { card: '_a1b2c3d4', title: '_e5f6g7h8' } */

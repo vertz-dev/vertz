@@ -462,6 +462,58 @@ describe('Feature: Runtime holes and SSR integration', () => {
       });
     });
 
+    describe('Given a manifest with CSS rule blocks (#1988, #1989)', () => {
+      describe('When ssrRenderAot() collects CSS with manifest CSS', () => {
+        it('Then only CSS rules whose class selectors appear in the HTML are included', async () => {
+          const aotFn: AotRenderFn = () =>
+            '<div class="_used1234"><span class="_used5678">Content</span></div>';
+
+          const module = createMockModule();
+          const aotManifest: AotManifest = {
+            routes: {
+              '/page': { render: aotFn, holes: [] },
+            },
+            // Individual CSS rule blocks — some used, some dead
+            css: [
+              '._used1234 {\n  padding: 1rem;\n}',
+              '._used5678 {\n  color: blue;\n}',
+              '._deadbeef {\n  margin: 2rem;\n}',
+              '._deadcafe {\n  opacity: 0.5;\n}',
+            ],
+          };
+
+          const result = await ssrRenderAot(module, '/page', { aotManifest });
+
+          // Used CSS should be present
+          expect(result.css).toContain('_used1234');
+          expect(result.css).toContain('_used5678');
+          // Dead CSS should be filtered out
+          expect(result.css).not.toContain('_deadbeef');
+          expect(result.css).not.toContain('_deadcafe');
+        });
+
+        it('Then manifest CSS works as primary source even without getInjectedCSS()', async () => {
+          // Simulates workerd: getInjectedCSS is undefined (tree-shaken)
+          const aotFn: AotRenderFn = () => '<div class="_abc12345">Styled</div>';
+
+          const module = createMockModule();
+          // No getInjectedCSS — simulates non-Bun bundler environment
+          delete (module as Record<string, unknown>).getInjectedCSS;
+
+          const aotManifest: AotManifest = {
+            routes: {
+              '/styled': { render: aotFn, holes: [] },
+            },
+            css: ['._abc12345 {\n  background: red;\n}'],
+          };
+
+          const result = await ssrRenderAot(module, '/styled', { aotManifest });
+          expect(result.css).toContain('_abc12345');
+          expect(result.css).toContain('background: red');
+        });
+      });
+    });
+
     describe('Given VERTZ_DEBUG=aot is set', () => {
       describe('When diagnostics are provided and AOT renders', () => {
         it('Then divergence detection runs without breaking the render', async () => {

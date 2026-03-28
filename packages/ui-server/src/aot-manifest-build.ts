@@ -24,8 +24,8 @@ export interface AotCompiledFile {
   code: string;
   /** Per-component AOT info from the compilation. */
   components: AotComponentInfo[];
-  /** Extracted CSS from static css() calls (#1989). */
-  css?: string;
+  /** Extracted CSS rule blocks from static css() calls (#1989). */
+  css?: string[];
 }
 
 /** Route map entry for the AOT manifest JSON. */
@@ -81,8 +81,11 @@ export function generateAotBuildManifest(srcDir: string): AotBuildManifest {
         };
       }
 
-      // Collect CSS from all files (not just those with components) (#1989)
-      if (result.css) cssSet.add(result.css);
+      // Collect individual CSS rules from all files (#1989).
+      // Individual rules enable per-rule filtering in SSR (#1988).
+      if (result.css) {
+        for (const rule of result.css) cssSet.add(rule);
+      }
     } catch (e) {
       classificationLog.push(
         `⚠ ${filePath}: ${e instanceof Error ? e.message : 'compilation failed'}`,

@@ -292,14 +292,14 @@ export function compileForSSRAot(
   }
 
   // 5. Extract CSS from static css() calls for AOT manifest (#1989).
-  // This ensures CSS is available regardless of bundler tree-shaking behavior.
-  let extractedCss: string | undefined;
+  // Returns individual rule blocks for fine-grained per-rule filtering (#1988).
+  let extractedCss: string[] | undefined;
   const cssAnalyzer = new CSSAnalyzer();
   const cssCalls = cssAnalyzer.analyze(sourceFile);
   if (cssCalls.length > 0) {
     const cssTransformer = new CSSTransformer();
-    const css = cssTransformer.extractCSS(sourceFile, cssCalls, filename);
-    if (css) extractedCss = css;
+    const rules = cssTransformer.extractCSS(sourceFile, cssCalls, filename);
+    if (rules.length > 0) extractedCss = rules;
   }
 
   // Generate source map and return

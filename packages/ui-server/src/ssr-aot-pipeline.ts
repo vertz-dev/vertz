@@ -549,18 +549,19 @@ function collectCSSFromModule(
 
   if (manifestCss && manifestCss.length > 0) {
     // AOT path: use manifest CSS as the primary source (#1989).
-    // This CSS was extracted at compile time and doesn't depend on runtime injection.
-    componentCss = manifestCss.filter((s) => !alreadyIncluded.has(s));
+    // This CSS was extracted at compile time — individual rule blocks for
+    // fine-grained per-rule filtering (#1988).
+    const dedupedManifest = manifestCss.filter((s) => !alreadyIncluded.has(s));
 
     // Supplement with getInjectedCSS() for CSS not captured at compile time
     // (e.g., variants() lazily compiled, keyframes() from theme primitives).
     const injected = module.getInjectedCSS?.() ?? [];
     const manifestSet = new Set(manifestCss);
     const supplemental = injected.filter((s) => !alreadyIncluded.has(s) && !manifestSet.has(s));
-    if (supplemental.length > 0 && renderedHtml) {
-      // Filter supplemental CSS by HTML usage to remove dead theme CSS (#1988)
-      componentCss.push(...filterCSSByHTML(renderedHtml, supplemental));
-    }
+    const allCandidate = [...dedupedManifest, ...supplemental];
+
+    // Filter ALL component CSS by HTML usage — eliminates dead selectors (#1988)
+    componentCss = renderedHtml ? filterCSSByHTML(renderedHtml, allCandidate) : allCandidate;
   } else {
     // Fallback path: use render-scoped tracker or global getInjectedCSS()
     const ssrCtx = ssrStorage.getStore();

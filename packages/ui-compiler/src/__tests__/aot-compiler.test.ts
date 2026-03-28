@@ -2054,4 +2054,107 @@ function Header({ title }: { title: string }) {
       expect(html).toMatch(/_[0-9a-f]{8}/);
     });
   });
+
+  describe('CSS extraction for AOT manifest (#1989)', () => {
+    it('extracts CSS rule blocks from static css() calls', () => {
+      const result = compileForSSRAot(
+        `
+import { css } from '@vertz/ui';
+
+const s = css({
+  root: ['bg:background', 'p:6'],
+  header: ['font:xl', 'text:foreground'],
+});
+
+function App() {
+  return (
+    <div className={s.root}>
+      <h1 className={s.header}>Title</h1>
+    </div>
+  );
+}
+        `.trim(),
+        { filename: 'src/app.tsx' },
+      );
+
+      // css field should be an array of individual CSS rule blocks
+      expect(result.css).toBeDefined();
+      expect(Array.isArray(result.css)).toBe(true);
+      expect(result.css!.length).toBeGreaterThanOrEqual(2); // at least root + header
+
+      // Each rule block should be a valid CSS rule with class selector and declarations
+      for (const rule of result.css!) {
+        expect(rule).toMatch(/\._[0-9a-f]{8}/); // class selector
+        expect(rule).toContain('{');
+        expect(rule).toContain('}');
+      }
+
+      // Root rule should contain background-color and padding
+      const rootRule = result.css!.find((r) => r.includes('background-color'));
+      expect(rootRule).toBeDefined();
+      expect(rootRule).toContain('padding');
+
+      // Header rule should contain font-size and color
+      const headerRule = result.css!.find((r) => r.includes('font-size'));
+      expect(headerRule).toBeDefined();
+      expect(headerRule).toContain('color');
+    });
+
+    it('extracted CSS class names match inlined class names in __ssr_* functions', () => {
+      const result = compileForSSRAot(
+        `
+import { css } from '@vertz/ui';
+
+const s = css({
+  wrapper: ['flex', 'gap:4'],
+  title: ['font:lg', 'font:semibold'],
+});
+
+function Header({ title }: { title: string }) {
+  return (
+    <header className={s.wrapper}>
+      <h1 className={s.title}>{title}</h1>
+    </header>
+  );
+}
+        `.trim(),
+        { filename: 'src/header.tsx' },
+      );
+
+      expect(result.css).toBeDefined();
+      expect(result.css!.length).toBeGreaterThan(0);
+
+      // Extract class names from CSS rules
+      const cssClassNames = new Set<string>();
+      for (const rule of result.css!) {
+        const matches = rule.matchAll(/\.(_[0-9a-f]{8})/g);
+        for (const m of matches) cssClassNames.add(m[1]!);
+      }
+
+      // Extract class names from __ssr_* function
+      const ssrFn = result.code.match(/export function __ssr_Header[\s\S]*?\n\}/)?.[0] ?? '';
+      const ssrClassNames = new Set<string>();
+      const ssrMatches = ssrFn.matchAll(/(_[0-9a-f]{8})/g);
+      for (const m of ssrMatches) ssrClassNames.add(m[1]!);
+
+      // Every class name in the SSR function must have a corresponding CSS rule
+      expect(ssrClassNames.size).toBeGreaterThan(0);
+      for (const cls of ssrClassNames) {
+        expect(cssClassNames.has(cls)).toBe(true);
+      }
+    });
+
+    it('returns undefined css for files with no css() calls', () => {
+      const result = compileForSSRAot(
+        `
+function Simple() {
+  return <div>Hello</div>;
+}
+        `.trim(),
+        { filename: 'src/simple.tsx' },
+      );
+
+      expect(result.css).toBeUndefined();
+    });
+  });
 });
