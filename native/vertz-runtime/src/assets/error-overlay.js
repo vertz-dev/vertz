@@ -165,7 +165,13 @@
 
       // File link (inline, after message)
       if (err.file) {
-        var locText = err.file;
+        // Show relative path for readability — strip common prefixes
+        var displayPath = err.file;
+        var srcIdx = displayPath.indexOf('/src/');
+        if (srcIdx !== -1) {
+          displayPath = displayPath.substring(srcIdx + 1); // "src/..."
+        }
+        var locText = displayPath;
         if (err.line) locText += ':' + err.line;
         if (err.column) locText += ':' + err.column;
 

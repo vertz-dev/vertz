@@ -6,6 +6,17 @@ use std::time::SystemTime;
 use crate::compiler::cache::{CachedModule, CompilationCache};
 use crate::compiler::import_rewriter;
 
+/// A structured compilation error with source location.
+#[derive(Debug, Clone)]
+pub struct CompileError {
+    /// Human-readable error message.
+    pub message: String,
+    /// 1-indexed line number.
+    pub line: Option<u32>,
+    /// 1-indexed column number.
+    pub column: Option<u32>,
+}
+
 /// Result of compiling a source file for browser consumption.
 #[derive(Debug, Clone)]
 pub struct BrowserCompileResult {
@@ -15,6 +26,8 @@ pub struct BrowserCompileResult {
     pub source_map: Option<String>,
     /// Extracted CSS, if any.
     pub css: Option<String>,
+    /// Structured compilation errors, if any.
+    pub errors: Vec<CompileError>,
 }
 
 /// CSS store: maps a hash-based CSS path to the CSS content.
@@ -67,6 +80,7 @@ impl CompilationPipeline {
                 code: cached.code,
                 source_map: cached.source_map,
                 css: cached.css,
+                errors: vec![],
             };
         }
 
@@ -96,24 +110,30 @@ impl CompilationPipeline {
         );
 
         // Check for compilation errors (diagnostics)
+        let mut compile_errors: Vec<CompileError> = Vec::new();
         if let Some(ref diagnostics) = compile_result.diagnostics {
-            let errors: Vec<String> = diagnostics
+            let log_errors: Vec<String> = diagnostics
                 .iter()
                 .map(|d| {
                     let location = match (d.line, d.column) {
                         (Some(line), Some(col)) => format!(" at {}:{}:{}", filename, line, col),
                         _ => String::new(),
                     };
+                    compile_errors.push(CompileError {
+                        message: d.message.clone(),
+                        line: d.line,
+                        column: d.column,
+                    });
                     format!("{}{}", d.message, location)
                 })
                 .collect();
 
-            if !errors.is_empty() {
+            if !log_errors.is_empty() {
                 // Log diagnostics but don't fail — they may be warnings
                 eprintln!(
                     "[vertz-compiler] Diagnostics for {}:\n  {}",
                     filename,
-                    errors.join("\n  ")
+                    log_errors.join("\n  ")
                 );
             }
         }
@@ -151,25 +171,28 @@ impl CompilationPipeline {
             code
         };
 
-        // Cache the result
-        let mtime = std::fs::metadata(file_path)
-            .and_then(|m| m.modified())
-            .unwrap_or(SystemTime::UNIX_EPOCH);
+        // Only cache successful compilations (no errors)
+        if compile_errors.is_empty() {
+            let mtime = std::fs::metadata(file_path)
+                .and_then(|m| m.modified())
+                .unwrap_or(SystemTime::UNIX_EPOCH);
 
-        self.cache.insert(
-            file_path.to_path_buf(),
-            CachedModule {
-                code: code.clone(),
-                source_map: compile_result.map.clone(),
-                css: css.clone(),
-                mtime,
-            },
-        );
+            self.cache.insert(
+                file_path.to_path_buf(),
+                CachedModule {
+                    code: code.clone(),
+                    source_map: compile_result.map.clone(),
+                    css: css.clone(),
+                    mtime,
+                },
+            );
+        }
 
         BrowserCompileResult {
             code,
             source_map: compile_result.map,
             css,
+            errors: compile_errors,
         }
     }
 
@@ -228,6 +251,11 @@ impl CompilationPipeline {
             ),
             source_map: None,
             css: None,
+            errors: vec![CompileError {
+                message: message.to_string(),
+                line: None,
+                column: None,
+            }],
         }
     }
 }
