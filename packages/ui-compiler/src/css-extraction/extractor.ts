@@ -431,8 +431,14 @@ function resolveValue(value: string, valueType: string, property: string): strin
     }
     case 'content':
       return CONTENT_MAP[value] ?? null;
-    default:
+    default: {
+      // grid-cols: number → repeat(N, minmax(0, 1fr))
+      if (property === 'grid-cols') {
+        const num = Number(value);
+        if (!Number.isNaN(num) && num > 0) return `repeat(${num}, minmax(0, 1fr))`;
+      }
       return value;
+    }
   }
 }
 

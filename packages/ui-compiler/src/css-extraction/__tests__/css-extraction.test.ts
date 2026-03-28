@@ -289,6 +289,16 @@ const button = css({ root: ['m:2'] });`;
     expect(result.css).toMatch(/@media \(min-width: 768px\) \{\n\s+\._[a-f0-9]+ \{/);
   });
 
+  it('resolves grid-cols:N to repeat(N, minmax(0, 1fr)) (#1993)', () => {
+    const extractor = new CSSExtractor();
+    const source = `const s = css({ layout: ['grid', 'grid-cols:5'] });`;
+    const result = extractor.extract(source, 'Grid.tsx');
+
+    expect(result.css).toContain('grid-template-columns: repeat(5, minmax(0, 1fr))');
+    // Must NOT output the raw number
+    expect(result.css).not.toMatch(/grid-template-columns:\s*5[;\s]/);
+  });
+
   it('wraps @container at-rules around the class selector', () => {
     const extractor = new CSSExtractor();
     const source = `const s = css({ card: ['p:4', { '@container (min-width: 400px)': ['p:8'] }] });`;
