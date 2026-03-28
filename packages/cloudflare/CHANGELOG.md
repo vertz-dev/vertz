@@ -1,5 +1,13 @@
 # @vertz/cloudflare
 
+## 0.2.40
+
+### Patch Changes
+
+- Updated dependencies [[`bee011e`](https://github.com/vertz-dev/vertz/commit/bee011e47661b31152ad3dfc589fd45eda2f3e44)]:
+  - @vertz/ui-server@0.2.40
+  - @vertz/core@0.2.40
+
 ## 0.2.39
 
 ### Patch Changes
