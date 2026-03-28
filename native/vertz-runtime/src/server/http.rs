@@ -102,6 +102,7 @@ pub fn build_router(config: &ServerConfig) -> (Router, Arc<DevServerState>) {
         module_graph,
         error_broadcaster,
         start_time: Instant::now(),
+        enable_ssr: config.enable_ssr,
     });
 
     // Routes: HMR WebSocket, error WebSocket, diagnostics, fallback
@@ -210,6 +211,48 @@ async fn dev_server_handler(
         .unwrap_or(true); // Default to true for requests without Accept header
 
     if html_shell::is_page_route(&path) && accepts_html {
+        // SSR: render the page server-side with pre-rendered HTML
+        if state.enable_ssr {
+            let cookie_header = req
+                .headers()
+                .get(header::COOKIE)
+                .and_then(|v| v.to_str().ok())
+                .map(|s| s.to_string());
+
+            let session =
+                crate::ssr::session::extract_session_from_cookies(cookie_header.as_deref());
+
+            let ssr_options = crate::ssr::render::SsrOptions {
+                root_dir: state.root_dir.clone(),
+                entry_file: state.entry_file.clone(),
+                url: path.clone(),
+                title: "Vertz App".to_string(),
+                theme_css: state.theme_css.clone(),
+                session,
+                preload_hints: vec![],
+                enable_hmr: true,
+            };
+
+            let result = crate::ssr::render::render_to_html(&ssr_options);
+
+            if result.render_time_ms > 0.0 {
+                eprintln!(
+                    "[SSR] {} rendered in {:.1}ms ({})",
+                    path,
+                    result.render_time_ms,
+                    if result.is_ssr { "ssr" } else { "client-only" }
+                );
+            }
+
+            return axum::response::Response::builder()
+                .status(StatusCode::OK)
+                .header(header::CONTENT_TYPE, "text/html; charset=utf-8")
+                .header(header::CACHE_CONTROL, "no-cache")
+                .body(Body::from(result.html))
+                .unwrap();
+        }
+
+        // Fallback: client-only HTML shell (when SSR is disabled)
         let html = html_shell::generate_html_shell(
             &state.entry_file,
             &state.root_dir,

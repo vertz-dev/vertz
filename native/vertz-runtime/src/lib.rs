@@ -6,4 +6,5 @@ pub mod errors;
 pub mod hmr;
 pub mod runtime;
 pub mod server;
+pub mod ssr;
 pub mod watcher;

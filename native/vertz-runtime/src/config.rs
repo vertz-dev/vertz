@@ -11,6 +11,8 @@ pub struct ServerConfig {
     pub src_dir: PathBuf,
     /// Entry file for the application (e.g., "src/app.tsx").
     pub entry_file: PathBuf,
+    /// Whether SSR is enabled for page routes (default: true).
+    pub enable_ssr: bool,
 }
 
 impl ServerConfig {
@@ -25,6 +27,7 @@ impl ServerConfig {
             root_dir,
             src_dir,
             entry_file,
+            enable_ssr: true,
         }
     }
 
@@ -39,6 +42,7 @@ impl ServerConfig {
             root_dir,
             src_dir,
             entry_file,
+            enable_ssr: true,
         }
     }
 

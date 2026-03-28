@@ -765,12 +765,14 @@ mod http_integration {
         let addr = format!("127.0.0.1:{}", port);
         let base_url = format!("http://127.0.0.1:{}", port);
 
-        let config = vertz_runtime::config::ServerConfig::with_root(
+        let mut config = vertz_runtime::config::ServerConfig::with_root(
             port,
             "127.0.0.1".to_string(),
             root.join("public"),
             root,
         );
+        // Disable SSR for client-only rendering tests
+        config.enable_ssr = false;
 
         let (router, _state) = vertz_runtime::server::http::build_router(&config);
 

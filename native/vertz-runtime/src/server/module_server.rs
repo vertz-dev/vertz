@@ -30,6 +30,8 @@ pub struct DevServerState {
     pub error_broadcaster: ErrorBroadcaster,
     /// Server start time for uptime tracking.
     pub start_time: std::time::Instant,
+    /// Whether SSR is enabled for page routes.
+    pub enable_ssr: bool,
 }
 
 /// Handle requests for source files: `GET /src/**/*.tsx` → compiled JavaScript.
@@ -205,6 +207,7 @@ mod tests {
             module_graph: crate::watcher::new_shared_module_graph(),
             error_broadcaster: ErrorBroadcaster::new(),
             start_time: std::time::Instant::now(),
+            enable_ssr: false,
         })
     }
 
