@@ -109,6 +109,7 @@ function getMovementParams(id: string) {
 /**
  * Advance all simulated cursors by one tick.
  * Uses sinusoidal movement with per-peer phase offsets for organic motion.
+ * Cursors move within the hero area (10-90% x, 10-80% y).
  */
 export function advanceSimulation(
   cursors: CursorState[],
@@ -116,14 +117,11 @@ export function advanceSimulation(
 ): CursorState[] {
   return cursors.map((c) => {
     const p = getMovementParams(c.id);
-    // Last peer goes idle after 10s to demo the fade/disappear behavior
-    const goesIdle = c.id === `sim-${cursors.length - 1}` && elapsed > 10_000;
-    if (goesIdle) return c; // freeze position and lastActive
 
-    const x = 50 + Math.sin(elapsed * p.speedX + p.phaseX) * 30;
-    const y = 50 + Math.cos(elapsed * p.speedY + p.phaseY) * 30;
-    // Absolute sine — oscillates [0, 20], never drifts to boundary
-    const s = 10 + Math.sin(elapsed * p.speedS + p.phaseS) * 10;
+    // Move within hero area — x: 10-90%, y: 10-80%
+    const x = 50 + Math.sin(elapsed * p.speedX + p.phaseX) * 40;
+    const y = 45 + Math.cos(elapsed * p.speedY + p.phaseY) * 35;
+    const s = 0; // scroll offset unused for simulation
     return { ...c, x, y, s, lastActive: Date.now() };
   });
 }
