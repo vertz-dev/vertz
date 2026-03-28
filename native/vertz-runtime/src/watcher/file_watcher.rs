@@ -71,8 +71,8 @@ impl FileWatcher {
             Config::default().with_poll_interval(Duration::from_millis(config.debounce_ms));
 
         let mut watcher = RecommendedWatcher::new(
-            move |res: Result<Event, notify::Error>| match res {
-                Ok(event) => {
+            move |res: Result<Event, notify::Error>| {
+                if let Ok(event) = res {
                     let kind = match event.kind {
                         EventKind::Create(_) => Some(FileChangeKind::Create),
                         EventKind::Modify(_) => Some(FileChangeKind::Modify),
@@ -92,7 +92,6 @@ impl FileWatcher {
                         }
                     }
                 }
-                Err(_) => {}
             },
             notify_config,
         )?;

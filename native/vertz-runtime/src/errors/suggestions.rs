@@ -2,7 +2,7 @@
 ///
 /// Each suggestion is a short, concrete instruction that tells the developer
 /// exactly what to do to fix the error. No vague "check your code" messages.
-
+///
 /// Generate a fix suggestion for a compilation/build error.
 pub fn suggest_build_fix(message: &str) -> Option<String> {
     // Unexpected token / syntax errors

@@ -307,8 +307,8 @@ fn resolve_relative_specifier(
     // routes them through the dependency handler.
     if let Ok(rel) = with_ext.strip_prefix(root_dir) {
         let rel_str = rel.to_string_lossy().replace('\\', "/");
-        if rel_str.starts_with("node_modules/") {
-            format!("/@deps/{}", &rel_str["node_modules/".len()..])
+        if let Some(rest) = rel_str.strip_prefix("node_modules/") {
+            format!("/@deps/{}", rest)
         } else {
             format!("/{}", rel_str)
         }

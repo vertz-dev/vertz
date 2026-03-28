@@ -302,13 +302,13 @@ fn resolve_in_workspace_node_modules(remainder: &str, root_dir: &Path) -> Option
             || (path.is_dir()
                 && path
                     .file_name()
-                    .map_or(false, |n| n.to_string_lossy().starts_with('@')))
+                    .is_some_and(|n| n.to_string_lossy().starts_with('@')))
         {
             // For scoped packages (@vertz, @floating-ui, etc.), check subdirectories
             if path.is_dir()
                 && path
                     .file_name()
-                    .map_or(false, |n| n.to_string_lossy().starts_with('@'))
+                    .is_some_and(|n| n.to_string_lossy().starts_with('@'))
             {
                 if let Ok(sub_entries) = std::fs::read_dir(&path) {
                     for sub_entry in sub_entries.flatten() {

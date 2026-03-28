@@ -613,10 +613,10 @@ fn deduplicate_imports(code: &str) -> String {
 /// Extract a quoted string from input like `'@vertz/ui';` or `"@vertz/ui";`
 fn extract_quoted_string(s: &str) -> Option<String> {
     let s = s.trim();
-    let (quote, rest) = if s.starts_with('\'') {
-        ('\'', &s[1..])
-    } else if s.starts_with('"') {
-        ('"', &s[1..])
+    let (quote, rest) = if let Some(rest) = s.strip_prefix('\'') {
+        ('\'', rest)
+    } else if let Some(rest) = s.strip_prefix('"') {
+        ('"', rest)
     } else {
         return None;
     };

@@ -97,9 +97,8 @@ fn render_code_frame(
 
     let mut out = String::new();
 
-    for i in start..end {
+    for (i, line_content) in lines.iter().enumerate().take(end).skip(start) {
         let line_num = i + 1;
-        let line_content = lines[i];
         let is_error_line = line_num == error_line as usize;
 
         if is_error_line {
