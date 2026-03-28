@@ -20,5 +20,25 @@ async fn main() {
                 std::process::exit(1);
             }
         }
+        Command::Test(args) => {
+            let root_dir = std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from("."));
+
+            let config = vertz_runtime::test::runner::TestRunConfig {
+                root_dir,
+                paths: args.paths,
+                include: vec![],
+                exclude: vec![],
+                concurrency: args.concurrency,
+                filter: args.filter,
+                bail: args.bail,
+            };
+
+            let (result, output) = vertz_runtime::test::runner::run_tests(config);
+            print!("{}", output);
+
+            if !result.success() {
+                std::process::exit(1);
+            }
+        }
     }
 }

@@ -7,5 +7,6 @@ pub mod hmr;
 pub mod runtime;
 pub mod server;
 pub mod ssr;
+pub mod test;
 pub mod typecheck;
 pub mod watcher;
