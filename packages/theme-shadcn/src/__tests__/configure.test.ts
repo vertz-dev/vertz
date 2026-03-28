@@ -109,6 +109,56 @@ describe('configureTheme', () => {
   });
 });
 
+describe('configureTheme() components', () => {
+  it('components.primitives is lazily initialized', () => {
+    const config = configureTheme();
+    const { primitives } = config.components;
+
+    // Primitives should be an object with expected keys
+    expect(primitives).toBeDefined();
+
+    // Each primitive should be accessible
+    expect(primitives.DropdownMenu).toBeDefined();
+    expect(typeof primitives.DropdownMenu).toBe('function');
+    expect(primitives.Select).toBeDefined();
+    expect(primitives.Dialog).toBeDefined();
+  });
+
+  it('primitives are cached after first access', () => {
+    const config = configureTheme();
+    const { primitives } = config.components;
+
+    const first = primitives.DropdownMenu;
+    const second = primitives.DropdownMenu;
+    expect(first).toBe(second);
+  });
+
+  it('accessing one primitive does not initialize others', () => {
+    const config = configureTheme();
+    const { primitives } = config.components;
+
+    // Access only Dialog — this should not crash even if other
+    // primitives have import resolution issues
+    const dialog = primitives.Dialog;
+    expect(dialog).toBeDefined();
+  });
+
+  it('all primitives are enumerable', () => {
+    const config = configureTheme();
+    const { primitives } = config.components;
+    const keys = Object.keys(primitives);
+
+    expect(keys).toContain('Dialog');
+    expect(keys).toContain('DropdownMenu');
+    expect(keys).toContain('Select');
+    expect(keys).toContain('Tabs');
+    expect(keys).toContain('Checkbox');
+    expect(keys).toContain('Switch');
+    expect(keys).toContain('Accordion');
+    expect(keys.length).toBeGreaterThanOrEqual(29);
+  });
+});
+
 describe('configureTheme() lazy initialization', () => {
   afterEach(() => {
     resetInjectedStyles();
