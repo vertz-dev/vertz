@@ -121,8 +121,7 @@ pub async fn handle_source_file(
         // Compilation succeeded — update module graph with imports
         let source = std::fs::read_to_string(&file_path).unwrap_or_default();
         if !source.is_empty() {
-            let deps =
-                crate::deps::scanner::scan_local_dependencies(&source, &file_path);
+            let deps = crate::deps::scanner::scan_local_dependencies(&source, &file_path);
             if let Ok(mut graph) = state.module_graph.write() {
                 graph.update_module(&file_path, deps);
             }
@@ -299,9 +298,18 @@ fn resolve_in_workspace_node_modules(remainder: &str, root_dir: &Path) -> Option
         let entry = entry.ok()?;
         let path = entry.path();
 
-        if path.is_symlink() || (path.is_dir() && path.file_name().map_or(false, |n| n.to_string_lossy().starts_with('@'))) {
+        if path.is_symlink()
+            || (path.is_dir()
+                && path
+                    .file_name()
+                    .map_or(false, |n| n.to_string_lossy().starts_with('@')))
+        {
             // For scoped packages (@vertz, @floating-ui, etc.), check subdirectories
-            if path.is_dir() && path.file_name().map_or(false, |n| n.to_string_lossy().starts_with('@')) {
+            if path.is_dir()
+                && path
+                    .file_name()
+                    .map_or(false, |n| n.to_string_lossy().starts_with('@'))
+            {
                 if let Ok(sub_entries) = std::fs::read_dir(&path) {
                     for sub_entry in sub_entries.flatten() {
                         let sub_path = sub_entry.path();
@@ -352,13 +360,17 @@ fn resolve_in_bun_cache(remainder: &str, root_dir: &Path) -> Option<PathBuf> {
                 for entry in entries.flatten() {
                     let entry_name = entry.file_name().to_string_lossy().to_string();
                     // Match entries like "@floating-ui+dom@1.7.5" for package "@floating-ui/dom"
-                    if entry_name.starts_with(&bun_pkg_prefix) || entry_name.starts_with(&format!("{}@", bun_pkg_prefix)) {
+                    if entry_name.starts_with(&bun_pkg_prefix)
+                        || entry_name.starts_with(&format!("{}@", bun_pkg_prefix))
+                    {
                         // Check if this .bun entry has node_modules/<pkg>/ with our file
                         let candidate = entry.path().join("node_modules").join(pkg_name);
                         if subpath.is_empty() {
                             if candidate.is_dir() {
                                 // Resolve via package.json
-                                if let Some(resolved) = resolve::resolve_from_node_modules(pkg_name, &entry.path()) {
+                                if let Some(resolved) =
+                                    resolve::resolve_from_node_modules(pkg_name, &entry.path())
+                                {
                                     return Some(resolved);
                                 }
                             }
@@ -375,7 +387,9 @@ fn resolve_in_bun_cache(remainder: &str, root_dir: &Path) -> Option<PathBuf> {
                     if nested.is_dir() || nested.is_symlink() {
                         if let Ok(real_nested) = std::fs::canonicalize(&nested) {
                             if subpath.is_empty() {
-                                if let Some(resolved) = resolve::resolve_from_node_modules(pkg_name, &entry.path()) {
+                                if let Some(resolved) =
+                                    resolve::resolve_from_node_modules(pkg_name, &entry.path())
+                                {
                                     return Some(resolved);
                                 }
                             } else {

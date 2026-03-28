@@ -119,7 +119,10 @@ pub fn build_router(config: &ServerConfig) -> (Router, Arc<DevServerState>) {
         .route("/__vertz_ai/errors", get(ai_errors_handler))
         .route("/__vertz_ai/render", get(ai_render_handler))
         .route("/__vertz_ai/console", get(ai_console_handler))
-        .route("/__vertz_ai/navigate", axum::routing::post(ai_navigate_handler))
+        .route(
+            "/__vertz_ai/navigate",
+            axum::routing::post(ai_navigate_handler),
+        )
         .route("/__vertz_mcp/sse", get(mcp::mcp_sse_handler))
         .route(
             "/__vertz_mcp/message",
@@ -192,10 +195,7 @@ async fn ai_render_handler(
     let url = req
         .uri()
         .query()
-        .and_then(|q| {
-            q.split('&')
-                .find_map(|pair| pair.strip_prefix("url="))
-        })
+        .and_then(|q| q.split('&').find_map(|pair| pair.strip_prefix("url=")))
         .unwrap_or("/")
         .to_string();
 
@@ -241,7 +241,10 @@ async fn ai_render_handler(
         .status(StatusCode::OK)
         .header(header::CONTENT_TYPE, "text/html; charset=utf-8")
         .header(header::CACHE_CONTROL, "no-cache")
-        .header("X-Vertz-Render-Time", format!("{:.1}ms", result.render_time_ms))
+        .header(
+            "X-Vertz-Render-Time",
+            format!("{:.1}ms", result.render_time_ms),
+        )
         .header("X-Vertz-SSR", if result.is_ssr { "true" } else { "false" })
         .header(
             "X-Vertz-SSR-Error",
@@ -261,10 +264,7 @@ async fn ai_console_handler(
     let last_n: usize = req
         .uri()
         .query()
-        .and_then(|q| {
-            q.split('&')
-                .find_map(|pair| pair.strip_prefix("last="))
-        })
+        .and_then(|q| q.split('&').find_map(|pair| pair.strip_prefix("last=")))
         .and_then(|v| v.parse().ok())
         .unwrap_or(50);
 
@@ -316,9 +316,7 @@ async fn ai_navigate_handler(
 
     state
         .hmr_hub
-        .broadcast(crate::hmr::protocol::HmrMessage::Navigate {
-            to: req.to.clone(),
-        })
+        .broadcast(crate::hmr::protocol::HmrMessage::Navigate { to: req.to.clone() })
         .await;
 
     state.console_log.push(
@@ -445,7 +443,9 @@ async fn dev_server_handler(
                     if result.is_ssr { "ssr" } else { "client-only" }
                 );
                 eprintln!("[SSR] {}", render_msg);
-                state.console_log.push(LogLevel::Info, render_msg, Some("ssr"));
+                state
+                    .console_log
+                    .push(LogLevel::Info, render_msg, Some("ssr"));
             }
 
             // Report SSR errors with actionable suggestions
@@ -456,9 +456,8 @@ async fn dev_server_handler(
                     Some("ssr"),
                 );
                 let suggestion = crate::errors::suggestions::suggest_ssr_fix(error_msg);
-                let mut error = DevError::ssr(error_msg).with_file(
-                    state.entry_file.to_string_lossy().to_string(),
-                );
+                let mut error = DevError::ssr(error_msg)
+                    .with_file(state.entry_file.to_string_lossy().to_string());
                 if let Some(s) = suggestion {
                     error = error.with_suggestion(s);
                 }

@@ -71,30 +71,28 @@ impl FileWatcher {
             Config::default().with_poll_interval(Duration::from_millis(config.debounce_ms));
 
         let mut watcher = RecommendedWatcher::new(
-            move |res: Result<Event, notify::Error>| {
-                match res {
-                    Ok(event) => {
-                        let kind = match event.kind {
-                            EventKind::Create(_) => Some(FileChangeKind::Create),
-                            EventKind::Modify(_) => Some(FileChangeKind::Modify),
-                            EventKind::Remove(_) => Some(FileChangeKind::Remove),
-                            _ => None,
-                        };
+            move |res: Result<Event, notify::Error>| match res {
+                Ok(event) => {
+                    let kind = match event.kind {
+                        EventKind::Create(_) => Some(FileChangeKind::Create),
+                        EventKind::Modify(_) => Some(FileChangeKind::Modify),
+                        EventKind::Remove(_) => Some(FileChangeKind::Remove),
+                        _ => None,
+                    };
 
-                        if let Some(kind) = kind {
-                            for path in &event.paths {
-                                if should_process_file(path, &extensions, &ignore_dirs) {
-                                    let change = FileChange {
-                                        kind,
-                                        path: path.clone(),
-                                    };
-                                    let _ = tx.try_send(change);
-                                }
+                    if let Some(kind) = kind {
+                        for path in &event.paths {
+                            if should_process_file(path, &extensions, &ignore_dirs) {
+                                let change = FileChange {
+                                    kind,
+                                    path: path.clone(),
+                                };
+                                let _ = tx.try_send(change);
                             }
                         }
                     }
-                    Err(_) => {}
                 }
+                Err(_) => {}
             },
             notify_config,
         )?;

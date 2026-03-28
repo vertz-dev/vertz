@@ -58,7 +58,10 @@ pub fn suggest_build_fix(message: &str) -> Option<String> {
                 name
             ));
         }
-        return Some("A variable or import is declared more than once. Remove the duplicate declaration.".into());
+        return Some(
+            "A variable or import is declared more than once. Remove the duplicate declaration."
+                .into(),
+        );
     }
 
     None
@@ -71,7 +74,11 @@ pub fn suggest_resolve_fix(message: &str, specifier: &str) -> Option<String> {
         let export_name = extract_quoted(message, "export named '", "'");
         if let Some(name) = &export_name {
             // Known internal APIs
-            if name == "domEffect" || name == "lifecycleEffect" || name == "startSignalCollection" || name == "stopSignalCollection" {
+            if name == "domEffect"
+                || name == "lifecycleEffect"
+                || name == "startSignalCollection"
+                || name == "stopSignalCollection"
+            {
                 return Some(format!(
                     "'{}' is an internal API. Import it from '@vertz/ui/internals' instead of '@vertz/ui'.",
                     name
@@ -179,8 +186,7 @@ pub fn suggest_runtime_fix(message: &str) -> Option<String> {
 
 /// Extract a module name from error messages like "Cannot find module './foo'"
 fn extract_module_name(message: &str) -> Option<String> {
-    extract_quoted(message, "'", "'")
-        .or_else(|| extract_quoted(message, "\"", "\""))
+    extract_quoted(message, "'", "'").or_else(|| extract_quoted(message, "\"", "\""))
 }
 
 /// Extract text between delimiters.
@@ -209,8 +215,7 @@ fn extract_before(message: &str, pattern: &str) -> Option<String> {
 
 /// Extract an identifier from messages like "'foo' has already been declared"
 fn extract_identifier(message: &str) -> Option<String> {
-    extract_quoted(message, "'", "'")
-        .or_else(|| extract_quoted(message, "\"", "\""))
+    extract_quoted(message, "'", "'").or_else(|| extract_quoted(message, "\"", "\""))
 }
 
 #[cfg(test)]
@@ -240,10 +245,8 @@ mod tests {
 
     #[test]
     fn test_suggest_missing_export() {
-        let suggestion = suggest_resolve_fix(
-            "does not provide an export named 'domEffect'",
-            "@vertz/ui",
-        );
+        let suggestion =
+            suggest_resolve_fix("does not provide an export named 'domEffect'", "@vertz/ui");
         assert!(suggestion.is_some());
         assert!(suggestion.unwrap().contains("@vertz/ui/internals"));
     }
@@ -257,8 +260,7 @@ mod tests {
 
     #[test]
     fn test_suggest_undefined_property() {
-        let suggestion =
-            suggest_runtime_fix("Cannot read properties of undefined (reading 'map')");
+        let suggestion = suggest_runtime_fix("Cannot read properties of undefined (reading 'map')");
         assert!(suggestion.is_some());
         assert!(suggestion.unwrap().contains("map"));
     }
@@ -293,7 +295,8 @@ mod tests {
 
     #[test]
     fn test_suggest_context_provider_ssr() {
-        let suggestion = suggest_ssr_fix("useSettings must be called within SettingsContext.Provider");
+        let suggestion =
+            suggest_ssr_fix("useSettings must be called within SettingsContext.Provider");
         assert!(suggestion.is_some());
         assert!(suggestion.unwrap().contains("Provider"));
     }

@@ -154,12 +154,8 @@ impl CompilationPipeline {
         let deduped = fix_module_id(&deduped, file_path, &self.root_dir);
 
         // Rewrite import specifiers for browser consumption
-        let code = import_rewriter::rewrite_imports(
-            &deduped,
-            file_path,
-            &self.src_dir,
-            &self.root_dir,
-        );
+        let code =
+            import_rewriter::rewrite_imports(&deduped, file_path, &self.src_dir, &self.root_dir);
 
         // Handle extracted CSS
         let css = compile_result.css.clone();
@@ -319,7 +315,12 @@ fn fix_compiler_api_names(code: &str) -> String {
 }
 
 /// Internal API names that belong in `@vertz/ui/internals`, not `@vertz/ui`.
-const INTERNAL_APIS: &[&str] = &["domEffect", "lifecycleEffect", "startSignalCollection", "stopSignalCollection"];
+const INTERNAL_APIS: &[&str] = &[
+    "domEffect",
+    "lifecycleEffect",
+    "startSignalCollection",
+    "stopSignalCollection",
+];
 
 /// Move internal APIs from `@vertz/ui` imports to `@vertz/ui/internals`.
 ///

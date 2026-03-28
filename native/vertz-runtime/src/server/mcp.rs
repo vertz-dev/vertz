@@ -278,10 +278,7 @@ async fn execute_tool(
         }
 
         "vertz_get_console" => {
-            let last_n = args
-                .get("last")
-                .and_then(|v| v.as_u64())
-                .unwrap_or(50) as usize;
+            let last_n = args.get("last").and_then(|v| v.as_u64()).unwrap_or(50) as usize;
 
             let entries = state.console_log.last_n(last_n);
             let text = serde_json::to_string_pretty(&serde_json::json!({
@@ -308,11 +305,9 @@ async fn execute_tool(
                 .broadcast(crate::hmr::protocol::HmrMessage::Navigate { to: to.clone() })
                 .await;
 
-            state.console_log.push(
-                LogLevel::Info,
-                format!("MCP navigate: {}", to),
-                Some("mcp"),
-            );
+            state
+                .console_log
+                .push(LogLevel::Info, format!("MCP navigate: {}", to), Some("mcp"));
 
             Ok(serde_json::json!({
                 "content": [{
@@ -387,13 +382,9 @@ async fn handle_mcp_message(
             }
         }
 
-        "resources/list" => {
-            JsonRpcResponse::success(id, serde_json::json!({ "resources": [] }))
-        }
+        "resources/list" => JsonRpcResponse::success(id, serde_json::json!({ "resources": [] })),
 
-        "prompts/list" => {
-            JsonRpcResponse::success(id, serde_json::json!({ "prompts": [] }))
-        }
+        "prompts/list" => JsonRpcResponse::success(id, serde_json::json!({ "prompts": [] })),
 
         _ => JsonRpcResponse::error(id, -32601, format!("Method not found: {}", req.method)),
     };
@@ -435,10 +426,7 @@ pub async fn mcp_sse_handler(
     let session_id = uuid::Uuid::new_v4().to_string();
     let (tx, rx) = mpsc::channel::<String>(64);
 
-    state
-        .mcp_sessions
-        .insert(session_id.clone(), tx)
-        .await;
+    state.mcp_sessions.insert(session_id.clone(), tx).await;
 
     let endpoint_url = format!("/__vertz_mcp/message?sessionId={}", session_id);
 
@@ -661,10 +649,7 @@ mod tests {
 
     #[test]
     fn test_jsonrpc_success_response() {
-        let resp = JsonRpcResponse::success(
-            serde_json::json!(1),
-            serde_json::json!({"ok": true}),
-        );
+        let resp = JsonRpcResponse::success(serde_json::json!(1), serde_json::json!({"ok": true}));
         let json = serde_json::to_string(&resp).unwrap();
         let parsed: serde_json::Value = serde_json::from_str(&json).unwrap();
 
@@ -676,11 +661,7 @@ mod tests {
 
     #[test]
     fn test_jsonrpc_error_response() {
-        let resp = JsonRpcResponse::error(
-            serde_json::json!(2),
-            -32601,
-            "Method not found",
-        );
+        let resp = JsonRpcResponse::error(serde_json::json!(2), -32601, "Method not found");
         let json = serde_json::to_string(&resp).unwrap();
         let parsed: serde_json::Value = serde_json::from_str(&json).unwrap();
 
@@ -715,7 +696,10 @@ mod tests {
 
         for tool in tools {
             assert!(tool.get("name").is_some(), "tool missing name");
-            assert!(tool.get("description").is_some(), "tool missing description");
+            assert!(
+                tool.get("description").is_some(),
+                "tool missing description"
+            );
             assert!(
                 tool.get("inputSchema").is_some(),
                 "tool {} missing inputSchema",
@@ -728,7 +712,10 @@ mod tests {
     fn test_render_page_requires_url() {
         let defs = tool_definitions();
         let tools = defs["tools"].as_array().unwrap();
-        let render = tools.iter().find(|t| t["name"] == "vertz_render_page").unwrap();
+        let render = tools
+            .iter()
+            .find(|t| t["name"] == "vertz_render_page")
+            .unwrap();
         let required = render["inputSchema"]["required"].as_array().unwrap();
         assert!(required.contains(&serde_json::json!("url")));
     }
@@ -737,7 +724,10 @@ mod tests {
     fn test_navigate_requires_to() {
         let defs = tool_definitions();
         let tools = defs["tools"].as_array().unwrap();
-        let nav = tools.iter().find(|t| t["name"] == "vertz_navigate").unwrap();
+        let nav = tools
+            .iter()
+            .find(|t| t["name"] == "vertz_navigate")
+            .unwrap();
         let required = nav["inputSchema"]["required"].as_array().unwrap();
         assert!(required.contains(&serde_json::json!("to")));
     }
@@ -939,10 +929,7 @@ mod tests {
         .unwrap();
 
         let content = result["content"].as_array().unwrap();
-        assert!(content[0]["text"]
-            .as_str()
-            .unwrap()
-            .contains("/tasks"));
+        assert!(content[0]["text"].as_str().unwrap().contains("/tasks"));
 
         // Verify console log was created
         let entries = state.console_log.all();
@@ -976,8 +963,7 @@ mod tests {
     #[tokio::test]
     async fn test_execute_unknown_tool() {
         let state = create_test_state();
-        let result =
-            execute_tool(&state, "nonexistent_tool", &serde_json::json!({})).await;
+        let result = execute_tool(&state, "nonexistent_tool", &serde_json::json!({})).await;
         assert!(result.is_err());
         assert!(result.unwrap_err().contains("Unknown tool"));
     }

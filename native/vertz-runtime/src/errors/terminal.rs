@@ -46,9 +46,7 @@ pub fn format_error(error: &DevError, root_dir: Option<&Path>) -> String {
 
     // Code frame with ANSI colors
     if let Some(ref file) = error.file {
-        if let Some(code_frame) =
-            render_code_frame(file, error.line, error.column, root_dir)
-        {
+        if let Some(code_frame) = render_code_frame(file, error.line, error.column, root_dir) {
             out.push_str(&code_frame);
             out.push('\n');
         }
@@ -311,12 +309,7 @@ mod tests {
         // Create a temp file
         let tmp = tempfile::NamedTempFile::new().unwrap();
         std::fs::write(tmp.path(), "line 1\nline 2\n").unwrap();
-        let result = render_code_frame(
-            tmp.path().to_str().unwrap(),
-            Some(0),
-            Some(1),
-            None,
-        );
+        let result = render_code_frame(tmp.path().to_str().unwrap(), Some(0), Some(1), None);
         assert!(result.is_none());
     }
 
@@ -324,12 +317,7 @@ mod tests {
     fn test_render_code_frame_produces_output() {
         let tmp = tempfile::NamedTempFile::new().unwrap();
         std::fs::write(tmp.path(), "const a = 1;\nconst b = ;\nconst c = 3;\n").unwrap();
-        let result = render_code_frame(
-            tmp.path().to_str().unwrap(),
-            Some(2),
-            Some(11),
-            None,
-        );
+        let result = render_code_frame(tmp.path().to_str().unwrap(), Some(2), Some(11), None);
         assert!(result.is_some());
         let frame = result.unwrap();
         // Should contain the error line marker

@@ -341,10 +341,7 @@ export function App() { return <div>App</div>; }
         std::fs::write(&button_path, "export function Button() {}").unwrap();
         std::fs::write(&utils_path, "export function format() {}").unwrap();
 
-        let deps = scan_local_dependencies(
-            &std::fs::read_to_string(&app_path).unwrap(),
-            &app_path,
-        );
+        let deps = scan_local_dependencies(&std::fs::read_to_string(&app_path).unwrap(), &app_path);
 
         // Should find the two relative imports, NOT the bare specifier
         assert_eq!(deps.len(), 2);
@@ -364,10 +361,7 @@ import React from 'react';
         )
         .unwrap();
 
-        let deps = scan_local_dependencies(
-            &std::fs::read_to_string(&file).unwrap(),
-            &file,
-        );
+        let deps = scan_local_dependencies(&std::fs::read_to_string(&file).unwrap(), &file);
         assert!(deps.is_empty());
     }
 

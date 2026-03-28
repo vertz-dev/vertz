@@ -91,7 +91,10 @@ pub async fn render_to_html(options: &SsrOptions) -> SsrResult {
         Ok(result) => result,
         Err(e) => {
             let error_msg = e.to_string();
-            eprintln!("[SSR] Render failed, falling back to client shell: {}", error_msg);
+            eprintln!(
+                "[SSR] Render failed, falling back to client shell: {}",
+                error_msg
+            );
             let elapsed = start.elapsed().as_secs_f64() * 1000.0;
             fallback_client_shell(&opts_for_fallback, elapsed, Some(error_msg))
         }
@@ -106,7 +109,10 @@ pub fn render_to_html_sync(options: &SsrOptions) -> SsrResult {
         Ok(result) => result,
         Err(e) => {
             let error_msg = e.to_string();
-            eprintln!("[SSR] Render failed, falling back to client shell: {}", error_msg);
+            eprintln!(
+                "[SSR] Render failed, falling back to client shell: {}",
+                error_msg
+            );
             let elapsed = start.elapsed().as_secs_f64() * 1000.0;
             fallback_client_shell(options, elapsed, Some(error_msg))
         }
@@ -236,7 +242,11 @@ fn render_app_content(runtime: &mut VertzJsRuntime) -> Result<String, AnyError> 
 }
 
 /// Generate a client-only HTML shell as a fallback when SSR fails.
-fn fallback_client_shell(options: &SsrOptions, render_time_ms: f64, error: Option<String>) -> SsrResult {
+fn fallback_client_shell(
+    options: &SsrOptions,
+    render_time_ms: f64,
+    error: Option<String>,
+) -> SsrResult {
     let entry_url = entry_path_to_url(&options.entry_file, &options.root_dir);
 
     let html = assemble_ssr_document(&SsrHtmlOptions {

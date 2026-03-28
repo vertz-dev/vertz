@@ -199,10 +199,7 @@ mod tests {
 
     #[test]
     fn test_split_package_specifier_scoped() {
-        assert_eq!(
-            split_package_specifier("@vertz/ui"),
-            ("@vertz/ui", "")
-        );
+        assert_eq!(split_package_specifier("@vertz/ui"), ("@vertz/ui", ""));
     }
 
     #[test]

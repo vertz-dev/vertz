@@ -195,9 +195,9 @@ impl ErrorState {
         let category = error.category;
         let errors = self.errors.entry(category).or_default();
         // Deduplicate: don't add if same message+file already exists
-        let is_dup = errors.iter().any(|e| {
-            e.message == error.message && e.file == error.file
-        });
+        let is_dup = errors
+            .iter()
+            .any(|e| e.message == error.message && e.file == error.file);
         if !is_dup {
             errors.push(error);
         }

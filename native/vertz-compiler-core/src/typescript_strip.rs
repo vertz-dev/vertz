@@ -413,39 +413,71 @@ mod tests {
 
     #[test]
     fn test_strip_return_type_annotation() {
-        let result = strip(r#"function foo(x: number): string {
+        let result = strip(
+            r#"function foo(x: number): string {
   return String(x);
-}"#);
-        assert!(!result.contains(": number"), "param annotation not stripped: {}", result);
-        assert!(!result.contains(": string"), "return type not stripped: {}", result);
+}"#,
+        );
+        assert!(
+            !result.contains(": number"),
+            "param annotation not stripped: {}",
+            result
+        );
+        assert!(
+            !result.contains(": string"),
+            "return type not stripped: {}",
+            result
+        );
         assert!(result.contains("function foo(x) {"), "result: {}", result);
     }
 
     #[test]
     fn test_strip_return_type_with_union_string_literals() {
-        let result = strip(r#"function priorityColor(
+        let result = strip(
+            r#"function priorityColor(
   priority: TaskPriority,
 ): "blue" | "green" | "yellow" | "red" {
   return "blue";
-}"#);
-        assert!(!result.contains(": TaskPriority"), "param not stripped: {}", result);
-        assert!(!result.contains("\"blue\" | \"green\""), "return type not stripped: {}", result);
+}"#,
+        );
+        assert!(
+            !result.contains(": TaskPriority"),
+            "param not stripped: {}",
+            result
+        );
+        assert!(
+            !result.contains("\"blue\" | \"green\""),
+            "return type not stripped: {}",
+            result
+        );
     }
 
     #[test]
     fn test_strip_variable_type_annotation_with_generics() {
-        let result = strip(r#"const map: Record<string, number> = {};
-"#);
-        assert!(!result.contains(": Record<"), "variable annotation not stripped: {}", result);
+        let result = strip(
+            r#"const map: Record<string, number> = {};
+"#,
+        );
+        assert!(
+            !result.contains(": Record<"),
+            "variable annotation not stripped: {}",
+            result
+        );
         assert!(result.contains("const map = {}"), "result: {}", result);
     }
 
     #[test]
     fn test_strip_import_type() {
-        let result = strip(r#"import type { Task } from "./types";
+        let result = strip(
+            r#"import type { Task } from "./types";
 const x = 1;
-"#);
-        assert!(!result.contains("import type"), "import type not stripped: {}", result);
+"#,
+        );
+        assert!(
+            !result.contains("import type"),
+            "import type not stripped: {}",
+            result
+        );
         assert!(result.contains("const x = 1"), "result: {}", result);
     }
 
@@ -465,15 +497,30 @@ export function TaskCard({ task }: { task: Task }) {
   return <div>{priorityColor("low")}</div>;
 }
 "#;
-        let result = crate::compile(source, crate::CompileOptions {
-            filename: Some("test.tsx".to_string()),
-            target: Some("dom".to_string()),
-            fast_refresh: Some(true),
-            ..Default::default()
-        });
-        assert!(!result.code.contains("import type"), "import type survived full compile: {}", result.code);
-        assert!(!result.code.contains("): \"blue\""), "return type survived full compile: {}", result.code);
-        assert!(!result.code.contains(": Record<"), "variable annotation survived full compile: {}", result.code);
+        let result = crate::compile(
+            source,
+            crate::CompileOptions {
+                filename: Some("test.tsx".to_string()),
+                target: Some("dom".to_string()),
+                fast_refresh: Some(true),
+                ..Default::default()
+            },
+        );
+        assert!(
+            !result.code.contains("import type"),
+            "import type survived full compile: {}",
+            result.code
+        );
+        assert!(
+            !result.code.contains("): \"blue\""),
+            "return type survived full compile: {}",
+            result.code
+        );
+        assert!(
+            !result.code.contains(": Record<"),
+            "variable annotation survived full compile: {}",
+            result.code
+        );
     }
 
     /// Test with the actual task-card.tsx content pattern
@@ -512,19 +559,46 @@ export function TaskCard({ task, onClick }: { task: Task; onClick?: (id: string)
   );
 }
 "#;
-        let result = crate::compile(source, crate::CompileOptions {
-            filename: Some("task-card.tsx".to_string()),
-            target: Some("dom".to_string()),
-            fast_refresh: Some(true),
-            ..Default::default()
-        });
+        let result = crate::compile(
+            source,
+            crate::CompileOptions {
+                filename: Some("task-card.tsx".to_string()),
+                target: Some("dom".to_string()),
+                fast_refresh: Some(true),
+                ..Default::default()
+            },
+        );
 
         // Check each annotation type
-        assert!(!result.code.contains("import type"), "import type survived: {}", result.code);
-        assert!(!result.code.contains(": TaskPriority"), "param annotation survived: {}", result.code);
-        assert!(!result.code.contains(": TaskStatus"), "param annotation survived: {}", result.code);
-        assert!(!result.code.contains("): \"blue\""), "return type survived: {}", result.code);
-        assert!(!result.code.contains(": Record<"), "variable type survived: {}", result.code);
-        assert!(!result.code.contains("): string"), "return string type survived: {}", result.code);
+        assert!(
+            !result.code.contains("import type"),
+            "import type survived: {}",
+            result.code
+        );
+        assert!(
+            !result.code.contains(": TaskPriority"),
+            "param annotation survived: {}",
+            result.code
+        );
+        assert!(
+            !result.code.contains(": TaskStatus"),
+            "param annotation survived: {}",
+            result.code
+        );
+        assert!(
+            !result.code.contains("): \"blue\""),
+            "return type survived: {}",
+            result.code
+        );
+        assert!(
+            !result.code.contains(": Record<"),
+            "variable type survived: {}",
+            result.code
+        );
+        assert!(
+            !result.code.contains("): string"),
+            "return string type survived: {}",
+            result.code
+        );
     }
 }
