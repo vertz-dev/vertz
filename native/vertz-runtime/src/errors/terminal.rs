@@ -27,6 +27,7 @@ pub fn format_error(error: &DevError, root_dir: Option<&Path>) -> String {
     let badge = match error.category {
         super::categories::ErrorCategory::Build => " BUILD ERROR ",
         super::categories::ErrorCategory::Resolve => " RESOLVE ERROR ",
+        super::categories::ErrorCategory::TypeCheck => " TYPECHECK ERROR ",
         super::categories::ErrorCategory::Ssr => " SSR ERROR ",
         super::categories::ErrorCategory::Runtime => " RUNTIME ERROR ",
     };

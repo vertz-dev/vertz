@@ -122,6 +122,28 @@ impl ErrorBroadcaster {
         self.write_error_log().await;
     }
 
+    /// Atomically replace all errors for a category. Broadcasts a single update.
+    pub async fn replace_category(&self, category: ErrorCategory, errors: Vec<DevError>) {
+        // Print new errors to terminal
+        for error in &errors {
+            eprint!(
+                "{}",
+                terminal::format_error(error, self.root_dir.as_deref())
+            );
+        }
+
+        let should_surface = {
+            let mut state = self.state.write().await;
+            state.replace_category(category, errors)
+        };
+
+        if should_surface {
+            self.broadcast_current_state_or_clear().await;
+        }
+
+        self.write_error_log().await;
+    }
+
     /// Get the current error state snapshot.
     pub async fn current_state(&self) -> ErrorBroadcast {
         let state = self.state.read().await;
@@ -441,5 +463,78 @@ mod tests {
     async fn test_broadcaster_default() {
         let broadcaster = ErrorBroadcaster::default();
         assert!(!broadcaster.has_errors().await);
+    }
+
+    #[tokio::test]
+    async fn test_replace_category_broadcasts_single_message() {
+        let broadcaster = ErrorBroadcaster::new();
+        let mut rx = broadcaster.subscribe();
+
+        // Add initial typecheck errors
+        broadcaster
+            .report_error(DevError::typecheck("old err"))
+            .await;
+        let _ = rx.recv().await; // consume
+
+        // Replace with new errors — single broadcast
+        broadcaster
+            .replace_category(
+                ErrorCategory::TypeCheck,
+                vec![
+                    DevError::typecheck("new err 1"),
+                    DevError::typecheck("new err 2"),
+                ],
+            )
+            .await;
+
+        let msg = rx.recv().await.unwrap();
+        let parsed: serde_json::Value = serde_json::from_str(&msg).unwrap();
+        assert_eq!(parsed["type"], "error");
+        assert_eq!(parsed["category"], "typecheck");
+        assert_eq!(parsed["errors"].as_array().unwrap().len(), 2);
+    }
+
+    #[tokio::test]
+    async fn test_replace_category_empty_broadcasts_clear() {
+        let broadcaster = ErrorBroadcaster::new();
+        let mut rx = broadcaster.subscribe();
+
+        broadcaster.report_error(DevError::typecheck("err")).await;
+        let _ = rx.recv().await; // consume
+
+        // Replace with empty — should clear
+        broadcaster
+            .replace_category(ErrorCategory::TypeCheck, vec![])
+            .await;
+
+        let msg = rx.recv().await.unwrap();
+        let parsed: serde_json::Value = serde_json::from_str(&msg).unwrap();
+        assert_eq!(parsed["type"], "clear");
+    }
+
+    #[tokio::test]
+    async fn test_replace_category_suppressed_no_broadcast() {
+        let broadcaster = ErrorBroadcaster::new();
+        let mut rx = broadcaster.subscribe();
+
+        // Build error suppresses typecheck
+        broadcaster
+            .report_error(DevError::build("syntax error"))
+            .await;
+        let _ = rx.recv().await;
+
+        // Replace typecheck — suppressed, no broadcast
+        broadcaster
+            .replace_category(
+                ErrorCategory::TypeCheck,
+                vec![DevError::typecheck("type err")],
+            )
+            .await;
+
+        let result = tokio::time::timeout(std::time::Duration::from_millis(50), rx.recv()).await;
+        assert!(
+            result.is_err(),
+            "TypeCheck should be suppressed by Build error"
+        );
     }
 }

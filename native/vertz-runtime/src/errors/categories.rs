@@ -11,10 +11,12 @@ pub enum ErrorCategory {
     Runtime = 0,
     /// SSR render errors.
     Ssr = 1,
+    /// TypeScript type-check errors (tsc/tsgo output).
+    TypeCheck = 2,
     /// Module resolution failures.
-    Resolve = 2,
+    Resolve = 3,
     /// Compilation/parse errors (highest priority).
-    Build = 3,
+    Build = 4,
 }
 
 impl ErrorCategory {
@@ -34,6 +36,7 @@ impl std::fmt::Display for ErrorCategory {
         match self {
             ErrorCategory::Build => write!(f, "build"),
             ErrorCategory::Resolve => write!(f, "resolve"),
+            ErrorCategory::TypeCheck => write!(f, "typecheck"),
             ErrorCategory::Ssr => write!(f, "ssr"),
             ErrorCategory::Runtime => write!(f, "runtime"),
         }
@@ -95,6 +98,19 @@ impl DevError {
     pub fn ssr(message: impl Into<String>) -> Self {
         Self {
             category: ErrorCategory::Ssr,
+            message: message.into(),
+            file: None,
+            line: None,
+            column: None,
+            code_snippet: None,
+            suggestion: None,
+        }
+    }
+
+    /// Create a typecheck error (from tsc/tsgo output).
+    pub fn typecheck(message: impl Into<String>) -> Self {
+        Self {
+            category: ErrorCategory::TypeCheck,
             message: message.into(),
             file: None,
             line: None,
@@ -228,6 +244,7 @@ impl ErrorState {
         let highest = [
             ErrorCategory::Build,
             ErrorCategory::Resolve,
+            ErrorCategory::TypeCheck,
             ErrorCategory::Ssr,
             ErrorCategory::Runtime,
         ]
@@ -242,6 +259,17 @@ impl ErrorState {
                 .unwrap_or_default(),
             None => vec![],
         }
+    }
+
+    /// Atomically replace all errors for a category. Returns true if the
+    /// new errors should be surfaced (not suppressed by a higher-priority category).
+    pub fn replace_category(&mut self, category: ErrorCategory, errors: Vec<DevError>) -> bool {
+        if errors.is_empty() {
+            self.errors.remove(&category);
+        } else {
+            self.errors.insert(category, errors);
+        }
+        !self.is_suppressed(category)
     }
 
     /// Get all errors regardless of suppression.
@@ -323,6 +351,47 @@ mod tests {
 
         let deserialized: ErrorCategory = serde_json::from_str(r#""runtime""#).unwrap();
         assert_eq!(deserialized, ErrorCategory::Runtime);
+    }
+
+    #[test]
+    fn test_typecheck_serialization() {
+        let json = serde_json::to_string(&ErrorCategory::TypeCheck).unwrap();
+        assert_eq!(json, r#""typecheck""#);
+
+        let deserialized: ErrorCategory = serde_json::from_str(r#""typecheck""#).unwrap();
+        assert_eq!(deserialized, ErrorCategory::TypeCheck);
+    }
+
+    #[test]
+    fn test_typecheck_display() {
+        assert_eq!(format!("{}", ErrorCategory::TypeCheck), "typecheck");
+    }
+
+    #[test]
+    fn test_typecheck_priority_ordering() {
+        assert!(ErrorCategory::Build.priority() > ErrorCategory::TypeCheck.priority());
+        assert!(ErrorCategory::Resolve.priority() > ErrorCategory::TypeCheck.priority());
+        assert!(ErrorCategory::TypeCheck.priority() > ErrorCategory::Ssr.priority());
+        assert!(ErrorCategory::TypeCheck.priority() > ErrorCategory::Runtime.priority());
+    }
+
+    #[test]
+    fn test_build_suppresses_typecheck() {
+        assert!(ErrorCategory::Build.suppresses(ErrorCategory::TypeCheck));
+        assert!(ErrorCategory::Resolve.suppresses(ErrorCategory::TypeCheck));
+    }
+
+    #[test]
+    fn test_typecheck_suppresses_lower() {
+        assert!(ErrorCategory::TypeCheck.suppresses(ErrorCategory::Ssr));
+        assert!(ErrorCategory::TypeCheck.suppresses(ErrorCategory::Runtime));
+    }
+
+    #[test]
+    fn test_typecheck_does_not_suppress_higher() {
+        assert!(!ErrorCategory::TypeCheck.suppresses(ErrorCategory::Build));
+        assert!(!ErrorCategory::TypeCheck.suppresses(ErrorCategory::Resolve));
+        assert!(!ErrorCategory::TypeCheck.suppresses(ErrorCategory::TypeCheck));
     }
 
     // ── DevError tests ──
@@ -505,6 +574,85 @@ mod tests {
 
         let all = state.all_errors();
         assert_eq!(all.len(), 2);
+    }
+
+    #[test]
+    fn test_typecheck_error_constructor() {
+        let err = DevError::typecheck("Type 'string' is not assignable to type 'number'");
+        assert_eq!(err.category, ErrorCategory::TypeCheck);
+        assert_eq!(
+            err.message,
+            "Type 'string' is not assignable to type 'number'"
+        );
+        assert!(err.file.is_none());
+    }
+
+    #[test]
+    fn test_typecheck_error_builder_chain() {
+        let err = DevError::typecheck("TS2322: Type mismatch")
+            .with_file("src/app.tsx")
+            .with_location(10, 5)
+            .with_snippet("> 10 | const x: number = \"hello\"");
+        assert_eq!(err.category, ErrorCategory::TypeCheck);
+        assert_eq!(err.file.as_deref(), Some("src/app.tsx"));
+        assert_eq!(err.line, Some(10));
+        assert_eq!(err.column, Some(5));
+        assert!(err.code_snippet.is_some());
+    }
+
+    #[test]
+    fn test_active_errors_returns_typecheck_when_highest() {
+        let mut state = ErrorState::new();
+        state.add(DevError::typecheck("type error"));
+        let active = state.active_errors();
+        assert_eq!(active.len(), 1);
+        assert_eq!(active[0].category, ErrorCategory::TypeCheck);
+    }
+
+    #[test]
+    fn test_active_errors_returns_build_over_typecheck() {
+        let mut state = ErrorState::new();
+        state.add(DevError::typecheck("type error"));
+        state.add(DevError::build("syntax error"));
+        let active = state.active_errors();
+        assert_eq!(active[0].category, ErrorCategory::Build);
+    }
+
+    #[test]
+    fn test_replace_category_swaps_all_errors() {
+        let mut state = ErrorState::new();
+        state.add(DevError::typecheck("old err 1"));
+        state.add(DevError::typecheck("old err 2"));
+        state.replace_category(
+            ErrorCategory::TypeCheck,
+            vec![DevError::typecheck("new err")],
+        );
+        assert_eq!(state.errors_for(ErrorCategory::TypeCheck).len(), 1);
+        assert_eq!(
+            state.errors_for(ErrorCategory::TypeCheck)[0].message,
+            "new err"
+        );
+    }
+
+    #[test]
+    fn test_replace_category_empty_clears() {
+        let mut state = ErrorState::new();
+        state.add(DevError::typecheck("err"));
+        state.replace_category(ErrorCategory::TypeCheck, vec![]);
+        assert!(!state.has_errors());
+    }
+
+    #[test]
+    fn test_replace_category_does_not_affect_other_categories() {
+        let mut state = ErrorState::new();
+        state.add(DevError::runtime("runtime err"));
+        state.add(DevError::typecheck("type err"));
+        state.replace_category(
+            ErrorCategory::TypeCheck,
+            vec![DevError::typecheck("new type err")],
+        );
+        assert_eq!(state.errors_for(ErrorCategory::Runtime).len(), 1);
+        assert_eq!(state.errors_for(ErrorCategory::TypeCheck).len(), 1);
     }
 
     #[test]
