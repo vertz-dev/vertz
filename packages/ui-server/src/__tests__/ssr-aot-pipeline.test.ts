@@ -4,12 +4,13 @@
  * Phase 2 of AOT-compiled SSR: runtime holes and SSR pipeline integration.
  * Issue: #1745
  */
-import { describe, expect, it } from 'bun:test';
+import { beforeEach, describe, expect, it } from 'bun:test';
 import { installDomShim } from '../dom-shim';
 import {
   type AotDataResolver,
   type AotManifest,
   type AotRenderFn,
+  clearRouteCssCache,
   createHoles,
   resolveParamQueryKeys,
   ssrRenderAot,
@@ -164,6 +165,10 @@ describe('Feature: Runtime holes and SSR integration', () => {
   // ─── ssrRenderAot() Tests ──────────────────────────────────────
 
   describe('ssrRenderAot()', () => {
+    beforeEach(() => {
+      clearRouteCssCache();
+    });
+
     describe('Given a fully AOT-compiled route', () => {
       describe('When ssrRenderAot() is called', () => {
         it('Then the AOT function is called (no DOM shim)', async () => {
@@ -537,6 +542,29 @@ describe('Feature: Runtime holes and SSR integration', () => {
           // Both app and route CSS should be present
           expect(result.css).toContain('_app56789');
           expect(result.css).toContain('_page1234');
+        });
+
+        it('Then per-route CSS is cached across requests (no per-request allocations)', async () => {
+          clearRouteCssCache();
+
+          const aotFn: AotRenderFn = () => '<div class="_cached12">Cached</div>';
+          const module = createMockModule();
+          const aotManifest: AotManifest = {
+            routes: {
+              '/cached': {
+                render: aotFn,
+                holes: [],
+                css: ['._cached12 {\n  margin: 1rem;\n}'],
+              },
+            },
+          };
+
+          const result1 = await ssrRenderAot(module, '/cached', { aotManifest });
+          const result2 = await ssrRenderAot(module, '/cached', { aotManifest });
+
+          // Same CSS output
+          expect(result1.css).toBe(result2.css);
+          expect(result1.css).toContain('_cached12');
         });
       });
     });

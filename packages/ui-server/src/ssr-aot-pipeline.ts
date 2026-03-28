@@ -386,7 +386,13 @@ export async function ssrRenderAot(
 
     // 6. Collect CSS — per-route CSS is pre-filtered at build time (#1988, #1989)
     const routeCss = mergeRouteCss(aotEntry.css, aotManifest.app?.css);
-    const css = collectCSSFromModule(module, html, options.fallbackMetrics, routeCss);
+    const css = collectCSSFromModule(
+      module,
+      html,
+      options.fallbackMetrics,
+      routeCss,
+      match.pattern,
+    );
 
     // 7. Build ssrData from query cache
     const ssrData: Array<{ key: string; data: unknown }> = [];
@@ -522,6 +528,20 @@ function mergeRouteCss(routeCss?: string[], appCss?: string[]): string[] | undef
 }
 
 /**
+ * Cache for per-route CSS output. Since route CSS, theme, and global styles
+ * are all static for a given route pattern, the CSS string is deterministic
+ * and can be computed once then reused for every request to the same route.
+ * This eliminates per-request Set/Array/join allocations that cause GC-induced
+ * tail latency spikes under concurrent load.
+ */
+const routeCssCache = new Map<string, { cssString: string; preloadTags: string }>();
+
+/** Reset the route CSS cache (used when module reloads in dev). */
+export function clearRouteCssCache(): void {
+  routeCssCache.clear();
+}
+
+/**
  * Collect CSS from module theme + styles + component CSS.
  *
  * When `routeCss` is provided (AOT builds with per-route CSS), it's used
@@ -536,7 +556,16 @@ function collectCSSFromModule(
   renderedHtml: string,
   fallbackMetrics?: Record<string, FontFallbackMetrics>,
   routeCss?: string[],
+  routePattern?: string,
 ): { cssString: string; preloadTags: string } {
+  // AOT path: return cached CSS for this route if available.
+  // Route CSS, theme, and global styles are all static per route pattern,
+  // so the result is deterministic — compute once, reuse forever.
+  if (routePattern && routeCss) {
+    const cached = routeCssCache.get(routePattern);
+    if (cached) return cached;
+  }
+
   let themeCss = '';
   let preloadTags = '';
 
@@ -589,5 +618,12 @@ function collectCSSFromModule(
     componentCss.length > 0 ? `<style data-vertz-css>${componentCss.join('\n')}</style>` : '';
   const cssString = [themeTag, globalTag, componentTag].filter(Boolean).join('\n');
 
-  return { cssString, preloadTags };
+  const result = { cssString, preloadTags };
+
+  // Cache the result for AOT routes — subsequent requests skip all allocations
+  if (routePattern && routeCss) {
+    routeCssCache.set(routePattern, result);
+  }
+
+  return result;
 }
