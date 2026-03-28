@@ -11,6 +11,7 @@ use crate::errors::broadcaster::ErrorBroadcaster;
 use crate::errors::categories::{extract_snippet, DevError, ErrorCategory};
 use crate::errors::suggestions;
 use crate::hmr::websocket::HmrHub;
+use crate::server::console_log::ConsoleLog;
 use crate::server::css_server;
 use crate::server::html_shell;
 use crate::watcher::SharedModuleGraph;
@@ -31,6 +32,8 @@ pub struct DevServerState {
     pub module_graph: SharedModuleGraph,
     /// Error broadcast hub for error overlay clients.
     pub error_broadcaster: ErrorBroadcaster,
+    /// Console log capture for LLM consumption.
+    pub console_log: ConsoleLog,
     /// Server start time for uptime tracking.
     pub start_time: std::time::Instant,
     /// Whether SSR is enabled for page routes.
@@ -529,6 +532,7 @@ mod tests {
             hmr_hub: HmrHub::new(),
             module_graph: crate::watcher::new_shared_module_graph(),
             error_broadcaster: ErrorBroadcaster::new(),
+            console_log: ConsoleLog::new(),
             start_time: std::time::Instant::now(),
             enable_ssr: false,
         })

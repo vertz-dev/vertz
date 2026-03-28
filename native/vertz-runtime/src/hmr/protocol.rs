@@ -32,6 +32,13 @@ pub enum HmrMessage {
         /// Timestamp for cache-busting.
         timestamp: u64,
     },
+
+    /// Navigate command sent from LLM API to client.
+    #[serde(rename = "navigate")]
+    Navigate {
+        /// URL path to navigate to.
+        to: String,
+    },
 }
 
 impl HmrMessage {

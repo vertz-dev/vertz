@@ -213,6 +213,16 @@
     }, 100);
   }
 
+  function handleNavigate(data) {
+    var to = data.to;
+    if (!to) return;
+    console.log('[vertz-hmr] Navigate:', to);
+    showToast('Navigating to ' + to);
+    // Use history API + popstate to trigger client-side routing
+    history.pushState(null, '', to);
+    window.dispatchEvent(new PopStateEvent('popstate', { state: null }));
+  }
+
   // ── WebSocket Connection ───────────────────────────────────────
 
   function connect() {
@@ -249,6 +259,9 @@
             break;
           case 'full-reload':
             handleFullReload(data);
+            break;
+          case 'navigate':
+            handleNavigate(data);
             break;
           default:
             console.log('[vertz-hmr] Unknown message type:', data.type);

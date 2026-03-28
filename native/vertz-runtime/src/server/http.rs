@@ -5,6 +5,7 @@ use crate::errors::broadcaster::ErrorBroadcaster;
 use crate::errors::categories::{extract_snippet, DevError, ErrorCategory};
 use crate::hmr::recovery::RestartTriggers;
 use crate::hmr::websocket::HmrHub;
+use crate::server::console_log::{ConsoleLog, LogLevel};
 use crate::server::diagnostics;
 use crate::server::html_shell;
 use crate::server::logging::RequestLoggingLayer;
@@ -89,6 +90,7 @@ pub fn build_router(config: &ServerConfig) -> (Router, Arc<DevServerState>) {
 
     let hmr_hub = HmrHub::new();
     let error_broadcaster = ErrorBroadcaster::with_root_dir(config.root_dir.clone());
+    let console_log = ConsoleLog::new();
     let module_graph = watcher::new_shared_module_graph();
 
     let state = Arc::new(DevServerState {
@@ -101,6 +103,7 @@ pub fn build_router(config: &ServerConfig) -> (Router, Arc<DevServerState>) {
         hmr_hub,
         module_graph,
         error_broadcaster,
+        console_log,
         start_time: Instant::now(),
         enable_ssr: config.enable_ssr,
     });
@@ -111,6 +114,9 @@ pub fn build_router(config: &ServerConfig) -> (Router, Arc<DevServerState>) {
         .route("/__vertz_errors", get(ws_error_handler))
         .route("/__vertz_diagnostics", get(diagnostics_handler))
         .route("/__vertz_ai/errors", get(ai_errors_handler))
+        .route("/__vertz_ai/render", get(ai_render_handler))
+        .route("/__vertz_ai/console", get(ai_console_handler))
+        .route("/__vertz_ai/navigate", axum::routing::post(ai_navigate_handler))
         .fallback(dev_server_handler)
         .with_state(state.clone())
         .layer(RequestLoggingLayer);
@@ -159,6 +165,165 @@ async fn ai_errors_handler(
         .header(header::CONTENT_TYPE, "application/json; charset=utf-8")
         .header(header::CACHE_CONTROL, "no-cache")
         .body(Body::from(body))
+        .unwrap()
+}
+
+/// SSR render endpoint for LLM consumption: `GET /__vertz_ai/render?url=/path`
+///
+/// Renders the given URL server-side and returns the HTML. Gives LLMs a
+/// "text screenshot" of the page without needing Playwright.
+async fn ai_render_handler(
+    State(state): State<Arc<DevServerState>>,
+    req: Request<Body>,
+) -> axum::response::Response<Body> {
+    // Extract ?url= query parameter
+    let url = req
+        .uri()
+        .query()
+        .and_then(|q| {
+            q.split('&')
+                .find_map(|pair| pair.strip_prefix("url="))
+        })
+        .unwrap_or("/")
+        .to_string();
+
+    if !state.enable_ssr {
+        return axum::response::Response::builder()
+            .status(StatusCode::OK)
+            .header(header::CONTENT_TYPE, "application/json; charset=utf-8")
+            .body(Body::from(
+                serde_json::json!({
+                    "error": "SSR is not enabled",
+                    "html": null,
+                })
+                .to_string(),
+            ))
+            .unwrap();
+    }
+
+    let ssr_options = crate::ssr::render::SsrOptions {
+        root_dir: state.root_dir.clone(),
+        entry_file: state.entry_file.clone(),
+        url: url.clone(),
+        title: "Vertz App".to_string(),
+        theme_css: state.theme_css.clone(),
+        session: crate::ssr::session::SsrSession::default(),
+        preload_hints: vec![],
+        enable_hmr: false, // No HMR scripts in AI render
+    };
+
+    let result = crate::ssr::render::render_to_html(&ssr_options).await;
+
+    state.console_log.push(
+        LogLevel::Info,
+        format!(
+            "AI render: {} ({:.1}ms, {})",
+            url,
+            result.render_time_ms,
+            if result.is_ssr { "ssr" } else { "client-only" }
+        ),
+        Some("ai"),
+    );
+
+    axum::response::Response::builder()
+        .status(StatusCode::OK)
+        .header(header::CONTENT_TYPE, "text/html; charset=utf-8")
+        .header(header::CACHE_CONTROL, "no-cache")
+        .header("X-Vertz-Render-Time", format!("{:.1}ms", result.render_time_ms))
+        .header("X-Vertz-SSR", if result.is_ssr { "true" } else { "false" })
+        .header(
+            "X-Vertz-SSR-Error",
+            result.error.as_deref().unwrap_or("none"),
+        )
+        .body(Body::from(result.html))
+        .unwrap()
+}
+
+/// Console log endpoint for LLM consumption: `GET /__vertz_ai/console?last=N`
+///
+/// Returns recent console log entries (compilation, SSR, watcher diagnostics).
+async fn ai_console_handler(
+    State(state): State<Arc<DevServerState>>,
+    req: Request<Body>,
+) -> axum::response::Response<Body> {
+    let last_n: usize = req
+        .uri()
+        .query()
+        .and_then(|q| {
+            q.split('&')
+                .find_map(|pair| pair.strip_prefix("last="))
+        })
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(50);
+
+    let entries = state.console_log.last_n(last_n);
+
+    let json = serde_json::json!({
+        "entries": entries,
+        "count": entries.len(),
+        "total": state.console_log.len(),
+    });
+
+    let body = serde_json::to_string_pretty(&json).unwrap_or_else(|_| "{}".to_string());
+
+    axum::response::Response::builder()
+        .status(StatusCode::OK)
+        .header(header::CONTENT_TYPE, "application/json; charset=utf-8")
+        .header(header::CACHE_CONTROL, "no-cache")
+        .body(Body::from(body))
+        .unwrap()
+}
+
+/// Navigate endpoint for LLM control: `POST /__vertz_ai/navigate`
+///
+/// Sends a navigation command to the browser via HMR WebSocket.
+/// Body: `{ "to": "/tasks/123" }`
+async fn ai_navigate_handler(
+    State(state): State<Arc<DevServerState>>,
+    body: axum::body::Bytes,
+) -> axum::response::Response<Body> {
+    #[derive(serde::Deserialize)]
+    struct NavigateRequest {
+        to: String,
+    }
+
+    let req: NavigateRequest = match serde_json::from_slice(&body) {
+        Ok(r) => r,
+        Err(e) => {
+            return axum::response::Response::builder()
+                .status(StatusCode::BAD_REQUEST)
+                .header(header::CONTENT_TYPE, "application/json; charset=utf-8")
+                .body(Body::from(
+                    serde_json::json!({ "error": format!("Invalid JSON: {}", e) }).to_string(),
+                ))
+                .unwrap();
+        }
+    };
+
+    let navigate_to = req.to.clone();
+
+    state
+        .hmr_hub
+        .broadcast(crate::hmr::protocol::HmrMessage::Navigate {
+            to: req.to.clone(),
+        })
+        .await;
+
+    state.console_log.push(
+        LogLevel::Info,
+        format!("AI navigate: {}", navigate_to),
+        Some("ai"),
+    );
+
+    let json = serde_json::json!({
+        "ok": true,
+        "navigated_to": navigate_to,
+    });
+
+    axum::response::Response::builder()
+        .status(StatusCode::OK)
+        .header(header::CONTENT_TYPE, "application/json; charset=utf-8")
+        .body(Body::from(json.to_string()))
         .unwrap()
 }
 
@@ -261,16 +426,23 @@ async fn dev_server_handler(
             let result = crate::ssr::render::render_to_html(&ssr_options).await;
 
             if result.render_time_ms > 0.0 {
-                eprintln!(
-                    "[SSR] {} rendered in {:.1}ms ({})",
+                let render_msg = format!(
+                    "{} rendered in {:.1}ms ({})",
                     path,
                     result.render_time_ms,
                     if result.is_ssr { "ssr" } else { "client-only" }
                 );
+                eprintln!("[SSR] {}", render_msg);
+                state.console_log.push(LogLevel::Info, render_msg, Some("ssr"));
             }
 
             // Report SSR errors with actionable suggestions
             if let Some(ref error_msg) = result.error {
+                state.console_log.push(
+                    LogLevel::Error,
+                    format!("SSR error: {}", error_msg),
+                    Some("ssr"),
+                );
                 let suggestion = crate::errors::suggestions::suggest_ssr_fix(error_msg);
                 let mut error = DevError::ssr(error_msg).with_file(
                     state.entry_file.to_string_lossy().to_string(),
@@ -388,9 +560,12 @@ pub async fn start_server(config: ServerConfig) -> io::Result<()> {
                                 }
                                 let changes = debouncer.drain();
                                 for change in &changes {
-                                    eprintln!(
-                                        "[Server] File changed: {}",
-                                        change.path.display()
+                                    let change_msg = format!("File changed: {}", change.path.display());
+                                    eprintln!("[Server] {}", change_msg);
+                                    watcher_state.console_log.push(
+                                        crate::server::console_log::LogLevel::Info,
+                                        change_msg,
+                                        Some("watcher"),
                                     );
 
                                     // Check for config/dependency changes
