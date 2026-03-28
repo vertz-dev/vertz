@@ -3,7 +3,7 @@ use std::sync::mpsc;
 use std::thread;
 
 use super::collector::discover_test_files;
-use super::executor::{execute_test_file, TestFileResult};
+use super::executor::{execute_test_file_with_options, ExecuteOptions, TestFileResult};
 use super::reporter::terminal::format_results;
 
 /// Configuration for a test run.
@@ -22,6 +22,8 @@ pub struct TestRunConfig {
     pub filter: Option<String>,
     /// Stop on first failure.
     pub bail: bool,
+    /// Timeout per test file in milliseconds (0 = no timeout).
+    pub timeout_ms: u64,
 }
 
 /// Summary of a completed test run.
@@ -67,7 +69,12 @@ pub fn run_tests(config: TestRunConfig) -> (TestRunResult, String) {
         .concurrency
         .unwrap_or_else(|| thread::available_parallelism().map(|n| n.get()).unwrap_or(4));
 
-    let results = execute_parallel(&files, concurrency, config.bail);
+    let exec_options = std::sync::Arc::new(ExecuteOptions {
+        filter: config.filter.clone(),
+        timeout_ms: config.timeout_ms,
+    });
+
+    let results = execute_parallel(&files, concurrency, config.bail, exec_options);
 
     // 3. Build summary
     let total_passed: usize = results.iter().map(|r| r.passed()).sum();
@@ -96,12 +103,17 @@ pub fn run_tests(config: TestRunConfig) -> (TestRunResult, String) {
 ///
 /// Each file gets a fresh V8 runtime (isolation). Uses a simple work-stealing
 /// pattern: N worker threads pull files from a shared channel.
-fn execute_parallel(files: &[PathBuf], concurrency: usize, bail: bool) -> Vec<TestFileResult> {
+fn execute_parallel(
+    files: &[PathBuf],
+    concurrency: usize,
+    bail: bool,
+    exec_options: std::sync::Arc<ExecuteOptions>,
+) -> Vec<TestFileResult> {
     let num_threads = concurrency.min(files.len());
 
     if num_threads <= 1 {
         // Sequential: just run one by one
-        return execute_sequential(files, bail);
+        return execute_sequential(files, bail, &exec_options);
     }
 
     let (work_tx, work_rx) = crossbeam_channel::unbounded::<PathBuf>();
@@ -121,6 +133,7 @@ fn execute_parallel(files: &[PathBuf], concurrency: usize, bail: bool) -> Vec<Te
         let rx = work_rx.clone();
         let tx = result_tx.clone();
         let bail_flag = bail_flag.clone();
+        let options = exec_options.clone();
 
         handles.push(thread::spawn(move || {
             while let Ok(file) = rx.recv() {
@@ -128,7 +141,7 @@ fn execute_parallel(files: &[PathBuf], concurrency: usize, bail: bool) -> Vec<Te
                     break;
                 }
 
-                let result = execute_test_file(&file);
+                let result = execute_test_file_with_options(&file, &options);
 
                 if bail && result.failed() > 0 {
                     bail_flag.store(true, std::sync::atomic::Ordering::Relaxed);
@@ -157,10 +170,10 @@ fn execute_parallel(files: &[PathBuf], concurrency: usize, bail: bool) -> Vec<Te
 }
 
 /// Execute test files sequentially (single thread).
-fn execute_sequential(files: &[PathBuf], bail: bool) -> Vec<TestFileResult> {
+fn execute_sequential(files: &[PathBuf], bail: bool, options: &ExecuteOptions) -> Vec<TestFileResult> {
     let mut results = Vec::with_capacity(files.len());
     for file in files {
-        let result = execute_test_file(file);
+        let result = execute_test_file_with_options(file, options);
         let should_bail = bail && result.failed() > 0;
         results.push(result);
         if should_bail {
@@ -200,6 +213,7 @@ mod tests {
             concurrency: Some(1),
             filter: None,
             bail: false,
+            timeout_ms: 5000,
         };
 
         let (result, output) = run_tests(config);
@@ -232,6 +246,7 @@ mod tests {
             concurrency: Some(1),
             filter: None,
             bail: false,
+            timeout_ms: 5000,
         };
 
         let (result, output) = run_tests(config);
@@ -266,6 +281,7 @@ mod tests {
             concurrency: Some(1),
             filter: None,
             bail: false,
+            timeout_ms: 5000,
         };
 
         let (result, _output) = run_tests(config);
@@ -316,6 +332,7 @@ mod tests {
             concurrency: Some(3),
             filter: None,
             bail: false,
+            timeout_ms: 5000,
         };
 
         let (result, output) = run_tests(config);
@@ -363,6 +380,7 @@ mod tests {
             concurrency: Some(2),
             filter: None,
             bail: false,
+            timeout_ms: 5000,
         };
 
         let (result, _output) = run_tests(config);
@@ -405,6 +423,7 @@ mod tests {
             concurrency: Some(1),
             filter: None,
             bail: true,
+            timeout_ms: 5000,
         };
 
         let (result, _output) = run_tests(config);
@@ -435,6 +454,7 @@ mod tests {
             concurrency: Some(1),
             filter: None,
             bail: false,
+            timeout_ms: 5000,
         };
 
         let (result, _output) = run_tests(config);
@@ -468,6 +488,7 @@ mod tests {
             concurrency: Some(1),
             filter: None,
             bail: false,
+            timeout_ms: 5000,
         };
 
         let (result, _output) = run_tests(config);
@@ -500,6 +521,7 @@ mod tests {
             concurrency: Some(2),
             filter: None,
             bail: false,
+            timeout_ms: 5000,
         };
 
         let (result, _output) = run_tests(config);

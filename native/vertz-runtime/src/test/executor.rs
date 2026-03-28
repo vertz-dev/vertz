@@ -67,11 +67,33 @@ impl TestFileResult {
     }
 }
 
+/// Options for executing a test file.
+pub struct ExecuteOptions {
+    /// Optional filter — only tests whose full name includes this substring run.
+    pub filter: Option<String>,
+    /// Timeout in milliseconds (0 = no timeout).
+    pub timeout_ms: u64,
+}
+
+impl Default for ExecuteOptions {
+    fn default() -> Self {
+        Self {
+            filter: None,
+            timeout_ms: 5000,
+        }
+    }
+}
+
 /// Execute a single test file and return results.
 ///
 /// Creates a fresh V8 runtime, injects the test harness, loads the test file
 /// as an ES module, runs all registered tests, and collects results.
 pub fn execute_test_file(file_path: &Path) -> TestFileResult {
+    execute_test_file_with_options(file_path, &ExecuteOptions::default())
+}
+
+/// Execute a single test file with options (filter, timeout).
+pub fn execute_test_file_with_options(file_path: &Path, options: &ExecuteOptions) -> TestFileResult {
     let file_str = file_path.to_string_lossy().to_string();
     let start = Instant::now();
 
@@ -82,7 +104,7 @@ pub fn execute_test_file(file_path: &Path) -> TestFileResult {
         .to_string_lossy()
         .to_string();
 
-    let result = execute_test_file_inner(file_path, &root_dir);
+    let result = execute_test_file_inner(file_path, &root_dir, options);
 
     let duration_ms = start.elapsed().as_secs_f64() * 1000.0;
 
@@ -105,6 +127,7 @@ pub fn execute_test_file(file_path: &Path) -> TestFileResult {
 fn execute_test_file_inner(
     file_path: &Path,
     root_dir: &str,
+    options: &ExecuteOptions,
 ) -> Result<Vec<TestResult>, AnyError> {
     let mut runtime = VertzJsRuntime::new(VertzRuntimeOptions {
         root_dir: Some(root_dir.to_string()),
@@ -114,7 +137,14 @@ fn execute_test_file_inner(
     // 1. Inject test harness (describe, it, expect, etc.)
     runtime.execute_script_void("[vertz:test-harness]", TEST_HARNESS_JS)?;
 
-    // 2. Load the test file as an ES module
+    // 2. Set filter if provided
+    if let Some(ref filter) = options.filter {
+        let escaped = filter.replace('\\', "\\\\").replace('\'', "\\'");
+        let set_filter = format!("globalThis.__vertz_test_filter = '{}'", escaped);
+        runtime.execute_script_void("[vertz:set-filter]", &set_filter)?;
+    }
+
+    // 3. Load the test file as an ES module
     let specifier = ModuleSpecifier::from_file_path(file_path)
         .map_err(|_| deno_core::anyhow::anyhow!("Invalid file path: {}", file_path.display()))?;
 
@@ -126,7 +156,13 @@ fn execute_test_file_inner(
         runtime.load_main_module(&specifier).await
     })?;
 
-    // 3. Run all registered tests
+    // 4. Run all registered tests with timeout
+    let timeout_duration = if options.timeout_ms > 0 {
+        Some(std::time::Duration::from_millis(options.timeout_ms))
+    } else {
+        None
+    };
+
     let results_json = tokio_rt.block_on(async {
         runtime
             .execute_script_void(
@@ -135,12 +171,24 @@ fn execute_test_file_inner(
             )
             .map_err(|e| deno_core::anyhow::anyhow!("Failed to start test execution: {}", e))?;
 
-        runtime.run_event_loop().await?;
+        if let Some(timeout) = timeout_duration {
+            match tokio::time::timeout(timeout, runtime.run_event_loop()).await {
+                Ok(result) => result?,
+                Err(_) => {
+                    return Err(deno_core::anyhow::anyhow!(
+                        "Test execution timed out after {}ms",
+                        options.timeout_ms
+                    ));
+                }
+            }
+        } else {
+            runtime.run_event_loop().await?;
+        }
 
         runtime.execute_script("[vertz:collect]", "globalThis.__test_results")
     })?;
 
-    // 4. Parse results from JSON
+    // 5. Parse results from JSON
     parse_test_results(&results_json)
 }
 

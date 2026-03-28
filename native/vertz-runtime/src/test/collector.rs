@@ -116,8 +116,10 @@ fn is_excluded(path: &Path, custom_exclude: &[String]) -> bool {
                 return true;
             }
         }
-        // Also check as a directory component
-        if path_str.contains(pattern) {
+        // Check as a directory component (path-component match, not substring)
+        let as_component = format!("/{}/", pattern);
+        let as_component_win = format!("\\{}\\", pattern);
+        if path_str.contains(&as_component) || path_str.contains(&as_component_win) {
             return true;
         }
     }

@@ -1,14 +1,9 @@
-/// JavaScript test harness that runs inside V8.
-///
-/// This module provides the `describe`, `it`, `expect`, `beforeEach`, `afterEach`
-/// globals that test files import from `@vertz/test`. The harness collects test
-/// registrations during module evaluation, then executes them when `__vertz_run_tests()`
-/// is called.
-///
-/// Results are returned as JSON for the Rust side to parse.
-
 /// The bootstrap JS that defines the test framework globals on `globalThis`.
-/// This is injected before any test file is loaded.
+///
+/// Provides `describe`, `it`, `expect`, `beforeEach`, `afterEach` globals that test
+/// files use. The harness collects test registrations during module evaluation, then
+/// executes them when `__vertz_run_tests()` is called. Results are returned as JSON
+/// for the Rust side to parse.
 pub const TEST_HARNESS_JS: &str = r#"
 (() => {
   'use strict';
@@ -17,6 +12,8 @@ pub const TEST_HARNESS_JS: &str = r#"
   const suites = [];        // Top-level describe blocks
   const suiteStack = [];    // Current nesting stack
   let hasOnly = false;      // Whether any .only modifier was used
+  // Root-level hooks container (for beforeEach/afterEach called outside any describe)
+  const rootHooks = { beforeEach: [], afterEach: [], beforeAll: [], afterAll: [] };
 
   function currentSuite() {
     return suiteStack.length > 0 ? suiteStack[suiteStack.length - 1] : null;
@@ -73,26 +70,38 @@ pub const TEST_HARNESS_JS: &str = r#"
   function beforeEach(fn) {
     const parent = currentSuite();
     if (parent) parent.beforeEach.push(fn);
+    else rootHooks.beforeEach.push(fn);
   }
   function afterEach(fn) {
     const parent = currentSuite();
     if (parent) parent.afterEach.push(fn);
+    else rootHooks.afterEach.push(fn);
   }
   function beforeAll(fn) {
     const parent = currentSuite();
     if (parent) parent.beforeAll.push(fn);
+    else rootHooks.beforeAll.push(fn);
   }
   function afterAll(fn) {
     const parent = currentSuite();
     if (parent) parent.afterAll.push(fn);
+    else rootHooks.afterAll.push(fn);
   }
 
   // --- Expect ---
   function deepEqual(a, b) {
     if (a === b) return true;
+    // NaN === NaN should be true for testing purposes
+    if (typeof a === 'number' && typeof b === 'number' && Number.isNaN(a) && Number.isNaN(b)) return true;
     if (a == null || b == null) return false;
     if (typeof a !== typeof b) return false;
     if (typeof a !== 'object') return false;
+
+    // Date comparison by time value
+    if (a instanceof Date && b instanceof Date) return a.getTime() === b.getTime();
+    // RegExp comparison by source and flags
+    if (a instanceof RegExp && b instanceof RegExp) return a.source === b.source && a.flags === b.flags;
+
     if (Array.isArray(a) !== Array.isArray(b)) return false;
 
     if (Array.isArray(a)) {
@@ -228,9 +237,23 @@ pub const TEST_HARNESS_JS: &str = r#"
       let threw = false;
       let error;
       try { actual(); } catch (e) { threw = true; error = e; }
+
       if (negated) {
-        // not.toThrow(): should NOT throw
-        if (threw) {
+        // not.toThrow() or not.toThrow('msg')
+        if (!threw) return; // didn't throw — always passes for .not
+        if (arguments.length > 0 && expected !== undefined) {
+          // not.toThrow('msg') — should not throw with this specific message
+          const msg = error && error.message ? error.message : String(error);
+          let matches = false;
+          if (typeof expected === 'string') matches = msg.includes(expected);
+          else if (expected instanceof RegExp) matches = expected.test(msg);
+          else if (typeof expected === 'function') matches = error instanceof expected;
+          if (matches) {
+            throw new Error(`Expected function not to throw matching "${expected}", but it did: ${msg}`);
+          }
+          // Threw but didn't match the expected — that's OK for .not
+        } else {
+          // not.toThrow() — should not throw at all
           const msg = error && error.message ? error.message : String(error);
           throw new Error(`Expected function not to throw, but it threw: ${msg}`);
         }
@@ -291,11 +314,14 @@ pub const TEST_HARNESS_JS: &str = r#"
     return false;
   }
 
-  async function runSuite(suite, parentPath, parentOnly) {
+  async function runSuite(suite, parentPath, parentOnly, ancestorBeforeEach, ancestorAfterEach) {
     const results = [];
     const suitePath = suite.name ? (parentPath ? `${parentPath} > ${suite.name}` : suite.name) : parentPath;
     const suiteRunnable = shouldRun(suite, parentOnly);
-    const suiteHasOnly = containsOnly(suite);
+
+    // Compose hooks: ancestor hooks + this suite's hooks
+    const allBeforeEach = ancestorBeforeEach ? [...ancestorBeforeEach, ...suite.beforeEach] : [...suite.beforeEach];
+    const allAfterEach = ancestorAfterEach ? [...suite.afterEach, ...ancestorAfterEach] : [...suite.afterEach];
 
     if (suiteRunnable) {
       await runHooks(suite.beforeAll);
@@ -315,9 +341,9 @@ pub const TEST_HARNESS_JS: &str = r#"
       const start = performance.now();
       let error = null;
 
-      // Run all beforeEach hooks (including parent suite hooks via inheritance)
+      // Run all beforeEach hooks (ancestors first, then this suite's)
       try {
-        await runHooks(suite.beforeEach);
+        await runHooks(allBeforeEach);
       } catch (e) {
         error = e;
       }
@@ -331,9 +357,9 @@ pub const TEST_HARNESS_JS: &str = r#"
         }
       }
 
-      // Run afterEach hooks even if test threw
+      // Run afterEach hooks even if test threw (this suite's first, then ancestors)
       try {
-        await runHooks(suite.afterEach);
+        await runHooks(allAfterEach);
       } catch (e) {
         if (!error) error = e;
       }
@@ -352,9 +378,9 @@ pub const TEST_HARNESS_JS: &str = r#"
       }
     }
 
-    // Recurse into nested suites
+    // Recurse into nested suites, passing accumulated hooks
     for (const child of suite.suites) {
-      const childResults = await runSuite(child, suitePath, suiteRunnable && (parentOnly || suite.only));
+      const childResults = await runSuite(child, suitePath, suiteRunnable && (parentOnly || suite.only), allBeforeEach, allAfterEach);
       results.push(...childResults);
     }
 
@@ -366,12 +392,31 @@ pub const TEST_HARNESS_JS: &str = r#"
   }
 
   // This function is called by the Rust executor after the test file is loaded.
+  // Optional filter: if globalThis.__vertz_test_filter is set, only tests whose
+  // full name (path > name) includes the filter substring will run.
   globalThis.__vertz_run_tests = async function() {
+    const filter = globalThis.__vertz_test_filter || null;
+
+    // Root-level beforeAll/afterAll
+    await runHooks(rootHooks.beforeAll);
+
     const allResults = [];
     for (const suite of suites) {
-      const results = await runSuite(suite, '', false);
+      // Pass root-level hooks as ancestor hooks so they compose with suite hooks
+      const results = await runSuite(suite, '', false, rootHooks.beforeEach, rootHooks.afterEach);
       allResults.push(...results);
     }
+
+    await runHooks(rootHooks.afterAll);
+
+    // Apply filter if set
+    if (filter) {
+      return allResults.filter(r => {
+        const fullName = r.path ? `${r.path} > ${r.name}` : r.name;
+        return fullName.includes(filter);
+      });
+    }
+
     return allResults;
   };
 
@@ -385,8 +430,9 @@ pub const TEST_HARNESS_JS: &str = r#"
   globalThis.beforeAll = beforeAll;
   globalThis.afterAll = afterAll;
 
-  // Also register as a virtual module that the module loader intercepts
-  // for `import { describe, it, expect } from '@vertz/test'`
+  // Exports object for Phase 2: module loader will intercept
+  // `import { describe, it, expect } from '@vertz/test'` and return these.
+  // For Phase 1, tests use globals (describe/it/expect are on globalThis).
   globalThis.__vertz_test_exports = {
     describe, it, test, expect,
     beforeEach, afterEach, beforeAll, afterAll,
@@ -706,9 +752,7 @@ mod tests {
             assert_eq!(
                 item["status"], "pass",
                 "Test {} ({}) failed: {:?}",
-                i,
-                item["name"],
-                item["error"]
+                i, item["name"], item["error"]
             );
         }
     }
@@ -770,5 +814,175 @@ mod tests {
         let arr = results.as_array().unwrap();
         let duration = arr[0]["duration"].as_f64().unwrap();
         assert!(duration >= 0.0, "Duration should be non-negative");
+    }
+
+    #[test]
+    fn test_nested_before_each_inheritance() {
+        let mut rt = create_test_runtime();
+        let results = run_test_code(
+            &mut rt,
+            r#"
+            const log = [];
+            describe('outer', () => {
+                beforeEach(() => { log.push('outer-before'); });
+                afterEach(() => { log.push('outer-after'); });
+
+                describe('inner', () => {
+                    beforeEach(() => { log.push('inner-before'); });
+                    afterEach(() => { log.push('inner-after'); });
+
+                    it('runs all hooks in order', () => {
+                        log.push('test');
+                        expect(log).toEqual(['outer-before', 'inner-before', 'test']);
+                    });
+                });
+            });
+            "#,
+        );
+
+        let arr = results.as_array().unwrap();
+        assert_eq!(arr.len(), 1);
+        assert_eq!(
+            arr[0]["status"], "pass",
+            "Nested hooks should compose: {:?}",
+            arr[0]["error"]
+        );
+    }
+
+    #[test]
+    fn test_deep_equal_date_regexp_nan() {
+        let mut rt = create_test_runtime();
+        let results = run_test_code(
+            &mut rt,
+            r#"
+            describe('deepEqual edge cases', () => {
+                it('Date comparison by time', () => {
+                    expect(new Date(0)).toEqual(new Date(0));
+                    expect(new Date(0)).not.toEqual(new Date(1));
+                });
+                it('RegExp comparison by source+flags', () => {
+                    expect(/abc/g).toEqual(/abc/g);
+                    expect(/abc/).not.toEqual(/def/);
+                    expect(/abc/g).not.toEqual(/abc/i);
+                });
+                it('NaN equals NaN', () => {
+                    expect(NaN).toEqual(NaN);
+                });
+            });
+            "#,
+        );
+
+        let arr = results.as_array().unwrap();
+        assert_eq!(arr.len(), 3);
+        for (i, item) in arr.iter().enumerate() {
+            assert_eq!(
+                item["status"], "pass",
+                "Test {} ({}) failed: {:?}",
+                i, item["name"], item["error"]
+            );
+        }
+    }
+
+    #[test]
+    fn test_top_level_hooks() {
+        let mut rt = create_test_runtime();
+        let results = run_test_code(
+            &mut rt,
+            r#"
+            const log = [];
+            beforeEach(() => { log.push('top-before'); });
+            afterEach(() => { log.push('top-after'); });
+
+            describe('suite', () => {
+                it('test 1', () => {
+                    log.push('test1');
+                    expect(log).toEqual(['top-before', 'test1']);
+                });
+                it('test 2', () => {
+                    log.push('test2');
+                    expect(log).toEqual(['top-before', 'test1', 'top-after', 'top-before', 'test2']);
+                });
+            });
+            "#,
+        );
+
+        let arr = results.as_array().unwrap();
+        assert_eq!(arr.len(), 2);
+        for (i, item) in arr.iter().enumerate() {
+            assert_eq!(
+                item["status"], "pass",
+                "Top-level hook test {} failed: {:?}",
+                i, item["error"]
+            );
+        }
+    }
+
+    #[test]
+    fn test_filter_by_name() {
+        let mut rt = create_test_runtime();
+        // Set filter
+        rt.execute_script_void("[set-filter]", "globalThis.__vertz_test_filter = 'math'")
+            .unwrap();
+        let results = run_test_code(
+            &mut rt,
+            r#"
+            describe('math', () => {
+                it('adds', () => { expect(1 + 1).toBe(2); });
+                it('subtracts', () => { expect(5 - 3).toBe(2); });
+            });
+            describe('string', () => {
+                it('trims', () => { expect(' x '.trim()).toBe('x'); });
+            });
+            "#,
+        );
+
+        let arr = results.as_array().unwrap();
+        // Filter 'math' should match 'math > adds' and 'math > subtracts' but not 'string > trims'
+        assert_eq!(
+            arr.len(),
+            2,
+            "Filter should only return matching tests: {:?}",
+            arr
+        );
+        assert_eq!(arr[0]["name"], "adds");
+        assert_eq!(arr[1]["name"], "subtracts");
+    }
+
+    #[test]
+    fn test_not_to_throw_with_message() {
+        let mut rt = create_test_runtime();
+        let results = run_test_code(
+            &mut rt,
+            r#"
+            describe('toThrow negation', () => {
+                it('not.toThrow passes when no throw', () => {
+                    expect(() => {}).not.toThrow();
+                });
+                it('not.toThrow with message — threw but different message', () => {
+                    expect(() => { throw new Error('other'); }).not.toThrow('specific');
+                });
+                it('not.toThrow with message — fails when message matches', () => {
+                    let caught = false;
+                    try {
+                        expect(() => { throw new Error('specific error'); }).not.toThrow('specific');
+                    } catch (e) {
+                        caught = true;
+                        expect(e.message).toContain('not to throw');
+                    }
+                    expect(caught).toBe(true);
+                });
+            });
+            "#,
+        );
+
+        let arr = results.as_array().unwrap();
+        assert_eq!(arr.len(), 3);
+        for (i, item) in arr.iter().enumerate() {
+            assert_eq!(
+                item["status"], "pass",
+                "toThrow negation test {} failed: {:?}",
+                i, item["error"]
+            );
+        }
     }
 }

@@ -29,6 +29,7 @@ fn make_config(root: &Path) -> TestRunConfig {
         concurrency: Some(2),
         filter: None,
         bail: false,
+        timeout_ms: 5000,
     }
 }
 

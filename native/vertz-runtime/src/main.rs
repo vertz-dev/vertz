@@ -21,7 +21,8 @@ async fn main() {
             }
         }
         Command::Test(args) => {
-            let root_dir = std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from("."));
+            let root_dir =
+                std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from("."));
 
             let config = vertz_runtime::test::runner::TestRunConfig {
                 root_dir,
@@ -31,6 +32,7 @@ async fn main() {
                 concurrency: args.concurrency,
                 filter: args.filter,
                 bail: args.bail,
+                timeout_ms: args.timeout,
             };
 
             let (result, output) = vertz_runtime::test::runner::run_tests(config);
