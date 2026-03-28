@@ -9,6 +9,7 @@ use crate::server::console_log::{ConsoleLog, LogLevel};
 use crate::server::diagnostics;
 use crate::server::html_shell;
 use crate::server::logging::RequestLoggingLayer;
+use crate::server::mcp::{self, McpSessions};
 use crate::server::module_server::{self, DevServerState};
 use crate::server::theme_css;
 use crate::watcher;
@@ -91,6 +92,7 @@ pub fn build_router(config: &ServerConfig) -> (Router, Arc<DevServerState>) {
     let hmr_hub = HmrHub::new();
     let error_broadcaster = ErrorBroadcaster::with_root_dir(config.root_dir.clone());
     let console_log = ConsoleLog::new();
+    let mcp_sessions = McpSessions::new();
     let module_graph = watcher::new_shared_module_graph();
 
     let state = Arc::new(DevServerState {
@@ -104,6 +106,7 @@ pub fn build_router(config: &ServerConfig) -> (Router, Arc<DevServerState>) {
         module_graph,
         error_broadcaster,
         console_log,
+        mcp_sessions,
         start_time: Instant::now(),
         enable_ssr: config.enable_ssr,
     });
@@ -117,6 +120,15 @@ pub fn build_router(config: &ServerConfig) -> (Router, Arc<DevServerState>) {
         .route("/__vertz_ai/render", get(ai_render_handler))
         .route("/__vertz_ai/console", get(ai_console_handler))
         .route("/__vertz_ai/navigate", axum::routing::post(ai_navigate_handler))
+        .route("/__vertz_mcp/sse", get(mcp::mcp_sse_handler))
+        .route(
+            "/__vertz_mcp/message",
+            axum::routing::post(mcp::mcp_message_handler),
+        )
+        .route(
+            "/__vertz_mcp",
+            axum::routing::post(mcp::mcp_streamable_handler),
+        )
         .fallback(dev_server_handler)
         .with_state(state.clone())
         .layer(RequestLoggingLayer);

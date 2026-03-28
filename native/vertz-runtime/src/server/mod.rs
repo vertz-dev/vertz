@@ -4,5 +4,6 @@ pub mod diagnostics;
 pub mod html_shell;
 pub mod http;
 pub mod logging;
+pub mod mcp;
 pub mod module_server;
 pub mod theme_css;

@@ -46,6 +46,13 @@ pub fn print_banner(config: &ServerConfig, startup_time: Duration) {
         eprintln!("  {}  {}", "Network:".dimmed(), "not available".dimmed());
     }
 
+    eprintln!(
+        "  {}  {}",
+        "MCP:".dimmed(),
+        format!("http://{}:{}/__vertz_mcp", config.host, config.port)
+            .cyan()
+            .underline()
+    );
     eprintln!();
     eprintln!("  {} {}", "Ready in".dimmed(), time_str.green().bold());
     eprintln!();

@@ -14,6 +14,7 @@ use crate::hmr::websocket::HmrHub;
 use crate::server::console_log::ConsoleLog;
 use crate::server::css_server;
 use crate::server::html_shell;
+use crate::server::mcp::McpSessions;
 use crate::watcher::SharedModuleGraph;
 
 /// Shared state for the dev module server.
@@ -34,6 +35,8 @@ pub struct DevServerState {
     pub error_broadcaster: ErrorBroadcaster,
     /// Console log capture for LLM consumption.
     pub console_log: ConsoleLog,
+    /// MCP session store for SSE transport.
+    pub mcp_sessions: McpSessions,
     /// Server start time for uptime tracking.
     pub start_time: std::time::Instant,
     /// Whether SSR is enabled for page routes.
@@ -533,6 +536,7 @@ mod tests {
             module_graph: crate::watcher::new_shared_module_graph(),
             error_broadcaster: ErrorBroadcaster::new(),
             console_log: ConsoleLog::new(),
+            mcp_sessions: McpSessions::new(),
             start_time: std::time::Instant::now(),
             enable_ssr: false,
         })
