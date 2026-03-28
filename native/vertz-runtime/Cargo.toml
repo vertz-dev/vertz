@@ -27,6 +27,7 @@ tower = "0.5"
 tower-http = { version = "0.6", features = ["fs", "compression-gzip"] }
 uuid = { version = "1", features = ["v4"] }
 vertz-compiler-core = { path = "../vertz-compiler-core" }
+which = "7"
 
 [dev-dependencies]
 reqwest = { version = "0.12", features = ["json"] }
