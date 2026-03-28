@@ -135,6 +135,31 @@ fn extract_string_literal(text: &str) -> Option<String> {
     Some(rest[..end].to_string())
 }
 
+/// Scan source code and extract all local (relative) import paths,
+/// resolved to absolute file paths. Used for populating the module graph.
+///
+/// Unlike `scan_imports()` which returns bare package specifiers for pre-bundling,
+/// this function returns resolved file paths for dependency tracking.
+pub fn scan_local_dependencies(source: &str, file_path: &Path) -> Vec<std::path::PathBuf> {
+    let base_dir = file_path.parent().unwrap_or(Path::new("."));
+    let mut deps = Vec::new();
+
+    for line in source.lines() {
+        let trimmed = line.trim();
+        if trimmed.starts_with("import") || trimmed.starts_with("export") {
+            if let Some(specifier) = extract_from_specifier(trimmed) {
+                if specifier.starts_with("./") || specifier.starts_with("../") {
+                    if let Some(resolved) = resolve_local_import(base_dir, &specifier) {
+                        deps.push(resolved);
+                    }
+                }
+            }
+        }
+    }
+
+    deps
+}
+
 /// Check if a specifier is a bare package name (not relative, absolute, or URL).
 fn is_bare_specifier(specifier: &str) -> bool {
     !specifier.starts_with('.')
@@ -291,6 +316,59 @@ export function Button() { return <button>Click</button>; }
         assert!(deps.contains("@vertz/ui"));
         assert!(deps.contains("zod"));
         assert_eq!(deps.len(), 2);
+    }
+
+    #[test]
+    fn test_scan_local_dependencies() {
+        let tmp = tempfile::tempdir().unwrap();
+        let src = tmp.path().join("src");
+        std::fs::create_dir_all(src.join("components")).unwrap();
+
+        // Create the files so resolve_local_import can find them
+        let app_path = src.join("app.tsx");
+        let button_path = src.join("components/Button.tsx");
+        let utils_path = src.join("utils.ts");
+
+        std::fs::write(
+            &app_path,
+            r#"import { signal } from '@vertz/ui';
+import { Button } from './components/Button';
+import { format } from './utils';
+export function App() { return <div>App</div>; }
+"#,
+        )
+        .unwrap();
+        std::fs::write(&button_path, "export function Button() {}").unwrap();
+        std::fs::write(&utils_path, "export function format() {}").unwrap();
+
+        let deps = scan_local_dependencies(
+            &std::fs::read_to_string(&app_path).unwrap(),
+            &app_path,
+        );
+
+        // Should find the two relative imports, NOT the bare specifier
+        assert_eq!(deps.len(), 2);
+        assert!(deps.contains(&button_path));
+        assert!(deps.contains(&utils_path));
+    }
+
+    #[test]
+    fn test_scan_local_dependencies_ignores_bare_specifiers() {
+        let tmp = tempfile::tempdir().unwrap();
+        let file = tmp.path().join("app.tsx");
+        std::fs::write(
+            &file,
+            r#"import { signal } from '@vertz/ui';
+import React from 'react';
+"#,
+        )
+        .unwrap();
+
+        let deps = scan_local_dependencies(
+            &std::fs::read_to_string(&file).unwrap(),
+            &file,
+        );
+        assert!(deps.is_empty());
     }
 
     #[test]

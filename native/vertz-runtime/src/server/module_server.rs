@@ -112,7 +112,17 @@ pub async fn handle_source_file(
             broadcaster.report_error(error).await;
         });
     } else {
-        // Compilation succeeded — clear any previous errors for this file
+        // Compilation succeeded — update module graph with imports
+        let source = std::fs::read_to_string(&file_path).unwrap_or_default();
+        if !source.is_empty() {
+            let deps =
+                crate::deps::scanner::scan_local_dependencies(&source, &file_path);
+            if let Ok(mut graph) = state.module_graph.write() {
+                graph.update_module(&file_path, deps);
+            }
+        }
+
+        // Clear any previous errors for this file
         let broadcaster = state.error_broadcaster.clone();
         tokio::spawn(async move {
             broadcaster

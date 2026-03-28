@@ -456,6 +456,20 @@ pub async fn start_server(config: ServerConfig) -> io::Result<()> {
                                         continue;
                                     }
 
+                                    // Update module graph with this file's imports
+                                    // so transitive dependents are invalidated correctly.
+                                    let source = std::fs::read_to_string(&change.path)
+                                        .unwrap_or_default();
+                                    if !source.is_empty() {
+                                        let deps = crate::deps::scanner::scan_local_dependencies(
+                                            &source,
+                                            &change.path,
+                                        );
+                                        if let Ok(mut graph) = watcher_state.module_graph.write() {
+                                            graph.update_module(&change.path, deps);
+                                        }
+                                    }
+
                                     // Compilation succeeded — process the change normally
                                     let result = watcher::process_file_change(
                                         change,
