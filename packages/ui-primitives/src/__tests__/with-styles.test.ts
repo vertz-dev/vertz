@@ -26,5 +26,9 @@ describe('withStyles', () => {
     const styled = withStyles(mockComponent, { base: 'test-class' } as Record<string, string>);
     expect(typeof styled).toBe('function');
     expect(styled.SubComponent).toBe(mockComponent.SubComponent);
+
+    // Call the styled function to verify the closure works
+    const result = styled({});
+    expect(result).toBeInstanceOf(HTMLDivElement);
   });
 });

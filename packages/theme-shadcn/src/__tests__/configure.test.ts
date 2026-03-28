@@ -143,6 +143,48 @@ describe('configureTheme() components', () => {
     expect(dialog).toBeDefined();
   });
 
+  it('a broken factory does not prevent other factories from working', () => {
+    // Replicate the lazyPrimitives pattern to test failure isolation
+    const obj: Record<string, unknown> = {};
+    const factories: Record<string, () => unknown> = {
+      Working: () => 'ok',
+      Broken: () => {
+        throw new Error('import resolution failed');
+      },
+      AlsoWorking: () => 42,
+    };
+    for (const key of Object.keys(factories)) {
+      let cached: unknown;
+      let initialized = false;
+      Object.defineProperty(obj, key, {
+        get() {
+          if (!initialized) {
+            cached = factories[key]!();
+            initialized = true;
+          }
+          return cached;
+        },
+        enumerable: true,
+        configurable: true,
+      });
+    }
+
+    // Working factory succeeds
+    expect(obj.Working).toBe('ok');
+
+    // Broken factory throws
+    expect(() => obj.Broken).toThrow('import resolution failed');
+
+    // AlsoWorking factory still succeeds despite Broken having thrown
+    expect(obj.AlsoWorking).toBe(42);
+
+    // Broken factory retries on next access (not memoized on failure)
+    expect(() => obj.Broken).toThrow('import resolution failed');
+
+    // Working factory remains cached
+    expect(obj.Working).toBe('ok');
+  });
+
   it('all primitives are enumerable', () => {
     const config = configureTheme();
     const { primitives } = config.components;
