@@ -9,7 +9,9 @@ export type {
   AotRouteMapEntry,
 } from './aot-manifest-build';
 export {
+  attachPerRouteCss,
   buildAotRouteMap,
+  findAppComponent,
   generateAotBarrel,
   generateAotBuildManifest,
 } from './aot-manifest-build';
@@ -55,7 +57,12 @@ export type {
   SSRAotContext,
   SSRRenderAotOptions,
 } from './ssr-aot-pipeline';
-export { createHoles, isAotDebugEnabled, ssrRenderAot } from './ssr-aot-pipeline';
+export {
+  clearRouteCssCache,
+  createHoles,
+  isAotDebugEnabled,
+  ssrRenderAot,
+} from './ssr-aot-pipeline';
 export { __esc, __esc_attr, __ssr_spread, __ssr_style_object } from './ssr-aot-runtime';
 export type { SSRQueryEntry } from './ssr-context';
 export {

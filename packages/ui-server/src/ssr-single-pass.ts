@@ -12,6 +12,7 @@
 import type { FontFallbackMetrics } from '@vertz/ui';
 import type { SSRAuth } from '@vertz/ui/internals';
 import type { ExtractedQuery } from '@vertz/ui-compiler';
+import { filterCSSByHTML } from './css-filter';
 import { installDomShim, toVNode } from './dom-shim';
 import { renderToStream } from './render-to-stream';
 import {
@@ -165,7 +166,7 @@ export async function ssrRenderSinglePass(
       const vnode = toVNode(app);
       const stream = renderToStream(vnode);
       const html = await streamToString(stream);
-      const css = collectCSS(themeCss, module);
+      const css = collectCSS(themeCss, module, html);
 
       // Collect SSR data for client-side hydration.
       // Data is JSON-safe (from fetch responses) — safeSerialize in
@@ -284,8 +285,9 @@ export async function ssrRenderProgressive(
       const vnode = toVNode(app);
       const renderStream = renderToStream(vnode);
 
-      // Collect CSS now (available after createApp — css() runs at module/import level)
-      const css = collectCSS(themeCss, module);
+      // Collect CSS now (available after createApp — css() runs at module/import level).
+      // Streaming path: HTML not available yet, but cssTracker is active so filter won't run.
+      const css = collectCSS(themeCss, module, '');
 
       const ssrData = discoveryResult.resolvedQueries.map(({ key, data }) => ({
         key,
@@ -558,7 +560,7 @@ async function renderWithPrefetchedData(
         };
       }
 
-      const css = collectCSS(themeCss, module);
+      const css = collectCSS(themeCss, module, html);
 
       const ssrData = data.resolvedQueries.map(({ key, data: d }) => ({
         key,
@@ -661,7 +663,7 @@ function extractMethodFromKey(key: string): string {
   return segments.length > 1 ? 'get' : 'list';
 }
 
-function collectCSS(themeCss: string, module: SSRModule): string {
+function collectCSS(themeCss: string, module: SSRModule, renderedHtml: string): string {
   const alreadyIncluded = new Set<string>();
   if (themeCss) alreadyIncluded.add(themeCss);
   if (module.styles) {
@@ -672,10 +674,18 @@ function collectCSS(themeCss: string, module: SSRModule): string {
   // fall back to global getInjectedCSS() when the tracker is empty (e.g.,
   // styles were eagerly created at import time via buildComponents()).
   const ssrCtx = ssrStorage.getStore();
-  const rawComponentCss = ssrCtx?.cssTracker?.size
-    ? Array.from(ssrCtx.cssTracker)
+  const tracker = ssrCtx?.cssTracker;
+  const useTracker = tracker && tracker.size > 0;
+  const rawComponentCss = useTracker
+    ? Array.from(tracker)
     : (module.getInjectedCSS?.() ?? []);
-  const componentCss = rawComponentCss.filter((s) => !alreadyIncluded.has(s));
+  let componentCss = rawComponentCss.filter((s) => !alreadyIncluded.has(s));
+
+  // When falling back to global CSS (no per-request tracker), filter by HTML
+  // usage to eliminate unused eagerly-compiled theme component styles (#1979).
+  if (!useTracker && componentCss.length > 0 && renderedHtml) {
+    componentCss = filterCSSByHTML(renderedHtml, componentCss);
+  }
 
   const themeTag = themeCss ? `<style data-vertz-css>${themeCss}</style>` : '';
   const globalTag =

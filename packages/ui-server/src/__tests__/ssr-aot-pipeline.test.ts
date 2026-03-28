@@ -4,12 +4,13 @@
  * Phase 2 of AOT-compiled SSR: runtime holes and SSR pipeline integration.
  * Issue: #1745
  */
-import { describe, expect, it } from 'bun:test';
+import { beforeEach, describe, expect, it } from 'bun:test';
 import { installDomShim } from '../dom-shim';
 import {
   type AotDataResolver,
   type AotManifest,
   type AotRenderFn,
+  clearRouteCssCache,
   createHoles,
   resolveParamQueryKeys,
   ssrRenderAot,
@@ -164,6 +165,10 @@ describe('Feature: Runtime holes and SSR integration', () => {
   // ─── ssrRenderAot() Tests ──────────────────────────────────────
 
   describe('ssrRenderAot()', () => {
+    beforeEach(() => {
+      clearRouteCssCache();
+    });
+
     describe('Given a fully AOT-compiled route', () => {
       describe('When ssrRenderAot() is called', () => {
         it('Then the AOT function is called (no DOM shim)', async () => {
@@ -458,6 +463,108 @@ describe('Feature: Runtime holes and SSR integration', () => {
           const result = await ssrRenderAot(module, '/themed', { aotManifest });
           // Either the theme compiled successfully or the error was caught gracefully
           expect(result.html).toBe('<div>Themed</div>');
+        });
+      });
+    });
+
+    describe('Given per-route CSS in the manifest (#1988, #1989)', () => {
+      describe('When ssrRenderAot() collects CSS', () => {
+        it('Then per-route CSS is used directly without runtime filtering', async () => {
+          const aotFn: AotRenderFn = () =>
+            '<div class="_used1234"><span class="_used5678">Content</span></div>';
+
+          const module = createMockModule();
+          const aotManifest: AotManifest = {
+            routes: {
+              '/page': {
+                render: aotFn,
+                holes: [],
+                // Only the CSS needed by this route — pre-filtered at build time
+                css: [
+                  '._used1234 {\n  padding: 1rem;\n}',
+                  '._used5678 {\n  color: blue;\n}',
+                ],
+              },
+            },
+          };
+
+          const result = await ssrRenderAot(module, '/page', { aotManifest });
+
+          // Per-route CSS should be present
+          expect(result.css).toContain('_used1234');
+          expect(result.css).toContain('_used5678');
+          expect(result.css).toContain('padding: 1rem');
+        });
+
+        it('Then per-route CSS works without getInjectedCSS() (workerd)', async () => {
+          const aotFn: AotRenderFn = () => '<div class="_abc12345">Styled</div>';
+
+          const module = createMockModule();
+          delete (module as Record<string, unknown>).getInjectedCSS;
+
+          const aotManifest: AotManifest = {
+            routes: {
+              '/styled': {
+                render: aotFn,
+                holes: [],
+                css: ['._abc12345 {\n  background: red;\n}'],
+              },
+            },
+          };
+
+          const result = await ssrRenderAot(module, '/styled', { aotManifest });
+          expect(result.css).toContain('_abc12345');
+          expect(result.css).toContain('background: red');
+        });
+
+        it('Then app CSS and route CSS are merged', async () => {
+          const pageFn: AotRenderFn = () => '<main class="_page1234">Page</main>';
+          const appFn: AotRenderFn = (_data, ctx) =>
+            `<div class="_app56789">${ctx.holes.RouterView?.() ?? ''}</div>`;
+
+          const module = createMockModule();
+          const aotManifest: AotManifest = {
+            routes: {
+              '/': {
+                render: pageFn,
+                holes: [],
+                css: ['._page1234 {\n  padding: 2rem;\n}'],
+              },
+            },
+            app: {
+              render: appFn,
+              holes: ['RouterView'],
+              css: ['._app56789 {\n  display: flex;\n}'],
+            },
+          };
+
+          const result = await ssrRenderAot(module, '/', { aotManifest });
+          // Both app and route CSS should be present
+          expect(result.css).toContain('_app56789');
+          expect(result.css).toContain('_page1234');
+        });
+
+        it('Then per-route CSS is cached across requests (no per-request allocations)', async () => {
+          clearRouteCssCache();
+
+          const aotFn: AotRenderFn = () => '<div class="_cached12">Cached</div>';
+          const module = createMockModule();
+          const aotManifest: AotManifest = {
+            routes: {
+              '/cached': {
+                render: aotFn,
+                holes: [],
+                css: ['._cached12 {\n  margin: 1rem;\n}'],
+              },
+            },
+          };
+
+          const result1 = await ssrRenderAot(module, '/cached', { aotManifest });
+          const result2 = await ssrRenderAot(module, '/cached', { aotManifest });
+
+          // Same CSS output
+          expect(result1.css).toBe(result2.css);
+          expect(result1.css).toContain('_cached12');
         });
       });
     });
@@ -1185,6 +1292,149 @@ describe('Feature: Runtime holes and SSR integration', () => {
         // Should gracefully fall back to single-pass
         expect(result.html).toBeDefined();
         expect(result.html).toContain('app');
+      });
+    });
+  });
+
+  // ─── App Layout Composition Tests (#1977) ──────────────────────
+
+  describe('Feature: App layout shell composition (#1977)', () => {
+    describe('Given an AOT manifest with an app entry and page routes', () => {
+      describe('When ssrRenderAot() renders an AOT page route', () => {
+        it('Then the page content is wrapped in the App layout shell', async () => {
+          const appFn: AotRenderFn = (_data, ctx) => {
+            const routerHtml = ctx.holes.RouterView?.() ?? '';
+            return `<div class="app"><header>Nav</header><main>${routerHtml}</main><footer>Footer</footer></div>`;
+          };
+
+          const pageFn: AotRenderFn = () => '<h1>Games List</h1>';
+
+          const module = createMockModule();
+          const aotManifest: AotManifest = {
+            app: { render: appFn, holes: ['RouterView'] },
+            routes: {
+              '/games': { render: pageFn, holes: [] },
+            },
+          };
+
+          const result = await ssrRenderAot(module, '/games', { aotManifest });
+
+          // Page content is present
+          expect(result.html).toContain('Games List');
+          // App shell wraps it
+          expect(result.html).toContain('<header>Nav</header>');
+          expect(result.html).toContain('<footer>Footer</footer>');
+          // Page is inside the main element
+          expect(result.html).toContain('<main><h1>Games List</h1></main>');
+        });
+      });
+
+      describe('When the App has additional holes besides RouterView', () => {
+        it('Then non-RouterView holes render via DOM shim', async () => {
+          const appFn: AotRenderFn = (_data, ctx) => {
+            const themeHtml = ctx.holes.ThemeProvider?.() ?? '';
+            const routerHtml = ctx.holes.RouterView?.() ?? '';
+            return `<div>${themeHtml}<main>${routerHtml}</main></div>`;
+          };
+
+          const pageFn: AotRenderFn = () => '<h1>Home</h1>';
+
+          const module = createMockModule({
+            ThemeProvider: () => {
+              const el = document.createElement('style');
+              el.textContent = '.theme { color: blue; }';
+              return el;
+            },
+          });
+
+          const aotManifest: AotManifest = {
+            app: { render: appFn, holes: ['ThemeProvider', 'RouterView'] },
+            routes: {
+              '/': { render: pageFn, holes: [] },
+            },
+          };
+
+          const result = await ssrRenderAot(module, '/', { aotManifest });
+
+          expect(result.html).toContain('Home');
+          expect(result.html).toContain('.theme { color: blue; }');
+        });
+      });
+
+      describe('When there is no app entry in the manifest', () => {
+        it('Then page renders without a layout shell (backwards compatible)', async () => {
+          const pageFn: AotRenderFn = () => '<h1>No Layout</h1>';
+
+          const module = createMockModule();
+          const aotManifest: AotManifest = {
+            routes: {
+              '/bare': { render: pageFn, holes: [] },
+            },
+          };
+
+          const result = await ssrRenderAot(module, '/bare', { aotManifest });
+
+          expect(result.html).toBe('<h1>No Layout</h1>');
+        });
+      });
+
+      describe('When the page itself has holes', () => {
+        it('Then both page holes and app holes are rendered', async () => {
+          const appFn: AotRenderFn = (_data, ctx) => {
+            const routerHtml = ctx.holes.RouterView?.() ?? '';
+            return `<div class="app">${routerHtml}</div>`;
+          };
+
+          const pageFn: AotRenderFn = (_data, ctx) => {
+            const widgetHtml = ctx.holes.UserWidget?.() ?? '';
+            return `<div class="page">${widgetHtml}</div>`;
+          };
+
+          const module = createMockModule({
+            UserWidget: () => {
+              const el = document.createElement('span');
+              el.textContent = 'Alice';
+              return el;
+            },
+          });
+
+          const aotManifest: AotManifest = {
+            app: { render: appFn, holes: ['RouterView'] },
+            routes: {
+              '/dashboard': { render: pageFn, holes: ['UserWidget'] },
+            },
+          };
+
+          const result = await ssrRenderAot(module, '/dashboard', { aotManifest });
+
+          expect(result.html).toContain('Alice');
+          expect(result.html).toContain('class="app"');
+          expect(result.html).toContain('class="page"');
+        });
+      });
+
+      describe('When the route falls back to single-pass', () => {
+        it('Then the app shell is NOT applied (single-pass handles its own layout)', async () => {
+          const appFn: AotRenderFn = (_data, ctx) => {
+            const routerHtml = ctx.holes.RouterView?.() ?? '';
+            return `<div class="aot-app">${routerHtml}</div>`;
+          };
+
+          const module = createMockModule();
+          const aotManifest: AotManifest = {
+            app: { render: appFn, holes: ['RouterView'] },
+            routes: {
+              '/games': { render: () => '<div>Games</div>', holes: [], queryKeys: ['games-list'] },
+            },
+          };
+
+          // No data resolver, no manifest → falls back to single-pass
+          const result = await ssrRenderAot(module, '/games', { aotManifest });
+
+          // Single-pass renders the DOM shim app, not the AOT app shell
+          expect(result.html).not.toContain('aot-app');
+          expect(result.html).toContain('app');
+        });
       });
     });
   });

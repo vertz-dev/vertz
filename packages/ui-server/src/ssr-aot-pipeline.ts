@@ -12,6 +12,7 @@
 import type { FontFallbackMetrics } from '@vertz/ui';
 import type { SSRAuth } from '@vertz/ui/internals';
 import type { ExtractedQuery } from '@vertz/ui-compiler';
+import { filterCSSByHTML } from './css-filter';
 import { installDomShim, toVNode } from './dom-shim';
 import { serializeToHtml } from './html-serializer';
 import type { PrefetchSession } from './ssr-access-evaluator';
@@ -55,6 +56,8 @@ export interface AotRouteEntry {
   holes: string[];
   /** Query cache keys this route reads via ctx.getData(). */
   queryKeys?: string[];
+  /** Pre-filtered CSS rules for this route, determined at build time (#1988). */
+  css?: string[];
 }
 
 /**
@@ -65,6 +68,8 @@ export interface AotRouteEntry {
 export interface AotManifest {
   /** Route pattern → AOT entry. */
   routes: Record<string, AotRouteEntry>;
+  /** Root layout (App) entry — wraps page content via its RouterView hole. */
+  app?: AotRouteEntry;
 }
 
 /**
@@ -334,7 +339,40 @@ export async function ssrRenderAot(
       return ssrRenderSinglePass(module, normalizedUrl, fallbackOptions);
     }
 
-    // 5b. Dev-mode divergence detection: dual render and compare
+    // 5b. Wrap page HTML in App layout shell if available (#1977)
+    if (aotManifest.app) {
+      try {
+        // Create holes for the app — DOM shim for all except RouterView
+        const appHoleNames = aotManifest.app.holes.filter((h) => h !== 'RouterView');
+        const appHoles = createHoles(
+          appHoleNames,
+          module,
+          normalizedUrl,
+          queryCache,
+          options.ssrAuth,
+        );
+
+        // RouterView hole returns the pre-rendered page HTML
+        appHoles.RouterView = () => html;
+
+        const appCtx: SSRAotContext = {
+          holes: appHoles,
+          getData: (key) => queryCache.get(key),
+          session: options.prefetchSession,
+          params: match.params,
+        };
+
+        html = aotManifest.app.render(data, appCtx);
+      } catch (appErr) {
+        // App shell render failed — return page HTML without layout
+        console.error(
+          '[SSR] AOT app shell render failed — serving page without layout:',
+          appErr instanceof Error ? appErr.message : appErr,
+        );
+      }
+    }
+
+    // 5c. Dev-mode divergence detection: dual render and compare
     if (options.diagnostics && isAotDebugEnabled()) {
       try {
         const domResult = await ssrRenderSinglePass(module, normalizedUrl, fallbackOptions);
@@ -346,8 +384,15 @@ export async function ssrRenderAot(
       }
     }
 
-    // 6. Collect CSS
-    const css = collectCSSFromModule(module, options.fallbackMetrics);
+    // 6. Collect CSS — per-route CSS is pre-filtered at build time (#1988, #1989)
+    const routeCss = mergeRouteCss(aotEntry.css, aotManifest.app?.css);
+    const css = collectCSSFromModule(
+      module,
+      html,
+      options.fallbackMetrics,
+      routeCss,
+      match.pattern,
+    );
 
     // 7. Build ssrData from query cache
     const ssrData: Array<{ key: string; data: unknown }> = [];
@@ -468,13 +513,59 @@ function ensureDomShim(): void {
   installDomShim();
 }
 
+/** Merge route CSS + app CSS into a single deduplicated array. Cheap O(n) concat. */
+function mergeRouteCss(routeCss?: string[], appCss?: string[]): string[] | undefined {
+  if (!routeCss && !appCss) return undefined;
+  if (!appCss) return routeCss;
+  if (!routeCss) return appCss;
+  // Deduplicate in case app and route share rules
+  const seen = new Set(appCss);
+  const merged = [...appCss];
+  for (const rule of routeCss) {
+    if (!seen.has(rule)) merged.push(rule);
+  }
+  return merged;
+}
+
 /**
- * Collect CSS from module theme + styles + injected CSS.
+ * Cache for per-route CSS output. Since route CSS, theme, and global styles
+ * are all static for a given route pattern, the CSS string is deterministic
+ * and can be computed once then reused for every request to the same route.
+ * This eliminates per-request Set/Array/join allocations that cause GC-induced
+ * tail latency spikes under concurrent load.
+ */
+const routeCssCache = new Map<string, { cssString: string; preloadTags: string }>();
+
+/** Reset the route CSS cache (used when module reloads in dev). */
+export function clearRouteCssCache(): void {
+  routeCssCache.clear();
+}
+
+/**
+ * Collect CSS from module theme + styles + component CSS.
+ *
+ * When `routeCss` is provided (AOT builds with per-route CSS), it's used
+ * directly — no runtime filtering needed. The CSS was pre-filtered at build
+ * time by scanning `__ssr_*` function code for class name references (#1988).
+ *
+ * Falls back to getInjectedCSS() + HTML-based filtering when route CSS
+ * is not available (dev mode, non-AOT paths).
  */
 function collectCSSFromModule(
   module: SSRModule,
+  renderedHtml: string,
   fallbackMetrics?: Record<string, FontFallbackMetrics>,
+  routeCss?: string[],
+  routePattern?: string,
 ): { cssString: string; preloadTags: string } {
+  // AOT path: return cached CSS for this route if available.
+  // Route CSS, theme, and global styles are all static per route pattern,
+  // so the result is deterministic — compute once, reuse forever.
+  if (routePattern && routeCss) {
+    const cached = routeCssCache.get(routePattern);
+    if (cached) return cached;
+  }
+
   let themeCss = '';
   let preloadTags = '';
 
@@ -497,14 +588,26 @@ function collectCSSFromModule(
     for (const s of module.styles) alreadyIncluded.add(s);
   }
 
-  // Prefer render-scoped CSS tracker when it captured CSS during this render;
-  // fall back to global getInjectedCSS() when the tracker is empty (e.g.,
-  // styles were eagerly created at import time via buildComponents()).
-  const ssrCtx = ssrStorage.getStore();
-  const rawComponentCss = ssrCtx?.cssTracker?.size
-    ? Array.from(ssrCtx.cssTracker)
-    : (module.getInjectedCSS?.() ?? []);
-  const componentCss = rawComponentCss.filter((s) => !alreadyIncluded.has(s));
+  let componentCss: string[];
+
+  if (routeCss && routeCss.length > 0) {
+    // AOT path: per-route CSS was pre-filtered at build time (#1988, #1989).
+    // Use directly — zero runtime filtering overhead.
+    componentCss = routeCss.filter((s) => !alreadyIncluded.has(s));
+  } else {
+    // Fallback path: use render-scoped tracker or global getInjectedCSS()
+    const ssrCtx = ssrStorage.getStore();
+    const tracker = ssrCtx?.cssTracker;
+    const useTracker = tracker && tracker.size > 0;
+    const rawComponentCss = useTracker ? Array.from(tracker) : (module.getInjectedCSS?.() ?? []);
+    componentCss = rawComponentCss.filter((s) => !alreadyIncluded.has(s));
+
+    // When falling back to global CSS (no per-request tracker), filter by HTML
+    // usage to eliminate unused eagerly-compiled theme component styles (#1979).
+    if (!useTracker && componentCss.length > 0 && renderedHtml) {
+      componentCss = filterCSSByHTML(renderedHtml, componentCss);
+    }
+  }
 
   const themeTag = themeCss ? `<style data-vertz-css>${themeCss}</style>` : '';
   const globalTag =
@@ -515,5 +618,12 @@ function collectCSSFromModule(
     componentCss.length > 0 ? `<style data-vertz-css>${componentCss.join('\n')}</style>` : '';
   const cssString = [themeTag, globalTag, componentTag].filter(Boolean).join('\n');
 
-  return { cssString, preloadTags };
+  const result = { cssString, preloadTags };
+
+  // Cache the result for AOT routes — subsequent requests skip all allocations
+  if (routePattern && routeCss) {
+    routeCssCache.set(routePattern, result);
+  }
+
+  return result;
 }

@@ -41,6 +41,9 @@ export interface AotCompileOutput {
   components: AotComponentInfo[];
   /** Diagnostics produced during compilation. */
   diagnostics: CompilerDiagnostic[];
+  /** Extracted CSS rule blocks from static css() calls. Each entry is one CSS rule
+   *  (e.g., `.class { ... }`) for fine-grained per-rule filtering in SSR (#1988, #1989). */
+  css?: string[];
 }
 
 /** Severity of a compiler diagnostic. */

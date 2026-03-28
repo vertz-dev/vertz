@@ -5,14 +5,18 @@ export interface RegisterThemeInput {
   };
 }
 
-let _components: object | null = null;
-let _primitives: object | null = null;
+let _resolved: RegisterThemeInput | null = null;
 
 /**
  * Register a theme for use with `@vertz/ui/components`.
  *
  * Call once at app startup, before any component from `@vertz/ui/components` is used.
  * Calling again replaces the previously registered theme.
+ *
+ * IMPORTANT: This stores the resolved theme WITHOUT accessing `.components`.
+ * Accessing `.components` would trigger eager compilation of all ~40 component
+ * styles (~74KB CSS) at startup time. Instead, styles are compiled lazily
+ * per-component when first accessed via _getComponent()/_getPrimitive(). (#1979)
  *
  * @example
  * ```ts
@@ -25,8 +29,8 @@ export function registerTheme(resolved: RegisterThemeInput): void {
   if (
     !resolved ||
     typeof resolved !== 'object' ||
-    !resolved.components ||
-    typeof resolved.components !== 'object'
+    !('components' in resolved) ||
+    !resolved.components
   ) {
     throw new Error(
       `registerTheme() expects an object with a "components" property.\n\n` +
@@ -36,13 +40,13 @@ export function registerTheme(resolved: RegisterThemeInput): void {
         `  registerTheme(configureTheme({ palette: 'zinc' }));\n`,
     );
   }
-  _components = resolved.components;
-  _primitives = resolved.components.primitives ?? {};
+  // Store without accessing .components — preserves lazy per-component getters (#1979).
+  _resolved = resolved;
 }
 
 /** Retrieve a direct component from the registered theme. */
 export function _getComponent(name: string): unknown {
-  if (!_components) {
+  if (!_resolved) {
     throw new Error(
       `No theme registered. Call registerTheme() before using components from @vertz/ui/components.\n\n` +
         `Example:\n` +
@@ -51,21 +55,23 @@ export function _getComponent(name: string): unknown {
         `  registerTheme(configureTheme({ palette: 'zinc' }));\n`,
     );
   }
-  return Reflect.get(_components, name);
+  // Accessing _resolved.components triggers per-component lazy getter only for `name`.
+  return Reflect.get(_resolved.components, name);
 }
 
 /** Retrieve a primitive component from the registered theme. */
 export function _getPrimitive(name: string): unknown {
-  if (!_primitives) {
+  if (!_resolved) {
     throw new Error(
       `No theme registered. Call registerTheme() before using components from @vertz/ui/components.`,
     );
   }
-  return Reflect.get(_primitives, name);
+  const primitives = _resolved.components.primitives;
+  if (!primitives) return undefined;
+  return Reflect.get(primitives, name);
 }
 
 /** Reset the registry — for testing only. */
 export function _resetTheme(): void {
-  _components = null;
-  _primitives = null;
+  _resolved = null;
 }

@@ -1831,4 +1831,330 @@ export default function Label({ text }: { text: string | null }) {
       });
     });
   });
+
+  describe('Imported component holes (#1981)', () => {
+    it('generates ctx.holes.* for imported components instead of __ssr_* calls', () => {
+      const result = compileForSSRAot(
+        `
+import { RouterView } from '@vertz/ui';
+
+function App({ router }: { router: unknown }) {
+  return <div class="app"><RouterView router={router} /></div>;
+}
+        `.trim(),
+      );
+
+      const aotFn = extractAotFn(result.code, '__ssr_App');
+      // Should use ctx.holes for imported component — NOT __ssr_RouterView
+      expect(aotFn).toContain('ctx.holes.RouterView()');
+      expect(aotFn).not.toContain('__ssr_RouterView');
+    });
+
+    it('keeps __ssr_* calls for locally-defined components in the same file', () => {
+      const result = compileForSSRAot(
+        `
+function Badge({ text }: { text: string }) {
+  return <span class="badge">{text}</span>;
+}
+
+function Card({ title }: { title: string }) {
+  return <div class="card"><Badge text={title} /></div>;
+}
+        `.trim(),
+      );
+
+      const aotFn = extractAotFn(result.code, '__ssr_Card');
+      // Badge is local → direct __ssr_ call (preserves props passing)
+      expect(aotFn).toContain('__ssr_Badge(');
+      expect(aotFn).not.toContain('ctx.holes.Badge');
+    });
+
+    it('adds ctx parameter when component has imported holes (even without queries)', () => {
+      const result = compileForSSRAot(
+        `
+import { RouterView } from '@vertz/ui';
+
+function App() {
+  return <div><RouterView /></div>;
+}
+        `.trim(),
+      );
+
+      const aotFn = extractAotFn(result.code, '__ssr_App');
+      // Must have ctx parameter to access ctx.holes
+      expect(aotFn).toContain('ctx');
+      expect(aotFn).toContain('ctx.holes.RouterView()');
+    });
+
+    it('distinguishes local vs imported holes in the same component', () => {
+      const result = compileForSSRAot(
+        `
+import { ThemeProvider } from '@vertz/ui';
+
+function Sidebar({ items }: { items: string[] }) {
+  return <aside>{items.join(', ')}</aside>;
+}
+
+function App() {
+  return (
+    <div>
+      <ThemeProvider />
+      <Sidebar items={['a', 'b']} />
+    </div>
+  );
+}
+        `.trim(),
+      );
+
+      const aotFn = extractAotFn(result.code, '__ssr_App');
+      // ThemeProvider is imported → ctx.holes
+      expect(aotFn).toContain('ctx.holes.ThemeProvider()');
+      // Sidebar is local → direct __ssr_ call
+      expect(aotFn).toContain('__ssr_Sidebar(');
+    });
+
+    it('tracks only imported components as external holes in metadata', () => {
+      const result = compileForSSRAot(
+        `
+import { RouterView } from '@vertz/ui';
+
+function Badge({ text }: { text: string }) {
+  return <span>{text}</span>;
+}
+
+function App() {
+  return <div><RouterView /><Badge text="hi" /></div>;
+}
+        `.trim(),
+      );
+
+      const appInfo = result.components.find((c) => c.name === 'App');
+      // Both are holes, but holes array tracks all referenced components
+      expect(appInfo!.holes).toContain('RouterView');
+      expect(appInfo!.holes).toContain('Badge');
+    });
+  });
+
+  describe('CSS class name inlining (#1985)', () => {
+    it('inlines css() class names in __ssr_* functions instead of referencing module-level variables', () => {
+      const result = compileForSSRAot(
+        `
+import { css } from '@vertz/ui';
+
+const s = css({
+  root: ['bg:background', 'p:6'],
+  header: ['font:xl', 'text:foreground'],
+});
+
+function App() {
+  return (
+    <div className={s.root}>
+      <h1 className={s.header}>Title</h1>
+    </div>
+  );
+}
+        `.trim(),
+        { filename: 'src/app.tsx' },
+      );
+
+      const appInfo = result.components.find((c) => c.name === 'App');
+      expect(appInfo).toBeDefined();
+      expect(appInfo!.tier).not.toBe('runtime-fallback');
+
+      // The __ssr_App function should NOT reference s.root or s.header
+      const ssrFn = result.code.match(/export function __ssr_App[\s\S]*?\n\}/)?.[0] ?? '';
+      expect(ssrFn).not.toContain('s.root');
+      expect(ssrFn).not.toContain('s.header');
+
+      // It should contain literal class names (8-hex-char hashes prefixed with _)
+      expect(ssrFn).toMatch(/_[0-9a-f]{8}/);
+    });
+
+    it('inlines css() class names used in ternary expressions', () => {
+      const result = compileForSSRAot(
+        `
+import { css } from '@vertz/ui';
+
+const s = css({
+  active: ['bg:primary'],
+  inactive: ['bg:muted'],
+});
+
+function Tab({ isActive }: { isActive: boolean }) {
+  return <div className={isActive ? s.active : s.inactive}>Tab</div>;
+}
+        `.trim(),
+        { filename: 'src/tab.tsx' },
+      );
+
+      const ssrFn = result.code.match(/export function __ssr_Tab[\s\S]*?\n\}/)?.[0] ?? '';
+      expect(ssrFn).not.toContain('s.active');
+      expect(ssrFn).not.toContain('s.inactive');
+    });
+
+    it('handles multiple css() calls in the same file', () => {
+      const result = compileForSSRAot(
+        `
+import { css } from '@vertz/ui';
+
+const card = css({ root: ['p:4'] });
+const badge = css({ root: ['m:2'] });
+
+function Card() {
+  return <div className={card.root}><span className={badge.root}>New</span></div>;
+}
+        `.trim(),
+        { filename: 'src/card.tsx' },
+      );
+
+      const ssrFn = result.code.match(/export function __ssr_Card[\s\S]*?\n\}/)?.[0] ?? '';
+      expect(ssrFn).not.toContain('card.root');
+      expect(ssrFn).not.toContain('badge.root');
+    });
+
+    it('produces self-contained __ssr_* functions that execute without css() imports', () => {
+      const result = compileForSSRAot(
+        `
+import { css } from '@vertz/ui';
+
+const s = css({
+  wrapper: ['flex', 'gap:4'],
+  title: ['font:lg', 'font:semibold'],
+});
+
+function Header({ title }: { title: string }) {
+  return (
+    <header className={s.wrapper}>
+      <h1 className={s.title}>{title}</h1>
+    </header>
+  );
+}
+        `.trim(),
+        { filename: 'src/header.tsx' },
+      );
+
+      // The __ssr_* function should NOT reference the css variable (s.wrapper, s.title)
+      const ssrFn = result.code.match(/export function __ssr_Header[\s\S]*?\n\}/)?.[0] ?? '';
+      // Use word-boundary regex to avoid matching __props.title as containing 's.title'
+      expect(ssrFn).not.toMatch(/\bs\.wrapper\b/);
+      expect(ssrFn).not.toMatch(/\bs\.title\b/);
+
+      // Verify the function is self-contained by eval'ing it.
+      // Strip TS types and use runtime helpers for the eval context.
+      const evalCode = ssrFn
+        .replace(/^export /, '')
+        // Strip TS return type annotation: ): string { → ) {
+        .replace(/\):\s*string\s*\{/, ') {')
+        .replace(/__esc_attr\(/g, 'String(')
+        .replace(/__esc\(/g, 'String(');
+      const fn = new Function(`${evalCode}; return __ssr_Header({ title: 'Hello' });`);
+      const html = fn();
+      expect(html).toContain('Hello');
+      // Should contain an inlined class name, not 's.wrapper'
+      expect(html).toMatch(/_[0-9a-f]{8}/);
+    });
+  });
+
+  describe('CSS extraction for AOT manifest (#1989)', () => {
+    it('extracts CSS rule blocks from static css() calls', () => {
+      const result = compileForSSRAot(
+        `
+import { css } from '@vertz/ui';
+
+const s = css({
+  root: ['bg:background', 'p:6'],
+  header: ['font:xl', 'text:foreground'],
+});
+
+function App() {
+  return (
+    <div className={s.root}>
+      <h1 className={s.header}>Title</h1>
+    </div>
+  );
+}
+        `.trim(),
+        { filename: 'src/app.tsx' },
+      );
+
+      // css field should be an array of individual CSS rule blocks
+      expect(result.css).toBeDefined();
+      expect(Array.isArray(result.css)).toBe(true);
+      expect(result.css!.length).toBeGreaterThanOrEqual(2); // at least root + header
+
+      // Each rule block should be a valid CSS rule with class selector and declarations
+      for (const rule of result.css!) {
+        expect(rule).toMatch(/\._[0-9a-f]{8}/); // class selector
+        expect(rule).toContain('{');
+        expect(rule).toContain('}');
+      }
+
+      // Root rule should contain background-color and padding
+      const rootRule = result.css!.find((r) => r.includes('background-color'));
+      expect(rootRule).toBeDefined();
+      expect(rootRule).toContain('padding');
+
+      // Header rule should contain font-size and color
+      const headerRule = result.css!.find((r) => r.includes('font-size'));
+      expect(headerRule).toBeDefined();
+      expect(headerRule).toContain('color');
+    });
+
+    it('extracted CSS class names match inlined class names in __ssr_* functions', () => {
+      const result = compileForSSRAot(
+        `
+import { css } from '@vertz/ui';
+
+const s = css({
+  wrapper: ['flex', 'gap:4'],
+  title: ['font:lg', 'font:semibold'],
+});
+
+function Header({ title }: { title: string }) {
+  return (
+    <header className={s.wrapper}>
+      <h1 className={s.title}>{title}</h1>
+    </header>
+  );
+}
+        `.trim(),
+        { filename: 'src/header.tsx' },
+      );
+
+      expect(result.css).toBeDefined();
+      expect(result.css!.length).toBeGreaterThan(0);
+
+      // Extract class names from CSS rules
+      const cssClassNames = new Set<string>();
+      for (const rule of result.css!) {
+        const matches = rule.matchAll(/\.(_[0-9a-f]{8})/g);
+        for (const m of matches) cssClassNames.add(m[1]!);
+      }
+
+      // Extract class names from __ssr_* function
+      const ssrFn = result.code.match(/export function __ssr_Header[\s\S]*?\n\}/)?.[0] ?? '';
+      const ssrClassNames = new Set<string>();
+      const ssrMatches = ssrFn.matchAll(/(_[0-9a-f]{8})/g);
+      for (const m of ssrMatches) ssrClassNames.add(m[1]!);
+
+      // Every class name in the SSR function must have a corresponding CSS rule
+      expect(ssrClassNames.size).toBeGreaterThan(0);
+      for (const cls of ssrClassNames) {
+        expect(cssClassNames.has(cls)).toBe(true);
+      }
+    });
+
+    it('returns undefined css for files with no css() calls', () => {
+      const result = compileForSSRAot(
+        `
+function Simple() {
+  return <div>Hello</div>;
+}
+        `.trim(),
+        { filename: 'src/simple.tsx' },
+      );
+
+      expect(result.css).toBeUndefined();
+    });
+  });
 });

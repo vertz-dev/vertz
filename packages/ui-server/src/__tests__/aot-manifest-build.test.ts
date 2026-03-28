@@ -7,7 +7,9 @@ import type {
   AotRouteMapEntry,
 } from '../aot-manifest-build';
 import {
+  attachPerRouteCss,
   buildAotRouteMap,
+  findAppComponent,
   generateAotBarrel,
   generateAotBuildManifest,
 } from '../aot-manifest-build';
@@ -373,7 +375,7 @@ describe('generateAotBarrel', () => {
         // Should have a temp file with the compiled code
         const fileKeys = Object.keys(result.files);
         expect(fileKeys).toHaveLength(1);
-        expect(fileKeys[0]).toMatch(/^__aot_\d+_home\.tsx$/);
+        expect(fileKeys[0]).toMatch(/^__aot_\d+_home\.ts$/);
         const firstKey = fileKeys[0];
         expect(firstKey).toBeDefined();
         expect(result.files[firstKey as string]).toContain('__ssr_HomePage');
@@ -443,5 +445,324 @@ describe('generateAotBarrel', () => {
         expect(result.barrelSource).not.toContain('__ssr_UnusedComponent');
       });
     });
+  });
+
+  // ─── findAppComponent Tests (#1977) ────────────────────────────
+
+  describe('findAppComponent', () => {
+    describe('Given components where one has RouterView as a hole', () => {
+      it('Then returns the component with RouterView as the app entry', () => {
+        const components: Record<string, AotBuildComponentEntry> = {
+          App: { tier: 'data-driven', holes: ['RouterView'], queryKeys: [] },
+          HomePage: { tier: 'static', holes: [], queryKeys: [] },
+        };
+
+        const result = findAppComponent(components);
+
+        expect(result).toBeDefined();
+        expect(result!.renderFn).toBe('__ssr_App');
+        expect(result!.holes).toEqual(['RouterView']);
+      });
+    });
+
+    describe('Given components where the RouterView component has additional holes', () => {
+      it('Then returns the component with all its holes', () => {
+        const components: Record<string, AotBuildComponentEntry> = {
+          App: { tier: 'data-driven', holes: ['ThemeProvider', 'RouterView'], queryKeys: [] },
+        };
+
+        const result = findAppComponent(components);
+
+        expect(result).toBeDefined();
+        expect(result!.holes).toEqual(['ThemeProvider', 'RouterView']);
+      });
+    });
+
+    describe('Given no component has RouterView as a hole', () => {
+      it('Then returns undefined', () => {
+        const components: Record<string, AotBuildComponentEntry> = {
+          HomePage: { tier: 'static', holes: [], queryKeys: [] },
+          Sidebar: { tier: 'data-driven', holes: ['UserWidget'], queryKeys: [] },
+        };
+
+        const result = findAppComponent(components);
+
+        expect(result).toBeUndefined();
+      });
+    });
+
+    describe('Given the RouterView component is runtime-fallback', () => {
+      it('Then returns undefined (runtime-fallback cannot be AOT-rendered)', () => {
+        const components: Record<string, AotBuildComponentEntry> = {
+          App: { tier: 'runtime-fallback', holes: ['RouterView'], queryKeys: [] },
+        };
+
+        const result = findAppComponent(components);
+
+        expect(result).toBeUndefined();
+      });
+    });
+  });
+
+  describe('generateAotBarrel with app entry', () => {
+    describe('Given an app entry alongside routes', () => {
+      it('Then the barrel includes the app render function', () => {
+        const compiledFiles: Record<string, AotCompiledFile> = {
+          'app.tsx': {
+            code: 'export function __ssr_App() { return ""; }\nexport function __ssr_HomePage() { return ""; }',
+            components: [
+              { name: 'App', tier: 'data-driven', holes: ['RouterView'], queryKeys: [] },
+              { name: 'HomePage', tier: 'static', holes: [], queryKeys: [] },
+            ],
+          },
+        };
+        const routeMap: Record<string, AotRouteMapEntry> = {
+          '/': { renderFn: '__ssr_HomePage', holes: [], queryKeys: [] },
+        };
+        const appEntry: AotRouteMapEntry = {
+          renderFn: '__ssr_App',
+          holes: ['RouterView'],
+          queryKeys: [],
+        };
+
+        const result = generateAotBarrel(compiledFiles, routeMap, appEntry);
+
+        expect(result.barrelSource).toContain('__ssr_App');
+        expect(result.barrelSource).toContain('__ssr_HomePage');
+      });
+    });
+  });
+
+  describe('Barrel files exclude original source side effects (#1982)', () => {
+    it('Then compiled files contain only __ssr_* functions, not original imports/code', () => {
+      const compiledFiles: Record<string, AotCompiledFile> = {
+        'app.tsx': {
+          code: [
+            'import { RouterView, createRouter } from "@vertz/ui";',
+            'import { routes } from "./router";',
+            'var router = createRouter(routes);',
+            'function App() { return <div><RouterView router={router} /></div>; }',
+            'export function __ssr_App(data, ctx) { return "<div>" + ctx.holes.RouterView() + "</div>"; }',
+          ].join('\n'),
+          components: [
+            { name: 'App', tier: 'data-driven', holes: ['RouterView'], queryKeys: [] },
+          ],
+        },
+      };
+      const routeMap: Record<string, AotRouteMapEntry> = {};
+      const appEntry: AotRouteMapEntry = {
+        renderFn: '__ssr_App',
+        holes: ['RouterView'],
+        queryKeys: [],
+      };
+
+      const result = generateAotBarrel(compiledFiles, routeMap, appEntry);
+      const fileKeys = Object.keys(result.files);
+      const appFile = result.files[fileKeys[0]!]!;
+
+      // Should contain the __ssr_App function
+      expect(appFile).toContain('__ssr_App');
+      // Should NOT contain original imports or side effects
+      expect(appFile).not.toContain('import { RouterView');
+      expect(appFile).not.toContain('import { routes }');
+      expect(appFile).not.toContain('createRouter');
+      expect(appFile).not.toContain('var router');
+    });
+
+    it('Then compiled files with multiple __ssr_* functions extract all of them', () => {
+      const compiledFiles: Record<string, AotCompiledFile> = {
+        'pages.tsx': {
+          code: [
+            'import { query } from "@vertz/ui";',
+            'function HomePage() { const tasks = query(() => fetch("/api")); return <div>{tasks.data}</div>; }',
+            'function AboutPage() { return <div>About</div>; }',
+            'export function __ssr_HomePage(data, ctx) { return "<div>" + __esc(ctx.getData("tasks-list")) + "</div>"; }',
+            'export function __ssr_AboutPage() { return "<div>About</div>"; }',
+          ].join('\n'),
+          components: [
+            { name: 'HomePage', tier: 'data-driven', holes: [], queryKeys: ['tasks-list'] },
+            { name: 'AboutPage', tier: 'static', holes: [], queryKeys: [] },
+          ],
+        },
+      };
+      const routeMap: Record<string, AotRouteMapEntry> = {
+        '/': { renderFn: '__ssr_HomePage', holes: [], queryKeys: ['tasks-list'] },
+        '/about': { renderFn: '__ssr_AboutPage', holes: [], queryKeys: [] },
+      };
+
+      const result = generateAotBarrel(compiledFiles, routeMap);
+      const fileKeys = Object.keys(result.files);
+      const pagesFile = result.files[fileKeys[0]!]!;
+
+      // Both functions extracted
+      expect(pagesFile).toContain('__ssr_HomePage');
+      expect(pagesFile).toContain('__ssr_AboutPage');
+      // Original source excluded
+      expect(pagesFile).not.toContain('import { query }');
+      expect(pagesFile).not.toContain('function HomePage()');
+    });
+  });
+});
+
+describe('attachPerRouteCss', () => {
+  it('attaches CSS rules whose class names appear in the __ssr_* function code', () => {
+    const compiledFiles: Record<string, AotCompiledFile> = {
+      'src/page.tsx': {
+        code: `
+original source code...
+export function __ssr_Page(data: Record<string, unknown>, ctx: any): string {
+  return '<div class="_aabb1122"><h1 class="_ccdd3344">Hello</h1></div>';
+}`,
+        components: [{ name: 'Page', tier: 'static', holes: [], queryKeys: [] }],
+        css: [
+          '._aabb1122 {\n  padding: 1rem;\n}',
+          '._ccdd3344 {\n  font-size: 1.5rem;\n}',
+          '._eeff5566 {\n  margin: 2rem;\n}', // not referenced in __ssr_Page
+        ],
+      },
+    };
+
+    const routeMap: Record<string, AotRouteMapEntry> = {
+      '/': { renderFn: '__ssr_Page', holes: [], queryKeys: [] },
+    };
+
+    attachPerRouteCss(compiledFiles, routeMap);
+
+    expect(routeMap['/']!.css).toBeDefined();
+    expect(routeMap['/']!.css).toHaveLength(2);
+    expect(routeMap['/']!.css).toContain('._aabb1122 {\n  padding: 1rem;\n}');
+    expect(routeMap['/']!.css).toContain('._ccdd3344 {\n  font-size: 1.5rem;\n}');
+    // Dead CSS not included
+    expect(routeMap['/']!.css).not.toContain('._eeff5566');
+  });
+
+  it('attaches app CSS separately from route CSS', () => {
+    const compiledFiles: Record<string, AotCompiledFile> = {
+      'src/app.tsx': {
+        code: `
+export function __ssr_App(data: Record<string, unknown>, ctx: any): string {
+  return '<div class="_aa001111">' + ctx.holes.RouterView() + '</div>';
+}`,
+        components: [{ name: 'App', tier: 'static', holes: ['RouterView'], queryKeys: [] }],
+        css: ['._aa001111 {\n  display: flex;\n}'],
+      },
+      'src/home.tsx': {
+        code: `
+export function __ssr_Home(data: Record<string, unknown>, ctx: any): string {
+  return '<main class="_bb002222">Welcome</main>';
+}`,
+        components: [{ name: 'Home', tier: 'static', holes: [], queryKeys: [] }],
+        css: ['._bb002222 {\n  padding: 2rem;\n}'],
+      },
+    };
+
+    const routeMap: Record<string, AotRouteMapEntry> = {
+      '/': { renderFn: '__ssr_Home', holes: [], queryKeys: [] },
+    };
+
+    const appEntry: AotRouteMapEntry = {
+      renderFn: '__ssr_App',
+      holes: ['RouterView'],
+      queryKeys: [],
+    };
+
+    attachPerRouteCss(compiledFiles, routeMap, appEntry);
+
+    // App entry gets its own CSS
+    expect(appEntry.css).toEqual(['._aa001111 {\n  display: flex;\n}']);
+
+    // Route gets only its own CSS (app CSS merged at runtime)
+    expect(routeMap['/']!.css).toEqual(['._bb002222 {\n  padding: 2rem;\n}']);
+  });
+
+  it('includes CSS from local child components called via __ssr_*', () => {
+    const compiledFiles: Record<string, AotCompiledFile> = {
+      'src/page.tsx': {
+        code: `
+export function __ssr_TaskCard(props: any): string {
+  return '<div class="_ca2d1234">' + props.title + '</div>';
+}
+
+export function __ssr_HomePage(data: Record<string, unknown>, ctx: any): string {
+  return '<main class="_da0e5678">' + __ssr_TaskCard({ title: 'Test' }) + '</main>';
+}`,
+        components: [
+          { name: 'TaskCard', tier: 'static', holes: [], queryKeys: [] },
+          { name: 'HomePage', tier: 'static', holes: [], queryKeys: [] },
+        ],
+        css: [
+          '._ca2d1234 {\n  border: 1px solid;\n}',
+          '._da0e5678 {\n  padding: 2rem;\n}',
+        ],
+      },
+    };
+
+    const routeMap: Record<string, AotRouteMapEntry> = {
+      '/': { renderFn: '__ssr_HomePage', holes: [], queryKeys: [] },
+    };
+
+    attachPerRouteCss(compiledFiles, routeMap);
+
+    // Should include CSS from both HomePage AND its child TaskCard
+    expect(routeMap['/']!.css).toHaveLength(2);
+    expect(routeMap['/']!.css).toContain('._da0e5678 {\n  padding: 2rem;\n}');
+    expect(routeMap['/']!.css).toContain('._ca2d1234 {\n  border: 1px solid;\n}');
+  });
+
+  it('includes CSS from hole components (imported from other files)', () => {
+    const compiledFiles: Record<string, AotCompiledFile> = {
+      'src/page.tsx': {
+        code: `
+export function __ssr_HomePage(data: Record<string, unknown>, ctx: any): string {
+  return '<main class="_ab001234">' + ctx.holes.Sidebar() + '</main>';
+}`,
+        components: [
+          { name: 'HomePage', tier: 'static', holes: ['Sidebar'], queryKeys: [] },
+        ],
+        css: ['._ab001234 {\n  display: grid;\n}'],
+      },
+      'src/sidebar.tsx': {
+        code: `
+export function __ssr_Sidebar(data: Record<string, unknown>, ctx: any): string {
+  return '<aside class="_cd005678">Nav</aside>';
+}`,
+        components: [
+          { name: 'Sidebar', tier: 'static', holes: [], queryKeys: [] },
+        ],
+        css: ['._cd005678 {\n  width: 250px;\n}'],
+      },
+    };
+
+    const routeMap: Record<string, AotRouteMapEntry> = {
+      '/': { renderFn: '__ssr_HomePage', holes: ['Sidebar'], queryKeys: [] },
+    };
+
+    attachPerRouteCss(compiledFiles, routeMap);
+
+    // Should include CSS from both HomePage AND its hole Sidebar
+    expect(routeMap['/']!.css).toHaveLength(2);
+    expect(routeMap['/']!.css).toContain('._ab001234 {\n  display: grid;\n}');
+    expect(routeMap['/']!.css).toContain('._cd005678 {\n  width: 250px;\n}');
+  });
+
+  it('skips routes with no matching CSS', () => {
+    const compiledFiles: Record<string, AotCompiledFile> = {
+      'src/plain.tsx': {
+        code: `
+export function __ssr_Plain(data: Record<string, unknown>, ctx: any): string {
+  return '<div>No CSS</div>';
+}`,
+        components: [{ name: 'Plain', tier: 'static', holes: [], queryKeys: [] }],
+        // No CSS
+      },
+    };
+
+    const routeMap: Record<string, AotRouteMapEntry> = {
+      '/plain': { renderFn: '__ssr_Plain', holes: [], queryKeys: [] },
+    };
+
+    attachPerRouteCss(compiledFiles, routeMap);
+
+    expect(routeMap['/plain']!.css).toBeUndefined();
   });
 });

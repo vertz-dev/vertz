@@ -33,6 +33,11 @@ function asNode(n: unknown): Node {
   return n as Node;
 }
 
+/** Escape special regex characters in a string. */
+function escapeRegex(str: string): string {
+  return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
 /** Set of HTML void elements that must not have closing tags. */
 const VOID_ELEMENTS = new Set([
   'area',
@@ -108,9 +113,23 @@ export class AotStringTransformer {
   private _currentHoles: Set<string> = new Set();
   /** Reactive variable names for the current component (signal/computed). */
   private _reactiveNames: Set<string> = new Set();
+  /** Component names defined in the current file (used to distinguish local vs imported). */
+  private _localComponentNames: Set<string> = new Set();
+  /** CSS class name map: varName → Map<blockName, className>. Used to inline css() refs in AOT functions. */
+  private _cssClassNames: Map<string, Map<string, string>> = new Map();
 
   get components(): AotComponentInfo[] {
     return this._components;
+  }
+
+  /** Register locally-defined component names so the transformer can distinguish local vs imported. */
+  setLocalComponents(names: string[]): void {
+    this._localComponentNames = new Set(names);
+  }
+
+  /** Set CSS class name map for inlining css() references in AOT functions (#1985). */
+  setCssClassNames(map: Map<string, Map<string, string>>): void {
+    this._cssClassNames = map;
   }
 
   transform(
@@ -290,6 +309,8 @@ export class AotStringTransformer {
   ): void {
     const aotFnName = `__ssr_${component.name}`;
     const hasQueries = queryVars && queryVars.length > 0;
+    // Check if any referenced holes are imported (not locally defined) — needs ctx.holes access
+    const hasImportedHoles = [...this._currentHoles].some((h) => !this._localComponentNames.has(h));
 
     let paramStr: string;
     let preamble = '';
@@ -336,6 +357,16 @@ export class AotStringTransformer {
           preamble += `\n  ${applyQueryReplacements(dv.sourceText)}`;
         }
       }
+    } else if (hasImportedHoles) {
+      // Component has imported holes but no queries — needs ctx for ctx.holes access (#1981)
+      paramStr = 'data: Record<string, unknown>, ctx: SSRAotContext';
+
+      // Emit derived variable declarations for props-based components
+      if (derivedVars && derivedVars.length > 0) {
+        for (const dv of derivedVars) {
+          preamble += `\n  ${dv.sourceText}`;
+        }
+      }
     } else {
       const propsParam = component.propsParam;
       paramStr = propsParam ? `${propsParam}` : '';
@@ -352,6 +383,10 @@ export class AotStringTransformer {
     if (stringExpr.includes('__t =')) {
       preamble = `\n  let __t;` + preamble;
     }
+
+    // Inline css() class names so __ssr_* functions are self-contained (#1985)
+    stringExpr = this._inlineCssClassNames(stringExpr);
+    preamble = this._inlineCssClassNames(preamble);
 
     const body = preamble
       ? `${preamble}\n  return ${stringExpr};\n`
@@ -392,6 +427,7 @@ export class AotStringTransformer {
   ): void {
     const aotFnName = `__ssr_${component.name}`;
     const hasQueries = queryVars && queryVars.length > 0;
+    const hasImportedHoles = [...this._currentHoles].some((h) => !this._localComponentNames.has(h));
 
     let paramStr: string;
     let body = '';
@@ -426,6 +462,9 @@ export class AotStringTransformer {
           body += `\n  const __q${qv.index} = ctx.getData('${qv.cacheKey}');`;
         }
       }
+    } else if (hasImportedHoles) {
+      // Imported holes need ctx for ctx.holes access (#1981)
+      paramStr = 'data: Record<string, unknown>, ctx: SSRAotContext';
     } else {
       paramStr = component.propsParam ? `${component.propsParam}` : '';
     }
@@ -453,6 +492,9 @@ export class AotStringTransformer {
       body = `\n  let __t;` + body;
     }
 
+    // Inline css() class names so __ssr_* functions are self-contained (#1985)
+    body = this._inlineCssClassNames(body);
+
     const aotFn = `\nexport function ${aotFnName}(${paramStr}): string {${body}}\n`;
     s.appendRight(component.bodyEnd + 1, aotFn);
 
@@ -462,6 +504,30 @@ export class AotStringTransformer {
       holes: [...this._currentHoles],
       queryKeys: hasQueries ? queryVars.map((qv) => qv.cacheKey) : [],
     });
+  }
+
+  /**
+   * Replace css() variable references with literal class name strings (#1985).
+   *
+   * Scans the expression text for `varName.blockName` patterns where `varName`
+   * is a known css() variable. Replaces with the computed class name string.
+   * This makes __ssr_* functions self-contained — no module-level css() dependency.
+   */
+  private _inlineCssClassNames(text: string): string {
+    if (this._cssClassNames.size === 0) return text;
+
+    for (const [varName, blocks] of this._cssClassNames) {
+      for (const [blockName, className] of blocks) {
+        // Replace varName.blockName with the literal class name string
+        // Use word boundary to avoid partial matches (e.g., 'items.root' when var is 's')
+        const pattern = new RegExp(
+          `(?<![\\w.])${escapeRegex(varName)}\\.${escapeRegex(blockName)}\\b`,
+          'g',
+        );
+        text = text.replace(pattern, `'${className}'`);
+      }
+    }
+    return text;
   }
 
   /**
@@ -1243,6 +1309,12 @@ export class AotStringTransformer {
         const childParts = children.map((child) => this._childToString(child, [], false, s));
         propsEntries.push(`children: ${childParts.join(' + ')}`);
       }
+    }
+
+    // Imported components use ctx.holes (no __ssr_* exists outside this module).
+    // Locally-defined components use direct __ssr_* calls (preserves props passing).
+    if (!this._localComponentNames.has(tagName)) {
+      return `ctx.holes.${tagName}()`;
     }
 
     const propsStr = propsEntries.length > 0 ? `{ ${propsEntries.join(', ')} }` : '{}';

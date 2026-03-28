@@ -12,6 +12,7 @@ import type { AotManifest, AotRenderFn, AotRouteEntry } from './ssr-aot-pipeline
 
 interface AotManifestJson {
   routes: Record<string, AotRouteMapEntry>;
+  app?: AotRouteMapEntry;
 }
 
 /**
@@ -63,6 +64,7 @@ export async function loadAotManifest(serverDir: string): Promise<AotManifest | 
       render: renderFn,
       holes: entry.holes,
       queryKeys: entry.queryKeys,
+      css: entry.css,
     };
   }
 
@@ -70,5 +72,19 @@ export async function loadAotManifest(serverDir: string): Promise<AotManifest | 
     return null;
   }
 
-  return { routes };
+  // Wire app (root layout) entry if present
+  let app: AotRouteEntry | undefined;
+  if (manifestJson.app) {
+    const appRenderFn = routesModule[manifestJson.app.renderFn];
+    if (typeof appRenderFn === 'function') {
+      app = {
+        render: appRenderFn,
+        holes: manifestJson.app.holes,
+        queryKeys: manifestJson.app.queryKeys,
+        css: manifestJson.app.css,
+      };
+    }
+  }
+
+  return { routes, app };
 }

@@ -24,6 +24,8 @@ export interface AotCompiledFile {
   code: string;
   /** Per-component AOT info from the compilation. */
   components: AotComponentInfo[];
+  /** Extracted CSS rule blocks from static css() calls (#1989). */
+  css?: string[];
 }
 
 /** Route map entry for the AOT manifest JSON. */
@@ -36,6 +38,9 @@ export interface AotRouteMapEntry {
   queryKeys: string[];
   /** Route param names referenced in queryKeys. Present only when queryKeys have ${...} placeholders. */
   paramBindings?: string[];
+  /** Pre-filtered CSS rules for this route, determined at build time (#1988).
+   *  Includes only rules whose class selectors appear in the component's __ssr_* function. */
+  css?: string[];
 }
 
 export interface AotBuildManifest {
@@ -43,6 +48,8 @@ export interface AotBuildManifest {
   /** Compiled files keyed by source file path. */
   compiledFiles: Record<string, AotCompiledFile>;
   classificationLog: string[];
+  /** Aggregated CSS from all compiled files (#1989). */
+  css: string[];
 }
 
 /**
@@ -52,6 +59,7 @@ export function generateAotBuildManifest(srcDir: string): AotBuildManifest {
   const components: Record<string, AotBuildComponentEntry> = {};
   const compiledFiles: Record<string, AotCompiledFile> = {};
   const classificationLog: string[] = [];
+  const cssSet = new Set<string>();
   const tsxFiles = collectTsxFiles(srcDir);
 
   for (const filePath of tsxFiles) {
@@ -72,7 +80,14 @@ export function generateAotBuildManifest(srcDir: string): AotBuildManifest {
         compiledFiles[filePath] = {
           code: result.code,
           components: result.components,
+          css: result.css,
         };
+      }
+
+      // Collect individual CSS rules from all files (#1989).
+      // Individual rules enable per-rule filtering in SSR (#1988).
+      if (result.css) {
+        for (const rule of result.css) cssSet.add(rule);
       }
     } catch (e) {
       classificationLog.push(
@@ -106,7 +121,7 @@ export function generateAotBuildManifest(srcDir: string): AotBuildManifest {
     classificationLog.push(`Coverage: ${aotCount}/${total} components (${pct}%)`);
   }
 
-  return { components, compiledFiles, classificationLog };
+  return { components, compiledFiles, classificationLog, css: [...cssSet] };
 }
 
 /**
@@ -170,11 +185,15 @@ export interface AotBarrelResult {
 export function generateAotBarrel(
   compiledFiles: Record<string, AotCompiledFile>,
   routeMap: Record<string, AotRouteMapEntry>,
+  appEntry?: AotRouteMapEntry,
 ): AotBarrelResult {
   // Collect all render function names needed
   const neededFns = new Set<string>();
   for (const entry of Object.values(routeMap)) {
     neededFns.add(entry.renderFn);
+  }
+  if (appEntry) {
+    neededFns.add(appEntry.renderFn);
   }
 
   // Map function names → source file paths
@@ -209,15 +228,16 @@ export function generateAotBarrel(
     const moduleRef = `./${tempFileName}`;
     lines.push(`export { ${fns.sort().join(', ')} } from '${moduleRef}';`);
 
-    // Map the temp filename to the compiled source code.
-    // Use .tsx extension because compiled code includes the original source (with JSX)
-    // alongside the generated __ssr_* functions.
-    // Each file needs its own helper import — the barrel's import doesn't flow into re-exported modules.
+    // Extract only the __ssr_* functions from compiled code — NOT the original source.
+    // The original source has imports and side effects (createRouter, themeGlobals, etc.)
+    // that would pull entire dependency graphs into the barrel bundle (#1982).
+    // Use .ts extension — extracted functions are pure string concatenation, no JSX.
     const compiled = compiledFiles[filePath];
     if (compiled) {
       const helperImport =
         "import { __esc, __esc_attr, __ssr_spread, __ssr_style_object } from '@vertz/ui-server';\n";
-      files[`${tempFileName}.tsx`] = helperImport + compiled.code;
+      const extracted = extractSsrFunctions(compiled.code, fns);
+      files[`${tempFileName}.ts`] = helperImport + extracted;
     }
 
     fileIndex++;
@@ -227,6 +247,176 @@ export function generateAotBarrel(
     barrelSource: lines.join('\n'),
     files,
   };
+}
+
+/**
+ * Extract only the named `__ssr_*` function declarations from compiled source code.
+ *
+ * The AOT compiler appends `export function __ssr_Name(...) { ... }` to the
+ * original source. We extract ONLY these functions to avoid pulling in the
+ * original imports and side effects (createRouter, themeGlobals, etc.) that
+ * would bloat the bundle (#1982).
+ */
+export function extractSsrFunctions(code: string, fnNames: string[]): string {
+  const extracted: string[] = [];
+
+  for (const fnName of fnNames) {
+    // Find `export function __ssr_Name(` in the source
+    const marker = `export function ${fnName}(`;
+    const startIdx = code.indexOf(marker);
+    if (startIdx === -1) continue;
+
+    // Walk forward from the opening `{` counting braces to find the function end
+    const bodyStart = code.indexOf('{', startIdx + marker.length);
+    if (bodyStart === -1) continue;
+
+    let depth = 1;
+    let i = bodyStart + 1;
+    while (i < code.length && depth > 0) {
+      if (code[i] === '{') depth++;
+      else if (code[i] === '}') depth--;
+      i++;
+    }
+
+    extracted.push(code.slice(startIdx, i));
+  }
+
+  return extracted.join('\n');
+}
+
+/**
+ * Find the root layout (App) component — the one with RouterView as a hole.
+ *
+ * Returns the component name and its AOT route map entry, or undefined if
+ * no component has a RouterView hole or it's a runtime-fallback.
+ */
+export function findAppComponent(
+  components: Record<string, AotBuildComponentEntry>,
+): AotRouteMapEntry | undefined {
+  for (const [name, comp] of Object.entries(components)) {
+    if (comp.tier === 'runtime-fallback') continue;
+    if (comp.holes.includes('RouterView')) {
+      return {
+        renderFn: `__ssr_${name}`,
+        holes: comp.holes,
+        queryKeys: comp.queryKeys,
+      };
+    }
+  }
+  return undefined;
+}
+
+/**
+ * Attach pre-filtered CSS rules to each route entry at build time (#1988, #1989).
+ *
+ * Transitively collects CSS from the full component tree: the route's own
+ * `__ssr_*` function, all local child `__ssr_*` calls it invokes, AND all
+ * hole components (imported from other files). This is critical for non-Bun
+ * bundlers (esbuild/workerd) where `getInjectedCSS()` doesn't work because
+ * `css()` side effects land in a different module instance or are tree-shaken.
+ *
+ * Also attaches CSS to the app entry (root layout) so the runtime can
+ * merge app + route CSS with a simple concat.
+ */
+export function attachPerRouteCss(
+  compiledFiles: Record<string, AotCompiledFile>,
+  routeMap: Record<string, AotRouteMapEntry>,
+  appEntry?: AotRouteMapEntry,
+): void {
+  // 1. Build className → CSS rule map from all compiled files
+  const classToRule = new Map<string, string>();
+  for (const file of Object.values(compiledFiles)) {
+    if (!file.css) continue;
+    for (const rule of file.css) {
+      const match = /\.(_[0-9a-f]{8})/.exec(rule);
+      if (match) classToRule.set(match[1]!, rule);
+    }
+  }
+
+  if (classToRule.size === 0) return;
+
+  // 2. Build componentName → __ssr_* function code AND componentName → holes
+  const componentCode = new Map<string, string>();
+  const componentHoles = new Map<string, string[]>();
+  for (const file of Object.values(compiledFiles)) {
+    for (const comp of file.components) {
+      const fnName = `__ssr_${comp.name}`;
+      const code = extractSsrFunctions(file.code, [fnName]);
+      if (code) componentCode.set(comp.name, code);
+      if (comp.holes.length > 0) componentHoles.set(comp.name, comp.holes);
+    }
+  }
+
+  // 3. Helper: find CSS rules referenced by class names in code
+  const classNamePattern = /_([\da-f]{8})/g;
+  function findUsedCss(code: string, seenClasses: Set<string>): string[] {
+    const rules: string[] = [];
+    let m: RegExpExecArray | null;
+    while ((m = classNamePattern.exec(code)) !== null) {
+      const cls = `_${m[1]}`;
+      if (seenClasses.has(cls)) continue;
+      seenClasses.add(cls);
+      const rule = classToRule.get(cls);
+      if (rule) rules.push(rule);
+    }
+    classNamePattern.lastIndex = 0;
+    return rules;
+  }
+
+  // 4. Helper: transitively collect CSS for a component and all its children.
+  //    Follows __ssr_* calls (local children) and ctx.holes.* (imported children).
+  //    On workerd, hole components' css() side effects are tree-shaken, so we
+  //    must include their CSS statically from the build manifest.
+  function collectTreeCss(rootName: string): string[] {
+    const allRules: string[] = [];
+    const seenClasses = new Set<string>();
+    const visited = new Set<string>();
+    const queue = [rootName];
+
+    while (queue.length > 0) {
+      const name = queue.pop()!;
+      if (visited.has(name)) continue;
+      visited.add(name);
+
+      // Collect CSS from this component's __ssr_* function code
+      const code = componentCode.get(name);
+      if (code) {
+        allRules.push(...findUsedCss(code, seenClasses));
+
+        // Find local __ssr_* calls: __ssr_ChildName(
+        const localCallPattern = /__ssr_(\w+)\(/g;
+        let lm: RegExpExecArray | null;
+        while ((lm = localCallPattern.exec(code)) !== null) {
+          const childName = lm[1]!;
+          if (!visited.has(childName)) queue.push(childName);
+        }
+      }
+
+      // Follow holes (imported components from other files)
+      const holes = componentHoles.get(name);
+      if (holes) {
+        for (const hole of holes) {
+          if (!visited.has(hole)) queue.push(hole);
+        }
+      }
+    }
+
+    return allRules;
+  }
+
+  // 5. Attach CSS to app entry (root layout)
+  if (appEntry) {
+    const appName = appEntry.renderFn.replace(/^__ssr_/, '');
+    const appCss = collectTreeCss(appName);
+    if (appCss.length > 0) appEntry.css = appCss;
+  }
+
+  // 6. Attach per-route CSS (full component tree — app CSS merged at runtime)
+  for (const entry of Object.values(routeMap)) {
+    const compName = entry.renderFn.replace(/^__ssr_/, '');
+    const routeCss = collectTreeCss(compName);
+    if (routeCss.length > 0) entry.css = routeCss;
+  }
 }
 
 /** Recursively collect all .tsx files in a directory. */
