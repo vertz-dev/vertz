@@ -29,7 +29,7 @@ pub struct DevArgs {
     pub public_dir: PathBuf,
 
     /// Disable TypeScript type checking (tsc/tsgo)
-    #[arg(long, default_value_t = false)]
+    #[arg(long)]
     pub no_typecheck: bool,
 
     /// Custom tsconfig path (default: auto-detect)

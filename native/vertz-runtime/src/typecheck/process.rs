@@ -208,21 +208,22 @@ async fn read_stdout(
         if let Some(errors) = buffer.feed(parsed) {
             // Sentinel line received — enrich with snippets and flush to broadcaster
             let enriched: Vec<DevError> = if let Some(ref dir) = root_dir {
-                errors
-                    .into_iter()
-                    .map(|e| enrich_with_snippet(e, dir))
-                    .collect()
+                let mut result = Vec::with_capacity(errors.len());
+                for e in errors {
+                    result.push(enrich_with_snippet(e, dir).await);
+                }
+                result
             } else {
                 errors
             };
 
+            let error_count = enriched.len();
             broadcaster
-                .replace_category(ErrorCategory::TypeCheck, enriched.clone())
+                .replace_category(ErrorCategory::TypeCheck, enriched)
                 .await;
 
             if first_sentinel {
                 let elapsed = start_time.elapsed();
-                let error_count = enriched.len();
                 eprintln!(
                     "[Server] TypeScript checking complete ({} error{}, {:.1}s)",
                     error_count,
@@ -243,13 +244,23 @@ async fn read_stdout(
 }
 
 /// Enrich a DevError with a code snippet from the source file.
-fn enrich_with_snippet(error: DevError, root_dir: &std::path::Path) -> DevError {
+///
+/// Uses async file I/O to avoid blocking the tokio runtime thread.
+async fn enrich_with_snippet(error: DevError, root_dir: &std::path::Path) -> DevError {
     if error.code_snippet.is_some() {
         return error;
     }
     if let (Some(ref file), Some(line)) = (&error.file, error.line) {
         let file_path = root_dir.join(file);
-        if let Ok(source) = std::fs::read_to_string(&file_path) {
+        // Validate path is within root_dir to prevent path traversal
+        if let Ok(canonical) = file_path.canonicalize() {
+            if let Ok(canonical_root) = root_dir.canonicalize() {
+                if !canonical.starts_with(&canonical_root) {
+                    return error;
+                }
+            }
+        }
+        if let Ok(source) = tokio::fs::read_to_string(&file_path).await {
             let snippet = crate::errors::categories::extract_snippet(&source, line, 2);
             if !snippet.is_empty() {
                 return error.with_snippet(snippet);
@@ -386,5 +397,76 @@ mod tests {
         };
         let debug = format!("{:?}", checker);
         assert!(debug.contains("tsc"));
+    }
+
+    // ── enrich_with_snippet tests ──
+
+    #[tokio::test]
+    async fn test_enrich_with_snippet_happy_path() {
+        let tmp = tempfile::tempdir().unwrap();
+        let src_dir = tmp.path().join("src");
+        std::fs::create_dir_all(&src_dir).unwrap();
+        std::fs::write(
+            src_dir.join("app.tsx"),
+            "const a = 1;\nconst b: number = 'hello';\nconst c = 3;\n",
+        )
+        .unwrap();
+
+        let error = DevError::typecheck("Type mismatch")
+            .with_file("src/app.tsx")
+            .with_location(2, 7);
+
+        let enriched = enrich_with_snippet(error, tmp.path()).await;
+        assert!(enriched.code_snippet.is_some());
+        let snippet = enriched.code_snippet.unwrap();
+        assert!(snippet.contains("const b: number = 'hello'"));
+    }
+
+    #[tokio::test]
+    async fn test_enrich_with_snippet_missing_file() {
+        let tmp = tempfile::tempdir().unwrap();
+        let error = DevError::typecheck("Type mismatch")
+            .with_file("src/nonexistent.tsx")
+            .with_location(1, 1);
+
+        let enriched = enrich_with_snippet(error, tmp.path()).await;
+        assert!(enriched.code_snippet.is_none());
+    }
+
+    #[tokio::test]
+    async fn test_enrich_with_snippet_already_has_snippet() {
+        let tmp = tempfile::tempdir().unwrap();
+        let error = DevError::typecheck("Type mismatch")
+            .with_file("src/app.tsx")
+            .with_location(1, 1)
+            .with_snippet("existing snippet");
+
+        let enriched = enrich_with_snippet(error, tmp.path()).await;
+        assert_eq!(enriched.code_snippet.as_deref(), Some("existing snippet"));
+    }
+
+    #[tokio::test]
+    async fn test_enrich_with_snippet_no_file_field() {
+        let tmp = tempfile::tempdir().unwrap();
+        let error = DevError::typecheck("Type mismatch");
+
+        let enriched = enrich_with_snippet(error, tmp.path()).await;
+        assert!(enriched.code_snippet.is_none());
+    }
+
+    #[tokio::test]
+    async fn test_enrich_with_snippet_line_out_of_bounds() {
+        let tmp = tempfile::tempdir().unwrap();
+        let src_dir = tmp.path().join("src");
+        std::fs::create_dir_all(&src_dir).unwrap();
+        std::fs::write(src_dir.join("app.tsx"), "line1\nline2\n").unwrap();
+
+        let error = DevError::typecheck("Type mismatch")
+            .with_file("src/app.tsx")
+            .with_location(100, 1);
+
+        let enriched = enrich_with_snippet(error, tmp.path()).await;
+        // Should not panic, and should not add snippet for out-of-bounds line
+        assert!(enriched.code_snippet.is_none());
     }
 }

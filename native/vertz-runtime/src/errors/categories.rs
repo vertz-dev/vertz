@@ -169,6 +169,9 @@ pub fn extract_snippet(source: &str, error_line: u32, context_lines: u32) -> Str
     }
 
     let line_idx = (error_line - 1) as usize;
+    if line_idx >= lines.len() {
+        return String::new();
+    }
     let start = line_idx.saturating_sub(context_lines as usize);
     let end = (line_idx + context_lines as usize + 1).min(lines.len());
 
@@ -477,6 +480,13 @@ mod tests {
     #[test]
     fn test_extract_snippet_zero_line() {
         assert_eq!(extract_snippet("line1", 0, 2), "");
+    }
+
+    #[test]
+    fn test_extract_snippet_line_beyond_file_length() {
+        // tsc may report stale line numbers after a save race
+        let source = "line1\nline2\nline3";
+        assert_eq!(extract_snippet(source, 100, 2), "");
     }
 
     // ── ErrorState tests ──

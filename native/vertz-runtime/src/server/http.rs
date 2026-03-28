@@ -545,7 +545,8 @@ pub async fn start_server(config: ServerConfig) -> io::Result<()> {
 
     let (router, state) = build_router(&config);
 
-    // Start type checker (tsc/tsgo) if enabled
+    // Start type checker (tsc/tsgo) if enabled.
+    // Kept alive until server shutdown — Drop kills the child process.
     let _typecheck_handle = if config.enable_typecheck {
         let checker = process::detect_checker(&config.root_dir, config.typecheck_binary.as_deref());
 

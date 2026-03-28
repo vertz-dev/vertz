@@ -49,24 +49,6 @@ impl TscDiagnostic {
 
         error
     }
-
-    /// Convert to DevError with code snippet enrichment.
-    ///
-    /// Attempts to read the source file and extract a snippet around the error line.
-    pub fn to_dev_error_with_snippet(&self, root_dir: &std::path::Path) -> DevError {
-        let mut error = self.to_dev_error();
-
-        // Try to read the source file and extract a snippet
-        let file_path = root_dir.join(&self.file);
-        if let Ok(source) = std::fs::read_to_string(&file_path) {
-            let snippet = crate::errors::categories::extract_snippet(&source, self.line, 2);
-            if !snippet.is_empty() {
-                error = error.with_snippet(snippet);
-            }
-        }
-
-        error
-    }
 }
 
 /// Parse a single line of tsc `--pretty false --watch` output.
@@ -216,17 +198,6 @@ impl DiagnosticBuffer {
             .diagnostics
             .drain(..)
             .map(|d| d.to_dev_error())
-            .collect();
-        self.has_content = false;
-        errors
-    }
-
-    /// Flush with code snippet enrichment from source files.
-    pub fn flush_with_snippets(&mut self, root_dir: &std::path::Path) -> Vec<DevError> {
-        let errors: Vec<DevError> = self
-            .diagnostics
-            .drain(..)
-            .map(|d| d.to_dev_error_with_snippet(root_dir))
             .collect();
         self.has_content = false;
         errors
@@ -429,48 +400,6 @@ mod tests {
         let err = diag.to_dev_error();
         assert!(err.suggestion.is_some());
         assert!(err.suggestion.unwrap().contains("import path"));
-    }
-
-    #[test]
-    fn test_diagnostic_to_dev_error_with_snippet() {
-        let tmp = tempfile::tempdir().unwrap();
-        let src_dir = tmp.path().join("src");
-        std::fs::create_dir_all(&src_dir).unwrap();
-        std::fs::write(
-            src_dir.join("app.tsx"),
-            "const a = 1;\nconst b: number = 'hello';\nconst c = 3;\n",
-        )
-        .unwrap();
-
-        let diag = TscDiagnostic {
-            file: "src/app.tsx".to_string(),
-            line: 2,
-            col: 7,
-            code: 2322,
-            message: "Type 'string' is not assignable to type 'number'.".to_string(),
-            severity: "error".to_string(),
-        };
-
-        let err = diag.to_dev_error_with_snippet(tmp.path());
-        assert!(err.code_snippet.is_some());
-        let snippet = err.code_snippet.unwrap();
-        assert!(snippet.contains("const b: number = 'hello'"));
-    }
-
-    #[test]
-    fn test_diagnostic_to_dev_error_snippet_missing_file() {
-        let tmp = tempfile::tempdir().unwrap();
-        let diag = TscDiagnostic {
-            file: "src/nonexistent.tsx".to_string(),
-            line: 1,
-            col: 1,
-            code: 2322,
-            message: "Type mismatch.".to_string(),
-            severity: "error".to_string(),
-        };
-
-        let err = diag.to_dev_error_with_snippet(tmp.path());
-        assert!(err.code_snippet.is_none());
     }
 
     #[test]
