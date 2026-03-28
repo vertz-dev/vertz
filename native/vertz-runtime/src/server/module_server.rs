@@ -6,6 +6,7 @@ use std::sync::Arc;
 
 use crate::compiler::pipeline::CompilationPipeline;
 use crate::deps::prebundle;
+use crate::errors::broadcaster::ErrorBroadcaster;
 use crate::hmr::websocket::HmrHub;
 use crate::server::css_server;
 use crate::server::html_shell;
@@ -25,6 +26,10 @@ pub struct DevServerState {
     pub hmr_hub: HmrHub,
     /// Shared module dependency graph.
     pub module_graph: SharedModuleGraph,
+    /// Error broadcast hub for error overlay clients.
+    pub error_broadcaster: ErrorBroadcaster,
+    /// Server start time for uptime tracking.
+    pub start_time: std::time::Instant,
 }
 
 /// Handle requests for source files: `GET /src/**/*.tsx` → compiled JavaScript.
@@ -198,6 +203,8 @@ mod tests {
             theme_css: None,
             hmr_hub: HmrHub::new(),
             module_graph: crate::watcher::new_shared_module_graph(),
+            error_broadcaster: ErrorBroadcaster::new(),
+            start_time: std::time::Instant::now(),
         })
     }
 

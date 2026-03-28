@@ -50,6 +50,15 @@ impl CompilationCache {
         }
     }
 
+    /// Get a cached module without checking mtime.
+    ///
+    /// Used by the source mapper to look up source maps for error resolution
+    /// even if the file has been modified since compilation.
+    pub fn get_unchecked(&self, path: &Path) -> Option<CachedModule> {
+        let cache = self.inner.read().ok()?;
+        cache.get(path).cloned()
+    }
+
     /// Insert a compiled module into the cache.
     pub fn insert(&self, path: PathBuf, module: CachedModule) {
         if let Ok(mut cache) = self.inner.write() {

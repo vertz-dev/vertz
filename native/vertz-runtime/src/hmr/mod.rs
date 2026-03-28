@@ -1,4 +1,5 @@
 pub mod protocol;
+pub mod recovery;
 pub mod websocket;
 
 use crate::watcher::InvalidationResult;

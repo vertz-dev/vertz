@@ -7,25 +7,53 @@
  * - Full page reloads (entry file changes)
  * - Connection status indicators
  * - Auto-reconnect with exponential backoff
+ * - Rapid reconnect detection with "server down" message
  */
 (function() {
   'use strict';
 
   // ── Configuration ──────────────────────────────────────────────
-  const WS_PATH = '/__vertz_hmr';
-  const RECONNECT_BASE_MS = 100;
-  const RECONNECT_MAX_MS = 5000;
-  const TOAST_DURATION_MS = 1500;
+  var WS_PATH = '/__vertz_hmr';
+  var RECONNECT_BASE_MS = 100;
+  var RECONNECT_MAX_MS = 5000;
+  var TOAST_DURATION_MS = 1500;
+  var RAPID_RECONNECT_WINDOW_MS = 30000;
+  var RAPID_RECONNECT_LIMIT = 10;
+  var SESSION_KEY = '__vertz_hmr_reconnects';
 
   // ── State ──────────────────────────────────────────────────────
-  let ws = null;
-  let reconnectAttempts = 0;
-  let reconnectTimer = null;
-  let statusDot = null;
-  let toastEl = null;
-  let toastTimer = null;
+  var ws = null;
+  var reconnectAttempts = 0;
+  var reconnectTimer = null;
+  var statusDot = null;
+  var toastEl = null;
+  var toastTimer = null;
 
-  // ── Visual Feedback (Task 9) ───────────────────────────────────
+  // ── Reconnect Tracking ─────────────────────────────────────────
+
+  function trackReconnect() {
+    try {
+      var data = JSON.parse(sessionStorage.getItem(SESSION_KEY) || '[]');
+      var now = Date.now();
+      data.push(now);
+      // Keep only entries within the window
+      data = data.filter(function(t) { return now - t < RAPID_RECONNECT_WINDOW_MS; });
+      sessionStorage.setItem(SESSION_KEY, JSON.stringify(data));
+      return data.length;
+    } catch (e) {
+      return 0;
+    }
+  }
+
+  function resetReconnectTracking() {
+    try {
+      sessionStorage.removeItem(SESSION_KEY);
+    } catch (e) {
+      // Ignore
+    }
+  }
+
+  // ── Visual Feedback ────────────────────────────────────────────
 
   function createStatusDot() {
     if (statusDot) return;
@@ -48,7 +76,7 @@
 
   function setStatus(color) {
     if (!statusDot) createStatusDot();
-    const colors = {
+    var colors = {
       green: '#22c55e',
       yellow: '#eab308',
       red: '#ef4444',
@@ -86,7 +114,7 @@
     }, TOAST_DURATION_MS);
   }
 
-  // ── Fast Refresh Integration (Task 7) ─────────────────────────
+  // ── Fast Refresh Integration ───────────────────────────────────
 
   function performFastRefresh(moduleId) {
     var fr = globalThis[Symbol.for('vertz:fast-refresh')];
@@ -164,7 +192,7 @@
     }, 100);
   }
 
-  // ── WebSocket Connection ──────────────────────────────────────
+  // ── WebSocket Connection ───────────────────────────────────────
 
   function connect() {
     var protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
@@ -180,6 +208,7 @@
 
     ws.onopen = function() {
       reconnectAttempts = 0;
+      resetReconnectTracking();
       setStatus('green');
       console.log('[vertz-hmr] Connected');
     };
@@ -223,6 +252,14 @@
     if (reconnectTimer) return; // Already scheduled
 
     setStatus('yellow');
+
+    // Track rapid reconnects
+    var count = trackReconnect();
+    if (count >= RAPID_RECONNECT_LIMIT) {
+      showToast('Server may be down. Check terminal.');
+      console.warn('[vertz-hmr] Too many rapid reconnects (' + count + '). Server may be down.');
+    }
+
     var delay = Math.min(
       RECONNECT_BASE_MS * Math.pow(2, reconnectAttempts),
       RECONNECT_MAX_MS

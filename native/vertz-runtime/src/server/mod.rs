@@ -1,4 +1,5 @@
 pub mod css_server;
+pub mod diagnostics;
 pub mod html_shell;
 pub mod http;
 pub mod logging;

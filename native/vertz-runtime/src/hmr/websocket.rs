@@ -58,11 +58,7 @@ impl HmrHub {
 
         // Send connected message
         let connected_msg = HmrMessage::Connected.to_json();
-        if ws_sender
-            .send(Message::Text(connected_msg))
-            .await
-            .is_err()
-        {
+        if ws_sender.send(Message::Text(connected_msg)).await.is_err() {
             let mut count = client_count.write().await;
             *count = count.saturating_sub(1);
             return;

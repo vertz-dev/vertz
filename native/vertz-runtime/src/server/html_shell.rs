@@ -6,6 +6,9 @@ const FAST_REFRESH_RUNTIME_JS: &str = include_str!("../assets/fast-refresh-runti
 /// The HMR client JS (embedded at compile time).
 const HMR_CLIENT_JS: &str = include_str!("../assets/hmr-client.js");
 
+/// The error overlay JS (embedded at compile time).
+const ERROR_OVERLAY_JS: &str = include_str!("../assets/error-overlay.js");
+
 /// Generate the HTML shell document for client-side rendering.
 ///
 /// This is the document returned for page routes (SPA routing).
@@ -72,13 +75,16 @@ pub fn generate_html_shell_with_hmr(
     html.push_str("<body>\n");
     html.push_str("  <div id=\"app\"></div>\n");
 
-    // HMR scripts: Fast Refresh runtime + HMR client (before app module)
+    // HMR scripts: Fast Refresh runtime + HMR client + error overlay (before app module)
     if enable_hmr {
         html.push_str("  <script>\n");
         html.push_str(FAST_REFRESH_RUNTIME_JS);
         html.push_str("\n  </script>\n");
         html.push_str("  <script>\n");
         html.push_str(HMR_CLIENT_JS);
+        html.push_str("\n  </script>\n");
+        html.push_str("  <script>\n");
+        html.push_str(ERROR_OVERLAY_JS);
         html.push_str("\n  </script>\n");
     }
 

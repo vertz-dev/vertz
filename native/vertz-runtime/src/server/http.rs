@@ -1,7 +1,11 @@
 use crate::banner::print_banner;
 use crate::compiler::pipeline::CompilationPipeline;
 use crate::config::ServerConfig;
+use crate::errors::broadcaster::ErrorBroadcaster;
+use crate::errors::categories::{extract_snippet, DevError, ErrorCategory};
+use crate::hmr::recovery::RestartTriggers;
 use crate::hmr::websocket::HmrHub;
+use crate::server::diagnostics;
 use crate::server::html_shell;
 use crate::server::logging::RequestLoggingLayer;
 use crate::server::module_server::{self, DevServerState};
@@ -70,11 +74,13 @@ pub async fn try_bind(config: &ServerConfig) -> io::Result<BindResult> {
 ///
 /// The router uses a single fallback handler that dispatches based on URL path prefix:
 /// 1. `/__vertz_hmr` → WebSocket HMR endpoint
-/// 2. `/@deps/**` → pre-bundled dependency serving
-/// 3. `/@css/**` → extracted CSS serving
-/// 4. `/src/**` → on-demand compilation + serving
-/// 5. Static files from public_dir
-/// 6. Fallback → HTML shell for SPA routing (page routes)
+/// 2. `/__vertz_errors` → WebSocket error broadcast endpoint
+/// 3. `/__vertz_diagnostics` → JSON health check endpoint
+/// 4. `/@deps/**` → pre-bundled dependency serving
+/// 5. `/@css/**` → extracted CSS serving
+/// 6. `/src/**` → on-demand compilation + serving
+/// 7. Static files from public_dir
+/// 8. Fallback → HTML shell for SPA routing (page routes)
 pub fn build_router(config: &ServerConfig) -> (Router, Arc<DevServerState>) {
     let pipeline = CompilationPipeline::new(config.root_dir.clone(), config.src_dir.clone());
 
@@ -82,6 +88,7 @@ pub fn build_router(config: &ServerConfig) -> (Router, Arc<DevServerState>) {
     let theme_css = theme_css::load_theme_css(&config.root_dir);
 
     let hmr_hub = HmrHub::new();
+    let error_broadcaster = ErrorBroadcaster::new();
     let module_graph = watcher::new_shared_module_graph();
 
     let state = Arc::new(DevServerState {
@@ -93,12 +100,15 @@ pub fn build_router(config: &ServerConfig) -> (Router, Arc<DevServerState>) {
         theme_css,
         hmr_hub,
         module_graph,
+        error_broadcaster,
+        start_time: Instant::now(),
     });
 
-    // WebSocket HMR endpoint uses an explicit route.
-    // All other routes use the fallback handler.
+    // Routes: HMR WebSocket, error WebSocket, diagnostics, fallback
     let router = Router::new()
         .route("/__vertz_hmr", get(ws_handler))
+        .route("/__vertz_errors", get(ws_error_handler))
+        .route("/__vertz_diagnostics", get(diagnostics_handler))
         .fallback(dev_server_handler)
         .with_state(state.clone())
         .layer(RequestLoggingLayer);
@@ -114,6 +124,39 @@ async fn ws_handler(
     ws.on_upgrade(move |socket| async move {
         state.hmr_hub.handle_connection(socket).await;
     })
+}
+
+/// WebSocket upgrade handler for the error broadcast endpoint.
+async fn ws_error_handler(
+    State(state): State<Arc<DevServerState>>,
+    ws: WebSocketUpgrade,
+) -> impl IntoResponse {
+    ws.on_upgrade(move |socket| async move {
+        state.error_broadcaster.handle_connection(socket).await;
+    })
+}
+
+/// JSON diagnostics endpoint handler.
+async fn diagnostics_handler(
+    State(state): State<Arc<DevServerState>>,
+) -> axum::response::Response<Body> {
+    let snap = diagnostics::collect_diagnostics(
+        state.start_time,
+        state.pipeline.cache().len(),
+        &state.module_graph,
+        &state.hmr_hub,
+        &state.error_broadcaster,
+    )
+    .await;
+
+    let json = serde_json::to_string(&snap).unwrap_or_else(|_| "{}".to_string());
+
+    axum::response::Response::builder()
+        .status(StatusCode::OK)
+        .header(header::CONTENT_TYPE, "application/json; charset=utf-8")
+        .header(header::CACHE_CONTROL, "no-cache")
+        .body(Body::from(json))
+        .unwrap()
 }
 
 /// Central request handler for the dev server.
@@ -235,6 +278,8 @@ pub async fn start_server(config: ServerConfig) -> io::Result<()> {
 
     let (router, state) = build_router(&config);
 
+    let restart_triggers = RestartTriggers::default();
+
     // Start the file watcher if src_dir exists
     if config.src_dir.exists() {
         let watcher_config = FileWatcherConfig::default();
@@ -244,7 +289,7 @@ pub async fn start_server(config: ServerConfig) -> io::Result<()> {
                 let entry_file = config.entry_file.clone();
                 let root_dir = config.root_dir.clone();
 
-                // Spawn file watcher task
+                // Spawn file watcher task with error broadcasting
                 tokio::spawn(async move {
                     let mut debouncer = Debouncer::new(20);
 
@@ -262,6 +307,65 @@ pub async fn start_server(config: ServerConfig) -> io::Result<()> {
                                         change.path.display()
                                     );
 
+                                    // Check for config/dependency changes
+                                    if restart_triggers.is_restart_trigger(&change.path) {
+                                        eprintln!(
+                                            "[Server] Config/dependency change detected: {}",
+                                            change.path.display()
+                                        );
+                                        // Broadcast full reload to clients
+                                        watcher_state.hmr_hub.broadcast(
+                                            crate::hmr::protocol::HmrMessage::FullReload {
+                                                reason: format!(
+                                                    "Config file changed: {}",
+                                                    change.path.file_name()
+                                                        .unwrap_or_default()
+                                                        .to_string_lossy()
+                                                ),
+                                            },
+                                        ).await;
+                                        // Clear compilation cache for full rebuild
+                                        watcher_state.pipeline.cache().clear();
+                                        continue;
+                                    }
+
+                                    // Clear any previous errors for this file
+                                    let file_str = change.path.to_string_lossy().to_string();
+                                    watcher_state.error_broadcaster
+                                        .clear_file(ErrorCategory::Build, &file_str)
+                                        .await;
+
+                                    // Attempt recompilation for error recovery
+                                    let compile_result = watcher_state.pipeline
+                                        .compile_for_browser(&change.path);
+
+                                    // Check if compilation produced an error module
+                                    if compile_result.code.contains("console.error(`[vertz] Compilation error:") {
+                                        // Read the source to provide a snippet
+                                        let source = std::fs::read_to_string(&change.path)
+                                            .unwrap_or_default();
+                                        let snippet = if !source.is_empty() {
+                                            Some(extract_snippet(&source, 1, 3))
+                                        } else {
+                                            None
+                                        };
+
+                                        let mut error = DevError::build(
+                                            format!("Compilation failed: {}", file_str)
+                                        ).with_file(file_str.clone());
+
+                                        if let Some(s) = snippet {
+                                            error = error.with_snippet(s);
+                                        }
+
+                                        watcher_state.error_broadcaster
+                                            .report_error(error)
+                                            .await;
+
+                                        continue;
+                                    }
+
+                                    // Compilation succeeded — process the change normally
                                     let result = watcher::process_file_change(
                                         change,
                                         watcher_state.pipeline.cache(),
