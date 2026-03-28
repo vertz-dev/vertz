@@ -89,7 +89,16 @@ const H = 'color:#6B6560';                    // hint (code context)
 type Token = [string, string];
 type FeatureLine = { t: Token[]; bg?: string; bl?: string };
 
-const L = (...t: Token[]): FeatureLine => ({ t });
+function L(...t: Token[]): FeatureLine;
+function L(opts: { bg: string; bl: string }, ...t: Token[]): FeatureLine;
+function L(...args: (Token | { bg: string; bl: string })[]): FeatureLine {
+  const first = args[0];
+  if (first && !Array.isArray(first)) {
+    const { bg, bl } = first as { bg: string; bl: string };
+    return { t: args.slice(1) as Token[], bg, bl };
+  }
+  return { t: args as Token[] };
+}
 
 // ── Inline code in descriptions ─────────────────────────────
 
@@ -149,8 +158,8 @@ const PAGES = [
     code: [
       L([K, 'const'], [T, ' todos '], [K, '='], [T, ' d.'], [F, 'table'], [T, '('], [S, "'todos'"], [T, ', {']),
       L([T, '  id'], [K, ':'], [T, '   d.'], [F, 'uuid'], [T, '().'], [F, 'primary'], [T, '(),']),
-      { t: [[E, '- '], [T, 'title'], [K, ':'], [T, ' d.'], [F, 'text'], [T, '(),']], bg: 'rgba(239,68,68,0.08)', bl: '3px solid #ef4444' },
-      { t: [['color:#22c55e', '+ '], [T, 'name'], [K, ':'], [T, '  d.'], [F, 'text'], [T, '(),']], bg: 'rgba(34,197,94,0.08)', bl: '3px solid #22c55e' },
+      L({ bg: 'rgba(239,68,68,0.08)', bl: '3px solid #ef4444' }, [E, '- '], [T, 'title'], [K, ':'], [T, ' d.'], [F, 'text'], [T, '(),']),
+      L({ bg: 'rgba(34,197,94,0.08)', bl: '3px solid #22c55e' }, ['color:#22c55e', '+ '], [T, 'name'], [K, ':'], [T, '  d.'], [F, 'text'], [T, '(),']),
       L([T, '  done'], [K, ':'], [T, '  d.'], [F, 'boolean'], [T, '().'], [F, 'default'], [T, '('], [N, 'false'], [T, '),']),
       L([T, '});']),
       L(),
