@@ -1,0 +1,204 @@
+---
+title: Generated SDK
+description: 'API reference for the generated typed client — entity methods, Result type, and query/form integration'
+---
+
+The Vertz codegen produces a fully typed SDK from your entity and service definitions. Every method returns a `Result` — no thrown exceptions for HTTP errors. SDK methods plug directly into `query()` and `form()`.
+
+## Creating the client
+
+```ts
+import { createClient } from '.vertz/generated/client';
+
+const api = createClient({
+  baseURL: '/api',
+});
+```
+
+The codegen generates `createClient()` based on your entity definitions. Each entity becomes a property on the client with typed CRUD methods.
+
+## Entity methods
+
+```ts
+// List — returns QueryDescriptor, works with query()
+api.tasks.list({ status: 'todo' });
+
+// Get by ID
+api.tasks.get('task-123');
+
+// Create — works with form()
+api.tasks.create;
+
+// Update
+api.tasks.update;
+
+// Delete
+api.tasks.delete('task-123');
+
+// Custom actions (if defined on the entity)
+api.tasks.archive('task-123', { reason: 'Sprint complete' });
+```
+
+### Read methods return QueryDescriptor
+
+Calling `.list()` or `.get()` returns a `QueryDescriptor` — not a raw Promise. This descriptor carries the fetch function, a deterministic cache key, and entity metadata. Pass it directly to `query()`:
+
+```tsx
+import { query } from '@vertz/ui/query';
+
+function TaskList() {
+  const tasks = query(api.tasks.list());
+
+  return (
+    <div>
+      {tasks.loading && <p>Loading...</p>}
+      {tasks.data?.items.map((task) => (
+        <div key={task.id}>{task.title}</div>
+      ))}
+    </div>
+  );
+}
+```
+
+Two components calling `api.tasks.list({ status: 'todo' })` share the same cache entry — the cache key is derived from the HTTP method, path, and sorted query parameters.
+
+### Mutation methods work with form()
+
+Pass a mutation method (`.create`, `.update`) to `form()`. The codegen attaches the entity's validation schema to the method metadata, so `form()` picks it up automatically:
+
+```tsx
+import { form } from '@vertz/ui/form';
+
+function CreateTaskForm({ onSuccess }: { onSuccess: () => void }) {
+  const taskForm = form(api.tasks.create, { onSuccess });
+
+  return (
+    <form action={taskForm.action} method={taskForm.method} onSubmit={taskForm.onSubmit}>
+      <input name="title" />
+      {taskForm.title.error && <span>{taskForm.title.error}</span>}
+      <button type="submit" disabled={taskForm.submitting}>
+        Create
+      </button>
+    </form>
+  );
+}
+```
+
+---
+
+## Result type
+
+Every SDK method returns `Result<T, FetchError>` — a discriminated union, never a thrown exception.
+
+```ts
+type Result<T, E> = { ok: true; data: T } | { ok: false; error: E };
+```
+
+### Checking results
+
+```ts
+const result = await api.tasks.get('task-123');
+
+if (result.ok) {
+  console.log(result.data.title); // typed as Task
+} else {
+  console.log(result.error.status); // typed as FetchError
+}
+```
+
+### Error status codes
+
+When `result.ok` is `false`, `result.error` has a `status` property matching the HTTP response:
+
+| Status | Error class                |
+| ------ | -------------------------- |
+| 400    | `BadRequestError`          |
+| 401    | `UnauthorizedError`        |
+| 403    | `ForbiddenError`           |
+| 404    | `NotFoundError`            |
+| 409    | `ConflictError`            |
+| 422    | `UnprocessableEntityError` |
+| 429    | `RateLimitError`           |
+| 500    | `InternalServerError`      |
+| 503    | `ServiceUnavailableError`  |
+
+### Handling errors in SDK calls
+
+```ts
+const result = await api.tasks.get('nonexistent');
+
+if (!result.ok) {
+  switch (result.error.status) {
+    case 404:
+      console.log('Task not found');
+      break;
+    case 401:
+      redirectToLogin();
+      break;
+  }
+}
+```
+
+<Warning>
+  SDK methods never throw for HTTP errors. Always check `result.ok` before accessing `result.data`.
+  If you `await` a QueryDescriptor directly (outside of `query()`), you get a `Result` back — not
+  the data directly.
+</Warning>
+
+---
+
+## QueryDescriptor vs await
+
+A QueryDescriptor is `PromiseLike` — you can await it directly for one-off calls. But for reactive UI, always use `query()`:
+
+```ts
+// One-off call (e.g., in a loader or event handler) — returns Result
+const result = await api.tasks.get('task-123');
+if (result.ok) {
+  /* ... */
+}
+
+// Reactive UI — use query() for automatic updates
+const task = query(api.tasks.get('task-123'));
+// task.data, task.loading, task.error are reactive
+```
+
+---
+
+## List responses
+
+List endpoints return `ListResponse<T>`:
+
+```ts
+interface ListResponse<T> {
+  items: T[];
+  total: number;
+  limit: number;
+  nextCursor: string | null;
+  hasNextPage: boolean;
+}
+```
+
+```tsx
+const tasks = query(api.tasks.list({ limit: 20 }));
+
+// tasks.data is typed as ListResponse<Task>
+const { items, total, hasNextPage } = tasks.data;
+```
+
+---
+
+## Invalidation
+
+After a mutation, invalidate related queries to trigger a refetch:
+
+```ts
+import { invalidate } from '@vertz/ui/query';
+
+async function handleDelete(taskId: string) {
+  const result = await api.tasks.delete(taskId);
+  if (result.ok) {
+    invalidate('task-list');
+  }
+}
+```

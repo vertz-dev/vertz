@@ -1,0 +1,108 @@
+---
+title: Icons
+description: 'Tree-shakeable Lucide icons for Vertz components'
+---
+
+Vertz provides `@vertz/icons`, a package of 1,932 tree-shakeable [Lucide](https://lucide.dev) icon components. Each icon is an individual named export, so your bundler only includes the icons you actually use.
+
+## Installation
+
+```bash
+bun add @vertz/icons
+```
+
+## Usage
+
+Import icons by name and use them in JSX:
+
+```tsx
+import { SearchIcon, SettingsIcon, UserIcon } from '@vertz/icons';
+
+export function Toolbar() {
+  return (
+    <nav className={styles.toolbar}>
+      <button>
+        <SearchIcon /> Search
+      </button>
+      <button>
+        <SettingsIcon /> Settings
+      </button>
+      <button>
+        <UserIcon /> Profile
+      </button>
+    </nav>
+  );
+}
+```
+
+Icons render as `<span>` elements containing an inline SVG. They use `currentColor` for stroke color, so they inherit the text color of their parent element.
+
+## IconProps
+
+Every icon function accepts an optional `IconProps` object:
+
+| Prop        | Type     | Default | Description                                    |
+| ----------- | -------- | ------- | ---------------------------------------------- |
+| `size`      | `number` | `16`    | Width and height in pixels                     |
+| `className` | `string` | --      | CSS class name applied to the wrapper `<span>` |
+
+```tsx
+import { GithubIcon, ExternalLinkIcon } from '@vertz/icons';
+
+{
+  /* Default size (16px) */
+}
+<GithubIcon />;
+
+{
+  /* Custom size */
+}
+<GithubIcon size={24} />;
+
+{
+  /* With a CSS class */
+}
+<ExternalLinkIcon className={styles.icon} />;
+```
+
+## Styling icons
+
+Since icons use `currentColor`, they automatically match the text color set by `css()` tokens:
+
+```tsx
+import { css } from 'vertz/ui';
+import { AlertCircleIcon, CheckCircleIcon } from '@vertz/icons';
+
+const styles = css({
+  error: ['text:danger.500', 'flex', 'items:center', 'gap:2'],
+  success: ['text:success.600', 'flex', 'items:center', 'gap:2'],
+});
+
+function StatusMessage({ type, message }: StatusMessageProps) {
+  return type === 'error' ? (
+    <div className={styles.error}>
+      <AlertCircleIcon size={20} />
+      <span>{message}</span>
+    </div>
+  ) : (
+    <div className={styles.success}>
+      <CheckCircleIcon size={20} />
+      <span>{message}</span>
+    </div>
+  );
+}
+```
+
+## Naming convention
+
+Icon names follow the pattern `PascalCaseIcon` -- the Lucide icon name in PascalCase with an `Icon` suffix:
+
+| Lucide name     | Import             |
+| --------------- | ------------------ |
+| `github`        | `GithubIcon`       |
+| `arrow-right`   | `ArrowRightIcon`   |
+| `check-circle`  | `CheckCircleIcon`  |
+| `external-link` | `ExternalLinkIcon` |
+| `search`        | `SearchIcon`       |
+
+Browse all available icons at [lucide.dev/icons](https://lucide.dev/icons).

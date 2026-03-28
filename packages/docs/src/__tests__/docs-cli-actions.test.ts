@@ -1,4 +1,5 @@
-import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'bun:test';
+import { GlobalRegistrator } from '@happy-dom/global-registrator';
 import { existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -29,6 +30,81 @@ describe('docsInitAction', () => {
     const result = await docsInitAction({ projectDir: join(testDir, 'nonexistent') });
 
     expect(result.ok).toBe(false);
+  });
+});
+
+describe('createDocsDevServer — static files', () => {
+  let testDir: string;
+  let server: { port: number; hostname: string; stop(): void } | null = null;
+
+  // Bun.serve() requires native Response — unregister happy-dom for these tests
+  beforeAll(() => {
+    GlobalRegistrator.unregister();
+  });
+  afterAll(() => {
+    GlobalRegistrator.register();
+  });
+
+  beforeEach(() => {
+    testDir = join(tmpdir(), `docs-dev-static-${Date.now()}`);
+    mkdirSync(join(testDir, 'pages'), { recursive: true });
+    mkdirSync(join(testDir, 'public'), { recursive: true });
+
+    writeFileSync(
+      join(testDir, 'vertz.config.ts'),
+      `export default { name: 'Test', sidebar: [{ tab: 'Guides', groups: [{ title: 'Default', pages: ['index'] }] }] };`,
+    );
+    writeFileSync(join(testDir, 'pages', 'index.mdx'), '# Hello\n');
+    writeFileSync(join(testDir, 'public', 'favicon.svg'), '<svg>fav</svg>');
+  });
+
+  afterEach(() => {
+    if (server) {
+      server.stop();
+      server = null;
+    }
+    rmSync(testDir, { recursive: true, force: true });
+  });
+
+  it('serves files from public/ directory', async () => {
+    const { createDocsDevServer } = await import('../dev/docs-dev-server');
+    server = await createDocsDevServer({ projectDir: testDir, port: 0 });
+    const res = await fetch(`http://${server.hostname}:${server.port}/favicon.svg`);
+    expect(res.status).toBe(200);
+    const text = await res.text();
+    expect(text).toBe('<svg>fav</svg>');
+  });
+
+  it('returns 404 for files not in routes or public/', async () => {
+    const { createDocsDevServer } = await import('../dev/docs-dev-server');
+    server = await createDocsDevServer({ projectDir: testDir, port: 0 });
+    const res = await fetch(`http://${server.hostname}:${server.port}/nonexistent.txt`);
+    expect(res.status).toBe(404);
+  });
+
+  it('returns 404 for directory paths in public/', async () => {
+    mkdirSync(join(testDir, 'public', 'subdir'), { recursive: true });
+    writeFileSync(join(testDir, 'public', 'subdir', 'file.txt'), 'nested');
+    const { createDocsDevServer } = await import('../dev/docs-dev-server');
+    server = await createDocsDevServer({ projectDir: testDir, port: 0 });
+    const res = await fetch(`http://${server.hostname}:${server.port}/subdir`);
+    expect(res.status).toBe(404);
+  });
+
+  it('blocks path traversal attempts in static file serving', async () => {
+    const { createDocsDevServer } = await import('../dev/docs-dev-server');
+    server = await createDocsDevServer({ projectDir: testDir, port: 0 });
+    const res = await fetch(`http://${server.hostname}:${server.port}/../package.json`);
+    expect(res.status).toBe(404);
+  });
+
+  it('serves pages with extensionless sidebar paths', async () => {
+    const { createDocsDevServer } = await import('../dev/docs-dev-server');
+    server = await createDocsDevServer({ projectDir: testDir, port: 0 });
+    const res = await fetch(`http://${server.hostname}:${server.port}/`);
+    expect(res.status).toBe(200);
+    const html = await res.text();
+    expect(html).toContain('Hello');
   });
 });
 

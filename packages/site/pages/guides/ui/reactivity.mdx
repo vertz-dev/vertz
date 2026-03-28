@@ -1,0 +1,252 @@
+---
+title: Reactivity
+description: 'Fine-grained reactivity with let, const, and signals'
+---
+
+Vertz uses a compiler-driven reactivity model. You write plain `let` and `const` — the compiler transforms them into signals and computed values. When data changes, only the specific DOM nodes that depend on it are updated.
+
+## State with `let`
+
+Declare local state with `let`. The compiler transforms it into a signal.
+
+```tsx
+export function Counter() {
+  let count = 0;
+  let name = 'World';
+
+  return (
+    <div>
+      <p>
+        Hello, {name}! Count: {count}
+      </p>
+      <button onClick={() => count++}>+</button>
+      <input
+        value={name}
+        onInput={(e) => {
+          name = (e.target as HTMLInputElement).value;
+        }}
+      />
+    </div>
+  );
+}
+```
+
+Behind the scenes, `let count = 0` becomes `const count = signal(0)`, and `count++` becomes `count.value++`. You never see or write this — the compiler handles it.
+
+### What the compiler transforms
+
+| You write        | Compiler produces                        |
+| ---------------- | ---------------------------------------- |
+| `let count = 0`  | `const count = signal(0)`                |
+| `count++`        | `count.value++`                          |
+| `count = 10`     | `count.value = 10`                       |
+| `{count}` in JSX | Reactive text node reading `count.value` |
+
+## Derived values with `const`
+
+Declare derived values with `const`. If the expression depends on a signal, the compiler wraps it in `computed()`.
+
+```tsx
+export function ShoppingCart() {
+  let items: CartItem[] = [];
+
+  // These are automatically computed values
+  const totalItems = items.length;
+  const totalPrice = items.reduce((sum, item) => sum + item.price, 0);
+  const isEmpty = items.length === 0;
+  const summary = isEmpty
+    ? 'Your cart is empty'
+    : `${totalItems} items — $${totalPrice.toFixed(2)}`;
+
+  return (
+    <div>
+      <p>{summary}</p>
+      {!isEmpty && <button onClick={checkout}>Checkout</button>}
+    </div>
+  );
+}
+```
+
+The compiler sees that `totalItems`, `totalPrice`, `isEmpty`, and `summary` all depend on `items` (a signal) and wraps each one in `computed()`. When `items` changes, these recompute — and only the DOM nodes that read them update.
+
+### Rules for `const`
+
+- The right side must be an expression (not a function declaration)
+- The compiler only wraps it if it detects a reactive dependency
+- If there's no reactive dependency, it stays a plain `const` — zero overhead
+
+## Effects with `watch()`
+
+Use `watch()` to run side effects when a signal changes. This is for side effects only — not for deriving values.
+
+```tsx
+import { watch } from 'vertz/ui';
+
+export function ThemeSettings() {
+  let theme = 'light';
+
+  // Side effect: update document class when theme changes
+  watch(
+    () => theme,
+    (newTheme) => {
+      document.documentElement.className = newTheme;
+    },
+  );
+
+  return (
+    <select
+      onChange={(e) => {
+        theme = (e.target as HTMLSelectElement).value;
+      }}
+    >
+      <option value="light">Light</option>
+      <option value="dark">Dark</option>
+    </select>
+  );
+}
+```
+
+<Warning>
+  Don't use `watch()` to sync derived values — use `const` instead. The compiler handles the computed wrapper automatically.
+
+```tsx
+// Wrong — don't bridge values with watch
+let count = 0;
+let doubled = 0;
+watch(
+  () => count,
+  (c) => {
+    doubled = c * 2;
+  },
+);
+
+// Correct — const is automatically computed
+let count = 0;
+const doubled = count * 2;
+```
+
+</Warning>
+
+## Reactive props
+
+When you pass an expression to a child component, the compiler generates a getter so the child receives a live binding — not a snapshot.
+
+```tsx
+export function Parent() {
+  let count = 0;
+
+  return (
+    <div>
+      <button onClick={() => count++}>+</button>
+      {/* The compiler generates: { get doubled() { return count * 2; } } */}
+      <Display doubled={count * 2} />
+    </div>
+  );
+}
+
+export function Display({ doubled }: { doubled: number }) {
+  // `doubled` is always current — no stale props
+  return <span>{doubled}</span>;
+}
+```
+
+The `Display` component runs once. When `count` changes in the parent, the getter fires and only the `<span>` text updates. The `Display` function is never re-executed.
+
+## Reactive attributes
+
+Signal-derived expressions work directly in JSX attributes:
+
+```tsx
+let isActive = false;
+let isDisabled = false;
+
+return (
+  <button
+    className={isActive ? 'btn-primary' : 'btn-ghost'}
+    disabled={isDisabled}
+    aria-pressed={isActive ? 'true' : 'false'}
+    style={isActive ? 'font-weight: bold' : ''}
+    onClick={() => {
+      isActive = !isActive;
+    }}
+  >
+    Toggle
+  </button>
+);
+```
+
+Each attribute updates independently. Changing `isActive` updates `className`, `aria-pressed`, and `style` — but doesn't touch `disabled`.
+
+## Batch updates
+
+Multiple signal writes in the same synchronous block are batched automatically:
+
+```tsx
+let firstName = '';
+let lastName = '';
+let age = 0;
+
+function resetForm() {
+  // These three writes are batched — the DOM updates once, not three times
+  firstName = '';
+  lastName = '';
+  age = 0;
+}
+```
+
+For cases where you need explicit batching across async boundaries, use `batch()`:
+
+```tsx
+import { batch } from 'vertz/ui';
+
+async function loadUser(id: string) {
+  const user = await fetchUser(id);
+  batch(() => {
+    firstName = user.firstName;
+    lastName = user.lastName;
+    age = user.age;
+  });
+}
+```
+
+## Context
+
+Share state across components without prop drilling using `createContext()`:
+
+```tsx
+import { createContext, useContext } from 'vertz/ui';
+
+interface AppSettings {
+  theme: string;
+  setTheme: (theme: string) => void;
+}
+
+const SettingsContext = createContext<AppSettings>();
+
+// Provider — wraps a subtree
+export function SettingsProvider() {
+  let theme = 'light';
+
+  return SettingsContext.Provider(
+    {
+      theme,
+      setTheme: (t: string) => {
+        theme = t;
+      },
+    },
+    () => <App />,
+  );
+}
+
+// Consumer — reads from the nearest provider
+export function ThemeToggle() {
+  const settings = useContext(SettingsContext);
+  if (!settings) throw new Error('Must be inside SettingsProvider');
+
+  return (
+    <button onClick={() => settings.setTheme(settings.theme === 'light' ? 'dark' : 'light')}>
+      Current: {settings.theme}
+    </button>
+  );
+}
+```

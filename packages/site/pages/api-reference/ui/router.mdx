@@ -1,0 +1,357 @@
+---
+title: Router
+description: 'API reference for defineRoutes(), createRouter(), RouterView, and Link'
+---
+
+The Vertz router provides type-safe, file-system-free routing with loaders, nested layouts, and search param parsing. Route patterns are inferred from your route map, so typos in `navigate()` calls and missing params are caught at compile time.
+
+## defineRoutes()
+
+Define your route map. The `const` modifier preserves literal path types for type-safe navigation.
+
+```ts
+import { defineRoutes } from '@vertz/ui/router';
+
+const routes = defineRoutes({
+  '/': {
+    component: () => HomePage(),
+  },
+  '/tasks': {
+    component: () => TaskListPage(),
+    loader: async () => {
+      const res = await taskApi.list();
+      return res.ok ? res.data : [];
+    },
+  },
+  '/tasks/:id': {
+    component: () => TaskDetailPage(),
+    params: { id: (v) => Number(v) },
+  },
+});
+```
+
+### Signature
+
+```ts
+function defineRoutes<const T extends Record<string, RouteConfigLike>>(map: T): TypedRoutes<T>;
+```
+
+### RouteConfig
+
+| Property         | Type                                                                  | Description                                                        |
+| ---------------- | --------------------------------------------------------------------- | ------------------------------------------------------------------ |
+| `component`      | `() => Node \| Promise<{ default: () => Node }>`                      | Component to render (supports lazy imports)                        |
+| `loader`         | `(ctx: { params, signal }) => Promise<T> \| T`                        | Data loader — runs before the component renders                    |
+| `errorComponent` | `(error: Error) => Node`                                              | Fallback component when loader fails                               |
+| `params`         | `ParamSchema`                                                         | Parse and validate route params (`:id` → `number`)                 |
+| `searchParams`   | `SearchParamSchema`                                                   | Parse and validate search/query params                             |
+| `children`       | `RouteDefinitionMap`                                                  | Nested routes (rendered via `Outlet`)                              |
+| `prerender`      | `boolean`                                                             | Pre-render this route at build time (`true` = SSG, `false` = skip) |
+| `generateParams` | `() => Record<string, string>[] \| Promise<Record<string, string>[]>` | Generate param combinations for pre-rendering dynamic routes       |
+
+---
+
+## createRouter()
+
+Create a router instance from a route definition.
+
+```ts
+import { createRouter, defineRoutes } from '@vertz/ui/router';
+
+const routes = defineRoutes({
+  /* ... */
+});
+const router = createRouter(routes);
+```
+
+### Signature
+
+```ts
+function createRouter<T extends Record<string, RouteConfigLike>>(
+  routes: TypedRoutes<T>,
+  initialUrl?: string,
+  options?: RouterOptions,
+): Router<T>;
+```
+
+### Parameters
+
+| Parameter    | Type             | Description                                              |
+| ------------ | ---------------- | -------------------------------------------------------- |
+| `routes`     | `TypedRoutes<T>` | Compiled route list from `defineRoutes()`                |
+| `initialUrl` | `string`         | Override URL (used in SSR to set the server request URL) |
+| `options`    | `RouterOptions`  | Configuration for server navigation and prefetching      |
+
+### RouterOptions
+
+| Option      | Type                              | Default | Description                                              |
+| ----------- | --------------------------------- | ------- | -------------------------------------------------------- |
+| `serverNav` | `boolean \| { timeout?: number }` | `false` | Enable server-side navigation (SSR prefetch on navigate) |
+
+### Router\<T\>
+
+| Property          | Type                                                                           | Description                                     |
+| ----------------- | ------------------------------------------------------------------------------ | ----------------------------------------------- |
+| `current`         | `RouteMatch \| null`                                                           | Current matched route (reactive)                |
+| `loaderData`      | `unknown[]`                                                                    | Data from the matched route's loader (reactive) |
+| `loaderError`     | `Error \| null`                                                                | Error from the loader, if any (reactive)        |
+| `searchParams`    | `Record<string, unknown>`                                                      | Parsed search params (reactive)                 |
+| `navigate(input)` | `<TPath extends keyof T & string>(input: { to: TPath, ... }) => Promise<void>` | Navigate to a route pattern with typed params   |
+| `revalidate()`    | `() => Promise<void>`                                                          | Re-run the current route's loader               |
+| `dispose()`       | `() => void`                                                                   | Clean up the router                             |
+
+---
+
+## RouterView
+
+Renders the component matched by the current route.
+
+```tsx
+import { createRouter, defineRoutes, RouterView } from '@vertz/ui/router';
+
+const routes = defineRoutes({
+  /* ... */
+});
+const router = createRouter(routes);
+
+function App() {
+  return (
+    <div>
+      <nav>...</nav>
+      <RouterView router={router} fallback={() => <div>Page not found</div>} />
+    </div>
+  );
+}
+```
+
+### Props
+
+| Prop       | Type         | Description                               |
+| ---------- | ------------ | ----------------------------------------- |
+| `router`   | `Router`     | Router instance                           |
+| `fallback` | `() => Node` | Component to render when no route matches |
+
+---
+
+## Outlet
+
+Renders nested child routes inside a layout component. Must be used within a component rendered by `RouterView`.
+
+```tsx
+const routes = defineRoutes({
+  '/dashboard': {
+    component: () => DashboardLayout(),
+    children: {
+      '/': { component: () => DashboardHome() },
+      '/settings': { component: () => DashboardSettings() },
+    },
+  },
+});
+
+function DashboardLayout() {
+  return (
+    <div className={styles.layout}>
+      <Sidebar />
+      <main>
+        <Outlet />
+      </main>
+    </div>
+  );
+}
+```
+
+---
+
+## useRouter()
+
+Access the router instance from any component in the tree. Must be called within `RouterContext.Provider` (set up automatically by `RouterView`).
+
+```tsx
+import { useRouter } from '@vertz/ui/router';
+
+function TaskCard({ taskId }: { taskId: string }) {
+  const router = useRouter();
+
+  const handleClick = () => {
+    router.navigate({ to: '/tasks/:id', params: { id: taskId } });
+  };
+
+  return <div onClick={handleClick}>...</div>;
+}
+```
+
+### Signature
+
+```ts
+function useRouter<T extends Record<string, RouteConfigLike>>(): UnwrapSignals<Router<T>>;
+```
+
+In scaffolded apps, codegen writes `.vertz/generated/router.d.ts`, which augments
+`useRouter()` with your app's route map so `navigate()` is typed by default. You
+can still pass a generic manually in non-generated setups.
+
+---
+
+## useParams()
+
+Read the current route's parsed parameters.
+
+```tsx
+import { useParams } from '@vertz/ui/router';
+
+function TaskDetailPage() {
+  const { id } = useParams<'/tasks/:id'>();
+  // id is typed based on the path pattern
+  return <div>Task {id}</div>;
+}
+```
+
+### Signature
+
+```ts
+function useParams<TPath extends string>(): ExtractParams<TPath>;
+```
+
+When a `params` schema is defined on the route config, `useParams()` returns the parsed values (e.g., `id` as `number` instead of `string`).
+
+---
+
+## useSearchParams()
+
+Read and write the current route's search (query) params as a reactive proxy. Reads trigger signal tracking; writes batch-navigate to update the URL.
+
+```tsx
+import { useSearchParams } from '@vertz/ui/router';
+
+function SearchPage() {
+  const sp = useSearchParams();
+
+  // Read: reactive — re-renders when URL changes
+  const query = sp.q;
+  const page = sp.page;
+
+  // Write: batched — multiple writes = single URL update
+  sp.q = 'dragon';
+  sp.page = 2;
+
+  // Explicit navigate with push (creates history entry)
+  sp.navigate({ sort: 'price' }, { push: true });
+
+  // Remove a param
+  delete sp.sort;
+}
+```
+
+### With a search params schema
+
+Define a schema on the route to get typed, coerced values:
+
+```tsx
+import { s } from '@vertz/schema';
+import { defineRoutes } from '@vertz/ui/router';
+
+const routes = defineRoutes({
+  '/search': {
+    component: () => SearchPage(),
+    searchParams: s.object({
+      q: s.string().default(''),
+      page: s.coerce.number().default(1),
+    }),
+  },
+});
+
+function SearchPage() {
+  // With route path generic: sp.q is string, sp.page is number
+  const sp = useSearchParams<'/search'>();
+}
+```
+
+### Signatures
+
+```ts
+// Route path generic — infers types from route schema
+function useSearchParams<TPath extends string>(): ReactiveSearchParams<ExtractSearchParams<TPath>>;
+
+// Explicit type assertion
+function useSearchParams<T extends Record<string, unknown>>(): ReactiveSearchParams<T>;
+
+// No generic — returns Record<string, string>
+function useSearchParams(): ReactiveSearchParams<Record<string, string>>;
+```
+
+### ReactiveSearchParams
+
+| Property/Method               | Type       | Description                                                       |
+| ----------------------------- | ---------- | ----------------------------------------------------------------- |
+| `sp[key]`                     | `unknown`  | Read a search param (reactive)                                    |
+| `sp[key] = value`             | —          | Write a search param (batched, replaces URL)                      |
+| `delete sp[key]`              | —          | Remove a search param                                             |
+| `sp.navigate(partial, opts?)` | `void`     | Merge params and navigate. `{ push: true }` creates history entry |
+| `Object.keys(sp)`             | `string[]` | Current param names                                               |
+| `{ ...sp }`                   | `object`   | Snapshot of current params                                        |
+
+### SSR behavior
+
+During SSR, reads return the values from the request URL. Writes throw an error in development to catch accidental server-side mutations.
+
+---
+
+## createLink()
+
+Create a Link component factory bound to a router's state. Used internally — most apps use the Link component via `RouterView` setup.
+
+```tsx
+import { createLink } from '@vertz/ui/router';
+
+const Link = createLink(router.current, (url) =>
+  router.navigate({ to: url as Parameters<typeof router.navigate>[0]['to'] }),
+);
+```
+
+### LinkProps
+
+| Prop          | Type                     | Description                                               |
+| ------------- | ------------------------ | --------------------------------------------------------- |
+| `href`        | `string`                 | Target URL                                                |
+| `children`    | `string \| (() => Node)` | Link content                                              |
+| `activeClass` | `string`                 | CSS class applied when the link matches the current route |
+| `className`   | `string`                 | Base CSS class                                            |
+| `prefetch`    | `'hover'`                | Prefetch route data on hover                              |
+
+---
+
+## Types
+
+```ts
+interface RouteMatch {
+  params: Record<string, string>;
+  parsedParams?: Record<string, unknown>;
+  route: CompiledRoute;
+  matched: MatchedRoute[];
+  searchParams: URLSearchParams;
+  search: Record<string, unknown>;
+}
+
+interface NavigateOptions {
+  replace?: boolean;
+  params?: Record<string, string>;
+  search?: string | URLSearchParams | Record<string, string | number | boolean>;
+}
+
+type NavigateInput<TPath extends string> = {
+  to: TPath;
+} & NavigateOptions;
+
+type RoutePattern<T extends Record<string, RouteConfigLike>> = keyof T & string;
+type RoutePaths<T extends Record<string, RouteConfigLike>> = /* concrete URL union */;
+type ExtractParams<TPath extends string> = /* extracted param object */;
+type ExtractSearchParams<TPath extends string, TMap = RouteDefinitionMap> =
+  /* search param schema output, or Record<string, string> */;
+type InferRouteMap<T> = T extends TypedRoutes<infer R> ? R : T;
+type TypedRoutes<T> = CompiledRoute[] & { readonly __routes: T };
+
+interface ReactiveSearchParams<T = Record<string, unknown>> {
+  navigate(partial: Partial<T>, options?: { push?: boolean }): void;
+  [key: string]: unknown;
+}
+```

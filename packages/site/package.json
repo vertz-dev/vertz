@@ -1,0 +1,15 @@
+{
+  "name": "@vertz/site",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Vertz documentation site — built with @vertz/docs",
+  "scripts": {
+    "dev": "vertz docs dev",
+    "build": "vertz docs build",
+    "check": "vertz docs check"
+  },
+  "dependencies": {
+    "@vertz/cli": "workspace:^",
+    "@vertz/docs": "workspace:^"
+  }
+}

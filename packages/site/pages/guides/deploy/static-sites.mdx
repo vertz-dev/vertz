@@ -1,0 +1,326 @@
+---
+title: Static Sites
+description: 'Deploy a static Vertz site (landing page, docs, marketing) to Cloudflare Workers'
+---
+
+Vertz apps can be deployed as fully static sites — no server required. The build script SSR-renders your pages at build time, bundles client JS for interactivity, and outputs a `dist/` directory you can deploy anywhere. This guide uses Cloudflare Workers, but the output works with any static host.
+
+## When to use this
+
+Static deployment is ideal for:
+
+- Landing pages
+- Marketing sites
+- Documentation
+- Any page where content doesn't change per-request
+
+If your app needs per-request SSR (dynamic data, auth, personalized content), use a [Cloudflare Worker with SSR](/guides/deploy/cloudflare) instead.
+
+## Project structure
+
+A static Vertz site has the same structure as any Vertz UI app:
+
+```
+my-site/
+├── src/
+│   ├── app.tsx              # App component + SSR exports
+│   ├── entry-client.ts      # Client hydration entry
+│   ├── dev-server.ts        # Dev server config
+│   └── components/          # Your components
+├── public/                  # Static assets (images, fonts, etc.)
+├── scripts/
+│   └── build.ts             # Production build script
+├── wrangler.toml            # Cloudflare Workers config
+└── package.json
+```
+
+## App entry
+
+Your `app.tsx` exports the app component and SSR metadata — same as any Vertz app:
+
+```tsx
+// src/app.tsx
+import { getInjectedCSS, ThemeProvider } from 'vertz/ui';
+import { Hero } from './components/hero';
+import { appTheme, themeGlobals } from './styles/theme';
+
+export { getInjectedCSS };
+export const theme = appTheme;
+export const styles = [themeGlobals.css];
+
+export function App() {
+  return (
+    <ThemeProvider theme="dark">
+      <main>
+        <Hero />
+      </main>
+    </ThemeProvider>
+  );
+}
+```
+
+## Client entry
+
+The client entry hydrates the server-rendered HTML for interactivity:
+
+```ts
+// src/entry-client.ts
+import { mount } from 'vertz/ui';
+import { App, styles } from './app';
+import { appTheme } from './styles/theme';
+
+mount(App, {
+  theme: appTheme,
+  styles,
+});
+```
+
+## Dev server
+
+For local development, use the standard Vertz dev server:
+
+```ts
+// src/dev-server.ts
+import { createBunDevServer } from '@vertz/ui-server/bun-dev-server';
+
+const devServer = createBunDevServer({
+  entry: './src/app.tsx',
+  clientEntry: './src/entry-client.ts',
+  port: 4000,
+  ssrModule: true,
+  title: 'My Site',
+});
+
+await devServer.start();
+```
+
+## Build script
+
+The build script produces a self-contained `dist/` directory. It:
+
+1. **Builds the client JS bundle** using `Bun.build()` with the Vertz compiler plugin
+2. **Extracts CSS** from component `css()` calls
+3. **Copies public assets** to `dist/public/`
+4. **SSR-renders the page** by starting the dev server and capturing its output
+5. **Strips dev-only scripts** (HMR, WebSocket overlay, reload guard)
+6. **Injects production head tags** (meta, OG, fonts, client bundle reference)
+
+```ts
+// scripts/build.ts
+import { cpSync, existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { resolve } from 'node:path';
+import { createVertzBunPlugin } from '@vertz/ui-server/bun-plugin';
+
+const ROOT = resolve(import.meta.dir, '..');
+const DIST = resolve(ROOT, 'dist');
+const PORT = 4100;
+
+// ── 1. Build client JS bundle ──────────────────────────────
+rmSync(DIST, { recursive: true, force: true });
+mkdirSync(resolve(DIST, 'assets'), { recursive: true });
+
+const { plugin, fileExtractions } = createVertzBunPlugin({
+  hmr: false,
+  fastRefresh: false,
+  projectRoot: ROOT,
+});
+
+const clientResult = await Bun.build({
+  entrypoints: [resolve(ROOT, 'src/entry-client.ts')],
+  plugins: [plugin],
+  target: 'browser',
+  minify: true,
+  splitting: true,
+  outdir: resolve(DIST, 'assets'),
+  naming: '[name]-[hash].[ext]',
+});
+
+if (!clientResult.success) {
+  console.error('Client build failed:', clientResult.logs);
+  process.exit(1);
+}
+
+// Collect output paths
+let clientJsPath = '';
+const clientCssPaths: string[] = [];
+
+for (const output of clientResult.outputs) {
+  const rel = output.path.replace(DIST, '');
+  if (output.kind === 'entry-point') clientJsPath = rel;
+  else if (output.path.endsWith('.css')) clientCssPaths.push(rel);
+}
+
+// ── 2. Extract component CSS ───────────────────────────────
+let extractedCss = '';
+for (const [, extraction] of fileExtractions) {
+  if (extraction.css) extractedCss += `${extraction.css}\n`;
+}
+if (extractedCss) {
+  writeFileSync(resolve(DIST, 'assets/vertz.css'), extractedCss);
+  clientCssPaths.push('/assets/vertz.css');
+}
+
+// ── 3. Copy public/ → dist/public/ ────────────────────────
+const publicDir = resolve(ROOT, 'public');
+if (existsSync(publicDir)) {
+  cpSync(publicDir, resolve(DIST, 'public'), { recursive: true });
+}
+
+// ── 4. SSR-render the page ─────────────────────────────────
+const server = Bun.spawn(['bun', 'run', 'src/dev-server.ts'], {
+  cwd: ROOT,
+  env: { ...process.env, PORT: String(PORT) },
+  stdio: ['ignore', 'pipe', 'pipe'],
+});
+
+// Wait for server
+for (let i = 0; i < 60; i++) {
+  try {
+    if ((await fetch(`http://localhost:${PORT}`)).ok) break;
+  } catch {}
+  await Bun.sleep(500);
+}
+
+const html = await fetch(`http://localhost:${PORT}`).then((r) => r.text());
+server.kill();
+
+// ── 5. Strip dev-only scripts ──────────────────────────────
+let clean = html
+  .replace(/<style>bun-hmr\{display:none!important\}[\s\S]*?\}\)\(\)<\/script>/g, '')
+  .replace(/<script>\(function\(\)\{var K="__vertz_reload_count"[\s\S]*?\}\)\(\)<\/script>/g, '')
+  .replace(/<script type="text\/plain"[^>]*data-bun-dev-server-script[^>]*><\/script>/g, '')
+  .replace(/<script>\(\(a\)=>\{document\.addEventListener[\s\S]*?\)<\/script>/g, '')
+  .replace(/<script>\(function\(\)\{var el=document\.querySelector[\s\S]*?\}\)\(\)<\/script>/g, '')
+  .replace(/<script type="module" src="\/src\/entry-client\.ts"><\/script>/g, '');
+
+// ── 6. Inject production head + client bundle ──────────────
+const cssLinks = clientCssPaths.map((p) => `  <link rel="stylesheet" href="${p}" />`).join('\n');
+
+clean = clean.replace(/(<title>[^<]*<\/title>)/, `$1\n${cssLinks}`);
+
+clean = clean.replace(
+  /<\/body>/,
+  `  <script type="module" crossorigin src="${clientJsPath}"></script>\n</body>`,
+);
+
+await Bun.write(resolve(DIST, 'index.html'), clean);
+console.log('✓ Build complete: dist/');
+```
+
+<Note>
+  The build script starts the dev server temporarily to SSR-render the page. This ensures the
+  production HTML matches exactly what you see in development — same components, same data, same
+  CSS. The dev server is killed immediately after the fetch.
+</Note>
+
+## Injecting meta tags
+
+The build script is where you add production-only `<head>` content — meta descriptions, Open Graph tags, fonts, etc. Inject them after the `<title>` tag:
+
+```ts
+const PRODUCTION_HEAD = `
+  <meta name="description" content="Your site description" />
+  <link rel="icon" type="image/svg+xml" href="/public/logo.svg" />
+
+  <meta property="og:title" content="Your Site Title" />
+  <meta property="og:description" content="Your site description" />
+  <meta property="og:image" content="https://yoursite.com/public/og.png" />
+  <meta property="og:url" content="https://yoursite.com" />
+  <meta property="og:type" content="website" />
+
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:image" content="https://yoursite.com/public/og.png" />
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=..." rel="stylesheet" />`;
+
+clean = clean.replace(/(<title>[^<]*<\/title>)/, `$1\n${PRODUCTION_HEAD}`);
+```
+
+For generating OG images programmatically, see the [OG Images guide](/guides/deploy/og-images).
+
+## Wrangler configuration
+
+Configure Cloudflare Workers to serve from `dist/`:
+
+```toml
+# wrangler.toml
+name = "my-site"
+compatibility_date = "2025-01-01"
+workers_dev = true
+
+[assets]
+directory = "./dist"
+not_found_handling = "single-page-application"
+
+[[routes]]
+pattern = "mysite.com"
+custom_domain = true
+```
+
+The `not_found_handling = "single-page-application"` setting returns `index.html` for any path that doesn't match a file — this lets client-side routing work.
+
+## Package scripts
+
+```json
+{
+  "scripts": {
+    "dev": "bun run src/dev-server.ts",
+    "build": "bun run scripts/build.ts",
+    "deploy": "bun run build && bunx wrangler deploy"
+  }
+}
+```
+
+## Deploy
+
+```bash
+# Build and deploy in one command
+bun run deploy
+
+# Or step by step
+bun run build          # Produces dist/
+bunx wrangler deploy   # Uploads dist/ to Cloudflare
+```
+
+The output is a clean `dist/` directory:
+
+```
+dist/
+├── index.html                    # SSR-rendered HTML + meta tags
+├── assets/
+│   ├── entry-client-[hash].js    # Client bundle (minified, hashed)
+│   └── vertz.css                 # Extracted component CSS
+└── public/
+    ├── logo.svg                  # Your static assets
+    └── og.png                    # OG image
+```
+
+<Warning>
+  The dev server's SSR output includes HMR scripts, WebSocket overlays, and Bun dev server
+  bootstrapping code. The build script strips all of these — never deploy the raw dev server output
+  directly.
+</Warning>
+
+## How it differs from full-stack deployment
+
+|                  | Static site                  | Full-stack (Workers)            |
+| ---------------- | ---------------------------- | ------------------------------- |
+| **Server**       | None — static files only     | Cloudflare Worker with SSR      |
+| **Data**         | Build-time only              | Per-request (queries, auth)     |
+| **Build output** | `dist/` with HTML + JS + CSS | `dist/client/` + `dist/server/` |
+| **Use case**     | Landing pages, marketing     | Apps with dynamic data          |
+| **Command**      | `bun run build`              | `vertz build`                   |
+
+<CardGroup cols={2}>
+  <Card title="SSG with generateParams" icon="zap" href="/guides/deploy/ssg">
+    Pre-render dynamic routes at build time
+  </Card>
+  <Card title="OG Images" icon="image" href="/guides/deploy/og-images">
+    Generate Open Graph images for social sharing
+  </Card>
+  <Card title="SSR" icon="server" href="/guides/ui/ssr">
+    Server-side rendering for dynamic apps
+  </Card>
+</CardGroup>

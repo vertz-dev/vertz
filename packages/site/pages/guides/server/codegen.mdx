@@ -1,0 +1,439 @@
+---
+title: Code Generation
+description: 'Generate type-safe client SDKs, entitlement types, and RLS policies from your server configuration'
+---
+
+Vertz's code generator analyzes your server configuration at build time and produces:
+
+1. **Client SDK** — typed RPC client with per-entity CRUD methods and auth operations
+2. **Entity types** — TypeScript types derived from your entity schemas
+3. **`access.d.ts`** — TypeScript declarations that make `ctx.can('typo')` a compile error
+4. **`rls-policies.sql`** (opt-in) — PostgreSQL Row-Level Security policies from `rules.where()` conditions
+
+## Client SDK generation
+
+The primary codegen output is a typed client SDK that gives you end-to-end type safety from entity schemas to query results.
+
+### Configuration
+
+Add a `vertz.config.ts` at your project root:
+
+```ts
+// vertz.config.ts
+
+/** @type {import('@vertz/compiler').VertzConfig} */
+export default {
+  compiler: {
+    entryFile: 'src/api/server.ts',
+  },
+};
+
+/** @type {import('@vertz/codegen').CodegenConfig} */
+export const codegen = {
+  generators: ['typescript'],
+};
+```
+
+### Running codegen
+
+There are three ways to run the code generator:
+
+**1. Via `vertz dev` (recommended)** — codegen runs automatically on startup and re-runs when schema files change:
+
+```bash
+bunx vertz dev
+```
+
+**2. Via `vertz codegen`** — run codegen manually:
+
+```bash
+bunx vertz codegen
+```
+
+**3. As a build step** — chain codegen before your build or dev scripts:
+
+```json
+{
+  "scripts": {
+    "dev": "bun run codegen && bun run src/dev-server.ts",
+    "build": "bun run codegen",
+    "codegen": "bunx vertz codegen"
+  }
+}
+```
+
+<Note>
+  If your app uses a custom dev server (calling `createBunDevServer` directly instead of `vertz
+  dev`), you must run codegen explicitly before starting the server. The `vertz dev` unified command
+  handles this automatically.
+</Note>
+
+### Generated output
+
+Codegen writes files to `.vertz/generated/`:
+
+```
+.vertz/generated/
+  client.ts          # Main SDK entry — import via #generated
+  types/
+    index.ts         # Entity types (create/update inputs, row types)
+  openapi.json       # OpenAPI spec
+  access.d.ts        # Entitlement type declarations
+```
+
+### Using the generated client
+
+Import the generated client via the `#generated` import alias (configured in `package.json`):
+
+```ts
+import { client } from '#generated';
+
+// Typed entity operations
+const tasks = await client.tasks.list();
+const task = await client.tasks.get({ id: '123' });
+await client.tasks.create({ title: 'New task' });
+
+// Auth operations
+const session = await client.auth.session();
+```
+
+The `#generated` alias maps to `.vertz/generated/client.ts`. Scaffolded apps include this in `package.json`:
+
+```json
+{
+  "imports": {
+    "#generated": "./.vertz/generated/client.ts",
+    "#generated/types": "./.vertz/generated/types/index.ts"
+  }
+}
+```
+
+### Including generated types in tsconfig
+
+Make sure `.vertz/generated` is included in your TypeScript config:
+
+```json
+{
+  "compilerOptions": {
+    "strict": true
+  },
+  "include": ["src", ".vertz/generated"]
+}
+```
+
+Scaffolded apps include this by default.
+
+## Type-safe entitlements
+
+### The problem
+
+Without codegen, entitlement strings are untyped:
+
+```ts
+// No error — typo silently fails at runtime
+await ctx.can('projecct:delete');
+
+// No autocomplete — you have to remember every entitlement name
+const check = can('???');
+```
+
+### How it works
+
+The compiler statically extracts all entitlement keys from your `defineAccess()` call. The code generator emits a `access.d.ts` file that augments the `EntitlementRegistry` interface in both `@vertz/server` and `@vertz/ui/auth`:
+
+```ts
+// .vertz/generated/access.d.ts (generated — do not edit)
+
+declare module '@vertz/server' {
+  interface EntitlementRegistry {
+    'project:create': true;
+    'project:delete': true;
+    'project:read': true;
+    'ai:generate': true;
+    'export:pdf': true;
+  }
+}
+
+declare module '@vertz/ui/auth' {
+  interface EntitlementRegistry {
+    'project:create': true;
+    'project:delete': true;
+    'project:read': true;
+    'ai:generate': true;
+    'export:pdf': true;
+  }
+}
+```
+
+When the registry is populated, the `Entitlement` type narrows from `string` to the union of registered keys. This gives you compile-time errors on typos and full autocomplete in your editor.
+
+### Setup
+
+<Steps>
+  <Step title="Define your access model">
+    Create your `defineAccess()` configuration as normal:
+
+    ```ts
+    // src/access.ts
+    import { defineAccess } from '@vertz/server';
+
+    export const access = defineAccess({
+      entities: {
+        organization: { roles: ['owner', 'admin', 'member'] },
+        project: {
+          roles: ['manager', 'contributor', 'viewer'],
+          inherits: {
+            'organization:owner': 'manager',
+            'organization:admin': 'contributor',
+          },
+        },
+      },
+      entitlements: {
+        'project:create': { roles: ['admin'] },
+        'project:delete': { roles: ['admin'] },
+        'project:read': { roles: ['admin', 'contributor', 'viewer'] },
+        'ai:generate': { roles: ['contributor'], plans: ['pro'] },
+      },
+    });
+    ```
+
+  </Step>
+  <Step title="Run codegen">
+    The access type generator runs as part of the standard Vertz codegen pipeline:
+
+    ```bash
+    bunx vertz codegen
+    ```
+
+    This produces `.vertz/generated/access.d.ts`.
+
+  </Step>
+  <Step title="Include generated types in tsconfig">
+    Make sure `.vertz/generated` is included in your TypeScript config:
+
+    ```json
+    {
+      "compilerOptions": {
+        "strict": true
+      },
+      "include": ["src", ".vertz/generated"]
+    }
+    ```
+
+    Scaffolded apps include this by default.
+
+  </Step>
+</Steps>
+
+### What you get
+
+After codegen, entitlement strings are fully typed across both server and client:
+
+```ts
+// Server — ctx.can() is now type-safe
+await ctx.can('project:delete', resource); // OK
+await ctx.can('projecct:delete', resource); // TS error — typo caught
+
+// Client — can() is now type-safe
+const check = can('ai:generate'); // OK — with autocomplete
+const check = can('ai:genrate'); // TS error — typo caught
+
+// ctx.authorize() is also typed
+await ctx.authorize('project:create', resource); // OK
+```
+
+### Backward compatibility
+
+When no codegen output exists (e.g., before running `bunx vertz codegen` for the first time), the `Entitlement` type falls back to `string`. This means:
+
+- Existing code works without codegen — no breakage
+- Type narrowing activates only when generated types are present
+- You can adopt codegen incrementally
+
+### Generated types
+
+In addition to the `EntitlementRegistry`, the generator also produces:
+
+```ts
+// Resource types derived from entity names
+export type ResourceType = 'organization' | 'project';
+
+// Per-entity role unions
+export type Role<T extends ResourceType> = T extends 'organization'
+  ? 'owner' | 'admin' | 'member'
+  : T extends 'project'
+    ? 'manager' | 'contributor' | 'viewer'
+    : string;
+```
+
+These types are available from `.vertz/generated/access.d.ts` for use in your application code.
+
+## RLS policy generation (opt-in)
+
+If your entitlements use `rules.where()` conditions, the code generator can produce PostgreSQL Row-Level Security (RLS) policy SQL from them. This is **opt-in** — you must enable it in your codegen config.
+
+<Note>
+  RLS generation produces a SQL file as a **starting point**. Vertz does not automatically apply or
+  enforce these policies — access control is enforced at the application layer via
+  `enforceAccess()`. The generated SQL is for teams that want to add database-level row filtering as
+  an additional security layer on PostgreSQL.
+</Note>
+
+### Enabling RLS generation
+
+Add `typescript.rls: true` to your codegen config:
+
+```ts
+// vertz.config.ts
+export const codegen = {
+  generators: ['typescript'],
+  typescript: {
+    rls: true,
+  },
+};
+```
+
+### How it works
+
+The compiler statically analyzes `rules.where()` calls inside your `defineAccess()` entitlements and extracts the conditions. The code generator translates these into `CREATE POLICY` statements:
+
+```ts
+// Your defineAccess() configuration
+const access = defineAccess({
+  entities: {
+    task: { roles: ['owner', 'editor', 'viewer'] },
+  },
+  entitlements: {
+    'task:edit': (r) => r.where({ createdBy: r.user.id }),
+    'task:view': (r) => r.where({ archived: false, tenantId: r.user.tenantId }),
+  },
+});
+```
+
+Running `bunx vertz codegen` produces:
+
+```sql
+-- .vertz/generated/rls-policies.sql
+-- Generated by @vertz/codegen — do not edit
+
+-- Entitlement: task:edit
+CREATE POLICY task_edit ON tasks FOR ALL
+  USING (created_by = current_setting('app.user_id')::UUID);
+
+-- Entitlement: task:view
+CREATE POLICY task_view ON tasks FOR ALL
+  USING (archived = false AND tenant_id = current_setting('app.tenant_id')::UUID);
+```
+
+### Supported condition types
+
+The static analyzer extracts conditions from `rules.where()` calls. Each condition maps to a SQL expression:
+
+| Condition        | Example           | Generated SQL                                     |
+| ---------------- | ----------------- | ------------------------------------------------- |
+| User ID marker   | `r.user.id`       | `column = current_setting('app.user_id')::UUID`   |
+| Tenant ID marker | `r.user.tenantId` | `column = current_setting('app.tenant_id')::UUID` |
+| String literal   | `'active'`        | `column = 'active'`                               |
+| Boolean literal  | `false`           | `column = false`                                  |
+| Numeric literal  | `1`               | `column = 1`                                      |
+
+Multiple conditions in a single `where()` call are combined with `AND`.
+
+### Naming conventions
+
+The generator applies these transformations:
+
+- **Table names**: Entity name converted to snake_case and pluralized (e.g., `task` → `tasks`, `projectMember` → `project_members`)
+- **Column names**: Property names converted from camelCase to snake_case (e.g., `createdBy` → `created_by`, `tenantId` → `tenant_id`)
+- **Policy names**: Derived from entitlement name (e.g., `task:edit` → `task_edit`)
+
+### Applying the generated policies
+
+**Recommended: migration integration.** Pass the codegen RLS output to `migrateDev()` and let the migration system handle it:
+
+```ts
+import { migrateDev } from 'vertz/db';
+
+await migrateDev({
+  queryFn: db.queryFn,
+  currentSnapshot: db.snapshot,
+  previousSnapshot: loadFromFile(),
+  migrationsDir: './migrations',
+  rlsPolicies: codegenOutput.rlsPolicies,
+});
+```
+
+This generates a single migration file containing both schema DDL and RLS policy changes. Subsequent migrations only include incremental RLS diffs. See the [migrations guide](/guides/db/migrations#rls-policy-migrations) for details.
+
+**Alternative: manual application.** You can also apply the generated SQL directly:
+
+```bash
+psql -d myapp < .vertz/generated/rls-policies.sql
+```
+
+Either way, you need to enable RLS on the target tables:
+
+```sql
+ALTER TABLE tasks ENABLE ROW LEVEL SECURITY;
+ALTER TABLE tasks FORCE ROW LEVEL SECURITY;
+```
+
+### Setting session variables per request
+
+RLS policies reference `app.user_id` and `app.tenant_id` via `current_setting()`. These must be set per-request within a transaction using `SET LOCAL`:
+
+```sql
+BEGIN;
+SET LOCAL app.user_id = '<user-uuid>';
+SET LOCAL app.tenant_id = '<tenant-uuid>';
+-- Queries are now filtered by RLS policies
+SELECT * FROM tasks;
+COMMIT;
+```
+
+`SET LOCAL` scopes the variables to the current transaction — they're automatically cleared on commit or rollback. The framework's entity CRUD pipeline handles this automatically when RLS policies are present.
+
+<Note>
+  The generated policies use `FOR ALL`, applying to SELECT, INSERT, UPDATE, and DELETE. If you need
+  operation-specific policies (e.g., `FOR SELECT` only), customize the generated SQL before
+  applying.
+</Note>
+
+### Non-translatable conditions
+
+If a `rules.where()` condition can't be statically analyzed (e.g., it references a variable or calls a function), the compiler emits a warning and skips that condition:
+
+```ts
+entitlements: {
+  // This works — static value
+  'task:edit': (r) => r.where({ createdBy: r.user.id }),
+
+  // Warning — `getTeamId()` can't be statically analyzed
+  'task:view': (r) => r.where({ teamId: getTeamId() }),
+}
+```
+
+The warning is:
+
+```
+Where condition for column "teamId" cannot be statically analyzed — no RLS policy will be generated
+```
+
+You can still use dynamic conditions at runtime — they just won't produce RLS policies.
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Authentication & Access Control" icon="lock" href="/guides/server/auth">
+    Full RBAC setup with defineAccess(), plans, and billing.
+  </Card>
+  <Card title="Client-Side Access Control" icon="shield" href="/guides/ui/access-control">
+    Use typed can() and AccessGate in your UI components.
+  </Card>
+  <Card title="Database Migrations" icon="database" href="/guides/db/migrations">
+    Manage schema changes and apply RLS policies.
+  </Card>
+  <Card title="Entities" icon="table" href="/guides/server/entities">
+    Define entities with access rules.
+  </Card>
+</CardGroup>

@@ -1,0 +1,262 @@
+---
+title: LLM Quick Reference
+description: 'Critical patterns for AI code generation — data fetching via typed SDK, forms, reactivity, entities, schema, and testing. Read this before generating any Vertz code.'
+---
+
+This page summarizes the patterns that matter most when generating Vertz code. Reading this first prevents the most common class of mistakes.
+
+## Getting Started
+
+Scaffold a new project with one command:
+
+```bash
+# Full-stack app (database + API + UI)
+bunx @vertz/create-vertz-app@latest my-app
+
+# UI-only hello world (minimal starting point)
+bunx @vertz/create-vertz-app@latest my-app --template hello-world
+```
+
+Then install and run:
+
+```bash
+cd my-app
+bun install
+bun run dev
+```
+
+## Data Fetching (UI)
+
+Vertz automatically generates a typed SDK at `.vertz/generated/client.ts` during development (`vertz dev`) and builds. Create a client wrapper, then pass SDK method calls to `query()` for reactive data. **Never pass raw entity name strings.**
+
+### Client setup
+
+Typically in `src/client.ts`:
+
+```ts
+import { createClient } from '.vertz/generated/client';
+
+export const api = createClient({ baseURL: '/api' });
+```
+
+### Fetching data in components
+
+```ts
+import { query } from 'vertz/ui';
+import { api } from '../client';
+
+const tasks = query(api.tasks.list());
+const task = query(api.tasks.get('task-123'));
+const filtered = query(api.tasks.list({ status: 'done', limit: 20 }));
+```
+
+<Warning>
+Never pass raw strings to `query()`:
+
+```ts
+// WRONG — will not work
+query('tasks');
+query('tasks', { limit: 5 });
+```
+
+</Warning>
+
+For custom (non-SDK) endpoints, pass a thunk with a cache key:
+
+```ts
+const data = query(() => fetch('/custom/endpoint').then((r) => r.json()), {
+  key: 'my-custom-data',
+});
+```
+
+### List responses
+
+List responses use `ListResponse<T>` — access items via `tasks.data?.items`, total via `tasks.data?.total`, pagination via `tasks.data?.hasNextPage`.
+
+The shape is:
+
+```ts
+{
+  items: T[];
+  total: number;
+  limit: number;
+  nextCursor: string | null;
+  hasNextPage: boolean;
+}
+```
+
+### Query result properties
+
+Query results are reactive objects with `.data`, `.loading`, `.error`, `.revalidating`, `.idle` properties. Use them directly in JSX — the compiler handles reactivity.
+
+## Forms (UI)
+
+Pass SDK mutation methods to `form()` — **never raw strings or URLs**:
+
+```ts
+import { form } from 'vertz/ui';
+import { api } from '../client';
+
+const taskForm = form(api.tasks.create, { onSuccess });
+```
+
+Wire into JSX using `taskForm.action`, `taskForm.method`, `taskForm.onSubmit`. Input names: `<input name={taskForm.fields.title} />`. Per-field errors: `taskForm.title.error`. Per-field values: `taskForm.title.value`.
+
+## Reactivity (UI)
+
+The Vertz compiler transforms plain TypeScript into fine-grained reactive updates:
+
+- `let count = 0` → signal. Assignments like `count++` trigger DOM updates.
+- `const doubled = count * 2` → computed. Auto-tracks signal dependencies.
+- JSX props with reactive expressions → getters. Parent changes propagate without re-running child components.
+
+Components run once to create the DOM. No re-renders, no hooks, no dependency arrays.
+
+## Styling (UI)
+
+Use `css()` for scoped styles with design tokens and `variants()` for parameterized styles:
+
+```ts
+import { css, variants } from 'vertz/ui';
+
+const styles = css({
+  card: ['bg:card', 'rounded:lg', 'p:4'],
+});
+
+const button = variants({
+  base: ['inline-flex', 'rounded:md'],
+  variants: {
+    intent: { primary: ['bg:primary', 'text:white'], ghost: ['bg:transparent'] },
+    size: { sm: ['text:xs', 'px:3'], md: ['text:sm', 'px:4'] },
+  },
+  defaultVariants: { intent: 'primary', size: 'md' },
+});
+```
+
+## Entities (Server)
+
+Define entities with `entity()` — each generates CRUD endpoints with access control:
+
+```ts
+import { entity } from 'vertz/server';
+
+const tasks = entity('tasks', {
+  model: tasksModel,
+  access: { list: () => true, get: () => true, create: () => true },
+});
+```
+
+Access rules are required. Operations without access rules don't generate routes (deny-by-default).
+
+## Domains (Server)
+
+Group related entities and services into bounded contexts with automatic route prefixing:
+
+```ts
+import { createServer, domain, entity } from 'vertz/server';
+
+const invoices = entity('invoices', { model: invoicesModel, access: { list: rules.authenticated() } });
+const payments = service('payments', { /* ... */ });
+
+const billing = domain('billing', {
+  entities: [invoices],
+  services: [payments],
+});
+
+const app = createServer({ domains: [billing], db });
+```
+
+This generates routes prefixed with the domain name:
+
+```
+GET  /api/billing/invoices        → list
+GET  /api/billing/invoices/:id    → get
+POST /api/billing/payments/charge → action
+```
+
+Domains can have scoped middleware (runs only for routes in that domain), support cross-domain entity injection via `inject`, and validate against name collisions at startup. Tenant scoping works seamlessly inside domains.
+
+## Schema (Database)
+
+Define tables with `d.table()` and models with `d.model()`:
+
+```ts
+import { d } from 'vertz/db';
+
+const tasksTable = d.table('tasks', {
+  id: d.uuid().primary({ generate: 'uuid' }),
+  title: d.text(),
+  completed: d.boolean().default(false),
+  createdAt: d.timestamp().default('now').readOnly(),
+});
+
+const tasksModel = d.model(tasksTable);
+```
+
+Column annotations: `.hidden()` excludes from API responses, `.readOnly()` excludes from create/update inputs, `.default(value)` makes the field optional on create.
+
+## Testing (Server)
+
+Use `createTestClient()` for type-safe server integration tests. Pass your server instance — get back a client with typed entity and service proxies:
+
+```ts
+import { createTestClient } from '@vertz/testing';
+import { createServer } from '@vertz/server';
+
+const server = createServer({ entities: [tasksEntity], services: [healthService], db });
+const client = createTestClient(server);
+```
+
+### Entity proxy
+
+```ts
+const tasks = client.entity(tasksEntity);
+
+const created = await tasks.create({ title: 'Buy milk' });
+const list = await tasks.list({ where: { completed: false }, limit: 10 });
+const item = await tasks.get(created.body.id);
+const updated = await tasks.update(created.body.id, { completed: true });
+await tasks.delete(created.body.id);
+```
+
+### Service proxy
+
+```ts
+const health = client.service(healthService);
+const result = await health.check();
+```
+
+### Response handling
+
+Every method returns `TestResponse<T>` — a discriminated union on `ok`:
+
+```ts
+const result = await tasks.get('some-id');
+if (result.ok) {
+  result.body.title; // typed to $response
+} else {
+  result.body.message; // ErrorBody { error, message, statusCode, details? }
+}
+```
+
+### Auth headers
+
+```ts
+const authed = client.withHeaders({ authorization: 'Bearer token' });
+await authed.entity(tasksEntity).list();
+```
+
+<Warning>
+Don't use raw `server.handler(new Request(...))` with manual casts. Use `createTestClient()` for full type safety:
+
+```ts
+// WRONG — no type safety
+const res = await server.handler(new Request('http://localhost/api/tasks'));
+const body = (await res.json()) as Task[];
+
+// RIGHT — fully typed
+const res = await client.entity(tasksEntity).list();
+res.body.items; // typed array
+```
+
+</Warning>

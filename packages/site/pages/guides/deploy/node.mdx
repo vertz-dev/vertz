@@ -1,0 +1,224 @@
+---
+title: Node.js
+description: 'Deploy a full-stack Vertz app on Node.js with native HTTP performance'
+---
+
+`@vertz/ui-server/node` provides `createNodeHandler` — a native Node HTTP adapter that writes SSR output directly to `ServerResponse`, avoiding the overhead of web Request/Response conversions on every request.
+
+## When to use this
+
+Use `createNodeHandler` when deploying to any Node.js-based platform:
+
+- Vanilla Node HTTP server
+- Express / Fastify / Koa
+- Docker containers
+- AWS Lambda (with a Node HTTP adapter)
+- Any platform that gives you `IncomingMessage` + `ServerResponse`
+
+If you're deploying to **Cloudflare Workers** or **Bun**, use the web-standard `createSSRHandler` instead — those runtimes handle `Request`/`Response` natively with no conversion cost.
+
+## Quick start
+
+```ts
+// server.ts
+import { readFileSync } from 'node:fs';
+import { createServer } from 'node:http';
+import { createNodeHandler } from '@vertz/ui-server/node';
+import * as app from './dist/server/app';
+
+const handler = createNodeHandler({
+  module: app,
+  template: readFileSync('./dist/client/index.html', 'utf-8'),
+});
+
+const server = createServer(handler);
+server.listen(3000, () => {
+  console.log('Listening on http://localhost:3000');
+});
+```
+
+That's it. The handler:
+
+- Renders SSR HTML directly into `ServerResponse` (no intermediate `Response` object)
+- Streams progressive HTML when enabled
+- Handles nav pre-fetch SSE requests
+- Manages backpressure and client disconnects
+
+## Why not `createSSRHandler`?
+
+`createSSRHandler` returns a web-standard `(Request) => Promise<Response>` handler. On Bun and Cloudflare Workers, `Request` and `Response` are native — zero conversion cost.
+
+On Node.js, bridging between Node's `IncomingMessage`/`ServerResponse` and web `Request`/`Response` adds two conversions per request:
+
+1. **Inbound:** `IncomingMessage` → `Request` (URL construction, header copying, body stream wrapping)
+2. **Outbound:** `Response.body` (ReadableStream) → pipe to `ServerResponse` (async iteration, chunk copying)
+
+`createNodeHandler` eliminates both. It reads from `IncomingMessage` and writes directly to `ServerResponse` — the same rendering pipeline, without the bridge overhead.
+
+## Configuration
+
+`createNodeHandler` accepts the same options as `createSSRHandler`:
+
+```ts
+import { createNodeHandler, loadAotManifest } from '@vertz/ui-server/node';
+
+const handler = createNodeHandler({
+  // Required — your SSR module
+  module: app,
+
+  // Required — HTML template (contents of dist/client/index.html)
+  template: htmlTemplate,
+
+  // Optional — SSR timeout for queries (default: 300ms)
+  ssrTimeout: 500,
+
+  // Optional — inline CSS to eliminate FOUC
+  inlineCSS: {
+    '/assets/vertz.css': cssContent,
+  },
+
+  // Optional — CSP nonce for inline scripts
+  nonce: crypto.randomUUID(),
+
+  // Optional — paths to inject as <link rel="modulepreload">
+  modulepreload: ['/assets/chunk-abc.js'],
+
+  // Optional — Cache-Control header for HTML responses
+  cacheControl: 'public, max-age=3600',
+
+  // Optional — session resolver for auth-aware SSR
+  sessionResolver: async (request) => {
+    const session = await getSession(request);
+    return session ? { session } : null;
+  },
+
+  // Optional — enable progressive HTML streaming
+  progressiveHTML: true,
+
+  // Optional — AOT manifest for pre-compiled SSR (loaded automatically by `vertz start`)
+  aotManifest: (await loadAotManifest('./dist/server')) ?? undefined,
+});
+```
+
+<Note>
+  The `sessionResolver` receives a web `Request` object — the Node adapter constructs one from
+  `IncomingMessage` headers for this call only. This is the only web API conversion, and it's
+  limited to session resolution.
+</Note>
+
+## Integration with frameworks
+
+### Express
+
+```ts
+import express from 'express';
+import { readFileSync } from 'node:fs';
+import { createNodeHandler } from '@vertz/ui-server/node';
+import * as app from './dist/server/app';
+
+const ssrHandler = createNodeHandler({
+  module: app,
+  template: readFileSync('./dist/client/index.html', 'utf-8'),
+});
+
+const server = express();
+
+// Serve static assets
+server.use(express.static('./dist/client', { index: false }));
+
+// SSR for everything else
+server.use(ssrHandler);
+
+server.listen(3000);
+```
+
+### Fastify
+
+```ts
+import Fastify from 'fastify';
+import fastifyStatic from '@fastify/static';
+import { readFileSync } from 'node:fs';
+import { createNodeHandler } from '@vertz/ui-server/node';
+import * as app from './dist/server/app';
+
+const ssrHandler = createNodeHandler({
+  module: app,
+  template: readFileSync('./dist/client/index.html', 'utf-8'),
+});
+
+const fastify = Fastify();
+
+// Serve static assets
+await fastify.register(fastifyStatic, {
+  root: './dist/client',
+  prefix: '/assets/',
+});
+
+// SSR catch-all
+fastify.all('/*', (req, reply) => {
+  ssrHandler(req.raw, reply.raw);
+  reply.hijack();
+});
+
+await fastify.listen({ port: 3000 });
+```
+
+## Progressive HTML streaming
+
+When `progressiveHTML: true`, the handler streams HTML in three phases:
+
+1. **Head** — `<head>` content (CSS, preloads, fonts) sent immediately for early browser parsing
+2. **Body** — rendered HTML chunks streamed as they're produced, with backpressure handling
+3. **Tail** — SSR data script and closing tags
+
+The Node adapter handles backpressure natively: when `res.write()` returns `false`, it waits for the `drain` event before writing the next chunk. If the client disconnects mid-stream, the render stream is cancelled immediately.
+
+## Production considerations
+
+### Compression
+
+`createNodeHandler` does not compress responses. Use your platform's compression:
+
+```ts
+import compression from 'compression';
+
+const server = express();
+server.use(compression());
+server.use(ssrHandler);
+```
+
+### Graceful shutdown
+
+```ts
+process.on('SIGTERM', () => {
+  server.close(() => {
+    console.log('Server closed');
+    process.exit(0);
+  });
+});
+```
+
+### Keep-alive
+
+Node's HTTP server has keep-alive enabled by default. For long-lived SSE connections (nav pre-fetch), the handler detects client disconnects via `req.on('close')` and cleans up the stream reader.
+
+## How it differs from the web-standard handler
+
+|                      | `createSSRHandler`               | `createNodeHandler`                         |
+| -------------------- | -------------------------------- | ------------------------------------------- |
+| **Signature**        | `(Request) => Promise<Response>` | `(IncomingMessage, ServerResponse) => void` |
+| **Best for**         | Bun, Cloudflare Workers, Deno    | Node.js, Express, Fastify                   |
+| **Conversion cost**  | None (native)                    | None (writes directly)                      |
+| **Backpressure**     | Web stream API                   | Node `drain` events                         |
+| **Progressive HTML** | `ReadableStream` response body   | Direct `res.write()` chunks                 |
+
+Both handlers share the same rendering pipeline (`ssr-handler-shared.ts`) and produce identical output.
+
+<CardGroup cols={2}>
+  <Card title="Cloudflare Workers" icon="cloud" href="/guides/deploy/cloudflare">
+    Deploy to Cloudflare with SSR, API routing, and ISR caching
+  </Card>
+  <Card title="SSR" icon="server" href="/guides/ui/ssr">
+    How Vertz SSR works under the hood
+  </Card>
+</CardGroup>

@@ -1,0 +1,267 @@
+---
+title: Seeding
+description: 'Populate your database with initial data for development, testing, and production'
+---
+
+Seeding fills your database with initial data — dev fixtures, test scenarios, or production defaults like roles and categories. Vertz recommends using the entity API (`db.create`, `db.createMany`) for seeding, not raw SQL.
+
+## Why use the entity API
+
+Raw SQL bypasses validation, type checking, and default generation. The entity API gives you:
+
+- **Type safety** — seed data is checked against your schema at compile time
+- **Default handling** — auto-generated IDs, timestamps, and computed defaults work automatically
+- **Consistency** — the same API you use in your application code
+
+```ts
+// Recommended: entity API
+await db.users.create({
+  data: { email: 'admin@example.com', name: 'Admin' },
+});
+
+// Avoid: raw SQL with manual IDs and no type checking
+await db.query(sql`INSERT INTO users (id, email, name) VALUES (${id}, ${email}, ${name})`);
+```
+
+## When to seed
+
+Seeding runs **after migrations**. In development, call your seed function after `autoMigrate()` completes or after `vertz db migrate`:
+
+```ts
+import { createDb, d } from 'vertz/db';
+
+const db = createDb({
+  url: process.env.DATABASE_URL!,
+  models: { users: usersModel, teams: teamsModel },
+});
+
+// Migrations first, then seed
+await db.migrate();
+await seed(db);
+```
+
+## Conditional seeding
+
+Avoid inserting duplicates by checking if data already exists:
+
+```ts
+async function seed(db: AppDb) {
+  const existing = await db.users.count({
+    where: { email: 'admin@example.com' },
+  });
+
+  if (existing > 0) {
+    console.log('Database already seeded, skipping');
+    return;
+  }
+
+  await db.users.create({
+    data: { email: 'admin@example.com', name: 'Admin', role: 'admin' },
+  });
+
+  console.log('Seed complete');
+}
+```
+
+For idempotent seeding, `upsert` inserts or updates in one call:
+
+```ts
+await db.users.upsert({
+  where: { email: 'admin@example.com' },
+  create: { email: 'admin@example.com', name: 'Admin', role: 'admin' },
+  update: { name: 'Admin', role: 'admin' },
+});
+```
+
+## Seed file structure
+
+Keep seed logic in a dedicated file. A common pattern:
+
+```
+src/
+  db/
+    schema.ts        # table and model definitions
+    seed.ts          # seed function
+    seed-data.ts     # raw data constants (optional)
+  server.ts          # calls seed() on startup
+```
+
+A typical `seed.ts`:
+
+```ts
+import type { AppDb } from './schema';
+
+export async function seed(db: AppDb) {
+  // 1. Seed independent tables first (no foreign keys)
+  const adminResult = await db.users.create({
+    data: { email: 'admin@example.com', name: 'Admin', role: 'admin' },
+  });
+
+  if (!adminResult.ok) {
+    console.error('Failed to seed admin user:', adminResult.error);
+    return;
+  }
+
+  // 2. Then seed tables that reference them
+  const projectResult = await db.projects.create({
+    data: {
+      title: 'Getting Started',
+      ownerId: adminResult.data.id,
+    },
+  });
+
+  if (!projectResult.ok) {
+    console.error('Failed to seed project:', projectResult.error);
+    return;
+  }
+
+  // 3. Then children of those
+  await db.tasks.createMany({
+    data: [
+      { title: 'Read the docs', projectId: projectResult.data.id, status: 'todo' },
+      { title: 'Build something', projectId: projectResult.data.id, status: 'todo' },
+    ],
+  });
+
+  console.log('Seed complete');
+}
+```
+
+## Handling relations
+
+Insert records in dependency order — parents before children. Foreign key constraints require the referenced record to exist:
+
+```ts
+// 1. Users (no dependencies)
+const alice = await db.users.create({
+  data: { email: 'alice@example.com', name: 'Alice' },
+});
+
+// 2. Teams (no dependencies)
+const engineering = await db.teams.create({
+  data: { name: 'Engineering' },
+});
+
+// 3. Team members (depends on users and teams)
+if (alice.ok && engineering.ok) {
+  await db.teamMembers.create({
+    data: {
+      userId: alice.data.id,
+      teamId: engineering.data.id,
+      role: 'lead',
+    },
+  });
+}
+```
+
+For bulk seeding with relations, extract IDs from parent inserts:
+
+```ts
+const userResults = await db.users.createManyAndReturn({
+  data: [
+    { email: 'alice@example.com', name: 'Alice' },
+    { email: 'bob@example.com', name: 'Bob' },
+  ],
+});
+
+if (userResults.ok) {
+  const [alice, bob] = userResults.data;
+
+  await db.tasks.createMany({
+    data: [
+      { title: 'Alice task', assigneeId: alice.id, status: 'todo' },
+      { title: 'Bob task', assigneeId: bob.id, status: 'in_progress' },
+    ],
+  });
+}
+```
+
+## Dev seed vs test seed vs production fixtures
+
+Different environments need different seed strategies.
+
+### Development seed
+
+Generates realistic data for local development. Run on server startup with a guard:
+
+```ts
+// src/server.ts
+import { seed } from './db/seed';
+
+if (process.env.NODE_ENV !== 'production') {
+  await seed(db);
+}
+```
+
+Dev seeds can be generous — many records, varied states, edge cases. This helps you test UI pagination, empty states, and error scenarios.
+
+### Test seed
+
+Creates minimal, predictable data for a specific test. Define seed helpers alongside your tests:
+
+```ts
+// src/__tests__/helpers.ts
+export async function seedTestUser(db: AppDb, overrides?: Partial<UserCreateInput>) {
+  const result = await db.users.create({
+    data: {
+      email: `test-${Date.now()}@example.com`,
+      name: 'Test User',
+      ...overrides,
+    },
+  });
+
+  if (!result.ok) throw new Error(`Failed to seed test user: ${result.error.code}`);
+  return result.data;
+}
+```
+
+```ts
+// src/__tests__/tasks.test.ts
+import { seedTestUser } from './helpers';
+
+test('assigns task to user', async () => {
+  const user = await seedTestUser(db);
+  const task = await db.tasks.create({
+    data: { title: 'Test task', assigneeId: user.id, status: 'todo' },
+  });
+
+  expect(task.ok).toBe(true);
+  expect(task.data.assigneeId).toBe(user.id);
+});
+```
+
+<Tip>
+  Use unique values (timestamps, counters) in test seeds to avoid collisions when tests run in
+  parallel.
+</Tip>
+
+### Production fixtures
+
+Production seeding is for data your application requires to function — roles, categories, permission sets, default settings. Keep it minimal and idempotent:
+
+```ts
+export async function seedProductionDefaults(db: AppDb) {
+  const requiredRoles = ['admin', 'editor', 'viewer'];
+
+  for (const name of requiredRoles) {
+    await db.roles.upsert({
+      where: { name },
+      create: { name },
+      update: {},
+    });
+  }
+}
+```
+
+<Warning>
+  Never seed user accounts, API keys, or sensitive data in production. Use environment variables and
+  admin tooling for those.
+</Warning>
+
+## Tips
+
+- **Check results** — entity API operations return `Result<T, Error>`. Always check `.ok` before using `.data`, especially when later inserts depend on parent IDs.
+- **Use `createMany` for bulk data** — it's a single query, much faster than looping over `create`.
+- **Use `createManyAndReturn` when you need IDs** — returns the created records so you can reference them in child inserts.
+- **Keep seeds fast** — if your dev seed takes more than a few seconds, you have too much data.
+- **Version control your seeds** — seed files are code. They should be reviewed, typed, and committed.

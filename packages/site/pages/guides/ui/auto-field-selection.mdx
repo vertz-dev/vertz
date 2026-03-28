@@ -1,0 +1,264 @@
+---
+title: Auto Field Selection
+description: 'How VertzQL optimizes queries automatically and what to do at third-party component boundaries'
+---
+
+When you use `query()` with the generated SDK, the Vertz compiler automatically analyzes which fields your components access and injects a `select` parameter — so the server only returns the columns you actually use. No manual field picking, no over-fetching.
+
+## How it works
+
+The compiler performs **compile-time static analysis** at two levels:
+
+**Single file:** The compiler scans each `.tsx` file for `query()` calls, then tracks which fields are accessed on the query result throughout the file.
+
+```tsx
+const tasks = query(api.tasks.list());
+
+// The compiler sees .title and .status accessed here
+return (
+  <ul>
+    {tasks.data?.items.map((task) => (
+      <li>
+        {task.title} — {task.status}
+      </li>
+    ))}
+  </ul>
+);
+
+// Injects: api.tasks.list({ select: { id: true, title: true, status: true } })
+```
+
+`id` is always included — it's required for caching and optimistic updates.
+
+**Cross file:** When you pass query data to a child component via props, the compiler follows the import to analyze what fields the child accesses, then merges those back into the parent's `select`.
+
+```tsx
+// TaskListPage.tsx
+const tasks = query(api.tasks.list());
+
+return tasks.data?.items.map((task) => <TaskCard task={task} />);
+
+// TaskCard.tsx — accesses task.title, task.status, task.assignee
+export function TaskCard({ task }: { task: Task }) {
+  return (
+    <div>
+      <h3>{task.title}</h3>
+      <span>{task.status}</span>
+      <span>{task.assignee}</span>
+    </div>
+  );
+}
+
+// Result: api.tasks.list({ select: { id: true, title: true, status: true, assignee: true } })
+```
+
+The cross-file analysis follows barrel re-exports (`export { Foo } from './bar'`), star re-exports (`export * from './components'`), renamed exports, and transitive chains — as long as the imports stay within your codebase.
+
+## The three tiers
+
+Auto field selection operates in three tiers:
+
+| Tier                | Condition                          | Result                                     |
+| ------------------- | ---------------------------------- | ------------------------------------------ |
+| **Fully optimized** | Compiler resolves all field access | `select` injected with only used fields    |
+| **Opaque fallback** | Compiler can't analyze a consumer  | No `select` injected — all fields fetched  |
+| **User-narrowed**   | Developer manually narrows props   | `select` injected based on narrowed access |
+
+Most of the time you're fully optimized — zero effort. The rest of this guide covers the opaque fallback and how to narrow your way back to optimization.
+
+## What triggers opaque fallback
+
+The compiler marks field access as **opaque** when it can't statically determine which fields are used. When any access is opaque, the query skips `select` injection entirely and fetches all fields. This is the safe default — missing data is worse than extra data.
+
+### Third-party components
+
+The most common trigger. When you pass query data to a component from an npm package, the compiler can't follow the import into `node_modules`:
+
+```tsx
+import { ExternalCard } from 'some-npm-package';
+
+const issues = query(api.issues.list());
+
+// OPAQUE — compiler can't analyze ExternalCard
+// Falls back to fetching ALL issue fields
+return issues.data?.items.map((issue) => <ExternalCard data={issue} />);
+```
+
+### Dynamic imports
+
+```tsx
+const DynamicComponent = await import(`./components/${name}`);
+
+// OPAQUE — import path is a runtime value
+<DynamicComponent.default data={task} />;
+```
+
+### Circular re-exports
+
+When two modules re-export from each other (directly or through a chain), the compiler detects the cycle and bails out — treating the component as unresolvable:
+
+```tsx
+// a.ts: export { CardList } from './b';
+// b.ts: export { CardList } from './a';  ← circular
+
+// Parent passing data to CardList → opaque fallback
+```
+
+This is rare in practice, but can happen with complex barrel file structures.
+
+### Render callbacks and query indirection
+
+Direct expressions and `.map()` callbacks on query data are **fully optimized** — the compiler traces field access through them automatically:
+
+```tsx
+// ✅ OPTIMIZED — compiler traces .map() callback field access
+{
+  issues.data?.items.map((issue) => (
+    <li>
+      {issue.title} — {issue.status}
+    </li>
+  ));
+}
+// Injects: select: { id: true, title: true, status: true }
+
+// ✅ OPTIMIZED — cross-file prop passing works too
+{
+  issues.data?.items.map((issue) => <IssueRow issue={issue} />);
+}
+// Compiler follows import to IssueRow, merges its field accesses
+```
+
+However, when query data passes through an **indirection layer** — a component callback that renames the parameter — the compiler loses the connection between the callback parameter and the original query variable:
+
+```tsx
+// OPAQUE — any render-function prop or children callback with query data
+<Table data={users} renderRow={(row) => <span>{row.name}</span>} />
+```
+
+**This only affects field selection, not reactivity.** Your app works correctly — data updates reactively as expected. The query just fetches all fields instead of only the ones you use.
+
+**Prefer direct `.map()` on the query result** for optimal field selection:
+
+```tsx
+// ✅ OPTIMIZED — .map() directly on query data, compiler traces field access
+{
+  issues.data?.items.map((issue) => <IssueRow issue={issue} />);
+}
+```
+
+For animated lists, use `<List animate>` which uses `.map()` children — field selection works automatically.
+
+### Spread, dynamic access, and function calls
+
+These patterns within your own code also trigger opaque fallback:
+
+```tsx
+const task = tasks.data?.items[0];
+
+// OPAQUE — spread copies unknown fields
+const copy = { ...task };
+
+// OPAQUE — field name is a runtime value
+const value = task[fieldName];
+
+// OPAQUE — entity passed as argument to a function the compiler can't trace
+const formatted = formatForExport(task);
+```
+
+## How to optimize at opaque boundaries
+
+When you hit an opaque boundary, **narrow the data in the parent** by constructing an object with only the fields the child needs:
+
+```tsx
+import { ExternalCard } from 'some-npm-package';
+
+const issues = query(api.issues.list());
+
+// BEFORE — opaque, fetches all fields
+return issues.data?.items.map((issue) => <ExternalCard data={issue} />);
+
+// AFTER — compiler sees .title and .number accessed in parent
+// Injects: select: { id: true, title: true, number: true }
+return issues.data?.items.map((issue) => (
+  <ExternalCard data={{ title: issue.title, number: issue.number }} />
+));
+```
+
+The compiler now sees `issue.title` and `issue.number` accessed directly in the parent file — so it knows exactly which fields to select. The third-party component receives the same data shape, but the query only fetches what's needed.
+
+### Multiple opaque consumers
+
+If the same query feeds multiple opaque components, narrow each one independently:
+
+```tsx
+import { ChartLib } from 'chart-library';
+import { ExportButton } from 'export-toolkit';
+
+const tasks = query(api.tasks.list());
+
+return (
+  <div>
+    <ChartLib
+      data={tasks.data?.items.map((t) => ({
+        label: t.title,
+        value: t.estimate,
+      }))}
+    />
+    <ExportButton
+      rows={tasks.data?.items.map((t) => ({
+        name: t.title,
+        status: t.status,
+      }))}
+    />
+  </div>
+);
+// Injects: select: { id: true, title: true, estimate: true, status: true }
+```
+
+## When this doesn't matter
+
+Auto field selection resolves fields automatically for components **within your own codebase** that use standard imports. You don't need to do anything special for:
+
+- **Direct imports** — `import { TaskCard } from './task-card'`
+- **Barrel re-exports** — `import { TaskCard } from './components'` where `components/index.ts` re-exports from `./task-card`
+- **Star re-exports** — `export * from './task-card'`
+- **Renamed exports** — `export { InternalCard as TaskCard } from './task-card'`
+- **Transitive chains** — imports that go through multiple levels of re-exports
+
+The compiler follows all of these automatically. **This guide only applies to third-party npm packages, dynamic imports, and code patterns that can't be statically analyzed.**
+
+## Manual control
+
+### Providing your own `select`
+
+If you pass a `select` parameter manually, the compiler respects it and skips auto field selection for that query:
+
+```tsx
+// Manual select — compiler does not override
+const tasks = query(api.tasks.list({ select: { title: true, status: true } }));
+```
+
+### Opting out with `@vertz-select-all`
+
+If you want to explicitly fetch all fields — for example, when a query feeds many opaque consumers and narrowing isn't practical — use the pragma comment:
+
+```tsx
+// @vertz-select-all
+const tasks = query(api.tasks.list());
+```
+
+This tells the compiler to skip field selection for this query regardless of the analysis result. The query always fetches all exposed fields.
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Data Fetching" icon="cloud-download" href="/guides/ui/data-fetching">
+    The full `query()` API — caching, refetching, SSR, optimistic updates.
+  </Card>
+  <Card title="Fields, Relations & Filters" icon="filter" href="/guides/server/entity-exposure">
+    Control which fields, relations, and filters are exposed in your entity API.
+  </Card>
+  <Card title="Compiler Plugin" icon="gear" href="/guides/ui/compiler">
+    How the Vertz compiler transforms JSX and signals.
+  </Card>
+</CardGroup>

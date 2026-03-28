@@ -1,0 +1,284 @@
+---
+title: SDK & Fetch Client
+description: 'Generated typed client from entity definitions'
+---
+
+Vertz generates a fully typed SDK from your entity and service definitions. The SDK is a thin layer over an HTTP client — every method returns typed `Result` values, integrates with `query()` and `form()`, and provides deterministic cache keys for the UI layer.
+
+## Always use FetchClient or the generated SDK
+
+<Warning>
+Never use raw `fetch()` for API calls in your UI code. Always use `FetchClient` (or the generated SDK which uses it internally).
+
+During SSR, Vertz intercepts `fetch()` calls to route API requests through the in-memory handler — no HTTP round-trip. `FetchClient` is designed for this: it passes relative URLs as strings (not `Request` objects) so the SSR fetch proxy can intercept them. Raw `fetch()` bypasses proper error handling, retry logic, and SSR integration.
+
+</Warning>
+
+If codegen is not set up yet, create a `FetchClient` instance directly:
+
+```ts
+import { FetchClient, createDescriptor } from '@vertz/fetch';
+
+const client = new FetchClient({ baseURL: '/api' });
+
+export const taskApi = {
+  list: () => createDescriptor('GET', '/tasks', () => client.get('/tasks')),
+  get: (id: string) => createDescriptor('GET', `/tasks/${id}`, () => client.get(`/tasks/${id}`)),
+};
+```
+
+## How it works
+
+<Steps>
+  <Step title="Define entities and services">
+    Your server-side entity and service definitions are the source of truth for types, routes, and
+    validation schemas.
+  </Step>
+  <Step title="SDK is generated">
+    The codegen reads your definitions and produces TypeScript files — typed methods for every CRUD
+    operation and custom action on entities, plus service operations.
+  </Step>
+  <Step title="UI consumes the SDK">
+    Import the generated client in your UI code. Use it with `query()` for data fetching and
+    `form()` for mutations.
+  </Step>
+</Steps>
+
+## Generated client
+
+The SDK produces a client factory:
+
+```ts
+import { createClient } from '.vertz/generated/client';
+
+const api = createClient({
+  baseURL: '/api',
+});
+```
+
+Each entity becomes a property with typed CRUD methods:
+
+```ts
+// List with filters
+const result = await api.tasks.list({ status: 'todo' });
+
+// Get by ID
+const result = await api.tasks.get('task-123');
+
+// Create
+const result = await api.tasks.create({
+  title: 'New task',
+  status: 'todo',
+});
+
+// Update
+const result = await api.tasks.update('task-123', {
+  status: 'done',
+});
+
+// Delete
+const result = await api.tasks.delete('task-123');
+
+// Custom actions
+const result = await api.tasks.archive('task-123', {
+  reason: 'Completed sprint',
+});
+```
+
+Every method returns `Result<T, FetchError>` — never throws for HTTP errors.
+
+## SDK + query()
+
+SDK methods return `QueryDescriptor` objects that work directly with `query()`:
+
+```ts
+const tasks = query(api.tasks.list(), { key: 'task-list' });
+
+// tasks.data — typed as ListResponse<Task>
+// tasks.loading — boolean signal
+// tasks.error — error signal
+```
+
+The descriptor carries a deterministic cache key derived from the HTTP method, path, and sorted query parameters. This enables automatic cache deduplication — two components calling `api.tasks.list({ status: 'todo' })` share the same cache entry.
+
+## SDK + form()
+
+SDK methods carry metadata that `form()` uses for validation:
+
+```ts
+const taskForm = form(api.tasks.create, {
+  onSuccess: () => {
+    /* refresh list */
+  },
+});
+```
+
+The codegen attaches the entity's input validation schema to the method's metadata. `form()` extracts it automatically — no need to pass a `schema` option unless you want to override it.
+
+## FetchClient
+
+Under the hood, the SDK uses `FetchClient` — a typed HTTP client you can also use directly:
+
+```ts
+import { FetchClient } from 'vertz/fetch';
+
+const client = new FetchClient({
+  baseURL: 'https://api.example.com',
+  timeoutMs: 5000,
+  headers: {
+    'X-API-Key': 'sk_...',
+  },
+});
+
+const result = await client.get<User>('/users/123');
+
+if (result.ok) {
+  console.log(result.data.data); // User
+}
+```
+
+### Methods
+
+```ts
+client.get<T>(path, options?)
+client.post<T>(path, body?, options?)
+client.put<T>(path, body?, options?)
+client.patch<T>(path, body?, options?)
+client.delete<T>(path, options?)
+```
+
+### Request options
+
+```ts
+await client.get('/tasks', {
+  query: { status: 'active', limit: 20 },
+  headers: { 'X-Request-Id': '...' },
+  signal: abortController.signal,
+});
+```
+
+## Error handling
+
+HTTP errors are returned as typed `Result` values:
+
+```ts
+const result = await api.tasks.get('nonexistent');
+
+if (!result.ok) {
+  switch (result.error.status) {
+    case 404:
+      console.log('Task not found');
+      break;
+    case 409:
+      console.log('Conflict');
+      break;
+  }
+}
+```
+
+Error classes map 1:1 to HTTP status codes:
+
+| Status | Error class                |
+| ------ | -------------------------- |
+| 400    | `BadRequestError`          |
+| 401    | `UnauthorizedError`        |
+| 403    | `ForbiddenError`           |
+| 404    | `NotFoundError`            |
+| 409    | `ConflictError`            |
+| 422    | `UnprocessableEntityError` |
+| 429    | `RateLimitError`           |
+| 500    | `InternalServerError`      |
+| 503    | `ServiceUnavailableError`  |
+
+## Retry configuration
+
+```ts
+const client = new FetchClient({
+  baseURL: '/api',
+  retry: {
+    retries: 3,
+    strategy: 'exponential', // 100ms, 200ms, 400ms
+    backoffMs: 100,
+    retryOn: [429, 500, 502, 503, 504],
+  },
+});
+```
+
+Supports `'exponential'`, `'linear'`, or a custom function:
+
+```ts
+retry: {
+  retries: 3,
+  strategy: (attempt, baseBackoff) => baseBackoff * attempt,
+  backoffMs: 200,
+  retryOn: [503],
+}
+```
+
+## Lifecycle hooks
+
+```ts
+const client = new FetchClient({
+  baseURL: '/api',
+  hooks: {
+    beforeRequest: (request) => {
+      console.log(`→ ${request.method} ${request.url}`);
+    },
+    afterResponse: (response) => {
+      console.log(`← ${response.status}`);
+    },
+    onError: (error) => {
+      console.error('Request failed:', error);
+    },
+    beforeRetry: (attempt, error) => {
+      console.log(`Retrying (attempt ${attempt})...`);
+    },
+  },
+});
+```
+
+## Streaming
+
+For real-time data, the client supports SSE and NDJSON streaming:
+
+```ts
+// Server-Sent Events
+for await (const event of client.requestStream<LogEntry>({
+  method: 'GET',
+  path: '/logs/stream',
+  format: 'sse',
+})) {
+  console.log(event); // typed as LogEntry
+}
+
+// Newline-delimited JSON
+for await (const item of client.requestStream<Task>({
+  method: 'GET',
+  path: '/tasks/stream',
+  format: 'ndjson',
+})) {
+  console.log(item); // typed as Task
+}
+```
+
+## Pagination
+
+List endpoints return `ListResponse<T>`:
+
+```ts
+interface ListResponse<T> {
+  items: T[];
+  total: number;
+  limit: number;
+  nextCursor: string | null;
+  hasNextPage: boolean;
+}
+```
+
+```ts
+const result = await api.tasks.list({ limit: 20 });
+
+if (result.ok) {
+  const { items, total, hasNextPage, nextCursor } = result.data;
+}
+```
