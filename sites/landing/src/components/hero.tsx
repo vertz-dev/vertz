@@ -541,26 +541,9 @@ function MiniTodoApp() {
     sendInteract();
   }
 
-  // ── Simulated peer activity (fallback when no real peers) ──
-  const PEER_ITEMS = [
-    'Set up authentication',
-    'Add dark mode toggle',
-    'Write integration tests',
-    'Configure CI pipeline',
-    'Create API docs',
-    'Optimize bundle size',
-    'Add error boundaries',
-    'Set up monitoring',
-  ];
-  let peerItemIndex = 0;
   let peerCount = 0;
 
   function handlePeerInteract() {
-    const text = PEER_ITEMS[peerItemIndex % PEER_ITEMS.length];
-    peerItemIndex++;
-    todos = [...todos, { id: nextId, text, done: false }];
-    nextId = nextId + 1;
-    deferUpdateFade();
     flashGlow('[data-hero-flash-peer]');
   }
 
@@ -677,21 +660,8 @@ function MiniTodoApp() {
     // ── Start connection ────────────────────────────────────
     connectPresence();
 
-    // ── Simulated peer timer (fallback) ────────────────────
-    function schedulePeer() {
-      const delay = 6000 + Math.random() * 8000; // 6-14s
-      return setTimeout(() => {
-        if (peerCount <= 1) {
-          handlePeerInteract();
-        }
-        simTimerId = schedulePeer();
-      }, delay);
-    }
-    let simTimerId = schedulePeer();
-
     return () => {
       stopped = true;
-      clearTimeout(simTimerId);
       disconnect();
       document.removeEventListener('visibilitychange', handleVisibilityChange);
       window.removeEventListener('online', handleOnline);
@@ -913,6 +883,48 @@ function HeroCodeGroup() {
   );
 }
 
+function GitHubStars() {
+  let stars = '';
+
+  onMount(() => {
+    fetch('https://api.github.com/repos/vertz-dev/vertz')
+      .then((r) => r.json())
+      .then((data) => {
+        const count = data?.stargazers_count;
+        if (typeof count === 'number') {
+          stars = count >= 1000
+            ? `${(count / 1000).toFixed(1)}k`
+            : String(count);
+        }
+      })
+      .catch(() => {
+        // Silently fail — stars badge just won't show
+      });
+  });
+
+  return (
+    <span
+      style={{
+        display: stars ? 'inline-flex' : 'none',
+        alignItems: 'center',
+        gap: '0.25rem',
+        marginLeft: '0.5rem',
+        padding: '0.15rem 0.5rem',
+        fontSize: '0.7rem',
+        fontFamily: 'var(--font-mono)',
+        color: '#9C9690',
+        border: '1px solid #2A2826',
+        borderRadius: '4px',
+      }}
+    >
+      <svg width="12" height="12" viewBox="0 0 16 16" fill="#f59e0b" xmlns="http://www.w3.org/2000/svg">
+        <path d="M8 .25a.75.75 0 0 1 .673.418l1.882 3.815 4.21.612a.75.75 0 0 1 .416 1.279l-3.046 2.97.719 4.192a.75.75 0 0 1-1.088.791L8 12.347l-3.766 1.98a.75.75 0 0 1-1.088-.79l.72-4.194L.818 6.374a.75.75 0 0 1 .416-1.28l4.21-.611L7.327.668A.75.75 0 0 1 8 .25Z" />
+      </svg>
+      {stars}
+    </span>
+  );
+}
+
 export function Hero() {
   return (
     <section className={s.section}>
@@ -955,6 +967,7 @@ export function Hero() {
               style={{ fontFamily: 'var(--font-mono)' }}
             >
               View on GitHub →
+              <Island component={GitHubStars} />
             </a>
           </div>
         </div>
