@@ -1,4 +1,5 @@
-import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'bun:test';
+import { GlobalRegistrator } from '@happy-dom/global-registrator';
 import { existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -35,6 +36,14 @@ describe('docsInitAction', () => {
 describe('createDocsDevServer — static files', () => {
   let testDir: string;
   let server: { port: number; hostname: string; stop(): void } | null = null;
+
+  // Bun.serve() requires native Response — unregister happy-dom for these tests
+  beforeAll(() => {
+    GlobalRegistrator.unregister();
+  });
+  afterAll(() => {
+    GlobalRegistrator.register();
+  });
 
   beforeEach(() => {
     testDir = join(tmpdir(), `docs-dev-static-${Date.now()}`);
