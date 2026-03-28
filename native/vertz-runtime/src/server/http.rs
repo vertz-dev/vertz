@@ -4,6 +4,7 @@ use crate::config::ServerConfig;
 use crate::server::html_shell;
 use crate::server::logging::RequestLoggingLayer;
 use crate::server::module_server::{self, DevServerState};
+use crate::server::theme_css;
 use axum::body::Body;
 use axum::extract::State;
 use axum::http::{header, Request, StatusCode};
@@ -70,12 +71,16 @@ pub async fn try_bind(config: &ServerConfig) -> io::Result<BindResult> {
 pub fn build_router(config: &ServerConfig) -> Router {
     let pipeline = CompilationPipeline::new(config.root_dir.clone(), config.src_dir.clone());
 
+    // Load theme CSS from the project (if available)
+    let theme_css = theme_css::load_theme_css(&config.root_dir);
+
     let state = Arc::new(DevServerState {
         pipeline,
         root_dir: config.root_dir.clone(),
         src_dir: config.src_dir.clone(),
         entry_file: config.entry_file.clone(),
         deps_dir: config.deps_dir(),
+        theme_css,
     });
 
     // Use a single fallback handler that routes based on path prefix.
@@ -127,12 +132,21 @@ async fn dev_server_handler(
     }
 
     // SPA fallback: return HTML shell for page routes
-    if html_shell::is_page_route(&path) {
+    // Only serve HTML shell when the client accepts text/html (browser navigation).
+    // API/asset requests that slip through should get 404, not HTML.
+    let accepts_html = req
+        .headers()
+        .get(header::ACCEPT)
+        .and_then(|v| v.to_str().ok())
+        .map(|v| v.contains("text/html"))
+        .unwrap_or(true); // Default to true for requests without Accept header
+
+    if html_shell::is_page_route(&path) && accepts_html {
         let html = html_shell::generate_html_shell(
             &state.entry_file,
             &state.root_dir,
             &[],
-            None,
+            state.theme_css.as_deref(),
             "Vertz App",
         );
         return axum::response::Response::builder()

@@ -17,6 +17,8 @@ pub struct DevServerState {
     pub src_dir: PathBuf,
     pub entry_file: PathBuf,
     pub deps_dir: PathBuf,
+    /// Inline CSS for theme injection (loaded at startup).
+    pub theme_css: Option<String>,
 }
 
 /// Handle requests for source files: `GET /src/**/*.tsx` → compiled JavaScript.
@@ -158,8 +160,8 @@ pub async fn handle_page_route(
     let html = html_shell::generate_html_shell(
         &state.entry_file,
         &state.root_dir,
-        &[],  // TODO: populate preload hints from module graph
-        None, // TODO: populate inline CSS from theme
+        &[], // TODO: populate preload hints from module graph
+        state.theme_css.as_deref(),
         "Vertz App",
     );
 
@@ -187,6 +189,7 @@ mod tests {
             src_dir: src_dir.clone(),
             entry_file: src_dir.join("app.tsx"),
             deps_dir,
+            theme_css: None,
         })
     }
 
