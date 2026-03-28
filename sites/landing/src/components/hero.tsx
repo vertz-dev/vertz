@@ -425,6 +425,52 @@ const app = css({
       },
     },
   ],
+  presenceBar: [
+    'flex',
+    'items:center',
+    'gap:2',
+    {
+      '&': {
+        'margin-top': '0.5rem',
+        'font-size': '0.65rem',
+        color: '#6B6560',
+        'font-family': 'var(--font-mono)',
+      },
+    },
+  ],
+  presenceDot: [
+    {
+      '&': {
+        width: '6px',
+        height: '6px',
+        'border-radius': '50%',
+        background: '#10B981',
+        'flex-shrink': '0',
+      },
+    },
+  ],
+  shareBtn: [
+    {
+      '&': {
+        'margin-left': 'auto',
+        background: 'none',
+        border: '1px solid #2A2826',
+        'border-radius': '4px',
+        color: '#9C9690',
+        cursor: 'pointer',
+        padding: '0.15rem 0.5rem',
+        'font-size': '0.6rem',
+        'font-family': 'var(--font-mono)',
+        'text-transform': 'uppercase',
+        'letter-spacing': '0.05em',
+        transition: 'border-color 0.15s, color 0.15s',
+      },
+      '&:hover': {
+        'border-color': '#4A4540',
+        color: '#E8E4DC',
+      },
+    },
+  ],
 });
 
 // ── Mini todo app component ─────────────────────────────────
@@ -507,7 +553,7 @@ function MiniTodoApp() {
     'Set up monitoring',
   ];
   let peerItemIndex = 0;
-  let hasRealPeers = false;
+  let peerCount = 0;
 
   function handlePeerInteract() {
     const text = PEER_ITEMS[peerItemIndex % PEER_ITEMS.length];
@@ -545,9 +591,9 @@ function MiniTodoApp() {
             if (msg.t === 'interact') {
               handlePeerInteract();
             } else if (msg.t === 'join' || msg.t === 'state') {
-              hasRealPeers = (msg.count ?? 0) > 1;
+              peerCount = msg.count ?? 0;
             } else if (msg.t === 'leave') {
-              hasRealPeers = (msg.count ?? 0) > 1;
+              peerCount = msg.count ?? 0;
             }
           } catch {
             // Malformed message, ignore
@@ -564,7 +610,7 @@ function MiniTodoApp() {
         };
 
         presenceWs.onclose = () => {
-          hasRealPeers = false;
+          peerCount = 0;
           presenceWs = null;
           if (keepaliveId) clearInterval(keepaliveId);
           keepaliveId = null;
@@ -606,7 +652,7 @@ function MiniTodoApp() {
         presenceWs.close();
         presenceWs = null;
       }
-      hasRealPeers = false;
+      peerCount = 0;
     }
 
     // ── Tab visibility ──────────────────────────────────────
@@ -635,7 +681,7 @@ function MiniTodoApp() {
     function schedulePeer() {
       const delay = 6000 + Math.random() * 8000; // 6-14s
       return setTimeout(() => {
-        if (!hasRealPeers) {
+        if (peerCount <= 1) {
           handlePeerInteract();
         }
         simTimerId = schedulePeer();
@@ -743,6 +789,24 @@ function MiniTodoApp() {
       <div className={app.counter}>
         {todos.filter((t) => !t.done).length} remaining
       </div>
+
+      {peerCount > 1 && (
+        <div className={app.presenceBar}>
+          <span className={app.presenceDot} />
+          <span>{peerCount} developer{peerCount !== 1 ? 's' : ''} here now</span>
+          {peerCount > 3 && (
+            <button
+              type="button"
+              className={app.shareBtn}
+              onClick={() => {
+                navigator.clipboard.writeText('https://vertz.dev');
+              }}
+            >
+              Copy link
+            </button>
+          )}
+        </div>
+      )}
     </div>
   );
 }
