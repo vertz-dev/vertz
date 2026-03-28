@@ -10,15 +10,15 @@ export function Hero() {
         <span className="relative flex h-2.5 w-2.5">
           <span
             className="absolute inline-flex h-full w-full rounded-full opacity-40"
-            style={{ background: '#60a5fa' }}
+            style={{ background: '#fbbf24' }}
           />
           <span
             className="relative inline-flex rounded-full h-2.5 w-2.5"
-            style={{ background: '#3b82f6' }}
+            style={{ background: '#f59e0b' }}
           />
         </span>
         <span className="text-xs tracking-widest uppercase text-gray-500 font-[family-name:var(--font-mono)]">
-          Public Beta
+          Canary
         </span>
       </div>
 

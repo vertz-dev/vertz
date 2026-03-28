@@ -16,8 +16,8 @@ describe('OGTemplate.Card', () => {
   });
 
   it('includes badge when provided', () => {
-    const result = Card({ title: 'Title', badge: 'Public Beta' });
-    expect(findTextInTree(result, 'Public Beta')).toBe(true);
+    const result = Card({ title: 'Title', badge: 'Canary' });
+    expect(findTextInTree(result, 'Canary')).toBe(true);
   });
 
   it('includes url when provided', () => {

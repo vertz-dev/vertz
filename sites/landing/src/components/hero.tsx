@@ -57,11 +57,11 @@ export function Hero() {
     <section className={s.section}>
       <div className={s.badge}>
         <span className={s.badgeDotWrap}>
-          <span className={s.badgeDotPing} style={{ background: '#60a5fa' }} />
-          <span className={s.badgeDot} style={{ background: '#3b82f6' }} />
+          <span className={s.badgeDotPing} style={{ background: '#fbbf24' }} />
+          <span className={s.badgeDot} style={{ background: '#f59e0b' }} />
         </span>
         <span className={s.badgeText} style={{ fontFamily: 'var(--font-mono)' }}>
-          Public Beta
+          Canary
         </span>
       </div>
 
