@@ -24,6 +24,8 @@ export interface AotCompiledFile {
   code: string;
   /** Per-component AOT info from the compilation. */
   components: AotComponentInfo[];
+  /** Extracted CSS from static css() calls (#1989). */
+  css?: string;
 }
 
 /** Route map entry for the AOT manifest JSON. */
@@ -43,6 +45,8 @@ export interface AotBuildManifest {
   /** Compiled files keyed by source file path. */
   compiledFiles: Record<string, AotCompiledFile>;
   classificationLog: string[];
+  /** Aggregated CSS from all compiled files (#1989). */
+  css: string[];
 }
 
 /**
@@ -52,6 +56,7 @@ export function generateAotBuildManifest(srcDir: string): AotBuildManifest {
   const components: Record<string, AotBuildComponentEntry> = {};
   const compiledFiles: Record<string, AotCompiledFile> = {};
   const classificationLog: string[] = [];
+  const cssSet = new Set<string>();
   const tsxFiles = collectTsxFiles(srcDir);
 
   for (const filePath of tsxFiles) {
@@ -72,8 +77,12 @@ export function generateAotBuildManifest(srcDir: string): AotBuildManifest {
         compiledFiles[filePath] = {
           code: result.code,
           components: result.components,
+          css: result.css,
         };
       }
+
+      // Collect CSS from all files (not just those with components) (#1989)
+      if (result.css) cssSet.add(result.css);
     } catch (e) {
       classificationLog.push(
         `⚠ ${filePath}: ${e instanceof Error ? e.message : 'compilation failed'}`,
@@ -106,7 +115,7 @@ export function generateAotBuildManifest(srcDir: string): AotBuildManifest {
     classificationLog.push(`Coverage: ${aotCount}/${total} components (${pct}%)`);
   }
 
-  return { components, compiledFiles, classificationLog };
+  return { components, compiledFiles, classificationLog, css: [...cssSet] };
 }
 
 /**

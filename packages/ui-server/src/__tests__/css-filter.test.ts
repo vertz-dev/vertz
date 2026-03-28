@@ -21,10 +21,7 @@ describe('filterCSSByHTML (#1979)', () => {
 
   it('removes CSS rules whose class selectors do NOT appear in the HTML', () => {
     const html = '<div class="_abc12345">Hello</div>';
-    const css = [
-      '._abc12345 { color: red; }',
-      '._unused99 { display: grid; }',
-    ];
+    const css = ['._abc12345 { color: red; }', '._unused99 { display: grid; }'];
 
     const result = filterCSSByHTML(html, css);
 
@@ -152,5 +149,76 @@ describe('filterCSSByHTML (#1979)', () => {
     const result = filterCSSByHTML(html, css);
 
     expect(result).toHaveLength(2);
+  });
+
+  // ── @keyframes filtering (#1988) ──────────────────────────────────
+
+  it('filters out standalone @keyframes when no surviving CSS references them', () => {
+    const html = '<div class="_used1234">content</div>';
+    const css = [
+      '._used1234 { color: red; }',
+      '._unused99 { animation: vz-fade-in 100ms; }',
+      '@keyframes vz-fade-in { from { opacity: 0; } to { opacity: 1; } }',
+      '@keyframes vz-zoom-out { from { transform: scale(1); } to { transform: scale(0.95); } }',
+    ];
+
+    const result = filterCSSByHTML(html, css);
+
+    // _used1234 kept (in HTML), _unused99 dropped (not in HTML),
+    // vz-fade-in dropped (referenced only by dropped CSS), vz-zoom-out dropped
+    expect(result).toEqual(['._used1234 { color: red; }']);
+  });
+
+  it('keeps @keyframes when surviving CSS references them', () => {
+    const html = '<div class="_btn12345">btn</div>';
+    const css = [
+      '._btn12345 { animation: vz-fade-in 100ms ease-out; }',
+      '@keyframes vz-fade-in { from { opacity: 0; } to { opacity: 1; } }',
+      '@keyframes vz-zoom-out { from { transform: scale(1); } to { transform: scale(0.95); } }',
+    ];
+
+    const result = filterCSSByHTML(html, css);
+
+    // _btn12345 kept (in HTML), vz-fade-in kept (referenced by surviving CSS),
+    // vz-zoom-out dropped (not referenced)
+    expect(result).toHaveLength(2);
+    expect(result[0]).toContain('._btn12345');
+    expect(result[1]).toContain('vz-fade-in');
+  });
+
+  it('handles CSS with inline @keyframes inside class rules', () => {
+    const html = '<div class="_skeleton">loading</div>';
+    const skeletonCss =
+      '._skeleton { animation: vz-pulse 2s infinite; }\n@keyframes vz-pulse { 50% { opacity: 0.5; } }';
+    const unusedCss = '._unused { color: red; }';
+
+    const result = filterCSSByHTML(html, [skeletonCss, unusedCss]);
+
+    // Skeleton CSS has both class selector and @keyframes in same string — class selector
+    // matches HTML, so the whole string is kept.
+    expect(result).toEqual([skeletonCss]);
+  });
+
+  it('filters @keyframes CSS in real-world theme pattern', () => {
+    const html = '<div class="_app_root"><h1 class="_app_title">Store</h1></div>';
+    const css = [
+      // App CSS — used
+      '._app_root { display: flex; }\n._app_title { font-size: 2rem; }',
+      // Button CSS — NOT used on this page
+      '._btn_base { display: inline-flex; }\n._btn_base:hover { opacity: 0.9; }',
+      // Card CSS — NOT used on this page
+      '._card_root { border-radius: 8px; }',
+      // Shared keyframes — should be dropped since no surviving CSS uses them
+      '@keyframes vz-fade-in { from { opacity: 0; } to { opacity: 1; } }',
+      '@keyframes vz-zoom-in { from { opacity: 0; transform: scale(0.95); } to { opacity: 1; transform: scale(1); } }',
+      // Reduced motion — global rule, always kept
+      '@media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: 0.01ms !important; } }',
+    ];
+
+    const result = filterCSSByHTML(html, css);
+
+    expect(result).toHaveLength(2);
+    expect(result[0]).toContain('._app_root');
+    expect(result[1]).toContain('prefers-reduced-motion');
   });
 });

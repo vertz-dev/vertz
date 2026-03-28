@@ -411,10 +411,11 @@ ${modulepreloadLinks}
                   `  AOT routes: ${routeCount} route(s)${appLabel} bundled → dist/server/aot-routes.js`,
                 );
 
-                // Write aot-manifest.json with route mapping + app entry
+                // Write aot-manifest.json with route mapping + app entry + extracted CSS (#1989)
                 const manifestPath = resolve(distServer, 'aot-manifest.json');
                 const manifestData: Record<string, unknown> = { routes: routeMap };
                 if (appEntry) manifestData.app = appEntry;
+                if (aotManifest.css.length > 0) manifestData.css = aotManifest.css;
                 writeFileSync(manifestPath, JSON.stringify(manifestData, null, 2));
               } else {
                 const errors = bundleResult.logs

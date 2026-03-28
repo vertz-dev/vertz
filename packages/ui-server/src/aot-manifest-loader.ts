@@ -13,6 +13,8 @@ import type { AotManifest, AotRenderFn, AotRouteEntry } from './ssr-aot-pipeline
 interface AotManifestJson {
   routes: Record<string, AotRouteMapEntry>;
   app?: AotRouteMapEntry;
+  /** Extracted CSS from static css() calls (#1989). */
+  css?: string[];
 }
 
 /**
@@ -84,5 +86,5 @@ export async function loadAotManifest(serverDir: string): Promise<AotManifest | 
     }
   }
 
-  return { routes, app };
+  return { routes, app, css: manifestJson.css };
 }

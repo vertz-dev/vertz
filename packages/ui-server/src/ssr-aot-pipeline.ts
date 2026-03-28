@@ -68,6 +68,9 @@ export interface AotManifest {
   routes: Record<string, AotRouteEntry>;
   /** Root layout (App) entry — wraps page content via its RouterView hole. */
   app?: AotRouteEntry;
+  /** Extracted CSS from static css() calls, embedded at build time (#1989).
+   *  Used as the primary component CSS source instead of getInjectedCSS() fallback. */
+  css?: string[];
 }
 
 /**
@@ -342,7 +345,13 @@ export async function ssrRenderAot(
       try {
         // Create holes for the app — DOM shim for all except RouterView
         const appHoleNames = aotManifest.app.holes.filter((h) => h !== 'RouterView');
-        const appHoles = createHoles(appHoleNames, module, normalizedUrl, queryCache, options.ssrAuth);
+        const appHoles = createHoles(
+          appHoleNames,
+          module,
+          normalizedUrl,
+          queryCache,
+          options.ssrAuth,
+        );
 
         // RouterView hole returns the pre-rendered page HTML
         appHoles.RouterView = () => html;
@@ -376,8 +385,8 @@ export async function ssrRenderAot(
       }
     }
 
-    // 6. Collect CSS (pass rendered HTML for usage-based filtering #1979)
-    const css = collectCSSFromModule(module, html, options.fallbackMetrics);
+    // 6. Collect CSS — use manifest CSS as primary source (#1989), filter fallback (#1988)
+    const css = collectCSSFromModule(module, html, options.fallbackMetrics, aotManifest.css);
 
     // 7. Build ssrData from query cache
     const ssrData: Array<{ key: string; data: unknown }> = [];
@@ -501,14 +510,18 @@ function ensureDomShim(): void {
 /**
  * Collect CSS from module theme + styles + injected CSS.
  *
- * When falling back to getInjectedCSS() (no per-request tracker), filters
- * component CSS by class usage in the rendered HTML to eliminate unused
- * theme component styles (#1979).
+ * When `manifestCss` is provided (AOT builds), it's used as the primary
+ * component CSS source — avoiding dependence on runtime getInjectedCSS() (#1989)
+ * and eliminating dead theme component CSS (#1988).
+ *
+ * Falls back to getInjectedCSS() + HTML-based filtering when manifest CSS
+ * is not available (dev mode, non-AOT paths).
  */
 function collectCSSFromModule(
   module: SSRModule,
   renderedHtml: string,
   fallbackMetrics?: Record<string, FontFallbackMetrics>,
+  manifestCss?: string[],
 ): { cssString: string; preloadTags: string } {
   let themeCss = '';
   let preloadTags = '';
@@ -532,21 +545,35 @@ function collectCSSFromModule(
     for (const s of module.styles) alreadyIncluded.add(s);
   }
 
-  // Prefer render-scoped CSS tracker when it captured CSS during this render;
-  // fall back to global getInjectedCSS() when the tracker is empty (e.g.,
-  // styles were eagerly created at import time via buildComponents()).
-  const ssrCtx = ssrStorage.getStore();
-  const tracker = ssrCtx?.cssTracker;
-  const useTracker = tracker && tracker.size > 0;
-  const rawComponentCss = useTracker
-    ? Array.from(tracker)
-    : (module.getInjectedCSS?.() ?? []);
-  let componentCss = rawComponentCss.filter((s) => !alreadyIncluded.has(s));
+  let componentCss: string[];
 
-  // When falling back to global CSS (no per-request tracker), filter by HTML
-  // usage to eliminate unused eagerly-compiled theme component styles (#1979).
-  if (!useTracker && componentCss.length > 0 && renderedHtml) {
-    componentCss = filterCSSByHTML(renderedHtml, componentCss);
+  if (manifestCss && manifestCss.length > 0) {
+    // AOT path: use manifest CSS as the primary source (#1989).
+    // This CSS was extracted at compile time and doesn't depend on runtime injection.
+    componentCss = manifestCss.filter((s) => !alreadyIncluded.has(s));
+
+    // Supplement with getInjectedCSS() for CSS not captured at compile time
+    // (e.g., variants() lazily compiled, keyframes() from theme primitives).
+    const injected = module.getInjectedCSS?.() ?? [];
+    const manifestSet = new Set(manifestCss);
+    const supplemental = injected.filter((s) => !alreadyIncluded.has(s) && !manifestSet.has(s));
+    if (supplemental.length > 0 && renderedHtml) {
+      // Filter supplemental CSS by HTML usage to remove dead theme CSS (#1988)
+      componentCss.push(...filterCSSByHTML(renderedHtml, supplemental));
+    }
+  } else {
+    // Fallback path: use render-scoped tracker or global getInjectedCSS()
+    const ssrCtx = ssrStorage.getStore();
+    const tracker = ssrCtx?.cssTracker;
+    const useTracker = tracker && tracker.size > 0;
+    const rawComponentCss = useTracker ? Array.from(tracker) : (module.getInjectedCSS?.() ?? []);
+    componentCss = rawComponentCss.filter((s) => !alreadyIncluded.has(s));
+
+    // When falling back to global CSS (no per-request tracker), filter by HTML
+    // usage to eliminate unused eagerly-compiled theme component styles (#1979).
+    if (!useTracker && componentCss.length > 0 && renderedHtml) {
+      componentCss = filterCSSByHTML(renderedHtml, componentCss);
+    }
   }
 
   const themeTag = themeCss ? `<style data-vertz-css>${themeCss}</style>` : '';

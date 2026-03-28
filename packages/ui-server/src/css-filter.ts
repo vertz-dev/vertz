@@ -41,17 +41,27 @@ function extractClassSelectorsFromCSS(css: string): Set<string> {
 }
 
 /**
+ * Check if a CSS string is a standalone @keyframes block.
+ */
+function isKeyframesBlock(css: string): boolean {
+  return /^\s*@keyframes\s/.test(css);
+}
+
+/**
  * Check if a CSS string contains ONLY class-based rules.
  * If it has non-class selectors (element, :root, *, @font-face, etc.),
  * it should always be kept.
+ *
+ * @keyframes blocks and @media/@container wrappers are stripped before checking,
+ * since @keyframes are dead if the class rules referencing them are removed (#1988).
  */
 function hasOnlyClassSelectors(css: string): boolean {
-  // Strip @media / @container wrappers to inspect the inner selectors
-  // Also strip comments
-  const stripped = css
-    .replace(/\/\*[\s\S]*?\*\//g, '') // Remove comments
-    .replace(/@[\w-]+\s*\([^)]*\)\s*\{/g, '') // Remove @media/@container opening
-    .replace(/^\s*\}/gm, ''); // Remove closing braces from stripped at-rules
+  // Strip comments
+  let stripped = css.replace(/\/\*[\s\S]*?\*\//g, '');
+  // Strip @keyframes blocks entirely (they're dead if referencing rules are removed)
+  stripped = stripped.replace(/@keyframes\s+[\w-]+\s*\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}/g, '');
+  // Strip @media / @container / @supports / @layer wrappers
+  stripped = stripped.replace(/@[\w-]+\s*\([^)]*\)\s*\{/g, '').replace(/^\s*\}/gm, '');
 
   // Find all selector-like patterns before { blocks
   const ruleRegex = /([^{}]+)\{/g;
@@ -76,11 +86,12 @@ function hasOnlyClassSelectors(css: string): boolean {
 /**
  * Filter CSS strings to only include those whose class selectors appear in the HTML.
  *
- * For each CSS string:
- * - If it contains non-class selectors (element selectors, :root, *, @font-face),
- *   it's always kept (global resets, CSS variables, etc.).
- * - If it contains ONLY class-based selectors, it's kept only if at least one
- *   of its class names appears in the HTML.
+ * Two-pass filtering (#1988):
+ * 1. Class-based CSS: kept only if at least one class selector appears in the HTML.
+ * 2. Standalone @keyframes: kept only if a surviving CSS string references that
+ *    keyframe name in an `animation` or `animation-name` property.
+ *
+ * Non-class rules (:root, body, *, @font-face) are always kept.
  *
  * @param html - The rendered HTML string.
  * @param cssStrings - Array of CSS strings (each may contain multiple rules).
@@ -91,17 +102,48 @@ export function filterCSSByHTML(html: string, cssStrings: string[]): string[] {
 
   const htmlClasses = extractClassNamesFromHTML(html);
 
-  return cssStrings.filter((css) => {
+  // Pass 1: partition into kept (global/used-class), standalone @keyframes, and dropped
+  const kept: string[] = [];
+  const pendingKeyframes: Array<{ css: string; name: string }> = [];
+
+  for (const css of cssStrings) {
+    // Standalone @keyframes blocks are deferred to pass 2
+    if (isKeyframesBlock(css)) {
+      const nameMatch = /@keyframes\s+([\w-]+)/.exec(css);
+      if (nameMatch) {
+        pendingKeyframes.push({ css, name: nameMatch[1]! });
+      }
+      continue;
+    }
+
     // Non-class rules are always kept (resets, :root vars, etc.)
     if (!hasOnlyClassSelectors(css)) {
-      return true;
+      kept.push(css);
+      continue;
     }
 
     // Class-only rules: keep if any selector class is in the HTML
     const cssClasses = extractClassSelectorsFromCSS(css);
+    let used = false;
     for (const cls of cssClasses) {
-      if (htmlClasses.has(cls)) return true;
+      if (htmlClasses.has(cls)) {
+        used = true;
+        break;
+      }
     }
-    return false;
-  });
+    if (used) kept.push(css);
+  }
+
+  // Pass 2: keep @keyframes only if a surviving CSS string references the name
+  if (pendingKeyframes.length > 0) {
+    const survivingCss = kept.join('\n');
+    for (const kf of pendingKeyframes) {
+      // Check if the keyframe name appears in an animation property of surviving CSS
+      if (survivingCss.includes(kf.name)) {
+        kept.push(kf.css);
+      }
+    }
+  }
+
+  return kept;
 }

@@ -8,8 +8,10 @@ import { BodyJsxDiagnostics } from './diagnostics/body-jsx-diagnostics';
 import { MutationDiagnostics } from './diagnostics/mutation-diagnostics';
 import { PropsDestructuringDiagnostics } from './diagnostics/props-destructuring';
 import { SSRSafetyDiagnostics } from './diagnostics/ssr-safety-diagnostics';
+import { CSSAnalyzer } from './analyzers/css-analyzer';
 import { AotStringTransformer } from './transformers/aot-string-transformer';
 import { ComputedTransformer } from './transformers/computed-transformer';
+import { CSSTransformer } from './transformers/css-transformer';
 import { JsxTransformer } from './transformers/jsx-transformer';
 import { MountFrameTransformer } from './transformers/mount-frame-transformer';
 import { MutationTransformer } from './transformers/mutation-transformer';
@@ -289,6 +291,17 @@ export function compileForSSRAot(
     aotTransformer.transform(s, sourceFile, component, variables);
   }
 
+  // 5. Extract CSS from static css() calls for AOT manifest (#1989).
+  // This ensures CSS is available regardless of bundler tree-shaking behavior.
+  let extractedCss: string | undefined;
+  const cssAnalyzer = new CSSAnalyzer();
+  const cssCalls = cssAnalyzer.analyze(sourceFile);
+  if (cssCalls.length > 0) {
+    const cssTransformer = new CSSTransformer();
+    const css = cssTransformer.extractCSS(sourceFile, cssCalls, filename);
+    if (css) extractedCss = css;
+  }
+
   // Generate source map and return
   const map = s.generateMap({
     source: filename,
@@ -300,6 +313,7 @@ export function compileForSSRAot(
     map,
     components: aotTransformer.components,
     diagnostics: allDiagnostics,
+    css: extractedCss,
   };
 }
 
