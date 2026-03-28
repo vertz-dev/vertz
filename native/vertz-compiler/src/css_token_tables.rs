@@ -411,7 +411,17 @@ pub fn resolve_value(value: &str, value_type: &str, property: &str) -> Option<St
         "line-height" => line_height_scale(value).map(|v| v.to_string()),
         "ring" => resolve_ring(value),
         "content" => content_map(value).map(|v| v.to_string()),
-        "raw" => Some(value.to_string()),
+        "raw" => {
+            // grid-cols: number → repeat(N, minmax(0, 1fr))
+            if property == "grid-cols" {
+                if let Ok(num) = value.parse::<u32>() {
+                    if num > 0 {
+                        return Some(format!("repeat({}, minmax(0, 1fr))", num));
+                    }
+                }
+            }
+            Some(value.to_string())
+        }
         _ => Some(value.to_string()),
     }
 }
