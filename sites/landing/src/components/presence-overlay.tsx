@@ -1,4 +1,4 @@
-import { css, keyframes, onMount } from '@vertz/ui';
+import { onMount } from '@vertz/ui';
 
 import {
   advanceSimulation,
@@ -9,83 +9,6 @@ import {
   selectVisibleCursors,
 } from '../presence-logic';
 import type { CursorState } from '../presence-types';
-
-// ── Animations ─────────────────────────────────────────────
-
-const cursorEnter = keyframes('cursor-enter', {
-  from: { opacity: '0', transform: 'scale(0)' },
-  to: { opacity: '1', transform: 'scale(1)' },
-});
-
-const pulseExpand = keyframes('pulse-expand', {
-  '0%': { opacity: '0.6', transform: 'translate(-50%, -50%) scale(0)' },
-  '100%': { opacity: '0', transform: 'translate(-50%, -50%) scale(1)' },
-});
-
-// ── Styles ─────────────────────────────────────────────────
-
-const s = css({
-  overlay: [
-    {
-      '&': {
-        position: 'fixed',
-        inset: '0',
-        pointerEvents: 'none',
-        zIndex: '5', // above HeroGlow (0), below Nav (50) and noise (9999)
-        overflow: 'hidden',
-      },
-    },
-  ],
-  cursor: [
-    {
-      '&': {
-        position: 'absolute',
-        width: '8px',
-        height: '8px',
-        borderRadius: '50%',
-        transition: 'transform 66ms linear, opacity 300ms ease',
-        animation: `${cursorEnter} 200ms ease-out`,
-        willChange: 'transform, opacity',
-      },
-    },
-  ],
-  pulse: [
-    {
-      '&': {
-        position: 'absolute',
-        width: '60px',
-        height: '60px',
-        borderRadius: '50%',
-        pointerEvents: 'none',
-        animation: `${pulseExpand} 800ms ease-out forwards`,
-      },
-    },
-  ],
-  optOut: [
-    {
-      '&': {
-        position: 'fixed',
-        bottom: '1rem',
-        right: '1rem',
-        zIndex: '2',
-        background: 'none',
-        border: '1px solid #2A2826',
-        borderRadius: '6px',
-        color: '#6B6560',
-        fontSize: '0.65rem',
-        fontFamily: 'var(--font-mono)',
-        padding: '0.35rem 0.6rem',
-        cursor: 'pointer',
-        pointerEvents: 'auto',
-        transition: 'color 0.15s, border-color 0.15s',
-      },
-      '&:hover': {
-        color: '#9C9690',
-        borderColor: '#4A4540',
-      },
-    },
-  ],
-});
 
 // ── Constants ──────────────────────────────────────────────
 
@@ -185,31 +108,43 @@ export default function PresenceOverlay() {
 
   return (
     <>
-      <div className={s.overlay} aria-hidden="true">
-        {visible.map((cursor) => {
-          const faded = isFaded(cursor.lastActive, now);
-          const idle = isIdle(cursor.lastActive, now);
-          if (idle) return null;
-
-          return (
-            <div
-              key={cursor.id}
-              className={s.cursor}
-              style={{
-                transform: `translate(${cursor.x}vw, ${cursor.y}vh)`,
-                background: cursor.color,
-                boxShadow: `0 0 8px ${cursor.color}40`,
-                opacity: faded ? 0.3 : 0.7,
-              }}
-            />
-          );
-        })}
+      <div
+        aria-hidden="true"
+        style={{
+          position: 'fixed',
+          inset: '0',
+          pointerEvents: 'none',
+          zIndex: '40',
+          overflow: 'hidden',
+        }}
+      >
+        {visible.map((cursor) => (
+          <div
+            key={cursor.id}
+            style={{
+              position: 'absolute',
+              width: '12px',
+              height: '12px',
+              borderRadius: '50%',
+              willChange: 'transform, opacity',
+              transform: `translate(${cursor.x}vw, ${cursor.y}vh)`,
+              background: cursor.color,
+              boxShadow: `0 0 12px ${cursor.color}80, 0 0 4px ${cursor.color}`,
+              opacity: isIdle(cursor.lastActive, now) ? 0 : isFaded(cursor.lastActive, now) ? 0.3 : 0.7,
+              transition: 'transform 66ms linear, opacity 300ms ease',
+            }}
+          />
+        ))}
 
         {!hidden && pulses.map((pulse) => (
           <div
             key={pulse.id}
-            className={s.pulse}
             style={{
+              position: 'absolute',
+              width: '60px',
+              height: '60px',
+              borderRadius: '50%',
+              pointerEvents: 'none',
               left: `${pulse.x}vw`,
               top: `${pulse.y}vh`,
               background: `radial-gradient(circle, ${pulse.color}40 0%, transparent 70%)`,
@@ -220,8 +155,22 @@ export default function PresenceOverlay() {
 
       <button
         type="button"
-        className={s.optOut}
         onClick={toggleHidden}
+        style={{
+          position: 'fixed',
+          bottom: '1rem',
+          right: '1rem',
+          zIndex: '40',
+          background: 'none',
+          border: '1px solid #2A2826',
+          borderRadius: '6px',
+          color: '#6B6560',
+          fontSize: '0.65rem',
+          fontFamily: 'var(--font-mono)',
+          padding: '0.35rem 0.6rem',
+          cursor: 'pointer',
+          pointerEvents: 'auto',
+        }}
       >
         {hidden ? 'Show cursors' : 'Hide cursors'}
       </button>
