@@ -429,6 +429,9 @@ const app = css({
 
 // ── Mini todo app component ─────────────────────────────────
 
+/** WebSocket URL for presence — injected at build time via --define */
+declare const PRESENCE_WS_URL: string;
+
 type Todo = { id: number; text: string; done: boolean; toggled?: boolean };
 
 const INITIAL_TODOS: Todo[] = [
@@ -473,6 +476,15 @@ function MiniTodoApp() {
     el.style.opacity = '0';
   }
 
+  // Reference to the active WebSocket, set by onMount
+  let presenceWs: WebSocket | null = null;
+
+  function sendInteract() {
+    if (presenceWs && presenceWs.readyState === WebSocket.OPEN) {
+      presenceWs.send('{"t":"interact"}');
+    }
+  }
+
   function addTodo() {
     if (!inputValue.trim()) return;
     todos = [...todos, { id: nextId, text: inputValue.trim(), done: false }];
@@ -480,9 +492,10 @@ function MiniTodoApp() {
     inputValue = '';
     deferUpdateFade();
     flashGlow('[data-hero-flash]');
+    sendInteract();
   }
 
-  // ── Simulated peer activity ──────────────────────────────
+  // ── Simulated peer activity (fallback when no real peers) ──
   const PEER_ITEMS = [
     'Set up authentication',
     'Add dark mode toggle',
@@ -494,22 +507,86 @@ function MiniTodoApp() {
     'Set up monitoring',
   ];
   let peerItemIndex = 0;
+  let hasRealPeers = false;
+
+  function handlePeerInteract() {
+    const text = PEER_ITEMS[peerItemIndex % PEER_ITEMS.length];
+    peerItemIndex++;
+    todos = [...todos, { id: nextId, text, done: false }];
+    nextId = nextId + 1;
+    deferUpdateFade();
+    flashGlow('[data-hero-flash-peer]');
+  }
 
   onMount(() => {
+    // ── WebSocket presence connection ──────────────────────
+    let keepaliveId: ReturnType<typeof setInterval> | null = null;
+
+    const wsUrl = typeof PRESENCE_WS_URL !== 'undefined'
+      ? PRESENCE_WS_URL
+      : 'ws://localhost:4001/__presence';
+
+    function connectPresence() {
+      try {
+        presenceWs = new WebSocket(wsUrl);
+
+        presenceWs.onmessage = (event) => {
+          try {
+            const msg = JSON.parse(event.data);
+            if (msg.t === 'interact') {
+              handlePeerInteract();
+            } else if (msg.t === 'join' || msg.t === 'state') {
+              hasRealPeers = (msg.count ?? 0) > 1;
+            } else if (msg.t === 'leave') {
+              hasRealPeers = (msg.count ?? 0) > 1;
+            }
+          } catch {
+            // Malformed message, ignore
+          }
+        };
+
+        presenceWs.onopen = () => {
+          keepaliveId = setInterval(() => {
+            if (presenceWs && presenceWs.readyState === WebSocket.OPEN) {
+              presenceWs.send('{"t":"ping"}');
+            }
+          }, 30_000);
+        };
+
+        presenceWs.onclose = () => {
+          hasRealPeers = false;
+          presenceWs = null;
+          if (keepaliveId) clearInterval(keepaliveId);
+          keepaliveId = null;
+        };
+
+        presenceWs.onerror = () => {
+          // Will trigger onclose
+        };
+      } catch {
+        // WebSocket not available or URL invalid — fallback to simulation
+      }
+    }
+
+    connectPresence();
+
+    // ── Simulated peer timer (fallback) ────────────────────
     function schedulePeer() {
       const delay = 6000 + Math.random() * 8000; // 6-14s
       return setTimeout(() => {
-        const text = PEER_ITEMS[peerItemIndex % PEER_ITEMS.length];
-        peerItemIndex++;
-        todos = [...todos, { id: nextId, text, done: false }];
-        nextId = nextId + 1;
-        deferUpdateFade();
-        flashGlow('[data-hero-flash-peer]');
-        timerId = schedulePeer();
+        if (!hasRealPeers) {
+          handlePeerInteract();
+        }
+        simTimerId = schedulePeer();
       }, delay);
     }
-    let timerId = schedulePeer();
-    return () => clearTimeout(timerId);
+    let simTimerId = schedulePeer();
+
+    return () => {
+      clearTimeout(simTimerId);
+      if (keepaliveId) clearInterval(keepaliveId);
+      if (presenceWs) presenceWs.close();
+    };
   });
 
   function toggleTodo(id: number) {

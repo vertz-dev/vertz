@@ -12,9 +12,11 @@
   },
   "scripts": {
     "dev": "bun run src/dev-server.ts",
+    "dev:presence": "bun run src/presence-dev-server.ts",
+    "dev:all": "bun run scripts/dev-all.ts",
     "build": "bun node_modules/@vertz/cli/dist/vertz.js build",
     "build:og": "bun run scripts/og-images.ts",
-    "deploy": "bun run build && bunx wrangler deploy --define DEPLOY_VERSION:\"'$(date +%s)'\" && bun run scripts/pre-warm.ts",
+    "deploy": "bun run build && bunx wrangler deploy --define DEPLOY_VERSION:\"'$(date +%s)'\" --define PRESENCE_WS_URL:\"'wss://vertz.dev/__presence'\" && bun run scripts/pre-warm.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

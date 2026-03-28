@@ -1,62 +1,39 @@
 // ── Wire protocol types for real-time presence ─────────────
-// Shared between client (PresenceOverlay) and server (DO + dev server).
-// Message type discriminant `t` is single-letter for wire efficiency.
+// Shared between client (hero.tsx) and server (DO + dev server).
+//
+// PRIVACY RULE: No user-generated content is EVER transmitted.
+// Only interaction signals and connection lifecycle events.
 
 /** Client → Server messages */
 export type ClientMessage =
-  | { t: 'move'; x: number; y: number; s: number }
-  | { t: 'interact'; x: number; y: number }
-  | { t: 'click'; x: number; y: number }
+  | { t: 'interact' }
   | { t: 'ping' };
 
 /** Server → Client messages */
 export type ServerMessage =
-  | { t: 'state'; peers: Peer[]; count: number }
-  | { t: 'join'; peer: Peer }
-  | { t: 'leave'; id: string }
-  | { t: 'move'; id: string; x: number; y: number; s: number }
-  | { t: 'interact'; id: string; x: number; y: number }
-  | { t: 'click'; id: string; x: number; y: number }
+  | { t: 'state'; count: number }
+  | { t: 'join'; count: number }
+  | { t: 'leave'; count: number }
+  | { t: 'interact' }
   | { t: 'pong' };
 
-/** Ephemeral peer identity — assigned by server, no PII */
-export type Peer = {
-  id: string;
-  color: string;
-};
+/** Known client message types for validation */
+export const VALID_CLIENT_TYPES = new Set(['interact', 'ping']);
 
-/** Internal cursor state tracked by the overlay */
-export type CursorState = {
-  id: string;
-  color: string;
-  x: number;
-  y: number;
-  s: number; // scroll offset (% of document height)
-  lastActive: number; // timestamp of last move/interact
-};
+/** Max message size in bytes */
+export const MAX_MESSAGE_SIZE = 64;
 
-/** Color palette for peer cursors */
-export const CURSOR_COLORS = [
-  '#3B82F6', // blue
-  '#10B981', // emerald
-  '#F59E0B', // amber
-  '#EF4444', // red
-  '#8B5CF6', // violet
-  '#EC4899', // pink
-  '#06B6D4', // cyan
-  '#F97316', // orange
-  '#14B8A6', // teal
-  '#A855F7', // purple
-] as const;
+/** Max messages per second per connection */
+export const MAX_MESSAGES_PER_SECOND = 5;
 
-/** Max cursors rendered at once */
-export const MAX_VISIBLE_CURSORS = 15;
+/** Max connections per room */
+export const MAX_CONNECTIONS_PER_ROOM = 50;
 
-/** Scroll proximity threshold (%) — only show cursors within this range */
-export const SCROLL_PROXIMITY_THRESHOLD = 15;
+/** Max connections per IP */
+export const MAX_CONNECTIONS_PER_IP = 3;
 
-/** Idle fade timeout (ms) */
-export const IDLE_FADE_MS = 5_000;
+/** Keepalive interval (ms) — client sends ping */
+export const KEEPALIVE_INTERVAL_MS = 30_000;
 
-/** Idle disappear timeout (ms) */
-export const IDLE_DISAPPEAR_MS = 30_000;
+/** Idle timeout (ms) — server disconnects if no messages */
+export const IDLE_TIMEOUT_MS = 120_000;
