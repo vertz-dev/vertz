@@ -1,3 +1,5 @@
+import { Island } from '@vertz/ui';
+
 import { Benchmarks } from '../components/benchmarks';
 import { FAQ } from '../components/faq';
 import { Features } from '../components/features';
@@ -6,6 +8,7 @@ import { Founders } from '../components/founders';
 import { GetStarted } from '../components/get-started';
 import { Hero } from '../components/hero';
 import { Nav } from '../components/nav';
+import PresenceOverlay from '../components/presence-overlay';
 import { TheStack } from '../components/the-stack';
 import { WhyVertz } from '../components/why-vertz';
 
@@ -31,6 +34,7 @@ export function HomePage() {
     <div>
       <Nav />
       <HeroGlow />
+      <Island component={PresenceOverlay} />
       <main style={{ position: 'relative', overflowX: 'hidden' }}>
         <Hero />
         {SHOW_BENCHMARKS && <><Divider /><Benchmarks /></>}
