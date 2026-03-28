@@ -172,7 +172,7 @@ async fn ws_mcp_events_handler(
     ws: WebSocketUpgrade,
 ) -> impl IntoResponse {
     ws.on_upgrade(move |socket| async move {
-        let server_status = mcp_events::build_server_status(&state);
+        let server_status = mcp_events::build_server_status(&state).await;
         let error_snapshot = mcp_events::build_error_snapshot(&state.error_broadcaster).await;
         state
             .mcp_event_hub
@@ -646,11 +646,15 @@ pub async fn start_server(config: ServerConfig) -> io::Result<()> {
                                     );
 
                                     // Emit file_change event to MCP LLM clients
+                                    // Never leak absolute paths — use file_name() as last resort
                                     let relative_path = change.path
                                         .strip_prefix(&root_dir)
-                                        .unwrap_or(&change.path)
-                                        .to_string_lossy()
-                                        .to_string();
+                                        .map(|p| p.to_string_lossy().to_string())
+                                        .unwrap_or_else(|_| {
+                                            change.path.file_name()
+                                                .map(|n| n.to_string_lossy().to_string())
+                                                .unwrap_or_else(|| "<unknown>".to_string())
+                                        });
                                     let kind_str = match change.kind {
                                         crate::watcher::file_watcher::FileChangeKind::Create => "create",
                                         crate::watcher::file_watcher::FileChangeKind::Modify => "modify",

@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
-use tokio::sync::{broadcast, RwLock};
+use tokio::sync::{broadcast, mpsc, watch, RwLock};
 
 use crate::errors::categories::{DevError, ErrorCategory};
 
@@ -248,6 +248,11 @@ impl McpEventHub {
     ///
     /// Sends `server_status` handshake, then forwards filtered events.
     /// Reads client messages for subscription filter updates.
+    ///
+    /// Architecture:
+    /// - `watch` channel for filter state (read-task → write-task, lock-free)
+    /// - `mpsc` channel for direct messages (read-task → write-task, e.g. subscription acks)
+    /// - `broadcast` receiver for hub events (relay tasks → write-task)
     pub async fn handle_connection(
         &self,
         socket: WebSocket,
@@ -281,37 +286,50 @@ impl McpEventHub {
             return;
         }
 
-        // Shared filter state for this client
-        let filter: Arc<RwLock<Option<HashSet<String>>>> = Arc::new(RwLock::new(None));
-        let filter_write = filter.clone();
+        // Filter state: watch channel (lock-free reads in write task)
+        let (filter_tx, filter_rx) = watch::channel::<Option<HashSet<String>>>(None);
 
-        // Spawn write task: forward filtered broadcast events to this client
+        // Direct message channel: for subscription acks sent only to this client
+        let (direct_tx, mut direct_rx) = mpsc::channel::<McpEvent>(16);
+
+        // Spawn write task: forward filtered broadcast events + direct messages
         let write_task = tokio::spawn(async move {
+            let filter_rx = filter_rx;
             loop {
-                match broadcast_rx.recv().await {
-                    Ok(event) => {
-                        // Check subscription filter
-                        let should_send = {
-                            let f = filter.read().await;
-                            match &*f {
-                                None => true, // No filter — send all
-                                Some(set) => set.contains(event.event_name()),
-                            }
-                        };
+                tokio::select! {
+                    result = broadcast_rx.recv() => {
+                        match result {
+                            Ok(event) => {
+                                // Check subscription filter (lock-free borrow)
+                                let should_send = {
+                                    let f = filter_rx.borrow();
+                                    match &*f {
+                                        None => true,
+                                        Some(set) => set.contains(event.event_name()),
+                                    }
+                                };
 
-                        if should_send {
-                            let json = event.to_json();
-                            if ws_sender.send(Message::Text(json)).await.is_err() {
-                                break;
+                                if should_send {
+                                    let json = event.to_json();
+                                    if ws_sender.send(Message::Text(json)).await.is_err() {
+                                        break;
+                                    }
+                                }
                             }
+                            Err(broadcast::error::RecvError::Lagged(n)) => {
+                                eprintln!("[MCP Events] Client lagged, {} messages dropped", n);
+                                continue;
+                            }
+                            Err(broadcast::error::RecvError::Closed) => break,
                         }
                     }
-                    Err(broadcast::error::RecvError::Lagged(n)) => {
-                        eprintln!("[MCP Events] Client lagged, {} messages dropped", n);
-                        // Continue receiving — don't disconnect
-                        continue;
+                    Some(event) = direct_rx.recv() => {
+                        // Direct message to this client only (e.g. subscription ack)
+                        let json = event.to_json();
+                        if ws_sender.send(Message::Text(json)).await.is_err() {
+                            break;
+                        }
                     }
-                    Err(broadcast::error::RecvError::Closed) => break,
                 }
             }
         });
@@ -320,21 +338,15 @@ impl McpEventHub {
         while let Some(msg) = ws_receiver.next().await {
             match msg {
                 Ok(Message::Text(text)) => {
-                    // Try to parse as subscription filter
                     if let Ok(client_msg) = serde_json::from_str::<ClientMessage>(&text) {
                         let (active_filter, unknown_events) =
                             validate_subscription(&client_msg.subscribe);
 
-                        // Update filter
-                        {
-                            let mut f = filter_write.write().await;
-                            *f = Some(active_filter.iter().cloned().collect());
-                        }
+                        // Update filter via watch channel (lock-free)
+                        let filter_set: HashSet<String> = active_filter.iter().cloned().collect();
+                        let _ = filter_tx.send(Some(filter_set));
 
-                        // Send acknowledgment (directly, not through broadcast)
-                        // We can't send through ws_sender here since write_task owns it.
-                        // Instead, broadcast the subscribed event — the filter check will
-                        // pass for "subscribed" events since they bypass the filter.
+                        // Send ack directly to this client only
                         let ack = McpEvent::Subscribed {
                             timestamp: iso_timestamp(),
                             data: SubscribedData {
@@ -342,22 +354,12 @@ impl McpEventHub {
                                 unknown_events,
                             },
                         };
-                        // Broadcast to all clients — only this client will match
-                        // Actually, we need a different approach. The ack should go only
-                        // to this client. Since ws_sender is moved to write_task, we
-                        // need to signal through the broadcast channel with a client-specific
-                        // mechanism, or restructure.
-                        //
-                        // Simplest approach: broadcast it. The "subscribed" event name
-                        // always passes the filter (it's not in the filter set, but it's
-                        // a control message). We'll handle this by always sending
-                        // "subscribed" events regardless of filter.
-                        self.broadcast(ack);
+                        let _ = direct_tx.send(ack).await;
                     }
                 }
                 Ok(Message::Close(_)) => break,
                 Err(_) => break,
-                _ => {} // Ignore binary/ping/pong
+                _ => {}
             }
         }
 
@@ -377,8 +379,15 @@ impl Default for McpEventHub {
 }
 
 /// Build a `server_status` event from the current server state.
-pub fn build_server_status(state: &crate::server::module_server::DevServerState) -> McpEvent {
+pub async fn build_server_status(state: &crate::server::module_server::DevServerState) -> McpEvent {
     let uptime = state.start_time.elapsed().as_secs();
+    let current = state.error_broadcaster.current_state().await;
+    let (active_error_count, active_error_category) = match &current {
+        crate::errors::broadcaster::ErrorBroadcast::Error { category, errors } => {
+            (errors.len(), Some(*category))
+        }
+        crate::errors::broadcaster::ErrorBroadcast::Clear => (0, None),
+    };
     McpEvent::ServerStatus {
         timestamp: iso_timestamp(),
         data: ServerStatusData {
@@ -388,9 +397,9 @@ pub fn build_server_status(state: &crate::server::module_server::DevServerState)
             port: state.port,
             ssr_enabled: state.enable_ssr,
             typecheck_enabled: state.typecheck_enabled,
-            mcp_event_clients: 0,  // Will be incremented after connect
-            active_error_count: 0, // Populated below via snapshot
-            active_error_category: None,
+            mcp_event_clients: 0, // Will be incremented after connect
+            active_error_count,
+            active_error_category,
             typecheck_error_count: 0,
         },
     }
