@@ -21,15 +21,23 @@ pub struct HydrationData {
 
 /// Serialize hydration data as a `<script>` tag for embedding in SSR HTML.
 ///
+/// The client expects `__VERTZ_SSR_DATA__` to be an **array** of
+/// `{ key, data }` entries (see `hydrateQueryFromSSR` in @vertz/ui).
 /// The output is safe to embed in HTML (JSON content is escaped).
 pub fn serialize_hydration_data(data: &HydrationData) -> String {
-    let json_value = serde_json::json!({
-        "queryCache": data.query_cache,
-        "renderTimestamp": data.render_timestamp,
-        "renderedUrl": data.rendered_url,
-    });
+    // Convert HashMap to the array format the client expects
+    let entries: Vec<serde_json::Value> = data
+        .query_cache
+        .iter()
+        .map(|(key, value)| {
+            serde_json::json!({
+                "key": key,
+                "data": value,
+            })
+        })
+        .collect();
 
-    let json_str = serde_json::to_string(&json_value).unwrap_or_else(|_| "{}".to_string());
+    let json_str = serde_json::to_string(&entries).unwrap_or_else(|_| "[]".to_string());
 
     // Escape </script> to prevent XSS via payload
     let escaped = json_str
@@ -105,9 +113,8 @@ mod tests {
         };
         let result = serialize_hydration_data(&data);
         assert!(result.contains("window.__VERTZ_SSR_DATA__"));
-        assert!(result.contains("\"queryCache\":{}"));
-        assert!(result.contains("\"renderTimestamp\":1000"));
-        assert!(result.contains("\"renderedUrl\":\"/\""));
+        // Empty cache produces an empty array
+        assert!(result.contains("__VERTZ_SSR_DATA__ = []"));
     }
 
     #[test]
@@ -123,7 +130,9 @@ mod tests {
             rendered_url: "/tasks".to_string(),
         };
         let result = serialize_hydration_data(&data);
-        assert!(result.contains("\"tasks\""));
+        // Array format: [{ "key": "tasks", "data": {...} }]
+        assert!(result.contains("\"key\":\"tasks\""));
+        assert!(result.contains("\"data\""));
         assert!(result.contains("\"Test\""));
     }
 
@@ -179,8 +188,7 @@ mod tests {
     fn test_serialize_empty_helper() {
         let result = serialize_empty_hydration_data("/about");
         assert!(result.contains("window.__VERTZ_SSR_DATA__"));
-        assert!(result.contains("\"queryCache\":{}"));
-        assert!(result.contains("\"renderedUrl\":\"/about\""));
+        assert!(result.contains("__VERTZ_SSR_DATA__ = []"));
     }
 
     #[test]
@@ -196,8 +204,8 @@ mod tests {
         // Should be wrapped in a script tag
         assert!(result.starts_with("  <script>"));
         assert!(result.trim_end().ends_with("</script>"));
-        // Should be valid assignment
-        assert!(result.contains("window.__VERTZ_SSR_DATA__ = {"));
+        // Should be valid assignment with array format
+        assert!(result.contains("window.__VERTZ_SSR_DATA__ = ["));
     }
 
     #[test]

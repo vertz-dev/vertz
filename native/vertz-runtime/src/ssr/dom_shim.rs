@@ -704,6 +704,11 @@ pub const DOM_SHIM_JS: &str = r#"
   // --- Install globals ---
   const doc = new SSRDocument();
 
+  // Create the #app mount point that mount() expects
+  const appRoot = doc.createElement('div');
+  appRoot.setAttribute('id', 'app');
+  doc.body.appendChild(appRoot);
+
   globalThis.document = doc;
   globalThis.Document = SSRDocument;
   globalThis.Element = SSRElement;
@@ -755,6 +760,13 @@ pub const DOM_SHIM_JS: &str = r#"
       }
     });
   };
+
+  // Event target methods (no-op in SSR)
+  if (typeof globalThis.addEventListener === 'undefined') {
+    globalThis.addEventListener = function() {};
+    globalThis.removeEventListener = function() {};
+    globalThis.dispatchEvent = function() { return true; };
+  }
 
   // window as globalThis alias
   if (typeof globalThis.window === 'undefined') {
@@ -808,12 +820,174 @@ pub const DOM_SHIM_JS: &str = r#"
   };
 
   globalThis.__vertz_get_collected_css = function() {
-    return [...__vertz_collected_css];
+    // Merge CSS from two sources:
+    // 1. Explicit __vertz_inject_css() calls (used by native compiler pipeline)
+    // 2. <style> elements appended to document.head by @vertz/ui's injectCSS()
+    //    (when SSR context is not set, injectCSS falls back to DOM <style> tags)
+    const seen = new Set(__vertz_collected_css.map(c => c.css));
+    const merged = [...__vertz_collected_css];
+
+    if (typeof document !== 'undefined' && document.head) {
+      for (const child of document.head.childNodes) {
+        if (child.nodeType === ELEMENT_NODE && child.tagName === 'STYLE') {
+          const css = child.textContent || '';
+          if (css && !seen.has(css)) {
+            seen.add(css);
+            const id = child.getAttribute ? child.getAttribute('data-css-id') || null : null;
+            merged.push({ css, id });
+          }
+        }
+      }
+    }
+
+    return merged;
   };
 
   globalThis.__vertz_clear_collected_css = function() {
     __vertz_collected_css.length = 0;
   };
+
+  // URLSearchParams shim (used by the router for query string parsing)
+  if (typeof globalThis.URLSearchParams === 'undefined') {
+    class SSRURLSearchParams {
+      constructor(init) {
+        this._params = [];
+        if (typeof init === 'string') {
+          const s = init.startsWith('?') ? init.slice(1) : init;
+          if (s) {
+            for (const pair of s.split('&')) {
+              const [k, ...rest] = pair.split('=');
+              this._params.push([decodeURIComponent(k), decodeURIComponent(rest.join('='))]);
+            }
+          }
+        } else if (init && typeof init === 'object') {
+          for (const [k, v] of Object.entries(init)) {
+            this._params.push([String(k), String(v)]);
+          }
+        }
+      }
+      get(name) {
+        const entry = this._params.find(([k]) => k === name);
+        return entry ? entry[1] : null;
+      }
+      getAll(name) { return this._params.filter(([k]) => k === name).map(([, v]) => v); }
+      has(name) { return this._params.some(([k]) => k === name); }
+      set(name, value) {
+        const idx = this._params.findIndex(([k]) => k === name);
+        if (idx >= 0) this._params[idx] = [name, String(value)];
+        else this._params.push([name, String(value)]);
+      }
+      append(name, value) { this._params.push([name, String(value)]); }
+      delete(name) { this._params = this._params.filter(([k]) => k !== name); }
+      toString() {
+        return this._params.map(([k, v]) => encodeURIComponent(k) + '=' + encodeURIComponent(v)).join('&');
+      }
+      entries() { return this._params[Symbol.iterator](); }
+      keys() { return this._params.map(([k]) => k)[Symbol.iterator](); }
+      values() { return this._params.map(([, v]) => v)[Symbol.iterator](); }
+      forEach(cb) { this._params.forEach(([k, v]) => cb(v, k, this)); }
+      [Symbol.iterator]() { return this.entries(); }
+      get size() { return this._params.length; }
+    }
+    globalThis.URLSearchParams = SSRURLSearchParams;
+  }
+
+  // URL shim (used by the router and other utilities)
+  if (typeof globalThis.URL === 'undefined') {
+    class SSRURL {
+      constructor(input, base) {
+        let full = input;
+        if (base && !input.includes('://')) {
+          // Resolve relative to base
+          const b = typeof base === 'string' ? base : base.href;
+          if (input.startsWith('/')) {
+            const origin = b.match(/^[a-z]+:\/\/[^/]+/i);
+            full = (origin ? origin[0] : '') + input;
+          } else {
+            full = b.replace(/\/[^/]*$/, '/') + input;
+          }
+        }
+        const match = full.match(/^([a-z]+:)\/\/([^/:]+)(:\d+)?(\/[^?#]*)(\?[^#]*)?(#.*)?$/i);
+        if (match) {
+          this.protocol = match[1];
+          this.hostname = match[2];
+          this.port = match[3] ? match[3].slice(1) : '';
+          this.pathname = match[4] || '/';
+          this.search = match[5] || '';
+          this.hash = match[6] || '';
+          this.host = this.hostname + (this.port ? ':' + this.port : '');
+          this.origin = this.protocol + '//' + this.host;
+        } else {
+          this.protocol = '';
+          this.hostname = '';
+          this.port = '';
+          this.pathname = full;
+          this.search = '';
+          this.hash = '';
+          this.host = '';
+          this.origin = '';
+        }
+        this.searchParams = new globalThis.URLSearchParams(this.search);
+        this.href = this.origin + this.pathname + this.search + this.hash;
+      }
+      toString() { return this.href; }
+    }
+    globalThis.URL = SSRURL;
+  }
+
+  // AbortController / AbortSignal shim (used by router, fetch, etc.)
+  if (typeof globalThis.AbortController === 'undefined') {
+    class SSRAbortSignal {
+      constructor() {
+        this.aborted = false;
+        this.reason = undefined;
+        this._listeners = [];
+      }
+      addEventListener(type, listener) {
+        if (type === 'abort') this._listeners.push(listener);
+      }
+      removeEventListener(type, listener) {
+        if (type === 'abort') {
+          this._listeners = this._listeners.filter(l => l !== listener);
+        }
+      }
+      throwIfAborted() {
+        if (this.aborted) throw this.reason;
+      }
+    }
+    class SSRAbortController {
+      constructor() {
+        this.signal = new SSRAbortSignal();
+      }
+      abort(reason) {
+        if (this.signal.aborted) return;
+        this.signal.aborted = true;
+        this.signal.reason = reason || new DOMException('The operation was aborted.', 'AbortError');
+        for (const listener of this.signal._listeners) {
+          try { listener({ type: 'abort', target: this.signal }); } catch(_) {}
+        }
+      }
+    }
+    globalThis.AbortController = SSRAbortController;
+    globalThis.AbortSignal = SSRAbortSignal;
+  }
+
+  // DOMException shim
+  if (typeof globalThis.DOMException === 'undefined') {
+    class SSRDOMException extends Error {
+      constructor(message, name) {
+        super(message);
+        this.name = name || 'Error';
+        this.code = 0;
+      }
+    }
+    globalThis.DOMException = SSRDOMException;
+  }
+
+  // queueMicrotask shim
+  if (typeof globalThis.queueMicrotask === 'undefined') {
+    globalThis.queueMicrotask = function(cb) { Promise.resolve().then(cb); };
+  }
 
   // Expose serialization helpers for SSR render
   globalThis.__vertz_ssr = {

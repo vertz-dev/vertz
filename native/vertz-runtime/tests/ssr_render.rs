@@ -15,7 +15,7 @@ use vertz_runtime::ssr::css_collector;
 use vertz_runtime::ssr::dom_shim;
 use vertz_runtime::ssr::html_document::{assemble_ssr_document, SsrHtmlOptions};
 use vertz_runtime::ssr::hydration;
-use vertz_runtime::ssr::render::{render_inline_ssr, render_to_html, SsrOptions};
+use vertz_runtime::ssr::render::{render_inline_ssr, render_to_html_sync, SsrOptions};
 use vertz_runtime::ssr::session::{extract_session_from_cookies, SsrSession};
 
 fn ssr_app_path() -> PathBuf {
@@ -214,10 +214,11 @@ fn test_hydration_data_round_trip() {
     assert!(script.contains("</script>"));
     assert!(script.contains("window.__VERTZ_SSR_DATA__"));
 
-    // Verify data content
+    // Verify data content (array format: [{ key, data }, ...])
     assert!(script.contains("Write SSR"));
     assert!(script.contains("Test User"));
-    assert!(script.contains("1711612800000"));
+    assert!(script.contains("\"key\":\"tasks\""));
+    assert!(script.contains("\"key\":\"user\""));
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -390,7 +391,7 @@ fn test_ssr_render_fixture_app() {
         enable_hmr: false,
     };
 
-    let result = render_to_html(&options);
+    let result = render_to_html_sync(&options);
 
     assert!(result.is_ssr, "Should successfully SSR the fixture app");
 
@@ -441,7 +442,7 @@ fn test_ssr_render_fixture_app_with_session() {
         enable_hmr: true,
     };
 
-    let result = render_to_html(&options);
+    let result = render_to_html_sync(&options);
     assert!(result.is_ssr);
 
     // Theme CSS should be in the document
@@ -476,7 +477,7 @@ fn test_ssr_fallback_on_invalid_entry() {
         enable_hmr: false,
     };
 
-    let result = render_to_html(&options);
+    let result = render_to_html_sync(&options);
 
     // Should gracefully fall back to client-only shell
     assert!(!result.is_ssr, "Should fall back to client-only");
@@ -505,7 +506,7 @@ fn test_ssr_render_performance() {
         enable_hmr: false,
     };
 
-    let result = render_to_html(&options);
+    let result = render_to_html_sync(&options);
     assert!(result.is_ssr);
 
     // SSR should complete in reasonable time (< 5000ms for test environment)

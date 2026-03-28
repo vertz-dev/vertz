@@ -37,6 +37,8 @@ pub struct SsrResult {
     pub render_time_ms: f64,
     /// Whether rendering succeeded or fell back to client-only shell.
     pub is_ssr: bool,
+    /// Error message if SSR failed (fell back to client-only shell).
+    pub error: Option<String>,
 }
 
 /// Options for SSR rendering.
@@ -67,15 +69,46 @@ pub struct SsrOptions {
 /// executes the render, and assembles the final HTML document.
 ///
 /// If SSR fails for any reason, it falls back to a client-only HTML shell.
-pub fn render_to_html(options: &SsrOptions) -> SsrResult {
+///
+/// This function is async because V8 module loading is async (deno_core requires
+/// an async runtime for module resolution). It runs the V8 work on a blocking
+/// thread to avoid nesting tokio runtimes.
+pub async fn render_to_html(options: &SsrOptions) -> SsrResult {
+    let options = options.clone();
+    let start = Instant::now();
+
+    // Run SSR on a blocking thread — V8/deno_core creates its own tokio
+    // runtime internally, which cannot nest inside the server's async runtime.
+    let opts_for_fallback = options.clone();
+    let result = tokio::task::spawn_blocking(move || render_ssr(&options))
+        .await
+        .unwrap_or_else(|e| {
+            eprintln!("[SSR] Task panicked: {}", e);
+            Err(deno_core::anyhow::anyhow!("SSR task panicked: {}", e))
+        });
+
+    match result {
+        Ok(result) => result,
+        Err(e) => {
+            let error_msg = e.to_string();
+            eprintln!("[SSR] Render failed, falling back to client shell: {}", error_msg);
+            let elapsed = start.elapsed().as_secs_f64() * 1000.0;
+            fallback_client_shell(&opts_for_fallback, elapsed, Some(error_msg))
+        }
+    }
+}
+
+/// Synchronous version of render_to_html for non-async contexts (tests, CLI).
+pub fn render_to_html_sync(options: &SsrOptions) -> SsrResult {
     let start = Instant::now();
 
     match render_ssr(options) {
         Ok(result) => result,
         Err(e) => {
-            eprintln!("[SSR] Render failed, falling back to client shell: {}", e);
+            let error_msg = e.to_string();
+            eprintln!("[SSR] Render failed, falling back to client shell: {}", error_msg);
             let elapsed = start.elapsed().as_secs_f64() * 1000.0;
-            fallback_client_shell(options, elapsed)
+            fallback_client_shell(options, elapsed, Some(error_msg))
         }
     }
 }
@@ -154,6 +187,7 @@ fn render_ssr(options: &SsrOptions) -> Result<SsrResult, AnyError> {
         css: css_string,
         render_time_ms: elapsed,
         is_ssr: true,
+        error: None,
     })
 }
 
@@ -182,9 +216,12 @@ fn render_app_content(runtime: &mut VertzJsRuntime) -> Result<String, AnyError> 
                 return appEl.innerHTML;
             }
 
-            // Fall back to body content
-            if (document.body.childNodes.length > 0) {
-                return document.body.innerHTML;
+            // Fall back to body content (excluding the empty #app container)
+            const bodyChildren = Array.from(document.body.childNodes).filter(
+                n => !(n.nodeType === 1 && n.getAttribute && n.getAttribute('id') === 'app' && n.childNodes.length === 0)
+            );
+            if (bodyChildren.length > 0) {
+                return bodyChildren.map(n => n.outerHTML || n.textContent || '').join('');
             }
 
             return '';
@@ -199,7 +236,7 @@ fn render_app_content(runtime: &mut VertzJsRuntime) -> Result<String, AnyError> 
 }
 
 /// Generate a client-only HTML shell as a fallback when SSR fails.
-fn fallback_client_shell(options: &SsrOptions, render_time_ms: f64) -> SsrResult {
+fn fallback_client_shell(options: &SsrOptions, render_time_ms: f64, error: Option<String>) -> SsrResult {
     let entry_url = entry_path_to_url(&options.entry_file, &options.root_dir);
 
     let html = assemble_ssr_document(&SsrHtmlOptions {
@@ -219,6 +256,7 @@ fn fallback_client_shell(options: &SsrOptions, render_time_ms: f64) -> SsrResult
         css: String::new(),
         render_time_ms,
         is_ssr: false,
+        error,
     }
 }
 
@@ -266,6 +304,7 @@ pub fn render_inline_ssr(js_code: &str, url: &str) -> Result<SsrResult, AnyError
         css: css_string,
         render_time_ms: elapsed,
         is_ssr: true,
+        error: None,
     })
 }
 
@@ -277,10 +316,8 @@ mod tests {
     fn test_render_inline_simple_component() {
         let result = render_inline_ssr(
             r#"
-            const div = document.createElement('div');
-            div.setAttribute('id', 'app');
-            div.appendChild(document.createTextNode('Hello SSR'));
-            document.body.appendChild(div);
+            const app = document.getElementById('app');
+            app.appendChild(document.createTextNode('Hello SSR'));
             "#,
             "/",
         )
@@ -294,8 +331,7 @@ mod tests {
     fn test_render_inline_nested_elements() {
         let result = render_inline_ssr(
             r#"
-            const app = document.createElement('div');
-            app.setAttribute('id', 'app');
+            const app = document.getElementById('app');
 
             const header = document.createElement('h1');
             header.appendChild(document.createTextNode('Tasks'));
@@ -308,8 +344,6 @@ mod tests {
                 list.appendChild(li);
             }
             app.appendChild(list);
-
-            document.body.appendChild(app);
             "#,
             "/tasks",
         )
@@ -328,13 +362,11 @@ mod tests {
             r#"
             __vertz_inject_css('.btn { color: red; }', 'btn');
 
-            const app = document.createElement('div');
-            app.setAttribute('id', 'app');
+            const app = document.getElementById('app');
             const btn = document.createElement('button');
             btn.setAttribute('class', 'btn');
             btn.appendChild(document.createTextNode('Click'));
             app.appendChild(btn);
-            document.body.appendChild(app);
             "#,
             "/",
         )
@@ -352,10 +384,8 @@ mod tests {
                 "tasks": { "items": [{ "id": "1", "title": "Test" }] }
             };
 
-            const app = document.createElement('div');
-            app.setAttribute('id', 'app');
+            const app = document.getElementById('app');
             app.appendChild(document.createTextNode('Tasks loaded'));
-            document.body.appendChild(app);
             "#,
             "/tasks",
         )
@@ -410,10 +440,8 @@ mod tests {
     fn test_render_inline_location_set_correctly() {
         let result = render_inline_ssr(
             r#"
-            const app = document.createElement('div');
-            app.setAttribute('id', 'app');
+            const app = document.getElementById('app');
             app.appendChild(document.createTextNode(location.pathname));
-            document.body.appendChild(app);
             "#,
             "/tasks/123",
         )
@@ -426,10 +454,8 @@ mod tests {
     fn test_render_inline_performance() {
         let result = render_inline_ssr(
             r#"
-            const app = document.createElement('div');
-            app.setAttribute('id', 'app');
+            const app = document.getElementById('app');
             app.appendChild(document.createTextNode('fast'));
-            document.body.appendChild(app);
             "#,
             "/",
         )
@@ -456,7 +482,7 @@ mod tests {
             enable_hmr: false,
         };
 
-        let result = fallback_client_shell(&options, 1.0);
+        let result = fallback_client_shell(&options, 1.0, None);
         assert!(!result.is_ssr);
         assert!(result.content.is_empty());
         assert!(result.html.contains("<div id=\"app\"></div>"));
@@ -478,7 +504,7 @@ mod tests {
             enable_hmr: false,
         };
 
-        let result = render_to_html(&options);
+        let result = render_to_html_sync(&options);
         // Should fall back to client shell gracefully
         assert!(!result.is_ssr);
         assert!(result.html.contains("<div id=\"app\"></div>"));
@@ -488,16 +514,13 @@ mod tests {
     fn test_render_inline_with_attributes() {
         let result = render_inline_ssr(
             r#"
-            const app = document.createElement('div');
-            app.setAttribute('id', 'app');
+            const app = document.getElementById('app');
 
             const link = document.createElement('a');
             link.setAttribute('href', '/tasks');
             link.setAttribute('class', 'nav-link');
             link.appendChild(document.createTextNode('Tasks'));
             app.appendChild(link);
-
-            document.body.appendChild(app);
             "#,
             "/",
         )
@@ -512,8 +535,7 @@ mod tests {
     fn test_render_inline_void_elements() {
         let result = render_inline_ssr(
             r#"
-            const app = document.createElement('div');
-            app.setAttribute('id', 'app');
+            const app = document.getElementById('app');
 
             const img = document.createElement('img');
             img.setAttribute('src', '/logo.png');
@@ -527,8 +549,6 @@ mod tests {
             input.setAttribute('type', 'text');
             input.setAttribute('name', 'search');
             app.appendChild(input);
-
-            document.body.appendChild(app);
             "#,
             "/",
         )
