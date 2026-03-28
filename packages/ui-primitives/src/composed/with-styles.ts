@@ -57,6 +57,13 @@ export function withStyles<C extends ComposedPrimitive>(
   component: C,
   classes: ClassesOf<C>,
 ): StyledPrimitive<C> {
+  if (!component) {
+    throw new Error(
+      'withStyles() received an undefined component. ' +
+        'This usually means a composed primitive failed to load in the client bundle. ' +
+        'Check that @vertz/ui-primitives is installed and its exports resolve correctly.',
+    );
+  }
   const styled = (props: Omit<Parameters<C>[0], 'classes'>) =>
     component({ ...props, classes } as Parameters<C>[0]);
 

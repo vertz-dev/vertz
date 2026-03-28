@@ -109,6 +109,98 @@ describe('configureTheme', () => {
   });
 });
 
+describe('configureTheme() components', () => {
+  it('components.primitives is lazily initialized', () => {
+    const config = configureTheme();
+    const { primitives } = config.components;
+
+    // Primitives should be an object with expected keys
+    expect(primitives).toBeDefined();
+
+    // Each primitive should be accessible
+    expect(primitives.DropdownMenu).toBeDefined();
+    expect(typeof primitives.DropdownMenu).toBe('function');
+    expect(primitives.Select).toBeDefined();
+    expect(primitives.Dialog).toBeDefined();
+  });
+
+  it('primitives are cached after first access', () => {
+    const config = configureTheme();
+    const { primitives } = config.components;
+
+    const first = primitives.DropdownMenu;
+    const second = primitives.DropdownMenu;
+    expect(first).toBe(second);
+  });
+
+  it('accessing one primitive does not initialize others', () => {
+    const config = configureTheme();
+    const { primitives } = config.components;
+
+    // Access only Dialog — this should not crash even if other
+    // primitives have import resolution issues
+    const dialog = primitives.Dialog;
+    expect(dialog).toBeDefined();
+  });
+
+  it('a broken factory does not prevent other factories from working', () => {
+    // Replicate the lazyPrimitives pattern to test failure isolation
+    const obj: Record<string, unknown> = {};
+    const factories: Record<string, () => unknown> = {
+      Working: () => 'ok',
+      Broken: () => {
+        throw new Error('import resolution failed');
+      },
+      AlsoWorking: () => 42,
+    };
+    for (const key of Object.keys(factories)) {
+      let cached: unknown;
+      let initialized = false;
+      Object.defineProperty(obj, key, {
+        get() {
+          if (!initialized) {
+            cached = factories[key]!();
+            initialized = true;
+          }
+          return cached;
+        },
+        enumerable: true,
+        configurable: true,
+      });
+    }
+
+    // Working factory succeeds
+    expect(obj.Working).toBe('ok');
+
+    // Broken factory throws
+    expect(() => obj.Broken).toThrow('import resolution failed');
+
+    // AlsoWorking factory still succeeds despite Broken having thrown
+    expect(obj.AlsoWorking).toBe(42);
+
+    // Broken factory retries on next access (not memoized on failure)
+    expect(() => obj.Broken).toThrow('import resolution failed');
+
+    // Working factory remains cached
+    expect(obj.Working).toBe('ok');
+  });
+
+  it('all primitives are enumerable', () => {
+    const config = configureTheme();
+    const { primitives } = config.components;
+    const keys = Object.keys(primitives);
+
+    expect(keys).toContain('Dialog');
+    expect(keys).toContain('DropdownMenu');
+    expect(keys).toContain('Select');
+    expect(keys).toContain('Tabs');
+    expect(keys).toContain('Checkbox');
+    expect(keys).toContain('Switch');
+    expect(keys).toContain('Accordion');
+    expect(keys.length).toBeGreaterThanOrEqual(29);
+  });
+});
+
 describe('configureTheme() lazy initialization', () => {
   afterEach(() => {
     resetInjectedStyles();

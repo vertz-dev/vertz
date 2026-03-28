@@ -504,6 +504,33 @@ export interface ResolvedTheme extends ResolvedThemeBase {
 }
 
 /**
+ * Create a primitives object where each property is lazily initialized on first access.
+ * This prevents unused primitives from crashing theme initialization if their
+ * composed primitive import fails to resolve in the client bundle.
+ */
+function lazyPrimitives<T extends Record<string, unknown>>(factories: {
+  [K in keyof T]: () => T[K];
+}): T {
+  const obj = {} as T;
+  for (const key of Object.keys(factories) as (keyof T & string)[]) {
+    let cached: T[typeof key];
+    let initialized = false;
+    Object.defineProperty(obj, key, {
+      get() {
+        if (!initialized) {
+          cached = factories[key]();
+          initialized = true;
+        }
+        return cached;
+      },
+      enumerable: true,
+      configurable: true,
+    });
+  }
+  return obj;
+}
+
+/**
  * Configure the shadcn theme.
  *
  * Single entry point — selects palette, applies color overrides, builds globals, styles, and components.
@@ -757,40 +784,41 @@ export function configureTheme(config?: ThemeConfig): ResolvedTheme {
         caption: tableS.caption,
         footer: tableS.footer,
       }),
-      primitives: {
-        Dialog: createThemedDialog(),
-        DropdownMenu: createThemedDropdownMenu(dropdownMenuS),
-        Select: createThemedSelect(selectS),
-        Tabs: createThemedTabs(tabsS),
-        Checkbox: createThemedCheckbox(checkboxS),
-        Switch: createThemedSwitch(switchS),
-        Popover: createThemedPopover(popoverS),
-        Progress: createThemedProgress(progressS),
-        RadioGroup: createThemedRadioGroup(radioGroupS),
-        Slider: createThemedSlider(sliderS),
-        Accordion: createThemedAccordion(accordionS),
-        Toast: createThemedToast(toastS),
-        Tooltip: createThemedTooltip(tooltipS),
-        Sheet: createThemedSheet(sheetS),
-        Calendar: createThemedCalendar(calendarS),
-        Carousel: createThemedCarousel(carouselS),
-        Collapsible: createThemedCollapsible(collapsibleS),
-        Command: createThemedCommand(commandS),
-        ContextMenu: createThemedContextMenu(contextMenuS),
-        DatePicker: createThemedDatePicker(datePickerS, {
-          ...calendarS,
-          root: calendarS.rootNoBorder,
-        }),
-        Drawer: createThemedDrawer(drawerS),
-        HoverCard: createThemedHoverCard(hoverCardS),
-        List: createThemedList(listS),
-        Menubar: createThemedMenubar(menubarS),
-        NavigationMenu: createThemedNavigationMenu(navigationMenuS),
-        ResizablePanel: createThemedResizablePanel(resizablePanelS),
-        ScrollArea: createThemedScrollArea(scrollAreaS),
-        Toggle: createThemedToggle(toggleS),
-        ToggleGroup: createThemedToggleGroup(toggleGroupS),
-      },
+      primitives: lazyPrimitives({
+        Dialog: () => createThemedDialog(),
+        DropdownMenu: () => createThemedDropdownMenu(dropdownMenuS),
+        Select: () => createThemedSelect(selectS),
+        Tabs: () => createThemedTabs(tabsS),
+        Checkbox: () => createThemedCheckbox(checkboxS),
+        Switch: () => createThemedSwitch(switchS),
+        Popover: () => createThemedPopover(popoverS),
+        Progress: () => createThemedProgress(progressS),
+        RadioGroup: () => createThemedRadioGroup(radioGroupS),
+        Slider: () => createThemedSlider(sliderS),
+        Accordion: () => createThemedAccordion(accordionS),
+        Toast: () => createThemedToast(toastS),
+        Tooltip: () => createThemedTooltip(tooltipS),
+        Sheet: () => createThemedSheet(sheetS),
+        Calendar: () => createThemedCalendar(calendarS),
+        Carousel: () => createThemedCarousel(carouselS),
+        Collapsible: () => createThemedCollapsible(collapsibleS),
+        Command: () => createThemedCommand(commandS),
+        ContextMenu: () => createThemedContextMenu(contextMenuS),
+        DatePicker: () =>
+          createThemedDatePicker(datePickerS, {
+            ...calendarS,
+            root: calendarS.rootNoBorder,
+          }),
+        Drawer: () => createThemedDrawer(drawerS),
+        HoverCard: () => createThemedHoverCard(hoverCardS),
+        List: () => createThemedList(listS),
+        Menubar: () => createThemedMenubar(menubarS),
+        NavigationMenu: () => createThemedNavigationMenu(navigationMenuS),
+        ResizablePanel: () => createThemedResizablePanel(resizablePanelS),
+        ScrollArea: () => createThemedScrollArea(scrollAreaS),
+        Toggle: () => createThemedToggle(toggleS),
+        ToggleGroup: () => createThemedToggleGroup(toggleGroupS),
+      }),
     };
   }
 
