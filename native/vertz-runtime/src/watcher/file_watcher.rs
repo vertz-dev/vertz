@@ -72,26 +72,28 @@ impl FileWatcher {
 
         let mut watcher = RecommendedWatcher::new(
             move |res: Result<Event, notify::Error>| {
-                if let Ok(event) = res {
-                    let kind = match event.kind {
-                        EventKind::Create(_) => Some(FileChangeKind::Create),
-                        EventKind::Modify(_) => Some(FileChangeKind::Modify),
-                        EventKind::Remove(_) => Some(FileChangeKind::Remove),
-                        _ => None,
-                    };
+                match res {
+                    Ok(event) => {
+                        let kind = match event.kind {
+                            EventKind::Create(_) => Some(FileChangeKind::Create),
+                            EventKind::Modify(_) => Some(FileChangeKind::Modify),
+                            EventKind::Remove(_) => Some(FileChangeKind::Remove),
+                            _ => None,
+                        };
 
-                    if let Some(kind) = kind {
-                        for path in event.paths {
-                            if should_process_file(&path, &extensions, &ignore_dirs) {
-                                let change = FileChange {
-                                    kind,
-                                    path: path.clone(),
-                                };
-                                // Non-blocking send — drop event if channel is full
-                                let _ = tx.try_send(change);
+                        if let Some(kind) = kind {
+                            for path in &event.paths {
+                                if should_process_file(path, &extensions, &ignore_dirs) {
+                                    let change = FileChange {
+                                        kind,
+                                        path: path.clone(),
+                                    };
+                                    let _ = tx.try_send(change);
+                                }
                             }
                         }
                     }
+                    Err(_) => {}
                 }
             },
             notify_config,

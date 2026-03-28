@@ -313,7 +313,7 @@ impl fmt::Display for MagicString {
                     cursor = cursor.max(*end);
                 }
                 EditEventKind::InsertAfter { text, .. } => {
-                    if cursor <= event.pos && event.pos < bytes.len() {
+                    if cursor <= event.pos && event.pos <= bytes.len() {
                         f.write_str(&self.original[cursor..event.pos])?;
                         cursor = event.pos;
                     }

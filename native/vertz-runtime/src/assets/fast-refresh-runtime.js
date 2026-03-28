@@ -12,9 +12,11 @@
  * The native compiler (vertz-compiler-core) emits Fast Refresh registration
  * code when `fast_refresh: true`. This runtime makes those calls work.
  *
- * NOTE: This is a simplified version for the native dev server. The full
- * Bun-based runtime (fast-refresh-runtime.ts) has deeper integration with
- * @vertz/ui/internals for signal preservation and context scopes.
+ * Context scope helpers (pushScope, popScope, getContextScope, setContextScope,
+ * etc.) are registered lazily by a companion module script that imports from
+ * @vertz/ui/internals. Until registered, the wrapper code uses no-op defaults
+ * (which is fine for initial render — providers manage context natively).
+ * The helpers must be registered before the first HMR re-mount.
  */
 (function() {
   'use strict';
@@ -28,6 +30,18 @@
   var dirtyModules = globalThis[DIRTY_KEY] || (globalThis[DIRTY_KEY] = new Set());
 
   var performingRefresh = false;
+
+  // Helpers registered lazily from @vertz/ui/internals
+  var helpers = {
+    setContextScope: null,
+    getContextScope: null,
+    pushScope: null,
+    popScope: null,
+    startSignalCollection: null,
+    stopSignalCollection: null,
+    _tryOnCleanup: null,
+    runCleanups: null,
+  };
 
   function getModule(moduleId) {
     var mod = registry.get(moduleId);
@@ -97,7 +111,19 @@
         if (!parent) continue;
 
         try {
+          // Restore context scope before calling the factory so useContext/useRouter work
+          var prevScope = null;
+          if (helpers.setContextScope && instance.contextScope) {
+            prevScope = helpers.getContextScope ? helpers.getContextScope() : null;
+            helpers.setContextScope(instance.contextScope);
+          }
+
           var newElement = factory.apply(null, instance.args);
+
+          // Restore previous scope
+          if (helpers.setContextScope && prevScope !== null) {
+            helpers.setContextScope(prevScope);
+          }
 
           // Run old cleanups
           if (instance.cleanups) {
@@ -128,10 +154,29 @@
     console.log('[vertz-hmr] Hot updated: ' + moduleId);
   }
 
+  /**
+   * Register helper functions from @vertz/ui/internals.
+   * Called by a companion module script after @vertz/ui loads.
+   */
+  function registerHelpers(fns) {
+    Object.assign(helpers, fns);
+    // Also update the API object so newly-loaded modules get real implementations
+    var api = globalThis[FR_KEY];
+    if (api && fns.pushScope) api.pushScope = fns.pushScope;
+    if (api && fns.popScope) api.popScope = fns.popScope;
+    if (api && fns.getContextScope) api.getContextScope = fns.getContextScope;
+    if (api && fns.setContextScope) api.setContextScope = fns.setContextScope;
+    if (api && fns.startSignalCollection) api.startSignalCollection = fns.startSignalCollection;
+    if (api && fns.stopSignalCollection) api.stopSignalCollection = fns.stopSignalCollection;
+    if (api && fns._tryOnCleanup) api._tryOnCleanup = fns._tryOnCleanup;
+    if (api && fns.runCleanups) api.runCleanups = fns.runCleanups;
+  }
+
   // Expose on globalThis for compiler-injected code
   globalThis[FR_KEY] = {
     __$refreshReg: __$refreshReg,
     __$refreshTrack: __$refreshTrack,
     __$refreshPerform: __$refreshPerform,
+    registerHelpers: registerHelpers,
   };
 })();

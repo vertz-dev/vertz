@@ -13,6 +13,9 @@ use std::path::Path;
 /// The Fast Refresh runtime JS (embedded at compile time).
 const FAST_REFRESH_RUNTIME_JS: &str = include_str!("../assets/fast-refresh-runtime.js");
 
+/// The Fast Refresh helpers module that registers @vertz/ui context functions.
+const FAST_REFRESH_HELPERS_JS: &str = include_str!("../assets/fast-refresh-helpers.js");
+
 /// The HMR client JS (embedded at compile time).
 const HMR_CLIENT_JS: &str = include_str!("../assets/hmr-client.js");
 
@@ -125,6 +128,10 @@ pub fn assemble_ssr_document(options: &SsrHtmlOptions<'_>) -> String {
         html.push_str("\n  </script>\n");
         html.push_str("  <script>\n");
         html.push_str(ERROR_OVERLAY_JS);
+        html.push_str("\n  </script>\n");
+        // Module script that registers @vertz/ui context helpers with the FR runtime.
+        html.push_str("  <script type=\"module\">\n");
+        html.push_str(FAST_REFRESH_HELPERS_JS);
         html.push_str("\n  </script>\n");
     }
 

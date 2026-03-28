@@ -133,6 +133,7 @@
     var start = performance.now();
     var modules = data.modules || [];
     var timestamp = data.timestamp || Date.now();
+    var errors = [];
 
     for (var i = 0; i < modules.length; i++) {
       var mod = modules[i];
@@ -142,13 +143,33 @@
         // Trigger Fast Refresh for the updated module
         performFastRefresh(mod);
       } catch (err) {
+        var errMsg = err.message || String(err);
         console.error('[vertz-hmr] Failed to import', mod, err);
+        errors.push({ message: errMsg, file: mod });
       }
     }
 
     var elapsed = Math.round(performance.now() - start);
-    showToast('Updated (' + elapsed + 'ms)');
-    console.log('[vertz-hmr] Updated ' + modules.length + ' module(s) in ' + elapsed + 'ms');
+    var overlay = globalThis.__vertz_error_overlay;
+
+    if (errors.length > 0) {
+      // Show errors in overlay
+      if (overlay && typeof overlay.showErrors === 'function') {
+        overlay.showErrors({
+          category: 'runtime',
+          errors: errors,
+        });
+      }
+      showToast('Update failed');
+      console.error('[vertz-hmr] ' + errors.length + ' module(s) failed to update');
+    } else {
+      // Dismiss any previous import error overlay
+      if (overlay && typeof overlay.dismiss === 'function') {
+        overlay.dismiss();
+      }
+      showToast('Updated (' + elapsed + 'ms)');
+      console.log('[vertz-hmr] Updated ' + modules.length + ' module(s) in ' + elapsed + 'ms');
+    }
   }
 
   function handleCssUpdate(data) {

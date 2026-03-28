@@ -233,7 +233,7 @@ async fn dev_server_handler(
                 enable_hmr: true,
             };
 
-            let result = crate::ssr::render::render_to_html(&ssr_options);
+            let result = crate::ssr::render::render_to_html(&ssr_options).await;
 
             if result.render_time_ms > 0.0 {
                 eprintln!(
@@ -242,6 +242,21 @@ async fn dev_server_handler(
                     result.render_time_ms,
                     if result.is_ssr { "ssr" } else { "client-only" }
                 );
+            }
+
+            // Report SSR errors with actionable suggestions
+            if let Some(ref error_msg) = result.error {
+                let suggestion = crate::errors::suggestions::suggest_ssr_fix(error_msg);
+                let mut error = DevError::ssr(error_msg).with_file(
+                    state.entry_file.to_string_lossy().to_string(),
+                );
+                if let Some(s) = suggestion {
+                    error = error.with_suggestion(s);
+                }
+                let broadcaster = state.error_broadcaster.clone();
+                tokio::spawn(async move {
+                    broadcaster.report_error(error).await;
+                });
             }
 
             return axum::response::Response::builder()
@@ -334,15 +349,18 @@ pub async fn start_server(config: ServerConfig) -> io::Result<()> {
 
                 // Spawn file watcher task with error broadcasting
                 tokio::spawn(async move {
-                    let mut debouncer = Debouncer::new(20);
+                    let mut debouncer = Debouncer::new(50);
 
                     loop {
                         tokio::select! {
                             Some(change) = rx.recv() => {
                                 debouncer.add(change);
                             }
-                            _ = tokio::time::sleep(std::time::Duration::from_millis(20)),
-                              if debouncer.has_pending() && debouncer.is_ready() => {
+                            _ = tokio::time::sleep(std::time::Duration::from_millis(60)),
+                              if debouncer.has_pending() => {
+                                if !debouncer.is_ready() {
+                                    continue;
+                                }
                                 let changes = debouncer.drain();
                                 for change in &changes {
                                     eprintln!(
@@ -376,6 +394,11 @@ pub async fn start_server(config: ServerConfig) -> io::Result<()> {
                                     let file_str = change.path.to_string_lossy().to_string();
                                     watcher_state.error_broadcaster
                                         .clear_file(ErrorCategory::Build, &file_str)
+                                        .await;
+                                    // Also clear SSR errors — a fixed source file means SSR
+                                    // will succeed on next render.
+                                    watcher_state.error_broadcaster
+                                        .clear_category(ErrorCategory::Ssr)
                                         .await;
 
                                     // Attempt recompilation for error recovery

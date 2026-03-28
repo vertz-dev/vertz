@@ -1,9 +1,9 @@
 /**
  * Vertz Error Overlay
  *
- * Connects to /__vertz_errors WebSocket and displays a floating error card
- * with syntax highlighting, code snippets, and clickable editor links.
- * Auto-dismisses when errors are fixed.
+ * Connects to /__vertz_errors WebSocket and displays a persistent error bar
+ * at the bottom center of the page. Non-dismissable by the user — only
+ * auto-clears when the error is fixed (successful recompile or HMR update).
  */
 (function() {
   'use strict';
@@ -19,16 +19,15 @@
   var ws = null;
   var reconnectAttempts = 0;
   var reconnectTimer = null;
-  var overlayEl = null;
+  var barEl = null;
   var rapidReconnects = [];
+  var currentCategory = null;
 
   // ── Editor Detection ───────────────────────────────────────────
 
   function getEditorScheme() {
-    // Server can inject this via a meta tag
     var meta = document.querySelector('meta[name="vertz-editor"]');
     if (meta) return meta.getAttribute('content');
-    // Default to vscode
     return 'vscode';
   }
 
@@ -50,236 +49,223 @@
     }
   }
 
-  // ── Overlay Rendering ─────────────────────────────────────────
+  // ── Error Bar ───────────────────────────────────────────────────
 
-  function createOverlay() {
-    if (overlayEl) return overlayEl;
+  function createBar() {
+    if (barEl) return barEl;
 
-    overlayEl = document.createElement('div');
-    overlayEl.id = '__vertz_error_overlay';
-    overlayEl.style.cssText = [
+    barEl = document.createElement('div');
+    barEl.id = '__vertz_error_overlay';
+    barEl.style.cssText = [
       'position:fixed',
-      'inset:0',
+      'bottom:16px',
+      'left:50%',
+      'transform:translateX(-50%) translateY(20px)',
       'z-index:2147483646',
-      'display:flex',
-      'align-items:center',
-      'justify-content:center',
-      'background:rgba(0,0,0,0.5)',
+      'max-width:720px',
+      'width:calc(100vw - 32px)',
+      'background:#18181b',
+      'border:1px solid #3f3f46',
+      'border-radius:10px',
+      'box-shadow:0 8px 32px rgba(0,0,0,0.4)',
       'font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace',
       'font-size:13px',
       'color:#e4e4e7',
       'opacity:0',
-      'transition:opacity 0.15s',
+      'transition:opacity 0.15s,transform 0.2s',
+      'pointer-events:auto',
+      'overflow:hidden',
     ].join(';');
 
-    document.body.appendChild(overlayEl);
+    document.body.appendChild(barEl);
 
-    // Fade in
+    // Slide up + fade in
     requestAnimationFrame(function() {
       requestAnimationFrame(function() {
-        if (overlayEl) overlayEl.style.opacity = '1';
+        if (barEl) {
+          barEl.style.opacity = '1';
+          barEl.style.transform = 'translateX(-50%) translateY(0)';
+        }
       });
     });
 
-    return overlayEl;
+    return barEl;
   }
 
-  function removeOverlay() {
-    if (!overlayEl) return;
-    overlayEl.style.opacity = '0';
-    var el = overlayEl;
-    overlayEl = null;
+  function removeBar() {
+    if (!barEl) return;
+    barEl.style.opacity = '0';
+    barEl.style.transform = 'translateX(-50%) translateY(20px)';
+    var el = barEl;
+    barEl = null;
+    currentCategory = null;
     setTimeout(function() {
       if (el.parentNode) el.parentNode.removeChild(el);
-    }, 150);
+    }, 200);
   }
+
+  // ── Rendering ───────────────────────────────────────────────────
+
+  var categoryColors = {
+    build: '#ef4444',
+    resolve: '#f97316',
+    ssr: '#eab308',
+    runtime: '#a855f7',
+  };
 
   function renderErrors(data) {
     var errors = data.errors || [];
     var category = data.category || 'build';
 
     if (errors.length === 0) {
-      removeOverlay();
+      removeBar();
       return;
     }
 
-    var overlay = createOverlay();
+    currentCategory = category;
+    var bar = createBar();
+    bar.innerHTML = '';
 
-    var card = document.createElement('div');
-    card.style.cssText = [
-      'background:#18181b',
-      'border:1px solid #3f3f46',
-      'border-radius:12px',
-      'max-width:720px',
-      'width:90vw',
-      'max-height:80vh',
-      'overflow-y:auto',
-      'box-shadow:0 25px 50px -12px rgba(0,0,0,0.5)',
-      'padding:0',
-    ].join(';');
+    var color = categoryColors[category] || '#ef4444';
 
-    // Header
-    var header = document.createElement('div');
-    header.style.cssText = [
-      'display:flex',
-      'align-items:center',
-      'justify-content:space-between',
-      'padding:16px 20px',
-      'border-bottom:1px solid #3f3f46',
-    ].join(';');
-
-    var categoryColors = {
-      build: '#ef4444',
-      resolve: '#f97316',
-      ssr: '#eab308',
-      runtime: '#a855f7',
-    };
-
-    var title = document.createElement('div');
-    title.style.cssText = 'display:flex;align-items:center;gap:8px;';
-    var dot = document.createElement('span');
-    dot.style.cssText = 'width:8px;height:8px;border-radius:50%;background:' + (categoryColors[category] || '#ef4444');
-    var titleText = document.createElement('span');
-    titleText.style.cssText = 'font-size:14px;font-weight:600;color:#fafafa;';
-    titleText.textContent = category.charAt(0).toUpperCase() + category.slice(1) + ' Error';
-    if (errors.length > 1) titleText.textContent += ' (' + errors.length + ')';
-    title.appendChild(dot);
-    title.appendChild(titleText);
-    header.appendChild(title);
-
-    // Dismiss button
-    var dismiss = document.createElement('button');
-    dismiss.textContent = '\u00D7';
-    dismiss.style.cssText = [
-      'background:none',
-      'border:none',
-      'color:#71717a',
-      'font-size:20px',
-      'cursor:pointer',
-      'padding:0 4px',
-      'line-height:1',
-    ].join(';');
-    dismiss.onclick = function() { removeOverlay(); };
-    header.appendChild(dismiss);
-
-    card.appendChild(header);
-
-    // Error items
+    // Single-row layout for each error
     for (var i = 0; i < errors.length; i++) {
       var err = errors[i];
-      var item = document.createElement('div');
-      item.style.cssText = 'padding:16px 20px;' + (i > 0 ? 'border-top:1px solid #27272a;' : '');
 
-      // File location (clickable)
+      var row = document.createElement('div');
+      row.style.cssText = [
+        'display:flex',
+        'align-items:flex-start',
+        'gap:10px',
+        'padding:12px 16px',
+        i > 0 ? 'border-top:1px solid #27272a' : '',
+      ].join(';');
+
+      // Category dot
+      var dot = document.createElement('span');
+      dot.style.cssText = [
+        'width:8px',
+        'height:8px',
+        'border-radius:50%',
+        'background:' + color,
+        'flex-shrink:0',
+        'margin-top:4px',
+      ].join(';');
+      row.appendChild(dot);
+
+      // Content wrapper
+      var content = document.createElement('div');
+      content.style.cssText = 'flex:1;min-width:0;';
+
+      // Error message
+      var msg = document.createElement('span');
+      msg.textContent = err.message;
+      msg.style.cssText = 'color:#fca5a5;word-break:break-word;';
+      content.appendChild(msg);
+
+      // File link (inline, after message)
       if (err.file) {
-        var loc = document.createElement('a');
         var locText = err.file;
         if (err.line) locText += ':' + err.line;
         if (err.column) locText += ':' + err.column;
+
+        var loc = document.createElement('a');
         loc.textContent = locText;
         loc.href = editorUri(err.file, err.line, err.column);
         loc.style.cssText = [
           'display:block',
           'color:#60a5fa',
           'text-decoration:none',
-          'margin-bottom:8px',
-          'font-size:12px',
+          'font-size:11px',
+          'margin-top:4px',
         ].join(';');
         loc.onmouseover = function() { this.style.textDecoration = 'underline'; };
         loc.onmouseout = function() { this.style.textDecoration = 'none'; };
-        item.appendChild(loc);
+        content.appendChild(loc);
       }
 
-      // Error message
-      var msg = document.createElement('div');
-      msg.textContent = err.message;
-      msg.style.cssText = 'color:#fca5a5;margin-bottom:8px;line-height:1.5;white-space:pre-wrap;word-break:break-word;';
-      item.appendChild(msg);
+      // Suggestion (if available)
+      if (err.suggestion) {
+        var sug = document.createElement('div');
+        sug.style.cssText = [
+          'margin-top:6px',
+          'padding:6px 10px',
+          'background:rgba(34,197,94,0.08)',
+          'border:1px solid rgba(34,197,94,0.2)',
+          'border-radius:4px',
+          'color:#86efac',
+          'font-size:11px',
+          'line-height:1.4',
+        ].join(';');
+        var sugLabel = document.createElement('span');
+        sugLabel.textContent = 'Fix: ';
+        sugLabel.style.cssText = 'font-weight:600;color:#4ade80;';
+        sug.appendChild(sugLabel);
+        sug.appendChild(document.createTextNode(err.suggestion));
+        content.appendChild(sug);
+      }
 
-      // Code snippet
+      // Code snippet (collapsible for bar mode — keep compact)
       if (err.code_snippet) {
         var pre = document.createElement('pre');
         pre.style.cssText = [
+          'margin:6px 0 0',
+          'padding:8px',
           'background:#09090b',
           'border:1px solid #27272a',
-          'border-radius:6px',
-          'padding:12px',
-          'margin:0',
+          'border-radius:4px',
           'overflow-x:auto',
-          'font-size:12px',
-          'line-height:1.6',
+          'font-size:11px',
+          'line-height:1.5',
+          'max-height:120px',
+          'overflow-y:auto',
         ].join(';');
 
         var lines = err.code_snippet.split('\n');
         for (var j = 0; j < lines.length; j++) {
           var line = lines[j];
-          if (!line && j === lines.length - 1) continue; // skip trailing empty
-
+          if (!line && j === lines.length - 1) continue;
           var lineEl = document.createElement('div');
-          var isError = line.charAt(0) === '>';
-          if (isError) {
-            lineEl.style.cssText = 'background:rgba(239,68,68,0.15);margin:0 -12px;padding:0 12px;';
+          if (line.charAt(0) === '>') {
+            lineEl.style.cssText = 'background:rgba(239,68,68,0.15);margin:0 -8px;padding:0 8px;';
           }
           lineEl.textContent = line;
           pre.appendChild(lineEl);
         }
-
-        item.appendChild(pre);
+        content.appendChild(pre);
       }
 
-      card.appendChild(item);
+      row.appendChild(content);
+      bar.appendChild(row);
     }
-
-    overlay.innerHTML = '';
-    overlay.appendChild(card);
-
-    // Close on backdrop click
-    overlay.onclick = function(e) {
-      if (e.target === overlay) removeOverlay();
-    };
-
-    // Close on Escape
-    var escHandler = function(e) {
-      if (e.key === 'Escape') {
-        removeOverlay();
-        document.removeEventListener('keydown', escHandler);
-      }
-    };
-    document.addEventListener('keydown', escHandler);
   }
 
   // ── "Server Down" Fallback ─────────────────────────────────────
 
   function showServerDown() {
-    var overlay = createOverlay();
-    overlay.innerHTML = '';
+    currentCategory = 'server';
+    var bar = createBar();
+    bar.innerHTML = '';
 
-    var card = document.createElement('div');
-    card.style.cssText = [
-      'background:#18181b',
-      'border:1px solid #3f3f46',
-      'border-radius:12px',
-      'padding:32px',
-      'text-align:center',
-      'max-width:400px',
-    ].join(';');
+    var row = document.createElement('div');
+    row.style.cssText = 'display:flex;align-items:center;gap:10px;padding:12px 16px;';
 
-    var icon = document.createElement('div');
+    var icon = document.createElement('span');
     icon.textContent = '\u26A0';
-    icon.style.cssText = 'font-size:32px;margin-bottom:12px;';
-    card.appendChild(icon);
+    icon.style.cssText = 'font-size:16px;flex-shrink:0;';
+    row.appendChild(icon);
 
-    var msg = document.createElement('div');
+    var msg = document.createElement('span');
     msg.textContent = 'Dev server may be down. Check the terminal.';
-    msg.style.cssText = 'color:#a1a1aa;font-size:14px;margin-bottom:16px;';
-    card.appendChild(msg);
+    msg.style.cssText = 'color:#a1a1aa;font-size:13px;';
+    row.appendChild(msg);
 
-    var hint = document.createElement('div');
+    var hint = document.createElement('span');
     hint.textContent = 'Reconnecting...';
-    hint.style.cssText = 'color:#52525b;font-size:12px;';
-    card.appendChild(hint);
+    hint.style.cssText = 'color:#52525b;font-size:11px;margin-left:auto;';
+    row.appendChild(hint);
 
-    overlay.appendChild(card);
+    bar.appendChild(row);
   }
 
   // ── WebSocket Connection ───────────────────────────────────────
@@ -307,7 +293,12 @@
             renderErrors(data);
             break;
           case 'clear':
-            removeOverlay();
+            // Server-side clear should not dismiss client-side runtime errors.
+            // Runtime errors (e.g., import() failures) are only cleared by the
+            // HMR client when a subsequent import succeeds.
+            if (currentCategory !== 'runtime') {
+              removeBar();
+            }
             break;
         }
       } catch (err) {
@@ -327,17 +318,14 @@
   function scheduleReconnect() {
     if (reconnectTimer) return;
 
-    // Track rapid reconnects
     var now = Date.now();
     rapidReconnects.push(now);
-    // Remove old entries outside the window
     rapidReconnects = rapidReconnects.filter(function(t) {
       return now - t < RAPID_RECONNECT_WINDOW_MS;
     });
 
     if (rapidReconnects.length >= RAPID_RECONNECT_LIMIT) {
       showServerDown();
-      // Still try to reconnect, but at max interval
       reconnectAttempts = 99;
     }
 
@@ -352,6 +340,12 @@
       connect();
     }, delay);
   }
+
+  // ── Public API ─────────────────────────────────────────────────
+  globalThis.__vertz_error_overlay = {
+    showErrors: renderErrors,
+    dismiss: removeBar,
+  };
 
   // ── Initialize ─────────────────────────────────────────────────
 

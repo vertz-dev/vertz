@@ -393,3 +393,138 @@ impl<'a, 'b, 'c> Visit<'c> for InlineTsStripper<'a, 'b> {
     fn visit_ts_interface_declaration(&mut self, _decl: &TSInterfaceDeclaration<'c>) {}
     fn visit_ts_type_alias_declaration(&mut self, _decl: &TSTypeAliasDeclaration<'c>) {}
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use oxc_allocator::Allocator;
+    use oxc_parser::Parser;
+    use oxc_span::SourceType;
+
+    fn strip(source: &str) -> String {
+        let allocator = Allocator::default();
+        let source_type = SourceType::tsx();
+        let parser = Parser::new(&allocator, source, source_type);
+        let parsed = parser.parse();
+        let mut ms = MagicString::new(source);
+        strip_typescript_syntax(&mut ms, &parsed.program, source);
+        ms.to_string()
+    }
+
+    #[test]
+    fn test_strip_return_type_annotation() {
+        let result = strip(r#"function foo(x: number): string {
+  return String(x);
+}"#);
+        assert!(!result.contains(": number"), "param annotation not stripped: {}", result);
+        assert!(!result.contains(": string"), "return type not stripped: {}", result);
+        assert!(result.contains("function foo(x) {"), "result: {}", result);
+    }
+
+    #[test]
+    fn test_strip_return_type_with_union_string_literals() {
+        let result = strip(r#"function priorityColor(
+  priority: TaskPriority,
+): "blue" | "green" | "yellow" | "red" {
+  return "blue";
+}"#);
+        assert!(!result.contains(": TaskPriority"), "param not stripped: {}", result);
+        assert!(!result.contains("\"blue\" | \"green\""), "return type not stripped: {}", result);
+    }
+
+    #[test]
+    fn test_strip_variable_type_annotation_with_generics() {
+        let result = strip(r#"const map: Record<string, number> = {};
+"#);
+        assert!(!result.contains(": Record<"), "variable annotation not stripped: {}", result);
+        assert!(result.contains("const map = {}"), "result: {}", result);
+    }
+
+    #[test]
+    fn test_strip_import_type() {
+        let result = strip(r#"import type { Task } from "./types";
+const x = 1;
+"#);
+        assert!(!result.contains("import type"), "import type not stripped: {}", result);
+        assert!(result.contains("const x = 1"), "result: {}", result);
+    }
+
+    /// Test that full compile() doesn't re-introduce type annotations.
+    #[test]
+    fn test_full_compile_strips_type_annotations() {
+        let source = r#"import type { Task } from "./types";
+
+function priorityColor(
+  priority: string,
+): "blue" | "green" | "red" {
+  const map: Record<string, string> = { low: "blue" };
+  return map[priority];
+}
+
+export function TaskCard({ task }: { task: Task }) {
+  return <div>{priorityColor("low")}</div>;
+}
+"#;
+        let result = crate::compile(source, crate::CompileOptions {
+            filename: Some("test.tsx".to_string()),
+            target: Some("dom".to_string()),
+            fast_refresh: Some(true),
+            ..Default::default()
+        });
+        assert!(!result.code.contains("import type"), "import type survived full compile: {}", result.code);
+        assert!(!result.code.contains("): \"blue\""), "return type survived full compile: {}", result.code);
+        assert!(!result.code.contains(": Record<"), "variable annotation survived full compile: {}", result.code);
+    }
+
+    /// Test with the actual task-card.tsx content pattern
+    #[test]
+    fn test_full_compile_strips_task_card_pattern() {
+        let source = r#"import type { Task, TaskPriority, TaskStatus } from "../lib/types";
+import { badge, cardStyles } from "../styles/components";
+
+function priorityColor(
+  priority: TaskPriority,
+): "blue" | "green" | "yellow" | "red" {
+  const map: Record<TaskPriority, "blue" | "green" | "yellow" | "red"> = {
+    low: "blue",
+    medium: "yellow",
+    high: "red",
+    urgent: "red",
+  };
+  return map[priority];
+}
+
+function statusLabel(status: TaskStatus): string {
+  const map: Record<TaskStatus, string> = {
+    todo: "To Do",
+    "in-progress": "In Progress",
+    done: "Done",
+  };
+  return map[status];
+}
+
+export function TaskCard({ task, onClick }: { task: Task; onClick?: (id: string) => void }) {
+  return (
+    <div>
+      <span>{priorityColor(task.priority)}</span>
+      <span>{statusLabel(task.status)}</span>
+    </div>
+  );
+}
+"#;
+        let result = crate::compile(source, crate::CompileOptions {
+            filename: Some("task-card.tsx".to_string()),
+            target: Some("dom".to_string()),
+            fast_refresh: Some(true),
+            ..Default::default()
+        });
+
+        // Check each annotation type
+        assert!(!result.code.contains("import type"), "import type survived: {}", result.code);
+        assert!(!result.code.contains(": TaskPriority"), "param annotation survived: {}", result.code);
+        assert!(!result.code.contains(": TaskStatus"), "param annotation survived: {}", result.code);
+        assert!(!result.code.contains("): \"blue\""), "return type survived: {}", result.code);
+        assert!(!result.code.contains(": Record<"), "variable type survived: {}", result.code);
+        assert!(!result.code.contains("): string"), "return string type survived: {}", result.code);
+    }
+}
