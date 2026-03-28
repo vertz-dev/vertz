@@ -20,6 +20,7 @@
 //! - `vertz_get_console` — Server diagnostic log entries
 //! - `vertz_navigate` — Navigate the browser via HMR WebSocket
 //! - `vertz_get_diagnostics` — Server health snapshot
+//! - `vertz_get_events_url` — WebSocket URL for real-time LLM event push
 
 use crate::server::console_log::LogLevel;
 use crate::server::module_server::DevServerState;
@@ -199,6 +200,15 @@ fn tool_definitions() -> serde_json::Value {
                     "properties": {},
                     "required": []
                 }
+            },
+            {
+                "name": "vertz_get_events_url",
+                "description": "Get the WebSocket URL for real-time LLM event push notifications. Connect to the returned URL to receive file changes, error updates, HMR updates, and other server events in real-time instead of polling.",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {},
+                    "required": []
+                }
             }
         ]
     })
@@ -328,6 +338,27 @@ async fn execute_tool(
             .await;
 
             let text = serde_json::to_string_pretty(&snap).unwrap_or_default();
+
+            Ok(serde_json::json!({
+                "content": [{ "type": "text", "text": text }]
+            }))
+        }
+
+        "vertz_get_events_url" => {
+            let url = format!("ws://localhost:{}/__vertz_mcp/events", state.port);
+            let events = vec![
+                "error_update",
+                "file_change",
+                "hmr_update",
+                "ssr_refresh",
+                "typecheck_update",
+                "server_status",
+            ];
+            let text = serde_json::to_string_pretty(&serde_json::json!({
+                "url": url,
+                "events": events,
+            }))
+            .unwrap_or_default();
 
             Ok(serde_json::json!({
                 "content": [{ "type": "text", "text": text }]
@@ -682,7 +713,7 @@ mod tests {
         let defs = tool_definitions();
         let tools = defs["tools"].as_array().unwrap();
 
-        assert_eq!(tools.len(), 5);
+        assert_eq!(tools.len(), 6);
 
         let names: Vec<&str> = tools.iter().map(|t| t["name"].as_str().unwrap()).collect();
         assert!(names.contains(&"vertz_get_errors"));
@@ -690,6 +721,7 @@ mod tests {
         assert!(names.contains(&"vertz_get_console"));
         assert!(names.contains(&"vertz_navigate"));
         assert!(names.contains(&"vertz_get_diagnostics"));
+        assert!(names.contains(&"vertz_get_events_url"));
     }
 
     #[test]
@@ -783,7 +815,7 @@ mod tests {
         let resp = handle_mcp_message(&state, req).await.unwrap();
         let result = resp.result.unwrap();
         let tools = result["tools"].as_array().unwrap();
-        assert_eq!(tools.len(), 5);
+        assert_eq!(tools.len(), 6);
     }
 
     #[tokio::test]
@@ -961,6 +993,24 @@ mod tests {
         assert!(text.get("uptime_secs").is_some());
         assert!(text.get("cache").is_some());
         assert!(text.get("module_graph").is_some());
+    }
+
+    #[tokio::test]
+    async fn test_execute_get_events_url() {
+        let state = create_test_state();
+        let result = execute_tool(&state, "vertz_get_events_url", &serde_json::json!({}))
+            .await
+            .unwrap();
+
+        let content = result["content"].as_array().unwrap();
+        let text: serde_json::Value =
+            serde_json::from_str(content[0]["text"].as_str().unwrap()).unwrap();
+        assert_eq!(text["url"], "ws://localhost:3000/__vertz_mcp/events");
+        let events = text["events"].as_array().unwrap();
+        assert!(events.len() >= 6);
+        assert!(events.contains(&serde_json::json!("error_update")));
+        assert!(events.contains(&serde_json::json!("file_change")));
+        assert!(events.contains(&serde_json::json!("hmr_update")));
     }
 
     #[tokio::test]
