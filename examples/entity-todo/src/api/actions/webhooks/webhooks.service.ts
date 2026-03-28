@@ -1,5 +1,5 @@
 import { s } from '@vertz/schema';
-import { service } from '@vertz/server';
+import { action, service } from '@vertz/server';
 import { todos } from '../../entities/todos/todos.entity';
 
 const webhookEvents = ['task.created', 'task.completed'] as const;
@@ -23,7 +23,7 @@ export const webhooks = service('webhooks', {
   // Open access for demo — production would validate a webhook secret header
   access: { sync: () => true },
   actions: {
-    sync: {
+    sync: action({
       body: syncBody,
       response: syncResponse,
       handler: async (input, ctx) => {
@@ -46,6 +46,6 @@ export const webhooks = service('webhooks', {
         await ctx.entities.todos.update(match.id as string, { completed: true });
         return { ok: true, todoId: match.id as string };
       },
-    },
+    }),
   },
 });
