@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["vertz-compiler"]
+members = ["vertz-compiler", "vertz-compiler-core"]
 
 [profile.release]
 lto = true

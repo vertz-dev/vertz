@@ -927,6 +927,13 @@ dependencies = [
  "napi",
  "napi-build",
  "napi-derive",
+ "vertz-compiler-core",
+]
+
+[[package]]
+name = "vertz-compiler-core"
+version = "0.1.0"
+dependencies = [
  "oxc_allocator",
  "oxc_ast",
  "oxc_ast_visit",

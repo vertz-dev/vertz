@@ -2,7 +2,7 @@ use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
 
 use crate::magic_string::MagicString;
-use crate::NapiComponentInfo;
+use crate::ComponentInfoOutput;
 
 /// Inject Fast Refresh preamble and epilogue for HMR support.
 ///
@@ -12,7 +12,7 @@ use crate::NapiComponentInfo;
 /// 3. Epilogue — perform call to trigger DOM replacement
 pub fn inject_fast_refresh(
     ms: &mut MagicString,
-    components: &[NapiComponentInfo],
+    components: &[ComponentInfoOutput],
     source: &str,
     module_id: &str,
 ) {
