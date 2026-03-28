@@ -707,7 +707,7 @@ function MiniTodoApp() {
             <List.Item key={todo.id} className={app.todo}>
               <button
                 type="button"
-                role="checkbox"
+                role="checkbox" // oxlint-disable-line jsx-a11y/prefer-tag-over-role
                 aria-checked={todo.done ? 'true' : 'false'}
                 data-state={todo.done ? 'checked' : 'unchecked'}
                 data-toggled={todo.toggled ? '' : undefined}

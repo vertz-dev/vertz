@@ -42,7 +42,8 @@ Bun.serve({
       if (!upgraded) {
         return new Response('WebSocket upgrade failed', { status: 400 });
       }
-      return undefined as unknown as Response;
+      // Bun expects undefined after successful upgrade
+      return;
     }
 
     // Health check
