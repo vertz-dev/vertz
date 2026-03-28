@@ -88,7 +88,7 @@ pub fn build_router(config: &ServerConfig) -> (Router, Arc<DevServerState>) {
     let theme_css = theme_css::load_theme_css(&config.root_dir);
 
     let hmr_hub = HmrHub::new();
-    let error_broadcaster = ErrorBroadcaster::new();
+    let error_broadcaster = ErrorBroadcaster::with_root_dir(config.root_dir.clone());
     let module_graph = watcher::new_shared_module_graph();
 
     let state = Arc::new(DevServerState {
@@ -105,11 +105,12 @@ pub fn build_router(config: &ServerConfig) -> (Router, Arc<DevServerState>) {
         enable_ssr: config.enable_ssr,
     });
 
-    // Routes: HMR WebSocket, error WebSocket, diagnostics, fallback
+    // Routes: HMR WebSocket, error WebSocket, diagnostics, AI API, fallback
     let router = Router::new()
         .route("/__vertz_hmr", get(ws_handler))
         .route("/__vertz_errors", get(ws_error_handler))
         .route("/__vertz_diagnostics", get(diagnostics_handler))
+        .route("/__vertz_ai/errors", get(ai_errors_handler))
         .fallback(dev_server_handler)
         .with_state(state.clone())
         .layer(RequestLoggingLayer);
@@ -135,6 +136,30 @@ async fn ws_error_handler(
     ws.on_upgrade(move |socket| async move {
         state.error_broadcaster.handle_connection(socket).await;
     })
+}
+
+/// JSON error endpoint for LLM consumption: `GET /__vertz_ai/errors`
+///
+/// Returns all current errors with file paths, line/column numbers,
+/// code snippets, and suggestions — structured for easy parsing.
+async fn ai_errors_handler(
+    State(state): State<Arc<DevServerState>>,
+) -> axum::response::Response<Body> {
+    let errors = state.error_broadcaster.all_errors_cloned().await;
+
+    let json = serde_json::json!({
+        "errors": errors,
+        "count": errors.len(),
+    });
+
+    let body = serde_json::to_string_pretty(&json).unwrap_or_else(|_| "{}".to_string());
+
+    axum::response::Response::builder()
+        .status(StatusCode::OK)
+        .header(header::CONTENT_TYPE, "application/json; charset=utf-8")
+        .header(header::CACHE_CONTROL, "no-cache")
+        .body(Body::from(body))
+        .unwrap()
 }
 
 /// JSON diagnostics endpoint handler.

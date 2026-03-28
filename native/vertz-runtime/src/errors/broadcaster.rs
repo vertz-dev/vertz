@@ -1,7 +1,9 @@
 use super::categories::{DevError, ErrorCategory, ErrorState};
+use super::terminal;
 use axum::extract::ws::{Message, WebSocket};
 use futures_util::{SinkExt, StreamExt};
 use serde::Serialize;
+use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::sync::{broadcast, RwLock};
 
@@ -40,6 +42,8 @@ pub struct ErrorBroadcaster {
     state: Arc<RwLock<ErrorState>>,
     /// Connected client count.
     client_count: Arc<RwLock<usize>>,
+    /// Project root directory for relative path display and log file writing.
+    root_dir: Option<PathBuf>,
 }
 
 impl ErrorBroadcaster {
@@ -49,11 +53,29 @@ impl ErrorBroadcaster {
             broadcast_tx,
             state: Arc::new(RwLock::new(ErrorState::new())),
             client_count: Arc::new(RwLock::new(0)),
+            root_dir: None,
         }
     }
 
-    /// Report an error. Broadcasts to clients if the error should be surfaced.
+    /// Create a new error broadcaster with a root directory for terminal display.
+    pub fn with_root_dir(root_dir: PathBuf) -> Self {
+        let (broadcast_tx, _) = broadcast::channel(64);
+        Self {
+            broadcast_tx,
+            state: Arc::new(RwLock::new(ErrorState::new())),
+            client_count: Arc::new(RwLock::new(0)),
+            root_dir: Some(root_dir),
+        }
+    }
+
+    /// Report an error. Broadcasts to clients and prints to terminal.
     pub async fn report_error(&self, error: DevError) {
+        // Print to terminal with ANSI-colored code frame
+        eprint!(
+            "{}",
+            terminal::format_error(&error, self.root_dir.as_deref())
+        );
+
         let should_surface = {
             let mut state = self.state.write().await;
             state.add(error)
@@ -62,6 +84,9 @@ impl ErrorBroadcaster {
         if should_surface {
             self.broadcast_current_state().await;
         }
+
+        // Write error log file for LLM consumption
+        self.write_error_log().await;
     }
 
     /// Clear all errors of a specific category. Broadcasts update to clients.
@@ -75,13 +100,16 @@ impl ErrorBroadcaster {
         if has_lower_errors {
             let state = self.state.read().await;
             if state.has_errors() {
+                drop(state);
                 self.broadcast_current_state().await;
             } else {
+                drop(state);
                 self.broadcast_clear().await;
             }
-        } else {
-            // Still have higher-priority errors, no broadcast needed
         }
+
+        // Update error log file
+        self.write_error_log().await;
     }
 
     /// Clear errors for a specific file in a category. Broadcasts update.
@@ -91,6 +119,7 @@ impl ErrorBroadcaster {
             state.clear_file(category, file);
         }
         self.broadcast_current_state_or_clear().await;
+        self.write_error_log().await;
     }
 
     /// Get the current error state snapshot.
@@ -116,6 +145,12 @@ impl ErrorBroadcaster {
     /// Get the number of connected error clients.
     pub async fn client_count(&self) -> usize {
         *self.client_count.read().await
+    }
+
+    /// Get all errors as a cloned Vec (for JSON serialization).
+    pub async fn all_errors_cloned(&self) -> Vec<DevError> {
+        let state = self.state.read().await;
+        state.all_errors().into_iter().cloned().collect()
     }
 
     /// Subscribe to broadcast messages (for testing).
@@ -170,6 +205,19 @@ impl ErrorBroadcaster {
         {
             let mut count = client_count.write().await;
             *count = count.saturating_sub(1);
+        }
+    }
+
+    /// Write current errors to `.vertz/dev/errors.json` for LLM consumption.
+    async fn write_error_log(&self) {
+        if let Some(ref root_dir) = self.root_dir {
+            let state = self.state.read().await;
+            let all: Vec<DevError> = state.all_errors().into_iter().cloned().collect();
+            let root = root_dir.clone();
+            // Write in a blocking spawn to avoid blocking the async runtime
+            tokio::task::spawn_blocking(move || {
+                terminal::write_error_log(&all, &root);
+            });
         }
     }
 
