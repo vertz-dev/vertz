@@ -1,0 +1,7 @@
+{
+  "name": "task-manager-fixture",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "dependencies": {}
+}

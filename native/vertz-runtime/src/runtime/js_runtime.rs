@@ -1,0 +1,249 @@
+use std::rc::Rc;
+use std::sync::Arc;
+use std::sync::Mutex;
+use std::time::Instant;
+
+use deno_core::error::AnyError;
+use deno_core::v8;
+use deno_core::Extension;
+use deno_core::JsRuntime;
+use deno_core::ModuleSpecifier;
+use deno_core::PollEventLoopOptions;
+use deno_core::RuntimeOptions;
+
+use super::module_loader::VertzModuleLoader;
+use super::ops::console;
+use super::ops::crypto;
+use super::ops::env;
+use super::ops::fetch;
+use super::ops::path;
+use super::ops::performance;
+use super::ops::timers;
+
+/// Captured output from console operations, used for testing.
+#[derive(Debug, Clone, Default)]
+pub struct CapturedOutput {
+    pub stdout: Vec<String>,
+    pub stderr: Vec<String>,
+}
+
+/// Configuration for creating a VertzJsRuntime.
+#[derive(Default)]
+pub struct VertzRuntimeOptions {
+    /// Root directory for module resolution. Defaults to current directory.
+    pub root_dir: Option<String>,
+    /// Whether to capture console output (for testing). Defaults to false.
+    pub capture_output: bool,
+}
+
+/// Wrapper around deno_core's JsRuntime with Vertz-specific extensions.
+pub struct VertzJsRuntime {
+    runtime: JsRuntime,
+    captured_output: Arc<Mutex<CapturedOutput>>,
+}
+
+impl VertzJsRuntime {
+    /// Create a new VertzJsRuntime with all Vertz extensions registered.
+    pub fn new(options: VertzRuntimeOptions) -> Result<Self, AnyError> {
+        let captured_output = Arc::new(Mutex::new(CapturedOutput::default()));
+        let start_time = Instant::now();
+
+        // Collect all op declarations
+        let mut all_ops = Vec::new();
+        all_ops.extend(console::op_decls());
+        all_ops.extend(timers::op_decls());
+        all_ops.extend(crypto::op_decls());
+        all_ops.extend(env::op_decls());
+        all_ops.extend(performance::op_decls());
+        all_ops.extend(path::op_decls());
+        all_ops.extend(fetch::op_decls());
+
+        let capture = options.capture_output;
+        let captured_clone = Arc::clone(&captured_output);
+
+        // Single extension with all ops and state initialization
+        let ext = Extension {
+            name: "vertz",
+            ops: std::borrow::Cow::Owned(all_ops),
+            op_state_fn: Some(Box::new(move |state| {
+                state.put(console::ConsoleState {
+                    capture,
+                    captured: Arc::clone(&captured_clone),
+                });
+                state.put(performance::PerformanceState { start_time });
+            })),
+            ..Default::default()
+        };
+
+        let root_dir = options.root_dir.unwrap_or_else(|| {
+            std::env::current_dir()
+                .unwrap()
+                .to_string_lossy()
+                .to_string()
+        });
+        let module_loader = Rc::new(VertzModuleLoader::new(&root_dir));
+
+        let mut runtime = JsRuntime::new(RuntimeOptions {
+            module_loader: Some(module_loader),
+            extensions: vec![ext],
+            ..Default::default()
+        });
+
+        // Bootstrap all JS globals
+        runtime.execute_script(
+            "[vertz:bootstrap]",
+            deno_core::FastString::from(Self::bootstrap_js().to_string()),
+        )?;
+
+        Ok(Self {
+            runtime,
+            captured_output,
+        })
+    }
+
+    /// Concatenate all bootstrap JS into a single string.
+    fn bootstrap_js() -> String {
+        [
+            console::CONSOLE_BOOTSTRAP_JS,
+            timers::TIMERS_BOOTSTRAP_JS,
+            crypto::CRYPTO_BOOTSTRAP_JS,
+            env::ENV_BOOTSTRAP_JS,
+            performance::PERFORMANCE_BOOTSTRAP_JS,
+            path::PATH_BOOTSTRAP_JS,
+            fetch::FETCH_BOOTSTRAP_JS,
+        ]
+        .join("\n")
+    }
+
+    /// Execute a JavaScript snippet and return the result as a serde_json::Value.
+    pub fn execute_script(
+        &mut self,
+        name: &'static str,
+        code: &str,
+    ) -> Result<serde_json::Value, AnyError> {
+        let global = self
+            .runtime
+            .execute_script(name, deno_core::FastString::from(code.to_string()))?;
+        let scope = &mut self.runtime.handle_scope();
+        let local = v8::Local::new(scope, global);
+        let value = deno_core::serde_v8::from_v8::<serde_json::Value>(scope, local)?;
+        Ok(value)
+    }
+
+    /// Execute a JavaScript snippet without capturing the return value.
+    pub fn execute_script_void(&mut self, name: &'static str, code: &str) -> Result<(), AnyError> {
+        self.runtime
+            .execute_script(name, deno_core::FastString::from(code.to_string()))?;
+        Ok(())
+    }
+
+    /// Load and evaluate an ES module from a file URL.
+    pub async fn load_main_module(&mut self, specifier: &ModuleSpecifier) -> Result<(), AnyError> {
+        let mod_id = self.runtime.load_main_es_module(specifier).await?;
+        let result = self.runtime.mod_evaluate(mod_id);
+        self.runtime
+            .run_event_loop(PollEventLoopOptions::default())
+            .await?;
+        result.await?;
+        Ok(())
+    }
+
+    /// Load and evaluate an ES module from inline source code.
+    pub async fn load_main_module_from_code(
+        &mut self,
+        specifier: &ModuleSpecifier,
+        code: String,
+    ) -> Result<(), AnyError> {
+        let mod_id = self
+            .runtime
+            .load_main_es_module_from_code(specifier, code)
+            .await?;
+        let result = self.runtime.mod_evaluate(mod_id);
+        self.runtime
+            .run_event_loop(PollEventLoopOptions::default())
+            .await?;
+        result.await?;
+        Ok(())
+    }
+
+    /// Run the event loop until all pending operations complete.
+    pub async fn run_event_loop(&mut self) -> Result<(), AnyError> {
+        self.runtime
+            .run_event_loop(PollEventLoopOptions::default())
+            .await
+    }
+
+    /// Get captured console output (only available when capture_output is true).
+    pub fn captured_output(&self) -> CapturedOutput {
+        self.captured_output.lock().unwrap().clone()
+    }
+
+    /// Get a mutable reference to the inner JsRuntime.
+    pub fn inner_mut(&mut self) -> &mut JsRuntime {
+        &mut self.runtime
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_create_runtime() {
+        let runtime = VertzJsRuntime::new(VertzRuntimeOptions::default());
+        assert!(runtime.is_ok());
+    }
+
+    #[test]
+    fn test_execute_simple_expression() {
+        let mut runtime = VertzJsRuntime::new(VertzRuntimeOptions::default()).unwrap();
+        let result = runtime.execute_script("<test>", "1 + 1").unwrap();
+        assert_eq!(result, serde_json::json!(2));
+    }
+
+    #[test]
+    fn test_execute_string_expression() {
+        let mut runtime = VertzJsRuntime::new(VertzRuntimeOptions::default()).unwrap();
+        let result = runtime
+            .execute_script("<test>", "'hello' + ' ' + 'world'")
+            .unwrap();
+        assert_eq!(result, serde_json::json!("hello world"));
+    }
+
+    #[test]
+    fn test_execute_object_expression() {
+        let mut runtime = VertzJsRuntime::new(VertzRuntimeOptions::default()).unwrap();
+        let result = runtime
+            .execute_script("<test>", "({ a: 1, b: 'two' })")
+            .unwrap();
+        assert_eq!(result, serde_json::json!({"a": 1, "b": "two"}));
+    }
+
+    #[test]
+    fn test_execute_script_error() {
+        let mut runtime = VertzJsRuntime::new(VertzRuntimeOptions::default()).unwrap();
+        let result = runtime.execute_script("<test>", "throw new Error('boom')");
+        assert!(result.is_err());
+        let err_msg = result.unwrap_err().to_string();
+        assert!(err_msg.contains("boom"), "Error message: {}", err_msg);
+    }
+
+    #[test]
+    fn test_runtime_drops_cleanly() {
+        let runtime = VertzJsRuntime::new(VertzRuntimeOptions::default()).unwrap();
+        drop(runtime);
+        // If we get here without crash, the runtime dropped cleanly
+    }
+
+    #[test]
+    fn test_execute_multiple_scripts() {
+        let mut runtime = VertzJsRuntime::new(VertzRuntimeOptions::default()).unwrap();
+        runtime
+            .execute_script_void("<setup>", "globalThis.x = 10;")
+            .unwrap();
+        let result = runtime
+            .execute_script("<test>", "globalThis.x * 3")
+            .unwrap();
+        assert_eq!(result, serde_json::json!(30));
+    }
+}

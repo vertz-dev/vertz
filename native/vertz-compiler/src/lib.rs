@@ -1,37 +1,11 @@
-mod aot_string_transformer;
-mod body_jsx_diagnostics;
-mod component_analyzer;
-mod computed_transformer;
-mod context_stable_ids;
-mod css_diagnostics;
-mod css_token_tables;
-mod css_transform;
-mod fast_refresh;
-mod field_selection;
-mod hydration_markers;
-mod import_injection;
-mod jsx_transformer;
-mod magic_string;
-mod mount_frame_transformer;
-mod mutation_analyzer;
-mod mutation_diagnostics;
-mod mutation_transformer;
-mod prefetch_manifest;
-mod props_transformer;
-mod query_auto_thunk;
-mod reactivity_analyzer;
-mod route_splitting;
-mod signal_api_registry;
-mod signal_transformer;
-mod ssr_safety_diagnostics;
-mod typescript_strip;
-mod utils;
+// Thin NAPI wrapper around vertz-compiler-core.
+// All compilation logic lives in the core crate.
+// This crate only provides NAPI type conversions and JS-callable entry points.
 
 use napi_derive::napi;
-use oxc_allocator::Allocator;
-use oxc_codegen::{Codegen, CodegenOptions};
-use oxc_parser::Parser;
-use oxc_span::SourceType;
+use vertz_compiler_core as core;
+
+// ─── NAPI output types ──────────────────────────────────────────────────
 
 #[napi(object)]
 pub struct Diagnostic {
@@ -128,385 +102,6 @@ pub struct CompileOptions {
     pub prefetch_manifest: Option<bool>,
 }
 
-#[napi]
-pub fn compile(source: String, options: Option<CompileOptions>) -> CompileResult {
-    let filename = options
-        .as_ref()
-        .and_then(|o| o.filename.as_deref())
-        .unwrap_or("input.ts");
-
-    let fast_refresh = options
-        .as_ref()
-        .and_then(|o| o.fast_refresh)
-        .unwrap_or(false);
-
-    let target = options
-        .as_ref()
-        .and_then(|o| o.target.as_deref())
-        .unwrap_or("dom");
-
-    let enable_hydration_markers = options
-        .as_ref()
-        .and_then(|o| o.hydration_markers)
-        .unwrap_or(false);
-
-    let enable_route_splitting = options
-        .as_ref()
-        .and_then(|o| o.route_splitting)
-        .unwrap_or(false);
-
-    let enable_field_selection = options
-        .as_ref()
-        .and_then(|o| o.field_selection)
-        .unwrap_or(false);
-
-    let enable_prefetch_manifest = options
-        .as_ref()
-        .and_then(|o| o.prefetch_manifest)
-        .unwrap_or(false);
-
-    let source_type = SourceType::from_path(filename).unwrap_or_default();
-    let allocator = Allocator::default();
-
-    let parser_ret = Parser::new(&allocator, &source, source_type).parse();
-
-    // Collect parser errors as diagnostics
-    if !parser_ret.errors.is_empty() {
-        let diagnostics: Vec<Diagnostic> = parser_ret
-            .errors
-            .iter()
-            .map(|err| {
-                let (line, column) = err
-                    .labels
-                    .as_ref()
-                    .and_then(|labels| labels.first())
-                    .map(|label| {
-                        let offset = label.offset();
-                        utils::offset_to_line_column(&source, offset)
-                    })
-                    .unwrap_or((1, 1));
-
-                Diagnostic {
-                    message: err.message.to_string(),
-                    line: Some(line),
-                    column: Some(column),
-                }
-            })
-            .collect();
-
-        return CompileResult {
-            code: format!("// compiled by vertz-native\n{source}"),
-            css: None,
-            map: None,
-            diagnostics: Some(diagnostics),
-            components: None,
-            hydration_ids: None,
-            field_selections: None,
-            extracted_routes: None,
-            extracted_queries: None,
-            route_params: None,
-        };
-    }
-
-    // Run component analysis
-    let components = component_analyzer::analyze_components(&parser_ret.program);
-
-    // Build manifest registry from NAPI options
-    let manifest_registry = build_manifest_registry(&options);
-
-    // Build import aliases for signal API detection (includes manifest-derived entries)
-    let (import_aliases, dynamic_configs) =
-        reactivity_analyzer::build_import_aliases(&parser_ret.program, &manifest_registry);
-
-    let import_ctx = reactivity_analyzer::ImportContext {
-        aliases: import_aliases,
-        dynamic_configs,
-    };
-
-    // Build query aliases for auto-thunk transform
-    let query_aliases = reactivity_analyzer::build_query_aliases(&parser_ret.program);
-
-    // Run reactivity analysis and transforms per component
-    let mut ms = magic_string::MagicString::new(&source);
-    let mut all_diagnostics: Vec<Diagnostic> = Vec::new();
-
-    // Strip TypeScript syntax first (interfaces, type aliases, as casts, type annotations, etc.)
-    // Must run before JSX transform so that get_transformed_slice() returns clean JavaScript.
-    typescript_strip::strip_typescript_syntax(&mut ms, &parser_ret.program, &source);
-
-    // Route code splitting — convert static imports in defineRoutes to dynamic imports.
-    // Must run before component transforms (it rewrites module-level import/export statements).
-    if enable_route_splitting {
-        route_splitting::transform_route_splitting(&mut ms, &parser_ret.program, &source);
-    }
-
-    // Field selection analysis — extract field access patterns from query() calls.
-    let field_selections = if enable_field_selection {
-        field_selection::analyze_field_selection(&parser_ret.program, &source)
-    } else {
-        Vec::new()
-    };
-
-    // Prefetch manifest analysis — extract routes and queries for SSR prefetching.
-    let prefetch_analysis = if enable_prefetch_manifest {
-        Some(prefetch_manifest::analyze_prefetch(
-            &parser_ret.program,
-            &source,
-        ))
-    } else {
-        None
-    };
-
-    // Hydration markers — determine which components are interactive.
-    // The JSX transformer will inject data-v-id setAttribute calls for these.
-    let hydration_ids = if enable_hydration_markers {
-        hydration_markers::find_interactive_components(&parser_ret.program, &components)
-    } else {
-        Vec::new()
-    };
-    let hydration_set: std::collections::HashSet<String> = hydration_ids.iter().cloned().collect();
-
-    let napi_components: Vec<NapiComponentInfo> = components
-        .iter()
-        .map(|comp| {
-            // Props destructuring must run BEFORE reactivity analysis
-            props_transformer::transform_props(&mut ms, &parser_ret.program, comp, &source);
-
-            let variables =
-                reactivity_analyzer::analyze_reactivity(&parser_ret.program, comp, &import_ctx);
-
-            // Run per-component diagnostics BEFORE transforms (on original AST positions)
-            all_diagnostics.extend(ssr_safety_diagnostics::analyze_ssr_safety(
-                &parser_ret.program,
-                comp,
-                &source,
-            ));
-            all_diagnostics.extend(mutation_diagnostics::analyze_mutation_diagnostics(
-                &parser_ret.program,
-                comp,
-                &variables,
-                &source,
-            ));
-            all_diagnostics.extend(body_jsx_diagnostics::analyze_body_jsx(
-                &parser_ret.program,
-                comp,
-                &source,
-            ));
-
-            // Analyze mutations before transforms
-            let mutations =
-                mutation_analyzer::analyze_mutations(&parser_ret.program, comp, &variables);
-            let mutation_ranges: Vec<(u32, u32)> =
-                mutations.iter().map(|m| (m.start, m.end)).collect();
-
-            // Apply transforms: mutations first, then query auto-thunk, then signals, then computeds
-            mutation_transformer::transform_mutations(&mut ms, &mutations);
-
-            // Query auto-thunk must run BEFORE signal transform so that
-            // .value reads happen inside the generated thunk
-            query_auto_thunk::transform_query_auto_thunk(
-                &mut ms,
-                &parser_ret.program,
-                comp,
-                &variables,
-                &query_aliases,
-            );
-
-            signal_transformer::transform_signals(
-                &mut ms,
-                &parser_ret.program,
-                comp,
-                &variables,
-                &mutation_ranges,
-            );
-            computed_transformer::transform_computeds(
-                &mut ms,
-                &parser_ret.program,
-                comp,
-                &variables,
-            );
-
-            // JSX transform runs AFTER signal/computed transforms so that
-            // MagicString already has .value insertions when we read expression text.
-            let hydration_id = if hydration_set.contains(&comp.name) {
-                Some(comp.name.as_str())
-            } else {
-                None
-            };
-            jsx_transformer::transform_jsx(
-                &mut ms,
-                &parser_ret.program,
-                comp,
-                &variables,
-                hydration_id,
-            );
-
-            // Mount frame wrapping runs AFTER all other transforms
-            // Check if this is an arrow expression body first
-            if comp.is_arrow_expression {
-                mount_frame_transformer::transform_arrow_expression_body(
-                    &mut ms,
-                    &parser_ret.program,
-                    comp,
-                );
-            } else {
-                mount_frame_transformer::transform_mount_frame(
-                    &mut ms,
-                    &parser_ret.program,
-                    comp,
-                    &source,
-                );
-            }
-
-            NapiComponentInfo {
-                name: comp.name.clone(),
-                body_start: comp.body_start,
-                body_end: comp.body_end,
-                variables: Some(
-                    variables
-                        .into_iter()
-                        .map(|v| NapiVariableInfo {
-                            name: v.name,
-                            kind: v.kind.as_str().to_string(),
-                            start: v.start,
-                            end: v.end,
-                            signal_properties: v.signal_properties,
-                            plain_properties: v.plain_properties,
-                            field_signal_properties: v.field_signal_properties,
-                            is_reactive_source: if v.is_reactive_source {
-                                Some(true)
-                            } else {
-                                None
-                            },
-                        })
-                        .collect(),
-                ),
-            }
-        })
-        .collect();
-
-    // Module-level CSS diagnostics
-    all_diagnostics.extend(css_diagnostics::analyze_css(&parser_ret.program, &source));
-
-    // Context stable ID injection (module-level, only in dev/fastRefresh mode)
-    if fast_refresh {
-        context_stable_ids::inject_context_stable_ids(&mut ms, &parser_ret.program, filename);
-    }
-
-    // CSS transform (module-level)
-    let extracted_css = css_transform::transform_css(&mut ms, &parser_ret.program, filename);
-
-    // Fast refresh codegen (module-level, only in dev/fastRefresh mode)
-    if fast_refresh {
-        fast_refresh::inject_fast_refresh(&mut ms, &napi_components, &source, filename);
-    }
-
-    // Import injection (must run AFTER all transforms that emit helper calls)
-    import_injection::inject_imports(&mut ms, target);
-
-    let transformed_code = ms.to_string();
-
-    // Generate source map using oxc codegen (from original AST)
-    let codegen_options = CodegenOptions {
-        source_map_path: Some(std::path::PathBuf::from(filename)),
-        ..CodegenOptions::default()
-    };
-
-    let codegen_ret = Codegen::new()
-        .with_options(codegen_options)
-        .build(&parser_ret.program);
-
-    let map = codegen_ret
-        .map
-        .map(|source_map| source_map.to_json_string());
-
-    CompileResult {
-        code: format!("// compiled by vertz-native\n{transformed_code}"),
-        css: if extracted_css.is_empty() {
-            None
-        } else {
-            Some(extracted_css)
-        },
-        map,
-        diagnostics: if all_diagnostics.is_empty() {
-            None
-        } else {
-            Some(all_diagnostics)
-        },
-        components: Some(napi_components),
-        hydration_ids: if hydration_ids.is_empty() {
-            None
-        } else {
-            Some(hydration_ids)
-        },
-        field_selections: if field_selections.is_empty() {
-            None
-        } else {
-            Some(
-                field_selections
-                    .into_iter()
-                    .map(|fs| NapiFieldSelection {
-                        query_var: fs.query_var,
-                        injection_pos: fs.injection_pos,
-                        injection_kind: fs.injection_kind.as_str().to_string(),
-                        fields: fs.fields,
-                        has_opaque_access: fs.has_opaque_access,
-                        nested_access: fs
-                            .nested_access
-                            .into_iter()
-                            .map(|n| NapiNestedFieldAccess {
-                                field: n.field,
-                                nested_path: n.nested_path,
-                            })
-                            .collect(),
-                        inferred_entity_name: fs.inferred_entity_name,
-                    })
-                    .collect(),
-            )
-        },
-        extracted_routes: prefetch_analysis.as_ref().and_then(|pa| {
-            if pa.routes.is_empty() {
-                None
-            } else {
-                Some(
-                    pa.routes
-                        .iter()
-                        .map(|r| NapiExtractedRoute {
-                            pattern: r.pattern.clone(),
-                            component_name: r.component_name.clone(),
-                            route_type: r.route_type.clone(),
-                        })
-                        .collect(),
-                )
-            }
-        }),
-        extracted_queries: prefetch_analysis.as_ref().and_then(|pa| {
-            if pa.queries.is_empty() {
-                None
-            } else {
-                Some(
-                    pa.queries
-                        .iter()
-                        .map(|q| NapiExtractedQuery {
-                            descriptor_chain: q.descriptor_chain.clone(),
-                            entity: q.entity.clone(),
-                            operation: q.operation.clone(),
-                            id_param: q.id_param.clone(),
-                        })
-                        .collect(),
-                )
-            }
-        }),
-        route_params: prefetch_analysis.and_then(|pa| {
-            if pa.route_params.is_empty() {
-                None
-            } else {
-                Some(pa.route_params)
-            }
-        }),
-    }
-}
-
 #[napi(object)]
 pub struct NapiAotComponentInfo {
     pub name: String,
@@ -526,119 +121,168 @@ pub struct AotCompileOptions {
     pub filename: Option<String>,
 }
 
+// ─── Type conversion helpers ────────────────────────────────────────────
+
+fn to_napi_diagnostics(diagnostics: Option<Vec<core::Diagnostic>>) -> Option<Vec<Diagnostic>> {
+    diagnostics.map(|ds| {
+        ds.into_iter()
+            .map(|d| Diagnostic {
+                message: d.message,
+                line: d.line,
+                column: d.column,
+            })
+            .collect()
+    })
+}
+
+fn to_napi_components(
+    components: Option<Vec<core::ComponentInfoOutput>>,
+) -> Option<Vec<NapiComponentInfo>> {
+    components.map(|cs| {
+        cs.into_iter()
+            .map(|c| NapiComponentInfo {
+                name: c.name,
+                body_start: c.body_start,
+                body_end: c.body_end,
+                variables: c.variables.map(|vs| {
+                    vs.into_iter()
+                        .map(|v| NapiVariableInfo {
+                            name: v.name,
+                            kind: v.kind,
+                            start: v.start,
+                            end: v.end,
+                            signal_properties: v.signal_properties,
+                            plain_properties: v.plain_properties,
+                            field_signal_properties: v.field_signal_properties,
+                            is_reactive_source: v.is_reactive_source,
+                        })
+                        .collect()
+                }),
+            })
+            .collect()
+    })
+}
+
+fn to_napi_field_selections(
+    selections: Option<Vec<core::FieldSelectionOutput>>,
+) -> Option<Vec<NapiFieldSelection>> {
+    selections.map(|ss| {
+        ss.into_iter()
+            .map(|fs| NapiFieldSelection {
+                query_var: fs.query_var,
+                injection_pos: fs.injection_pos,
+                injection_kind: fs.injection_kind,
+                fields: fs.fields,
+                has_opaque_access: fs.has_opaque_access,
+                nested_access: fs
+                    .nested_access
+                    .into_iter()
+                    .map(|n| NapiNestedFieldAccess {
+                        field: n.field,
+                        nested_path: n.nested_path,
+                    })
+                    .collect(),
+                inferred_entity_name: fs.inferred_entity_name,
+            })
+            .collect()
+    })
+}
+
+fn to_napi_extracted_routes(
+    routes: Option<Vec<core::ExtractedRouteOutput>>,
+) -> Option<Vec<NapiExtractedRoute>> {
+    routes.map(|rs| {
+        rs.into_iter()
+            .map(|r| NapiExtractedRoute {
+                pattern: r.pattern,
+                component_name: r.component_name,
+                route_type: r.route_type,
+            })
+            .collect()
+    })
+}
+
+fn to_napi_extracted_queries(
+    queries: Option<Vec<core::ExtractedQueryOutput>>,
+) -> Option<Vec<NapiExtractedQuery>> {
+    queries.map(|qs| {
+        qs.into_iter()
+            .map(|q| NapiExtractedQuery {
+                descriptor_chain: q.descriptor_chain,
+                entity: q.entity,
+                operation: q.operation,
+                id_param: q.id_param,
+            })
+            .collect()
+    })
+}
+
+fn to_core_options(options: Option<CompileOptions>) -> core::CompileOptions {
+    match options {
+        None => core::CompileOptions::default(),
+        Some(opts) => core::CompileOptions {
+            filename: opts.filename,
+            fast_refresh: opts.fast_refresh,
+            target: opts.target,
+            manifests: opts.manifests.map(|ms| {
+                ms.into_iter()
+                    .map(|m| core::ManifestEntry {
+                        module_specifier: m.module_specifier,
+                        export_name: m.export_name,
+                        reactivity_type: m.reactivity_type,
+                        signal_properties: m.signal_properties,
+                        plain_properties: m.plain_properties,
+                        field_signal_properties: m.field_signal_properties,
+                    })
+                    .collect()
+            }),
+            hydration_markers: opts.hydration_markers,
+            route_splitting: opts.route_splitting,
+            field_selection: opts.field_selection,
+            prefetch_manifest: opts.prefetch_manifest,
+        },
+    }
+}
+
+// ─── NAPI entry points ─────────────────────────────────────────────────
+
+#[napi]
+pub fn compile(source: String, options: Option<CompileOptions>) -> CompileResult {
+    let core_options = to_core_options(options);
+    let result = core::compile(&source, core_options);
+
+    CompileResult {
+        code: result.code,
+        css: result.css,
+        map: result.map,
+        diagnostics: to_napi_diagnostics(result.diagnostics),
+        components: to_napi_components(result.components),
+        hydration_ids: result.hydration_ids,
+        field_selections: to_napi_field_selections(result.field_selections),
+        extracted_routes: to_napi_extracted_routes(result.extracted_routes),
+        extracted_queries: to_napi_extracted_queries(result.extracted_queries),
+        route_params: result.route_params,
+    }
+}
+
 #[napi]
 pub fn compile_for_ssr_aot(source: String, options: Option<AotCompileOptions>) -> AotCompileResult {
-    let filename = options
-        .as_ref()
-        .and_then(|o| o.filename.as_deref())
-        .unwrap_or("input.tsx");
-
-    let source_type = SourceType::from_path(filename).unwrap_or_default();
-    let allocator = Allocator::default();
-
-    let parser_ret = Parser::new(&allocator, &source, source_type).parse();
-
-    if !parser_ret.errors.is_empty() {
-        return AotCompileResult {
-            code: source,
-            components: Vec::new(),
-        };
-    }
-
-    // Run component analysis
-    let components = component_analyzer::analyze_components(&parser_ret.program);
-
-    if components.is_empty() {
-        return AotCompileResult {
-            code: source,
-            components: Vec::new(),
-        };
-    }
-
-    // Build import context for reactivity analysis
-    let empty_registry = std::collections::HashMap::new();
-    let (import_aliases, dynamic_configs) =
-        reactivity_analyzer::build_import_aliases(&parser_ret.program, &empty_registry);
-    let import_ctx = reactivity_analyzer::ImportContext {
-        aliases: import_aliases,
-        dynamic_configs,
+    let core_options = core::AotCompileOptions {
+        filename: options.and_then(|o| o.filename),
     };
-
-    // Run props transform + reactivity analysis per component
-    let mut ms = magic_string::MagicString::new(&source);
-
-    // Strip TypeScript syntax first
-    typescript_strip::strip_typescript_syntax(&mut ms, &parser_ret.program, &source);
-
-    let mut variables_per_component: Vec<Vec<reactivity_analyzer::VariableInfo>> = Vec::new();
-
-    for comp in &components {
-        // Props destructuring must run BEFORE reactivity analysis
-        props_transformer::transform_props(&mut ms, &parser_ret.program, comp, &source);
-
-        let variables =
-            reactivity_analyzer::analyze_reactivity(&parser_ret.program, comp, &import_ctx);
-        variables_per_component.push(variables);
-    }
-
-    // Run AOT transform
-    let aot_result = aot_string_transformer::compile_for_ssr_aot(
-        &ms,
-        &parser_ret.program,
-        &source,
-        &components,
-        &variables_per_component,
-    );
+    let result = core::compile_for_ssr_aot(&source, core_options);
 
     AotCompileResult {
-        code: aot_result.code,
-        components: aot_result
+        code: result.code,
+        components: result
             .components
             .into_iter()
             .map(|c| NapiAotComponentInfo {
                 name: c.name,
-                tier: c.tier.as_str().to_string(),
+                tier: c.tier,
                 holes: c.holes,
                 query_keys: c.query_keys,
             })
             .collect(),
     }
-}
-
-/// Build manifest registry from NAPI compile options.
-fn build_manifest_registry(
-    options: &Option<CompileOptions>,
-) -> reactivity_analyzer::ManifestRegistry {
-    let mut registry = std::collections::HashMap::new();
-
-    if let Some(ref opts) = options {
-        if let Some(ref manifests) = opts.manifests {
-            for entry in manifests {
-                let module_exports = registry
-                    .entry(entry.module_specifier.clone())
-                    .or_insert_with(std::collections::HashMap::new);
-
-                module_exports.insert(
-                    entry.export_name.clone(),
-                    reactivity_analyzer::ManifestExportInfo {
-                        reactivity_type: entry.reactivity_type.clone(),
-                        signal_properties: entry
-                            .signal_properties
-                            .as_ref()
-                            .map(|props| props.iter().cloned().collect()),
-                        plain_properties: entry
-                            .plain_properties
-                            .as_ref()
-                            .map(|props| props.iter().cloned().collect()),
-                        field_signal_properties: entry
-                            .field_signal_properties
-                            .as_ref()
-                            .map(|props| props.iter().cloned().collect()),
-                    },
-                );
-            }
-        }
-    }
-
-    registry
 }

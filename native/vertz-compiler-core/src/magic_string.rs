@@ -75,6 +75,10 @@ impl MagicString {
         self.original.len() as u32
     }
 
+    pub fn is_empty(&self) -> bool {
+        self.original.is_empty()
+    }
+
     /// Get a slice of the original source.
     pub fn slice(&self, start: u32, end: u32) -> &str {
         &self.original[start as usize..end as usize]
@@ -313,7 +317,7 @@ impl fmt::Display for MagicString {
                     cursor = cursor.max(*end);
                 }
                 EditEventKind::InsertAfter { text, .. } => {
-                    if cursor <= event.pos && event.pos < bytes.len() {
+                    if cursor <= event.pos && event.pos <= bytes.len() {
                         f.write_str(&self.original[cursor..event.pos])?;
                         cursor = event.pos;
                     }
