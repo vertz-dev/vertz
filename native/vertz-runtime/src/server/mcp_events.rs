@@ -424,6 +424,163 @@ pub async fn build_error_snapshot(
     }
 }
 
+/// Convert an `ErrorBroadcast` JSON string to an `McpEvent::ErrorUpdate`.
+pub fn error_broadcast_to_event(json: &str) -> Option<McpEvent> {
+    let parsed: serde_json::Value = serde_json::from_str(json).ok()?;
+
+    match parsed.get("type")?.as_str()? {
+        "error" => {
+            let category_str = parsed.get("category")?.as_str()?;
+            let category = match category_str {
+                "build" => Some(ErrorCategory::Build),
+                "resolve" => Some(ErrorCategory::Resolve),
+                "typecheck" => Some(ErrorCategory::TypeCheck),
+                "ssr" => Some(ErrorCategory::Ssr),
+                "runtime" => Some(ErrorCategory::Runtime),
+                _ => None,
+            };
+
+            let errors: Vec<DevError> =
+                serde_json::from_value(parsed.get("errors")?.clone()).ok()?;
+            let count = errors.len();
+
+            Some(McpEvent::ErrorUpdate {
+                timestamp: iso_timestamp(),
+                data: ErrorUpdateData {
+                    errors,
+                    category,
+                    count,
+                },
+            })
+        }
+        "clear" => Some(McpEvent::ErrorUpdate {
+            timestamp: iso_timestamp(),
+            data: ErrorUpdateData {
+                errors: vec![],
+                category: None,
+                count: 0,
+            },
+        }),
+        _ => None,
+    }
+}
+
+/// Convert an HMR message JSON string to an `McpEvent::HmrUpdate`.
+///
+/// Filters out `Connected` and `Navigate` messages (internal to browser clients).
+pub fn hmr_message_to_event(json: &str) -> Option<McpEvent> {
+    let parsed: serde_json::Value = serde_json::from_str(json).ok()?;
+
+    match parsed.get("type")?.as_str()? {
+        "update" => {
+            let modules: Vec<String> = parsed
+                .get("modules")?
+                .as_array()?
+                .iter()
+                .filter_map(|v| v.as_str().map(|s| s.to_string()))
+                .collect();
+            let timestamp = parsed.get("timestamp").and_then(|t| t.as_u64());
+
+            Some(McpEvent::HmrUpdate {
+                timestamp: iso_timestamp(),
+                data: HmrUpdateData {
+                    kind: "update".to_string(),
+                    modules: Some(modules),
+                    css_only: Some(false),
+                    file: None,
+                    reason: None,
+                    hmr_timestamp: timestamp,
+                },
+            })
+        }
+        "full-reload" => {
+            let reason = parsed
+                .get("reason")
+                .and_then(|r| r.as_str())
+                .unwrap_or("unknown")
+                .to_string();
+
+            Some(McpEvent::HmrUpdate {
+                timestamp: iso_timestamp(),
+                data: HmrUpdateData {
+                    kind: "full-reload".to_string(),
+                    modules: None,
+                    css_only: None,
+                    file: None,
+                    reason: Some(reason),
+                    hmr_timestamp: None,
+                },
+            })
+        }
+        "css-update" => {
+            let file = parsed.get("file")?.as_str()?.to_string();
+            let timestamp = parsed.get("timestamp").and_then(|t| t.as_u64());
+
+            Some(McpEvent::HmrUpdate {
+                timestamp: iso_timestamp(),
+                data: HmrUpdateData {
+                    kind: "css-update".to_string(),
+                    modules: None,
+                    css_only: None,
+                    file: Some(file),
+                    reason: None,
+                    hmr_timestamp: timestamp,
+                },
+            })
+        }
+        // Filter out "connected" and "navigate" — internal to browser clients
+        _ => None,
+    }
+}
+
+/// Start relay tasks that subscribe to existing broadcast channels
+/// and forward events to the MCP event hub.
+pub fn start_relay_tasks(
+    hub: &McpEventHub,
+    error_rx: &crate::errors::broadcaster::ErrorBroadcaster,
+    hmr_rx: &crate::hmr::websocket::HmrHub,
+) {
+    // Error broadcaster relay
+    let mut error_sub = error_rx.subscribe();
+    let hub_clone = hub.clone();
+    tokio::spawn(async move {
+        loop {
+            match error_sub.recv().await {
+                Ok(json) => {
+                    if let Some(event) = error_broadcast_to_event(&json) {
+                        hub_clone.broadcast(event);
+                    }
+                }
+                Err(broadcast::error::RecvError::Lagged(n)) => {
+                    eprintln!("[MCP Events] Error relay lagged, {} messages dropped", n);
+                    continue;
+                }
+                Err(broadcast::error::RecvError::Closed) => break,
+            }
+        }
+    });
+
+    // HMR hub relay
+    let mut hmr_sub = hmr_rx.subscribe();
+    let hub_clone = hub.clone();
+    tokio::spawn(async move {
+        loop {
+            match hmr_sub.recv().await {
+                Ok(json) => {
+                    if let Some(event) = hmr_message_to_event(&json) {
+                        hub_clone.broadcast(event);
+                    }
+                }
+                Err(broadcast::error::RecvError::Lagged(n)) => {
+                    eprintln!("[MCP Events] HMR relay lagged, {} messages dropped", n);
+                    continue;
+                }
+                Err(broadcast::error::RecvError::Closed) => break,
+            }
+        }
+    });
+}
+
 /// Validate subscription filter event names.
 /// Returns (known_events, unknown_events).
 fn validate_subscription(requested: &[String]) -> (Vec<String>, Vec<String>) {
@@ -905,5 +1062,199 @@ mod tests {
                 panic!("Channel should not be closed");
             }
         }
+    }
+
+    // --- error_broadcast_to_event tests ---
+
+    #[test]
+    fn test_error_broadcast_to_event_error() {
+        let json = r#"{"type":"error","category":"build","errors":[{"category":"build","message":"Unexpected token","file":"src/app.tsx","line":42,"column":10,"code_snippet":null,"suggestion":null}]}"#;
+        let event = error_broadcast_to_event(json).unwrap();
+        assert_eq!(event.event_name(), "error_update");
+        let out = event.to_json();
+        let parsed: serde_json::Value = serde_json::from_str(&out).unwrap();
+        assert_eq!(parsed["data"]["category"], "build");
+        assert_eq!(parsed["data"]["count"], 1);
+    }
+
+    #[test]
+    fn test_error_broadcast_to_event_clear() {
+        let json = r#"{"type":"clear"}"#;
+        let event = error_broadcast_to_event(json).unwrap();
+        assert_eq!(event.event_name(), "error_update");
+        let out = event.to_json();
+        let parsed: serde_json::Value = serde_json::from_str(&out).unwrap();
+        assert!(parsed["data"]["category"].is_null());
+        assert_eq!(parsed["data"]["count"], 0);
+    }
+
+    #[test]
+    fn test_error_broadcast_to_event_invalid_json() {
+        assert!(error_broadcast_to_event("not json").is_none());
+    }
+
+    #[test]
+    fn test_error_broadcast_to_event_unknown_type() {
+        let json = r#"{"type":"unknown"}"#;
+        assert!(error_broadcast_to_event(json).is_none());
+    }
+
+    // --- hmr_message_to_event tests ---
+
+    #[test]
+    fn test_hmr_message_to_event_update() {
+        let json = r#"{"type":"update","modules":["/src/app.tsx"],"timestamp":12345}"#;
+        let event = hmr_message_to_event(json).unwrap();
+        assert_eq!(event.event_name(), "hmr_update");
+        let out = event.to_json();
+        let parsed: serde_json::Value = serde_json::from_str(&out).unwrap();
+        assert_eq!(parsed["data"]["kind"], "update");
+        assert_eq!(parsed["data"]["modules"][0], "/src/app.tsx");
+        assert_eq!(parsed["data"]["hmr_timestamp"], 12345);
+    }
+
+    #[test]
+    fn test_hmr_message_to_event_full_reload() {
+        let json = r#"{"type":"full-reload","reason":"entry file changed"}"#;
+        let event = hmr_message_to_event(json).unwrap();
+        let out = event.to_json();
+        let parsed: serde_json::Value = serde_json::from_str(&out).unwrap();
+        assert_eq!(parsed["data"]["kind"], "full-reload");
+        assert_eq!(parsed["data"]["reason"], "entry file changed");
+    }
+
+    #[test]
+    fn test_hmr_message_to_event_css_update() {
+        let json = r#"{"type":"css-update","file":"/src/styles.css","timestamp":9999}"#;
+        let event = hmr_message_to_event(json).unwrap();
+        let out = event.to_json();
+        let parsed: serde_json::Value = serde_json::from_str(&out).unwrap();
+        assert_eq!(parsed["data"]["kind"], "css-update");
+        assert_eq!(parsed["data"]["file"], "/src/styles.css");
+        assert_eq!(parsed["data"]["hmr_timestamp"], 9999);
+    }
+
+    #[test]
+    fn test_hmr_message_to_event_connected_filtered() {
+        let json = r#"{"type":"connected"}"#;
+        assert!(hmr_message_to_event(json).is_none());
+    }
+
+    #[test]
+    fn test_hmr_message_to_event_navigate_filtered() {
+        let json = r#"{"type":"navigate","to":"/tasks"}"#;
+        assert!(hmr_message_to_event(json).is_none());
+    }
+
+    #[test]
+    fn test_hmr_message_to_event_invalid_json() {
+        assert!(hmr_message_to_event("not json").is_none());
+    }
+
+    // --- build_error_snapshot tests ---
+
+    #[tokio::test]
+    async fn test_build_error_snapshot_empty() {
+        let broadcaster = crate::errors::broadcaster::ErrorBroadcaster::new();
+        let event = build_error_snapshot(&broadcaster).await;
+        assert_eq!(event.event_name(), "error_update");
+        let json = event.to_json();
+        let parsed: serde_json::Value = serde_json::from_str(&json).unwrap();
+        assert!(parsed["data"]["category"].is_null());
+        assert_eq!(parsed["data"]["count"], 0);
+    }
+
+    #[tokio::test]
+    async fn test_build_error_snapshot_with_errors() {
+        let broadcaster = crate::errors::broadcaster::ErrorBroadcaster::new();
+        broadcaster
+            .report_error(DevError::build("syntax error"))
+            .await;
+        let event = build_error_snapshot(&broadcaster).await;
+        let json = event.to_json();
+        let parsed: serde_json::Value = serde_json::from_str(&json).unwrap();
+        assert_eq!(parsed["data"]["category"], "build");
+        assert_eq!(parsed["data"]["count"], 1);
+    }
+
+    // --- Relay integration test ---
+
+    #[tokio::test]
+    async fn test_error_relay_forwards_events() {
+        let hub = McpEventHub::new();
+        let broadcaster = crate::errors::broadcaster::ErrorBroadcaster::new();
+
+        // Start relay
+        start_relay_tasks(&hub, &broadcaster, &crate::hmr::websocket::HmrHub::new());
+
+        // Subscribe to hub to receive relayed events
+        let mut rx = hub.subscribe();
+
+        // Report an error through the broadcaster
+        broadcaster
+            .report_error(DevError::build("test error"))
+            .await;
+
+        // The relay should forward it to the hub
+        let result = tokio::time::timeout(std::time::Duration::from_millis(100), rx.recv()).await;
+        assert!(result.is_ok(), "Should receive relayed error event");
+        let event = result.unwrap().unwrap();
+        assert_eq!(event.event_name(), "error_update");
+    }
+
+    #[tokio::test]
+    async fn test_hmr_relay_forwards_events() {
+        let hub = McpEventHub::new();
+        let hmr_hub = crate::hmr::websocket::HmrHub::new();
+
+        // Start relay
+        start_relay_tasks(
+            &hub,
+            &crate::errors::broadcaster::ErrorBroadcaster::new(),
+            &hmr_hub,
+        );
+
+        // Subscribe to MCP event hub
+        let mut rx = hub.subscribe();
+
+        // Broadcast HMR update
+        hmr_hub
+            .broadcast(crate::hmr::protocol::HmrMessage::Update {
+                modules: vec!["/src/app.tsx".to_string()],
+                timestamp: 12345,
+            })
+            .await;
+
+        // The relay should forward it
+        let result = tokio::time::timeout(std::time::Duration::from_millis(100), rx.recv()).await;
+        assert!(result.is_ok(), "Should receive relayed HMR event");
+        let event = result.unwrap().unwrap();
+        assert_eq!(event.event_name(), "hmr_update");
+    }
+
+    #[tokio::test]
+    async fn test_hmr_relay_filters_connected_messages() {
+        let hub = McpEventHub::new();
+        let hmr_hub = crate::hmr::websocket::HmrHub::new();
+
+        start_relay_tasks(
+            &hub,
+            &crate::errors::broadcaster::ErrorBroadcaster::new(),
+            &hmr_hub,
+        );
+
+        let mut rx = hub.subscribe();
+
+        // Broadcast "connected" — should be filtered out
+        hmr_hub
+            .broadcast(crate::hmr::protocol::HmrMessage::Connected)
+            .await;
+
+        // Should NOT receive this
+        let result = tokio::time::timeout(std::time::Duration::from_millis(100), rx.recv()).await;
+        assert!(
+            result.is_err(),
+            "Should NOT receive 'connected' message (filtered)"
+        );
     }
 }

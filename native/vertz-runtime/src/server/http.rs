@@ -603,6 +603,13 @@ pub async fn start_server(config: ServerConfig) -> io::Result<()> {
         None
     };
 
+    // Start MCP event relay tasks (error broadcaster → McpEventHub, HMR → McpEventHub)
+    mcp_events::start_relay_tasks(
+        &state.mcp_event_hub,
+        &state.error_broadcaster,
+        &state.hmr_hub,
+    );
+
     let restart_triggers = RestartTriggers::default();
 
     // Start the file watcher if src_dir exists
@@ -636,6 +643,27 @@ pub async fn start_server(config: ServerConfig) -> io::Result<()> {
                                         crate::server::console_log::LogLevel::Info,
                                         change_msg,
                                         Some("watcher"),
+                                    );
+
+                                    // Emit file_change event to MCP LLM clients
+                                    let relative_path = change.path
+                                        .strip_prefix(&root_dir)
+                                        .unwrap_or(&change.path)
+                                        .to_string_lossy()
+                                        .to_string();
+                                    let kind_str = match change.kind {
+                                        crate::watcher::file_watcher::FileChangeKind::Create => "create",
+                                        crate::watcher::file_watcher::FileChangeKind::Modify => "modify",
+                                        crate::watcher::file_watcher::FileChangeKind::Remove => "delete",
+                                    };
+                                    watcher_state.mcp_event_hub.broadcast(
+                                        mcp_events::McpEvent::FileChange {
+                                            timestamp: mcp_events::iso_timestamp(),
+                                            data: mcp_events::FileChangeData {
+                                                path: relative_path,
+                                                kind: kind_str.to_string(),
+                                            },
+                                        },
                                     );
 
                                     // Check for config/dependency changes
