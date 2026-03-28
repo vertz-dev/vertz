@@ -519,14 +519,23 @@ function MiniTodoApp() {
   }
 
   onMount(() => {
-    // ── WebSocket presence connection ──────────────────────
     let keepaliveId: ReturnType<typeof setInterval> | null = null;
+    let retryTimeoutId: ReturnType<typeof setTimeout> | null = null;
+    let retryCount = 0;
+    let stopped = false;
+
+    const MAX_RETRIES = 3;
+    const BACKOFF_BASE_MS = 1000;
+    const PERIODIC_RETRY_MS = 60_000;
 
     const wsUrl = typeof PRESENCE_WS_URL !== 'undefined'
       ? PRESENCE_WS_URL
       : 'ws://localhost:4001/__presence';
 
+    // ── WebSocket connection with reconnection ──────────────
     function connectPresence() {
+      if (stopped) return;
+
       try {
         presenceWs = new WebSocket(wsUrl);
 
@@ -546,6 +555,7 @@ function MiniTodoApp() {
         };
 
         presenceWs.onopen = () => {
+          retryCount = 0; // Reset backoff on successful connection
           keepaliveId = setInterval(() => {
             if (presenceWs && presenceWs.readyState === WebSocket.OPEN) {
               presenceWs.send('{"t":"ping"}');
@@ -558,16 +568,67 @@ function MiniTodoApp() {
           presenceWs = null;
           if (keepaliveId) clearInterval(keepaliveId);
           keepaliveId = null;
+
+          if (!stopped) scheduleReconnect();
         };
 
         presenceWs.onerror = () => {
-          // Will trigger onclose
+          // Will trigger onclose → scheduleReconnect
         };
       } catch {
-        // WebSocket not available or URL invalid — fallback to simulation
+        // WebSocket not available — schedule reconnect
+        if (!stopped) scheduleReconnect();
       }
     }
 
+    function scheduleReconnect() {
+      if (stopped) return;
+      if (retryTimeoutId) clearTimeout(retryTimeoutId);
+
+      if (retryCount < MAX_RETRIES) {
+        // Exponential backoff: 1s, 2s, 4s
+        const delay = BACKOFF_BASE_MS * Math.pow(2, retryCount);
+        retryCount++;
+        retryTimeoutId = setTimeout(connectPresence, delay);
+      } else {
+        // Backoff exhausted — periodic retry every 60s
+        retryTimeoutId = setTimeout(connectPresence, PERIODIC_RETRY_MS);
+      }
+    }
+
+    function disconnect() {
+      if (retryTimeoutId) clearTimeout(retryTimeoutId);
+      retryTimeoutId = null;
+      if (keepaliveId) clearInterval(keepaliveId);
+      keepaliveId = null;
+      if (presenceWs) {
+        presenceWs.onclose = null; // Prevent scheduleReconnect
+        presenceWs.close();
+        presenceWs = null;
+      }
+      hasRealPeers = false;
+    }
+
+    // ── Tab visibility ──────────────────────────────────────
+    function handleVisibilityChange() {
+      if (document.hidden) {
+        disconnect();
+      } else {
+        retryCount = 0;
+        connectPresence();
+      }
+    }
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    // ── Online/offline ──────────────────────────────────────
+    function handleOnline() {
+      retryCount = 0; // Reset backoff
+      disconnect();
+      connectPresence();
+    }
+    window.addEventListener('online', handleOnline);
+
+    // ── Start connection ────────────────────────────────────
     connectPresence();
 
     // ── Simulated peer timer (fallback) ────────────────────
@@ -583,9 +644,11 @@ function MiniTodoApp() {
     let simTimerId = schedulePeer();
 
     return () => {
+      stopped = true;
       clearTimeout(simTimerId);
-      if (keepaliveId) clearInterval(keepaliveId);
-      if (presenceWs) presenceWs.close();
+      disconnect();
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('online', handleOnline);
     };
   });
 
