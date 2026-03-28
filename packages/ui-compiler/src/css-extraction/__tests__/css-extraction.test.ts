@@ -278,13 +278,21 @@ const button = css({ root: ['m:2'] });`;
     expect(result.css).toContain(':hover');
   });
 
+  it('resolves grid-cols:N to repeat(N, minmax(0, 1fr))', () => {
+    const extractor = new CSSExtractor();
+    const source = `const s = css({ grid: ['grid-cols:5'] });`;
+    const result = extractor.extract(source, 'Grid.tsx');
+
+    expect(result.css).toContain('grid-template-columns: repeat(5, minmax(0, 1fr))');
+  });
+
   it('wraps @media at-rules around the class selector', () => {
     const extractor = new CSSExtractor();
     const source = `const s = css({ grid: ['gap:4', { '@media (min-width: 768px)': ['grid-cols:2'] }] });`;
     const result = extractor.extract(source, 'Grid.tsx');
 
     expect(result.css).toContain('@media (min-width: 768px)');
-    expect(result.css).toContain('grid-template-columns:');
+    expect(result.css).toContain('grid-template-columns: repeat(2, minmax(0, 1fr))');
     // The class selector must appear INSIDE the @media block
     expect(result.css).toMatch(/@media \(min-width: 768px\) \{\n\s+\._[a-f0-9]+ \{/);
   });

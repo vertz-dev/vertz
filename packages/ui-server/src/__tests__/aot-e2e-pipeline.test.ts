@@ -550,4 +550,40 @@ describe('Feature: E2E AOT Pipeline', () => {
       });
     });
   });
+
+  describe('Given an AOT route with per-route CSS', () => {
+    describe('When the route is rendered via ssrRenderAot', () => {
+      it('Then the CSS is included in the render result', async () => {
+        writeFileSync(
+          join(serverDir, 'aot-manifest.json'),
+          JSON.stringify({
+            routes: {
+              '/styled': {
+                renderFn: '__ssr_StyledPage',
+                holes: [],
+                queryKeys: [],
+                css: ['._abc12345 { padding: 1rem; }', '._def67890 { color: red; }'],
+              },
+            },
+          }),
+        );
+        writeFileSync(
+          join(serverDir, 'aot-routes.js'),
+          `export function __ssr_StyledPage(data, ctx) { return '<div class="_abc12345">Styled</div>'; }`,
+        );
+
+        const { loadAotManifest } = await import('../aot-manifest-loader');
+        const aotManifest = await loadAotManifest(serverDir);
+        expect(aotManifest).not.toBeNull();
+
+        const { ssrRenderAot } = await import('../ssr-aot-pipeline');
+        const module = createMockModule();
+        const result = await ssrRenderAot(module, '/styled', { aotManifest: aotManifest! });
+
+        expect(result.html).toContain('Styled');
+        expect(result.css).toContain('padding: 1rem');
+        expect(result.css).toContain('color: red');
+      });
+    });
+  });
 });
