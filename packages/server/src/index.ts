@@ -306,5 +306,5 @@ export type {
 } from './service';
 export { service } from './service';
 // Action helper — typed action definitions
-export type { ActionDef } from './action';
+export type { ActionDef, ActionDefNoBody } from './action';
 export { action } from './action';

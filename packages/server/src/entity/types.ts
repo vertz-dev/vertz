@@ -309,7 +309,15 @@ export interface EntityConfig<
 // EntityDefinition — the frozen output of entity()
 // ---------------------------------------------------------------------------
 
-export interface EntityDefinition<TModel extends ModelDef = ModelDef> {
+export interface EntityDefinition<
+  TModel extends ModelDef = ModelDef,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- constraint and default use any to accept all action type parameter combinations and ensure array compat
+  TActions extends Record<string, EntityActionDef<any, any, any, any>> = Record<
+    string,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- any ensures EntityDefinition<TModel, SpecificActions> assignable to EntityDefinition[]
+    EntityActionDef<any, any, any, any>
+  >,
+> {
   readonly kind: 'entity';
   readonly name: string;
   readonly model: TModel;
@@ -317,7 +325,8 @@ export interface EntityDefinition<TModel extends ModelDef = ModelDef> {
   readonly access: Partial<Record<string, AccessRule>>;
   readonly before: EntityBeforeHooks;
   readonly after: EntityAfterHooks;
-  readonly actions: Record<string, EntityActionDef>;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- type-erased at runtime; concrete types preserved in __actions phantom
+  readonly actions: Record<string, EntityActionDef<any, any, any, any>>;
   readonly expose?: ExposeConfig<TModel['table'], TModel>;
   /** DB table name (defaults to entity name). */
   readonly table: string;
@@ -327,4 +336,6 @@ export interface EntityDefinition<TModel extends ModelDef = ModelDef> {
   readonly tenantColumn: string | null;
   /** Relation chain for indirect tenant scoping. Null for direct or unscoped. */
   readonly tenantChain: TenantChain | null;
+  /** @internal Phantom type — carries concrete action types for type extraction. Never accessed at runtime. */
+  readonly __actions?: TActions;
 }

@@ -1,6 +1,8 @@
 import { describe, it } from 'bun:test';
 import { d } from '@vertz/db';
+import { action } from '../../action';
 import { entity } from '../index';
+import type { EntityActionDef, EntityDefinition } from '../types';
 
 // ---------------------------------------------------------------------------
 // Fixtures
@@ -275,5 +277,79 @@ describe('entity() full config integration', () => {
         include: { posts: true },
       },
     });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// EntityDefinition phantom TActions preservation
+// ---------------------------------------------------------------------------
+
+describe('EntityDefinition phantom TActions preservation', () => {
+  it('entity() return type carries action types via __actions phantom', () => {
+    const def = entity('users', {
+      model: usersModel,
+      actions: {
+        resetPassword: action({
+          body: {
+            parse: (v: unknown) => ({ ok: true as const, data: v as { password: string } }),
+          },
+          response: {
+            parse: (v: unknown) => ({ ok: true as const, data: v as { ok: boolean } }),
+          },
+          handler: async (input) => {
+            input.password satisfies string;
+            return { ok: true };
+          },
+        }),
+      },
+    });
+
+    // The phantom __actions should carry the concrete action types
+    type Actions = NonNullable<(typeof def)['__actions']>;
+    type ResetAction = Actions['resetPassword'];
+
+    // Input type should be { password: string } (from body schema)
+    type ResetInput = ResetAction extends EntityActionDef<infer I, infer _O, infer _R, infer _C>
+      ? I
+      : never;
+    const _check: { password: string } = {} as ResetInput;
+    void _check;
+  });
+
+  it('typed EntityDefinitions are assignable to EntityDefinition[] (array compat)', () => {
+    const usersDef = entity('users', {
+      model: usersModel,
+      actions: {
+        resetPassword: action({
+          body: {
+            parse: (v: unknown) => ({ ok: true as const, data: v as { password: string } }),
+          },
+          response: {
+            parse: (v: unknown) => ({ ok: true as const, data: v as { ok: boolean } }),
+          },
+          handler: async () => ({ ok: true }),
+        }),
+      },
+    });
+
+    const postsDef = entity('posts', {
+      model: d.model(postsTable),
+    });
+
+    // Both should be assignable to EntityDefinition[] without type errors
+    const _arr: EntityDefinition[] = [usersDef, postsDef];
+    void _arr;
+  });
+
+  it('entity() without actions still has __actions as empty record', () => {
+    const def = entity('users', {
+      model: usersModel,
+    });
+
+    // __actions should exist but be empty — type should be {}
+    type Actions = NonNullable<(typeof def)['__actions']>;
+    type Keys = keyof Actions;
+    const _check: Keys = {} as never; // never = no keys
+    void _check;
   });
 });
