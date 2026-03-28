@@ -37,8 +37,7 @@ mod tests {
 
     #[test]
     fn test_performance_now_returns_number() {
-        let mut rt =
-            VertzJsRuntime::new(VertzRuntimeOptions::default()).unwrap();
+        let mut rt = VertzJsRuntime::new(VertzRuntimeOptions::default()).unwrap();
         let result = rt
             .execute_script("<test>", "typeof performance.now()")
             .unwrap();
@@ -47,8 +46,7 @@ mod tests {
 
     #[test]
     fn test_performance_now_is_positive() {
-        let mut rt =
-            VertzJsRuntime::new(VertzRuntimeOptions::default()).unwrap();
+        let mut rt = VertzJsRuntime::new(VertzRuntimeOptions::default()).unwrap();
         let result = rt
             .execute_script("<test>", "performance.now() >= 0")
             .unwrap();
@@ -57,8 +55,7 @@ mod tests {
 
     #[test]
     fn test_performance_now_monotonically_increases() {
-        let mut rt =
-            VertzJsRuntime::new(VertzRuntimeOptions::default()).unwrap();
+        let mut rt = VertzJsRuntime::new(VertzRuntimeOptions::default()).unwrap();
         let result = rt
             .execute_script(
                 "<test>",

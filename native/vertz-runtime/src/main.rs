@@ -1,12 +1,8 @@
-mod banner;
 mod cli;
-mod config;
-pub mod runtime;
-mod server;
 
 use clap::Parser;
 use cli::{Cli, Command};
-use config::ServerConfig;
+use vertz_runtime::config::ServerConfig;
 
 #[tokio::main]
 async fn main() {
@@ -16,7 +12,7 @@ async fn main() {
         Command::Dev(args) => {
             let config = ServerConfig::new(args.port, args.host, args.public_dir);
 
-            if let Err(e) = server::http::start_server(config).await {
+            if let Err(e) = vertz_runtime::server::http::start_server(config).await {
                 eprintln!("Error: {}", e);
                 std::process::exit(1);
             }

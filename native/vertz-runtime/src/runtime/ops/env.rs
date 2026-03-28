@@ -41,8 +41,7 @@ mod tests {
 
     #[test]
     fn test_process_env_reads_existing_var() {
-        let mut rt =
-            VertzJsRuntime::new(VertzRuntimeOptions::default()).unwrap();
+        let mut rt = VertzJsRuntime::new(VertzRuntimeOptions::default()).unwrap();
         let result = rt
             .execute_script("<test>", "typeof process.env.HOME")
             .unwrap();
@@ -51,8 +50,7 @@ mod tests {
 
     #[test]
     fn test_process_env_nonexistent_returns_undefined() {
-        let mut rt =
-            VertzJsRuntime::new(VertzRuntimeOptions::default()).unwrap();
+        let mut rt = VertzJsRuntime::new(VertzRuntimeOptions::default()).unwrap();
         let result = rt
             .execute_script(
                 "<test>",
@@ -65,8 +63,7 @@ mod tests {
     #[test]
     fn test_process_env_custom_var() {
         std::env::set_var("VERTZ_TEST_ENV_VAR", "hello_vertz");
-        let mut rt =
-            VertzJsRuntime::new(VertzRuntimeOptions::default()).unwrap();
+        let mut rt = VertzJsRuntime::new(VertzRuntimeOptions::default()).unwrap();
         let result = rt
             .execute_script("<test>", "process.env.VERTZ_TEST_ENV_VAR")
             .unwrap();

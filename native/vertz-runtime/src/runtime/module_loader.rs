@@ -45,9 +45,7 @@ impl VertzModuleLoader {
     ) -> Result<PathBuf, AnyError> {
         // Relative imports: ./foo, ../bar
         if specifier.starts_with("./") || specifier.starts_with("../") {
-            let base_dir = referrer_path
-                .parent()
-                .unwrap_or(&self.root_dir);
+            let base_dir = referrer_path.parent().unwrap_or(&self.root_dir);
             let resolved = base_dir.join(specifier);
             return self.resolve_with_extensions(&resolved);
         }
@@ -118,10 +116,7 @@ impl VertzModuleLoader {
         } else {
             // Regular package: pkg or pkg/subpath
             let parts: Vec<&str> = specifier.splitn(2, '/').collect();
-            (
-                parts[0].to_string(),
-                parts.get(1).map(|s| s.to_string()),
-            )
+            (parts[0].to_string(), parts.get(1).map(|s| s.to_string()))
         };
 
         // Walk up from root_dir looking for node_modules
@@ -154,9 +149,8 @@ impl VertzModuleLoader {
         let pkg_json_path = package_dir.join("package.json");
 
         if pkg_json_path.is_file() {
-            let pkg_json: serde_json::Value = serde_json::from_str(
-                &std::fs::read_to_string(&pkg_json_path)?,
-            )?;
+            let pkg_json: serde_json::Value =
+                serde_json::from_str(&std::fs::read_to_string(&pkg_json_path)?)?;
 
             // If subpath is provided, check "exports" field
             if let Some(sub) = subpath {
@@ -216,11 +210,7 @@ impl VertzModuleLoader {
     }
 
     /// Compile TypeScript/TSX source code using vertz-compiler-core.
-    fn compile_source(
-        &self,
-        source: &str,
-        filename: &str,
-    ) -> Result<String, AnyError> {
+    fn compile_source(&self, source: &str, filename: &str) -> Result<String, AnyError> {
         let result = vertz_compiler_core::compile(
             source,
             CompileOptions {
@@ -339,10 +329,7 @@ impl ModuleLoader for VertzModuleLoader {
 
         let resolved_path = self.resolve_specifier(specifier, &referrer_path)?;
         let url = ModuleSpecifier::from_file_path(&resolved_path).map_err(|_| {
-            deno_core::anyhow::anyhow!(
-                "Cannot convert path to URL: {}",
-                resolved_path.display()
-            )
+            deno_core::anyhow::anyhow!("Cannot convert path to URL: {}", resolved_path.display())
         })?;
 
         Ok(url)
@@ -359,25 +346,15 @@ impl ModuleLoader for VertzModuleLoader {
 
         let load_result = (|| -> Result<ModuleSource, AnyError> {
             let path = specifier.to_file_path().map_err(|_| {
-                deno_core::anyhow::anyhow!(
-                    "Only file:// URLs are supported, got: {}",
-                    specifier
-                )
+                deno_core::anyhow::anyhow!("Only file:// URLs are supported, got: {}", specifier)
             })?;
 
             let source = std::fs::read_to_string(&path).map_err(|e| {
-                deno_core::anyhow::anyhow!(
-                    "Cannot read module '{}': {}",
-                    path.display(),
-                    e
-                )
+                deno_core::anyhow::anyhow!("Cannot read module '{}': {}", path.display(), e)
             })?;
 
             let filename = path.to_string_lossy().to_string();
-            let ext = path
-                .extension()
-                .and_then(|e| e.to_str())
-                .unwrap_or("");
+            let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("");
 
             // Determine if we need to compile
             let (code, module_type) = match ext {
@@ -473,8 +450,7 @@ mod tests {
 
         let loader = VertzModuleLoader::new(&tmp.path().to_string_lossy());
         let referrer = ModuleSpecifier::from_file_path(&main_file).unwrap();
-        let result =
-            loader.resolve("./nonexistent", referrer.as_str(), ResolutionKind::Import);
+        let result = loader.resolve("./nonexistent", referrer.as_str(), ResolutionKind::Import);
         assert!(result.is_err());
         let err = result.unwrap_err().to_string();
         assert!(err.contains("Cannot resolve module"), "Error: {}", err);
@@ -515,15 +491,10 @@ mod tests {
 
         let loader = VertzModuleLoader::new(&tmp.path().to_string_lossy());
         let referrer = ModuleSpecifier::from_file_path(&main_file).unwrap();
-        let result =
-            loader.resolve("nonexistent-pkg", referrer.as_str(), ResolutionKind::Import);
+        let result = loader.resolve("nonexistent-pkg", referrer.as_str(), ResolutionKind::Import);
         assert!(result.is_err());
         let err = result.unwrap_err().to_string();
-        assert!(
-            err.contains("Cannot find module"),
-            "Error: {}",
-            err
-        );
+        assert!(err.contains("Cannot find module"), "Error: {}", err);
     }
 
     #[test]
@@ -534,22 +505,15 @@ mod tests {
 
         let loader = VertzModuleLoader::new(&tmp.path().to_string_lossy());
         let specifier = ModuleSpecifier::from_file_path(&js_file).unwrap();
-        let response = loader.load(
-            &specifier,
-            None,
-            false,
-            RequestedModuleType::None,
-        );
+        let response = loader.load(&specifier, None, false, RequestedModuleType::None);
 
         match response {
-            ModuleLoadResponse::Sync(Ok(source)) => {
-                match &source.code {
-                    deno_core::ModuleSourceCode::String(code) => {
-                        assert!(code.as_str().contains("export const x = 42"));
-                    }
-                    _ => panic!("Expected string source code"),
+            ModuleLoadResponse::Sync(Ok(source)) => match &source.code {
+                deno_core::ModuleSourceCode::String(code) => {
+                    assert!(code.as_str().contains("export const x = 42"));
                 }
-            }
+                _ => panic!("Expected string source code"),
+            },
             ModuleLoadResponse::Sync(Err(e)) => {
                 panic!("Module load failed: {}", e);
             }
@@ -565,12 +529,7 @@ mod tests {
 
         let loader = VertzModuleLoader::new(&tmp.path().to_string_lossy());
         let specifier = ModuleSpecifier::from_file_path(&ts_file).unwrap();
-        let response = loader.load(
-            &specifier,
-            None,
-            false,
-            RequestedModuleType::None,
-        );
+        let response = loader.load(&specifier, None, false, RequestedModuleType::None);
 
         match response {
             ModuleLoadResponse::Sync(Ok(source)) => {
@@ -580,7 +539,10 @@ mod tests {
                         // Should be compiled (type annotations stripped)
                         assert!(code_str.contains("compiled by vertz-native"));
                         // Type annotations should be removed
-                        assert!(!code_str.contains(": number"), "Type annotation should be stripped");
+                        assert!(
+                            !code_str.contains(": number"),
+                            "Type annotation should be stripped"
+                        );
                     }
                     _ => panic!("Expected string source code"),
                 }
@@ -608,23 +570,16 @@ export function Hello() {
 
         let loader = VertzModuleLoader::new(&tmp.path().to_string_lossy());
         let specifier = ModuleSpecifier::from_file_path(&tsx_file).unwrap();
-        let response = loader.load(
-            &specifier,
-            None,
-            false,
-            RequestedModuleType::None,
-        );
+        let response = loader.load(&specifier, None, false, RequestedModuleType::None);
 
         match response {
-            ModuleLoadResponse::Sync(Ok(source)) => {
-                match &source.code {
-                    deno_core::ModuleSourceCode::String(code) => {
-                        let code_str = code.as_str();
-                        assert!(code_str.contains("compiled by vertz-native"));
-                    }
-                    _ => panic!("Expected string source code"),
+            ModuleLoadResponse::Sync(Ok(source)) => match &source.code {
+                deno_core::ModuleSourceCode::String(code) => {
+                    let code_str = code.as_str();
+                    assert!(code_str.contains("compiled by vertz-native"));
                 }
-            }
+                _ => panic!("Expected string source code"),
+            },
             ModuleLoadResponse::Sync(Err(e)) => {
                 panic!("Module load failed: {}", e);
             }

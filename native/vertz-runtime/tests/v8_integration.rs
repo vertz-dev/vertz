@@ -21,8 +21,7 @@ async fn test_multi_module_execution() {
     })
     .unwrap();
 
-    let specifier =
-        deno_core::ModuleSpecifier::from_file_path(&entry_path).unwrap();
+    let specifier = deno_core::ModuleSpecifier::from_file_path(&entry_path).unwrap();
 
     let start = Instant::now();
     rt.load_main_module(&specifier).await.unwrap();
@@ -40,7 +39,9 @@ async fn test_multi_module_execution() {
     // Verify all modules executed and produced expected output
     // config.js logs first (imported first), then utils.js, then entry.js
     assert!(
-        output.stdout.contains(&"config loaded: Vertz Test App".to_string()),
+        output
+            .stdout
+            .contains(&"config loaded: Vertz Test App".to_string()),
         "Missing config output. Got: {:?}",
         output.stdout
     );
@@ -55,7 +56,9 @@ async fn test_multi_module_execution() {
         output.stdout
     );
     assert!(
-        output.stdout.contains(&"Hello, Vertz Test App!".to_string()),
+        output
+            .stdout
+            .contains(&"Hello, Vertz Test App!".to_string()),
         "Missing greeting. Got: {:?}",
         output.stdout
     );
@@ -109,8 +112,7 @@ async fn test_module_error_produces_readable_message() {
     })
     .unwrap();
 
-    let specifier =
-        deno_core::ModuleSpecifier::from_file_path(&error_file).unwrap();
+    let specifier = deno_core::ModuleSpecifier::from_file_path(&error_file).unwrap();
 
     let result = rt.load_main_module(&specifier).await;
     assert!(result.is_err());
@@ -128,11 +130,7 @@ async fn test_module_error_produces_readable_message() {
 async fn test_module_import_missing_produces_error() {
     let tmp = tempfile::tempdir().unwrap();
     let entry_file = tmp.path().join("entry.js");
-    std::fs::write(
-        &entry_file,
-        "import { foo } from './nonexistent.js';",
-    )
-    .unwrap();
+    std::fs::write(&entry_file, "import { foo } from './nonexistent.js';").unwrap();
 
     let mut rt = VertzJsRuntime::new(VertzRuntimeOptions {
         root_dir: Some(tmp.path().to_string_lossy().to_string()),
@@ -140,8 +138,7 @@ async fn test_module_import_missing_produces_error() {
     })
     .unwrap();
 
-    let specifier =
-        deno_core::ModuleSpecifier::from_file_path(&entry_file).unwrap();
+    let specifier = deno_core::ModuleSpecifier::from_file_path(&entry_file).unwrap();
 
     let result = rt.load_main_module(&specifier).await;
     assert!(result.is_err());
@@ -177,8 +174,7 @@ async fn test_ts_module_compilation_and_execution() {
     })
     .unwrap();
 
-    let specifier =
-        deno_core::ModuleSpecifier::from_file_path(&ts_file).unwrap();
+    let specifier = deno_core::ModuleSpecifier::from_file_path(&ts_file).unwrap();
 
     rt.load_main_module(&specifier).await.unwrap();
 
@@ -203,8 +199,7 @@ async fn test_inline_module_execution() {
     })
     .unwrap();
 
-    let specifier =
-        deno_core::ModuleSpecifier::parse("file:///virtual/test.js").unwrap();
+    let specifier = deno_core::ModuleSpecifier::parse("file:///virtual/test.js").unwrap();
 
     rt.load_main_module_from_code(
         &specifier,
@@ -233,9 +228,7 @@ async fn test_timers_in_module() {
     })
     .unwrap();
 
-    let specifier =
-        deno_core::ModuleSpecifier::parse("file:///virtual/timer-test.js")
-            .unwrap();
+    let specifier = deno_core::ModuleSpecifier::parse("file:///virtual/timer-test.js").unwrap();
 
     rt.load_main_module_from_code(
         &specifier,

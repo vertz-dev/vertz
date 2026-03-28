@@ -17,12 +17,7 @@ pub struct ConsoleState {
 pub fn op_console_log(state: &mut OpState, #[string] msg: String) {
     let console_state = state.borrow::<ConsoleState>();
     if console_state.capture {
-        console_state
-            .captured
-            .lock()
-            .unwrap()
-            .stdout
-            .push(msg);
+        console_state.captured.lock().unwrap().stdout.push(msg);
     } else {
         println!("{}", msg);
     }
@@ -62,12 +57,7 @@ pub fn op_console_error(state: &mut OpState, #[string] msg: String) {
 pub fn op_console_info(state: &mut OpState, #[string] msg: String) {
     let console_state = state.borrow::<ConsoleState>();
     if console_state.capture {
-        console_state
-            .captured
-            .lock()
-            .unwrap()
-            .stdout
-            .push(msg);
+        console_state.captured.lock().unwrap().stdout.push(msg);
     } else {
         println!("{}", msg);
     }

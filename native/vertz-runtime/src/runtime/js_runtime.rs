@@ -75,9 +75,12 @@ impl VertzJsRuntime {
             ..Default::default()
         };
 
-        let root_dir = options
-            .root_dir
-            .unwrap_or_else(|| std::env::current_dir().unwrap().to_string_lossy().to_string());
+        let root_dir = options.root_dir.unwrap_or_else(|| {
+            std::env::current_dir()
+                .unwrap()
+                .to_string_lossy()
+                .to_string()
+        });
         let module_loader = Rc::new(VertzModuleLoader::new(&root_dir));
 
         let mut runtime = JsRuntime::new(RuntimeOptions {
@@ -128,21 +131,14 @@ impl VertzJsRuntime {
     }
 
     /// Execute a JavaScript snippet without capturing the return value.
-    pub fn execute_script_void(
-        &mut self,
-        name: &'static str,
-        code: &str,
-    ) -> Result<(), AnyError> {
+    pub fn execute_script_void(&mut self, name: &'static str, code: &str) -> Result<(), AnyError> {
         self.runtime
             .execute_script(name, deno_core::FastString::from(code.to_string()))?;
         Ok(())
     }
 
     /// Load and evaluate an ES module from a file URL.
-    pub async fn load_main_module(
-        &mut self,
-        specifier: &ModuleSpecifier,
-    ) -> Result<(), AnyError> {
+    pub async fn load_main_module(&mut self, specifier: &ModuleSpecifier) -> Result<(), AnyError> {
         let mod_id = self.runtime.load_main_es_module(specifier).await?;
         let result = self.runtime.mod_evaluate(mod_id);
         self.runtime

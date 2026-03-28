@@ -28,11 +28,8 @@ mod tests {
 
     #[test]
     fn test_crypto_random_uuid_format() {
-        let mut rt =
-            VertzJsRuntime::new(VertzRuntimeOptions::default()).unwrap();
-        let result = rt
-            .execute_script("<test>", "crypto.randomUUID()")
-            .unwrap();
+        let mut rt = VertzJsRuntime::new(VertzRuntimeOptions::default()).unwrap();
+        let result = rt.execute_script("<test>", "crypto.randomUUID()").unwrap();
         let uuid_str = result.as_str().unwrap();
         assert_eq!(uuid_str.len(), 36);
         let parts: Vec<&str> = uuid_str.split('-').collect();
@@ -47,8 +44,7 @@ mod tests {
 
     #[test]
     fn test_crypto_random_uuid_unique() {
-        let mut rt =
-            VertzJsRuntime::new(VertzRuntimeOptions::default()).unwrap();
+        let mut rt = VertzJsRuntime::new(VertzRuntimeOptions::default()).unwrap();
         let result = rt
             .execute_script(
                 "<test>",

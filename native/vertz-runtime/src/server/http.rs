@@ -1,11 +1,17 @@
 use crate::banner::print_banner;
+use crate::compiler::pipeline::CompilationPipeline;
 use crate::config::ServerConfig;
+use crate::server::html_shell;
 use crate::server::logging::RequestLoggingLayer;
+use crate::server::module_server::{self, DevServerState};
+use axum::body::Body;
+use axum::extract::State;
+use axum::http::{header, Request, StatusCode};
 use axum::Router;
 use std::io;
+use std::sync::Arc;
 use std::time::Instant;
 use tokio::net::TcpListener;
-use tower_http::services::ServeDir;
 
 const MAX_PORT_ATTEMPTS: u16 = 10;
 
@@ -53,13 +59,123 @@ pub async fn try_bind(config: &ServerConfig) -> io::Result<BindResult> {
     }))
 }
 
-/// Build the axum router with static file serving and logging middleware.
+/// Build the axum router with all dev server routes.
+///
+/// The router uses a single fallback handler that dispatches based on URL path prefix:
+/// 1. `/@deps/**` → pre-bundled dependency serving
+/// 2. `/@css/**` → extracted CSS serving
+/// 3. `/src/**` → on-demand compilation + serving
+/// 4. Static files from public_dir
+/// 5. Fallback → HTML shell for SPA routing (page routes)
 pub fn build_router(config: &ServerConfig) -> Router {
-    let serve_dir = ServeDir::new(&config.public_dir);
+    let pipeline = CompilationPipeline::new(config.root_dir.clone(), config.src_dir.clone());
 
+    let state = Arc::new(DevServerState {
+        pipeline,
+        root_dir: config.root_dir.clone(),
+        src_dir: config.src_dir.clone(),
+        entry_file: config.entry_file.clone(),
+        deps_dir: config.deps_dir(),
+    });
+
+    // Use a single fallback handler that routes based on path prefix.
+    // This avoids axum route pattern limitations with `@` in paths.
     Router::new()
-        .fallback_service(serve_dir)
+        .fallback(dev_server_handler)
+        .with_state(state)
         .layer(RequestLoggingLayer)
+}
+
+/// Central request handler for the dev server.
+///
+/// Dispatches based on URL path prefix:
+/// - `/@deps/` → dependency serving
+/// - `/@css/` → CSS serving
+/// - `/src/` → source compilation
+/// - everything else → static files or HTML shell
+async fn dev_server_handler(
+    state: State<Arc<DevServerState>>,
+    req: Request<Body>,
+) -> axum::response::Response<Body> {
+    let path = req.uri().path().to_string();
+
+    if path.starts_with("/@deps/") {
+        return module_server::handle_deps_request(state, req).await;
+    }
+
+    if path.starts_with("/@css/") {
+        return module_server::handle_css_request(state, req).await;
+    }
+
+    if path.starts_with("/src/") {
+        return module_server::handle_source_file(state, req).await;
+    }
+
+    // Check for static files in public_dir
+    let public_file = state
+        .root_dir
+        .join("public")
+        .join(path.trim_start_matches('/'));
+    if public_file.is_file() {
+        let content = std::fs::read(&public_file).unwrap_or_default();
+        let content_type = mime_type_for_path(&path);
+        return axum::response::Response::builder()
+            .status(StatusCode::OK)
+            .header(header::CONTENT_TYPE, content_type)
+            .body(Body::from(content))
+            .unwrap();
+    }
+
+    // SPA fallback: return HTML shell for page routes
+    if html_shell::is_page_route(&path) {
+        let html = html_shell::generate_html_shell(
+            &state.entry_file,
+            &state.root_dir,
+            &[],
+            None,
+            "Vertz App",
+        );
+        return axum::response::Response::builder()
+            .status(StatusCode::OK)
+            .header(header::CONTENT_TYPE, "text/html; charset=utf-8")
+            .header(header::CACHE_CONTROL, "no-cache")
+            .body(Body::from(html))
+            .unwrap();
+    }
+
+    // 404 for everything else
+    axum::response::Response::builder()
+        .status(StatusCode::NOT_FOUND)
+        .header(header::CONTENT_TYPE, "text/plain")
+        .body(Body::from("Not Found"))
+        .unwrap()
+}
+
+/// Guess a MIME type from a file path extension.
+fn mime_type_for_path(path: &str) -> &'static str {
+    if path.ends_with(".html") {
+        "text/html; charset=utf-8"
+    } else if path.ends_with(".css") {
+        "text/css; charset=utf-8"
+    } else if path.ends_with(".js") || path.ends_with(".mjs") {
+        "application/javascript; charset=utf-8"
+    } else if path.ends_with(".json") {
+        "application/json; charset=utf-8"
+    } else if path.ends_with(".png") {
+        "image/png"
+    } else if path.ends_with(".jpg") || path.ends_with(".jpeg") {
+        "image/jpeg"
+    } else if path.ends_with(".svg") {
+        "image/svg+xml"
+    } else if path.ends_with(".ico") {
+        "image/x-icon"
+    } else if path.ends_with(".woff2") {
+        "font/woff2"
+    } else if path.ends_with(".woff") {
+        "font/woff"
+    } else {
+        "application/octet-stream"
+    }
 }
 
 /// Start the HTTP server with the given configuration.
@@ -147,8 +263,38 @@ mod tests {
 
     #[test]
     fn test_build_router_returns_router() {
-        let config = ServerConfig::new(3000, "localhost".to_string(), PathBuf::from("public"));
+        let tmp = tempfile::tempdir().unwrap();
+        let config = ServerConfig::with_root(
+            3000,
+            "localhost".to_string(),
+            PathBuf::from("public"),
+            tmp.path().to_path_buf(),
+        );
         let _router = build_router(&config);
         // If this compiles and runs, the router was created successfully
+    }
+
+    #[test]
+    fn test_mime_type_for_path() {
+        assert_eq!(
+            mime_type_for_path("/index.html"),
+            "text/html; charset=utf-8"
+        );
+        assert_eq!(mime_type_for_path("/style.css"), "text/css; charset=utf-8");
+        assert_eq!(
+            mime_type_for_path("/app.js"),
+            "application/javascript; charset=utf-8"
+        );
+        assert_eq!(
+            mime_type_for_path("/data.json"),
+            "application/json; charset=utf-8"
+        );
+        assert_eq!(mime_type_for_path("/logo.png"), "image/png");
+        assert_eq!(mime_type_for_path("/photo.jpg"), "image/jpeg");
+        assert_eq!(mime_type_for_path("/icon.svg"), "image/svg+xml");
+        assert_eq!(
+            mime_type_for_path("/unknown.xyz"),
+            "application/octet-stream"
+        );
     }
 }

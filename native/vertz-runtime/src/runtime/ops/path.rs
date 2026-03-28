@@ -109,8 +109,7 @@ mod tests {
 
     #[test]
     fn test_path_join() {
-        let mut rt =
-            VertzJsRuntime::new(VertzRuntimeOptions::default()).unwrap();
+        let mut rt = VertzJsRuntime::new(VertzRuntimeOptions::default()).unwrap();
         let result = rt
             .execute_script("<test>", r#"path.join("a", "b", "c")"#)
             .unwrap();
@@ -119,8 +118,7 @@ mod tests {
 
     #[test]
     fn test_path_resolve_returns_absolute() {
-        let mut rt =
-            VertzJsRuntime::new(VertzRuntimeOptions::default()).unwrap();
+        let mut rt = VertzJsRuntime::new(VertzRuntimeOptions::default()).unwrap();
         let result = rt
             .execute_script("<test>", r#"path.resolve("./foo")"#)
             .unwrap();
@@ -135,8 +133,7 @@ mod tests {
 
     #[test]
     fn test_path_dirname() {
-        let mut rt =
-            VertzJsRuntime::new(VertzRuntimeOptions::default()).unwrap();
+        let mut rt = VertzJsRuntime::new(VertzRuntimeOptions::default()).unwrap();
         let result = rt
             .execute_script("<test>", r#"path.dirname("/a/b/c.ts")"#)
             .unwrap();
@@ -145,8 +142,7 @@ mod tests {
 
     #[test]
     fn test_path_basename() {
-        let mut rt =
-            VertzJsRuntime::new(VertzRuntimeOptions::default()).unwrap();
+        let mut rt = VertzJsRuntime::new(VertzRuntimeOptions::default()).unwrap();
         let result = rt
             .execute_script("<test>", r#"path.basename("/a/b/c.ts")"#)
             .unwrap();
@@ -155,8 +151,7 @@ mod tests {
 
     #[test]
     fn test_path_extname() {
-        let mut rt =
-            VertzJsRuntime::new(VertzRuntimeOptions::default()).unwrap();
+        let mut rt = VertzJsRuntime::new(VertzRuntimeOptions::default()).unwrap();
         let result = rt
             .execute_script("<test>", r#"path.extname("/a/b/c.ts")"#)
             .unwrap();
@@ -165,8 +160,7 @@ mod tests {
 
     #[test]
     fn test_path_extname_no_extension() {
-        let mut rt =
-            VertzJsRuntime::new(VertzRuntimeOptions::default()).unwrap();
+        let mut rt = VertzJsRuntime::new(VertzRuntimeOptions::default()).unwrap();
         let result = rt
             .execute_script("<test>", r#"path.extname("/a/b/c")"#)
             .unwrap();

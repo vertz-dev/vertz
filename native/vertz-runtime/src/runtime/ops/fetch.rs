@@ -16,9 +16,9 @@ pub async fn op_fetch(
         .and_then(|v| v.as_str())
         .unwrap_or("GET");
 
-    let method: reqwest::Method = method_str.parse().map_err(|_| {
-        deno_core::anyhow::anyhow!("Invalid HTTP method: {}", method_str)
-    })?;
+    let method: reqwest::Method = method_str
+        .parse()
+        .map_err(|_| deno_core::anyhow::anyhow!("Invalid HTTP method: {}", method_str))?;
 
     let mut request = client.request(method, &url);
 
@@ -40,9 +40,10 @@ pub async fn op_fetch(
         }
     }
 
-    let response = request.send().await.map_err(|e| {
-        deno_core::anyhow::anyhow!("Fetch failed: {}", e)
-    })?;
+    let response = request
+        .send()
+        .await
+        .map_err(|e| deno_core::anyhow::anyhow!("Fetch failed: {}", e))?;
 
     let status = response.status().as_u16();
     let status_text = response
@@ -62,9 +63,10 @@ pub async fn op_fetch(
         })
         .collect();
 
-    let body = response.text().await.map_err(|e| {
-        deno_core::anyhow::anyhow!("Failed to read response body: {}", e)
-    })?;
+    let body = response
+        .text()
+        .await
+        .map_err(|e| deno_core::anyhow::anyhow!("Failed to read response body: {}", e))?;
 
     Ok(serde_json::json!({
         "status": status,
