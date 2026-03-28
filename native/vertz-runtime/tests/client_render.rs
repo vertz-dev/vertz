@@ -772,7 +772,7 @@ mod http_integration {
             root,
         );
 
-        let router = vertz_runtime::server::http::build_router(&config);
+        let (router, _state) = vertz_runtime::server::http::build_router(&config);
 
         let listener = tokio::net::TcpListener::bind(&addr).await.unwrap();
 
@@ -1147,6 +1147,86 @@ mod http_integration {
             "Source files should have no-cache. Got: {}",
             cc
         );
+
+        let _ = shutdown_tx.send(());
+    }
+
+    #[tokio::test]
+    async fn test_html_shell_includes_hmr_scripts() {
+        let (base_url, shutdown_tx) = start_dev_server(task_manager_path()).await;
+        let client = Client::new();
+
+        let resp = timeout(
+            Duration::from_secs(5),
+            client.get(&base_url).header("Accept", "text/html").send(),
+        )
+        .await
+        .expect("request timed out")
+        .expect("request failed");
+
+        let body = resp.text().await.unwrap();
+
+        // HMR client script should be present
+        assert!(
+            body.contains("__vertz_hmr"),
+            "HTML shell should include HMR client script"
+        );
+
+        // Fast Refresh runtime should be present
+        assert!(
+            body.contains("vertz:fast-refresh"),
+            "HTML shell should include Fast Refresh runtime"
+        );
+
+        // HMR scripts should come before the app module
+        let hmr_pos = body.find("__vertz_hmr").unwrap();
+        let app_pos = body
+            .find(r#"<script type="module" src="/src/app.tsx">"#)
+            .unwrap();
+        assert!(
+            hmr_pos < app_pos,
+            "HMR scripts must appear before the app module"
+        );
+
+        let _ = shutdown_tx.send(());
+    }
+
+    #[tokio::test]
+    async fn test_websocket_hmr_endpoint_accepts_upgrade() {
+        let (base_url, shutdown_tx) = start_dev_server(task_manager_path()).await;
+
+        // Connect via WebSocket to /__vertz_hmr
+        let ws_url = base_url.replace("http://", "ws://") + "/__vertz_hmr";
+
+        let result = timeout(
+            Duration::from_secs(5),
+            tokio_tungstenite::connect_async(&ws_url),
+        )
+        .await;
+
+        match result {
+            Ok(Ok((mut ws, _))) => {
+                // Should receive a "connected" message
+                use futures_util::StreamExt;
+                let msg = timeout(Duration::from_secs(2), ws.next())
+                    .await
+                    .expect("timed out waiting for message")
+                    .expect("stream ended")
+                    .expect("message error");
+
+                let text = msg.to_text().unwrap();
+                let parsed: serde_json::Value = serde_json::from_str(text).unwrap();
+                assert_eq!(
+                    parsed["type"], "connected",
+                    "First message should be 'connected'"
+                );
+
+                // Clean up — drop the WebSocket to close
+                drop(ws);
+            }
+            Ok(Err(e)) => panic!("WebSocket connection failed: {}", e),
+            Err(_) => panic!("WebSocket connection timed out"),
+        }
 
         let _ = shutdown_tx.send(());
     }

@@ -1,5 +1,11 @@
 use std::path::Path;
 
+/// The Fast Refresh runtime JS (embedded at compile time).
+const FAST_REFRESH_RUNTIME_JS: &str = include_str!("../assets/fast-refresh-runtime.js");
+
+/// The HMR client JS (embedded at compile time).
+const HMR_CLIENT_JS: &str = include_str!("../assets/hmr-client.js");
+
 /// Generate the HTML shell document for client-side rendering.
 ///
 /// This is the document returned for page routes (SPA routing).
@@ -8,6 +14,7 @@ use std::path::Path;
 /// - `<link rel="modulepreload">` hints for the entry file
 /// - `<div id="app">` mount point
 /// - Standard HTML5 boilerplate (DOCTYPE, charset, viewport)
+/// - HMR client script and Fast Refresh runtime (in dev mode)
 pub fn generate_html_shell(
     entry_path: &Path,
     root_dir: &Path,
@@ -15,9 +22,24 @@ pub fn generate_html_shell(
     inline_css: Option<&str>,
     title: &str,
 ) -> String {
+    generate_html_shell_with_hmr(entry_path, root_dir, preload_hints, inline_css, title, true)
+}
+
+/// Generate the HTML shell with optional HMR support.
+///
+/// When `enable_hmr` is true, includes the Fast Refresh runtime and HMR client
+/// scripts inline in the HTML shell. These scripts run before the app module loads.
+pub fn generate_html_shell_with_hmr(
+    entry_path: &Path,
+    root_dir: &Path,
+    preload_hints: &[String],
+    inline_css: Option<&str>,
+    title: &str,
+    enable_hmr: bool,
+) -> String {
     let entry_url = path_to_url(entry_path, root_dir);
 
-    let mut html = String::with_capacity(1024);
+    let mut html = String::with_capacity(2048);
     html.push_str("<!DOCTYPE html>\n");
     html.push_str("<html lang=\"en\">\n");
     html.push_str("<head>\n");
@@ -49,6 +71,17 @@ pub fn generate_html_shell(
     html.push_str("</head>\n");
     html.push_str("<body>\n");
     html.push_str("  <div id=\"app\"></div>\n");
+
+    // HMR scripts: Fast Refresh runtime + HMR client (before app module)
+    if enable_hmr {
+        html.push_str("  <script>\n");
+        html.push_str(FAST_REFRESH_RUNTIME_JS);
+        html.push_str("\n  </script>\n");
+        html.push_str("  <script>\n");
+        html.push_str(HMR_CLIENT_JS);
+        html.push_str("\n  </script>\n");
+    }
+
     html.push_str(&format!(
         "  <script type=\"module\" src=\"{}\"></script>\n",
         entry_url
@@ -93,6 +126,11 @@ pub fn is_page_route(path: &str) -> bool {
         return false;
     }
 
+    // Internal dev server endpoints
+    if path.starts_with("/__vertz_") {
+        return false;
+    }
+
     // Known file extensions
     let known_extensions = [
         ".js", ".ts", ".tsx", ".jsx", ".css", ".map", ".json", ".png", ".jpg", ".jpeg", ".gif",
@@ -131,6 +169,69 @@ mod tests {
         assert!(html.contains("<div id=\"app\"></div>"));
         assert!(html.contains("<script type=\"module\" src=\"/src/app.tsx\"></script>"));
         assert!(html.contains("<link rel=\"modulepreload\" href=\"/src/app.tsx\""));
+    }
+
+    #[test]
+    fn test_generate_html_shell_includes_hmr_scripts() {
+        let html = generate_html_shell(
+            &PathBuf::from("/project/src/app.tsx"),
+            &PathBuf::from("/project"),
+            &[],
+            None,
+            "Vertz App",
+        );
+
+        // HMR client and Fast Refresh runtime should be included
+        assert!(
+            html.contains("__vertz_hmr"),
+            "HTML should include HMR client script"
+        );
+        assert!(
+            html.contains("vertz:fast-refresh"),
+            "HTML should include Fast Refresh runtime"
+        );
+    }
+
+    #[test]
+    fn test_generate_html_shell_hmr_scripts_before_app_module() {
+        let html = generate_html_shell(
+            &PathBuf::from("/project/src/app.tsx"),
+            &PathBuf::from("/project"),
+            &[],
+            None,
+            "Vertz App",
+        );
+
+        let hmr_pos = html.find("__vertz_hmr").unwrap();
+        let app_pos = html
+            .find("<script type=\"module\" src=\"/src/app.tsx\">")
+            .unwrap();
+        assert!(
+            hmr_pos < app_pos,
+            "HMR scripts must appear before the app module"
+        );
+    }
+
+    #[test]
+    fn test_generate_html_shell_without_hmr() {
+        let html = generate_html_shell_with_hmr(
+            &PathBuf::from("/project/src/app.tsx"),
+            &PathBuf::from("/project"),
+            &[],
+            None,
+            "Vertz App",
+            false,
+        );
+
+        assert!(html.contains("<script type=\"module\" src=\"/src/app.tsx\"></script>"));
+        assert!(
+            !html.contains("__vertz_hmr"),
+            "HMR script should not be present"
+        );
+        assert!(
+            !html.contains("vertz:fast-refresh"),
+            "Fast Refresh script should not be present"
+        );
     }
 
     #[test]
@@ -224,5 +325,10 @@ mod tests {
         assert_eq!(escape_html("<script>"), "&lt;script&gt;");
         assert_eq!(escape_html("a&b"), "a&amp;b");
         assert_eq!(escape_html("a\"b"), "a&quot;b");
+    }
+
+    #[test]
+    fn test_is_page_route_rejects_hmr_endpoint() {
+        assert!(!is_page_route("/__vertz_hmr"));
     }
 }

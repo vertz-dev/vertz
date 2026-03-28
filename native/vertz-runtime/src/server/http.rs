@@ -1,13 +1,19 @@
 use crate::banner::print_banner;
 use crate::compiler::pipeline::CompilationPipeline;
 use crate::config::ServerConfig;
+use crate::hmr::websocket::HmrHub;
 use crate::server::html_shell;
 use crate::server::logging::RequestLoggingLayer;
 use crate::server::module_server::{self, DevServerState};
 use crate::server::theme_css;
+use crate::watcher;
+use crate::watcher::file_watcher::{Debouncer, FileWatcher, FileWatcherConfig};
 use axum::body::Body;
+use axum::extract::ws::WebSocketUpgrade;
 use axum::extract::State;
 use axum::http::{header, Request, StatusCode};
+use axum::response::IntoResponse;
+use axum::routing::get;
 use axum::Router;
 use std::io;
 use std::sync::Arc;
@@ -63,16 +69,20 @@ pub async fn try_bind(config: &ServerConfig) -> io::Result<BindResult> {
 /// Build the axum router with all dev server routes.
 ///
 /// The router uses a single fallback handler that dispatches based on URL path prefix:
-/// 1. `/@deps/**` → pre-bundled dependency serving
-/// 2. `/@css/**` → extracted CSS serving
-/// 3. `/src/**` → on-demand compilation + serving
-/// 4. Static files from public_dir
-/// 5. Fallback → HTML shell for SPA routing (page routes)
-pub fn build_router(config: &ServerConfig) -> Router {
+/// 1. `/__vertz_hmr` → WebSocket HMR endpoint
+/// 2. `/@deps/**` → pre-bundled dependency serving
+/// 3. `/@css/**` → extracted CSS serving
+/// 4. `/src/**` → on-demand compilation + serving
+/// 5. Static files from public_dir
+/// 6. Fallback → HTML shell for SPA routing (page routes)
+pub fn build_router(config: &ServerConfig) -> (Router, Arc<DevServerState>) {
     let pipeline = CompilationPipeline::new(config.root_dir.clone(), config.src_dir.clone());
 
     // Load theme CSS from the project (if available)
     let theme_css = theme_css::load_theme_css(&config.root_dir);
+
+    let hmr_hub = HmrHub::new();
+    let module_graph = watcher::new_shared_module_graph();
 
     let state = Arc::new(DevServerState {
         pipeline,
@@ -81,14 +91,29 @@ pub fn build_router(config: &ServerConfig) -> Router {
         entry_file: config.entry_file.clone(),
         deps_dir: config.deps_dir(),
         theme_css,
+        hmr_hub,
+        module_graph,
     });
 
-    // Use a single fallback handler that routes based on path prefix.
-    // This avoids axum route pattern limitations with `@` in paths.
-    Router::new()
+    // WebSocket HMR endpoint uses an explicit route.
+    // All other routes use the fallback handler.
+    let router = Router::new()
+        .route("/__vertz_hmr", get(ws_handler))
         .fallback(dev_server_handler)
-        .with_state(state)
-        .layer(RequestLoggingLayer)
+        .with_state(state.clone())
+        .layer(RequestLoggingLayer);
+
+    (router, state)
+}
+
+/// WebSocket upgrade handler for the HMR endpoint.
+async fn ws_handler(
+    State(state): State<Arc<DevServerState>>,
+    ws: WebSocketUpgrade,
+) -> impl IntoResponse {
+    ws.on_upgrade(move |socket| async move {
+        state.hmr_hub.handle_connection(socket).await;
+    })
 }
 
 /// Central request handler for the dev server.
@@ -195,7 +220,8 @@ fn mime_type_for_path(path: &str) -> &'static str {
 /// Start the HTTP server with the given configuration.
 ///
 /// This function binds to the configured port (with auto-increment on conflict),
-/// prints the startup banner, and serves until a shutdown signal is received.
+/// prints the startup banner, starts the file watcher, and serves until a
+/// shutdown signal is received.
 pub async fn start_server(config: ServerConfig) -> io::Result<()> {
     let start = Instant::now();
 
@@ -207,7 +233,69 @@ pub async fn start_server(config: ServerConfig) -> io::Result<()> {
 
     print_banner(&actual_config, start.elapsed());
 
-    let router = build_router(&config);
+    let (router, state) = build_router(&config);
+
+    // Start the file watcher if src_dir exists
+    if config.src_dir.exists() {
+        let watcher_config = FileWatcherConfig::default();
+        match FileWatcher::start(&config.src_dir, watcher_config) {
+            Ok((_watcher, mut rx)) => {
+                let watcher_state = state.clone();
+                let entry_file = config.entry_file.clone();
+                let root_dir = config.root_dir.clone();
+
+                // Spawn file watcher task
+                tokio::spawn(async move {
+                    let mut debouncer = Debouncer::new(20);
+
+                    loop {
+                        tokio::select! {
+                            Some(change) = rx.recv() => {
+                                debouncer.add(change);
+                            }
+                            _ = tokio::time::sleep(std::time::Duration::from_millis(20)),
+                              if debouncer.has_pending() && debouncer.is_ready() => {
+                                let changes = debouncer.drain();
+                                for change in &changes {
+                                    eprintln!(
+                                        "[Server] File changed: {}",
+                                        change.path.display()
+                                    );
+
+                                    let result = watcher::process_file_change(
+                                        change,
+                                        watcher_state.pipeline.cache(),
+                                        &watcher_state.module_graph,
+                                        &entry_file,
+                                    );
+
+                                    crate::hmr::broadcast_update(
+                                        &watcher_state.hmr_hub,
+                                        &result,
+                                        &root_dir,
+                                    )
+                                    .await;
+                                }
+                            }
+                        }
+                    }
+                });
+
+                // Keep the watcher alive by boxing it (it stops on drop)
+                // The watcher lives for the duration of the server
+                let _watcher_handle = Box::new(_watcher);
+                // Move it into a spawned task to keep it alive
+                tokio::spawn(async move {
+                    // Hold the watcher reference until shutdown
+                    let _keep_alive = _watcher_handle;
+                    tokio::signal::ctrl_c().await.ok();
+                });
+            }
+            Err(e) => {
+                eprintln!("[Server] Warning: File watcher failed to start: {}", e);
+            }
+        }
+    }
 
     axum::serve(bind.listener, router)
         .with_graceful_shutdown(shutdown_signal())
@@ -276,7 +364,7 @@ mod tests {
     }
 
     #[test]
-    fn test_build_router_returns_router() {
+    fn test_build_router_returns_router_and_state() {
         let tmp = tempfile::tempdir().unwrap();
         let config = ServerConfig::with_root(
             3000,
@@ -284,8 +372,9 @@ mod tests {
             PathBuf::from("public"),
             tmp.path().to_path_buf(),
         );
-        let _router = build_router(&config);
+        let (_router, state) = build_router(&config);
         // If this compiles and runs, the router was created successfully
+        assert_eq!(state.root_dir, tmp.path().to_path_buf());
     }
 
     #[test]

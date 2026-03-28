@@ -6,8 +6,10 @@ use std::sync::Arc;
 
 use crate::compiler::pipeline::CompilationPipeline;
 use crate::deps::prebundle;
+use crate::hmr::websocket::HmrHub;
 use crate::server::css_server;
 use crate::server::html_shell;
+use crate::watcher::SharedModuleGraph;
 
 /// Shared state for the dev module server.
 #[derive(Clone)]
@@ -19,6 +21,10 @@ pub struct DevServerState {
     pub deps_dir: PathBuf,
     /// Inline CSS for theme injection (loaded at startup).
     pub theme_css: Option<String>,
+    /// HMR WebSocket hub for broadcasting updates.
+    pub hmr_hub: HmrHub,
+    /// Shared module dependency graph.
+    pub module_graph: SharedModuleGraph,
 }
 
 /// Handle requests for source files: `GET /src/**/*.tsx` → compiled JavaScript.
@@ -190,6 +196,8 @@ mod tests {
             entry_file: src_dir.join("app.tsx"),
             deps_dir,
             theme_css: None,
+            hmr_hub: HmrHub::new(),
+            module_graph: crate::watcher::new_shared_module_graph(),
         })
     }
 
