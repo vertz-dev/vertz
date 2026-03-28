@@ -249,7 +249,18 @@ export function compileForSSRAot(
   const hasNoAotPragma = /\/\/\s*@vertz-no-aot/.test(source);
 
   if (hasNoAotPragma) {
-    // All components in this file are runtime-fallback
+    // All components in this file are runtime-fallback.
+    // Still extract CSS — runtime-fallback components still need their styles
+    // in the AOT manifest for non-Bun runtimes (#1989).
+    let noAotCss: string[] | undefined;
+    const noAotCssAnalyzer = new CSSAnalyzer();
+    const noAotCssCalls = noAotCssAnalyzer.analyze(sourceFile);
+    if (noAotCssCalls.length > 0) {
+      const noAotCssTransformer = new CSSTransformer();
+      const rules = noAotCssTransformer.extractCSS(sourceFile, noAotCssCalls, filename);
+      if (rules.length > 0) noAotCss = rules;
+    }
+
     return {
       code: source,
       map: s.generateMap({ source: filename, includeContent: true }),
@@ -260,6 +271,7 @@ export function compileForSSRAot(
         queryKeys: [],
       })),
       diagnostics: [],
+      css: noAotCss,
     };
   }
 

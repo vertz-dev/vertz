@@ -2156,5 +2156,29 @@ function Simple() {
 
       expect(result.css).toBeUndefined();
     });
+
+    it('extracts CSS from @vertz-no-aot components', () => {
+      const result = compileForSSRAot(
+        `
+// @vertz-no-aot
+import { css } from '@vertz/ui';
+
+const s = css({
+  root: ['p:4'],
+});
+
+export function Widget() {
+  return <div className={s.root}>Widget</div>;
+}
+        `.trim(),
+        { filename: 'src/widget.tsx' },
+      );
+
+      expect(result.components[0]!.tier).toBe('runtime-fallback');
+      expect(result.css).toBeDefined();
+      expect(Array.isArray(result.css)).toBe(true);
+      expect(result.css!.length).toBeGreaterThan(0);
+      expect(result.css!.some((r) => r.includes('padding'))).toBe(true);
+    });
   });
 });
