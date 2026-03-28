@@ -50,7 +50,10 @@ describe('createDocsDevServer — static files', () => {
   });
 
   afterEach(() => {
-    if (server) { server.stop(); server = null; }
+    if (server) {
+      server.stop();
+      server = null;
+    }
     rmSync(testDir, { recursive: true, force: true });
   });
 

@@ -61,10 +61,12 @@ describe('renderPageHtml', () => {
     expect(html).toContain('Follow these steps.');
   });
 
-  it('renders breadcrumbs', () => {
+  it('renders hero with category and title', () => {
     const html = renderPageHtml({ config, route, contentHtml: '', headings: [] });
+    expect(html).toContain('hero-category');
+    expect(html).toContain('Getting Started');
+    expect(html).toContain('hero-title');
     expect(html).toContain('Quickstart');
-    expect(html).toContain('data-breadcrumbs');
   });
 
   it('renders table of contents from headings', () => {

@@ -444,6 +444,14 @@
         "typescript": "^5.7.0",
       },
     },
+    "packages/site": {
+      "name": "@vertz/site",
+      "version": "0.0.0",
+      "dependencies": {
+        "@vertz/cli": "workspace:^",
+        "@vertz/docs": "workspace:^",
+      },
+    },
     "packages/testing": {
       "name": "@vertz/testing",
       "version": "0.2.39",
@@ -1411,6 +1419,8 @@
     "@vertz/schema": ["@vertz/schema@workspace:packages/schema"],
 
     "@vertz/server": ["@vertz/server@workspace:packages/server"],
+
+    "@vertz/site": ["@vertz/site@workspace:packages/site"],
 
     "@vertz/testing": ["@vertz/testing@workspace:packages/testing"],
 
