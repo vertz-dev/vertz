@@ -307,12 +307,13 @@ export function findAppComponent(
 }
 
 /**
- * Attach pre-filtered CSS rules to each route entry at build time (#1988).
+ * Attach pre-filtered CSS rules to each route entry at build time (#1988, #1989).
  *
- * Scans each route's `__ssr_*` function code for `_[0-9a-f]{8}` class name
- * references, looks up matching CSS rules from compiled files, and stores
- * the result directly on the route entry. This eliminates the need for
- * expensive per-request HTML scanning + CSS filtering at render time.
+ * Transitively collects CSS from the full component tree: the route's own
+ * `__ssr_*` function, all local child `__ssr_*` calls it invokes, AND all
+ * hole components (imported from other files). This is critical for non-Bun
+ * bundlers (esbuild/workerd) where `getInjectedCSS()` doesn't work because
+ * `css()` side effects land in a different module instance or are tree-shaken.
  *
  * Also attaches CSS to the app entry (root layout) so the runtime can
  * merge app + route CSS with a simple concat.
@@ -334,26 +335,27 @@ export function attachPerRouteCss(
 
   if (classToRule.size === 0) return;
 
-  // 2. Build componentName → __ssr_* function code
+  // 2. Build componentName → __ssr_* function code AND componentName → holes
   const componentCode = new Map<string, string>();
+  const componentHoles = new Map<string, string[]>();
   for (const file of Object.values(compiledFiles)) {
     for (const comp of file.components) {
       const fnName = `__ssr_${comp.name}`;
       const code = extractSsrFunctions(file.code, [fnName]);
       if (code) componentCode.set(comp.name, code);
+      if (comp.holes.length > 0) componentHoles.set(comp.name, comp.holes);
     }
   }
 
-  // 3. Helper: find CSS rules referenced by a function's class names
+  // 3. Helper: find CSS rules referenced by class names in code
   const classNamePattern = /_([\da-f]{8})/g;
-  function findUsedCss(code: string): string[] {
+  function findUsedCss(code: string, seenClasses: Set<string>): string[] {
     const rules: string[] = [];
-    const seen = new Set<string>();
     let m: RegExpExecArray | null;
     while ((m = classNamePattern.exec(code)) !== null) {
       const cls = `_${m[1]}`;
-      if (seen.has(cls)) continue;
-      seen.add(cls);
+      if (seenClasses.has(cls)) continue;
+      seenClasses.add(cls);
       const rule = classToRule.get(cls);
       if (rule) rules.push(rule);
     }
@@ -361,24 +363,59 @@ export function attachPerRouteCss(
     return rules;
   }
 
-  // 4. Attach CSS to app entry
-  if (appEntry) {
-    const appName = appEntry.renderFn.replace(/^__ssr_/, '');
-    const appCode = componentCode.get(appName);
-    if (appCode) {
-      const appCss = findUsedCss(appCode);
-      if (appCss.length > 0) appEntry.css = appCss;
+  // 4. Helper: transitively collect CSS for a component and all its children.
+  //    Follows __ssr_* calls (local children) and ctx.holes.* (imported children).
+  //    On workerd, hole components' css() side effects are tree-shaken, so we
+  //    must include their CSS statically from the build manifest.
+  function collectTreeCss(rootName: string): string[] {
+    const allRules: string[] = [];
+    const seenClasses = new Set<string>();
+    const visited = new Set<string>();
+    const queue = [rootName];
+
+    while (queue.length > 0) {
+      const name = queue.pop()!;
+      if (visited.has(name)) continue;
+      visited.add(name);
+
+      // Collect CSS from this component's __ssr_* function code
+      const code = componentCode.get(name);
+      if (code) {
+        allRules.push(...findUsedCss(code, seenClasses));
+
+        // Find local __ssr_* calls: __ssr_ChildName(
+        const localCallPattern = /__ssr_(\w+)\(/g;
+        let lm: RegExpExecArray | null;
+        while ((lm = localCallPattern.exec(code)) !== null) {
+          const childName = lm[1]!;
+          if (!visited.has(childName)) queue.push(childName);
+        }
+      }
+
+      // Follow holes (imported components from other files)
+      const holes = componentHoles.get(name);
+      if (holes) {
+        for (const hole of holes) {
+          if (!visited.has(hole)) queue.push(hole);
+        }
+      }
     }
+
+    return allRules;
   }
 
-  // 5. Attach per-route CSS (route component only — app CSS merged at runtime)
+  // 5. Attach CSS to app entry (root layout)
+  if (appEntry) {
+    const appName = appEntry.renderFn.replace(/^__ssr_/, '');
+    const appCss = collectTreeCss(appName);
+    if (appCss.length > 0) appEntry.css = appCss;
+  }
+
+  // 6. Attach per-route CSS (full component tree — app CSS merged at runtime)
   for (const entry of Object.values(routeMap)) {
     const compName = entry.renderFn.replace(/^__ssr_/, '');
-    const code = componentCode.get(compName);
-    if (code) {
-      const routeCss = findUsedCss(code);
-      if (routeCss.length > 0) entry.css = routeCss;
-    }
+    const routeCss = collectTreeCss(compName);
+    if (routeCss.length > 0) entry.css = routeCss;
   }
 }
 

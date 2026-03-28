@@ -675,6 +675,76 @@ export function __ssr_Home(data: Record<string, unknown>, ctx: any): string {
     expect(routeMap['/']!.css).toEqual(['._bb002222 {\n  padding: 2rem;\n}']);
   });
 
+  it('includes CSS from local child components called via __ssr_*', () => {
+    const compiledFiles: Record<string, AotCompiledFile> = {
+      'src/page.tsx': {
+        code: `
+export function __ssr_TaskCard(props: any): string {
+  return '<div class="_ca2d1234">' + props.title + '</div>';
+}
+
+export function __ssr_HomePage(data: Record<string, unknown>, ctx: any): string {
+  return '<main class="_da0e5678">' + __ssr_TaskCard({ title: 'Test' }) + '</main>';
+}`,
+        components: [
+          { name: 'TaskCard', tier: 'static', holes: [], queryKeys: [] },
+          { name: 'HomePage', tier: 'static', holes: [], queryKeys: [] },
+        ],
+        css: [
+          '._ca2d1234 {\n  border: 1px solid;\n}',
+          '._da0e5678 {\n  padding: 2rem;\n}',
+        ],
+      },
+    };
+
+    const routeMap: Record<string, AotRouteMapEntry> = {
+      '/': { renderFn: '__ssr_HomePage', holes: [], queryKeys: [] },
+    };
+
+    attachPerRouteCss(compiledFiles, routeMap);
+
+    // Should include CSS from both HomePage AND its child TaskCard
+    expect(routeMap['/']!.css).toHaveLength(2);
+    expect(routeMap['/']!.css).toContain('._da0e5678 {\n  padding: 2rem;\n}');
+    expect(routeMap['/']!.css).toContain('._ca2d1234 {\n  border: 1px solid;\n}');
+  });
+
+  it('includes CSS from hole components (imported from other files)', () => {
+    const compiledFiles: Record<string, AotCompiledFile> = {
+      'src/page.tsx': {
+        code: `
+export function __ssr_HomePage(data: Record<string, unknown>, ctx: any): string {
+  return '<main class="_ab001234">' + ctx.holes.Sidebar() + '</main>';
+}`,
+        components: [
+          { name: 'HomePage', tier: 'static', holes: ['Sidebar'], queryKeys: [] },
+        ],
+        css: ['._ab001234 {\n  display: grid;\n}'],
+      },
+      'src/sidebar.tsx': {
+        code: `
+export function __ssr_Sidebar(data: Record<string, unknown>, ctx: any): string {
+  return '<aside class="_cd005678">Nav</aside>';
+}`,
+        components: [
+          { name: 'Sidebar', tier: 'static', holes: [], queryKeys: [] },
+        ],
+        css: ['._cd005678 {\n  width: 250px;\n}'],
+      },
+    };
+
+    const routeMap: Record<string, AotRouteMapEntry> = {
+      '/': { renderFn: '__ssr_HomePage', holes: ['Sidebar'], queryKeys: [] },
+    };
+
+    attachPerRouteCss(compiledFiles, routeMap);
+
+    // Should include CSS from both HomePage AND its hole Sidebar
+    expect(routeMap['/']!.css).toHaveLength(2);
+    expect(routeMap['/']!.css).toContain('._ab001234 {\n  display: grid;\n}');
+    expect(routeMap['/']!.css).toContain('._cd005678 {\n  width: 250px;\n}');
+  });
+
   it('skips routes with no matching CSS', () => {
     const compiledFiles: Record<string, AotCompiledFile> = {
       'src/plain.tsx': {
