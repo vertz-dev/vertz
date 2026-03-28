@@ -4,7 +4,7 @@
  * Measures real HTTP response times against the running dev server,
  * then compares the three rendering paths.
  *
- * Run: bun run sites/landing/benchmark-ssr.ts
+ * Run: bun run packages/landing/benchmark-ssr.ts
  * (requires dev server running on port 4000)
  */
 

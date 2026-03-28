@@ -4,7 +4,7 @@
  * Measures real HTTP response times against the production Cloudflare Worker.
  * Run this BEFORE and AFTER deploying the new version to compare.
  *
- * Run: bun run sites/landing/benchmark-prod.ts
+ * Run: bun run packages/landing/benchmark-prod.ts
  */
 
 const BASE = 'https://vertz.dev';
