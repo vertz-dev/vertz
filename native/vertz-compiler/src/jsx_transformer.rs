@@ -16,6 +16,15 @@ struct ReactivityContext {
     /// Signal API variables → their reactive property names
     /// (e.g., "tasks" → {"data", "loading", "error"})
     signal_api_props: HashMap<String, HashSet<String>>,
+    /// Signal API variables that have field_signal_properties
+    /// (e.g., form() — any `formVar.<fieldName>.<prop>.value` is reactive)
+    field_signal_api_vars: HashSet<String>,
+    /// Variables from reactive source APIs (e.g., useAuth(), useContext()).
+    /// Any property access on these is reactive.
+    reactive_sources: HashSet<String>,
+    /// Callback-local reactive variables to inline: name → replacement expression.
+    /// Set only when processing JSX inside a .map() callback with reactive locals.
+    inline_locals: HashMap<String, String>,
 }
 
 // ─── IDL properties ──────────────────────────────────────────────────────────
@@ -57,6 +66,17 @@ pub fn transform_jsx(
                     .map(|props| (v.name.clone(), props.iter().cloned().collect()))
             })
             .collect(),
+        field_signal_api_vars: variables
+            .iter()
+            .filter(|v| v.field_signal_properties.is_some())
+            .map(|v| v.name.clone())
+            .collect(),
+        reactive_sources: variables
+            .iter()
+            .filter(|v| v.is_reactive_source)
+            .map(|v| v.name.clone())
+            .collect(),
+        inline_locals: HashMap::new(),
     };
 
     let mut counter = 0;
@@ -152,6 +172,7 @@ fn collect_top_level_jsx(program: &Program, component: &ComponentInfo) -> Vec<Js
         nodes: Vec::new(),
         in_component: false,
         in_jsx: false,
+        in_list_callback: 0,
     };
     for stmt in &program.body {
         collector.visit_statement(stmt);
@@ -164,6 +185,10 @@ struct JsxCollector<'a> {
     nodes: Vec<JsxNodeInfo>,
     in_component: bool,
     in_jsx: bool,
+    /// Depth counter for .map() callback nesting. When > 0, arrow functions
+    /// inside JSX should NOT reset `in_jsx`, because the List handler will
+    /// transform inner JSX directly via `transform_jsx_node`.
+    in_list_callback: u32,
 }
 
 impl<'a> JsxCollector<'a> {
@@ -173,6 +198,30 @@ impl<'a> JsxCollector<'a> {
 }
 
 impl<'a, 'c> Visit<'c> for JsxCollector<'a> {
+    fn visit_call_expression(&mut self, call: &CallExpression<'c>) {
+        // Detect .map() calls inside JSX — their callback JSX should NOT be
+        // collected as separate top-level nodes. The List handler in transform_child
+        // will transform inner JSX directly via transform_jsx_node.
+        if self.in_component && self.in_jsx {
+            let is_map = if let Expression::StaticMemberExpression(member) = &call.callee {
+                member.property.name == "map"
+            } else if let Some(MemberExpression::StaticMemberExpression(member)) =
+                call.callee.as_member_expression()
+            {
+                member.property.name == "map"
+            } else {
+                false
+            };
+            if is_map {
+                self.in_list_callback += 1;
+                oxc_ast_visit::walk::walk_call_expression(self, call);
+                self.in_list_callback -= 1;
+                return;
+            }
+        }
+        oxc_ast_visit::walk::walk_call_expression(self, call);
+    }
+
     fn visit_function(&mut self, func: &Function<'c>, flags: oxc_syntax::scope::ScopeFlags) {
         let span = func.span;
         if span.start <= self.component.body_start && span.end >= self.component.body_end {
@@ -185,8 +234,9 @@ impl<'a, 'c> Visit<'c> for JsxCollector<'a> {
         if self.in_component && self.is_in_component(span.start, span.end) {
             // Nested function inside component — if we're inside JSX, reset in_jsx
             // so that JSX inside callback expressions is collected separately.
+            // But NOT inside .map() callbacks — those are handled by the List transform.
             let was_in_jsx = self.in_jsx;
-            if self.in_jsx {
+            if self.in_jsx && self.in_list_callback == 0 {
                 self.in_jsx = false;
             }
             oxc_ast_visit::walk::walk_function(self, func, flags);
@@ -209,8 +259,9 @@ impl<'a, 'c> Visit<'c> for JsxCollector<'a> {
             // Nested arrow inside component — if we're inside JSX, reset in_jsx
             // so that JSX inside callback expressions (Array.from, .filter, etc.)
             // is collected as a separate node to be transformed independently.
+            // But NOT inside .map() callbacks — those are handled by the List transform.
             let was_in_jsx = self.in_jsx;
-            if self.in_jsx {
+            if self.in_jsx && self.in_list_callback == 0 {
                 self.in_jsx = false;
             }
             oxc_ast_visit::walk::walk_arrow_function_expression(self, func);
@@ -381,10 +432,12 @@ enum ExprKind {
         source_end: u32,
         callback_body_start: u32,
         callback_body_end: u32,
-        callback_body_is_jsx: bool,
         item_param: String,
         index_param: Option<String>,
         key_expr: Option<String>,
+        /// Const declarations inside block body callbacks: (name, init_start, init_end).
+        /// Used to detect reactive callback-local variables that need inlining.
+        callback_locals: Vec<(String, u32, u32)>,
     },
 }
 
@@ -608,97 +661,141 @@ fn classify_expression(expr: &JSXExpression) -> ExprKind {
     }
 }
 
+/// Try to classify a CallExpression as a .map() list pattern.
+fn classify_map_call(call: &CallExpression) -> Option<ExprKind> {
+    // Check callee: could be StaticMemberExpression directly, or via as_member_expression()
+    let member = if let Expression::StaticMemberExpression(m) = &call.callee {
+        Some(m.as_ref())
+    } else if let Some(MemberExpression::StaticMemberExpression(m)) =
+        call.callee.as_member_expression()
+    {
+        Some(&**m)
+    } else {
+        None
+    };
+
+    let member = member?;
+    if member.property.name != "map" || call.arguments.is_empty() {
+        return None;
+    }
+
+    let arrow = match call.arguments.first() {
+        Some(Argument::ArrowFunctionExpression(a)) => a,
+        _ => return None,
+    };
+
+    let item_param = arrow.params.items.first().and_then(|p| {
+        if let BindingPattern::BindingIdentifier(id) = &p.pattern {
+            Some(id.name.to_string())
+        } else {
+            None
+        }
+    })?;
+
+    let index_param: Option<String> = arrow.params.items.get(1).and_then(|p| {
+        if let BindingPattern::BindingIdentifier(id) = &p.pattern {
+            Some(id.name.to_string())
+        } else {
+            None
+        }
+    });
+
+    let source_start = member.object.span().start;
+    let source_end = member.object.span().end;
+
+    let key_expr = extract_key_from_arrow_body(&arrow.body, &item_param);
+
+    let body_stmts = &arrow.body.statements;
+    let (cb_start, cb_end) = if arrow.expression {
+        if let Some(Statement::ExpressionStatement(es)) = body_stmts.first() {
+            (es.expression.span().start, es.expression.span().end)
+        } else {
+            (arrow.body.span.start, arrow.body.span.end)
+        }
+    } else {
+        (arrow.body.span.start, arrow.body.span.end)
+    };
+
+    // Extract const declarations from block body callbacks
+    let callback_locals = if !arrow.expression {
+        extract_callback_locals(body_stmts)
+    } else {
+        Vec::new()
+    };
+
+    Some(ExprKind::List {
+        source_start,
+        source_end,
+        callback_body_start: cb_start,
+        callback_body_end: cb_end,
+        item_param,
+        index_param,
+        key_expr,
+        callback_locals,
+    })
+}
+
+/// Extract const declarations from a block body callback's statements.
+/// Returns (variable_name, initializer_start, initializer_end) tuples.
+fn extract_callback_locals(stmts: &[Statement]) -> Vec<(String, u32, u32)> {
+    let mut locals = Vec::new();
+    for stmt in stmts {
+        if let Statement::VariableDeclaration(var_decl) = stmt {
+            if var_decl.kind == VariableDeclarationKind::Const {
+                for declarator in &var_decl.declarations {
+                    if let BindingPattern::BindingIdentifier(id) = &declarator.id {
+                        if let Some(ref init) = declarator.init {
+                            locals.push((id.name.to_string(), init.span().start, init.span().end));
+                        }
+                    }
+                }
+            }
+        }
+    }
+    locals
+}
+
 fn classify_inner_expression(expr: &Expression) -> ExprKind {
     match expr {
         Expression::ConditionalExpression(cond) => {
             let true_is_jsx = is_jsx_expression(&cond.consequent);
             let false_is_jsx = is_jsx_expression(&cond.alternate);
-            if true_is_jsx || false_is_jsx {
-                ExprKind::Conditional {
-                    cond_start: cond.test.span().start,
-                    cond_end: cond.test.span().end,
-                    true_start: cond.consequent.span().start,
-                    true_end: cond.consequent.span().end,
-                    true_is_jsx,
-                    false_start: cond.alternate.span().start,
-                    false_end: cond.alternate.span().end,
-                    false_is_jsx,
-                }
-            } else {
-                ExprKind::Normal
+            // Always classify ternaries as Conditional — even when both branches
+            // are non-JSX (e.g., string literals). The condition may reference
+            // reactive variables, and __conditional() handles both JSX and text branches.
+            // This matches ts-morph behavior which wraps ALL ternaries in JSX children.
+            ExprKind::Conditional {
+                cond_start: cond.test.span().start,
+                cond_end: cond.test.span().end,
+                true_start: cond.consequent.span().start,
+                true_end: cond.consequent.span().end,
+                true_is_jsx,
+                false_start: cond.alternate.span().start,
+                false_end: cond.alternate.span().end,
+                false_is_jsx,
             }
         }
         Expression::LogicalExpression(logical) if logical.operator == LogicalOperator::And => {
             let right_is_jsx = is_jsx_expression(&logical.right);
-            if right_is_jsx {
-                ExprKind::LogicalAnd {
-                    left_start: logical.left.span().start,
-                    left_end: logical.left.span().end,
-                    right_start: logical.right.span().start,
-                    right_end: logical.right.span().end,
-                    right_is_jsx,
-                }
+            // Always classify logical AND as LogicalAnd — the left side (condition)
+            // may reference reactive variables, and __conditional() handles both
+            // JSX and non-JSX right-hand sides.
+            ExprKind::LogicalAnd {
+                left_start: logical.left.span().start,
+                left_end: logical.left.span().end,
+                right_start: logical.right.span().start,
+                right_end: logical.right.span().end,
+                right_is_jsx,
+            }
+        }
+        Expression::CallExpression(call) => classify_map_call(call).unwrap_or(ExprKind::Normal),
+        Expression::ChainExpression(chain) => {
+            // Handle optional chaining: projects.data?.items.map(...)
+            if let ChainElement::CallExpression(call) = &chain.expression {
+                classify_map_call(call).unwrap_or(ExprKind::Normal)
             } else {
                 ExprKind::Normal
             }
-        }
-        Expression::CallExpression(call) => {
-            // Check for .map() pattern
-            if let Expression::StaticMemberExpression(member) = &call.callee {
-                if member.property.name == "map" && !call.arguments.is_empty() {
-                    if let Some(Argument::ArrowFunctionExpression(arrow)) = call.arguments.first() {
-                        let item_param: Option<String> = arrow.params.items.first().and_then(|p| {
-                            if let BindingPattern::BindingIdentifier(id) = &p.pattern {
-                                Some(id.name.to_string())
-                            } else {
-                                None
-                            }
-                        });
-
-                        let index_param: Option<String> = arrow.params.items.get(1).and_then(|p| {
-                            if let BindingPattern::BindingIdentifier(id) = &p.pattern {
-                                Some(id.name.to_string())
-                            } else {
-                                None
-                            }
-                        });
-
-                        if let Some(item_param) = item_param {
-                            let source_start = member.object.span().start;
-                            let source_end = member.object.span().end;
-
-                            // Find key expression from the JSX element in the callback body
-                            let key_expr = extract_key_from_arrow_body(&arrow.body, &item_param);
-
-                            // Get callback body span
-                            let body_stmts = &arrow.body.statements;
-                            let (cb_start, cb_end, cb_is_jsx) = if arrow.expression {
-                                if let Some(Statement::ExpressionStatement(es)) = body_stmts.first()
-                                {
-                                    let is_jsx = is_jsx_expression(&es.expression);
-                                    (es.expression.span().start, es.expression.span().end, is_jsx)
-                                } else {
-                                    (arrow.body.span.start, arrow.body.span.end, false)
-                                }
-                            } else {
-                                (arrow.body.span.start, arrow.body.span.end, false)
-                            };
-
-                            return ExprKind::List {
-                                source_start,
-                                source_end,
-                                callback_body_start: cb_start,
-                                callback_body_end: cb_end,
-                                callback_body_is_jsx: cb_is_jsx,
-                                item_param: item_param.clone(),
-                                index_param,
-                                key_expr,
-                            };
-                        }
-                    }
-                }
-            }
-            ExprKind::Normal
         }
         Expression::ParenthesizedExpression(paren) => classify_inner_expression(&paren.expression),
         _ => ExprKind::Normal,
@@ -968,25 +1065,42 @@ fn transform_child_as_value(
                 source_end,
                 callback_body_start,
                 callback_body_end,
-                callback_body_is_jsx,
                 item_param,
                 index_param,
                 key_expr,
+                callback_locals,
             } = expr_kind
             {
                 let source_text = ms.get_transformed_slice(*source_start, *source_end);
                 let key_fn = build_key_fn(key_expr, item_param, index_param.as_deref());
 
-                let render_body = if *callback_body_is_jsx {
+                // Build inline_locals for reactive callback-local variables
+                let extended_rx = build_extended_rx_for_list(ms, callback_locals, rx);
+
+                let render_body = {
                     let body_jsx =
                         find_jsx_in_span(program, *callback_body_start, *callback_body_end);
                     if let Some(jsx) = body_jsx {
-                        transform_jsx_node(ms, program, jsx.start, jsx.end, &jsx.kind, rx, counter)
+                        let jsx_code = transform_jsx_node(
+                            ms,
+                            program,
+                            jsx.start,
+                            jsx.end,
+                            &jsx.kind,
+                            &extended_rx,
+                            counter,
+                        );
+                        // For block body callbacks, include full body with pre-return code
+                        if !callback_locals.is_empty() {
+                            let before = ms.get_transformed_slice(*callback_body_start, jsx.start);
+                            let after = ms.get_transformed_slice(jsx.end, *callback_body_end);
+                            format!("{}{}{}", before, jsx_code, after)
+                        } else {
+                            jsx_code
+                        }
                     } else {
                         ms.get_transformed_slice(*callback_body_start, *callback_body_end)
                     }
-                } else {
-                    ms.get_transformed_slice(*callback_body_start, *callback_body_end)
                 };
 
                 let render_fn = format!("({}) => {}", item_param, render_body);
@@ -1000,6 +1114,7 @@ fn transform_child_as_value(
             let is_truly_reactive =
                 !is_literal && is_expr_reactive_in_scope(ms, *expr_start, *expr_end, rx);
             if is_truly_reactive {
+                let expr_text = apply_inline_subs(&expr_text, rx);
                 Some(format!("__child(() => {})", expr_text))
             } else {
                 Some(expr_text)
@@ -1110,6 +1225,10 @@ fn process_attr(
                 *is_reactive && is_expr_reactive_in_scope(ms, *expr_start, *expr_end, rx);
 
             if is_reactive_in_scope {
+                // Apply inline substitutions for reactive callback locals
+                // (e.g., replace `isActive` with `(__props.selected.includes(label.id))`)
+                let expr_text = apply_inline_subs(&expr_text, rx);
+
                 // If expr_text starts with '{', it's an object literal —
                 // wrap in parens so `() => { ... }` isn't parsed as a block body.
                 let needs_parens = expr_text.trim_start().starts_with('{');
@@ -1224,26 +1343,44 @@ fn transform_child(
                 source_end,
                 callback_body_start,
                 callback_body_end,
-                callback_body_is_jsx,
                 item_param,
                 index_param,
                 key_expr,
+                callback_locals,
             } = expr_kind
             {
                 let source_text = ms.get_transformed_slice(*source_start, *source_end);
                 let key_fn = build_key_fn(key_expr, item_param, index_param.as_deref());
 
-                let render_body = if *callback_body_is_jsx {
-                    // Find and transform the JSX in the callback body
+                // Build inline_locals for reactive callback-local variables
+                let extended_rx = build_extended_rx_for_list(ms, callback_locals, rx);
+
+                // Inner JSX in .map() callbacks is NOT collected as a separate
+                // top-level node — the List handler transforms it directly here.
+                let render_body = {
                     let body_jsx =
                         find_jsx_in_span(program, *callback_body_start, *callback_body_end);
                     if let Some(jsx) = body_jsx {
-                        transform_jsx_node(ms, program, jsx.start, jsx.end, &jsx.kind, rx, counter)
+                        let jsx_code = transform_jsx_node(
+                            ms,
+                            program,
+                            jsx.start,
+                            jsx.end,
+                            &jsx.kind,
+                            &extended_rx,
+                            counter,
+                        );
+                        // For block body callbacks, include full body with pre-return code
+                        if !callback_locals.is_empty() {
+                            let before = ms.get_transformed_slice(*callback_body_start, jsx.start);
+                            let after = ms.get_transformed_slice(jsx.end, *callback_body_end);
+                            format!("{}{}{}", before, jsx_code, after)
+                        } else {
+                            jsx_code
+                        }
                     } else {
                         ms.get_transformed_slice(*callback_body_start, *callback_body_end)
                     }
-                } else {
-                    ms.get_transformed_slice(*callback_body_start, *callback_body_end)
                 };
 
                 let render_fn = format!("({}) => {}", item_param, render_body);
@@ -1260,6 +1397,7 @@ fn transform_child(
             let is_truly_reactive =
                 !is_literal && is_expr_reactive_in_scope(ms, *expr_start, *expr_end, rx);
             if is_truly_reactive {
+                let expr_text = apply_inline_subs(&expr_text, rx);
                 Some(format!(
                     "__append({}, __child(() => {}))",
                     parent_var, expr_text
@@ -1297,7 +1435,8 @@ fn transform_conditional_code(
             false_end,
             false_is_jsx,
         } => {
-            let cond_text = ms.get_transformed_slice(*cond_start, *cond_end);
+            let cond_text =
+                apply_inline_subs(&ms.get_transformed_slice(*cond_start, *cond_end), rx);
             let true_branch = transform_branch(
                 ms,
                 program,
@@ -1328,7 +1467,8 @@ fn transform_conditional_code(
             right_end,
             right_is_jsx,
         } => {
-            let cond_text = ms.get_transformed_slice(*left_start, *left_end);
+            let cond_text =
+                apply_inline_subs(&ms.get_transformed_slice(*left_start, *left_end), rx);
             let true_branch = transform_branch(
                 ms,
                 program,
@@ -1362,7 +1502,83 @@ fn transform_branch(
             return transform_jsx_node(ms, program, jsx.start, jsx.end, &jsx.kind, rx, counter);
         }
     }
+    // Check for nested ternary in non-JSX branches — ts-morph wraps every
+    // nested ternary in its own __conditional(), even when branches are strings.
+    if let Some(cond) = find_conditional_in_span(program, start, end) {
+        let true_is_jsx = cond.true_is_jsx;
+        let false_is_jsx = cond.false_is_jsx;
+        let kind = ExprKind::Conditional {
+            cond_start: cond.cond_start,
+            cond_end: cond.cond_end,
+            true_start: cond.true_start,
+            true_end: cond.true_end,
+            true_is_jsx,
+            false_start: cond.false_start,
+            false_end: cond.false_end,
+            false_is_jsx,
+        };
+        return transform_conditional_code(ms, program, &kind, rx, counter);
+    }
     ms.get_transformed_slice(start, end)
+}
+
+struct ConditionalSpanInfo {
+    cond_start: u32,
+    cond_end: u32,
+    true_start: u32,
+    true_end: u32,
+    true_is_jsx: bool,
+    false_start: u32,
+    false_end: u32,
+    false_is_jsx: bool,
+}
+
+fn find_conditional_in_span(
+    program: &Program,
+    start: u32,
+    end: u32,
+) -> Option<ConditionalSpanInfo> {
+    let mut finder = ConditionalSpanFinder {
+        target_start: start,
+        target_end: end,
+        result: None,
+    };
+    for stmt in &program.body {
+        finder.visit_statement(stmt);
+        if finder.result.is_some() {
+            break;
+        }
+    }
+    finder.result
+}
+
+struct ConditionalSpanFinder {
+    target_start: u32,
+    target_end: u32,
+    result: Option<ConditionalSpanInfo>,
+}
+
+impl<'c> Visit<'c> for ConditionalSpanFinder {
+    fn visit_conditional_expression(&mut self, cond: &ConditionalExpression<'c>) {
+        if self.result.is_some() {
+            return;
+        }
+        let span = cond.span;
+        if span.start >= self.target_start && span.end <= self.target_end {
+            self.result = Some(ConditionalSpanInfo {
+                cond_start: cond.test.span().start,
+                cond_end: cond.test.span().end,
+                true_start: cond.consequent.span().start,
+                true_end: cond.consequent.span().end,
+                true_is_jsx: is_jsx_expression(&cond.consequent),
+                false_start: cond.alternate.span().start,
+                false_end: cond.alternate.span().end,
+                false_is_jsx: is_jsx_expression(&cond.alternate),
+            });
+            return;
+        }
+        oxc_ast_visit::walk::walk_conditional_expression(self, cond);
+    }
 }
 
 /// Read a slice from MagicString, transforming any JSX nodes found within.
@@ -1518,12 +1734,25 @@ fn is_expr_reactive_in_scope(
     rx: &ReactivityContext,
 ) -> bool {
     let text = ms.get_transformed_slice(start, end);
+    is_text_reactive(&text, rx)
+}
+
+/// Check if a text string references any reactive source.
+/// Used both for JSX attribute/child expressions and for analyzing
+/// callback-local variable initializers.
+fn is_text_reactive(text: &str, rx: &ReactivityContext) -> bool {
+    // Check for __props.* access — props are getter-based and always reactive.
+    // After props destructuring, `{ title }` becomes `__props.title`, and prop
+    // access must be tracked reactively (parents pass getters that return signal values).
+    if text.contains("__props.") {
+        return true;
+    }
     // Check for signal/computed .value access
     for name in &rx.names {
         let pattern = format!("{}.value", name);
         // Use word-boundary matching to avoid false positives
         // (e.g., signal "x" matching "fox.value")
-        if contains_word_boundary(&text, &pattern) {
+        if contains_word_boundary(text, &pattern) {
             return true;
         }
     }
@@ -1531,9 +1760,37 @@ fn is_expr_reactive_in_scope(
     for (api_var, props) in &rx.signal_api_props {
         for prop in props {
             let pattern = format!("{}.{}", api_var, prop);
-            if contains_word_boundary(&text, &pattern) {
+            if contains_word_boundary(text, &pattern) {
                 return true;
             }
+        }
+    }
+    // Check for field signal property access (e.g., taskForm.title.error.value).
+    // The signal transformer appends .value to recognized field signal properties,
+    // so we look for `<api_var>.<anything>...<.value>` patterns.
+    for api_var in &rx.field_signal_api_vars {
+        let prefix = format!("{}.", api_var);
+        if let Some(pos) = text.find(&prefix) {
+            let remainder = &text[pos + prefix.len()..];
+            if remainder.contains(".value") {
+                return true;
+            }
+        }
+    }
+    // Check for reactive source API property access (e.g., auth.user, auth.user.avatarUrl).
+    // Any property access on a reactive source variable is reactive.
+    for rs_var in &rx.reactive_sources {
+        let pattern = format!("{}.", rs_var);
+        if text.contains(&pattern) && contains_word_boundary(text, rs_var) {
+            return true;
+        }
+    }
+    // Check for references to inlined reactive callback locals.
+    // These are variables like `isActive` inside .map() callbacks whose
+    // initializers depend on reactive sources (__props., .value, etc.).
+    for name in rx.inline_locals.keys() {
+        if contains_word_boundary(text, name) {
+            return true;
         }
     }
     false
@@ -1558,6 +1815,62 @@ fn contains_word_boundary(text: &str, pattern: &str) -> bool {
         start = abs_pos + 1;
     }
     false
+}
+
+/// Apply inline substitutions for reactive callback-local variables.
+/// Replaces references to inline_locals with their full expressions,
+/// so that the resulting code directly references __props. or .value
+/// instead of an opaque local variable name.
+fn apply_inline_subs(text: &str, rx: &ReactivityContext) -> String {
+    if rx.inline_locals.is_empty() {
+        return text.to_string();
+    }
+    let mut result = text.to_string();
+    for (name, replacement) in &rx.inline_locals {
+        result = word_boundary_replace(&result, name, &format!("({})", replacement));
+    }
+    result
+}
+
+/// Replace all word-boundary occurrences of `pattern` with `replacement` in `text`.
+fn word_boundary_replace(text: &str, pattern: &str, replacement: &str) -> String {
+    if !text.contains(pattern) {
+        return text.to_string();
+    }
+    let mut result = String::with_capacity(text.len());
+    let mut search_start = 0;
+    while search_start < text.len() {
+        let Some(pos) = text[search_start..].find(pattern) else {
+            result.push_str(&text[search_start..]);
+            break;
+        };
+        let abs_pos = search_start + pos;
+
+        // Check word boundaries
+        let before_ok = if abs_pos == 0 {
+            true
+        } else {
+            let prev = text.as_bytes()[abs_pos - 1];
+            !prev.is_ascii_alphanumeric() && prev != b'_' && prev != b'$'
+        };
+        let after_pos = abs_pos + pattern.len();
+        let after_ok = if after_pos >= text.len() {
+            true
+        } else {
+            let next = text.as_bytes()[after_pos];
+            !next.is_ascii_alphanumeric() && next != b'_' && next != b'$'
+        };
+
+        if before_ok && after_ok {
+            result.push_str(&text[search_start..abs_pos]);
+            result.push_str(replacement);
+            search_start = after_pos;
+        } else {
+            result.push_str(&text[search_start..abs_pos + pattern.len()]);
+            search_start = after_pos;
+        }
+    }
+    result
 }
 
 /// Build a key function string for __list/__listValue.
@@ -1679,4 +1992,40 @@ fn clean_jsx_text(raw: &str) -> String {
     }
 
     cleaned.join(" ")
+}
+
+/// Build an extended ReactivityContext for .map() callback bodies.
+/// Analyzes callback-local `const` declarations and marks reactive ones
+/// in `inline_locals` so they get inlined into JSX attribute/child expressions.
+fn build_extended_rx_for_list(
+    ms: &MagicString,
+    callback_locals: &[(String, u32, u32)],
+    rx: &ReactivityContext,
+) -> ReactivityContext {
+    if callback_locals.is_empty() {
+        // Return a context with empty inline_locals (same as parent)
+        return ReactivityContext {
+            names: rx.names.clone(),
+            signal_api_props: rx.signal_api_props.clone(),
+            field_signal_api_vars: rx.field_signal_api_vars.clone(),
+            reactive_sources: rx.reactive_sources.clone(),
+            inline_locals: HashMap::new(),
+        };
+    }
+
+    let mut inline_locals = HashMap::new();
+    for (name, init_start, init_end) in callback_locals {
+        let transformed_init = ms.get_transformed_slice(*init_start, *init_end);
+        if is_text_reactive(&transformed_init, rx) {
+            inline_locals.insert(name.clone(), transformed_init);
+        }
+    }
+
+    ReactivityContext {
+        names: rx.names.clone(),
+        signal_api_props: rx.signal_api_props.clone(),
+        field_signal_api_vars: rx.field_signal_api_vars.clone(),
+        reactive_sources: rx.reactive_sources.clone(),
+        inline_locals,
+    }
 }

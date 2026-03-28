@@ -639,6 +639,42 @@ describe('Feature: JSX element transform', () => {
     });
   });
 
+  // ═══════════════════════════════════════════════════════════════════
+  // Map callback expressions — attributes and children must not be empty
+  // ═══════════════════════════════════════════════════════════════════
+
+  describe('Given a .map() callback with dynamic attributes and children', () => {
+    describe('When compiled', () => {
+      it('Then preserves attribute expressions inside the render callback', () => {
+        const code = compileAndGetCode(`
+          function StatusFilter({ value, onChange }) {
+            const items = [{ value: 'a', label: 'A' }];
+            return (
+              <div>
+                {items.map((s) => (
+                  <button
+                    className={s.value === value ? 'active' : 'default'}
+                    onClick={() => onChange(s.value)}
+                  >
+                    {s.label}
+                  </button>
+                ))}
+              </div>
+            );
+          }
+        `);
+        // Attribute expressions must NOT be empty
+        expect(code).not.toMatch(/const __v = ;/);
+        // Event handler must NOT be empty
+        expect(code).not.toMatch(/__on\([^,]+, [^,]+, \)/);
+        // Child insert must NOT be empty
+        expect(code).not.toMatch(/__insert\([^,]+, \)/);
+        // Should contain the actual expressions
+        expect(code).toContain('s.label');
+      });
+    });
+  });
+
   // ─── Non-IDL disabled stays as setAttribute ──────────────────────────────
 
   describe('Given a non-IDL boolean shorthand on non-input element', () => {
@@ -739,6 +775,265 @@ describe('Feature: JSX element transform', () => {
           }
         `);
         expect(code).toContain('get title()');
+      });
+    });
+  });
+
+  // ═══════════════════════════════════════════════════════════════════
+  // Props reactivity — __props.* must be treated as reactive
+  // ═══════════════════════════════════════════════════════════════════
+
+  describe('Given a component with props used as children', () => {
+    describe('When a prop expression is used in JSX children', () => {
+      it('Then uses __child() for reactive tracking, not __insert()', () => {
+        const code = compileAndGetCode(`
+          function Dialog(__props: { title: string }) {
+            return <div>{__props.title}</div>;
+          }
+        `);
+        expect(code).toContain('__child(');
+        expect(code).not.toContain('__insert(');
+      });
+    });
+  });
+
+  describe('Given a component with destructured props used as children', () => {
+    describe('When the compiler transforms props destructuring to __props access', () => {
+      it('Then uses __child() for the prop expression', () => {
+        const code = compileAndGetCode(`
+          function Dialog({ title, description }: { title: string; description: string }) {
+            return <div><h2>{title}</h2><p>{description}</p></div>;
+          }
+        `);
+        // After props destructuring, title → __props.title
+        expect(code).toContain('__props');
+        expect(code).toContain('__child(');
+        expect(code).not.toContain('__insert(');
+      });
+    });
+  });
+
+  describe('Given a component with props used in template literal attribute', () => {
+    describe('When a prop expression is used in an attribute value', () => {
+      it('Then uses __attr() for reactive tracking', () => {
+        const code = compileAndGetCode(`
+          function Card({ task }: { task: { id: string } }) {
+            return <div data-testid={\`card-\${task.id}\`}>content</div>;
+          }
+        `);
+        // After props destructuring, task → __props.task
+        expect(code).toContain('__attr(');
+        expect(code).toContain('"data-testid"');
+      });
+    });
+  });
+
+  describe('Given a component with props used in style object attribute', () => {
+    describe('When a prop-derived expression is in a style object', () => {
+      it('Then uses __attr() for reactive style binding', () => {
+        const code = compileAndGetCode(`
+          function Card({ task }: { task: { id: string } }) {
+            return <div style={{ viewTransitionName: \`task-\${task.id}\` }}>content</div>;
+          }
+        `);
+        expect(code).toContain('__attr(');
+      });
+    });
+  });
+
+  // ═══════════════════════════════════════════════════════════════════
+  // Non-JSX ternary conditionals — must still use __conditional()
+  // ═══════════════════════════════════════════════════════════════════
+
+  describe('Given a reactive ternary with string-only branches', () => {
+    describe('When the condition references a signal variable', () => {
+      it('Then wraps in __conditional() even though branches are not JSX', () => {
+        const code = compileAndGetCode(`
+          function App() {
+            let theme = 'light';
+            return <div>{theme === 'light' ? 'Dark Mode' : 'Light Mode'}</div>;
+          }
+        `);
+        expect(code).toContain('__conditional(');
+      });
+    });
+  });
+
+  describe('Given multiple ternary conditionals (JSX + string branches)', () => {
+    describe('When one has JSX branches and another has string branches', () => {
+      it('Then both produce __conditional()', () => {
+        const code = compileAndGetCode(`
+          function App() {
+            let theme = 'light';
+            return (
+              <div>
+                {theme === 'light' ? <span>Sun</span> : <span>Moon</span>}
+                {theme === 'light' ? 'Dark Mode' : 'Light Mode'}
+              </div>
+            );
+          }
+        `);
+        const matches = code.match(/__conditional\(/g) || [];
+        expect(matches.length).toBe(2);
+      });
+    });
+  });
+
+  // ═══════════════════════════════════════════════════════════════════
+  // Double .value prevention
+  // ═══════════════════════════════════════════════════════════════════
+
+  describe('Given a form() signal property with explicit .value access', () => {
+    describe('When compiled', () => {
+      it('Then does not produce double .value (e.g., taskForm.submitting.value.value)', () => {
+        const code = compileAndGetCode(`
+          import { form } from '@vertz/ui';
+          function TaskForm() {
+            const taskForm = form(async () => {}, { schema: {} });
+            return (
+              <button disabled={taskForm.submitting.value}>
+                {taskForm.submitting.value ? 'Creating...' : 'Create Task'}
+              </button>
+            );
+          }
+        `);
+        // Must NOT contain double .value
+        expect(code).not.toContain('.value.value');
+        // Should still have .value accesses
+        expect(code).toContain('taskForm.submitting.value');
+      });
+    });
+  });
+
+  // ═══════════════════════════════════════════════════════════════════
+  // Spurious effect import
+  // ═══════════════════════════════════════════════════════════════════
+
+  describe('Given a component that does not use effect()', () => {
+    describe('When compiled', () => {
+      it('Then does not import effect from @vertz/ui', () => {
+        const code = compileAndGetCode(`
+          function Settings() {
+            let showSaved = false;
+            let theme = 'light';
+            function flashSaved() {
+              showSaved = true;
+              setTimeout(() => { showSaved = false; }, 2000);
+            }
+            return <div>{showSaved && <span>Saved!</span>}</div>;
+          }
+        `);
+        expect(code).not.toMatch(/import\s*\{[^}]*\beffect\b[^}]*\}\s*from\s*['"]@vertz\/ui['"]/);
+      });
+    });
+  });
+});
+
+// ─── Bug fixes: .map() callback body handling & reactive source APIs ────────
+
+describe('Feature: Reactive source API property access in JSX', () => {
+  describe('Given a component using useAuth() (reactive source API)', () => {
+    describe('When an attribute references a reactive source property', () => {
+      it('Then wraps the attribute in __attr()', () => {
+        const code = compileAndGetCode(`
+          import { useAuth } from '@vertz/ui/auth';
+          function App() {
+            const auth = useAuth();
+            return <img src={auth.user.avatarUrl} />;
+          }
+        `);
+        expect(code).toContain('__attr(');
+        expect(code).toContain('auth.user.avatarUrl');
+      });
+    });
+
+    describe('When a child expression references a reactive source property', () => {
+      it('Then wraps the child in __child() (not __insert())', () => {
+        const code = compileAndGetCode(`
+          import { useAuth } from '@vertz/ui/auth';
+          function App() {
+            const auth = useAuth();
+            return <span>{auth.user?.name ?? auth.user?.email}</span>;
+          }
+        `);
+        expect(code).toContain('__child(');
+        expect(code).not.toMatch(/__insert\([^,]+,\s*auth\.user/);
+      });
+    });
+  });
+});
+
+describe('Feature: .map() callback with block body preserves pre-return code', () => {
+  describe('Given a .map() callback with const declarations before the return', () => {
+    describe('When the callback has reactive local variables referencing props', () => {
+      it('Then wraps attributes using those locals in __attr() with inlined prop access', () => {
+        const code = compileAndGetCode(`
+          function LabelFilter({ labels, selected, onChange }) {
+            return (
+              <div>
+                {labels.map((label) => {
+                  const isActive = selected.includes(label.id);
+                  return (
+                    <button className={isActive ? 'active' : 'inactive'} />
+                  );
+                })}
+              </div>
+            );
+          }
+        `);
+        // The attribute should be reactive because isActive depends on props.selected
+        expect(code).toContain('__attr(');
+        // The inlined expression should reference __props.selected directly
+        expect(code).toMatch(/__attr\([^,]+,\s*"class",\s*\(\)\s*=>/);
+        expect(code).toContain('__props.selected');
+      });
+    });
+
+    describe('When the callback has reactive local variables referencing computed .value', () => {
+      it('Then wraps attributes using those locals in __attr() with inlined .value access', () => {
+        const code = compileAndGetCode(`
+          function LabelPicker({ labels, issueLabels, onAdd, onRemove }) {
+            const assignedLabelIds = new Set(issueLabels.map((il) => il.labelId));
+            return (
+              <div>
+                {labels.map((label) => {
+                  const isAssigned = assignedLabelIds.has(label.id);
+                  return (
+                    <button className={isAssigned ? 'active' : 'inactive'} />
+                  );
+                })}
+              </div>
+            );
+          }
+        `);
+        // assignedLabelIds should be computed() and use .value
+        expect(code).toContain('computed(');
+        // The attribute should be reactive with __attr
+        expect(code).toContain('__attr(');
+        expect(code).toMatch(/__attr\([^,]+,\s*"class",\s*\(\)\s*=>/);
+      });
+    });
+
+    describe('When the callback has a reactive local used in a conditional child', () => {
+      it('Then the conditional correctly uses the reactive value', () => {
+        const code = compileAndGetCode(`
+          function List({ items, selected }) {
+            return (
+              <div>
+                {items.map((item) => {
+                  const isActive = selected.includes(item.id);
+                  return (
+                    <div>
+                      {isActive && <span>Active</span>}
+                    </div>
+                  );
+                })}
+              </div>
+            );
+          }
+        `);
+        // The conditional should reference __props.selected via inlined expression
+        expect(code).toContain('__props.selected');
       });
     });
   });

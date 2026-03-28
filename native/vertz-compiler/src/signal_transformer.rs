@@ -341,11 +341,20 @@ impl<'a, 'b, 'c> Visit<'c> for SignalApiPropTransformer<'a, 'b> {
 
             // Check if the object is itself a member expression (making this 3+ level)
             if let Expression::StaticMemberExpression(ref mid) = outer.object {
+                let mid_prop = mid.property.name.as_str();
+
                 // Check if root is an identifier with field signal properties
                 if let Expression::Identifier(ref root_ident) = mid.object {
                     let root_name = root_ident.name.as_str();
                     if let Some(field_props) = self.field_signal_prop_vars.get(root_name) {
-                        if field_props.contains(leaf_prop) {
+                        // Skip if mid property is a signal property (e.g., taskForm.submitting.value
+                        // is an explicit .value on a signal prop, NOT a field signal chain)
+                        let mid_is_signal_prop = self
+                            .signal_prop_vars
+                            .get(root_name)
+                            .is_some_and(|sp| sp.contains(mid_prop));
+
+                        if !mid_is_signal_prop && field_props.contains(leaf_prop) {
                             // Don't add .value if already present
                             let already_processed = self
                                 .processed_ranges
@@ -376,6 +385,13 @@ impl<'a, 'b, 'c> Visit<'c> for SignalApiPropTransformer<'a, 'b> {
                             .iter()
                             .any(|(s, e)| span.start >= *s && span.end <= *e);
                         if !already_processed {
+                            // Skip if the developer already wrote .value after this expression
+                            let after = self.ms.slice(span.end, (span.end + 6).min(self.ms.len()));
+                            if after == ".value" {
+                                // Already has .value — don't add another
+                                self.processed_ranges.push((span.start, span.end + 6));
+                                return;
+                            }
                             self.ms.append_right(span.end, ".value");
                             self.processed_ranges.push((span.start, span.end));
                             return;
