@@ -13,6 +13,12 @@ pub struct ServerConfig {
     pub entry_file: PathBuf,
     /// Whether SSR is enabled for page routes (default: true).
     pub enable_ssr: bool,
+    /// Whether to run type checking (tsc/tsgo) (default: true).
+    pub enable_typecheck: bool,
+    /// Custom tsconfig path (default: None — let checker auto-detect).
+    pub tsconfig_path: Option<PathBuf>,
+    /// Explicit type checker binary path (default: None — auto-detect tsgo/tsc).
+    pub typecheck_binary: Option<PathBuf>,
 }
 
 impl ServerConfig {
@@ -28,6 +34,9 @@ impl ServerConfig {
             src_dir,
             entry_file,
             enable_ssr: true,
+            enable_typecheck: true,
+            tsconfig_path: None,
+            typecheck_binary: None,
         }
     }
 
@@ -43,6 +52,9 @@ impl ServerConfig {
             src_dir,
             entry_file,
             enable_ssr: true,
+            enable_typecheck: true,
+            tsconfig_path: None,
+            typecheck_binary: None,
         }
     }
 
@@ -140,6 +152,14 @@ mod tests {
             config.deps_dir(),
             PathBuf::from("/tmp/test-project/.vertz/deps")
         );
+    }
+
+    #[test]
+    fn test_typecheck_defaults() {
+        let config = ServerConfig::new(3000, "localhost".to_string(), PathBuf::from("public"));
+        assert!(config.enable_typecheck);
+        assert!(config.tsconfig_path.is_none());
+        assert!(config.typecheck_binary.is_none());
     }
 
     #[test]
