@@ -110,6 +110,7 @@ impl CompilationPipeline {
         );
 
         // Check for compilation errors (diagnostics)
+        // Only promote actual errors (syntax, parse) — skip warnings (CSS diagnostics)
         let mut compile_errors: Vec<CompileError> = Vec::new();
         if let Some(ref diagnostics) = compile_result.diagnostics {
             let log_errors: Vec<String> = diagnostics
@@ -119,11 +120,14 @@ impl CompilationPipeline {
                         (Some(line), Some(col)) => format!(" at {}:{}:{}", filename, line, col),
                         _ => String::new(),
                     };
-                    compile_errors.push(CompileError {
-                        message: d.message.clone(),
-                        line: d.line,
-                        column: d.column,
-                    });
+                    // CSS diagnostics are warnings, not errors — don't surface in overlay
+                    if !d.message.starts_with("[css-") {
+                        compile_errors.push(CompileError {
+                            message: d.message.clone(),
+                            line: d.line,
+                            column: d.column,
+                        });
+                    }
                     format!("{}{}", d.message, location)
                 })
                 .collect();

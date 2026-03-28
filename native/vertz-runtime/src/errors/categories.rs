@@ -59,6 +59,9 @@ pub struct DevError {
     /// Code snippet around the error (a few lines of context).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub code_snippet: Option<String>,
+    /// Actionable suggestion for how to fix the error.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub suggestion: Option<String>,
 }
 
 impl DevError {
@@ -71,6 +74,7 @@ impl DevError {
             line: None,
             column: None,
             code_snippet: None,
+            suggestion: None,
         }
     }
 
@@ -83,6 +87,7 @@ impl DevError {
             line: None,
             column: None,
             code_snippet: None,
+            suggestion: None,
         }
     }
 
@@ -95,6 +100,7 @@ impl DevError {
             line: None,
             column: None,
             code_snippet: None,
+            suggestion: None,
         }
     }
 
@@ -107,6 +113,7 @@ impl DevError {
             line: None,
             column: None,
             code_snippet: None,
+            suggestion: None,
         }
     }
 
@@ -126,6 +133,12 @@ impl DevError {
     /// Set the code snippet.
     pub fn with_snippet(mut self, snippet: impl Into<String>) -> Self {
         self.code_snippet = Some(snippet.into());
+        self
+    }
+
+    /// Set an actionable suggestion for fixing the error.
+    pub fn with_suggestion(mut self, suggestion: impl Into<String>) -> Self {
+        self.suggestion = Some(suggestion.into());
         self
     }
 }
@@ -177,9 +190,17 @@ impl ErrorState {
 
     /// Add an error. Returns true if the error should be surfaced
     /// (not suppressed by a higher-priority category).
+    /// Deduplicates by message + file — same error for the same file is not added twice.
     pub fn add(&mut self, error: DevError) -> bool {
         let category = error.category;
-        self.errors.entry(category).or_default().push(error);
+        let errors = self.errors.entry(category).or_default();
+        // Deduplicate: don't add if same message+file already exists
+        let is_dup = errors.iter().any(|e| {
+            e.message == error.message && e.file == error.file
+        });
+        if !is_dup {
+            errors.push(error);
+        }
         !self.is_suppressed(category)
     }
 
