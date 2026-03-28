@@ -63,6 +63,9 @@ export function isFaded(lastActive: number, now: number): boolean {
  * so cursors move in different, organic-looking paths.
  */
 export function createSimulatedPeers(count: number): CursorState[] {
+  // Clear movement params to prevent memory leaks and ensure test isolation
+  peerMovement = new Map();
+
   return Array.from({ length: count }, (_, i) => ({
     id: `sim-${i}`,
     color: assignPeerColor(i),
@@ -73,11 +76,19 @@ export function createSimulatedPeers(count: number): CursorState[] {
   }));
 }
 
-// Per-peer movement parameters — generated once per peer ID
-const peerMovement = new Map<
-  string,
-  { phaseX: number; phaseY: number; speedX: number; speedY: number }
->();
+/** Per-peer movement parameters, keyed by peer ID. */
+export type PeerMovementParams = {
+  phaseX: number;
+  phaseY: number;
+  phaseS: number;
+  speedX: number;
+  speedY: number;
+  speedS: number;
+};
+
+// Cleared on each createSimulatedPeers call to prevent memory leaks and
+// ensure test isolation.
+let peerMovement = new Map<string, PeerMovementParams>();
 
 function getMovementParams(id: string) {
   let params = peerMovement.get(id);
@@ -85,8 +96,10 @@ function getMovementParams(id: string) {
     params = {
       phaseX: Math.random() * Math.PI * 2,
       phaseY: Math.random() * Math.PI * 2,
+      phaseS: Math.random() * Math.PI * 2,
       speedX: 0.0005 + Math.random() * 0.001,
       speedY: 0.0003 + Math.random() * 0.0008,
+      speedS: 0.0001 + Math.random() * 0.0002,
     };
     peerMovement.set(id, params);
   }
@@ -103,9 +116,14 @@ export function advanceSimulation(
 ): CursorState[] {
   return cursors.map((c) => {
     const p = getMovementParams(c.id);
+    // Last peer goes idle after 10s to demo the fade/disappear behavior
+    const goesIdle = c.id === `sim-${cursors.length - 1}` && elapsed > 10_000;
+    if (goesIdle) return c; // freeze position and lastActive
+
     const x = 50 + Math.sin(elapsed * p.speedX + p.phaseX) * 30;
     const y = 50 + Math.cos(elapsed * p.speedY + p.phaseY) * 30;
-    const s = Math.max(0, Math.min(100, c.s + Math.sin(elapsed * 0.0001) * 0.5));
+    // Absolute sine — oscillates [0, 20], never drifts to boundary
+    const s = 10 + Math.sin(elapsed * p.speedS + p.phaseS) * 10;
     return { ...c, x, y, s, lastActive: Date.now() };
   });
 }

@@ -31,7 +31,7 @@ const s = css({
         position: 'fixed',
         inset: '0',
         pointerEvents: 'none',
-        zIndex: '1',
+        zIndex: '5', // above HeroGlow (0), below Nav (50) and noise (9999)
         overflow: 'hidden',
       },
     },
@@ -93,6 +93,8 @@ const SIMULATION_PEER_COUNT = 4;
 const TICK_INTERVAL_MS = 66; // ~15fps
 const STORAGE_KEY = 'vertz-presence-hidden';
 
+let pulseCounter = 0;
+
 // ── Component ──────────────────────────────────────────────
 
 type PulseEffect = {
@@ -131,9 +133,7 @@ export default function PresenceOverlay() {
 
     // Track scroll position
     function handleScroll() {
-      const docEl = document.documentElement;
-      if (!docEl) return;
-      const docHeight = docEl.scrollHeight;
+      const docHeight = document.documentElement.scrollHeight;
       localScroll = docHeight > 0 ? (window.scrollY / docHeight) * 100 : 0;
     }
     window.addEventListener('scroll', handleScroll, { passive: true });
@@ -147,7 +147,7 @@ export default function PresenceOverlay() {
       pulses = [
         ...pulses,
         {
-          id: `pulse-${Date.now()}`,
+          id: `pulse-${pulseCounter++}`,
           x: peer.x,
           y: peer.y,
           color: peer.color,
