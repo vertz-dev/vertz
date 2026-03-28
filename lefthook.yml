@@ -4,3 +4,7 @@ pre-push:
       run: bash scripts/check-unicode.sh
     quality-gates:
       run: turbo run lint typecheck test build --filter='!@vertz-examples/*' --filter='!entity-todo-example' --output-logs=errors-only
+    native-compiler:
+      root: native/
+      glob: "native/**/*.rs"
+      run: cargo fmt --all -- --check && cargo clippy --all -- -D warnings && cargo test --all
