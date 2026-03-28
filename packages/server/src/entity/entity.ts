@@ -25,7 +25,7 @@ export function entity<
     EntityActionDef<any, any, TModel['table']['$response'], EntityContext<TModel, TInject>>
     // eslint-disable-next-line @typescript-eslint/no-empty-object-type -- {} represents an empty actions record
   > = {},
->(name: string, config: EntityConfig<TModel, TActions, TInject>): EntityDefinition<TModel> {
+>(name: string, config: EntityConfig<TModel, TActions, TInject>): EntityDefinition<TModel, TActions> {
   if (!name || !ENTITY_NAME_PATTERN.test(name)) {
     throw new Error(
       `entity() name must be a non-empty lowercase string matching /^[a-z][a-z0-9-]*$/. Got: "${name}"`,
@@ -44,15 +44,16 @@ export function entity<
   // Type erasure: EntityConfig<TModel> validates hooks at the call site.
   // EntityDefinition stores hooks as EntityBeforeHooks/EntityAfterHooks (unknown)
   // so that definitions with different models can coexist in a single array.
-  const def: EntityDefinition<TModel> = {
+  const def: EntityDefinition<TModel, TActions> = {
     kind: 'entity',
     name,
     model: config.model,
     inject: (config.inject ?? {}) as Record<string, EntityDefinition>,
     access: config.access ?? {},
-    before: (config.before ?? {}) as EntityDefinition<TModel>['before'],
-    after: (config.after ?? {}) as EntityDefinition<TModel>['after'],
-    actions: (config.actions ?? {}) as Record<string, EntityActionDef>,
+    before: (config.before ?? {}) as EntityDefinition<TModel, TActions>['before'],
+    after: (config.after ?? {}) as EntityDefinition<TModel, TActions>['after'],
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- type-erased at runtime; concrete types preserved in __actions phantom
+    actions: (config.actions ?? {}) as Record<string, EntityActionDef<any, any, any, any>>,
     expose: config.expose,
     table: config.table ?? name,
     tenantScoped,

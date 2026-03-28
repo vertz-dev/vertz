@@ -92,7 +92,8 @@ export interface ServiceDefinition<
   readonly name: string;
   readonly inject: Record<string, EntityDefinition>;
   readonly access: Partial<Record<string, AccessRule>>;
-  readonly actions: Record<string, ServiceActionDef>;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- type-erased at runtime; concrete types preserved in __actions phantom
+  readonly actions: Record<string, ServiceActionDef<any, any, any>>;
   /** @internal Phantom type — carries concrete action types for type extraction. Never accessed at runtime. */
   readonly __actions?: TActions;
 }
