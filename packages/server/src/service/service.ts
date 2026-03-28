@@ -1,17 +1,17 @@
 import { deepFreeze } from '@vertz/core';
 import type { EntityDefinition } from '../entity/types';
-import type { ServiceActionDef, ServiceConfig, ServiceDefinition } from './types';
+import type { ServiceActionDef, ServiceConfig, ServiceContext, ServiceDefinition } from './types';
 
 const SERVICE_NAME_PATTERN = /^[a-z][a-z0-9-]*$/;
 
 export function service<
   // eslint-disable-next-line @typescript-eslint/no-empty-object-type -- {} represents no injected entities
   TInject extends Record<string, EntityDefinition> = {},
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- constraint uses any to accept all action type parameter combinations
-  TActions extends Record<string, ServiceActionDef<any, any, any>> = Record<
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- TInput/TOutput must remain any — TypeScript contextual typing limitation
+  TActions extends Record<string, ServiceActionDef<any, any, ServiceContext<TInject>>> = Record<
     string,
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- constraint uses any to accept all action type parameter combinations
-    ServiceActionDef<any, any, any>
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- TInput/TOutput must remain any — TypeScript contextual typing limitation
+    ServiceActionDef<any, any, ServiceContext<TInject>>
   >,
 >(name: string, config: ServiceConfig<TActions, TInject>): ServiceDefinition<TActions> {
   if (!name || !SERVICE_NAME_PATTERN.test(name)) {
@@ -29,7 +29,8 @@ export function service<
     name,
     inject: (config.inject ?? {}) as Record<string, EntityDefinition>,
     access: config.access ?? {},
-    actions: config.actions as Record<string, ServiceActionDef>,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- type-erased at runtime; concrete types preserved in __actions phantom
+    actions: config.actions as Record<string, ServiceActionDef<any, any, any>>,
   };
   return deepFreeze(def);
 }
