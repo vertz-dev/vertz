@@ -238,14 +238,51 @@ export async function buildUI(config: UIBuildConfig): Promise<UIBuildResult> {
       ? '\n    <link rel="icon" type="image/svg+xml" href="/favicon.svg">'
       : '';
     const manifestTag = hasManifest ? '\n    <link rel="manifest" href="/site.webmanifest">' : '';
-    const themeColorTag = '\n    <meta name="theme-color" content="#0a0a0b">';
+    const themeColorTag = '\n    <meta name="theme-color" content="#111110">';
+
+    // Open Graph and Twitter meta tags
+    let ogTags = '';
+    try {
+      const pkgPath = resolve(projectRoot, 'package.json');
+      const pkg = JSON.parse(readFileSync(pkgPath, 'utf-8'));
+      const ogConfig = pkg.vertz?.og;
+      const ogTitle = title;
+      const ogDescription = description;
+      const ogImage = ogConfig?.image;
+      const ogUrl = ogConfig?.url;
+
+      if (ogTitle) {
+        ogTags += `\n    <meta property="og:title" content="${ogTitle.replace(/"/g, '&quot;')}" />`;
+      }
+      if (ogDescription) {
+        ogTags += `\n    <meta property="og:description" content="${ogDescription.replace(/"/g, '&quot;')}" />`;
+      }
+      ogTags += '\n    <meta property="og:type" content="website" />';
+      if (ogUrl) {
+        ogTags += `\n    <meta property="og:url" content="${ogUrl}" />`;
+      }
+      if (ogImage) {
+        const imageUrl = ogUrl ? `${ogUrl}${ogImage}` : ogImage;
+        ogTags += `\n    <meta property="og:image" content="${imageUrl}" />`;
+        ogTags += '\n    <meta name="twitter:card" content="summary_large_image" />';
+        ogTags += `\n    <meta name="twitter:image" content="${imageUrl}" />`;
+      }
+      if (ogTitle) {
+        ogTags += `\n    <meta name="twitter:title" content="${ogTitle.replace(/"/g, '&quot;')}" />`;
+      }
+      if (ogDescription) {
+        ogTags += `\n    <meta name="twitter:description" content="${ogDescription.replace(/"/g, '&quot;')}" />`;
+      }
+    } catch {
+      // Ignore — OG tags are optional
+    }
 
     const html = `<!doctype html>
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>${title}</title>${descriptionTag}${themeColorTag}${faviconTag}${manifestTag}
+    <title>${title}</title>${descriptionTag}${themeColorTag}${faviconTag}${manifestTag}${ogTags}
 ${cssLinks}
 ${modulepreloadLinks}
   </head>

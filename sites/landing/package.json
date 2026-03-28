@@ -3,8 +3,12 @@
   "private": true,
   "type": "module",
   "vertz": {
-    "title": "Vertz — The LLM-First Web Framework",
-    "description": "Vertz is a full-stack TypeScript framework designed for AI-assisted development. Build reactive UIs with zero boilerplate using signals, computed values, and a compiler that does the work for you."
+    "title": "Vertz — The Agent-Native Framework",
+    "description": "One schema derives your database, API, and UI. Fully typed end-to-end. Built for agents to write, humans to ship.",
+    "og": {
+      "image": "/og.png",
+      "url": "https://vertz.dev"
+    }
   },
   "scripts": {
     "dev": "bun run src/dev-server.ts",

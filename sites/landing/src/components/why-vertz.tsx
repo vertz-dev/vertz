@@ -3,15 +3,15 @@ import { css } from '@vertz/ui';
 const s = css({
   section: ['py:24', 'px:6'],
   container: ['max-w:5xl', 'mx:auto'],
-  label: ['font:xs', 'tracking:widest', 'uppercase', 'mb:12', 'text:center', 'text:gray.500'],
+  label: ['font:xs', 'tracking:widest', 'uppercase', 'mb:12', 'text:center'],
   grid: [
     'grid',
     'gap:6',
     { '@media (min-width: 768px)': { 'grid-template-columns': 'repeat(3, 1fr)' } },
   ],
-  card: ['p:8', 'border:1', 'rounded:lg', 'transition:colors'],
-  title: ['font:2xl', 'mb:4', 'text:gray.200'],
-  desc: ['leading:relaxed', 'text:gray.400'],
+  card: ['p:8', 'border:1', 'transition:colors'],
+  title: ['font:2xl', 'mb:4'],
+  desc: ['leading:relaxed'],
 });
 
 const FEATURES = [
@@ -33,7 +33,7 @@ export function WhyVertz() {
   return (
     <section className={s.section}>
       <div className={s.container}>
-        <p className={s.label} style={{ fontFamily: 'var(--font-mono)' }}>
+        <p className={s.label} style={{ fontFamily: 'var(--font-mono)', color: '#6B6560' }}>
           Why Vertz
         </p>
         <div className={s.grid}>
@@ -41,12 +41,12 @@ export function WhyVertz() {
             <div
               key={f.title}
               className={s.card}
-              style={{ background: 'rgba(17,17,19,0.5)', borderColor: 'rgba(30,30,34,0.5)' }}
+              style={{ background: '#1C1B1A', borderColor: '#2A2826', borderRadius: '2px' }}
             >
-              <h3 className={s.title} style={{ fontFamily: 'var(--font-display)' }}>
+              <h3 className={s.title} style={{ fontFamily: 'var(--font-display)', color: '#E8E4DC' }}>
                 {f.title}
               </h3>
-              <p className={s.desc}>{f.desc}</p>
+              <p className={s.desc} style={{ color: '#9C9690' }}>{f.desc}</p>
             </div>
           ))}
         </div>

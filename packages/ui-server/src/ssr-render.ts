@@ -23,23 +23,27 @@ import { streamToString } from './streaming';
 
 /**
  * Cache compiled theme results. Theme compilation is deterministic for a
- * given Theme object and fallback metrics. Since metrics are stable per
- * server lifetime (computed at startup), we cache on theme identity alone.
+ * given Theme object and fallback metrics combination. We use two cache
+ * slots per theme: one without metrics (discovery pass) and one with
+ * metrics (pre-render pass). The "with metrics" version is preferred
+ * when available.
  *
  * WeakMap ensures automatic cleanup when modules are garbage collected
  * (e.g., dev HMR reloads creating new theme objects).
  */
 const compiledThemeCache = new WeakMap<object, ReturnType<typeof compileTheme>>();
+const compiledThemeWithMetricsCache = new WeakMap<object, ReturnType<typeof compileTheme>>();
 
 export function compileThemeCached(
   theme: Theme,
   fallbackMetrics?: Record<string, FontFallbackMetrics>,
 ): ReturnType<typeof compileTheme> {
-  const cached = compiledThemeCache.get(theme);
+  const cache = fallbackMetrics ? compiledThemeWithMetricsCache : compiledThemeCache;
+  const cached = cache.get(theme);
   if (cached) return cached;
 
   const compiled = compileTheme(theme, { fallbackMetrics });
-  compiledThemeCache.set(theme, compiled);
+  cache.set(theme, compiled);
   return compiled;
 }
 

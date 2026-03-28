@@ -11,17 +11,15 @@ const s = css({
     { '@media (min-width: 768px)': { 'grid-template-columns': '1fr 1fr' } },
   ],
   heading: ['font:4xl', 'mb:6'],
-  desc: ['font:lg', 'mb:4', 'text:gray.400'],
+  desc: ['font:lg', 'mb:4'],
   terminal: [
     'p:6',
-    'rounded:lg',
     'font:sm',
     'border:1',
-    'bg:gray.950',
-    { '&': { 'overflow-x': 'auto' } },
+    { '&': { 'overflow-x': 'auto', 'border-radius': '2px' } },
   ],
   terminalLine: ['mb:2'],
-  terminalCmd: ['text:gray.500'],
+  terminalCmd: [],
   successLine: ['mt:4'],
   success: [],
 });
@@ -30,32 +28,32 @@ export function GetStarted() {
   return (
     <section
       className={s.section}
-      style={{ background: '#0e0e11', borderTop: '1px solid rgba(255,255,255,0.02)', borderBottom: '1px solid rgba(255,255,255,0.02)' }}
+      style={{ background: '#0F0F0E', borderTop: '1px solid #2A2826', borderBottom: '1px solid #2A2826' }}
     >
       <div className={s.container}>
         <div>
-          <h2 className={s.heading} style={{ fontFamily: 'var(--font-display)' }}>
+          <h2 className={s.heading} style={{ fontFamily: 'var(--font-display)', color: '#E8E4DC' }}>
             Get started in 30 seconds.
           </h2>
-          <p className={s.desc}>
+          <p className={s.desc} style={{ color: '#9C9690' }}>
             SQLite database, REST API, and UI — all running locally. No Docker. No config files.
             Edit any layer and see it update instantly.
           </p>
         </div>
         <div
           className={s.terminal}
-          style={{ borderColor: '#1e1e22', fontFamily: 'var(--font-mono)', boxShadow: '0 20px 25px -5px rgb(0 0 0 / 0.1)' }}
+          style={{ background: '#1C1B1A', borderColor: '#2A2826', fontFamily: 'var(--font-mono)' }}
         >
-          <div className={`${s.terminalLine} ${s.terminalCmd}`}>$ bun create vertz@latest my-app</div>
-          <div className={`${s.terminalLine} ${s.terminalCmd}`}>$ cd my-app</div>
-          <div className={s.terminalCmd}>$ bun dev</div>
-          <div className={s.successLine} style={{ color: '#4ade80' }}>
+          <div className={`${s.terminalLine} ${s.terminalCmd}`} style={{ color: '#6B6560' }}>$ bun create vertz@latest my-app</div>
+          <div className={`${s.terminalLine} ${s.terminalCmd}`} style={{ color: '#6B6560' }}>$ cd my-app</div>
+          <div className={s.terminalCmd} style={{ color: '#6B6560' }}>$ bun dev</div>
+          <div className={s.successLine} style={{ color: '#C8451B' }}>
             ✓ SQLite database ready
           </div>
-          <div className={s.success} style={{ color: '#4ade80' }}>
+          <div className={s.success} style={{ color: '#C8451B' }}>
             ✓ API server on http://localhost:3000/api
           </div>
-          <div className={s.success} style={{ color: '#4ade80' }}>
+          <div className={s.success} style={{ color: '#C8451B' }}>
             ✓ UI on http://localhost:3000
           </div>
         </div>

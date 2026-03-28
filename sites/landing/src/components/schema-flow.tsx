@@ -34,9 +34,6 @@ export function SchemaFlow() {
   return (
     <section className={s.section}>
       <div className={s.container}>
-        <p className={s.label} style={{ fontFamily: 'var(--font-mono)' }}>
-          How it works
-        </p>
         <h2 className={s.heading} style={{ fontFamily: 'var(--font-display)' }}>
           One schema. Three layers. Zero wiring.
         </h2>
