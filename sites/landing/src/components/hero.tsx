@@ -5,6 +5,37 @@ const listEnter = keyframes('todo-enter', {
   from: { opacity: '0', transform: 'translateY(-0.5rem)' },
   to: { opacity: '1', transform: 'translateY(0)' },
 });
+
+const checkBgIn = keyframes('check-bg-in', {
+  from: { background: 'transparent', 'border-color': '#4A4540' },
+  to: { background: '#C8451B', 'border-color': '#C8451B' },
+});
+
+const checkBgOut = keyframes('check-bg-out', {
+  from: { background: '#C8451B', 'border-color': '#C8451B' },
+  to: { background: 'transparent', 'border-color': '#4A4540' },
+});
+
+const checkIconIn = keyframes('check-icon-in', {
+  from: { opacity: '0', transform: 'scale(0.5)' },
+  to: { opacity: '1', transform: 'scale(1)' },
+});
+
+const checkIconOut = keyframes('check-icon-out', {
+  from: { opacity: '1', transform: 'scale(1)' },
+  to: { opacity: '0', transform: 'scale(0.5)' },
+});
+
+const checkStrokeIn = keyframes('check-stroke-in', {
+  from: { 'stroke-dashoffset': '30' },
+  to: { 'stroke-dashoffset': '0' },
+});
+
+const checkStrokeOut = keyframes('check-stroke-out', {
+  from: { 'stroke-dashoffset': '0' },
+  to: { 'stroke-dashoffset': '30' },
+});
+
 import CopyButton from './copy-button';
 import { TOKENS_ENTITY, TOKENS_SCHEMA, TOKENS_UI } from './highlighted-code';
 import { TokenLines } from './token-lines';
@@ -293,8 +324,8 @@ const app = css({
   checkbox: [
     {
       '&': {
-        width: '1rem',
-        height: '1rem',
+        width: '0.875rem',
+        height: '0.875rem',
         'border-radius': '2px',
         cursor: 'pointer',
         display: 'flex',
@@ -303,7 +334,57 @@ const app = css({
         'flex-shrink': '0',
         padding: '0',
         'line-height': '1',
-        transition: 'background 0.15s, border-color 0.15s',
+        border: '1px solid #4A4540',
+        background: 'transparent',
+        color: '#fff',
+        position: 'relative',
+      },
+      '&[data-state="checked"]': {
+        background: '#C8451B',
+        'border-color': '#C8451B',
+      },
+      '&[data-state="checked"][data-toggled]': {
+        animation: `${checkBgIn} 150ms ease-out forwards`,
+      },
+      '&[data-state="unchecked"][data-toggled]': {
+        animation: `${checkBgOut} 150ms ease-out forwards`,
+      },
+      '& [data-part="indicator"]': {
+        position: 'absolute',
+        inset: '0',
+        display: 'flex',
+        'align-items': 'center',
+        'justify-content': 'center',
+        'pointer-events': 'none',
+      },
+      '& [data-part="indicator-icon"]': {
+        width: '9px',
+        height: '9px',
+        opacity: '0',
+        transform: 'scale(0.5)',
+      },
+      '& [data-icon="check"] path': {
+        'stroke-dasharray': '30',
+        'stroke-dashoffset': '30',
+      },
+      '&[data-state="checked"] [data-icon="check"]': {
+        opacity: '1',
+        transform: 'scale(1)',
+      },
+      '&[data-state="checked"] [data-icon="check"] path': {
+        'stroke-dashoffset': '0',
+      },
+      '&[data-state="checked"][data-toggled] [data-icon="check"]': {
+        animation: `${checkIconIn} 150ms ease-out forwards`,
+      },
+      '&[data-state="checked"][data-toggled] [data-icon="check"] path': {
+        animation: `${checkStrokeIn} 200ms ease-out 50ms forwards`,
+      },
+      '&[data-state="unchecked"][data-toggled] [data-icon="check"]': {
+        animation: `${checkIconOut} 150ms ease-out forwards`,
+      },
+      '&[data-state="unchecked"][data-toggled] [data-icon="check"] path': {
+        animation: `${checkStrokeOut} 150ms ease-out forwards`,
       },
     },
   ],
@@ -346,7 +427,7 @@ const app = css({
 
 // ── Mini todo app component ─────────────────────────────────
 
-type Todo = { id: number; text: string; done: boolean };
+type Todo = { id: number; text: string; done: boolean; toggled?: boolean };
 
 const INITIAL_TODOS: Todo[] = [
   { id: 1, text: 'Design the schema', done: true },
@@ -389,7 +470,7 @@ function MiniTodoApp() {
   }
 
   function toggleTodo(id: number) {
-    todos = todos.map((t) => (t.id === id ? { ...t, done: !t.done } : t));
+    todos = todos.map((t) => (t.id === id ? { ...t, done: !t.done, toggled: true } : t));
   }
 
   function deleteTodo(id: number) {
@@ -399,7 +480,7 @@ function MiniTodoApp() {
 
   return (
     <div className={app.wrap}>
-      <div className={app.inputRow}>
+      <form className={app.inputRow} onSubmit={(e: Event) => { e.preventDefault(); addTodo(); }}>
         <input
           type="text"
           className={app.input}
@@ -407,12 +488,11 @@ function MiniTodoApp() {
           placeholder="What needs to be done?"
           value={inputValue}
           onInput={(e: Event) => { inputValue = (e.target as HTMLInputElement).value; }}
-          onKeyDown={(e: KeyboardEvent) => { if (e.key === 'Enter') addTodo(); }}
         />
-        <button type="button" className={app.addBtn} style={{ height: '36px', borderRadius: '6px', border: '1px solid #2A2826' }} onClick={addTodo}>
+        <button type="submit" className={app.addBtn} style={{ height: '36px', borderRadius: '6px', border: '1px solid #2A2826' }}>
           Add
         </button>
-      </div>
+      </form>
 
       <div
         className={app.listWrap}
@@ -428,16 +508,29 @@ function MiniTodoApp() {
             <List.Item key={todo.id} className={app.todo}>
               <button
                 type="button"
+                role="checkbox"
+                aria-checked={todo.done ? 'true' : 'false'}
+                data-state={todo.done ? 'checked' : 'unchecked'}
+                data-toggled={todo.toggled ? '' : undefined}
                 className={app.checkbox}
-                style={{
-                  border: todo.done ? 'none' : '1px solid #4A4540',
-                  background: todo.done ? '#C8451B' : 'transparent',
-                  color: '#fff',
-                  fontSize: '0.6rem',
-                }}
                 onClick={() => toggleTodo(todo.id)}
               >
-                {todo.done ? '✓' : ''}
+                <span data-part="indicator" data-state={todo.done ? 'checked' : 'unchecked'}>
+                  <svg
+                    aria-hidden="true"
+                    xmlns="http://www.w3.org/2000/svg"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="3"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    data-part="indicator-icon"
+                    data-icon="check"
+                  >
+                    <path d="M4 12 9 17 20 6" />
+                  </svg>
+                </span>
               </button>
               <span
                 className={app.todoText}
