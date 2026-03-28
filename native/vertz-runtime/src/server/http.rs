@@ -10,6 +10,7 @@ use crate::server::diagnostics;
 use crate::server::html_shell;
 use crate::server::logging::RequestLoggingLayer;
 use crate::server::mcp::{self, McpSessions};
+use crate::server::mcp_events::{self, McpEventHub};
 use crate::server::module_server::{self, DevServerState};
 use crate::server::theme_css;
 use crate::typecheck::process;
@@ -94,6 +95,7 @@ pub fn build_router(config: &ServerConfig) -> (Router, Arc<DevServerState>) {
     let error_broadcaster = ErrorBroadcaster::with_root_dir(config.root_dir.clone());
     let console_log = ConsoleLog::new();
     let mcp_sessions = McpSessions::new();
+    let mcp_event_hub = McpEventHub::new();
     let module_graph = watcher::new_shared_module_graph();
 
     let state = Arc::new(DevServerState {
@@ -108,8 +110,11 @@ pub fn build_router(config: &ServerConfig) -> (Router, Arc<DevServerState>) {
         error_broadcaster,
         console_log,
         mcp_sessions,
+        mcp_event_hub,
         start_time: Instant::now(),
         enable_ssr: config.enable_ssr,
+        port: config.port,
+        typecheck_enabled: config.enable_typecheck,
     });
 
     // Routes: HMR WebSocket, error WebSocket, diagnostics, AI API, fallback
@@ -133,6 +138,7 @@ pub fn build_router(config: &ServerConfig) -> (Router, Arc<DevServerState>) {
             "/__vertz_mcp",
             axum::routing::post(mcp::mcp_streamable_handler),
         )
+        .route("/__vertz_mcp/events", get(ws_mcp_events_handler))
         .fallback(dev_server_handler)
         .with_state(state.clone())
         .layer(RequestLoggingLayer);
@@ -157,6 +163,21 @@ async fn ws_error_handler(
 ) -> impl IntoResponse {
     ws.on_upgrade(move |socket| async move {
         state.error_broadcaster.handle_connection(socket).await;
+    })
+}
+
+/// WebSocket upgrade handler for the MCP LLM event push endpoint.
+async fn ws_mcp_events_handler(
+    State(state): State<Arc<DevServerState>>,
+    ws: WebSocketUpgrade,
+) -> impl IntoResponse {
+    ws.on_upgrade(move |socket| async move {
+        let server_status = mcp_events::build_server_status(&state);
+        let error_snapshot = mcp_events::build_error_snapshot(&state.error_broadcaster).await;
+        state
+            .mcp_event_hub
+            .handle_connection(socket, server_status, error_snapshot)
+            .await;
     })
 }
 

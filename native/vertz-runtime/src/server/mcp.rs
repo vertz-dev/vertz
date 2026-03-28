@@ -593,8 +593,11 @@ mod tests {
             error_broadcaster: ErrorBroadcaster::new(),
             console_log: ConsoleLog::new(),
             mcp_sessions: McpSessions::new(),
+            mcp_event_hub: crate::server::mcp_events::McpEventHub::new(),
             start_time: Instant::now(),
             enable_ssr: false,
+            port: 3000,
+            typecheck_enabled: false,
         })
     }
 
