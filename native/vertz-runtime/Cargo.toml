@@ -3,6 +3,10 @@ name = "vertz-runtime"
 version = "0.1.0"
 edition = "2021"
 
+[lib]
+name = "vertz_runtime"
+path = "src/lib.rs"
+
 [[bin]]
 name = "vertz-runtime"
 path = "src/main.rs"
@@ -10,13 +14,19 @@ path = "src/main.rs"
 [dependencies]
 axum = "0.7"
 clap = { version = "4", features = ["derive"] }
+deno_core = "0.311.0"
 local-ip-address = "0.6"
 owo-colors = "4"
+reqwest = { version = "0.12", features = ["json"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
 tokio = { version = "1", features = ["full"] }
 tower = "0.5"
 tower-http = { version = "0.6", features = ["fs", "compression-gzip"] }
+uuid = { version = "1", features = ["v4"] }
 vertz-compiler-core = { path = "../vertz-compiler-core" }
 
 [dev-dependencies]
 reqwest = { version = "0.12", features = ["json"] }
+tempfile = "3"
 tokio = { version = "1", features = ["full", "test-util"] }
