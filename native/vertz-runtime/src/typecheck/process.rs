@@ -137,6 +137,7 @@ pub async fn start_typecheck(
     checker: &CheckerBinary,
     tsconfig_path: Option<&Path>,
     broadcaster: ErrorBroadcaster,
+    root_dir: Option<std::path::PathBuf>,
 ) -> std::io::Result<TypeCheckHandle> {
     let mut cmd = Command::new(&checker.path);
     cmd.arg("--noEmit")
@@ -160,8 +161,15 @@ pub async fn start_typecheck(
     let stdout = child.stdout.take().expect("stdout was piped");
     let stdout_broadcaster = broadcaster.clone();
     let stdout_checker_name = checker_name.clone();
+    let stdout_root_dir = root_dir;
     let stdout_task = tokio::spawn(async move {
-        read_stdout(stdout, stdout_broadcaster, &stdout_checker_name).await;
+        read_stdout(
+            stdout,
+            stdout_broadcaster,
+            &stdout_checker_name,
+            stdout_root_dir,
+        )
+        .await;
     });
 
     // Spawn stderr reader
@@ -186,6 +194,7 @@ async fn read_stdout(
     stdout: tokio::process::ChildStdout,
     broadcaster: ErrorBroadcaster,
     checker_name: &str,
+    root_dir: Option<std::path::PathBuf>,
 ) {
     let reader = BufReader::new(stdout);
     let mut lines = reader.lines();
@@ -196,15 +205,24 @@ async fn read_stdout(
     while let Ok(Some(line)) = lines.next_line().await {
         let parsed = parse_tsc_line(&line);
 
-        if let Some(errors) = buffer.feed(parsed.clone()) {
-            // Sentinel line received — flush batch to broadcaster
+        if let Some(errors) = buffer.feed(parsed) {
+            // Sentinel line received — enrich with snippets and flush to broadcaster
+            let enriched: Vec<DevError> = if let Some(ref dir) = root_dir {
+                errors
+                    .into_iter()
+                    .map(|e| enrich_with_snippet(e, dir))
+                    .collect()
+            } else {
+                errors
+            };
+
             broadcaster
-                .replace_category(ErrorCategory::TypeCheck, errors.clone())
+                .replace_category(ErrorCategory::TypeCheck, enriched.clone())
                 .await;
 
             if first_sentinel {
                 let elapsed = start_time.elapsed();
-                let error_count = errors.len();
+                let error_count = enriched.len();
                 eprintln!(
                     "[Server] TypeScript checking complete ({} error{}, {:.1}s)",
                     error_count,
@@ -222,6 +240,23 @@ async fn read_stdout(
         checker_name
     );
     broadcaster.clear_category(ErrorCategory::TypeCheck).await;
+}
+
+/// Enrich a DevError with a code snippet from the source file.
+fn enrich_with_snippet(error: DevError, root_dir: &std::path::Path) -> DevError {
+    if error.code_snippet.is_some() {
+        return error;
+    }
+    if let (Some(ref file), Some(line)) = (&error.file, error.line) {
+        let file_path = root_dir.join(file);
+        if let Ok(source) = std::fs::read_to_string(&file_path) {
+            let snippet = crate::errors::categories::extract_snippet(&source, line, 2);
+            if !snippet.is_empty() {
+                return error.with_snippet(snippet);
+            }
+        }
+    }
+    error
 }
 
 /// Read stderr lines and report fatal errors.

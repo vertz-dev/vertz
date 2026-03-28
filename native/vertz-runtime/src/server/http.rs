@@ -555,6 +555,7 @@ pub async fn start_server(config: ServerConfig) -> io::Result<()> {
                     &binary,
                     config.tsconfig_path.as_deref(),
                     state.error_broadcaster.clone(),
+                    Some(config.root_dir.clone()),
                 )
                 .await
                 {

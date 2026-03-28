@@ -182,6 +182,54 @@ pub fn suggest_runtime_fix(message: &str) -> Option<String> {
     None
 }
 
+/// Generate a fix suggestion for a TypeScript type-check error.
+///
+/// Only provides suggestions for errors where the fix is NOT obvious from the
+/// error message itself. Self-explanatory errors (e.g., TS2322 "type X is not
+/// assignable to type Y") get no suggestion — the error message is sufficient.
+pub fn suggest_typecheck_fix(ts_code: u32) -> Option<String> {
+    match ts_code {
+        // TS2307: Cannot find module 'X' or its corresponding type declarations.
+        2307 => Some(
+            "Check the import path and ensure the package is installed. \
+             For untyped packages, install @types/<package>."
+                .into(),
+        ),
+        // TS2304: Cannot find name 'X'.
+        2304 => Some(
+            "Check that the variable is imported or declared. \
+             If it's a global (e.g., `process`, `Buffer`), install the appropriate @types package."
+                .into(),
+        ),
+        // TS2345: Argument of type 'X' is not assignable to parameter of type 'Y'.
+        2345 => Some(
+            "Check the function signature and verify the argument types match. \
+             The function may expect a more specific type than what's being passed."
+                .into(),
+        ),
+        // TS7006: Parameter 'x' implicitly has an 'any' type.
+        7006 => Some("Add an explicit type annotation to this parameter.".into()),
+        // TS2339: Property 'X' does not exist on type 'Y'.
+        2339 => Some(
+            "The property doesn't exist on this type. Check spelling, \
+             or verify the object's type is what you expect."
+                .into(),
+        ),
+        // TS2551: Property 'X' does not exist on type 'Y'. Did you mean 'Z'?
+        2551 => Some(
+            "Check the property name — TypeScript suggests a similar name in the error.".into(),
+        ),
+        // TS1259: Module '"X"' can only be default-imported using the 'esModuleInterop' flag.
+        1259 => Some(
+            "Add `\"esModuleInterop\": true` to your tsconfig.json compilerOptions, \
+             or use `import * as X from 'X'` instead."
+                .into(),
+        ),
+        // Self-explanatory errors (TS2322, etc.) — no suggestion
+        _ => None,
+    }
+}
+
 // ── Helpers ──────────────────────────────────────────────────────
 
 /// Extract a module name from error messages like "Cannot find module './foo'"
@@ -308,6 +356,65 @@ mod tests {
             Some("./foo".to_string())
         );
         assert_eq!(extract_quoted("no quotes here", "'", "'"), None);
+    }
+
+    // ── TypeCheck suggestions ──
+
+    #[test]
+    fn test_suggest_typecheck_ts2307_cannot_find_module() {
+        let suggestion = suggest_typecheck_fix(2307);
+        assert!(suggestion.is_some());
+        assert!(suggestion.unwrap().contains("import path"));
+    }
+
+    #[test]
+    fn test_suggest_typecheck_ts2304_cannot_find_name() {
+        let suggestion = suggest_typecheck_fix(2304);
+        assert!(suggestion.is_some());
+        assert!(suggestion.unwrap().contains("imported or declared"));
+    }
+
+    #[test]
+    fn test_suggest_typecheck_ts2345_argument_type_mismatch() {
+        let suggestion = suggest_typecheck_fix(2345);
+        assert!(suggestion.is_some());
+        assert!(suggestion.unwrap().contains("function signature"));
+    }
+
+    #[test]
+    fn test_suggest_typecheck_ts7006_implicit_any() {
+        let suggestion = suggest_typecheck_fix(7006);
+        assert!(suggestion.is_some());
+        assert!(suggestion.unwrap().contains("type annotation"));
+    }
+
+    #[test]
+    fn test_suggest_typecheck_ts2339_property_not_exist() {
+        let suggestion = suggest_typecheck_fix(2339);
+        assert!(suggestion.is_some());
+        assert!(suggestion.unwrap().contains("property"));
+    }
+
+    #[test]
+    fn test_suggest_typecheck_ts2551_did_you_mean() {
+        let suggestion = suggest_typecheck_fix(2551);
+        assert!(suggestion.is_some());
+        assert!(suggestion.unwrap().contains("similar name"));
+    }
+
+    #[test]
+    fn test_suggest_typecheck_ts1259_esmodule_interop() {
+        let suggestion = suggest_typecheck_fix(1259);
+        assert!(suggestion.is_some());
+        assert!(suggestion.unwrap().contains("esModuleInterop"));
+    }
+
+    #[test]
+    fn test_suggest_typecheck_self_explanatory_returns_none() {
+        // TS2322: Type 'X' is not assignable to type 'Y' — self-explanatory
+        assert!(suggest_typecheck_fix(2322).is_none());
+        // Unknown codes
+        assert!(suggest_typecheck_fix(9999).is_none());
     }
 
     #[test]
