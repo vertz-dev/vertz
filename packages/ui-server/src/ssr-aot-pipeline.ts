@@ -56,6 +56,8 @@ export interface AotRouteEntry {
   holes: string[];
   /** Query cache keys this route reads via ctx.getData(). */
   queryKeys?: string[];
+  /** Pre-filtered CSS rules for this route, determined at build time (#1988). */
+  css?: string[];
 }
 
 /**
@@ -68,9 +70,6 @@ export interface AotManifest {
   routes: Record<string, AotRouteEntry>;
   /** Root layout (App) entry — wraps page content via its RouterView hole. */
   app?: AotRouteEntry;
-  /** Extracted CSS from static css() calls, embedded at build time (#1989).
-   *  Used as the primary component CSS source instead of getInjectedCSS() fallback. */
-  css?: string[];
 }
 
 /**
@@ -385,8 +384,9 @@ export async function ssrRenderAot(
       }
     }
 
-    // 6. Collect CSS — use manifest CSS as primary source (#1989), filter fallback (#1988)
-    const css = collectCSSFromModule(module, html, options.fallbackMetrics, aotManifest.css);
+    // 6. Collect CSS — per-route CSS is pre-filtered at build time (#1988, #1989)
+    const routeCss = mergeRouteCss(aotEntry.css, aotManifest.app?.css);
+    const css = collectCSSFromModule(module, html, options.fallbackMetrics, routeCss);
 
     // 7. Build ssrData from query cache
     const ssrData: Array<{ key: string; data: unknown }> = [];
@@ -507,21 +507,35 @@ function ensureDomShim(): void {
   installDomShim();
 }
 
+/** Merge route CSS + app CSS into a single deduplicated array. Cheap O(n) concat. */
+function mergeRouteCss(routeCss?: string[], appCss?: string[]): string[] | undefined {
+  if (!routeCss && !appCss) return undefined;
+  if (!appCss) return routeCss;
+  if (!routeCss) return appCss;
+  // Deduplicate in case app and route share rules
+  const seen = new Set(appCss);
+  const merged = [...appCss];
+  for (const rule of routeCss) {
+    if (!seen.has(rule)) merged.push(rule);
+  }
+  return merged;
+}
+
 /**
- * Collect CSS from module theme + styles + injected CSS.
+ * Collect CSS from module theme + styles + component CSS.
  *
- * When `manifestCss` is provided (AOT builds), it's used as the primary
- * component CSS source — avoiding dependence on runtime getInjectedCSS() (#1989)
- * and eliminating dead theme component CSS (#1988).
+ * When `routeCss` is provided (AOT builds with per-route CSS), it's used
+ * directly — no runtime filtering needed. The CSS was pre-filtered at build
+ * time by scanning `__ssr_*` function code for class name references (#1988).
  *
- * Falls back to getInjectedCSS() + HTML-based filtering when manifest CSS
+ * Falls back to getInjectedCSS() + HTML-based filtering when route CSS
  * is not available (dev mode, non-AOT paths).
  */
 function collectCSSFromModule(
   module: SSRModule,
   renderedHtml: string,
   fallbackMetrics?: Record<string, FontFallbackMetrics>,
-  manifestCss?: string[],
+  routeCss?: string[],
 ): { cssString: string; preloadTags: string } {
   let themeCss = '';
   let preloadTags = '';
@@ -547,21 +561,10 @@ function collectCSSFromModule(
 
   let componentCss: string[];
 
-  if (manifestCss && manifestCss.length > 0) {
-    // AOT path: use manifest CSS as the primary source (#1989).
-    // This CSS was extracted at compile time — individual rule blocks for
-    // fine-grained per-rule filtering (#1988).
-    const dedupedManifest = manifestCss.filter((s) => !alreadyIncluded.has(s));
-
-    // Supplement with getInjectedCSS() for CSS not captured at compile time
-    // (e.g., variants() lazily compiled, keyframes() from theme primitives).
-    const injected = module.getInjectedCSS?.() ?? [];
-    const manifestSet = new Set(manifestCss);
-    const supplemental = injected.filter((s) => !alreadyIncluded.has(s) && !manifestSet.has(s));
-    const allCandidate = [...dedupedManifest, ...supplemental];
-
-    // Filter ALL component CSS by HTML usage — eliminates dead selectors (#1988)
-    componentCss = renderedHtml ? filterCSSByHTML(renderedHtml, allCandidate) : allCandidate;
+  if (routeCss && routeCss.length > 0) {
+    // AOT path: per-route CSS was pre-filtered at build time (#1988, #1989).
+    // Use directly — zero runtime filtering overhead.
+    componentCss = routeCss.filter((s) => !alreadyIncluded.has(s));
   } else {
     // Fallback path: use render-scoped tracker or global getInjectedCSS()
     const ssrCtx = ssrStorage.getStore();

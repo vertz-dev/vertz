@@ -323,6 +323,7 @@ ${modulepreloadLinks}
 
     try {
       const {
+        attachPerRouteCss,
         buildAotRouteMap,
         extractRoutes,
         findAppComponent,
@@ -356,6 +357,9 @@ ${modulepreloadLinks}
             const routeCount = Object.keys(routeMap).length;
 
             if (routeCount > 0) {
+              // Attach per-route CSS at build time — no runtime filtering needed (#1988)
+              attachPerRouteCss(aotManifest.compiledFiles, routeMap, appEntry);
+
               // Generate barrel + temp files and bundle with Bun.build()
               const barrel = generateAotBarrel(aotManifest.compiledFiles, routeMap, appEntry);
               const aotTmpDir = resolve(distServer, '.aot-tmp');
@@ -411,11 +415,10 @@ ${modulepreloadLinks}
                   `  AOT routes: ${routeCount} route(s)${appLabel} bundled → dist/server/aot-routes.js`,
                 );
 
-                // Write aot-manifest.json with route mapping + app entry + extracted CSS (#1989)
+                // Write aot-manifest.json — per-route CSS is embedded in each route entry (#1988)
                 const manifestPath = resolve(distServer, 'aot-manifest.json');
                 const manifestData: Record<string, unknown> = { routes: routeMap };
                 if (appEntry) manifestData.app = appEntry;
-                if (aotManifest.css.length > 0) manifestData.css = aotManifest.css;
                 writeFileSync(manifestPath, JSON.stringify(manifestData, null, 2));
               } else {
                 const errors = bundleResult.logs

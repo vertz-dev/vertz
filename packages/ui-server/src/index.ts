@@ -9,6 +9,7 @@ export type {
   AotRouteMapEntry,
 } from './aot-manifest-build';
 export {
+  attachPerRouteCss,
   buildAotRouteMap,
   findAppComponent,
   generateAotBarrel,

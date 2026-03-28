@@ -38,6 +38,9 @@ export interface AotRouteMapEntry {
   queryKeys: string[];
   /** Route param names referenced in queryKeys. Present only when queryKeys have ${...} placeholders. */
   paramBindings?: string[];
+  /** Pre-filtered CSS rules for this route, determined at build time (#1988).
+   *  Includes only rules whose class selectors appear in the component's __ssr_* function. */
+  css?: string[];
 }
 
 export interface AotBuildManifest {
@@ -301,6 +304,82 @@ export function findAppComponent(
     }
   }
   return undefined;
+}
+
+/**
+ * Attach pre-filtered CSS rules to each route entry at build time (#1988).
+ *
+ * Scans each route's `__ssr_*` function code for `_[0-9a-f]{8}` class name
+ * references, looks up matching CSS rules from compiled files, and stores
+ * the result directly on the route entry. This eliminates the need for
+ * expensive per-request HTML scanning + CSS filtering at render time.
+ *
+ * Also attaches CSS to the app entry (root layout) so the runtime can
+ * merge app + route CSS with a simple concat.
+ */
+export function attachPerRouteCss(
+  compiledFiles: Record<string, AotCompiledFile>,
+  routeMap: Record<string, AotRouteMapEntry>,
+  appEntry?: AotRouteMapEntry,
+): void {
+  // 1. Build className → CSS rule map from all compiled files
+  const classToRule = new Map<string, string>();
+  for (const file of Object.values(compiledFiles)) {
+    if (!file.css) continue;
+    for (const rule of file.css) {
+      const match = /\.(_[0-9a-f]{8})/.exec(rule);
+      if (match) classToRule.set(match[1]!, rule);
+    }
+  }
+
+  if (classToRule.size === 0) return;
+
+  // 2. Build componentName → __ssr_* function code
+  const componentCode = new Map<string, string>();
+  for (const file of Object.values(compiledFiles)) {
+    for (const comp of file.components) {
+      const fnName = `__ssr_${comp.name}`;
+      const code = extractSsrFunctions(file.code, [fnName]);
+      if (code) componentCode.set(comp.name, code);
+    }
+  }
+
+  // 3. Helper: find CSS rules referenced by a function's class names
+  const classNamePattern = /_([\da-f]{8})/g;
+  function findUsedCss(code: string): string[] {
+    const rules: string[] = [];
+    const seen = new Set<string>();
+    let m: RegExpExecArray | null;
+    while ((m = classNamePattern.exec(code)) !== null) {
+      const cls = `_${m[1]}`;
+      if (seen.has(cls)) continue;
+      seen.add(cls);
+      const rule = classToRule.get(cls);
+      if (rule) rules.push(rule);
+    }
+    classNamePattern.lastIndex = 0;
+    return rules;
+  }
+
+  // 4. Attach CSS to app entry
+  if (appEntry) {
+    const appName = appEntry.renderFn.replace(/^__ssr_/, '');
+    const appCode = componentCode.get(appName);
+    if (appCode) {
+      const appCss = findUsedCss(appCode);
+      if (appCss.length > 0) appEntry.css = appCss;
+    }
+  }
+
+  // 5. Attach per-route CSS (route component only — app CSS merged at runtime)
+  for (const entry of Object.values(routeMap)) {
+    const compName = entry.renderFn.replace(/^__ssr_/, '');
+    const code = componentCode.get(compName);
+    if (code) {
+      const routeCss = findUsedCss(code);
+      if (routeCss.length > 0) entry.css = routeCss;
+    }
+  }
 }
 
 /** Recursively collect all .tsx files in a directory. */

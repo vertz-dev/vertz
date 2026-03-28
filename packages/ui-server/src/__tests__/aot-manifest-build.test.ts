@@ -7,6 +7,7 @@ import type {
   AotRouteMapEntry,
 } from '../aot-manifest-build';
 import {
+  attachPerRouteCss,
   buildAotRouteMap,
   findAppComponent,
   generateAotBarrel,
@@ -600,5 +601,98 @@ describe('generateAotBarrel', () => {
       expect(pagesFile).not.toContain('import { query }');
       expect(pagesFile).not.toContain('function HomePage()');
     });
+  });
+});
+
+describe('attachPerRouteCss', () => {
+  it('attaches CSS rules whose class names appear in the __ssr_* function code', () => {
+    const compiledFiles: Record<string, AotCompiledFile> = {
+      'src/page.tsx': {
+        code: `
+original source code...
+export function __ssr_Page(data: Record<string, unknown>, ctx: any): string {
+  return '<div class="_aabb1122"><h1 class="_ccdd3344">Hello</h1></div>';
+}`,
+        components: [{ name: 'Page', tier: 'static', holes: [], queryKeys: [] }],
+        css: [
+          '._aabb1122 {\n  padding: 1rem;\n}',
+          '._ccdd3344 {\n  font-size: 1.5rem;\n}',
+          '._eeff5566 {\n  margin: 2rem;\n}', // not referenced in __ssr_Page
+        ],
+      },
+    };
+
+    const routeMap: Record<string, AotRouteMapEntry> = {
+      '/': { renderFn: '__ssr_Page', holes: [], queryKeys: [] },
+    };
+
+    attachPerRouteCss(compiledFiles, routeMap);
+
+    expect(routeMap['/']!.css).toBeDefined();
+    expect(routeMap['/']!.css).toHaveLength(2);
+    expect(routeMap['/']!.css).toContain('._aabb1122 {\n  padding: 1rem;\n}');
+    expect(routeMap['/']!.css).toContain('._ccdd3344 {\n  font-size: 1.5rem;\n}');
+    // Dead CSS not included
+    expect(routeMap['/']!.css).not.toContain('._eeff5566');
+  });
+
+  it('attaches app CSS separately from route CSS', () => {
+    const compiledFiles: Record<string, AotCompiledFile> = {
+      'src/app.tsx': {
+        code: `
+export function __ssr_App(data: Record<string, unknown>, ctx: any): string {
+  return '<div class="_aa001111">' + ctx.holes.RouterView() + '</div>';
+}`,
+        components: [{ name: 'App', tier: 'static', holes: ['RouterView'], queryKeys: [] }],
+        css: ['._aa001111 {\n  display: flex;\n}'],
+      },
+      'src/home.tsx': {
+        code: `
+export function __ssr_Home(data: Record<string, unknown>, ctx: any): string {
+  return '<main class="_bb002222">Welcome</main>';
+}`,
+        components: [{ name: 'Home', tier: 'static', holes: [], queryKeys: [] }],
+        css: ['._bb002222 {\n  padding: 2rem;\n}'],
+      },
+    };
+
+    const routeMap: Record<string, AotRouteMapEntry> = {
+      '/': { renderFn: '__ssr_Home', holes: [], queryKeys: [] },
+    };
+
+    const appEntry: AotRouteMapEntry = {
+      renderFn: '__ssr_App',
+      holes: ['RouterView'],
+      queryKeys: [],
+    };
+
+    attachPerRouteCss(compiledFiles, routeMap, appEntry);
+
+    // App entry gets its own CSS
+    expect(appEntry.css).toEqual(['._aa001111 {\n  display: flex;\n}']);
+
+    // Route gets only its own CSS (app CSS merged at runtime)
+    expect(routeMap['/']!.css).toEqual(['._bb002222 {\n  padding: 2rem;\n}']);
+  });
+
+  it('skips routes with no matching CSS', () => {
+    const compiledFiles: Record<string, AotCompiledFile> = {
+      'src/plain.tsx': {
+        code: `
+export function __ssr_Plain(data: Record<string, unknown>, ctx: any): string {
+  return '<div>No CSS</div>';
+}`,
+        components: [{ name: 'Plain', tier: 'static', holes: [], queryKeys: [] }],
+        // No CSS
+      },
+    };
+
+    const routeMap: Record<string, AotRouteMapEntry> = {
+      '/plain': { renderFn: '__ssr_Plain', holes: [], queryKeys: [] },
+    };
+
+    attachPerRouteCss(compiledFiles, routeMap);
+
+    expect(routeMap['/plain']!.css).toBeUndefined();
   });
 });

@@ -462,54 +462,81 @@ describe('Feature: Runtime holes and SSR integration', () => {
       });
     });
 
-    describe('Given a manifest with CSS rule blocks (#1988, #1989)', () => {
-      describe('When ssrRenderAot() collects CSS with manifest CSS', () => {
-        it('Then only CSS rules whose class selectors appear in the HTML are included', async () => {
+    describe('Given per-route CSS in the manifest (#1988, #1989)', () => {
+      describe('When ssrRenderAot() collects CSS', () => {
+        it('Then per-route CSS is used directly without runtime filtering', async () => {
           const aotFn: AotRenderFn = () =>
             '<div class="_used1234"><span class="_used5678">Content</span></div>';
 
           const module = createMockModule();
           const aotManifest: AotManifest = {
             routes: {
-              '/page': { render: aotFn, holes: [] },
+              '/page': {
+                render: aotFn,
+                holes: [],
+                // Only the CSS needed by this route — pre-filtered at build time
+                css: [
+                  '._used1234 {\n  padding: 1rem;\n}',
+                  '._used5678 {\n  color: blue;\n}',
+                ],
+              },
             },
-            // Individual CSS rule blocks — some used, some dead
-            css: [
-              '._used1234 {\n  padding: 1rem;\n}',
-              '._used5678 {\n  color: blue;\n}',
-              '._deadbeef {\n  margin: 2rem;\n}',
-              '._deadcafe {\n  opacity: 0.5;\n}',
-            ],
           };
 
           const result = await ssrRenderAot(module, '/page', { aotManifest });
 
-          // Used CSS should be present
+          // Per-route CSS should be present
           expect(result.css).toContain('_used1234');
           expect(result.css).toContain('_used5678');
-          // Dead CSS should be filtered out
-          expect(result.css).not.toContain('_deadbeef');
-          expect(result.css).not.toContain('_deadcafe');
+          expect(result.css).toContain('padding: 1rem');
         });
 
-        it('Then manifest CSS works as primary source even without getInjectedCSS()', async () => {
-          // Simulates workerd: getInjectedCSS is undefined (tree-shaken)
+        it('Then per-route CSS works without getInjectedCSS() (workerd)', async () => {
           const aotFn: AotRenderFn = () => '<div class="_abc12345">Styled</div>';
 
           const module = createMockModule();
-          // No getInjectedCSS — simulates non-Bun bundler environment
           delete (module as Record<string, unknown>).getInjectedCSS;
 
           const aotManifest: AotManifest = {
             routes: {
-              '/styled': { render: aotFn, holes: [] },
+              '/styled': {
+                render: aotFn,
+                holes: [],
+                css: ['._abc12345 {\n  background: red;\n}'],
+              },
             },
-            css: ['._abc12345 {\n  background: red;\n}'],
           };
 
           const result = await ssrRenderAot(module, '/styled', { aotManifest });
           expect(result.css).toContain('_abc12345');
           expect(result.css).toContain('background: red');
+        });
+
+        it('Then app CSS and route CSS are merged', async () => {
+          const pageFn: AotRenderFn = () => '<main class="_page1234">Page</main>';
+          const appFn: AotRenderFn = (_data, ctx) =>
+            `<div class="_app56789">${ctx.holes.RouterView?.() ?? ''}</div>`;
+
+          const module = createMockModule();
+          const aotManifest: AotManifest = {
+            routes: {
+              '/': {
+                render: pageFn,
+                holes: [],
+                css: ['._page1234 {\n  padding: 2rem;\n}'],
+              },
+            },
+            app: {
+              render: appFn,
+              holes: ['RouterView'],
+              css: ['._app56789 {\n  display: flex;\n}'],
+            },
+          };
+
+          const result = await ssrRenderAot(module, '/', { aotManifest });
+          // Both app and route CSS should be present
+          expect(result.css).toContain('_app56789');
+          expect(result.css).toContain('_page1234');
         });
       });
     });

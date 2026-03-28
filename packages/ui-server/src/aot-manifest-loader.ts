@@ -13,8 +13,6 @@ import type { AotManifest, AotRenderFn, AotRouteEntry } from './ssr-aot-pipeline
 interface AotManifestJson {
   routes: Record<string, AotRouteMapEntry>;
   app?: AotRouteMapEntry;
-  /** Extracted CSS from static css() calls (#1989). */
-  css?: string[];
 }
 
 /**
@@ -66,6 +64,7 @@ export async function loadAotManifest(serverDir: string): Promise<AotManifest | 
       render: renderFn,
       holes: entry.holes,
       queryKeys: entry.queryKeys,
+      css: entry.css,
     };
   }
 
@@ -82,9 +81,10 @@ export async function loadAotManifest(serverDir: string): Promise<AotManifest | 
         render: appRenderFn,
         holes: manifestJson.app.holes,
         queryKeys: manifestJson.app.queryKeys,
+        css: manifestJson.app.css,
       };
     }
   }
 
-  return { routes, app, css: manifestJson.css };
+  return { routes, app };
 }
