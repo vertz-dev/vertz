@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 #[derive(Debug, Clone)]
 pub struct ServerConfig {
@@ -19,7 +19,7 @@ impl ServerConfig {
     pub fn new(port: u16, host: String, public_dir: PathBuf) -> Self {
         let root_dir = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
         let src_dir = root_dir.join("src");
-        let entry_file = src_dir.join("app.tsx");
+        let entry_file = detect_entry_file(&src_dir);
         Self {
             port,
             host,
@@ -34,7 +34,7 @@ impl ServerConfig {
     /// Create a config with explicit root directory (for testing).
     pub fn with_root(port: u16, host: String, public_dir: PathBuf, root_dir: PathBuf) -> Self {
         let src_dir = root_dir.join("src");
-        let entry_file = src_dir.join("app.tsx");
+        let entry_file = detect_entry_file(&src_dir);
         Self {
             port,
             host,
@@ -60,6 +60,30 @@ impl ServerConfig {
     pub fn css_dir(&self) -> PathBuf {
         self.dot_vertz_dir().join("css")
     }
+}
+
+/// Detect the client entry file by checking common names in order of priority.
+fn detect_entry_file(src_dir: &Path) -> PathBuf {
+    let candidates = [
+        "entry-client.ts",
+        "entry-client.tsx",
+        "main.ts",
+        "main.tsx",
+        "index.ts",
+        "index.tsx",
+        "app.tsx",
+        "app.ts",
+    ];
+
+    for candidate in &candidates {
+        let path = src_dir.join(candidate);
+        if path.exists() {
+            return path;
+        }
+    }
+
+    // Default fallback
+    src_dir.join("app.tsx")
 }
 
 #[cfg(test)]
