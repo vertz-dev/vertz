@@ -366,11 +366,13 @@ mod tests {
     fn test_category_badges() {
         let build = DevError::build("err");
         let resolve = DevError::resolve("err");
+        let typecheck = DevError::typecheck("err");
         let ssr = DevError::ssr("err");
         let runtime = DevError::runtime("err");
 
         assert!(format_error(&build, None).contains("BUILD ERROR"));
         assert!(format_error(&resolve, None).contains("RESOLVE ERROR"));
+        assert!(format_error(&typecheck, None).contains("TYPECHECK ERROR"));
         assert!(format_error(&ssr, None).contains("SSR ERROR"));
         assert!(format_error(&runtime, None).contains("RUNTIME ERROR"));
     }

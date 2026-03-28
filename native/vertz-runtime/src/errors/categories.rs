@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 /// Error category with priority ordering.
 ///
 /// Higher-priority errors suppress lower-priority ones.
-/// Order: Build > Resolve > Ssr > Runtime
+/// Order: Build > Resolve > TypeCheck > Ssr > Runtime
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum ErrorCategory {
@@ -46,7 +46,7 @@ impl std::fmt::Display for ErrorCategory {
 /// A structured dev server error with source location and context.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct DevError {
-    /// Error category (build, resolve, ssr, runtime).
+    /// Error category (build, resolve, typecheck, ssr, runtime).
     pub category: ErrorCategory,
     /// Human-readable error message.
     pub message: String,
