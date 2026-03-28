@@ -1,4 +1,4 @@
-import { css, Island, keyframes } from '@vertz/ui';
+import { css, Island, keyframes, onMount } from '@vertz/ui';
 import { ComposedList as List } from '@vertz/ui-primitives';
 
 const listEnter = keyframes('todo-enter', {
@@ -54,9 +54,11 @@ const s = css({
     'px:6',
     'min-h:screen',
     {
+      '&': { 'padding-top': '5rem' },
       '@media (min-width: 1024px)': {
         'padding-left': '3rem',
         'padding-right': '3rem',
+        'padding-top': '0',
       },
     },
   ],
@@ -461,13 +463,54 @@ function MiniTodoApp() {
     }, 50);
   }
 
+  function flashGlow(selector: string) {
+    const el = document.querySelector<HTMLElement>(selector);
+    if (!el) return;
+    el.style.transition = 'none';
+    el.style.opacity = '1';
+    void el.offsetHeight;
+    el.style.transition = 'opacity 0.8s ease-out';
+    el.style.opacity = '0';
+  }
+
   function addTodo() {
     if (!inputValue.trim()) return;
     todos = [...todos, { id: nextId, text: inputValue.trim(), done: false }];
     nextId = nextId + 1;
     inputValue = '';
     deferUpdateFade();
+    flashGlow('[data-hero-flash]');
   }
+
+  // ── Simulated peer activity ──────────────────────────────
+  const PEER_ITEMS = [
+    'Set up authentication',
+    'Add dark mode toggle',
+    'Write integration tests',
+    'Configure CI pipeline',
+    'Create API docs',
+    'Optimize bundle size',
+    'Add error boundaries',
+    'Set up monitoring',
+  ];
+  let peerItemIndex = 0;
+
+  onMount(() => {
+    function schedulePeer() {
+      const delay = 6000 + Math.random() * 8000; // 6-14s
+      return setTimeout(() => {
+        const text = PEER_ITEMS[peerItemIndex % PEER_ITEMS.length];
+        peerItemIndex++;
+        todos = [...todos, { id: nextId, text, done: false }];
+        nextId = nextId + 1;
+        deferUpdateFade();
+        flashGlow('[data-hero-flash-peer]');
+        timerId = schedulePeer();
+      }, delay);
+    }
+    let timerId = schedulePeer();
+    return () => clearTimeout(timerId);
+  });
 
   function toggleTodo(id: number) {
     todos = todos.map((t) => (t.id === id ? { ...t, done: !t.done, toggled: true } : t));

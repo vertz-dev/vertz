@@ -4,14 +4,15 @@ import { css, Island } from '@vertz/ui';
 
 const s = css({
   section: ['py:24', 'px:6'],
-  container: ['max-w:5xl', 'mx:auto'],
+  container: ['max-w:5xl', 'mx:auto', { '&': { 'overflow': 'hidden' } }],
   label: ['font:xs', 'tracking:widest', 'uppercase', 'mb:4', 'text:center'],
-  heading: ['font:4xl', 'mb:4', 'text:center'],
-  subtitle: ['text:center', 'mb:16', 'max-w:2xl', 'mx:auto'],
+  heading: ['font:2xl', 'mb:4', 'text:center', { '@media (min-width: 768px)': { 'font-size': '2.25rem' } }],
+  subtitle: ['text:center', 'mb:16', 'max-w:2xl', 'mx:auto', 'font:sm', { '@media (min-width: 768px)': { 'font-size': '1rem' } }],
   layout: [
     'grid',
     'gap:8',
     {
+      '&': { 'overflow': 'hidden' },
       '@media (min-width: 768px)': {
         'grid-template-columns': '200px 1fr',
       },
@@ -36,9 +37,9 @@ const s = css({
     },
   ],
   navBtn: [
-    'py:3',
-    'px:4',
-    'font:sm',
+    'py:2',
+    'px:3',
+    'font:xs',
     'cursor:pointer',
     {
       '&': {
@@ -50,24 +51,35 @@ const s = css({
         'font-family': 'var(--font-sans)',
         transition: 'color 0.2s, background 0.2s',
         'border-radius': '2px',
+        'flex-shrink': '0',
       },
       '@media (min-width: 768px)': {
         'border-radius': '0',
         'white-space': 'normal',
+        'font-size': '0.875rem',
+        padding: '0.75rem 1rem',
       },
     },
   ],
-  content: [{ '&': { display: 'grid', position: 'relative' } }],
-  page: ['flex', 'flex-col', 'gap:6'],
+  content: [{ '&': { display: 'grid', position: 'relative', 'min-width': '0' } }],
+  page: ['flex', 'flex-col', 'gap:6', { '&': { 'min-width': '0' } }],
   pageTag: ['font:xs', 'tracking:widest', 'uppercase'],
-  pageTitle: ['font:3xl'],
-  pageDesc: ['font:base', 'leading:relaxed'],
+  pageTitle: [
+    'font:xl',
+    {
+      '@media (min-width: 768px)': { 'font-size': '1.875rem' },
+    },
+  ],
+  pageDesc: ['font:sm', 'leading:relaxed', { '@media (min-width: 768px)': { 'font-size': '1rem' } }],
   codeWrap: [
-    'p:6',
+    'p:4',
     'border:1',
-    'font:sm',
+    'font:xs',
     'leading:relaxed',
-    { '&': { 'overflow-x': 'auto' } },
+    {
+      '&': { 'overflow-x': 'auto' },
+      '@media (min-width: 768px)': { padding: '1.5rem', 'font-size': '0.875rem' },
+    },
   ],
 });
 
