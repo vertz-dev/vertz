@@ -19,10 +19,27 @@ import {
 } from '../bun-dev-server';
 
 describe('createBunDevServer', () => {
+  // Track all servers created in tests so afterEach can stop them.
+  // Some tests trigger fire-and-forget restart() via broadcastError,
+  // which does real I/O (Bun.serve, dynamic import) that keeps the
+  // event loop alive on Linux CI runners if not properly cleaned up.
+  const servers: ReturnType<typeof createBunDevServer>[] = [];
+
+  afterEach(async () => {
+    for (const s of servers) {
+      await s.stop();
+    }
+    servers.length = 0;
+  });
+
+  function makeServer(opts?: Parameters<typeof createBunDevServer>[0]) {
+    const s = createBunDevServer({ entry: './src/app.tsx', ...opts });
+    servers.push(s);
+    return s;
+  }
+
   it('returns an object with start and stop methods', () => {
-    const server = createBunDevServer({
-      entry: './src/app.tsx',
-    });
+    const server = makeServer();
 
     expect(server).toBeDefined();
     expect(typeof server.start).toBe('function');
@@ -30,9 +47,7 @@ describe('createBunDevServer', () => {
   });
 
   it('creates server in unified SSR+HMR mode (no ssr option needed)', () => {
-    const server = createBunDevServer({
-      entry: './src/app.tsx',
-    });
+    const server = makeServer();
 
     expect(server).toBeDefined();
   });
@@ -40,7 +55,7 @@ describe('createBunDevServer', () => {
   it('accepts all configuration options', () => {
     const apiHandler = async (_req: Request) => new Response('ok');
 
-    const server = createBunDevServer({
+    const server = makeServer({
       entry: './src/app.tsx',
       port: 4000,
       host: '0.0.0.0',
@@ -59,10 +74,7 @@ describe('createBunDevServer', () => {
   });
 
   it('accepts progressiveHTML option', () => {
-    const server = createBunDevServer({
-      entry: './src/app.tsx',
-      progressiveHTML: true,
-    });
+    const server = makeServer({ entry: './src/app.tsx', progressiveHTML: true });
 
     expect(server).toBeDefined();
   });
@@ -75,35 +87,26 @@ describe('createBunDevServer', () => {
       },
     };
 
-    const server = createBunDevServer({
-      entry: './src/app.tsx',
-      plugins: [customPlugin],
-    });
+    const server = makeServer({ entry: './src/app.tsx', plugins: [customPlugin] });
 
     expect(server).toBeDefined();
   });
 
   it('stop() is safe to call before start()', async () => {
-    const server = createBunDevServer({
-      entry: './src/app.tsx',
-    });
+    const server = makeServer();
 
     // Should not throw
     await server.stop();
   });
 
   it('defaults port to 3000', () => {
-    const server = createBunDevServer({
-      entry: './src/app.tsx',
-    });
+    const server = makeServer();
 
     expect(server).toBeDefined();
   });
 
   it('defaults host to localhost', () => {
-    const server = createBunDevServer({
-      entry: './src/app.tsx',
-    });
+    const server = makeServer();
 
     expect(server).toBeDefined();
   });
@@ -111,43 +114,32 @@ describe('createBunDevServer', () => {
   it('defaults logRequests to true', () => {
     const consoleSpy = spyOn(console, 'log').mockImplementation(() => {});
 
-    const server = createBunDevServer({
-      entry: './src/app.tsx',
-    });
+    const server = makeServer();
 
     expect(server).toBeDefined();
     consoleSpy.mockRestore();
   });
 
   it('defaults skipSSRPaths to [/api/]', () => {
-    const server = createBunDevServer({
-      entry: './src/app.tsx',
-    });
+    const server = makeServer();
 
     expect(server).toBeDefined();
   });
 
   it('defaults title to Vertz App', () => {
-    const server = createBunDevServer({
-      entry: './src/app.tsx',
-      ssrModule: true,
-    });
+    const server = makeServer({ entry: './src/app.tsx', ssrModule: true });
 
     expect(server).toBeDefined();
   });
 
   it('defaults projectRoot to process.cwd()', () => {
-    const server = createBunDevServer({
-      entry: './src/app.tsx',
-    });
+    const server = makeServer();
 
     expect(server).toBeDefined();
   });
 
   it('returns an object with a restart method', () => {
-    const server = createBunDevServer({
-      entry: './src/app.tsx',
-    });
+    const server = makeServer();
 
     expect(typeof server.restart).toBe('function');
   });
@@ -155,9 +147,7 @@ describe('createBunDevServer', () => {
   it('restart() is safe to call before start()', async () => {
     const consoleSpy = spyOn(console, 'log').mockImplementation(() => {});
     const consoleErrSpy = spyOn(console, 'error').mockImplementation(() => {});
-    const server = createBunDevServer({
-      entry: './src/app.tsx',
-    });
+    const server = makeServer();
 
     // Should not throw — restart handles the case where server is not running
     await server.restart();
@@ -168,10 +158,7 @@ describe('createBunDevServer', () => {
   it('broadcastError auto-triggers restart for stale-graph runtime errors', async () => {
     const logSpy = spyOn(console, 'log').mockImplementation(() => {});
     const errSpy = spyOn(console, 'error').mockImplementation(() => {});
-    const server = createBunDevServer({
-      entry: './src/app.tsx',
-      logRequests: true,
-    });
+    const server = makeServer({ entry: './src/app.tsx', logRequests: true });
 
     // Call broadcastError with a stale-graph runtime error
     server.broadcastError('runtime', [
@@ -194,10 +181,7 @@ describe('createBunDevServer', () => {
   it('broadcastError still broadcasts stale-graph errors even when restart cap is reached', () => {
     const logSpy = spyOn(console, 'log').mockImplementation(() => {});
     const errSpy = spyOn(console, 'error').mockImplementation(() => {});
-    const server = createBunDevServer({
-      entry: './src/app.tsx',
-      logRequests: true,
-    });
+    const server = makeServer({ entry: './src/app.tsx', logRequests: true });
 
     const staleError = [{ message: "Export named 'Button' not found in module './components'" }];
 
@@ -219,10 +203,7 @@ describe('createBunDevServer', () => {
   it('broadcastError does not auto-restart for non-stale-graph runtime errors', () => {
     const logSpy = spyOn(console, 'log').mockImplementation(() => {});
     const errSpy = spyOn(console, 'error').mockImplementation(() => {});
-    const server = createBunDevServer({
-      entry: './src/app.tsx',
-      logRequests: true,
-    });
+    const server = makeServer({ entry: './src/app.tsx', logRequests: true });
 
     // Call broadcastError with a normal runtime error
     server.broadcastError('runtime', [{ message: "Cannot read property 'foo' of undefined" }]);
@@ -243,10 +224,7 @@ describe('createBunDevServer', () => {
     // run for both concurrent calls. 30s timeout accommodates slow CI runners.
     const logSpy = spyOn(console, 'log').mockImplementation(() => {});
     const errSpy = spyOn(console, 'error').mockImplementation(() => {});
-    const server = createBunDevServer({
-      entry: './src/app.tsx',
-      logRequests: true,
-    });
+    const server = makeServer({ entry: './src/app.tsx', logRequests: true });
 
     // Fire two concurrent restarts
     const first = server.restart();
@@ -264,9 +242,7 @@ describe('createBunDevServer', () => {
   }, 30_000);
 
   it('stop() can be called multiple times safely', async () => {
-    const server = createBunDevServer({
-      entry: './src/app.tsx',
-    });
+    const server = makeServer();
 
     await server.stop();
     await server.stop();
