@@ -1,5 +1,7 @@
 use std::path::{Path, PathBuf};
 
+use crate::deps::resolve;
+
 /// Rewrite import specifiers in compiled JavaScript for browser consumption.
 ///
 /// Transforms:
@@ -276,8 +278,15 @@ pub fn rewrite_specifier(
         return resolve_relative_specifier(specifier, file_path, src_dir, root_dir);
     }
 
-    // Bare specifiers: package names → /@deps/
-    format!("/@deps/{}", specifier)
+    // Bare specifiers: resolve via package.json exports to get full file path,
+    // so that relative imports within packages resolve correctly in the browser.
+    // e.g., `@vertz/ui/internals` → `/@deps/@vertz/ui/dist/src/internals.js`
+    //
+    // Use the file's parent directory as the resolution starting point — this matches
+    // Node.js resolution behavior and is critical for monorepos where transitive deps
+    // may be installed in a different workspace's node_modules.
+    let resolve_from = file_path.parent().unwrap_or(root_dir);
+    resolve::resolve_to_deps_url_from(specifier, root_dir, resolve_from)
 }
 
 /// Resolve a relative specifier to an absolute URL path.
@@ -293,9 +302,16 @@ fn resolve_relative_specifier(
     // Try to resolve the extension
     let with_ext = resolve_extension(&resolved, root_dir);
 
-    // Convert to a URL path relative to root_dir
+    // Convert to a URL path relative to root_dir.
+    // Files inside node_modules/ use the /@deps/ prefix so the browser
+    // routes them through the dependency handler.
     if let Ok(rel) = with_ext.strip_prefix(root_dir) {
-        format!("/{}", rel.to_string_lossy().replace('\\', "/"))
+        let rel_str = rel.to_string_lossy().replace('\\', "/");
+        if rel_str.starts_with("node_modules/") {
+            format!("/@deps/{}", &rel_str["node_modules/".len()..])
+        } else {
+            format!("/{}", rel_str)
+        }
     } else {
         // Fallback: use the specifier as-is
         specifier.to_string()

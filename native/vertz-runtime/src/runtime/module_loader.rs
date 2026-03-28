@@ -12,6 +12,7 @@ use deno_core::ModuleType;
 use deno_core::RequestedModuleType;
 use deno_core::ResolutionKind;
 
+use crate::compiler::pipeline::post_process_compiled;
 use vertz_compiler_core::CompileOptions;
 
 /// Source maps collected during module loading.
@@ -56,8 +57,9 @@ impl VertzModuleLoader {
             return self.resolve_with_extensions(&resolved);
         }
 
-        // Bare specifiers: try node_modules resolution
-        self.resolve_node_module(specifier)
+        // Bare specifiers: try node_modules resolution starting from referrer
+        let referrer_dir = referrer_path.parent().unwrap_or(&self.root_dir);
+        self.resolve_node_module(specifier, referrer_dir)
     }
 
     /// Try to resolve a path by appending common extensions if needed.
@@ -94,7 +96,10 @@ impl VertzModuleLoader {
     }
 
     /// Resolve a bare specifier through node_modules.
-    fn resolve_node_module(&self, specifier: &str) -> Result<PathBuf, AnyError> {
+    ///
+    /// Searches from `start_dir` upward (Node.js-style resolution), then falls
+    /// back to Bun's `.bun/node_modules/` cache directory.
+    fn resolve_node_module(&self, specifier: &str, start_dir: &Path) -> Result<PathBuf, AnyError> {
         // Split package name from subpath
         let (package_name, subpath) = if specifier.starts_with('@') {
             // Scoped package: @scope/pkg or @scope/pkg/subpath
@@ -119,13 +124,34 @@ impl VertzModuleLoader {
             (parts[0].to_string(), parts.get(1).map(|s| s.to_string()))
         };
 
-        // Walk up from root_dir looking for node_modules
-        let mut search_dir = self.root_dir.clone();
+        // Walk up from referrer's directory looking for node_modules (Node.js-style)
+        let mut search_dir = start_dir.to_path_buf();
         loop {
             let nm_dir = search_dir.join("node_modules").join(&package_name);
+            if nm_dir.is_symlink() {
+                // Follow symlinks (Bun creates symlinks in workspace packages)
+                let canonical = nm_dir.canonicalize().unwrap_or(nm_dir);
+                return self.resolve_package_entry(&canonical, subpath.as_deref());
+            }
             if nm_dir.is_dir() {
-                // Found the package — resolve entry point
                 return self.resolve_package_entry(&nm_dir, subpath.as_deref());
+            }
+
+            if !search_dir.pop() {
+                break;
+            }
+        }
+
+        // Fallback: check Bun's internal cache directory (node_modules/.bun/node_modules/)
+        let mut search_dir = self.root_dir.clone();
+        loop {
+            let bun_cache = search_dir
+                .join("node_modules")
+                .join(".bun")
+                .join("node_modules")
+                .join(&package_name);
+            if bun_cache.is_dir() {
+                return self.resolve_package_entry(&bun_cache, subpath.as_deref());
             }
 
             if !search_dir.pop() {
@@ -136,7 +162,7 @@ impl VertzModuleLoader {
         Err(deno_core::anyhow::anyhow!(
             "Cannot find module '{}' in node_modules (searched from {})",
             specifier,
-            self.root_dir.display()
+            start_dir.display()
         ))
     }
 
@@ -246,7 +272,28 @@ impl VertzModuleLoader {
                 .insert(filename.to_string(), map.clone());
         }
 
-        Ok(result.code)
+        // Apply the same post-processing as the browser pipeline:
+        // fix API names, split internal imports, strip leftover TS, deduplicate imports
+        let mut code = post_process_compiled(&result.code);
+
+        // Inject extracted CSS for SSR collection.
+        // The compiler extracts `css()` calls into static class-name objects and returns
+        // the generated CSS separately. For SSR, we need this CSS to be collected by
+        // the DOM shim's `__vertz_inject_css()` so it ends up in the HTML `<head>`.
+        if let Some(ref css) = result.css {
+            let escaped = css
+                .replace('\\', "\\\\")
+                .replace('`', "\\`")
+                .replace("${", "\\${");
+            code = format!(
+                "if (typeof __vertz_inject_css === 'function') {{ __vertz_inject_css(`{}`, '{}'); }}\n{}",
+                escaped,
+                filename.replace('\\', "/"),
+                code
+            );
+        }
+
+        Ok(code)
     }
 }
 
