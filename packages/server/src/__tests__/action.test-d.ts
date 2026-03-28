@@ -1,11 +1,12 @@
 import { describe, expectTypeOf, it } from 'bun:test';
 import { d } from '@vertz/db';
 import { s } from '@vertz/schema';
+import { action } from '../action';
 import { content } from '../content';
 import { entity } from '../entity/entity';
+import { response } from '../response';
 import { service } from '../service/service';
 import type { ServiceContext } from '../service/types';
-import { action } from '../action';
 
 // ---------------------------------------------------------------------------
 // Fixtures
@@ -178,21 +179,66 @@ describe('Feature: action() helper types input from body schema', () => {
   });
 
   describe('Given action() with ResponseDescriptor return', () => {
-    describe('When handler returns response({ data: wrongShape })', () => {
-      it('Then compile error on mismatched data', () => {
-        // Valid usage — response() with correct shape compiles
-        service('test', {
-          actions: {
-            valid: action({
-              body: s.object({ id: s.uuid() }),
-              response: s.object({ ok: s.boolean() }),
-              handler: async (_input) => {
-                // Using inline object — this must match TOutput
-                return { ok: true };
-              },
-            }),
-          },
-        });
+    it('Then response() with correct shape compiles', () => {
+      service('test', {
+        actions: {
+          valid: action({
+            body: s.object({ id: s.uuid() }),
+            response: s.object({ ok: s.boolean() }),
+            handler: async (_input) => {
+              return response({ ok: true });
+            },
+          }),
+        },
+      });
+    });
+
+    it('Then response() with wrong shape is a compile error', () => {
+      service('test', {
+        actions: {
+          invalid: action({
+            body: s.object({ id: s.uuid() }),
+            response: s.object({ ok: s.boolean() }),
+            // @ts-expect-error — response({ wrong: true }) doesn't match { ok: boolean }
+            handler: async (_input) => response({ wrong: true }),
+          }),
+        },
+      });
+    });
+  });
+
+  describe('Given entity with action()-wrapped actions in access map', () => {
+    it('Then access accepts action names from action()-wrapped actions', () => {
+      entity('tasks', {
+        model: tasksModel,
+        actions: {
+          complete: action({
+            body: s.object({ reason: s.string() }),
+            response: s.object({ done: s.boolean() }),
+            handler: async () => ({ done: true }),
+          }),
+        },
+        access: {
+          list: (ctx) => ctx.authenticated(),
+          complete: (ctx) => ctx.role('admin'),
+        },
+      });
+    });
+
+    it('Then access rejects action names NOT in actions map', () => {
+      entity('tasks', {
+        model: tasksModel,
+        actions: {
+          complete: action({
+            body: s.object({ reason: s.string() }),
+            response: s.object({ done: s.boolean() }),
+            handler: async () => ({ done: true }),
+          }),
+        },
+        access: {
+          // @ts-expect-error — 'assign' is not in actions
+          assign: (ctx) => ctx.authenticated(),
+        },
       });
     });
   });
