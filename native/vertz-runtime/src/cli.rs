@@ -27,6 +27,18 @@ pub struct DevArgs {
     /// Directory to serve static files from
     #[arg(long, default_value = "public")]
     pub public_dir: PathBuf,
+
+    /// Disable TypeScript type checking (tsc/tsgo)
+    #[arg(long)]
+    pub no_typecheck: bool,
+
+    /// Custom tsconfig path (default: auto-detect)
+    #[arg(long)]
+    pub tsconfig: Option<PathBuf>,
+
+    /// Explicit type checker binary path (skips auto-detection)
+    #[arg(long)]
+    pub typecheck_binary: Option<PathBuf>,
 }
 
 #[cfg(test)]
@@ -92,6 +104,74 @@ mod tests {
                 assert_eq!(args.port, 8080);
                 assert_eq!(args.host, "0.0.0.0");
                 assert_eq!(args.public_dir, PathBuf::from("static"));
+            }
+        }
+    }
+
+    #[test]
+    fn test_no_typecheck_flag() {
+        let cli = Cli::parse_from(["vertz-runtime", "dev", "--no-typecheck"]);
+        match cli.command {
+            Command::Dev(args) => {
+                assert!(args.no_typecheck);
+            }
+        }
+    }
+
+    #[test]
+    fn test_typecheck_enabled_by_default() {
+        let cli = Cli::parse_from(["vertz-runtime", "dev"]);
+        match cli.command {
+            Command::Dev(args) => {
+                assert!(!args.no_typecheck);
+            }
+        }
+    }
+
+    #[test]
+    fn test_custom_tsconfig() {
+        let cli = Cli::parse_from(["vertz-runtime", "dev", "--tsconfig", "tsconfig.app.json"]);
+        match cli.command {
+            Command::Dev(args) => {
+                assert_eq!(args.tsconfig, Some(PathBuf::from("tsconfig.app.json")));
+            }
+        }
+    }
+
+    #[test]
+    fn test_tsconfig_default_none() {
+        let cli = Cli::parse_from(["vertz-runtime", "dev"]);
+        match cli.command {
+            Command::Dev(args) => {
+                assert!(args.tsconfig.is_none());
+            }
+        }
+    }
+
+    #[test]
+    fn test_typecheck_binary_flag() {
+        let cli = Cli::parse_from([
+            "vertz-runtime",
+            "dev",
+            "--typecheck-binary",
+            "/usr/local/bin/tsgo",
+        ]);
+        match cli.command {
+            Command::Dev(args) => {
+                assert_eq!(
+                    args.typecheck_binary,
+                    Some(PathBuf::from("/usr/local/bin/tsgo"))
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn test_typecheck_binary_default_none() {
+        let cli = Cli::parse_from(["vertz-runtime", "dev"]);
+        match cli.command {
+            Command::Dev(args) => {
+                assert!(args.typecheck_binary.is_none());
             }
         }
     }

@@ -10,7 +10,10 @@ async fn main() {
 
     match cli.command {
         Command::Dev(args) => {
-            let config = ServerConfig::new(args.port, args.host, args.public_dir);
+            let mut config = ServerConfig::new(args.port, args.host, args.public_dir);
+            config.enable_typecheck = !args.no_typecheck;
+            config.tsconfig_path = args.tsconfig;
+            config.typecheck_binary = args.typecheck_binary;
 
             if let Err(e) = vertz_runtime::server::http::start_server(config).await {
                 eprintln!("Error: {}", e);

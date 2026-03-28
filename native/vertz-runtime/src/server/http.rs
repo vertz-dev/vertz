@@ -12,6 +12,7 @@ use crate::server::logging::RequestLoggingLayer;
 use crate::server::mcp::{self, McpSessions};
 use crate::server::module_server::{self, DevServerState};
 use crate::server::theme_css;
+use crate::typecheck::process;
 use crate::watcher;
 use crate::watcher::file_watcher::{Debouncer, FileWatcher, FileWatcherConfig};
 use axum::body::Body;
@@ -543,6 +544,43 @@ pub async fn start_server(config: ServerConfig) -> io::Result<()> {
     print_banner(&actual_config, start.elapsed());
 
     let (router, state) = build_router(&config);
+
+    // Start type checker (tsc/tsgo) if enabled.
+    // Kept alive until server shutdown — Drop kills the child process.
+    let _typecheck_handle = if config.enable_typecheck {
+        let checker = process::detect_checker(&config.root_dir, config.typecheck_binary.as_deref());
+
+        match checker {
+            Some(binary) => {
+                match process::start_typecheck(
+                    &binary,
+                    config.tsconfig_path.as_deref(),
+                    state.error_broadcaster.clone(),
+                    Some(config.root_dir.clone()),
+                )
+                .await
+                {
+                    Ok(handle) => Some(handle),
+                    Err(e) => {
+                        eprintln!(
+                            "[Server] Failed to start type checker ({}): {}",
+                            binary.name, e
+                        );
+                        None
+                    }
+                }
+            }
+            None => {
+                eprintln!(
+                    "[Server] TypeScript checker not found \u{2014} type checking disabled. \
+                     Install with: bun add -d typescript"
+                );
+                None
+            }
+        }
+    } else {
+        None
+    };
 
     let restart_triggers = RestartTriggers::default();
 
