@@ -444,7 +444,7 @@ describe('buildUI', () => {
     await buildUI(config);
 
     const html = readFileSync(join(tmpDir, 'dist', 'client', '_shell.html'), 'utf-8');
-    expect(html).toContain('<meta name="theme-color" content="#0a0a0b">');
+    expect(html).toContain('<meta name="theme-color" content="#111110">');
   });
 
   // ── Sourcemap option ──────────────────────────────────────────────
