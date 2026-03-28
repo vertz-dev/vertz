@@ -445,7 +445,7 @@ mod tests {
     fn test_rewrite_relative_specifier_with_file_on_disk() {
         let tmp = tempfile::tempdir().unwrap();
         let src_dir = tmp.path().join("src");
-        std::fs::create_dir_all(&src_dir.join("components")).unwrap();
+        std::fs::create_dir_all(src_dir.join("components")).unwrap();
         std::fs::write(src_dir.join("components/Button.tsx"), "").unwrap();
 
         let result = rewrite_specifier(
@@ -461,8 +461,8 @@ mod tests {
     fn test_rewrite_relative_parent_specifier() {
         let tmp = tempfile::tempdir().unwrap();
         let src_dir = tmp.path().join("src");
-        std::fs::create_dir_all(&src_dir.join("components")).unwrap();
-        std::fs::create_dir_all(&src_dir.join("utils")).unwrap();
+        std::fs::create_dir_all(src_dir.join("components")).unwrap();
+        std::fs::create_dir_all(src_dir.join("utils")).unwrap();
         std::fs::write(src_dir.join("utils/format.ts"), "").unwrap();
 
         let result = rewrite_specifier(

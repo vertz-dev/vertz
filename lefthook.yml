@@ -7,4 +7,4 @@ pre-push:
     native-compiler:
       root: native/
       glob: "native/**/*.rs"
-      run: cargo fmt --all -- --check && cargo clippy --all -- -D warnings && cargo test --all
+      run: cargo fmt --all -- --check && cargo clippy --all-targets --release -- -D warnings && cargo test --all

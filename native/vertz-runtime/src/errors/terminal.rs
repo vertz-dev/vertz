@@ -218,7 +218,7 @@ fn chrono_now() -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::errors::categories::{DevError, ErrorCategory};
+    use crate::errors::categories::DevError;
 
     #[test]
     fn test_make_relative_strips_root() {
