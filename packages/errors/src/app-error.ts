@@ -30,17 +30,12 @@ export class AppError<C extends string = string> extends Error {
    */
   readonly code: C;
 
-  /**
-   * Brand tags for cross-module instanceof checks via Symbol.hasInstance.
-   * Subclasses should NOT override this — the brand is checked via the static method.
-   */
-  readonly __brands: readonly string[] = ['VertzAppError'];
-
-  static [Symbol.hasInstance](obj: unknown): boolean {
-    if (typeof obj !== 'object' || obj === null || !('__brands' in obj)) return false;
-    const brands = (obj as { __brands: readonly string[] }).__brands;
-    return Array.isArray(brands) && brands.includes('VertzAppError');
-  }
+  // NOTE: AppError intentionally does NOT have Symbol.hasInstance or __brands.
+  // Users subclass AppError for their domain errors. If we added Symbol.hasInstance
+  // here, it would be inherited by all subclasses via the static prototype chain,
+  // causing `new PaymentError() instanceof InventoryError` to return true (both
+  // share the same brand). The URL canonicalization fix (Phase 1) handles the
+  // cross-module identity problem for AppError instead.
 
   /**
    * Creates a new AppError.

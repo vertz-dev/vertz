@@ -810,9 +810,19 @@ impl ModuleLoader for VertzModuleLoader {
             return Ok(ModuleSpecifier::parse(NODE_URL_GLOBALS_SPECIFIER)?);
         }
 
-        // If specifier is already a file:// URL, use it directly
+        // If specifier is already a file:// URL, canonicalize and return
         if specifier.starts_with("file://") {
-            return Ok(ModuleSpecifier::parse(specifier)?);
+            let parsed = ModuleSpecifier::parse(specifier)?;
+            if let Ok(file_path) = parsed.to_file_path() {
+                let canonical = self.canonicalize_cached(&file_path);
+                return ModuleSpecifier::from_file_path(&canonical).map_err(|_| {
+                    deno_core::anyhow::anyhow!(
+                        "Cannot convert path to URL: {}",
+                        canonical.display()
+                    )
+                });
+            }
+            return Ok(parsed);
         }
 
         // Get the referrer's file path
