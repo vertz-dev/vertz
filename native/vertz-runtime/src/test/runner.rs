@@ -41,6 +41,8 @@ pub struct TestRunConfig {
     pub coverage: bool,
     /// Minimum coverage threshold percentage (0-100).
     pub coverage_threshold: f64,
+    /// Preload script paths (relative to root_dir).
+    pub preload: Vec<String>,
 }
 
 /// Summary of a completed test run.
@@ -103,10 +105,24 @@ pub fn run_tests(config: TestRunConfig) -> (TestRunResult, String) {
             .unwrap_or(4)
     });
 
+    let preload_paths: Vec<PathBuf> = config
+        .preload
+        .iter()
+        .map(|p| {
+            let path = PathBuf::from(p);
+            if path.is_absolute() {
+                path
+            } else {
+                config.root_dir.join(path)
+            }
+        })
+        .collect();
+
     let exec_options = std::sync::Arc::new(ExecuteOptions {
         filter: config.filter.clone(),
         timeout_ms: config.timeout_ms,
         coverage: config.coverage,
+        preload: preload_paths,
     });
 
     let mut results = execute_parallel(&files, concurrency, config.bail, exec_options);
@@ -314,6 +330,7 @@ mod tests {
             reporter: ReporterFormat::Terminal,
             coverage: false,
             coverage_threshold: 95.0,
+            preload: vec![],
         };
 
         let (result, output) = run_tests(config);
@@ -350,6 +367,7 @@ mod tests {
             reporter: ReporterFormat::Terminal,
             coverage: false,
             coverage_threshold: 95.0,
+            preload: vec![],
         };
 
         let (result, output) = run_tests(config);
@@ -388,6 +406,7 @@ mod tests {
             reporter: ReporterFormat::Terminal,
             coverage: false,
             coverage_threshold: 95.0,
+            preload: vec![],
         };
 
         let (result, _output) = run_tests(config);
@@ -442,6 +461,7 @@ mod tests {
             reporter: ReporterFormat::Terminal,
             coverage: false,
             coverage_threshold: 95.0,
+            preload: vec![],
         };
 
         let (result, output) = run_tests(config);
@@ -493,6 +513,7 @@ mod tests {
             reporter: ReporterFormat::Terminal,
             coverage: false,
             coverage_threshold: 95.0,
+            preload: vec![],
         };
 
         let (result, _output) = run_tests(config);
@@ -543,6 +564,7 @@ mod tests {
             reporter: ReporterFormat::Terminal,
             coverage: false,
             coverage_threshold: 95.0,
+            preload: vec![],
         };
 
         let (result, _output) = run_tests(config);
@@ -577,6 +599,7 @@ mod tests {
             reporter: ReporterFormat::Terminal,
             coverage: false,
             coverage_threshold: 95.0,
+            preload: vec![],
         };
 
         let (result, _output) = run_tests(config);
@@ -614,6 +637,7 @@ mod tests {
             reporter: ReporterFormat::Terminal,
             coverage: false,
             coverage_threshold: 95.0,
+            preload: vec![],
         };
 
         let (result, _output) = run_tests(config);
@@ -650,6 +674,7 @@ mod tests {
             reporter: ReporterFormat::Terminal,
             coverage: false,
             coverage_threshold: 95.0,
+            preload: vec![],
         };
 
         let (result, _output) = run_tests(config);
@@ -685,6 +710,7 @@ mod tests {
             reporter: ReporterFormat::Json,
             coverage: false,
             coverage_threshold: 95.0,
+            preload: vec![],
         };
 
         let (result, output) = run_tests(config);
@@ -722,6 +748,7 @@ mod tests {
             reporter: ReporterFormat::Junit,
             coverage: false,
             coverage_threshold: 95.0,
+            preload: vec![],
         };
 
         let (result, output) = run_tests(config);
@@ -759,6 +786,7 @@ mod tests {
             reporter: ReporterFormat::Terminal,
             coverage: true,
             coverage_threshold: 0.0, // Low threshold so it passes
+            preload: vec![],
         };
 
         let (result, output) = run_tests(config);
@@ -803,6 +831,7 @@ mod tests {
             reporter: ReporterFormat::Terminal,
             coverage: true,
             coverage_threshold: 100.0, // Very high threshold
+            preload: vec![],
         };
 
         let (result, _output) = run_tests(config);

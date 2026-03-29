@@ -21,6 +21,8 @@ pub enum Command {
     Add(AddArgs),
     /// Remove packages from dependencies
     Remove(RemoveArgs),
+    /// Migrate test files from bun:test to @vertz/test
+    MigrateTests(MigrateTestsArgs),
 }
 
 #[derive(Parser, Debug)]
@@ -130,6 +132,17 @@ pub struct RemoveArgs {
     pub global: bool,
 }
 
+#[derive(Parser, Debug)]
+pub struct MigrateTestsArgs {
+    /// Directory to migrate (default: current directory)
+    #[arg(value_name = "PATH")]
+    pub path: Option<PathBuf>,
+
+    /// Dry run — show what would change without writing files
+    #[arg(long)]
+    pub dry_run: bool,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -171,6 +184,14 @@ mod tests {
         match cli.command {
             Command::Remove(args) => args,
             other => panic!("Expected Remove, got {:?}", other),
+        }
+    }
+
+    fn parse_migrate_tests(args: &[&str]) -> MigrateTestsArgs {
+        let cli = Cli::parse_from(args);
+        match cli.command {
+            Command::MigrateTests(args) => args,
+            other => panic!("Expected MigrateTests, got {:?}", other),
         }
     }
 
@@ -496,5 +517,26 @@ mod tests {
         assert!(args.bail);
         assert_eq!(args.concurrency, Some(2));
         assert_eq!(args.timeout, 3000);
+    }
+
+    // --- MigrateTests command tests ---
+
+    #[test]
+    fn test_default_migrate_tests_args() {
+        let args = parse_migrate_tests(&["vertz-runtime", "migrate-tests"]);
+        assert!(args.path.is_none());
+        assert!(!args.dry_run);
+    }
+
+    #[test]
+    fn test_migrate_tests_with_path() {
+        let args = parse_migrate_tests(&["vertz-runtime", "migrate-tests", "src/"]);
+        assert_eq!(args.path, Some(PathBuf::from("src/")));
+    }
+
+    #[test]
+    fn test_migrate_tests_dry_run() {
+        let args = parse_migrate_tests(&["vertz-runtime", "migrate-tests", "--dry-run"]);
+        assert!(args.dry_run);
     }
 }

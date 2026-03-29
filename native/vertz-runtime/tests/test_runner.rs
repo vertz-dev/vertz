@@ -33,6 +33,7 @@ fn make_config(root: &Path) -> TestRunConfig {
         reporter: ReporterFormat::Terminal,
         coverage: false,
         coverage_threshold: 95.0,
+        preload: vec![],
     }
 }
 

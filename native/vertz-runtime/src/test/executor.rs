@@ -96,6 +96,8 @@ pub struct ExecuteOptions {
     pub timeout_ms: u64,
     /// Whether to collect V8 code coverage.
     pub coverage: bool,
+    /// Preload script paths (absolute) to execute before the test file.
+    pub preload: Vec<std::path::PathBuf>,
 }
 
 impl Default for ExecuteOptions {
@@ -104,6 +106,7 @@ impl Default for ExecuteOptions {
             filter: None,
             timeout_ms: 5000,
             coverage: false,
+            preload: vec![],
         }
     }
 }
@@ -174,7 +177,39 @@ fn execute_test_file_inner(
         runtime.execute_script_void("[vertz:set-filter]", &set_filter)?;
     }
 
-    // 3. Load the test file as an ES module
+    // 3. Execute preload scripts
+    for preload_path in &options.preload {
+        let preload_source = std::fs::read_to_string(preload_path).map_err(|e| {
+            deno_core::anyhow::anyhow!(
+                "Cannot read preload script '{}': {}",
+                preload_path.display(),
+                e
+            )
+        })?;
+        let filename = preload_path.to_string_lossy().to_string();
+        let ext = preload_path
+            .extension()
+            .and_then(|e| e.to_str())
+            .unwrap_or("");
+
+        let code = if ext == "ts" || ext == "tsx" {
+            let result = vertz_compiler_core::compile(
+                &preload_source,
+                vertz_compiler_core::CompileOptions {
+                    filename: Some(filename.clone()),
+                    target: Some("ssr".to_string()),
+                    ..Default::default()
+                },
+            );
+            result.code
+        } else {
+            preload_source
+        };
+
+        runtime.execute_script_void("[vertz:preload]", &code)?;
+    }
+
+    // 4. Load the test file as an ES module
     let specifier = ModuleSpecifier::from_file_path(file_path)
         .map_err(|_| deno_core::anyhow::anyhow!("Invalid file path: {}", file_path.display()))?;
 
@@ -547,5 +582,127 @@ mod tests {
             "Global leaked between files: {:?}",
             result_b.tests
         );
+    }
+
+    #[test]
+    fn test_execute_with_vertz_test_import() {
+        let tmp = tempfile::tempdir().unwrap();
+        let file = write_test_file(
+            tmp.path(),
+            "import.test.ts",
+            r#"
+            import { describe, it, expect } from '@vertz/test';
+            describe('imported', () => {
+                it('works with explicit import', () => {
+                    expect(2 + 2).toBe(4);
+                });
+            });
+            "#,
+        );
+
+        let result = execute_test_file(&file);
+
+        assert!(
+            result.file_error.is_none(),
+            "File error: {:?}",
+            result.file_error
+        );
+        assert_eq!(result.passed(), 1);
+    }
+
+    #[test]
+    fn test_execute_with_bun_test_import() {
+        let tmp = tempfile::tempdir().unwrap();
+        let file = write_test_file(
+            tmp.path(),
+            "bun-compat.test.ts",
+            r#"
+            import { describe, it, expect } from 'bun:test';
+            describe('bun compat', () => {
+                it('works with bun:test import', () => {
+                    expect('hello').toBe('hello');
+                });
+            });
+            "#,
+        );
+
+        let result = execute_test_file(&file);
+
+        assert!(
+            result.file_error.is_none(),
+            "File error: {:?}",
+            result.file_error
+        );
+        assert_eq!(result.passed(), 1);
+    }
+
+    #[test]
+    fn test_execute_with_preload_script() {
+        let tmp = tempfile::tempdir().unwrap();
+
+        // Create a preload script that sets a global
+        let preload = write_test_file(
+            tmp.path(),
+            "test-setup.ts",
+            r#"
+            globalThis.TEST_HELPER = { greet: (name: string) => `Hello, ${name}!` };
+            "#,
+        );
+
+        let file = write_test_file(
+            tmp.path(),
+            "greeting.test.ts",
+            r#"
+            describe('with preload', () => {
+                it('can use preloaded helper', () => {
+                    expect(globalThis.TEST_HELPER.greet('World')).toBe('Hello, World!');
+                });
+            });
+            "#,
+        );
+
+        let result = execute_test_file_with_options(
+            &file,
+            &ExecuteOptions {
+                preload: vec![preload],
+                ..Default::default()
+            },
+        );
+
+        assert!(
+            result.file_error.is_none(),
+            "File error: {:?}",
+            result.file_error
+        );
+        assert_eq!(result.passed(), 1);
+    }
+
+    #[test]
+    fn test_execute_with_missing_preload_script() {
+        let tmp = tempfile::tempdir().unwrap();
+        let file = write_test_file(
+            tmp.path(),
+            "simple.test.ts",
+            r#"
+            describe('simple', () => {
+                it('passes', () => { expect(1).toBe(1); });
+            });
+            "#,
+        );
+
+        let result = execute_test_file_with_options(
+            &file,
+            &ExecuteOptions {
+                preload: vec![tmp.path().join("nonexistent-setup.ts")],
+                ..Default::default()
+            },
+        );
+
+        assert!(result.file_error.is_some());
+        assert!(result
+            .file_error
+            .as_ref()
+            .unwrap()
+            .contains("Cannot read preload script"));
     }
 }

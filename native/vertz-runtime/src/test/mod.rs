@@ -1,4 +1,6 @@
+pub mod codemod;
 pub mod collector;
+pub mod config;
 pub mod coverage;
 pub mod executor;
 pub mod globals;
