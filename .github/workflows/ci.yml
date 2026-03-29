@@ -241,7 +241,7 @@ jobs:
   coverage:
     name: Coverage report
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 30
     needs: [changes, build-test]
     if: needs.changes.outputs.src == 'true'
 
@@ -296,7 +296,9 @@ jobs:
         run: bun install --frozen-lockfile
 
       - name: Build packages
-        run: timeout --kill-after=10 600 bunx turbo run build --filter='!@vertz-examples/*' --filter='!entity-todo-example' --filter='!@vertz/landing-nextjs' --filter='!@vertz/landing-nextjs-vercel' --filter='!@vertz/native-compiler' --filter='!@vertz/site' --filter='!@vertz/og' --filter='!@vertz/mint-docs' --filter='!@vertz-benchmarks/*' --filter='!contacts-api-example' --filter='!create-vertz' --filter='!landing' --filter='!@vertz/component-docs'
+        env:
+          TURBO_CONCURRENCY: 2
+        run: timeout --kill-after=10 900 bunx turbo run build --filter='!@vertz-examples/*' --filter='!entity-todo-example' --filter='!@vertz/landing-nextjs' --filter='!@vertz/landing-nextjs-vercel' --filter='!@vertz/native-compiler' --filter='!@vertz/site' --filter='!@vertz/og' --filter='!@vertz/mint-docs' --filter='!@vertz-benchmarks/*' --filter='!contacts-api-example' --filter='!create-vertz' --filter='!landing' --filter='!@vertz/component-docs'
 
       - name: Run tests with coverage
         env:
