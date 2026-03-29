@@ -43,9 +43,8 @@ jobs:
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: |
-            wrangler deploy --env preview --name vertz-task-manager-pr-${{ github.event.pull_request.number }}
-        working-directory: examples/task-manager
+          workingDirectory: examples/task-manager
+          command: deploy --env preview --name vertz-task-manager-pr-${{ github.event.pull_request.number }}
 
       - name: Comment PR with Preview URL
         uses: actions/github-script@v7
@@ -107,6 +106,5 @@ jobs:
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: |
-            wrangler deploy --env production --name vertz-task-manager
-        working-directory: examples/task-manager
+          workingDirectory: examples/task-manager
+          command: deploy --env production --name vertz-task-manager

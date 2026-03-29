@@ -78,7 +78,7 @@
   "scripts": {
     "build": "tsc",
     "typecheck": "tsc --noEmit",
-    "test": "tsc && bun test"
+    "test": "bun test"
   },
   "dependencies": {
     "@vertz/cloudflare": "workspace:^",
