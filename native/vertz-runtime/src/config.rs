@@ -24,6 +24,8 @@ pub struct ServerConfig {
     /// Optional server entry file (e.g., "src/server.ts") for API route delegation.
     /// When present, a persistent V8 isolate is created to handle /api/* requests.
     pub server_entry: Option<PathBuf>,
+    /// Whether to auto-install missing packages during dev.
+    pub auto_install: bool,
 }
 
 impl ServerConfig {
@@ -45,6 +47,7 @@ impl ServerConfig {
             typecheck_binary: None,
             open_browser: false,
             server_entry,
+            auto_install: true,
         }
     }
 
@@ -66,6 +69,7 @@ impl ServerConfig {
             typecheck_binary: None,
             open_browser: false,
             server_entry,
+            auto_install: true,
         }
     }
 

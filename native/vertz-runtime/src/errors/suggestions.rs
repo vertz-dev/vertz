@@ -33,12 +33,12 @@ pub fn suggest_build_fix(message: &str) -> Option<String> {
             }
             if name.starts_with('@') {
                 return Some(format!(
-                    "Package '{}' not found. Run `bun add {}` to install it.",
+                    "Package '{}' not found. Run `vertz add {}` to install it.",
                     name, name
                 ));
             }
             return Some(format!(
-                "Module '{}' not found. Run `bun add {}` to install it, or check the import path.",
+                "Module '{}' not found. Run `vertz add {}` to install it, or check the import path.",
                 name, name
             ));
         }
@@ -96,7 +96,7 @@ pub fn suggest_resolve_fix(message: &str, specifier: &str) -> Option<String> {
         if specifier.starts_with('@') {
             let (pkg, _) = crate::deps::resolve::split_package_specifier(specifier);
             return Some(format!(
-                "Package '{}' is not installed. Run `bun add {}` to install it.",
+                "Package '{}' is not installed. Run `vertz add {}` to install it.",
                 pkg, pkg
             ));
         }
@@ -281,7 +281,9 @@ mod tests {
     fn test_suggest_install_package() {
         let suggestion = suggest_build_fix("Cannot find module '@vertz/fetch'");
         assert!(suggestion.is_some());
-        assert!(suggestion.unwrap().contains("bun add"));
+        let s = suggestion.unwrap();
+        assert!(s.contains("vertz add"), "expected 'vertz add' but got: {}", s);
+        assert!(!s.contains("bun add"), "should not contain 'bun add' but got: {}", s);
     }
 
     #[test]
@@ -338,7 +340,18 @@ mod tests {
     fn test_suggest_unscoped_package() {
         let suggestion = suggest_build_fix("Cannot find module 'zod'");
         assert!(suggestion.is_some());
-        assert!(suggestion.unwrap().contains("bun add zod"));
+        let s = suggestion.unwrap();
+        assert!(s.contains("vertz add zod"), "expected 'vertz add zod' but got: {}", s);
+        assert!(!s.contains("bun add"), "should not contain 'bun add' but got: {}", s);
+    }
+
+    #[test]
+    fn test_suggest_resolve_fix_vertz_add() {
+        let suggestion = suggest_resolve_fix("Package not found 404", "@vertz/fetch");
+        assert!(suggestion.is_some());
+        let s = suggestion.unwrap();
+        assert!(s.contains("vertz add"), "expected 'vertz add' but got: {}", s);
+        assert!(!s.contains("bun add"), "should not contain 'bun add' but got: {}", s);
     }
 
     #[test]

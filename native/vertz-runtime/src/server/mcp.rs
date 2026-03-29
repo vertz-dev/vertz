@@ -630,6 +630,7 @@ mod tests {
             port: 3000,
             typecheck_enabled: false,
             api_isolate: std::sync::Arc::new(std::sync::RwLock::new(None)),
+            auto_install: false,
         })
     }
 

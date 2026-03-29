@@ -53,6 +53,8 @@ pub struct DevServerState {
     /// Wrapped in `Arc<RwLock>` to allow hot-swap on server module changes.
     /// `None` when no `server_entry` is configured.
     pub api_isolate: Arc<std::sync::RwLock<Option<Arc<PersistentIsolate>>>>,
+    /// Whether auto-install of missing packages is enabled.
+    pub auto_install: bool,
 }
 
 /// Handle requests for source files: `GET /src/**/*.tsx` → compiled JavaScript.
@@ -569,6 +571,7 @@ mod tests {
             port: 3000,
             typecheck_enabled: false,
             api_isolate: Arc::new(std::sync::RwLock::new(None)),
+            auto_install: false,
         })
     }
 

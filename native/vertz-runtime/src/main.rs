@@ -20,6 +20,31 @@ async fn main() {
             config.tsconfig_path = args.tsconfig;
             config.typecheck_binary = args.typecheck_binary;
 
+            // Resolve auto_install: CLI flag > .vertzrc > CI guard
+            config.auto_install = if args.no_auto_install {
+                false
+            } else if args.auto_install {
+                true
+            } else {
+                let vertzrc = pm::vertzrc::load_vertzrc(&config.root_dir).unwrap_or_default();
+                // Check if .vertzrc explicitly set autoInstall (not just the default)
+                let raw = std::fs::read_to_string(config.root_dir.join(".vertzrc"))
+                    .ok()
+                    .and_then(|s| serde_json::from_str::<serde_json::Value>(&s).ok());
+                let explicitly_set = raw
+                    .as_ref()
+                    .map(|v| v.get("autoInstall").is_some())
+                    .unwrap_or(false);
+
+                if explicitly_set {
+                    vertzrc.auto_install
+                } else if std::env::var("CI").is_ok() {
+                    false
+                } else {
+                    vertzrc.auto_install // defaults to true
+                }
+            };
+
             if let Err(e) = vertz_runtime::server::http::start_server(config).await {
                 eprintln!("Error: {}", e);
                 std::process::exit(1);

@@ -148,6 +148,7 @@ pub fn build_router(config: &ServerConfig) -> (Router, Arc<DevServerState>) {
         port: config.port,
         typecheck_enabled: config.enable_typecheck,
         api_isolate: Arc::new(std::sync::RwLock::new(api_isolate)),
+        auto_install: config.auto_install,
     });
 
     // Routes: HMR WebSocket, error WebSocket, diagnostics, AI API, fallback

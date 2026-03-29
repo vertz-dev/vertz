@@ -5,17 +5,34 @@ use std::path::Path;
 /// Parsed .vertzrc configuration file.
 ///
 /// Uses `#[serde(flatten)]` to preserve unknown fields during round-trip.
-/// When a future config key is added (e.g. `autoInstall`), it will survive
-/// `load_vertzrc` → modify → `save_vertzrc` cycles even before the struct
-/// gains a corresponding field.
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+/// Unknown fields survive `load_vertzrc` → modify → `save_vertzrc` cycles
+/// even before the struct gains a corresponding field.
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct VertzConfig {
     #[serde(rename = "trustScripts", default)]
     pub trust_scripts: Vec<String>,
 
+    /// Whether to auto-install missing packages during `vertz dev`.
+    #[serde(rename = "autoInstall", default = "default_true")]
+    pub auto_install: bool,
+
     /// Preserve unknown fields for forward compatibility.
     #[serde(flatten)]
     pub extra: serde_json::Map<String, serde_json::Value>,
+}
+
+fn default_true() -> bool {
+    true
+}
+
+impl Default for VertzConfig {
+    fn default() -> Self {
+        Self {
+            trust_scripts: Vec::new(),
+            auto_install: true,
+            extra: serde_json::Map::new(),
+        }
+    }
 }
 
 /// Check if a package name matches any pattern in the trust list.
@@ -412,6 +429,65 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         std::fs::write(dir.path().join(".vertzrc"), "not json").unwrap();
         assert!(load_vertzrc(dir.path()).is_err());
+    }
+
+    // --- autoInstall field tests ---
+
+    #[test]
+    fn test_auto_install_defaults_to_true() {
+        let dir = tempfile::tempdir().unwrap();
+        let config = load_vertzrc(dir.path()).unwrap();
+        assert!(config.auto_install);
+    }
+
+    #[test]
+    fn test_auto_install_false_from_vertzrc() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(
+            dir.path().join(".vertzrc"),
+            r#"{"autoInstall": false}"#,
+        )
+        .unwrap();
+        let config = load_vertzrc(dir.path()).unwrap();
+        assert!(!config.auto_install);
+    }
+
+    #[test]
+    fn test_auto_install_true_from_vertzrc() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(
+            dir.path().join(".vertzrc"),
+            r#"{"autoInstall": true}"#,
+        )
+        .unwrap();
+        let config = load_vertzrc(dir.path()).unwrap();
+        assert!(config.auto_install);
+    }
+
+    #[test]
+    fn test_auto_install_round_trip() {
+        let dir = tempfile::tempdir().unwrap();
+        let config = VertzConfig {
+            auto_install: false,
+            ..Default::default()
+        };
+        save_vertzrc(dir.path(), &config).unwrap();
+        let loaded = load_vertzrc(dir.path()).unwrap();
+        assert!(!loaded.auto_install);
+    }
+
+    #[test]
+    fn test_auto_install_preserved_with_trust_scripts() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(
+            dir.path().join(".vertzrc"),
+            r#"{"autoInstall": false, "trustScripts": ["esbuild"]}"#,
+        )
+        .unwrap();
+        config_add_trust_scripts(dir.path(), &["sharp".to_string()]).unwrap();
+        let loaded = load_vertzrc(dir.path()).unwrap();
+        assert!(!loaded.auto_install);
+        assert_eq!(loaded.trust_scripts, vec!["esbuild", "sharp"]);
     }
 
     // --- config operation tests ---
