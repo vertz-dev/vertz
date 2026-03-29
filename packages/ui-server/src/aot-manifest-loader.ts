@@ -25,7 +25,10 @@ interface AotManifestJson {
  */
 export async function loadAotManifest(serverDir: string): Promise<AotManifest | null> {
   const manifestPath = join(serverDir, 'aot-manifest.json');
-  const routesModulePath = join(serverDir, 'aot-routes.js');
+  // Accept both .ts and .js — the AOT barrel generator emits TypeScript
+  const routesModuleTs = join(serverDir, 'aot-routes.ts');
+  const routesModuleJs = join(serverDir, 'aot-routes.js');
+  const routesModulePath = existsSync(routesModuleTs) ? routesModuleTs : routesModuleJs;
 
   // Both files must exist
   if (!existsSync(manifestPath) || !existsSync(routesModulePath)) {

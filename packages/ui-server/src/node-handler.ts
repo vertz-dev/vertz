@@ -39,6 +39,7 @@ export function createNodeHandler(
     manifest,
     progressiveHTML,
     aotManifest,
+    aotDataResolver,
   } = options;
 
   const { template, linkHeader, modulepreloadTags, splitResult } = precomputeHandlerState(options);
@@ -108,6 +109,7 @@ export function createNodeHandler(
               fallbackMetrics,
               ssrAuth,
               prefetchSession,
+              aotDataResolver,
             })
           : await ssrRenderSinglePass(module, url, {
               ssrTimeout,
