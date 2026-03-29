@@ -175,7 +175,7 @@ jobs:
   build-test:
     name: Build, typecheck & test
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 25
     needs: changes
     if: needs.changes.outputs.src == 'true'
 
@@ -193,7 +193,7 @@ jobs:
 
       - name: Build, typecheck & test
         env:
-          TURBO_CONCURRENCY: 2
+          TURBO_CONCURRENCY: 1
           NODE_OPTIONS: --max-old-space-size=6144
         run: |
           if [ "${{ github.event_name }}" = "push" ]; then
