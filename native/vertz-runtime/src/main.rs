@@ -357,7 +357,7 @@ async fn main() {
             match args.script {
                 None => {
                     // No script name — list available scripts
-                    match pm::list_scripts(&root_dir) {
+                    match pm::list_scripts(&root_dir, args.workspace.as_deref()) {
                         Ok(scripts) => {
                             if scripts.is_empty() {
                                 eprintln!("No scripts found in package.json");

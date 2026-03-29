@@ -1118,6 +1118,13 @@ mod tests {
         assert_eq!(args.script, Some("test".to_string()));
     }
 
+    #[test]
+    fn test_run_with_extra_args() {
+        let args = parse_run(&["vertz-runtime", "run", "test", "--", "--bail", "--verbose"]);
+        assert_eq!(args.script, Some("test".to_string()));
+        assert_eq!(args.args, vec!["--bail", "--verbose"]);
+    }
+
     // --- Exec command tests ---
 
     #[test]

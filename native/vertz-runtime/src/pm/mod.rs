@@ -1296,11 +1296,17 @@ pub fn format_update_dry_run_json(results: &[UpdateResult]) -> String {
     output
 }
 
-/// List scripts from package.json in the given directory
+/// List scripts from package.json in the given directory (or workspace)
 pub fn list_scripts(
     root_dir: &Path,
+    workspace_target: Option<&str>,
 ) -> Result<BTreeMap<String, String>, Box<dyn std::error::Error>> {
-    let pkg = types::read_package_json(root_dir)?;
+    let target_dir = if let Some(ws) = workspace_target {
+        workspace::resolve_workspace_dir(root_dir, ws)?
+    } else {
+        root_dir.to_path_buf()
+    };
+    let pkg = types::read_package_json(&target_dir)?;
     Ok(pkg.scripts)
 }
 
@@ -1324,11 +1330,12 @@ pub async fn run_script(
         .get(script_name)
         .ok_or_else(|| format!("error: script not found: \"{}\"", script_name))?;
 
-    // Append extra args if provided
+    // Append extra args (shell-escaped) if provided
     let full_cmd = if extra_args.is_empty() {
         script_cmd.clone()
     } else {
-        format!("{} {}", script_cmd, extra_args.join(" "))
+        let escaped: Vec<String> = extra_args.iter().map(|a| shell_escape(a)).collect();
+        format!("{} {}", script_cmd, escaped.join(" "))
     };
 
     // Build PATH with node_modules/.bin prepended
@@ -1344,6 +1351,7 @@ pub async fn run_script(
     if let Ok(existing_path) = std::env::var("PATH") {
         path_parts.push(existing_path);
     }
+    // Unix PATH separator; Windows (#2043) will need ";"
     let new_path = path_parts.join(":");
 
     scripts::exec_inherit_stdio(&target_dir, &full_cmd, &[("PATH", new_path)]).await
@@ -1362,12 +1370,13 @@ pub async fn exec_command(
         root_dir.to_path_buf()
     };
 
-    // Build the full command string
+    // Build the full command string (escape both command and args)
     let full_cmd = if args.is_empty() {
-        command.to_string()
+        shell_escape(command)
     } else {
+        let escaped_cmd = shell_escape(command);
         let args_str: Vec<String> = args.iter().map(|a| shell_escape(a)).collect();
-        format!("{} {}", command, args_str.join(" "))
+        format!("{} {}", escaped_cmd, args_str.join(" "))
     };
 
     // Build PATH with node_modules/.bin prepended
@@ -1387,9 +1396,18 @@ pub async fn exec_command(
     scripts::exec_inherit_stdio(&target_dir, &full_cmd, &[("PATH", new_path)]).await
 }
 
-/// Escape a shell argument
+/// Escape a shell argument by single-quoting if it contains any shell metacharacters.
+/// Empty strings are returned as '' to avoid being dropped by the shell.
 fn shell_escape(s: &str) -> String {
-    if s.contains(' ') || s.contains('\'') || s.contains('"') || s.contains('\\') {
+    if s.is_empty() {
+        return "''".to_string();
+    }
+    // If it contains ANY character that could be interpreted by sh, wrap in single quotes.
+    // Single quotes inside the string are handled by ending the quote, inserting an escaped
+    // single quote, and re-opening: 'can'\''t' → can't
+    if s.chars()
+        .any(|c| !c.is_ascii_alphanumeric() && !matches!(c, '-' | '_' | '.' | '/' | ':' | '@'))
+    {
         format!("'{}'", s.replace('\'', "'\\''"))
     } else {
         s.to_string()
@@ -2452,7 +2470,7 @@ mod tests {
         let pkg_json = r#"{"scripts": {"build": "tsc", "test": "bun test"}}"#;
         std::fs::write(dir.path().join("package.json"), pkg_json).unwrap();
 
-        let scripts = list_scripts(dir.path()).unwrap();
+        let scripts = list_scripts(dir.path(), None).unwrap();
         assert_eq!(scripts.len(), 2);
         assert_eq!(scripts["build"], "tsc");
         assert_eq!(scripts["test"], "bun test");
@@ -2464,7 +2482,7 @@ mod tests {
         let pkg_json = r#"{"name": "test"}"#;
         std::fs::write(dir.path().join("package.json"), pkg_json).unwrap();
 
-        let scripts = list_scripts(dir.path()).unwrap();
+        let scripts = list_scripts(dir.path(), None).unwrap();
         assert!(scripts.is_empty());
     }
 
@@ -2549,5 +2567,77 @@ mod tests {
     #[test]
     fn test_shell_escape_with_quotes() {
         assert_eq!(shell_escape("it's"), "'it'\\''s'");
+    }
+
+    #[test]
+    fn test_shell_escape_metacharacters() {
+        // Dollar sign, semicolons, pipes, backticks, etc. must be quoted
+        assert_eq!(shell_escape("$HOME"), "'$HOME'");
+        assert_eq!(shell_escape("foo;bar"), "'foo;bar'");
+        assert_eq!(shell_escape("a|b"), "'a|b'");
+        assert_eq!(shell_escape("a&b"), "'a&b'");
+        assert_eq!(shell_escape("`cmd`"), "'`cmd`'");
+    }
+
+    #[test]
+    fn test_shell_escape_empty() {
+        assert_eq!(shell_escape(""), "''");
+    }
+
+    #[test]
+    fn test_shell_escape_safe_chars() {
+        // Alphanumeric, dash, underscore, dot, slash, colon, @ are safe
+        assert_eq!(shell_escape("foo-bar_baz.ts"), "foo-bar_baz.ts");
+        assert_eq!(shell_escape("/usr/bin/node"), "/usr/bin/node");
+        assert_eq!(shell_escape("@myorg/pkg"), "@myorg/pkg");
+    }
+
+    #[tokio::test]
+    async fn test_run_script_with_extra_args() {
+        let dir = tempfile::tempdir().unwrap();
+        let pkg_json = r#"{"scripts": {"test": "echo test"}}"#;
+        std::fs::write(dir.path().join("package.json"), pkg_json).unwrap();
+
+        let code = run_script(
+            dir.path(),
+            "test",
+            &["--bail".to_string(), "--verbose".to_string()],
+            None,
+        )
+        .await
+        .unwrap();
+        assert_eq!(code, 0);
+    }
+
+    #[tokio::test]
+    async fn test_exec_command_with_args() {
+        let dir = tempfile::tempdir().unwrap();
+
+        // Create fake binary that checks args
+        let bin_dir = dir.path().join("node_modules").join(".bin");
+        std::fs::create_dir_all(&bin_dir).unwrap();
+        let bin_path = bin_dir.join("mybin");
+        std::fs::write(&bin_path, "#!/bin/sh\nexit 0").unwrap();
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            std::fs::set_permissions(&bin_path, std::fs::Permissions::from_mode(0o755)).unwrap();
+        }
+
+        let code = exec_command(dir.path(), "mybin", &["--version".to_string()], None)
+            .await
+            .unwrap();
+        assert_eq!(code, 0);
+    }
+
+    #[tokio::test]
+    async fn test_exec_command_nonexistent() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::create_dir_all(dir.path().join("node_modules").join(".bin")).unwrap();
+
+        let code = exec_command(dir.path(), "nonexistent-cmd-xyz", &[], None)
+            .await
+            .unwrap();
+        assert_ne!(code, 0);
     }
 }
