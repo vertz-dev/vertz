@@ -10,7 +10,8 @@ pub const TEST_HARNESS_JS: &str = r#"
 // work in tests. These stubs have no DOM behavior — they exist only for
 // prototype chain checks (e.g., `instanceof HTMLElement`).
 if (typeof globalThis.HTMLElement === 'undefined') {
-  class Node {}
+  class EventTarget {}
+  class Node extends EventTarget {}
   class Element extends Node {}
   class HTMLElement extends Element {}
   class HTMLDivElement extends HTMLElement {}
@@ -29,7 +30,6 @@ if (typeof globalThis.HTMLElement === 'undefined') {
   class DocumentFragment extends Node {}
   class Event {}
   class CustomEvent extends Event {}
-  class EventTarget {}
 
   Object.assign(globalThis, {
     Node, Element, EventTarget, Event, CustomEvent,

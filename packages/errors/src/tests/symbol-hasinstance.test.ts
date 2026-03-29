@@ -32,28 +32,36 @@ import {
 } from '../entity';
 
 // ============================================================================
-// AppError brand checks
+// AppError — no Symbol.hasInstance (user subclasses would inherit it)
 // ============================================================================
 
 describe('Symbol.hasInstance brand checks', () => {
-  describe('Given AppError with __brands', () => {
-    it('Then real AppError passes instanceof', () => {
+  describe('Given AppError without Symbol.hasInstance (users subclass it)', () => {
+    it('Then real AppError passes instanceof via prototype chain', () => {
       const err = new AppError('TEST', 'test message');
       expect(err instanceof AppError).toBe(true);
     });
 
-    it('Then a branded plain object passes instanceof', () => {
-      const fake = { __brands: ['VertzAppError'] };
-      expect(fake instanceof AppError).toBe(true);
-    });
+    it('Then user subclass instanceof works correctly', () => {
+      class PaymentError extends AppError<'PAYMENT'> {
+        constructor() {
+          super('PAYMENT', 'declined');
+        }
+      }
+      class InventoryError extends AppError<'INVENTORY'> {
+        constructor() {
+          super('INVENTORY', 'out of stock');
+        }
+      }
+      const payment = new PaymentError();
+      const inventory = new InventoryError();
 
-    it('Then a non-branded object fails instanceof', () => {
-      const fake = { code: 'TEST', message: 'nope' };
-      expect(fake instanceof AppError).toBe(false);
-    });
-
-    it('Then null/undefined fail instanceof', () => {
-      expect(null instanceof AppError).toBe(false);
+      // Subclass instanceof works correctly via prototype chain
+      expect(payment instanceof PaymentError).toBe(true);
+      expect(payment instanceof AppError).toBe(true);
+      expect(payment instanceof InventoryError).toBe(false); // cross-subclass correctly false
+      expect(inventory instanceof InventoryError).toBe(true);
+      expect(inventory instanceof PaymentError).toBe(false);
     });
   });
 
