@@ -210,5 +210,31 @@ async fn main() {
                 }
             }
         }
+        Command::Why(args) => {
+            let root_dir =
+                std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from("."));
+
+            match pm::why(&root_dir, &args.package) {
+                Ok(result) => {
+                    if args.json {
+                        let output = pm::format_why_json(&result);
+                        print!("{}", output);
+                    } else {
+                        let output = pm::format_why_text(&result);
+                        print!("{}", output);
+                    }
+                }
+                Err(e) => {
+                    let msg = e.to_string();
+                    if args.json {
+                        let output: Arc<dyn PmOutput> = Arc::new(JsonOutput::new());
+                        output.error(error_code_from_message(&msg), &msg);
+                    } else {
+                        eprintln!("{}", msg);
+                    }
+                    std::process::exit(1);
+                }
+            }
+        }
     }
 }

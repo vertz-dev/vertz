@@ -397,6 +397,234 @@ pub fn build_list(
     entries
 }
 
+/// Result of a `vertz why` query — one entry per version of the target package found
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct WhyResult {
+    pub name: String,
+    pub versions: Vec<WhyVersion>,
+}
+
+/// A single version of the target package with all dependency paths leading to it
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct WhyVersion {
+    pub version: String,
+    pub paths: Vec<Vec<WhyPathEntry>>,
+}
+
+/// A single step in a dependency path
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct WhyPathEntry {
+    pub name: String,
+    pub range: String,
+    pub version: String,
+}
+
+/// Trace why a package is installed by searching the lockfile dependency graph
+pub fn why(root_dir: &Path, package: &str) -> Result<WhyResult, Box<dyn std::error::Error>> {
+    let pkg = types::read_package_json(root_dir)?;
+    let lockfile_path = root_dir.join("vertz.lock");
+    let lockfile = if lockfile_path.exists() {
+        lockfile::read_lockfile(&lockfile_path)?
+    } else {
+        types::Lockfile::default()
+    };
+    build_why(&pkg, &lockfile, package)
+}
+
+/// Build why result from package.json and lockfile (pure logic, no I/O)
+pub fn build_why(
+    pkg: &types::PackageJson,
+    lockfile: &types::Lockfile,
+    target: &str,
+) -> Result<WhyResult, Box<dyn std::error::Error>> {
+    // Collect all root deps (both regular and dev)
+    let mut all_root_deps: BTreeMap<String, String> = BTreeMap::new();
+    for (k, v) in &pkg.dependencies {
+        all_root_deps.insert(k.clone(), v.clone());
+    }
+    for (k, v) in &pkg.dev_dependencies {
+        all_root_deps.insert(k.clone(), v.clone());
+    }
+
+    // Check if target is a direct dependency
+    let is_direct = all_root_deps.contains_key(target);
+
+    // BFS to find all paths from root deps to the target package
+    // Each BFS state: (spec_key, path_so_far)
+    let mut versions_found: BTreeMap<String, Vec<Vec<WhyPathEntry>>> = BTreeMap::new();
+
+    // Check direct dependency
+    if is_direct {
+        let range = all_root_deps.get(target).unwrap();
+        let spec_key = types::Lockfile::spec_key(target, range);
+        if let Some(entry) = lockfile.entries.get(&spec_key) {
+            versions_found
+                .entry(entry.version.clone())
+                .or_default()
+                .push(Vec::new()); // Empty path = direct
+        } else {
+            // Direct dep but not in lockfile — still report it
+            versions_found
+                .entry("unknown".to_string())
+                .or_default()
+                .push(Vec::new());
+        }
+    }
+
+    // BFS from each root dependency
+    for (root_name, root_range) in &all_root_deps {
+        if root_name == target {
+            continue; // Already handled as direct
+        }
+
+        let root_key = types::Lockfile::spec_key(root_name, root_range);
+        let root_entry = match lockfile.entries.get(&root_key) {
+            Some(e) => e,
+            None => continue,
+        };
+
+        // BFS queue: (entry, current path, visited set)
+        let root_path_entry = WhyPathEntry {
+            name: root_name.clone(),
+            range: root_range.clone(),
+            version: root_entry.version.clone(),
+        };
+
+        let mut queue: std::collections::VecDeque<(
+            &types::LockfileEntry,
+            Vec<WhyPathEntry>,
+            HashSet<String>,
+        )> = std::collections::VecDeque::new();
+
+        let mut initial_visited = HashSet::new();
+        initial_visited.insert(root_key.clone());
+        queue.push_back((root_entry, vec![root_path_entry], initial_visited));
+
+        while let Some((current_entry, current_path, visited)) = queue.pop_front() {
+            for (dep_name, dep_range) in &current_entry.dependencies {
+                let dep_key = types::Lockfile::spec_key(dep_name, dep_range);
+
+                if visited.contains(&dep_key) {
+                    continue; // Cycle protection
+                }
+
+                if let Some(dep_entry) = lockfile.entries.get(&dep_key) {
+                    let mut path = current_path.clone();
+                    path.push(WhyPathEntry {
+                        name: dep_name.clone(),
+                        range: dep_range.clone(),
+                        version: dep_entry.version.clone(),
+                    });
+
+                    if dep_name == target {
+                        // Found a path to the target
+                        versions_found
+                            .entry(dep_entry.version.clone())
+                            .or_default()
+                            .push(path);
+                    } else {
+                        // Continue BFS
+                        let mut next_visited = visited.clone();
+                        next_visited.insert(dep_key);
+                        queue.push_back((dep_entry, path, next_visited));
+                    }
+                }
+            }
+        }
+    }
+
+    if versions_found.is_empty() {
+        return Err(format!("error: package \"{}\" is not installed", target).into());
+    }
+
+    // Collect into WhyResult, sorted by version
+    let mut versions = Vec::new();
+    for (version, mut paths) in versions_found {
+        // Sort paths by length (shortest first)
+        paths.sort_by_key(|p| p.len());
+        versions.push(WhyVersion { version, paths });
+    }
+
+    Ok(WhyResult {
+        name: target.to_string(),
+        versions,
+    })
+}
+
+/// Format why result as human-readable text
+pub fn format_why_text(result: &WhyResult) -> String {
+    let mut output = String::new();
+
+    for (i, ver) in result.versions.iter().enumerate() {
+        if i > 0 {
+            output.push('\n');
+        }
+        output.push_str(&format!("{}@{}\n", result.name, ver.version));
+
+        let max_paths = 10;
+        let shown = ver.paths.len().min(max_paths);
+
+        for path in &ver.paths[..shown] {
+            if path.is_empty() {
+                output.push_str("  dependencies (direct)\n");
+            } else {
+                let chain: Vec<String> = path
+                    .iter()
+                    .map(|p| format!("{}@{}", p.name, p.range))
+                    .collect();
+                output.push_str(&format!("  {}\n", chain.join(" → ")));
+            }
+        }
+
+        if ver.paths.len() > max_paths {
+            output.push_str(&format!(
+                "  and {} more paths — use --json for all\n",
+                ver.paths.len() - max_paths
+            ));
+        }
+    }
+
+    output
+}
+
+/// Format why result as NDJSON
+pub fn format_why_json(result: &WhyResult) -> String {
+    let mut paths_json: Vec<serde_json::Value> = Vec::new();
+    for ver in &result.versions {
+        for path in &ver.paths {
+            if path.is_empty() {
+                // Direct dependency — empty path
+                paths_json.push(serde_json::json!([]));
+            } else {
+                let entries: Vec<serde_json::Value> = path
+                    .iter()
+                    .map(|p| {
+                        serde_json::json!({
+                            "name": p.name,
+                            "range": p.range,
+                            "version": p.version,
+                        })
+                    })
+                    .collect();
+                paths_json.push(serde_json::Value::Array(entries));
+            }
+        }
+    }
+
+    let obj = serde_json::json!({
+        "name": result.name,
+        "version": if result.versions.len() == 1 {
+            serde_json::Value::String(result.versions[0].version.clone())
+        } else {
+            let vs: Vec<String> = result.versions.iter().map(|v| v.version.clone()).collect();
+            serde_json::Value::Array(vs.into_iter().map(serde_json::Value::String).collect())
+        },
+        "paths": paths_json,
+    });
+
+    format!("{}\n", obj)
+}
+
 /// Recursively add transitive dependencies to the list
 #[allow(clippy::too_many_arguments)]
 fn add_transitive_deps(
@@ -1065,5 +1293,252 @@ mod tests {
         let entries = Vec::new();
         let json = format_list_json(&entries);
         assert!(json.is_empty());
+    }
+
+    // --- build_why tests ---
+
+    #[test]
+    fn test_why_direct_dependency() {
+        let pkg = make_pkg(&[("react", "^18.3.0")], &[]);
+        let mut lockfile = Lockfile::default();
+        lockfile.entries.insert(
+            "react@^18.3.0".to_string(),
+            make_lockfile_entry("react", "^18.3.0", "18.3.1", &[]),
+        );
+
+        let result = build_why(&pkg, &lockfile, "react").unwrap();
+        assert_eq!(result.name, "react");
+        assert_eq!(result.versions.len(), 1);
+        assert_eq!(result.versions[0].version, "18.3.1");
+        assert_eq!(result.versions[0].paths.len(), 1);
+        assert!(result.versions[0].paths[0].is_empty()); // Direct dep = empty path
+    }
+
+    #[test]
+    fn test_why_transitive_dependency() {
+        let pkg = make_pkg(&[("react", "^18.3.0")], &[]);
+        let mut lockfile = Lockfile::default();
+        lockfile.entries.insert(
+            "react@^18.3.0".to_string(),
+            make_lockfile_entry("react", "^18.3.0", "18.3.1", &[("loose-envify", "^1.1.0")]),
+        );
+        lockfile.entries.insert(
+            "loose-envify@^1.1.0".to_string(),
+            make_lockfile_entry(
+                "loose-envify",
+                "^1.1.0",
+                "1.4.0",
+                &[("js-tokens", "^3.0.0 || ^4.0.0")],
+            ),
+        );
+        lockfile.entries.insert(
+            "js-tokens@^3.0.0 || ^4.0.0".to_string(),
+            make_lockfile_entry("js-tokens", "^3.0.0 || ^4.0.0", "4.0.0", &[]),
+        );
+
+        let result = build_why(&pkg, &lockfile, "js-tokens").unwrap();
+        assert_eq!(result.name, "js-tokens");
+        assert_eq!(result.versions.len(), 1);
+        assert_eq!(result.versions[0].version, "4.0.0");
+        assert_eq!(result.versions[0].paths.len(), 1);
+
+        let path = &result.versions[0].paths[0];
+        assert_eq!(path.len(), 3); // react → loose-envify → js-tokens
+        assert_eq!(path[0].name, "react");
+        assert_eq!(path[1].name, "loose-envify");
+        assert_eq!(path[2].name, "js-tokens");
+    }
+
+    #[test]
+    fn test_why_multiple_paths() {
+        // react and react-dom both depend on loose-envify
+        let pkg = make_pkg(&[("react", "^18.3.0"), ("react-dom", "^18.3.0")], &[]);
+        let mut lockfile = Lockfile::default();
+        lockfile.entries.insert(
+            "react@^18.3.0".to_string(),
+            make_lockfile_entry("react", "^18.3.0", "18.3.1", &[("loose-envify", "^1.1.0")]),
+        );
+        lockfile.entries.insert(
+            "react-dom@^18.3.0".to_string(),
+            make_lockfile_entry(
+                "react-dom",
+                "^18.3.0",
+                "18.3.1",
+                &[("loose-envify", "^1.1.0")],
+            ),
+        );
+        lockfile.entries.insert(
+            "loose-envify@^1.1.0".to_string(),
+            make_lockfile_entry("loose-envify", "^1.1.0", "1.4.0", &[]),
+        );
+
+        let result = build_why(&pkg, &lockfile, "loose-envify").unwrap();
+        assert_eq!(result.versions.len(), 1);
+        assert_eq!(result.versions[0].paths.len(), 2); // Two paths: from react and react-dom
+    }
+
+    #[test]
+    fn test_why_not_installed() {
+        let pkg = make_pkg(&[("react", "^18.3.0")], &[]);
+        let lockfile = Lockfile::default();
+
+        let result = build_why(&pkg, &lockfile, "nonexistent");
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("is not installed"));
+    }
+
+    #[test]
+    fn test_why_circular_deps() {
+        let pkg = make_pkg(&[("a", "^1.0.0")], &[]);
+        let mut lockfile = Lockfile::default();
+        // a → b → a (circular)
+        lockfile.entries.insert(
+            "a@^1.0.0".to_string(),
+            make_lockfile_entry("a", "^1.0.0", "1.0.0", &[("b", "^1.0.0")]),
+        );
+        lockfile.entries.insert(
+            "b@^1.0.0".to_string(),
+            make_lockfile_entry("b", "^1.0.0", "1.0.0", &[("a", "^1.0.0")]),
+        );
+
+        // Should not hang — b is reachable via a → b
+        let result = build_why(&pkg, &lockfile, "b").unwrap();
+        assert_eq!(result.versions.len(), 1);
+        assert_eq!(result.versions[0].version, "1.0.0");
+        assert!(!result.versions[0].paths.is_empty());
+    }
+
+    #[test]
+    fn test_why_multi_version() {
+        // lodash@4.17.21 is a direct dep, lodash@3.10.1 is nested via legacy-lib
+        let pkg = make_pkg(&[("lodash", "^4.0.0"), ("legacy-lib", "^1.0.0")], &[]);
+        let mut lockfile = Lockfile::default();
+        lockfile.entries.insert(
+            "lodash@^4.0.0".to_string(),
+            make_lockfile_entry("lodash", "^4.0.0", "4.17.21", &[]),
+        );
+        lockfile.entries.insert(
+            "legacy-lib@^1.0.0".to_string(),
+            make_lockfile_entry("legacy-lib", "^1.0.0", "1.0.0", &[("lodash", "^3.0.0")]),
+        );
+        lockfile.entries.insert(
+            "lodash@^3.0.0".to_string(),
+            make_lockfile_entry("lodash", "^3.0.0", "3.10.1", &[]),
+        );
+
+        let result = build_why(&pkg, &lockfile, "lodash").unwrap();
+        assert_eq!(result.versions.len(), 2);
+
+        // Find each version
+        let v3 = result
+            .versions
+            .iter()
+            .find(|v| v.version == "3.10.1")
+            .unwrap();
+        let v4 = result
+            .versions
+            .iter()
+            .find(|v| v.version == "4.17.21")
+            .unwrap();
+
+        // v4 is direct
+        assert!(v4.paths.iter().any(|p| p.is_empty()));
+
+        // v3 is via legacy-lib
+        assert!(v3
+            .paths
+            .iter()
+            .any(|p| { p.len() == 2 && p[0].name == "legacy-lib" && p[1].name == "lodash" }));
+    }
+
+    #[test]
+    fn test_format_why_text_direct() {
+        let result = WhyResult {
+            name: "react".to_string(),
+            versions: vec![WhyVersion {
+                version: "18.3.1".to_string(),
+                paths: vec![vec![]], // Direct dependency
+            }],
+        };
+
+        let text = format_why_text(&result);
+        assert!(text.contains("react@18.3.1"));
+        assert!(text.contains("dependencies (direct)"));
+    }
+
+    #[test]
+    fn test_format_why_text_transitive() {
+        let result = WhyResult {
+            name: "js-tokens".to_string(),
+            versions: vec![WhyVersion {
+                version: "4.0.0".to_string(),
+                paths: vec![vec![
+                    WhyPathEntry {
+                        name: "react".to_string(),
+                        range: "^18.3.0".to_string(),
+                        version: "18.3.1".to_string(),
+                    },
+                    WhyPathEntry {
+                        name: "loose-envify".to_string(),
+                        range: "^1.1.0".to_string(),
+                        version: "1.4.0".to_string(),
+                    },
+                    WhyPathEntry {
+                        name: "js-tokens".to_string(),
+                        range: "^3.0.0 || ^4.0.0".to_string(),
+                        version: "4.0.0".to_string(),
+                    },
+                ]],
+            }],
+        };
+
+        let text = format_why_text(&result);
+        assert!(text.contains("js-tokens@4.0.0"));
+        assert!(text.contains("react@^18.3.0"));
+        assert!(text.contains("→"));
+    }
+
+    #[test]
+    fn test_format_why_json() {
+        let result = WhyResult {
+            name: "js-tokens".to_string(),
+            versions: vec![WhyVersion {
+                version: "4.0.0".to_string(),
+                paths: vec![vec![
+                    WhyPathEntry {
+                        name: "react".to_string(),
+                        range: "^18.3.0".to_string(),
+                        version: "18.3.1".to_string(),
+                    },
+                    WhyPathEntry {
+                        name: "js-tokens".to_string(),
+                        range: "^3.0.0 || ^4.0.0".to_string(),
+                        version: "4.0.0".to_string(),
+                    },
+                ]],
+            }],
+        };
+
+        let json = format_why_json(&result);
+        let parsed: serde_json::Value = serde_json::from_str(json.trim()).unwrap();
+        assert_eq!(parsed["name"], "js-tokens");
+        assert_eq!(parsed["version"], "4.0.0");
+        assert!(parsed["paths"].is_array());
+        assert_eq!(parsed["paths"][0].as_array().unwrap().len(), 2);
+    }
+
+    #[test]
+    fn test_format_why_json_direct() {
+        let result = WhyResult {
+            name: "react".to_string(),
+            versions: vec![WhyVersion {
+                version: "18.3.1".to_string(),
+                paths: vec![vec![]], // Direct — empty path
+            }],
+        };
+
+        let json = format_why_json(&result);
+        let parsed: serde_json::Value = serde_json::from_str(json.trim()).unwrap();
+        assert_eq!(parsed["paths"][0].as_array().unwrap().len(), 0);
     }
 }

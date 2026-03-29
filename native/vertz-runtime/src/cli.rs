@@ -27,6 +27,8 @@ pub enum Command {
     /// List installed packages
     #[command(alias = "ls")]
     List(ListArgs),
+    /// Show why a package is installed (dependency path tracing)
+    Why(WhyArgs),
 }
 
 #[derive(Parser, Debug)]
@@ -178,6 +180,17 @@ pub struct MigrateTestsArgs {
     pub dry_run: bool,
 }
 
+#[derive(Parser, Debug)]
+pub struct WhyArgs {
+    /// Package name to trace
+    #[arg(required = true)]
+    pub package: String,
+
+    /// Output NDJSON to stdout
+    #[arg(long)]
+    pub json: bool,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -235,6 +248,14 @@ mod tests {
         match cli.command {
             Command::List(args) => args,
             other => panic!("Expected List, got {:?}", other),
+        }
+    }
+
+    fn parse_why(args: &[&str]) -> WhyArgs {
+        let cli = Cli::parse_from(args);
+        match cli.command {
+            Command::Why(args) => args,
+            other => panic!("Expected Why, got {:?}", other),
         }
     }
 
@@ -689,5 +710,27 @@ mod tests {
     fn test_remove_json_default_false() {
         let args = parse_remove(&["vertz-runtime", "remove", "zod"]);
         assert!(!args.json);
+    }
+
+    // --- Why command tests ---
+
+    #[test]
+    fn test_why_basic() {
+        let args = parse_why(&["vertz-runtime", "why", "lodash"]);
+        assert_eq!(args.package, "lodash");
+        assert!(!args.json);
+    }
+
+    #[test]
+    fn test_why_json_flag() {
+        let args = parse_why(&["vertz-runtime", "why", "lodash", "--json"]);
+        assert_eq!(args.package, "lodash");
+        assert!(args.json);
+    }
+
+    #[test]
+    fn test_why_scoped_package() {
+        let args = parse_why(&["vertz-runtime", "why", "@vertz/ui"]);
+        assert_eq!(args.package, "@vertz/ui");
     }
 }
