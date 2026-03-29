@@ -1,6 +1,6 @@
 {
   "name": "@vertz/docs",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Documentation framework for Vertz — build docs with MDX, deploy to Cloudflare",
   "license": "MIT",
   "repository": {

@@ -1,5 +1,18 @@
 # @vertz/ui-primitives
 
+## 0.2.40
+
+### Patch Changes
+
+- [#1994](https://github.com/vertz-dev/vertz/pull/1994) [`7c89bf1`](https://github.com/vertz-dev/vertz/commit/7c89bf196ff00ce8d17744f43a40f2dadfb5d989) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - fix: prevent client-side crash when composed primitives fail to resolve in the bundle
+
+  Primitives in configureTheme() are now lazily initialized — each is created only on first access instead of all 29 being eagerly initialized during registerTheme(). This isolates import resolution failures to the specific primitive that's broken, rather than crashing the entire theme.
+
+  Also adds a guard in withStyles() that throws a descriptive error when a component is undefined, replacing the opaque "Cannot convert undefined or null to object" crash.
+
+- Updated dependencies [[`bee011e`](https://github.com/vertz-dev/vertz/commit/bee011e47661b31152ad3dfc589fd45eda2f3e44)]:
+  - @vertz/ui@0.2.40
+
 ## 0.2.39
 
 ### Patch Changes
