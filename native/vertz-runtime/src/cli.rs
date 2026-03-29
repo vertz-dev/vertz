@@ -1382,7 +1382,7 @@ mod tests {
 
     #[test]
     fn test_install_run_scripts_conflicts_with_ignore_scripts() {
-        let result = Cli::try_parse_from(&[
+        let result = Cli::try_parse_from([
             "vertz-runtime",
             "install",
             "--run-scripts",
@@ -1399,7 +1399,7 @@ mod tests {
 
     #[test]
     fn test_add_run_scripts_conflicts_with_ignore_scripts() {
-        let result = Cli::try_parse_from(&[
+        let result = Cli::try_parse_from([
             "vertz-runtime",
             "add",
             "zod",
