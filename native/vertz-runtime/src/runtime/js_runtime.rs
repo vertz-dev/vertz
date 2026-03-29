@@ -24,6 +24,7 @@ use super::ops::microtask;
 use super::ops::os;
 use super::ops::path;
 use super::ops::performance;
+use super::ops::sqlite;
 use super::ops::streams;
 use super::ops::timers;
 use super::ops::url;
@@ -76,6 +77,7 @@ impl VertzJsRuntime {
         all_ops.extend(streams::op_decls());
         all_ops.extend(os::op_decls());
         all_ops.extend(fs::op_decls());
+        all_ops.extend(sqlite::op_decls());
 
         let capture = options.capture_output;
         let captured_clone = Arc::clone(&captured_output);
@@ -91,6 +93,7 @@ impl VertzJsRuntime {
                 });
                 state.put(performance::PerformanceState { start_time });
                 state.put(crypto_subtle::CryptoKeyStore::default());
+                state.put(sqlite::SqliteStore::default());
             })),
             ..Default::default()
         };

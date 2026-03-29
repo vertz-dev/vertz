@@ -355,6 +355,66 @@ export default { describe, it, test, expect, beforeEach, afterEach, beforeAll, a
 /// URL used for the synthetic test module.
 const VERTZ_TEST_SPECIFIER: &str = "vertz:test";
 
+/// Synthetic module for `vertz:sqlite` (canonical) and `bun:sqlite` (compat alias).
+const VERTZ_SQLITE_SPECIFIER: &str = "vertz:sqlite";
+const VERTZ_SQLITE_MODULE: &str = r#"
+const _registry = new FinalizationRegistry((id) => {
+  try { Deno.core.ops.op_sqlite_close(id); } catch {}
+});
+
+class Statement {
+  #dbId;
+  #sql;
+  constructor(dbId, sql) {
+    this.#dbId = dbId;
+    this.#sql = sql;
+  }
+  all(...params) {
+    return Deno.core.ops.op_sqlite_query_all(this.#dbId, this.#sql, params);
+  }
+  get(...params) {
+    return Deno.core.ops.op_sqlite_query_get(this.#dbId, this.#sql, params);
+  }
+  run(...params) {
+    return Deno.core.ops.op_sqlite_query_run(this.#dbId, this.#sql, params);
+  }
+}
+
+class Database {
+  #id;
+  #closed = false;
+  constructor(path) {
+    if (typeof path !== 'string') throw new TypeError('Database path must be a string');
+    this.#id = Deno.core.ops.op_sqlite_open(path);
+    _registry.register(this, this.#id, this);
+  }
+  #assertOpen() {
+    if (this.#closed) throw new TypeError('database is closed');
+  }
+  prepare(sql) {
+    this.#assertOpen();
+    return new Statement(this.#id, sql);
+  }
+  exec(sql) {
+    this.#assertOpen();
+    Deno.core.ops.op_sqlite_exec(this.#id, sql);
+  }
+  run(sql, ...params) {
+    this.#assertOpen();
+    return Deno.core.ops.op_sqlite_query_run(this.#id, sql, params);
+  }
+  close() {
+    if (this.#closed) return;
+    this.#closed = true;
+    _registry.unregister(this);
+    Deno.core.ops.op_sqlite_close(this.#id);
+  }
+}
+
+export { Database, Statement };
+export default Database;
+"#;
+
 /// Synthetic module for `node:path`.
 const NODE_PATH_SPECIFIER: &str = "vertz:node_path";
 const NODE_PATH_MODULE: &str = r#"
@@ -768,6 +828,7 @@ fn synthetic_module_source(specifier: &str) -> Option<&'static str> {
         NODE_FS_PROMISES_SPECIFIER => Some(NODE_FS_PROMISES_MODULE),
         NODE_CRYPTO_SPECIFIER => Some(NODE_CRYPTO_MODULE),
         NODE_BUFFER_SPECIFIER => Some(NODE_BUFFER_MODULE),
+        VERTZ_SQLITE_SPECIFIER => Some(VERTZ_SQLITE_MODULE),
         _ => None,
     }
 }
@@ -782,6 +843,11 @@ impl ModuleLoader for VertzModuleLoader {
         // Intercept @vertz/test and bun:test → synthetic vertz:test module
         if specifier == "@vertz/test" || specifier == "bun:test" {
             return Ok(ModuleSpecifier::parse(VERTZ_TEST_SPECIFIER)?);
+        }
+
+        // Intercept vertz:sqlite (canonical) and bun:sqlite (compat) → synthetic SQLite module
+        if specifier == "vertz:sqlite" || specifier == "bun:sqlite" {
+            return Ok(ModuleSpecifier::parse(VERTZ_SQLITE_SPECIFIER)?);
         }
 
         // Intercept node:* specifiers → synthetic modules
