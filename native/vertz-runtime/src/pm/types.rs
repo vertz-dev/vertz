@@ -23,6 +23,8 @@ pub struct PackageJson {
     pub scripts: BTreeMap<String, String>,
     #[serde(default)]
     pub workspaces: Option<Vec<String>>,
+    #[serde(default)]
+    pub overrides: BTreeMap<String, String>,
 }
 
 /// The `bin` field in package.json can be a string or a map
@@ -137,6 +139,8 @@ pub struct LockfileEntry {
     pub integrity: String,
     pub dependencies: BTreeMap<String, String>,
     pub optional: bool,
+    /// Whether this version was forced by an override
+    pub overridden: bool,
 }
 
 /// Full lockfile representation

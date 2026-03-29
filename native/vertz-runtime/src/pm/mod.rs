@@ -4,6 +4,7 @@ pub mod config;
 pub mod linker;
 pub mod lockfile;
 pub mod output;
+pub mod overrides;
 pub mod registry;
 pub mod resolver;
 pub mod scripts;
@@ -95,6 +96,23 @@ pub async fn install(
         verify_frozen_deps(&all_deps, &existing_lockfile)?;
     }
 
+    // Parse overrides from package.json (check both "overrides" and "resolutions")
+    let raw_pkg_json = {
+        let content = std::fs::read_to_string(root_dir.join("package.json"))
+            .map_err(|e| format!("Could not read package.json: {}", e))?;
+        serde_json::from_str::<serde_json::Value>(&content)
+            .map_err(|e| format!("Invalid package.json: {}", e))?
+    };
+    let (raw_overrides, override_warnings) = overrides::extract_overrides_from_raw(&raw_pkg_json);
+    for w in &override_warnings {
+        output.warning(w);
+    }
+    let override_map = if raw_overrides.is_empty() {
+        overrides::OverrideMap::default()
+    } else {
+        overrides::parse_overrides(&raw_overrides, &resolved_deps, &resolved_dev_deps)?
+    };
+
     let cache_dir = registry::default_cache_dir();
     let registry_client = RegistryClient::new(&cache_dir);
     let tarball_mgr = Arc::new(TarballManager::new(&cache_dir));
@@ -102,16 +120,18 @@ pub async fn install(
     // Resolve dependency graph (required deps)
     output.resolve_started();
 
-    let mut graph = resolver::resolve_all(
+    let (mut graph, override_applications) = resolver::resolve_all(
         &resolved_deps,
         &resolved_dev_deps,
         &registry_client,
         &existing_lockfile,
+        &override_map,
     )
     .await
     .map_err(|e| format!("{}", e))?;
 
     // Resolve optional deps — failures are warnings, not errors
+    let empty_overrides = overrides::OverrideMap::default();
     for (name, range) in &pkg.optional_dependencies {
         let mut optional_deps = BTreeMap::new();
         optional_deps.insert(name.clone(), range.clone());
@@ -120,10 +140,11 @@ pub async fn install(
             &BTreeMap::new(),
             &registry_client,
             &existing_lockfile,
+            &empty_overrides,
         )
         .await
         {
-            Ok(optional_graph) => {
+            Ok((optional_graph, _)) => {
                 // Merge optional packages into the main graph
                 for (key, pkg) in optional_graph.packages {
                     graph.packages.entry(key).or_insert(pkg);
@@ -138,6 +159,32 @@ pub async fn install(
                     name, e
                 ));
             }
+        }
+    }
+
+    // Report override applications
+    for app in &override_applications {
+        output.info(&format!(
+            "Override: {}@{} → {} (forced by overrides[\"{}\"])",
+            app.target, app.original_range, app.forced_version, app.pattern
+        ));
+    }
+
+    // Check for stale overrides
+    if !override_map.is_empty() {
+        let original_ranges: Vec<(String, String, String)> = override_applications
+            .iter()
+            .map(|app| {
+                (
+                    app.target.clone(),
+                    app.original_range.clone(),
+                    app.pattern.clone(),
+                )
+            })
+            .collect();
+        let stale_warnings = overrides::detect_stale_overrides(&override_map, &original_ranges);
+        for w in &stale_warnings {
+            output.warning(w);
         }
     }
 
@@ -271,7 +318,18 @@ pub async fn install(
             path: ws.path.to_string_lossy().to_string(),
         })
         .collect();
-    let new_lockfile = resolver::graph_to_lockfile(&graph, &all_deps, &ws_info, &optional_names);
+    let mut new_lockfile =
+        resolver::graph_to_lockfile(&graph, &all_deps, &ws_info, &optional_names);
+
+    // Mark overridden entries in lockfile
+    for app in &override_applications {
+        // Find the lockfile entry for this override target + original range
+        let key = types::Lockfile::spec_key(&app.target, &app.original_range);
+        if let Some(entry) = new_lockfile.entries.get_mut(&key) {
+            entry.overridden = true;
+        }
+    }
+
     lockfile::write_lockfile(&lockfile_path, &new_lockfile)?;
 
     let elapsed = start.elapsed();
@@ -1631,6 +1689,7 @@ mod tests {
             bin: types::BinField::default(),
             scripts: BTreeMap::new(),
             workspaces: None,
+            overrides: BTreeMap::new(),
         }
     }
 
@@ -1655,6 +1714,7 @@ mod tests {
             integrity: format!("sha512-fake-{}", name),
             dependencies,
             optional: false,
+            overridden: false,
         }
     }
 
