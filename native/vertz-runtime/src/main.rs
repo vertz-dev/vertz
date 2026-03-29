@@ -2,8 +2,11 @@ mod cli;
 
 use clap::Parser;
 use cli::{Cli, Command};
+use std::io::IsTerminal;
+use std::sync::Arc;
 use vertz_runtime::config::ServerConfig;
 use vertz_runtime::pm;
+use vertz_runtime::pm::output::{error_code_from_message, JsonOutput, PmOutput, TextOutput};
 
 #[tokio::main]
 async fn main() {
@@ -82,8 +85,19 @@ async fn main() {
             let root_dir =
                 std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from("."));
 
-            if let Err(e) = pm::install(&root_dir, args.frozen, false).await {
-                eprintln!("{}", e);
+            let output: Arc<dyn PmOutput> = if args.json {
+                Arc::new(JsonOutput::new())
+            } else {
+                Arc::new(TextOutput::new(std::io::stderr().is_terminal()))
+            };
+
+            if let Err(e) = pm::install(&root_dir, args.frozen, false, output.clone()).await {
+                let msg = e.to_string();
+                if args.json {
+                    output.error(error_code_from_message(&msg), &msg);
+                } else {
+                    eprintln!("{}", msg);
+                }
                 std::process::exit(1);
             }
         }
@@ -96,10 +110,29 @@ async fn main() {
             let root_dir =
                 std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from("."));
 
+            let output: Arc<dyn PmOutput> = if args.json {
+                Arc::new(JsonOutput::new())
+            } else {
+                Arc::new(TextOutput::new(std::io::stderr().is_terminal()))
+            };
+
             let package_refs: Vec<&str> = args.packages.iter().map(|s| s.as_str()).collect();
 
-            if let Err(e) = pm::add(&root_dir, &package_refs, args.dev, args.exact).await {
-                eprintln!("{}", e);
+            if let Err(e) = pm::add(
+                &root_dir,
+                &package_refs,
+                args.dev,
+                args.exact,
+                output.clone(),
+            )
+            .await
+            {
+                let msg = e.to_string();
+                if args.json {
+                    output.error(error_code_from_message(&msg), &msg);
+                } else {
+                    eprintln!("{}", msg);
+                }
                 std::process::exit(1);
             }
         }
@@ -112,10 +145,21 @@ async fn main() {
             let root_dir =
                 std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from("."));
 
+            let output: Arc<dyn PmOutput> = if args.json {
+                Arc::new(JsonOutput::new())
+            } else {
+                Arc::new(TextOutput::new(std::io::stderr().is_terminal()))
+            };
+
             let package_refs: Vec<&str> = args.packages.iter().map(|s| s.as_str()).collect();
 
-            if let Err(e) = pm::remove(&root_dir, &package_refs).await {
-                eprintln!("{}", e);
+            if let Err(e) = pm::remove(&root_dir, &package_refs, output.clone()).await {
+                let msg = e.to_string();
+                if args.json {
+                    output.error(error_code_from_message(&msg), &msg);
+                } else {
+                    eprintln!("{}", msg);
+                }
                 std::process::exit(1);
             }
         }
@@ -132,6 +176,36 @@ async fn main() {
                 }
                 Err(e) => {
                     eprintln!("Migration error: {}", e);
+                    std::process::exit(1);
+                }
+            }
+        }
+        Command::List(args) => {
+            let root_dir =
+                std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from("."));
+
+            let options = pm::ListOptions {
+                all: args.all,
+                depth: args.depth,
+                filter: args.package,
+            };
+
+            match pm::list(&root_dir, &options) {
+                Ok(entries) => {
+                    if args.json {
+                        let output = pm::format_list_json(&entries);
+                        print!("{}", output);
+                    } else {
+                        let output = pm::format_list_text(&entries);
+                        if output.is_empty() {
+                            eprintln!("No dependencies found.");
+                        } else {
+                            print!("{}", output);
+                        }
+                    }
+                }
+                Err(e) => {
+                    eprintln!("{}", e);
                     std::process::exit(1);
                 }
             }

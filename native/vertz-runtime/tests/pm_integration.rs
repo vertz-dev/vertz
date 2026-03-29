@@ -8,7 +8,9 @@
 ///
 /// They are NOT included in the default `cargo test` suite (no #[ignore]
 /// needed — they're in a separate test binary).
+use std::sync::Arc;
 use tempfile::TempDir;
+use vertz_runtime::pm::output::{PmOutput, TextOutput};
 
 /// Helper: create a temp project with a minimal package.json
 fn create_project(extra_fields: &str) -> TempDir {
@@ -35,6 +37,11 @@ fn create_project(extra_fields: &str) -> TempDir {
     dir
 }
 
+/// Helper: create a non-TTY text output for tests
+fn test_output() -> Arc<dyn PmOutput> {
+    Arc::new(TextOutput::new(false))
+}
+
 /// Helper: read package.json as raw JSON Value
 fn read_pkg_json(dir: &TempDir) -> serde_json::Value {
     let content = std::fs::read_to_string(dir.path().join("package.json")).unwrap();
@@ -45,7 +52,7 @@ fn read_pkg_json(dir: &TempDir) -> serde_json::Value {
 async fn test_add_creates_package_json_entry_lockfile_and_node_modules() {
     let dir = create_project("");
 
-    vertz_runtime::pm::add(dir.path(), &["is-number"], false, false)
+    vertz_runtime::pm::add(dir.path(), &["is-number"], false, false, test_output())
         .await
         .unwrap();
 
@@ -81,7 +88,7 @@ async fn test_add_creates_package_json_entry_lockfile_and_node_modules() {
 async fn test_add_dev_dependency() {
     let dir = create_project("");
 
-    vertz_runtime::pm::add(dir.path(), &["is-number"], true, false)
+    vertz_runtime::pm::add(dir.path(), &["is-number"], true, false, test_output())
         .await
         .unwrap();
 
@@ -105,7 +112,7 @@ async fn test_add_dev_dependency() {
 async fn test_add_exact_version() {
     let dir = create_project("");
 
-    vertz_runtime::pm::add(dir.path(), &["is-number"], false, true)
+    vertz_runtime::pm::add(dir.path(), &["is-number"], false, true, test_output())
         .await
         .unwrap();
 
@@ -128,9 +135,15 @@ async fn test_add_exact_version() {
 async fn test_add_with_explicit_range_preserved() {
     let dir = create_project("");
 
-    vertz_runtime::pm::add(dir.path(), &["is-number@^7.0.0"], false, false)
-        .await
-        .unwrap();
+    vertz_runtime::pm::add(
+        dir.path(),
+        &["is-number@^7.0.0"],
+        false,
+        false,
+        test_output(),
+    )
+    .await
+    .unwrap();
 
     let pkg = read_pkg_json(&dir);
     let range = pkg["dependencies"]["is-number"].as_str().unwrap();
@@ -141,9 +154,15 @@ async fn test_add_with_explicit_range_preserved() {
 async fn test_add_multiple_packages_batch() {
     let dir = create_project("");
 
-    vertz_runtime::pm::add(dir.path(), &["is-number", "is-odd"], false, false)
-        .await
-        .unwrap();
+    vertz_runtime::pm::add(
+        dir.path(),
+        &["is-number", "is-odd"],
+        false,
+        false,
+        test_output(),
+    )
+    .await
+    .unwrap();
 
     let pkg = read_pkg_json(&dir);
     let deps = pkg["dependencies"].as_object().unwrap();
@@ -163,7 +182,7 @@ async fn test_install_from_lockfile() {
     let dir = create_project("");
 
     // First: add a package to create lockfile
-    vertz_runtime::pm::add(dir.path(), &["is-number"], false, false)
+    vertz_runtime::pm::add(dir.path(), &["is-number"], false, false, test_output())
         .await
         .unwrap();
 
@@ -171,7 +190,7 @@ async fn test_install_from_lockfile() {
     std::fs::remove_dir_all(dir.path().join("node_modules")).unwrap();
 
     // Install from lockfile
-    vertz_runtime::pm::install(dir.path(), false, false)
+    vertz_runtime::pm::install(dir.path(), false, false, test_output())
         .await
         .unwrap();
 
@@ -189,7 +208,7 @@ async fn test_install_frozen_fails_when_stale() {
     let dir = create_project(r#""dependencies": {"is-number": "^7.0.0"}"#);
 
     // No lockfile — frozen should fail
-    let result = vertz_runtime::pm::install(dir.path(), true, false).await;
+    let result = vertz_runtime::pm::install(dir.path(), true, false, test_output()).await;
     assert!(
         result.is_err(),
         "Frozen install should fail without lockfile"
@@ -207,7 +226,7 @@ async fn test_install_frozen_succeeds_with_valid_lockfile() {
     let dir = create_project("");
 
     // Add to create lockfile
-    vertz_runtime::pm::add(dir.path(), &["is-number"], false, false)
+    vertz_runtime::pm::add(dir.path(), &["is-number"], false, false, test_output())
         .await
         .unwrap();
 
@@ -215,7 +234,7 @@ async fn test_install_frozen_succeeds_with_valid_lockfile() {
     std::fs::remove_dir_all(dir.path().join("node_modules")).unwrap();
 
     // Frozen install should succeed
-    vertz_runtime::pm::install(dir.path(), true, false)
+    vertz_runtime::pm::install(dir.path(), true, false, test_output())
         .await
         .unwrap();
 
@@ -230,7 +249,7 @@ async fn test_remove_cleans_package_json_and_node_modules() {
     let dir = create_project("");
 
     // Add first
-    vertz_runtime::pm::add(dir.path(), &["is-number"], false, false)
+    vertz_runtime::pm::add(dir.path(), &["is-number"], false, false, test_output())
         .await
         .unwrap();
 
@@ -240,7 +259,7 @@ async fn test_remove_cleans_package_json_and_node_modules() {
         .exists());
 
     // Remove
-    vertz_runtime::pm::remove(dir.path(), &["is-number"])
+    vertz_runtime::pm::remove(dir.path(), &["is-number"], test_output())
         .await
         .unwrap();
 
@@ -268,7 +287,7 @@ async fn test_remove_cleans_package_json_and_node_modules() {
 async fn test_remove_nonexistent_package_errors() {
     let dir = create_project("");
 
-    let result = vertz_runtime::pm::remove(dir.path(), &["nonexistent"]).await;
+    let result = vertz_runtime::pm::remove(dir.path(), &["nonexistent"], test_output()).await;
     assert!(result.is_err());
     let err = result.unwrap_err().to_string();
     assert!(
@@ -292,7 +311,7 @@ async fn test_package_json_field_preservation_through_lifecycle() {
     );
 
     // Add a package
-    vertz_runtime::pm::add(dir.path(), &["is-number"], false, false)
+    vertz_runtime::pm::add(dir.path(), &["is-number"], false, false, test_output())
         .await
         .unwrap();
 
@@ -307,7 +326,7 @@ async fn test_package_json_field_preservation_through_lifecycle() {
     assert_eq!(pkg["description"], "A test project");
 
     // Remove the package
-    vertz_runtime::pm::remove(dir.path(), &["is-number"])
+    vertz_runtime::pm::remove(dir.path(), &["is-number"], test_output())
         .await
         .unwrap();
 
@@ -323,7 +342,7 @@ async fn test_lockfile_updated_after_remove() {
     let dir = create_project("");
 
     // Add is-number
-    vertz_runtime::pm::add(dir.path(), &["is-number"], false, false)
+    vertz_runtime::pm::add(dir.path(), &["is-number"], false, false, test_output())
         .await
         .unwrap();
 
@@ -331,7 +350,7 @@ async fn test_lockfile_updated_after_remove() {
     assert!(lock_before.contains("is-number@"));
 
     // Remove is-number
-    vertz_runtime::pm::remove(dir.path(), &["is-number"])
+    vertz_runtime::pm::remove(dir.path(), &["is-number"], test_output())
         .await
         .unwrap();
 
