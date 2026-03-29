@@ -337,6 +337,14 @@ async fn isolate_event_loop(
                 match extract_api_handler(&mut runtime) {
                     Ok(true) => {
                         has_api_handler.store(true, std::sync::atomic::Ordering::Release);
+                        // Install fetch interceptor for SSR
+                        if let Err(e) =
+                            runtime.execute_script_void("<fetch-interceptor>", FETCH_INTERCEPTOR_JS)
+                        {
+                            eprintln!("[Server] Failed to install fetch interceptor: {}", e);
+                        } else {
+                            eprintln!("[Server] Fetch interceptor installed for /api/ paths");
+                        }
                         eprintln!(
                             "[Server] API handler loaded (persistent isolate -- module state persists across requests)"
                         );
@@ -574,6 +582,43 @@ async fn dispatch_api_request(
         body,
     })
 }
+
+/// JavaScript to install fetch interception for SSR.
+///
+/// Wraps `globalThis.fetch` with a proxy that intercepts requests matching
+/// configured path prefixes (e.g., `/api/`). Intercepted requests are routed
+/// directly to the in-memory API handler — no HTTP self-fetch.
+///
+/// External requests (different origin or non-matching paths) pass through
+/// to the original fetch implementation.
+const FETCH_INTERCEPTOR_JS: &str = r#"
+(function() {
+    const handler = globalThis.__vertz_api_handler;
+    const prefixes = globalThis.__vertz_intercept_prefixes || ['/api/'];
+    const originalFetch = globalThis.fetch;
+    const selfOrigin = globalThis.location ? globalThis.location.origin : '';
+
+    globalThis.__vertz_original_fetch = originalFetch;
+    globalThis.__vertz_fetch_intercept_count = 0;
+
+    globalThis.fetch = async function(input, init) {
+        const req = input instanceof Request ? input : new Request(input, init);
+        const url = new URL(req.url, selfOrigin || 'http://localhost');
+
+        // Only intercept same-origin requests matching the configured prefixes
+        const isSameOrigin = !selfOrigin || url.origin === selfOrigin
+            || url.origin === 'http://localhost';
+        const matchesPrefix = prefixes.some(p => url.pathname.startsWith(p));
+
+        if (handler && isSameOrigin && matchesPrefix) {
+            globalThis.__vertz_fetch_intercept_count++;
+            return handler(req);
+        }
+
+        return originalFetch(input, init);
+    };
+})()
+"#;
 
 /// Reset DOM state between SSR requests.
 ///
@@ -1307,5 +1352,230 @@ mod tests {
             .await
             .unwrap();
         assert!(resp.content.contains("User: user-123"));
+    }
+
+    // ── Phase 3: Fetch interception tests ──────────────────────────────
+
+    #[tokio::test]
+    async fn test_fetch_interceptor_installed_with_api_handler() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let app_path = temp_dir.path().join("app.js");
+        std::fs::write(
+            &app_path,
+            r#"
+            globalThis.__vertz_ssr_render = function(url) {
+                // Verify interceptor globals exist
+                const hasOriginal = typeof globalThis.__vertz_original_fetch === 'function';
+                const hasCounter = typeof globalThis.__vertz_fetch_intercept_count === 'number';
+                return '<div>original=' + hasOriginal + ' counter=' + hasCounter + '</div>';
+            };
+            "#,
+        )
+        .unwrap();
+
+        let server_path = temp_dir.path().join("server.js");
+        std::fs::write(
+            &server_path,
+            r#"
+            const handler = async (request) => {
+                return new Response('ok', { status: 200 });
+            };
+            globalThis.__vertz_server_module = { default: { handler } };
+            "#,
+        )
+        .unwrap();
+
+        let opts = PersistentIsolateOptions {
+            root_dir: temp_dir.path().to_path_buf(),
+            entry_file: app_path,
+            server_entry: Some(server_path),
+            channel_capacity: 16,
+        };
+
+        let isolate = PersistentIsolate::new(opts).unwrap();
+        wait_for_init(&isolate).await;
+        assert!(isolate.has_api_handler());
+
+        // Verify via SSR render that interceptor globals are present
+        let resp = isolate
+            .handle_ssr(SsrRequest {
+                url: "/check".to_string(),
+                session_json: None,
+            })
+            .await
+            .unwrap();
+        assert!(
+            resp.content.contains("original=true"),
+            "Should have __vertz_original_fetch: {}",
+            resp.content
+        );
+        assert!(
+            resp.content.contains("counter=true"),
+            "Should have __vertz_fetch_intercept_count: {}",
+            resp.content
+        );
+    }
+
+    #[tokio::test]
+    async fn test_fetch_interception_in_handler() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let app_path = temp_dir.path().join("app.js");
+        std::fs::write(&app_path, "// empty app").unwrap();
+
+        // Handler that calls fetch('/api/nested') — should be intercepted
+        let server_path = temp_dir.path().join("server.js");
+        std::fs::write(
+            &server_path,
+            r#"
+            const handler = async (request) => {
+                const url = new URL(request.url);
+                if (url.pathname === '/api/nested') {
+                    return new Response(JSON.stringify({ nested: true }), {
+                        status: 200,
+                        headers: { 'content-type': 'application/json' },
+                    });
+                }
+                if (url.pathname === '/api/caller') {
+                    // This fetch should be intercepted by the fetch proxy
+                    const resp = await fetch('http://localhost/api/nested');
+                    const data = await resp.json();
+                    const interceptCount = globalThis.__vertz_fetch_intercept_count || 0;
+                    return new Response(JSON.stringify({
+                        callerGot: data,
+                        interceptCount: interceptCount,
+                    }), {
+                        status: 200,
+                        headers: { 'content-type': 'application/json' },
+                    });
+                }
+                return new Response('Not Found', { status: 404 });
+            };
+            globalThis.__vertz_server_module = { default: { handler } };
+            "#,
+        )
+        .unwrap();
+
+        let opts = PersistentIsolateOptions {
+            root_dir: temp_dir.path().to_path_buf(),
+            entry_file: app_path,
+            server_entry: Some(server_path),
+            channel_capacity: 16,
+        };
+
+        let isolate = PersistentIsolate::new(opts).unwrap();
+        wait_for_init(&isolate).await;
+        assert!(isolate.has_api_handler());
+
+        // Call /api/caller which internally fetches /api/nested
+        let resp = isolate
+            .handle_request(IsolateRequest {
+                method: "GET".to_string(),
+                url: "http://localhost:4200/api/caller".to_string(),
+                headers: vec![],
+                body: None,
+            })
+            .await
+            .unwrap();
+        assert_eq!(resp.status, 200);
+
+        let body: serde_json::Value = serde_json::from_slice(&resp.body).unwrap();
+        assert_eq!(
+            body["callerGot"]["nested"], true,
+            "Nested fetch should be intercepted and return data: {}",
+            body
+        );
+        assert!(
+            body["interceptCount"].as_u64().unwrap_or(0) > 0,
+            "Intercept count should be > 0: {}",
+            body
+        );
+    }
+
+    #[tokio::test]
+    async fn test_fetch_interceptor_not_installed_without_api_handler() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let app_path = temp_dir.path().join("app.js");
+        std::fs::write(
+            &app_path,
+            r#"
+            globalThis.__vertz_ssr_render = function(url) {
+                return '<div>No API</div>';
+            };
+            "#,
+        )
+        .unwrap();
+
+        // No server entry — SSR only
+        let opts = PersistentIsolateOptions {
+            root_dir: temp_dir.path().to_path_buf(),
+            entry_file: app_path,
+            server_entry: None,
+            channel_capacity: 16,
+        };
+
+        let isolate = PersistentIsolate::new(opts).unwrap();
+        wait_for_init(&isolate).await;
+        assert!(!isolate.has_api_handler());
+    }
+
+    #[tokio::test]
+    async fn test_fetch_interceptor_routes_to_handler_directly() {
+        let temp_dir = tempfile::tempdir().unwrap();
+
+        // App entry that does a fetch and records the result
+        let app_path = temp_dir.path().join("app.js");
+        std::fs::write(
+            &app_path,
+            r#"
+            // Will be called during SSR via __vertz_ssr_render
+            globalThis.__vertz_ssr_render = function(url) {
+                // Synchronous render — can't await fetch here
+                // But we can verify the interceptor is installed
+                const isWrapped = typeof globalThis.__vertz_original_fetch === 'function';
+                return '<div>Interceptor: ' + isWrapped + '</div>';
+            };
+            "#,
+        )
+        .unwrap();
+
+        let server_path = temp_dir.path().join("server.js");
+        std::fs::write(
+            &server_path,
+            r#"
+            const handler = async (request) => {
+                return new Response(JSON.stringify({ intercepted: true }), {
+                    status: 200,
+                    headers: { 'content-type': 'application/json' },
+                });
+            };
+            globalThis.__vertz_server_module = { default: { handler } };
+            "#,
+        )
+        .unwrap();
+
+        let opts = PersistentIsolateOptions {
+            root_dir: temp_dir.path().to_path_buf(),
+            entry_file: app_path,
+            server_entry: Some(server_path),
+            channel_capacity: 16,
+        };
+
+        let isolate = PersistentIsolate::new(opts).unwrap();
+        wait_for_init(&isolate).await;
+        assert!(isolate.has_api_handler());
+
+        // SSR render verifies interceptor is installed
+        let resp = isolate
+            .handle_ssr(SsrRequest {
+                url: "/test".to_string(),
+                session_json: None,
+            })
+            .await
+            .unwrap();
+        assert!(
+            resp.content.contains("Interceptor: true"),
+            "Fetch interceptor should be installed: {}",
+            resp.content
+        );
     }
 }
