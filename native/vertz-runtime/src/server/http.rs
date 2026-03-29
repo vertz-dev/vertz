@@ -700,7 +700,16 @@ async fn handle_api_request(
 
     let body_bytes = match axum::body::to_bytes(req.into_body(), 10 * 1024 * 1024).await {
         Ok(b) if !b.is_empty() => Some(b.to_vec()),
-        _ => None,
+        Ok(_) => None,
+        Err(_) => {
+            return axum::response::Response::builder()
+                .status(StatusCode::PAYLOAD_TOO_LARGE)
+                .header(header::CONTENT_TYPE, "application/json; charset=utf-8")
+                .body(Body::from(
+                    r#"{"error":"Request body exceeds 10 MB limit."}"#,
+                ))
+                .unwrap();
+        }
     };
 
     let isolate_req = IsolateRequest {
@@ -741,13 +750,11 @@ async fn handle_api_request(
                 .console_log
                 .push(LogLevel::Error, error_msg, Some("api"));
 
+            let body = serde_json::json!({ "error": e.to_string() }).to_string();
             axum::response::Response::builder()
                 .status(StatusCode::INTERNAL_SERVER_ERROR)
                 .header(header::CONTENT_TYPE, "application/json; charset=utf-8")
-                .body(Body::from(format!(
-                    r#"{{"error":"{}"}}"#,
-                    e.to_string().replace('"', "\\\"")
-                )))
+                .body(Body::from(body))
                 .unwrap()
         }
     }

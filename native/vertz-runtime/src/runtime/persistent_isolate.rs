@@ -477,13 +477,20 @@ const API_DISPATCH_JS: &str = r#"
 
     try {
         const response = await handler(request);
-        const responseBody = await response.text();
+        const buf = await response.arrayBuffer();
+        const bytes = new Uint8Array(buf);
+        let bodyB64 = '';
+        if (bytes.length > 0) {
+            let bin = '';
+            for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+            bodyB64 = btoa(bin);
+        }
         const responseHeaders = [];
         response.headers.forEach((v, k) => responseHeaders.push([k, v]));
         globalThis.__vertz_last_response = JSON.stringify({
             status: response.status,
             headers: responseHeaders,
-            body: responseBody,
+            bodyB64: bodyB64,
         });
     } catch (e) {
         globalThis.__vertz_last_response = JSON.stringify({
@@ -553,12 +560,13 @@ async fn dispatch_api_request(
         .get("headers")
         .and_then(|h| serde_json::from_value(h.clone()).ok())
         .unwrap_or_default();
-    let body = parsed
-        .get("body")
-        .and_then(|b| b.as_str())
-        .unwrap_or("")
-        .as_bytes()
-        .to_vec();
+    let body = match parsed.get("bodyB64").and_then(|b| b.as_str()) {
+        Some(b64) if !b64.is_empty() => {
+            base64::Engine::decode(&base64::engine::general_purpose::STANDARD, b64)
+                .map_err(|e| format!("Decode response body: {}", e))?
+        }
+        _ => Vec::new(),
+    };
 
     Ok(IsolateResponse {
         status,

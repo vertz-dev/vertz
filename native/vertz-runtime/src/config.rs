@@ -191,4 +191,36 @@ mod tests {
             PathBuf::from("/tmp/test-project/.vertz/css")
         );
     }
+
+    #[test]
+    fn test_detect_server_entry_ts() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(dir.path().join("server.ts"), "").unwrap();
+        let result = detect_server_entry(dir.path());
+        assert_eq!(result, Some(dir.path().join("server.ts")));
+    }
+
+    #[test]
+    fn test_detect_server_entry_tsx() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(dir.path().join("server.tsx"), "").unwrap();
+        let result = detect_server_entry(dir.path());
+        assert_eq!(result, Some(dir.path().join("server.tsx")));
+    }
+
+    #[test]
+    fn test_detect_server_entry_ts_preferred_over_tsx() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(dir.path().join("server.ts"), "").unwrap();
+        std::fs::write(dir.path().join("server.tsx"), "").unwrap();
+        let result = detect_server_entry(dir.path());
+        assert_eq!(result, Some(dir.path().join("server.ts")));
+    }
+
+    #[test]
+    fn test_detect_server_entry_none() {
+        let dir = tempfile::tempdir().unwrap();
+        let result = detect_server_entry(dir.path());
+        assert_eq!(result, None);
+    }
 }
