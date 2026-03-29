@@ -172,6 +172,105 @@ impl Debouncer {
     }
 }
 
+/// Smart debouncer for HMR: immediate dispatch for single-file changes,
+/// batched dispatch for multi-file bursts (e.g., git checkout).
+///
+/// Two modes:
+/// - **Immediate** (< `batch_window`): A single unique file path arrives and
+///   no new changes follow within the batch window → dispatch immediately.
+/// - **Batched** (> `batch_window`): Multiple files arrive within the batch
+///   window → wait for the batch debounce duration before dispatching all.
+///
+/// Atomic saves (tmp + rename) produce multiple events for the same file path;
+/// these are deduplicated and treated as a single-file change.
+pub struct SmartDebouncer {
+    pending: std::collections::HashMap<PathBuf, FileChange>,
+    first_event_time: Option<std::time::Instant>,
+    last_event_time: Option<std::time::Instant>,
+    /// Window to distinguish single-file from multi-file changes (default: 5ms).
+    batch_window: Duration,
+    /// Debounce duration for multi-file batches (default: 20ms).
+    batch_debounce: Duration,
+}
+
+impl Default for SmartDebouncer {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl SmartDebouncer {
+    /// Create a smart debouncer with default timings (5ms window, 20ms batch).
+    pub fn new() -> Self {
+        Self {
+            pending: std::collections::HashMap::new(),
+            first_event_time: None,
+            last_event_time: None,
+            batch_window: Duration::from_millis(5),
+            batch_debounce: Duration::from_millis(20),
+        }
+    }
+
+    /// Create with custom timings.
+    pub fn with_timings(batch_window_ms: u64, batch_debounce_ms: u64) -> Self {
+        Self {
+            pending: std::collections::HashMap::new(),
+            first_event_time: None,
+            last_event_time: None,
+            batch_window: Duration::from_millis(batch_window_ms),
+            batch_debounce: Duration::from_millis(batch_debounce_ms),
+        }
+    }
+
+    /// Add a file change event.
+    pub fn add(&mut self, change: FileChange) {
+        if self.first_event_time.is_none() {
+            self.first_event_time = Some(std::time::Instant::now());
+        }
+        self.pending.insert(change.path.clone(), change);
+        self.last_event_time = Some(std::time::Instant::now());
+    }
+
+    /// Check if changes are ready to dispatch.
+    ///
+    /// - Single unique file path + batch window elapsed → ready (immediate mode)
+    /// - Multiple unique paths + batch debounce elapsed → ready (batch mode)
+    pub fn is_ready(&self) -> bool {
+        let first = match self.first_event_time {
+            Some(t) => t,
+            None => return false,
+        };
+
+        if self.pending.len() <= 1 {
+            // Single file (or deduplicated atomic save): dispatch after batch window
+            first.elapsed() >= self.batch_window
+        } else {
+            // Multiple files: wait for batch debounce after last event
+            match self.last_event_time {
+                Some(t) => t.elapsed() >= self.batch_debounce,
+                None => false,
+            }
+        }
+    }
+
+    /// Drain all pending changes. Only call when `is_ready()` returns true.
+    pub fn drain(&mut self) -> Vec<FileChange> {
+        self.first_event_time = None;
+        self.last_event_time = None;
+        self.pending.drain().map(|(_, v)| v).collect()
+    }
+
+    /// Returns true if there are pending changes.
+    pub fn has_pending(&self) -> bool {
+        !self.pending.is_empty()
+    }
+
+    /// Number of unique files pending.
+    pub fn pending_count(&self) -> usize {
+        self.pending.len()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -424,5 +523,107 @@ mod tests {
 
         // Drop should clean up without panicking
         drop(watcher);
+    }
+
+    // ── SmartDebouncer tests ──────────────────────────────────────────
+
+    #[test]
+    fn test_smart_debouncer_new() {
+        let debouncer = SmartDebouncer::new();
+        assert!(!debouncer.has_pending());
+        assert!(!debouncer.is_ready());
+        assert_eq!(debouncer.pending_count(), 0);
+    }
+
+    #[test]
+    fn test_smart_debouncer_single_file_immediate() {
+        let mut debouncer = SmartDebouncer::with_timings(0, 20);
+        debouncer.add(FileChange {
+            kind: FileChangeKind::Modify,
+            path: PathBuf::from("/src/app.tsx"),
+        });
+        assert!(debouncer.has_pending());
+        assert_eq!(debouncer.pending_count(), 1);
+
+        // With 0ms batch window, single file should be immediately ready
+        assert!(debouncer.is_ready());
+
+        let changes = debouncer.drain();
+        assert_eq!(changes.len(), 1);
+        assert!(!debouncer.has_pending());
+    }
+
+    #[test]
+    fn test_smart_debouncer_deduplicates_atomic_save() {
+        let mut debouncer = SmartDebouncer::with_timings(0, 20);
+
+        // Simulate atomic save: write + modify for same file path
+        debouncer.add(FileChange {
+            kind: FileChangeKind::Create,
+            path: PathBuf::from("/src/app.tsx"),
+        });
+        debouncer.add(FileChange {
+            kind: FileChangeKind::Modify,
+            path: PathBuf::from("/src/app.tsx"),
+        });
+
+        // Still just 1 unique file — should use immediate mode
+        assert_eq!(debouncer.pending_count(), 1);
+        assert!(debouncer.is_ready());
+
+        let changes = debouncer.drain();
+        assert_eq!(changes.len(), 1);
+    }
+
+    #[test]
+    fn test_smart_debouncer_multi_file_batches() {
+        let mut debouncer = SmartDebouncer::with_timings(0, 0);
+        debouncer.add(FileChange {
+            kind: FileChangeKind::Modify,
+            path: PathBuf::from("/src/app.tsx"),
+        });
+        debouncer.add(FileChange {
+            kind: FileChangeKind::Modify,
+            path: PathBuf::from("/src/Button.tsx"),
+        });
+
+        assert_eq!(debouncer.pending_count(), 2);
+        // With 0ms batch debounce, multi-file batch is immediately ready
+        assert!(debouncer.is_ready());
+
+        let changes = debouncer.drain();
+        assert_eq!(changes.len(), 2);
+    }
+
+    #[test]
+    fn test_smart_debouncer_multi_file_waits_for_batch() {
+        // Use a long batch debounce so it's definitely not ready
+        let mut debouncer = SmartDebouncer::with_timings(0, 1000);
+        debouncer.add(FileChange {
+            kind: FileChangeKind::Modify,
+            path: PathBuf::from("/src/app.tsx"),
+        });
+        debouncer.add(FileChange {
+            kind: FileChangeKind::Modify,
+            path: PathBuf::from("/src/Button.tsx"),
+        });
+
+        // Multi-file with 1s debounce — not ready yet
+        assert!(!debouncer.is_ready());
+        assert!(debouncer.has_pending());
+    }
+
+    #[test]
+    fn test_smart_debouncer_drain_resets_state() {
+        let mut debouncer = SmartDebouncer::with_timings(0, 0);
+        debouncer.add(FileChange {
+            kind: FileChangeKind::Modify,
+            path: PathBuf::from("/src/app.tsx"),
+        });
+        debouncer.drain();
+
+        assert!(!debouncer.has_pending());
+        assert!(!debouncer.is_ready());
+        assert_eq!(debouncer.pending_count(), 0);
     }
 }

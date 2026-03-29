@@ -18,7 +18,7 @@ use crate::server::module_server::{self, DevServerState};
 use crate::server::theme_css;
 use crate::typecheck::process;
 use crate::watcher;
-use crate::watcher::file_watcher::{Debouncer, FileWatcher, FileWatcherConfig};
+use crate::watcher::file_watcher::{FileWatcher, FileWatcherConfig, SmartDebouncer};
 use axum::body::Body;
 use axum::extract::ws::WebSocketUpgrade;
 use axum::extract::State;
@@ -864,14 +864,14 @@ pub async fn start_server(config: ServerConfig) -> io::Result<()> {
 
                 // Spawn file watcher task with error broadcasting
                 tokio::spawn(async move {
-                    let mut debouncer = Debouncer::new(50);
+                    let mut debouncer = SmartDebouncer::new();
 
                     loop {
                         tokio::select! {
                             Some(change) = rx.recv() => {
                                 debouncer.add(change);
                             }
-                            _ = tokio::time::sleep(std::time::Duration::from_millis(60)),
+                            _ = tokio::time::sleep(std::time::Duration::from_millis(6)),
                               if debouncer.has_pending() => {
                                 if !debouncer.is_ready() {
                                     continue;
