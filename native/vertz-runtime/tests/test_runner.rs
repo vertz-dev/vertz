@@ -123,9 +123,15 @@ fn e2e_full_project_test_run() {
     assert!(output.contains("FAIL"), "Output should show FAIL files");
     assert!(output.contains("5 passed"), "Output should show pass count");
     assert!(output.contains("1 failed"), "Output should show fail count");
-    assert!(output.contains("1 skipped"), "Output should show skip count");
+    assert!(
+        output.contains("1 skipped"),
+        "Output should show skip count"
+    );
     assert!(output.contains("1 todo"), "Output should show todo count");
-    assert!(output.contains("Files:  3"), "Output should show file count");
+    assert!(
+        output.contains("Files:  3"),
+        "Output should show file count"
+    );
 }
 
 // --- E2E: All tests pass → exit code 0 ---
@@ -276,7 +282,11 @@ fn e2e_nested_describe_scoping() {
 
     let (result, _output) = run_tests(make_config(tmp.path()));
 
-    assert!(result.success(), "Nested hooks should compose: {:?}", result.results);
+    assert!(
+        result.success(),
+        "Nested hooks should compose: {:?}",
+        result.results
+    );
     assert_eq!(result.total_passed, 3);
 }
 
@@ -407,7 +417,12 @@ fn e2e_expect_matchers_comprehensive() {
     assert!(
         result.success(),
         "All matchers should work: {:?}",
-        result.results.iter().flat_map(|r| &r.tests).filter(|t| t.status == vertz_runtime::test::executor::TestStatus::Fail).collect::<Vec<_>>()
+        result
+            .results
+            .iter()
+            .flat_map(|r| &r.tests)
+            .filter(|t| t.status == vertz_runtime::test::executor::TestStatus::Fail)
+            .collect::<Vec<_>>()
     );
     assert_eq!(result.total_passed, 10);
 }
@@ -449,7 +464,10 @@ fn e2e_bail_stops_early() {
 
     let (result, _output) = run_tests(config);
 
-    assert_eq!(result.total_files, 1, "Bail should stop after first file failure");
+    assert_eq!(
+        result.total_files, 1,
+        "Bail should stop after first file failure"
+    );
     assert_eq!(result.total_failed, 1);
 }
 
@@ -588,6 +606,10 @@ fn e2e_typescript_features() {
 
     let (result, _output) = run_tests(make_config(tmp.path()));
 
-    assert!(result.success(), "TypeScript features should compile and work: {:?}", result.results);
+    assert!(
+        result.success(),
+        "TypeScript features should compile and work: {:?}",
+        result.results
+    );
     assert_eq!(result.total_passed, 5);
 }

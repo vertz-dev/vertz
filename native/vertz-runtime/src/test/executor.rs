@@ -54,16 +54,28 @@ pub struct TestError {
 
 impl TestFileResult {
     pub fn passed(&self) -> usize {
-        self.tests.iter().filter(|t| t.status == TestStatus::Pass).count()
+        self.tests
+            .iter()
+            .filter(|t| t.status == TestStatus::Pass)
+            .count()
     }
     pub fn failed(&self) -> usize {
-        self.tests.iter().filter(|t| t.status == TestStatus::Fail).count()
+        self.tests
+            .iter()
+            .filter(|t| t.status == TestStatus::Fail)
+            .count()
     }
     pub fn skipped(&self) -> usize {
-        self.tests.iter().filter(|t| t.status == TestStatus::Skip).count()
+        self.tests
+            .iter()
+            .filter(|t| t.status == TestStatus::Skip)
+            .count()
     }
     pub fn todo(&self) -> usize {
-        self.tests.iter().filter(|t| t.status == TestStatus::Todo).count()
+        self.tests
+            .iter()
+            .filter(|t| t.status == TestStatus::Todo)
+            .count()
     }
 }
 
@@ -93,7 +105,10 @@ pub fn execute_test_file(file_path: &Path) -> TestFileResult {
 }
 
 /// Execute a single test file with options (filter, timeout).
-pub fn execute_test_file_with_options(file_path: &Path, options: &ExecuteOptions) -> TestFileResult {
+pub fn execute_test_file_with_options(
+    file_path: &Path,
+    options: &ExecuteOptions,
+) -> TestFileResult {
     let file_str = file_path.to_string_lossy().to_string();
     let start = Instant::now();
 
@@ -152,9 +167,7 @@ fn execute_test_file_inner(
         .enable_all()
         .build()?;
 
-    tokio_rt.block_on(async {
-        runtime.load_main_module(&specifier).await
-    })?;
+    tokio_rt.block_on(async { runtime.load_main_module(&specifier).await })?;
 
     // 4. Run all registered tests with timeout
     let timeout_duration = if options.timeout_ms > 0 {
@@ -212,10 +225,7 @@ fn parse_test_results(value: &serde_json::Value) -> Result<Vec<TestResult>, AnyE
                     .as_str()
                     .unwrap_or("Unknown error")
                     .to_string(),
-                stack: item["error"]["stack"]
-                    .as_str()
-                    .unwrap_or("")
-                    .to_string(),
+                stack: item["error"]["stack"].as_str().unwrap_or("").to_string(),
             })
         } else {
             None
@@ -290,7 +300,12 @@ mod tests {
         assert_eq!(result.passed(), 1);
         assert_eq!(result.failed(), 1);
         assert!(result.tests[1].error.is_some());
-        assert!(result.tests[1].error.as_ref().unwrap().message.contains("to be 2"));
+        assert!(result.tests[1]
+            .error
+            .as_ref()
+            .unwrap()
+            .message
+            .contains("to be 2"));
     }
 
     #[test]
@@ -417,6 +432,11 @@ mod tests {
         let result_b = execute_test_file(&file_b);
 
         assert_eq!(result_a.passed(), 1);
-        assert_eq!(result_b.passed(), 1, "Global leaked between files: {:?}", result_b.tests);
+        assert_eq!(
+            result_b.passed(),
+            1,
+            "Global leaked between files: {:?}",
+            result_b.tests
+        );
     }
 }

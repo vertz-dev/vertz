@@ -48,7 +48,12 @@ impl TestRunResult {
 /// Returns a `TestRunResult` with the aggregated results and formatted output.
 pub fn run_tests(config: TestRunConfig) -> (TestRunResult, String) {
     // 1. Discover test files
-    let files = discover_test_files(&config.root_dir, &config.paths, &config.include, &config.exclude);
+    let files = discover_test_files(
+        &config.root_dir,
+        &config.paths,
+        &config.include,
+        &config.exclude,
+    );
 
     if files.is_empty() {
         let output = "\nNo test files found.\n".to_string();
@@ -65,9 +70,11 @@ pub fn run_tests(config: TestRunConfig) -> (TestRunResult, String) {
     }
 
     // 2. Execute test files in parallel using OS threads
-    let concurrency = config
-        .concurrency
-        .unwrap_or_else(|| thread::available_parallelism().map(|n| n.get()).unwrap_or(4));
+    let concurrency = config.concurrency.unwrap_or_else(|| {
+        thread::available_parallelism()
+            .map(|n| n.get())
+            .unwrap_or(4)
+    });
 
     let exec_options = std::sync::Arc::new(ExecuteOptions {
         filter: config.filter.clone(),
@@ -170,7 +177,11 @@ fn execute_parallel(
 }
 
 /// Execute test files sequentially (single thread).
-fn execute_sequential(files: &[PathBuf], bail: bool, options: &ExecuteOptions) -> Vec<TestFileResult> {
+fn execute_sequential(
+    files: &[PathBuf],
+    bail: bool,
+    options: &ExecuteOptions,
+) -> Vec<TestFileResult> {
     let mut results = Vec::with_capacity(files.len());
     for file in files {
         let result = execute_test_file_with_options(file, options);
@@ -386,7 +397,11 @@ mod tests {
         let (result, _output) = run_tests(config);
 
         assert_eq!(result.total_passed, 2);
-        assert!(result.success(), "Files should be isolated: {:?}", result.results);
+        assert!(
+            result.success(),
+            "Files should be isolated: {:?}",
+            result.results
+        );
     }
 
     #[test]

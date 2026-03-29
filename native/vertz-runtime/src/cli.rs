@@ -214,7 +214,12 @@ mod tests {
 
     #[test]
     fn test_test_with_paths() {
-        let args = parse_test(&["vertz-runtime", "test", "src/math.test.ts", "src/string.test.ts"]);
+        let args = parse_test(&[
+            "vertz-runtime",
+            "test",
+            "src/math.test.ts",
+            "src/string.test.ts",
+        ]);
         assert_eq!(args.paths.len(), 2);
         assert_eq!(args.paths[0], PathBuf::from("src/math.test.ts"));
         assert_eq!(args.paths[1], PathBuf::from("src/string.test.ts"));
@@ -234,7 +239,13 @@ mod tests {
 
     #[test]
     fn test_test_coverage() {
-        let args = parse_test(&["vertz-runtime", "test", "--coverage", "--coverage-threshold", "80"]);
+        let args = parse_test(&[
+            "vertz-runtime",
+            "test",
+            "--coverage",
+            "--coverage-threshold",
+            "80",
+        ]);
         assert!(args.coverage);
         assert_eq!(args.coverage_threshold, 80);
     }
