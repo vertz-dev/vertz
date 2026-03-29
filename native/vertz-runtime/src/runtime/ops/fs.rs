@@ -303,6 +303,17 @@ pub async fn op_fs_write_file(
         .map_err(|e| deno_core::anyhow::anyhow!("{}: {}: '{}'", io_error_code(&e), e, path))
 }
 
+/// Write raw bytes to a file (async).
+#[op2(async)]
+pub async fn op_fs_write_file_bytes(
+    #[string] path: String,
+    #[serde] data: Vec<u8>,
+) -> Result<(), AnyError> {
+    tokio::fs::write(&path, data)
+        .await
+        .map_err(|e| deno_core::anyhow::anyhow!("{}: {}: '{}'", io_error_code(&e), e, path))
+}
+
 /// Create a directory (async, optionally recursive).
 #[op2(async)]
 pub async fn op_fs_mkdir(#[string] path: String, recursive: bool) -> Result<(), AnyError> {
@@ -426,6 +437,7 @@ pub fn op_decls() -> Vec<OpDecl> {
         op_fs_read_file(),
         op_fs_read_file_bytes(),
         op_fs_write_file(),
+        op_fs_write_file_bytes(),
         op_fs_mkdir(),
         op_fs_readdir(),
         op_fs_stat(),
@@ -618,14 +630,22 @@ pub const FS_BOOTSTRAP_JS: &str = r#"
   async function readFile(path, options) {
     const encoding = typeof options === 'string' ? options : (options && options.encoding);
     if (encoding === 'utf-8' || encoding === 'utf8') {
-      return Deno.core.ops.op_fs_read_file(String(path));
+      return await Deno.core.ops.op_fs_read_file(String(path));
     }
     const bytes = await Deno.core.ops.op_fs_read_file_bytes(String(path));
     return Buffer.from(bytes);
   }
 
   async function writeFile(path, data, options) {
-    await Deno.core.ops.op_fs_write_file(String(path), typeof data === 'string' ? data : new TextDecoder().decode(data));
+    if (typeof data === 'string') {
+      await Deno.core.ops.op_fs_write_file(String(path), data);
+    } else {
+      // Binary data — use bytes op to avoid UTF-8 corruption
+      const bytes = data instanceof Uint8Array
+        ? data
+        : new Uint8Array(data.buffer, data.byteOffset, data.byteLength);
+      await Deno.core.ops.op_fs_write_file_bytes(String(path), Array.from(bytes));
+    }
   }
 
   async function mkdir(path, options) {

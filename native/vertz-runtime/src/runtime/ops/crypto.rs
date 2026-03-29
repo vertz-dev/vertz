@@ -68,13 +68,20 @@ pub fn op_crypto_timing_safe_equal(
 }
 
 /// Generate random bytes (for node:crypto randomBytes).
+/// Limited to 2^31-1 bytes to match Node.js behavior.
 #[op2]
 #[buffer]
-pub fn op_crypto_random_bytes(#[smi] size: u32) -> Vec<u8> {
+pub fn op_crypto_random_bytes(#[smi] size: u32) -> Result<Vec<u8>, deno_core::error::AnyError> {
+    if size > 0x7FFF_FFFF {
+        return Err(deno_core::anyhow::anyhow!(
+            "RangeError: The value of \"size\" is out of range. It must be >= 0 && <= 2147483647. Received {}",
+            size
+        ));
+    }
     let mut buf = vec![0u8; size as usize];
     use rand::RngCore;
     rand::thread_rng().fill_bytes(&mut buf);
-    buf
+    Ok(buf)
 }
 
 /// Get the op declarations for crypto ops.
