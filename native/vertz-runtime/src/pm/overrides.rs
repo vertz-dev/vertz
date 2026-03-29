@@ -88,10 +88,8 @@ pub fn parse_overrides(
             );
         }
 
-        // Validate: no yarn-style `/` separator
-        if pattern.contains('/') && pattern.contains('>') {
-            // Scoped packages like @org/foo>bar are fine — only flag bare `foo/bar`
-        } else if !pattern.starts_with('@') && pattern.contains('/') {
+        // Validate: no yarn-style `/` separator (check per-segment after splitting)
+        if !pattern.starts_with('@') && !pattern.contains('>') && pattern.contains('/') {
             return Err(format!(
                 "error: invalid override pattern \"{}\" — use \">\" as the path separator. Did you mean \"{}\"?",
                 pattern,
@@ -153,12 +151,19 @@ fn parse_override_pattern(pattern: &str) -> Result<(Vec<String>, String), String
         ));
     }
 
-    // Validate no empty segments
+    // Validate no empty segments and no invalid `/` in non-scoped segments
     for seg in &segments {
         if seg.is_empty() {
             return Err(format!(
                 "error: invalid override pattern \"{}\" — use \"parent>child\" format",
                 pattern
+            ));
+        }
+        // A segment containing '/' must be a scoped package (starts with '@')
+        if seg.contains('/') && !seg.starts_with('@') {
+            return Err(format!(
+                "error: invalid override pattern \"{}\" — segment \"{}\" contains \"/\". Use \">\" as the path separator",
+                pattern, seg
             ));
         }
     }
@@ -250,7 +255,7 @@ pub fn extract_overrides_from_raw(
                 // Validate yarn-style patterns in resolutions
                 if has_resolutions && !has_overrides && k.contains('/') && !k.starts_with('@') {
                     warnings.push(format!(
-                        "error: invalid override pattern \"{}\" — use \">\" as the path separator. Did you mean \"{}\"?",
+                        "skipping invalid resolution pattern \"{}\" — use \">\" as the path separator. Did you mean \"{}\"?",
                         k,
                         k.replace('/', ">")
                     ));
@@ -269,18 +274,24 @@ pub fn extract_overrides_from_raw(
 /// Returns a list of warning messages for stale overrides.
 pub fn detect_stale_overrides(
     override_map: &OverrideMap,
-    original_ranges: &[(String, String)], // (target_name, original_range) pairs from override applications
+    original_ranges: &[(String, String, String)], // (target_name, original_range, matched_pattern) triples
 ) -> Vec<String> {
     use node_semver::{Range, Version};
 
     let mut warnings = Vec::new();
 
     for rule in &override_map.rules {
-        // Collect all original ranges that this rule applied to
+        let rule_pattern = if rule.parent_path.is_empty() {
+            rule.target.clone()
+        } else {
+            format!("{}>{}", rule.parent_path.join(">"), rule.target)
+        };
+
+        // Collect original ranges that THIS specific rule matched
         let ranges_for_rule: Vec<&str> = original_ranges
             .iter()
-            .filter(|(name, _)| *name == rule.target)
-            .map(|(_, range)| range.as_str())
+            .filter(|(name, _, pattern)| *name == rule.target && *pattern == rule_pattern)
+            .map(|(_, range, _)| range.as_str())
             .collect();
 
         if ranges_for_rule.is_empty() {
@@ -679,8 +690,8 @@ mod tests {
 
         // All original ranges satisfy 6.11.0 → stale
         let ranges = vec![
-            ("qs".to_string(), ">=6.0.0".to_string()),
-            ("qs".to_string(), "^6.0.0".to_string()),
+            ("qs".to_string(), ">=6.0.0".to_string(), "qs".to_string()),
+            ("qs".to_string(), "^6.0.0".to_string(), "qs".to_string()),
         ];
         let warnings = detect_stale_overrides(&map, &ranges);
         assert_eq!(warnings.len(), 1);
@@ -698,7 +709,7 @@ mod tests {
         };
 
         // ~6.5.0 does NOT satisfy 6.11.0 → override still needed
-        let ranges = vec![("qs".to_string(), "~6.5.0".to_string())];
+        let ranges = vec![("qs".to_string(), "~6.5.0".to_string(), "qs".to_string())];
         let warnings = detect_stale_overrides(&map, &ranges);
         assert!(warnings.is_empty());
     }
@@ -713,7 +724,11 @@ mod tests {
             }],
         };
 
-        let ranges = vec![("qs".to_string(), "^6.0.0".to_string())];
+        let ranges = vec![(
+            "qs".to_string(),
+            "^6.0.0".to_string(),
+            "express>qs".to_string(),
+        )];
         let warnings = detect_stale_overrides(&map, &ranges);
         assert_eq!(warnings.len(), 1);
         assert!(warnings[0].contains("express>qs"));
@@ -730,9 +745,41 @@ mod tests {
         };
 
         // No applications → no warnings
-        let ranges: Vec<(String, String)> = vec![];
+        let ranges: Vec<(String, String, String)> = vec![];
         let warnings = detect_stale_overrides(&map, &ranges);
         assert!(warnings.is_empty());
+    }
+
+    #[test]
+    fn test_stale_override_per_rule_filtering() {
+        // Global + scoped overrides for same target — stale detection should be per-rule
+        let map = OverrideMap {
+            rules: vec![
+                OverrideRule {
+                    parent_path: vec!["express".to_string()],
+                    target: "qs".to_string(),
+                    version: "6.11.0".to_string(),
+                },
+                OverrideRule {
+                    parent_path: vec![],
+                    target: "qs".to_string(),
+                    version: "6.5.0".to_string(),
+                },
+            ],
+        };
+
+        // Global rule applied to ~6.5.0 (6.5.0 satisfies ~6.5.0 → stale)
+        // Scoped rule applied to ^6.0.0 (6.11.0 satisfies ^6.0.0 → stale)
+        let ranges = vec![
+            ("qs".to_string(), "~6.5.0".to_string(), "qs".to_string()),
+            (
+                "qs".to_string(),
+                "^6.0.0".to_string(),
+                "express>qs".to_string(),
+            ),
+        ];
+        let warnings = detect_stale_overrides(&map, &ranges);
+        assert_eq!(warnings.len(), 2); // Both stale
     }
 
     // ---- PackageJson overrides field test ----

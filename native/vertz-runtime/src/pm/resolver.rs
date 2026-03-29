@@ -141,9 +141,11 @@ async fn resolve_recursive(
             range.to_string()
         };
 
-    let visit_key = format!("{}@{}", name, range);
+    // Use EFFECTIVE range for visited key — scoped overrides need separate resolution
+    // paths for the same package@original_range when different parents have different overrides.
+    let visit_key = format!("{}@{}", name, effective_range);
 
-    // Break cycles (use ORIGINAL range for visited key)
+    // Break cycles
     if state.visited.contains(&visit_key) {
         return Ok(());
     }

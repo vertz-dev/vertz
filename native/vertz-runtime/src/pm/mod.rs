@@ -172,9 +172,15 @@ pub async fn install(
 
     // Check for stale overrides
     if !override_map.is_empty() {
-        let original_ranges: Vec<(String, String)> = override_applications
+        let original_ranges: Vec<(String, String, String)> = override_applications
             .iter()
-            .map(|app| (app.target.clone(), app.original_range.clone()))
+            .map(|app| {
+                (
+                    app.target.clone(),
+                    app.original_range.clone(),
+                    app.pattern.clone(),
+                )
+            })
             .collect();
         let stale_warnings = overrides::detect_stale_overrides(&override_map, &original_ranges);
         for w in &stale_warnings {
@@ -312,7 +318,18 @@ pub async fn install(
             path: ws.path.to_string_lossy().to_string(),
         })
         .collect();
-    let new_lockfile = resolver::graph_to_lockfile(&graph, &all_deps, &ws_info, &optional_names);
+    let mut new_lockfile =
+        resolver::graph_to_lockfile(&graph, &all_deps, &ws_info, &optional_names);
+
+    // Mark overridden entries in lockfile
+    for app in &override_applications {
+        // Find the lockfile entry for this override target + original range
+        let key = types::Lockfile::spec_key(&app.target, &app.original_range);
+        if let Some(entry) = new_lockfile.entries.get_mut(&key) {
+            entry.overridden = true;
+        }
+    }
+
     lockfile::write_lockfile(&lockfile_path, &new_lockfile)?;
 
     let elapsed = start.elapsed();
