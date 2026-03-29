@@ -299,9 +299,13 @@ pub fn parse_package_specifier(spec: &str) -> ParsedSpecifier<'_> {
 
 /// Parse the part after "github:" into a GitHubSpecifier
 fn parse_github_specifier(rest: &str) -> ParsedSpecifier<'_> {
-    // Split on # for optional ref
+    // Split on # for optional ref (treat empty ref as None)
     let (owner_repo, ref_) = if let Some(hash_pos) = rest.find('#') {
-        (&rest[..hash_pos], Some(rest[hash_pos + 1..].to_string()))
+        let r = &rest[hash_pos + 1..];
+        (
+            &rest[..hash_pos],
+            if r.is_empty() { None } else { Some(r.to_string()) },
+        )
     } else {
         (rest, None)
     };
@@ -858,6 +862,42 @@ mod tests {
                 );
             }
             _ => panic!("Expected Error for invalid GitHub specifier"),
+        }
+    }
+
+    #[test]
+    fn test_parse_package_specifier_github_empty_ref() {
+        // "github:user/my-lib#" should treat empty ref as None
+        let result = parse_package_specifier("github:user/my-lib#");
+        match result {
+            ParsedSpecifier::GitHub(gh) => {
+                assert_eq!(gh.owner, "user");
+                assert_eq!(gh.repo, "my-lib");
+                assert_eq!(gh.ref_, None);
+            }
+            _ => panic!("Expected GitHub specifier"),
+        }
+    }
+
+    #[test]
+    fn test_parse_package_specifier_github_invalid_empty_owner() {
+        let result = parse_package_specifier("github:/repo");
+        match result {
+            ParsedSpecifier::Error(msg) => {
+                assert!(msg.contains("owner/repo"));
+            }
+            _ => panic!("Expected Error for empty owner"),
+        }
+    }
+
+    #[test]
+    fn test_parse_package_specifier_github_invalid_empty_repo() {
+        let result = parse_package_specifier("github:owner/");
+        match result {
+            ParsedSpecifier::Error(msg) => {
+                assert!(msg.contains("owner/repo"));
+            }
+            _ => panic!("Expected Error for empty repo"),
         }
     }
 

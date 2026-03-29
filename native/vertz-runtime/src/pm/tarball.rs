@@ -113,25 +113,28 @@ impl TarballManager {
         }
     }
     /// Download and extract a GitHub tarball to the global store.
-    /// Returns (extracted_path, integrity) — integrity is computed from the tarball bytes.
+    /// Returns `(extracted_path, integrity)` — integrity is the SHA-512 of the tarball bytes.
     pub async fn fetch_and_extract_github(
         &self,
         name: &str,
         sha: &str,
         tarball_url: &str,
-    ) -> Result<PathBuf, Box<dyn std::error::Error + Send + Sync>> {
+    ) -> Result<(PathBuf, String), Box<dyn std::error::Error + Send + Sync>> {
         let final_path = self.store_path(name, sha);
 
-        // Skip if already extracted
+        // Skip if already extracted — compute integrity from cached tarball
+        // (We don't store integrity separately, so re-download if needed for the hash.)
+        // For the fast path, the caller should already have integrity from the lockfile.
         if final_path.exists() {
-            return Ok(final_path);
+            // Return empty integrity — caller uses lockfile integrity when available
+            return Ok((final_path, String::new()));
         }
 
         let _permit = self.semaphore.acquire().await?;
 
         // Double-check after acquiring permit
         if final_path.exists() {
-            return Ok(final_path);
+            return Ok((final_path, String::new()));
         }
 
         // Download tarball
@@ -158,15 +161,17 @@ impl TarballManager {
 
         let staging_clone = staging_dir.clone();
         let bytes_clone = bytes.to_vec();
-        tokio::task::spawn_blocking(move || extract_github_tarball(&bytes_clone, &staging_clone))
-            .await??;
+        let integrity = tokio::task::spawn_blocking(move || {
+            extract_github_tarball(&bytes_clone, &staging_clone)
+        })
+        .await??;
 
         // Atomic rename to final path
         match std::fs::rename(&staging_dir, &final_path) {
-            Ok(()) => Ok(final_path),
+            Ok(()) => Ok((final_path, integrity)),
             Err(_) if final_path.exists() => {
                 std::fs::remove_dir_all(&staging_dir).ok();
-                Ok(final_path)
+                Ok((final_path, integrity))
             }
             Err(e) => {
                 std::fs::remove_dir_all(&staging_dir).ok();
