@@ -124,11 +124,9 @@ pub fn load_test_config(root_dir: &Path) -> Result<TestConfig, AnyError> {
 /// Transform `export default X` into `globalThis.__vertz_config = X`.
 /// Handles both `export default { ... }` and `export default identifier;`.
 fn transform_default_export(code: &str) -> String {
-    // Replace `export default` with assignment to global
-    // The compiler outputs patterns like:
-    //   export default { ... };
-    //   export default config;
-    code.replace("export default ", "globalThis.__vertz_config = ")
+    // Replace only the first `export default` — avoids corrupting string
+    // literals or comments that contain the same substring.
+    code.replacen("export default ", "globalThis.__vertz_config = ", 1)
 }
 
 /// Parse test config from a serde_json::Value.

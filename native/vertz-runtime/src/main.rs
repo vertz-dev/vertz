@@ -29,12 +29,12 @@ async fn main() {
             let file_config =
                 vertz_runtime::test::config::load_test_config(&root_dir).unwrap_or_default();
 
-            // CLI args override config file values
-            let reporter_str = if args.reporter != "terminal" {
-                &args.reporter
-            } else {
-                file_config.reporter.as_deref().unwrap_or("terminal")
-            };
+            // CLI args override config file, config overrides defaults
+            let reporter_str = args
+                .reporter
+                .as_deref()
+                .or(file_config.reporter.as_deref())
+                .unwrap_or("terminal");
             let reporter = match reporter_str {
                 "json" => vertz_runtime::test::runner::ReporterFormat::Json,
                 "junit" => vertz_runtime::test::runner::ReporterFormat::Junit,
@@ -49,18 +49,14 @@ async fn main() {
                 concurrency: args.concurrency.or(file_config.concurrency),
                 filter: args.filter,
                 bail: args.bail,
-                timeout_ms: if args.timeout != 5000 {
-                    args.timeout
-                } else {
-                    file_config.timeout_ms.unwrap_or(5000)
-                },
+                timeout_ms: args.timeout.or(file_config.timeout_ms).unwrap_or(5000),
                 reporter,
                 coverage: args.coverage || file_config.coverage.unwrap_or(false),
-                coverage_threshold: if args.coverage_threshold != 95 {
-                    args.coverage_threshold as f64
-                } else {
-                    file_config.coverage_threshold.unwrap_or(95.0)
-                },
+                coverage_threshold: args
+                    .coverage_threshold
+                    .map(|t| t as f64)
+                    .or(file_config.coverage_threshold)
+                    .unwrap_or(95.0),
                 preload: if args.no_preload {
                     vec![]
                 } else {

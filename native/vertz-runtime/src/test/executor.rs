@@ -177,7 +177,7 @@ fn execute_test_file_inner(
         runtime.execute_script_void("[vertz:set-filter]", &set_filter)?;
     }
 
-    // 3. Execute preload scripts
+    // 3. Execute preload scripts (run as classic scripts, not modules — no import support)
     for preload_path in &options.preload {
         let preload_source = std::fs::read_to_string(preload_path).map_err(|e| {
             deno_core::anyhow::anyhow!(

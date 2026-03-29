@@ -70,21 +70,21 @@ pub struct TestArgs {
     #[arg(long)]
     pub coverage: bool,
 
-    /// Minimum coverage percentage (default: 95)
-    #[arg(long, default_value_t = 95)]
-    pub coverage_threshold: u32,
+    /// Minimum coverage percentage (default: 95, overrides vertz.config.ts)
+    #[arg(long)]
+    pub coverage_threshold: Option<u32>,
 
-    /// Timeout per test in milliseconds (default: 5000)
-    #[arg(long, default_value_t = 5000)]
-    pub timeout: u64,
+    /// Timeout per test in milliseconds (default: 5000, overrides vertz.config.ts)
+    #[arg(long)]
+    pub timeout: Option<u64>,
 
     /// Max parallel test files (default: CPU count)
     #[arg(long)]
     pub concurrency: Option<usize>,
 
-    /// Reporter format (default: terminal)
-    #[arg(long, default_value = "terminal")]
-    pub reporter: String,
+    /// Reporter format (default: terminal, overrides vertz.config.ts)
+    #[arg(long)]
+    pub reporter: Option<String>,
 
     /// Stop after first test failure
     #[arg(long)]
@@ -422,10 +422,10 @@ mod tests {
         assert!(args.filter.is_none());
         assert!(!args.watch);
         assert!(!args.coverage);
-        assert_eq!(args.coverage_threshold, 95);
-        assert_eq!(args.timeout, 5000);
+        assert!(args.coverage_threshold.is_none());
+        assert!(args.timeout.is_none());
         assert!(args.concurrency.is_none());
-        assert_eq!(args.reporter, "terminal");
+        assert!(args.reporter.is_none());
         assert!(!args.bail);
         assert!(!args.no_preload);
     }
@@ -465,13 +465,13 @@ mod tests {
             "80",
         ]);
         assert!(args.coverage);
-        assert_eq!(args.coverage_threshold, 80);
+        assert_eq!(args.coverage_threshold, Some(80));
     }
 
     #[test]
     fn test_test_timeout() {
         let args = parse_test(&["vertz-runtime", "test", "--timeout", "10000"]);
-        assert_eq!(args.timeout, 10000);
+        assert_eq!(args.timeout, Some(10000));
     }
 
     #[test]
@@ -489,7 +489,7 @@ mod tests {
     #[test]
     fn test_test_reporter() {
         let args = parse_test(&["vertz-runtime", "test", "--reporter", "json"]);
-        assert_eq!(args.reporter, "json");
+        assert_eq!(args.reporter, Some("json".to_string()));
     }
 
     #[test]
@@ -516,7 +516,7 @@ mod tests {
         assert_eq!(args.filter, Some("math".to_string()));
         assert!(args.bail);
         assert_eq!(args.concurrency, Some(2));
-        assert_eq!(args.timeout, 3000);
+        assert_eq!(args.timeout, Some(3000));
     }
 
     // --- MigrateTests command tests ---
