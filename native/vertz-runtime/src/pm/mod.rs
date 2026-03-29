@@ -1707,8 +1707,7 @@ pub async fn publish(
     // 2. Run lifecycle scripts (npm order: prepublish → prepare → prepublishOnly)
     scripts::run_lifecycle_script(root_dir, &pkg.scripts, "prepublish", output.clone()).await?;
     scripts::run_lifecycle_script(root_dir, &pkg.scripts, "prepare", output.clone()).await?;
-    scripts::run_lifecycle_script(root_dir, &pkg.scripts, "prepublishOnly", output.clone())
-        .await?;
+    scripts::run_lifecycle_script(root_dir, &pkg.scripts, "prepublishOnly", output.clone()).await?;
 
     // 3. Pack the tarball
     output.publish_packing(&name, &version);
@@ -1745,12 +1744,14 @@ pub async fn publish(
     let registry_url = reg_config.registry_url_for_package(&name).to_string();
     // Auth matching uses prefix comparison — append "/" so "host:port" matches "host:port/"
     let auth_match_url = format!("{}/", registry_url.trim_end_matches('/'));
-    let auth_header = reg_config.auth_header_for_url(&auth_match_url).ok_or_else(|| {
-        format!(
-            "Authentication required. Add an auth token to .npmrc for {}",
-            registry_url
-        )
-    })?;
+    let auth_header = reg_config
+        .auth_header_for_url(&auth_match_url)
+        .ok_or_else(|| {
+            format!(
+                "Authentication required. Add an auth token to .npmrc for {}",
+                registry_url
+            )
+        })?;
 
     // 6. Build publish document
     let raw_pkg = pack::read_package_json_raw(root_dir)?;

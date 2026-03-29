@@ -47,8 +47,7 @@ async fn handle_all(
         .and_then(|v| v.to_str().ok())
         .map(|s| s.to_string());
 
-    let body_json: serde_json::Value =
-        serde_json::from_slice(&body).unwrap_or_default();
+    let body_json: serde_json::Value = serde_json::from_slice(&body).unwrap_or_default();
 
     let mut guard = state.lock().await;
     guard.requests.push(CapturedRequest {
@@ -67,9 +66,7 @@ async fn start_mock_registry(status: u16) -> (u16, SharedState) {
         response_status: status,
     }));
 
-    let app = Router::new()
-        .fallback(handle_all)
-        .with_state(state.clone());
+    let app = Router::new().fallback(handle_all).with_state(state.clone());
 
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let port = listener.local_addr().unwrap().port();
@@ -127,8 +124,7 @@ async fn test_publish_sends_put_with_correct_structure() {
     let (port, state) = start_mock_registry(200).await;
     let dir = create_publishable_project("test-pkg", "1.0.0", port);
 
-    let result =
-        vertz_runtime::pm::publish(dir.path(), "latest", None, false, test_output()).await;
+    let result = vertz_runtime::pm::publish(dir.path(), "latest", None, false, test_output()).await;
 
     assert!(result.is_ok(), "publish should succeed: {:?}", result.err());
 
@@ -225,8 +221,7 @@ async fn test_publish_401_returns_auth_error() {
     let (port, _state) = start_mock_registry(401).await;
     let dir = create_publishable_project("test-pkg", "1.0.0", port);
 
-    let result =
-        vertz_runtime::pm::publish(dir.path(), "latest", None, false, test_output()).await;
+    let result = vertz_runtime::pm::publish(dir.path(), "latest", None, false, test_output()).await;
 
     assert!(result.is_err());
     let err = result.unwrap_err().to_string();
@@ -244,8 +239,7 @@ async fn test_publish_409_returns_version_exists_error() {
     let (port, _state) = start_mock_registry(409).await;
     let dir = create_publishable_project("test-pkg", "1.0.0", port);
 
-    let result =
-        vertz_runtime::pm::publish(dir.path(), "latest", None, false, test_output()).await;
+    let result = vertz_runtime::pm::publish(dir.path(), "latest", None, false, test_output()).await;
 
     assert!(result.is_err());
     let err = result.unwrap_err().to_string();
@@ -261,31 +255,25 @@ async fn test_publish_409_returns_version_exists_error() {
 #[tokio::test]
 async fn test_publish_missing_name_errors() {
     let dir = tempfile::tempdir().unwrap();
-    std::fs::write(
-        dir.path().join("package.json"),
-        r#"{"version": "1.0.0"}"#,
-    )
-    .unwrap();
+    std::fs::write(dir.path().join("package.json"), r#"{"version": "1.0.0"}"#).unwrap();
 
-    let result =
-        vertz_runtime::pm::publish(dir.path(), "latest", None, false, test_output()).await;
+    let result = vertz_runtime::pm::publish(dir.path(), "latest", None, false, test_output()).await;
 
     assert!(result.is_err());
     let err = result.unwrap_err().to_string();
-    assert!(err.contains("missing required field 'name'"), "error: {}", err);
+    assert!(
+        err.contains("missing required field 'name'"),
+        "error: {}",
+        err
+    );
 }
 
 #[tokio::test]
 async fn test_publish_missing_version_errors() {
     let dir = tempfile::tempdir().unwrap();
-    std::fs::write(
-        dir.path().join("package.json"),
-        r#"{"name": "test-pkg"}"#,
-    )
-    .unwrap();
+    std::fs::write(dir.path().join("package.json"), r#"{"name": "test-pkg"}"#).unwrap();
 
-    let result =
-        vertz_runtime::pm::publish(dir.path(), "latest", None, false, test_output()).await;
+    let result = vertz_runtime::pm::publish(dir.path(), "latest", None, false, test_output()).await;
 
     assert!(result.is_err());
     let err = result.unwrap_err().to_string();
@@ -305,14 +293,9 @@ async fn test_publish_invalid_access_errors() {
     )
     .unwrap();
 
-    let result = vertz_runtime::pm::publish(
-        dir.path(),
-        "latest",
-        Some("foobar"),
-        false,
-        test_output(),
-    )
-    .await;
+    let result =
+        vertz_runtime::pm::publish(dir.path(), "latest", Some("foobar"), false, test_output())
+            .await;
 
     assert!(result.is_err());
     let err = result.unwrap_err().to_string();
@@ -406,10 +389,13 @@ async fn test_publish_with_json_output() {
     let dir = create_publishable_project("test-pkg", "1.0.0", port);
     let json_output: Arc<dyn PmOutput> = Arc::new(JsonOutput::new());
 
-    let result =
-        vertz_runtime::pm::publish(dir.path(), "latest", None, false, json_output).await;
+    let result = vertz_runtime::pm::publish(dir.path(), "latest", None, false, json_output).await;
 
-    assert!(result.is_ok(), "publish with JSON output should succeed: {:?}", result.err());
+    assert!(
+        result.is_ok(),
+        "publish with JSON output should succeed: {:?}",
+        result.err()
+    );
 
     let guard = state.lock().await;
     assert_eq!(guard.requests.len(), 1);
@@ -434,8 +420,7 @@ async fn test_publish_no_auth_token_errors() {
     )
     .unwrap();
 
-    let result =
-        vertz_runtime::pm::publish(dir.path(), "latest", None, false, test_output()).await;
+    let result = vertz_runtime::pm::publish(dir.path(), "latest", None, false, test_output()).await;
 
     assert!(result.is_err());
     let err = result.unwrap_err().to_string();

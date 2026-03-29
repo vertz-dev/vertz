@@ -7,8 +7,8 @@ use std::io::Write;
 use std::path::Path;
 use walkdir::WalkDir;
 
-use base64::Engine;
 use crate::pm::types::PackageJson;
+use base64::Engine;
 
 /// A single file included in the packed tarball
 #[derive(Debug, Clone)]
@@ -161,10 +161,7 @@ fn collect_whitelist(
             continue;
         }
 
-        let rel_path = entry
-            .path()
-            .strip_prefix(root_dir)
-            .unwrap_or(entry.path());
+        let rel_path = entry.path().strip_prefix(root_dir).unwrap_or(entry.path());
         let rel_str = normalize_path_separators(&rel_path.to_string_lossy());
 
         if matches_any_pattern(&rel_str, patterns) {
@@ -197,10 +194,7 @@ fn collect_blacklist(
             continue;
         }
 
-        let rel_path = entry
-            .path()
-            .strip_prefix(root_dir)
-            .unwrap_or(entry.path());
+        let rel_path = entry.path().strip_prefix(root_dir).unwrap_or(entry.path());
         let rel_str = normalize_path_separators(&rel_path.to_string_lossy());
 
         if !matches_any_pattern(&rel_str, &ignore_patterns) {
@@ -301,10 +295,7 @@ fn add_always_included_files(
 
         if is_always_included && !files.iter().any(|f| f.path == name) {
             let size = entry.metadata()?.len();
-            files.push(PackedFile {
-                path: name,
-                size,
-            });
+            files.push(PackedFile { path: name, size });
         }
     }
 
@@ -366,10 +357,7 @@ mod tests {
     fn create_test_package(dir: &Path, name: &str, version: &str) {
         std::fs::write(
             dir.join("package.json"),
-            format!(
-                r#"{{"name": "{}", "version": "{}"}}"#,
-                name, version
-            ),
+            format!(r#"{{"name": "{}", "version": "{}"}}"#, name, version),
         )
         .unwrap();
     }
@@ -409,9 +397,18 @@ mod tests {
         let files = collect_files(root, &pkg).unwrap();
         let paths: Vec<&str> = files.iter().map(|f| f.path.as_str()).collect();
 
-        assert!(paths.contains(&"dist/index.js"), "should include dist/index.js");
-        assert!(paths.contains(&"package.json"), "should always include package.json");
-        assert!(!paths.contains(&"src/main.ts"), "should NOT include src/main.ts");
+        assert!(
+            paths.contains(&"dist/index.js"),
+            "should include dist/index.js"
+        );
+        assert!(
+            paths.contains(&"package.json"),
+            "should always include package.json"
+        );
+        assert!(
+            !paths.contains(&"src/main.ts"),
+            "should NOT include src/main.ts"
+        );
     }
 
     #[test]
@@ -522,11 +519,7 @@ mod tests {
 
         // Verify by recomputing
         let sha1 = digest::digest(&digest::SHA1_FOR_LEGACY_USE_ONLY, &result.tarball);
-        let expected: String = sha1
-            .as_ref()
-            .iter()
-            .map(|b| format!("{:02x}", b))
-            .collect();
+        let expected: String = sha1.as_ref().iter().map(|b| format!("{:02x}", b)).collect();
         assert_eq!(result.shasum, expected);
     }
 
@@ -572,7 +565,10 @@ mod tests {
         let paths: Vec<&str> = files.iter().map(|f| f.path.as_str()).collect();
 
         assert!(paths.contains(&"index.js"));
-        assert!(!paths.contains(&"src/main.ts"), "src/ should be excluded by .npmignore");
+        assert!(
+            !paths.contains(&"src/main.ts"),
+            "src/ should be excluded by .npmignore"
+        );
         assert!(
             !paths.contains(&"foo.test.js"),
             "*.test.js should be excluded by .npmignore"
@@ -764,7 +760,10 @@ mod tests {
         let files = collect_files(root, &pkg).unwrap();
         let paths: Vec<&str> = files.iter().map(|f| f.path.as_str()).collect();
 
-        assert!(paths.contains(&"dist/index.js"), "regular file should be included");
+        assert!(
+            paths.contains(&"dist/index.js"),
+            "regular file should be included"
+        );
         assert!(
             !paths.contains(&"dist/evil-link"),
             "symlink should NOT be included"

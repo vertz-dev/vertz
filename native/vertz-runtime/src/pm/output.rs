@@ -175,7 +175,14 @@ impl PmOutput for TextOutput {
         eprintln!(" Packing {}@{}...", name, version);
     }
 
-    fn publish_packed(&self, _name: &str, _version: &str, files: usize, packed: u64, unpacked: u64) {
+    fn publish_packed(
+        &self,
+        _name: &str,
+        _version: &str,
+        files: usize,
+        packed: u64,
+        unpacked: u64,
+    ) {
         eprintln!(" Files:  {}", files);
         eprintln!(
             " Size:   {} (packed) / {} (unpacked)",

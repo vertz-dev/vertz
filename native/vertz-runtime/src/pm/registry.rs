@@ -236,9 +236,11 @@ impl RegistryClient {
         auth_header: &str,
         document: &PublishDocument,
     ) -> Result<(), PublishError> {
-        let _permit = self.semaphore.acquire().await.map_err(|e| {
-            PublishError::Other(format!("semaphore error: {}", e))
-        })?;
+        let _permit = self
+            .semaphore
+            .acquire()
+            .await
+            .map_err(|e| PublishError::Other(format!("semaphore error: {}", e)))?;
 
         let encoded_name = if document.name.starts_with('@') {
             document.name.replacen('/', "%2f", 1)
@@ -362,7 +364,10 @@ pub fn build_publish_document(
     // Build version metadata: the normalized package.json + dist info
     let mut version_meta = normalized_pkg.clone();
     if let Some(obj) = version_meta.as_object_mut() {
-        obj.insert("_id".to_string(), serde_json::json!(format!("{}@{}", name, version)));
+        obj.insert(
+            "_id".to_string(),
+            serde_json::json!(format!("{}@{}", name, version)),
+        );
         obj.insert("_nodeVersion".to_string(), serde_json::json!("22.0.0"));
 
         // Encode tarball URL for scoped packages
@@ -542,8 +547,16 @@ mod tests {
     fn test_build_publish_document_dist_tags() {
         let pkg_json = serde_json::json!({"name": "test-pkg", "version": "1.0.0"});
         let doc = build_publish_document(
-            "test-pkg", "1.0.0", "beta", None, "dGVzdA==", 4,
-            "sha512-abc", "dead", &pkg_json, "https://registry.npmjs.org",
+            "test-pkg",
+            "1.0.0",
+            "beta",
+            None,
+            "dGVzdA==",
+            4,
+            "sha512-abc",
+            "dead",
+            &pkg_json,
+            "https://registry.npmjs.org",
         );
 
         assert_eq!(doc.dist_tags["beta"], "1.0.0");
@@ -553,8 +566,16 @@ mod tests {
     fn test_build_publish_document_includes_base64_tarball_in_attachments() {
         let pkg_json = serde_json::json!({"name": "test-pkg", "version": "1.0.0"});
         let doc = build_publish_document(
-            "test-pkg", "1.0.0", "latest", None, "dGVzdA==", 4,
-            "sha512-abc", "dead", &pkg_json, "https://registry.npmjs.org",
+            "test-pkg",
+            "1.0.0",
+            "latest",
+            None,
+            "dGVzdA==",
+            4,
+            "sha512-abc",
+            "dead",
+            &pkg_json,
+            "https://registry.npmjs.org",
         );
 
         let attachment = &doc._attachments["test-pkg-1.0.0.tgz"];
@@ -567,8 +588,16 @@ mod tests {
     fn test_build_publish_document_includes_authorization_header() {
         let pkg_json = serde_json::json!({"name": "test-pkg", "version": "1.0.0"});
         let doc = build_publish_document(
-            "test-pkg", "1.0.0", "latest", Some("public"), "dGVzdA==", 4,
-            "sha512-abc", "dead", &pkg_json, "https://registry.npmjs.org",
+            "test-pkg",
+            "1.0.0",
+            "latest",
+            Some("public"),
+            "dGVzdA==",
+            4,
+            "sha512-abc",
+            "dead",
+            &pkg_json,
+            "https://registry.npmjs.org",
         );
 
         assert_eq!(doc.access, Some("public".to_string()));
@@ -578,8 +607,16 @@ mod tests {
     fn test_build_publish_document_version_metadata_has_dist() {
         let pkg_json = serde_json::json!({"name": "test-pkg", "version": "1.0.0"});
         let doc = build_publish_document(
-            "test-pkg", "1.0.0", "latest", None, "dGVzdA==", 4,
-            "sha512-abc123", "deadbeef01", &pkg_json, "https://registry.npmjs.org",
+            "test-pkg",
+            "1.0.0",
+            "latest",
+            None,
+            "dGVzdA==",
+            4,
+            "sha512-abc123",
+            "deadbeef01",
+            &pkg_json,
+            "https://registry.npmjs.org",
         );
 
         let version_meta = &doc.versions["1.0.0"];
@@ -593,8 +630,16 @@ mod tests {
     fn test_build_publish_document_scoped_package() {
         let pkg_json = serde_json::json!({"name": "@myorg/test-pkg", "version": "2.0.0"});
         let doc = build_publish_document(
-            "@myorg/test-pkg", "2.0.0", "latest", Some("public"), "dGVzdA==", 4,
-            "sha512-abc", "dead", &pkg_json, "https://registry.npmjs.org",
+            "@myorg/test-pkg",
+            "2.0.0",
+            "latest",
+            Some("public"),
+            "dGVzdA==",
+            4,
+            "sha512-abc",
+            "dead",
+            &pkg_json,
+            "https://registry.npmjs.org",
         );
 
         assert_eq!(doc.name, "@myorg/test-pkg");
@@ -607,8 +652,16 @@ mod tests {
     fn test_publish_document_serializes_to_json() {
         let pkg_json = serde_json::json!({"name": "test-pkg", "version": "1.0.0"});
         let doc = build_publish_document(
-            "test-pkg", "1.0.0", "latest", None, "dGVzdA==", 4,
-            "sha512-abc", "dead", &pkg_json, "https://registry.npmjs.org",
+            "test-pkg",
+            "1.0.0",
+            "latest",
+            None,
+            "dGVzdA==",
+            4,
+            "sha512-abc",
+            "dead",
+            &pkg_json,
+            "https://registry.npmjs.org",
         );
 
         let json = serde_json::to_string(&doc).unwrap();
