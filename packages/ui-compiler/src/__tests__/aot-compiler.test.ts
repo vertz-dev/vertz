@@ -1653,6 +1653,48 @@ export default function Page() {
       });
     });
 
+    describe('When a query alias name appears in adjacent static text', () => {
+      it('Then does not replace the word inside string literals', () => {
+        const result = compileForSSRAot(
+          `
+import { query } from '@vertz/ui';
+
+export default function SearchPage() {
+  const searchQuery = query(async () => ({ total: 42, items: [] as any[] }), { key: 'search' });
+  const results = searchQuery.data;
+  if (!results) return <div>Loading</div>;
+  return <p>{results.total} results found</p>;
+}
+          `.trim(),
+        );
+
+        const aotFn = extractAotFn(result.code, '__ssr_SearchPage');
+        // 'results' in static text must NOT be replaced with __q0
+        expect(aotFn).not.toContain("'__q0'");
+        expect(aotFn).not.toContain("' __q0");
+        // The word 'results' should survive as static text
+        expect(aotFn).toContain('results found');
+        // But the variable reference should be replaced
+        expect(aotFn).toContain('__q0');
+        expect(aotFn).toContain('__q0.total');
+
+        // Runtime correctness
+        const queryData = new Map([['search', { total: 42, items: [] }]]);
+        const html = evalAot(result.code, '__ssr_SearchPage', {
+          __ctx: {
+            getData: (key: string) => queryData.get(key),
+            params: {},
+            searchParams: null,
+            holes: {},
+          },
+          __data: {},
+        });
+        expect(html).toContain('42');
+        expect(html).toContain(' results found');
+        expect(html).not.toContain('__q0');
+      });
+    });
+
     describe('When a non-query component has intermediate derived variables', () => {
       it('Then includes derived variable assignments referencing props', () => {
         const result = compileForSSRAot(
