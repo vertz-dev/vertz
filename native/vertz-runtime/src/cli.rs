@@ -119,8 +119,12 @@ pub struct InstallArgs {
     pub frozen: bool,
 
     /// Skip postinstall scripts
-    #[arg(long)]
+    #[arg(long, conflicts_with = "run_scripts")]
     pub ignore_scripts: bool,
+
+    /// Force all postinstall scripts to run (bypasses trust list)
+    #[arg(long, conflicts_with = "ignore_scripts")]
+    pub run_scripts: bool,
 
     /// Force full re-link (skip incremental check)
     #[arg(long)]
@@ -154,8 +158,12 @@ pub struct AddArgs {
     pub global: bool,
 
     /// Skip postinstall scripts
-    #[arg(long)]
+    #[arg(long, conflicts_with = "run_scripts")]
     pub ignore_scripts: bool,
+
+    /// Force all postinstall scripts to run (bypasses trust list)
+    #[arg(long, conflicts_with = "ignore_scripts")]
+    pub run_scripts: bool,
 
     /// Target a specific workspace package (by name or path)
     #[arg(short = 'w', long = "workspace")]

@@ -19,6 +19,7 @@ pub trait PmOutput: Send + Sync {
     fn script_started(&self, name: &str, script: &str);
     fn script_complete(&self, name: &str, duration_ms: u64);
     fn script_error(&self, name: &str, error: &str);
+    fn warning(&self, message: &str);
     fn done(&self, elapsed_ms: u64);
     fn error(&self, code: &str, message: &str);
 }
@@ -145,6 +146,10 @@ impl PmOutput for TextOutput {
         eprintln!("Postinstall for {} failed: {}", name, error);
     }
 
+    fn warning(&self, message: &str) {
+        eprintln!("warning: {}", message);
+    }
+
     fn done(&self, elapsed_ms: u64) {
         eprintln!("Done in {:.1}s", elapsed_ms as f64 / 1000.0);
     }
@@ -233,6 +238,13 @@ impl PmOutput for JsonOutput {
         println!(
             "{}",
             json!({"event": "script_error", "package": name, "error": error})
+        );
+    }
+
+    fn warning(&self, message: &str) {
+        println!(
+            "{}",
+            json!({"event": "warning", "message": message})
         );
     }
 

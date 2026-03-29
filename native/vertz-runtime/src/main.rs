@@ -95,10 +95,18 @@ async fn main() {
                 Arc::new(TextOutput::new(std::io::stderr().is_terminal()))
             };
 
+            let script_policy = if args.ignore_scripts {
+                pm::vertzrc::ScriptPolicy::IgnoreAll
+            } else if args.run_scripts {
+                pm::vertzrc::ScriptPolicy::RunAll
+            } else {
+                pm::vertzrc::ScriptPolicy::TrustBased
+            };
+
             if let Err(e) = pm::install(
                 &root_dir,
                 args.frozen,
-                args.ignore_scripts,
+                script_policy,
                 args.force,
                 output.clone(),
             )
@@ -134,13 +142,21 @@ async fn main() {
 
             let package_refs: Vec<&str> = args.packages.iter().map(|s| s.as_str()).collect();
 
+            let script_policy = if args.ignore_scripts {
+                pm::vertzrc::ScriptPolicy::IgnoreAll
+            } else if args.run_scripts {
+                pm::vertzrc::ScriptPolicy::RunAll
+            } else {
+                pm::vertzrc::ScriptPolicy::TrustBased
+            };
+
             if let Err(e) = pm::add(
                 &root_dir,
                 &package_refs,
                 args.dev,
                 args.peer,
                 args.exact,
-                args.ignore_scripts,
+                script_policy,
                 args.workspace.as_deref(),
                 output.clone(),
             )
