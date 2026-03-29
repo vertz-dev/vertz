@@ -191,6 +191,9 @@ pub struct SmartDebouncer {
     batch_window: Duration,
     /// Debounce duration for multi-file batches (default: 20ms).
     batch_debounce: Duration,
+    /// Maximum time to wait before forcing a batch dispatch (default: 100ms).
+    /// Prevents indefinite delay when events arrive continuously.
+    max_wait: Duration,
 }
 
 impl Default for SmartDebouncer {
@@ -200,7 +203,7 @@ impl Default for SmartDebouncer {
 }
 
 impl SmartDebouncer {
-    /// Create a smart debouncer with default timings (5ms window, 20ms batch).
+    /// Create a smart debouncer with default timings (5ms window, 20ms batch, 100ms max-wait).
     pub fn new() -> Self {
         Self {
             pending: std::collections::HashMap::new(),
@@ -208,6 +211,7 @@ impl SmartDebouncer {
             last_event_time: None,
             batch_window: Duration::from_millis(5),
             batch_debounce: Duration::from_millis(20),
+            max_wait: Duration::from_millis(100),
         }
     }
 
@@ -219,7 +223,14 @@ impl SmartDebouncer {
             last_event_time: None,
             batch_window: Duration::from_millis(batch_window_ms),
             batch_debounce: Duration::from_millis(batch_debounce_ms),
+            max_wait: Duration::from_millis(100),
         }
+    }
+
+    /// Set the max-wait cap (builder pattern).
+    pub fn with_max_wait(mut self, max_wait_ms: u64) -> Self {
+        self.max_wait = Duration::from_millis(max_wait_ms);
+        self
     }
 
     /// Add a file change event.
@@ -245,7 +256,11 @@ impl SmartDebouncer {
             // Single file (or deduplicated atomic save): dispatch after batch window
             first.elapsed() >= self.batch_window
         } else {
-            // Multiple files: wait for batch debounce after last event
+            // Multiple files: wait for batch debounce after last event,
+            // but always fire once the max-wait cap is reached.
+            if first.elapsed() >= self.max_wait {
+                return true;
+            }
             match self.last_event_time {
                 Some(t) => t.elapsed() >= self.batch_debounce,
                 None => false,
@@ -668,6 +683,57 @@ mod tests {
         assert!(debouncer.has_pending());
         drop(debouncer);
         // Reaching here means Drop ran successfully without panic
+    }
+
+    #[test]
+    fn test_smart_debouncer_max_wait_fires_despite_long_batch_debounce() {
+        // batch_debounce=1000ms (long), but max_wait=10ms (short)
+        let mut debouncer = SmartDebouncer::with_timings(0, 1000).with_max_wait(10);
+        debouncer.add(FileChange {
+            kind: FileChangeKind::Modify,
+            path: PathBuf::from("/src/app.tsx"),
+        });
+        debouncer.add(FileChange {
+            kind: FileChangeKind::Modify,
+            path: PathBuf::from("/src/Button.tsx"),
+        });
+
+        // Without max_wait, this would require 1s batch_debounce.
+        // With max_wait=10ms, it should be ready after ~10ms.
+        std::thread::sleep(Duration::from_millis(15));
+        assert!(
+            debouncer.is_ready(),
+            "Max-wait cap should force batch to fire even though batch_debounce hasn't elapsed"
+        );
+    }
+
+    #[test]
+    fn test_smart_debouncer_rapid_continuous_events_fire_within_max_wait() {
+        // batch_debounce=50ms, max_wait=30ms — events every 5ms keep resetting the
+        // batch timer, but max_wait should force dispatch within 30ms.
+        let mut debouncer = SmartDebouncer::with_timings(0, 50).with_max_wait(30);
+
+        // Simulate rapid continuous events that would reset batch_debounce indefinitely
+        for i in 0..6 {
+            debouncer.add(FileChange {
+                kind: FileChangeKind::Modify,
+                path: PathBuf::from(format!("/src/file{}.tsx", i)),
+            });
+            std::thread::sleep(Duration::from_millis(5));
+        }
+        // ~30ms have elapsed since first_event_time, exceeding max_wait
+        // but last_event_time was just reset, so batch_debounce is not met
+        assert!(
+            debouncer.is_ready(),
+            "Rapid continuous events should still fire within max_wait"
+        );
+    }
+
+    #[test]
+    fn test_smart_debouncer_default_max_wait_is_100ms() {
+        let debouncer = SmartDebouncer::new();
+        // Verify the default max_wait is 100ms by checking behavior
+        assert_eq!(debouncer.max_wait, Duration::from_millis(100));
     }
 
     #[test]
