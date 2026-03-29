@@ -114,10 +114,7 @@ export function isEntityUnauthorizedError(error: unknown): error is EntityUnauth
  */
 export class EntityForbiddenError extends EntityError {
   readonly code = 'Forbidden' as const;
-  override readonly __brands: readonly string[] = [
-    'VertzEntityForbiddenError',
-    'VertzEntityError',
-  ];
+  override readonly __brands: readonly string[] = ['VertzEntityForbiddenError', 'VertzEntityError'];
 
   static [Symbol.hasInstance](obj: unknown): boolean {
     if (typeof obj !== 'object' || obj === null || !('__brands' in obj)) return false;
@@ -245,10 +242,7 @@ export function isMethodNotAllowedError(error: unknown): error is MethodNotAllow
  */
 export class EntityConflictError extends EntityError {
   readonly code = 'Conflict' as const;
-  override readonly __brands: readonly string[] = [
-    'VertzEntityConflictError',
-    'VertzEntityError',
-  ];
+  override readonly __brands: readonly string[] = ['VertzEntityConflictError', 'VertzEntityError'];
 
   static [Symbol.hasInstance](obj: unknown): boolean {
     if (typeof obj !== 'object' || obj === null || !('__brands' in obj)) return false;
