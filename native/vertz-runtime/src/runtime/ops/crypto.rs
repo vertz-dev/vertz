@@ -7,18 +7,257 @@ pub fn op_crypto_random_uuid() -> String {
     uuid::Uuid::new_v4().to_string()
 }
 
-/// Get the op declarations for crypto ops.
-pub fn op_decls() -> Vec<OpDecl> {
-    vec![op_crypto_random_uuid()]
+#[op2]
+#[serde]
+pub fn op_crypto_get_random_values(
+    #[smi] byte_length: u32,
+) -> Result<Vec<u8>, deno_core::error::AnyError> {
+    if byte_length > 65536 {
+        return Err(deno_core::anyhow::anyhow!(
+            "QuotaExceededError: The ArrayBuffer/ArrayBufferView size exceeds the maximum supported (65536 bytes)."
+        ));
+    }
+    let mut buf = vec![0u8; byte_length as usize];
+    use rand::RngCore;
+    rand::thread_rng().fill_bytes(&mut buf);
+    Ok(buf)
 }
 
-/// JavaScript bootstrap code for crypto.randomUUID().
+/// Get the op declarations for crypto ops.
+pub fn op_decls() -> Vec<OpDecl> {
+    vec![op_crypto_random_uuid(), op_crypto_get_random_values()]
+}
+
+/// JavaScript bootstrap code for crypto.randomUUID(), crypto.getRandomValues(), and crypto.subtle.
 pub const CRYPTO_BOOTSTRAP_JS: &str = r#"
 ((globalThis) => {
   if (!globalThis.crypto) {
     globalThis.crypto = {};
   }
+
   globalThis.crypto.randomUUID = () => Deno.core.ops.op_crypto_random_uuid();
+
+  globalThis.crypto.getRandomValues = (typedArray) => {
+    if (!(typedArray instanceof Int8Array ||
+          typedArray instanceof Uint8Array ||
+          typedArray instanceof Uint8ClampedArray ||
+          typedArray instanceof Int16Array ||
+          typedArray instanceof Uint16Array ||
+          typedArray instanceof Int32Array ||
+          typedArray instanceof Uint32Array ||
+          typedArray instanceof BigInt64Array ||
+          typedArray instanceof BigUint64Array)) {
+      throw new TypeError('The provided value is not of type \'(ArrayBufferView)\'');
+    }
+    if (typedArray.byteLength > 65536) {
+      throw new TypeError(
+        'QuotaExceededError: The ArrayBuffer/ArrayBufferView size exceeds the maximum supported (65536 bytes).'
+      );
+    }
+    const bytes = Deno.core.ops.op_crypto_get_random_values(typedArray.byteLength);
+    const u8View = new Uint8Array(typedArray.buffer, typedArray.byteOffset, typedArray.byteLength);
+    for (let i = 0; i < bytes.length; i++) {
+      u8View[i] = bytes[i];
+    }
+    return typedArray;
+  };
+
+  // --- CryptoKey wrapper ---
+  class CryptoKey {
+    #keyId;
+    #type;
+    #extractable;
+    #algorithm;
+    #usages;
+
+    constructor(keyId, type, algorithm, extractable, usages) {
+      this.#keyId = keyId;
+      this.#type = type;
+      this.#algorithm = algorithm;
+      this.#extractable = extractable;
+      this.#usages = Object.freeze([...usages]);
+    }
+
+    get type() { return this.#type; }
+    get extractable() { return this.#extractable; }
+    get algorithm() { return this.#algorithm; }
+    get usages() { return this.#usages; }
+    get __keyId() { return this.#keyId; }
+  }
+
+  function normalizeAlgorithm(algo) {
+    if (typeof algo === 'string') return { name: algo };
+    return algo;
+  }
+
+  function toBytes(data) {
+    if (data instanceof ArrayBuffer) return new Uint8Array(data);
+    if (ArrayBuffer.isView(data)) return new Uint8Array(data.buffer, data.byteOffset, data.byteLength);
+    throw new TypeError('data must be BufferSource');
+  }
+
+  function makeCryptoKey(result) {
+    const algoObj = typeof result.algorithm === 'string'
+      ? { name: result.algorithm }
+      : result.algorithm;
+    return new CryptoKey(result.keyId, result.keyType, algoObj, result.extractable, result.usages);
+  }
+
+  // --- SubtleCrypto ---
+  class SubtleCrypto {
+    async digest(algorithm, data) {
+      const algo = normalizeAlgorithm(algorithm);
+      const bytes = toBytes(data);
+      const result = Deno.core.ops.op_crypto_subtle_digest({
+        algorithm: algo.name,
+        data: Array.from(bytes),
+      });
+      return new Uint8Array(result).buffer;
+    }
+
+    async importKey(format, keyData, algorithm, extractable, usages) {
+      const algo = normalizeAlgorithm(algorithm);
+      const bytes = toBytes(keyData);
+      const result = Deno.core.ops.op_crypto_subtle_import_key({
+        format,
+        keyData: Array.from(bytes),
+        algorithm: algo,
+        extractable,
+        usages,
+      });
+      return makeCryptoKey(result);
+    }
+
+    async exportKey(format, key) {
+      if (!(key instanceof CryptoKey)) throw new TypeError('key must be a CryptoKey');
+      const result = Deno.core.ops.op_crypto_subtle_export_key({
+        format,
+        keyId: key.__keyId,
+      });
+      return new Uint8Array(result).buffer;
+    }
+
+    async sign(algorithm, key, data) {
+      if (!(key instanceof CryptoKey)) throw new TypeError('key must be a CryptoKey');
+      const algo = normalizeAlgorithm(algorithm);
+      const bytes = toBytes(data);
+      const result = Deno.core.ops.op_crypto_subtle_sign({
+        algorithm: algo,
+        keyId: key.__keyId,
+        data: Array.from(bytes),
+      });
+      return new Uint8Array(result).buffer;
+    }
+
+    async verify(algorithm, key, signature, data) {
+      if (!(key instanceof CryptoKey)) throw new TypeError('key must be a CryptoKey');
+      const algo = normalizeAlgorithm(algorithm);
+      const sigBytes = toBytes(signature);
+      const dataBytes = toBytes(data);
+      return Deno.core.ops.op_crypto_subtle_verify({
+        algorithm: algo,
+        keyId: key.__keyId,
+        signature: Array.from(sigBytes),
+        data: Array.from(dataBytes),
+      });
+    }
+
+    async generateKey(algorithm, extractable, usages) {
+      const algo = normalizeAlgorithm(algorithm);
+      const result = Deno.core.ops.op_crypto_subtle_generate_key({
+        algorithm: algo,
+        extractable,
+        usages,
+      });
+      // Result is either a single key or a key pair
+      if (result.publicKey && result.privateKey) {
+        return {
+          publicKey: makeCryptoKey(result.publicKey),
+          privateKey: makeCryptoKey(result.privateKey),
+        };
+      }
+      return makeCryptoKey(result);
+    }
+
+    async encrypt(algorithm, key, data) {
+      if (!(key instanceof CryptoKey)) throw new TypeError('key must be a CryptoKey');
+      const algo = normalizeAlgorithm(algorithm);
+      const bytes = toBytes(data);
+      const ivBytes = algo.iv ? toBytes(algo.iv) : undefined;
+      const adBytes = algo.additionalData ? toBytes(algo.additionalData) : undefined;
+      const result = Deno.core.ops.op_crypto_subtle_encrypt({
+        algorithm: {
+          name: algo.name,
+          iv: ivBytes ? Array.from(ivBytes) : [],
+          additionalData: adBytes ? Array.from(adBytes) : null,
+          tagLength: algo.tagLength || null,
+        },
+        keyId: key.__keyId,
+        data: Array.from(bytes),
+      });
+      return new Uint8Array(result).buffer;
+    }
+
+    async decrypt(algorithm, key, data) {
+      if (!(key instanceof CryptoKey)) throw new TypeError('key must be a CryptoKey');
+      const algo = normalizeAlgorithm(algorithm);
+      const bytes = toBytes(data);
+      const ivBytes = algo.iv ? toBytes(algo.iv) : undefined;
+      const adBytes = algo.additionalData ? toBytes(algo.additionalData) : undefined;
+      const result = Deno.core.ops.op_crypto_subtle_decrypt({
+        algorithm: {
+          name: algo.name,
+          iv: ivBytes ? Array.from(ivBytes) : [],
+          additionalData: adBytes ? Array.from(adBytes) : null,
+          tagLength: algo.tagLength || null,
+        },
+        keyId: key.__keyId,
+        data: Array.from(bytes),
+      });
+      return new Uint8Array(result).buffer;
+    }
+
+    async deriveBits(algorithm, baseKey, length) {
+      if (!(baseKey instanceof CryptoKey)) throw new TypeError('baseKey must be a CryptoKey');
+      const algo = normalizeAlgorithm(algorithm);
+      const saltBytes = algo.salt ? toBytes(algo.salt) : undefined;
+      const infoBytes = algo.info ? toBytes(algo.info) : undefined;
+      const result = Deno.core.ops.op_crypto_subtle_derive_bits({
+        algorithm: {
+          name: algo.name,
+          hash: algo.hash,
+          salt: saltBytes ? Array.from(saltBytes) : null,
+          info: infoBytes ? Array.from(infoBytes) : null,
+        },
+        baseKeyId: baseKey.__keyId,
+        length,
+      });
+      return new Uint8Array(result).buffer;
+    }
+
+    async deriveKey(algorithm, baseKey, derivedKeyAlgorithm, extractable, usages) {
+      if (!(baseKey instanceof CryptoKey)) throw new TypeError('baseKey must be a CryptoKey');
+      const algo = normalizeAlgorithm(algorithm);
+      const derivedAlgo = normalizeAlgorithm(derivedKeyAlgorithm);
+      const saltBytes = algo.salt ? toBytes(algo.salt) : undefined;
+      const infoBytes = algo.info ? toBytes(algo.info) : undefined;
+      const result = Deno.core.ops.op_crypto_subtle_derive_key({
+        algorithm: {
+          name: algo.name,
+          hash: algo.hash,
+          salt: saltBytes ? Array.from(saltBytes) : null,
+          info: infoBytes ? Array.from(infoBytes) : null,
+        },
+        baseKeyId: baseKey.__keyId,
+        derivedAlgorithm: derivedAlgo,
+        extractable,
+        usages,
+      });
+      return makeCryptoKey(result);
+    }
+  }
+
+  globalThis.crypto.subtle = new SubtleCrypto();
 })(globalThis);
 "#;
 

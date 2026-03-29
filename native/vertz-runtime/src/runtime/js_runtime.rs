@@ -15,6 +15,7 @@ use super::module_loader::VertzModuleLoader;
 use super::ops::clone;
 use super::ops::console;
 use super::ops::crypto;
+use super::ops::crypto_subtle;
 use super::ops::encoding;
 use super::ops::env;
 use super::ops::fetch;
@@ -66,6 +67,7 @@ impl VertzJsRuntime {
         all_ops.extend(path::op_decls());
         all_ops.extend(fetch::op_decls());
         all_ops.extend(url::op_decls());
+        all_ops.extend(crypto_subtle::op_decls());
 
         let capture = options.capture_output;
         let captured_clone = Arc::clone(&captured_output);
@@ -80,6 +82,7 @@ impl VertzJsRuntime {
                     captured: Arc::clone(&captured_clone),
                 });
                 state.put(performance::PerformanceState { start_time });
+                state.put(crypto_subtle::CryptoKeyStore::default());
             })),
             ..Default::default()
         };

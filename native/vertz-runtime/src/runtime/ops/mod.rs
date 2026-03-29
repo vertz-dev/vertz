@@ -1,6 +1,7 @@
 pub mod clone;
 pub mod console;
 pub mod crypto;
+pub mod crypto_subtle;
 pub mod encoding;
 pub mod env;
 pub mod fetch;
