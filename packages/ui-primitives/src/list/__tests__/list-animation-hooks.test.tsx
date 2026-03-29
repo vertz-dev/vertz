@@ -124,6 +124,43 @@ describe('ComposedList animation hooks behavior', () => {
         el.dispatchEvent(new Event('transitionend'));
         expect(calls).toEqual(['done']);
       });
+
+      it('Then done() is called exactly once even when both transitionend and timeout fire', async () => {
+        const hooks = captureAnimationHooks({ duration: 50 });
+        const el = document.createElement('li');
+        let callCount = 0;
+
+        hooks?.onItemExit(el, 'key-1', () => {
+          callCount++;
+        });
+
+        // Simulate transitionend fires first
+        el.dispatchEvent(new Event('transitionend'));
+        expect(callCount).toBe(1);
+
+        // Wait for the safety timeout to fire (duration + 50 = 100ms)
+        await new Promise((resolve) => setTimeout(resolve, 150));
+
+        // done() must NOT have been called a second time
+        expect(callCount).toBe(1);
+      });
+
+      it('Then done() is called exactly once via timeout when transitionend never fires', async () => {
+        const hooks = captureAnimationHooks({ duration: 50 });
+        const el = document.createElement('li');
+        let callCount = 0;
+
+        hooks?.onItemExit(el, 'key-1', () => {
+          callCount++;
+        });
+
+        // Don't dispatch transitionend — let the safety timeout handle it
+        expect(callCount).toBe(0);
+
+        // Wait for safety timeout (duration 50 + 50 = 100ms)
+        await new Promise((resolve) => setTimeout(resolve, 150));
+        expect(callCount).toBe(1);
+      });
     });
   });
 
