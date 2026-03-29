@@ -292,7 +292,7 @@ async fn isolate_event_loop(
                 eprintln!("[Server] Invalid app entry path: {}", entry_file.display());
                 // Continue without SSR — API routes may still work
                 initialized.store(true, std::sync::atomic::Ordering::Release);
-                process_messages_api_only(&mut runtime, &mut message_rx).await;
+                process_messages(&mut runtime, &mut message_rx, false).await;
                 return;
             }
         };
@@ -328,7 +328,7 @@ async fn isolate_event_loop(
                     server_entry_path.display()
                 );
                 initialized.store(true, std::sync::atomic::Ordering::Release);
-                process_messages(&mut runtime, &mut message_rx).await;
+                process_messages(&mut runtime, &mut message_rx, true).await;
                 return;
             }
         };
@@ -346,14 +346,16 @@ async fn isolate_event_loop(
                 // Real server.ts files use `export default createServer(...)` — the
                 // module doesn't set the global. We use dynamic import (cached, no
                 // re-evaluation) to capture the exports.
+                let safe_url = serde_json::to_string(entry_specifier.as_str())
+                    .unwrap_or_else(|_| format!("\"{}\"", entry_specifier.as_str()));
                 let capture_js = format!(
                     r#"(async function() {{
                         if (!globalThis.__vertz_server_module) {{
-                            const mod = await import("{}");
+                            const mod = await import({});
                             globalThis.__vertz_server_module = mod;
                         }}
                     }})()"#,
-                    entry_specifier.as_str()
+                    safe_url
                 );
                 if let Err(e) = runtime.execute_script_void("<capture-server-exports>", &capture_js)
                 {
@@ -397,8 +399,8 @@ async fn isolate_event_loop(
     // Mark as initialized (even without API handler — SSR is still available)
     initialized.store(true, std::sync::atomic::Ordering::Release);
 
-    // 5. Main message processing loop
-    process_messages(&mut runtime, &mut message_rx).await;
+    // 5. Main message processing loop (SSR enabled — app entry loaded)
+    process_messages(&mut runtime, &mut message_rx, true).await;
 }
 
 /// Extract the API handler from the loaded server module.
@@ -434,59 +436,32 @@ fn extract_api_handler(
     }
 }
 
-/// Process messages supporting both API and SSR requests.
+/// Process messages from the channel. When `ssr_enabled` is false, SSR requests
+/// receive an error immediately (API-only mode after app entry failed to load).
 async fn process_messages(
     runtime: &mut crate::runtime::js_runtime::VertzJsRuntime,
     message_rx: &mut mpsc::Receiver<IsolateMessage>,
+    ssr_enabled: bool,
 ) {
-    loop {
-        tokio::select! {
-            msg = message_rx.recv() => {
-                match msg {
-                    Some(IsolateMessage::Api(request, response_tx)) => {
-                        let result = dispatch_api_request(runtime, &request).await;
-                        let _ = response_tx.send(result);
-                    }
-                    Some(IsolateMessage::Ssr(request, response_tx)) => {
-                        let result = dispatch_ssr_request(runtime, &request);
-                        let _ = response_tx.send(result);
-                    }
-                    None => {
-                        eprintln!("[Server] Persistent isolate shutting down (channel closed)");
-                        break;
-                    }
+    while let Some(msg) = message_rx.recv().await {
+        match msg {
+            IsolateMessage::Api(request, response_tx) => {
+                let result = dispatch_api_request(runtime, &request).await;
+                let _ = response_tx.send(result);
+            }
+            IsolateMessage::Ssr(request, response_tx) => {
+                if ssr_enabled {
+                    let result = dispatch_ssr_request(runtime, &request);
+                    let _ = response_tx.send(result);
+                } else {
+                    let _ = response_tx.send(Err(
+                        "SSR not available: app entry module failed to load".to_string(),
+                    ));
                 }
             }
         }
     }
-}
-
-/// Process messages for API-only mode (no SSR capability).
-async fn process_messages_api_only(
-    runtime: &mut crate::runtime::js_runtime::VertzJsRuntime,
-    message_rx: &mut mpsc::Receiver<IsolateMessage>,
-) {
-    loop {
-        tokio::select! {
-            msg = message_rx.recv() => {
-                match msg {
-                    Some(IsolateMessage::Api(request, response_tx)) => {
-                        let result = dispatch_api_request(runtime, &request).await;
-                        let _ = response_tx.send(result);
-                    }
-                    Some(IsolateMessage::Ssr(_, response_tx)) => {
-                        let _ = response_tx.send(Err(
-                            "SSR not available: app entry module failed to load".to_string()
-                        ));
-                    }
-                    None => {
-                        eprintln!("[Server] Persistent isolate shutting down (channel closed)");
-                        break;
-                    }
-                }
-            }
-        }
-    }
+    eprintln!("[Server] Persistent isolate shutting down (channel closed)");
 }
 
 /// JavaScript for dispatching API requests. Reads request data from
@@ -747,9 +722,15 @@ fn dispatch_ssr_request(
     crate::ssr::dom_shim::set_ssr_location(runtime, &request.url)
         .map_err(|e| format!("Set location error: {}", e))?;
 
-    // 3. Install session data if provided
+    // 3. Install session data if provided.
+    // Defense-in-depth: validate input is valid JSON, then re-serialize through
+    // serde_json to guarantee the output is safe for JS interpolation.
     if let Some(ref session_json) = request.session_json {
-        let js = format!("globalThis.__vertz_session = {};", session_json);
+        let validated: serde_json::Value = serde_json::from_str(session_json)
+            .map_err(|e| format!("Invalid session JSON: {}", e))?;
+        let safe_json =
+            serde_json::to_string(&validated).map_err(|e| format!("Session serialize: {}", e))?;
+        let js = format!("globalThis.__vertz_session = {};", safe_json);
         runtime
             .execute_script_void("<ssr-session>", &js)
             .map_err(|e| format!("Session install error: {}", e))?;

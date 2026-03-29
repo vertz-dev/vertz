@@ -483,7 +483,11 @@ async fn dev_server_handler(
                 crate::ssr::session::extract_session_from_cookies(cookie_header.as_deref());
 
             // Try persistent isolate SSR first (Phase 2: zero per-request overhead)
-            let isolate = state.api_isolate.read().unwrap().clone();
+            let isolate = state
+                .api_isolate
+                .read()
+                .unwrap_or_else(|e| e.into_inner())
+                .clone();
             if let Some(isolate) = isolate.as_ref() {
                 if isolate.is_initialized() {
                     let session_json = serde_json::to_string(&session).ok();
@@ -636,7 +640,7 @@ fn format_ssr_css(entries: &[(String, Option<String>)]) -> String {
     let mut parts = Vec::new();
     for (css, id) in entries {
         if let Some(id) = id {
-            if !seen.insert(id.clone()) {
+            if !seen.insert(id.as_str()) {
                 continue;
             }
         }
@@ -650,6 +654,9 @@ fn format_ssr_css(entries: &[(String, Option<String>)]) -> String {
     format!("  <style data-vertz-ssr>{}</style>\n", parts.join("\n"))
 }
 
+/// Maximum API request body size (10 MB).
+const MAX_API_BODY_SIZE: usize = 10 * 1024 * 1024;
+
 /// Handle API requests by delegating to the persistent V8 isolate.
 ///
 /// Converts the Axum `Request` into an `IsolateRequest`, sends it to the
@@ -660,7 +667,12 @@ async fn handle_api_request(
     req: Request<Body>,
     path: &str,
 ) -> axum::response::Response<Body> {
-    let isolate = match state.api_isolate.read().unwrap().clone() {
+    let isolate = match state
+        .api_isolate
+        .read()
+        .unwrap_or_else(|e| e.into_inner())
+        .clone()
+    {
         Some(isolate) => isolate,
         None => {
             return axum::response::Response::builder()
@@ -699,7 +711,7 @@ async fn handle_api_request(
         .map(|(k, v)| (k.to_string(), v.to_str().unwrap_or("").to_string()))
         .collect();
 
-    let body_bytes = match axum::body::to_bytes(req.into_body(), 10 * 1024 * 1024).await {
+    let body_bytes = match axum::body::to_bytes(req.into_body(), MAX_API_BODY_SIZE).await {
         Ok(b) if !b.is_empty() => Some(b.to_vec()),
         Ok(_) => None,
         Err(_) => {
@@ -933,51 +945,54 @@ pub async fn start_server(config: ServerConfig) -> io::Result<()> {
                                         continue;
                                     }
 
-                                    // Check if a server module changed — restart the persistent isolate
+                                    // Check if a server module changed — restart the persistent isolate.
+                                    // Strategy: create new isolate FIRST while old one still serves
+                                    // requests, then atomically swap. This avoids a None window where
+                                    // requests would get 404s, and preserves the old isolate on failure.
                                     if let Some(ref se) = server_entry {
                                         if change.path == *se {
                                             eprintln!(
                                                 "[Server] Server module changed: {}",
                                                 change.path.display()
                                             );
-                                            // Take the old isolate out, restart it, put the new one back
-                                            let old = {
-                                                let mut guard = watcher_state.api_isolate.write().unwrap();
-                                                guard.take()
+                                            // Read options from current isolate (read lock — no contention)
+                                            let opts = {
+                                                let guard = watcher_state
+                                                    .api_isolate
+                                                    .read()
+                                                    .unwrap_or_else(|e| e.into_inner());
+                                                guard.as_ref().map(|iso| iso.options().clone())
                                             };
-                                            if let Some(old_arc) = old {
-                                                // We need to own the PersistentIsolate to restart it.
-                                                // If other handlers still hold an Arc, that's fine —
-                                                // they'll finish their in-flight request on the old isolate.
-                                                match Arc::try_unwrap(old_arc) {
-                                                    Ok(old_isolate) => {
-                                                        match old_isolate.restart() {
-                                                            Ok(new_isolate) => {
-                                                                let mut guard = watcher_state.api_isolate.write().unwrap();
-                                                                *guard = Some(Arc::new(new_isolate));
-                                                            }
-                                                            Err(e) => {
-                                                                eprintln!("[Server] Failed to restart isolate: {}", e);
+                                            if let Some(opts) = opts {
+                                                // Create new isolate while old one continues serving
+                                                match PersistentIsolate::new(opts) {
+                                                    Ok(new_isolate) => {
+                                                        // Atomically swap old → new
+                                                        let old = {
+                                                            let mut guard = watcher_state
+                                                                .api_isolate
+                                                                .write()
+                                                                .unwrap_or_else(|e| e.into_inner());
+                                                            guard.replace(Arc::new(new_isolate))
+                                                        };
+                                                        // Log if old isolate still has in-flight refs
+                                                        if let Some(old_arc) = old {
+                                                            let refs = Arc::strong_count(&old_arc);
+                                                            if refs > 1 {
+                                                                eprintln!(
+                                                                    "[Server] Old isolate still draining ({} refs)",
+                                                                    refs - 1
+                                                                );
                                                             }
                                                         }
+                                                        eprintln!("[Server] Isolate restarted successfully");
                                                     }
-                                                    Err(arc) => {
-                                                        // In-flight requests still using the old isolate.
-                                                        // Create a new one with the same options instead.
-                                                        let opts = arc.options().clone();
-                                                        match PersistentIsolate::new(opts) {
-                                                            Ok(new_isolate) => {
-                                                                eprintln!("[Server] Created new isolate (old still draining)");
-                                                                let mut guard = watcher_state.api_isolate.write().unwrap();
-                                                                *guard = Some(Arc::new(new_isolate));
-                                                            }
-                                                            Err(e) => {
-                                                                eprintln!("[Server] Failed to create new isolate: {}", e);
-                                                                // Restore the old one
-                                                                let mut guard = watcher_state.api_isolate.write().unwrap();
-                                                                *guard = Some(arc);
-                                                            }
-                                                        }
+                                                    Err(e) => {
+                                                        // Old isolate is still in place — no downtime
+                                                        eprintln!(
+                                                            "[Server] Failed to create new isolate: {} (old isolate still serving)",
+                                                            e
+                                                        );
                                                     }
                                                 }
                                             }
