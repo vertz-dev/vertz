@@ -118,8 +118,12 @@ async fn main() {
                 eprintln!("error: global packages are not yet supported");
                 std::process::exit(1);
             }
-            if args.peer && args.dev {
-                eprintln!("error: --peer and --dev cannot be used together");
+            let exclusive_count = [args.dev, args.peer, args.optional]
+                .iter()
+                .filter(|&&x| x)
+                .count();
+            if exclusive_count > 1 {
+                eprintln!("error: --dev, --peer, and --optional are mutually exclusive");
                 std::process::exit(1);
             }
 
@@ -139,6 +143,7 @@ async fn main() {
                 &package_refs,
                 args.dev,
                 args.peer,
+                args.optional,
                 args.exact,
                 args.ignore_scripts,
                 args.workspace.as_deref(),
