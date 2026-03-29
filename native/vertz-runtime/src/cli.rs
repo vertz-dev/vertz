@@ -14,6 +14,13 @@ pub enum Command {
     Dev(DevArgs),
     /// Run tests
     Test(TestArgs),
+    /// Install all dependencies from package.json
+    #[command(alias = "i")]
+    Install(InstallArgs),
+    /// Add packages to dependencies
+    Add(AddArgs),
+    /// Remove packages from dependencies
+    Remove(RemoveArgs),
 }
 
 #[derive(Parser, Debug)]
@@ -86,6 +93,43 @@ pub struct TestArgs {
     pub no_preload: bool,
 }
 
+#[derive(Parser, Debug)]
+pub struct InstallArgs {
+    /// Fail if lockfile is out of date (CI mode)
+    #[arg(long, alias = "frozen-lockfile")]
+    pub frozen: bool,
+}
+
+#[derive(Parser, Debug)]
+pub struct AddArgs {
+    /// Package specifiers (e.g., zod, react@^18.0.0, @vertz/ui@^0.1.0)
+    #[arg(required = true)]
+    pub packages: Vec<String>,
+
+    /// Add to devDependencies
+    #[arg(short = 'D', long)]
+    pub dev: bool,
+
+    /// Pin exact version (no ^ prefix)
+    #[arg(short = 'E', long)]
+    pub exact: bool,
+
+    /// Install globally (not yet supported)
+    #[arg(short = 'g', long)]
+    pub global: bool,
+}
+
+#[derive(Parser, Debug)]
+pub struct RemoveArgs {
+    /// Package names to remove
+    #[arg(required = true)]
+    pub packages: Vec<String>,
+
+    /// Remove globally (not yet supported)
+    #[arg(short = 'g', long)]
+    pub global: bool,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -104,6 +148,159 @@ mod tests {
             Command::Test(args) => args,
             other => panic!("Expected Test, got {:?}", other),
         }
+    }
+
+    fn parse_install(args: &[&str]) -> InstallArgs {
+        let cli = Cli::parse_from(args);
+        match cli.command {
+            Command::Install(args) => args,
+            other => panic!("Expected Install, got {:?}", other),
+        }
+    }
+
+    fn parse_add(args: &[&str]) -> AddArgs {
+        let cli = Cli::parse_from(args);
+        match cli.command {
+            Command::Add(args) => args,
+            other => panic!("Expected Add, got {:?}", other),
+        }
+    }
+
+    fn parse_remove(args: &[&str]) -> RemoveArgs {
+        let cli = Cli::parse_from(args);
+        match cli.command {
+            Command::Remove(args) => args,
+            other => panic!("Expected Remove, got {:?}", other),
+        }
+    }
+
+    // --- Install command tests ---
+
+    #[test]
+    fn test_install_default() {
+        let args = parse_install(&["vertz-runtime", "install"]);
+        assert!(!args.frozen);
+    }
+
+    #[test]
+    fn test_install_alias_i() {
+        let args = parse_install(&["vertz-runtime", "i"]);
+        assert!(!args.frozen);
+    }
+
+    #[test]
+    fn test_install_frozen() {
+        let args = parse_install(&["vertz-runtime", "install", "--frozen"]);
+        assert!(args.frozen);
+    }
+
+    #[test]
+    fn test_install_frozen_lockfile_alias() {
+        let args = parse_install(&["vertz-runtime", "install", "--frozen-lockfile"]);
+        assert!(args.frozen);
+    }
+
+    // --- Add command tests ---
+
+    #[test]
+    fn test_add_single_package() {
+        let args = parse_add(&["vertz-runtime", "add", "zod"]);
+        assert_eq!(args.packages, vec!["zod"]);
+        assert!(!args.dev);
+        assert!(!args.exact);
+    }
+
+    #[test]
+    fn test_add_dev_flag() {
+        let args = parse_add(&["vertz-runtime", "add", "-D", "typescript"]);
+        assert_eq!(args.packages, vec!["typescript"]);
+        assert!(args.dev);
+    }
+
+    #[test]
+    fn test_add_dev_long_flag() {
+        let args = parse_add(&["vertz-runtime", "add", "--dev", "typescript"]);
+        assert!(args.dev);
+    }
+
+    #[test]
+    fn test_add_exact_flag() {
+        let args = parse_add(&["vertz-runtime", "add", "-E", "zod"]);
+        assert!(args.exact);
+    }
+
+    #[test]
+    fn test_add_exact_long_flag() {
+        let args = parse_add(&["vertz-runtime", "add", "--exact", "zod"]);
+        assert!(args.exact);
+    }
+
+    #[test]
+    fn test_add_multiple_packages() {
+        let args = parse_add(&["vertz-runtime", "add", "zod", "react"]);
+        assert_eq!(args.packages, vec!["zod", "react"]);
+    }
+
+    #[test]
+    fn test_add_with_version_spec() {
+        let args = parse_add(&["vertz-runtime", "add", "zod@^3.24.0"]);
+        assert_eq!(args.packages, vec!["zod@^3.24.0"]);
+    }
+
+    #[test]
+    fn test_add_scoped_package() {
+        let args = parse_add(&["vertz-runtime", "add", "@vertz/ui@^0.1.0"]);
+        assert_eq!(args.packages, vec!["@vertz/ui@^0.1.0"]);
+    }
+
+    // --- Remove command tests ---
+
+    #[test]
+    fn test_remove_single_package() {
+        let args = parse_remove(&["vertz-runtime", "remove", "zod"]);
+        assert_eq!(args.packages, vec!["zod"]);
+    }
+
+    #[test]
+    fn test_remove_multiple_packages() {
+        let args = parse_remove(&["vertz-runtime", "remove", "zod", "react"]);
+        assert_eq!(args.packages, vec!["zod", "react"]);
+    }
+
+    #[test]
+    fn test_add_global_flag() {
+        let args = parse_add(&["vertz-runtime", "add", "-g", "zod"]);
+        assert!(args.global);
+    }
+
+    #[test]
+    fn test_add_global_long_flag() {
+        let args = parse_add(&["vertz-runtime", "add", "--global", "zod"]);
+        assert!(args.global);
+    }
+
+    #[test]
+    fn test_add_global_default_false() {
+        let args = parse_add(&["vertz-runtime", "add", "zod"]);
+        assert!(!args.global);
+    }
+
+    #[test]
+    fn test_remove_global_flag() {
+        let args = parse_remove(&["vertz-runtime", "remove", "-g", "zod"]);
+        assert!(args.global);
+    }
+
+    #[test]
+    fn test_remove_global_long_flag() {
+        let args = parse_remove(&["vertz-runtime", "remove", "--global", "zod"]);
+        assert!(args.global);
+    }
+
+    #[test]
+    fn test_remove_global_default_false() {
+        let args = parse_remove(&["vertz-runtime", "remove", "zod"]);
+        assert!(!args.global);
     }
 
     // --- Dev command tests ---

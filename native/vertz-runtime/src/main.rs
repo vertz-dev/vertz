@@ -3,6 +3,7 @@ mod cli;
 use clap::Parser;
 use cli::{Cli, Command};
 use vertz_runtime::config::ServerConfig;
+use vertz_runtime::pm;
 
 #[tokio::main]
 async fn main() {
@@ -56,6 +57,47 @@ async fn main() {
                 if !result.success() {
                     std::process::exit(1);
                 }
+            }
+        }
+        Command::Install(args) => {
+            let root_dir =
+                std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from("."));
+
+            if let Err(e) = pm::install(&root_dir, args.frozen, false).await {
+                eprintln!("{}", e);
+                std::process::exit(1);
+            }
+        }
+        Command::Add(args) => {
+            if args.global {
+                eprintln!("error: global packages are not yet supported");
+                std::process::exit(1);
+            }
+
+            let root_dir =
+                std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from("."));
+
+            let package_refs: Vec<&str> = args.packages.iter().map(|s| s.as_str()).collect();
+
+            if let Err(e) = pm::add(&root_dir, &package_refs, args.dev, args.exact).await {
+                eprintln!("{}", e);
+                std::process::exit(1);
+            }
+        }
+        Command::Remove(args) => {
+            if args.global {
+                eprintln!("error: global packages are not yet supported");
+                std::process::exit(1);
+            }
+
+            let root_dir =
+                std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from("."));
+
+            let package_refs: Vec<&str> = args.packages.iter().map(|s| s.as_str()).collect();
+
+            if let Err(e) = pm::remove(&root_dir, &package_refs).await {
+                eprintln!("{}", e);
+                std::process::exit(1);
             }
         }
     }
