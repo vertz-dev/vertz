@@ -1215,7 +1215,12 @@ mod tests {
         let arr = results.as_array().unwrap();
         // Filter 'math' should match 'math > adds' and 'math > subtracts'.
         // 'string > trims' doesn't match filter and should be skipped (not executed).
-        assert_eq!(arr.len(), 3, "All tests should appear in results: {:?}", arr);
+        assert_eq!(
+            arr.len(),
+            3,
+            "All tests should appear in results: {:?}",
+            arr
+        );
         assert_eq!(arr[0]["name"], "adds");
         assert_eq!(arr[0]["status"], "pass");
         assert_eq!(arr[1]["name"], "subtracts");
@@ -1493,7 +1498,11 @@ mod tests {
 
         let arr = results.as_array().unwrap();
         assert_eq!(arr.len(), 1);
-        assert_eq!(arr[0]["status"], "pass", "Object.assign test failed: {:?}", arr[0]["error"]);
+        assert_eq!(
+            arr[0]["status"], "pass",
+            "Object.assign test failed: {:?}",
+            arr[0]["error"]
+        );
     }
 
     #[test]
@@ -1837,7 +1846,11 @@ mod tests {
 
         let arr = results.as_array().unwrap();
         assert_eq!(arr.len(), 1);
-        assert_eq!(arr[0]["status"], "pass", "fallback test failed: {:?}", arr[0]["error"]);
+        assert_eq!(
+            arr[0]["status"], "pass",
+            "fallback test failed: {:?}",
+            arr[0]["error"]
+        );
     }
 
     #[test]
@@ -1957,7 +1970,11 @@ mod tests {
 
         let arr = results.as_array().unwrap();
         assert_eq!(arr.len(), 1);
-        assert_eq!(arr[0]["status"], "pass", "mock validation failed: {:?}", arr[0]["error"]);
+        assert_eq!(
+            arr[0]["status"], "pass",
+            "mock validation failed: {:?}",
+            arr[0]["error"]
+        );
     }
 
     #[test]
