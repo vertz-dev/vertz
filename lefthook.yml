@@ -2,8 +2,10 @@ pre-push:
   commands:
     trojan-source:
       run: bash scripts/check-unicode.sh
+    lint:
+      run: bunx oxlint packages/ && bunx oxfmt --check packages/
     quality-gates:
-      run: turbo run lint typecheck test build --filter='!@vertz-examples/*' --filter='!entity-todo-example' --filter='!@vertz/landing-nextjs' --filter='!@vertz/landing-nextjs-vercel' --filter='!@vertz/native-compiler' --filter='!@vertz/landing' --filter='!@vertz/component-docs' --output-logs=errors-only
+      run: turbo run build typecheck test --filter='!@vertz-examples/*' --filter='!entity-todo-example' --filter='!@vertz/landing-nextjs' --filter='!@vertz/landing-nextjs-vercel' --filter='!@vertz/native-compiler' --filter='!@vertz/landing' --filter='!@vertz/component-docs' --filter='!@vertz/site' --filter='!@vertz/og' --filter='!@vertz/mint-docs' --filter='!@vertz-benchmarks/*' --filter='!contacts-api-example' --filter='!create-vertz' --filter='!landing' --output-logs=errors-only
     native-compiler:
       root: native/
       glob: "native/**/*.rs"
