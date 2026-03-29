@@ -271,6 +271,7 @@ export type {
   ListOptions,
   ListResult,
   OpenAPISpecOptions,
+  ServiceDefForOpenAPI,
   RelationExposeConfig,
   RequestInfo,
   TenantChain,
