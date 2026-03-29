@@ -1,13 +1,10 @@
 name = "vertz-landing"
+main = "src/worker.ts"
 compatibility_date = "2025-01-01"
 workers_dev = true
 
 [assets]
 directory = "./dist/client"
-# serve_directly = false so the Worker's fetch handler receives ALL requests,
-# including the /__presence WebSocket upgrade. Without this, the assets handler
-# intercepts /__presence and serves index.html.
-serve_directly = false
 not_found_handling = "single-page-application"
 html_handling = "auto-trailing-slash"
 
@@ -17,7 +14,7 @@ class_name = "PresenceRoom"
 
 [[migrations]]
 tag = "v1"
-new_classes = ["PresenceRoom"]
+new_sqlite_classes = ["PresenceRoom"]
 
 [[routes]]
 pattern = "vertz.dev"
