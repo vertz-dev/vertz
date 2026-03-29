@@ -270,6 +270,118 @@ fn extract_tarball(
     Ok(())
 }
 
+/// Extract a GitHub tarball to a destination directory.
+/// Unlike npm tarballs, GitHub archives use a variable first-directory prefix
+/// (`{repo}-{sha}/`, `{repo}-{tag}/`, `{repo}-{branch}/`).
+/// This function unconditionally strips the first path component.
+/// Returns the SHA-512 integrity string of the tarball bytes.
+pub fn extract_github_tarball(
+    bytes: &[u8],
+    dest: &Path,
+) -> Result<String, Box<dyn std::error::Error + Send + Sync>> {
+    // Compute integrity before extraction
+    let mut hasher = Sha512::new();
+    hasher.update(bytes);
+    let integrity = format!("sha512-{}", base64_encode(&hasher.finalize()));
+
+    let gz = GzDecoder::new(bytes);
+    let mut archive = Archive::new(gz);
+    let mut total_size: u64 = 0;
+
+    for entry_result in archive.entries()? {
+        let entry = entry_result?;
+        let path = entry.path()?.to_path_buf();
+
+        // Security: reject entries with null bytes or control characters
+        let path_str = path.to_string_lossy();
+        if path_str
+            .bytes()
+            .any(|b| b == 0 || (b < 32 && b != b'\n' && b != b'\r' && b != b'\t'))
+        {
+            return Err(format!(
+                "Tarball contains entry with invalid characters: {}",
+                path_str
+            )
+            .into());
+        }
+
+        // Security: reject absolute paths
+        if path.is_absolute() {
+            return Err(format!("Tarball contains absolute path: {}", path.display()).into());
+        }
+
+        // Security: reject path traversal
+        for component in path.components() {
+            if let std::path::Component::ParentDir = component {
+                return Err(format!("Tarball contains path traversal: {}", path.display()).into());
+            }
+        }
+
+        // Security: skip symlinks and hardlinks
+        let entry_type = entry.header().entry_type();
+        if entry_type.is_symlink() || entry_type.is_hard_link() {
+            continue;
+        }
+
+        // Security: enforce per-file size limit
+        let file_size = entry.header().size()?;
+        if file_size > MAX_FILE_SIZE {
+            return Err(format!(
+                "File {} exceeds max size ({} > {} bytes)",
+                path.display(),
+                file_size,
+                MAX_FILE_SIZE
+            )
+            .into());
+        }
+
+        // Security: enforce total archive size limit
+        total_size += file_size;
+        if total_size > MAX_ARCHIVE_SIZE {
+            return Err("Archive exceeds maximum total size (1 GB)".into());
+        }
+
+        // Strip first path component unconditionally (GitHub's variable prefix)
+        let stripped = strip_first_component(&path);
+
+        let target = dest.join(&stripped);
+
+        // Security: verify target is still under dest
+        let canonical_dest = dest.canonicalize().unwrap_or_else(|_| dest.to_path_buf());
+        if !target.starts_with(&canonical_dest) && !target.starts_with(dest) {
+            return Err(format!(
+                "Tarball entry resolves outside target: {}",
+                target.display()
+            )
+            .into());
+        }
+
+        if entry.header().entry_type().is_dir() {
+            std::fs::create_dir_all(&target)?;
+        } else {
+            if let Some(parent) = target.parent() {
+                std::fs::create_dir_all(parent)?;
+            }
+            let mut output = std::fs::File::create(&target)?;
+            let mut limited = entry.take(MAX_FILE_SIZE);
+            std::io::copy(&mut limited, &mut output)?;
+        }
+    }
+
+    Ok(integrity)
+}
+
+/// Strip the first path component unconditionally.
+/// Used for GitHub tarballs where the prefix is variable.
+fn strip_first_component(path: &Path) -> PathBuf {
+    let components: Vec<_> = path.components().collect();
+    if components.len() > 1 {
+        components[1..].iter().collect()
+    } else {
+        path.to_path_buf()
+    }
+}
+
 /// Strip the "package/" prefix from npm tarball entry paths
 fn strip_package_prefix(path: &Path) -> PathBuf {
     let components: Vec<_> = path.components().collect();
@@ -286,6 +398,115 @@ fn strip_package_prefix(path: &Path) -> PathBuf {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_strip_first_component() {
+        // GitHub SHA prefix
+        assert_eq!(
+            strip_first_component(Path::new("my-lib-abc123/index.js")),
+            PathBuf::from("index.js")
+        );
+        // GitHub tag prefix
+        assert_eq!(
+            strip_first_component(Path::new("my-lib-2.1.0/lib/utils.js")),
+            PathBuf::from("lib/utils.js")
+        );
+        // GitHub branch prefix
+        assert_eq!(
+            strip_first_component(Path::new("my-lib-develop/package.json")),
+            PathBuf::from("package.json")
+        );
+        // Single component left alone
+        assert_eq!(
+            strip_first_component(Path::new("index.js")),
+            PathBuf::from("index.js")
+        );
+    }
+
+    #[test]
+    fn test_extract_github_tarball_basic() {
+        let dir = tempfile::tempdir().unwrap();
+        let dest = dir.path().join("extract");
+        std::fs::create_dir_all(&dest).unwrap();
+
+        // Create a tar with GitHub-style prefix
+        let mut builder = tar::Builder::new(Vec::new());
+        let content = b"{\"name\": \"my-lib\", \"version\": \"1.0.0\"}";
+        let mut header = tar::Header::new_gnu();
+        header.set_size(content.len() as u64);
+        header.set_mode(0o644);
+        header.set_cksum();
+        builder
+            .append_data(
+                &mut header,
+                "my-lib-a1b2c3d/package.json",
+                &content[..],
+            )
+            .unwrap();
+
+        let js_content = b"module.exports = {};";
+        let mut js_header = tar::Header::new_gnu();
+        js_header.set_size(js_content.len() as u64);
+        js_header.set_mode(0o644);
+        js_header.set_cksum();
+        builder
+            .append_data(
+                &mut js_header,
+                "my-lib-a1b2c3d/index.js",
+                &js_content[..],
+            )
+            .unwrap();
+
+        let tar_bytes = builder.into_inner().unwrap();
+
+        use flate2::write::GzEncoder;
+        use std::io::Write;
+        let mut encoder = GzEncoder::new(Vec::new(), flate2::Compression::default());
+        encoder.write_all(&tar_bytes).unwrap();
+        let gz_bytes = encoder.finish().unwrap();
+
+        let integrity = extract_github_tarball(&gz_bytes, &dest).unwrap();
+
+        // Files extracted at root (prefix stripped)
+        let pkg = std::fs::read_to_string(dest.join("package.json")).unwrap();
+        assert!(pkg.contains("my-lib"));
+        let js = std::fs::read_to_string(dest.join("index.js")).unwrap();
+        assert_eq!(js, "module.exports = {};");
+
+        // Integrity is computed
+        assert!(integrity.starts_with("sha512-"));
+        assert!(integrity.len() > 10);
+    }
+
+    #[test]
+    fn test_extract_github_tarball_returns_consistent_integrity() {
+        let dir = tempfile::tempdir().unwrap();
+        let dest1 = dir.path().join("extract1");
+        let dest2 = dir.path().join("extract2");
+        std::fs::create_dir_all(&dest1).unwrap();
+        std::fs::create_dir_all(&dest2).unwrap();
+
+        let mut builder = tar::Builder::new(Vec::new());
+        let content = b"hello";
+        let mut header = tar::Header::new_gnu();
+        header.set_size(content.len() as u64);
+        header.set_mode(0o644);
+        header.set_cksum();
+        builder
+            .append_data(&mut header, "repo-main/file.txt", &content[..])
+            .unwrap();
+        let tar_bytes = builder.into_inner().unwrap();
+
+        use flate2::write::GzEncoder;
+        use std::io::Write;
+        let mut encoder = GzEncoder::new(Vec::new(), flate2::Compression::default());
+        encoder.write_all(&tar_bytes).unwrap();
+        let gz_bytes = encoder.finish().unwrap();
+
+        let integrity1 = extract_github_tarball(&gz_bytes, &dest1).unwrap();
+        let integrity2 = extract_github_tarball(&gz_bytes, &dest2).unwrap();
+        assert_eq!(integrity1, integrity2);
+    }
 
     #[test]
     fn test_strip_package_prefix() {

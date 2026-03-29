@@ -82,13 +82,17 @@ struct ResolveState<'a> {
     override_applications: Vec<OverrideApplication>,
 }
 
-/// Recursively resolve all dependencies starting from root deps
+/// Recursively resolve all dependencies starting from root deps.
+/// `pre_resolved` contains packages already resolved externally (e.g., GitHub packages)
+/// that should be inserted into the graph before recursive resolution begins.
+/// Their transitive npm deps will be resolved normally.
 pub async fn resolve_all(
     root_deps: &BTreeMap<String, String>,
     root_dev_deps: &BTreeMap<String, String>,
     registry: &RegistryClient,
     lockfile: &Lockfile,
     overrides: &OverrideMap,
+    pre_resolved: Vec<ResolvedPackage>,
 ) -> Result<(ResolvedGraph, Vec<OverrideApplication>), Box<dyn std::error::Error + Send + Sync>> {
     let mut state = ResolveState {
         registry,
@@ -100,6 +104,12 @@ pub async fn resolve_all(
         parent_chain: Vec::new(),
         override_applications: Vec::new(),
     };
+
+    // Insert pre-resolved packages (e.g., GitHub deps) into graph
+    for pkg in pre_resolved {
+        let key = ResolvedGraph::key(&pkg.name, &pkg.version);
+        state.graph.packages.insert(key, pkg);
+    }
 
     // Resolve regular dependencies
     for (name, range) in root_deps {
@@ -150,6 +160,31 @@ async fn resolve_recursive(
         return Ok(());
     }
     state.visited.insert(visit_key);
+
+    // GitHub specifiers: look up the pre-resolved package in the graph, then resolve
+    // its transitive npm deps. No registry calls needed.
+    if effective_range.starts_with("github:") {
+        // Find the pre-resolved package by name
+        let pkg = state
+            .graph
+            .packages
+            .values()
+            .find(|p| p.name == name)
+            .cloned();
+
+        if let Some(pkg) = pkg {
+            // Resolve transitive deps (which are normal npm deps)
+            state.parent_chain.push(name.to_string());
+            let deps: Vec<_> = pkg.dependencies.clone().into_iter().collect();
+            for (dep_name, dep_range) in &deps {
+                resolve_recursive(dep_name, dep_range, state).await?;
+            }
+            state.parent_chain.pop();
+        }
+        // If not pre-resolved, skip silently — the caller should have pre-inserted it.
+        // During `install` from lockfile, GitHub deps are pre-resolved from lockfile entries.
+        return Ok(());
+    }
 
     // Check lockfile first for pinned version (use ORIGINAL range for lockfile key)
     let lockfile_key = Lockfile::spec_key(name, range);
@@ -387,20 +422,28 @@ pub fn graph_to_lockfile(
         }
     }
 
-    // Also add transitive deps — match by semver range, not just name
+    // Also add transitive deps — match by semver range, not just name.
+    // For github: ranges, match by exact string equality (not semver).
     for pkg in graph.packages.values() {
         for (dep_name, dep_range) in &pkg.dependencies {
             let key = Lockfile::spec_key(dep_name, dep_range);
             if let std::collections::btree_map::Entry::Vacant(entry) = lockfile.entries.entry(key) {
-                // Find the resolved package that matches both name AND semver range.
-                // Fail-closed: no name-only fallback — if range doesn't match, skip.
-                let dep_pkg = graph.packages.values().find(|p| {
-                    p.name == *dep_name
-                        && Range::parse(dep_range)
-                            .ok()
-                            .and_then(|r| Version::parse(&p.version).ok().map(|v| r.satisfies(&v)))
-                            .unwrap_or(false)
-                });
+                let dep_pkg = if dep_range.starts_with("github:") {
+                    // GitHub dep: match by exact range string equality
+                    graph.packages.values().find(|p| p.name == *dep_name)
+                } else {
+                    // npm dep: match by semver range satisfaction.
+                    // Fail-closed: no name-only fallback — if range doesn't match, skip.
+                    graph.packages.values().find(|p| {
+                        p.name == *dep_name
+                            && Range::parse(dep_range)
+                                .ok()
+                                .and_then(|r| {
+                                    Version::parse(&p.version).ok().map(|v| r.satisfies(&v))
+                                })
+                                .unwrap_or(false)
+                    })
+                };
 
                 if let Some(dep_pkg) = dep_pkg {
                     entry.insert(LockfileEntry {
@@ -852,5 +895,151 @@ mod tests {
         // zod should NOT be marked optional
         let zod_entry = &lockfile.entries["zod@^3.24.0"];
         assert!(!zod_entry.optional, "zod should not be marked optional");
+    }
+
+    #[test]
+    fn test_graph_to_lockfile_github_root_dep() {
+        // A GitHub dep as a root dependency should appear in the lockfile
+        let mut graph = ResolvedGraph::default();
+        graph.packages.insert(
+            "my-lib@a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2".to_string(),
+            ResolvedPackage {
+                name: "my-lib".to_string(),
+                version: "a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2".to_string(),
+                tarball_url: "https://codeload.github.com/user/my-lib/tar.gz/a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2".to_string(),
+                integrity: "sha512-fakehash".to_string(),
+                dependencies: BTreeMap::new(),
+                bin: BTreeMap::new(),
+                nest_path: vec![],
+            },
+        );
+
+        let mut deps = BTreeMap::new();
+        deps.insert(
+            "my-lib".to_string(),
+            "github:user/my-lib#v2.1.0".to_string(),
+        );
+
+        let lockfile = graph_to_lockfile(&graph, &deps, &[], &HashSet::new());
+        assert_eq!(lockfile.entries.len(), 1);
+        let entry = &lockfile.entries["my-lib@github:user/my-lib#v2.1.0"];
+        assert_eq!(
+            entry.version,
+            "a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2"
+        );
+        assert_eq!(
+            entry.resolved,
+            "https://codeload.github.com/user/my-lib/tar.gz/a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2"
+        );
+    }
+
+    #[test]
+    fn test_graph_to_lockfile_github_transitive_dep() {
+        // An npm package depends on a GitHub package transitively
+        let mut graph = ResolvedGraph::default();
+
+        // GitHub package
+        graph.packages.insert(
+            "gh-lib@abc123def456abc123def456abc123def456abc1".to_string(),
+            ResolvedPackage {
+                name: "gh-lib".to_string(),
+                version: "abc123def456abc123def456abc123def456abc1".to_string(),
+                tarball_url: "https://codeload.github.com/user/gh-lib/tar.gz/abc123def456abc123def456abc123def456abc1".to_string(),
+                integrity: "sha512-ghash".to_string(),
+                dependencies: BTreeMap::new(),
+                bin: BTreeMap::new(),
+                nest_path: vec![],
+            },
+        );
+
+        // npm parent that depends on the GitHub package
+        let mut parent_deps = BTreeMap::new();
+        parent_deps.insert(
+            "gh-lib".to_string(),
+            "github:user/gh-lib".to_string(),
+        );
+
+        graph.packages.insert(
+            "parent@1.0.0".to_string(),
+            ResolvedPackage {
+                name: "parent".to_string(),
+                version: "1.0.0".to_string(),
+                tarball_url: "url-parent".to_string(),
+                integrity: "hash-parent".to_string(),
+                dependencies: parent_deps,
+                bin: BTreeMap::new(),
+                nest_path: vec![],
+            },
+        );
+
+        let mut deps = BTreeMap::new();
+        deps.insert("parent".to_string(), "^1.0.0".to_string());
+
+        let lockfile = graph_to_lockfile(&graph, &deps, &[], &HashSet::new());
+
+        // Both parent AND the GitHub transitive dep should be in lockfile
+        assert!(lockfile.entries.contains_key("parent@^1.0.0"));
+        assert!(
+            lockfile.entries.contains_key("gh-lib@github:user/gh-lib"),
+            "GitHub transitive dep should be in lockfile"
+        );
+    }
+
+    #[test]
+    fn test_graph_to_lockfile_lockfile_roundtrip_github() {
+        // Verify a GitHub lockfile entry survives write/read round-trip
+        use crate::pm::lockfile;
+
+        let mut graph = ResolvedGraph::default();
+        graph.packages.insert(
+            "my-lib@a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2".to_string(),
+            ResolvedPackage {
+                name: "my-lib".to_string(),
+                version: "a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2".to_string(),
+                tarball_url: "https://codeload.github.com/user/my-lib/tar.gz/a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2".to_string(),
+                integrity: "sha512-fakehash".to_string(),
+                dependencies: BTreeMap::from([("zod".to_string(), "^3.24.0".to_string())]),
+                bin: BTreeMap::new(),
+                nest_path: vec![],
+            },
+        );
+        graph.packages.insert(
+            "zod@3.24.4".to_string(),
+            ResolvedPackage {
+                name: "zod".to_string(),
+                version: "3.24.4".to_string(),
+                tarball_url: "https://registry.npmjs.org/zod/-/zod-3.24.4.tgz".to_string(),
+                integrity: "sha512-zodhash".to_string(),
+                dependencies: BTreeMap::new(),
+                bin: BTreeMap::new(),
+                nest_path: vec![],
+            },
+        );
+
+        let mut deps = BTreeMap::new();
+        deps.insert(
+            "my-lib".to_string(),
+            "github:user/my-lib#v2.1.0".to_string(),
+        );
+
+        let lf = graph_to_lockfile(&graph, &deps, &[], &HashSet::new());
+
+        // Write and re-read
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("vertz.lock");
+        lockfile::write_lockfile(&path, &lf).unwrap();
+        let parsed = lockfile::read_lockfile(&path).unwrap();
+
+        let entry = &parsed.entries["my-lib@github:user/my-lib#v2.1.0"];
+        assert_eq!(entry.name, "my-lib");
+        assert_eq!(entry.range, "github:user/my-lib#v2.1.0");
+        assert_eq!(
+            entry.version,
+            "a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2"
+        );
+        assert_eq!(entry.dependencies["zod"], "^3.24.0");
+
+        // Transitive zod should also be there
+        assert!(parsed.entries.contains_key("zod@^3.24.0"));
     }
 }

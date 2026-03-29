@@ -239,22 +239,96 @@ pub fn write_package_json(
     Ok(())
 }
 
-/// Parse a package specifier like "zod", "react@^18.0.0", or "@vertz/ui@^0.1.0"
-/// Returns (name, optional_version_spec)
-pub fn parse_package_specifier(spec: &str) -> (&str, Option<&str>) {
+/// A parsed GitHub specifier: `github:owner/repo[#ref]`
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct GitHubSpecifier {
+    pub owner: String,
+    pub repo: String,
+    pub ref_: Option<String>,
+}
+
+/// Result of parsing a package specifier — either an npm name+version or a GitHub specifier
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ParsedSpecifier<'a> {
+    /// Standard npm specifier: name with optional version range
+    Npm {
+        name: &'a str,
+        version_spec: Option<&'a str>,
+    },
+    /// GitHub specifier: `github:owner/repo[#ref]`
+    GitHub(GitHubSpecifier),
+    /// Parse error
+    Error(String),
+}
+
+/// Parse a package specifier like "zod", "react@^18.0.0", "@vertz/ui@^0.1.0",
+/// or "github:owner/repo[#ref]"
+pub fn parse_package_specifier(spec: &str) -> ParsedSpecifier<'_> {
+    // Check for GitHub specifier
+    if let Some(rest) = spec.strip_prefix("github:") {
+        return parse_github_specifier(rest);
+    }
+
+    // Standard npm specifier
     if let Some(rest) = spec.strip_prefix('@') {
         // Scoped package: @scope/pkg or @scope/pkg@version
         if let Some(pos) = rest.find('@') {
             let pos = pos + 1;
-            (&spec[..pos], Some(&spec[pos + 1..]))
+            ParsedSpecifier::Npm {
+                name: &spec[..pos],
+                version_spec: Some(&spec[pos + 1..]),
+            }
         } else {
-            (spec, None)
+            ParsedSpecifier::Npm {
+                name: spec,
+                version_spec: None,
+            }
         }
     } else if let Some(pos) = spec.find('@') {
-        (&spec[..pos], Some(&spec[pos + 1..]))
+        ParsedSpecifier::Npm {
+            name: &spec[..pos],
+            version_spec: Some(&spec[pos + 1..]),
+        }
     } else {
-        (spec, None)
+        ParsedSpecifier::Npm {
+            name: spec,
+            version_spec: None,
+        }
     }
+}
+
+/// Parse the part after "github:" into a GitHubSpecifier
+fn parse_github_specifier(rest: &str) -> ParsedSpecifier<'_> {
+    // Split on # for optional ref
+    let (owner_repo, ref_) = if let Some(hash_pos) = rest.find('#') {
+        (&rest[..hash_pos], Some(rest[hash_pos + 1..].to_string()))
+    } else {
+        (rest, None)
+    };
+
+    // Split owner/repo
+    let Some(slash_pos) = owner_repo.find('/') else {
+        return ParsedSpecifier::Error(format!(
+            "invalid GitHub specifier \"github:{}\" — expected format: github:owner/repo[#ref]",
+            rest
+        ));
+    };
+
+    let owner = &owner_repo[..slash_pos];
+    let repo = &owner_repo[slash_pos + 1..];
+
+    if owner.is_empty() || repo.is_empty() {
+        return ParsedSpecifier::Error(format!(
+            "invalid GitHub specifier \"github:{}\" — expected format: github:owner/repo[#ref]",
+            rest
+        ));
+    }
+
+    ParsedSpecifier::GitHub(GitHubSpecifier {
+        owner: owner.to_string(),
+        repo: repo.to_string(),
+        ref_,
+    })
 }
 
 /// Severity levels for vulnerability advisories, ordered from most to least severe.
@@ -434,6 +508,30 @@ mod tests {
     #[test]
     fn test_lockfile_parse_spec_key_invalid() {
         assert!(Lockfile::parse_spec_key("no-at-sign").is_none());
+    }
+
+    #[test]
+    fn test_lockfile_spec_key_github() {
+        assert_eq!(
+            Lockfile::spec_key("my-lib", "github:user/my-lib#v2.1.0"),
+            "my-lib@github:user/my-lib#v2.1.0"
+        );
+    }
+
+    #[test]
+    fn test_lockfile_parse_spec_key_github() {
+        let (name, range) =
+            Lockfile::parse_spec_key("my-lib@github:user/my-lib#v2.1.0").unwrap();
+        assert_eq!(name, "my-lib");
+        assert_eq!(range, "github:user/my-lib#v2.1.0");
+    }
+
+    #[test]
+    fn test_lockfile_parse_spec_key_scoped_github() {
+        let (name, range) =
+            Lockfile::parse_spec_key("@org/lib@github:user/lib").unwrap();
+        assert_eq!(name, "@org/lib");
+        assert_eq!(range, "github:user/lib");
     }
 
     #[test]
@@ -698,32 +796,115 @@ mod tests {
         assert_eq!(obj["dependencies"]["zod"], "^3.0.0");
     }
 
+    // --- GitHub specifier parsing tests ---
+
+    #[test]
+    fn test_parse_package_specifier_github_basic() {
+        let result = parse_package_specifier("github:user/my-lib");
+        match result {
+            ParsedSpecifier::GitHub(gh) => {
+                assert_eq!(gh.owner, "user");
+                assert_eq!(gh.repo, "my-lib");
+                assert_eq!(gh.ref_, None);
+            }
+            _ => panic!("Expected GitHub specifier"),
+        }
+    }
+
+    #[test]
+    fn test_parse_package_specifier_github_with_branch() {
+        let result = parse_package_specifier("github:user/my-lib#develop");
+        match result {
+            ParsedSpecifier::GitHub(gh) => {
+                assert_eq!(gh.owner, "user");
+                assert_eq!(gh.repo, "my-lib");
+                assert_eq!(gh.ref_, Some("develop".to_string()));
+            }
+            _ => panic!("Expected GitHub specifier"),
+        }
+    }
+
+    #[test]
+    fn test_parse_package_specifier_github_with_tag() {
+        let result = parse_package_specifier("github:user/my-lib#v2.1.0");
+        match result {
+            ParsedSpecifier::GitHub(gh) => {
+                assert_eq!(gh.ref_, Some("v2.1.0".to_string()));
+            }
+            _ => panic!("Expected GitHub specifier"),
+        }
+    }
+
+    #[test]
+    fn test_parse_package_specifier_github_with_sha() {
+        let result = parse_package_specifier("github:user/my-lib#a1b2c3d");
+        match result {
+            ParsedSpecifier::GitHub(gh) => {
+                assert_eq!(gh.ref_, Some("a1b2c3d".to_string()));
+            }
+            _ => panic!("Expected GitHub specifier"),
+        }
+    }
+
+    #[test]
+    fn test_parse_package_specifier_github_invalid_no_slash() {
+        let result = parse_package_specifier("github:invalid");
+        match result {
+            ParsedSpecifier::Error(msg) => {
+                assert!(msg.contains("github:"), "Error should reference the specifier");
+                assert!(
+                    msg.contains("owner/repo"),
+                    "Error should mention expected format"
+                );
+            }
+            _ => panic!("Expected Error for invalid GitHub specifier"),
+        }
+    }
+
+    // --- Existing npm specifier tests (now using ParsedSpecifier::Npm) ---
+
     #[test]
     fn test_parse_package_specifier_simple() {
-        let (name, version) = parse_package_specifier("zod");
-        assert_eq!(name, "zod");
-        assert!(version.is_none());
+        match parse_package_specifier("zod") {
+            ParsedSpecifier::Npm { name, version_spec } => {
+                assert_eq!(name, "zod");
+                assert!(version_spec.is_none());
+            }
+            _ => panic!("Expected Npm specifier"),
+        }
     }
 
     #[test]
     fn test_parse_package_specifier_with_version() {
-        let (name, version) = parse_package_specifier("react@^18.0.0");
-        assert_eq!(name, "react");
-        assert_eq!(version, Some("^18.0.0"));
+        match parse_package_specifier("react@^18.0.0") {
+            ParsedSpecifier::Npm { name, version_spec } => {
+                assert_eq!(name, "react");
+                assert_eq!(version_spec, Some("^18.0.0"));
+            }
+            _ => panic!("Expected Npm specifier"),
+        }
     }
 
     #[test]
     fn test_parse_package_specifier_scoped() {
-        let (name, version) = parse_package_specifier("@vertz/ui");
-        assert_eq!(name, "@vertz/ui");
-        assert!(version.is_none());
+        match parse_package_specifier("@vertz/ui") {
+            ParsedSpecifier::Npm { name, version_spec } => {
+                assert_eq!(name, "@vertz/ui");
+                assert!(version_spec.is_none());
+            }
+            _ => panic!("Expected Npm specifier"),
+        }
     }
 
     #[test]
     fn test_parse_package_specifier_scoped_with_version() {
-        let (name, version) = parse_package_specifier("@vertz/ui@^0.1.0");
-        assert_eq!(name, "@vertz/ui");
-        assert_eq!(version, Some("^0.1.0"));
+        match parse_package_specifier("@vertz/ui@^0.1.0") {
+            ParsedSpecifier::Npm { name, version_spec } => {
+                assert_eq!(name, "@vertz/ui");
+                assert_eq!(version_spec, Some("^0.1.0"));
+            }
+            _ => panic!("Expected Npm specifier"),
+        }
     }
 
     #[test]

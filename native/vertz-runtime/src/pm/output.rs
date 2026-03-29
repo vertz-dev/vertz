@@ -19,6 +19,8 @@ pub trait PmOutput: Send + Sync {
     fn script_started(&self, name: &str, script: &str);
     fn script_complete(&self, name: &str, duration_ms: u64);
     fn script_error(&self, name: &str, error: &str);
+    fn github_resolve_started(&self, specifier: &str);
+    fn github_resolve_complete(&self, name: &str, sha_abbrev: &str);
     fn info(&self, message: &str);
     fn warning(&self, message: &str);
     fn done(&self, elapsed_ms: u64);
@@ -153,6 +155,14 @@ impl PmOutput for TextOutput {
 
     fn script_error(&self, name: &str, error: &str) {
         eprintln!("Postinstall for {} failed: {}", name, error);
+    }
+
+    fn github_resolve_started(&self, specifier: &str) {
+        eprintln!("resolving {}...", specifier);
+    }
+
+    fn github_resolve_complete(&self, name: &str, sha_abbrev: &str) {
+        eprintln!("+ {} (→ {})", name, sha_abbrev);
     }
 
     fn info(&self, message: &str) {
@@ -307,6 +317,20 @@ impl PmOutput for JsonOutput {
         );
     }
 
+    fn github_resolve_started(&self, specifier: &str) {
+        println!(
+            "{}",
+            json!({"event": "github_resolve_started", "specifier": specifier})
+        );
+    }
+
+    fn github_resolve_complete(&self, name: &str, sha_abbrev: &str) {
+        println!(
+            "{}",
+            json!({"event": "github_resolve_complete", "name": name, "sha": sha_abbrev})
+        );
+    }
+
     fn info(&self, message: &str) {
         println!("{}", json!({"event": "info", "message": message}));
     }
@@ -381,6 +405,16 @@ pub fn error_code_from_message(msg: &str) -> &'static str {
         "NOT_DIRECT_DEPENDENCY"
     } else if msg.contains("integrity") || msg.contains("Integrity") {
         "INTEGRITY_FAILED"
+    } else if msg.contains("rate limit") {
+        "GITHUB_RATE_LIMITED"
+    } else if msg.contains("repository") && msg.contains("not found") {
+        "GITHUB_REPO_NOT_FOUND"
+    } else if msg.contains("ref") && msg.contains("not found") {
+        "GITHUB_REF_NOT_FOUND"
+    } else if msg.contains("access denied") {
+        "GITHUB_ACCESS_DENIED"
+    } else if msg.contains("invalid GitHub specifier") {
+        "INVALID_GITHUB_SPECIFIER"
     } else {
         "NETWORK_ERROR"
     }
@@ -515,6 +549,46 @@ mod tests {
         assert_eq!(
             error_code_from_message("connection refused"),
             "NETWORK_ERROR"
+        );
+    }
+
+    #[test]
+    fn test_error_code_github_rate_limited() {
+        assert_eq!(
+            error_code_from_message("GitHub API rate limit exceeded"),
+            "GITHUB_RATE_LIMITED"
+        );
+    }
+
+    #[test]
+    fn test_error_code_github_repo_not_found() {
+        assert_eq!(
+            error_code_from_message("repository \"github:user/lib\" not found"),
+            "GITHUB_REPO_NOT_FOUND"
+        );
+    }
+
+    #[test]
+    fn test_error_code_github_ref_not_found() {
+        assert_eq!(
+            error_code_from_message("ref \"nonexistent\" not found in github:user/lib"),
+            "GITHUB_REF_NOT_FOUND"
+        );
+    }
+
+    #[test]
+    fn test_error_code_github_access_denied() {
+        assert_eq!(
+            error_code_from_message("access denied to github:user/private"),
+            "GITHUB_ACCESS_DENIED"
+        );
+    }
+
+    #[test]
+    fn test_error_code_invalid_github_specifier() {
+        assert_eq!(
+            error_code_from_message("invalid GitHub specifier \"github:bad\""),
+            "INVALID_GITHUB_SPECIFIER"
         );
     }
 

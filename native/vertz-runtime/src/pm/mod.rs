@@ -1,6 +1,7 @@
 pub mod bin;
 pub mod cache;
 pub mod config;
+pub mod github;
 pub mod linker;
 pub mod lockfile;
 pub mod output;
@@ -128,6 +129,7 @@ pub async fn install(
         &registry_client,
         &existing_lockfile,
         &override_map,
+        Vec::new(),
     )
     .await
     .map_err(|e| format!("{}", e))?;
@@ -143,6 +145,7 @@ pub async fn install(
             &registry_client,
             &existing_lockfile,
             &empty_overrides,
+            Vec::new(),
         )
         .await
         {
@@ -389,7 +392,22 @@ pub async fn add(
 
     // Resolve all packages first, then mutate package.json once
     for package in packages {
-        let (name, version_spec) = types::parse_package_specifier(package);
+        let parsed = types::parse_package_specifier(package);
+
+        let (name, version_spec) = match parsed {
+            types::ParsedSpecifier::Npm { name, version_spec } => (name, version_spec),
+            types::ParsedSpecifier::GitHub(_gh) => {
+                // TODO: GitHub specifier support — Phase 1
+                return Err(format!(
+                    "GitHub specifiers are not yet supported: {}",
+                    package
+                )
+                .into());
+            }
+            types::ParsedSpecifier::Error(msg) => {
+                return Err(msg.into());
+            }
+        };
 
         let metadata = registry_client
             .fetch_metadata(name)
