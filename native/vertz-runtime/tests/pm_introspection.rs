@@ -48,9 +48,18 @@ fn test_output() -> Arc<dyn PmOutput> {
 async fn test_list_direct_deps_after_add() {
     let dir = create_project("");
 
-    pm::add(dir.path(), &["is-number"], false, false, test_output())
-        .await
-        .unwrap();
+    pm::add(
+        dir.path(),
+        &["is-number"],
+        false,
+        false,
+        false,
+        false,
+        None,
+        test_output(),
+    )
+    .await
+    .unwrap();
 
     let entries = pm::list(
         dir.path(),
@@ -82,6 +91,9 @@ async fn test_list_with_package_filter() {
         &["is-number", "is-odd"],
         false,
         false,
+        false,
+        false,
+        None,
         test_output(),
     )
     .await
@@ -108,9 +120,18 @@ async fn test_list_all_shows_transitive_deps() {
     let dir = create_project("");
 
     // is-odd depends on is-number, so --all should show is-number as transitive
-    pm::add(dir.path(), &["is-odd"], false, false, test_output())
-        .await
-        .unwrap();
+    pm::add(
+        dir.path(),
+        &["is-odd"],
+        false,
+        false,
+        false,
+        false,
+        None,
+        test_output(),
+    )
+    .await
+    .unwrap();
 
     let entries = pm::list(
         dir.path(),
@@ -137,9 +158,18 @@ async fn test_list_all_shows_transitive_deps() {
 async fn test_list_text_format() {
     let dir = create_project("");
 
-    pm::add(dir.path(), &["is-number"], false, false, test_output())
-        .await
-        .unwrap();
+    pm::add(
+        dir.path(),
+        &["is-number"],
+        false,
+        false,
+        false,
+        false,
+        None,
+        test_output(),
+    )
+    .await
+    .unwrap();
 
     let entries = pm::list(
         dir.path(),
@@ -160,9 +190,18 @@ async fn test_list_text_format() {
 async fn test_list_json_format() {
     let dir = create_project("");
 
-    pm::add(dir.path(), &["is-number"], false, false, test_output())
-        .await
-        .unwrap();
+    pm::add(
+        dir.path(),
+        &["is-number"],
+        false,
+        false,
+        false,
+        false,
+        None,
+        test_output(),
+    )
+    .await
+    .unwrap();
 
     let entries = pm::list(
         dir.path(),
@@ -217,9 +256,18 @@ async fn test_list_no_lockfile() {
 async fn test_why_direct_dependency() {
     let dir = create_project("");
 
-    pm::add(dir.path(), &["is-number"], false, false, test_output())
-        .await
-        .unwrap();
+    pm::add(
+        dir.path(),
+        &["is-number"],
+        false,
+        false,
+        false,
+        false,
+        None,
+        test_output(),
+    )
+    .await
+    .unwrap();
 
     let result = pm::why(dir.path(), "is-number").unwrap();
     assert_eq!(result.name, "is-number");
@@ -240,9 +288,18 @@ async fn test_why_transitive_dependency() {
     let dir = create_project("");
 
     // is-odd depends on is-number
-    pm::add(dir.path(), &["is-odd"], false, false, test_output())
-        .await
-        .unwrap();
+    pm::add(
+        dir.path(),
+        &["is-odd"],
+        false,
+        false,
+        false,
+        false,
+        None,
+        test_output(),
+    )
+    .await
+    .unwrap();
 
     let result = pm::why(dir.path(), "is-number").unwrap();
     assert_eq!(result.name, "is-number");
@@ -271,9 +328,18 @@ async fn test_why_not_installed() {
 async fn test_why_json_format() {
     let dir = create_project("");
 
-    pm::add(dir.path(), &["is-number"], false, false, test_output())
-        .await
-        .unwrap();
+    pm::add(
+        dir.path(),
+        &["is-number"],
+        false,
+        false,
+        false,
+        false,
+        None,
+        test_output(),
+    )
+    .await
+    .unwrap();
 
     let result = pm::why(dir.path(), "is-number").unwrap();
     let json = pm::format_why_json(&result);
@@ -290,9 +356,18 @@ async fn test_why_json_format() {
 async fn test_outdated_with_installed_package() {
     let dir = create_project("");
 
-    pm::add(dir.path(), &["is-number"], false, false, test_output())
-        .await
-        .unwrap();
+    pm::add(
+        dir.path(),
+        &["is-number"],
+        false,
+        false,
+        false,
+        false,
+        None,
+        test_output(),
+    )
+    .await
+    .unwrap();
 
     let (entries, _warnings) = pm::outdated(dir.path()).await.unwrap();
 
@@ -328,9 +403,18 @@ async fn test_outdated_no_lockfile() {
 async fn test_outdated_json_format() {
     let dir = create_project("");
 
-    pm::add(dir.path(), &["is-number"], false, false, test_output())
-        .await
-        .unwrap();
+    pm::add(
+        dir.path(),
+        &["is-number"],
+        false,
+        false,
+        false,
+        false,
+        None,
+        test_output(),
+    )
+    .await
+    .unwrap();
 
     let (entries, _warnings) = pm::outdated(dir.path()).await.unwrap();
     let json = pm::format_outdated_json(&entries);
@@ -351,9 +435,18 @@ async fn test_outdated_json_format() {
 async fn test_outdated_text_format() {
     let dir = create_project("");
 
-    pm::add(dir.path(), &["is-number"], false, false, test_output())
-        .await
-        .unwrap();
+    pm::add(
+        dir.path(),
+        &["is-number"],
+        false,
+        false,
+        false,
+        false,
+        None,
+        test_output(),
+    )
+    .await
+    .unwrap();
 
     let (entries, _warnings) = pm::outdated(dir.path()).await.unwrap();
 
@@ -370,9 +463,18 @@ async fn test_outdated_text_format() {
 async fn test_outdated_dev_dependency() {
     let dir = create_project("");
 
-    pm::add(dir.path(), &["is-number"], true, false, test_output())
-        .await
-        .unwrap();
+    pm::add(
+        dir.path(),
+        &["is-number"],
+        true,
+        false,
+        false,
+        false,
+        None,
+        test_output(),
+    )
+    .await
+    .unwrap();
 
     let (entries, _warnings) = pm::outdated(dir.path()).await.unwrap();
 
