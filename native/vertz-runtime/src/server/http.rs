@@ -147,7 +147,7 @@ pub fn build_router(config: &ServerConfig) -> (Router, Arc<DevServerState>) {
         enable_ssr: config.enable_ssr,
         port: config.port,
         typecheck_enabled: config.enable_typecheck,
-        api_isolate,
+        api_isolate: Arc::new(std::sync::RwLock::new(api_isolate)),
     });
 
     // Routes: HMR WebSocket, error WebSocket, diagnostics, AI API, fallback
@@ -483,7 +483,8 @@ async fn dev_server_handler(
                 crate::ssr::session::extract_session_from_cookies(cookie_header.as_deref());
 
             // Try persistent isolate SSR first (Phase 2: zero per-request overhead)
-            if let Some(isolate) = &state.api_isolate {
+            let isolate = state.api_isolate.read().unwrap().clone();
+            if let Some(isolate) = isolate.as_ref() {
                 if isolate.is_initialized() {
                     let session_json = serde_json::to_string(&session).ok();
                     let ssr_req = crate::runtime::persistent_isolate::SsrRequest {
@@ -659,8 +660,8 @@ async fn handle_api_request(
     req: Request<Body>,
     path: &str,
 ) -> axum::response::Response<Body> {
-    let isolate = match &state.api_isolate {
-        Some(isolate) => isolate.clone(),
+    let isolate = match state.api_isolate.read().unwrap().clone() {
+        Some(isolate) => isolate,
         None => {
             return axum::response::Response::builder()
                 .status(StatusCode::NOT_FOUND)
@@ -859,6 +860,7 @@ pub async fn start_server(config: ServerConfig) -> io::Result<()> {
                 let watcher_state = state.clone();
                 let entry_file = config.entry_file.clone();
                 let root_dir = config.root_dir.clone();
+                let server_entry = config.server_entry.clone();
 
                 // Spawn file watcher task with error broadcasting
                 tokio::spawn(async move {
@@ -929,6 +931,58 @@ pub async fn start_server(config: ServerConfig) -> io::Result<()> {
                                         // Clear compilation cache for full rebuild
                                         watcher_state.pipeline.cache().clear();
                                         continue;
+                                    }
+
+                                    // Check if a server module changed — restart the persistent isolate
+                                    if let Some(ref se) = server_entry {
+                                        if change.path == *se {
+                                            eprintln!(
+                                                "[Server] Server module changed: {}",
+                                                change.path.display()
+                                            );
+                                            // Take the old isolate out, restart it, put the new one back
+                                            let old = {
+                                                let mut guard = watcher_state.api_isolate.write().unwrap();
+                                                guard.take()
+                                            };
+                                            if let Some(old_arc) = old {
+                                                // We need to own the PersistentIsolate to restart it.
+                                                // If other handlers still hold an Arc, that's fine —
+                                                // they'll finish their in-flight request on the old isolate.
+                                                match Arc::try_unwrap(old_arc) {
+                                                    Ok(old_isolate) => {
+                                                        match old_isolate.restart() {
+                                                            Ok(new_isolate) => {
+                                                                let mut guard = watcher_state.api_isolate.write().unwrap();
+                                                                *guard = Some(Arc::new(new_isolate));
+                                                            }
+                                                            Err(e) => {
+                                                                eprintln!("[Server] Failed to restart isolate: {}", e);
+                                                            }
+                                                        }
+                                                    }
+                                                    Err(arc) => {
+                                                        // In-flight requests still using the old isolate.
+                                                        // Create a new one with the same options instead.
+                                                        let opts = arc.options().clone();
+                                                        match PersistentIsolate::new(opts) {
+                                                            Ok(new_isolate) => {
+                                                                eprintln!("[Server] Created new isolate (old still draining)");
+                                                                let mut guard = watcher_state.api_isolate.write().unwrap();
+                                                                *guard = Some(Arc::new(new_isolate));
+                                                            }
+                                                            Err(e) => {
+                                                                eprintln!("[Server] Failed to create new isolate: {}", e);
+                                                                // Restore the old one
+                                                                let mut guard = watcher_state.api_isolate.write().unwrap();
+                                                                *guard = Some(arc);
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                            // Don't continue — still need to compile for client HMR
+                                        }
                                     }
 
                                     // Clear any previous errors for this file

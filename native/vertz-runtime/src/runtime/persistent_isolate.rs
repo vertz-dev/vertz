@@ -103,6 +103,7 @@ pub struct PersistentIsolate {
     _runtime_thread: std::thread::JoinHandle<()>,
     initialized: Arc<std::sync::atomic::AtomicBool>,
     has_api_handler: Arc<std::sync::atomic::AtomicBool>,
+    options: PersistentIsolateOptions,
 }
 
 impl PersistentIsolate {
@@ -145,7 +146,36 @@ impl PersistentIsolate {
             _runtime_thread: runtime_thread,
             initialized,
             has_api_handler,
+            options,
         })
+    }
+
+    /// Restart the persistent isolate with the same options.
+    ///
+    /// Drops the old channel sender (signals the V8 thread to shut down),
+    /// then creates a fresh isolate. Returns the new isolate on success,
+    /// or an error if the new isolate fails to create.
+    ///
+    /// The caller should swap this into wherever the `Arc<PersistentIsolate>`
+    /// is stored. The old isolate's V8 thread will terminate when the channel
+    /// closes and the last message is processed.
+    pub fn restart(self) -> Result<Self, AnyError> {
+        let start = std::time::Instant::now();
+        let opts = self.options.clone();
+        // Drop self — closes the channel sender, V8 thread will shut down
+        drop(self);
+        let new = Self::new(opts)?;
+        let elapsed = start.elapsed();
+        eprintln!(
+            "[Server] Handler restarted in {:.1}ms",
+            elapsed.as_secs_f64() * 1000.0
+        );
+        Ok(new)
+    }
+
+    /// Get the options this isolate was created with.
+    pub fn options(&self) -> &PersistentIsolateOptions {
+        &self.options
     }
 
     /// Check if the isolate has been initialized (modules loaded, ready for requests).
@@ -1576,6 +1606,147 @@ mod tests {
             resp.content.contains("Interceptor: true"),
             "Fetch interceptor should be installed: {}",
             resp.content
+        );
+    }
+
+    // ── Phase 4a: Server module hot-swap tests ─────────────────────────
+
+    #[tokio::test]
+    async fn test_restart_reloads_handler() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let server_path = temp_dir.path().join("server.js");
+
+        // First version: returns "v1"
+        std::fs::write(
+            &server_path,
+            r#"
+            const handler = async (request) => {
+                return new Response(JSON.stringify({ version: 'v1' }), {
+                    status: 200,
+                    headers: { 'content-type': 'application/json' },
+                });
+            };
+            globalThis.__vertz_server_module = { default: { handler } };
+            "#,
+        )
+        .unwrap();
+
+        let opts = PersistentIsolateOptions {
+            root_dir: temp_dir.path().to_path_buf(),
+            entry_file: temp_dir.path().join("nonexistent-app.tsx"),
+            server_entry: Some(server_path.clone()),
+            channel_capacity: 16,
+        };
+
+        let isolate = PersistentIsolate::new(opts).unwrap();
+        wait_for_init(&isolate).await;
+        assert!(isolate.has_api_handler());
+
+        // Verify v1
+        let resp = isolate
+            .handle_request(IsolateRequest {
+                method: "GET".to_string(),
+                url: "http://localhost:4200/api/version".to_string(),
+                headers: vec![],
+                body: None,
+            })
+            .await
+            .unwrap();
+        let body: serde_json::Value = serde_json::from_slice(&resp.body).unwrap();
+        assert_eq!(body["version"], "v1");
+
+        // Update server file to v2
+        std::fs::write(
+            &server_path,
+            r#"
+            const handler = async (request) => {
+                return new Response(JSON.stringify({ version: 'v2' }), {
+                    status: 200,
+                    headers: { 'content-type': 'application/json' },
+                });
+            };
+            globalThis.__vertz_server_module = { default: { handler } };
+            "#,
+        )
+        .unwrap();
+
+        // Restart the isolate
+        let new_isolate = isolate.restart().unwrap();
+        wait_for_init(&new_isolate).await;
+        assert!(new_isolate.has_api_handler());
+
+        // Verify v2
+        let resp2 = new_isolate
+            .handle_request(IsolateRequest {
+                method: "GET".to_string(),
+                url: "http://localhost:4200/api/version".to_string(),
+                headers: vec![],
+                body: None,
+            })
+            .await
+            .unwrap();
+        let body2: serde_json::Value = serde_json::from_slice(&resp2.body).unwrap();
+        assert_eq!(body2["version"], "v2");
+    }
+
+    #[tokio::test]
+    async fn test_restart_preserves_options() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let opts = api_only_opts(
+            &temp_dir,
+            r#"
+            const handler = async (r) => new Response('ok', { status: 200 });
+            globalThis.__vertz_server_module = { default: { handler } };
+            "#,
+        );
+
+        let isolate = PersistentIsolate::new(opts).unwrap();
+        wait_for_init(&isolate).await;
+
+        let original_capacity = isolate.options().channel_capacity;
+        let original_root = isolate.options().root_dir.clone();
+
+        let new_isolate = isolate.restart().unwrap();
+        assert_eq!(new_isolate.options().channel_capacity, original_capacity);
+        assert_eq!(new_isolate.options().root_dir, original_root);
+    }
+
+    #[tokio::test]
+    async fn test_restart_with_syntax_error_fails_gracefully() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let server_path = temp_dir.path().join("server.js");
+
+        // First version: valid handler
+        std::fs::write(
+            &server_path,
+            r#"
+            const handler = async (r) => new Response('ok', { status: 200 });
+            globalThis.__vertz_server_module = { default: { handler } };
+            "#,
+        )
+        .unwrap();
+
+        let opts = PersistentIsolateOptions {
+            root_dir: temp_dir.path().to_path_buf(),
+            entry_file: temp_dir.path().join("nonexistent-app.tsx"),
+            server_entry: Some(server_path.clone()),
+            channel_capacity: 16,
+        };
+
+        let isolate = PersistentIsolate::new(opts).unwrap();
+        wait_for_init(&isolate).await;
+        assert!(isolate.has_api_handler());
+
+        // Write syntax error
+        std::fs::write(&server_path, "const handler = function( { broken").unwrap();
+
+        // Restart should still succeed (isolate creates, but handler won't load)
+        let new_isolate = isolate.restart().unwrap();
+        wait_for_init(&new_isolate).await;
+        // Handler extraction should fail due to syntax error
+        assert!(
+            !new_isolate.has_api_handler(),
+            "Handler should not load with syntax error"
         );
     }
 }
