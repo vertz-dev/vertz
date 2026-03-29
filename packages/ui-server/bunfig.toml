@@ -1,5 +1,6 @@
 [test]
 timeout = 15000
+preload = ["./test-exit-guard.ts"]
 coveragePathIgnorePatterns = [
   "**/core/dist/**",
   "**/errors/dist/**",
