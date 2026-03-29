@@ -344,6 +344,17 @@ fn resolve_condition_value(value: &serde_json::Value) -> Option<String> {
     }
 }
 
+/// Synthetic module source for `@vertz/test` and `bun:test` imports.
+/// Re-exports all test harness globals that were injected by the test runner.
+const VERTZ_TEST_MODULE: &str = r#"
+const { describe, it, test, expect, beforeEach, afterEach, beforeAll, afterAll, mock, spyOn, vi } = globalThis.__vertz_test_exports;
+export { describe, it, test, expect, beforeEach, afterEach, beforeAll, afterAll, mock, spyOn, vi };
+export default { describe, it, test, expect, beforeEach, afterEach, beforeAll, afterAll, mock, spyOn, vi };
+"#;
+
+/// URL used for the synthetic test module.
+const VERTZ_TEST_SPECIFIER: &str = "vertz:test";
+
 impl ModuleLoader for VertzModuleLoader {
     fn resolve(
         &self,
@@ -351,6 +362,11 @@ impl ModuleLoader for VertzModuleLoader {
         referrer: &str,
         _kind: ResolutionKind,
     ) -> Result<ModuleSpecifier, deno_core::anyhow::Error> {
+        // Intercept @vertz/test and bun:test → synthetic vertz:test module
+        if specifier == "@vertz/test" || specifier == "bun:test" {
+            return Ok(ModuleSpecifier::parse(VERTZ_TEST_SPECIFIER)?);
+        }
+
         // If specifier is already a file:// URL, use it directly
         if specifier.starts_with("file://") {
             return Ok(ModuleSpecifier::parse(specifier)?);
@@ -392,6 +408,16 @@ impl ModuleLoader for VertzModuleLoader {
         let specifier = module_specifier.clone();
 
         let load_result = (|| -> Result<ModuleSource, AnyError> {
+            // Return synthetic module for vertz:test
+            if specifier.as_str() == VERTZ_TEST_SPECIFIER {
+                return Ok(ModuleSource::new(
+                    ModuleType::JavaScript,
+                    ModuleSourceCode::String(VERTZ_TEST_MODULE.to_string().into()),
+                    &specifier,
+                    None,
+                ));
+            }
+
             let path = specifier.to_file_path().map_err(|_| {
                 deno_core::anyhow::anyhow!("Only file:// URLs are supported, got: {}", specifier)
             })?;
@@ -652,6 +678,60 @@ export function Hello() {
             resolve_exports_entry(&exports, "."),
             Some("./dist/index.mjs".to_string())
         );
+    }
+
+    #[test]
+    fn test_resolve_vertz_test_specifier() {
+        let tmp = create_temp_dir();
+        let main_file = tmp.path().join("main.js");
+        std::fs::write(&main_file, "").unwrap();
+
+        let loader = VertzModuleLoader::new(&tmp.path().to_string_lossy());
+        let referrer = ModuleSpecifier::from_file_path(&main_file).unwrap();
+        let result = loader.resolve("@vertz/test", referrer.as_str(), ResolutionKind::Import);
+        assert!(result.is_ok());
+        let resolved = result.unwrap();
+        assert_eq!(resolved.as_str(), "vertz:test");
+    }
+
+    #[test]
+    fn test_resolve_bun_test_specifier() {
+        let tmp = create_temp_dir();
+        let main_file = tmp.path().join("main.js");
+        std::fs::write(&main_file, "").unwrap();
+
+        let loader = VertzModuleLoader::new(&tmp.path().to_string_lossy());
+        let referrer = ModuleSpecifier::from_file_path(&main_file).unwrap();
+        let result = loader.resolve("bun:test", referrer.as_str(), ResolutionKind::Import);
+        assert!(result.is_ok());
+        let resolved = result.unwrap();
+        assert_eq!(resolved.as_str(), "vertz:test");
+    }
+
+    #[test]
+    fn test_load_vertz_test_module() {
+        let tmp = create_temp_dir();
+        let loader = VertzModuleLoader::new(&tmp.path().to_string_lossy());
+        let specifier = ModuleSpecifier::parse("vertz:test").unwrap();
+        let response = loader.load(&specifier, None, false, RequestedModuleType::None);
+
+        match response {
+            ModuleLoadResponse::Sync(Ok(source)) => match &source.code {
+                deno_core::ModuleSourceCode::String(code) => {
+                    let code_str = code.as_str();
+                    assert!(
+                        code_str.contains("__vertz_test_exports"),
+                        "Should reference test harness exports"
+                    );
+                    assert!(code_str.contains("export"), "Should have export statements");
+                }
+                _ => panic!("Expected string source code"),
+            },
+            ModuleLoadResponse::Sync(Err(e)) => {
+                panic!("Module load failed: {}", e);
+            }
+            _ => panic!("Expected synchronous module load"),
+        }
     }
 
     #[test]

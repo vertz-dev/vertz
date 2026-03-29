@@ -33,6 +33,7 @@ fn make_config(root: &Path) -> TestRunConfig {
         reporter: ReporterFormat::Terminal,
         coverage: false,
         coverage_threshold: 95.0,
+        preload: vec![],
     }
 }
 
@@ -551,6 +552,130 @@ fn e2e_specific_file_paths() {
     assert_eq!(result.total_passed, 1);
 }
 
+// --- E2E: Codemod migration and test execution ---
+
+#[test]
+fn e2e_codemod_migrates_and_tests_pass() {
+    use vertz_runtime::test::codemod;
+
+    let tmp = tempfile::tempdir().unwrap();
+    std::fs::create_dir_all(tmp.path().join("src")).unwrap();
+
+    // Write test files that use bun:test imports (real-world pattern)
+    write_file(
+        tmp.path(),
+        "src/errors.test.ts",
+        r#"
+import { describe, expect, it } from 'bun:test';
+
+class FetchError extends Error {
+  status: number;
+  constructor(message: string, status: number) {
+    super(message);
+    this.status = status;
+    this.name = 'FetchError';
+  }
+}
+
+describe('FetchError', () => {
+  it('stores status and message', () => {
+    const error = new FetchError('Something went wrong', 500);
+    expect(error).toBeInstanceOf(Error);
+    expect(error.message).toBe('Something went wrong');
+    expect(error.status).toBe(500);
+    expect(error.name).toBe('FetchError');
+  });
+});
+"#,
+    );
+
+    write_file(
+        tmp.path(),
+        "src/math.test.ts",
+        r#"
+import { describe, it, expect } from 'bun:test';
+
+describe('math utils', () => {
+  it('adds numbers', () => {
+    expect(1 + 2).toBe(3);
+  });
+  it('multiplies numbers', () => {
+    expect(3 * 4).toBe(12);
+  });
+});
+"#,
+    );
+
+    // Step 1: Run codemod (not dry-run)
+    let migrate_result = codemod::migrate_tests(tmp.path(), false).unwrap();
+    assert_eq!(
+        migrate_result.files_changed, 2,
+        "Both files should be migrated"
+    );
+
+    // Step 2: Verify the files were rewritten
+    let errors_content = std::fs::read_to_string(tmp.path().join("src/errors.test.ts")).unwrap();
+    assert!(
+        errors_content.contains("'@vertz/test'"),
+        "Should have @vertz/test import"
+    );
+    assert!(
+        !errors_content.contains("'bun:test'"),
+        "Should not have bun:test import"
+    );
+
+    let math_content = std::fs::read_to_string(tmp.path().join("src/math.test.ts")).unwrap();
+    assert!(math_content.contains("'@vertz/test'"));
+
+    // Step 3: Run the migrated tests through vertz test runner
+    let config = TestRunConfig {
+        ..make_config(tmp.path())
+    };
+    let (result, _output) = run_tests(config);
+
+    assert!(result.success(), "Migrated tests should all pass");
+    assert_eq!(result.total_files, 2);
+    assert_eq!(result.total_passed, 3, "3 tests total across 2 files");
+}
+
+#[test]
+fn e2e_vertz_test_import_works_in_runner() {
+    let tmp = tempfile::tempdir().unwrap();
+    std::fs::create_dir_all(tmp.path().join("src")).unwrap();
+
+    // Test file that already uses @vertz/test imports
+    write_file(
+        tmp.path(),
+        "src/native.test.ts",
+        r#"
+import { describe, it, expect, mock } from '@vertz/test';
+
+describe('native vertz test', () => {
+  it('uses @vertz/test imports', () => {
+    expect(true).toBe(true);
+  });
+
+  it('mock function works via import', () => {
+    const fn = mock(() => 42);
+    expect(fn()).toBe(42);
+    expect(fn).toHaveBeenCalledTimes(1);
+  });
+});
+"#,
+    );
+
+    let config = TestRunConfig {
+        ..make_config(tmp.path())
+    };
+    let (result, _output) = run_tests(config);
+
+    assert!(
+        result.success(),
+        "Tests using @vertz/test imports should pass"
+    );
+    assert_eq!(result.total_passed, 2);
+}
+
 // --- E2E: TypeScript features work ---
 
 #[test]
@@ -615,4 +740,92 @@ fn e2e_typescript_features() {
         result.results
     );
     assert_eq!(result.total_passed, 5);
+}
+
+// --- E2E: Phase 4b features (asymmetric matchers, timer mocking, toMatchObject) ---
+
+#[test]
+fn e2e_phase4b_features() {
+    let tmp = tempfile::tempdir().unwrap();
+    setup_project(tmp.path());
+
+    write_file(
+        tmp.path(),
+        "src/__tests__/phase4b.test.ts",
+        r#"
+        import { describe, it, expect, mock, vi } from '@vertz/test';
+
+        describe('toMatchObject', () => {
+            it('matches subset', () => {
+                expect({ a: 1, b: 2, c: 3 }).toMatchObject({ a: 1, c: 3 });
+            });
+        });
+
+        describe('asymmetric matchers', () => {
+            it('expect.any in toEqual', () => {
+                expect({ id: 123, name: 'test' }).toEqual({
+                    id: expect.any(Number),
+                    name: expect.any(String),
+                });
+            });
+            it('expect.objectContaining', () => {
+                expect({ a: 1, b: 2, c: 3 }).toEqual(expect.objectContaining({ a: 1 }));
+            });
+            it('expect.arrayContaining', () => {
+                expect([1, 2, 3]).toEqual(expect.arrayContaining([3, 1]));
+            });
+            it('asymmetric in toHaveBeenCalledWith', () => {
+                const fn = mock();
+                fn('hello', 42, { key: 'value' });
+                expect(fn).toHaveBeenCalledWith(
+                    expect.any(String),
+                    expect.any(Number),
+                    expect.objectContaining({ key: 'value' }),
+                );
+            });
+        });
+
+        describe('timer mocking', () => {
+            it('useFakeTimers + advance', () => {
+                vi.useFakeTimers();
+                let count = 0;
+                setTimeout(() => { count++; }, 100);
+                setTimeout(() => { count++; }, 200);
+                expect(count).toBe(0);
+                vi.advanceTimersByTime(200);
+                expect(count).toBe(2);
+                vi.useRealTimers();
+            });
+        });
+
+        describe('skipIf', () => {
+            it.skipIf(true)('should skip', () => { throw new Error('no'); });
+            it.skipIf(false)('should run', () => { expect(1).toBe(1); });
+        });
+
+        describe('vi.clearAllMocks', () => {
+            it('clears all', () => {
+                const a = vi.fn();
+                const b = vi.fn();
+                a(1); b(2);
+                vi.clearAllMocks();
+                expect(a).not.toHaveBeenCalled();
+                expect(b).not.toHaveBeenCalled();
+            });
+        });
+        "#,
+    );
+
+    let (result, output) = run_tests(make_config(tmp.path()));
+
+    assert!(
+        result.success(),
+        "Phase 4b features should work: {}\n{:?}",
+        output,
+        result.results
+    );
+    // 1 toMatchObject + 4 asymmetric + 1 timer + 1 skipIf-run + 1 clearAllMocks = 8 passed
+    // 1 skipIf(true) = 1 skipped
+    assert_eq!(result.total_passed, 8);
+    assert_eq!(result.total_skipped, 1);
 }

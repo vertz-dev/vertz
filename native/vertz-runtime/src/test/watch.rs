@@ -80,10 +80,24 @@ pub async fn run_watch_mode(config: TestRunConfig) -> Result<(), String> {
     let paths = config.paths.clone();
     let include = config.include.clone();
     let exclude = config.exclude.clone();
+    let preload_paths: Vec<std::path::PathBuf> = config
+        .preload
+        .iter()
+        .map(|p| {
+            let path = std::path::PathBuf::from(p);
+            if path.is_absolute() {
+                path
+            } else {
+                config.root_dir.join(path)
+            }
+        })
+        .collect();
+
     let exec_options = Arc::new(ExecuteOptions {
         filter: config.filter.clone(),
         timeout_ms: config.timeout_ms,
         coverage: false,
+        preload: preload_paths,
     });
 
     // Initial run

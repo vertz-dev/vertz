@@ -21,6 +21,8 @@ pub enum Command {
     Add(AddArgs),
     /// Remove packages from dependencies
     Remove(RemoveArgs),
+    /// Migrate test files from bun:test to @vertz/test
+    MigrateTests(MigrateTestsArgs),
 }
 
 #[derive(Parser, Debug)]
@@ -68,21 +70,21 @@ pub struct TestArgs {
     #[arg(long)]
     pub coverage: bool,
 
-    /// Minimum coverage percentage (default: 95)
-    #[arg(long, default_value_t = 95)]
-    pub coverage_threshold: u32,
+    /// Minimum coverage percentage (default: 95, overrides vertz.config.ts)
+    #[arg(long)]
+    pub coverage_threshold: Option<u32>,
 
-    /// Timeout per test in milliseconds (default: 5000)
-    #[arg(long, default_value_t = 5000)]
-    pub timeout: u64,
+    /// Timeout per test in milliseconds (default: 5000, overrides vertz.config.ts)
+    #[arg(long)]
+    pub timeout: Option<u64>,
 
     /// Max parallel test files (default: CPU count)
     #[arg(long)]
     pub concurrency: Option<usize>,
 
-    /// Reporter format (default: terminal)
-    #[arg(long, default_value = "terminal")]
-    pub reporter: String,
+    /// Reporter format (default: terminal, overrides vertz.config.ts)
+    #[arg(long)]
+    pub reporter: Option<String>,
 
     /// Stop after first test failure
     #[arg(long)]
@@ -130,6 +132,17 @@ pub struct RemoveArgs {
     pub global: bool,
 }
 
+#[derive(Parser, Debug)]
+pub struct MigrateTestsArgs {
+    /// Directory to migrate (default: current directory)
+    #[arg(value_name = "PATH")]
+    pub path: Option<PathBuf>,
+
+    /// Dry run — show what would change without writing files
+    #[arg(long)]
+    pub dry_run: bool,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -171,6 +184,14 @@ mod tests {
         match cli.command {
             Command::Remove(args) => args,
             other => panic!("Expected Remove, got {:?}", other),
+        }
+    }
+
+    fn parse_migrate_tests(args: &[&str]) -> MigrateTestsArgs {
+        let cli = Cli::parse_from(args);
+        match cli.command {
+            Command::MigrateTests(args) => args,
+            other => panic!("Expected MigrateTests, got {:?}", other),
         }
     }
 
@@ -401,10 +422,10 @@ mod tests {
         assert!(args.filter.is_none());
         assert!(!args.watch);
         assert!(!args.coverage);
-        assert_eq!(args.coverage_threshold, 95);
-        assert_eq!(args.timeout, 5000);
+        assert!(args.coverage_threshold.is_none());
+        assert!(args.timeout.is_none());
         assert!(args.concurrency.is_none());
-        assert_eq!(args.reporter, "terminal");
+        assert!(args.reporter.is_none());
         assert!(!args.bail);
         assert!(!args.no_preload);
     }
@@ -444,13 +465,13 @@ mod tests {
             "80",
         ]);
         assert!(args.coverage);
-        assert_eq!(args.coverage_threshold, 80);
+        assert_eq!(args.coverage_threshold, Some(80));
     }
 
     #[test]
     fn test_test_timeout() {
         let args = parse_test(&["vertz-runtime", "test", "--timeout", "10000"]);
-        assert_eq!(args.timeout, 10000);
+        assert_eq!(args.timeout, Some(10000));
     }
 
     #[test]
@@ -468,7 +489,7 @@ mod tests {
     #[test]
     fn test_test_reporter() {
         let args = parse_test(&["vertz-runtime", "test", "--reporter", "json"]);
-        assert_eq!(args.reporter, "json");
+        assert_eq!(args.reporter, Some("json".to_string()));
     }
 
     #[test]
@@ -495,6 +516,27 @@ mod tests {
         assert_eq!(args.filter, Some("math".to_string()));
         assert!(args.bail);
         assert_eq!(args.concurrency, Some(2));
-        assert_eq!(args.timeout, 3000);
+        assert_eq!(args.timeout, Some(3000));
+    }
+
+    // --- MigrateTests command tests ---
+
+    #[test]
+    fn test_default_migrate_tests_args() {
+        let args = parse_migrate_tests(&["vertz-runtime", "migrate-tests"]);
+        assert!(args.path.is_none());
+        assert!(!args.dry_run);
+    }
+
+    #[test]
+    fn test_migrate_tests_with_path() {
+        let args = parse_migrate_tests(&["vertz-runtime", "migrate-tests", "src/"]);
+        assert_eq!(args.path, Some(PathBuf::from("src/")));
+    }
+
+    #[test]
+    fn test_migrate_tests_dry_run() {
+        let args = parse_migrate_tests(&["vertz-runtime", "migrate-tests", "--dry-run"]);
+        assert!(args.dry_run);
     }
 }
