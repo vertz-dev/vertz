@@ -252,3 +252,452 @@ async fn test_timers_in_module() {
     let output = rt.captured_output();
     assert_eq!(output.stdout, vec!["timer fired"]);
 }
+
+// --- Phase 5a: node:* synthetic module integration tests ---
+
+#[tokio::test]
+async fn test_node_path_import() {
+    let mut rt = VertzJsRuntime::new(VertzRuntimeOptions {
+        capture_output: true,
+        ..Default::default()
+    })
+    .unwrap();
+
+    let specifier = deno_core::ModuleSpecifier::parse("file:///virtual/path-test.js").unwrap();
+
+    rt.load_main_module_from_code(
+        &specifier,
+        r#"
+        import path from 'node:path';
+        console.log("join: " + path.join("a", "b", "c"));
+        console.log("isAbsolute: " + path.isAbsolute("/foo"));
+        console.log("relative: " + path.relative("/a/b", "/a/c"));
+        console.log("sep: " + path.sep);
+    "#
+        .to_string(),
+    )
+    .await
+    .unwrap();
+
+    let output = rt.captured_output();
+    assert_eq!(output.stdout[0], "join: a/b/c");
+    assert_eq!(output.stdout[1], "isAbsolute: true");
+    assert_eq!(output.stdout[2], "relative: ../c");
+    assert_eq!(output.stdout[3], "sep: /");
+}
+
+#[tokio::test]
+async fn test_node_path_named_imports() {
+    let mut rt = VertzJsRuntime::new(VertzRuntimeOptions {
+        capture_output: true,
+        ..Default::default()
+    })
+    .unwrap();
+
+    let specifier =
+        deno_core::ModuleSpecifier::parse("file:///virtual/path-named-test.js").unwrap();
+
+    rt.load_main_module_from_code(
+        &specifier,
+        r#"
+        import { join, dirname, basename, extname, resolve, relative, normalize, isAbsolute, parse, format, sep } from 'node:path';
+        console.log("join: " + join("x", "y"));
+        console.log("dirname: " + dirname("/a/b/c.ts"));
+        console.log("basename: " + basename("/a/b/c.ts"));
+        console.log("extname: " + extname("/a/b/c.ts"));
+        console.log("isAbsolute: " + isAbsolute("/foo"));
+        console.log("relative: " + relative("/a/b", "/a/c"));
+        console.log("normalize: " + normalize("/a/b/../c"));
+        const parsed = parse("/a/b/c.ts");
+        console.log("parsed.name: " + parsed.name);
+        console.log("format: " + format({ dir: "/a", base: "file.txt" }));
+        console.log("sep: " + sep);
+    "#
+        .to_string(),
+    )
+    .await
+    .unwrap();
+
+    let output = rt.captured_output();
+    assert_eq!(output.stdout[0], "join: x/y");
+    assert_eq!(output.stdout[1], "dirname: /a/b");
+    assert_eq!(output.stdout[2], "basename: c.ts");
+    assert_eq!(output.stdout[3], "extname: .ts");
+    assert_eq!(output.stdout[4], "isAbsolute: true");
+    assert_eq!(output.stdout[5], "relative: ../c");
+    assert_eq!(output.stdout[6], "normalize: /a/c");
+    assert_eq!(output.stdout[7], "parsed.name: c");
+    assert_eq!(output.stdout[8], "format: /a/file.txt");
+    assert_eq!(output.stdout[9], "sep: /");
+}
+
+#[tokio::test]
+async fn test_node_os_import() {
+    let mut rt = VertzJsRuntime::new(VertzRuntimeOptions {
+        capture_output: true,
+        ..Default::default()
+    })
+    .unwrap();
+
+    let specifier = deno_core::ModuleSpecifier::parse("file:///virtual/os-test.js").unwrap();
+
+    rt.load_main_module_from_code(
+        &specifier,
+        r#"
+        import os from 'node:os';
+        console.log("tmpdir: " + (typeof os.tmpdir()));
+        console.log("homedir: " + (typeof os.homedir()));
+        console.log("platform: " + os.platform());
+        console.log("EOL: " + JSON.stringify(os.EOL));
+    "#
+        .to_string(),
+    )
+    .await
+    .unwrap();
+
+    let output = rt.captured_output();
+    assert_eq!(output.stdout[0], "tmpdir: string");
+    assert_eq!(output.stdout[1], "homedir: string");
+    // Platform is one of darwin/linux/win32
+    assert!(
+        output.stdout[2].starts_with("platform: "),
+        "Got: {:?}",
+        output.stdout[2]
+    );
+    assert_eq!(output.stdout[3], r#"EOL: "\n""#);
+}
+
+#[tokio::test]
+async fn test_node_events_import() {
+    let mut rt = VertzJsRuntime::new(VertzRuntimeOptions {
+        capture_output: true,
+        ..Default::default()
+    })
+    .unwrap();
+
+    let specifier = deno_core::ModuleSpecifier::parse("file:///virtual/events-test.js").unwrap();
+
+    rt.load_main_module_from_code(
+        &specifier,
+        r#"
+        import { EventEmitter } from 'node:events';
+        const ee = new EventEmitter();
+
+        let received = [];
+        ee.on('data', (val) => received.push(val));
+        ee.emit('data', 'hello');
+        ee.emit('data', 'world');
+        console.log("received: " + received.join(","));
+
+        // once
+        let onceFired = 0;
+        ee.once('single', () => { onceFired++; });
+        ee.emit('single');
+        ee.emit('single');
+        console.log("onceFired: " + onceFired);
+
+        // removeListener
+        const handler = () => {};
+        ee.on('x', handler);
+        console.log("before remove: " + ee.listenerCount('x'));
+        ee.removeListener('x', handler);
+        console.log("after remove: " + ee.listenerCount('x'));
+
+        // eventNames
+        ee.on('alpha', () => {});
+        ee.on('beta', () => {});
+        console.log("names: " + ee.eventNames().sort().join(","));
+    "#
+        .to_string(),
+    )
+    .await
+    .unwrap();
+
+    let output = rt.captured_output();
+    assert_eq!(output.stdout[0], "received: hello,world");
+    assert_eq!(output.stdout[1], "onceFired: 1");
+    assert_eq!(output.stdout[2], "before remove: 1");
+    assert_eq!(output.stdout[3], "after remove: 0");
+    assert!(
+        output.stdout[4].contains("alpha") && output.stdout[4].contains("beta"),
+        "Got: {:?}",
+        output.stdout[4]
+    );
+}
+
+#[tokio::test]
+async fn test_node_url_import() {
+    let mut rt = VertzJsRuntime::new(VertzRuntimeOptions {
+        capture_output: true,
+        ..Default::default()
+    })
+    .unwrap();
+
+    let specifier = deno_core::ModuleSpecifier::parse("file:///virtual/url-test.js").unwrap();
+
+    rt.load_main_module_from_code(
+        &specifier,
+        r#"
+        import { fileURLToPath, pathToFileURL } from 'node:url';
+        console.log("path: " + fileURLToPath("file:///home/user/file.txt"));
+        const url = pathToFileURL("/home/user/file.txt");
+        console.log("url: " + url.href);
+    "#
+        .to_string(),
+    )
+    .await
+    .unwrap();
+
+    let output = rt.captured_output();
+    assert_eq!(output.stdout[0], "path: /home/user/file.txt");
+    assert_eq!(output.stdout[1], "url: file:///home/user/file.txt");
+}
+
+#[tokio::test]
+async fn test_node_process_import() {
+    let mut rt = VertzJsRuntime::new(VertzRuntimeOptions {
+        capture_output: true,
+        ..Default::default()
+    })
+    .unwrap();
+
+    let specifier = deno_core::ModuleSpecifier::parse("file:///virtual/process-test.js").unwrap();
+
+    rt.load_main_module_from_code(
+        &specifier,
+        r#"
+        import process from 'node:process';
+        console.log("env type: " + typeof process.env);
+        console.log("cwd type: " + typeof process.cwd);
+    "#
+        .to_string(),
+    )
+    .await
+    .unwrap();
+
+    let output = rt.captured_output();
+    assert_eq!(output.stdout[0], "env type: object");
+    assert_eq!(output.stdout[1], "cwd type: function");
+}
+
+// --- Phase 5b: node:fs and node:crypto integration tests ---
+
+#[tokio::test]
+async fn test_node_fs_sync_operations() {
+    let tmp = tempfile::tempdir().unwrap();
+    let mut rt = VertzJsRuntime::new(VertzRuntimeOptions {
+        capture_output: true,
+        ..Default::default()
+    })
+    .unwrap();
+
+    let specifier = deno_core::ModuleSpecifier::parse("file:///virtual/fs-sync-test.js").unwrap();
+    let tmp_path = tmp.path().to_string_lossy().replace('\\', "/");
+
+    rt.load_main_module_from_code(
+        &specifier,
+        format!(
+            r#"
+        import fs from 'node:fs';
+        const dir = "{}";
+
+        // writeFileSync + readFileSync
+        fs.writeFileSync(dir + "/test.txt", "hello from fs");
+        const content = fs.readFileSync(dir + "/test.txt", "utf-8");
+        console.log("content: " + content);
+
+        // existsSync
+        console.log("exists: " + fs.existsSync(dir + "/test.txt"));
+        console.log("not-exists: " + fs.existsSync(dir + "/nope.txt"));
+
+        // mkdirSync recursive
+        fs.mkdirSync(dir + "/a/b/c", {{ recursive: true }});
+        const stat = fs.statSync(dir + "/a/b/c");
+        console.log("isDir: " + stat.isDirectory());
+
+        // readdirSync
+        fs.writeFileSync(dir + "/a/b/c/x.txt", "x");
+        fs.writeFileSync(dir + "/a/b/c/y.txt", "y");
+        const entries = fs.readdirSync(dir + "/a/b/c").sort();
+        console.log("entries: " + entries.join(","));
+
+        // renameSync
+        fs.renameSync(dir + "/test.txt", dir + "/renamed.txt");
+        console.log("renamed: " + fs.existsSync(dir + "/renamed.txt"));
+        console.log("old-gone: " + !fs.existsSync(dir + "/test.txt"));
+
+        // rmSync recursive
+        fs.rmSync(dir + "/a", {{ recursive: true }});
+        console.log("removed: " + !fs.existsSync(dir + "/a"));
+    "#,
+            tmp_path
+        ),
+    )
+    .await
+    .unwrap();
+
+    let output = rt.captured_output();
+    assert_eq!(output.stdout[0], "content: hello from fs");
+    assert_eq!(output.stdout[1], "exists: true");
+    assert_eq!(output.stdout[2], "not-exists: false");
+    assert_eq!(output.stdout[3], "isDir: true");
+    assert_eq!(output.stdout[4], "entries: x.txt,y.txt");
+    assert_eq!(output.stdout[5], "renamed: true");
+    assert_eq!(output.stdout[6], "old-gone: true");
+    assert_eq!(output.stdout[7], "removed: true");
+}
+
+#[tokio::test]
+async fn test_node_fs_named_imports() {
+    let tmp = tempfile::tempdir().unwrap();
+    let mut rt = VertzJsRuntime::new(VertzRuntimeOptions {
+        capture_output: true,
+        ..Default::default()
+    })
+    .unwrap();
+
+    let specifier = deno_core::ModuleSpecifier::parse("file:///virtual/fs-named-test.js").unwrap();
+    let tmp_path = tmp.path().to_string_lossy().replace('\\', "/");
+
+    rt.load_main_module_from_code(
+        &specifier,
+        format!(
+            r#"
+        import {{ readFileSync, writeFileSync, existsSync, mkdtempSync }} from 'node:fs';
+
+        writeFileSync("{}/named.txt", "named imports work");
+        const content = readFileSync("{}/named.txt", "utf-8");
+        console.log("content: " + content);
+        console.log("exists: " + existsSync("{}/named.txt"));
+
+        const tmpDir = mkdtempSync("vertz-test-");
+        console.log("tmpDir created: " + existsSync(tmpDir));
+    "#,
+            tmp_path, tmp_path, tmp_path
+        ),
+    )
+    .await
+    .unwrap();
+
+    let output = rt.captured_output();
+    assert_eq!(output.stdout[0], "content: named imports work");
+    assert_eq!(output.stdout[1], "exists: true");
+    assert_eq!(output.stdout[2], "tmpDir created: true");
+}
+
+#[tokio::test]
+async fn test_node_fs_promises_import() {
+    let tmp = tempfile::tempdir().unwrap();
+    let mut rt = VertzJsRuntime::new(VertzRuntimeOptions {
+        capture_output: true,
+        ..Default::default()
+    })
+    .unwrap();
+
+    let specifier =
+        deno_core::ModuleSpecifier::parse("file:///virtual/fs-promises-test.js").unwrap();
+    let tmp_path = tmp.path().to_string_lossy().replace('\\', "/");
+
+    rt.load_main_module_from_code(
+        &specifier,
+        format!(
+            r#"
+        import {{ readFile, writeFile }} from 'node:fs/promises';
+
+        await writeFile("{}/async.txt", "async fs works");
+        const content = await readFile("{}/async.txt", "utf-8");
+        console.log("content: " + content);
+    "#,
+            tmp_path, tmp_path
+        ),
+    )
+    .await
+    .unwrap();
+
+    let output = rt.captured_output();
+    assert_eq!(output.stdout[0], "content: async fs works");
+}
+
+#[tokio::test]
+async fn test_node_crypto_import() {
+    let mut rt = VertzJsRuntime::new(VertzRuntimeOptions {
+        capture_output: true,
+        ..Default::default()
+    })
+    .unwrap();
+
+    let specifier = deno_core::ModuleSpecifier::parse("file:///virtual/crypto-test.js").unwrap();
+
+    rt.load_main_module_from_code(
+        &specifier,
+        r#"
+        import { createHash, timingSafeEqual, randomBytes, randomUUID } from 'node:crypto';
+
+        // createHash
+        const hash = createHash('sha256').update('hello').digest('hex');
+        console.log("sha256: " + hash);
+
+        // Should match known SHA-256 of "hello"
+        console.log("hash-ok: " + (hash === '2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824'));
+
+        // timingSafeEqual
+        const a = new Uint8Array([1, 2, 3]);
+        const b = new Uint8Array([1, 2, 3]);
+        const c = new Uint8Array([4, 5, 6]);
+        console.log("equal: " + timingSafeEqual(a, b));
+        console.log("not-equal: " + timingSafeEqual(a, c));
+
+        // randomBytes
+        const bytes = randomBytes(16);
+        console.log("randomBytes: " + (bytes.length === 16));
+
+        // randomUUID
+        const uuid = randomUUID();
+        console.log("uuid: " + (uuid.length === 36));
+    "#
+        .to_string(),
+    )
+    .await
+    .unwrap();
+
+    let output = rt.captured_output();
+    assert_eq!(
+        output.stdout[0],
+        "sha256: 2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824"
+    );
+    assert_eq!(output.stdout[1], "hash-ok: true");
+    assert_eq!(output.stdout[2], "equal: true");
+    assert_eq!(output.stdout[3], "not-equal: false");
+    assert_eq!(output.stdout[4], "randomBytes: true");
+    assert_eq!(output.stdout[5], "uuid: true");
+}
+
+#[tokio::test]
+async fn test_node_buffer_import() {
+    let mut rt = VertzJsRuntime::new(VertzRuntimeOptions {
+        capture_output: true,
+        ..Default::default()
+    })
+    .unwrap();
+
+    let specifier = deno_core::ModuleSpecifier::parse("file:///virtual/buffer-test.js").unwrap();
+
+    rt.load_main_module_from_code(
+        &specifier,
+        r#"
+        import { Buffer } from 'node:buffer';
+        const buf = Buffer.from("hello");
+        console.log("length: " + buf.length);
+        console.log("hex: " + buf.toString("hex"));
+        console.log("isBuffer: " + Buffer.isBuffer(buf));
+    "#
+        .to_string(),
+    )
+    .await
+    .unwrap();
+
+    let output = rt.captured_output();
+    assert_eq!(output.stdout[0], "length: 5");
+    assert_eq!(output.stdout[1], "hex: 68656c6c6f");
+    assert_eq!(output.stdout[2], "isBuffer: true");
+}

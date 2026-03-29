@@ -1,7 +1,16 @@
+pub mod clone;
 pub mod console;
 pub mod crypto;
+pub mod crypto_subtle;
+pub mod encoding;
 pub mod env;
 pub mod fetch;
+pub mod fs;
+pub mod microtask;
+pub mod os;
 pub mod path;
 pub mod performance;
+pub mod streams;
 pub mod timers;
+pub mod url;
+pub mod web_api;

@@ -355,6 +355,423 @@ export default { describe, it, test, expect, beforeEach, afterEach, beforeAll, a
 /// URL used for the synthetic test module.
 const VERTZ_TEST_SPECIFIER: &str = "vertz:test";
 
+/// Synthetic module for `node:path`.
+const NODE_PATH_SPECIFIER: &str = "vertz:node_path";
+const NODE_PATH_MODULE: &str = r#"
+const p = globalThis.__vertz_path;
+export const join = p.join;
+export const resolve = p.resolve;
+export const dirname = p.dirname;
+export const basename = p.basename;
+export const extname = p.extname;
+export const relative = p.relative;
+export const normalize = p.normalize;
+export const isAbsolute = p.isAbsolute;
+export const parse = p.parse;
+export const format = p.format;
+export const sep = p.sep;
+export const delimiter = p.delimiter;
+export const posix = p.posix;
+export default p;
+"#;
+
+/// Synthetic module for `node:os`.
+const NODE_OS_SPECIFIER: &str = "vertz:node_os";
+const NODE_OS_MODULE: &str = r#"
+const os = globalThis.__vertz_os;
+export const tmpdir = os.tmpdir;
+export const homedir = os.homedir;
+export const platform = os.platform;
+export const hostname = os.hostname;
+export const EOL = os.EOL;
+export const type_ = os.type;
+export { type_ as type };
+export const arch = os.arch;
+export const cpus = os.cpus;
+export const totalmem = os.totalmem;
+export const freemem = os.freemem;
+export const release = os.release;
+export const networkInterfaces = os.networkInterfaces;
+export const userInfo = os.userInfo;
+export const endianness = os.endianness;
+export default os;
+"#;
+
+/// Synthetic module for `node:url`.
+const NODE_URL_SPECIFIER: &str = "vertz:node_url";
+const NODE_URL_MODULE: &str = r#"
+function fileURLToPath(url) {
+  if (typeof url === 'string') {
+    return Deno.core.ops.op_file_url_to_path(url);
+  }
+  if (url && typeof url === 'object' && typeof url.href === 'string') {
+    return Deno.core.ops.op_file_url_to_path(url.href);
+  }
+  throw new TypeError('The "url" argument must be of type string or URL');
+}
+
+function pathToFileURL(path) {
+  return new URL(Deno.core.ops.op_path_to_file_url(String(path)));
+}
+
+export { fileURLToPath, pathToFileURL };
+export { URL, URLSearchParams } from 'vertz:node_url_globals';
+export default { fileURLToPath, pathToFileURL, URL: globalThis.URL, URLSearchParams: globalThis.URLSearchParams };
+"#;
+
+/// Helper synthetic module that re-exports URL globals for node:url.
+const NODE_URL_GLOBALS_SPECIFIER: &str = "vertz:node_url_globals";
+const NODE_URL_GLOBALS_MODULE: &str = r#"
+export const URL = globalThis.URL;
+export const URLSearchParams = globalThis.URLSearchParams;
+"#;
+
+/// Synthetic module for `node:events`.
+const NODE_EVENTS_SPECIFIER: &str = "vertz:node_events";
+const NODE_EVENTS_MODULE: &str = r#"
+class EventEmitter {
+  #listeners = new Map();
+  #maxListeners = 10;
+
+  on(event, listener) {
+    if (!this.#listeners.has(event)) {
+      this.#listeners.set(event, []);
+    }
+    this.#listeners.get(event).push(listener);
+    return this;
+  }
+
+  addListener(event, listener) {
+    return this.on(event, listener);
+  }
+
+  once(event, listener) {
+    const wrapped = (...args) => {
+      this.removeListener(event, wrapped);
+      listener.apply(this, args);
+    };
+    wrapped._original = listener;
+    return this.on(event, wrapped);
+  }
+
+  off(event, listener) {
+    return this.removeListener(event, listener);
+  }
+
+  removeListener(event, listener) {
+    const arr = this.#listeners.get(event);
+    if (!arr) return this;
+    const idx = arr.findIndex(fn => fn === listener || fn._original === listener);
+    if (idx !== -1) arr.splice(idx, 1);
+    if (arr.length === 0) this.#listeners.delete(event);
+    return this;
+  }
+
+  removeAllListeners(event) {
+    if (event !== undefined) {
+      this.#listeners.delete(event);
+    } else {
+      this.#listeners.clear();
+    }
+    return this;
+  }
+
+  emit(event, ...args) {
+    const arr = this.#listeners.get(event);
+    if (!arr || arr.length === 0) return false;
+    for (const listener of [...arr]) {
+      listener.apply(this, args);
+    }
+    return true;
+  }
+
+  listenerCount(event) {
+    const arr = this.#listeners.get(event);
+    return arr ? arr.length : 0;
+  }
+
+  listeners(event) {
+    const arr = this.#listeners.get(event);
+    if (!arr) return [];
+    return arr.map(fn => fn._original || fn);
+  }
+
+  rawListeners(event) {
+    const arr = this.#listeners.get(event);
+    return arr ? [...arr] : [];
+  }
+
+  eventNames() {
+    return [...this.#listeners.keys()];
+  }
+
+  prependListener(event, listener) {
+    if (!this.#listeners.has(event)) {
+      this.#listeners.set(event, []);
+    }
+    this.#listeners.get(event).unshift(listener);
+    return this;
+  }
+
+  setMaxListeners(n) {
+    this.#maxListeners = n;
+    return this;
+  }
+
+  getMaxListeners() {
+    return this.#maxListeners;
+  }
+}
+
+export { EventEmitter };
+export default EventEmitter;
+"#;
+
+/// Synthetic module for `node:process` (minimal shim).
+const NODE_PROCESS_SPECIFIER: &str = "vertz:node_process";
+const NODE_PROCESS_MODULE: &str = r#"
+// Ensure process global exists with required properties
+const proc = globalThis.process || {};
+if (!proc.env) proc.env = {};
+if (!proc.cwd) proc.cwd = () => '/';
+if (!proc.argv) proc.argv = [];
+if (!proc.platform) proc.platform = Deno.core.ops.op_os_platform();
+if (!proc.version) proc.version = 'v20.0.0';
+if (!proc.versions) proc.versions = {};
+if (!proc.exit) proc.exit = (code) => { throw new Error('process.exit(' + (code !== undefined ? code : '') + ') is not supported in the Vertz runtime'); };
+if (!proc.nextTick) proc.nextTick = (fn, ...args) => queueMicrotask(() => fn(...args));
+if (!proc.stdout) proc.stdout = { write: (s) => { console.log(s); } };
+if (!proc.stderr) proc.stderr = { write: (s) => { console.error(s); } };
+globalThis.process = proc;
+
+export default proc;
+export const env = proc.env;
+export const cwd = proc.cwd;
+export const argv = proc.argv;
+export const platform = proc.platform;
+export const version = proc.version;
+export const versions = proc.versions;
+export const nextTick = proc.nextTick;
+export const stdout = proc.stdout;
+export const stderr = proc.stderr;
+"#;
+
+/// Synthetic module for `node:fs`.
+const NODE_FS_SPECIFIER: &str = "vertz:node_fs";
+const NODE_FS_MODULE: &str = r#"
+const fs = globalThis.__vertz_fs;
+export const readFileSync = fs.readFileSync;
+export const writeFileSync = fs.writeFileSync;
+export const appendFileSync = fs.appendFileSync;
+export const existsSync = fs.existsSync;
+export const mkdirSync = fs.mkdirSync;
+export const readdirSync = fs.readdirSync;
+export const statSync = fs.statSync;
+export const lstatSync = fs.lstatSync;
+export const rmSync = fs.rmSync;
+export const unlinkSync = fs.unlinkSync;
+export const renameSync = fs.renameSync;
+export const realpathSync = fs.realpathSync;
+export const mkdtempSync = fs.mkdtempSync;
+export const copyFileSync = fs.copyFileSync;
+export const chmodSync = fs.chmodSync;
+export const readFile = fs.readFile;
+export const writeFile = fs.writeFile;
+export const mkdir = fs.mkdir;
+export const readdir = fs.readdir;
+export const stat = fs.stat;
+export const rm = fs.rm;
+export const unlink = fs.unlink;
+export const rename = fs.rename;
+export const realpath = fs.realpath;
+export const promises = fs.promises;
+export default fs;
+"#;
+
+/// Synthetic module for `node:fs/promises`.
+const NODE_FS_PROMISES_SPECIFIER: &str = "vertz:node_fs_promises";
+const NODE_FS_PROMISES_MODULE: &str = r#"
+const p = globalThis.__vertz_fs.promises;
+export const readFile = p.readFile;
+export const writeFile = p.writeFile;
+export const mkdir = p.mkdir;
+export const readdir = p.readdir;
+export const stat = p.stat;
+export const rm = p.rm;
+export const unlink = p.unlink;
+export const rename = p.rename;
+export const realpath = p.realpath;
+export default p;
+"#;
+
+/// Synthetic module for `node:crypto`.
+const NODE_CRYPTO_SPECIFIER: &str = "vertz:node_crypto";
+const NODE_CRYPTO_MODULE: &str = r#"
+class Hash {
+  #algorithm;
+  #data;
+
+  constructor(algorithm) {
+    this.#algorithm = algorithm;
+    this.#data = new Uint8Array(0);
+  }
+
+  update(data, encoding) {
+    let bytes;
+    if (typeof data === 'string') {
+      bytes = new TextEncoder().encode(data);
+    } else if (data instanceof Uint8Array) {
+      bytes = data;
+    } else if (ArrayBuffer.isView(data)) {
+      bytes = new Uint8Array(data.buffer, data.byteOffset, data.byteLength);
+    } else {
+      bytes = new Uint8Array(data);
+    }
+    // Concatenate
+    const merged = new Uint8Array(this.#data.length + bytes.length);
+    merged.set(this.#data);
+    merged.set(bytes, this.#data.length);
+    this.#data = merged;
+    return this;
+  }
+
+  digest(encoding) {
+    const result = Deno.core.ops.op_crypto_hash_digest(this.#algorithm, this.#data);
+    const buf = Buffer.from(result);
+    if (encoding === 'hex') return buf.toString('hex');
+    if (encoding === 'base64') return buf.toString('base64');
+    return buf;
+  }
+}
+
+function createHash(algorithm) {
+  return new Hash(algorithm);
+}
+
+function createHmac(algorithm, key) {
+  // Minimal HMAC using Web Crypto pattern (synchronous via Rust op)
+  let keyBytes;
+  if (typeof key === 'string') {
+    keyBytes = new TextEncoder().encode(key);
+  } else if (key instanceof Uint8Array) {
+    keyBytes = key;
+  } else {
+    keyBytes = new Uint8Array(key);
+  }
+
+  let data = new Uint8Array(0);
+
+  return {
+    update(input) {
+      const bytes = typeof input === 'string' ? new TextEncoder().encode(input) : new Uint8Array(input);
+      const merged = new Uint8Array(data.length + bytes.length);
+      merged.set(data);
+      merged.set(bytes, data.length);
+      data = merged;
+      return this;
+    },
+    digest(encoding) {
+      // HMAC: hash(key XOR opad || hash(key XOR ipad || message))
+      // For simplicity, delegate to the subtle API synchronously via hash
+      // This is a minimal shim — full HMAC available via crypto.subtle
+      const algoMap = { sha256: 'SHA-256', sha384: 'SHA-384', sha512: 'SHA-512', sha1: 'SHA-1' };
+      const normalizedAlgo = algoMap[algorithm.toLowerCase()] || algorithm;
+      const blockSize = (normalizedAlgo.includes('512') || normalizedAlgo.includes('384')) ? 128 : 64;
+
+      let k = keyBytes;
+      if (k.length > blockSize) {
+        k = new Uint8Array(Deno.core.ops.op_crypto_hash_digest(normalizedAlgo, k));
+      }
+      if (k.length < blockSize) {
+        const padded = new Uint8Array(blockSize);
+        padded.set(k);
+        k = padded;
+      }
+
+      const ipad = new Uint8Array(blockSize);
+      const opad = new Uint8Array(blockSize);
+      for (let i = 0; i < blockSize; i++) {
+        ipad[i] = k[i] ^ 0x36;
+        opad[i] = k[i] ^ 0x5c;
+      }
+
+      const inner = new Uint8Array(ipad.length + data.length);
+      inner.set(ipad);
+      inner.set(data, ipad.length);
+      const innerHash = new Uint8Array(Deno.core.ops.op_crypto_hash_digest(normalizedAlgo, inner));
+
+      const outer = new Uint8Array(opad.length + innerHash.length);
+      outer.set(opad);
+      outer.set(innerHash, opad.length);
+      const result = Deno.core.ops.op_crypto_hash_digest(normalizedAlgo, outer);
+
+      const buf = Buffer.from(result);
+      if (encoding === 'hex') return buf.toString('hex');
+      if (encoding === 'base64') return buf.toString('base64');
+      return buf;
+    },
+  };
+}
+
+function timingSafeEqual(a, b) {
+  const aBuf = a instanceof Uint8Array ? a : new Uint8Array(a);
+  const bBuf = b instanceof Uint8Array ? b : new Uint8Array(b);
+  return Deno.core.ops.op_crypto_timing_safe_equal(aBuf, bBuf);
+}
+
+function randomBytes(size) {
+  return Buffer.from(Deno.core.ops.op_crypto_random_bytes(size));
+}
+
+function randomUUID() {
+  return Deno.core.ops.op_crypto_random_uuid();
+}
+
+export { createHash, createHmac, timingSafeEqual, randomBytes, randomUUID, Hash };
+export default { createHash, createHmac, timingSafeEqual, randomBytes, randomUUID };
+"#;
+
+/// Synthetic module for `node:buffer` / `buffer`.
+const NODE_BUFFER_SPECIFIER: &str = "vertz:node_buffer";
+const NODE_BUFFER_MODULE: &str = r#"
+export const Buffer = globalThis.Buffer;
+export default { Buffer: globalThis.Buffer };
+"#;
+
+/// Map a `node:*` specifier to a synthetic module specifier.
+fn node_specifier_to_synthetic(specifier: &str) -> Option<&'static str> {
+    match specifier {
+        "node:path" | "path" => Some(NODE_PATH_SPECIFIER),
+        "node:os" | "os" => Some(NODE_OS_SPECIFIER),
+        "node:url" | "url" => Some(NODE_URL_SPECIFIER),
+        "node:events" | "events" => Some(NODE_EVENTS_SPECIFIER),
+        "node:process" | "process" => Some(NODE_PROCESS_SPECIFIER),
+        "node:fs" | "fs" => Some(NODE_FS_SPECIFIER),
+        "node:fs/promises" => Some(NODE_FS_PROMISES_SPECIFIER),
+        "node:crypto" | "crypto" => Some(NODE_CRYPTO_SPECIFIER),
+        "node:buffer" | "buffer" => Some(NODE_BUFFER_SPECIFIER),
+        _ => None,
+    }
+}
+
+/// Map a synthetic module specifier to its source code.
+fn synthetic_module_source(specifier: &str) -> Option<&'static str> {
+    match specifier {
+        VERTZ_TEST_SPECIFIER => Some(VERTZ_TEST_MODULE),
+        NODE_PATH_SPECIFIER => Some(NODE_PATH_MODULE),
+        NODE_OS_SPECIFIER => Some(NODE_OS_MODULE),
+        NODE_URL_SPECIFIER => Some(NODE_URL_MODULE),
+        NODE_URL_GLOBALS_SPECIFIER => Some(NODE_URL_GLOBALS_MODULE),
+        NODE_EVENTS_SPECIFIER => Some(NODE_EVENTS_MODULE),
+        NODE_PROCESS_SPECIFIER => Some(NODE_PROCESS_MODULE),
+        NODE_FS_SPECIFIER => Some(NODE_FS_MODULE),
+        NODE_FS_PROMISES_SPECIFIER => Some(NODE_FS_PROMISES_MODULE),
+        NODE_CRYPTO_SPECIFIER => Some(NODE_CRYPTO_MODULE),
+        NODE_BUFFER_SPECIFIER => Some(NODE_BUFFER_MODULE),
+        _ => None,
+    }
+}
+
 impl ModuleLoader for VertzModuleLoader {
     fn resolve(
         &self,
@@ -365,6 +782,16 @@ impl ModuleLoader for VertzModuleLoader {
         // Intercept @vertz/test and bun:test → synthetic vertz:test module
         if specifier == "@vertz/test" || specifier == "bun:test" {
             return Ok(ModuleSpecifier::parse(VERTZ_TEST_SPECIFIER)?);
+        }
+
+        // Intercept node:* specifiers → synthetic modules
+        if let Some(synthetic) = node_specifier_to_synthetic(specifier) {
+            return Ok(ModuleSpecifier::parse(synthetic)?);
+        }
+
+        // Internal synthetic module references
+        if specifier == NODE_URL_GLOBALS_SPECIFIER {
+            return Ok(ModuleSpecifier::parse(NODE_URL_GLOBALS_SPECIFIER)?);
         }
 
         // If specifier is already a file:// URL, use it directly
@@ -408,11 +835,11 @@ impl ModuleLoader for VertzModuleLoader {
         let specifier = module_specifier.clone();
 
         let load_result = (|| -> Result<ModuleSource, AnyError> {
-            // Return synthetic module for vertz:test
-            if specifier.as_str() == VERTZ_TEST_SPECIFIER {
+            // Return synthetic modules (vertz:test, vertz:node_path, etc.)
+            if let Some(source) = synthetic_module_source(specifier.as_str()) {
                 return Ok(ModuleSource::new(
                     ModuleType::JavaScript,
-                    ModuleSourceCode::String(VERTZ_TEST_MODULE.to_string().into()),
+                    ModuleSourceCode::String(source.to_string().into()),
                     &specifier,
                     None,
                 ));
@@ -744,5 +1171,141 @@ export function Hello() {
             resolve_exports_entry(&exports, "./utils"),
             Some("./dist/utils.js".to_string())
         );
+    }
+
+    // --- Phase 5a: node:* synthetic module resolution ---
+
+    #[test]
+    fn test_resolve_node_path() {
+        let tmp = create_temp_dir();
+        let main_file = tmp.path().join("main.js");
+        std::fs::write(&main_file, "").unwrap();
+
+        let loader = VertzModuleLoader::new(&tmp.path().to_string_lossy());
+        let referrer = ModuleSpecifier::from_file_path(&main_file).unwrap();
+        let result = loader.resolve("node:path", referrer.as_str(), ResolutionKind::Import);
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap().as_str(), NODE_PATH_SPECIFIER);
+    }
+
+    #[test]
+    fn test_resolve_node_os() {
+        let tmp = create_temp_dir();
+        let main_file = tmp.path().join("main.js");
+        std::fs::write(&main_file, "").unwrap();
+
+        let loader = VertzModuleLoader::new(&tmp.path().to_string_lossy());
+        let referrer = ModuleSpecifier::from_file_path(&main_file).unwrap();
+        let result = loader.resolve("node:os", referrer.as_str(), ResolutionKind::Import);
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap().as_str(), NODE_OS_SPECIFIER);
+    }
+
+    #[test]
+    fn test_resolve_node_url() {
+        let tmp = create_temp_dir();
+        let main_file = tmp.path().join("main.js");
+        std::fs::write(&main_file, "").unwrap();
+
+        let loader = VertzModuleLoader::new(&tmp.path().to_string_lossy());
+        let referrer = ModuleSpecifier::from_file_path(&main_file).unwrap();
+        let result = loader.resolve("node:url", referrer.as_str(), ResolutionKind::Import);
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap().as_str(), NODE_URL_SPECIFIER);
+    }
+
+    #[test]
+    fn test_resolve_node_events() {
+        let tmp = create_temp_dir();
+        let main_file = tmp.path().join("main.js");
+        std::fs::write(&main_file, "").unwrap();
+
+        let loader = VertzModuleLoader::new(&tmp.path().to_string_lossy());
+        let referrer = ModuleSpecifier::from_file_path(&main_file).unwrap();
+        let result = loader.resolve("node:events", referrer.as_str(), ResolutionKind::Import);
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap().as_str(), NODE_EVENTS_SPECIFIER);
+    }
+
+    #[test]
+    fn test_resolve_node_process() {
+        let tmp = create_temp_dir();
+        let main_file = tmp.path().join("main.js");
+        std::fs::write(&main_file, "").unwrap();
+
+        let loader = VertzModuleLoader::new(&tmp.path().to_string_lossy());
+        let referrer = ModuleSpecifier::from_file_path(&main_file).unwrap();
+        let result = loader.resolve("node:process", referrer.as_str(), ResolutionKind::Import);
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap().as_str(), NODE_PROCESS_SPECIFIER);
+    }
+
+    #[test]
+    fn test_resolve_bare_path_maps_to_node_path() {
+        let tmp = create_temp_dir();
+        let main_file = tmp.path().join("main.js");
+        std::fs::write(&main_file, "").unwrap();
+
+        let loader = VertzModuleLoader::new(&tmp.path().to_string_lossy());
+        let referrer = ModuleSpecifier::from_file_path(&main_file).unwrap();
+        // bare "path" (without node: prefix) should also resolve
+        let result = loader.resolve("path", referrer.as_str(), ResolutionKind::Import);
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap().as_str(), NODE_PATH_SPECIFIER);
+    }
+
+    #[test]
+    fn test_load_node_path_module() {
+        let tmp = create_temp_dir();
+        let loader = VertzModuleLoader::new(&tmp.path().to_string_lossy());
+        let specifier = ModuleSpecifier::parse(NODE_PATH_SPECIFIER).unwrap();
+        let response = loader.load(&specifier, None, false, RequestedModuleType::None);
+
+        match response {
+            ModuleLoadResponse::Sync(Ok(source)) => match &source.code {
+                deno_core::ModuleSourceCode::String(code) => {
+                    let code_str = code.as_str();
+                    assert!(code_str.contains("export const join"), "Should export join");
+                    assert!(
+                        code_str.contains("export const relative"),
+                        "Should export relative"
+                    );
+                    assert!(
+                        code_str.contains("export default"),
+                        "Should have default export"
+                    );
+                }
+                _ => panic!("Expected string source code"),
+            },
+            ModuleLoadResponse::Sync(Err(e)) => panic!("Module load failed: {}", e),
+            _ => panic!("Expected synchronous module load"),
+        }
+    }
+
+    #[test]
+    fn test_load_node_events_module() {
+        let tmp = create_temp_dir();
+        let loader = VertzModuleLoader::new(&tmp.path().to_string_lossy());
+        let specifier = ModuleSpecifier::parse(NODE_EVENTS_SPECIFIER).unwrap();
+        let response = loader.load(&specifier, None, false, RequestedModuleType::None);
+
+        match response {
+            ModuleLoadResponse::Sync(Ok(source)) => match &source.code {
+                deno_core::ModuleSourceCode::String(code) => {
+                    let code_str = code.as_str();
+                    assert!(
+                        code_str.contains("class EventEmitter"),
+                        "Should contain EventEmitter class"
+                    );
+                    assert!(
+                        code_str.contains("export { EventEmitter }"),
+                        "Should export EventEmitter"
+                    );
+                }
+                _ => panic!("Expected string source code"),
+            },
+            ModuleLoadResponse::Sync(Err(e)) => panic!("Module load failed: {}", e),
+            _ => panic!("Expected synchronous module load"),
+        }
     }
 }
