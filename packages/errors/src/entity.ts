@@ -26,6 +26,15 @@ export abstract class EntityError extends Error {
    */
   readonly code: string;
 
+  /** Brand tags for cross-module instanceof checks via Symbol.hasInstance. */
+  readonly __brands: readonly string[] = ['VertzEntityError'];
+
+  static [Symbol.hasInstance](obj: unknown): boolean {
+    if (typeof obj !== 'object' || obj === null || !('__brands' in obj)) return false;
+    const brands = (obj as { __brands: readonly string[] }).__brands;
+    return Array.isArray(brands) && brands.includes('VertzEntityError');
+  }
+
   constructor(code: string, message: string) {
     super(message);
     this.code = code;
@@ -42,6 +51,13 @@ export abstract class EntityError extends Error {
  */
 export class BadRequestError extends EntityError {
   readonly code = 'BadRequest' as const;
+  override readonly __brands: readonly string[] = ['VertzBadRequestError', 'VertzEntityError'];
+
+  static [Symbol.hasInstance](obj: unknown): boolean {
+    if (typeof obj !== 'object' || obj === null || !('__brands' in obj)) return false;
+    const brands = (obj as { __brands: readonly string[] }).__brands;
+    return Array.isArray(brands) && brands.includes('VertzBadRequestError');
+  }
 
   constructor(message = 'Bad Request') {
     super('BadRequest', message);
@@ -65,6 +81,16 @@ export function isBadRequestError(error: unknown): error is BadRequestError {
  */
 export class EntityUnauthorizedError extends EntityError {
   readonly code = 'Unauthorized' as const;
+  override readonly __brands: readonly string[] = [
+    'VertzEntityUnauthorizedError',
+    'VertzEntityError',
+  ];
+
+  static [Symbol.hasInstance](obj: unknown): boolean {
+    if (typeof obj !== 'object' || obj === null || !('__brands' in obj)) return false;
+    const brands = (obj as { __brands: readonly string[] }).__brands;
+    return Array.isArray(brands) && brands.includes('VertzEntityUnauthorizedError');
+  }
 
   constructor(message = 'Unauthorized') {
     super('Unauthorized', message);
@@ -88,6 +114,16 @@ export function isEntityUnauthorizedError(error: unknown): error is EntityUnauth
  */
 export class EntityForbiddenError extends EntityError {
   readonly code = 'Forbidden' as const;
+  override readonly __brands: readonly string[] = [
+    'VertzEntityForbiddenError',
+    'VertzEntityError',
+  ];
+
+  static [Symbol.hasInstance](obj: unknown): boolean {
+    if (typeof obj !== 'object' || obj === null || !('__brands' in obj)) return false;
+    const brands = (obj as { __brands: readonly string[] }).__brands;
+    return Array.isArray(brands) && brands.includes('VertzEntityForbiddenError');
+  }
 
   constructor(message = 'Forbidden') {
     super('Forbidden', message);
@@ -128,6 +164,13 @@ export function isEntityForbiddenError(error: unknown): error is EntityForbidden
  */
 export class EntityNotFoundError extends EntityError {
   readonly code = 'NotFound' as const;
+  override readonly __brands: readonly string[] = ['VertzEntityNotFoundError', 'VertzEntityError'];
+
+  static [Symbol.hasInstance](obj: unknown): boolean {
+    if (typeof obj !== 'object' || obj === null || !('__brands' in obj)) return false;
+    const brands = (obj as { __brands: readonly string[] }).__brands;
+    return Array.isArray(brands) && brands.includes('VertzEntityNotFoundError');
+  }
 
   /**
    * The type of resource that wasn't found.
@@ -163,6 +206,16 @@ export function isEntityNotFoundError(error: unknown): error is EntityNotFoundEr
  */
 export class MethodNotAllowedError extends EntityError {
   readonly code = 'MethodNotAllowed' as const;
+  override readonly __brands: readonly string[] = [
+    'VertzMethodNotAllowedError',
+    'VertzEntityError',
+  ];
+
+  static [Symbol.hasInstance](obj: unknown): boolean {
+    if (typeof obj !== 'object' || obj === null || !('__brands' in obj)) return false;
+    const brands = (obj as { __brands: readonly string[] }).__brands;
+    return Array.isArray(brands) && brands.includes('VertzMethodNotAllowedError');
+  }
 
   /**
    * Allowed HTTP methods.
@@ -192,6 +245,16 @@ export function isMethodNotAllowedError(error: unknown): error is MethodNotAllow
  */
 export class EntityConflictError extends EntityError {
   readonly code = 'Conflict' as const;
+  override readonly __brands: readonly string[] = [
+    'VertzEntityConflictError',
+    'VertzEntityError',
+  ];
+
+  static [Symbol.hasInstance](obj: unknown): boolean {
+    if (typeof obj !== 'object' || obj === null || !('__brands' in obj)) return false;
+    const brands = (obj as { __brands: readonly string[] }).__brands;
+    return Array.isArray(brands) && brands.includes('VertzEntityConflictError');
+  }
 
   /**
    * The field that caused the conflict.
@@ -240,6 +303,16 @@ export function isEntityConflictError(error: unknown): error is EntityConflictEr
  */
 export class EntityValidationError extends EntityError {
   readonly code = 'ValidationError' as const;
+  override readonly __brands: readonly string[] = [
+    'VertzEntityValidationError',
+    'VertzEntityError',
+  ];
+
+  static [Symbol.hasInstance](obj: unknown): boolean {
+    if (typeof obj !== 'object' || obj === null || !('__brands' in obj)) return false;
+    const brands = (obj as { __brands: readonly string[] }).__brands;
+    return Array.isArray(brands) && brands.includes('VertzEntityValidationError');
+  }
 
   /**
    * Validation errors.
@@ -279,6 +352,13 @@ export function isEntityValidationError(error: unknown): error is EntityValidati
  */
 export class InternalError extends EntityError {
   readonly code = 'InternalError' as const;
+  override readonly __brands: readonly string[] = ['VertzInternalError', 'VertzEntityError'];
+
+  static [Symbol.hasInstance](obj: unknown): boolean {
+    if (typeof obj !== 'object' || obj === null || !('__brands' in obj)) return false;
+    const brands = (obj as { __brands: readonly string[] }).__brands;
+    return Array.isArray(brands) && brands.includes('VertzInternalError');
+  }
 
   constructor(message = 'Internal Server Error') {
     super('InternalError', message);
@@ -302,6 +382,16 @@ export function isInternalError(error: unknown): error is InternalError {
  */
 export class ServiceUnavailableError extends EntityError {
   readonly code = 'ServiceUnavailable' as const;
+  override readonly __brands: readonly string[] = [
+    'VertzServiceUnavailableError',
+    'VertzEntityError',
+  ];
+
+  static [Symbol.hasInstance](obj: unknown): boolean {
+    if (typeof obj !== 'object' || obj === null || !('__brands' in obj)) return false;
+    const brands = (obj as { __brands: readonly string[] }).__brands;
+    return Array.isArray(brands) && brands.includes('VertzServiceUnavailableError');
+  }
 
   /**
    * Seconds until retry.
