@@ -1673,7 +1673,7 @@ export default function SearchPage() {
         expect(aotFn).not.toContain("'__q0'");
         expect(aotFn).not.toContain("' __q0");
         // The word 'results' should survive as static text
-        expect(aotFn).toContain("results found");
+        expect(aotFn).toContain('results found');
         // But the variable reference should be replaced
         expect(aotFn).toContain('__q0');
         expect(aotFn).toContain('__q0.total');
@@ -1681,7 +1681,12 @@ export default function SearchPage() {
         // Runtime correctness
         const queryData = new Map([['search', { total: 42, items: [] }]]);
         const html = evalAot(result.code, '__ssr_SearchPage', {
-          __ctx: { getData: (key: string) => queryData.get(key), params: {}, searchParams: null, holes: {} },
+          __ctx: {
+            getData: (key: string) => queryData.get(key),
+            params: {},
+            searchParams: null,
+            holes: {},
+          },
           __data: {},
         });
         expect(html).toContain('42');
