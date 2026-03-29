@@ -1,4 +1,4 @@
-use crate::pm::types::PackageMetadata;
+use crate::pm::types::{AbbreviatedMetadata, PackageMetadata};
 use std::path::{Path, PathBuf};
 use tokio::sync::Semaphore;
 
@@ -63,6 +63,96 @@ impl RegistryClient {
         Err(last_error.unwrap_or_else(|| "Unknown error fetching metadata".into()))
     }
 
+    /// Fetch abbreviated package metadata (dist-tags + version keys only).
+    /// Uses `Accept: application/vnd.npm.install-v1+json` for 10-100x smaller payloads.
+    pub async fn fetch_metadata_abbreviated(
+        &self,
+        package_name: &str,
+    ) -> Result<AbbreviatedMetadata, Box<dyn std::error::Error + Send + Sync>> {
+        let _permit = self.semaphore.acquire().await?;
+
+        let encoded_name = if package_name.starts_with('@') {
+            package_name.replacen('/', "%2f", 1)
+        } else {
+            package_name.to_string()
+        };
+        let url = format!("{}/{}", REGISTRY_URL, encoded_name);
+        let cache_file = self.cache_path(&format!("{}.abbreviated", package_name));
+        let etag_file = self.etag_path(&format!("{}.abbreviated", package_name));
+
+        let mut last_error = None;
+
+        for attempt in 0..MAX_RETRIES {
+            if attempt > 0 {
+                tokio::time::sleep(std::time::Duration::from_millis(100 * 2u64.pow(attempt))).await;
+            }
+
+            match self
+                .fetch_abbreviated_with_etag(&url, &cache_file, &etag_file)
+                .await
+            {
+                Ok(metadata) => return Ok(metadata),
+                Err(e) => {
+                    last_error = Some(e);
+                }
+            }
+        }
+
+        Err(last_error.unwrap_or_else(|| "Unknown error fetching metadata".into()))
+    }
+
+    async fn fetch_abbreviated_with_etag(
+        &self,
+        url: &str,
+        cache_file: &Path,
+        etag_file: &Path,
+    ) -> Result<AbbreviatedMetadata, Box<dyn std::error::Error + Send + Sync>> {
+        let mut request = self
+            .client
+            .get(url)
+            .header("Accept", "application/vnd.npm.install-v1+json");
+
+        if let Ok(etag) = std::fs::read_to_string(etag_file) {
+            request = request.header("If-None-Match", etag);
+        }
+
+        let response = request.send().await?;
+
+        match response.status() {
+            status if status == reqwest::StatusCode::NOT_MODIFIED => {
+                let cached = std::fs::read_to_string(cache_file)?;
+                let metadata: AbbreviatedMetadata = serde_json::from_str(&cached)?;
+                Ok(metadata)
+            }
+            status if status.is_success() => {
+                if let Some(etag) = response.headers().get("etag") {
+                    if let Ok(etag_str) = etag.to_str() {
+                        if let Some(parent) = etag_file.parent() {
+                            std::fs::create_dir_all(parent).ok();
+                        }
+                        std::fs::write(etag_file, etag_str).ok();
+                    }
+                }
+
+                let body = response.text().await?;
+
+                if let Some(parent) = cache_file.parent() {
+                    std::fs::create_dir_all(parent).ok();
+                }
+                std::fs::write(cache_file, &body).ok();
+
+                let metadata: AbbreviatedMetadata = serde_json::from_str(&body)?;
+                Ok(metadata)
+            }
+            reqwest::StatusCode::NOT_FOUND => Err(format!(
+                "package '{}' not found on registry",
+                url.rsplit('/').next().unwrap_or(url)
+            )
+            .into()),
+            status => Err(format!("registry returned HTTP {}", status).into()),
+        }
+    }
+
     async fn fetch_with_etag(
         &self,
         url: &str,
@@ -116,15 +206,21 @@ impl RegistryClient {
         }
     }
 
+    /// Sanitize a package name into a safe filename component.
+    /// Replaces `/` with `__` and removes `..` to prevent path traversal.
+    fn sanitize_cache_name(name: &str) -> String {
+        name.replace('/', "__").replace("..", "")
+    }
+
     fn cache_path(&self, package_name: &str) -> PathBuf {
         self.cache_dir
-            .join(package_name.replace('/', "__"))
+            .join(Self::sanitize_cache_name(package_name))
             .with_extension("json")
     }
 
     fn etag_path(&self, package_name: &str) -> PathBuf {
         self.cache_dir
-            .join(package_name.replace('/', "__"))
+            .join(Self::sanitize_cache_name(package_name))
             .with_extension("etag")
     }
 }
@@ -183,5 +279,33 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let _client = RegistryClient::new(dir.path());
         assert!(dir.path().join("registry-metadata").exists());
+    }
+
+    #[test]
+    fn test_cache_path_sanitizes_path_traversal() {
+        let dir = tempfile::tempdir().unwrap();
+        let client = RegistryClient::new(dir.path());
+        let path = client.cache_path("../../../etc/passwd");
+        let path_str = path.to_str().unwrap();
+        // Should not contain ".." — path traversal is sanitized
+        assert!(
+            !path_str.contains(".."),
+            "cache path should not contain '..': {}",
+            path_str
+        );
+    }
+
+    #[test]
+    fn test_sanitize_cache_name() {
+        assert_eq!(RegistryClient::sanitize_cache_name("react"), "react");
+        assert_eq!(
+            RegistryClient::sanitize_cache_name("@vertz/ui"),
+            "@vertz__ui"
+        );
+        assert_eq!(
+            RegistryClient::sanitize_cache_name("../../../etc/passwd"),
+            "______etc__passwd"
+        );
+        assert_eq!(RegistryClient::sanitize_cache_name("..foo..bar"), "foobar");
     }
 }

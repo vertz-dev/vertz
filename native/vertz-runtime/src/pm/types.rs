@@ -61,6 +61,18 @@ pub struct PackageMetadata {
     pub versions: BTreeMap<String, VersionMetadata>,
 }
 
+/// Lightweight registry metadata — only dist-tags and version keys.
+/// Used by `vertz outdated` to avoid fetching full version metadata.
+#[derive(Debug, Clone, Deserialize)]
+pub struct AbbreviatedMetadata {
+    pub name: String,
+    #[serde(rename = "dist-tags", default)]
+    pub dist_tags: BTreeMap<String, String>,
+    /// Version keys with minimal metadata (we only need the keys)
+    #[serde(default)]
+    pub versions: BTreeMap<String, serde_json::Value>,
+}
+
 /// Per-version metadata from the registry
 #[derive(Debug, Clone, Deserialize)]
 pub struct VersionMetadata {

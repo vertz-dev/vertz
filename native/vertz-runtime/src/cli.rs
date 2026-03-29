@@ -20,9 +20,17 @@ pub enum Command {
     /// Add packages to dependencies
     Add(AddArgs),
     /// Remove packages from dependencies
+    #[command(alias = "rm")]
     Remove(RemoveArgs),
     /// Migrate test files from bun:test to @vertz/test
     MigrateTests(MigrateTestsArgs),
+    /// List installed packages
+    #[command(alias = "ls")]
+    List(ListArgs),
+    /// Show why a package is installed (dependency path tracing)
+    Why(WhyArgs),
+    /// Check for newer versions of installed packages
+    Outdated(OutdatedArgs),
 }
 
 #[derive(Parser, Debug)]
@@ -100,6 +108,10 @@ pub struct InstallArgs {
     /// Fail if lockfile is out of date (CI mode)
     #[arg(long, alias = "frozen-lockfile")]
     pub frozen: bool,
+
+    /// Output NDJSON to stdout
+    #[arg(long)]
+    pub json: bool,
 }
 
 #[derive(Parser, Debug)]
@@ -119,6 +131,10 @@ pub struct AddArgs {
     /// Install globally (not yet supported)
     #[arg(short = 'g', long)]
     pub global: bool,
+
+    /// Output NDJSON to stdout
+    #[arg(long)]
+    pub json: bool,
 }
 
 #[derive(Parser, Debug)]
@@ -130,6 +146,29 @@ pub struct RemoveArgs {
     /// Remove globally (not yet supported)
     #[arg(short = 'g', long)]
     pub global: bool,
+
+    /// Output NDJSON to stdout
+    #[arg(long)]
+    pub json: bool,
+}
+
+#[derive(Parser, Debug)]
+pub struct ListArgs {
+    /// Filter by package name
+    #[arg(value_name = "PACKAGE")]
+    pub package: Option<String>,
+
+    /// Show full dependency tree (not just direct deps)
+    #[arg(long)]
+    pub all: bool,
+
+    /// Max depth of tree traversal (implies --all)
+    #[arg(long)]
+    pub depth: Option<usize>,
+
+    /// Output NDJSON to stdout
+    #[arg(long)]
+    pub json: bool,
 }
 
 #[derive(Parser, Debug)]
@@ -141,6 +180,24 @@ pub struct MigrateTestsArgs {
     /// Dry run — show what would change without writing files
     #[arg(long)]
     pub dry_run: bool,
+}
+
+#[derive(Parser, Debug)]
+pub struct WhyArgs {
+    /// Package name to trace
+    #[arg(required = true)]
+    pub package: String,
+
+    /// Output NDJSON to stdout
+    #[arg(long)]
+    pub json: bool,
+}
+
+#[derive(Parser, Debug)]
+pub struct OutdatedArgs {
+    /// Output NDJSON to stdout
+    #[arg(long)]
+    pub json: bool,
 }
 
 #[cfg(test)]
@@ -192,6 +249,30 @@ mod tests {
         match cli.command {
             Command::MigrateTests(args) => args,
             other => panic!("Expected MigrateTests, got {:?}", other),
+        }
+    }
+
+    fn parse_list(args: &[&str]) -> ListArgs {
+        let cli = Cli::parse_from(args);
+        match cli.command {
+            Command::List(args) => args,
+            other => panic!("Expected List, got {:?}", other),
+        }
+    }
+
+    fn parse_why(args: &[&str]) -> WhyArgs {
+        let cli = Cli::parse_from(args);
+        match cli.command {
+            Command::Why(args) => args,
+            other => panic!("Expected Why, got {:?}", other),
+        }
+    }
+
+    fn parse_outdated(args: &[&str]) -> OutdatedArgs {
+        let cli = Cli::parse_from(args);
+        match cli.command {
+            Command::Outdated(args) => args,
+            other => panic!("Expected Outdated, got {:?}", other),
         }
     }
 
@@ -538,5 +619,149 @@ mod tests {
     fn test_migrate_tests_dry_run() {
         let args = parse_migrate_tests(&["vertz-runtime", "migrate-tests", "--dry-run"]);
         assert!(args.dry_run);
+    }
+
+    // --- List command tests ---
+
+    #[test]
+    fn test_list_default() {
+        let args = parse_list(&["vertz-runtime", "list"]);
+        assert!(args.package.is_none());
+        assert!(!args.all);
+        assert!(args.depth.is_none());
+        assert!(!args.json);
+    }
+
+    #[test]
+    fn test_list_alias_ls() {
+        let args = parse_list(&["vertz-runtime", "ls"]);
+        assert!(args.package.is_none());
+    }
+
+    #[test]
+    fn test_list_with_package_filter() {
+        let args = parse_list(&["vertz-runtime", "list", "react"]);
+        assert_eq!(args.package, Some("react".to_string()));
+    }
+
+    #[test]
+    fn test_list_all_flag() {
+        let args = parse_list(&["vertz-runtime", "list", "--all"]);
+        assert!(args.all);
+    }
+
+    #[test]
+    fn test_list_depth_flag() {
+        let args = parse_list(&["vertz-runtime", "list", "--depth", "2"]);
+        assert_eq!(args.depth, Some(2));
+    }
+
+    #[test]
+    fn test_list_json_flag() {
+        let args = parse_list(&["vertz-runtime", "list", "--json"]);
+        assert!(args.json);
+    }
+
+    #[test]
+    fn test_list_all_depth_json_combined() {
+        let args = parse_list(&["vertz-runtime", "list", "--all", "--depth", "2", "--json"]);
+        assert!(args.all);
+        assert_eq!(args.depth, Some(2));
+        assert!(args.json);
+    }
+
+    #[test]
+    fn test_list_package_with_all() {
+        let args = parse_list(&["vertz-runtime", "list", "react", "--all"]);
+        assert_eq!(args.package, Some("react".to_string()));
+        assert!(args.all);
+    }
+
+    // --- rm alias tests ---
+
+    #[test]
+    fn test_remove_rm_alias() {
+        let args = parse_remove(&["vertz-runtime", "rm", "zod"]);
+        assert_eq!(args.packages, vec!["zod"]);
+    }
+
+    #[test]
+    fn test_remove_rm_alias_multiple() {
+        let args = parse_remove(&["vertz-runtime", "rm", "zod", "react"]);
+        assert_eq!(args.packages, vec!["zod", "react"]);
+    }
+
+    // --- --json flag tests ---
+
+    #[test]
+    fn test_install_json_flag() {
+        let args = parse_install(&["vertz-runtime", "install", "--json"]);
+        assert!(args.json);
+    }
+
+    #[test]
+    fn test_install_json_default_false() {
+        let args = parse_install(&["vertz-runtime", "install"]);
+        assert!(!args.json);
+    }
+
+    #[test]
+    fn test_add_json_flag() {
+        let args = parse_add(&["vertz-runtime", "add", "zod", "--json"]);
+        assert!(args.json);
+    }
+
+    #[test]
+    fn test_add_json_default_false() {
+        let args = parse_add(&["vertz-runtime", "add", "zod"]);
+        assert!(!args.json);
+    }
+
+    #[test]
+    fn test_remove_json_flag() {
+        let args = parse_remove(&["vertz-runtime", "remove", "zod", "--json"]);
+        assert!(args.json);
+    }
+
+    #[test]
+    fn test_remove_json_default_false() {
+        let args = parse_remove(&["vertz-runtime", "remove", "zod"]);
+        assert!(!args.json);
+    }
+
+    // --- Why command tests ---
+
+    #[test]
+    fn test_why_basic() {
+        let args = parse_why(&["vertz-runtime", "why", "lodash"]);
+        assert_eq!(args.package, "lodash");
+        assert!(!args.json);
+    }
+
+    #[test]
+    fn test_why_json_flag() {
+        let args = parse_why(&["vertz-runtime", "why", "lodash", "--json"]);
+        assert_eq!(args.package, "lodash");
+        assert!(args.json);
+    }
+
+    #[test]
+    fn test_why_scoped_package() {
+        let args = parse_why(&["vertz-runtime", "why", "@vertz/ui"]);
+        assert_eq!(args.package, "@vertz/ui");
+    }
+
+    // --- Outdated command tests ---
+
+    #[test]
+    fn test_outdated_default() {
+        let args = parse_outdated(&["vertz-runtime", "outdated"]);
+        assert!(!args.json);
+    }
+
+    #[test]
+    fn test_outdated_json_flag() {
+        let args = parse_outdated(&["vertz-runtime", "outdated", "--json"]);
+        assert!(args.json);
     }
 }
