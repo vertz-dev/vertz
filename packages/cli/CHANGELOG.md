@@ -20,7 +20,6 @@
 - [#1980](https://github.com/vertz-dev/vertz/pull/1980) [`bee011e`](https://github.com/vertz-dev/vertz/commit/bee011e47661b31152ad3dfc589fd45eda2f3e44) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - fix(ui-server, ui-compiler, ui, theme-shadcn): AOT SSR pipeline composes App layout shell, portable holes, barrel extraction, CSS inlining, and lazy theme CSS
 
   Five AOT SSR fixes:
-
   1. **App layout composition (#1977)**: The AOT pipeline now wraps page content in the root App layout (header, nav, footer). The build pipeline detects the App component by its RouterView hole, includes it in the AOT manifest, and the runtime pipeline renders the App shell around each page. Gracefully degrades if app render fails.
 
   2. **Portable hole references (#1981)**: The AOT compiler now emits `ctx.holes.ComponentName()` for imported components instead of `__ssr_ComponentName()`. The `__ssr_` prefix is a Bun-internal convention that breaks on non-Bun bundlers (esbuild/workerd). Local components in the same file still use direct `__ssr_*` calls for efficiency.
@@ -451,7 +450,6 @@
 - [#918](https://github.com/vertz-dev/vertz/pull/918) [`1fc9e33`](https://github.com/vertz-dev/vertz/commit/1fc9e33a9aa5283898c8974084f519a3caacbabb) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - Remove index.html from the framework
 
   UI apps no longer require an `index.html` file in the project root. The production build now generates the HTML shell programmatically with the correct asset references, eliminating the need for:
-
   - Manual `index.html` maintenance
   - Fast Refresh runtime stripping during build
   - Dev script tag replacement with hashed entries
@@ -503,7 +501,6 @@
 ### Patch Changes
 
 - [#899](https://github.com/vertz-dev/vertz/pull/899) [`ecbc594`](https://github.com/vertz-dev/vertz/commit/ecbc594830c8fcb2dea2e7b66d8b04aa2d58a47d) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - fix(cli): add esbuild dependency, use bun shebang, remove dead ink/react deps
-
   - Added missing `esbuild` to dependencies (externalized in bundle but not declared)
   - Changed CLI shebang from `#!/usr/bin/env node` to `#!/usr/bin/env bun` so the framework's Bun-dependent features (bun:sqlite, Bun.serve) work correctly
   - Removed unused ink-based components (Banner, DiagnosticDisplay, DiagnosticSummary) and their ink/react dependencies
@@ -524,7 +521,6 @@
 - [#897](https://github.com/vertz-dev/vertz/pull/897) [`d72c099`](https://github.com/vertz-dev/vertz/commit/d72c0997f38c723a4b8c077a91b09f15eaea931f) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - fix(release): use workspace:^ protocol and unify fixed version group
 
   Two changes to prevent broken npm installs caused by version gaps:
-
   1. Changed all `workspace:*` to `workspace:^` so published packages use
      caret ranges (e.g., `"^0.2.3"`) instead of exact versions (`"0.2.3"`).
      This makes installs resilient when an exact patch version is missing.
@@ -590,18 +586,15 @@
   Migrate from Dagger to Turborepo for improved reliability, caching, and local/CI parity.
 
   **Breaking changes:**
-
   - Removed `codegen` property from `VertzConfig` interface in `@vertz/compiler`. This was an unused configuration option that created a circular dependency. Codegen configuration should be passed directly to codegen functions.
 
   **Key improvements:**
-
   - Content-hash-based caching for deterministic builds
   - Identical commands run locally and in CI
   - No external engine dependencies (Dagger was causing instability)
   - Fixed circular dependency between @vertz/compiler and @vertz/codegen by removing type re-exports
 
   **Migration notes:**
-
   - `bun run ci` now uses Turborepo instead of Dagger
   - `bun run ci:affected` runs only tasks for packages changed since main
   - All existing package scripts remain unchanged
