@@ -15,6 +15,7 @@ use crate::server::console_log::ConsoleLog;
 use crate::server::css_server;
 use crate::server::html_shell;
 use crate::server::mcp::McpSessions;
+use crate::server::mcp_events::McpEventHub;
 use crate::watcher::SharedModuleGraph;
 
 /// Shared state for the dev module server.
@@ -37,10 +38,16 @@ pub struct DevServerState {
     pub console_log: ConsoleLog,
     /// MCP session store for SSE transport.
     pub mcp_sessions: McpSessions,
+    /// MCP event hub for LLM WebSocket push notifications.
+    pub mcp_event_hub: McpEventHub,
     /// Server start time for uptime tracking.
     pub start_time: std::time::Instant,
     /// Whether SSR is enabled for page routes.
     pub enable_ssr: bool,
+    /// Server port (for handshake metadata).
+    pub port: u16,
+    /// Whether type checking is enabled.
+    pub typecheck_enabled: bool,
 }
 
 /// Handle requests for source files: `GET /src/**/*.tsx` → compiled JavaScript.
@@ -551,8 +558,11 @@ mod tests {
             error_broadcaster: ErrorBroadcaster::new(),
             console_log: ConsoleLog::new(),
             mcp_sessions: McpSessions::new(),
+            mcp_event_hub: crate::server::mcp_events::McpEventHub::new(),
             start_time: std::time::Instant::now(),
             enable_ssr: false,
+            port: 3000,
+            typecheck_enabled: false,
         })
     }
 
