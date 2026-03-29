@@ -467,6 +467,8 @@ impl PmOutput for DevPmOutput {
     fn publish_complete(&self, _name: &str, _version: &str, _tag: &str) {}
     fn publish_dry_run(&self, _name: &str, _version: &str, _tag: &str, _access: &str) {}
     fn publish_file_list(&self, _path: &str, _size: u64) {}
+    fn github_resolve_started(&self, _specifier: &str) {}
+    fn github_resolve_complete(&self, _name: &str, _sha_abbrev: &str) {}
 }
 
 #[cfg(test)]
