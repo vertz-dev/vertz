@@ -2,11 +2,20 @@ use fs2::FileExt;
 use serde::{Deserialize, Serialize};
 use std::path::Path;
 
-/// Parsed .vertzrc configuration file
+/// Parsed .vertzrc configuration file.
+///
+/// Uses `#[serde(flatten)]` to preserve unknown fields during round-trip.
+/// When a future config key is added (e.g. `autoInstall`), it will survive
+/// `load_vertzrc` → modify → `save_vertzrc` cycles even before the struct
+/// gains a corresponding field.
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct VertzConfig {
     #[serde(rename = "trustScripts", default)]
     pub trust_scripts: Vec<String>,
+
+    /// Preserve unknown fields for forward compatibility.
+    #[serde(flatten)]
+    pub extra: serde_json::Map<String, serde_json::Value>,
 }
 
 /// Check if a package name matches any pattern in the trust list.
@@ -45,21 +54,23 @@ pub fn load_vertzrc(root_dir: &Path) -> Result<VertzConfig, Box<dyn std::error::
 
 /// Save .vertzrc to the given directory with advisory file locking.
 ///
-/// Uses `fs2` advisory locking on the target file to prevent concurrent writes
-/// from corrupting the config. Writes atomically via temp file + rename.
+/// Uses a separate `.vertzrc.lock` sentinel file for advisory locking so
+/// the lock survives the atomic rename of the actual config file.
+/// Writes atomically via temp file + rename.
 pub fn save_vertzrc(
     root_dir: &Path,
     config: &VertzConfig,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let path = root_dir.join(".vertzrc");
+    let lock_path = root_dir.join(".vertzrc.lock");
     let content = serde_json::to_string_pretty(config)?;
 
-    // Acquire exclusive advisory lock (creates file if needed)
+    // Acquire exclusive advisory lock on sentinel file
     let lock_file = std::fs::OpenOptions::new()
         .create(true)
         .write(true)
         .truncate(false)
-        .open(&path)?;
+        .open(&lock_path)?;
     lock_file.lock_exclusive()?;
 
     // Write atomically: write to temp file then rename
@@ -84,22 +95,28 @@ pub enum ScriptPolicy {
 
 /// Set trust-scripts to the given values (replaces entire list).
 /// Returns names that were in the old list but not the new one.
+/// Deduplicates input values.
 pub fn config_set_trust_scripts(
     root_dir: &Path,
     values: &[String],
 ) -> Result<Vec<String>, Box<dyn std::error::Error>> {
-    let old = load_vertzrc(root_dir)?;
+    let mut config = load_vertzrc(root_dir)?;
     let new_set: std::collections::HashSet<&str> = values.iter().map(|s| s.as_str()).collect();
-    let removed: Vec<String> = old
+    let removed: Vec<String> = config
         .trust_scripts
         .iter()
         .filter(|s| !new_set.contains(s.as_str()))
         .cloned()
         .collect();
 
-    let config = VertzConfig {
-        trust_scripts: values.to_vec(),
-    };
+    // Deduplicate input while preserving order
+    let mut seen = std::collections::HashSet::new();
+    let deduped: Vec<String> = values
+        .iter()
+        .filter(|v| seen.insert(v.as_str()))
+        .cloned()
+        .collect();
+    config.trust_scripts = deduped;
     save_vertzrc(root_dir, &config)?;
     Ok(removed)
 }
@@ -320,6 +337,7 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let config = VertzConfig {
             trust_scripts: vec!["esbuild".to_string(), "prisma".to_string()],
+            ..Default::default()
         };
         save_vertzrc(dir.path(), &config).unwrap();
 
@@ -332,11 +350,13 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let config1 = VertzConfig {
             trust_scripts: vec!["esbuild".to_string()],
+            ..Default::default()
         };
         save_vertzrc(dir.path(), &config1).unwrap();
 
         let config2 = VertzConfig {
             trust_scripts: vec!["sharp".to_string()],
+            ..Default::default()
         };
         save_vertzrc(dir.path(), &config2).unwrap();
 
@@ -345,7 +365,7 @@ mod tests {
     }
 
     #[test]
-    fn test_load_vertzrc_unknown_fields_ignored() {
+    fn test_load_vertzrc_unknown_fields_preserved() {
         let dir = tempfile::tempdir().unwrap();
         std::fs::write(
             dir.path().join(".vertzrc"),
@@ -354,6 +374,28 @@ mod tests {
         .unwrap();
         let config = load_vertzrc(dir.path()).unwrap();
         assert_eq!(config.trust_scripts, vec!["esbuild"]);
+        // Extra fields are preserved in the config struct
+        assert_eq!(config.extra.get("futureFeature"), Some(&serde_json::json!(true)));
+        assert_eq!(config.extra.get("anotherField"), Some(&serde_json::json!(42)));
+    }
+
+    #[test]
+    fn test_save_vertzrc_preserves_unknown_fields() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(
+            dir.path().join(".vertzrc"),
+            r#"{"trustScripts": ["esbuild"], "autoInstall": true}"#,
+        )
+        .unwrap();
+
+        // Modify trust_scripts via config_add
+        config_add_trust_scripts(dir.path(), &["sharp".to_string()]).unwrap();
+
+        // Re-read the file directly to verify autoInstall survived
+        let raw = std::fs::read_to_string(dir.path().join(".vertzrc")).unwrap();
+        let parsed: serde_json::Value = serde_json::from_str(&raw).unwrap();
+        assert_eq!(parsed["autoInstall"], serde_json::json!(true));
+        assert_eq!(parsed["trustScripts"], serde_json::json!(["esbuild", "sharp"]));
     }
 
     #[test]
@@ -374,6 +416,18 @@ mod tests {
         )
         .unwrap();
         assert!(removed.is_empty());
+        let config = load_vertzrc(dir.path()).unwrap();
+        assert_eq!(config.trust_scripts, vec!["esbuild", "prisma"]);
+    }
+
+    #[test]
+    fn test_config_set_trust_scripts_deduplicates_input() {
+        let dir = tempfile::tempdir().unwrap();
+        config_set_trust_scripts(
+            dir.path(),
+            &["esbuild".to_string(), "esbuild".to_string(), "prisma".to_string()],
+        )
+        .unwrap();
         let config = load_vertzrc(dir.path()).unwrap();
         assert_eq!(config.trust_scripts, vec!["esbuild", "prisma"]);
     }
