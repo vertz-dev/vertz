@@ -335,6 +335,57 @@ mod tests {
     }
 
     #[test]
+    fn test_write_and_read_workspace_link_entries() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("vertz.lock");
+
+        let mut lockfile = Lockfile::default();
+
+        // Registry entry
+        lockfile.entries.insert(
+            "zod@^3.24.0".to_string(),
+            LockfileEntry {
+                name: "zod".to_string(),
+                range: "^3.24.0".to_string(),
+                version: "3.24.4".to_string(),
+                resolved: "https://registry.npmjs.org/zod/-/zod-3.24.4.tgz".to_string(),
+                integrity: "sha512-abc".to_string(),
+                dependencies: BTreeMap::new(),
+            },
+        );
+
+        // Workspace link entry
+        lockfile.entries.insert(
+            "@myorg/shared@link:packages/shared".to_string(),
+            LockfileEntry {
+                name: "@myorg/shared".to_string(),
+                range: "link:packages/shared".to_string(),
+                version: "1.0.0".to_string(),
+                resolved: "link:packages/shared".to_string(),
+                integrity: String::new(),
+                dependencies: BTreeMap::new(),
+            },
+        );
+
+        write_lockfile(&path, &lockfile).unwrap();
+        let parsed = read_lockfile(&path).unwrap();
+
+        assert_eq!(parsed.entries.len(), 2);
+
+        // Verify workspace link entry survives round-trip
+        let ws = &parsed.entries["@myorg/shared@link:packages/shared"];
+        assert_eq!(ws.name, "@myorg/shared");
+        assert_eq!(ws.range, "link:packages/shared");
+        assert_eq!(ws.version, "1.0.0");
+        assert_eq!(ws.resolved, "link:packages/shared");
+        assert!(ws.integrity.is_empty());
+        assert!(ws.dependencies.is_empty());
+
+        // Verify registry entry also survives
+        assert_eq!(parsed.entries["zod@^3.24.0"].version, "3.24.4");
+    }
+
+    #[test]
     fn test_parse_empty_lockfile() {
         let lockfile = parse_lockfile("").unwrap();
         assert!(lockfile.entries.is_empty());
