@@ -340,3 +340,87 @@ Omit `src` to generate a CSS custom property without an `@font-face` block:
 const system = font('system-ui', { weight: '400' });
 // compileFonts({ system }) → --font-system: 'system-ui'; (no @font-face)
 ```
+
+### Using Google Fonts (e.g. Inter)
+
+Vertz uses self-hosted `.woff2` files instead of Google Fonts `@import` URLs. This gives you full control over preloading, caching, and eliminates the external network dependency.
+
+<Note>
+  `globalCss()` does **not** support `@import` rules. Use `font()` + self-hosted files instead.
+</Note>
+
+**Step 1 -- Download the font as `.woff2`**
+
+Use [google-webfonts-helper](https://gwfh.mranftl.com/fonts) or [Fontsource](https://fontsource.org/) to download `.woff2` files. Place them in your `public/fonts/` directory:
+
+```
+public/
+  fonts/
+    inter-latin.woff2
+    inter-latin-italic.woff2
+```
+
+**Step 2 -- Declare the font**
+
+```tsx
+// src/styles/theme.ts
+import { font } from '@vertz/ui/css';
+import { configureTheme } from '@vertz/theme-shadcn';
+import { registerTheme } from '@vertz/ui';
+
+const sans = font('Inter', {
+  weight: '100..900',
+  src: [
+    { path: '/fonts/inter-latin.woff2', weight: '100..900', style: 'normal' },
+    { path: '/fonts/inter-latin-italic.woff2', weight: '100..900', style: 'italic' },
+  ],
+  fallback: ['system-ui', 'sans-serif'],
+  display: 'swap',
+});
+
+const config = configureTheme({ palette: 'zinc' });
+registerTheme(config);
+
+export const appTheme = config.theme;
+export const themeGlobals = config.globals;
+```
+
+**Step 3 -- Apply the font in global styles**
+
+```tsx
+// src/styles/globals.ts
+import { globalCss } from '@vertz/ui';
+
+export const appGlobals = globalCss({
+  'html, body': {
+    fontFamily: 'var(--font-sans)',
+    WebkitFontSmoothing: 'antialiased',
+  },
+});
+```
+
+The SSR pipeline automatically:
+
+- Generates `@font-face` declarations from your `font()` calls
+- Injects `<link rel="preload">` tags in `<head>` for the primary font file
+- Emits `--font-sans` (and other keys) as CSS custom properties on `:root`
+
+**Step 4 -- Use in components (optional)**
+
+Font CSS variables work anywhere:
+
+```tsx
+const styles = css({
+  mono: ['font-family:var(--font-mono)'],
+});
+
+// Or inline
+<code style={{ fontFamily: 'var(--font-mono)' }}>const x = 1;</code>;
+```
+
+### Why self-hosted over Google Fonts CDN
+
+- **Zero-CLS font loading** -- `font()` generates metric-adjusted fallback `@font-face` blocks (`ascent-override`, `descent-override`, `size-adjust`) that eliminate layout shift when the custom font loads
+- **No external dependency** -- no third-party DNS lookup, no CORS, works offline
+- **Preload control** -- only the primary variant is preloaded; SSR injects the `<link>` tag automatically
+- **Cacheable** -- serve with immutable cache headers from your own CDN
