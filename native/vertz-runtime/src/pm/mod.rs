@@ -9,6 +9,7 @@ pub mod resolver;
 pub mod scripts;
 pub mod tarball;
 pub mod types;
+pub mod workspace;
 
 use futures_util::stream::{self, StreamExt};
 use output::PmOutput;
@@ -61,9 +62,28 @@ pub async fn install(
         verify_frozen(&pkg, &existing_lockfile)?;
     }
 
-    // Combine all deps for resolution
-    let mut all_deps = pkg.dependencies.clone();
-    for (k, v) in &pkg.dev_dependencies {
+    // Workspace support: discover workspace packages, validate, and merge deps
+    let workspaces = if let Some(ref patterns) = pkg.workspaces {
+        if !patterns.is_empty() {
+            let ws = workspace::discover_workspaces(root_dir, patterns)?;
+            workspace::validate_workspace_graph(&ws)?;
+            ws
+        } else {
+            Vec::new()
+        }
+    } else {
+        Vec::new()
+    };
+
+    // Combine all deps for resolution (with workspace deps merged if applicable)
+    let (resolved_deps, resolved_dev_deps) = if !workspaces.is_empty() {
+        workspace::merge_workspace_deps(&pkg, &workspaces)
+    } else {
+        (pkg.dependencies.clone(), pkg.dev_dependencies.clone())
+    };
+
+    let mut all_deps = resolved_deps.clone();
+    for (k, v) in &resolved_dev_deps {
         all_deps.insert(k.clone(), v.clone());
     }
 
@@ -75,8 +95,8 @@ pub async fn install(
     output.resolve_started();
 
     let mut graph = resolver::resolve_all(
-        &pkg.dependencies,
-        &pkg.dev_dependencies,
+        &resolved_deps,
+        &resolved_dev_deps,
         &registry_client,
         &existing_lockfile,
     )
@@ -144,6 +164,14 @@ pub async fn install(
         link_result.files_linked,
         link_result.packages_cached,
     );
+
+    // Symlink workspace packages into node_modules/
+    if !workspaces.is_empty() {
+        let ws_linked = workspace::link_workspaces(root_dir, &workspaces)?;
+        if ws_linked > 0 {
+            output.workspace_linked(ws_linked);
+        }
+    }
 
     // Generate .bin/ stubs
     let bin_count = bin::generate_bin_stubs(root_dir, &graph)?;
@@ -1287,6 +1315,7 @@ mod tests {
             bundled_dependencies: vec![],
             bin: types::BinField::default(),
             scripts: BTreeMap::new(),
+            workspaces: None,
         }
     }
 

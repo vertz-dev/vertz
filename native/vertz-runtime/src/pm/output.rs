@@ -15,6 +15,7 @@ pub trait PmOutput: Send + Sync {
     fn package_added(&self, name: &str, version: &str, range: &str);
     fn package_removed(&self, name: &str);
     fn package_updated(&self, name: &str, from: &str, to: &str, range: &str);
+    fn workspace_linked(&self, count: usize);
     fn script_started(&self, name: &str, script: &str);
     fn script_complete(&self, name: &str, duration_ms: u64);
     fn script_error(&self, name: &str, error: &str);
@@ -124,6 +125,10 @@ impl PmOutput for TextOutput {
         eprintln!("~ {}@{} → {}@{} ({})", name, from, name, to, range);
     }
 
+    fn workspace_linked(&self, count: usize) {
+        eprintln!("Linked {} workspace packages", count);
+    }
+
     fn script_started(&self, name: &str, script: &str) {
         eprintln!("Running postinstall for {}: {}", name, script);
     }
@@ -204,6 +209,10 @@ impl PmOutput for JsonOutput {
             "{}",
             json!({"event": "updated", "name": name, "from": from, "to": to, "range": range})
         );
+    }
+
+    fn workspace_linked(&self, count: usize) {
+        println!("{}", json!({"event": "workspace_linked", "count": count}));
     }
 
     fn script_started(&self, name: &str, script: &str) {
