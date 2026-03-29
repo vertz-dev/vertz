@@ -101,18 +101,45 @@ async fn test_bun_sqlite_file_based_db() {
     assert!(db_path.exists(), "SQLite file should exist on disk");
 }
 
-/// Phase 2: Module resolution test — bun:sqlite resolves to vertz:bun_sqlite
+/// Module resolution: vertz:sqlite is canonical, bun:sqlite is compat alias
 #[test]
-fn test_bun_sqlite_module_resolution() {
+fn test_sqlite_module_resolution() {
     use deno_core::{ModuleLoader, ResolutionKind};
     use vertz_runtime::runtime::module_loader::VertzModuleLoader;
 
     let tmp = tempfile::tempdir().unwrap();
     let loader = VertzModuleLoader::new(&tmp.path().to_string_lossy());
 
+    // Canonical: vertz:sqlite
+    let result = loader.resolve("vertz:sqlite", "file:///test.js", ResolutionKind::Import);
+    assert!(result.is_ok(), "vertz:sqlite should resolve");
+    assert_eq!(result.unwrap().as_str(), "vertz:sqlite");
+
+    // Compat alias: bun:sqlite
     let result = loader.resolve("bun:sqlite", "file:///test.js", ResolutionKind::Import);
     assert!(result.is_ok(), "bun:sqlite should resolve");
-    assert_eq!(result.unwrap().as_str(), "vertz:bun_sqlite");
+    assert_eq!(result.unwrap().as_str(), "vertz:sqlite");
+}
+
+/// Canonical `vertz:sqlite` import works
+#[tokio::test]
+async fn test_vertz_sqlite_canonical_import() {
+    let mut rt = create_runtime();
+    let entry = fixtures_dir().join("vertz-import-test.js");
+    let specifier = deno_core::ModuleSpecifier::from_file_path(&entry).unwrap();
+
+    rt.load_main_module(&specifier).await.unwrap();
+
+    let output = rt.captured_output();
+    assert!(
+        output
+            .stdout
+            .iter()
+            .any(|s| s.contains("vertz:sqlite canonical import test passed")),
+        "Canonical import test did not pass. stdout: {:?}, stderr: {:?}",
+        output.stdout,
+        output.stderr
+    );
 }
 
 /// Phase 3: @vertz/db integration patterns — queryFn bridge, transactions,

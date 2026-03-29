@@ -355,9 +355,9 @@ export default { describe, it, test, expect, beforeEach, afterEach, beforeAll, a
 /// URL used for the synthetic test module.
 const VERTZ_TEST_SPECIFIER: &str = "vertz:test";
 
-/// Synthetic module for `bun:sqlite`.
-const BUN_SQLITE_SPECIFIER: &str = "vertz:bun_sqlite";
-const BUN_SQLITE_MODULE: &str = r#"
+/// Synthetic module for `vertz:sqlite` (canonical) and `bun:sqlite` (compat alias).
+const VERTZ_SQLITE_SPECIFIER: &str = "vertz:sqlite";
+const VERTZ_SQLITE_MODULE: &str = r#"
 const _registry = new FinalizationRegistry((id) => {
   try { Deno.core.ops.op_sqlite_close(id); } catch {}
 });
@@ -828,7 +828,7 @@ fn synthetic_module_source(specifier: &str) -> Option<&'static str> {
         NODE_FS_PROMISES_SPECIFIER => Some(NODE_FS_PROMISES_MODULE),
         NODE_CRYPTO_SPECIFIER => Some(NODE_CRYPTO_MODULE),
         NODE_BUFFER_SPECIFIER => Some(NODE_BUFFER_MODULE),
-        BUN_SQLITE_SPECIFIER => Some(BUN_SQLITE_MODULE),
+        VERTZ_SQLITE_SPECIFIER => Some(VERTZ_SQLITE_MODULE),
         _ => None,
     }
 }
@@ -845,9 +845,9 @@ impl ModuleLoader for VertzModuleLoader {
             return Ok(ModuleSpecifier::parse(VERTZ_TEST_SPECIFIER)?);
         }
 
-        // Intercept bun:sqlite → synthetic SQLite module
-        if specifier == "bun:sqlite" {
-            return Ok(ModuleSpecifier::parse(BUN_SQLITE_SPECIFIER)?);
+        // Intercept vertz:sqlite (canonical) and bun:sqlite (compat) → synthetic SQLite module
+        if specifier == "vertz:sqlite" || specifier == "bun:sqlite" {
+            return Ok(ModuleSpecifier::parse(VERTZ_SQLITE_SPECIFIER)?);
         }
 
         // Intercept node:* specifiers → synthetic modules
