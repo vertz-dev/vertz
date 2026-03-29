@@ -59,6 +59,7 @@ async fn test_add_creates_package_json_entry_lockfile_and_node_modules() {
         false,
         false,
         false,
+        false,
         None,
         test_output(),
     )
@@ -104,6 +105,7 @@ async fn test_add_dev_dependency() {
         false,
         false,
         false,
+        false,
         None,
         test_output(),
     )
@@ -133,6 +135,7 @@ async fn test_add_exact_version() {
     vertz_runtime::pm::add(
         dir.path(),
         &["is-number"],
+        false,
         false,
         false,
         true,
@@ -169,6 +172,7 @@ async fn test_add_with_explicit_range_preserved() {
         false,
         false,
         false,
+        false,
         None,
         test_output(),
     )
@@ -187,6 +191,7 @@ async fn test_add_multiple_packages_batch() {
     vertz_runtime::pm::add(
         dir.path(),
         &["is-number", "is-odd"],
+        false,
         false,
         false,
         false,
@@ -218,6 +223,7 @@ async fn test_install_from_lockfile() {
     vertz_runtime::pm::add(
         dir.path(),
         &["is-number"],
+        false,
         false,
         false,
         false,
@@ -275,6 +281,7 @@ async fn test_install_frozen_succeeds_with_valid_lockfile() {
         false,
         false,
         false,
+        false,
         None,
         test_output(),
     )
@@ -303,6 +310,7 @@ async fn test_remove_cleans_package_json_and_node_modules() {
     vertz_runtime::pm::add(
         dir.path(),
         &["is-number"],
+        false,
         false,
         false,
         false,
@@ -378,6 +386,7 @@ async fn test_package_json_field_preservation_through_lifecycle() {
         false,
         false,
         false,
+        false,
         None,
         test_output(),
     )
@@ -414,6 +423,7 @@ async fn test_lockfile_updated_after_remove() {
     vertz_runtime::pm::add(
         dir.path(),
         &["is-number"],
+        false,
         false,
         false,
         false,

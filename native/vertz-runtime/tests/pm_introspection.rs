@@ -55,6 +55,7 @@ async fn test_list_direct_deps_after_add() {
         false,
         false,
         false,
+        false,
         None,
         test_output(),
     )
@@ -93,6 +94,7 @@ async fn test_list_with_package_filter() {
         false,
         false,
         false,
+        false,
         None,
         test_output(),
     )
@@ -123,6 +125,7 @@ async fn test_list_all_shows_transitive_deps() {
     pm::add(
         dir.path(),
         &["is-odd"],
+        false,
         false,
         false,
         false,
@@ -165,6 +168,7 @@ async fn test_list_text_format() {
         false,
         false,
         false,
+        false,
         None,
         test_output(),
     )
@@ -193,6 +197,7 @@ async fn test_list_json_format() {
     pm::add(
         dir.path(),
         &["is-number"],
+        false,
         false,
         false,
         false,
@@ -263,6 +268,7 @@ async fn test_why_direct_dependency() {
         false,
         false,
         false,
+        false,
         None,
         test_output(),
     )
@@ -291,6 +297,7 @@ async fn test_why_transitive_dependency() {
     pm::add(
         dir.path(),
         &["is-odd"],
+        false,
         false,
         false,
         false,
@@ -335,6 +342,7 @@ async fn test_why_json_format() {
         false,
         false,
         false,
+        false,
         None,
         test_output(),
     )
@@ -359,6 +367,7 @@ async fn test_outdated_with_installed_package() {
     pm::add(
         dir.path(),
         &["is-number"],
+        false,
         false,
         false,
         false,
@@ -410,6 +419,7 @@ async fn test_outdated_json_format() {
         false,
         false,
         false,
+        false,
         None,
         test_output(),
     )
@@ -442,6 +452,7 @@ async fn test_outdated_text_format() {
         false,
         false,
         false,
+        false,
         None,
         test_output(),
     )
@@ -467,6 +478,7 @@ async fn test_outdated_dev_dependency() {
         dir.path(),
         &["is-number"],
         true,
+        false,
         false,
         false,
         false,
