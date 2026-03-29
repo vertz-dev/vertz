@@ -475,8 +475,12 @@ const app = css({
 
 // ── Mini todo app component ─────────────────────────────────
 
-/** WebSocket URL for presence — injected at build time via --define */
-declare const PRESENCE_WS_URL: string;
+/** Derive WebSocket URL from current page location */
+function getPresenceWsUrl(): string {
+  if (typeof window === 'undefined') return 'ws://localhost:4001/__presence';
+  const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+  return `${proto}//${window.location.host}/__presence`;
+}
 
 type Todo = { id: number; text: string; done: boolean; toggled?: boolean };
 
@@ -557,9 +561,7 @@ function MiniTodoApp() {
     const BACKOFF_BASE_MS = 1000;
     const PERIODIC_RETRY_MS = 60_000;
 
-    const wsUrl = typeof PRESENCE_WS_URL !== 'undefined'
-      ? PRESENCE_WS_URL
-      : 'ws://localhost:4001/__presence';
+    const wsUrl = getPresenceWsUrl();
 
     // ── WebSocket connection with reconnection ──────────────
     function connectPresence() {
