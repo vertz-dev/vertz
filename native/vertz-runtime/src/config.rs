@@ -19,6 +19,8 @@ pub struct ServerConfig {
     pub tsconfig_path: Option<PathBuf>,
     /// Explicit type checker binary path (default: None — auto-detect tsgo/tsc).
     pub typecheck_binary: Option<PathBuf>,
+    /// Whether to open the browser after the server starts.
+    pub open_browser: bool,
     /// Optional server entry file (e.g., "src/server.ts") for API route delegation.
     /// When present, a persistent V8 isolate is created to handle /api/* requests.
     pub server_entry: Option<PathBuf>,
@@ -41,6 +43,7 @@ impl ServerConfig {
             enable_typecheck: true,
             tsconfig_path: None,
             typecheck_binary: None,
+            open_browser: false,
             server_entry,
         }
     }
@@ -61,6 +64,7 @@ impl ServerConfig {
             enable_typecheck: true,
             tsconfig_path: None,
             typecheck_binary: None,
+            open_browser: false,
             server_entry,
         }
     }

@@ -289,6 +289,15 @@ describe('registerDevCommand', () => {
     const verboseOpt = devCmd?.options.find((o) => o.long === '--verbose');
     expect(verboseOpt).toBeDefined();
   });
+
+  it('supports --experimental-runtime flag', () => {
+    const program = new Command();
+    registerDevCommand(program);
+
+    const devCmd = program.commands.find((cmd) => cmd.name() === 'dev');
+    const runtimeOpt = devCmd?.options.find((o) => o.long === '--experimental-runtime');
+    expect(runtimeOpt).toBeDefined();
+  });
 });
 
 describe('devAction error paths', () => {
@@ -724,6 +733,154 @@ describe('devAction full flow', () => {
 
       processExitSpy.mockRestore();
     });
+  });
+});
+
+describe('devAction --experimental-runtime', () => {
+  let pathsSpy: Mock<(...args: unknown[]) => unknown>;
+  let appDetectorSpy: Mock<(...args: unknown[]) => unknown>;
+  let consoleLogSpy: Mock<(...args: unknown[]) => unknown>;
+  let consoleErrorSpy: Mock<(...args: unknown[]) => unknown>;
+  let processOnSpy: Mock<(...args: unknown[]) => unknown>;
+  let registeredListeners: Array<{ event: string; handler: (...args: unknown[]) => unknown }>;
+  let findBinarySpy: Mock<(...args: unknown[]) => unknown>;
+  let launchSpy: Mock<(...args: unknown[]) => unknown>;
+
+  const fakeDetected: DetectedApp = {
+    type: 'full-stack',
+    serverEntry: '/fake/root/src/server.ts',
+    uiEntry: '/fake/root/src/app.tsx',
+    projectRoot: '/fake/root',
+  };
+
+  beforeEach(async () => {
+    registeredListeners = [];
+
+    const pathsMod = await import('../../utils/paths');
+    pathsSpy = vi.spyOn(pathsMod, 'findProjectRoot').mockReturnValue('/fake/root') as Mock<
+      (...args: unknown[]) => unknown
+    >;
+
+    const appDetector = await import('../../dev-server/app-detector');
+    appDetectorSpy = vi.spyOn(appDetector, 'detectAppType').mockReturnValue(fakeDetected) as Mock<
+      (...args: unknown[]) => unknown
+    >;
+
+    consoleLogSpy = vi.spyOn(console, 'log').mockImplementation(() => {}) as Mock<
+      (...args: unknown[]) => unknown
+    >;
+    consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {}) as Mock<
+      (...args: unknown[]) => unknown
+    >;
+
+    processOnSpy = vi.spyOn(process, 'on').mockImplementation(((
+      event: string,
+      handler: (...args: unknown[]) => unknown,
+    ) => {
+      registeredListeners.push({ event, handler });
+      return process;
+    }) as typeof process.on) as Mock<(...args: unknown[]) => unknown>;
+  });
+
+  afterEach(() => {
+    pathsSpy?.mockRestore();
+    appDetectorSpy?.mockRestore();
+    consoleLogSpy?.mockRestore();
+    consoleErrorSpy?.mockRestore();
+    processOnSpy?.mockRestore();
+    findBinarySpy?.mockRestore();
+    launchSpy?.mockRestore();
+
+    for (const { event, handler } of registeredListeners) {
+      process.removeListener(event, handler as (...args: unknown[]) => void);
+    }
+    registeredListeners = [];
+  });
+
+  it('returns err when binary is not found', async () => {
+    const launcherMod = await import('../../runtime/launcher');
+    findBinarySpy = vi.spyOn(launcherMod, 'findRuntimeBinary').mockReturnValue(null) as Mock<
+      (...args: unknown[]) => unknown
+    >;
+
+    const { devAction } = await import('../dev');
+    const result = await devAction({ experimentalRuntime: true });
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error.message).toContain('vertz-runtime binary not found');
+    }
+  });
+
+  it('spawns the Rust binary when found', async () => {
+    const launcherMod = await import('../../runtime/launcher');
+    findBinarySpy = vi
+      .spyOn(launcherMod, 'findRuntimeBinary')
+      .mockReturnValue('/fake/binary') as Mock<(...args: unknown[]) => unknown>;
+
+    // Mock the child process
+    const mockChild = {
+      on: vi.fn().mockImplementation((event: string, cb: () => void) => {
+        if (event === 'exit') {
+          // Simulate immediate exit for test
+          setTimeout(cb, 10);
+        }
+        return mockChild;
+      }),
+      kill: vi.fn(),
+      pid: 12345,
+    };
+    launchSpy = vi.spyOn(launcherMod, 'launchRuntime').mockReturnValue(mockChild as never) as Mock<
+      (...args: unknown[]) => unknown
+    >;
+
+    const { devAction } = await import('../dev');
+    const result = await devAction({ experimentalRuntime: true, port: 4000, host: '0.0.0.0' });
+
+    expect(result.ok).toBe(true);
+    expect(launchSpy).toHaveBeenCalledWith('/fake/binary', {
+      port: 4000,
+      host: '0.0.0.0',
+      typecheck: true,
+      open: false,
+    });
+  });
+
+  it('does not start Bun pipeline or dev server when using experimental runtime', async () => {
+    const launcherMod = await import('../../runtime/launcher');
+    findBinarySpy = vi
+      .spyOn(launcherMod, 'findRuntimeBinary')
+      .mockReturnValue('/fake/binary') as Mock<(...args: unknown[]) => unknown>;
+
+    const mockChild = {
+      on: vi.fn().mockImplementation((event: string, cb: () => void) => {
+        if (event === 'exit') setTimeout(cb, 10);
+        return mockChild;
+      }),
+      kill: vi.fn(),
+      pid: 12345,
+    };
+    launchSpy = vi.spyOn(launcherMod, 'launchRuntime').mockReturnValue(mockChild as never) as Mock<
+      (...args: unknown[]) => unknown
+    >;
+
+    const pipelineMod = await import('../../pipeline');
+    const orchestratorSpy = vi
+      .spyOn(pipelineMod, 'PipelineOrchestrator')
+      .mockImplementation(() => ({}) as unknown);
+
+    const fullstackMod = await import('../../dev-server/fullstack-server');
+    const devServerSpy = vi.spyOn(fullstackMod, 'startDevServer').mockResolvedValue(undefined);
+
+    const { devAction } = await import('../dev');
+    await devAction({ experimentalRuntime: true });
+
+    // Pipeline and Bun dev server should NOT be used
+    expect(orchestratorSpy).not.toHaveBeenCalled();
+    expect(devServerSpy).not.toHaveBeenCalled();
+
+    orchestratorSpy.mockRestore();
+    devServerSpy.mockRestore();
   });
 });
 

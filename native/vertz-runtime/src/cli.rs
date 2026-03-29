@@ -54,6 +54,10 @@ pub struct DevArgs {
     #[arg(long, default_value = "localhost")]
     pub host: String,
 
+    /// Open browser after server starts
+    #[arg(long)]
+    pub open: bool,
+
     /// Directory to serve static files from
     #[arg(long, default_value = "public")]
     pub public_dir: PathBuf,
