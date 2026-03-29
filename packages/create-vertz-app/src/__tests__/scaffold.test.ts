@@ -452,13 +452,48 @@ describe('scaffold', () => {
       expect(content).toContain('export function HomePage()');
     });
 
-    it('app.tsx has ThemeProvider and HomePage', async () => {
+    it('app.tsx has ThemeProvider, RouterContext.Provider, and RouterView', async () => {
       await scaffold(tempDir, helloOptions);
 
       const content = await fs.readFile(projectPath('src', 'app.tsx'), 'utf-8');
       expect(content).toContain('ThemeProvider');
-      expect(content).toContain('HomePage');
+      expect(content).toContain('RouterContext.Provider');
+      expect(content).toContain('<RouterView');
+      expect(content).toContain('appRouter');
       expect(content).toContain('export function App()');
+    });
+
+    it('creates src/router.tsx with defineRoutes and createRouter', async () => {
+      await scaffold(tempDir, helloOptions);
+
+      const content = await fs.readFile(projectPath('src', 'router.tsx'), 'utf-8');
+      expect(content).toContain('defineRoutes');
+      expect(content).toContain('createRouter');
+      expect(content).toContain("'/'");
+      expect(content).toContain("'/about'");
+    });
+
+    it('creates src/pages/about.tsx with AboutPage', async () => {
+      await scaffold(tempDir, helloOptions);
+
+      const content = await fs.readFile(projectPath('src', 'pages', 'about.tsx'), 'utf-8');
+      expect(content).toContain('export function AboutPage()');
+    });
+
+    it('creates src/components/ directory', async () => {
+      await scaffold(tempDir, helloOptions);
+
+      const stat = await fs.stat(projectPath('src', 'components'));
+      expect(stat.isDirectory()).toBe(true);
+    });
+
+    it('creates src/components/nav-bar.tsx with Link navigation', async () => {
+      await scaffold(tempDir, helloOptions);
+
+      const content = await fs.readFile(projectPath('src', 'components', 'nav-bar.tsx'), 'utf-8');
+      expect(content).toContain('Link');
+      expect(content).toContain('href="/"');
+      expect(content).toContain('href="/about"');
     });
 
     it('CLAUDE.md describes UI-only project', async () => {
