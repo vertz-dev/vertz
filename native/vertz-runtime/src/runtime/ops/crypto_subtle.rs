@@ -369,8 +369,21 @@ pub fn op_crypto_subtle_import_key(
             let hash = args.algorithm.hash.as_deref().ok_or_else(|| {
                 deno_core::anyhow::anyhow!("TypeError: hash is required for RSASSA-PKCS1-v1_5")
             })?;
-            // Validate hash
-            get_ring_digest_algo(hash)?;
+            // Validate hash — only SHA-256/384/512 are supported for RSA sign/verify
+            match hash.to_uppercase().as_str() {
+                "SHA-256" | "SHA-384" | "SHA-512" => {}
+                "SHA-1" => {
+                    return Err(deno_core::anyhow::anyhow!(
+                        "NotSupportedError: SHA-1 is not supported for RSA signing in this runtime"
+                    ))
+                }
+                _ => {
+                    return Err(deno_core::anyhow::anyhow!(
+                        "NotSupportedError: Unrecognized hash algorithm: {}",
+                        hash
+                    ))
+                }
+            }
 
             match args.format.as_str() {
                 "pkcs8" => {
@@ -937,7 +950,21 @@ pub fn op_crypto_subtle_generate_key(
             let hash = args.algorithm.hash.as_deref().ok_or_else(|| {
                 deno_core::anyhow::anyhow!("TypeError: hash is required for RSASSA-PKCS1-v1_5")
             })?;
-            get_ring_digest_algo(hash)?;
+            // Only SHA-256/384/512 are supported for RSA sign/verify
+            match hash.to_uppercase().as_str() {
+                "SHA-256" | "SHA-384" | "SHA-512" => {}
+                "SHA-1" => {
+                    return Err(deno_core::anyhow::anyhow!(
+                        "NotSupportedError: SHA-1 is not supported for RSA signing in this runtime"
+                    ))
+                }
+                _ => {
+                    return Err(deno_core::anyhow::anyhow!(
+                        "NotSupportedError: Unrecognized hash algorithm: {}",
+                        hash
+                    ))
+                }
+            }
             let modulus_length = args.algorithm.modulus_length.unwrap_or(2048);
             let bits = modulus_length as usize;
 

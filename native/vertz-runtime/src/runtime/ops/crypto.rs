@@ -157,9 +157,29 @@ pub const CRYPTO_BOOTSTRAP_JS: &str = r#"
   }
 
   function makeCryptoKey(result) {
-    const algoObj = typeof result.algorithm === 'string'
-      ? { name: result.algorithm }
-      : result.algorithm;
+    // Parse internal algorithm string (e.g. "HMAC::SHA-256", "AES-GCM::256",
+    // "ECDSA::P-256", "RSASSA-PKCS1-v1_5::SHA-256") into spec-compliant objects.
+    let algoObj;
+    const algoStr = typeof result.algorithm === 'string' ? result.algorithm : '';
+    const parts = algoStr.split('::');
+    const name = parts[0] || algoStr;
+    const param = parts[1];
+
+    if (name === 'HMAC' && param) {
+      algoObj = { name: 'HMAC', hash: { name: param } };
+    } else if (name === 'AES-GCM' && param) {
+      algoObj = { name: 'AES-GCM', length: parseInt(param, 10) };
+    } else if (name === 'ECDSA' && param) {
+      algoObj = { name: 'ECDSA', namedCurve: param };
+    } else if (name.includes('RSASSA') && param) {
+      algoObj = { name: 'RSASSA-PKCS1-v1_5', hash: { name: param } };
+    } else if (name === 'HKDF') {
+      algoObj = { name: 'HKDF' };
+    } else if (typeof result.algorithm === 'object') {
+      algoObj = result.algorithm;
+    } else {
+      algoObj = { name };
+    }
     return new CryptoKey(result.keyId, result.keyType, algoObj, result.extractable, result.usages);
   }
 
@@ -320,6 +340,7 @@ pub const CRYPTO_BOOTSTRAP_JS: &str = r#"
   }
 
   globalThis.crypto.subtle = new SubtleCrypto();
+  globalThis.CryptoKey = CryptoKey;
 })(globalThis);
 "#;
 
