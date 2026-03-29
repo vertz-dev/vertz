@@ -269,6 +269,22 @@ impl SmartDebouncer {
     pub fn pending_count(&self) -> usize {
         self.pending.len()
     }
+
+    /// Cancel any pending debounce operation, discarding all pending changes.
+    ///
+    /// This is also called automatically on drop to ensure no stale pending
+    /// state survives the debouncer's lifetime.
+    pub fn cancel(&mut self) {
+        self.pending.clear();
+        self.first_event_time = None;
+        self.last_event_time = None;
+    }
+}
+
+impl Drop for SmartDebouncer {
+    fn drop(&mut self) {
+        self.cancel();
+    }
 }
 
 #[cfg(test)]
@@ -611,6 +627,47 @@ mod tests {
         // Multi-file with 1s debounce — not ready yet
         assert!(!debouncer.is_ready());
         assert!(debouncer.has_pending());
+    }
+
+    #[test]
+    fn test_smart_debouncer_cancel_clears_pending() {
+        let mut debouncer = SmartDebouncer::with_timings(100, 200);
+        debouncer.add(FileChange {
+            kind: FileChangeKind::Modify,
+            path: PathBuf::from("/src/app.tsx"),
+        });
+        debouncer.add(FileChange {
+            kind: FileChangeKind::Modify,
+            path: PathBuf::from("/src/Button.tsx"),
+        });
+        assert!(debouncer.has_pending());
+        assert_eq!(debouncer.pending_count(), 2);
+
+        debouncer.cancel();
+
+        assert!(!debouncer.has_pending());
+        assert!(!debouncer.is_ready());
+        assert_eq!(debouncer.pending_count(), 0);
+
+        // Verify reuse after cancel works
+        debouncer.add(FileChange {
+            kind: FileChangeKind::Create,
+            path: PathBuf::from("/src/NewFile.tsx"),
+        });
+        assert!(debouncer.has_pending());
+        assert_eq!(debouncer.pending_count(), 1);
+    }
+
+    #[test]
+    fn test_smart_debouncer_drop_with_pending_does_not_panic() {
+        let mut debouncer = SmartDebouncer::with_timings(100, 200);
+        debouncer.add(FileChange {
+            kind: FileChangeKind::Modify,
+            path: PathBuf::from("/src/app.tsx"),
+        });
+        assert!(debouncer.has_pending());
+        drop(debouncer);
+        // Reaching here means Drop ran successfully without panic
     }
 
     #[test]
