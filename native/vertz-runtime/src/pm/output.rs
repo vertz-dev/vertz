@@ -242,10 +242,7 @@ impl PmOutput for JsonOutput {
     }
 
     fn warning(&self, message: &str) {
-        println!(
-            "{}",
-            json!({"event": "warning", "message": message})
-        );
+        println!("{}", json!({"event": "warning", "message": message}));
     }
 
     fn done(&self, elapsed_ms: u64) {

@@ -233,9 +233,15 @@ async fn test_install_from_lockfile() {
     std::fs::remove_dir_all(dir.path().join("node_modules")).unwrap();
 
     // Install from lockfile
-    vertz_runtime::pm::install(dir.path(), false, vertz_runtime::pm::vertzrc::ScriptPolicy::IgnoreAll, false, test_output())
-        .await
-        .unwrap();
+    vertz_runtime::pm::install(
+        dir.path(),
+        false,
+        vertz_runtime::pm::vertzrc::ScriptPolicy::IgnoreAll,
+        false,
+        test_output(),
+    )
+    .await
+    .unwrap();
 
     // node_modules should be repopulated
     assert!(
@@ -251,7 +257,14 @@ async fn test_install_frozen_fails_when_stale() {
     let dir = create_project(r#""dependencies": {"is-number": "^7.0.0"}"#);
 
     // No lockfile — frozen should fail
-    let result = vertz_runtime::pm::install(dir.path(), true, vertz_runtime::pm::vertzrc::ScriptPolicy::IgnoreAll, false, test_output()).await;
+    let result = vertz_runtime::pm::install(
+        dir.path(),
+        true,
+        vertz_runtime::pm::vertzrc::ScriptPolicy::IgnoreAll,
+        false,
+        test_output(),
+    )
+    .await;
     assert!(
         result.is_err(),
         "Frozen install should fail without lockfile"
@@ -286,9 +299,15 @@ async fn test_install_frozen_succeeds_with_valid_lockfile() {
     std::fs::remove_dir_all(dir.path().join("node_modules")).unwrap();
 
     // Frozen install should succeed
-    vertz_runtime::pm::install(dir.path(), true, vertz_runtime::pm::vertzrc::ScriptPolicy::IgnoreAll, false, test_output())
-        .await
-        .unwrap();
+    vertz_runtime::pm::install(
+        dir.path(),
+        true,
+        vertz_runtime::pm::vertzrc::ScriptPolicy::IgnoreAll,
+        false,
+        test_output(),
+    )
+    .await
+    .unwrap();
 
     assert!(dir
         .path()

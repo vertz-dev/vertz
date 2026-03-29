@@ -188,32 +188,22 @@ pub async fn install(
             output.warning("--run-scripts bypasses trust list — all postinstall scripts will run");
             let postinstall_pkgs = scripts::packages_with_postinstall(&graph, &graph.scripts);
             if !postinstall_pkgs.is_empty() {
-                scripts::run_postinstall_scripts(
-                    root_dir,
-                    &postinstall_pkgs,
-                    Arc::clone(&output),
-                )
-                .await;
+                scripts::run_postinstall_scripts(root_dir, &postinstall_pkgs, Arc::clone(&output))
+                    .await;
             }
         }
         vertzrc::ScriptPolicy::TrustBased => {
             let postinstall_pkgs = scripts::packages_with_postinstall(&graph, &graph.scripts);
             if !postinstall_pkgs.is_empty() {
                 let vertzrc_config = vertzrc::load_vertzrc(root_dir)?;
-                let (trusted, untrusted): (Vec<_>, Vec<_>) = postinstall_pkgs
-                    .into_iter()
-                    .partition(|(name, _, _)| {
+                let (trusted, untrusted): (Vec<_>, Vec<_>) =
+                    postinstall_pkgs.into_iter().partition(|(name, _, _)| {
                         vertzrc::match_trust_pattern(name, &vertzrc_config.trust_scripts)
                     });
 
                 // Run trusted scripts
                 if !trusted.is_empty() {
-                    scripts::run_postinstall_scripts(
-                        root_dir,
-                        &trusted,
-                        Arc::clone(&output),
-                    )
-                    .await;
+                    scripts::run_postinstall_scripts(root_dir, &trusted, Arc::clone(&output)).await;
                 }
 
                 // Warn about untrusted scripts (non-interactive mode for now)
@@ -417,7 +407,14 @@ pub async fn remove(
     types::write_package_json(&target_dir, &pkg)?;
 
     // Install from root — workspace deps are merged during install
-    install(root_dir, false, vertzrc::ScriptPolicy::IgnoreAll, false, output).await
+    install(
+        root_dir,
+        false,
+        vertzrc::ScriptPolicy::IgnoreAll,
+        false,
+        output,
+    )
+    .await
 }
 
 /// List installed packages from lockfile and package.json
@@ -1260,7 +1257,14 @@ pub async fn update(
         // Re-install to resolve and link updated packages.
         // IgnoreAll: update only re-links — postinstall scripts should be run
         // via a separate `vertz install` after updating, not implicitly here.
-        install(root_dir, false, vertzrc::ScriptPolicy::IgnoreAll, false, output.clone()).await?;
+        install(
+            root_dir,
+            false,
+            vertzrc::ScriptPolicy::IgnoreAll,
+            false,
+            output.clone(),
+        )
+        .await?;
     } else if !dry_run && results.is_empty() {
         let elapsed = start.elapsed();
         output.done(elapsed.as_millis() as u64);

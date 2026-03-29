@@ -1298,13 +1298,7 @@ mod tests {
 
     #[test]
     fn test_config_add_trust_scripts() {
-        let args = parse_config(&[
-            "vertz-runtime",
-            "config",
-            "add",
-            "trust-scripts",
-            "sharp",
-        ]);
+        let args = parse_config(&["vertz-runtime", "config", "add", "trust-scripts", "sharp"]);
         match args.command {
             ConfigCommand::Add(add_args) => {
                 assert_eq!(add_args.key, "trust-scripts");
@@ -1334,12 +1328,7 @@ mod tests {
 
     #[test]
     fn test_config_get_trust_scripts() {
-        let args = parse_config(&[
-            "vertz-runtime",
-            "config",
-            "get",
-            "trust-scripts",
-        ]);
+        let args = parse_config(&["vertz-runtime", "config", "get", "trust-scripts"]);
         match args.command {
             ConfigCommand::Get(get_args) => {
                 assert_eq!(get_args.key, "trust-scripts");
@@ -1350,12 +1339,7 @@ mod tests {
 
     #[test]
     fn test_config_init_trust_scripts() {
-        let args = parse_config(&[
-            "vertz-runtime",
-            "config",
-            "init",
-            "trust-scripts",
-        ]);
+        let args = parse_config(&["vertz-runtime", "config", "init", "trust-scripts"]);
         match args.command {
             ConfigCommand::Init(init_args) => {
                 assert_eq!(init_args.key, "trust-scripts");
@@ -1388,7 +1372,10 @@ mod tests {
             "--run-scripts",
             "--ignore-scripts",
         ]);
-        assert!(result.is_err(), "--run-scripts and --ignore-scripts should conflict");
+        assert!(
+            result.is_err(),
+            "--run-scripts and --ignore-scripts should conflict"
+        );
     }
 
     #[test]
@@ -1406,6 +1393,9 @@ mod tests {
             "--run-scripts",
             "--ignore-scripts",
         ]);
-        assert!(result.is_err(), "--run-scripts and --ignore-scripts should conflict");
+        assert!(
+            result.is_err(),
+            "--run-scripts and --ignore-scripts should conflict"
+        );
     }
 }

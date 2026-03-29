@@ -474,10 +474,7 @@ async fn main() {
                             for name in &removed {
                                 eprintln!("removed: {}", name);
                             }
-                            eprintln!(
-                                "trustScripts set to: {}",
-                                args.values.join(", ")
-                            );
+                            eprintln!("trustScripts set to: {}", args.values.join(", "));
                         }
                         Err(e) => {
                             eprintln!("{}", e);
@@ -490,9 +487,7 @@ async fn main() {
                         eprintln!("error: unknown config key: {}", args.key);
                         std::process::exit(1);
                     }
-                    if let Err(e) =
-                        pm::vertzrc::config_add_trust_scripts(&root_dir, &args.values)
-                    {
+                    if let Err(e) = pm::vertzrc::config_add_trust_scripts(&root_dir, &args.values) {
                         eprintln!("{}", e);
                         std::process::exit(1);
                     }
@@ -508,10 +503,7 @@ async fn main() {
                             if removed.is_empty() {
                                 eprintln!("no matching entries found");
                             } else {
-                                eprintln!(
-                                    "removed from trustScripts: {}",
-                                    removed.join(", ")
-                                );
+                                eprintln!("removed from trustScripts: {}", removed.join(", "));
                             }
                         }
                         Err(e) => {
@@ -551,10 +543,7 @@ async fn main() {
                             if names.is_empty() {
                                 eprintln!("No packages with postinstall scripts found.");
                             } else {
-                                eprintln!(
-                                    "Added {} packages to trustScripts:",
-                                    names.len()
-                                );
+                                eprintln!("Added {} packages to trustScripts:", names.len());
                                 for name in &names {
                                     eprintln!("  {}", name);
                                 }

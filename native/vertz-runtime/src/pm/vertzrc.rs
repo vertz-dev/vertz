@@ -375,8 +375,14 @@ mod tests {
         let config = load_vertzrc(dir.path()).unwrap();
         assert_eq!(config.trust_scripts, vec!["esbuild"]);
         // Extra fields are preserved in the config struct
-        assert_eq!(config.extra.get("futureFeature"), Some(&serde_json::json!(true)));
-        assert_eq!(config.extra.get("anotherField"), Some(&serde_json::json!(42)));
+        assert_eq!(
+            config.extra.get("futureFeature"),
+            Some(&serde_json::json!(true))
+        );
+        assert_eq!(
+            config.extra.get("anotherField"),
+            Some(&serde_json::json!(42))
+        );
     }
 
     #[test]
@@ -395,7 +401,10 @@ mod tests {
         let raw = std::fs::read_to_string(dir.path().join(".vertzrc")).unwrap();
         let parsed: serde_json::Value = serde_json::from_str(&raw).unwrap();
         assert_eq!(parsed["autoInstall"], serde_json::json!(true));
-        assert_eq!(parsed["trustScripts"], serde_json::json!(["esbuild", "sharp"]));
+        assert_eq!(
+            parsed["trustScripts"],
+            serde_json::json!(["esbuild", "sharp"])
+        );
     }
 
     #[test]
@@ -410,11 +419,9 @@ mod tests {
     #[test]
     fn test_config_set_trust_scripts_creates_file() {
         let dir = tempfile::tempdir().unwrap();
-        let removed = config_set_trust_scripts(
-            dir.path(),
-            &["esbuild".to_string(), "prisma".to_string()],
-        )
-        .unwrap();
+        let removed =
+            config_set_trust_scripts(dir.path(), &["esbuild".to_string(), "prisma".to_string()])
+                .unwrap();
         assert!(removed.is_empty());
         let config = load_vertzrc(dir.path()).unwrap();
         assert_eq!(config.trust_scripts, vec!["esbuild", "prisma"]);
@@ -425,7 +432,11 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         config_set_trust_scripts(
             dir.path(),
-            &["esbuild".to_string(), "esbuild".to_string(), "prisma".to_string()],
+            &[
+                "esbuild".to_string(),
+                "esbuild".to_string(),
+                "prisma".to_string(),
+            ],
         )
         .unwrap();
         let config = load_vertzrc(dir.path()).unwrap();
@@ -435,13 +446,9 @@ mod tests {
     #[test]
     fn test_config_set_trust_scripts_reports_removed() {
         let dir = tempfile::tempdir().unwrap();
-        config_set_trust_scripts(
-            dir.path(),
-            &["esbuild".to_string(), "prisma".to_string()],
-        )
-        .unwrap();
-        let removed =
-            config_set_trust_scripts(dir.path(), &["esbuild".to_string()]).unwrap();
+        config_set_trust_scripts(dir.path(), &["esbuild".to_string(), "prisma".to_string()])
+            .unwrap();
+        let removed = config_set_trust_scripts(dir.path(), &["esbuild".to_string()]).unwrap();
         assert_eq!(removed, vec!["prisma"]);
         let config = load_vertzrc(dir.path()).unwrap();
         assert_eq!(config.trust_scripts, vec!["esbuild"]);
@@ -476,13 +483,9 @@ mod tests {
     #[test]
     fn test_config_remove_trust_scripts() {
         let dir = tempfile::tempdir().unwrap();
-        config_set_trust_scripts(
-            dir.path(),
-            &["esbuild".to_string(), "prisma".to_string()],
-        )
-        .unwrap();
-        let removed =
-            config_remove_trust_scripts(dir.path(), &["esbuild".to_string()]).unwrap();
+        config_set_trust_scripts(dir.path(), &["esbuild".to_string(), "prisma".to_string()])
+            .unwrap();
+        let removed = config_remove_trust_scripts(dir.path(), &["esbuild".to_string()]).unwrap();
         assert_eq!(removed, vec!["esbuild"]);
         let config = load_vertzrc(dir.path()).unwrap();
         assert_eq!(config.trust_scripts, vec!["prisma"]);
@@ -507,11 +510,8 @@ mod tests {
     #[test]
     fn test_config_get_trust_scripts_with_values() {
         let dir = tempfile::tempdir().unwrap();
-        config_set_trust_scripts(
-            dir.path(),
-            &["esbuild".to_string(), "@vertz/*".to_string()],
-        )
-        .unwrap();
+        config_set_trust_scripts(dir.path(), &["esbuild".to_string(), "@vertz/*".to_string()])
+            .unwrap();
         let scripts = config_get_trust_scripts(dir.path()).unwrap();
         assert_eq!(scripts, vec!["esbuild", "@vertz/*"]);
     }
