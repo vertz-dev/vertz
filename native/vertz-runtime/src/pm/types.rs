@@ -21,6 +21,8 @@ pub struct PackageJson {
     pub bin: BinField,
     #[serde(default)]
     pub scripts: BTreeMap<String, String>,
+    #[serde(default)]
+    pub workspaces: Option<Vec<String>>,
 }
 
 /// The `bin` field in package.json can be a string or a map
