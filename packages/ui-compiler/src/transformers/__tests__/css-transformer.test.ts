@@ -481,4 +481,150 @@ const button = css({ root: ['m:2'] });`;
       'background-color: color-mix(in oklch, var(--color-primary-700) 30%, transparent);',
     );
   });
+
+  describe('raw valueType property-specific resolution', () => {
+    it('resolves position offsets via spacing scale', () => {
+      const source = `const styles = css({
+  box: ['top:4', 'right:2', 'bottom:8', 'left:1'],
+});`;
+      const result = transformCSS(source);
+
+      expect(result.css).toContain('top: 1rem;');
+      expect(result.css).toContain('right: 0.5rem;');
+      expect(result.css).toContain('bottom: 2rem;');
+      expect(result.css).toContain('left: 0.25rem;');
+    });
+
+    it('resolves inset via spacing scale', () => {
+      const source = `const styles = css({
+  box: ['inset:4'],
+});`;
+      const result = transformCSS(source);
+
+      expect(result.css).toContain('inset: 1rem;');
+    });
+
+    it('passes through position offsets that are not in spacing scale', () => {
+      const source = `const styles = css({
+  box: ['top:auto'],
+});`;
+      const result = transformCSS(source);
+
+      expect(result.css).toContain('top: auto;');
+    });
+
+    it('resolves aspect named values', () => {
+      const source = `const styles = css({
+  box: ['aspect:square'],
+});`;
+      const result = transformCSS(source);
+
+      expect(result.css).toContain('aspect-ratio: 1 / 1;');
+    });
+
+    it('resolves aspect:video', () => {
+      const source = `const styles = css({
+  box: ['aspect:video'],
+});`;
+      const result = transformCSS(source);
+
+      expect(result.css).toContain('aspect-ratio: 16 / 9;');
+    });
+
+    it('resolves aspect:photo', () => {
+      const source = `const styles = css({
+  box: ['aspect:photo'],
+});`;
+      const result = transformCSS(source);
+
+      expect(result.css).toContain('aspect-ratio: 4 / 3;');
+    });
+
+    it('resolves grid-cols numeric to repeat()', () => {
+      const source = `const styles = css({
+  grid: ['grid-cols:3'],
+});`;
+      const result = transformCSS(source);
+
+      expect(result.css).toContain('grid-template-columns: repeat(3, minmax(0, 1fr));');
+    });
+
+    it('passes through grid-cols non-numeric values', () => {
+      const source = `const styles = css({
+  grid: ['grid-cols:auto'],
+});`;
+      const result = transformCSS(source);
+
+      expect(result.css).toContain('grid-template-columns: auto;');
+    });
+
+    it('resolves tracking named values', () => {
+      const source = `const styles = css({
+  text: ['tracking:tight'],
+});`;
+      const result = transformCSS(source);
+
+      expect(result.css).toContain('letter-spacing: -0.025em;');
+    });
+
+    it('resolves tracking:widest', () => {
+      const source = `const styles = css({
+  text: ['tracking:widest'],
+});`;
+      const result = transformCSS(source);
+
+      expect(result.css).toContain('letter-spacing: 0.1em;');
+    });
+
+    it('resolves transition aliases', () => {
+      const source = `const styles = css({
+  box: ['transition:colors'],
+});`;
+      const result = transformCSS(source);
+
+      expect(result.css).toContain('transition:');
+      expect(result.css).toContain('150ms cubic-bezier(0.4, 0, 0.2, 1)');
+      expect(result.css).toContain('color');
+      expect(result.css).toContain('background-color');
+    });
+
+    it('resolves transition:all', () => {
+      const source = `const styles = css({
+  box: ['transition:all'],
+});`;
+      const result = transformCSS(source);
+
+      expect(result.css).toContain('transition: all 150ms cubic-bezier(0.4, 0, 0.2, 1);');
+    });
+
+    it('resolves transition:none', () => {
+      const source = `const styles = css({
+  box: ['transition:none'],
+});`;
+      const result = transformCSS(source);
+
+      expect(result.css).toContain('transition: none;');
+    });
+
+    it('resolves border side widths numeric to px', () => {
+      const source = `const styles = css({
+  box: ['border-r:2', 'border-l:1', 'border-t:3', 'border-b:0'],
+});`;
+      const result = transformCSS(source);
+
+      expect(result.css).toContain('border-right-width: 2px;');
+      expect(result.css).toContain('border-left-width: 1px;');
+      expect(result.css).toContain('border-top-width: 3px;');
+      expect(result.css).toContain('border-bottom-width: 0px;');
+    });
+
+    it('passes through border side non-numeric values', () => {
+      const source = `const styles = css({
+  box: ['border-r:thin'],
+});`;
+      const result = transformCSS(source);
+
+      expect(result.css).toContain('border-right-width: thin;');
+    });
+  });
 });
