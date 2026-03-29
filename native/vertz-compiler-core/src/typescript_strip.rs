@@ -646,9 +646,7 @@ impl<'a, 'b> InlineTsStripper<'a, 'b> {
                     ));
                 } else {
                     // String or expression — no reverse mapping
-                    stmts.push(format!(
-                        "  {name}[\"{member_name}\"] = {init_src};",
-                    ));
+                    stmts.push(format!("  {name}[\"{member_name}\"] = {init_src};",));
                 }
             } else {
                 // Auto-increment numeric
@@ -660,9 +658,8 @@ impl<'a, 'b> InlineTsStripper<'a, 'b> {
         }
 
         let body = stmts.join("\n");
-        let replacement = format!(
-            "var {name};\n(function ({name}) {{\n{body}\n}})({name} || ({name} = {{}}))"
-        );
+        let replacement =
+            format!("var {name};\n(function ({name}) {{\n{body}\n}})({name} || ({name} = {{}}))");
 
         self.ms
             .overwrite(decl.span.start, decl.span.end, &replacement);
@@ -1385,10 +1382,22 @@ export type EntityErrorType =
 
     #[test]
     fn test_strip_implements_clause() {
-        let result = strip("export class PostgresDialect implements Dialect { name = 'postgres'; }");
-        assert!(!result.contains("implements"), "implements survived: {}", result);
-        assert!(!result.contains("implements Dialect"), "implements clause survived: {}", result);
-        assert!(result.contains("class PostgresDialect"), "class name missing");
+        let result =
+            strip("export class PostgresDialect implements Dialect { name = 'postgres'; }");
+        assert!(
+            !result.contains("implements"),
+            "implements survived: {}",
+            result
+        );
+        assert!(
+            !result.contains("implements Dialect"),
+            "implements clause survived: {}",
+            result
+        );
+        assert!(
+            result.contains("class PostgresDialect"),
+            "class name missing"
+        );
         assert!(result.contains("name = 'postgres'"), "body missing");
         // Should only have class name + body, no implements
         assert!(result.contains("PostgresDialect"), "class name missing");
@@ -1397,7 +1406,11 @@ export type EntityErrorType =
     #[test]
     fn test_strip_implements_multiple() {
         let result = strip("class Foo extends Bar implements Baz, Qux { x = 1; }");
-        assert!(!result.contains("implements"), "implements survived: {}", result);
+        assert!(
+            !result.contains("implements"),
+            "implements survived: {}",
+            result
+        );
         assert!(!result.contains("Baz"), "Baz survived: {}", result);
         assert!(!result.contains("Qux"), "Qux survived: {}", result);
         assert!(result.contains("extends Bar"), "extends missing");
@@ -1406,14 +1419,19 @@ export type EntityErrorType =
 
     #[test]
     fn test_strip_this_parameter() {
-        let result = strip(r#"const obj = {
+        let result = strip(
+            r#"const obj = {
   code(this: { options: { meta?: string } }, node: { props: Record<string, unknown> }) {
     return this.options.meta;
   }
-};"#);
+};"#,
+        );
         assert!(!result.contains("this:"), "this param survived: {}", result);
         assert!(result.contains("node"), "node param missing");
-        assert!(result.contains("this.options.meta"), "this usage should remain");
+        assert!(
+            result.contains("this.options.meta"),
+            "this usage should remain"
+        );
     }
 
     #[test]
@@ -1421,12 +1439,16 @@ export type EntityErrorType =
         let result = strip("function foo(this: SomeType) { return this; }");
         assert!(!result.contains("this:"), "this param survived: {}", result);
         assert!(!result.contains("SomeType"), "type survived: {}", result);
-        assert!(result.contains("function foo("), "function signature missing");
+        assert!(
+            result.contains("function foo("),
+            "function signature missing"
+        );
     }
 
     #[test]
     fn test_schema_abstract_class_with_declare_and_abstract_members() {
-        let result = strip(r#"export abstract class Schema<O, I = O> {
+        let result = strip(
+            r#"export abstract class Schema<O, I = O> {
   /** @internal */ declare readonly _output: O;
   /** @internal */ declare readonly _input: I;
   /** @internal */ _id: string | undefined;
@@ -1443,10 +1465,23 @@ export type EntityErrorType =
   parse(value: unknown) {
     return value;
   }
-}"#);
+}"#,
+        );
         assert!(!result.contains("declare"), "declare survived: {}", result);
-        assert!(!result.contains("abstract"), "abstract survived: {}", result);
-        assert!(!result.contains("_output"), "declare prop survived: {}", result);
-        assert!(!result.contains("_input"), "declare prop survived: {}", result);
+        assert!(
+            !result.contains("abstract"),
+            "abstract survived: {}",
+            result
+        );
+        assert!(
+            !result.contains("_output"),
+            "declare prop survived: {}",
+            result
+        );
+        assert!(
+            !result.contains("_input"),
+            "declare prop survived: {}",
+            result
+        );
     }
 }
