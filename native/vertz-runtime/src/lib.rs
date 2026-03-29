@@ -4,6 +4,7 @@ pub mod config;
 pub mod deps;
 pub mod errors;
 pub mod hmr;
+pub mod pm;
 pub mod runtime;
 pub mod server;
 pub mod ssr;
