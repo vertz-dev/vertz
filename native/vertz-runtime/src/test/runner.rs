@@ -78,9 +78,13 @@ pub fn run_tests(config: TestRunConfig) -> (TestRunResult, String) {
         &config.exclude,
     );
 
-    // Also check for type test files
-    let type_test_files_exist =
-        !typetests::discover_type_test_files(&config.root_dir, &config.exclude).is_empty();
+    // Also check for type test files (skip when specific paths are provided)
+    let has_specific_paths = !config.paths.is_empty();
+    let type_test_files_exist = if has_specific_paths {
+        false
+    } else {
+        !typetests::discover_type_test_files(&config.root_dir, &config.exclude).is_empty()
+    };
 
     if files.is_empty() && !type_test_files_exist {
         let output = "\nNo test files found.\n".to_string();
@@ -127,11 +131,14 @@ pub fn run_tests(config: TestRunConfig) -> (TestRunResult, String) {
 
     let mut results = execute_parallel(&files, concurrency, config.bail, exec_options);
 
-    // 2b. Discover and run type tests (.test-d.ts files)
-    let type_test_files = typetests::discover_type_test_files(&config.root_dir, &config.exclude);
-    if !type_test_files.is_empty() {
-        let type_results = typetests::run_type_tests(&config.root_dir, &type_test_files, None);
-        results.extend(type_results);
+    // 2b. Discover and run type tests (.test-d.ts files) — skip when specific paths given
+    if !has_specific_paths {
+        let type_test_files =
+            typetests::discover_type_test_files(&config.root_dir, &config.exclude);
+        if !type_test_files.is_empty() {
+            let type_results = typetests::run_type_tests(&config.root_dir, &type_test_files, None);
+            results.extend(type_results);
+        }
     }
 
     // 3. Build summary

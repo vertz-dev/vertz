@@ -1,6 +1,7 @@
 use oxc_ast::ast::*;
-use oxc_ast_visit::Visit;
+use oxc_ast_visit::{walk, Visit};
 use oxc_span::GetSpan;
+use oxc_syntax::scope::ScopeFlags;
 
 use crate::magic_string::MagicString;
 
@@ -389,9 +390,375 @@ impl<'a, 'b, 'c> Visit<'c> for InlineTsStripper<'a, 'b> {
         self.ms.overwrite(annot.span.start, annot.span.end, "");
     }
 
+    fn visit_function(&mut self, func: &Function<'c>, _flags: ScopeFlags) {
+        if self.is_in_removed_span(func.span.start) {
+            return;
+        }
+
+        // Strip TypeScript `this` parameter: `function foo(this: Type, arg)` → `function foo(arg)`
+        if let Some(ref this_param) = func.this_param {
+            let tp_end = this_param.span.end;
+            // Check if there's a trailing comma + whitespace before the next param
+            let file_end = self.ms.len();
+            let remaining = self.ms.slice(tp_end, file_end);
+            let extra = remaining
+                .find(|c: char| c != ',' && c != ' ' && c != '\n' && c != '\r' && c != '\t')
+                .unwrap_or(0);
+            self.ms
+                .overwrite(this_param.span.start, tp_end + extra as u32, "");
+        }
+
+        walk::walk_function(self, func, _flags);
+    }
+
+    fn visit_class(&mut self, class: &Class<'c>) {
+        if self.is_in_removed_span(class.span.start) {
+            return;
+        }
+
+        // Strip `abstract` keyword from class declarations.
+        // `export abstract class Foo` → `export class Foo`
+        if class.r#abstract {
+            let src = self.ms.slice(class.span.start, class.span.end);
+            if src.starts_with("abstract ") {
+                self.ms.overwrite(
+                    class.span.start,
+                    class.span.start + "abstract ".len() as u32,
+                    "",
+                );
+            }
+        }
+
+        // Strip `implements Foo, Bar<T>` clause — type-only in JavaScript.
+        // Scan from the first implements entry backwards to find the `implements` keyword.
+        if !class.implements.is_empty() {
+            let first_impl = &class.implements[0];
+            let last_impl = &class.implements[class.implements.len() - 1];
+            // Find the `implements` keyword before the first TSClassImplements span.
+            let search_start = class.span.start as usize;
+            let search_slice = self.ms.slice(class.span.start, first_impl.span.start);
+            let keyword_start = search_slice
+                .rfind("implements")
+                .map(|pos| (search_start + pos) as u32);
+            if let Some(kw_start) = keyword_start {
+                // Remove from `implements` keyword through the end of the last implements entry.
+                self.ms.overwrite(kw_start, last_impl.span.end, "");
+            }
+        }
+
+        // Transform constructor parameter properties before walking the class.
+        // `constructor(public readonly x: number)` needs:
+        // 1. Strip `public readonly ` modifiers from the parameter
+        // 2. Add `this.x = x;` assignments in the constructor body
+        self.transform_constructor_param_props(class);
+
+        // Continue the default walk for nested TS syntax (type annotations, etc.)
+        walk::walk_class(self, class);
+    }
+
+    fn visit_property_definition(&mut self, prop: &PropertyDefinition<'c>) {
+        if self.is_in_removed_span(prop.span.start) {
+            return;
+        }
+
+        // Abstract properties are type-only — remove the entire field.
+        // `protected abstract _errorMessage: string;` → removed entirely.
+        if matches!(
+            prop.r#type,
+            PropertyDefinitionType::TSAbstractPropertyDefinition
+        ) {
+            self.ms.overwrite(prop.span.start, prop.span.end, "");
+            return;
+        }
+
+        // `declare` on class fields means type-only — remove the entire field.
+        // `declare readonly status: 401;` → removed entirely.
+        if prop.declare {
+            self.ms.overwrite(prop.span.start, prop.span.end, "");
+            return;
+        }
+
+        // Strip `readonly` keyword from class property definitions.
+        // `readonly code = 'OK';` → `code = 'OK';`
+        if prop.readonly {
+            let src = self.ms.slice(prop.span.start, prop.span.end);
+            // readonly could be after `static`, `accessor`, etc.
+            if let Some(pos) = src.find("readonly ") {
+                let abs_start = prop.span.start + pos as u32;
+                self.ms
+                    .overwrite(abs_start, abs_start + "readonly ".len() as u32, "");
+            }
+        }
+
+        // Strip accessibility modifiers (public/private/protected) on class fields.
+        if prop.accessibility.is_some() {
+            let src = self.ms.slice(prop.span.start, prop.span.end);
+            for kw in &["public ", "private ", "protected "] {
+                if let Some(pos) = src.find(kw) {
+                    let abs_start = prop.span.start + pos as u32;
+                    self.ms
+                        .overwrite(abs_start, abs_start + kw.len() as u32, "");
+                    break;
+                }
+            }
+        }
+
+        // Strip `override` keyword on class fields.
+        if prop.r#override {
+            let src = self.ms.slice(prop.span.start, prop.span.end);
+            if let Some(pos) = src.find("override ") {
+                let abs_start = prop.span.start + pos as u32;
+                self.ms
+                    .overwrite(abs_start, abs_start + "override ".len() as u32, "");
+            }
+        }
+
+        // Strip `?` optional marker from class fields (e.g., `resource?: string;` → `resource;`)
+        if prop.optional {
+            let key_end = prop.key.span().end;
+            // The `?` should be right after the key
+            let after_key = self.ms.slice(key_end, prop.span.end);
+            if after_key.starts_with('?') {
+                self.ms.overwrite(key_end, key_end + 1, "");
+            }
+        }
+
+        // Continue the default walk (handles type annotations, initializers, etc.)
+        walk::walk_property_definition(self, prop);
+    }
+
+    fn visit_method_definition(&mut self, method: &MethodDefinition<'c>) {
+        if self.is_in_removed_span(method.span.start) {
+            return;
+        }
+
+        // Abstract methods are type-only — remove the entire method.
+        // `protected abstract _validate(value: string): boolean;` → removed entirely.
+        if matches!(
+            method.r#type,
+            MethodDefinitionType::TSAbstractMethodDefinition
+        ) {
+            self.ms.overwrite(method.span.start, method.span.end, "");
+            return;
+        }
+
+        // Method overload signatures (no body) are type-only — remove entirely.
+        // `constructor(a: string);` or `method(a: string): void;` → removed.
+        if method.value.body.is_none() {
+            self.ms.overwrite(method.span.start, method.span.end, "");
+            return;
+        }
+
+        // Strip accessibility modifiers on methods (public/private/protected)
+        if method.accessibility.is_some() {
+            let src = self.ms.slice(method.span.start, method.span.end);
+            for kw in &["public ", "private ", "protected "] {
+                if let Some(pos) = src.find(kw) {
+                    let abs_start = method.span.start + pos as u32;
+                    self.ms
+                        .overwrite(abs_start, abs_start + kw.len() as u32, "");
+                    break;
+                }
+            }
+        }
+
+        // Strip `override` keyword on methods
+        if method.r#override {
+            let src = self.ms.slice(method.span.start, method.span.end);
+            if let Some(pos) = src.find("override ") {
+                let abs_start = method.span.start + pos as u32;
+                self.ms
+                    .overwrite(abs_start, abs_start + "override ".len() as u32, "");
+            }
+        }
+
+        // Continue the default walk
+        walk::walk_method_definition(self, method);
+    }
+
+    fn visit_ts_enum_declaration(&mut self, decl: &TSEnumDeclaration<'c>) {
+        if self.is_in_removed_span(decl.span.start) {
+            return; // declare enum — already removed in phase 1
+        }
+        // Compile non-declare enum to JS (IIFE pattern)
+        self.compile_enum(decl);
+        // Don't walk children — we've replaced the entire span
+    }
+
     // Don't walk into TS declarations (already removed in phase 1)
     fn visit_ts_interface_declaration(&mut self, _decl: &TSInterfaceDeclaration<'c>) {}
     fn visit_ts_type_alias_declaration(&mut self, _decl: &TSTypeAliasDeclaration<'c>) {}
+}
+
+impl<'a, 'b> InlineTsStripper<'a, 'b> {
+    /// Compile a TypeScript enum declaration to JavaScript using the IIFE pattern.
+    ///
+    /// String enum:
+    /// ```ts
+    /// enum ErrorCode { InvalidType = 'invalid_type', Custom = 'custom' }
+    /// ```
+    /// Becomes:
+    /// ```js
+    /// var ErrorCode; (function (ErrorCode) {
+    ///   ErrorCode["InvalidType"] = "invalid_type";
+    ///   ErrorCode["Custom"] = "custom";
+    /// })(ErrorCode || (ErrorCode = {}))
+    /// ```
+    ///
+    /// Numeric enum (with reverse mappings):
+    /// ```ts
+    /// enum Dir { Up, Down = 5, Left }
+    /// ```
+    /// Becomes:
+    /// ```js
+    /// var Dir; (function (Dir) {
+    ///   Dir[Dir["Up"] = 0] = "Up";
+    ///   Dir[Dir["Down"] = 5] = "Down";
+    ///   Dir[Dir["Left"] = 6] = "Left";
+    /// })(Dir || (Dir = {}))
+    /// ```
+    fn compile_enum(&mut self, decl: &TSEnumDeclaration) {
+        let name = decl.id.name.as_str();
+        let mut stmts = Vec::new();
+        let mut auto_value: i64 = 0;
+
+        for member in &decl.body.members {
+            let member_name = match &member.id {
+                TSEnumMemberName::Identifier(id) => id.name.to_string(),
+                TSEnumMemberName::String(s) => s.value.to_string(),
+                TSEnumMemberName::ComputedString(s) => s.value.to_string(),
+                TSEnumMemberName::ComputedTemplateString(_) => continue, // skip exotic
+            };
+
+            if let Some(ref init) = member.initializer {
+                let init_start: u32 = init.span().start;
+                let init_end: u32 = init.span().end;
+                let init_src = self.ms.slice(init_start, init_end).to_string();
+
+                // Check if the initializer is a numeric literal
+                if matches!(init, Expression::NumericLiteral(_)) {
+                    if let Expression::NumericLiteral(n) = init {
+                        auto_value = n.value as i64 + 1;
+                    }
+                    // Numeric member with reverse mapping
+                    stmts.push(format!(
+                        "  {name}[{name}[\"{member_name}\"] = {init_src}] = \"{member_name}\";",
+                    ));
+                } else {
+                    // String or expression — no reverse mapping
+                    stmts.push(format!(
+                        "  {name}[\"{member_name}\"] = {init_src};",
+                    ));
+                }
+            } else {
+                // Auto-increment numeric
+                stmts.push(format!(
+                    "  {name}[{name}[\"{member_name}\"] = {auto_value}] = \"{member_name}\";",
+                ));
+                auto_value += 1;
+            }
+        }
+
+        let body = stmts.join("\n");
+        let replacement = format!(
+            "var {name};\n(function ({name}) {{\n{body}\n}})({name} || ({name} = {{}}))"
+        );
+
+        self.ms
+            .overwrite(decl.span.start, decl.span.end, &replacement);
+    }
+
+    /// Transform constructor parameter properties into regular parameters + assignments.
+    ///
+    /// TypeScript:
+    /// ```ts
+    /// constructor(public readonly x: number, private y: string) {
+    ///   super();
+    /// }
+    /// ```
+    /// Becomes:
+    /// ```js
+    /// constructor(x, y) {
+    ///   super();
+    ///   this.x = x;
+    ///   this.y = y;
+    /// }
+    /// ```
+    fn transform_constructor_param_props(&mut self, class: &Class) {
+        for element in &class.body.body {
+            let method = match element {
+                ClassElement::MethodDefinition(m)
+                    if m.kind == MethodDefinitionKind::Constructor =>
+                {
+                    m
+                }
+                _ => continue,
+            };
+
+            let function = &method.value;
+            let params = &function.params;
+            let mut param_names: Vec<String> = Vec::new();
+
+            for param in &params.items {
+                let has_modifier = param.accessibility.is_some() || param.readonly;
+                if !has_modifier {
+                    continue;
+                }
+
+                // Get parameter name from the binding pattern
+                let name = match &param.pattern {
+                    BindingPattern::BindingIdentifier(ident) => ident.name.to_string(),
+                    _ => continue, // Destructured params with modifiers are rare
+                };
+
+                // Remove modifiers: overwrite from param start to pattern start
+                // This strips `public readonly ` (or `private `, `protected `, `readonly `)
+                if param.span.start < param.pattern.span().start {
+                    self.ms
+                        .overwrite(param.span.start, param.pattern.span().start, "");
+                }
+
+                param_names.push(name);
+            }
+
+            // Insert `this.x = x;` assignments in the constructor body
+            if !param_names.is_empty() {
+                if let Some(body) = &function.body {
+                    let insert_pos = find_assignment_insert_pos(body);
+                    let assignments: String = param_names
+                        .iter()
+                        .map(|name| format!("this.{} = {};", name, name))
+                        .collect::<Vec<_>>()
+                        .join("\n");
+                    self.ms
+                        .append_right(insert_pos, &format!("\n{}", assignments));
+                }
+            }
+        }
+    }
+}
+
+/// Find the position to insert parameter property assignments in a constructor body.
+/// If a `super()` call is present, insert after it. Otherwise, after the opening `{`.
+fn find_assignment_insert_pos(body: &FunctionBody) -> u32 {
+    for stmt in &body.statements {
+        if let Statement::ExpressionStatement(expr_stmt) = stmt {
+            if is_super_call(&expr_stmt.expression) {
+                return expr_stmt.span.end;
+            }
+        }
+    }
+    // No super() — insert after the opening `{`
+    body.span.start + 1
+}
+
+/// Check if an expression is a `super(...)` call.
+fn is_super_call(expr: &Expression) -> bool {
+    if let Expression::CallExpression(call) = expr {
+        matches!(call.callee.without_parentheses(), Expression::Super(_))
+    } else {
+        false
+    }
 }
 
 #[cfg(test)]
@@ -600,5 +967,486 @@ export function TaskCard({ task, onClick }: { task: Task; onClick?: (id: string)
             "return string type survived: {}",
             result.code
         );
+    }
+
+    #[test]
+    fn test_strip_constructor_parameter_properties() {
+        let result = strip(
+            r#"class Foo extends Base {
+  constructor(
+    public readonly x: number,
+    private y: string,
+  ) {
+    super();
+  }
+}"#,
+        );
+        // Modifiers should be stripped
+        assert!(
+            !result.contains("public"),
+            "public modifier not stripped: {}",
+            result
+        );
+        assert!(
+            !result.contains("private"),
+            "private modifier not stripped: {}",
+            result
+        );
+        assert!(
+            !result.contains("readonly"),
+            "readonly modifier not stripped: {}",
+            result
+        );
+        // Assignments should be inserted after super()
+        assert!(
+            result.contains("this.x = x;"),
+            "missing this.x assignment: {}",
+            result
+        );
+        assert!(
+            result.contains("this.y = y;"),
+            "missing this.y assignment: {}",
+            result
+        );
+        // Parameter names should remain
+        assert!(result.contains("x,"), "param x missing: {}", result);
+    }
+
+    #[test]
+    fn test_strip_constructor_param_props_no_super() {
+        let result = strip(
+            r#"class Foo {
+  constructor(public x: number) {
+    console.log(x);
+  }
+}"#,
+        );
+        assert!(
+            !result.contains("public"),
+            "public not stripped: {}",
+            result
+        );
+        assert!(
+            result.contains("this.x = x;"),
+            "missing assignment: {}",
+            result
+        );
+    }
+
+    #[test]
+    fn test_strip_constructor_param_props_in_nested_class() {
+        // Class defined inside a function (like in test blocks)
+        let result = strip(
+            r#"function test() {
+  class MyError extends AppError {
+    constructor(
+      public readonly required: number,
+      public readonly available: number,
+    ) {
+      super('ERR', 'msg');
+    }
+  }
+  return new MyError(500, 50);
+}"#,
+        );
+        assert!(
+            !result.contains("public"),
+            "public not stripped in nested class: {}",
+            result
+        );
+        assert!(
+            !result.contains("readonly"),
+            "readonly not stripped in nested class: {}",
+            result
+        );
+        assert!(
+            result.contains("this.required = required;"),
+            "missing this.required: {}",
+            result
+        );
+        assert!(
+            result.contains("this.available = available;"),
+            "missing this.available: {}",
+            result
+        );
+    }
+
+    #[test]
+    fn test_strip_constructor_overloads() {
+        let result = strip(
+            r#"export class RecordSchema extends Schema {
+  _keySchema;
+  _valueSchema;
+
+  constructor(valueSchema: Schema);
+  constructor(keySchema: Schema, valueSchema: Schema);
+  constructor(keyOrValue: Schema, valueSchema?: Schema) {
+    super();
+    if (valueSchema !== undefined) {
+      this._keySchema = keyOrValue;
+      this._valueSchema = valueSchema;
+    } else {
+      this._valueSchema = keyOrValue;
+    }
+  }
+
+  process(a: number): string;
+  process(a: string): number;
+  process(a: unknown) {
+    return a;
+  }
+}"#,
+        );
+        // Overload signatures should be removed
+        assert!(
+            !result.contains("constructor(valueSchema)"),
+            "constructor overload 1 not removed: {}",
+            result
+        );
+        assert!(
+            !result.contains("constructor(keySchema"),
+            "constructor overload 2 not removed: {}",
+            result
+        );
+        // Implementation should remain
+        assert!(
+            result.contains("constructor(keyOrValue"),
+            "constructor impl removed: {}",
+            result
+        );
+        // Method overload signatures should be removed
+        assert!(
+            result.matches("process(a)").count() == 1,
+            "method overload not removed: {}",
+            result
+        );
+    }
+
+    #[test]
+    fn test_strip_abstract_class() {
+        let result = strip(
+            r#"export abstract class EntityError extends Error {
+  readonly code: string;
+  constructor(code: string, message: string) {
+    super(message);
+    this.code = code;
+  }
+}"#,
+        );
+        assert!(
+            !result.contains("abstract"),
+            "abstract not stripped: {}",
+            result
+        );
+        assert!(
+            result.contains("class EntityError"),
+            "class declaration missing: {}",
+            result
+        );
+    }
+
+    #[test]
+    fn test_strip_readonly_class_fields() {
+        let result = strip(
+            r#"class Foo {
+  readonly code = 'OK' as const;
+  readonly name: string;
+  private readonly secret: string;
+}"#,
+        );
+        assert!(
+            !result.contains("readonly"),
+            "readonly not stripped: {}",
+            result
+        );
+        assert!(
+            !result.contains("private"),
+            "private not stripped: {}",
+            result
+        );
+        assert!(
+            !result.contains("as const"),
+            "as const not stripped: {}",
+            result
+        );
+        assert!(
+            result.contains("code = 'OK'"),
+            "code field missing: {}",
+            result
+        );
+    }
+
+    #[test]
+    fn test_strip_optional_class_fields() {
+        let result = strip(
+            r#"class Foo {
+  readonly resource?: string;
+  readonly retryAfter?: number;
+}"#,
+        );
+        assert!(
+            !result.contains("readonly"),
+            "readonly not stripped: {}",
+            result
+        );
+        assert!(
+            !result.contains('?'),
+            "optional marker not stripped: {}",
+            result
+        );
+    }
+
+    #[test]
+    fn test_compile_string_enum() {
+        let result = strip(
+            r#"export enum ErrorCode {
+  InvalidType = 'invalid_type',
+  TooSmall = 'too_small',
+  Custom = 'custom',
+}"#,
+        );
+        assert!(
+            !result.contains("enum "),
+            "enum keyword survived: {}",
+            result
+        );
+        assert!(
+            result.contains("ErrorCode[\"InvalidType\"] = 'invalid_type'"),
+            "string member missing: {}",
+            result
+        );
+        assert!(
+            result.contains("ErrorCode[\"Custom\"] = 'custom'"),
+            "custom member missing: {}",
+            result
+        );
+        // String enums should NOT have reverse mappings
+        assert!(
+            !result.contains("ErrorCode[ErrorCode["),
+            "string enum should not have reverse mapping: {}",
+            result
+        );
+    }
+
+    #[test]
+    fn test_compile_numeric_enum() {
+        let result = strip(
+            r#"enum Direction {
+  Up,
+  Down,
+  Left = 10,
+  Right,
+}"#,
+        );
+        assert!(
+            !result.contains("enum "),
+            "enum keyword survived: {}",
+            result
+        );
+        // Auto-increment: Up = 0, Down = 1
+        assert!(
+            result.contains("Direction[Direction[\"Up\"] = 0] = \"Up\""),
+            "Up member missing: {}",
+            result
+        );
+        assert!(
+            result.contains("Direction[Direction[\"Down\"] = 1] = \"Down\""),
+            "Down member missing: {}",
+            result
+        );
+        // Explicit value: Left = 10
+        assert!(
+            result.contains("Direction[Direction[\"Left\"] = 10] = \"Left\""),
+            "Left member missing: {}",
+            result
+        );
+        // Auto-increment after explicit: Right = 11
+        assert!(
+            result.contains("Direction[Direction[\"Right\"] = 11] = \"Right\""),
+            "Right member missing: {}",
+            result
+        );
+    }
+
+    #[test]
+    fn test_compile_const_enum() {
+        let result = strip(
+            r#"const enum Status {
+  Active = 'active',
+  Inactive = 'inactive',
+}"#,
+        );
+        assert!(
+            !result.contains("enum "),
+            "enum keyword survived: {}",
+            result
+        );
+        assert!(
+            result.contains("Status[\"Active\"] = 'active'"),
+            "Active member missing: {}",
+            result
+        );
+    }
+
+    #[test]
+    fn test_strip_abstract_property_and_method() {
+        let result = strip(
+            r#"export abstract class FormatSchema extends StringSchema {
+  protected abstract _errorMessage: string;
+  protected abstract _validate(value: string): boolean;
+  _parse(value: unknown) {
+    return value;
+  }
+}"#,
+        );
+        assert!(
+            !result.contains("_errorMessage"),
+            "abstract property not removed: {}",
+            result
+        );
+        assert!(
+            !result.contains("_validate"),
+            "abstract method not removed: {}",
+            result
+        );
+        // Non-abstract method should remain
+        assert!(
+            result.contains("_parse"),
+            "non-abstract method removed: {}",
+            result
+        );
+    }
+
+    #[test]
+    fn test_strip_entity_error_pattern() {
+        // Reproduces the pattern from packages/errors/src/entity.ts
+        let result = strip(
+            r#"export abstract class EntityError extends Error {
+  readonly code: string;
+  constructor(code: string, message: string) {
+    super(message);
+    this.code = code;
+    this.name = this.constructor.name;
+  }
+}
+
+export class BadRequestError extends EntityError {
+  readonly code = 'BadRequest' as const;
+  constructor(message = 'Bad Request') {
+    super('BadRequest', message);
+    this.name = 'BadRequestError';
+  }
+}
+
+export function isBadRequestError(error: unknown): error is BadRequestError {
+  return error instanceof BadRequestError;
+}
+
+export type EntityErrorType =
+  | BadRequestError;
+"#,
+        );
+        assert!(
+            !result.contains("abstract"),
+            "abstract survived: {}",
+            result
+        );
+        assert!(
+            !result.contains("readonly"),
+            "readonly survived: {}",
+            result
+        );
+        assert!(
+            !result.contains("as const"),
+            "as const survived: {}",
+            result
+        );
+        assert!(
+            !result.contains(": error is"),
+            "type predicate survived: {}",
+            result
+        );
+        assert!(
+            !result.contains("export type"),
+            "type alias survived: {}",
+            result
+        );
+        assert!(
+            result.contains("class EntityError"),
+            "class missing: {}",
+            result
+        );
+        assert!(
+            result.contains("class BadRequestError"),
+            "subclass missing: {}",
+            result
+        );
+    }
+
+    #[test]
+    fn test_strip_implements_clause() {
+        let result = strip("export class PostgresDialect implements Dialect { name = 'postgres'; }");
+        assert!(!result.contains("implements"), "implements survived: {}", result);
+        assert!(!result.contains("implements Dialect"), "implements clause survived: {}", result);
+        assert!(result.contains("class PostgresDialect"), "class name missing");
+        assert!(result.contains("name = 'postgres'"), "body missing");
+        // Should only have class name + body, no implements
+        assert!(result.contains("PostgresDialect"), "class name missing");
+    }
+
+    #[test]
+    fn test_strip_implements_multiple() {
+        let result = strip("class Foo extends Bar implements Baz, Qux { x = 1; }");
+        assert!(!result.contains("implements"), "implements survived: {}", result);
+        assert!(!result.contains("Baz"), "Baz survived: {}", result);
+        assert!(!result.contains("Qux"), "Qux survived: {}", result);
+        assert!(result.contains("extends Bar"), "extends missing");
+        assert!(result.contains("x = 1"), "body missing");
+    }
+
+    #[test]
+    fn test_strip_this_parameter() {
+        let result = strip(r#"const obj = {
+  code(this: { options: { meta?: string } }, node: { props: Record<string, unknown> }) {
+    return this.options.meta;
+  }
+};"#);
+        assert!(!result.contains("this:"), "this param survived: {}", result);
+        assert!(result.contains("node"), "node param missing");
+        assert!(result.contains("this.options.meta"), "this usage should remain");
+    }
+
+    #[test]
+    fn test_strip_this_parameter_only_param() {
+        let result = strip("function foo(this: SomeType) { return this; }");
+        assert!(!result.contains("this:"), "this param survived: {}", result);
+        assert!(!result.contains("SomeType"), "type survived: {}", result);
+        assert!(result.contains("function foo("), "function signature missing");
+    }
+
+    #[test]
+    fn test_schema_abstract_class_with_declare_and_abstract_members() {
+        let result = strip(r#"export abstract class Schema<O, I = O> {
+  /** @internal */ declare readonly _output: O;
+  /** @internal */ declare readonly _input: I;
+  /** @internal */ _id: string | undefined;
+
+  constructor() {
+    this._examples = [];
+  }
+
+  abstract _parse(value: unknown, ctx: ParseContext): O;
+  abstract _schemaType(): SchemaType;
+  abstract _toJSONSchema(tracker: RefTracker): JSONSchemaObject;
+  abstract _clone(): Schema<O, I>;
+
+  parse(value: unknown) {
+    return value;
+  }
+}"#);
+        assert!(!result.contains("declare"), "declare survived: {}", result);
+        assert!(!result.contains("abstract"), "abstract survived: {}", result);
+        assert!(!result.contains("_output"), "declare prop survived: {}", result);
+        assert!(!result.contains("_input"), "declare prop survived: {}", result);
     }
 }

@@ -276,6 +276,7 @@ impl VertzModuleLoader {
         // fix API names, split internal imports, strip leftover TS, deduplicate imports
         let mut code = post_process_compiled(&result.code);
 
+
         // Inject extracted CSS for SSR collection.
         // The compiler extracts `css()` calls into static class-name objects and returns
         // the generated CSS separately. For SSR, we need this CSS to be collected by
@@ -347,9 +348,9 @@ fn resolve_condition_value(value: &serde_json::Value) -> Option<String> {
 /// Synthetic module source for `@vertz/test` and `bun:test` imports.
 /// Re-exports all test harness globals that were injected by the test runner.
 const VERTZ_TEST_MODULE: &str = r#"
-const { describe, it, test, expect, beforeEach, afterEach, beforeAll, afterAll, mock, spyOn, vi } = globalThis.__vertz_test_exports;
-export { describe, it, test, expect, beforeEach, afterEach, beforeAll, afterAll, mock, spyOn, vi };
-export default { describe, it, test, expect, beforeEach, afterEach, beforeAll, afterAll, mock, spyOn, vi };
+const { describe, it, test, expect, beforeEach, afterEach, beforeAll, afterAll, mock, spyOn, vi, expectTypeOf } = globalThis.__vertz_test_exports;
+export { describe, it, test, expect, beforeEach, afterEach, beforeAll, afterAll, mock, spyOn, vi, expectTypeOf };
+export default { describe, it, test, expect, beforeEach, afterEach, beforeAll, afterAll, mock, spyOn, vi, expectTypeOf };
 "#;
 
 /// URL used for the synthetic test module.
