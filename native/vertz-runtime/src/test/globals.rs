@@ -88,6 +88,94 @@ pub const TEST_HARNESS_JS: &str = r#"
     else rootHooks.afterAll.push(fn);
   }
 
+  // --- Mock/Spy ---
+  const MOCK_BRAND = Symbol('__vertz_mock');
+
+  function createMockFunction(impl) {
+    let currentImpl = impl || null;
+    let onceQueue = [];
+    const mockState = { calls: [], results: [], lastCall: undefined };
+
+    function mockFn(...args) {
+      mockState.calls.push(args);
+      mockState.lastCall = args;
+      // Check once-queue first
+      if (onceQueue.length > 0) {
+        const onceFn = onceQueue.shift();
+        try {
+          const value = onceFn(...args);
+          mockState.results.push({ type: 'return', value });
+          return value;
+        } catch (e) {
+          mockState.results.push({ type: 'throw', value: e });
+          throw e;
+        }
+      }
+      // Then current implementation
+      if (currentImpl) {
+        try {
+          const value = currentImpl(...args);
+          mockState.results.push({ type: 'return', value });
+          return value;
+        } catch (e) {
+          mockState.results.push({ type: 'throw', value: e });
+          throw e;
+        }
+      }
+      mockState.results.push({ type: 'return', value: undefined });
+      return undefined;
+    }
+
+    mockFn[MOCK_BRAND] = true;
+    mockFn.mock = mockState;
+
+    mockFn.mockImplementation = (fn) => { currentImpl = fn; return mockFn; };
+    mockFn.mockReturnValue = (val) => { currentImpl = () => val; return mockFn; };
+    mockFn.mockResolvedValue = (val) => { currentImpl = () => Promise.resolve(val); return mockFn; };
+    mockFn.mockResolvedValueOnce = (val) => { onceQueue.push(() => Promise.resolve(val)); return mockFn; };
+    mockFn.mockReturnValueOnce = (val) => { onceQueue.push(() => val); return mockFn; };
+
+    mockFn.mockReset = () => {
+      mockState.calls.length = 0;
+      mockState.results.length = 0;
+      mockState.lastCall = undefined;
+      currentImpl = null;
+      onceQueue.length = 0;
+      return mockFn;
+    };
+
+    mockFn.mockClear = () => {
+      mockState.calls.length = 0;
+      mockState.results.length = 0;
+      mockState.lastCall = undefined;
+      return mockFn;
+    };
+
+    mockFn.mockRestore = () => {
+      // For plain mock(), mockRestore is the same as mockReset.
+      // spyOn overrides this to restore the original.
+      return mockFn.mockReset();
+    };
+
+    return mockFn;
+  }
+
+  function mock(impl) {
+    return createMockFunction(impl);
+  }
+
+  function spyOn(obj, method) {
+    const original = obj[method];
+    const spy = createMockFunction((...args) => original.apply(obj, args));
+    spy.mockRestore = () => {
+      obj[method] = original;
+      spy.mockReset();
+      return spy;
+    };
+    obj[method] = spy;
+    return spy;
+  }
+
   // --- Expect ---
   function deepEqual(a, b) {
     if (a === b) return true;
@@ -201,6 +289,12 @@ pub const TEST_HARNESS_JS: &str = r#"
         `Expected ${formatValue(actual)} ${negated ? 'not ' : ''}to contain ${formatValue(item)}`
       );
     };
+    matchers.toContainEqual = (item) => {
+      const has = Array.isArray(actual) && actual.some(el => deepEqual(el, item));
+      assert(has, () =>
+        `Expected ${formatValue(actual)} ${negated ? 'not ' : ''}to contain equal ${formatValue(item)}`
+      );
+    };
     matchers.toHaveLength = (n) => {
       assert(actual != null && actual.length === n, () =>
         `Expected length ${actual?.length} ${negated ? 'not ' : ''}to be ${n}`
@@ -210,6 +304,28 @@ pub const TEST_HARNESS_JS: &str = r#"
       const re = pattern instanceof RegExp ? pattern : new RegExp(pattern);
       assert(re.test(String(actual)), () =>
         `Expected ${formatValue(actual)} ${negated ? 'not ' : ''}to match ${pattern}`
+      );
+    };
+
+    // Floats
+    matchers.toBeCloseTo = (expected, numDigits) => {
+      const digits = numDigits !== undefined ? numDigits : 2;
+      const threshold = Math.pow(10, -digits) / 2;
+      const pass = Math.abs(actual - expected) < threshold;
+      assert(pass, () =>
+        `Expected ${formatValue(actual)} ${negated ? 'not ' : ''}to be close to ${formatValue(expected)} (precision ${digits})`
+      );
+    };
+
+    // Type checks
+    matchers.toBeTypeOf = (typeStr) => {
+      assert(typeof actual === typeStr, () =>
+        `Expected typeof ${formatValue(actual)} ${negated ? 'not ' : ''}to be "${typeStr}", got "${typeof actual}"`
+      );
+    };
+    matchers.toBeFunction = () => {
+      assert(typeof actual === 'function', () =>
+        `Expected ${formatValue(actual)} ${negated ? 'not ' : ''}to be a function`
       );
     };
 
@@ -280,14 +396,118 @@ pub const TEST_HARNESS_JS: &str = r#"
     };
     matchers.toThrowError = matchers.toThrow;
 
+    // Mock matchers
+    matchers.toHaveBeenCalled = () => {
+      if (!actual || !actual[MOCK_BRAND]) throw new Error('toHaveBeenCalled requires a mock function');
+      assert(actual.mock.calls.length > 0, () =>
+        `Expected mock ${negated ? 'not ' : ''}to have been called, but it was called ${actual.mock.calls.length} times`
+      );
+    };
+    matchers.toHaveBeenCalledOnce = () => {
+      if (!actual || !actual[MOCK_BRAND]) throw new Error('toHaveBeenCalledOnce requires a mock function');
+      assert(actual.mock.calls.length === 1, () =>
+        `Expected mock ${negated ? 'not ' : ''}to have been called once, but it was called ${actual.mock.calls.length} times`
+      );
+    };
+    matchers.toHaveBeenCalledTimes = (n) => {
+      if (!actual || !actual[MOCK_BRAND]) throw new Error('toHaveBeenCalledTimes requires a mock function');
+      assert(actual.mock.calls.length === n, () =>
+        `Expected mock ${negated ? 'not ' : ''}to have been called ${n} times, but it was called ${actual.mock.calls.length} times`
+      );
+    };
+    matchers.toHaveBeenCalledWith = (...expectedArgs) => {
+      if (!actual || !actual[MOCK_BRAND]) throw new Error('toHaveBeenCalledWith requires a mock function');
+      const found = actual.mock.calls.some(call => deepEqual(call, expectedArgs));
+      assert(found, () =>
+        `Expected mock ${negated ? 'not ' : ''}to have been called with ${formatValue(expectedArgs)}`
+      );
+    };
+    matchers.toHaveBeenLastCalledWith = (...expectedArgs) => {
+      if (!actual || !actual[MOCK_BRAND]) throw new Error('toHaveBeenLastCalledWith requires a mock function');
+      const last = actual.mock.lastCall;
+      assert(last !== undefined && deepEqual(last, expectedArgs), () =>
+        `Expected mock ${negated ? 'not ' : ''}to have been last called with ${formatValue(expectedArgs)}, got ${formatValue(last)}`
+      );
+    };
+
+    // Apply custom matchers
+    for (const [name, matcherFn] of Object.entries(customMatchers)) {
+      matchers[name] = (...args) => {
+        const result = matcherFn(actual, ...args);
+        const effective = negated ? !result.pass : result.pass;
+        if (!effective) {
+          throw new Error(result.message());
+        }
+      };
+    }
+
     return matchers;
+  }
+
+  // Registry for custom matchers added via expect.extend()
+  const customMatchers = {};
+
+  function createAsyncMatchers(actualPromise, negated, isReject) {
+    const proxy = {};
+    // For .resolves: await the promise, run matchers on resolved value
+    // For .rejects: await rejection, wrap thrown value for toThrow/toBeInstanceOf
+    const wrapMatcher = (matcherName) => {
+      return (...args) => {
+        if (isReject) {
+          return actualPromise.then(
+            () => { throw new Error(`Expected promise to reject, but it resolved`); },
+            (err) => {
+              // For toThrow/toThrowError: wrap err in a function so toThrow can call it
+              if (matcherName === 'toThrow' || matcherName === 'toThrowError') {
+                const thrower = () => { throw err; };
+                createMatchers(thrower, negated)[matcherName](...args);
+              } else if (matcherName === 'toBeInstanceOf') {
+                createMatchers(err, negated)[matcherName](...args);
+              } else {
+                createMatchers(err, negated)[matcherName](...args);
+              }
+            }
+          );
+        } else {
+          return actualPromise.then((resolved) => {
+            createMatchers(resolved, negated)[matcherName](...args);
+          });
+        }
+      };
+    };
+
+    // Build all matcher methods as async wrappers
+    const matcherNames = [
+      'toBe', 'toEqual', 'toBeTruthy', 'toBeFalsy', 'toBeNull', 'toBeUndefined',
+      'toBeDefined', 'toBeGreaterThan', 'toBeGreaterThanOrEqual', 'toBeLessThan',
+      'toBeLessThanOrEqual', 'toContain', 'toContainEqual', 'toHaveLength', 'toMatch',
+      'toBeCloseTo', 'toBeTypeOf', 'toBeFunction', 'toHaveProperty', 'toBeInstanceOf',
+      'toThrow', 'toThrowError', 'toHaveBeenCalled', 'toHaveBeenCalledOnce',
+      'toHaveBeenCalledTimes', 'toHaveBeenCalledWith', 'toHaveBeenLastCalledWith',
+    ];
+
+    for (const name of matcherNames) {
+      proxy[name] = wrapMatcher(name);
+    }
+
+    if (!negated) {
+      proxy.not = createAsyncMatchers(actualPromise, true, isReject);
+    }
+
+    return proxy;
   }
 
   function expect(actual) {
     const matchers = createMatchers(actual, false);
     matchers.not = createMatchers(actual, true);
+    matchers.resolves = createAsyncMatchers(actual, false, false);
+    matchers.rejects = createAsyncMatchers(actual, false, true);
     return matchers;
   }
+
+  expect.extend = (newMatchers) => {
+    Object.assign(customMatchers, newMatchers);
+  };
 
   // --- Test Runner ---
 
@@ -420,6 +640,12 @@ pub const TEST_HARNESS_JS: &str = r#"
     return allResults;
   };
 
+  // vi namespace for vitest/bun:test compatibility
+  const vi = {
+    fn: (impl) => mock(impl),
+    spyOn: (obj, method) => spyOn(obj, method),
+  };
+
   // Export to globalThis for test files
   globalThis.describe = describe;
   globalThis.it = it;
@@ -429,13 +655,16 @@ pub const TEST_HARNESS_JS: &str = r#"
   globalThis.afterEach = afterEach;
   globalThis.beforeAll = beforeAll;
   globalThis.afterAll = afterAll;
+  globalThis.mock = mock;
+  globalThis.spyOn = spyOn;
+  globalThis.vi = vi;
 
-  // Exports object for Phase 2: module loader will intercept
+  // Exports object — module loader will intercept
   // `import { describe, it, expect } from '@vertz/test'` and return these.
-  // For Phase 1, tests use globals (describe/it/expect are on globalThis).
   globalThis.__vertz_test_exports = {
     describe, it, test, expect,
     beforeEach, afterEach, beforeAll, afterAll,
+    mock, spyOn, vi,
   };
 })();
 "#;
@@ -946,6 +1175,557 @@ mod tests {
         );
         assert_eq!(arr[0]["name"], "adds");
         assert_eq!(arr[1]["name"], "subtracts");
+    }
+
+    #[test]
+    fn test_to_contain_equal() {
+        let mut rt = create_test_runtime();
+        let results = run_test_code(
+            &mut rt,
+            r#"
+            describe('toContainEqual', () => {
+                it('finds deep-equal item in array', () => {
+                    expect([{ a: 1 }, { b: 2 }]).toContainEqual({ a: 1 });
+                });
+                it('fails when no deep-equal item exists', () => {
+                    let caught = false;
+                    try {
+                        expect([{ a: 1 }]).toContainEqual({ a: 2 });
+                    } catch (e) {
+                        caught = true;
+                    }
+                    expect(caught).toBe(true);
+                });
+                it('works with .not', () => {
+                    expect([{ a: 1 }]).not.toContainEqual({ a: 2 });
+                });
+            });
+            "#,
+        );
+
+        let arr = results.as_array().unwrap();
+        assert_eq!(arr.len(), 3);
+        for (i, item) in arr.iter().enumerate() {
+            assert_eq!(
+                item["status"], "pass",
+                "toContainEqual test {} failed: {:?}",
+                i, item["error"]
+            );
+        }
+    }
+
+    #[test]
+    fn test_to_be_close_to() {
+        let mut rt = create_test_runtime();
+        let results = run_test_code(
+            &mut rt,
+            r#"
+            describe('toBeCloseTo', () => {
+                it('compares floats with default precision (2)', () => {
+                    expect(0.1 + 0.2).toBeCloseTo(0.3);
+                });
+                it('compares with custom precision', () => {
+                    expect(0.1 + 0.2).toBeCloseTo(0.3, 5);
+                });
+                it('fails when not close enough', () => {
+                    let caught = false;
+                    try {
+                        expect(0.1).toBeCloseTo(0.5);
+                    } catch (e) {
+                        caught = true;
+                    }
+                    expect(caught).toBe(true);
+                });
+                it('works with .not', () => {
+                    expect(0.1).not.toBeCloseTo(0.5);
+                });
+            });
+            "#,
+        );
+
+        let arr = results.as_array().unwrap();
+        assert_eq!(arr.len(), 4);
+        for (i, item) in arr.iter().enumerate() {
+            assert_eq!(
+                item["status"], "pass",
+                "toBeCloseTo test {} failed: {:?}",
+                i, item["error"]
+            );
+        }
+    }
+
+    #[test]
+    fn test_to_be_type_of() {
+        let mut rt = create_test_runtime();
+        let results = run_test_code(
+            &mut rt,
+            r#"
+            describe('toBeTypeOf', () => {
+                it('checks string', () => { expect('hello').toBeTypeOf('string'); });
+                it('checks number', () => { expect(42).toBeTypeOf('number'); });
+                it('checks boolean', () => { expect(true).toBeTypeOf('boolean'); });
+                it('checks function', () => { expect(() => {}).toBeTypeOf('function'); });
+                it('checks object', () => { expect({}).toBeTypeOf('object'); });
+                it('checks undefined', () => { expect(undefined).toBeTypeOf('undefined'); });
+                it('works with .not', () => { expect(42).not.toBeTypeOf('string'); });
+            });
+            "#,
+        );
+
+        let arr = results.as_array().unwrap();
+        assert_eq!(arr.len(), 7);
+        for (i, item) in arr.iter().enumerate() {
+            assert_eq!(
+                item["status"], "pass",
+                "toBeTypeOf test {} failed: {:?}",
+                i, item["error"]
+            );
+        }
+    }
+
+    #[test]
+    fn test_to_be_function() {
+        let mut rt = create_test_runtime();
+        let results = run_test_code(
+            &mut rt,
+            r#"
+            describe('toBeFunction', () => {
+                it('passes for functions', () => {
+                    expect(() => {}).toBeFunction();
+                    expect(function() {}).toBeFunction();
+                });
+                it('fails for non-functions', () => {
+                    let caught = false;
+                    try { expect(42).toBeFunction(); } catch (e) { caught = true; }
+                    expect(caught).toBe(true);
+                });
+                it('works with .not', () => {
+                    expect(42).not.toBeFunction();
+                });
+            });
+            "#,
+        );
+
+        let arr = results.as_array().unwrap();
+        assert_eq!(arr.len(), 3);
+        for (i, item) in arr.iter().enumerate() {
+            assert_eq!(
+                item["status"], "pass",
+                "toBeFunction test {} failed: {:?}",
+                i, item["error"]
+            );
+        }
+    }
+
+    #[test]
+    fn test_mock_basic_call_tracking() {
+        let mut rt = create_test_runtime();
+        let results = run_test_code(
+            &mut rt,
+            r#"
+            describe('mock() call tracking', () => {
+                it('tracks calls', () => {
+                    const fn = mock(() => 42);
+                    fn(1, 2);
+                    fn(3);
+                    expect(fn.mock.calls).toEqual([[1, 2], [3]]);
+                    expect(fn.mock.calls.length).toBe(2);
+                });
+                it('tracks results', () => {
+                    const fn = mock(() => 'hello');
+                    fn();
+                    expect(fn.mock.results).toEqual([{ type: 'return', value: 'hello' }]);
+                });
+                it('tracks lastCall', () => {
+                    const fn = mock(() => {});
+                    fn('a');
+                    fn('b', 'c');
+                    expect(fn.mock.lastCall).toEqual(['b', 'c']);
+                });
+                it('returns implementation result', () => {
+                    const fn = mock((x) => x * 2);
+                    expect(fn(5)).toBe(10);
+                });
+                it('default mock returns undefined', () => {
+                    const fn = mock();
+                    expect(fn()).toBeUndefined();
+                });
+            });
+            "#,
+        );
+
+        let arr = results.as_array().unwrap();
+        assert_eq!(arr.len(), 5);
+        for (i, item) in arr.iter().enumerate() {
+            assert_eq!(
+                item["status"], "pass",
+                "mock() basic test {} ({}) failed: {:?}",
+                i, item["name"], item["error"]
+            );
+        }
+    }
+
+    #[test]
+    fn test_mock_chaining_methods() {
+        let mut rt = create_test_runtime();
+        let results = run_test_code(
+            &mut rt,
+            r#"
+            describe('mock() chaining', () => {
+                it('mockReturnValue', () => {
+                    const fn = mock();
+                    fn.mockReturnValue(99);
+                    expect(fn()).toBe(99);
+                    expect(fn()).toBe(99);
+                });
+                it('mockImplementation', () => {
+                    const fn = mock();
+                    fn.mockImplementation((x) => x + 1);
+                    expect(fn(5)).toBe(6);
+                });
+                it('mockResolvedValue', async () => {
+                    const fn = mock();
+                    fn.mockResolvedValue('async-val');
+                    const result = await fn();
+                    expect(result).toBe('async-val');
+                });
+                it('mockResolvedValueOnce', async () => {
+                    const fn = mock();
+                    fn.mockResolvedValueOnce('first');
+                    fn.mockResolvedValueOnce('second');
+                    expect(await fn()).toBe('first');
+                    expect(await fn()).toBe('second');
+                    expect(fn()).toBeUndefined();
+                });
+                it('mockReset clears calls and implementation', () => {
+                    const fn = mock(() => 1);
+                    fn(1);
+                    fn.mockReset();
+                    expect(fn.mock.calls).toEqual([]);
+                    expect(fn()).toBeUndefined();
+                });
+                it('mockClear clears calls but keeps implementation', () => {
+                    const fn = mock(() => 42);
+                    fn(1);
+                    fn.mockClear();
+                    expect(fn.mock.calls).toEqual([]);
+                    expect(fn()).toBe(42);
+                });
+            });
+            "#,
+        );
+
+        let arr = results.as_array().unwrap();
+        assert_eq!(arr.len(), 6);
+        for (i, item) in arr.iter().enumerate() {
+            assert_eq!(
+                item["status"], "pass",
+                "mock() chaining test {} ({}) failed: {:?}",
+                i, item["name"], item["error"]
+            );
+        }
+    }
+
+    #[test]
+    fn test_mock_object_assign_pattern() {
+        let mut rt = create_test_runtime();
+        let results = run_test_code(
+            &mut rt,
+            r#"
+            describe('Object.assign(mock(), metadata)', () => {
+                it('preserves mock tracking after Object.assign', () => {
+                    const fn = Object.assign(mock(() => 'val'), { displayName: 'myMock' });
+                    fn('arg');
+                    expect(fn.displayName).toBe('myMock');
+                    expect(fn.mock.calls).toEqual([['arg']]);
+                    expect(fn()).toBe('val');
+                });
+            });
+            "#,
+        );
+
+        let arr = results.as_array().unwrap();
+        assert_eq!(arr.len(), 1);
+        assert_eq!(arr[0]["status"], "pass", "Object.assign test failed: {:?}", arr[0]["error"]);
+    }
+
+    #[test]
+    fn test_spy_on() {
+        let mut rt = create_test_runtime();
+        let results = run_test_code(
+            &mut rt,
+            r#"
+            describe('spyOn()', () => {
+                it('tracks calls to existing method', () => {
+                    const obj = { greet(name) { return 'hello ' + name; } };
+                    const spy = spyOn(obj, 'greet');
+                    obj.greet('world');
+                    expect(spy.mock.calls).toEqual([['world']]);
+                });
+                it('delegates to original by default', () => {
+                    const obj = { add(a, b) { return a + b; } };
+                    spyOn(obj, 'add');
+                    expect(obj.add(2, 3)).toBe(5);
+                });
+                it('mockImplementation overrides behavior', () => {
+                    const obj = { get() { return 'original'; } };
+                    spyOn(obj, 'get').mockImplementation(() => 'mocked');
+                    expect(obj.get()).toBe('mocked');
+                });
+                it('mockRestore restores original', () => {
+                    const obj = { get() { return 'original'; } };
+                    const spy = spyOn(obj, 'get').mockImplementation(() => 'mocked');
+                    expect(obj.get()).toBe('mocked');
+                    spy.mockRestore();
+                    expect(obj.get()).toBe('original');
+                });
+                it('mockReturnValue works on spy', () => {
+                    const obj = { get() { return 'original'; } };
+                    spyOn(obj, 'get').mockReturnValue('stubbed');
+                    expect(obj.get()).toBe('stubbed');
+                });
+            });
+            "#,
+        );
+
+        let arr = results.as_array().unwrap();
+        assert_eq!(arr.len(), 5);
+        for (i, item) in arr.iter().enumerate() {
+            assert_eq!(
+                item["status"], "pass",
+                "spyOn test {} ({}) failed: {:?}",
+                i, item["name"], item["error"]
+            );
+        }
+    }
+
+    #[test]
+    fn test_mock_matchers() {
+        let mut rt = create_test_runtime();
+        let results = run_test_code(
+            &mut rt,
+            r#"
+            describe('mock matchers', () => {
+                it('toHaveBeenCalled', () => {
+                    const fn = mock();
+                    fn();
+                    expect(fn).toHaveBeenCalled();
+                });
+                it('toHaveBeenCalled .not', () => {
+                    const fn = mock();
+                    expect(fn).not.toHaveBeenCalled();
+                });
+                it('toHaveBeenCalledOnce', () => {
+                    const fn = mock();
+                    fn();
+                    expect(fn).toHaveBeenCalledOnce();
+                });
+                it('toHaveBeenCalledTimes', () => {
+                    const fn = mock();
+                    fn(); fn(); fn();
+                    expect(fn).toHaveBeenCalledTimes(3);
+                });
+                it('toHaveBeenCalledWith', () => {
+                    const fn = mock();
+                    fn(1, 'a');
+                    fn(2, 'b');
+                    expect(fn).toHaveBeenCalledWith(1, 'a');
+                    expect(fn).toHaveBeenCalledWith(2, 'b');
+                });
+                it('toHaveBeenCalledWith .not', () => {
+                    const fn = mock();
+                    fn(1);
+                    expect(fn).not.toHaveBeenCalledWith(2);
+                });
+                it('toHaveBeenLastCalledWith', () => {
+                    const fn = mock();
+                    fn('first');
+                    fn('last');
+                    expect(fn).toHaveBeenLastCalledWith('last');
+                });
+                it('toHaveBeenLastCalledWith .not', () => {
+                    const fn = mock();
+                    fn('first');
+                    fn('last');
+                    expect(fn).not.toHaveBeenLastCalledWith('first');
+                });
+            });
+            "#,
+        );
+
+        let arr = results.as_array().unwrap();
+        assert_eq!(arr.len(), 8);
+        for (i, item) in arr.iter().enumerate() {
+            assert_eq!(
+                item["status"], "pass",
+                "mock matcher test {} ({}) failed: {:?}",
+                i, item["name"], item["error"]
+            );
+        }
+    }
+
+    #[test]
+    fn test_async_matchers_resolves() {
+        let mut rt = create_test_runtime();
+        let results = run_test_code(
+            &mut rt,
+            r#"
+            describe('.resolves', () => {
+                it('resolves.toBe', async () => {
+                    await expect(Promise.resolve(42)).resolves.toBe(42);
+                });
+                it('resolves.toEqual', async () => {
+                    await expect(Promise.resolve({ a: 1 })).resolves.toEqual({ a: 1 });
+                });
+                it('resolves.not.toBe', async () => {
+                    await expect(Promise.resolve(42)).resolves.not.toBe(99);
+                });
+            });
+            "#,
+        );
+
+        let arr = results.as_array().unwrap();
+        assert_eq!(arr.len(), 3);
+        for (i, item) in arr.iter().enumerate() {
+            assert_eq!(
+                item["status"], "pass",
+                ".resolves test {} ({}) failed: {:?}",
+                i, item["name"], item["error"]
+            );
+        }
+    }
+
+    #[test]
+    fn test_async_matchers_rejects() {
+        let mut rt = create_test_runtime();
+        let results = run_test_code(
+            &mut rt,
+            r#"
+            describe('.rejects', () => {
+                it('rejects.toThrow', async () => {
+                    await expect(Promise.reject(new Error('boom'))).rejects.toThrow('boom');
+                });
+                it('rejects.toBeInstanceOf', async () => {
+                    await expect(Promise.reject(new TypeError('bad'))).rejects.toBeInstanceOf(TypeError);
+                });
+                it('rejects.not.toThrow with different message', async () => {
+                    await expect(Promise.reject(new Error('other'))).rejects.not.toThrow('specific');
+                });
+            });
+            "#,
+        );
+
+        let arr = results.as_array().unwrap();
+        assert_eq!(arr.len(), 3);
+        for (i, item) in arr.iter().enumerate() {
+            assert_eq!(
+                item["status"], "pass",
+                ".rejects test {} ({}) failed: {:?}",
+                i, item["name"], item["error"]
+            );
+        }
+    }
+
+    #[test]
+    fn test_vi_namespace() {
+        let mut rt = create_test_runtime();
+        let results = run_test_code(
+            &mut rt,
+            r#"
+            describe('vi namespace', () => {
+                it('vi.fn() creates a mock', () => {
+                    const fn = vi.fn(() => 99);
+                    expect(fn()).toBe(99);
+                    expect(fn.mock.calls.length).toBe(1);
+                });
+                it('vi.fn() without implementation', () => {
+                    const fn = vi.fn();
+                    expect(fn()).toBeUndefined();
+                    expect(fn.mock.calls.length).toBe(1);
+                });
+                it('vi.spyOn() spies on methods', () => {
+                    const obj = { get() { return 'val'; } };
+                    const spy = vi.spyOn(obj, 'get');
+                    expect(obj.get()).toBe('val');
+                    expect(spy.mock.calls.length).toBe(1);
+                    spy.mockRestore();
+                });
+            });
+            "#,
+        );
+
+        let arr = results.as_array().unwrap();
+        assert_eq!(arr.len(), 3);
+        for (i, item) in arr.iter().enumerate() {
+            assert_eq!(
+                item["status"], "pass",
+                "vi namespace test {} ({}) failed: {:?}",
+                i, item["name"], item["error"]
+            );
+        }
+    }
+
+    #[test]
+    fn test_expect_extend() {
+        let mut rt = create_test_runtime();
+        let results = run_test_code(
+            &mut rt,
+            r#"
+            expect.extend({
+                toBeEven(received) {
+                    const pass = received % 2 === 0;
+                    return {
+                        pass,
+                        message: () => pass
+                            ? 'Expected ' + received + ' not to be even'
+                            : 'Expected ' + received + ' to be even',
+                    };
+                },
+                toBeWithinRange(received, floor, ceiling) {
+                    const pass = received >= floor && received <= ceiling;
+                    return {
+                        pass,
+                        message: () => pass
+                            ? 'Expected ' + received + ' not to be within range ' + floor + ' - ' + ceiling
+                            : 'Expected ' + received + ' to be within range ' + floor + ' - ' + ceiling,
+                    };
+                },
+            });
+
+            describe('expect.extend()', () => {
+                it('custom matcher passes', () => {
+                    expect(4).toBeEven();
+                });
+                it('custom matcher fails correctly', () => {
+                    let caught = false;
+                    try { expect(3).toBeEven(); } catch (e) {
+                        caught = true;
+                        expect(e.message).toContain('to be even');
+                    }
+                    expect(caught).toBe(true);
+                });
+                it('.not works with custom matchers', () => {
+                    expect(3).not.toBeEven();
+                });
+                it('custom matcher with extra args', () => {
+                    expect(5).toBeWithinRange(1, 10);
+                });
+                it('.not custom matcher with extra args', () => {
+                    expect(50).not.toBeWithinRange(1, 10);
+                });
+            });
+            "#,
+        );
+
+        let arr = results.as_array().unwrap();
+        assert_eq!(arr.len(), 5);
+        for (i, item) in arr.iter().enumerate() {
+            assert_eq!(
+                item["status"], "pass",
+                "expect.extend test {} ({}) failed: {:?}",
+                i, item["name"], item["error"]
+            );
+        }
     }
 
     #[test]
