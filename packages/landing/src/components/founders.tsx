@@ -69,7 +69,7 @@ function FounderPhoto({ name }: { name: string }) {
           alt="Vinicius Dacal"
           width={80}
           height={80}
-          style="object-fit: cover; border-radius: 9999px; outline: 2px solid #27272a; outline-offset: 2px"
+          style="object-fit: cover; border-radius: 9999px; outline: 2px solid #2A2826; outline-offset: 2px"
           fit="cover"
         />
       </div>
@@ -82,7 +82,7 @@ function FounderPhoto({ name }: { name: string }) {
         alt="Matheus Poleza"
         width={80}
         height={80}
-        style="object-fit: cover; border-radius: 9999px; outline: 2px solid #27272a; outline-offset: 2px"
+        style="object-fit: cover; border-radius: 9999px; outline: 2px solid #2A2826; outline-offset: 2px"
         fit="cover"
       />
     </div>
@@ -94,7 +94,7 @@ export function Founders() {
     <section
       id="founders"
       className={s.section}
-      style={{ background: '#0e0e11', borderTop: '1px solid rgba(255,255,255,0.02)' }}
+      style={{ background: '#111110', borderTop: '1px solid #2A2826' }}
     >
       <div className={s.container}>
         <p className={s.intro}>

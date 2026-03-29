@@ -13,6 +13,9 @@
 
 import { LLMS_TXT } from './llms-txt';
 
+// Re-export PresenceRoom for Cloudflare Durable Object binding
+export { PresenceRoom } from './presence-room';
+
 // Minimal ambient declarations for Cloudflare Worker APIs.
 // The landing page tsconfig uses bun-types, which doesn't include these.
 // At runtime, wrangler provides the real implementations.
@@ -24,8 +27,18 @@ declare interface ExportedHandler<E = unknown> {
 }
 declare const caches: { default: Cache };
 
+interface DurableObjectNamespace {
+  idFromName(name: string): DurableObjectId;
+  get(id: DurableObjectId): DurableObjectStub;
+}
+interface DurableObjectId {}
+interface DurableObjectStub {
+  fetch(input: RequestInfo, init?: RequestInit): Promise<Response>;
+}
+
 interface Env {
   ASSETS: Fetcher;
+  PRESENCE_ROOM: DurableObjectNamespace;
 }
 
 /**
@@ -68,7 +81,19 @@ export default {
     const url = new URL(request.url);
     const pathname = url.pathname;
 
-    // ── 0. LLM-friendly entry point ───────────────────────────
+    // ── 0a. Presence WebSocket upgrade ─────────────────────────
+    if (pathname === '/__presence') {
+      const upgradeHeader = request.headers.get('Upgrade');
+      if (upgradeHeader !== 'websocket') {
+        return new Response('Expected WebSocket', { status: 426 });
+      }
+
+      const roomId = env.PRESENCE_ROOM.idFromName('landing');
+      const room = env.PRESENCE_ROOM.get(roomId);
+      return room.fetch(request);
+    }
+
+    // ── 0b. LLM-friendly entry point ───────────────────────────
     if (pathname === '/llms.txt') {
       return new Response(LLMS_TXT, {
         headers: {

@@ -1,4 +1,4 @@
-import { css, Island, keyframes } from '@vertz/ui';
+import { css, Island, keyframes, onMount } from '@vertz/ui';
 import { ComposedList as List } from '@vertz/ui-primitives';
 
 const listEnter = keyframes('todo-enter', {
@@ -54,9 +54,11 @@ const s = css({
     'px:6',
     'min-h:screen',
     {
+      '&': { 'padding-top': '5rem' },
       '@media (min-width: 1024px)': {
         'padding-left': '3rem',
         'padding-right': '3rem',
+        'padding-top': '0',
       },
     },
   ],
@@ -423,9 +425,58 @@ const app = css({
       },
     },
   ],
+  presenceBar: [
+    'flex',
+    'items:center',
+    'gap:2',
+    {
+      '&': {
+        'margin-top': '0.5rem',
+        'font-size': '0.65rem',
+        color: '#6B6560',
+        'font-family': 'var(--font-mono)',
+      },
+    },
+  ],
+  presenceDot: [
+    {
+      '&': {
+        width: '6px',
+        height: '6px',
+        'border-radius': '50%',
+        background: '#10B981',
+        'flex-shrink': '0',
+      },
+    },
+  ],
+  shareBtn: [
+    {
+      '&': {
+        'margin-left': 'auto',
+        background: 'none',
+        border: '1px solid #2A2826',
+        'border-radius': '4px',
+        color: '#9C9690',
+        cursor: 'pointer',
+        padding: '0.15rem 0.5rem',
+        'font-size': '0.6rem',
+        'font-family': 'var(--font-mono)',
+        'text-transform': 'uppercase',
+        'letter-spacing': '0.05em',
+        transition: 'border-color 0.15s, color 0.15s',
+      },
+      '&:hover': {
+        'border-color': '#4A4540',
+        color: '#E8E4DC',
+      },
+    },
+  ],
 });
 
 // ── Mini todo app component ─────────────────────────────────
+
+/** WebSocket URL for presence — injected at build time via --define */
+declare const PRESENCE_WS_URL: string;
 
 type Todo = { id: number; text: string; done: boolean; toggled?: boolean };
 
@@ -461,13 +512,161 @@ function MiniTodoApp() {
     }, 50);
   }
 
+  function flashGlow(selector: string) {
+    const el = document.querySelector<HTMLElement>(selector);
+    if (!el) return;
+    el.style.transition = 'none';
+    el.style.opacity = '1';
+    void el.offsetHeight;
+    el.style.transition = 'opacity 0.8s ease-out';
+    el.style.opacity = '0';
+  }
+
+  // Reference to the active WebSocket, set by onMount
+  let presenceWs: WebSocket | null = null;
+
+  function sendInteract() {
+    if (presenceWs && presenceWs.readyState === WebSocket.OPEN) {
+      presenceWs.send('{"t":"interact"}');
+    }
+  }
+
   function addTodo() {
     if (!inputValue.trim()) return;
     todos = [...todos, { id: nextId, text: inputValue.trim(), done: false }];
     nextId = nextId + 1;
     inputValue = '';
     deferUpdateFade();
+    flashGlow('[data-hero-flash]');
+    sendInteract();
   }
+
+  let peerCount = 0;
+
+  function handlePeerInteract() {
+    flashGlow('[data-hero-flash-peer]');
+  }
+
+  onMount(() => {
+    let keepaliveId: ReturnType<typeof setInterval> | null = null;
+    let retryTimeoutId: ReturnType<typeof setTimeout> | null = null;
+    let retryCount = 0;
+    let stopped = false;
+
+    const MAX_RETRIES = 3;
+    const BACKOFF_BASE_MS = 1000;
+    const PERIODIC_RETRY_MS = 60_000;
+
+    const wsUrl = typeof PRESENCE_WS_URL !== 'undefined'
+      ? PRESENCE_WS_URL
+      : 'ws://localhost:4001/__presence';
+
+    // ── WebSocket connection with reconnection ──────────────
+    function connectPresence() {
+      if (stopped) return;
+
+      try {
+        presenceWs = new WebSocket(wsUrl);
+
+        presenceWs.onmessage = (event) => {
+          try {
+            const msg = JSON.parse(event.data);
+            if (msg.t === 'interact') {
+              handlePeerInteract();
+            } else if (msg.t === 'join' || msg.t === 'state') {
+              peerCount = msg.count ?? 0;
+            } else if (msg.t === 'leave') {
+              peerCount = msg.count ?? 0;
+            }
+          } catch {
+            // Malformed message, ignore
+          }
+        };
+
+        presenceWs.onopen = () => {
+          retryCount = 0; // Reset backoff on successful connection
+          keepaliveId = setInterval(() => {
+            if (presenceWs && presenceWs.readyState === WebSocket.OPEN) {
+              presenceWs.send('{"t":"ping"}');
+            }
+          }, 30_000);
+        };
+
+        presenceWs.onclose = () => {
+          peerCount = 0;
+          presenceWs = null;
+          if (keepaliveId) clearInterval(keepaliveId);
+          keepaliveId = null;
+
+          if (!stopped) scheduleReconnect();
+        };
+
+        presenceWs.onerror = () => {
+          // Will trigger onclose → scheduleReconnect
+        };
+      } catch {
+        // WebSocket not available — schedule reconnect
+        if (!stopped) scheduleReconnect();
+      }
+    }
+
+    function scheduleReconnect() {
+      if (stopped) return;
+      if (retryTimeoutId) clearTimeout(retryTimeoutId);
+
+      if (retryCount < MAX_RETRIES) {
+        // Exponential backoff: 1s, 2s, 4s
+        const delay = BACKOFF_BASE_MS * Math.pow(2, retryCount);
+        retryCount++;
+        retryTimeoutId = setTimeout(connectPresence, delay);
+      } else {
+        // Backoff exhausted — periodic retry every 60s
+        retryTimeoutId = setTimeout(connectPresence, PERIODIC_RETRY_MS);
+      }
+    }
+
+    function disconnect() {
+      if (retryTimeoutId) clearTimeout(retryTimeoutId);
+      retryTimeoutId = null;
+      if (keepaliveId) clearInterval(keepaliveId);
+      keepaliveId = null;
+      if (presenceWs) {
+        presenceWs.onclose = null; // Prevent scheduleReconnect
+        presenceWs.close();
+        presenceWs = null;
+      }
+      peerCount = 0;
+    }
+
+    // ── Tab visibility ──────────────────────────────────────
+    function handleVisibilityChange() {
+      if (document.hidden) {
+        disconnect();
+      } else {
+        retryCount = 0;
+        connectPresence();
+      }
+    }
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    // ── Online/offline ──────────────────────────────────────
+    function handleOnline() {
+      retryCount = 0; // Reset backoff
+      disconnect();
+      connectPresence();
+    }
+    window.addEventListener('online', handleOnline);
+
+    // ── Start connection ────────────────────────────────────
+    connectPresence();
+
+    return () => {
+      stopped = true;
+      disconnect();
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('online', handleOnline);
+    };
+  });
 
   function toggleTodo(id: number) {
     todos = todos.map((t) => (t.id === id ? { ...t, done: !t.done, toggled: true } : t));
@@ -508,7 +707,7 @@ function MiniTodoApp() {
             <List.Item key={todo.id} className={app.todo}>
               <button
                 type="button"
-                role="checkbox"
+                role="checkbox" // oxlint-disable-line jsx-a11y/prefer-tag-over-role
                 aria-checked={todo.done ? 'true' : 'false'}
                 data-state={todo.done ? 'checked' : 'unchecked'}
                 data-toggled={todo.toggled ? '' : undefined}
@@ -560,6 +759,24 @@ function MiniTodoApp() {
       <div className={app.counter}>
         {todos.filter((t) => !t.done).length} remaining
       </div>
+
+      {peerCount > 1 && (
+        <div className={app.presenceBar}>
+          <span className={app.presenceDot} />
+          <span>{peerCount} developer{peerCount !== 1 ? 's' : ''} here now</span>
+          {peerCount > 3 && (
+            <button
+              type="button"
+              className={app.shareBtn}
+              onClick={() => {
+                navigator.clipboard.writeText('https://vertz.dev');
+              }}
+            >
+              Copy link
+            </button>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -666,6 +883,48 @@ function HeroCodeGroup() {
   );
 }
 
+function GitHubStars() {
+  let stars = '';
+
+  onMount(() => {
+    fetch('https://api.github.com/repos/vertz-dev/vertz')
+      .then((r) => r.json())
+      .then((data) => {
+        const count = data?.stargazers_count;
+        if (typeof count === 'number') {
+          stars = count >= 1000
+            ? `${(count / 1000).toFixed(1)}k`
+            : String(count);
+        }
+      })
+      .catch(() => {
+        // Silently fail — stars badge just won't show
+      });
+  });
+
+  return (
+    <span
+      style={{
+        display: stars ? 'inline-flex' : 'none',
+        alignItems: 'center',
+        gap: '0.25rem',
+        marginLeft: '0.5rem',
+        padding: '0.15rem 0.5rem',
+        fontSize: '0.7rem',
+        fontFamily: 'var(--font-mono)',
+        color: '#9C9690',
+        border: '1px solid #2A2826',
+        borderRadius: '4px',
+      }}
+    >
+      <svg width="12" height="12" viewBox="0 0 16 16" fill="#f59e0b" xmlns="http://www.w3.org/2000/svg">
+        <path d="M8 .25a.75.75 0 0 1 .673.418l1.882 3.815 4.21.612a.75.75 0 0 1 .416 1.279l-3.046 2.97.719 4.192a.75.75 0 0 1-1.088.791L8 12.347l-3.766 1.98a.75.75 0 0 1-1.088-.79l.72-4.194L.818 6.374a.75.75 0 0 1 .416-1.28l4.21-.611L7.327.668A.75.75 0 0 1 8 .25Z" />
+      </svg>
+      {stars}
+    </span>
+  );
+}
+
 export function Hero() {
   return (
     <section className={s.section}>
@@ -708,6 +967,7 @@ export function Hero() {
               style={{ fontFamily: 'var(--font-mono)' }}
             >
               View on GitHub →
+              <Island component={GitHubStars} />
             </a>
           </div>
         </div>

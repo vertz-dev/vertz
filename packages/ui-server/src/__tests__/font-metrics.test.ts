@@ -5,7 +5,7 @@ import { font } from '@vertz/ui';
 import { detectFallbackFont, extractFontMetrics } from '../font-metrics';
 
 // Use real font files from the landing site as test fixtures
-const FIXTURES_ROOT = join(import.meta.dir, '../../../../sites/landing');
+const FIXTURES_ROOT = join(import.meta.dir, '../../../../packages/landing');
 const DM_SANS_PATH = '/public/fonts/dm-sans-latin.woff2';
 const DM_SERIF_PATH = '/public/fonts/dm-serif-display-latin.woff2';
 const JB_MONO_PATH = '/public/fonts/jetbrains-mono-latin.woff2';

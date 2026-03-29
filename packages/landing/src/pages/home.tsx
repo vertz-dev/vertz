@@ -20,6 +20,8 @@ function HeroGlow() {
     <>
       <div style={{ position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', width: '700px', height: '500px', pointerEvents: 'none', background: 'radial-gradient(ellipse, rgba(200,69,27,0.06) 0%, transparent 70%)', filter: 'blur(60px)' }} />
       <div style={{ position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%, -60%)', width: '350px', height: '350px', pointerEvents: 'none', background: 'radial-gradient(ellipse, rgba(200,69,27,0.03) 0%, transparent 70%)', filter: 'blur(40px)' }} />
+      <div data-hero-flash style={{ position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', width: '900px', height: '600px', pointerEvents: 'none', background: 'radial-gradient(ellipse, rgba(200,69,27,0.55) 0%, transparent 70%)', filter: 'blur(50px)', opacity: '0', transition: 'opacity 0.8s ease-out' }} />
+      <div data-hero-flash-peer style={{ position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', width: '900px', height: '600px', pointerEvents: 'none', background: 'radial-gradient(ellipse, rgba(50,160,220,0.65) 0%, transparent 70%)', filter: 'blur(50px)', opacity: '0', transition: 'opacity 0.8s ease-out' }} />
     </>
   );
 }
@@ -31,7 +33,7 @@ export function HomePage() {
     <div>
       <Nav />
       <HeroGlow />
-      <main style={{ position: 'relative', overflowX: 'hidden' }}>
+      <main style={{ position: 'relative', zIndex: '2', overflowX: 'hidden' }}>
         <Hero />
         {SHOW_BENCHMARKS && <><Divider /><Benchmarks /></>}
         <Divider />

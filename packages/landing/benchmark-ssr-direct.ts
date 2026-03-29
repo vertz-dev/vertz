@@ -5,7 +5,7 @@
  * then benchmarks two-pass vs discovery vs zero-discovery directly.
  *
  * Run: bun --preload ./benchmark-plugin.ts run ./benchmark-ssr-direct.ts
- * (from sites/landing/)
+ * (from packages/landing/)
  */
 import { ssrRenderToString, ssrRenderSinglePass } from '@vertz/ui-server';
 import { installDomShim } from '@vertz/ui-server/dom-shim';
