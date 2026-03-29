@@ -186,8 +186,16 @@ pub async fn install(
         }
     }
 
-    // Write lockfile
-    let new_lockfile = resolver::graph_to_lockfile(&graph, &all_deps);
+    // Write lockfile (include workspace link: entries)
+    let ws_info: Vec<resolver::WorkspaceInfo> = workspaces
+        .iter()
+        .map(|ws| resolver::WorkspaceInfo {
+            name: ws.name.clone(),
+            version: ws.version.clone(),
+            path: ws.path.to_string_lossy().to_string(),
+        })
+        .collect();
+    let new_lockfile = resolver::graph_to_lockfile(&graph, &all_deps, &ws_info);
     lockfile::write_lockfile(&lockfile_path, &new_lockfile)?;
 
     let elapsed = start.elapsed();

@@ -293,8 +293,19 @@ pub fn hoist(graph: &mut ResolvedGraph) {
     }
 }
 
+/// Workspace info for lockfile generation
+pub struct WorkspaceInfo {
+    pub name: String,
+    pub version: String,
+    pub path: String,
+}
+
 /// Convert resolved graph to lockfile entries
-pub fn graph_to_lockfile(graph: &ResolvedGraph, all_deps: &BTreeMap<String, String>) -> Lockfile {
+pub fn graph_to_lockfile(
+    graph: &ResolvedGraph,
+    all_deps: &BTreeMap<String, String>,
+    workspaces: &[WorkspaceInfo],
+) -> Lockfile {
     let mut lockfile = Lockfile::default();
 
     for (name, range) in all_deps {
@@ -346,6 +357,22 @@ pub fn graph_to_lockfile(graph: &ResolvedGraph, all_deps: &BTreeMap<String, Stri
                 }
             }
         }
+    }
+
+    // Add workspace link entries
+    for ws in workspaces {
+        let key = format!("{}@link:{}", ws.name, ws.path);
+        lockfile.entries.insert(
+            key,
+            LockfileEntry {
+                name: ws.name.clone(),
+                range: format!("link:{}", ws.path),
+                version: ws.version.clone(),
+                resolved: format!("link:{}", ws.path),
+                integrity: String::new(),
+                dependencies: BTreeMap::new(),
+            },
+        );
     }
 
     lockfile
@@ -517,7 +544,7 @@ mod tests {
         let mut deps = BTreeMap::new();
         deps.insert("zod".to_string(), "^3.24.0".to_string());
 
-        let lockfile = graph_to_lockfile(&graph, &deps);
+        let lockfile = graph_to_lockfile(&graph, &deps, &[]);
         assert_eq!(lockfile.entries.len(), 1);
 
         let entry = &lockfile.entries["zod@^3.24.0"];
@@ -585,7 +612,7 @@ mod tests {
         let mut deps = BTreeMap::new();
         deps.insert("parent".to_string(), "^1.0.0".to_string());
 
-        let lockfile = graph_to_lockfile(&graph, &deps);
+        let lockfile = graph_to_lockfile(&graph, &deps, &[]);
 
         // The transitive lodash@^4.0.0 should match lodash@4.17.21, NOT lodash@3.10.1
         let lodash_entry = &lockfile.entries["lodash@^4.0.0"];
@@ -647,10 +674,76 @@ mod tests {
         let mut deps = BTreeMap::new();
         deps.insert("react".to_string(), "^18.3.0".to_string());
 
-        let lockfile = graph_to_lockfile(&graph, &deps);
+        let lockfile = graph_to_lockfile(&graph, &deps, &[]);
         // Should have react, loose-envify, and js-tokens
         assert!(lockfile.entries.contains_key("react@^18.3.0"));
         assert!(lockfile.entries.contains_key("loose-envify@^1.1.0"));
         assert!(lockfile.entries.contains_key("js-tokens@^3.0.0 || ^4.0.0"));
+    }
+
+    #[test]
+    fn test_graph_to_lockfile_includes_workspace_packages() {
+        let graph = ResolvedGraph::default();
+        let workspaces = vec![
+            WorkspaceInfo {
+                name: "@myorg/shared".to_string(),
+                version: "1.0.0".to_string(),
+                path: "packages/shared".to_string(),
+            },
+            WorkspaceInfo {
+                name: "@myorg/api".to_string(),
+                version: "2.3.0".to_string(),
+                path: "packages/api".to_string(),
+            },
+        ];
+        let deps = BTreeMap::new();
+        let lockfile = graph_to_lockfile(&graph, &deps, &workspaces);
+
+        assert_eq!(lockfile.entries.len(), 2);
+
+        let shared = &lockfile.entries["@myorg/shared@link:packages/shared"];
+        assert_eq!(shared.name, "@myorg/shared");
+        assert_eq!(shared.version, "1.0.0");
+        assert_eq!(shared.resolved, "link:packages/shared");
+        assert_eq!(shared.range, "link:packages/shared");
+        assert!(shared.integrity.is_empty());
+
+        let api = &lockfile.entries["@myorg/api@link:packages/api"];
+        assert_eq!(api.version, "2.3.0");
+    }
+
+    #[test]
+    fn test_graph_to_lockfile_workspace_mixed_with_registry_deps() {
+        let mut graph = ResolvedGraph::default();
+        graph.packages.insert(
+            "zod@3.24.4".to_string(),
+            ResolvedPackage {
+                name: "zod".to_string(),
+                version: "3.24.4".to_string(),
+                tarball_url: "https://registry.npmjs.org/zod/-/zod-3.24.4.tgz".to_string(),
+                integrity: "sha512-abc".to_string(),
+                dependencies: BTreeMap::new(),
+                bin: BTreeMap::new(),
+                nest_path: vec![],
+            },
+        );
+
+        let workspaces = vec![WorkspaceInfo {
+            name: "@myorg/shared".to_string(),
+            version: "1.0.0".to_string(),
+            path: "packages/shared".to_string(),
+        }];
+
+        let mut deps = BTreeMap::new();
+        deps.insert("zod".to_string(), "^3.24.0".to_string());
+
+        let lockfile = graph_to_lockfile(&graph, &deps, &workspaces);
+
+        // Both registry and workspace entries should exist
+        assert_eq!(lockfile.entries.len(), 2);
+        assert!(lockfile.entries.contains_key("zod@^3.24.0"));
+        assert!(lockfile
+            .entries
+            .contains_key("@myorg/shared@link:packages/shared"));
     }
 }
