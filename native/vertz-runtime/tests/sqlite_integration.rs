@@ -114,3 +114,34 @@ fn test_bun_sqlite_module_resolution() {
     assert!(result.is_ok(), "bun:sqlite should resolve");
     assert_eq!(result.unwrap().as_str(), "vertz:bun_sqlite");
 }
+
+/// Phase 3: @vertz/db integration patterns — queryFn bridge, transactions,
+/// introspection, stmt.get(), db.run() DDL
+#[tokio::test]
+async fn test_vertz_db_integration_patterns() {
+    let mut rt = create_runtime();
+    let entry = fixtures_dir().join("db-integration-test.js");
+    let specifier = deno_core::ModuleSpecifier::from_file_path(&entry).unwrap();
+
+    rt.load_main_module(&specifier).await.unwrap();
+
+    let output = rt.captured_output();
+    let expected_messages = [
+        "queryFn bridge test passed",
+        "transaction control test passed",
+        "introspect pattern test passed",
+        "stmt.get() pattern test passed",
+        "db.run() DDL pattern test passed",
+        "db-integration test passed",
+    ];
+
+    for msg in &expected_messages {
+        assert!(
+            output.stdout.iter().any(|s| s.contains(msg)),
+            "Missing '{}'. stdout: {:?}, stderr: {:?}",
+            msg,
+            output.stdout,
+            output.stderr
+        );
+    }
+}
