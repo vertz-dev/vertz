@@ -18,24 +18,30 @@ import {
   shouldCheckStaleBundler,
 } from '../bun-dev-server';
 
+// ── File-level server cleanup ──────────────────────────────────────────────
+// Every createBunDevServer() call in this file MUST go through trackServer()
+// so afterEach can stop all instances. Without this, fire-and-forget restart()
+// calls leave Bun.serve handles and debounce timers alive, which keeps the
+// bun process running indefinitely on Linux CI runners.
+const _allServers: ReturnType<typeof createBunDevServer>[] = [];
+
+function trackServer(opts?: Parameters<typeof createBunDevServer>[0]) {
+  const s = createBunDevServer({ entry: './src/app.tsx', ...opts });
+  _allServers.push(s);
+  return s;
+}
+
+afterEach(async () => {
+  for (const s of _allServers) {
+    await s.stop();
+  }
+  _allServers.length = 0;
+});
+// ───────────────────────────────────────────────────────────────────────────
+
 describe('createBunDevServer', () => {
-  // Track all servers created in tests so afterEach can stop them.
-  // Some tests trigger fire-and-forget restart() via broadcastError,
-  // which does real I/O (Bun.serve, dynamic import) that keeps the
-  // event loop alive on Linux CI runners if not properly cleaned up.
-  const servers: ReturnType<typeof createBunDevServer>[] = [];
-
-  afterEach(async () => {
-    for (const s of servers) {
-      await s.stop();
-    }
-    servers.length = 0;
-  });
-
   function makeServer(opts?: Parameters<typeof createBunDevServer>[0]) {
-    const s = createBunDevServer({ entry: './src/app.tsx', ...opts });
-    servers.push(s);
-    return s;
+    return trackServer(opts);
   }
 
   it('returns an object with start and stop methods', () => {
@@ -1330,22 +1336,8 @@ describe('generateSSRPageHtml editor variants', () => {
 });
 
 describe('broadcastError state machine', () => {
-  // Track servers created in each test so afterEach can stop them.
-  // Some tests trigger fire-and-forget restart() via stale-graph errors,
-  // which does real I/O (Bun.serve, dynamic import) that hangs on CI.
-  const servers: ReturnType<typeof createBunDevServer>[] = [];
-
-  afterEach(async () => {
-    for (const s of servers) {
-      await s.stop();
-    }
-    servers.length = 0;
-  });
-
   function makeServer(opts?: { logRequests?: boolean }) {
-    const s = createBunDevServer({ entry: './src/app.tsx', ...opts });
-    servers.push(s);
-    return s;
+    return trackServer(opts);
   }
 
   it('build errors block subsequent SSR errors', () => {
@@ -1538,7 +1530,7 @@ describe('broadcastError state machine', () => {
   it('setLastChangedFile updates internal state', () => {
     const logSpy = spyOn(console, 'log').mockImplementation(() => {});
     const errSpy = spyOn(console, 'error').mockImplementation(() => {});
-    const server = createBunDevServer({ entry: './src/app.tsx', logRequests: false });
+    const server = trackServer({ logRequests: false });
 
     // Should not throw
     server.setLastChangedFile('src/components/Button.tsx');
@@ -1550,7 +1542,7 @@ describe('broadcastError state machine', () => {
   it('stale-graph error triggers auto-restart log', async () => {
     const logSpy = spyOn(console, 'log').mockImplementation(() => {});
     const errSpy = spyOn(console, 'error').mockImplementation(() => {});
-    const server = createBunDevServer({ entry: './src/app.tsx', logRequests: true });
+    const server = trackServer({ logRequests: true });
 
     const staleError = [{ message: "Export named 'X' not found in module 'Y'" }];
 
@@ -1574,7 +1566,7 @@ describe('console.error override (resolution, HMR, and frontend errors)', () => 
   it('captures resolution errors and broadcasts them', () => {
     const logSpy = spyOn(console, 'log').mockImplementation(() => {});
     const errSpy = spyOn(console, 'error');
-    const server = createBunDevServer({ entry: './src/app.tsx', logRequests: false });
+    const server = trackServer({ logRequests: false });
 
     // Simulate Bun console.error with a resolution error
     console.error("Could not resolve './missing-module'");
@@ -1590,7 +1582,7 @@ describe('console.error override (resolution, HMR, and frontend errors)', () => 
   it('captures HMR runtime errors and broadcasts them', () => {
     const logSpy = spyOn(console, 'log').mockImplementation(() => {});
     // Don't mock console.error — let the override run
-    const server = createBunDevServer({ entry: './src/app.tsx', logRequests: false });
+    const server = trackServer({ logRequests: false });
 
     // Simulate Bun's HMR error output
     console.error(
@@ -1602,7 +1594,7 @@ describe('console.error override (resolution, HMR, and frontend errors)', () => 
 
   it('captures Bun frontend errors and broadcasts them', () => {
     const logSpy = spyOn(console, 'log').mockImplementation(() => {});
-    const server = createBunDevServer({ entry: './src/app.tsx', logRequests: false });
+    const server = trackServer({ logRequests: false });
 
     // Simulate Bun's ANSI-colored frontend error
     console.error('\x1b[31mfrontend\x1b[0m TypeError: Cannot read property of null');
@@ -1612,7 +1604,7 @@ describe('console.error override (resolution, HMR, and frontend errors)', () => 
 
   it('deduplicates repeated resolution errors', () => {
     const logSpy = spyOn(console, 'log').mockImplementation(() => {});
-    const server = createBunDevServer({ entry: './src/app.tsx', logRequests: false });
+    const server = trackServer({ logRequests: false });
 
     // Same error twice
     console.error("Could not resolve './missing-module'");
@@ -1624,7 +1616,7 @@ describe('console.error override (resolution, HMR, and frontend errors)', () => 
 
   it('ignores [Server] logs from internal code', () => {
     const logSpy = spyOn(console, 'log').mockImplementation(() => {});
-    const server = createBunDevServer({ entry: './src/app.tsx', logRequests: false });
+    const server = trackServer({ logRequests: false });
 
     // Server logs should not be captured as build errors
     console.error('[Server] Some internal message');
@@ -1634,7 +1626,7 @@ describe('console.error override (resolution, HMR, and frontend errors)', () => 
 
   it('captures "Module not found" as resolution error', () => {
     const logSpy = spyOn(console, 'log').mockImplementation(() => {});
-    const server = createBunDevServer({ entry: './src/app.tsx', logRequests: false });
+    const server = trackServer({ logRequests: false });
 
     console.error("Module not found: '@vertz/nonexistent'");
 
@@ -1643,7 +1635,7 @@ describe('console.error override (resolution, HMR, and frontend errors)', () => 
 
   it('captures "Cannot find module" as resolution error', () => {
     const logSpy = spyOn(console, 'log').mockImplementation(() => {});
-    const server = createBunDevServer({ entry: './src/app.tsx', logRequests: false });
+    const server = trackServer({ logRequests: false });
 
     console.error("Cannot find module './components/Missing'");
 
@@ -1652,7 +1644,7 @@ describe('console.error override (resolution, HMR, and frontend errors)', () => 
 
   it('uses lastChangedFile as fallback for HMR errors without stack source', () => {
     const logSpy = spyOn(console, 'log').mockImplementation(() => {});
-    const server = createBunDevServer({ entry: './src/app.tsx', logRequests: false });
+    const server = trackServer({ logRequests: false });
 
     // Set lastChangedFile before the error
     server.setLastChangedFile('src/components/Button.tsx');
@@ -1664,7 +1656,7 @@ describe('console.error override (resolution, HMR, and frontend errors)', () => 
 
   it('uses lastChangedFile as fallback for frontend errors without stack source', () => {
     const logSpy = spyOn(console, 'log').mockImplementation(() => {});
-    const server = createBunDevServer({ entry: './src/app.tsx', logRequests: false });
+    const server = trackServer({ logRequests: false });
 
     server.setLastChangedFile('src/pages/Home.tsx');
 
@@ -1683,8 +1675,7 @@ describe('OpenAPI spec handling', () => {
     const specPath = path.join(tmpDir, 'openapi.json');
     writeFileSync(specPath, JSON.stringify({ openapi: '3.0.0', info: { title: 'Test API' } }));
 
-    const server = createBunDevServer({
-      entry: './src/app.tsx',
+    const server = trackServer({
       projectRoot: tmpDir,
       openapi: { specPath },
     });
@@ -1825,7 +1816,7 @@ describe('broadcastError with resolve and ssr categories', () => {
   it('resolve errors are broadcast immediately without debounce', () => {
     const logSpy = spyOn(console, 'log').mockImplementation(() => {});
     const errSpy = spyOn(console, 'error').mockImplementation(() => {});
-    const server = createBunDevServer({ entry: './src/app.tsx', logRequests: false });
+    const server = trackServer({ logRequests: false });
 
     server.broadcastError('resolve', [{ message: "Could not resolve './missing'" }]);
 
@@ -1836,7 +1827,7 @@ describe('broadcastError with resolve and ssr categories', () => {
   it('ssr errors are broadcast immediately without debounce', () => {
     const logSpy = spyOn(console, 'log').mockImplementation(() => {});
     const errSpy = spyOn(console, 'error').mockImplementation(() => {});
-    const server = createBunDevServer({ entry: './src/app.tsx', logRequests: false });
+    const server = trackServer({ logRequests: false });
 
     server.broadcastError('ssr', [{ message: 'SSR render error', stack: 'Error: ...' }]);
 
@@ -1858,7 +1849,7 @@ describe('error recovery (#1849)', () => {
     const logSpy = spyOn(console, 'log').mockImplementation(() => {});
     const errSpy = spyOn(console, 'error').mockImplementation(() => {});
 
-    const server = createBunDevServer({ entry: './src/app.tsx', logRequests: true });
+    const server = trackServer({ logRequests: true });
 
     // Set a build error then clear it — clearError should reset timestamps
     server.broadcastError('build', [{ message: 'Build error' }]);
@@ -1868,7 +1859,7 @@ describe('error recovery (#1849)', () => {
 
     // Create a fresh server (isRestarting is false) and verify stale-graph
     // still triggers properly after the clear
-    const server2 = createBunDevServer({ entry: './src/app.tsx', logRequests: true });
+    const server2 = trackServer({ logRequests: true });
     server2.broadcastError('runtime', [{ message: "Export named 'X' not found in module './y'" }]);
 
     const staleMsg = logSpy.mock.calls.find(
@@ -1884,7 +1875,7 @@ describe('error recovery (#1849)', () => {
     const logSpy = spyOn(console, 'log').mockImplementation(() => {});
     const errSpy = spyOn(console, 'error').mockImplementation(() => {});
 
-    const server = createBunDevServer({ entry: './src/app.tsx', logRequests: true });
+    const server = trackServer({ logRequests: true });
 
     // Set a build error so clearErrorForFileChange is not a no-op
     server.broadcastError('build', [{ message: 'Some build error' }]);
@@ -1893,7 +1884,7 @@ describe('error recovery (#1849)', () => {
     logSpy.mockClear();
 
     // Fresh server — verify stale-graph still triggers after clearErrorForFileChange
-    const server2 = createBunDevServer({ entry: './src/app.tsx', logRequests: true });
+    const server2 = trackServer({ logRequests: true });
     server2.broadcastError('runtime', [{ message: "Export named 'X' not found in module './y'" }]);
 
     const staleMsg = logSpy.mock.calls.find(
@@ -1986,7 +1977,7 @@ describe('parsePluginError', () => {
     it('Then build error priority blocks the subsequent SSR error', () => {
       const logSpy = spyOn(console, 'log').mockImplementation(() => {});
       const errSpy = spyOn(console, 'error').mockImplementation(() => {});
-      const server = createBunDevServer({ entry: './src/app.tsx', logRequests: false });
+      const server = trackServer({ logRequests: false });
 
       // Simulate plugin error broadcast as build
       const parsed = parsePluginError(
