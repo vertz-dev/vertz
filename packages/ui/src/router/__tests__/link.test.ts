@@ -121,6 +121,37 @@ describe('Link component', () => {
     expect(el.textContent).toBe('Home');
   });
 
+  test('renders multiple Node children (icon + text pattern)', () => {
+    const currentPath = signal('/');
+    const navigate = vi.fn();
+    const Link = createLink(currentPath, navigate);
+
+    const icon = document.createElement('span');
+    icon.textContent = '🏠';
+    const text = document.createElement('span');
+    text.textContent = 'Home';
+
+    const el = Link({ children: () => [icon, text], href: '/' });
+
+    expect(el.tagName).toBe('A');
+    expect(el.querySelectorAll('span').length).toBe(2);
+    expect(el.textContent).toBe('🏠Home');
+  });
+
+  test('renders array of mixed string and Node children', () => {
+    const currentPath = signal('/');
+    const navigate = vi.fn();
+    const Link = createLink(currentPath, navigate);
+
+    const bold = document.createElement('strong');
+    bold.textContent = 'Store';
+
+    const el = Link({ children: () => [bold, 'front'], href: '/' });
+
+    expect(el.textContent).toBe('Storefront');
+    expect(el.querySelector('strong')).toBeTruthy();
+  });
+
   test('activeClass toggles reactively when currentPath changes', () => {
     const currentPath = signal('/');
     const navigate = vi.fn();
@@ -388,6 +419,18 @@ describe('Link (context-based)', () => {
   test('accepts thunked children', () => {
     const el = renderInRouter('/', () => Link({ children: () => 'About', href: '/about' }));
     expect(el.textContent).toBe('About');
+  });
+
+  test('renders multiple Node children', () => {
+    const icon = document.createElement('span');
+    icon.textContent = '📖';
+    const text = document.createElement('span');
+    text.textContent = 'About';
+
+    const el = renderInRouter('/', () => Link({ children: () => [icon, text], href: '/about' }));
+
+    expect(el.querySelectorAll('span').length).toBe(2);
+    expect(el.textContent).toBe('📖About');
   });
 
   test('blocks dangerous href schemes', () => {

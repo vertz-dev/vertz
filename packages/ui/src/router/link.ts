@@ -4,14 +4,15 @@
  * Creates `<a>` elements that intercept clicks for SPA navigation
  * and support active state styling.
  *
- * Uses __element/__on/__enterChildren/__exitChildren/__append/__staticText
+ * Uses __element/__on/__enterChildren/__exitChildren/__insert
  * so that during hydration it claims existing SSR anchor nodes instead
  * of creating new elements.
  */
 
+import type { ChildValue } from '../component/children';
 import { useContext } from '../component/context';
 import { __classList } from '../dom/attributes';
-import { __append, __element, __enterChildren, __exitChildren, __staticText } from '../dom/element';
+import { __element, __enterChildren, __exitChildren, __insert } from '../dom/element';
 import { __on } from '../dom/events';
 import { isBrowser } from '../env/is-browser';
 import type { ReadonlySignal } from '../runtime/signal-types';
@@ -45,8 +46,8 @@ function isSafeUrl(url: string): boolean {
 export interface LinkProps<T extends Record<string, RouteConfigLike> = RouteDefinitionMap> {
   /** The target URL path. */
   href: RoutePaths<T>;
-  /** Text or content for the link. Accepts string, Node, or a thunk returning either. */
-  children: string | Node | (() => string | Node);
+  /** Content for the link. Accepts string, Node, arrays, or thunks — same as JSX children. */
+  children: ChildValue;
   /** Class applied when the link's href matches the current path. */
   activeClass?: string;
   /** Static class name for the anchor element. */
@@ -110,19 +111,7 @@ export function createLink(
     __on(el, 'click', handleClick as EventListener);
 
     __enterChildren(el);
-    if (typeof children === 'function') {
-      // Compiler thunk may return a Text node (__staticText) or a raw string
-      const result = children();
-      if (typeof result === 'string') {
-        __append(el, __staticText(result));
-      } else {
-        __append(el, result as Node);
-      }
-    } else if (typeof children === 'string') {
-      __append(el, __staticText(children));
-    } else {
-      __append(el, children);
-    }
+    __insert(el, children);
     __exitChildren();
 
     // Reactive active state — re-evaluates whenever currentPath changes.
@@ -187,18 +176,7 @@ export function Link({
   __on(el, 'click', handleClick as EventListener);
 
   __enterChildren(el);
-  if (typeof children === 'function') {
-    const result = children();
-    if (typeof result === 'string') {
-      __append(el, __staticText(result));
-    } else {
-      __append(el, result as Node);
-    }
-  } else if (typeof children === 'string') {
-    __append(el, __staticText(children));
-  } else {
-    __append(el, children);
-  }
+  __insert(el, children);
   __exitChildren();
 
   if (activeClass) {
