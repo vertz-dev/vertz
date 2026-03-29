@@ -54,6 +54,8 @@ pub struct TestRunResult {
     pub file_errors: usize,
     /// Whether coverage is below the configured threshold.
     pub coverage_failed: bool,
+    /// Parsed coverage report (present when coverage is enabled).
+    pub coverage_report: Option<super::coverage::CoverageReport>,
 }
 
 impl TestRunResult {
@@ -89,6 +91,7 @@ pub fn run_tests(config: TestRunConfig) -> (TestRunResult, String) {
             total_files: 0,
             file_errors: 0,
             coverage_failed: false,
+            coverage_report: None,
         };
         return (result, output);
     }
@@ -122,8 +125,6 @@ pub fn run_tests(config: TestRunConfig) -> (TestRunResult, String) {
     let total_todo: usize = results.iter().map(|r| r.todo()).sum();
     let file_errors: usize = results.iter().filter(|r| r.file_error.is_some()).count();
 
-    let mut coverage_failed = false;
-
     let mut run_result = TestRunResult {
         total_files: results.len(),
         total_passed,
@@ -132,34 +133,29 @@ pub fn run_tests(config: TestRunConfig) -> (TestRunResult, String) {
         total_todo,
         file_errors,
         results,
-        coverage_failed,
+        coverage_failed: false,
+        coverage_report: None,
     };
 
-    // 4. Format output based on reporter
-    let mut output = match config.reporter {
-        ReporterFormat::Terminal => format_results(&run_result.results),
-        ReporterFormat::Json => format_json(&run_result),
-        ReporterFormat::Junit => format_junit(&run_result),
-    };
-
-    // 5. If coverage is enabled, collect and report coverage
+    // 4. If coverage is enabled, collect and build the report first
+    //    (so coverage_failed is set before formatting JSON/JUnit)
     if config.coverage {
         let mut all_coverage = Vec::new();
         for result in &run_result.results {
             if let Some(ref cov_json) = result.coverage_data {
                 let file_coverages = super::coverage::parse_v8_coverage(cov_json, &|_| None);
-                all_coverage.extend(file_coverages);
+                // Exclude test files from coverage report
+                let source_coverages = file_coverages.into_iter().filter(|fc| {
+                    let name = fc.file.to_string_lossy();
+                    !name.contains(".test.") && !name.contains(".spec.")
+                });
+                all_coverage.extend(source_coverages);
             }
         }
 
         let report = super::coverage::CoverageReport {
             files: all_coverage,
         };
-
-        output.push_str(&super::coverage::format_terminal(
-            &report,
-            config.coverage_threshold,
-        ));
 
         // Write LCOV file if there are any coverage results
         if !report.files.is_empty() {
@@ -169,8 +165,27 @@ pub fn run_tests(config: TestRunConfig) -> (TestRunResult, String) {
 
         // Fail the run if coverage is below threshold
         if !report.all_meet_threshold(config.coverage_threshold) {
-            coverage_failed = true;
-            run_result.coverage_failed = coverage_failed;
+            run_result.coverage_failed = true;
+        }
+
+        // Store the report for terminal output (after reporter formatting)
+        run_result.coverage_report = Some(report);
+    }
+
+    // 5. Format output based on reporter
+    let mut output = match config.reporter {
+        ReporterFormat::Terminal => format_results(&run_result.results),
+        ReporterFormat::Json => format_json(&run_result),
+        ReporterFormat::Junit => format_junit(&run_result),
+    };
+
+    // 6. Append terminal coverage report (only for terminal reporter)
+    if config.reporter == ReporterFormat::Terminal {
+        if let Some(ref report) = run_result.coverage_report {
+            output.push_str(&super::coverage::format_terminal(
+                report,
+                config.coverage_threshold,
+            ));
         }
     }
 

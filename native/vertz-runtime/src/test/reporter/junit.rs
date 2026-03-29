@@ -152,6 +152,7 @@ mod tests {
             total_files: 1,
             file_errors: 0,
             coverage_failed: false,
+            coverage_report: None,
         };
 
         let xml = format_junit(&run);
@@ -180,6 +181,7 @@ mod tests {
             total_files: 1,
             file_errors: 0,
             coverage_failed: false,
+            coverage_report: None,
         };
 
         let xml = format_junit(&run);
@@ -205,6 +207,7 @@ mod tests {
             total_files: 1,
             file_errors: 0,
             coverage_failed: false,
+            coverage_report: None,
         };
 
         let xml = format_junit(&run);
@@ -234,6 +237,7 @@ mod tests {
             total_files: 1,
             file_errors: 0,
             coverage_failed: false,
+            coverage_report: None,
         };
 
         let xml = format_junit(&run);
@@ -259,6 +263,7 @@ mod tests {
             total_files: 1,
             file_errors: 1,
             coverage_failed: false,
+            coverage_report: None,
         };
 
         let xml = format_junit(&run);

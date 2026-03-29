@@ -193,11 +193,13 @@ struct TypeDiagnostic {
 /// Parse tsc --pretty false output into diagnostics grouped by file.
 fn parse_type_check_output(stdout: &str, root_dir: &Path) -> HashMap<String, Vec<TypeDiagnostic>> {
     let mut by_file: HashMap<String, Vec<TypeDiagnostic>> = HashMap::new();
+    let mut last_file_key: Option<String> = None;
 
     for line in stdout.lines() {
         match parse_tsc_line(line) {
             TscParsed::Diagnostic(d) => {
                 let normalized = normalize_tsc_path(&d.file, root_dir);
+                last_file_key = Some(normalized.clone());
                 by_file
                     .entry(normalized.clone())
                     .or_default()
@@ -210,11 +212,13 @@ fn parse_type_check_output(stdout: &str, root_dir: &Path) -> HashMap<String, Vec
                     });
             }
             TscParsed::Continuation(text) => {
-                // Append to the last diagnostic of the last file
-                for (_, diags) in by_file.iter_mut() {
-                    if let Some(last) = diags.last_mut() {
-                        last.message.push('\n');
-                        last.message.push_str(&text);
+                // Append to the last diagnostic of the most recently seen file
+                if let Some(ref key) = last_file_key {
+                    if let Some(diags) = by_file.get_mut(key) {
+                        if let Some(last) = diags.last_mut() {
+                            last.message.push('\n');
+                            last.message.push_str(&text);
+                        }
                     }
                 }
             }
@@ -247,10 +251,11 @@ fn normalize_tsc_path(tsc_path: &str, root_dir: &Path) -> String {
 }
 
 fn truncate(s: &str, max: usize) -> String {
-    if s.len() <= max {
+    if s.chars().count() <= max {
         s.to_string()
     } else {
-        format!("{}...", &s[..max])
+        let end = s.char_indices().nth(max).map(|(i, _)| i).unwrap_or(s.len());
+        format!("{}...", &s[..end])
     }
 }
 
@@ -389,6 +394,35 @@ src/types.test-d.ts(10,1): error TS2345: Argument of type '{ name: string; }' is
         let result = truncate(&s, 10);
         assert_eq!(result.len(), 13); // 10 + "..."
         assert!(result.ends_with("..."));
+    }
+
+    #[test]
+    fn test_truncate_multibyte_utf8() {
+        // Each emoji is 4 bytes. "🔥🔥🔥" = 12 bytes, 3 chars.
+        let s = "🔥🔥🔥abc";
+        let result = truncate(s, 4);
+        // Should truncate at 4 chars (3 emoji + 'a'), not panic on byte boundary
+        assert_eq!(result, "🔥🔥🔥a...");
+    }
+
+    #[test]
+    fn test_continuation_only_appends_to_last_file() {
+        let stdout = "\
+src/a.test-d.ts(1,1): error TS2322: Type error in a.
+src/b.test-d.ts(5,1): error TS2345: Type error in b.
+  Extra detail for b only.
+";
+        let root = Path::new("/project");
+        let result = parse_type_check_output(stdout, root);
+
+        // Continuation should only append to b (the last file), not a
+        let a_diags = result.get("src/a.test-d.ts").unwrap();
+        assert_eq!(a_diags.len(), 1);
+        assert!(!a_diags[0].message.contains("Extra detail"));
+
+        let b_diags = result.get("src/b.test-d.ts").unwrap();
+        assert_eq!(b_diags.len(), 1);
+        assert!(b_diags[0].message.contains("Extra detail for b only"));
     }
 
     #[test]

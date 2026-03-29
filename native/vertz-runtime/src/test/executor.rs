@@ -273,6 +273,8 @@ fn execute_test_file_inner(
 /// The V8 inspector only processes messages when the event loop is polled.
 /// We manually poll both the message future and the event loop in a tight loop
 /// so that the inspector processes the CDP message and returns the response.
+///
+/// Times out after 10 seconds to avoid spinning forever if the inspector is unresponsive.
 fn inspector_post_message_sync<T: serde::Serialize>(
     session: &mut LocalInspectorSession,
     runtime: &mut VertzJsRuntime,
@@ -284,8 +286,16 @@ fn inspector_post_message_sync<T: serde::Serialize>(
 
     let waker = noop_waker();
     let mut cx = std::task::Context::from_waker(&waker);
+    let deadline = Instant::now() + std::time::Duration::from_secs(10);
 
     loop {
+        if Instant::now() > deadline {
+            return Err(deno_core::anyhow::anyhow!(
+                "Inspector CDP message '{}' timed out after 10s",
+                method
+            ));
+        }
+
         // Poll the event loop to drive the inspector (process CDP messages)
         let _ = runtime
             .inner_mut()

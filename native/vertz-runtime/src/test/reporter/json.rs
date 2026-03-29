@@ -97,6 +97,7 @@ mod tests {
             total_files: 1,
             file_errors: 0,
             coverage_failed: false,
+            coverage_report: None,
         };
 
         let json = format_json(&run);
@@ -123,6 +124,7 @@ mod tests {
             total_files: 1,
             file_errors: 0,
             coverage_failed: false,
+            coverage_report: None,
         };
 
         let json = format_json(&run);
@@ -144,6 +146,7 @@ mod tests {
             total_files: 0,
             file_errors: 0,
             coverage_failed: false,
+            coverage_report: None,
         };
 
         let json = format_json(&run);

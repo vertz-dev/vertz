@@ -77,6 +77,9 @@ pub fn is_test_file(path: &Path) -> bool {
 /// 4. Clear screen and show results between runs.
 pub async fn run_watch_mode(config: TestRunConfig) -> Result<(), String> {
     let root_dir = config.root_dir.clone();
+    let paths = config.paths.clone();
+    let include = config.include.clone();
+    let exclude = config.exclude.clone();
     let exec_options = Arc::new(ExecuteOptions {
         filter: config.filter.clone(),
         timeout_ms: config.timeout_ms,
@@ -84,12 +87,7 @@ pub async fn run_watch_mode(config: TestRunConfig) -> Result<(), String> {
     });
 
     // Initial run
-    let all_test_files = discover_test_files(
-        &config.root_dir,
-        &config.paths,
-        &config.include,
-        &config.exclude,
-    );
+    let all_test_files = discover_test_files(&config.root_dir, &paths, &include, &exclude);
 
     if all_test_files.is_empty() {
         eprintln!("\nNo test files found.\n");
@@ -138,9 +136,9 @@ pub async fn run_watch_mode(config: TestRunConfig) -> Result<(), String> {
                     // Re-discover test files (new files may have been added)
                     let current_test_files = discover_test_files(
                         &root_dir,
-                        &[],
-                        &[],
-                        &[],
+                        &paths,
+                        &include,
+                        &exclude,
                     );
 
                     let files_to_run = affected_test_files(&changes, &current_test_files, &graph);
@@ -172,6 +170,7 @@ pub async fn run_watch_mode(config: TestRunConfig) -> Result<(), String> {
                         file_errors,
                         results,
                         coverage_failed: false,
+                        coverage_report: None,
                     };
 
                     clear_screen();
