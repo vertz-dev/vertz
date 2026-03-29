@@ -648,6 +648,14 @@ mod tests {
         assert!(!debouncer.has_pending());
         assert!(!debouncer.is_ready());
         assert_eq!(debouncer.pending_count(), 0);
+
+        // Verify reuse after cancel works
+        debouncer.add(FileChange {
+            kind: FileChangeKind::Create,
+            path: PathBuf::from("/src/NewFile.tsx"),
+        });
+        assert!(debouncer.has_pending());
+        assert_eq!(debouncer.pending_count(), 1);
     }
 
     #[test]
