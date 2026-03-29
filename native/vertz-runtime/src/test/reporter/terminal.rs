@@ -10,7 +10,7 @@ pub fn format_results(results: &[TestFileResult]) -> String {
         output.push_str(&format!("\n {} ", short_path));
 
         if let Some(ref err) = file_result.file_error {
-            output.push_str(&format!("FAIL (load error)\n"));
+            output.push_str("FAIL (load error)\n");
             output.push_str(&format!("  Error: {}\n", first_line(err)));
             continue;
         }
