@@ -12,13 +12,17 @@ use deno_core::PollEventLoopOptions;
 use deno_core::RuntimeOptions;
 
 use super::module_loader::VertzModuleLoader;
+use super::ops::clone;
 use super::ops::console;
 use super::ops::crypto;
+use super::ops::encoding;
 use super::ops::env;
 use super::ops::fetch;
+use super::ops::microtask;
 use super::ops::path;
 use super::ops::performance;
 use super::ops::timers;
+use super::ops::url;
 
 /// Captured output from console operations, used for testing.
 #[derive(Debug, Clone, Default)]
@@ -52,13 +56,16 @@ impl VertzJsRuntime {
 
         // Collect all op declarations
         let mut all_ops = Vec::new();
+        all_ops.extend(clone::op_decls());
         all_ops.extend(console::op_decls());
         all_ops.extend(timers::op_decls());
         all_ops.extend(crypto::op_decls());
+        all_ops.extend(encoding::op_decls());
         all_ops.extend(env::op_decls());
         all_ops.extend(performance::op_decls());
         all_ops.extend(path::op_decls());
         all_ops.extend(fetch::op_decls());
+        all_ops.extend(url::op_decls());
 
         let capture = options.capture_output;
         let captured_clone = Arc::clone(&captured_output);
@@ -92,6 +99,9 @@ impl VertzJsRuntime {
             ..Default::default()
         });
 
+        // Register V8 native functions (before bootstrap JS)
+        clone::register_structured_clone(&mut runtime);
+
         // Bootstrap all JS globals
         runtime.execute_script(
             "[vertz:bootstrap]",
@@ -107,13 +117,17 @@ impl VertzJsRuntime {
     /// Concatenate all bootstrap JS into a single string.
     fn bootstrap_js() -> String {
         [
+            clone::CLONE_BOOTSTRAP_JS,
             console::CONSOLE_BOOTSTRAP_JS,
             timers::TIMERS_BOOTSTRAP_JS,
             crypto::CRYPTO_BOOTSTRAP_JS,
+            encoding::ENCODING_BOOTSTRAP_JS,
             env::ENV_BOOTSTRAP_JS,
             performance::PERFORMANCE_BOOTSTRAP_JS,
             path::PATH_BOOTSTRAP_JS,
             fetch::FETCH_BOOTSTRAP_JS,
+            microtask::MICROTASK_BOOTSTRAP_JS,
+            url::URL_BOOTSTRAP_JS,
         ]
         .join("\n")
     }

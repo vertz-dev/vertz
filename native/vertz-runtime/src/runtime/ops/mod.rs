@@ -1,7 +1,11 @@
+pub mod clone;
 pub mod console;
 pub mod crypto;
+pub mod encoding;
 pub mod env;
 pub mod fetch;
+pub mod microtask;
 pub mod path;
 pub mod performance;
 pub mod timers;
+pub mod url;

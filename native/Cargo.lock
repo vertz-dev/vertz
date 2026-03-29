@@ -3458,6 +3458,7 @@ version = "0.1.0"
 dependencies = [
  "async-recursion",
  "axum",
+ "base64",
  "clap",
  "crossbeam-channel",
  "deno_core",
@@ -3479,6 +3480,7 @@ dependencies = [
  "tokio-tungstenite",
  "tower",
  "tower-http",
+ "url",
  "uuid",
  "vertz-compiler-core",
  "walkdir",
