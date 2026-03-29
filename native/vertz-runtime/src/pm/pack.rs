@@ -124,7 +124,7 @@ pub fn pack_tarball(
     let sha512_hash = sha512.finalize();
     let integrity = format!(
         "sha512-{}",
-        base64::engine::general_purpose::STANDARD.encode(&sha512_hash)
+        base64::engine::general_purpose::STANDARD.encode(sha512_hash)
     );
 
     // Calculate SHA-1 shasum using ring
@@ -216,7 +216,7 @@ fn normalize_path_separators(path: &str) -> String {
 
 /// Check if a filename matches any of the always-excluded names
 fn is_always_excluded(name: &str) -> bool {
-    ALWAYS_EXCLUDE.iter().any(|&ex| name == ex)
+    ALWAYS_EXCLUDE.contains(&name)
 }
 
 /// Check if a relative path matches any of the given glob patterns.
@@ -493,7 +493,7 @@ mod tests {
         hasher.update(&result.tarball);
         let expected = format!(
             "sha512-{}",
-            base64::engine::general_purpose::STANDARD.encode(&hasher.finalize())
+            base64::engine::general_purpose::STANDARD.encode(hasher.finalize())
         );
         assert_eq!(result.integrity, expected);
     }

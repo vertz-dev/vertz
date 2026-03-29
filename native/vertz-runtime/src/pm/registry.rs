@@ -346,23 +346,28 @@ pub struct PublishAttachment {
     pub length: u64,
 }
 
+/// Parameters for building a publish document
+pub struct PublishParams<'a> {
+    pub name: &'a str,
+    pub version: &'a str,
+    pub tag: &'a str,
+    pub access: Option<&'a str>,
+    pub tarball_base64: &'a str,
+    pub tarball_length: u64,
+    pub integrity: &'a str,
+    pub shasum: &'a str,
+    pub normalized_pkg: &'a serde_json::Value,
+    pub registry_url: &'a str,
+}
+
 /// Build a PublishDocument from pack result and package metadata.
-pub fn build_publish_document(
-    name: &str,
-    version: &str,
-    tag: &str,
-    access: Option<&str>,
-    tarball_base64: &str,
-    tarball_length: u64,
-    integrity: &str,
-    shasum: &str,
-    normalized_pkg: &serde_json::Value,
-    registry_url: &str,
-) -> PublishDocument {
+pub fn build_publish_document(params: &PublishParams<'_>) -> PublishDocument {
+    let name = params.name;
+    let version = params.version;
     let tarball_name = format!("{}-{}.tgz", name, version);
 
     // Build version metadata: the normalized package.json + dist info
-    let mut version_meta = normalized_pkg.clone();
+    let mut version_meta = params.normalized_pkg.clone();
     if let Some(obj) = version_meta.as_object_mut() {
         obj.insert(
             "_id".to_string(),
@@ -376,17 +381,19 @@ pub fn build_publish_document(
         } else {
             name.to_string()
         };
+        let registry_base = params.registry_url.trim_end_matches('/');
         let tarball_url = format!(
-            "{}/-/{}-{}.tgz",
-            format!("{}/{}", registry_url.trim_end_matches('/'), encoded_name),
+            "{}/{}/-/{}-{}.tgz",
+            registry_base,
+            encoded_name,
             name.rsplit('/').next().unwrap_or(name),
             version
         );
         obj.insert(
             "dist".to_string(),
             serde_json::json!({
-                "integrity": integrity,
-                "shasum": shasum,
+                "integrity": params.integrity,
+                "shasum": params.shasum,
                 "tarball": tarball_url
             }),
         );
@@ -396,15 +403,15 @@ pub fn build_publish_document(
     versions.insert(version.to_string(), version_meta);
 
     let mut dist_tags = BTreeMap::new();
-    dist_tags.insert(tag.to_string(), version.to_string());
+    dist_tags.insert(params.tag.to_string(), version.to_string());
 
     let mut attachments = BTreeMap::new();
     attachments.insert(
         tarball_name,
         PublishAttachment {
             content_type: "application/octet-stream".to_string(),
-            data: tarball_base64.to_string(),
-            length: tarball_length,
+            data: params.tarball_base64.to_string(),
+            length: params.tarball_length,
         },
     );
 
@@ -413,7 +420,7 @@ pub fn build_publish_document(
         name: name.to_string(),
         versions,
         dist_tags,
-        access: access.map(|a| a.to_string()),
+        access: params.access.map(|a| a.to_string()),
         _attachments: attachments,
     }
 }
@@ -518,6 +525,27 @@ mod tests {
 
     // ─── publish document building ───
 
+    fn test_params<'a>(
+        name: &'a str,
+        version: &'a str,
+        tag: &'a str,
+        access: Option<&'a str>,
+        pkg_json: &'a serde_json::Value,
+    ) -> PublishParams<'a> {
+        PublishParams {
+            name,
+            version,
+            tag,
+            access,
+            tarball_base64: "dGVzdA==",
+            tarball_length: 4,
+            integrity: "sha512-abc123",
+            shasum: "deadbeef",
+            normalized_pkg: pkg_json,
+            registry_url: "https://registry.npmjs.org",
+        }
+    }
+
     #[test]
     fn test_build_publish_document_structure() {
         let pkg_json = serde_json::json!({
@@ -525,18 +553,8 @@ mod tests {
             "version": "1.0.0"
         });
 
-        let doc = build_publish_document(
-            "test-pkg",
-            "1.0.0",
-            "latest",
-            None,
-            "dGVzdA==",
-            4,
-            "sha512-abc123",
-            "deadbeef",
-            &pkg_json,
-            "https://registry.npmjs.org",
-        );
+        let doc =
+            build_publish_document(&test_params("test-pkg", "1.0.0", "latest", None, &pkg_json));
 
         assert_eq!(doc._id, "test-pkg");
         assert_eq!(doc.name, "test-pkg");
@@ -546,18 +564,8 @@ mod tests {
     #[test]
     fn test_build_publish_document_dist_tags() {
         let pkg_json = serde_json::json!({"name": "test-pkg", "version": "1.0.0"});
-        let doc = build_publish_document(
-            "test-pkg",
-            "1.0.0",
-            "beta",
-            None,
-            "dGVzdA==",
-            4,
-            "sha512-abc",
-            "dead",
-            &pkg_json,
-            "https://registry.npmjs.org",
-        );
+        let doc =
+            build_publish_document(&test_params("test-pkg", "1.0.0", "beta", None, &pkg_json));
 
         assert_eq!(doc.dist_tags["beta"], "1.0.0");
     }
@@ -565,18 +573,8 @@ mod tests {
     #[test]
     fn test_build_publish_document_includes_base64_tarball_in_attachments() {
         let pkg_json = serde_json::json!({"name": "test-pkg", "version": "1.0.0"});
-        let doc = build_publish_document(
-            "test-pkg",
-            "1.0.0",
-            "latest",
-            None,
-            "dGVzdA==",
-            4,
-            "sha512-abc",
-            "dead",
-            &pkg_json,
-            "https://registry.npmjs.org",
-        );
+        let doc =
+            build_publish_document(&test_params("test-pkg", "1.0.0", "latest", None, &pkg_json));
 
         let attachment = &doc._attachments["test-pkg-1.0.0.tgz"];
         assert_eq!(attachment.data, "dGVzdA==");
@@ -587,18 +585,13 @@ mod tests {
     #[test]
     fn test_build_publish_document_includes_authorization_header() {
         let pkg_json = serde_json::json!({"name": "test-pkg", "version": "1.0.0"});
-        let doc = build_publish_document(
+        let doc = build_publish_document(&test_params(
             "test-pkg",
             "1.0.0",
             "latest",
             Some("public"),
-            "dGVzdA==",
-            4,
-            "sha512-abc",
-            "dead",
             &pkg_json,
-            "https://registry.npmjs.org",
-        );
+        ));
 
         assert_eq!(doc.access, Some("public".to_string()));
     }
@@ -606,41 +599,26 @@ mod tests {
     #[test]
     fn test_build_publish_document_version_metadata_has_dist() {
         let pkg_json = serde_json::json!({"name": "test-pkg", "version": "1.0.0"});
-        let doc = build_publish_document(
-            "test-pkg",
-            "1.0.0",
-            "latest",
-            None,
-            "dGVzdA==",
-            4,
-            "sha512-abc123",
-            "deadbeef01",
-            &pkg_json,
-            "https://registry.npmjs.org",
-        );
+        let doc =
+            build_publish_document(&test_params("test-pkg", "1.0.0", "latest", None, &pkg_json));
 
         let version_meta = &doc.versions["1.0.0"];
         let dist = version_meta.get("dist").unwrap();
         assert_eq!(dist["integrity"], "sha512-abc123");
-        assert_eq!(dist["shasum"], "deadbeef01");
+        assert_eq!(dist["shasum"], "deadbeef");
         assert!(dist["tarball"].as_str().unwrap().contains("test-pkg"));
     }
 
     #[test]
     fn test_build_publish_document_scoped_package() {
         let pkg_json = serde_json::json!({"name": "@myorg/test-pkg", "version": "2.0.0"});
-        let doc = build_publish_document(
+        let doc = build_publish_document(&test_params(
             "@myorg/test-pkg",
             "2.0.0",
             "latest",
             Some("public"),
-            "dGVzdA==",
-            4,
-            "sha512-abc",
-            "dead",
             &pkg_json,
-            "https://registry.npmjs.org",
-        );
+        ));
 
         assert_eq!(doc.name, "@myorg/test-pkg");
         assert_eq!(doc._id, "@myorg/test-pkg");
@@ -651,18 +629,8 @@ mod tests {
     #[test]
     fn test_publish_document_serializes_to_json() {
         let pkg_json = serde_json::json!({"name": "test-pkg", "version": "1.0.0"});
-        let doc = build_publish_document(
-            "test-pkg",
-            "1.0.0",
-            "latest",
-            None,
-            "dGVzdA==",
-            4,
-            "sha512-abc",
-            "dead",
-            &pkg_json,
-            "https://registry.npmjs.org",
-        );
+        let doc =
+            build_publish_document(&test_params("test-pkg", "1.0.0", "latest", None, &pkg_json));
 
         let json = serde_json::to_string(&doc).unwrap();
         let parsed: serde_json::Value = serde_json::from_str(&json).unwrap();

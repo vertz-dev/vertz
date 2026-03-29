@@ -1762,18 +1762,18 @@ pub async fn publish(
         &pack_result.tarball,
     );
 
-    let document = registry::build_publish_document(
-        &name,
-        &version,
+    let document = registry::build_publish_document(&registry::PublishParams {
+        name: &name,
+        version: &version,
         tag,
         access,
-        &tarball_base64,
-        pack_result.packed_size,
-        &pack_result.integrity,
-        &pack_result.shasum,
-        &normalized,
-        &registry_url,
-    );
+        tarball_base64: &tarball_base64,
+        tarball_length: pack_result.packed_size,
+        integrity: &pack_result.integrity,
+        shasum: &pack_result.shasum,
+        normalized_pkg: &normalized,
+        registry_url: &registry_url,
+    });
 
     // 7. Upload
     output.publish_uploading(&name, &version, tag);
