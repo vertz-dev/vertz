@@ -11,6 +11,7 @@
 use std::sync::Arc;
 use tempfile::TempDir;
 use vertz_runtime::pm::output::{PmOutput, TextOutput};
+use vertz_runtime::pm::vertzrc::ScriptPolicy;
 
 /// Helper: create a temp project with a minimal package.json
 fn create_project(extra_fields: &str) -> TempDir {
@@ -58,7 +59,7 @@ async fn test_add_creates_package_json_entry_lockfile_and_node_modules() {
         false,
         false,
         false,
-        false,
+        ScriptPolicy::IgnoreAll,
         None,
         test_output(),
     )
@@ -103,7 +104,7 @@ async fn test_add_dev_dependency() {
         true,
         false,
         false,
-        false,
+        ScriptPolicy::IgnoreAll,
         None,
         test_output(),
     )
@@ -136,7 +137,7 @@ async fn test_add_exact_version() {
         false,
         false,
         true,
-        false,
+        ScriptPolicy::IgnoreAll,
         None,
         test_output(),
     )
@@ -168,7 +169,7 @@ async fn test_add_with_explicit_range_preserved() {
         false,
         false,
         false,
-        false,
+        ScriptPolicy::IgnoreAll,
         None,
         test_output(),
     )
@@ -190,7 +191,7 @@ async fn test_add_multiple_packages_batch() {
         false,
         false,
         false,
-        false,
+        ScriptPolicy::IgnoreAll,
         None,
         test_output(),
     )
@@ -221,7 +222,7 @@ async fn test_install_from_lockfile() {
         false,
         false,
         false,
-        false,
+        ScriptPolicy::IgnoreAll,
         None,
         test_output(),
     )
@@ -232,9 +233,15 @@ async fn test_install_from_lockfile() {
     std::fs::remove_dir_all(dir.path().join("node_modules")).unwrap();
 
     // Install from lockfile
-    vertz_runtime::pm::install(dir.path(), false, false, false, test_output())
-        .await
-        .unwrap();
+    vertz_runtime::pm::install(
+        dir.path(),
+        false,
+        vertz_runtime::pm::vertzrc::ScriptPolicy::IgnoreAll,
+        false,
+        test_output(),
+    )
+    .await
+    .unwrap();
 
     // node_modules should be repopulated
     assert!(
@@ -250,7 +257,14 @@ async fn test_install_frozen_fails_when_stale() {
     let dir = create_project(r#""dependencies": {"is-number": "^7.0.0"}"#);
 
     // No lockfile — frozen should fail
-    let result = vertz_runtime::pm::install(dir.path(), true, false, false, test_output()).await;
+    let result = vertz_runtime::pm::install(
+        dir.path(),
+        true,
+        vertz_runtime::pm::vertzrc::ScriptPolicy::IgnoreAll,
+        false,
+        test_output(),
+    )
+    .await;
     assert!(
         result.is_err(),
         "Frozen install should fail without lockfile"
@@ -274,7 +288,7 @@ async fn test_install_frozen_succeeds_with_valid_lockfile() {
         false,
         false,
         false,
-        false,
+        ScriptPolicy::IgnoreAll,
         None,
         test_output(),
     )
@@ -285,9 +299,15 @@ async fn test_install_frozen_succeeds_with_valid_lockfile() {
     std::fs::remove_dir_all(dir.path().join("node_modules")).unwrap();
 
     // Frozen install should succeed
-    vertz_runtime::pm::install(dir.path(), true, false, false, test_output())
-        .await
-        .unwrap();
+    vertz_runtime::pm::install(
+        dir.path(),
+        true,
+        vertz_runtime::pm::vertzrc::ScriptPolicy::IgnoreAll,
+        false,
+        test_output(),
+    )
+    .await
+    .unwrap();
 
     assert!(dir
         .path()
@@ -306,7 +326,7 @@ async fn test_remove_cleans_package_json_and_node_modules() {
         false,
         false,
         false,
-        false,
+        ScriptPolicy::IgnoreAll,
         None,
         test_output(),
     )
@@ -377,7 +397,7 @@ async fn test_package_json_field_preservation_through_lifecycle() {
         false,
         false,
         false,
-        false,
+        ScriptPolicy::IgnoreAll,
         None,
         test_output(),
     )
@@ -417,7 +437,7 @@ async fn test_lockfile_updated_after_remove() {
         false,
         false,
         false,
-        false,
+        ScriptPolicy::IgnoreAll,
         None,
         test_output(),
     )

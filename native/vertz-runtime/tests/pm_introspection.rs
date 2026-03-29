@@ -10,6 +10,7 @@
 use std::sync::Arc;
 use tempfile::TempDir;
 use vertz_runtime::pm::output::{PmOutput, TextOutput};
+use vertz_runtime::pm::vertzrc::ScriptPolicy;
 use vertz_runtime::pm::{self, ListOptions};
 
 /// Helper: create a temp project with a minimal package.json
@@ -54,7 +55,7 @@ async fn test_list_direct_deps_after_add() {
         false,
         false,
         false,
-        false,
+        ScriptPolicy::IgnoreAll,
         None,
         test_output(),
     )
@@ -92,7 +93,7 @@ async fn test_list_with_package_filter() {
         false,
         false,
         false,
-        false,
+        ScriptPolicy::IgnoreAll,
         None,
         test_output(),
     )
@@ -126,7 +127,7 @@ async fn test_list_all_shows_transitive_deps() {
         false,
         false,
         false,
-        false,
+        ScriptPolicy::IgnoreAll,
         None,
         test_output(),
     )
@@ -164,7 +165,7 @@ async fn test_list_text_format() {
         false,
         false,
         false,
-        false,
+        ScriptPolicy::IgnoreAll,
         None,
         test_output(),
     )
@@ -196,7 +197,7 @@ async fn test_list_json_format() {
         false,
         false,
         false,
-        false,
+        ScriptPolicy::IgnoreAll,
         None,
         test_output(),
     )
@@ -262,7 +263,7 @@ async fn test_why_direct_dependency() {
         false,
         false,
         false,
-        false,
+        ScriptPolicy::IgnoreAll,
         None,
         test_output(),
     )
@@ -294,7 +295,7 @@ async fn test_why_transitive_dependency() {
         false,
         false,
         false,
-        false,
+        ScriptPolicy::IgnoreAll,
         None,
         test_output(),
     )
@@ -334,7 +335,7 @@ async fn test_why_json_format() {
         false,
         false,
         false,
-        false,
+        ScriptPolicy::IgnoreAll,
         None,
         test_output(),
     )
@@ -362,7 +363,7 @@ async fn test_outdated_with_installed_package() {
         false,
         false,
         false,
-        false,
+        ScriptPolicy::IgnoreAll,
         None,
         test_output(),
     )
@@ -409,7 +410,7 @@ async fn test_outdated_json_format() {
         false,
         false,
         false,
-        false,
+        ScriptPolicy::IgnoreAll,
         None,
         test_output(),
     )
@@ -441,7 +442,7 @@ async fn test_outdated_text_format() {
         false,
         false,
         false,
-        false,
+        ScriptPolicy::IgnoreAll,
         None,
         test_output(),
     )
@@ -469,7 +470,7 @@ async fn test_outdated_dev_dependency() {
         true,
         false,
         false,
-        false,
+        ScriptPolicy::IgnoreAll,
         None,
         test_output(),
     )

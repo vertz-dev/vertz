@@ -9,6 +9,7 @@ pub mod resolver;
 pub mod scripts;
 pub mod tarball;
 pub mod types;
+pub mod vertzrc;
 pub mod workspace;
 
 use futures_util::stream::{self, StreamExt};
@@ -42,7 +43,7 @@ pub struct ListEntry {
 pub async fn install(
     root_dir: &Path,
     frozen: bool,
-    ignore_scripts: bool,
+    script_policy: vertzrc::ScriptPolicy,
     force: bool,
     output: Arc<dyn PmOutput>,
 ) -> Result<(), Box<dyn std::error::Error>> {
@@ -177,12 +178,50 @@ pub async fn install(
     let bin_count = bin::generate_bin_stubs(root_dir, &graph)?;
     output.bin_stubs_created(bin_count);
 
-    // Run postinstall scripts (unless --ignore-scripts)
-    if !ignore_scripts {
-        let postinstall_pkgs = scripts::packages_with_postinstall(&graph, &graph.scripts);
-        if !postinstall_pkgs.is_empty() {
-            scripts::run_postinstall_scripts(root_dir, &postinstall_pkgs, Arc::clone(&output))
-                .await;
+    // Run postinstall scripts based on policy
+    match script_policy {
+        vertzrc::ScriptPolicy::IgnoreAll => {
+            // --ignore-scripts: skip all
+        }
+        vertzrc::ScriptPolicy::RunAll => {
+            // --run-scripts: run all regardless of trust
+            output.warning("--run-scripts bypasses trust list — all postinstall scripts will run");
+            let postinstall_pkgs = scripts::packages_with_postinstall(&graph, &graph.scripts);
+            if !postinstall_pkgs.is_empty() {
+                scripts::run_postinstall_scripts(root_dir, &postinstall_pkgs, Arc::clone(&output))
+                    .await;
+            }
+        }
+        vertzrc::ScriptPolicy::TrustBased => {
+            let postinstall_pkgs = scripts::packages_with_postinstall(&graph, &graph.scripts);
+            if !postinstall_pkgs.is_empty() {
+                let vertzrc_config = vertzrc::load_vertzrc(root_dir)?;
+                let (trusted, untrusted): (Vec<_>, Vec<_>) =
+                    postinstall_pkgs.into_iter().partition(|(name, _, _)| {
+                        vertzrc::match_trust_pattern(name, &vertzrc_config.trust_scripts)
+                    });
+
+                // Run trusted scripts
+                if !trusted.is_empty() {
+                    scripts::run_postinstall_scripts(root_dir, &trusted, Arc::clone(&output)).await;
+                }
+
+                // Warn about untrusted scripts (non-interactive mode for now)
+                if !untrusted.is_empty() {
+                    for (name, _version, script) in &untrusted {
+                        output.warning(&format!(
+                            "skipping untrusted postinstall for \"{}\" ({})",
+                            name, script
+                        ));
+                    }
+                    let skipped_names: Vec<&str> =
+                        untrusted.iter().map(|(name, _, _)| name.as_str()).collect();
+                    output.warning(&format!(
+                        "fix: vertz config add trust-scripts {}",
+                        skipped_names.join(" ")
+                    ));
+                }
+            }
         }
     }
 
@@ -212,7 +251,7 @@ pub async fn add(
     dev: bool,
     peer: bool,
     exact: bool,
-    ignore_scripts: bool,
+    script_policy: vertzrc::ScriptPolicy,
     workspace_target: Option<&str>,
     output: Arc<dyn PmOutput>,
 ) -> Result<(), Box<dyn std::error::Error>> {
@@ -314,7 +353,7 @@ pub async fn add(
         Ok(())
     } else {
         // Install from root — workspace deps are merged during install
-        install(root_dir, false, ignore_scripts, false, output).await
+        install(root_dir, false, script_policy, false, output).await
     }
 }
 
@@ -368,7 +407,14 @@ pub async fn remove(
     types::write_package_json(&target_dir, &pkg)?;
 
     // Install from root — workspace deps are merged during install
-    install(root_dir, false, false, false, output).await
+    install(
+        root_dir,
+        false,
+        vertzrc::ScriptPolicy::IgnoreAll,
+        false,
+        output,
+    )
+    .await
 }
 
 /// List installed packages from lockfile and package.json
@@ -1208,8 +1254,17 @@ pub async fn update(
         // Write lockfile with entries removed
         lockfile::write_lockfile(&lockfile_path, &lockfile)?;
 
-        // Re-install to resolve and link updated packages
-        install(root_dir, false, false, false, output.clone()).await?;
+        // Re-install to resolve and link updated packages.
+        // IgnoreAll: update only re-links — postinstall scripts should be run
+        // via a separate `vertz install` after updating, not implicitly here.
+        install(
+            root_dir,
+            false,
+            vertzrc::ScriptPolicy::IgnoreAll,
+            false,
+            output.clone(),
+        )
+        .await?;
     } else if !dry_run && results.is_empty() {
         let elapsed = start.elapsed();
         output.done(elapsed.as_millis() as u64);
