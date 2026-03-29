@@ -1351,8 +1351,7 @@ pub async fn run_script(
     if let Ok(existing_path) = std::env::var("PATH") {
         path_parts.push(existing_path);
     }
-    // Unix PATH separator; Windows (#2043) will need ";"
-    let new_path = path_parts.join(":");
+    let new_path = path_parts.join(scripts::path_separator());
 
     scripts::exec_inherit_stdio(&target_dir, &full_cmd, &[("PATH", new_path)]).await
 }
@@ -1391,7 +1390,7 @@ pub async fn exec_command(
     if let Ok(existing_path) = std::env::var("PATH") {
         path_parts.push(existing_path);
     }
-    let new_path = path_parts.join(":");
+    let new_path = path_parts.join(scripts::path_separator());
 
     scripts::exec_inherit_stdio(&target_dir, &full_cmd, &[("PATH", new_path)]).await
 }
