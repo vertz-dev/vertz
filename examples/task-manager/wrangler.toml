@@ -7,3 +7,9 @@ route = { pattern = "task-manager-preview.*.workers.dev" }
 
 [env.preview.vars]
 ENVIRONMENT = "preview"
+
+[env.production]
+route = { pattern = "task-manager.*.workers.dev" }
+
+[env.production.vars]
+ENVIRONMENT = "production"
