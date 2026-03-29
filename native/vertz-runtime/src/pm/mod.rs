@@ -42,6 +42,7 @@ pub async fn install(
     root_dir: &Path,
     frozen: bool,
     ignore_scripts: bool,
+    force: bool,
     output: Arc<dyn PmOutput>,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let start = Instant::now();
@@ -134,11 +135,15 @@ pub async fn install(
         output.download_complete(download_count);
     }
 
-    // Link packages into node_modules
+    // Link packages into node_modules (incremental unless --force)
     output.link_started();
     let store_dir = cache_dir.join("store");
-    let link_result = linker::link_packages(root_dir, &graph, &store_dir)?;
-    output.link_complete(link_result.packages_linked, link_result.files_linked);
+    let link_result = linker::link_packages_incremental(root_dir, &graph, &store_dir, force)?;
+    output.link_complete(
+        link_result.packages_linked,
+        link_result.files_linked,
+        link_result.packages_cached,
+    );
 
     // Generate .bin/ stubs
     let bin_count = bin::generate_bin_stubs(root_dir, &graph)?;
@@ -260,7 +265,7 @@ pub async fn add(
         Ok(())
     } else {
         // Single install pass for all packages
-        install(root_dir, false, ignore_scripts, output).await
+        install(root_dir, false, ignore_scripts, false, output).await
     }
 }
 
@@ -306,7 +311,7 @@ pub async fn remove(
     types::write_package_json(root_dir, &pkg)?;
 
     // Single install pass to clean orphaned deps
-    install(root_dir, false, false, output).await
+    install(root_dir, false, false, false, output).await
 }
 
 /// List installed packages from lockfile and package.json
@@ -1147,7 +1152,7 @@ pub async fn update(
         lockfile::write_lockfile(&lockfile_path, &lockfile)?;
 
         // Re-install to resolve and link updated packages
-        install(root_dir, false, false, output.clone()).await?;
+        install(root_dir, false, false, false, output.clone()).await?;
     } else if !dry_run && results.is_empty() {
         let elapsed = start.elapsed();
         output.done(elapsed.as_millis() as u64);

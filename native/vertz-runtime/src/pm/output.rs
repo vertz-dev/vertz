@@ -10,7 +10,7 @@ pub trait PmOutput: Send + Sync {
     fn download_tick(&self);
     fn download_complete(&self, count: usize);
     fn link_started(&self);
-    fn link_complete(&self, packages: usize, files: usize);
+    fn link_complete(&self, packages: usize, files: usize, cached: usize);
     fn bin_stubs_created(&self, count: usize);
     fn package_added(&self, name: &str, version: &str, range: &str);
     fn package_removed(&self, name: &str);
@@ -95,8 +95,15 @@ impl PmOutput for TextOutput {
         eprintln!("Linking packages...");
     }
 
-    fn link_complete(&self, packages: usize, files: usize) {
-        eprintln!("Linked {} packages ({} files)", packages, files);
+    fn link_complete(&self, packages: usize, files: usize, cached: usize) {
+        if cached > 0 {
+            eprintln!(
+                "Linked {} packages ({} files, {} cached)",
+                packages, files, cached
+            );
+        } else {
+            eprintln!("Linked {} packages ({} files)", packages, files);
+        }
     }
 
     fn bin_stubs_created(&self, count: usize) {
@@ -172,10 +179,10 @@ impl PmOutput for JsonOutput {
 
     fn link_started(&self) {}
 
-    fn link_complete(&self, packages: usize, files: usize) {
+    fn link_complete(&self, packages: usize, files: usize, cached: usize) {
         println!(
             "{}",
-            json!({"event": "link", "packages": packages, "files": files})
+            json!({"event": "link", "packages": packages, "files": files, "cached": cached})
         );
     }
 
@@ -276,7 +283,7 @@ mod tests {
     fn test_json_output_as_trait_object() {
         let output: Arc<dyn PmOutput> = Arc::new(JsonOutput::new());
         output.resolve_complete(10);
-        output.link_complete(5, 100);
+        output.link_complete(5, 100, 0);
         output.done(1200);
     }
 

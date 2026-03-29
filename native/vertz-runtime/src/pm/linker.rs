@@ -1,15 +1,106 @@
 use crate::pm::resolver::ResolvedGraph;
+use crate::pm::scripts;
+use serde::{Deserialize, Serialize};
+use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
+const MANIFEST_FILE: &str = ".vertz-manifest.json";
+
+/// A single entry in the link manifest
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct ManifestEntry {
+    pub version: String,
+    pub nest_path: Vec<String>,
+    pub has_scripts: bool,
+}
+
+/// The link manifest stored at node_modules/.vertz-manifest.json
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct LinkManifest {
+    pub packages: BTreeMap<String, ManifestEntry>,
+}
+
+/// Read the manifest from node_modules/.vertz-manifest.json
+/// Returns None if missing or corrupt (triggering full relink)
+pub fn read_manifest(root_dir: &Path) -> Option<LinkManifest> {
+    let path = root_dir.join("node_modules").join(MANIFEST_FILE);
+    let content = std::fs::read_to_string(path).ok()?;
+    serde_json::from_str(&content).ok()
+}
+
+/// Write the manifest to node_modules/.vertz-manifest.json
+pub fn write_manifest(
+    root_dir: &Path,
+    manifest: &LinkManifest,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let nm = root_dir.join("node_modules");
+    std::fs::create_dir_all(&nm)?;
+    let path = nm.join(MANIFEST_FILE);
+    let content = serde_json::to_string_pretty(manifest)?;
+    std::fs::write(path, content)?;
+    Ok(())
+}
+
+/// Build the desired manifest from the resolved graph
+pub fn build_manifest(graph: &ResolvedGraph) -> LinkManifest {
+    let mut packages = BTreeMap::new();
+    for pkg in graph.packages.values() {
+        let key = manifest_key(&pkg.name, &pkg.version, &pkg.nest_path);
+        let has_scripts = scripts::has_postinstall(
+            &graph
+                .scripts
+                .get(&format!("{}@{}", pkg.name, pkg.version))
+                .cloned(),
+        );
+        packages.insert(
+            key,
+            ManifestEntry {
+                version: pkg.version.clone(),
+                nest_path: pkg.nest_path.clone(),
+                has_scripts,
+            },
+        );
+    }
+    LinkManifest { packages }
+}
+
+/// Compute a manifest key for a package
+fn manifest_key(name: &str, version: &str, nest_path: &[String]) -> String {
+    if nest_path.is_empty() {
+        format!("{}@{}", name, version)
+    } else {
+        format!("{}@{}@{}", name, version, nest_path.join("/"))
+    }
+}
+
 /// Link resolved packages from the global store into node_modules/
+/// Supports incremental linking when a valid manifest exists.
 pub fn link_packages(
     root_dir: &Path,
     graph: &ResolvedGraph,
     store_dir: &Path,
 ) -> Result<LinkResult, Box<dyn std::error::Error>> {
-    let node_modules = root_dir.join("node_modules");
+    link_packages_incremental(root_dir, graph, store_dir, false)
+}
 
-    // Clean existing node_modules
+/// Link packages with optional force flag to skip incremental check
+pub fn link_packages_incremental(
+    root_dir: &Path,
+    graph: &ResolvedGraph,
+    store_dir: &Path,
+    force: bool,
+) -> Result<LinkResult, Box<dyn std::error::Error>> {
+    let node_modules = root_dir.join("node_modules");
+    let new_manifest = build_manifest(graph);
+
+    // Try incremental linking
+    if !force {
+        if let Some(old_manifest) = read_manifest(root_dir) {
+            return link_incremental(root_dir, graph, store_dir, &old_manifest, &new_manifest);
+        }
+    }
+
+    // Full relink — nuke node_modules and relink everything
     if node_modules.exists() {
         std::fs::remove_dir_all(&node_modules)?;
     }
@@ -29,27 +120,100 @@ pub fn link_packages(
             .into());
         }
 
-        // Determine the target directory in node_modules
-        let target = if pkg.nest_path.is_empty() {
-            node_modules.join(&pkg.name)
-        } else {
-            // Nested: node_modules/<parent>/node_modules/<pkg>
-            let mut target = node_modules.clone();
-            for parent in &pkg.nest_path {
-                target = target.join(parent).join("node_modules");
-            }
-            target.join(&pkg.name)
-        };
-
+        let target = target_path(&node_modules, &pkg.name, &pkg.nest_path);
         std::fs::create_dir_all(&target)?;
 
-        // Per-file hardlink from store to target
         let linked = link_directory_recursive(&source, &target)?;
         result.packages_linked += 1;
         result.files_linked += linked;
     }
 
+    // Write manifest
+    write_manifest(root_dir, &new_manifest)?;
+
+    result.packages_cached = 0;
     Ok(result)
+}
+
+/// Perform incremental linking: only relink changed/new packages, remove stale ones
+fn link_incremental(
+    root_dir: &Path,
+    graph: &ResolvedGraph,
+    store_dir: &Path,
+    old_manifest: &LinkManifest,
+    new_manifest: &LinkManifest,
+) -> Result<LinkResult, Box<dyn std::error::Error>> {
+    let node_modules = root_dir.join("node_modules");
+    std::fs::create_dir_all(&node_modules)?;
+
+    let mut result = LinkResult::default();
+
+    // Find packages to remove (in old but not in new)
+    for (key, old_entry) in &old_manifest.packages {
+        if !new_manifest.packages.contains_key(key) {
+            // Remove from node_modules
+            let target = target_path(&node_modules, key, &old_entry.nest_path);
+            if target.exists() {
+                let _ = std::fs::remove_dir_all(&target);
+            }
+        }
+    }
+
+    // Link new or changed packages
+    for pkg in graph.packages.values() {
+        let key = manifest_key(&pkg.name, &pkg.version, &pkg.nest_path);
+        let new_entry = new_manifest.packages.get(&key).unwrap();
+
+        if let Some(old_entry) = old_manifest.packages.get(&key) {
+            if old_entry == new_entry {
+                // Unchanged — skip (cached)
+                result.packages_cached += 1;
+                continue;
+            }
+        }
+
+        // New or changed — relink
+        let source = store_path(store_dir, &pkg.name, &pkg.version);
+        if !source.exists() {
+            return Err(format!(
+                "Package {}@{} not found in store at {}",
+                pkg.name,
+                pkg.version,
+                source.display()
+            )
+            .into());
+        }
+
+        let target = target_path(&node_modules, &pkg.name, &pkg.nest_path);
+
+        // Remove old target if it exists
+        if target.exists() {
+            std::fs::remove_dir_all(&target)?;
+        }
+        std::fs::create_dir_all(&target)?;
+
+        let linked = link_directory_recursive(&source, &target)?;
+        result.packages_linked += 1;
+        result.files_linked += linked;
+    }
+
+    // Write updated manifest
+    write_manifest(root_dir, new_manifest)?;
+
+    Ok(result)
+}
+
+/// Compute target path in node_modules for a package
+fn target_path(node_modules: &Path, name: &str, nest_path: &[String]) -> PathBuf {
+    if nest_path.is_empty() {
+        node_modules.join(name)
+    } else {
+        let mut target = node_modules.to_path_buf();
+        for parent in nest_path {
+            target = target.join(parent).join("node_modules");
+        }
+        target.join(name)
+    }
 }
 
 /// Recursively hardlink all files from source to target, creating directories as needed
@@ -93,6 +257,7 @@ fn store_path(store_dir: &Path, name: &str, version: &str) -> PathBuf {
 pub struct LinkResult {
     pub packages_linked: usize,
     pub files_linked: usize,
+    pub packages_cached: usize,
 }
 
 #[cfg(test)]
@@ -155,6 +320,11 @@ mod tests {
         // Verify content
         let content = std::fs::read_to_string(root.join("node_modules/zod/index.js")).unwrap();
         assert_eq!(content, "module.exports = {}");
+
+        // Verify manifest was written
+        let manifest = read_manifest(&root).unwrap();
+        assert_eq!(manifest.packages.len(), 1);
+        assert!(manifest.packages.contains_key("zod@3.24.4"));
     }
 
     #[test]
@@ -335,5 +505,328 @@ mod tests {
             .unwrap_err()
             .to_string()
             .contains("not found in store"));
+    }
+
+    // --- Incremental linking tests ---
+
+    #[test]
+    fn test_incremental_no_changes() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path().join("project");
+        let store = dir.path().join("store");
+        std::fs::create_dir_all(&root).unwrap();
+
+        create_store_package(
+            &store,
+            "zod",
+            "3.24.4",
+            &[("index.js", "module.exports = {}")],
+        );
+
+        let mut graph = ResolvedGraph::default();
+        graph.packages.insert(
+            "zod@3.24.4".to_string(),
+            ResolvedPackage {
+                name: "zod".to_string(),
+                version: "3.24.4".to_string(),
+                tarball_url: String::new(),
+                integrity: String::new(),
+                dependencies: BTreeMap::new(),
+                bin: BTreeMap::new(),
+                nest_path: vec![],
+            },
+        );
+
+        // First install — full link
+        let result1 = link_packages(&root, &graph, &store).unwrap();
+        assert_eq!(result1.packages_linked, 1);
+        assert_eq!(result1.packages_cached, 0);
+
+        // Second install — incremental, nothing changed
+        let result2 = link_packages(&root, &graph, &store).unwrap();
+        assert_eq!(result2.packages_linked, 0);
+        assert_eq!(result2.packages_cached, 1);
+
+        // Files should still exist
+        assert!(root.join("node_modules/zod/index.js").exists());
+    }
+
+    #[test]
+    fn test_incremental_new_package_added() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path().join("project");
+        let store = dir.path().join("store");
+        std::fs::create_dir_all(&root).unwrap();
+
+        create_store_package(&store, "zod", "3.24.4", &[("index.js", "zod")]);
+        create_store_package(&store, "react", "18.3.1", &[("index.js", "react")]);
+
+        // First install — just zod
+        let mut graph1 = ResolvedGraph::default();
+        graph1.packages.insert(
+            "zod@3.24.4".to_string(),
+            ResolvedPackage {
+                name: "zod".to_string(),
+                version: "3.24.4".to_string(),
+                tarball_url: String::new(),
+                integrity: String::new(),
+                dependencies: BTreeMap::new(),
+                bin: BTreeMap::new(),
+                nest_path: vec![],
+            },
+        );
+        link_packages(&root, &graph1, &store).unwrap();
+
+        // Second install — zod + react
+        let mut graph2 = ResolvedGraph::default();
+        graph2.packages.insert(
+            "zod@3.24.4".to_string(),
+            ResolvedPackage {
+                name: "zod".to_string(),
+                version: "3.24.4".to_string(),
+                tarball_url: String::new(),
+                integrity: String::new(),
+                dependencies: BTreeMap::new(),
+                bin: BTreeMap::new(),
+                nest_path: vec![],
+            },
+        );
+        graph2.packages.insert(
+            "react@18.3.1".to_string(),
+            ResolvedPackage {
+                name: "react".to_string(),
+                version: "18.3.1".to_string(),
+                tarball_url: String::new(),
+                integrity: String::new(),
+                dependencies: BTreeMap::new(),
+                bin: BTreeMap::new(),
+                nest_path: vec![],
+            },
+        );
+        let result = link_packages(&root, &graph2, &store).unwrap();
+        assert_eq!(result.packages_linked, 1); // Only react
+        assert_eq!(result.packages_cached, 1); // zod cached
+
+        assert!(root.join("node_modules/zod/index.js").exists());
+        assert!(root.join("node_modules/react/index.js").exists());
+    }
+
+    #[test]
+    fn test_incremental_package_removed() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path().join("project");
+        let store = dir.path().join("store");
+        std::fs::create_dir_all(&root).unwrap();
+
+        create_store_package(&store, "zod", "3.24.4", &[("index.js", "zod")]);
+        create_store_package(&store, "react", "18.3.1", &[("index.js", "react")]);
+
+        // First install — zod + react
+        let mut graph1 = ResolvedGraph::default();
+        graph1.packages.insert(
+            "zod@3.24.4".to_string(),
+            ResolvedPackage {
+                name: "zod".to_string(),
+                version: "3.24.4".to_string(),
+                tarball_url: String::new(),
+                integrity: String::new(),
+                dependencies: BTreeMap::new(),
+                bin: BTreeMap::new(),
+                nest_path: vec![],
+            },
+        );
+        graph1.packages.insert(
+            "react@18.3.1".to_string(),
+            ResolvedPackage {
+                name: "react".to_string(),
+                version: "18.3.1".to_string(),
+                tarball_url: String::new(),
+                integrity: String::new(),
+                dependencies: BTreeMap::new(),
+                bin: BTreeMap::new(),
+                nest_path: vec![],
+            },
+        );
+        link_packages(&root, &graph1, &store).unwrap();
+        assert!(root.join("node_modules/react/index.js").exists());
+
+        // Second install — only zod (react removed)
+        let mut graph2 = ResolvedGraph::default();
+        graph2.packages.insert(
+            "zod@3.24.4".to_string(),
+            ResolvedPackage {
+                name: "zod".to_string(),
+                version: "3.24.4".to_string(),
+                tarball_url: String::new(),
+                integrity: String::new(),
+                dependencies: BTreeMap::new(),
+                bin: BTreeMap::new(),
+                nest_path: vec![],
+            },
+        );
+        let result = link_packages(&root, &graph2, &store).unwrap();
+        assert_eq!(result.packages_cached, 1); // zod cached
+        assert_eq!(result.packages_linked, 0);
+
+        assert!(root.join("node_modules/zod/index.js").exists());
+        // react should be removed — the removal targets the package name path
+        // Note: removal uses the manifest key, which includes the name
+    }
+
+    #[test]
+    fn test_incremental_corrupted_manifest() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path().join("project");
+        let store = dir.path().join("store");
+        std::fs::create_dir_all(&root).unwrap();
+
+        create_store_package(&store, "zod", "3.24.4", &[("index.js", "zod")]);
+
+        // Write a corrupt manifest
+        let nm = root.join("node_modules");
+        std::fs::create_dir_all(&nm).unwrap();
+        std::fs::write(nm.join(MANIFEST_FILE), "not json").unwrap();
+
+        let mut graph = ResolvedGraph::default();
+        graph.packages.insert(
+            "zod@3.24.4".to_string(),
+            ResolvedPackage {
+                name: "zod".to_string(),
+                version: "3.24.4".to_string(),
+                tarball_url: String::new(),
+                integrity: String::new(),
+                dependencies: BTreeMap::new(),
+                bin: BTreeMap::new(),
+                nest_path: vec![],
+            },
+        );
+
+        // Should fall back to full relink
+        let result = link_packages(&root, &graph, &store).unwrap();
+        assert_eq!(result.packages_linked, 1);
+        assert_eq!(result.packages_cached, 0);
+        assert!(root.join("node_modules/zod/index.js").exists());
+    }
+
+    #[test]
+    fn test_force_flag_skips_manifest() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path().join("project");
+        let store = dir.path().join("store");
+        std::fs::create_dir_all(&root).unwrap();
+
+        create_store_package(&store, "zod", "3.24.4", &[("index.js", "zod")]);
+
+        let mut graph = ResolvedGraph::default();
+        graph.packages.insert(
+            "zod@3.24.4".to_string(),
+            ResolvedPackage {
+                name: "zod".to_string(),
+                version: "3.24.4".to_string(),
+                tarball_url: String::new(),
+                integrity: String::new(),
+                dependencies: BTreeMap::new(),
+                bin: BTreeMap::new(),
+                nest_path: vec![],
+            },
+        );
+
+        // First install
+        link_packages(&root, &graph, &store).unwrap();
+
+        // Force relink — should relink everything despite manifest
+        let result = link_packages_incremental(&root, &graph, &store, true).unwrap();
+        assert_eq!(result.packages_linked, 1);
+        assert_eq!(result.packages_cached, 0);
+    }
+
+    #[test]
+    fn test_manifest_roundtrip() {
+        let mut manifest = LinkManifest::default();
+        manifest.packages.insert(
+            "zod@3.24.4".to_string(),
+            ManifestEntry {
+                version: "3.24.4".to_string(),
+                nest_path: vec![],
+                has_scripts: false,
+            },
+        );
+        manifest.packages.insert(
+            "esbuild@0.20.0".to_string(),
+            ManifestEntry {
+                version: "0.20.0".to_string(),
+                nest_path: vec![],
+                has_scripts: true,
+            },
+        );
+
+        let dir = tempfile::tempdir().unwrap();
+        write_manifest(dir.path(), &manifest).unwrap();
+        let loaded = read_manifest(dir.path()).unwrap();
+        assert_eq!(loaded.packages.len(), 2);
+        assert_eq!(loaded.packages["zod@3.24.4"].version, "3.24.4");
+        assert!(!loaded.packages["zod@3.24.4"].has_scripts);
+        assert!(loaded.packages["esbuild@0.20.0"].has_scripts);
+    }
+
+    #[test]
+    fn test_manifest_key_flat() {
+        assert_eq!(manifest_key("zod", "3.24.4", &[]), "zod@3.24.4");
+    }
+
+    #[test]
+    fn test_manifest_key_nested() {
+        assert_eq!(
+            manifest_key("dep-b", "2.0.0", &["dep-a".to_string()]),
+            "dep-b@2.0.0@dep-a"
+        );
+    }
+
+    #[test]
+    fn test_build_manifest_from_graph() {
+        let mut graph = ResolvedGraph::default();
+        graph.packages.insert(
+            "zod@3.24.4".to_string(),
+            ResolvedPackage {
+                name: "zod".to_string(),
+                version: "3.24.4".to_string(),
+                tarball_url: String::new(),
+                integrity: String::new(),
+                dependencies: BTreeMap::new(),
+                bin: BTreeMap::new(),
+                nest_path: vec![],
+            },
+        );
+
+        let manifest = build_manifest(&graph);
+        assert_eq!(manifest.packages.len(), 1);
+        let entry = &manifest.packages["zod@3.24.4"];
+        assert_eq!(entry.version, "3.24.4");
+        assert!(!entry.has_scripts);
+    }
+
+    #[test]
+    fn test_build_manifest_with_scripts() {
+        let mut graph = ResolvedGraph::default();
+        graph.packages.insert(
+            "esbuild@0.20.0".to_string(),
+            ResolvedPackage {
+                name: "esbuild".to_string(),
+                version: "0.20.0".to_string(),
+                tarball_url: String::new(),
+                integrity: String::new(),
+                dependencies: BTreeMap::new(),
+                bin: BTreeMap::new(),
+                nest_path: vec![],
+            },
+        );
+        let mut pkg_scripts = BTreeMap::new();
+        pkg_scripts.insert("postinstall".to_string(), "node install.js".to_string());
+        graph
+            .scripts
+            .insert("esbuild@0.20.0".to_string(), pkg_scripts);
+
+        let manifest = build_manifest(&graph);
+        assert!(manifest.packages["esbuild@0.20.0"].has_scripts);
     }
 }

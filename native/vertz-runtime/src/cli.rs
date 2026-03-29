@@ -118,6 +118,10 @@ pub struct InstallArgs {
     #[arg(long)]
     pub ignore_scripts: bool,
 
+    /// Force full re-link (skip incremental check)
+    #[arg(long)]
+    pub force: bool,
+
     /// Output NDJSON to stdout
     #[arg(long)]
     pub json: bool,
@@ -1006,5 +1010,19 @@ mod tests {
     fn test_add_ignore_scripts_default_false() {
         let args = parse_add(&["vertz-runtime", "add", "zod"]);
         assert!(!args.ignore_scripts);
+    }
+
+    // --- --force flag tests ---
+
+    #[test]
+    fn test_install_force_flag() {
+        let args = parse_install(&["vertz-runtime", "install", "--force"]);
+        assert!(args.force);
+    }
+
+    #[test]
+    fn test_install_force_default_false() {
+        let args = parse_install(&["vertz-runtime", "install"]);
+        assert!(!args.force);
     }
 }

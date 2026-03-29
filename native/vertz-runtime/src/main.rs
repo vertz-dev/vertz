@@ -95,8 +95,14 @@ async fn main() {
                 Arc::new(TextOutput::new(std::io::stderr().is_terminal()))
             };
 
-            if let Err(e) =
-                pm::install(&root_dir, args.frozen, args.ignore_scripts, output.clone()).await
+            if let Err(e) = pm::install(
+                &root_dir,
+                args.frozen,
+                args.ignore_scripts,
+                args.force,
+                output.clone(),
+            )
+            .await
             {
                 let msg = e.to_string();
                 if args.json {
