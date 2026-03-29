@@ -88,6 +88,13 @@ pub const TEST_HARNESS_JS: &str = r#"
     else rootHooks.afterAll.push(fn);
   }
 
+  // --- Asymmetric Matchers ---
+  const ASYMMETRIC_BRAND = Symbol('__vertz_asymmetric');
+
+  function asymmetric(matchFn, description) {
+    return { [ASYMMETRIC_BRAND]: true, match: matchFn, toString: () => description };
+  }
+
   // --- Mock/Spy ---
   const MOCK_BRAND = Symbol('__vertz_mock');
 
@@ -187,6 +194,9 @@ pub const TEST_HARNESS_JS: &str = r#"
 
   // --- Expect ---
   function deepEqual(a, b, seen) {
+    // Asymmetric matcher support — delegate to match()
+    if (b != null && typeof b === 'object' && b[ASYMMETRIC_BRAND]) return b.match(a);
+    if (a != null && typeof a === 'object' && a[ASYMMETRIC_BRAND]) return a.match(b);
     if (a === b) return true;
     // NaN === NaN should be true for testing purposes
     if (typeof a === 'number' && typeof b === 'number' && Number.isNaN(a) && Number.isNaN(b)) return true;
@@ -396,6 +406,27 @@ pub const TEST_HARNESS_JS: &str = r#"
         );
       }
     };
+    matchers.toMatchObject = (expected) => {
+      function subsetMatch(a, b) {
+        if (b != null && typeof b === 'object' && b[ASYMMETRIC_BRAND]) return b.match(a);
+        if (a === b) return true;
+        if (a == null || b == null) return false;
+        if (typeof a !== 'object' || typeof b !== 'object') return deepEqual(a, b);
+        if (Array.isArray(b)) {
+          if (!Array.isArray(a)) return false;
+          if (a.length !== b.length) return false;
+          return b.every((item, i) => subsetMatch(a[i], item));
+        }
+        for (const key of Object.keys(b)) {
+          if (!(key in a)) return false;
+          if (!subsetMatch(a[key], b[key])) return false;
+        }
+        return true;
+      }
+      assert(subsetMatch(actual, expected), () =>
+        `Expected ${formatValue(actual)} ${negated ? 'not ' : ''}to match object ${formatValue(expected)}`
+      );
+    };
     matchers.toBeInstanceOf = (cls) => {
       assert(actual instanceof cls, () =>
         `Expected ${formatValue(actual)} ${negated ? 'not ' : ''}to be instance of ${cls.name || cls}`
@@ -534,7 +565,7 @@ pub const TEST_HARNESS_JS: &str = r#"
       'toBeDefined', 'toBeGreaterThan', 'toBeGreaterThanOrEqual', 'toBeLessThan',
       'toBeLessThanOrEqual', 'toContain', 'toContainEqual', 'toHaveLength', 'toMatch',
       'toBeCloseTo', 'toBeTypeOf', 'toBeFunction', 'toHaveProperty', 'toBeInstanceOf',
-      'toThrow', 'toThrowError', 'toHaveBeenCalled', 'toHaveBeenCalledOnce',
+      'toMatchObject', 'toThrow', 'toThrowError', 'toHaveBeenCalled', 'toHaveBeenCalledOnce',
       'toHaveBeenCalledTimes', 'toHaveBeenCalledWith', 'toHaveBeenLastCalledWith',
     ];
     const matcherNames = [...builtinNames, ...Object.keys(customMatchers)];
@@ -561,6 +592,55 @@ pub const TEST_HARNESS_JS: &str = r#"
   expect.extend = (newMatchers) => {
     Object.assign(customMatchers, newMatchers);
   };
+
+  // --- Asymmetric Matcher Factories ---
+  expect.any = (constructor) => asymmetric(
+    (received) => received instanceof constructor || (constructor === String && typeof received === 'string')
+      || (constructor === Number && typeof received === 'number')
+      || (constructor === Boolean && typeof received === 'boolean')
+      || (constructor === Function && typeof received === 'function')
+      || (constructor === BigInt && typeof received === 'bigint')
+      || (constructor === Symbol && typeof received === 'symbol'),
+    `Any<${constructor.name || constructor}>`
+  );
+
+  expect.anything = () => asymmetric(
+    (received) => received !== null && received !== undefined,
+    'Anything'
+  );
+
+  expect.objectContaining = (expected) => asymmetric(
+    (received) => {
+      if (received == null || typeof received !== 'object') return false;
+      for (const key of Object.keys(expected)) {
+        if (!(key in received)) return false;
+        if (!deepEqual(received[key], expected[key])) return false;
+      }
+      return true;
+    },
+    `ObjectContaining(${formatValue(expected)})`
+  );
+
+  expect.arrayContaining = (expected) => asymmetric(
+    (received) => {
+      if (!Array.isArray(received)) return false;
+      return expected.every(item => received.some(el => deepEqual(el, item)));
+    },
+    `ArrayContaining(${formatValue(expected)})`
+  );
+
+  expect.stringContaining = (expected) => asymmetric(
+    (received) => typeof received === 'string' && received.includes(expected),
+    `StringContaining("${expected}")`
+  );
+
+  expect.stringMatching = (pattern) => asymmetric(
+    (received) => {
+      const re = pattern instanceof RegExp ? pattern : new RegExp(pattern);
+      return typeof received === 'string' && re.test(received);
+    },
+    `StringMatching(${pattern})`
+  );
 
   // --- Test Runner ---
 
@@ -687,10 +767,186 @@ pub const TEST_HARNESS_JS: &str = r#"
     return allResults;
   };
 
+  // --- Timer Mocking ---
+  let fakeTimersActive = false;
+  let timerIdCounter = 1;
+  const pendingTimers = new Map(); // id -> { fn, delay, due, repeat, interval }
+  const realSetTimeout = globalThis.setTimeout;
+  const realClearTimeout = globalThis.clearTimeout;
+  const realSetInterval = globalThis.setInterval;
+  const realClearInterval = globalThis.clearInterval;
+  let fakeNow = 0;
+
+  function installFakeTimers() {
+    if (fakeTimersActive) return;
+    fakeTimersActive = true;
+    fakeNow = Date.now();
+    pendingTimers.clear();
+    timerIdCounter = 1;
+
+    globalThis.setTimeout = (fn, delay, ...args) => {
+      const id = timerIdCounter++;
+      pendingTimers.set(id, { fn, args, delay: delay || 0, due: fakeNow + (delay || 0), repeat: false });
+      return id;
+    };
+    globalThis.clearTimeout = (id) => { pendingTimers.delete(id); };
+    globalThis.setInterval = (fn, delay, ...args) => {
+      const id = timerIdCounter++;
+      pendingTimers.set(id, { fn, args, delay: delay || 0, due: fakeNow + (delay || 0), repeat: true, interval: delay || 0 });
+      return id;
+    };
+    globalThis.clearInterval = (id) => { pendingTimers.delete(id); };
+  }
+
+  function uninstallFakeTimers() {
+    if (!fakeTimersActive) return;
+    fakeTimersActive = false;
+    globalThis.setTimeout = realSetTimeout;
+    globalThis.clearTimeout = realClearTimeout;
+    globalThis.setInterval = realSetInterval;
+    globalThis.clearInterval = realClearInterval;
+    pendingTimers.clear();
+  }
+
+  function advanceTimersByTime(ms) {
+    if (!fakeTimersActive) throw new Error('Fake timers are not installed. Call vi.useFakeTimers() first.');
+    const target = fakeNow + ms;
+    // Process timers in chronological order
+    while (fakeNow < target) {
+      let earliest = null;
+      let earliestId = null;
+      for (const [id, timer] of pendingTimers) {
+        if (timer.due <= target && (earliest === null || timer.due < earliest.due)) {
+          earliest = timer;
+          earliestId = id;
+        }
+      }
+      if (!earliest || earliest.due > target) { fakeNow = target; break; }
+      fakeNow = earliest.due;
+      pendingTimers.delete(earliestId);
+      if (earliest.repeat) {
+        const nextId = timerIdCounter++;
+        pendingTimers.set(nextId, { ...earliest, due: fakeNow + earliest.interval });
+      }
+      earliest.fn(...(earliest.args || []));
+    }
+    fakeNow = target;
+  }
+
+  function runAllTimers() {
+    if (!fakeTimersActive) throw new Error('Fake timers are not installed. Call vi.useFakeTimers() first.');
+    let limit = 10000; // prevent infinite loops
+    while (pendingTimers.size > 0 && limit-- > 0) {
+      let earliest = null;
+      let earliestId = null;
+      for (const [id, timer] of pendingTimers) {
+        if (earliest === null || timer.due < earliest.due) {
+          earliest = timer;
+          earliestId = id;
+        }
+      }
+      if (!earliest) break;
+      fakeNow = earliest.due;
+      pendingTimers.delete(earliestId);
+      if (earliest.repeat) {
+        const nextId = timerIdCounter++;
+        pendingTimers.set(nextId, { ...earliest, due: fakeNow + earliest.interval });
+      }
+      earliest.fn(...(earliest.args || []));
+    }
+  }
+
+  function runOnlyPendingTimers() {
+    if (!fakeTimersActive) throw new Error('Fake timers are not installed. Call vi.useFakeTimers() first.');
+    // Snapshot current timers — only run those, not ones added during execution
+    const snapshot = [...pendingTimers.entries()].sort((a, b) => a[1].due - b[1].due);
+    for (const [id, timer] of snapshot) {
+      if (pendingTimers.has(id)) {
+        fakeNow = timer.due;
+        pendingTimers.delete(id);
+        if (timer.repeat) {
+          const nextId = timerIdCounter++;
+          pendingTimers.set(nextId, { ...timer, due: fakeNow + timer.interval });
+        }
+        timer.fn(...(timer.args || []));
+      }
+    }
+  }
+
+  // --- Track all mocks for bulk operations ---
+  const allMocks = new Set();
+  const _origCreateMock = createMockFunction;
+  // Patch createMockFunction to track mocks
+  function createTrackedMock(impl) {
+    const fn = _origCreateMock(impl);
+    allMocks.add(fn);
+    return fn;
+  }
+
+  // Re-wire mock/spyOn to use tracked version
+  function trackedMock(impl) { return createTrackedMock(impl); }
+  function trackedSpyOn(obj, method) {
+    if (typeof obj[method] !== 'function') {
+      throw new Error(`spyOn: ${method} is not a function on the target object`);
+    }
+    const original = obj[method];
+    const spy = createTrackedMock((...args) => original.apply(obj, args));
+    spy.mockRestore = () => {
+      obj[method] = original;
+      spy.mockReset();
+      return spy;
+    };
+    obj[method] = spy;
+    return spy;
+  }
+
   // vi namespace for vitest/bun:test compatibility
   const vi = {
-    fn: (impl) => mock(impl),
-    spyOn: (obj, method) => spyOn(obj, method),
+    fn: (impl) => trackedMock(impl),
+    spyOn: (obj, method) => trackedSpyOn(obj, method),
+    useFakeTimers: () => { installFakeTimers(); return vi; },
+    useRealTimers: () => { uninstallFakeTimers(); return vi; },
+    advanceTimersByTime: (ms) => { advanceTimersByTime(ms); return vi; },
+    runAllTimers: () => { runAllTimers(); return vi; },
+    runOnlyPendingTimers: () => { runOnlyPendingTimers(); return vi; },
+    restoreAllMocks: () => { for (const m of allMocks) m.mockRestore(); },
+    clearAllMocks: () => { for (const m of allMocks) m.mockClear(); },
+    resetAllMocks: () => { for (const m of allMocks) m.mockReset(); },
+    mock: (modulePath, factory) => {
+      // Module mocking stub — register for future module loader support
+      if (!globalThis.__vertz_mocked_modules) globalThis.__vertz_mocked_modules = {};
+      globalThis.__vertz_mocked_modules[modulePath] = factory;
+    },
+  };
+
+  // mock.module() — Bun-compatible module mocking stub
+  trackedMock.module = (modulePath, factory) => {
+    vi.mock(modulePath, factory);
+  };
+
+  // --- skipIf / each modifiers ---
+  it.skipIf = (condition) => condition ? it.skip : it;
+  describe.skipIf = (condition) => condition ? describe.skip : describe;
+
+  it.each = (table) => (name, fn) => {
+    for (let i = 0; i < table.length; i++) {
+      const row = table[i];
+      const args = Array.isArray(row) ? row : [row];
+      const testName = name.replace(/%s/g, () => String(args.shift ? args[0] : row))
+                           .replace(/%i/g, String(i))
+                           .replace(/%#/g, String(i));
+      it(testName, () => fn(...(Array.isArray(row) ? row : [row])));
+    }
+  };
+
+  describe.each = (table) => (name, fn) => {
+    for (let i = 0; i < table.length; i++) {
+      const row = table[i];
+      const testName = name.replace(/%s/g, () => String(Array.isArray(row) ? row[0] : row))
+                           .replace(/%i/g, String(i))
+                           .replace(/%#/g, String(i));
+      describe(testName, () => fn(...(Array.isArray(row) ? row : [row])));
+    }
   };
 
   // Export to globalThis for test files
@@ -702,8 +958,8 @@ pub const TEST_HARNESS_JS: &str = r#"
   globalThis.afterEach = afterEach;
   globalThis.beforeAll = beforeAll;
   globalThis.afterAll = afterAll;
-  globalThis.mock = mock;
-  globalThis.spyOn = spyOn;
+  globalThis.mock = trackedMock;
+  globalThis.spyOn = trackedSpyOn;
   globalThis.vi = vi;
 
   // Exports object — module loader will intercept
@@ -711,7 +967,7 @@ pub const TEST_HARNESS_JS: &str = r#"
   globalThis.__vertz_test_exports = {
     describe, it, test, expect,
     beforeEach, afterEach, beforeAll, afterAll,
-    mock, spyOn, vi,
+    mock: trackedMock, spyOn: trackedSpyOn, vi,
   };
 })();
 "#;
@@ -2047,5 +2303,253 @@ mod tests {
                 i, item["error"]
             );
         }
+    }
+
+    #[test]
+    fn test_to_match_object() {
+        let mut rt = create_test_runtime();
+        let results = run_test_code(
+            &mut rt,
+            r#"
+            describe('toMatchObject', () => {
+                it('matches subset of properties', () => {
+                    expect({ a: 1, b: 2, c: 3 }).toMatchObject({ a: 1, b: 2 });
+                });
+                it('matches nested objects', () => {
+                    expect({ a: { b: 1, c: 2 }, d: 3 }).toMatchObject({ a: { b: 1 } });
+                });
+                it('matches arrays by position', () => {
+                    expect([{ a: 1, b: 2 }, { c: 3 }]).toMatchObject([{ a: 1 }, { c: 3 }]);
+                });
+                it('fails when property missing', () => {
+                    let caught = false;
+                    try { expect({ a: 1 }).toMatchObject({ b: 2 }); }
+                    catch(e) { caught = true; }
+                    expect(caught).toBe(true);
+                });
+                it('not.toMatchObject works', () => {
+                    expect({ a: 1 }).not.toMatchObject({ b: 2 });
+                });
+            });
+            "#,
+        );
+
+        let arr = results.as_array().unwrap();
+        assert_eq!(arr.len(), 5);
+        for (i, item) in arr.iter().enumerate() {
+            assert_eq!(
+                item["status"], "pass",
+                "toMatchObject test {} failed: {:?}",
+                i, item["error"]
+            );
+        }
+    }
+
+    #[test]
+    fn test_asymmetric_matchers() {
+        let mut rt = create_test_runtime();
+        let results = run_test_code(
+            &mut rt,
+            r#"
+            describe('asymmetric matchers', () => {
+                it('expect.any(String)', () => {
+                    expect('hello').toEqual(expect.any(String));
+                });
+                it('expect.any(Number)', () => {
+                    expect(42).toEqual(expect.any(Number));
+                });
+                it('expect.anything()', () => {
+                    expect('anything').toEqual(expect.anything());
+                    expect(0).toEqual(expect.anything());
+                });
+                it('expect.anything rejects null/undefined', () => {
+                    let caught = false;
+                    try { expect(null).toEqual(expect.anything()); }
+                    catch(e) { caught = true; }
+                    expect(caught).toBe(true);
+                });
+                it('expect.objectContaining()', () => {
+                    expect({ a: 1, b: 2, c: 3 }).toEqual(expect.objectContaining({ a: 1, c: 3 }));
+                });
+                it('expect.arrayContaining()', () => {
+                    expect([1, 2, 3, 4]).toEqual(expect.arrayContaining([2, 4]));
+                });
+                it('expect.stringContaining()', () => {
+                    expect('hello world').toEqual(expect.stringContaining('world'));
+                });
+                it('expect.stringMatching()', () => {
+                    expect('hello world').toEqual(expect.stringMatching(/^hello/));
+                });
+                it('nested asymmetric matchers', () => {
+                    expect({ name: 'John', age: 30, id: 'abc' }).toEqual({
+                        name: expect.any(String),
+                        age: expect.any(Number),
+                        id: expect.stringMatching(/^[a-z]+$/),
+                    });
+                });
+                it('asymmetric in toHaveBeenCalledWith', () => {
+                    const fn = mock();
+                    fn('hello', 42);
+                    expect(fn).toHaveBeenCalledWith(expect.any(String), expect.any(Number));
+                });
+            });
+            "#,
+        );
+
+        let arr = results.as_array().unwrap();
+        assert_eq!(arr.len(), 10);
+        for (i, item) in arr.iter().enumerate() {
+            assert_eq!(
+                item["status"], "pass",
+                "asymmetric matcher test {} failed: {:?}",
+                i, item["error"]
+            );
+        }
+    }
+
+    #[test]
+    fn test_timer_mocking() {
+        let mut rt = create_test_runtime();
+        let results = run_test_code(
+            &mut rt,
+            r#"
+            describe('timer mocking', () => {
+                it('useFakeTimers intercepts setTimeout', () => {
+                    vi.useFakeTimers();
+                    let called = false;
+                    setTimeout(() => { called = true; }, 1000);
+                    expect(called).toBe(false);
+                    vi.advanceTimersByTime(1000);
+                    expect(called).toBe(true);
+                    vi.useRealTimers();
+                });
+                it('advanceTimersByTime processes in order', () => {
+                    vi.useFakeTimers();
+                    const log = [];
+                    setTimeout(() => log.push('a'), 100);
+                    setTimeout(() => log.push('b'), 200);
+                    setTimeout(() => log.push('c'), 50);
+                    vi.advanceTimersByTime(200);
+                    expect(log).toEqual(['c', 'a', 'b']);
+                    vi.useRealTimers();
+                });
+                it('setInterval repeats', () => {
+                    vi.useFakeTimers();
+                    let count = 0;
+                    setInterval(() => { count++; }, 100);
+                    vi.advanceTimersByTime(350);
+                    expect(count).toBe(3);
+                    vi.useRealTimers();
+                });
+                it('clearTimeout cancels', () => {
+                    vi.useFakeTimers();
+                    let called = false;
+                    const id = setTimeout(() => { called = true; }, 100);
+                    clearTimeout(id);
+                    vi.advanceTimersByTime(200);
+                    expect(called).toBe(false);
+                    vi.useRealTimers();
+                });
+                it('runAllTimers flushes all pending', () => {
+                    vi.useFakeTimers();
+                    const log = [];
+                    setTimeout(() => log.push('a'), 500);
+                    setTimeout(() => log.push('b'), 1000);
+                    vi.runAllTimers();
+                    expect(log).toEqual(['a', 'b']);
+                    vi.useRealTimers();
+                });
+            });
+            "#,
+        );
+
+        let arr = results.as_array().unwrap();
+        assert_eq!(arr.len(), 5);
+        for (i, item) in arr.iter().enumerate() {
+            assert_eq!(
+                item["status"], "pass",
+                "timer mocking test {} failed: {:?}",
+                i, item["error"]
+            );
+        }
+    }
+
+    #[test]
+    fn test_skip_if() {
+        let mut rt = create_test_runtime();
+        let results = run_test_code(
+            &mut rt,
+            r#"
+            describe('skipIf', () => {
+                it.skipIf(true)('should be skipped', () => { throw new Error('should not run'); });
+                it.skipIf(false)('should run', () => { expect(1).toBe(1); });
+            });
+            describe.skipIf(true)('skipped suite', () => {
+                it('should not run', () => { throw new Error('should not run'); });
+            });
+            describe.skipIf(false)('active suite', () => {
+                it('should run', () => { expect(2).toBe(2); });
+            });
+            "#,
+        );
+
+        let arr = results.as_array().unwrap();
+        assert_eq!(arr.len(), 4);
+        assert_eq!(arr[0]["status"], "skip");
+        assert_eq!(arr[1]["status"], "pass");
+        assert_eq!(arr[2]["status"], "skip");
+        assert_eq!(arr[3]["status"], "pass");
+    }
+
+    #[test]
+    fn test_each() {
+        let mut rt = create_test_runtime();
+        let results = run_test_code(
+            &mut rt,
+            r#"
+            describe('each', () => {
+                it.each([1, 2, 3])('value %s', (val) => {
+                    expect(val).toBeGreaterThan(0);
+                });
+            });
+            "#,
+        );
+
+        let arr = results.as_array().unwrap();
+        assert_eq!(arr.len(), 3);
+        for item in arr.iter() {
+            assert_eq!(item["status"], "pass");
+        }
+    }
+
+    #[test]
+    fn test_vi_restore_all_mocks() {
+        let mut rt = create_test_runtime();
+        let results = run_test_code(
+            &mut rt,
+            r#"
+            describe('vi.restoreAllMocks', () => {
+                it('clears all mock state', () => {
+                    const fn1 = vi.fn();
+                    const fn2 = vi.fn();
+                    fn1('a');
+                    fn2('b');
+                    expect(fn1).toHaveBeenCalled();
+                    expect(fn2).toHaveBeenCalled();
+                    vi.clearAllMocks();
+                    expect(fn1).not.toHaveBeenCalled();
+                    expect(fn2).not.toHaveBeenCalled();
+                });
+            });
+            "#,
+        );
+
+        let arr = results.as_array().unwrap();
+        assert_eq!(arr.len(), 1);
+        assert_eq!(
+            arr[0]["status"], "pass",
+            "vi.restoreAllMocks test failed: {:?}",
+            arr[0]["error"]
+        );
     }
 }
