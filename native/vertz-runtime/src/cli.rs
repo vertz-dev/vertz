@@ -153,6 +153,10 @@ pub struct AddArgs {
     #[arg(long)]
     pub ignore_scripts: bool,
 
+    /// Target a specific workspace package (by name or path)
+    #[arg(short = 'w', long = "workspace")]
+    pub workspace: Option<String>,
+
     /// Output NDJSON to stdout
     #[arg(long)]
     pub json: bool,
@@ -167,6 +171,10 @@ pub struct RemoveArgs {
     /// Remove globally (not yet supported)
     #[arg(short = 'g', long)]
     pub global: bool,
+
+    /// Target a specific workspace package (by name or path)
+    #[arg(short = 'w', long = "workspace")]
+    pub workspace: Option<String>,
 
     /// Output NDJSON to stdout
     #[arg(long)]
@@ -1024,5 +1032,55 @@ mod tests {
     fn test_install_force_default_false() {
         let args = parse_install(&["vertz-runtime", "install"]);
         assert!(!args.force);
+    }
+
+    // --- -w / --workspace flag tests ---
+
+    #[test]
+    fn test_add_workspace_short_flag() {
+        let args = parse_add(&["vertz-runtime", "add", "zod", "-w", "@myorg/api"]);
+        assert_eq!(args.workspace, Some("@myorg/api".to_string()));
+    }
+
+    #[test]
+    fn test_add_workspace_long_flag() {
+        let args = parse_add(&["vertz-runtime", "add", "zod", "--workspace", "@myorg/api"]);
+        assert_eq!(args.workspace, Some("@myorg/api".to_string()));
+    }
+
+    #[test]
+    fn test_add_workspace_default_none() {
+        let args = parse_add(&["vertz-runtime", "add", "zod"]);
+        assert!(args.workspace.is_none());
+    }
+
+    #[test]
+    fn test_add_workspace_with_path() {
+        let args = parse_add(&["vertz-runtime", "add", "zod", "-w", "packages/api"]);
+        assert_eq!(args.workspace, Some("packages/api".to_string()));
+    }
+
+    #[test]
+    fn test_remove_workspace_short_flag() {
+        let args = parse_remove(&["vertz-runtime", "remove", "zod", "-w", "@myorg/api"]);
+        assert_eq!(args.workspace, Some("@myorg/api".to_string()));
+    }
+
+    #[test]
+    fn test_remove_workspace_long_flag() {
+        let args = parse_remove(&[
+            "vertz-runtime",
+            "remove",
+            "zod",
+            "--workspace",
+            "@myorg/api",
+        ]);
+        assert_eq!(args.workspace, Some("@myorg/api".to_string()));
+    }
+
+    #[test]
+    fn test_remove_workspace_default_none() {
+        let args = parse_remove(&["vertz-runtime", "remove", "zod"]);
+        assert!(args.workspace.is_none());
     }
 }

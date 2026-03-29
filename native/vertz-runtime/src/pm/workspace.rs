@@ -228,6 +228,47 @@ fn dfs_cycle<'a>(
     None
 }
 
+/// Resolve a workspace specifier (package name or directory path) to the workspace's
+/// absolute directory. Discovers workspaces from root package.json.
+pub fn resolve_workspace_dir(
+    root_dir: &Path,
+    specifier: &str,
+) -> Result<PathBuf, Box<dyn std::error::Error>> {
+    let pkg = types::read_package_json(root_dir)?;
+    let patterns = pkg
+        .workspaces
+        .ok_or_else(|| "error: no \"workspaces\" field in root package.json".to_string())?;
+
+    if patterns.is_empty() {
+        return Err("error: \"workspaces\" field is empty in root package.json".into());
+    }
+
+    let workspaces = discover_workspaces(root_dir, &patterns)?;
+
+    // Try matching by package name first
+    if let Some(ws) = workspaces.iter().find(|ws| ws.name == specifier) {
+        return Ok(root_dir.join(&ws.path));
+    }
+
+    // Try matching by directory path
+    let spec_path = PathBuf::from(specifier);
+    if let Some(ws) = workspaces.iter().find(|ws| ws.path == spec_path) {
+        return Ok(root_dir.join(&ws.path));
+    }
+
+    // Not found — provide helpful error
+    let available: Vec<String> = workspaces
+        .iter()
+        .map(|ws| format!("  {} ({})", ws.name, ws.path.display()))
+        .collect();
+    Err(format!(
+        "error: workspace \"{}\" not found\nAvailable workspaces:\n{}",
+        specifier,
+        available.join("\n")
+    )
+    .into())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -505,5 +546,99 @@ mod tests {
         let linked = link_workspaces(root, &workspaces).unwrap();
         assert_eq!(linked, 1);
         assert!(root.join("node_modules/@myorg/a").exists());
+    }
+
+    // --- resolve_workspace_dir tests ---
+
+    #[test]
+    fn test_resolve_workspace_dir_by_name() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path();
+
+        // Create root package.json with workspaces
+        std::fs::write(
+            root.join("package.json"),
+            r#"{"name":"root","workspaces":["packages/*"]}"#,
+        )
+        .unwrap();
+
+        let a_dir = root.join("packages/api");
+        std::fs::create_dir_all(&a_dir).unwrap();
+        std::fs::write(
+            a_dir.join("package.json"),
+            r#"{"name":"@myorg/api","version":"1.0.0"}"#,
+        )
+        .unwrap();
+
+        let result = resolve_workspace_dir(root, "@myorg/api").unwrap();
+        assert_eq!(result, root.join("packages/api"));
+    }
+
+    #[test]
+    fn test_resolve_workspace_dir_by_path() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path();
+
+        std::fs::write(
+            root.join("package.json"),
+            r#"{"name":"root","workspaces":["packages/*"]}"#,
+        )
+        .unwrap();
+
+        let a_dir = root.join("packages/api");
+        std::fs::create_dir_all(&a_dir).unwrap();
+        std::fs::write(
+            a_dir.join("package.json"),
+            r#"{"name":"@myorg/api","version":"1.0.0"}"#,
+        )
+        .unwrap();
+
+        let result = resolve_workspace_dir(root, "packages/api").unwrap();
+        assert_eq!(result, root.join("packages/api"));
+    }
+
+    #[test]
+    fn test_resolve_workspace_dir_not_found() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path();
+
+        std::fs::write(
+            root.join("package.json"),
+            r#"{"name":"root","workspaces":["packages/*"]}"#,
+        )
+        .unwrap();
+
+        let a_dir = root.join("packages/api");
+        std::fs::create_dir_all(&a_dir).unwrap();
+        std::fs::write(
+            a_dir.join("package.json"),
+            r#"{"name":"@myorg/api","version":"1.0.0"}"#,
+        )
+        .unwrap();
+
+        let result = resolve_workspace_dir(root, "@myorg/nonexistent");
+        assert!(result.is_err());
+        let err = result.unwrap_err().to_string();
+        assert!(err.contains("workspace \"@myorg/nonexistent\" not found"));
+        assert!(err.contains("@myorg/api"));
+    }
+
+    #[test]
+    fn test_resolve_workspace_dir_no_workspaces_field() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path();
+
+        std::fs::write(
+            root.join("package.json"),
+            r#"{"name":"root","version":"1.0.0"}"#,
+        )
+        .unwrap();
+
+        let result = resolve_workspace_dir(root, "@myorg/api");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("no \"workspaces\" field"));
     }
 }

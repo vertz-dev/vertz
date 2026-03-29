@@ -141,6 +141,7 @@ async fn main() {
                 args.peer,
                 args.exact,
                 args.ignore_scripts,
+                args.workspace.as_deref(),
                 output.clone(),
             )
             .await
@@ -171,7 +172,14 @@ async fn main() {
 
             let package_refs: Vec<&str> = args.packages.iter().map(|s| s.as_str()).collect();
 
-            if let Err(e) = pm::remove(&root_dir, &package_refs, output.clone()).await {
+            if let Err(e) = pm::remove(
+                &root_dir,
+                &package_refs,
+                args.workspace.as_deref(),
+                output.clone(),
+            )
+            .await
+            {
                 let msg = e.to_string();
                 if args.json {
                     output.error(error_code_from_message(&msg), &msg);

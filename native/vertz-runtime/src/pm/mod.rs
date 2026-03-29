@@ -197,6 +197,7 @@ pub async fn install(
 }
 
 /// Add packages to dependencies (batch — single install pass)
+#[allow(clippy::too_many_arguments)]
 pub async fn add(
     root_dir: &Path,
     packages: &[&str],
@@ -204,9 +205,17 @@ pub async fn add(
     peer: bool,
     exact: bool,
     ignore_scripts: bool,
+    workspace_target: Option<&str>,
     output: Arc<dyn PmOutput>,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let mut pkg = types::read_package_json(root_dir)?;
+    // Determine target directory: workspace dir (if -w) or root_dir
+    let target_dir = if let Some(ws) = workspace_target {
+        workspace::resolve_workspace_dir(root_dir, ws)?
+    } else {
+        root_dir.to_path_buf()
+    };
+
+    let mut pkg = types::read_package_json(&target_dir)?;
 
     let cache_dir = registry::default_cache_dir();
     let registry_client = RegistryClient::new(&cache_dir);
@@ -286,13 +295,13 @@ pub async fn add(
         output.package_added(name, version_str, &range);
     }
 
-    types::write_package_json(root_dir, &pkg)?;
+    types::write_package_json(&target_dir, &pkg)?;
 
     if peer {
         // Peer deps are NOT installed — just recorded in package.json
         Ok(())
     } else {
-        // Single install pass for all packages
+        // Install from root — workspace deps are merged during install
         install(root_dir, false, ignore_scripts, false, output).await
     }
 }
@@ -301,9 +310,17 @@ pub async fn add(
 pub async fn remove(
     root_dir: &Path,
     packages: &[&str],
+    workspace_target: Option<&str>,
     output: Arc<dyn PmOutput>,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let mut pkg = types::read_package_json(root_dir)?;
+    // Determine target directory: workspace dir (if -w) or root_dir
+    let target_dir = if let Some(ws) = workspace_target {
+        workspace::resolve_workspace_dir(root_dir, ws)?
+    } else {
+        root_dir.to_path_buf()
+    };
+
+    let mut pkg = types::read_package_json(&target_dir)?;
     let mut not_found: Vec<&str> = Vec::new();
 
     for package in packages {
@@ -336,9 +353,9 @@ pub async fn remove(
         .into());
     }
 
-    types::write_package_json(root_dir, &pkg)?;
+    types::write_package_json(&target_dir, &pkg)?;
 
-    // Single install pass to clean orphaned deps
+    // Install from root — workspace deps are merged during install
     install(root_dir, false, false, false, output).await
 }
 
