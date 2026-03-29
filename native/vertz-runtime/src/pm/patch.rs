@@ -19,6 +19,8 @@ pub struct PatchSaveResult {
     pub version: String,
     pub patch_path: String,
     pub files_changed: usize,
+    /// True if no changes were detected (warning, not error)
+    pub no_changes: bool,
 }
 
 /// Result of applying a patch
@@ -112,6 +114,33 @@ fn get_installed_version(root_dir: &Path, name: &str) -> Result<String, Box<dyn 
         .ok_or_else(|| format!("error: no version field in package.json for \"{}\"", name).into())
 }
 
+/// Check if a package is a direct dependency (listed in package.json)
+fn is_direct_dependency(root_dir: &Path, package: &str) -> bool {
+    let pkg_path = root_dir.join("package.json");
+    let content = match std::fs::read_to_string(&pkg_path) {
+        Ok(c) => c,
+        Err(_) => return false,
+    };
+    let value: serde_json::Value = match serde_json::from_str(&content) {
+        Ok(v) => v,
+        Err(_) => return false,
+    };
+
+    for dep_key in &[
+        "dependencies",
+        "devDependencies",
+        "peerDependencies",
+        "optionalDependencies",
+    ] {
+        if let Some(deps) = value.get(dep_key).and_then(|v| v.as_object()) {
+            if deps.contains_key(package) {
+                return true;
+            }
+        }
+    }
+    false
+}
+
 /// Prepare a package for patching
 pub fn patch_prepare(
     root_dir: &Path,
@@ -126,6 +155,15 @@ pub fn patch_prepare(
         return Err(format!(
             "error: \"{}\" is not installed. Run \"vertz install\" first.",
             package
+        )
+        .into());
+    }
+
+    // Check if it's a direct dependency
+    if !is_direct_dependency(root_dir, package) {
+        return Err(format!(
+            "error: \"{}\" is a transitive dependency. Only direct dependencies can be patched. To patch it, add it as a direct dependency: vertz add {}",
+            package, package
         )
         .into());
     }
@@ -184,11 +222,13 @@ pub fn patch_save(
     if diff.is_empty() {
         // Clean up backup
         std::fs::remove_dir_all(&backup_dir)?;
-        return Err(format!(
-            "warning: no changes detected in \"{}\". Skipping patch creation.",
-            package
-        )
-        .into());
+        return Ok(PatchSaveResult {
+            name: package.to_string(),
+            version,
+            patch_path: String::new(),
+            files_changed: 0,
+            no_changes: true,
+        });
     }
 
     // Count files changed
@@ -215,6 +255,7 @@ pub fn patch_save(
         version,
         patch_path: relative_patch_path,
         files_changed,
+        no_changes: false,
     })
 }
 
@@ -414,7 +455,7 @@ pub fn apply_patches(
 
 /// Type of change in a patch section
 enum PatchChange {
-    Modified(String), // diffy-compatible patch content
+    Modified(String), // unified diff patch content
     Added(String),    // new file content
     Deleted,
 }
@@ -523,7 +564,7 @@ fn split_multi_file_patch(patch_content: &str) -> Vec<(String, PatchChange)> {
             }
             results.push((file_path, PatchChange::Added(content)));
         } else {
-            // Modified file — strip "diff --git" line, keep the rest for diffy
+            // Modified file — strip "diff --git" line, keep unified diff content
             let diffy_section: String = section
                 .lines()
                 .filter(|line| !line.starts_with("diff --git "))
@@ -741,12 +782,26 @@ fn generate_diff(
                     }
                 }
             }
-            (Some(_old), None) => {
+            (Some(old), None) => {
                 // Deleted file
+                if is_binary(old) {
+                    diff_output.push_str(&format!(
+                        "diff --git a/{} b/{}\n# Binary file deleted\n",
+                        path, path
+                    ));
+                    continue;
+                }
                 diff_output.push_str(&format!(
                     "diff --git a/{} b/{}\n--- a/{}\n+++ /dev/null\n",
                     path, path, path
                 ));
+                let lines: Vec<&str> = old.lines().collect();
+                if !lines.is_empty() {
+                    diff_output.push_str(&format!("@@ -1,{} +0,0 @@\n", lines.len()));
+                    for line in lines {
+                        diff_output.push_str(&format!("-{}\n", line));
+                    }
+                }
             }
             (None, Some(new)) => {
                 // Added file
@@ -1037,10 +1092,10 @@ mod tests {
         patch_prepare(&root, "express").unwrap();
 
         // Don't modify anything
-        let result = patch_save(&root, "express");
-        assert!(result.is_err());
-        let err = result.unwrap_err().to_string();
-        assert!(err.contains("no changes detected"), "Error was: {}", err);
+        let result = patch_save(&root, "express").unwrap();
+        assert!(result.no_changes);
+        assert_eq!(result.files_changed, 0);
+        assert!(result.patch_path.is_empty());
     }
 
     #[test]
@@ -1452,6 +1507,153 @@ mod tests {
         let result = patch_list(&root);
         assert!(result.active.is_empty());
         assert!(result.saved.is_empty());
+    }
+
+    // --- nested dependency check ---
+
+    #[test]
+    fn test_patch_prepare_rejects_transitive_dependency() {
+        let tmp = TempDir::new().unwrap();
+        let root = tmp.path().to_path_buf();
+        let nm = root.join("node_modules");
+
+        // Create a package that is NOT in package.json dependencies
+        let pkg_dir = nm.join("transitive-dep");
+        std::fs::create_dir_all(&pkg_dir).unwrap();
+        std::fs::write(
+            pkg_dir.join("package.json"),
+            r#"{"name":"transitive-dep","version":"1.0.0"}"#,
+        )
+        .unwrap();
+        std::fs::write(pkg_dir.join("index.js"), "// code\n").unwrap();
+
+        // package.json only has express, not transitive-dep
+        std::fs::write(
+            root.join("package.json"),
+            r#"{"dependencies":{"express":"^4.21.0"}}"#,
+        )
+        .unwrap();
+
+        let result = patch_prepare(&root, "transitive-dep");
+        assert!(result.is_err());
+        let err = result.unwrap_err().to_string();
+        assert!(
+            err.contains("transitive dependency"),
+            "Error was: {}",
+            err
+        );
+        assert!(
+            err.contains("vertz add transitive-dep"),
+            "Error should suggest adding as direct dep: {}",
+            err
+        );
+    }
+
+    // --- apply_patches edge cases ---
+
+    #[test]
+    fn test_apply_patches_target_file_not_found() {
+        let tmp = TempDir::new().unwrap();
+        let root = setup_test_project(&tmp);
+
+        // Create a patch that references a non-existent file
+        let patches_dir = root.join("patches");
+        std::fs::create_dir_all(&patches_dir).unwrap();
+        std::fs::write(
+            patches_dir.join("express@4.21.2.patch"),
+            "diff --git a/nonexistent.js b/nonexistent.js\n--- a/nonexistent.js\n+++ b/nonexistent.js\n@@ -1,1 +1,1 @@\n-old\n+new\n",
+        )
+        .unwrap();
+
+        update_package_json_patches(&root, "express@4.21.2", "patches/express@4.21.2.patch")
+            .unwrap();
+
+        let result = apply_patches(&root);
+        assert!(result.is_err());
+        let err = result.unwrap_err().to_string();
+        assert!(
+            err.contains("not found"),
+            "Error should mention file not found: {}",
+            err
+        );
+    }
+
+    // --- patch engine edge cases ---
+
+    #[test]
+    fn test_apply_unified_patch_multi_hunk() {
+        let content = "line1\nline2\nline3\nline4\nline5\nline6\nline7\nline8\n";
+        let patch = "--- a/file\n+++ b/file\n@@ -1,3 +1,3 @@\n line1\n-line2\n+line2_modified\n line3\n@@ -6,3 +6,3 @@\n line6\n-line7\n+line7_modified\n line8\n";
+
+        let result = apply_unified_patch(content, patch).unwrap();
+        assert!(result.contains("line2_modified"));
+        assert!(result.contains("line7_modified"));
+        assert!(!result.contains("\nline2\n"));
+        assert!(!result.contains("\nline7\n"));
+    }
+
+    #[test]
+    fn test_apply_unified_patch_context_mismatch() {
+        let content = "line1\nline2\nline3\n";
+        let patch = "--- a/file\n+++ b/file\n@@ -1,3 +1,3 @@\n line1\n-wrong_line\n+replacement\n line3\n";
+
+        let result = apply_unified_patch(content, patch);
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert!(err.contains("mismatch"), "Error was: {}", err);
+    }
+
+    #[test]
+    fn test_apply_patch_with_file_addition() {
+        let tmp = TempDir::new().unwrap();
+        let root = setup_test_project(&tmp);
+
+        // Create a patch that adds a new file
+        patch_prepare(&root, "express").unwrap();
+        let new_file = root.join("node_modules/express/lib/new-feature.js");
+        std::fs::write(&new_file, "// new feature\nexport function feature() {}\n").unwrap();
+        let result = patch_save(&root, "express").unwrap();
+        assert!(!result.no_changes);
+
+        // Remove the new file (simulating fresh install)
+        std::fs::remove_file(&new_file).unwrap();
+        assert!(!new_file.exists());
+
+        // Apply patches should recreate the file
+        apply_patches(&root).unwrap();
+        assert!(new_file.exists());
+        let content = std::fs::read_to_string(&new_file).unwrap();
+        assert!(content.contains("new feature"));
+    }
+
+    #[test]
+    fn test_apply_patch_with_file_deletion() {
+        let tmp = TempDir::new().unwrap();
+        let root = setup_test_project(&tmp);
+
+        // Create a patch that deletes a file
+        patch_prepare(&root, "express").unwrap();
+        let express_main = root.join("node_modules/express/lib/express.js");
+        std::fs::remove_file(&express_main).unwrap();
+        let result = patch_save(&root, "express").unwrap();
+        assert!(!result.no_changes);
+
+        // Restore the file (simulating fresh install)
+        std::fs::write(&express_main, "// express main\n").unwrap();
+        assert!(express_main.exists());
+
+        // Apply patches should delete the file
+        apply_patches(&root).unwrap();
+        assert!(!express_main.exists());
+    }
+
+    #[test]
+    fn test_apply_unified_patch_empty_file() {
+        let content = "";
+        let patch = "--- a/file\n+++ b/file\n@@ -0,0 +1,1 @@\n+new line\n";
+
+        let result = apply_unified_patch(content, patch).unwrap();
+        assert!(result.contains("new line"));
     }
 
     // --- file permissions ---

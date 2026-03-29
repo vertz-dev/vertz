@@ -670,7 +670,24 @@ async fn main() {
                 Some(cli::PatchCommand::Save(args)) => {
                     match pm::patch::patch_save(&root_dir, &args.package) {
                         Ok(result) => {
-                            if args.json {
+                            if result.no_changes {
+                                if args.json {
+                                    println!(
+                                        "{}",
+                                        serde_json::json!({
+                                            "event": "patch_no_changes",
+                                            "package": result.name,
+                                            "version": result.version,
+                                        })
+                                    );
+                                } else {
+                                    eprintln!(
+                                        "warning: no changes detected in \"{}\". Skipping patch creation.",
+                                        result.name
+                                    );
+                                }
+                                // Exit 0 — no changes is a warning, not an error
+                            } else if args.json {
                                 println!(
                                     "{}",
                                     serde_json::json!({
