@@ -4,6 +4,16 @@ import { SSRNode } from './ssr-node';
 import { SSRTextNode } from './ssr-text-node';
 
 /**
+ * Convert an SSRNode to the children array entry type.
+ * SSRTextNode → string, SSRComment → SSRComment, everything else → SSRElement.
+ */
+function toChildEntry(node: SSRNode): SSRElement | SSRComment | string {
+  if (node instanceof SSRComment) return node;
+  if (node instanceof SSRTextNode) return node.text;
+  return node as SSRElement;
+}
+
+/**
  * SSR document fragment.
  *
  * Maintains both `children` (used by toVNode for serialization) and
@@ -15,28 +25,18 @@ export class SSRDocumentFragment extends SSRNode {
   children: (SSRElement | SSRComment | string)[] = [];
 
   appendChild(child: SSRElement | SSRTextNode | SSRComment | SSRDocumentFragment): void {
-    if (child instanceof SSRTextNode) {
-      this.children.push(child.text);
-      this.childNodes.push(child);
-      child.parentNode = this;
-    } else if (child instanceof SSRDocumentFragment) {
+    if (child instanceof SSRDocumentFragment) {
       // Flatten fragment children — mirrors real DOM behavior where
       // fragment.appendChild(otherFragment) moves children, not the fragment.
       // Use childNodes (not children) as source of truth since insertBefore
       // may have added nodes only to childNodes in the child fragment.
       for (const fc of child.childNodes) {
-        if (fc instanceof SSRComment) this.children.push(fc);
-        else if (fc instanceof SSRTextNode) this.children.push(fc.text);
-        else this.children.push(fc as SSRElement);
+        this.children.push(toChildEntry(fc));
         this.childNodes.push(fc);
         fc.parentNode = this;
       }
-    } else if (child instanceof SSRComment) {
-      this.children.push(child);
-      this.childNodes.push(child);
-      child.parentNode = this;
     } else {
-      this.children.push(child);
+      this.children.push(toChildEntry(child));
       this.childNodes.push(child);
       child.parentNode = this;
     }
@@ -49,52 +49,75 @@ export class SSRDocumentFragment extends SSRNode {
    * (which reads `children`).
    */
   override insertBefore(newNode: SSRNode, referenceNode: SSRNode | null): SSRNode {
-    // Find insertion index via childNodes before mutation
-    const refIdx = referenceNode ? this.childNodes.indexOf(referenceNode) : -1;
+    if (!referenceNode) {
+      // Append to end — matches base class behavior
+      if (newNode instanceof SSRDocumentFragment) {
+        for (const fc of newNode.childNodes) {
+          this.children.push(toChildEntry(fc));
+          this.childNodes.push(fc);
+          fc.parentNode = this;
+        }
+      } else {
+        this.children.push(toChildEntry(newNode));
+        this.childNodes.push(newNode);
+        newNode.parentNode = this;
+      }
+      return newNode;
+    }
+
+    const refIdx = this.childNodes.indexOf(referenceNode);
+    if (refIdx === -1) {
+      // Reference not found — do nothing (matches base SSRNode behavior)
+      return newNode;
+    }
 
     if (newNode instanceof SSRDocumentFragment) {
-      // Flatten fragment children — mirrors real DOM behavior
-      const fragmentChildren: (SSRElement | SSRComment | string)[] = [];
+      // Flatten fragment children at the reference position
+      const entries: (SSRElement | SSRComment | string)[] = [];
       for (const fc of newNode.childNodes) {
-        if (fc instanceof SSRComment) fragmentChildren.push(fc);
-        else if (fc instanceof SSRTextNode) fragmentChildren.push(fc.text);
-        else fragmentChildren.push(fc as SSRElement);
-      }
-      if (!referenceNode || refIdx === -1) {
-        this.children.push(...fragmentChildren);
-        this.childNodes.push(...newNode.childNodes);
-      } else {
-        this.children.splice(refIdx, 0, ...fragmentChildren);
-        this.childNodes.splice(refIdx, 0, ...newNode.childNodes);
-      }
-      for (const fc of newNode.childNodes) {
+        entries.push(toChildEntry(fc));
         fc.parentNode = this;
       }
+      this.children.splice(refIdx, 0, ...entries);
+      this.childNodes.splice(refIdx, 0, ...newNode.childNodes);
     } else {
-      // Map SSRNode subclasses to the children array type.
-      // The only concrete subclass that reaches the else branch (not SSRComment,
-      // not SSRTextNode, not SSRDocumentFragment) is SSRElement.
-      let child: SSRElement | SSRComment | string | null = null;
-      if (newNode instanceof SSRComment) {
-        child = newNode;
-      } else if (newNode instanceof SSRTextNode) {
-        child = newNode.text;
-      } else {
-        // SSRElement — direct cast is safe here since all other
-        // SSRNode subclasses are handled above or in the fragment branch.
-        child = newNode as SSRElement;
-      }
-
-      if (!referenceNode || refIdx === -1) {
-        if (child != null) this.children.push(child);
-        this.childNodes.push(newNode);
-      } else {
-        if (child != null) this.children.splice(refIdx, 0, child);
-        this.childNodes.splice(refIdx, 0, newNode);
-      }
+      this.children.splice(refIdx, 0, toChildEntry(newNode));
+      this.childNodes.splice(refIdx, 0, newNode);
       newNode.parentNode = this;
     }
 
     return newNode;
+  }
+
+  /**
+   * Override removeChild to keep `children` in sync with `childNodes`.
+   */
+  override removeChild(child: SSRNode): SSRNode {
+    const idx = this.childNodes.indexOf(child);
+    if (idx !== -1) {
+      this.children.splice(idx, 1);
+    }
+    return super.removeChild(child);
+  }
+
+  /**
+   * Override replaceChild to keep `children` in sync with `childNodes`.
+   */
+  override replaceChild(newNode: SSRNode, oldNode: SSRNode): SSRNode {
+    const idx = this.childNodes.indexOf(oldNode);
+    const result = super.replaceChild(newNode, oldNode);
+    if (idx !== -1) {
+      if (newNode instanceof SSRDocumentFragment) {
+        // Replace single entry with flattened fragment children
+        const entries: (SSRElement | SSRComment | string)[] = [];
+        for (const fc of newNode.childNodes) {
+          entries.push(toChildEntry(fc));
+        }
+        this.children.splice(idx, 1, ...entries);
+      } else {
+        this.children[idx] = toChildEntry(newNode);
+      }
+    }
+    return result;
   }
 }

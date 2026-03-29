@@ -999,32 +999,18 @@ describe('DOM Shim', () => {
       const childFragment = new SSRDocumentFragment();
       const anchor = new SSRComment('child');
       const endMarker = new SSRComment('/child');
-      childFragment.appendChild(anchor as unknown as SSRElement);
-      childFragment.appendChild(endMarker as unknown as SSRElement);
+      childFragment.appendChild(anchor);
+      childFragment.appendChild(endMarker);
 
-      // Simulate __conditional returning a fragment with comment markers
+      // Simulate resolveAndInsertAfter flattening the conditional fragment:
+      // Each child is inserted individually via insertBefore on the parent fragment
       const conditionalComment = new SSRComment('conditional');
       const content = new SSRElement('span');
       const conditionalEndComment = new SSRComment('/conditional');
 
-      // Simulate resolveAndInsertAfter flattening the conditional fragment:
-      // Each child is inserted individually via insertBefore on the parent fragment
-      // This is the path taken by resolveAndInsertAfter when node.nodeType === 11
-
-      // Insert conditionalComment after anchor (before endMarker)
-      childFragment.insertBefore(
-        conditionalComment as unknown as SSRNode,
-        endMarker as unknown as SSRNode,
-      );
-
-      // Insert content after conditionalComment (before endMarker)
-      childFragment.insertBefore(content as unknown as SSRNode, endMarker as unknown as SSRNode);
-
-      // Insert conditionalEndComment after content (before endMarker)
-      childFragment.insertBefore(
-        conditionalEndComment as unknown as SSRNode,
-        endMarker as unknown as SSRNode,
-      );
+      childFragment.insertBefore(conditionalComment, endMarker);
+      childFragment.insertBefore(content, endMarker);
+      childFragment.insertBefore(conditionalEndComment, endMarker);
 
       // Verify childNodes has all nodes in correct order
       expect(childFragment.childNodes.length).toBe(5);
@@ -1034,11 +1020,13 @@ describe('DOM Shim', () => {
       expect((childFragment.childNodes[3] as SSRComment).text).toBe('/conditional');
       expect((childFragment.childNodes[4] as SSRComment).text).toBe('/child');
 
+      // children array must be in sync with childNodes
+      expect(childFragment.children.length).toBe(5);
+
       // Now flatten into a parent element (simulates __append(div, childFragment))
       const div = new SSRElement('div');
       div.appendChild(childFragment);
 
-      // The parent element should have ALL nodes including comments
       expect(div.children.length).toBe(5);
 
       // Serialize to VNode and check HTML output
@@ -1050,18 +1038,101 @@ describe('DOM Shim', () => {
       expect(html).toContain('<!--/child-->');
     });
 
-    it('should preserve comments when SSRDocumentFragment children array includes nodes from insertBefore', () => {
-      // Direct test: insertBefore on SSRDocumentFragment should sync children array
+    it('should sync children array on insertBefore', () => {
       const frag = new SSRDocumentFragment();
       const a = new SSRComment('a');
       const b = new SSRComment('b');
-      frag.appendChild(a as unknown as SSRElement);
+      frag.appendChild(a);
 
-      // insertBefore should add to children too
-      frag.insertBefore(b as unknown as SSRNode, a as unknown as SSRNode);
+      frag.insertBefore(b, a);
 
-      // Both should be in children
       expect(frag.children.length).toBe(2);
+      expect(frag.children[0]).toBe(b);
+      expect(frag.children[1]).toBe(a);
+    });
+
+    it('should append on insertBefore with null reference', () => {
+      const frag = new SSRDocumentFragment();
+      const a = new SSRComment('a');
+      frag.insertBefore(a, null);
+
+      expect(frag.children.length).toBe(1);
+      expect(frag.children[0]).toBe(a);
+      expect(frag.childNodes.length).toBe(1);
+    });
+
+    it('should do nothing on insertBefore with unknown reference node', () => {
+      const frag = new SSRDocumentFragment();
+      const a = new SSRComment('a');
+      const orphan = new SSRComment('orphan');
+      frag.appendChild(a);
+
+      // referenceNode not found — should be a no-op
+      frag.insertBefore(new SSRComment('b'), orphan);
+
+      expect(frag.children.length).toBe(1);
+      expect(frag.childNodes.length).toBe(1);
+    });
+
+    it('should flatten fragment via insertBefore', () => {
+      const parent = new SSRDocumentFragment();
+      const ref = new SSRComment('ref');
+      parent.appendChild(ref);
+
+      const inner = new SSRDocumentFragment();
+      inner.appendChild(new SSRComment('x'));
+      inner.appendChild(new SSRElement('p'));
+
+      parent.insertBefore(inner, ref);
+
+      expect(parent.children.length).toBe(3);
+      expect(parent.childNodes.length).toBe(3);
+      expect((parent.childNodes[0] as SSRComment).text).toBe('x');
+      expect((parent.childNodes[1] as SSRElement).tag).toBe('p');
+      expect((parent.childNodes[2] as SSRComment).text).toBe('ref');
+    });
+
+    it('should handle SSRTextNode via insertBefore', () => {
+      const frag = new SSRDocumentFragment();
+      const ref = new SSRComment('end');
+      frag.appendChild(ref);
+
+      const text = new SSRTextNode('hello');
+      frag.insertBefore(text, ref);
+
+      expect(frag.children.length).toBe(2);
+      expect(frag.children[0]).toBe('hello');
+      expect(frag.childNodes.length).toBe(2);
+    });
+
+    it('should sync children on removeChild', () => {
+      const frag = new SSRDocumentFragment();
+      const a = new SSRComment('a');
+      const b = new SSRElement('p');
+      const c = new SSRComment('c');
+      frag.appendChild(a);
+      frag.appendChild(b);
+      frag.appendChild(c);
+
+      expect(frag.children.length).toBe(3);
+
+      frag.removeChild(b);
+
+      expect(frag.children.length).toBe(2);
+      expect(frag.children[0]).toBe(a);
+      expect(frag.children[1]).toBe(c);
+    });
+
+    it('should sync children on replaceChild', () => {
+      const frag = new SSRDocumentFragment();
+      const old = new SSRComment('old');
+      frag.appendChild(old);
+
+      const replacement = new SSRElement('div');
+      frag.replaceChild(replacement, old);
+
+      expect(frag.children.length).toBe(1);
+      expect(frag.children[0]).toBe(replacement);
     });
 
     it('should preserve all nodes when fragment with insertBefore children is appended to another fragment', () => {
@@ -1069,28 +1140,22 @@ describe('DOM Shim', () => {
       const inner = new SSRDocumentFragment();
       const childAnchor = new SSRComment('child');
       const childEnd = new SSRComment('/child');
-      inner.appendChild(childAnchor as unknown as SSRElement);
-      inner.appendChild(childEnd as unknown as SSRElement);
+      inner.appendChild(childAnchor);
+      inner.appendChild(childEnd);
 
-      // Insert conditional markers via insertBefore (simulates resolveAndInsertAfter)
-      const condComment = new SSRComment('conditional');
-      const condContent = new SSRElement('p');
-      const condEndComment = new SSRComment('/conditional');
-      inner.insertBefore(condComment as unknown as SSRNode, childEnd as unknown as SSRNode);
-      inner.insertBefore(condContent as unknown as SSRNode, childEnd as unknown as SSRNode);
-      inner.insertBefore(condEndComment as unknown as SSRNode, childEnd as unknown as SSRNode);
+      // Insert conditional markers via insertBefore
+      inner.insertBefore(new SSRComment('conditional'), childEnd);
+      inner.insertBefore(new SSRElement('p'), childEnd);
+      inner.insertBefore(new SSRComment('/conditional'), childEnd);
 
       // Outer fragment: simulates root component returning <>...</>
       const outer = new SSRDocumentFragment();
       outer.appendChild(inner);
 
-      // Fragment-to-fragment spreading uses child.children.
-      // BUG: inner.children is incomplete (insertBefore didn't sync it),
-      // so outer.children loses the conditional markers.
-      // After fix: outer.children should have all 5 nodes
+      // Fragment-to-fragment should use childNodes as source of truth
       expect(outer.children.length).toBe(5);
 
-      // If outer is the root, toVNode should serialize all nodes
+      // toVNode should serialize all nodes including comments
       const vnode = toVNode(outer);
       const html = serializeVNode(vnode);
       expect(html).toContain('<!--conditional-->');
@@ -1098,18 +1163,13 @@ describe('DOM Shim', () => {
     });
 
     it('should include SSRComment in fragment toVNode children', () => {
-      // When a fragment IS the root (e.g., component returns <>...</>),
-      // toVNode must handle SSRComment children
       const frag = new SSRDocumentFragment();
-      const comment = new SSRComment('conditional');
-      const content = new SSRElement('span');
-      frag.appendChild(comment as unknown as SSRElement);
-      frag.appendChild(content);
+      frag.appendChild(new SSRComment('conditional'));
+      frag.appendChild(new SSRElement('span'));
 
       const vnode = toVNode(frag);
       expect(vnode.children.length).toBe(2);
 
-      // The comment should be serialized as rawHtml
       const html = serializeVNode(vnode);
       expect(html).toContain('<!--conditional-->');
     });
