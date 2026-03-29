@@ -71,6 +71,15 @@ fn strip_protocol(url: &str) -> &str {
 /// - `${ENV_VAR}` interpolation
 /// - Keys: registry, @scope:registry, //<url>/:_authToken, always-auth
 pub fn parse_npmrc(content: &str) -> Result<BTreeMap<String, String>, Box<dyn std::error::Error>> {
+    parse_npmrc_with_env(content, |name| std::env::var(name))
+}
+
+/// Parse .npmrc with a custom environment variable resolver.
+/// Used internally and in tests to avoid mutating process-wide env state.
+fn parse_npmrc_with_env(
+    content: &str,
+    env_fn: impl Fn(&str) -> Result<String, std::env::VarError>,
+) -> Result<BTreeMap<String, String>, Box<dyn std::error::Error>> {
     let mut entries = BTreeMap::new();
 
     for line in content.lines() {
@@ -83,8 +92,8 @@ pub fn parse_npmrc(content: &str) -> Result<BTreeMap<String, String>, Box<dyn st
             continue;
         };
 
-        let key = interpolate_env_vars(key.trim())?;
-        let value = interpolate_env_vars(value.trim())?;
+        let key = interpolate_env_vars(key.trim(), &env_fn)?;
+        let value = interpolate_env_vars(value.trim(), &env_fn)?;
         entries.insert(key, value);
     }
 
@@ -92,7 +101,10 @@ pub fn parse_npmrc(content: &str) -> Result<BTreeMap<String, String>, Box<dyn st
 }
 
 /// Interpolate `${ENV_VAR}` references in a string value
-fn interpolate_env_vars(value: &str) -> Result<String, Box<dyn std::error::Error>> {
+fn interpolate_env_vars(
+    value: &str,
+    env_fn: &impl Fn(&str) -> Result<String, std::env::VarError>,
+) -> Result<String, Box<dyn std::error::Error>> {
     let mut result = String::new();
     let mut rest = value;
 
@@ -103,9 +115,9 @@ fn interpolate_env_vars(value: &str) -> Result<String, Box<dyn std::error::Error
             .find('}')
             .ok_or_else(|| format!("error: malformed .npmrc — unclosed ${{}} in: {}", value))?;
         let var_name = &after_start[..end];
-        let var_value = std::env::var(var_name).map_err(|_| {
+        let var_value = env_fn(var_name).map_err(|_| {
             format!(
-                "error: .npmrc references undefined environment variable ${}",
+                "error: .npmrc references undefined environment variable ${{{}}}",
                 var_name
             )
         })?;
@@ -140,13 +152,25 @@ fn config_from_entries(entries: &BTreeMap<String, String>) -> RegistryConfig {
     config
 }
 
-/// Load registry config from project .npmrc and ~/.npmrc, merged per-key
-pub fn load_registry_config(root_dir: &Path) -> Result<RegistryConfig, Box<dyn std::error::Error>> {
+/// Load registry config from project .npmrc and ~/.npmrc, merged per-key.
+///
+/// `home_dir` overrides the `HOME` env var for locating `~/.npmrc`.
+/// Pass `None` to use the `HOME` environment variable (production default).
+pub fn load_registry_config(
+    root_dir: &Path,
+    home_dir: Option<&Path>,
+) -> Result<RegistryConfig, Box<dyn std::error::Error>> {
     let mut merged_entries: BTreeMap<String, String> = BTreeMap::new();
 
+    // Resolve home directory: explicit parameter or HOME env var
+    let resolved_home = match home_dir {
+        Some(dir) => Some(dir.to_path_buf()),
+        None => std::env::var("HOME").ok().map(std::path::PathBuf::from),
+    };
+
     // Load ~/.npmrc first (lower priority)
-    if let Ok(home) = std::env::var("HOME") {
-        let home_npmrc = Path::new(&home).join(".npmrc");
+    if let Some(home) = resolved_home {
+        let home_npmrc = home.join(".npmrc");
         if home_npmrc.exists() {
             if let Ok(content) = std::fs::read_to_string(&home_npmrc) {
                 let entries = parse_npmrc(&content)?;
@@ -214,21 +238,26 @@ mod tests {
 
     #[test]
     fn test_parse_npmrc_env_var_interpolation() {
-        std::env::set_var("TEST_NPM_TOKEN_3G", "secret-from-env");
+        let env_fn = |name: &str| -> Result<String, std::env::VarError> {
+            match name {
+                "TEST_NPM_TOKEN_3G" => Ok("secret-from-env".to_string()),
+                _ => Err(std::env::VarError::NotPresent),
+            }
+        };
         let content = "//npm.internal.company.com/:_authToken=${TEST_NPM_TOKEN_3G}\n";
-        let entries = parse_npmrc(content).unwrap();
+        let entries = parse_npmrc_with_env(content, env_fn).unwrap();
         assert_eq!(
             entries["//npm.internal.company.com/:_authToken"],
             "secret-from-env"
         );
-        std::env::remove_var("TEST_NPM_TOKEN_3G");
     }
 
     #[test]
     fn test_parse_npmrc_undefined_env_var() {
-        std::env::remove_var("UNDEFINED_TOKEN_3G_TEST");
+        let env_fn =
+            |_: &str| -> Result<String, std::env::VarError> { Err(std::env::VarError::NotPresent) };
         let content = "//host/:_authToken=${UNDEFINED_TOKEN_3G_TEST}\n";
-        let result = parse_npmrc(content);
+        let result = parse_npmrc_with_env(content, env_fn);
         assert!(result.is_err());
         let err = result.unwrap_err().to_string();
         assert!(err.contains("UNDEFINED_TOKEN_3G_TEST"));
@@ -354,13 +383,8 @@ mod tests {
     #[test]
     fn test_load_registry_config_no_npmrc() {
         let dir = tempfile::tempdir().unwrap();
-        // Override HOME to avoid picking up the user's real ~/.npmrc
-        let old_home = std::env::var("HOME").ok();
-        std::env::set_var("HOME", dir.path().join("fake-home"));
-        let config = load_registry_config(dir.path()).unwrap();
-        if let Some(h) = old_home {
-            std::env::set_var("HOME", h);
-        }
+        let fake_home = dir.path().join("fake-home");
+        let config = load_registry_config(dir.path(), Some(&fake_home)).unwrap();
         assert_eq!(config.default_url, "");
         assert!(config.scoped.is_empty());
         assert!(config.tokens.is_empty());
@@ -369,12 +393,13 @@ mod tests {
     #[test]
     fn test_load_registry_config_project_npmrc() {
         let dir = tempfile::tempdir().unwrap();
+        let fake_home = dir.path().join("fake-home");
         std::fs::write(
             dir.path().join(".npmrc"),
             "registry=https://custom.reg.com\n",
         )
         .unwrap();
-        let config = load_registry_config(dir.path()).unwrap();
+        let config = load_registry_config(dir.path(), Some(&fake_home)).unwrap();
         assert_eq!(config.default_url, "https://custom.reg.com");
     }
 
@@ -387,12 +412,30 @@ mod tests {
 
     #[test]
     fn test_parse_npmrc_multiple_env_vars() {
-        std::env::set_var("TEST_HOST_3G", "custom.reg.com");
-        std::env::set_var("TEST_TOKEN_3G", "secret");
+        let env_fn = |name: &str| -> Result<String, std::env::VarError> {
+            match name {
+                "TEST_HOST_3G" => Ok("custom.reg.com".to_string()),
+                "TEST_TOKEN_3G" => Ok("secret".to_string()),
+                _ => Err(std::env::VarError::NotPresent),
+            }
+        };
         let content = "//${TEST_HOST_3G}/:_authToken=${TEST_TOKEN_3G}\n";
-        let entries = parse_npmrc(content).unwrap();
+        let entries = parse_npmrc_with_env(content, env_fn).unwrap();
         assert_eq!(entries["//custom.reg.com/:_authToken"], "secret");
-        std::env::remove_var("TEST_HOST_3G");
-        std::env::remove_var("TEST_TOKEN_3G");
+    }
+
+    #[test]
+    fn test_load_registry_config_project_overrides_home() {
+        let dir = tempfile::tempdir().unwrap();
+        let fake_home = dir.path().join("fake-home");
+        std::fs::create_dir_all(&fake_home).unwrap();
+        std::fs::write(fake_home.join(".npmrc"), "registry=https://home.reg.com\n").unwrap();
+        std::fs::write(
+            dir.path().join(".npmrc"),
+            "registry=https://project.reg.com\n",
+        )
+        .unwrap();
+        let config = load_registry_config(dir.path(), Some(&fake_home)).unwrap();
+        assert_eq!(config.default_url, "https://project.reg.com");
     }
 }
