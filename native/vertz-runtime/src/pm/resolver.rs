@@ -316,9 +316,7 @@ pub fn graph_to_lockfile(graph: &ResolvedGraph, all_deps: &BTreeMap<String, Stri
                     p.name == *dep_name
                         && Range::parse(dep_range)
                             .ok()
-                            .and_then(|r| {
-                                Version::parse(&p.version).ok().map(|v| r.satisfies(&v))
-                            })
+                            .and_then(|r| Version::parse(&p.version).ok().map(|v| r.satisfies(&v)))
                             .unwrap_or(false)
                 });
 

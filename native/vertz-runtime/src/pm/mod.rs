@@ -53,7 +53,11 @@ pub async fn install(
     // Resolve dependency graph
     let resolve_spinner = if is_tty {
         let sp = ProgressBar::new_spinner();
-        sp.set_style(ProgressStyle::default_spinner().template("{spinner} {msg}").unwrap());
+        sp.set_style(
+            ProgressStyle::default_spinner()
+                .template("{spinner} {msg}")
+                .unwrap(),
+        );
         sp.set_message("Resolving dependencies...");
         sp.enable_steady_tick(std::time::Duration::from_millis(80));
         Some(sp)
@@ -130,10 +134,7 @@ pub async fn install(
         }
 
         // Check for download errors — collect all failures
-        let download_errors: Vec<_> = results
-            .into_iter()
-            .filter_map(|r| r.err())
-            .collect();
+        let download_errors: Vec<_> = results.into_iter().filter_map(|r| r.err()).collect();
         if !download_errors.is_empty() {
             let msgs: Vec<_> = download_errors.iter().map(|e| e.to_string()).collect();
             return Err(format!(
@@ -217,18 +218,18 @@ pub async fn add(
                             "error: no version of \"{}\" matches \"{}\" (latest: {})",
                             name,
                             spec,
-                            metadata.dist_tags.get("latest").unwrap_or(&"unknown".to_string())
+                            metadata
+                                .dist_tags
+                                .get("latest")
+                                .unwrap_or(&"unknown".to_string())
                         )
                     })?;
                 Some(v.version.clone())
             }
         } else {
             // Use latest
-            let latest = metadata
-                .dist_tags
-                .get("latest")
-                .cloned()
-                .ok_or_else(|| {
+            let latest =
+                metadata.dist_tags.get("latest").cloned().ok_or_else(|| {
                     format!("error: package \"{}\" not found in npm registry", name)
                 })?;
             Some(latest)

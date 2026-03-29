@@ -176,7 +176,10 @@ pub fn write_package_json(
     if pkg.dependencies.is_empty() {
         obj.remove("dependencies");
     } else {
-        obj.insert("dependencies".into(), serde_json::to_value(&pkg.dependencies)?);
+        obj.insert(
+            "dependencies".into(),
+            serde_json::to_value(&pkg.dependencies)?,
+        );
     }
 
     if pkg.dev_dependencies.is_empty() {

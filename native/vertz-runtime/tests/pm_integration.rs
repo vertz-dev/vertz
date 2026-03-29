@@ -134,10 +134,7 @@ async fn test_add_with_explicit_range_preserved() {
 
     let pkg = read_pkg_json(&dir);
     let range = pkg["dependencies"]["is-number"].as_str().unwrap();
-    assert_eq!(
-        range, "^7.0.0",
-        "Explicit range should be preserved as-is"
-    );
+    assert_eq!(range, "^7.0.0", "Explicit range should be preserved as-is");
 }
 
 #[tokio::test]
@@ -158,10 +155,7 @@ async fn test_add_multiple_packages_batch() {
         .path()
         .join("node_modules/is-number/package.json")
         .exists());
-    assert!(dir
-        .path()
-        .join("node_modules/is-odd/package.json")
-        .exists());
+    assert!(dir.path().join("node_modules/is-odd/package.json").exists());
 }
 
 #[tokio::test]
@@ -196,7 +190,10 @@ async fn test_install_frozen_fails_when_stale() {
 
     // No lockfile — frozen should fail
     let result = vertz_runtime::pm::install(dir.path(), true, false).await;
-    assert!(result.is_err(), "Frozen install should fail without lockfile");
+    assert!(
+        result.is_err(),
+        "Frozen install should fail without lockfile"
+    );
     let err = result.unwrap_err().to_string();
     assert!(
         err.contains("lockfile is out of date"),
