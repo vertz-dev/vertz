@@ -5,6 +5,41 @@
 /// executes them when `__vertz_run_tests()` is called. Results are returned as JSON
 /// for the Rust side to parse.
 pub const TEST_HARNESS_JS: &str = r#"
+// --- DOM class stubs for test mode (#2071) ---
+// Provide minimal DOM class hierarchy on globalThis so that instanceof checks
+// work in tests. These stubs have no DOM behavior — they exist only for
+// prototype chain checks (e.g., `instanceof HTMLElement`).
+if (typeof globalThis.HTMLElement === 'undefined') {
+  class Node {}
+  class Element extends Node {}
+  class HTMLElement extends Element {}
+  class HTMLDivElement extends HTMLElement {}
+  class HTMLInputElement extends HTMLElement {}
+  class HTMLButtonElement extends HTMLElement {}
+  class HTMLFormElement extends HTMLElement {}
+  class HTMLAnchorElement extends HTMLElement {}
+  class HTMLSpanElement extends HTMLElement {}
+  class HTMLLabelElement extends HTMLElement {}
+  class HTMLTextAreaElement extends HTMLElement {}
+  class HTMLSelectElement extends HTMLElement {}
+  class HTMLOptionElement extends HTMLElement {}
+  class HTMLImageElement extends HTMLElement {}
+  class Text extends Node {}
+  class Comment extends Node {}
+  class DocumentFragment extends Node {}
+  class Event {}
+  class CustomEvent extends Event {}
+  class EventTarget {}
+
+  Object.assign(globalThis, {
+    Node, Element, EventTarget, Event, CustomEvent,
+    HTMLElement, HTMLDivElement, HTMLInputElement, HTMLButtonElement,
+    HTMLFormElement, HTMLAnchorElement, HTMLSpanElement, HTMLLabelElement,
+    HTMLTextAreaElement, HTMLSelectElement, HTMLOptionElement, HTMLImageElement,
+    Text, Comment, DocumentFragment,
+  });
+}
+
 (() => {
   'use strict';
 
@@ -2597,6 +2632,90 @@ mod tests {
             assert_eq!(
                 item["status"], "pass",
                 "vi bulk mock test {} failed: {:?}",
+                i, item["error"]
+            );
+        }
+    }
+
+    // --- DOM class stubs (#2071) ---
+
+    #[test]
+    fn test_dom_stubs_exist_on_globalthis() {
+        let mut rt = create_test_runtime();
+        let results = run_test_code(
+            &mut rt,
+            r#"
+            describe('DOM class stubs', () => {
+                it('HTMLElement exists on globalThis', () => {
+                    expect(typeof globalThis.HTMLElement).toBe('function');
+                });
+                it('Node exists on globalThis', () => {
+                    expect(typeof globalThis.Node).toBe('function');
+                });
+                it('Element exists on globalThis', () => {
+                    expect(typeof globalThis.Element).toBe('function');
+                });
+                it('Text exists on globalThis', () => {
+                    expect(typeof globalThis.Text).toBe('function');
+                });
+                it('Event exists on globalThis', () => {
+                    expect(typeof globalThis.Event).toBe('function');
+                });
+            });
+            "#,
+        );
+
+        let arr = results.as_array().unwrap();
+        assert_eq!(arr.len(), 5);
+        for (i, item) in arr.iter().enumerate() {
+            assert_eq!(
+                item["status"], "pass",
+                "DOM stub test {} failed: {:?}",
+                i, item["error"]
+            );
+        }
+    }
+
+    #[test]
+    fn test_dom_stubs_prototype_chain() {
+        let mut rt = create_test_runtime();
+        let results = run_test_code(
+            &mut rt,
+            r#"
+            describe('DOM stubs prototype chain', () => {
+                it('HTMLElement extends Element extends Node', () => {
+                    const el = new HTMLElement();
+                    expect(el instanceof Element).toBe(true);
+                    expect(el instanceof Node).toBe(true);
+                });
+                it('HTMLDivElement extends HTMLElement', () => {
+                    const div = new HTMLDivElement();
+                    expect(div instanceof HTMLElement).toBe(true);
+                    expect(div instanceof Element).toBe(true);
+                    expect(div instanceof Node).toBe(true);
+                });
+                it('Text extends Node', () => {
+                    const text = new Text();
+                    expect(text instanceof Node).toBe(true);
+                });
+                it('Comment extends Node', () => {
+                    const comment = new Comment();
+                    expect(comment instanceof Node).toBe(true);
+                });
+                it('CustomEvent extends Event', () => {
+                    const evt = new CustomEvent();
+                    expect(evt instanceof Event).toBe(true);
+                });
+            });
+            "#,
+        );
+
+        let arr = results.as_array().unwrap();
+        assert_eq!(arr.len(), 5);
+        for (i, item) in arr.iter().enumerate() {
+            assert_eq!(
+                item["status"], "pass",
+                "DOM prototype chain test {} failed: {:?}",
                 i, item["error"]
             );
         }
