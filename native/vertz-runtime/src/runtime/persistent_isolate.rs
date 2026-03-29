@@ -1,11 +1,11 @@
-//! Persistent V8 isolate for API route delegation.
+//! Persistent V8 isolate for API route delegation and SSR rendering.
 //!
 //! Unlike the per-request SSR model (which creates a fresh V8 runtime per render),
-//! the persistent isolate loads the server module once and caches the handler
-//! function. Requests are dispatched via a channel to a dedicated V8 thread.
+//! the persistent isolate loads modules once and caches them. Both API requests
+//! and SSR renders are dispatched via a channel to a dedicated V8 thread.
 //!
-//! This matches Cloudflare Workers' execution model: one isolate, handler loaded
-//! once, all requests go through `handler(request) → Response`.
+//! This matches Cloudflare Workers' execution model: one isolate, modules loaded
+//! once, all requests go through the same runtime.
 
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -18,8 +18,11 @@ use tokio::sync::{mpsc, oneshot};
 pub struct PersistentIsolateOptions {
     /// Root directory of the project.
     pub root_dir: PathBuf,
-    /// Path to the server entry file (e.g., `src/server.ts`).
-    pub server_entry: PathBuf,
+    /// App entry file for SSR rendering (e.g., `src/app.tsx`).
+    pub entry_file: PathBuf,
+    /// Optional server entry file for API routes (e.g., `src/server.ts`).
+    /// When `None`, the isolate only supports SSR rendering.
+    pub server_entry: Option<PathBuf>,
     /// Bounded channel capacity for request queue.
     pub channel_capacity: usize,
 }
@@ -28,7 +31,8 @@ impl Default for PersistentIsolateOptions {
     fn default() -> Self {
         Self {
             root_dir: PathBuf::from("."),
-            server_entry: PathBuf::from("src/server.ts"),
+            entry_file: PathBuf::from("src/app.tsx"),
+            server_entry: None,
             channel_capacity: 256,
         }
     }
@@ -51,71 +55,140 @@ pub struct IsolateResponse {
     pub body: Vec<u8>,
 }
 
-/// Message sent from Axum handlers to the V8 thread.
-type RequestMessage = (
-    IsolateRequest,
-    oneshot::Sender<Result<IsolateResponse, String>>,
-);
+/// An SSR render request dispatched to the V8 thread.
+#[derive(Debug, Clone)]
+pub struct SsrRequest {
+    /// URL to render (e.g., `/tasks/123`).
+    pub url: String,
+    /// JSON-serialized session data.
+    pub session_json: Option<String>,
+}
 
-/// A persistent V8 isolate that handles API requests on a dedicated thread.
+/// An SSR render response from the V8 thread.
+#[derive(Debug, Clone)]
+pub struct SsrResponse {
+    /// The rendered SSR content (inner HTML of #app).
+    pub content: String,
+    /// CSS collected during rendering.
+    pub css_entries: Vec<(String, Option<String>)>,
+    /// Hydration data JSON.
+    pub hydration_json: String,
+    /// Whether rendering succeeded.
+    pub is_ssr: bool,
+    /// Error message if SSR failed.
+    pub error: Option<String>,
+    /// Render time in milliseconds.
+    pub render_time_ms: f64,
+}
+
+/// Messages dispatched to the persistent isolate's V8 thread.
+enum IsolateMessage {
+    /// API request: dispatch to the server handler.
+    Api(
+        IsolateRequest,
+        oneshot::Sender<Result<IsolateResponse, String>>,
+    ),
+    /// SSR render request: reset DOM, render app, collect CSS/hydration.
+    Ssr(SsrRequest, oneshot::Sender<Result<SsrResponse, String>>),
+}
+
+/// A persistent V8 isolate that handles API requests and SSR renders on a
+/// dedicated thread.
 ///
 /// The isolate owns a `VertzJsRuntime` on a dedicated OS thread. Axum handlers
-/// send requests via a bounded channel, and the V8 thread processes them through
-/// the cached handler function.
+/// send requests via a bounded channel, and the V8 thread processes them
+/// sequentially.
 pub struct PersistentIsolate {
-    request_tx: mpsc::Sender<RequestMessage>,
+    message_tx: mpsc::Sender<IsolateMessage>,
     _runtime_thread: std::thread::JoinHandle<()>,
     initialized: Arc<std::sync::atomic::AtomicBool>,
+    has_api_handler: Arc<std::sync::atomic::AtomicBool>,
 }
 
 impl PersistentIsolate {
     /// Create a new persistent isolate.
     ///
-    /// Spawns a dedicated OS thread that owns the V8 runtime. The runtime is
-    /// NOT initialized yet — call `initialize()` to load the server module.
+    /// Spawns a dedicated OS thread that owns the V8 runtime. The runtime
+    /// loads the DOM shim, app entry module, and optionally the server module.
     pub fn new(options: PersistentIsolateOptions) -> Result<Self, AnyError> {
-        let (request_tx, request_rx) = mpsc::channel::<RequestMessage>(options.channel_capacity);
+        let (message_tx, message_rx) = mpsc::channel::<IsolateMessage>(options.channel_capacity);
         let initialized = Arc::new(std::sync::atomic::AtomicBool::new(false));
+        let has_api_handler = Arc::new(std::sync::atomic::AtomicBool::new(false));
         let initialized_clone = Arc::clone(&initialized);
+        let has_api_clone = Arc::clone(&has_api_handler);
+
         let root_dir = options.root_dir.clone();
+        let entry_file = options.entry_file.clone();
         let server_entry = options.server_entry.clone();
 
         let runtime_thread = std::thread::spawn(move || {
-            // Create a new tokio runtime for this thread (V8/deno_core needs one)
             let rt = tokio::runtime::Builder::new_current_thread()
                 .enable_all()
                 .build()
                 .expect("Failed to create tokio runtime for V8 thread");
 
             rt.block_on(async move {
-                isolate_event_loop(root_dir, server_entry, request_rx, initialized_clone).await;
+                isolate_event_loop(
+                    root_dir,
+                    entry_file,
+                    server_entry,
+                    message_rx,
+                    initialized_clone,
+                    has_api_clone,
+                )
+                .await;
             });
         });
 
         Ok(Self {
-            request_tx,
+            message_tx,
             _runtime_thread: runtime_thread,
             initialized,
+            has_api_handler,
         })
     }
 
-    /// Check if the isolate has been initialized (server module loaded).
+    /// Check if the isolate has been initialized (modules loaded, ready for requests).
     pub fn is_initialized(&self) -> bool {
         self.initialized.load(std::sync::atomic::Ordering::Acquire)
     }
 
-    /// Send a request to the persistent isolate and await the response.
-    ///
-    /// Returns an error if the channel is full (backpressure) or the isolate
-    /// thread has panicked.
+    /// Check if the isolate has an API handler loaded (server_entry was provided and loaded).
+    pub fn has_api_handler(&self) -> bool {
+        self.has_api_handler
+            .load(std::sync::atomic::Ordering::Acquire)
+    }
+
+    /// Send an API request to the persistent isolate and await the response.
     pub async fn handle_request(
         &self,
         request: IsolateRequest,
     ) -> Result<IsolateResponse, AnyError> {
         let (response_tx, response_rx) = oneshot::channel();
 
-        self.request_tx
-            .send((request, response_tx))
+        self.message_tx
+            .send(IsolateMessage::Api(request, response_tx))
+            .await
+            .map_err(|_| {
+                deno_core::error::generic_error("Persistent isolate thread has stopped")
+            })?;
+
+        response_rx
+            .await
+            .map_err(|_| {
+                deno_core::error::generic_error(
+                    "Persistent isolate dropped response channel unexpectedly",
+                )
+            })?
+            .map_err(deno_core::error::generic_error)
+    }
+
+    /// Send an SSR render request to the persistent isolate and await the response.
+    pub async fn handle_ssr(&self, request: SsrRequest) -> Result<SsrResponse, AnyError> {
+        let (response_tx, response_rx) = oneshot::channel();
+
+        self.message_tx
+            .send(IsolateMessage::Ssr(request, response_tx))
             .await
             .map_err(|_| {
                 deno_core::error::generic_error("Persistent isolate thread has stopped")
@@ -134,16 +207,18 @@ impl PersistentIsolate {
 
 /// The main event loop running on the dedicated V8 thread.
 ///
-/// This function:
 /// 1. Creates a VertzJsRuntime
-/// 2. Loads the server module and extracts the handler
-/// 3. Polls for incoming requests and dispatches them to the handler
-/// 4. Runs the V8 event loop for pending async ops (DB queries, fetch)
+/// 2. Loads DOM shim (for SSR) and ALS polyfill
+/// 3. Loads the app entry module (for SSR rendering)
+/// 4. Optionally loads the server module and extracts handler (for API routes)
+/// 5. Processes incoming messages (API or SSR)
 async fn isolate_event_loop(
     root_dir: PathBuf,
-    server_entry: PathBuf,
-    mut request_rx: mpsc::Receiver<RequestMessage>,
+    entry_file: PathBuf,
+    server_entry: Option<PathBuf>,
+    mut message_rx: mpsc::Receiver<IsolateMessage>,
     initialized: Arc<std::sync::atomic::AtomicBool>,
+    has_api_handler: Arc<std::sync::atomic::AtomicBool>,
 ) {
     use crate::runtime::js_runtime::{VertzJsRuntime, VertzRuntimeOptions};
 
@@ -160,71 +235,149 @@ async fn isolate_event_loop(
         }
     };
 
-    // 2. Load server module
-    let entry_specifier = match deno_core::ModuleSpecifier::from_file_path(&server_entry) {
-        Ok(s) => s,
-        Err(_) => {
-            eprintln!(
-                "[Server] Invalid server entry path: {}",
-                server_entry.display()
-            );
-            return;
-        }
-    };
-
-    // Load the server module and extract handler
-    if let Err(e) = runtime.load_main_module(&entry_specifier).await {
-        eprintln!("[Server] Failed to load server module: {}", e);
+    // 2. Load DOM shim and ALS polyfill (required for SSR)
+    if let Err(e) = crate::ssr::dom_shim::load_dom_shim(&mut runtime) {
+        eprintln!("[Server] Failed to load DOM shim: {}", e);
+        return;
+    }
+    if let Err(e) = crate::ssr::async_local_storage::load_async_local_storage(&mut runtime) {
+        eprintln!("[Server] Failed to load ALS polyfill: {}", e);
         return;
     }
 
-    // Extract the handler function by evaluating JS that reads the default export
-    let handler_check = runtime.execute_script(
-        "<handler-check>",
-        r#"
+    // Initialize SSR tracking globals
+    if let Err(e) = runtime.execute_script_void(
+        "[vertz:ssr-init]",
+        "globalThis.__vertz_ssr_queries = {}; globalThis.__vertz_ssr_mode = true;",
+    ) {
+        eprintln!("[Server] Failed to initialize SSR tracking: {}", e);
+        return;
+    }
+
+    // 3. Load app entry module (for SSR rendering)
+    if entry_file.exists() {
+        let entry_specifier = match deno_core::ModuleSpecifier::from_file_path(&entry_file) {
+            Ok(s) => s,
+            Err(_) => {
+                eprintln!("[Server] Invalid app entry path: {}", entry_file.display());
+                // Continue without SSR — API routes may still work
+                initialized.store(true, std::sync::atomic::Ordering::Release);
+                process_messages_api_only(&mut runtime, &mut message_rx).await;
+                return;
+            }
+        };
+
+        if let Err(e) = runtime.load_main_module(&entry_specifier).await {
+            eprintln!(
+                "[Server] Failed to load app entry module ({}): {}",
+                entry_file.display(),
+                e
+            );
+            // Continue anyway — app entry failing doesn't prevent API routes
+        } else {
+            eprintln!(
+                "[Server] App entry loaded for SSR: {}",
+                entry_file.display()
+            );
+        }
+    }
+
+    // 4. Optionally load server module for API routes
+    if let Some(ref server_entry_path) = server_entry {
+        let entry_specifier = match deno_core::ModuleSpecifier::from_file_path(server_entry_path) {
+            Ok(s) => s,
+            Err(_) => {
+                eprintln!(
+                    "[Server] Invalid server entry path: {}",
+                    server_entry_path.display()
+                );
+                // Continue with SSR-only mode
+                initialized.store(true, std::sync::atomic::Ordering::Release);
+                process_messages(&mut runtime, &mut message_rx).await;
+                return;
+            }
+        };
+
+        if let Err(e) = runtime.load_side_module(&entry_specifier).await {
+            eprintln!("[Server] Failed to load server module: {}", e);
+            // Continue with SSR-only mode
+        } else {
+            // Extract the handler function
+            match extract_api_handler(&mut runtime) {
+                Ok(true) => {
+                    has_api_handler.store(true, std::sync::atomic::Ordering::Release);
+                    eprintln!(
+                        "[Server] API handler loaded (persistent isolate — module state persists across requests)"
+                    );
+                }
+                Ok(false) => {
+                    eprintln!("[Server] Server module loaded but no handler found");
+                }
+                Err(e) => {
+                    eprintln!("[Server] Failed to extract API handler: {}", e);
+                }
+            }
+        }
+    }
+
+    // Mark as initialized (even without API handler — SSR is still available)
+    initialized.store(true, std::sync::atomic::Ordering::Release);
+
+    // 5. Main message processing loop
+    process_messages(&mut runtime, &mut message_rx).await;
+}
+
+/// Extract the API handler from the loaded server module.
+fn extract_api_handler(
+    runtime: &mut crate::runtime::js_runtime::VertzJsRuntime,
+) -> Result<bool, String> {
+    let handler_check = runtime
+        .execute_script(
+            "<handler-check>",
+            r#"
         (function() {
             const mod = globalThis.__vertz_server_module;
-            if (!mod) return { ok: false, error: 'No server module found. Ensure server.ts has a default export.' };
+            if (!mod) return { ok: false, error: 'No server module found.' };
             const instance = mod.default || mod;
             const handler = instance.requestHandler || instance.handler;
-            if (typeof handler !== 'function') return { ok: false, error: 'Server module does not export a handler function.' };
+            if (typeof handler !== 'function') return { ok: false, error: 'No handler function.' };
             globalThis.__vertz_api_handler = handler;
             return { ok: true };
         })()
         "#,
-    );
+        )
+        .map_err(|e| e.to_string())?;
 
-    match handler_check {
-        Ok(val) => {
-            if val.get("ok") == Some(&serde_json::Value::Bool(true)) {
-                initialized.store(true, std::sync::atomic::Ordering::Release);
-                eprintln!("[Server] API handler loaded (persistent isolate ��� module state persists across requests)");
-            } else {
-                let error = val
-                    .get("error")
-                    .and_then(|e| e.as_str())
-                    .unwrap_or("Unknown error");
-                eprintln!("[Server] Failed to extract API handler: {}", error);
-                return;
-            }
-        }
-        Err(e) => {
-            eprintln!("[Server] Failed to extract API handler: {}", e);
-            return;
-        }
+    if handler_check.get("ok") == Some(&serde_json::Value::Bool(true)) {
+        Ok(true)
+    } else {
+        let error = handler_check
+            .get("error")
+            .and_then(|e| e.as_str())
+            .unwrap_or("Unknown error");
+        eprintln!("[Server] Handler extraction: {}", error);
+        Ok(false)
     }
+}
 
-    // 3. Main request processing loop
+/// Process messages supporting both API and SSR requests.
+async fn process_messages(
+    runtime: &mut crate::runtime::js_runtime::VertzJsRuntime,
+    message_rx: &mut mpsc::Receiver<IsolateMessage>,
+) {
     loop {
         tokio::select! {
-            msg = request_rx.recv() => {
+            msg = message_rx.recv() => {
                 match msg {
-                    Some((request, response_tx)) => {
-                        let result = dispatch_request(&mut runtime, &request).await;
+                    Some(IsolateMessage::Api(request, response_tx)) => {
+                        let result = dispatch_api_request(runtime, &request).await;
+                        let _ = response_tx.send(result);
+                    }
+                    Some(IsolateMessage::Ssr(request, response_tx)) => {
+                        let result = dispatch_ssr_request(runtime, &request);
                         let _ = response_tx.send(result);
                     }
                     None => {
-                        // Channel closed — shut down
                         eprintln!("[Server] Persistent isolate shutting down (channel closed)");
                         break;
                     }
@@ -234,12 +387,39 @@ async fn isolate_event_loop(
     }
 }
 
-/// Dispatch a single request to the V8 handler and collect the response.
-async fn dispatch_request(
+/// Process messages for API-only mode (no SSR capability).
+async fn process_messages_api_only(
+    runtime: &mut crate::runtime::js_runtime::VertzJsRuntime,
+    message_rx: &mut mpsc::Receiver<IsolateMessage>,
+) {
+    loop {
+        tokio::select! {
+            msg = message_rx.recv() => {
+                match msg {
+                    Some(IsolateMessage::Api(request, response_tx)) => {
+                        let result = dispatch_api_request(runtime, &request).await;
+                        let _ = response_tx.send(result);
+                    }
+                    Some(IsolateMessage::Ssr(_, response_tx)) => {
+                        let _ = response_tx.send(Err(
+                            "SSR not available: app entry module failed to load".to_string()
+                        ));
+                    }
+                    None => {
+                        eprintln!("[Server] Persistent isolate shutting down (channel closed)");
+                        break;
+                    }
+                }
+            }
+        }
+    }
+}
+
+/// Dispatch a single API request to the V8 handler and collect the response.
+async fn dispatch_api_request(
     runtime: &mut crate::runtime::js_runtime::VertzJsRuntime,
     request: &IsolateRequest,
 ) -> Result<IsolateResponse, String> {
-    // Serialize request data into JS
     let headers_json =
         serde_json::to_string(&request.headers).map_err(|e| format!("Header serialize: {}", e))?;
     let body_b64 = request
@@ -252,10 +432,7 @@ async fn dispatch_request(
         None => "null".to_string(),
     };
 
-    // Store result in a global and read it back after the event loop resolves.
-    // We can't use execute_script's return value for async code (it returns the
-    // Promise object, not the resolved value).
-    let js_code_v2 = format!(
+    let js_code = format!(
         r#"
         (async function() {{
             const handler = globalThis.__vertz_api_handler;
@@ -300,7 +477,7 @@ async fn dispatch_request(
     );
 
     runtime
-        .execute_script_void("<api-dispatch>", &js_code_v2)
+        .execute_script_void("<api-dispatch>", &js_code)
         .map_err(|e| format!("JS execution error: {}", e))?;
 
     runtime
@@ -308,7 +485,6 @@ async fn dispatch_request(
         .await
         .map_err(|e| format!("Event loop error: {}", e))?;
 
-    // Read the result from the global
     let result = runtime
         .execute_script(
             "<read-response>",
@@ -343,6 +519,163 @@ async fn dispatch_request(
     })
 }
 
+/// Reset DOM state between SSR requests.
+///
+/// Clears document body, head, CSS collector, and SSR tracking. This ensures
+/// each SSR render starts with a clean slate (no leaked state from previous renders).
+const SSR_RESET_JS: &str = r#"
+(function() {
+    // Reset document body — recreate empty #app container
+    document.body.childNodes = [];
+    const app = document.createElement('div');
+    app.setAttribute('id', 'app');
+    document.body.appendChild(app);
+
+    // Reset document head
+    document.head.childNodes = [];
+
+    // Clear collected CSS
+    if (typeof __vertz_clear_collected_css === 'function') {
+        __vertz_clear_collected_css();
+    }
+
+    // Reset SSR query tracking
+    globalThis.__vertz_ssr_queries = {};
+    globalThis.__vertz_ssr_mode = true;
+
+    // Clear any previous render result
+    delete globalThis.__vertz_last_ssr_result;
+})()
+"#;
+
+/// JavaScript to execute the SSR render and collect results.
+const SSR_RENDER_JS: &str = r#"
+(function() {
+    // Attempt to render via SSR render function or DOM content
+    let content = '';
+
+    if (typeof globalThis.__vertz_ssr_render === 'function') {
+        const result = globalThis.__vertz_ssr_render(globalThis.location.pathname);
+        if (typeof result === 'string') content = result;
+        else if (result && typeof result.outerHTML === 'string') content = result.outerHTML;
+        else if (result && typeof result.innerHTML === 'string') content = result.innerHTML;
+    } else {
+        const appEl = document.getElementById('app') || document.body.querySelector('#app');
+        if (appEl && appEl.childNodes.length > 0) {
+            content = appEl.innerHTML;
+        } else {
+            const bodyChildren = Array.from(document.body.childNodes).filter(
+                n => !(n.nodeType === 1 && n.getAttribute && n.getAttribute('id') === 'app' && n.childNodes.length === 0)
+            );
+            if (bodyChildren.length > 0) {
+                content = bodyChildren.map(n => n.outerHTML || n.textContent || '').join('');
+            }
+        }
+    }
+
+    // Collect CSS entries
+    let cssEntries = [];
+    if (typeof __vertz_get_collected_css === 'function') {
+        cssEntries = __vertz_get_collected_css().map(e => ({ css: e.css, id: e.id || null }));
+    }
+
+    // Collect hydration data
+    const hydrationData = {
+        url: globalThis.location.pathname,
+        queries: globalThis.__vertz_ssr_queries || {},
+    };
+
+    return JSON.stringify({
+        content: content,
+        cssEntries: cssEntries,
+        hydrationJson: JSON.stringify(hydrationData),
+        isSsr: content.length > 0,
+    });
+})()
+"#;
+
+/// Dispatch a single SSR render request in the V8 isolate.
+///
+/// 1. Resets DOM state (clean slate)
+/// 2. Sets location to the requested URL
+/// 3. Installs session data
+/// 4. Renders app content
+/// 5. Collects CSS and hydration data
+fn dispatch_ssr_request(
+    runtime: &mut crate::runtime::js_runtime::VertzJsRuntime,
+    request: &SsrRequest,
+) -> Result<SsrResponse, String> {
+    let start = std::time::Instant::now();
+
+    // 1. Reset DOM state
+    runtime
+        .execute_script_void("<ssr-reset>", SSR_RESET_JS)
+        .map_err(|e| format!("DOM reset error: {}", e))?;
+
+    // 2. Set location
+    crate::ssr::dom_shim::set_ssr_location(runtime, &request.url)
+        .map_err(|e| format!("Set location error: {}", e))?;
+
+    // 3. Install session data if provided
+    if let Some(ref session_json) = request.session_json {
+        let js = format!("globalThis.__vertz_session = {};", session_json);
+        runtime
+            .execute_script_void("<ssr-session>", &js)
+            .map_err(|e| format!("Session install error: {}", e))?;
+    }
+
+    // 4. Render and collect results
+    let result = runtime
+        .execute_script("<ssr-render>", SSR_RENDER_JS)
+        .map_err(|e| format!("SSR render error: {}", e))?;
+
+    let elapsed = start.elapsed().as_secs_f64() * 1000.0;
+
+    let result_str = result.as_str().unwrap_or("{}");
+    let parsed: serde_json::Value =
+        serde_json::from_str(result_str).map_err(|e| format!("Parse SSR result: {}", e))?;
+
+    let content = parsed
+        .get("content")
+        .and_then(|c| c.as_str())
+        .unwrap_or("")
+        .to_string();
+
+    let css_entries: Vec<(String, Option<String>)> = parsed
+        .get("cssEntries")
+        .and_then(|arr| arr.as_array())
+        .map(|arr| {
+            arr.iter()
+                .map(|e| {
+                    let css = e["css"].as_str().unwrap_or("").to_string();
+                    let id = e["id"].as_str().map(|s| s.to_string());
+                    (css, id)
+                })
+                .collect()
+        })
+        .unwrap_or_default();
+
+    let hydration_json = parsed
+        .get("hydrationJson")
+        .and_then(|h| h.as_str())
+        .unwrap_or("{}")
+        .to_string();
+
+    let is_ssr = parsed
+        .get("isSsr")
+        .and_then(|v| v.as_bool())
+        .unwrap_or(false);
+
+    Ok(SsrResponse {
+        content,
+        css_entries,
+        hydration_json,
+        is_ssr,
+        error: None,
+        render_time_ms: elapsed,
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -351,7 +684,8 @@ mod tests {
     fn test_default_options() {
         let opts = PersistentIsolateOptions::default();
         assert_eq!(opts.channel_capacity, 256);
-        assert_eq!(opts.server_entry, PathBuf::from("src/server.ts"));
+        assert_eq!(opts.entry_file, PathBuf::from("src/app.tsx"));
+        assert!(opts.server_entry.is_none());
     }
 
     #[test]
@@ -378,13 +712,35 @@ mod tests {
         assert_eq!(res.body, b"{}");
     }
 
+    /// Helper: create an isolate with only a server entry (API-only mode).
+    fn api_only_opts(temp_dir: &tempfile::TempDir, server_js: &str) -> PersistentIsolateOptions {
+        let server_path = temp_dir.path().join("server.js");
+        std::fs::write(&server_path, server_js).unwrap();
+        PersistentIsolateOptions {
+            root_dir: temp_dir.path().to_path_buf(),
+            entry_file: temp_dir.path().join("nonexistent-app.tsx"),
+            server_entry: Some(server_path),
+            channel_capacity: 16,
+        }
+    }
+
+    /// Helper: wait for isolate initialization.
+    async fn wait_for_init(isolate: &PersistentIsolate) {
+        for _ in 0..100 {
+            if isolate.is_initialized() {
+                return;
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+        }
+        panic!("Isolate did not initialize within timeout");
+    }
+
     #[tokio::test]
     async fn test_create_persistent_isolate() {
-        // This test verifies we can create a persistent isolate and it starts
-        // its V8 thread. It won't have a handler since there's no real server.ts.
         let opts = PersistentIsolateOptions {
             root_dir: PathBuf::from(env!("CARGO_MANIFEST_DIR")),
-            server_entry: PathBuf::from("/nonexistent/server.ts"),
+            entry_file: PathBuf::from("/nonexistent/app.tsx"),
+            server_entry: None,
             channel_capacity: 16,
         };
 
@@ -392,23 +748,23 @@ mod tests {
         assert!(isolate.is_ok());
 
         let isolate = isolate.unwrap();
-        // Give the thread a moment to start and fail gracefully
-        tokio::time::sleep(std::time::Duration::from_millis(100)).await;
-
-        // The isolate should NOT be initialized since server.ts doesn't exist
-        assert!(!isolate.is_initialized());
+        // Even without a valid entry file, the isolate initializes (SSR will fail gracefully)
+        wait_for_init(&isolate).await;
+        assert!(isolate.is_initialized());
+        assert!(!isolate.has_api_handler());
     }
 
     #[tokio::test]
-    async fn test_handle_request_without_initialization() {
+    async fn test_handle_request_without_api_handler() {
         let opts = PersistentIsolateOptions {
             root_dir: PathBuf::from(env!("CARGO_MANIFEST_DIR")),
-            server_entry: PathBuf::from("/nonexistent/server.ts"),
+            entry_file: PathBuf::from("/nonexistent/app.tsx"),
+            server_entry: None,
             channel_capacity: 16,
         };
 
         let isolate = PersistentIsolate::new(opts).unwrap();
-        tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+        wait_for_init(&isolate).await;
 
         let request = IsolateRequest {
             method: "GET".to_string(),
@@ -417,19 +773,16 @@ mod tests {
             body: None,
         };
 
-        // Should fail because the isolate thread stopped (no valid server module)
+        // Should fail because there's no API handler
         let result = isolate.handle_request(request).await;
         assert!(result.is_err());
     }
 
     #[tokio::test]
     async fn test_isolate_with_inline_handler() {
-        // Create a minimal JS server module that returns a fixed response.
-        // We'll write it to a temp file and load it.
         let temp_dir = tempfile::tempdir().unwrap();
-        let server_path = temp_dir.path().join("server.js");
-        std::fs::write(
-            &server_path,
+        let opts = api_only_opts(
+            &temp_dir,
             r#"
             const handler = async (request) => {
                 const url = new URL(request.url);
@@ -443,27 +796,12 @@ mod tests {
             };
             globalThis.__vertz_server_module = { default: { handler } };
             "#,
-        )
-        .unwrap();
-
-        let opts = PersistentIsolateOptions {
-            root_dir: temp_dir.path().to_path_buf(),
-            server_entry: server_path,
-            channel_capacity: 16,
-        };
+        );
 
         let isolate = PersistentIsolate::new(opts).unwrap();
+        wait_for_init(&isolate).await;
+        assert!(isolate.has_api_handler());
 
-        // Wait for initialization
-        for _ in 0..50 {
-            if isolate.is_initialized() {
-                break;
-            }
-            tokio::time::sleep(std::time::Duration::from_millis(50)).await;
-        }
-        assert!(isolate.is_initialized(), "Isolate should be initialized");
-
-        // Send a request
         let request = IsolateRequest {
             method: "GET".to_string(),
             url: "http://localhost:4200/api/health".to_string(),
@@ -488,9 +826,8 @@ mod tests {
     #[tokio::test]
     async fn test_isolate_handles_multiple_requests() {
         let temp_dir = tempfile::tempdir().unwrap();
-        let server_path = temp_dir.path().join("server.js");
-        std::fs::write(
-            &server_path,
+        let opts = api_only_opts(
+            &temp_dir,
             r#"
             let requestCount = 0;
             const handler = async (request) => {
@@ -502,25 +839,11 @@ mod tests {
             };
             globalThis.__vertz_server_module = { default: { handler } };
             "#,
-        )
-        .unwrap();
-
-        let opts = PersistentIsolateOptions {
-            root_dir: temp_dir.path().to_path_buf(),
-            server_entry: server_path,
-            channel_capacity: 16,
-        };
+        );
 
         let isolate = PersistentIsolate::new(opts).unwrap();
-        for _ in 0..50 {
-            if isolate.is_initialized() {
-                break;
-            }
-            tokio::time::sleep(std::time::Duration::from_millis(50)).await;
-        }
-        assert!(isolate.is_initialized());
+        wait_for_init(&isolate).await;
 
-        // Send three requests — state should persist across them
         for expected_count in 1..=3 {
             let request = IsolateRequest {
                 method: "GET".to_string(),
@@ -544,9 +867,8 @@ mod tests {
     #[tokio::test]
     async fn test_isolate_handler_error_does_not_crash() {
         let temp_dir = tempfile::tempdir().unwrap();
-        let server_path = temp_dir.path().join("server.js");
-        std::fs::write(
-            &server_path,
+        let opts = api_only_opts(
+            &temp_dir,
             r#"
             const handler = async (request) => {
                 const url = new URL(request.url);
@@ -557,25 +879,11 @@ mod tests {
             };
             globalThis.__vertz_server_module = { default: { handler } };
             "#,
-        )
-        .unwrap();
-
-        let opts = PersistentIsolateOptions {
-            root_dir: temp_dir.path().to_path_buf(),
-            server_entry: server_path,
-            channel_capacity: 16,
-        };
+        );
 
         let isolate = PersistentIsolate::new(opts).unwrap();
-        for _ in 0..50 {
-            if isolate.is_initialized() {
-                break;
-            }
-            tokio::time::sleep(std::time::Duration::from_millis(50)).await;
-        }
-        assert!(isolate.is_initialized());
+        wait_for_init(&isolate).await;
 
-        // Request that throws
         let error_req = IsolateRequest {
             method: "GET".to_string(),
             url: "http://localhost:4200/api/error".to_string(),
@@ -585,7 +893,6 @@ mod tests {
         let result = isolate.handle_request(error_req).await;
         assert!(result.is_err(), "Should return error for throwing handler");
 
-        // Next request should still work (isolate didn't crash)
         let ok_req = IsolateRequest {
             method: "GET".to_string(),
             url: "http://localhost:4200/api/ok".to_string(),
@@ -604,31 +911,18 @@ mod tests {
     #[tokio::test]
     async fn test_isolate_404_for_unknown_route() {
         let temp_dir = tempfile::tempdir().unwrap();
-        let server_path = temp_dir.path().join("server.js");
-        std::fs::write(
-            &server_path,
+        let opts = api_only_opts(
+            &temp_dir,
             r#"
             const handler = async (request) => {
                 return new Response('Not Found', { status: 404 });
             };
             globalThis.__vertz_server_module = { default: { handler } };
             "#,
-        )
-        .unwrap();
-
-        let opts = PersistentIsolateOptions {
-            root_dir: temp_dir.path().to_path_buf(),
-            server_entry: server_path,
-            channel_capacity: 16,
-        };
+        );
 
         let isolate = PersistentIsolate::new(opts).unwrap();
-        for _ in 0..50 {
-            if isolate.is_initialized() {
-                break;
-            }
-            tokio::time::sleep(std::time::Duration::from_millis(50)).await;
-        }
+        wait_for_init(&isolate).await;
 
         let request = IsolateRequest {
             method: "GET".to_string(),
@@ -639,5 +933,323 @@ mod tests {
 
         let response = isolate.handle_request(request).await.unwrap();
         assert_eq!(response.status, 404);
+    }
+
+    // ── Phase 2: SSR tests ──────────────────────────────────────────────
+
+    #[tokio::test]
+    async fn test_ssr_render_simple_content() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        // Create an app entry that sets up SSR render function
+        let app_path = temp_dir.path().join("app.js");
+        std::fs::write(
+            &app_path,
+            r#"
+            globalThis.__vertz_ssr_render = function(url) {
+                return '<h1>Hello SSR</h1><p>Path: ' + url + '</p>';
+            };
+            "#,
+        )
+        .unwrap();
+
+        let opts = PersistentIsolateOptions {
+            root_dir: temp_dir.path().to_path_buf(),
+            entry_file: app_path,
+            server_entry: None,
+            channel_capacity: 16,
+        };
+
+        let isolate = PersistentIsolate::new(opts).unwrap();
+        wait_for_init(&isolate).await;
+
+        let ssr_req = SsrRequest {
+            url: "/tasks".to_string(),
+            session_json: None,
+        };
+
+        let result = isolate.handle_ssr(ssr_req).await;
+        assert!(result.is_ok(), "SSR should succeed: {:?}", result);
+
+        let response = result.unwrap();
+        assert!(response.is_ssr);
+        assert!(
+            response.content.contains("Hello SSR"),
+            "Content: {}",
+            response.content
+        );
+        assert!(
+            response.content.contains("/tasks"),
+            "Should include path: {}",
+            response.content
+        );
+        assert!(response.render_time_ms > 0.0);
+    }
+
+    #[tokio::test]
+    async fn test_ssr_dom_reset_between_requests() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let app_path = temp_dir.path().join("app.js");
+        std::fs::write(
+            &app_path,
+            r#"
+            globalThis.__vertz_ssr_render = function(url) {
+                return '<div>' + url + '</div>';
+            };
+            "#,
+        )
+        .unwrap();
+
+        let opts = PersistentIsolateOptions {
+            root_dir: temp_dir.path().to_path_buf(),
+            entry_file: app_path,
+            server_entry: None,
+            channel_capacity: 16,
+        };
+
+        let isolate = PersistentIsolate::new(opts).unwrap();
+        wait_for_init(&isolate).await;
+
+        // First request
+        let resp1 = isolate
+            .handle_ssr(SsrRequest {
+                url: "/page-1".to_string(),
+                session_json: None,
+            })
+            .await
+            .unwrap();
+        assert!(resp1.content.contains("/page-1"));
+
+        // Second request — should have clean DOM, no leaked content from first request
+        let resp2 = isolate
+            .handle_ssr(SsrRequest {
+                url: "/page-2".to_string(),
+                session_json: None,
+            })
+            .await
+            .unwrap();
+        assert!(resp2.content.contains("/page-2"));
+        assert!(
+            !resp2.content.contains("/page-1"),
+            "Second request should not contain first request's content: {}",
+            resp2.content
+        );
+    }
+
+    #[tokio::test]
+    async fn test_ssr_css_collected_per_request() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let app_path = temp_dir.path().join("app.js");
+        std::fs::write(
+            &app_path,
+            r#"
+            globalThis.__vertz_ssr_render = function(url) {
+                __vertz_inject_css('.page { color: blue; }', 'page-' + url);
+                return '<div class="page">' + url + '</div>';
+            };
+            "#,
+        )
+        .unwrap();
+
+        let opts = PersistentIsolateOptions {
+            root_dir: temp_dir.path().to_path_buf(),
+            entry_file: app_path,
+            server_entry: None,
+            channel_capacity: 16,
+        };
+
+        let isolate = PersistentIsolate::new(opts).unwrap();
+        wait_for_init(&isolate).await;
+
+        // First request
+        let resp1 = isolate
+            .handle_ssr(SsrRequest {
+                url: "/a".to_string(),
+                session_json: None,
+            })
+            .await
+            .unwrap();
+        assert_eq!(resp1.css_entries.len(), 1);
+        assert_eq!(resp1.css_entries[0].0, ".page { color: blue; }");
+
+        // Second request — CSS should be fresh (not accumulated from first request)
+        let resp2 = isolate
+            .handle_ssr(SsrRequest {
+                url: "/b".to_string(),
+                session_json: None,
+            })
+            .await
+            .unwrap();
+        assert_eq!(
+            resp2.css_entries.len(),
+            1,
+            "Should have exactly 1 CSS entry (not accumulated): {:?}",
+            resp2.css_entries
+        );
+    }
+
+    #[tokio::test]
+    async fn test_ssr_error_does_not_crash_isolate() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let app_path = temp_dir.path().join("app.js");
+        std::fs::write(
+            &app_path,
+            r#"
+            globalThis.__vertz_ssr_render = function(url) {
+                if (url === '/error') throw new Error('SSR boom');
+                return '<div>' + url + '</div>';
+            };
+            "#,
+        )
+        .unwrap();
+
+        let opts = PersistentIsolateOptions {
+            root_dir: temp_dir.path().to_path_buf(),
+            entry_file: app_path,
+            server_entry: None,
+            channel_capacity: 16,
+        };
+
+        let isolate = PersistentIsolate::new(opts).unwrap();
+        wait_for_init(&isolate).await;
+
+        // Request that throws
+        let err_result = isolate
+            .handle_ssr(SsrRequest {
+                url: "/error".to_string(),
+                session_json: None,
+            })
+            .await;
+        assert!(err_result.is_err(), "Error route should fail");
+
+        // Next SSR request should still work
+        let ok_result = isolate
+            .handle_ssr(SsrRequest {
+                url: "/ok".to_string(),
+                session_json: None,
+            })
+            .await;
+        assert!(
+            ok_result.is_ok(),
+            "Isolate should still work after error: {:?}",
+            ok_result
+        );
+        assert!(ok_result.unwrap().content.contains("/ok"));
+    }
+
+    #[tokio::test]
+    async fn test_both_api_and_ssr_in_same_isolate() {
+        let temp_dir = tempfile::tempdir().unwrap();
+
+        // App entry for SSR
+        let app_path = temp_dir.path().join("app.js");
+        std::fs::write(
+            &app_path,
+            r#"
+            globalThis.__vertz_ssr_render = function(url) {
+                return '<div>Page: ' + url + '</div>';
+            };
+            "#,
+        )
+        .unwrap();
+
+        // Server entry for API
+        let server_path = temp_dir.path().join("server.js");
+        std::fs::write(
+            &server_path,
+            r#"
+            const handler = async (request) => {
+                return new Response(JSON.stringify({ api: true }), {
+                    status: 200,
+                    headers: { 'content-type': 'application/json' },
+                });
+            };
+            globalThis.__vertz_server_module = { default: { handler } };
+            "#,
+        )
+        .unwrap();
+
+        let opts = PersistentIsolateOptions {
+            root_dir: temp_dir.path().to_path_buf(),
+            entry_file: app_path,
+            server_entry: Some(server_path),
+            channel_capacity: 16,
+        };
+
+        let isolate = PersistentIsolate::new(opts).unwrap();
+        wait_for_init(&isolate).await;
+        assert!(isolate.has_api_handler());
+
+        // Test API request
+        let api_resp = isolate
+            .handle_request(IsolateRequest {
+                method: "GET".to_string(),
+                url: "http://localhost:4200/api/test".to_string(),
+                headers: vec![],
+                body: None,
+            })
+            .await
+            .unwrap();
+        assert_eq!(api_resp.status, 200);
+        let api_body: serde_json::Value = serde_json::from_slice(&api_resp.body).unwrap();
+        assert_eq!(api_body["api"], true);
+
+        // Test SSR request
+        let ssr_resp = isolate
+            .handle_ssr(SsrRequest {
+                url: "/home".to_string(),
+                session_json: None,
+            })
+            .await
+            .unwrap();
+        assert!(ssr_resp.is_ssr);
+        assert!(ssr_resp.content.contains("Page: /home"));
+
+        // Another API request — should still work after SSR
+        let api_resp2 = isolate
+            .handle_request(IsolateRequest {
+                method: "GET".to_string(),
+                url: "http://localhost:4200/api/test2".to_string(),
+                headers: vec![],
+                body: None,
+            })
+            .await
+            .unwrap();
+        assert_eq!(api_resp2.status, 200);
+    }
+
+    #[tokio::test]
+    async fn test_ssr_with_session_data() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let app_path = temp_dir.path().join("app.js");
+        std::fs::write(
+            &app_path,
+            r#"
+            globalThis.__vertz_ssr_render = function(url) {
+                const session = globalThis.__vertz_session || {};
+                const user = session.userId || 'anonymous';
+                return '<div>User: ' + user + '</div>';
+            };
+            "#,
+        )
+        .unwrap();
+
+        let opts = PersistentIsolateOptions {
+            root_dir: temp_dir.path().to_path_buf(),
+            entry_file: app_path,
+            server_entry: None,
+            channel_capacity: 16,
+        };
+
+        let isolate = PersistentIsolate::new(opts).unwrap();
+        wait_for_init(&isolate).await;
+
+        let resp = isolate
+            .handle_ssr(SsrRequest {
+                url: "/profile".to_string(),
+                session_json: Some(r#"{"userId":"user-123"}"#.to_string()),
+            })
+            .await
+            .unwrap();
+        assert!(resp.content.contains("User: user-123"));
     }
 }

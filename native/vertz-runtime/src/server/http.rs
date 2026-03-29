@@ -101,27 +101,34 @@ pub fn build_router(config: &ServerConfig) -> (Router, Arc<DevServerState>) {
     let mcp_event_hub = McpEventHub::new();
     let module_graph = watcher::new_shared_module_graph();
 
-    // Create persistent V8 isolate for API route delegation if server_entry exists
-    let api_isolate = config.server_entry.as_ref().and_then(|entry| {
+    // Create persistent V8 isolate for API route delegation and SSR rendering.
+    // The isolate is created when SSR is enabled or a server_entry exists.
+    let api_isolate = if config.enable_ssr || config.server_entry.is_some() {
         let opts = PersistentIsolateOptions {
             root_dir: config.root_dir.clone(),
-            server_entry: entry.clone(),
+            entry_file: config.entry_file.clone(),
+            server_entry: config.server_entry.clone(),
             channel_capacity: 256,
         };
         match PersistentIsolate::new(opts) {
             Ok(isolate) => {
-                eprintln!(
-                    "[Server] Persistent V8 isolate created for API routes (entry: {})",
-                    entry.display()
-                );
+                let mode = match (&config.server_entry, config.enable_ssr) {
+                    (Some(entry), true) => format!("API ({}) + SSR", entry.display()),
+                    (Some(entry), false) => format!("API ({})", entry.display()),
+                    (None, true) => "SSR only".to_string(),
+                    (None, false) => "idle".to_string(),
+                };
+                eprintln!("[Server] Persistent V8 isolate created (mode: {})", mode);
                 Some(Arc::new(isolate))
             }
             Err(e) => {
-                eprintln!("[Server] Failed to create API isolate: {}", e);
+                eprintln!("[Server] Failed to create persistent isolate: {}", e);
                 None
             }
         }
-    });
+    } else {
+        None
+    };
 
     let state = Arc::new(DevServerState {
         pipeline,
@@ -475,6 +482,73 @@ async fn dev_server_handler(
             let session =
                 crate::ssr::session::extract_session_from_cookies(cookie_header.as_deref());
 
+            // Try persistent isolate SSR first (Phase 2: zero per-request overhead)
+            if let Some(isolate) = &state.api_isolate {
+                if isolate.is_initialized() {
+                    let session_json = serde_json::to_string(&session).ok();
+                    let ssr_req = crate::runtime::persistent_isolate::SsrRequest {
+                        url: path.clone(),
+                        session_json,
+                    };
+
+                    match isolate.handle_ssr(ssr_req).await {
+                        Ok(ssr_resp) => {
+                            if ssr_resp.render_time_ms > 0.0 {
+                                let render_msg = format!(
+                                    "{} rendered in {:.1}ms ({})",
+                                    path,
+                                    ssr_resp.render_time_ms,
+                                    if ssr_resp.is_ssr {
+                                        "ssr-persistent"
+                                    } else {
+                                        "client-only"
+                                    }
+                                );
+                                eprintln!("[SSR] {}", render_msg);
+                                state
+                                    .console_log
+                                    .push(LogLevel::Info, render_msg, Some("ssr"));
+                            }
+
+                            // Assemble the full HTML document from SSR response
+                            let css_string = format_ssr_css(&ssr_resp.css_entries);
+                            let entry_url = crate::ssr::html_document::entry_path_to_url(
+                                &state.entry_file,
+                                &state.root_dir,
+                            );
+                            let html = crate::ssr::html_document::assemble_ssr_document(
+                                &crate::ssr::html_document::SsrHtmlOptions {
+                                    title: "Vertz App",
+                                    ssr_content: &ssr_resp.content,
+                                    inline_css: &css_string,
+                                    theme_css: state.theme_css.as_deref(),
+                                    hydration_script: &ssr_resp.hydration_json,
+                                    entry_url: &entry_url,
+                                    preload_hints: &[],
+                                    enable_hmr: true,
+                                },
+                            );
+
+                            return axum::response::Response::builder()
+                                .status(StatusCode::OK)
+                                .header(header::CONTENT_TYPE, "text/html; charset=utf-8")
+                                .header(header::CACHE_CONTROL, "no-cache")
+                                .body(Body::from(html))
+                                .unwrap();
+                        }
+                        Err(e) => {
+                            let error_msg = format!("Persistent SSR error: {}", e);
+                            eprintln!("[SSR] {} — falling back to per-request SSR", error_msg);
+                            state
+                                .console_log
+                                .push(LogLevel::Error, error_msg, Some("ssr"));
+                            // Fall through to legacy per-request SSR
+                        }
+                    }
+                }
+            }
+
+            // Legacy fallback: per-request SSR (spawn_blocking + fresh V8)
             let ssr_options = crate::ssr::render::SsrOptions {
                 root_dir: state.root_dir.clone(),
                 entry_file: state.entry_file.clone(),
@@ -550,6 +624,29 @@ async fn dev_server_handler(
         .header(header::CONTENT_TYPE, "text/plain")
         .body(Body::from("Not Found"))
         .unwrap()
+}
+
+/// Format CSS entries from persistent isolate SSR into inline style tags.
+fn format_ssr_css(entries: &[(String, Option<String>)]) -> String {
+    if entries.is_empty() {
+        return String::new();
+    }
+    let mut seen = std::collections::HashSet::new();
+    let mut parts = Vec::new();
+    for (css, id) in entries {
+        if let Some(id) = id {
+            if !seen.insert(id.clone()) {
+                continue;
+            }
+        }
+        if !css.is_empty() {
+            parts.push(css.as_str());
+        }
+    }
+    if parts.is_empty() {
+        return String::new();
+    }
+    format!("  <style data-vertz-ssr>{}</style>\n", parts.join("\n"))
 }
 
 /// Handle API requests by delegating to the persistent V8 isolate.
