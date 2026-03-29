@@ -36,6 +36,7 @@ rusqlite = { version = "0.31", features = ["bundled"] }
 rsa = { version = "0.9", features = ["sha2"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1", features = ["preserve_order"] }
+similar = "2"
 sha2 = "0.10"
 url = "2"
 tar = "0.4"

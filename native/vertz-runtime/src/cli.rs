@@ -46,6 +46,8 @@ pub enum Command {
     Config(ConfigArgs),
     /// Publish package to npm registry
     Publish(PublishArgs),
+    /// Patch installed dependencies
+    Patch(PatchArgs),
 }
 
 #[derive(Parser, Debug)]
@@ -437,6 +439,59 @@ pub struct PublishArgs {
     pub dry_run: bool,
 
     /// Output as NDJSON
+    #[arg(long)]
+    pub json: bool,
+}
+
+#[derive(Parser, Debug)]
+pub struct PatchArgs {
+    #[command(subcommand)]
+    pub command: Option<PatchCommand>,
+
+    /// Package name to prepare for patching (default action)
+    #[arg(value_name = "PACKAGE")]
+    pub package: Option<String>,
+
+    /// Output NDJSON to stdout
+    #[arg(long)]
+    pub json: bool,
+}
+
+#[derive(Subcommand, Debug)]
+pub enum PatchCommand {
+    /// Save the patch diff for a patched package
+    Save(PatchSaveArgs),
+    /// Discard in-progress patch changes
+    Discard(PatchDiscardArgs),
+    /// List active and saved patches
+    List(PatchListArgs),
+}
+
+#[derive(Parser, Debug)]
+pub struct PatchSaveArgs {
+    /// Package name to save patch for
+    #[arg(required = true)]
+    pub package: String,
+
+    /// Output NDJSON to stdout
+    #[arg(long)]
+    pub json: bool,
+}
+
+#[derive(Parser, Debug)]
+pub struct PatchDiscardArgs {
+    /// Package name to discard patch for
+    #[arg(required = true)]
+    pub package: String,
+
+    /// Output NDJSON to stdout
+    #[arg(long)]
+    pub json: bool,
+}
+
+#[derive(Parser, Debug)]
+pub struct PatchListArgs {
+    /// Output NDJSON to stdout
     #[arg(long)]
     pub json: bool,
 }
@@ -1494,5 +1549,89 @@ mod tests {
             result.is_err(),
             "--run-scripts and --ignore-scripts should conflict"
         );
+    }
+
+    // --- Patch command tests ---
+
+    fn parse_patch(args: &[&str]) -> PatchArgs {
+        let cli = Cli::parse_from(args);
+        match cli.command {
+            Command::Patch(args) => args,
+            other => panic!("Expected Patch, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_patch_default_action() {
+        let args = parse_patch(&["vertz-runtime", "patch", "express"]);
+        assert!(args.command.is_none());
+        assert_eq!(args.package, Some("express".to_string()));
+        assert!(!args.json);
+    }
+
+    #[test]
+    fn test_patch_with_json() {
+        let args = parse_patch(&["vertz-runtime", "patch", "--json", "express"]);
+        assert!(args.command.is_none());
+        assert_eq!(args.package, Some("express".to_string()));
+        assert!(args.json);
+    }
+
+    #[test]
+    fn test_patch_save() {
+        let args = parse_patch(&["vertz-runtime", "patch", "save", "express"]);
+        match args.command {
+            Some(PatchCommand::Save(save_args)) => {
+                assert_eq!(save_args.package, "express");
+                assert!(!save_args.json);
+            }
+            other => panic!("Expected Save, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_patch_save_with_json() {
+        let args = parse_patch(&["vertz-runtime", "patch", "save", "express", "--json"]);
+        match args.command {
+            Some(PatchCommand::Save(save_args)) => {
+                assert_eq!(save_args.package, "express");
+                assert!(save_args.json);
+            }
+            other => panic!("Expected Save, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_patch_discard() {
+        let args = parse_patch(&["vertz-runtime", "patch", "discard", "express"]);
+        match args.command {
+            Some(PatchCommand::Discard(discard_args)) => {
+                assert_eq!(discard_args.package, "express");
+                assert!(!discard_args.json);
+            }
+            other => panic!("Expected Discard, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_patch_list() {
+        let args = parse_patch(&["vertz-runtime", "patch", "list"]);
+        match args.command {
+            Some(PatchCommand::List(list_args)) => {
+                assert!(!list_args.json);
+            }
+            other => panic!("Expected List, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_patch_list_with_json() {
+        let args = parse_patch(&["vertz-runtime", "patch", "list", "--json"]);
+        match args.command {
+            Some(PatchCommand::List(list_args)) => {
+                assert!(list_args.json);
+            }
+            other => panic!("Expected List, got {:?}", other),
+        }
     }
 }

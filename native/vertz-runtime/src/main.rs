@@ -662,6 +662,195 @@ async fn main() {
                 }
             }
         }
+        Command::Patch(patch_args) => {
+            let root_dir =
+                std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from("."));
+
+            match patch_args.command {
+                Some(cli::PatchCommand::Save(args)) => {
+                    match pm::patch::patch_save(&root_dir, &args.package) {
+                        Ok(result) => {
+                            if result.no_changes {
+                                if args.json {
+                                    println!(
+                                        "{}",
+                                        serde_json::json!({
+                                            "event": "patch_no_changes",
+                                            "package": result.name,
+                                            "version": result.version,
+                                        })
+                                    );
+                                } else {
+                                    eprintln!(
+                                        "warning: no changes detected in \"{}\". Skipping patch creation.",
+                                        result.name
+                                    );
+                                }
+                                // Exit 0 — no changes is a warning, not an error
+                            } else if args.json {
+                                println!(
+                                    "{}",
+                                    serde_json::json!({
+                                        "event": "patch_saved",
+                                        "package": result.name,
+                                        "version": result.version,
+                                        "path": result.patch_path,
+                                        "files_changed": result.files_changed,
+                                    })
+                                );
+                            } else {
+                                eprintln!(
+                                    "Patch saved: {} ({} file{} changed) \u{2713}",
+                                    result.patch_path,
+                                    result.files_changed,
+                                    if result.files_changed == 1 { "" } else { "s" },
+                                );
+                                eprintln!("Updated package.json with patch reference.");
+                            }
+                        }
+                        Err(e) => {
+                            let msg = e.to_string();
+                            if args.json {
+                                let output: Arc<dyn PmOutput> =
+                                    Arc::new(pm::output::JsonOutput::new());
+                                output.error(error_code_from_message(&msg), &msg);
+                            } else {
+                                eprintln!("{}", msg);
+                            }
+                            std::process::exit(1);
+                        }
+                    }
+                }
+                Some(cli::PatchCommand::Discard(args)) => {
+                    match pm::patch::patch_discard(&root_dir, &args.package) {
+                        Ok(result) => {
+                            if args.json {
+                                println!(
+                                    "{}",
+                                    serde_json::json!({
+                                        "event": "patch_discarded",
+                                        "package": result.name,
+                                        "version": result.version,
+                                    })
+                                );
+                            } else {
+                                eprintln!(
+                                    "Discarded in-progress changes for {}@{}.",
+                                    result.name, result.version
+                                );
+                                if let Some(patch_path) = &result.patch_path {
+                                    eprintln!("Re-applied saved patch: {} \u{2713}", patch_path);
+                                }
+                            }
+                        }
+                        Err(e) => {
+                            let msg = e.to_string();
+                            if args.json {
+                                let output: Arc<dyn PmOutput> =
+                                    Arc::new(pm::output::JsonOutput::new());
+                                output.error(error_code_from_message(&msg), &msg);
+                            } else {
+                                eprintln!("{}", msg);
+                            }
+                            std::process::exit(1);
+                        }
+                    }
+                }
+                Some(cli::PatchCommand::List(args)) => {
+                    let result = pm::patch::patch_list(&root_dir);
+
+                    if args.json {
+                        for (name, version) in &result.active {
+                            println!(
+                                "{}",
+                                serde_json::json!({
+                                    "event": "patch_active",
+                                    "package": name,
+                                    "version": version,
+                                })
+                            );
+                        }
+                        for (key, path) in &result.saved {
+                            let name =
+                                pm::patch::parse_patch_key_name_pub(key).unwrap_or(key.as_str());
+                            let version = if name.len() < key.len() {
+                                &key[name.len() + 1..] // skip "name@"
+                            } else {
+                                ""
+                            };
+                            println!(
+                                "{}",
+                                serde_json::json!({
+                                    "event": "patch_saved",
+                                    "package": name,
+                                    "version": version,
+                                    "path": path,
+                                })
+                            );
+                        }
+                    } else if result.active.is_empty() && result.saved.is_empty() {
+                        eprintln!("No patches found.");
+                    } else {
+                        if !result.active.is_empty() {
+                            eprintln!("Active patches (in progress):");
+                            for (name, version) in &result.active {
+                                eprintln!("  {}@{} (editing)", name, version);
+                            }
+                            eprintln!();
+                        }
+                        if !result.saved.is_empty() {
+                            eprintln!("Saved patches:");
+                            for (key, path) in &result.saved {
+                                eprintln!("  {} \u{2192} {}", key, path);
+                            }
+                        }
+                    }
+                }
+                None => {
+                    // Default action: prepare package for patching
+                    let package = match patch_args.package {
+                        Some(p) => p,
+                        None => {
+                            eprintln!("error: package name required. Usage: vertz patch <package>");
+                            std::process::exit(1);
+                        }
+                    };
+                    match pm::patch::patch_prepare(&root_dir, &package) {
+                        Ok(result) => {
+                            if patch_args.json {
+                                println!(
+                                    "{}",
+                                    serde_json::json!({
+                                        "event": "patch_prepared",
+                                        "package": result.name,
+                                        "version": result.version,
+                                    })
+                                );
+                            } else {
+                                eprintln!(
+                                    "Prepared {}@{} for patching.",
+                                    result.name, result.version
+                                );
+                                eprintln!();
+                                eprintln!("Edit files in node_modules/{}/ then run:", result.name);
+                                eprintln!("  vertz patch save {}", result.name);
+                            }
+                        }
+                        Err(e) => {
+                            let msg = e.to_string();
+                            if patch_args.json {
+                                let output: Arc<dyn PmOutput> =
+                                    Arc::new(pm::output::JsonOutput::new());
+                                output.error(error_code_from_message(&msg), &msg);
+                            } else {
+                                eprintln!("{}", msg);
+                            }
+                            std::process::exit(1);
+                        }
+                    }
+                }
+            }
+        }
         Command::Config(config_args) => {
             let root_dir =
                 std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from("."));

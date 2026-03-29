@@ -1,7 +1,7 @@
 use crate::pm::resolver::ResolvedGraph;
 use crate::pm::scripts;
 use serde::{Deserialize, Serialize};
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashSet};
 use std::path::{Path, PathBuf};
 
 const MANIFEST_FILE: &str = ".vertz-manifest.json";
@@ -13,6 +13,8 @@ pub struct ManifestEntry {
     pub version: String,
     pub nest_path: Vec<String>,
     pub has_scripts: bool,
+    #[serde(default)]
+    pub has_patch: bool,
 }
 
 /// The link manifest stored at node_modules/.vertz-manifest.json
@@ -43,7 +45,7 @@ pub fn write_manifest(
 }
 
 /// Build the desired manifest from the resolved graph
-pub fn build_manifest(graph: &ResolvedGraph) -> LinkManifest {
+pub fn build_manifest(graph: &ResolvedGraph, patched_packages: &HashSet<String>) -> LinkManifest {
     let mut packages = BTreeMap::new();
     for pkg in graph.packages.values() {
         let key = manifest_key(&pkg.name, &pkg.version, &pkg.nest_path);
@@ -53,6 +55,7 @@ pub fn build_manifest(graph: &ResolvedGraph) -> LinkManifest {
                 .get(&format!("{}@{}", pkg.name, pkg.version))
                 .cloned(),
         );
+        let has_patch = patched_packages.contains(&pkg.name);
         packages.insert(
             key,
             ManifestEntry {
@@ -60,6 +63,7 @@ pub fn build_manifest(graph: &ResolvedGraph) -> LinkManifest {
                 version: pkg.version.clone(),
                 nest_path: pkg.nest_path.clone(),
                 has_scripts,
+                has_patch,
             },
         );
     }
@@ -81,8 +85,9 @@ pub fn link_packages(
     root_dir: &Path,
     graph: &ResolvedGraph,
     store_dir: &Path,
+    patched_packages: &HashSet<String>,
 ) -> Result<LinkResult, Box<dyn std::error::Error>> {
-    link_packages_incremental(root_dir, graph, store_dir, false)
+    link_packages_incremental(root_dir, graph, store_dir, false, patched_packages)
 }
 
 /// Link packages with optional force flag to skip incremental check
@@ -91,9 +96,10 @@ pub fn link_packages_incremental(
     graph: &ResolvedGraph,
     store_dir: &Path,
     force: bool,
+    patched_packages: &HashSet<String>,
 ) -> Result<LinkResult, Box<dyn std::error::Error>> {
     let node_modules = root_dir.join("node_modules");
-    let new_manifest = build_manifest(graph);
+    let new_manifest = build_manifest(graph, patched_packages);
 
     // Try incremental linking
     if !force {
@@ -127,7 +133,7 @@ pub fn link_packages_incremental(
 
         let key = manifest_key(&pkg.name, &pkg.version, &pkg.nest_path);
         let entry = new_manifest.packages.get(&key).unwrap();
-        let linked = if entry.has_scripts {
+        let linked = if entry.has_scripts || entry.has_patch {
             copy_directory_recursive(&source, &target)?
         } else {
             link_directory_recursive(&source, &target)?
@@ -200,7 +206,7 @@ fn link_incremental(
         }
         std::fs::create_dir_all(&target)?;
 
-        let linked = if new_entry.has_scripts {
+        let linked = if new_entry.has_scripts || new_entry.has_patch {
             copy_directory_recursive(&source, &target)?
         } else {
             link_directory_recursive(&source, &target)?
@@ -349,7 +355,7 @@ mod tests {
             },
         );
 
-        let result = link_packages(&root, &graph, &store).unwrap();
+        let result = link_packages(&root, &graph, &store, &HashSet::new()).unwrap();
         assert_eq!(result.packages_linked, 1);
         assert_eq!(result.files_linked, 2);
 
@@ -395,7 +401,7 @@ mod tests {
             },
         );
 
-        let result = link_packages(&root, &graph, &store).unwrap();
+        let result = link_packages(&root, &graph, &store, &HashSet::new()).unwrap();
         assert_eq!(result.packages_linked, 1);
         assert!(root.join("node_modules/@vertz/ui/index.js").exists());
     }
@@ -436,7 +442,7 @@ mod tests {
             },
         );
 
-        let result = link_packages(&root, &graph, &store).unwrap();
+        let result = link_packages(&root, &graph, &store, &HashSet::new()).unwrap();
         assert_eq!(result.packages_linked, 2);
 
         // Root-level dep-a
@@ -472,7 +478,7 @@ mod tests {
             },
         );
 
-        link_packages(&root, &graph, &store).unwrap();
+        link_packages(&root, &graph, &store, &HashSet::new()).unwrap();
 
         // Stale package should be gone
         assert!(!nm.join("stale-pkg").exists());
@@ -512,7 +518,7 @@ mod tests {
             },
         );
 
-        let result = link_packages(&root, &graph, &store).unwrap();
+        let result = link_packages(&root, &graph, &store, &HashSet::new()).unwrap();
         assert_eq!(result.files_linked, 3);
         assert!(root.join("node_modules/pkg/lib/utils.js").exists());
         assert!(root.join("node_modules/pkg/lib/helpers/format.js").exists());
@@ -539,7 +545,7 @@ mod tests {
             },
         );
 
-        let result = link_packages(&root, &graph, &store);
+        let result = link_packages(&root, &graph, &store, &HashSet::new());
         assert!(result.is_err());
         assert!(result
             .unwrap_err()
@@ -578,12 +584,12 @@ mod tests {
         );
 
         // First install — full link
-        let result1 = link_packages(&root, &graph, &store).unwrap();
+        let result1 = link_packages(&root, &graph, &store, &HashSet::new()).unwrap();
         assert_eq!(result1.packages_linked, 1);
         assert_eq!(result1.packages_cached, 0);
 
         // Second install — incremental, nothing changed
-        let result2 = link_packages(&root, &graph, &store).unwrap();
+        let result2 = link_packages(&root, &graph, &store, &HashSet::new()).unwrap();
         assert_eq!(result2.packages_linked, 0);
         assert_eq!(result2.packages_cached, 1);
 
@@ -615,7 +621,7 @@ mod tests {
                 nest_path: vec![],
             },
         );
-        link_packages(&root, &graph1, &store).unwrap();
+        link_packages(&root, &graph1, &store, &HashSet::new()).unwrap();
 
         // Second install — zod + react
         let mut graph2 = ResolvedGraph::default();
@@ -643,7 +649,7 @@ mod tests {
                 nest_path: vec![],
             },
         );
-        let result = link_packages(&root, &graph2, &store).unwrap();
+        let result = link_packages(&root, &graph2, &store, &HashSet::new()).unwrap();
         assert_eq!(result.packages_linked, 1); // Only react
         assert_eq!(result.packages_cached, 1); // zod cached
 
@@ -687,7 +693,7 @@ mod tests {
                 nest_path: vec![],
             },
         );
-        link_packages(&root, &graph1, &store).unwrap();
+        link_packages(&root, &graph1, &store, &HashSet::new()).unwrap();
         assert!(root.join("node_modules/react/index.js").exists());
 
         // Second install — only zod (react removed)
@@ -704,7 +710,7 @@ mod tests {
                 nest_path: vec![],
             },
         );
-        let result = link_packages(&root, &graph2, &store).unwrap();
+        let result = link_packages(&root, &graph2, &store, &HashSet::new()).unwrap();
         assert_eq!(result.packages_cached, 1); // zod cached
         assert_eq!(result.packages_linked, 0);
 
@@ -742,7 +748,7 @@ mod tests {
         );
 
         // Should fall back to full relink
-        let result = link_packages(&root, &graph, &store).unwrap();
+        let result = link_packages(&root, &graph, &store, &HashSet::new()).unwrap();
         assert_eq!(result.packages_linked, 1);
         assert_eq!(result.packages_cached, 0);
         assert!(root.join("node_modules/zod/index.js").exists());
@@ -772,10 +778,11 @@ mod tests {
         );
 
         // First install
-        link_packages(&root, &graph, &store).unwrap();
+        link_packages(&root, &graph, &store, &HashSet::new()).unwrap();
 
         // Force relink — should relink everything despite manifest
-        let result = link_packages_incremental(&root, &graph, &store, true).unwrap();
+        let result =
+            link_packages_incremental(&root, &graph, &store, true, &HashSet::new()).unwrap();
         assert_eq!(result.packages_linked, 1);
         assert_eq!(result.packages_cached, 0);
     }
@@ -790,6 +797,7 @@ mod tests {
                 version: "3.24.4".to_string(),
                 nest_path: vec![],
                 has_scripts: false,
+                has_patch: false,
             },
         );
         manifest.packages.insert(
@@ -799,6 +807,7 @@ mod tests {
                 version: "0.20.0".to_string(),
                 nest_path: vec![],
                 has_scripts: true,
+                has_patch: false,
             },
         );
 
@@ -840,7 +849,7 @@ mod tests {
             },
         );
 
-        let manifest = build_manifest(&graph);
+        let manifest = build_manifest(&graph, &HashSet::new());
         assert_eq!(manifest.packages.len(), 1);
         let entry = &manifest.packages["zod@3.24.4"];
         assert_eq!(entry.version, "3.24.4");
@@ -894,7 +903,7 @@ mod tests {
             .scripts
             .insert("esbuild@0.20.0".to_string(), pkg_scripts);
 
-        link_packages(&root, &graph, &store).unwrap();
+        link_packages(&root, &graph, &store, &HashSet::new()).unwrap();
 
         // zod should be hardlinked (same inode)
         let store_zod = store_path(&store, "zod", "3.24.4").join("index.js");
@@ -942,7 +951,7 @@ mod tests {
                 nest_path: vec![],
             },
         );
-        link_packages(&root, &graph1, &store).unwrap();
+        link_packages(&root, &graph1, &store, &HashSet::new()).unwrap();
 
         // Second install — add esbuild with postinstall (incremental path)
         let mut graph2 = ResolvedGraph::default();
@@ -976,7 +985,7 @@ mod tests {
             .scripts
             .insert("esbuild@0.20.0".to_string(), pkg_scripts);
 
-        link_packages(&root, &graph2, &store).unwrap();
+        link_packages(&root, &graph2, &store, &HashSet::new()).unwrap();
 
         // esbuild should be copied (different inode) via incremental path
         let store_esbuild = store_path(&store, "esbuild", "0.20.0").join("index.js");
@@ -1009,7 +1018,7 @@ mod tests {
             .scripts
             .insert("esbuild@0.20.0".to_string(), pkg_scripts);
 
-        let manifest = build_manifest(&graph);
+        let manifest = build_manifest(&graph, &HashSet::new());
         assert!(manifest.packages["esbuild@0.20.0"].has_scripts);
     }
 }
