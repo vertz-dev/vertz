@@ -626,5 +626,76 @@ const button = css({ root: ['m:2'] });`;
 
       expect(result.css).toContain('border-right-width: thin;');
     });
+
+    it('resolves grid-cols:0 as passthrough (not repeat)', () => {
+      const source = `const styles = css({
+  grid: ['grid-cols:0'],
+});`;
+      const result = transformCSS(source);
+
+      expect(result.css).toContain('grid-template-columns: 0;');
+    });
+
+    it('resolves top:0 via spacing scale', () => {
+      const source = `const styles = css({
+  box: ['top:0'],
+});`;
+      const result = transformCSS(source);
+
+      expect(result.css).toContain('top: 0;');
+    });
+
+    it('resolves transition:shadow', () => {
+      const source = `const styles = css({
+  box: ['transition:shadow'],
+});`;
+      const result = transformCSS(source);
+
+      expect(result.css).toContain('transition: box-shadow 150ms cubic-bezier(0.4, 0, 0.2, 1);');
+    });
+
+    it('resolves transition:transform', () => {
+      const source = `const styles = css({
+  box: ['transition:transform'],
+});`;
+      const result = transformCSS(source);
+
+      expect(result.css).toContain('transition: transform 150ms cubic-bezier(0.4, 0, 0.2, 1);');
+    });
+
+    it('resolves transition:opacity', () => {
+      const source = `const styles = css({
+  box: ['transition:opacity'],
+});`;
+      const result = transformCSS(source);
+
+      expect(result.css).toContain('transition: opacity 150ms cubic-bezier(0.4, 0, 0.2, 1);');
+    });
+
+    it('resolves all tracking named values', () => {
+      const source = `const styles = css({
+  a: ['tracking:tighter'],
+  b: ['tracking:normal'],
+  c: ['tracking:wide'],
+  d: ['tracking:wider'],
+});`;
+      const result = transformCSS(source);
+
+      expect(result.css).toContain('letter-spacing: -0.05em;');
+      expect(result.css).toContain('letter-spacing: 0em;');
+      expect(result.css).toContain('letter-spacing: 0.025em;');
+      expect(result.css).toContain('letter-spacing: 0.05em;');
+    });
+
+    it('passes through raw properties that need no transform', () => {
+      const source = `const styles = css({
+  box: ['cursor:pointer', 'opacity:0.5', 'z:10'],
+});`;
+      const result = transformCSS(source);
+
+      expect(result.css).toContain('cursor: pointer;');
+      expect(result.css).toContain('opacity: 0.5;');
+      expect(result.css).toContain('z-index: 10;');
+    });
   });
 });
