@@ -262,9 +262,29 @@ async fn main() {
             let root_dir =
                 std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from("."));
 
+            if args.fix || args.dry_run {
+                eprintln!("error: --fix is not yet implemented");
+                std::process::exit(1);
+            }
+
             let severity_threshold =
                 vertz_runtime::pm::types::Severity::parse(args.severity.as_deref().unwrap_or("low"))
                     .unwrap_or(vertz_runtime::pm::types::Severity::Low);
+
+            // Print scanning message before the (potentially slow) network call
+            if !args.json {
+                let lockfile_path = root_dir.join("vertz.lock");
+                if lockfile_path.exists() {
+                    if let Ok(lf) = vertz_runtime::pm::lockfile::read_lockfile(&lockfile_path) {
+                        let pkg_count = lf.entries.values()
+                            .filter(|e| !e.resolved.starts_with("link:"))
+                            .map(|e| &e.name)
+                            .collect::<std::collections::HashSet<_>>()
+                            .len();
+                        eprintln!("Scanning {} packages for vulnerabilities...", pkg_count);
+                    }
+                }
+            }
 
             match pm::audit(&root_dir, severity_threshold).await {
                 Ok(result) => {
@@ -272,15 +292,15 @@ async fn main() {
                         let output =
                             pm::format_audit_json(&result.entries, result.total_packages, result.below_threshold);
                         print!("{}", output);
+                        for be in &result.batch_errors {
+                            let obj = serde_json::json!({"event": "batch_error", "batch": be.batch, "error": be.error});
+                            println!("{}", obj);
+                        }
                         for warning in &result.warnings {
                             let obj = serde_json::json!({"event": "warning", "message": warning});
                             println!("{}", obj);
                         }
                     } else {
-                        eprintln!(
-                            "Scanning {} packages for vulnerabilities...",
-                            result.total_packages
-                        );
                         for warning in &result.warnings {
                             eprintln!("{}", warning);
                         }

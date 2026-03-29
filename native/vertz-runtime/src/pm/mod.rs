@@ -1789,10 +1789,19 @@ pub async fn publish(
     Ok(())
 }
 
+/// A batch error from the advisory API
+#[derive(Debug)]
+pub struct BatchError {
+    pub batch: usize,
+    pub error: String,
+}
+
 /// Result of running `vertz audit`
+#[derive(Debug)]
 pub struct AuditResult {
     pub entries: Vec<types::AuditEntry>,
     pub warnings: Vec<String>,
+    pub batch_errors: Vec<BatchError>,
     pub total_packages: usize,
     /// Number of entries excluded by severity filter
     pub below_threshold: usize,
@@ -1841,6 +1850,7 @@ pub async fn audit(
         return Ok(AuditResult {
             entries: Vec::new(),
             warnings: Vec::new(),
+            batch_errors: Vec::new(),
             total_packages: 0,
             below_threshold: 0,
         });
@@ -1871,6 +1881,7 @@ pub async fn audit(
     // Merge batch results
     let mut all_advisories: BTreeMap<String, Vec<types::Advisory>> = BTreeMap::new();
     let mut warnings = Vec::new();
+    let mut batch_errors = Vec::new();
     for (batch_idx, result) in batch_results.into_iter().enumerate() {
         match result {
             Ok(advisories) => {
@@ -1879,11 +1890,16 @@ pub async fn audit(
                 }
             }
             Err(e) => {
+                let error_msg = e.to_string();
                 warnings.push(format!(
                     "warning: advisory batch {} failed: {}",
                     batch_idx + 1,
-                    e
+                    error_msg
                 ));
+                batch_errors.push(BatchError {
+                    batch: batch_idx + 1,
+                    error: error_msg,
+                });
             }
         }
     }
@@ -1911,7 +1927,13 @@ pub async fn audit(
                 for advisory in advisories {
                     let severity = match types::Severity::parse(&advisory.severity) {
                         Some(s) => s,
-                        None => continue,
+                        None => {
+                            warnings.push(format!(
+                                "warning: unknown severity '{}' for advisory {} on {} — treating as low",
+                                advisory.severity, advisory.id, name
+                            ));
+                            types::Severity::Low
+                        }
                     };
                     let parent = if direct_deps.contains(name) {
                         None
@@ -1948,27 +1970,58 @@ pub async fn audit(
     Ok(AuditResult {
         entries,
         warnings,
+        batch_errors,
         total_packages,
         below_threshold,
     })
 }
 
 /// Build a reverse dependency map: for each transitive package, find the direct
-/// dependency that pulls it in (the immediate parent in the dependency chain).
+/// dependency that pulls it in. Uses BFS from each direct dependency to walk
+/// the full transitive tree (not just one level).
 fn build_reverse_dep_map(
     lockfile: &types::Lockfile,
     direct_deps: &HashSet<String>,
 ) -> BTreeMap<String, String> {
     let mut reverse: BTreeMap<String, String> = BTreeMap::new();
 
-    // For each direct dependency, walk its transitive deps
+    // Build a name → LockfileEntry lookup for BFS
+    let mut by_name: BTreeMap<String, Vec<&types::LockfileEntry>> = BTreeMap::new();
     for entry in lockfile.entries.values() {
-        if !direct_deps.contains(&entry.name) {
-            continue;
+        by_name.entry(entry.name.clone()).or_default().push(entry);
+    }
+
+    // BFS from each direct dependency
+    for direct_name in direct_deps {
+        let mut queue: std::collections::VecDeque<String> = std::collections::VecDeque::new();
+
+        // Seed queue with the direct dep's transitive deps
+        if let Some(entries) = by_name.get(direct_name) {
+            for entry in entries {
+                for dep_name in entry.dependencies.keys() {
+                    if !direct_deps.contains(dep_name) && !reverse.contains_key(dep_name) {
+                        queue.push_back(dep_name.clone());
+                    }
+                }
+            }
         }
-        for dep_name in entry.dependencies.keys() {
-            if !direct_deps.contains(dep_name) && !reverse.contains_key(dep_name) {
-                reverse.insert(dep_name.clone(), entry.name.clone());
+
+        // BFS: walk transitive deps, attributing all to this direct dep
+        while let Some(name) = queue.pop_front() {
+            if reverse.contains_key(&name) {
+                continue;
+            }
+            reverse.insert(name.clone(), direct_name.clone());
+
+            // Enqueue this package's own dependencies
+            if let Some(entries) = by_name.get(&name) {
+                for entry in entries {
+                    for dep_name in entry.dependencies.keys() {
+                        if !direct_deps.contains(dep_name) && !reverse.contains_key(dep_name) {
+                            queue.push_back(dep_name.clone());
+                        }
+                    }
+                }
             }
         }
     }
@@ -2009,7 +2062,7 @@ pub fn format_audit_text(entries: &[types::AuditEntry]) -> String {
         .max(7);
     let title_width = entries
         .iter()
-        .map(|e| e.title.len())
+        .map(|e| e.title.len().max(e.url.len()))
         .max()
         .unwrap_or(5)
         .max(5);
@@ -2095,7 +2148,7 @@ pub fn format_audit_text(entries: &[types::AuditEntry]) -> String {
             pw = pkg_width,
             vw = ver_width,
             ptw = patch_width,
-            tw = title_width.max(entry.url.len()),
+            tw = title_width,
         ));
     }
 
@@ -2162,7 +2215,7 @@ pub fn format_audit_summary(
     let mut summary = format!("{} {} found ({})", total, vuln_word, parts.join(", "));
 
     if below_threshold > 0 {
-        summary.push_str(&format!(". {} below threshold not shown", below_threshold));
+        summary.push_str(&format!(". {} below threshold not shown.", below_threshold));
     }
 
     summary
@@ -3561,7 +3614,7 @@ mod tests {
 
         let summary = format_audit_summary(&entries, 3);
         assert!(summary.contains("1 vulnerability found"));
-        assert!(summary.contains("3 below threshold not shown"));
+        assert!(summary.contains("3 below threshold not shown."));
     }
 
     #[test]
@@ -3569,7 +3622,7 @@ mod tests {
         let entries: Vec<types::AuditEntry> = Vec::new();
         let summary = format_audit_summary(&entries, 5);
         assert!(summary.contains("No vulnerabilities found at or above threshold"));
-        assert!(summary.contains("5 below threshold not shown"));
+        assert!(summary.contains("5 below threshold not shown."));
     }
 
     #[test]
@@ -3669,5 +3722,88 @@ mod tests {
 
         let reverse = build_reverse_dep_map(&lockfile, &direct);
         assert!(reverse.is_empty());
+    }
+
+    #[test]
+    fn test_build_reverse_dep_map_deep_transitive() {
+        let mut lockfile = Lockfile::default();
+        // express -> body-parser -> raw-body
+        lockfile.entries.insert(
+            "express@^4.0.0".to_string(),
+            make_lockfile_entry("express", "^4.0.0", "4.18.2", &[("body-parser", "^1.20.0")]),
+        );
+        lockfile.entries.insert(
+            "body-parser@^1.20.0".to_string(),
+            make_lockfile_entry("body-parser", "^1.20.0", "1.20.2", &[("raw-body", "^2.5.0")]),
+        );
+        lockfile.entries.insert(
+            "raw-body@^2.5.0".to_string(),
+            make_lockfile_entry("raw-body", "^2.5.0", "2.5.2", &[]),
+        );
+
+        let mut direct = HashSet::new();
+        direct.insert("express".to_string());
+
+        let reverse = build_reverse_dep_map(&lockfile, &direct);
+        // Both body-parser and raw-body should be attributed to express
+        assert_eq!(reverse.get("body-parser"), Some(&"express".to_string()));
+        assert_eq!(reverse.get("raw-body"), Some(&"express".to_string()));
+    }
+
+    // --- audit() unit tests ---
+
+    #[tokio::test]
+    async fn test_audit_no_lockfile() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(
+            dir.path().join("package.json"),
+            r#"{"name": "test", "dependencies": {"zod": "^3.0.0"}}"#,
+        )
+        .unwrap();
+
+        let result = audit(dir.path(), types::Severity::Low).await;
+        assert!(result.is_err());
+        let err = result.unwrap_err().to_string();
+        assert!(err.contains("No lockfile found"), "got: {}", err);
+    }
+
+    #[tokio::test]
+    async fn test_audit_empty_lockfile() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(
+            dir.path().join("package.json"),
+            r#"{"name": "test"}"#,
+        )
+        .unwrap();
+        // Write a valid but empty lockfile
+        std::fs::write(
+            dir.path().join("vertz.lock"),
+            "# vertz.lock v1 (custom format) — DO NOT EDIT\n# Run \"vertz install\" to regenerate\n",
+        )
+        .unwrap();
+
+        let result = audit(dir.path(), types::Severity::Low).await.unwrap();
+        assert!(result.entries.is_empty());
+        assert_eq!(result.total_packages, 0);
+    }
+
+    #[tokio::test]
+    async fn test_audit_all_link_entries() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(
+            dir.path().join("package.json"),
+            r#"{"name": "test", "dependencies": {"@vertz/ui": "workspace:*"}}"#,
+        )
+        .unwrap();
+        // Write a lockfile with only link: entries
+        std::fs::write(
+            dir.path().join("vertz.lock"),
+            "# vertz.lock v1 (custom format) — DO NOT EDIT\n# Run \"vertz install\" to regenerate\n\n@vertz/ui@workspace:*:\n  version \"0.1.0\"\n  resolved \"link:../ui\"\n  integrity \"\"\n\n",
+        )
+        .unwrap();
+
+        let result = audit(dir.path(), types::Severity::Low).await.unwrap();
+        assert!(result.entries.is_empty());
+        assert_eq!(result.total_packages, 0);
     }
 }
