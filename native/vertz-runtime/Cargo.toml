@@ -47,7 +47,12 @@ vertz-compiler-core = { path = "../vertz-compiler-core" }
 which = "7"
 
 [dev-dependencies]
+criterion = { version = "0.5", features = ["html_reports"] }
 reqwest = { version = "0.12", features = ["json"] }
 tempfile = "3"
 tokio = { version = "1", features = ["full", "test-util"] }
 tokio-tungstenite = "0.24"
+
+[[bench]]
+name = "crud_benchmark"
+harness = false

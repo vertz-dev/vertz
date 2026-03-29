@@ -19,6 +19,9 @@ pub struct ServerConfig {
     pub tsconfig_path: Option<PathBuf>,
     /// Explicit type checker binary path (default: None — auto-detect tsgo/tsc).
     pub typecheck_binary: Option<PathBuf>,
+    /// Optional server entry file (e.g., "src/server.ts") for API route delegation.
+    /// When present, a persistent V8 isolate is created to handle /api/* requests.
+    pub server_entry: Option<PathBuf>,
 }
 
 impl ServerConfig {
@@ -26,6 +29,7 @@ impl ServerConfig {
         let root_dir = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
         let src_dir = root_dir.join("src");
         let entry_file = detect_entry_file(&src_dir);
+        let server_entry = detect_server_entry(&src_dir);
         Self {
             port,
             host,
@@ -37,6 +41,7 @@ impl ServerConfig {
             enable_typecheck: true,
             tsconfig_path: None,
             typecheck_binary: None,
+            server_entry,
         }
     }
 
@@ -44,6 +49,7 @@ impl ServerConfig {
     pub fn with_root(port: u16, host: String, public_dir: PathBuf, root_dir: PathBuf) -> Self {
         let src_dir = root_dir.join("src");
         let entry_file = detect_entry_file(&src_dir);
+        let server_entry = detect_server_entry(&src_dir);
         Self {
             port,
             host,
@@ -55,6 +61,7 @@ impl ServerConfig {
             enable_typecheck: true,
             tsconfig_path: None,
             typecheck_binary: None,
+            server_entry,
         }
     }
 
@@ -96,6 +103,18 @@ fn detect_entry_file(src_dir: &Path) -> PathBuf {
 
     // Default fallback
     src_dir.join("app.tsx")
+}
+
+/// Detect the server entry file (e.g., server.ts) for API route delegation.
+fn detect_server_entry(src_dir: &Path) -> Option<PathBuf> {
+    let candidates = ["server.ts", "server.tsx"];
+    for candidate in &candidates {
+        let path = src_dir.join(candidate);
+        if path.exists() {
+            return Some(path);
+        }
+    }
+    None
 }
 
 #[cfg(test)]

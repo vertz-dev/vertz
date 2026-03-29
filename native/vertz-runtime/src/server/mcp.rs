@@ -629,6 +629,7 @@ mod tests {
             enable_ssr: false,
             port: 3000,
             typecheck_enabled: false,
+            api_isolate: None,
         })
     }
 

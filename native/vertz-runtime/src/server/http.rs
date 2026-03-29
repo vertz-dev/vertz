@@ -5,6 +5,9 @@ use crate::errors::broadcaster::ErrorBroadcaster;
 use crate::errors::categories::{extract_snippet, DevError, ErrorCategory};
 use crate::hmr::recovery::RestartTriggers;
 use crate::hmr::websocket::HmrHub;
+use crate::runtime::persistent_isolate::{
+    IsolateRequest, PersistentIsolate, PersistentIsolateOptions,
+};
 use crate::server::console_log::{ConsoleLog, LogLevel};
 use crate::server::diagnostics;
 use crate::server::html_shell;
@@ -98,6 +101,28 @@ pub fn build_router(config: &ServerConfig) -> (Router, Arc<DevServerState>) {
     let mcp_event_hub = McpEventHub::new();
     let module_graph = watcher::new_shared_module_graph();
 
+    // Create persistent V8 isolate for API route delegation if server_entry exists
+    let api_isolate = config.server_entry.as_ref().and_then(|entry| {
+        let opts = PersistentIsolateOptions {
+            root_dir: config.root_dir.clone(),
+            server_entry: entry.clone(),
+            channel_capacity: 256,
+        };
+        match PersistentIsolate::new(opts) {
+            Ok(isolate) => {
+                eprintln!(
+                    "[Server] Persistent V8 isolate created for API routes (entry: {})",
+                    entry.display()
+                );
+                Some(Arc::new(isolate))
+            }
+            Err(e) => {
+                eprintln!("[Server] Failed to create API isolate: {}", e);
+                None
+            }
+        }
+    });
+
     let state = Arc::new(DevServerState {
         pipeline,
         root_dir: config.root_dir.clone(),
@@ -115,6 +140,7 @@ pub fn build_router(config: &ServerConfig) -> (Router, Arc<DevServerState>) {
         enable_ssr: config.enable_ssr,
         port: config.port,
         typecheck_enabled: config.enable_typecheck,
+        api_isolate,
     });
 
     // Routes: HMR WebSocket, error WebSocket, diagnostics, AI API, fallback
@@ -407,6 +433,11 @@ async fn dev_server_handler(
         return module_server::handle_source_file(state, req).await;
     }
 
+    // API route delegation: /api/* → persistent V8 isolate
+    if path.starts_with("/api/") || path == "/api" {
+        return handle_api_request(state, req, &path).await;
+    }
+
     // Check for static files in public_dir
     let public_file = state
         .root_dir
@@ -519,6 +550,110 @@ async fn dev_server_handler(
         .header(header::CONTENT_TYPE, "text/plain")
         .body(Body::from("Not Found"))
         .unwrap()
+}
+
+/// Handle API requests by delegating to the persistent V8 isolate.
+///
+/// Converts the Axum `Request` into an `IsolateRequest`, sends it to the
+/// persistent V8 thread, and converts the `IsolateResponse` back to an Axum
+/// `Response`.
+async fn handle_api_request(
+    state: State<Arc<DevServerState>>,
+    req: Request<Body>,
+    path: &str,
+) -> axum::response::Response<Body> {
+    let isolate = match &state.api_isolate {
+        Some(isolate) => isolate.clone(),
+        None => {
+            return axum::response::Response::builder()
+                .status(StatusCode::NOT_FOUND)
+                .header(header::CONTENT_TYPE, "application/json; charset=utf-8")
+                .body(Body::from(
+                    r#"{"error":"No server entry configured. Create src/server.ts with a default export handler."}"#,
+                ))
+                .unwrap();
+        }
+    };
+
+    if !isolate.is_initialized() {
+        return axum::response::Response::builder()
+            .status(StatusCode::SERVICE_UNAVAILABLE)
+            .header(header::CONTENT_TYPE, "application/json; charset=utf-8")
+            .body(Body::from(
+                r#"{"error":"API isolate is still initializing. Try again shortly."}"#,
+            ))
+            .unwrap();
+    }
+
+    // Convert Axum Request → IsolateRequest
+    let method = req.method().to_string();
+    let url = format!(
+        "http://localhost:{}{}",
+        state.port,
+        req.uri()
+            .path_and_query()
+            .map(|pq| pq.as_str())
+            .unwrap_or(path)
+    );
+    let headers: Vec<(String, String)> = req
+        .headers()
+        .iter()
+        .map(|(k, v)| (k.to_string(), v.to_str().unwrap_or("").to_string()))
+        .collect();
+
+    let body_bytes = match axum::body::to_bytes(req.into_body(), 10 * 1024 * 1024).await {
+        Ok(b) if !b.is_empty() => Some(b.to_vec()),
+        _ => None,
+    };
+
+    let isolate_req = IsolateRequest {
+        method,
+        url,
+        headers,
+        body: body_bytes,
+    };
+
+    let start = Instant::now();
+    match isolate.handle_request(isolate_req).await {
+        Ok(response) => {
+            let elapsed = start.elapsed();
+            state.console_log.push(
+                LogLevel::Info,
+                format!(
+                    "{} {} → {} ({:.1}ms)",
+                    "API",
+                    path,
+                    response.status,
+                    elapsed.as_secs_f64() * 1000.0
+                ),
+                Some("api"),
+            );
+
+            let mut builder = axum::response::Response::builder().status(response.status);
+            for (key, value) in &response.headers {
+                builder = builder.header(key.as_str(), value.as_str());
+            }
+            // Ensure CORS headers for dev
+            builder = builder.header("access-control-allow-origin", "*");
+            builder.body(Body::from(response.body)).unwrap()
+        }
+        Err(e) => {
+            let error_msg = format!("API handler error: {}", e);
+            eprintln!("[Server] {}", error_msg);
+            state
+                .console_log
+                .push(LogLevel::Error, error_msg, Some("api"));
+
+            axum::response::Response::builder()
+                .status(StatusCode::INTERNAL_SERVER_ERROR)
+                .header(header::CONTENT_TYPE, "application/json; charset=utf-8")
+                .body(Body::from(format!(
+                    r#"{{"error":"{}"}}"#,
+                    e.to_string().replace('"', "\\\"")
+                )))
+                .unwrap()
+        }
+    }
 }
 
 /// Guess a MIME type from a file path extension.
