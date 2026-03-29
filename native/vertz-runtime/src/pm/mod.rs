@@ -7,8 +7,10 @@ pub mod tarball;
 pub mod types;
 
 use futures_util::stream::{self, StreamExt};
+use indicatif::{ProgressBar, ProgressStyle};
 use registry::RegistryClient;
 use std::collections::BTreeMap;
+use std::io::IsTerminal;
 use std::path::Path;
 use std::sync::Arc;
 use std::time::Instant;
@@ -46,8 +48,20 @@ pub async fn install(
     let registry_client = RegistryClient::new(&cache_dir);
     let tarball_mgr = Arc::new(TarballManager::new(&cache_dir));
 
+    let is_tty = std::io::stderr().is_terminal();
+
     // Resolve dependency graph
-    eprintln!("Resolving dependencies...");
+    let resolve_spinner = if is_tty {
+        let sp = ProgressBar::new_spinner();
+        sp.set_style(ProgressStyle::default_spinner().template("{spinner} {msg}").unwrap());
+        sp.set_message("Resolving dependencies...");
+        sp.enable_steady_tick(std::time::Duration::from_millis(80));
+        Some(sp)
+    } else {
+        eprintln!("Resolving dependencies...");
+        None
+    };
+
     let mut graph = resolver::resolve_all(
         &pkg.dependencies,
         &pkg.dev_dependencies,
@@ -57,13 +71,15 @@ pub async fn install(
     .await
     .map_err(|e| format!("{}", e))?;
 
+    if let Some(sp) = resolve_spinner {
+        sp.finish_and_clear();
+    }
     eprintln!("Resolved {} packages", graph.packages.len());
 
     // Apply hoisting
     resolver::hoist(&mut graph);
 
     // Download and extract tarballs in parallel
-    eprintln!("Downloading packages...");
     let packages_to_download: Vec<_> = graph
         .packages
         .values()
@@ -72,6 +88,21 @@ pub async fn install(
 
     let download_count = packages_to_download.len();
     if download_count > 0 {
+        let download_bar = if is_tty {
+            let pb = ProgressBar::new(download_count as u64);
+            pb.set_style(
+                ProgressStyle::default_bar()
+                    .template("Downloading packages {bar:24} {pos}/{len}")
+                    .unwrap()
+                    .progress_chars("█▓░"),
+            );
+            Some(pb)
+        } else {
+            eprintln!("Downloading packages...");
+            None
+        };
+
+        let bar_clone = download_bar.clone();
         let results: Vec<Result<_, Box<dyn std::error::Error + Send + Sync>>> =
             stream::iter(packages_to_download)
                 .map(|pkg| {
@@ -80,15 +111,23 @@ pub async fn install(
                     let version = pkg.version.clone();
                     let url = pkg.tarball_url.clone();
                     let integrity = pkg.integrity.clone();
+                    let bar = bar_clone.clone();
                     async move {
                         mgr.fetch_and_extract(&name, &version, &url, &integrity)
                             .await?;
+                        if let Some(b) = bar {
+                            b.inc(1);
+                        }
                         Ok(())
                     }
                 })
                 .buffer_unordered(16)
                 .collect()
                 .await;
+
+        if let Some(pb) = download_bar {
+            pb.finish_and_clear();
+        }
 
         // Check for download errors
         for result in results {
@@ -123,76 +162,112 @@ pub async fn install(
     Ok(())
 }
 
-/// Add a package to dependencies
+/// Add packages to dependencies (batch — single install pass)
 pub async fn add(
     root_dir: &Path,
-    package: &str,
+    packages: &[&str],
     dev: bool,
     exact: bool,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let mut pkg = types::read_package_json(root_dir)?;
 
-    let (name, version_spec) = types::parse_package_specifier(package);
-
     let cache_dir = registry::default_cache_dir();
     let registry_client = RegistryClient::new(&cache_dir);
 
-    // Fetch metadata to determine the version
-    let metadata = registry_client
-        .fetch_metadata(name)
-        .await
-        .map_err(|e| format!("{}", e))?;
+    // Resolve all packages first, then mutate package.json once
+    for package in packages {
+        let (name, version_spec) = types::parse_package_specifier(package);
 
-    let resolved_version = if let Some(spec) = version_spec {
-        // User specified a version
-        let v = resolver::resolve_version(spec, &metadata.versions, &metadata.dist_tags)
-            .ok_or_else(|| format!("No version of '{}' matches '{}'", name, spec))?;
-        v.version.clone()
-    } else {
-        // Use latest
-        metadata
-            .dist_tags
-            .get("latest")
-            .cloned()
-            .ok_or_else(|| format!("No 'latest' tag for '{}'", name))?
-    };
+        let metadata = registry_client
+            .fetch_metadata(name)
+            .await
+            .map_err(|e| format!("{}", e))?;
 
-    // Format the range
-    let range = if exact {
-        resolved_version.clone()
-    } else {
-        format!("^{}", resolved_version)
-    };
+        let resolved_version = if let Some(spec) = version_spec {
+            // Check if specifier already contains a range operator
+            if spec.contains('^') || spec.contains('~') || spec.contains('>') || spec.contains('|')
+            {
+                // Validate that the range resolves to something
+                resolver::resolve_version(spec, &metadata.versions, &metadata.dist_tags)
+                    .ok_or_else(|| {
+                        format!("error: no version of \"{}\" matches \"{}\"", name, spec)
+                    })?;
+                // Use the spec as-is (preserve explicit range)
+                None
+            } else {
+                // Bare version — resolve it
+                let v = resolver::resolve_version(spec, &metadata.versions, &metadata.dist_tags)
+                    .ok_or_else(|| {
+                        format!(
+                            "error: no version of \"{}\" matches \"{}\" (latest: {})",
+                            name,
+                            spec,
+                            metadata.dist_tags.get("latest").unwrap_or(&"unknown".to_string())
+                        )
+                    })?;
+                Some(v.version.clone())
+            }
+        } else {
+            // Use latest
+            let latest = metadata
+                .dist_tags
+                .get("latest")
+                .cloned()
+                .ok_or_else(|| {
+                    format!("error: package \"{}\" not found in npm registry", name)
+                })?;
+            Some(latest)
+        };
 
-    // Add to package.json
-    if dev {
-        pkg.dev_dependencies.insert(name.to_string(), range.clone());
-    } else {
-        pkg.dependencies.insert(name.to_string(), range.clone());
+        // Format the range
+        let range = if let Some(version) = resolved_version {
+            if exact {
+                version
+            } else {
+                format!("^{}", version)
+            }
+        } else {
+            // Explicit range preserved as-is from spec
+            version_spec.unwrap().to_string()
+        };
+
+        if dev {
+            pkg.dev_dependencies.insert(name.to_string(), range.clone());
+        } else {
+            pkg.dependencies.insert(name.to_string(), range.clone());
+        }
+
+        eprintln!("+ {}@{}", name, range);
     }
 
     types::write_package_json(root_dir, &pkg)?;
-    eprintln!("+ {}@{}", name, range);
 
-    // Re-run install
+    // Single install pass for all packages
     install(root_dir, false, false).await
 }
 
-/// Remove a package from dependencies
-pub async fn remove(root_dir: &Path, package: &str) -> Result<(), Box<dyn std::error::Error>> {
+/// Remove packages from dependencies (batch — single install pass)
+pub async fn remove(root_dir: &Path, packages: &[&str]) -> Result<(), Box<dyn std::error::Error>> {
     let mut pkg = types::read_package_json(root_dir)?;
 
-    let removed = pkg.dependencies.remove(package).is_some()
-        || pkg.dev_dependencies.remove(package).is_some();
+    for package in packages {
+        let removed = pkg.dependencies.remove(*package).is_some()
+            || pkg.dev_dependencies.remove(*package).is_some();
 
-    if !removed {
-        return Err(format!("Package '{}' not found in dependencies", package).into());
+        if !removed {
+            return Err(format!(
+                "error: package \"{}\" is not a direct dependency",
+                package
+            )
+            .into());
+        }
+
+        eprintln!("- {}", package);
     }
 
     types::write_package_json(root_dir, &pkg)?;
-    eprintln!("- {}", package);
 
-    // Re-run install to clean orphaned deps
+    // Single install pass to clean orphaned deps
     install(root_dir, false, false).await
 }
 

@@ -491,6 +491,29 @@ mod tests {
     }
 
     #[test]
+    fn test_write_package_json_removes_empty_deps() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(
+            dir.path().join("package.json"),
+            r#"{"name": "test", "dependencies": {"zod": "^3.0.0"}, "devDependencies": {"typescript": "^5.0.0"}}"#,
+        )
+        .unwrap();
+
+        let mut pkg = read_package_json(dir.path()).unwrap();
+        pkg.dependencies.clear();
+        write_package_json(dir.path(), &pkg).unwrap();
+
+        let written = std::fs::read_to_string(dir.path().join("package.json")).unwrap();
+        let value: serde_json::Value = serde_json::from_str(&written).unwrap();
+        let obj = value.as_object().unwrap();
+
+        // Empty dependencies should be removed entirely
+        assert!(!obj.contains_key("dependencies"));
+        // devDependencies should still be present
+        assert!(obj.contains_key("devDependencies"));
+    }
+
+    #[test]
     fn test_parse_package_specifier_simple() {
         let (name, version) = parse_package_specifier("zod");
         assert_eq!(name, "zod");
