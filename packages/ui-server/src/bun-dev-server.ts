@@ -2367,7 +2367,23 @@ export function createBunDevServer(options: BunDevServerOptions): BunDevServer {
           writeFileSync(ssrWrapperPath, `export * from '${entryPath}';\n`);
           const ssrReloadStart = performance.now();
           try {
-            const freshMod: SSRModule = await import(`${ssrWrapperPath}?t=${Date.now()}`);
+            let freshMod: SSRModule = await import(`${ssrWrapperPath}?t=${Date.now()}`);
+            // Re-resolve Google Fonts so changed googleFont() calls take effect
+            if (freshMod.theme?.fonts) {
+              try {
+                const resolvedFonts = await resolveGoogleFonts(
+                  freshMod.theme.fonts,
+                  fontCacheDir,
+                  projectRoot,
+                );
+                freshMod = {
+                  ...freshMod,
+                  theme: { ...freshMod.theme, fonts: resolvedFonts },
+                };
+              } catch {
+                /* keep original fonts on failure */
+              }
+            }
             ssrMod = freshMod;
             ssrFallback = false;
             if (freshMod.theme?.fonts) {
@@ -2400,7 +2416,23 @@ export function createBunDevServer(options: BunDevServerOptions): BunDevServer {
             mkdirSync(devDir, { recursive: true });
             writeFileSync(ssrWrapperPath, `export * from '${entryPath}';\n`);
             try {
-              const freshMod: SSRModule = await import(`${ssrWrapperPath}?t=${Date.now()}`);
+              let freshMod: SSRModule = await import(`${ssrWrapperPath}?t=${Date.now()}`);
+              // Re-resolve Google Fonts so changed googleFont() calls take effect
+              if (freshMod.theme?.fonts) {
+                try {
+                  const resolvedFonts = await resolveGoogleFonts(
+                    freshMod.theme.fonts,
+                    fontCacheDir,
+                    projectRoot,
+                  );
+                  freshMod = {
+                    ...freshMod,
+                    theme: { ...freshMod.theme, fonts: resolvedFonts },
+                  };
+                } catch {
+                  /* keep original fonts on failure */
+                }
+              }
               ssrMod = freshMod;
               ssrFallback = false;
               if (freshMod.theme?.fonts) {

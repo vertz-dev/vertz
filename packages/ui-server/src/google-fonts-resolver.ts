@@ -81,6 +81,51 @@ export function parseWoff2UrlsFromCss(css: string): string[] {
   return urls;
 }
 
+export interface SubsetEntry {
+  subset: string;
+  url: string;
+}
+
+/**
+ * Extract .woff2 URLs with their subset labels from a Google Fonts CSS response.
+ *
+ * Google Fonts CSS2 returns @font-face blocks preceded by comments like `/* latin *​/`.
+ * Subsets are in alphabetical order (cyrillic, greek, latin, latin-ext, vietnamese…).
+ * This function parses those comments to associate each URL with its subset.
+ */
+export function parseWoff2UrlsBySubset(css: string): SubsetEntry[] {
+  const entries: SubsetEntry[] = [];
+  // Match: optional subset comment → @font-face block with woff2 URL
+  const blockRegex =
+    /(?:\/\*\s*([\w-]+)\s*\*\/\s*)?@font-face\s*\{[^}]*url\(([^)]+\.woff2)\)[^}]*\}/g;
+  let match: RegExpExecArray | null;
+  while ((match = blockRegex.exec(css)) !== null) {
+    entries.push({
+      subset: match[1] ?? 'unknown',
+      url: match[2]!,
+    });
+  }
+  return entries;
+}
+
+/**
+ * Select the best woff2 URL for the requested subsets.
+ *
+ * Priority: first matching requested subset → 'latin' fallback → first entry.
+ */
+export function selectSubsetUrl(entries: SubsetEntry[], requestedSubsets: string[]): string {
+  // Try each requested subset in order
+  for (const subset of requestedSubsets) {
+    const entry = entries.find((e) => e.subset === subset);
+    if (entry) return entry.url;
+  }
+  // Fallback to latin
+  const latin = entries.find((e) => e.subset === 'latin');
+  if (latin) return latin.url;
+  // Last resort: first entry
+  return entries[0]!.url;
+}
+
 // ─── Cache ──────────────────────────────────────────────────
 
 function computeOptionsHash(meta: GoogleFontMeta): string {
@@ -202,9 +247,9 @@ export async function resolveGoogleFonts(
         }
 
         const css = await response.text();
-        const woff2Urls = parseWoff2UrlsFromCss(css);
+        const subsetEntries = parseWoff2UrlsBySubset(css);
 
-        if (woff2Urls.length === 0) {
+        if (subsetEntries.length === 0) {
           console.error(
             `[vertz] Error: No .woff2 URLs found in Google Fonts response for "${meta.family}".`,
           );
@@ -212,11 +257,12 @@ export async function resolveGoogleFonts(
           return;
         }
 
-        // Download the primary woff2 file (first URL = primary latin subset)
+        // Select the best woff2 URL based on requested subsets
+        const selectedUrl = selectSubsetUrl(subsetEntries, meta.subsets);
         const familySlug = meta.family.toLowerCase().replace(/\s+/g, '-');
         const fileName = `${familySlug}-${hash}.woff2`;
         const destPath = join(cacheDir, fileName);
-        const size = await downloadFile(woff2Urls[0]!, destPath);
+        const size = await downloadFile(selectedUrl, destPath);
 
         // Update manifest
         manifest.entries[hash] = { hash, files: [fileName], sizes: [size] };

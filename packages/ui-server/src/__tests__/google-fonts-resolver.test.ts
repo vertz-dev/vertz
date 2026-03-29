@@ -5,8 +5,10 @@ import { tmpdir } from 'node:os';
 import { font, googleFont } from '@vertz/ui/css';
 import {
   buildGoogleFontsUrl,
+  parseWoff2UrlsBySubset,
   parseWoff2UrlsFromCss,
   resolveGoogleFonts,
+  selectSubsetUrl,
 } from '../google-fonts-resolver';
 
 // ─── URL Building ───────────────────────────────────────────
@@ -147,6 +149,96 @@ describe('parseWoff2UrlsFromCss()', () => {
 
   it('returns empty array for empty CSS', () => {
     expect(parseWoff2UrlsFromCss('')).toEqual([]);
+  });
+});
+
+// ─── Subset-Aware CSS Parsing ────────────────────────────────
+
+describe('parseWoff2UrlsBySubset()', () => {
+  it('associates each woff2 URL with its subset comment', () => {
+    const css = `
+/* cyrillic */
+@font-face {
+  font-family: 'Inter';
+  src: url(https://fonts.gstatic.com/s/inter/v18/cyrillic.woff2) format('woff2');
+  unicode-range: U+0400-045F;
+}
+/* latin */
+@font-face {
+  font-family: 'Inter';
+  src: url(https://fonts.gstatic.com/s/inter/v18/latin.woff2) format('woff2');
+  unicode-range: U+0000-00FF;
+}`;
+    const result = parseWoff2UrlsBySubset(css);
+
+    expect(result).toEqual([
+      { subset: 'cyrillic', url: 'https://fonts.gstatic.com/s/inter/v18/cyrillic.woff2' },
+      { subset: 'latin', url: 'https://fonts.gstatic.com/s/inter/v18/latin.woff2' },
+    ]);
+  });
+
+  it('uses "unknown" for entries without a subset comment', () => {
+    const css = `
+@font-face {
+  font-family: 'Inter';
+  src: url(https://fonts.gstatic.com/s/inter/v18/abc.woff2) format('woff2');
+}`;
+    const result = parseWoff2UrlsBySubset(css);
+
+    expect(result).toEqual([
+      { subset: 'unknown', url: 'https://fonts.gstatic.com/s/inter/v18/abc.woff2' },
+    ]);
+  });
+
+  it('returns empty array for empty CSS', () => {
+    expect(parseWoff2UrlsBySubset('')).toEqual([]);
+  });
+
+  it('handles latin-ext and other hyphenated subset names', () => {
+    const css = `
+/* latin-ext */
+@font-face {
+  font-family: 'Inter';
+  src: url(https://fonts.gstatic.com/s/inter/v18/latin-ext.woff2) format('woff2');
+}`;
+    const result = parseWoff2UrlsBySubset(css);
+
+    expect(result).toEqual([
+      { subset: 'latin-ext', url: 'https://fonts.gstatic.com/s/inter/v18/latin-ext.woff2' },
+    ]);
+  });
+});
+
+describe('selectSubsetUrl()', () => {
+  const entries = [
+    { subset: 'cyrillic', url: 'https://example.com/cyrillic.woff2' },
+    { subset: 'greek', url: 'https://example.com/greek.woff2' },
+    { subset: 'latin', url: 'https://example.com/latin.woff2' },
+    { subset: 'latin-ext', url: 'https://example.com/latin-ext.woff2' },
+  ];
+
+  it('selects latin subset when requested subsets include latin', () => {
+    expect(selectSubsetUrl(entries, ['latin'])).toBe('https://example.com/latin.woff2');
+  });
+
+  it('selects first matching subset from requested list', () => {
+    expect(selectSubsetUrl(entries, ['greek', 'latin'])).toBe('https://example.com/greek.woff2');
+  });
+
+  it('falls back to latin when no requested subset matches', () => {
+    expect(selectSubsetUrl(entries, ['vietnamese'])).toBe('https://example.com/latin.woff2');
+  });
+
+  it('falls back to first entry when neither requested nor latin found', () => {
+    const noLatin = [
+      { subset: 'cyrillic', url: 'https://example.com/cyrillic.woff2' },
+      { subset: 'greek', url: 'https://example.com/greek.woff2' },
+    ];
+    expect(selectSubsetUrl(noLatin, ['vietnamese'])).toBe('https://example.com/cyrillic.woff2');
+  });
+
+  it('returns first entry for empty requested subsets', () => {
+    expect(selectSubsetUrl(entries, [])).toBe('https://example.com/latin.woff2');
   });
 });
 
@@ -362,9 +454,8 @@ describe('resolveGoogleFonts()', () => {
   it('uses relative src paths when projectRoot is provided', async () => {
     const sans = googleFont('Inter', { weight: '100..900' });
 
-    // Create a project root that is the parent of cacheDir
-    // cacheDir is like /tmp/vertz-font-test-xxx/.vertz/fonts
-    const projectRoot = join(cacheDir, '..', '..');
+    // Create a project root inside the test's cacheDir to avoid writing outside it
+    const projectRoot = join(cacheDir, 'project');
     const nestedCacheDir = join(projectRoot, '.vertz', 'fonts');
     mkdirSync(nestedCacheDir, { recursive: true });
 
