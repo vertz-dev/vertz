@@ -70,16 +70,12 @@ pub async fn run_postinstall_scripts(
 
         let start = Instant::now();
 
-        let result = tokio::time::timeout(
-            std::time::Duration::from_secs(SCRIPT_TIMEOUT_SECS),
-            run_script(&pkg_dir, script),
-        )
-        .await;
+        let result = run_script_with_timeout(&pkg_dir, script, SCRIPT_TIMEOUT_SECS).await;
 
         let duration_ms = start.elapsed().as_millis() as u64;
 
         match result {
-            Ok(Ok((stdout, stderr, exit_code))) => {
+            Ok((stdout, stderr, exit_code)) => {
                 if exit_code == 0 {
                     output.script_complete(name, duration_ms);
                     results.push(ScriptResult {
@@ -106,20 +102,8 @@ pub async fn run_postinstall_scripts(
                     });
                 }
             }
-            Ok(Err(e)) => {
-                let error_msg = format!("failed to execute: {}", e);
-                output.script_error(name, &error_msg);
-                results.push(ScriptResult {
-                    name: name.clone(),
-                    success: false,
-                    duration_ms,
-                    stdout: String::new(),
-                    stderr: String::new(),
-                    error: Some(error_msg),
-                });
-            }
-            Err(_) => {
-                let error_msg = format!("timed out after {}s", SCRIPT_TIMEOUT_SECS);
+            Err(e) => {
+                let error_msg = e.to_string();
                 output.script_error(name, &error_msg);
                 results.push(ScriptResult {
                     name: name.clone(),
@@ -136,12 +120,14 @@ pub async fn run_postinstall_scripts(
     results
 }
 
-/// Execute a single shell script in the given directory
-async fn run_script(
+/// Execute a single shell script in the given directory with a timeout.
+/// Kills the child process if the timeout fires.
+async fn run_script_with_timeout(
     dir: &Path,
     script: &str,
+    timeout_secs: u64,
 ) -> Result<(String, String, i32), Box<dyn std::error::Error + Send + Sync>> {
-    let child = tokio::process::Command::new("sh")
+    let mut child = tokio::process::Command::new("sh")
         .arg("-c")
         .arg(script)
         .current_dir(dir)
@@ -149,12 +135,43 @@ async fn run_script(
         .stderr(std::process::Stdio::piped())
         .spawn()?;
 
-    let output = child.wait_with_output().await?;
-    let stdout = String::from_utf8_lossy(&output.stdout).to_string();
-    let stderr = String::from_utf8_lossy(&output.stderr).to_string();
-    let exit_code = output.status.code().unwrap_or(1);
+    // Take stdout/stderr handles before waiting (wait_with_output takes ownership)
+    let child_stdout = child.stdout.take();
+    let child_stderr = child.stderr.take();
 
-    Ok((stdout, stderr, exit_code))
+    let result =
+        tokio::time::timeout(std::time::Duration::from_secs(timeout_secs), child.wait()).await;
+
+    match result {
+        Ok(Ok(status)) => {
+            let stdout = if let Some(mut out) = child_stdout {
+                let mut buf = Vec::new();
+                tokio::io::AsyncReadExt::read_to_end(&mut out, &mut buf)
+                    .await
+                    .unwrap_or(0);
+                String::from_utf8_lossy(&buf).to_string()
+            } else {
+                String::new()
+            };
+            let stderr = if let Some(mut err) = child_stderr {
+                let mut buf = Vec::new();
+                tokio::io::AsyncReadExt::read_to_end(&mut err, &mut buf)
+                    .await
+                    .unwrap_or(0);
+                String::from_utf8_lossy(&buf).to_string()
+            } else {
+                String::new()
+            };
+            let exit_code = status.code().unwrap_or(1);
+            Ok((stdout, stderr, exit_code))
+        }
+        Ok(Err(e)) => Err(format!("failed to execute: {}", e).into()),
+        Err(_) => {
+            // Timeout — kill the child process
+            let _ = child.kill().await;
+            Err(format!("timed out after {}s", timeout_secs).into())
+        }
+    }
 }
 
 /// Check if a package has a postinstall script

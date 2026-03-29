@@ -57,11 +57,6 @@ pub async fn install(
         types::Lockfile::default()
     };
 
-    // Frozen mode: verify lockfile matches package.json
-    if frozen {
-        verify_frozen(&pkg, &existing_lockfile)?;
-    }
-
     // Workspace support: discover workspace packages, validate, and merge deps
     let workspaces = if let Some(ref patterns) = pkg.workspaces {
         if !patterns.is_empty() {
@@ -85,6 +80,11 @@ pub async fn install(
     let mut all_deps = resolved_deps.clone();
     for (k, v) in &resolved_dev_deps {
         all_deps.insert(k.clone(), v.clone());
+    }
+
+    // Frozen mode: verify lockfile matches merged deps (after workspace merging)
+    if frozen {
+        verify_frozen_deps(&all_deps, &existing_lockfile)?;
     }
 
     let cache_dir = registry::default_cache_dir();
@@ -208,6 +208,10 @@ pub async fn add(
     workspace_target: Option<&str>,
     output: Arc<dyn PmOutput>,
 ) -> Result<(), Box<dyn std::error::Error>> {
+    if peer && dev {
+        return Err("error: --peer and --dev cannot be used together".into());
+    }
+
     // Determine target directory: workspace dir (if -w) or root_dir
     let target_dir = if let Some(ws) = workspace_target {
         workspace::resolve_workspace_dir(root_dir, ws)?
@@ -1285,16 +1289,12 @@ pub fn format_update_dry_run_json(results: &[UpdateResult]) -> String {
 }
 
 /// Verify lockfile matches package.json for --frozen mode
-fn verify_frozen(
-    pkg: &types::PackageJson,
+/// Verify lockfile matches the given merged deps map (used after workspace dep merging)
+fn verify_frozen_deps(
+    all_deps: &BTreeMap<String, String>,
     lockfile: &types::Lockfile,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let mut all_deps: BTreeMap<String, String> = pkg.dependencies.clone();
-    for (k, v) in &pkg.dev_dependencies {
-        all_deps.insert(k.clone(), v.clone());
-    }
-
-    for (name, range) in &all_deps {
+    for (name, range) in all_deps {
         let key = types::Lockfile::spec_key(name, range);
         if !lockfile.entries.contains_key(&key) {
             return Err(format!(
@@ -1361,9 +1361,15 @@ mod tests {
 
     // --- verify_frozen tests ---
 
+    fn make_deps(deps: &[(&str, &str)]) -> BTreeMap<String, String> {
+        deps.iter()
+            .map(|(k, v)| (k.to_string(), v.to_string()))
+            .collect()
+    }
+
     #[test]
     fn test_verify_frozen_passes() {
-        let pkg = make_pkg(&[("zod", "^3.24.0")], &[]);
+        let deps = make_deps(&[("zod", "^3.24.0")]);
 
         let mut lockfile = Lockfile::default();
         lockfile.entries.insert(
@@ -1371,15 +1377,15 @@ mod tests {
             make_lockfile_entry("zod", "^3.24.0", "3.24.4", &[]),
         );
 
-        assert!(verify_frozen(&pkg, &lockfile).is_ok());
+        assert!(verify_frozen_deps(&deps, &lockfile).is_ok());
     }
 
     #[test]
     fn test_verify_frozen_fails_missing_dep() {
-        let pkg = make_pkg(&[("zod", "^3.24.0")], &[]);
+        let deps = make_deps(&[("zod", "^3.24.0")]);
         let lockfile = Lockfile::default();
 
-        let result = verify_frozen(&pkg, &lockfile);
+        let result = verify_frozen_deps(&deps, &lockfile);
         assert!(result.is_err());
         assert!(result
             .unwrap_err()
@@ -1389,7 +1395,7 @@ mod tests {
 
     #[test]
     fn test_verify_frozen_fails_changed_range() {
-        let pkg = make_pkg(&[("zod", "^4.0.0")], &[]); // Changed range
+        let deps = make_deps(&[("zod", "^4.0.0")]); // Changed range
 
         let mut lockfile = Lockfile::default();
         lockfile.entries.insert(
@@ -1397,7 +1403,7 @@ mod tests {
             make_lockfile_entry("zod", "^3.24.0", "3.24.4", &[]),
         );
 
-        let result = verify_frozen(&pkg, &lockfile);
+        let result = verify_frozen_deps(&deps, &lockfile);
         assert!(result.is_err());
     }
 

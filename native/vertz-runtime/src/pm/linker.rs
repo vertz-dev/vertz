@@ -9,6 +9,7 @@ const MANIFEST_FILE: &str = ".vertz-manifest.json";
 /// A single entry in the link manifest
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct ManifestEntry {
+    pub name: String,
     pub version: String,
     pub nest_path: Vec<String>,
     pub has_scripts: bool,
@@ -55,6 +56,7 @@ pub fn build_manifest(graph: &ResolvedGraph) -> LinkManifest {
         packages.insert(
             key,
             ManifestEntry {
+                name: pkg.name.clone(),
                 version: pkg.version.clone(),
                 nest_path: pkg.nest_path.clone(),
                 has_scripts,
@@ -151,8 +153,8 @@ fn link_incremental(
     // Find packages to remove (in old but not in new)
     for (key, old_entry) in &old_manifest.packages {
         if !new_manifest.packages.contains_key(key) {
-            // Remove from node_modules
-            let target = target_path(&node_modules, key, &old_entry.nest_path);
+            // Remove from node_modules using the package name (not the manifest key)
+            let target = target_path(&node_modules, &old_entry.name, &old_entry.nest_path);
             if target.exists() {
                 let _ = std::fs::remove_dir_all(&target);
             }
@@ -746,6 +748,7 @@ mod tests {
         manifest.packages.insert(
             "zod@3.24.4".to_string(),
             ManifestEntry {
+                name: "zod".to_string(),
                 version: "3.24.4".to_string(),
                 nest_path: vec![],
                 has_scripts: false,
@@ -754,6 +757,7 @@ mod tests {
         manifest.packages.insert(
             "esbuild@0.20.0".to_string(),
             ManifestEntry {
+                name: "esbuild".to_string(),
                 version: "0.20.0".to_string(),
                 nest_path: vec![],
                 has_scripts: true,
