@@ -6,6 +6,7 @@ pub mod lockfile;
 pub mod output;
 pub mod overrides;
 pub mod pack;
+pub mod patch;
 pub mod registry;
 pub mod resolver;
 pub mod scripts;
@@ -241,10 +242,14 @@ pub async fn install(
         output.download_complete(download_count);
     }
 
+    // Read patched packages from package.json for linker (copy-not-hardlink)
+    let patched_packages = patch::read_patched_package_names(root_dir);
+
     // Link packages into node_modules (incremental unless --force)
     output.link_started();
     let store_dir = cache_dir.join("store");
-    let link_result = linker::link_packages_incremental(root_dir, &graph, &store_dir, force)?;
+    let link_result =
+        linker::link_packages_incremental(root_dir, &graph, &store_dir, force, &patched_packages)?;
     output.link_complete(
         link_result.packages_linked,
         link_result.files_linked,
@@ -256,6 +261,15 @@ pub async fn install(
         let ws_linked = workspace::link_workspaces(root_dir, &workspaces)?;
         if ws_linked > 0 {
             output.workspace_linked(ws_linked);
+        }
+    }
+
+    // Apply saved patches (after linking, before postinstall scripts)
+    let patch_results = patch::apply_patches(root_dir)?;
+    if !patch_results.is_empty() {
+        output.info(&format!("Applying {} patch{}:", patch_results.len(), if patch_results.len() == 1 { "" } else { "es" }));
+        for result in &patch_results {
+            output.info(&format!("  {} \u{2713}", result.patch_path));
         }
     }
 

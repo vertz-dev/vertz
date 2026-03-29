@@ -46,6 +46,8 @@ pub enum Command {
     Config(ConfigArgs),
     /// Publish package to npm registry
     Publish(PublishArgs),
+    /// Patch installed dependencies
+    Patch(PatchArgs),
 }
 
 #[derive(Parser, Debug)]
@@ -437,6 +439,59 @@ pub struct PublishArgs {
     pub dry_run: bool,
 
     /// Output as NDJSON
+    #[arg(long)]
+    pub json: bool,
+}
+
+#[derive(Parser, Debug)]
+pub struct PatchArgs {
+    #[command(subcommand)]
+    pub command: Option<PatchCommand>,
+
+    /// Package name to prepare for patching (default action)
+    #[arg(value_name = "PACKAGE", conflicts_with = "command")]
+    pub package: Option<String>,
+
+    /// Output NDJSON to stdout
+    #[arg(long)]
+    pub json: bool,
+}
+
+#[derive(Subcommand, Debug)]
+pub enum PatchCommand {
+    /// Save the patch diff for a patched package
+    Save(PatchSaveArgs),
+    /// Discard in-progress patch changes
+    Discard(PatchDiscardArgs),
+    /// List active and saved patches
+    List(PatchListArgs),
+}
+
+#[derive(Parser, Debug)]
+pub struct PatchSaveArgs {
+    /// Package name to save patch for
+    #[arg(required = true)]
+    pub package: String,
+
+    /// Output NDJSON to stdout
+    #[arg(long)]
+    pub json: bool,
+}
+
+#[derive(Parser, Debug)]
+pub struct PatchDiscardArgs {
+    /// Package name to discard patch for
+    #[arg(required = true)]
+    pub package: String,
+
+    /// Output NDJSON to stdout
+    #[arg(long)]
+    pub json: bool,
+}
+
+#[derive(Parser, Debug)]
+pub struct PatchListArgs {
+    /// Output NDJSON to stdout
     #[arg(long)]
     pub json: bool,
 }

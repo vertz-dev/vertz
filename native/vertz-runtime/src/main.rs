@@ -662,6 +662,96 @@ async fn main() {
                 }
             }
         }
+        Command::Patch(patch_args) => {
+            let root_dir =
+                std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from("."));
+
+            match patch_args.command {
+                Some(cli::PatchCommand::Save(args)) => {
+                    match pm::patch::patch_save(&root_dir, &args.package) {
+                        Ok(result) => {
+                            if args.json {
+                                println!(
+                                    "{}",
+                                    serde_json::json!({
+                                        "event": "patch_saved",
+                                        "package": result.name,
+                                        "version": result.version,
+                                        "path": result.patch_path,
+                                        "files_changed": result.files_changed,
+                                    })
+                                );
+                            } else {
+                                eprintln!(
+                                    "Patch saved: {} ({} file{} changed) \u{2713}",
+                                    result.patch_path,
+                                    result.files_changed,
+                                    if result.files_changed == 1 { "" } else { "s" },
+                                );
+                                eprintln!("Updated package.json with patch reference.");
+                            }
+                        }
+                        Err(e) => {
+                            let msg = e.to_string();
+                            if args.json {
+                                let output: Arc<dyn PmOutput> = Arc::new(pm::output::JsonOutput::new());
+                                output.error(error_code_from_message(&msg), &msg);
+                            } else {
+                                eprintln!("{}", msg);
+                            }
+                            std::process::exit(1);
+                        }
+                    }
+                }
+                Some(cli::PatchCommand::Discard(_args)) => {
+                    eprintln!("error: patch discard is not yet implemented (Phase 2)");
+                    std::process::exit(1);
+                }
+                Some(cli::PatchCommand::List(_args)) => {
+                    eprintln!("error: patch list is not yet implemented (Phase 2)");
+                    std::process::exit(1);
+                }
+                None => {
+                    // Default action: prepare package for patching
+                    let package = match patch_args.package {
+                        Some(p) => p,
+                        None => {
+                            eprintln!("error: package name required. Usage: vertz patch <package>");
+                            std::process::exit(1);
+                        }
+                    };
+                    match pm::patch::patch_prepare(&root_dir, &package) {
+                        Ok(result) => {
+                            if patch_args.json {
+                                println!(
+                                    "{}",
+                                    serde_json::json!({
+                                        "event": "patch_prepared",
+                                        "package": result.name,
+                                        "version": result.version,
+                                    })
+                                );
+                            } else {
+                                eprintln!("Prepared {}@{} for patching.", result.name, result.version);
+                                eprintln!();
+                                eprintln!("Edit files in node_modules/{}/ then run:", result.name);
+                                eprintln!("  vertz patch save {}", result.name);
+                            }
+                        }
+                        Err(e) => {
+                            let msg = e.to_string();
+                            if patch_args.json {
+                                let output: Arc<dyn PmOutput> = Arc::new(pm::output::JsonOutput::new());
+                                output.error(error_code_from_message(&msg), &msg);
+                            } else {
+                                eprintln!("{}", msg);
+                            }
+                            std::process::exit(1);
+                        }
+                    }
+                }
+            }
+        }
         Command::Config(config_args) => {
             let root_dir =
                 std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from("."));
