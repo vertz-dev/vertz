@@ -73,7 +73,11 @@ async fn main() {
                     std::process::exit(1);
                 }
             } else {
-                let (result, output) = vertz_runtime::test::runner::run_tests(config);
+                // run_tests creates its own tokio runtimes per-thread, so we must
+                // run it from a plain OS thread to avoid nesting with #[tokio::main].
+                let handle =
+                    std::thread::spawn(move || vertz_runtime::test::runner::run_tests(config));
+                let (result, output) = handle.join().expect("test runner thread panicked");
                 print!("{}", output);
 
                 if !result.success() {

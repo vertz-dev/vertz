@@ -398,23 +398,102 @@ fn fix_internals_imports(code: &str) -> String {
 /// 1. Optional params `(param?: Type) =>` become `(param?) =>` instead of `(param) =>`
 /// 2. Type annotations in function params `(__props: PropsType)` not stripped in some cases
 fn strip_leftover_typescript(code: &str) -> String {
-    // Phase 1: Strip leftover `import type` and `export type` statements line-by-line.
+    // Phase 0: Strip function overload declarations (signatures without bodies).
+    // After oxc strips type annotations, overload signatures become:
+    //   `export function name(params);` — which is invalid JS.
+    // We detect and remove these by finding function declarations that end with `;`
+    // instead of having a `{` body.
+    let code = strip_function_overloads(code);
+
+    // Phase 1: Strip leftover type-level declarations.
     // The compiler's MagicString should strip these, but overlapping overwrites can
     // cause them to survive. This is a safety net.
-    let mut lines: Vec<&str> = Vec::new();
-    for line in code.lines() {
+    // Handles both single-line and multi-line type aliases, interfaces, and TS keywords.
+    let code_lines: Vec<&str> = code.lines().collect();
+    let mut result_lines: Vec<String> = Vec::new();
+    let mut i = 0;
+
+    while i < code_lines.len() {
+        let line = code_lines[i];
         let trimmed = line.trim();
+
         // `import type { ... } from '...'` or `import type ... from '...'`
         if trimmed.starts_with("import type ") && trimmed.contains("from ") {
+            i += 1;
             continue;
         }
         // `export type { ... }` or `export type { ... } from '...'`
-        if trimmed.starts_with("export type {") || trimmed.starts_with("export type {") {
+        if trimmed.starts_with("export type {") {
+            i += 1;
             continue;
         }
-        lines.push(line);
+        // Type alias: `export type X = ...` or `type X = ...` (single or multi-line)
+        if (trimmed.starts_with("export type ") || trimmed.starts_with("type "))
+            && !trimmed.starts_with("export type {")
+            && !trimmed.starts_with("typeof ")
+            && trimmed.contains('=')
+        {
+            if trimmed.ends_with(';') {
+                // Single-line type alias — skip
+                i += 1;
+                continue;
+            } else {
+                // Multi-line type alias — skip until closing `;`
+                i += 1;
+                while i < code_lines.len() {
+                    if code_lines[i].trim().ends_with(';') {
+                        i += 1;
+                        break;
+                    }
+                    i += 1;
+                }
+                continue;
+            }
+        }
+        // Standalone type alias without = (e.g., `export type X;`)
+        if (trimmed.starts_with("export type ") || trimmed.starts_with("type "))
+            && trimmed.ends_with(';')
+            && !trimmed.contains('{')
+        {
+            i += 1;
+            continue;
+        }
+        // Interface declarations (single or multi-line with braces)
+        if trimmed.starts_with("export interface ") || trimmed.starts_with("interface ") {
+            // Track brace depth to handle multi-line interface bodies
+            let mut brace_depth: i32 = 0;
+            loop {
+                let l = code_lines[i];
+                for c in l.chars() {
+                    if c == '{' {
+                        brace_depth += 1;
+                    }
+                    if c == '}' {
+                        brace_depth -= 1;
+                    }
+                }
+                i += 1;
+                // If no braces on first line, it's a forward decl — skip one line
+                // If braces opened and closed, we're done
+                if brace_depth <= 0 || i >= code_lines.len() {
+                    break;
+                }
+            }
+            continue;
+        }
+        // Strip TS parameter property modifiers that survived compilation
+        // (e.g., `public readonly x,` → `x,`)
+        if let Some(cleaned) = strip_param_property_modifiers(trimmed) {
+            let indent = &line[..line.len() - trimmed.len()];
+            result_lines.push(format!("{}{}", indent, cleaned));
+            i += 1;
+            continue;
+        }
+
+        result_lines.push(line.to_string());
+        i += 1;
     }
-    let code = lines.join("\n");
+    let code = result_lines.join("\n");
 
     // Phase 2: Inline TS syntax cleanup
     let mut result = String::with_capacity(code.len());
@@ -455,6 +534,177 @@ fn strip_leftover_typescript(code: &str) -> String {
     }
 
     result
+}
+
+/// Strip function overload declarations (signatures without bodies).
+///
+/// After the compiler strips type annotations, overload signatures like:
+///   `export function flatMap<T>(a: T, b: T): T;`
+/// become:
+///   `export function flatMap(a, b);`
+/// which is invalid JS (function declaration without body).
+///
+/// This function detects function declarations that end with `;` (after their
+/// parameter list closes) instead of having a `{` body, and removes them.
+fn strip_function_overloads(code: &str) -> String {
+    let mut result = String::with_capacity(code.len());
+    let chars: Vec<char> = code.chars().collect();
+    let len = chars.len();
+    let mut i = 0;
+
+    while i < len {
+        // Look for "function " preceded by start of line, "export ", or whitespace
+        if is_function_keyword_at(&chars, i, len) {
+            let fn_start = find_line_start(&chars, i);
+
+            // Check if this is an export function
+            let decl_start = if fn_start <= i {
+                let prefix = &chars[fn_start..i];
+                let prefix_str: String = prefix.iter().collect();
+                let trimmed = prefix_str.trim();
+                if trimmed.is_empty() || trimmed == "export" || trimmed == "export async" {
+                    fn_start
+                } else {
+                    // Not a declaration, just regular code containing "function"
+                    result.push(chars[i]);
+                    i += 1;
+                    continue;
+                }
+            } else {
+                fn_start
+            };
+
+            // Skip past "function " and the function name
+            let mut j = i + "function ".len();
+            // Skip function name
+            while j < len && is_ident(chars[j]) {
+                j += 1;
+            }
+            // Skip generic params <...>
+            if j < len && chars[j] == '<' {
+                let mut depth = 1;
+                j += 1;
+                while j < len && depth > 0 {
+                    if chars[j] == '<' {
+                        depth += 1;
+                    } else if chars[j] == '>' {
+                        depth -= 1;
+                    }
+                    j += 1;
+                }
+            }
+            // Skip whitespace
+            while j < len && chars[j].is_whitespace() {
+                j += 1;
+            }
+            // Should be at `(`
+            if j < len && chars[j] == '(' {
+                let mut depth = 1;
+                j += 1;
+                while j < len && depth > 0 {
+                    if chars[j] == '(' {
+                        depth += 1;
+                    } else if chars[j] == ')' {
+                        depth -= 1;
+                    }
+                    j += 1;
+                }
+                // After `)`, skip optional return type annotation and whitespace
+                while j < len && chars[j].is_whitespace() {
+                    j += 1;
+                }
+                // Skip return type: `: Type<A, B>` etc.
+                if j < len && chars[j] == ':' {
+                    j += 1;
+                    // Skip everything until `;` or `{`
+                    while j < len && chars[j] != ';' && chars[j] != '{' {
+                        j += 1;
+                    }
+                }
+                // Now check: if we hit `;`, this is an overload (no body) — strip it
+                if j < len && chars[j] == ';' {
+                    // This is an overload declaration — skip from decl_start to j+1
+                    // Also skip trailing newline
+                    j += 1;
+                    if j < len && chars[j] == '\n' {
+                        j += 1;
+                    }
+                    // Remove what we already added from decl_start
+                    let added_from_start: String = chars[decl_start..i].iter().collect();
+                    if result.ends_with(&added_from_start) {
+                        let new_len = result.len() - added_from_start.len();
+                        result.truncate(new_len);
+                    }
+                    i = j;
+                    continue;
+                }
+                // Has a body `{` — this is the real implementation, not an overload
+                // Output everything we skipped examination of, and continue normally
+            }
+        }
+
+        result.push(chars[i]);
+        i += 1;
+    }
+
+    result
+}
+
+/// Check if "function " keyword starts at position `pos`.
+fn is_function_keyword_at(chars: &[char], pos: usize, len: usize) -> bool {
+    let keyword = "function ";
+    if pos + keyword.len() > len {
+        return false;
+    }
+    let slice: String = chars[pos..pos + keyword.len()].iter().collect();
+    slice == keyword
+}
+
+/// Find the start of the current line (position after previous newline).
+fn find_line_start(chars: &[char], pos: usize) -> usize {
+    let mut i = pos;
+    while i > 0 {
+        i -= 1;
+        if chars[i] == '\n' {
+            return i + 1;
+        }
+    }
+    0
+}
+
+/// Strip TypeScript parameter property modifiers from a trimmed line.
+///
+/// Handles: `public readonly x,` → `x,`
+///          `private y,` → `y,`
+///          `protected z)` → `z)`
+///          `readonly w,` → `w,`
+///
+/// Returns `Some(cleaned)` if modifiers were stripped, `None` otherwise.
+fn strip_param_property_modifiers(trimmed: &str) -> Option<String> {
+    let access_modifiers = ["public ", "private ", "protected "];
+    let mut s = trimmed;
+    let mut stripped = false;
+
+    // Strip access modifier (public/private/protected)
+    for kw in &access_modifiers {
+        if s.starts_with(kw) {
+            s = &s[kw.len()..];
+            stripped = true;
+            break;
+        }
+    }
+
+    // Strip readonly (can appear after access modifier or standalone)
+    if s.starts_with("readonly ") {
+        s = &s["readonly ".len()..];
+        stripped = true;
+    }
+
+    if stripped {
+        Some(s.to_string())
+    } else {
+        None
+    }
 }
 
 fn is_ident(c: char) -> bool {

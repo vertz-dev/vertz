@@ -1,8 +1,10 @@
 use std::path::{Path, PathBuf};
 
+use walkdir::WalkDir;
+
 /// Default test file patterns.
 const DEFAULT_INCLUDE: &[&str] = &["**/*.test.ts", "**/*.test.tsx"];
-const DEFAULT_EXCLUDE_DIRS: &[&str] = &["node_modules", "dist", ".vertz"];
+const DEFAULT_EXCLUDE_DIRS: &[&str] = &["node_modules", "dist", ".vertz", ".git"];
 
 /// Discover test files matching the given patterns.
 ///
@@ -63,23 +65,58 @@ pub fn discover_test_files(
     files
 }
 
-/// Collect test files from a directory using glob patterns.
+/// Collect test files from a directory using walkdir with directory pruning.
+///
+/// Unlike `glob::glob("**/*.test.ts")`, walkdir prunes excluded directories
+/// (node_modules, .git, dist) at entry time — never descending into them.
+/// This makes discovery fast even in large monorepos.
 fn collect_from_dir(
     dir: &Path,
     include_patterns: &[&str],
     exclude: &[String],
     files: &mut Vec<PathBuf>,
 ) {
-    for pattern in include_patterns {
-        let full_pattern = dir.join(pattern).to_string_lossy().to_string();
-        if let Ok(entries) = glob::glob(&full_pattern) {
-            for entry in entries.flatten() {
-                if !is_excluded(&entry, exclude) {
-                    files.push(entry);
-                }
-            }
+    // Build glob patterns for file matching
+    let file_patterns: Vec<glob::Pattern> = include_patterns
+        .iter()
+        .filter_map(|p| {
+            let file_part = p.rsplit('/').next().unwrap_or(p);
+            glob::Pattern::new(file_part).ok()
+        })
+        .collect();
+
+    let walker = WalkDir::new(dir).follow_links(true).into_iter();
+    for entry in walker.filter_entry(|e| !is_pruned_dir(e, exclude)) {
+        let entry = match entry {
+            Ok(e) => e,
+            Err(_) => continue,
+        };
+        if !entry.file_type().is_file() {
+            continue;
+        }
+        let path = entry.into_path();
+        let filename = path.file_name().and_then(|f| f.to_str()).unwrap_or("");
+        if file_patterns.iter().any(|p| p.matches(filename)) {
+            files.push(path);
         }
     }
+}
+
+/// Check if a walkdir entry is a directory that should be pruned (skipped entirely).
+fn is_pruned_dir(entry: &walkdir::DirEntry, custom_exclude: &[String]) -> bool {
+    if !entry.file_type().is_dir() {
+        return false;
+    }
+    let name = entry.file_name().to_str().unwrap_or("");
+    if DEFAULT_EXCLUDE_DIRS.contains(&name) {
+        return true;
+    }
+    for pat in custom_exclude {
+        if name == pat {
+            return true;
+        }
+    }
+    false
 }
 
 /// Check if a file path matches any of the include patterns.
@@ -98,7 +135,8 @@ fn matches_any_pattern(path: &Path, patterns: &[&str]) -> bool {
     false
 }
 
-/// Check if a path should be excluded.
+/// Check if a path should be excluded (used for direct file path filtering).
+#[allow(dead_code)]
 fn is_excluded(path: &Path, custom_exclude: &[String]) -> bool {
     let path_str = path.to_string_lossy();
 

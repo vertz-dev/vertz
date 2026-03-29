@@ -2,25 +2,35 @@ use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
+use walkdir::WalkDir;
+
 use crate::typecheck::parser::{parse_tsc_line, TscParsed};
 use crate::typecheck::process::detect_checker;
 
 use super::executor::{TestError, TestFileResult, TestResult, TestStatus};
 
-/// Discover `.test-d.ts` and `.test-d.tsx` files in the project.
-pub fn discover_type_test_files(root_dir: &Path, exclude: &[String]) -> Vec<PathBuf> {
-    let patterns = ["**/*.test-d.ts", "**/*.test-d.tsx"];
-    let exclude_dirs = ["node_modules", "dist", ".vertz"];
+/// Directories to skip entirely during type test file discovery.
+const EXCLUDE_DIRS: &[&str] = &["node_modules", "dist", ".vertz", ".git"];
 
+/// Discover `.test-d.ts` and `.test-d.tsx` files in the project.
+///
+/// Uses walkdir with directory pruning so we never descend into
+/// node_modules, .git, dist, etc. — making discovery fast in large repos.
+pub fn discover_type_test_files(root_dir: &Path, exclude: &[String]) -> Vec<PathBuf> {
     let mut files = Vec::new();
-    for pattern in &patterns {
-        let full = root_dir.join(pattern).to_string_lossy().to_string();
-        if let Ok(entries) = glob::glob(&full) {
-            for entry in entries.flatten() {
-                if !is_excluded(&entry, &exclude_dirs, exclude) {
-                    files.push(entry);
-                }
-            }
+
+    let walker = WalkDir::new(root_dir).follow_links(true).into_iter();
+    for entry in walker.filter_entry(|e| !is_pruned_dir(e, exclude)) {
+        let entry = match entry {
+            Ok(e) => e,
+            Err(_) => continue,
+        };
+        if !entry.file_type().is_file() {
+            continue;
+        }
+        let name = entry.file_name().to_str().unwrap_or("");
+        if name.ends_with(".test-d.ts") || name.ends_with(".test-d.tsx") {
+            files.push(entry.into_path());
         }
     }
     files.sort();
@@ -28,6 +38,24 @@ pub fn discover_type_test_files(root_dir: &Path, exclude: &[String]) -> Vec<Path
     files
 }
 
+/// Check if a walkdir entry is a directory that should be pruned.
+fn is_pruned_dir(entry: &walkdir::DirEntry, custom_exclude: &[String]) -> bool {
+    if !entry.file_type().is_dir() {
+        return false;
+    }
+    let name = entry.file_name().to_str().unwrap_or("");
+    if EXCLUDE_DIRS.contains(&name) {
+        return true;
+    }
+    for pat in custom_exclude {
+        if name == pat {
+            return true;
+        }
+    }
+    false
+}
+
+#[allow(dead_code)]
 fn is_excluded(path: &Path, default_dirs: &[&str], custom: &[String]) -> bool {
     let s = path.to_string_lossy();
     for dir in default_dirs {

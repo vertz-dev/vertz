@@ -956,12 +956,20 @@ pub const TEST_HARNESS_JS: &str = r#"
   globalThis.spyOn = spyOn;
   globalThis.vi = vi;
 
+  // expectTypeOf — no-op at runtime (type-level assertions only matter at compile time).
+  // Returns a chainable proxy so `expectTypeOf<T>().toEqualTypeOf<U>()` etc. don't crash.
+  const expectTypeOfHandler = {
+    get() { return function() { return new Proxy({}, expectTypeOfHandler); }; },
+    apply() { return new Proxy({}, expectTypeOfHandler); },
+  };
+  function expectTypeOf() { return new Proxy({}, expectTypeOfHandler); }
+
   // Exports object — module loader will intercept
   // `import { describe, it, expect } from '@vertz/test'` and return these.
   globalThis.__vertz_test_exports = {
     describe, it, test, expect,
     beforeEach, afterEach, beforeAll, afterAll,
-    mock, spyOn, vi,
+    mock, spyOn, vi, expectTypeOf,
   };
 })();
 "#;
