@@ -101,9 +101,20 @@ pub fn op_decls() -> Vec<OpDecl> {
 /// JavaScript bootstrap code for URL and URLSearchParams.
 pub const URL_BOOTSTRAP_JS: &str = r#"
 ((globalThis) => {
+  // Helper: decode form-urlencoded (+ becomes space)
+  function formDecode(str) {
+    return decodeURIComponent(str.replace(/\+/g, ' '));
+  }
+
+  // Helper: encode form-urlencoded (space becomes +)
+  function formEncode(str) {
+    return encodeURIComponent(str).replace(/%20/g, '+');
+  }
+
   // --- URLSearchParams ---
   class URLSearchParams {
     #entries = [];
+    #urlRef = null;
 
     constructor(init) {
       if (typeof init === 'string') {
@@ -112,11 +123,11 @@ pub const URL_BOOTSTRAP_JS: &str = r#"
           for (const pair of qs.split('&')) {
             const idx = pair.indexOf('=');
             if (idx === -1) {
-              this.#entries.push([decodeURIComponent(pair), '']);
+              this.#entries.push([formDecode(pair), '']);
             } else {
               this.#entries.push([
-                decodeURIComponent(pair.slice(0, idx)),
-                decodeURIComponent(pair.slice(idx + 1)),
+                formDecode(pair.slice(0, idx)),
+                formDecode(pair.slice(idx + 1)),
               ]);
             }
           }
@@ -134,12 +145,25 @@ pub const URL_BOOTSTRAP_JS: &str = r#"
       }
     }
 
-    append(name, value) {
-      this.#entries.push([String(name), String(value)]);
+    // Internal: link to URL for live updates
+    _setUrlRef(urlRef) { this.#urlRef = urlRef; }
+    _notifyChange() {
+      if (this.#urlRef) this.#urlRef._onSearchParamsChange();
     }
 
-    delete(name) {
-      this.#entries = this.#entries.filter(([k]) => k !== name);
+    append(name, value) {
+      this.#entries.push([String(name), String(value)]);
+      this._notifyChange();
+    }
+
+    delete(name, value) {
+      if (arguments.length > 1) {
+        const v = String(value);
+        this.#entries = this.#entries.filter(([k, ev]) => !(k === name && ev === v));
+      } else {
+        this.#entries = this.#entries.filter(([k]) => k !== name);
+      }
+      this._notifyChange();
     }
 
     get(name) {
@@ -151,7 +175,11 @@ pub const URL_BOOTSTRAP_JS: &str = r#"
       return this.#entries.filter(([k]) => k === name).map(([, v]) => v);
     }
 
-    has(name) {
+    has(name, value) {
+      if (arguments.length > 1) {
+        const v = String(value);
+        return this.#entries.some(([k, ev]) => k === name && ev === v);
+      }
       return this.#entries.some(([k]) => k === name);
     }
 
@@ -172,15 +200,17 @@ pub const URL_BOOTSTRAP_JS: &str = r#"
       } else {
         this.#entries.push([nameStr, valueStr]);
       }
+      this._notifyChange();
     }
 
     sort() {
       this.#entries.sort((a, b) => a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0);
+      this._notifyChange();
     }
 
     toString() {
       return this.#entries
-        .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v)}`)
+        .map(([k, v]) => `${formEncode(k)}=${formEncode(v)}`)
         .join('&');
     }
 
@@ -215,49 +245,130 @@ pub const URL_BOOTSTRAP_JS: &str = r#"
 
     constructor(url, base) {
       const baseStr = base !== undefined ? String(base) : '';
-      this.#parts = Deno.core.ops.op_url_parse(String(url), baseStr);
+      try {
+        this.#parts = Deno.core.ops.op_url_parse(String(url), baseStr);
+      } catch (e) {
+        throw new TypeError(e.message || `Invalid URL: ${url}`);
+      }
       this.#searchParams = new URLSearchParams(this.#parts.search);
+      this.#searchParams._setUrlRef(this);
+    }
+
+    // Called by searchParams when it mutates
+    _onSearchParamsChange() {
+      const qs = this.#searchParams.toString();
+      this.#parts.search = qs ? '?' + qs : '';
+      // Rebuild href
+      this.#rebuildHref();
+    }
+
+    #rebuildHref() {
+      let href = this.#parts.protocol + '//';
+      if (this.#parts.username) {
+        href += this.#parts.username;
+        if (this.#parts.password) href += ':' + this.#parts.password;
+        href += '@';
+      }
+      href += this.#parts.hostname;
+      if (this.#parts.port) href += ':' + this.#parts.port;
+      href += this.#parts.pathname;
+      href += this.#parts.search;
+      href += this.#parts.hash;
+      this.#parts.href = href;
     }
 
     get href() { return this.#parts.href; }
     set href(val) {
-      this.#parts = Deno.core.ops.op_url_parse(String(val), '');
+      try {
+        this.#parts = Deno.core.ops.op_url_parse(String(val), '');
+      } catch (e) {
+        throw new TypeError(e.message || `Invalid URL: ${val}`);
+      }
       this.#searchParams = new URLSearchParams(this.#parts.search);
+      this.#searchParams._setUrlRef(this);
     }
 
     get origin() { return this.#parts.origin; }
     get protocol() { return this.#parts.protocol; }
-    set protocol(val) { this.#reparse({ protocol: val }); }
+    set protocol(val) {
+      // Re-parse with new protocol
+      const newHref = String(val).replace(/:$/, '') + ':' + this.#parts.href.slice(this.#parts.protocol.length);
+      try {
+        this.#parts = Deno.core.ops.op_url_parse(newHref, '');
+        this.#searchParams = new URLSearchParams(this.#parts.search);
+        this.#searchParams._setUrlRef(this);
+      } catch (e) {
+        // Ignore invalid — per spec, invalid protocol setter is a no-op
+      }
+    }
 
     get username() { return this.#parts.username; }
-    set username(val) { this.#reparse({ username: val }); }
+    set username(val) {
+      this.#parts.username = String(val);
+      this.#rebuildHref();
+    }
 
     get password() { return this.#parts.password; }
-    set password(val) { this.#reparse({ password: val }); }
+    set password(val) {
+      this.#parts.password = String(val);
+      this.#rebuildHref();
+    }
 
     get host() { return this.#parts.host; }
-    set host(val) { this.#reparse({ host: val }); }
+    set host(val) {
+      const str = String(val);
+      const colonIdx = str.indexOf(':');
+      if (colonIdx !== -1) {
+        this.#parts.hostname = str.slice(0, colonIdx);
+        this.#parts.port = str.slice(colonIdx + 1);
+        this.#parts.host = str;
+      } else {
+        this.#parts.hostname = str;
+        this.#parts.port = '';
+        this.#parts.host = str;
+      }
+      this.#rebuildHref();
+    }
 
     get hostname() { return this.#parts.hostname; }
-    set hostname(val) { this.#reparse({ hostname: val }); }
+    set hostname(val) {
+      this.#parts.hostname = String(val);
+      this.#parts.host = this.#parts.port
+        ? this.#parts.hostname + ':' + this.#parts.port
+        : this.#parts.hostname;
+      this.#rebuildHref();
+    }
 
     get port() { return this.#parts.port; }
-    set port(val) { this.#reparse({ port: val }); }
+    set port(val) {
+      this.#parts.port = String(val);
+      this.#parts.host = this.#parts.port
+        ? this.#parts.hostname + ':' + this.#parts.port
+        : this.#parts.hostname;
+      this.#rebuildHref();
+    }
 
     get pathname() { return this.#parts.pathname; }
-    set pathname(val) { this.#reparse({ pathname: val }); }
+    set pathname(val) {
+      const v = String(val);
+      this.#parts.pathname = v.startsWith('/') ? v : '/' + v;
+      this.#rebuildHref();
+    }
 
     get search() { return this.#parts.search; }
     set search(val) {
       const s = String(val);
       this.#parts.search = s.startsWith('?') ? s : (s ? '?' + s : '');
       this.#searchParams = new URLSearchParams(this.#parts.search);
+      this.#searchParams._setUrlRef(this);
+      this.#rebuildHref();
     }
 
     get hash() { return this.#parts.hash; }
     set hash(val) {
       const h = String(val);
       this.#parts.hash = h.startsWith('#') ? h : (h ? '#' + h : '');
+      this.#rebuildHref();
     }
 
     get searchParams() { return this.#searchParams; }
@@ -268,18 +379,6 @@ pub const URL_BOOTSTRAP_JS: &str = r#"
     static canParse(url, base) {
       const baseStr = base !== undefined ? String(base) : '';
       return Deno.core.ops.op_url_can_parse(String(url), baseStr);
-    }
-
-    #reparse(overrides) {
-      // Rebuild href from parts with overrides and re-parse
-      // This is a simplified approach — just re-parse from href
-      // For full spec compliance, we'd need to rebuild from parts
-      const parts = { ...this.#parts, ...overrides };
-      try {
-        this.#parts = Deno.core.ops.op_url_parse(this.href, '');
-      } catch (e) {
-        // Keep existing parts if re-parse fails
-      }
     }
   }
 
@@ -379,6 +478,8 @@ mod tests {
         assert_eq!(result, serde_json::json!("https://example.com/api/data"));
     }
 
+    // --- SHOULD-FIX-3: TypeError on invalid URL ---
+
     #[test]
     fn test_url_invalid_throws_typeerror() {
         let mut rt = create_runtime();
@@ -390,7 +491,7 @@ mod tests {
                 new URL('not-a-url');
                 'no error';
             } catch (e) {
-                e.message.includes('Invalid URL') ? 'TypeError' : e.message;
+                e instanceof TypeError ? 'TypeError' : e.constructor.name;
             }
         "#,
             )
@@ -450,6 +551,128 @@ mod tests {
             )
             .unwrap();
         assert_eq!(result, serde_json::json!("https://example.com/"));
+    }
+
+    // --- BLOCKER-1: URL property setters ---
+
+    #[test]
+    fn test_url_pathname_setter() {
+        let mut rt = create_runtime();
+        let result = rt
+            .execute_script(
+                "<test>",
+                r#"
+                const url = new URL('https://example.com/old');
+                url.pathname = '/new';
+                url.pathname
+            "#,
+            )
+            .unwrap();
+        assert_eq!(result, serde_json::json!("/new"));
+    }
+
+    #[test]
+    fn test_url_pathname_setter_updates_href() {
+        let mut rt = create_runtime();
+        let result = rt
+            .execute_script(
+                "<test>",
+                r#"
+                const url = new URL('https://example.com/old');
+                url.pathname = '/new';
+                url.href
+            "#,
+            )
+            .unwrap();
+        assert_eq!(result, serde_json::json!("https://example.com/new"));
+    }
+
+    #[test]
+    fn test_url_hostname_setter() {
+        let mut rt = create_runtime();
+        let result = rt
+            .execute_script(
+                "<test>",
+                r#"
+                const url = new URL('https://old.com/path');
+                url.hostname = 'new.com';
+                url.href
+            "#,
+            )
+            .unwrap();
+        assert_eq!(result, serde_json::json!("https://new.com/path"));
+    }
+
+    #[test]
+    fn test_url_hash_setter() {
+        let mut rt = create_runtime();
+        let result = rt
+            .execute_script(
+                "<test>",
+                r#"
+                const url = new URL('https://example.com/path');
+                url.hash = '#section';
+                url.href
+            "#,
+            )
+            .unwrap();
+        assert_eq!(
+            result,
+            serde_json::json!("https://example.com/path#section")
+        );
+    }
+
+    #[test]
+    fn test_url_search_setter() {
+        let mut rt = create_runtime();
+        let result = rt
+            .execute_script(
+                "<test>",
+                r#"
+                const url = new URL('https://example.com/path');
+                url.search = '?q=hello';
+                [url.search, url.searchParams.get('q')]
+            "#,
+            )
+            .unwrap();
+        assert_eq!(result, serde_json::json!(["?q=hello", "hello"]));
+    }
+
+    // --- SHOULD-FIX-6: searchParams live ---
+
+    #[test]
+    fn test_url_search_params_live_append() {
+        let mut rt = create_runtime();
+        let result = rt
+            .execute_script(
+                "<test>",
+                r#"
+                const url = new URL('https://example.com/?a=1');
+                url.searchParams.append('b', '2');
+                url.search
+            "#,
+            )
+            .unwrap();
+        assert_eq!(result, serde_json::json!("?a=1&b=2"));
+    }
+
+    #[test]
+    fn test_url_search_params_live_href_update() {
+        let mut rt = create_runtime();
+        let result = rt
+            .execute_script(
+                "<test>",
+                r#"
+                const url = new URL('https://example.com/?a=1');
+                url.searchParams.append('b', '2');
+                url.href
+            "#,
+            )
+            .unwrap();
+        assert_eq!(
+            result,
+            serde_json::json!("https://example.com/?a=1&b=2")
+        );
     }
 
     // --- URLSearchParams tests ---
@@ -636,6 +859,72 @@ mod tests {
         assert_eq!(result, serde_json::json!(["bar", "42"]));
     }
 
+    // --- SHOULD-FIX-1: + as space ---
+
+    #[test]
+    fn test_search_params_plus_as_space() {
+        let mut rt = create_runtime();
+        let result = rt
+            .execute_script(
+                "<test>",
+                r#"
+                const params = new URLSearchParams('q=hello+world');
+                params.get('q')
+            "#,
+            )
+            .unwrap();
+        assert_eq!(result, serde_json::json!("hello world"));
+    }
+
+    #[test]
+    fn test_search_params_space_encoded_as_plus() {
+        let mut rt = create_runtime();
+        let result = rt
+            .execute_script(
+                "<test>",
+                r#"
+                const params = new URLSearchParams();
+                params.set('q', 'hello world');
+                params.toString()
+            "#,
+            )
+            .unwrap();
+        assert_eq!(result, serde_json::json!("q=hello+world"));
+    }
+
+    // --- SHOULD-FIX-2: delete/has with value ---
+
+    #[test]
+    fn test_search_params_delete_with_value() {
+        let mut rt = create_runtime();
+        let result = rt
+            .execute_script(
+                "<test>",
+                r#"
+                const params = new URLSearchParams('a=1&a=2&b=3');
+                params.delete('a', '1');
+                params.toString()
+            "#,
+            )
+            .unwrap();
+        assert_eq!(result, serde_json::json!("a=2&b=3"));
+    }
+
+    #[test]
+    fn test_search_params_has_with_value() {
+        let mut rt = create_runtime();
+        let result = rt
+            .execute_script(
+                "<test>",
+                r#"
+                const params = new URLSearchParams('a=1&a=2');
+                [params.has('a', '1'), params.has('a', '3')]
+            "#,
+            )
+            .unwrap();
+        assert_eq!(result, serde_json::json!([true, false]));
+    }
+
     // --- URL.searchParams integration ---
 
     #[test]
@@ -685,5 +974,22 @@ mod tests {
             )
             .unwrap();
         assert_eq!(result, serde_json::json!(["user", "pass"]));
+    }
+
+    // --- NIT-5: no-arg constructor ---
+
+    #[test]
+    fn test_search_params_no_arg_constructor() {
+        let mut rt = create_runtime();
+        let result = rt
+            .execute_script(
+                "<test>",
+                r#"
+                const params = new URLSearchParams();
+                [params.size, params.toString()]
+            "#,
+            )
+            .unwrap();
+        assert_eq!(result, serde_json::json!([0, ""]));
     }
 }

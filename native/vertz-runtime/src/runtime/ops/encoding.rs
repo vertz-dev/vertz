@@ -9,12 +9,16 @@ pub fn op_text_encode(#[string] input: String) -> Vec<u8> {
 }
 
 /// Decode UTF-8 bytes to a string.
-/// Returns an error if the encoding is not utf-8 or the bytes are invalid.
+/// When fatal is true, invalid UTF-8 returns an error.
+/// When fatal is false, invalid bytes are replaced with U+FFFD.
+/// When ignore_bom is false (default), leading BOM is stripped.
 #[op2]
 #[string]
 pub fn op_text_decode(
     #[buffer] input: &[u8],
     #[string] encoding: String,
+    fatal: bool,
+    ignore_bom: bool,
 ) -> Result<String, deno_core::error::AnyError> {
     let enc = encoding.to_ascii_lowercase();
     if enc != "utf-8" && enc != "utf8" && enc != "unicode-1-1-utf-8" {
@@ -23,8 +27,20 @@ pub fn op_text_decode(
             encoding
         ));
     }
-    String::from_utf8(input.to_vec())
-        .map_err(|e| deno_core::anyhow::anyhow!("TypeError: {}", e))
+
+    let result = if fatal {
+        String::from_utf8(input.to_vec())
+            .map_err(|e| deno_core::anyhow::anyhow!("TypeError: {}", e))?
+    } else {
+        String::from_utf8_lossy(input).into_owned()
+    };
+
+    // Strip leading BOM when ignoreBOM is false
+    if !ignore_bom && result.starts_with('\u{FEFF}') {
+        Ok(result.strip_prefix('\u{FEFF}').unwrap().to_string())
+    } else {
+        Ok(result)
+    }
 }
 
 /// Base64 encode a string (btoa).
@@ -76,7 +92,8 @@ pub const ENCODING_BOOTSTRAP_JS: &str = r#"
       return new Uint8Array(Deno.core.ops.op_text_encode(String(input)));
     }
     encodeInto(source, destination) {
-      const bytes = Deno.core.ops.op_text_encode(String(source));
+      const str = String(source);
+      const bytes = Deno.core.ops.op_text_encode(str);
       const len = Math.min(bytes.length, destination.byteLength);
       for (let i = 0; i < len; i++) {
         destination[i] = bytes[i];
@@ -84,8 +101,6 @@ pub const ENCODING_BOOTSTRAP_JS: &str = r#"
       // Count how many complete UTF-8 characters fit
       let read = 0;
       let written = 0;
-      const str = String(source);
-      const enc = new Uint8Array(Deno.core.ops.op_text_encode(str));
       for (let i = 0; i < str.length; i++) {
         const code = str.codePointAt(i);
         let byteLen;
@@ -131,7 +146,14 @@ pub const ENCODING_BOOTSTRAP_JS: &str = r#"
       } else {
         throw new TypeError('The provided value is not of type \'(ArrayBuffer or ArrayBufferView)\'');
       }
-      return Deno.core.ops.op_text_decode(bytes, this.#encoding);
+      try {
+        return Deno.core.ops.op_text_decode(bytes, this.#encoding, this.#fatal, this.#ignoreBOM);
+      } catch (e) {
+        if (this.#fatal && e.message && e.message.includes('TypeError:')) {
+          throw new TypeError(e.message.replace('TypeError: ', ''));
+        }
+        throw e;
+      }
     }
   }
 
@@ -234,6 +256,22 @@ mod tests {
     }
 
     #[test]
+    fn test_text_decoder_decode_arraybuffer() {
+        let mut rt = create_runtime();
+        let result = rt
+            .execute_script(
+                "<test>",
+                r#"
+                const decoder = new TextDecoder();
+                const buf = new Uint8Array([104, 105]).buffer;
+                decoder.decode(buf)
+            "#,
+            )
+            .unwrap();
+        assert_eq!(result, serde_json::json!("hi"));
+    }
+
+    #[test]
     fn test_text_decoder_encoding_property() {
         let mut rt = create_runtime();
         let result = rt
@@ -288,7 +326,6 @@ mod tests {
     #[test]
     fn test_text_decoder_utf8_alias() {
         let mut rt = create_runtime();
-        // 'utf8' (without hyphen) is a valid alias
         let result = rt
             .execute_script(
                 "<test>",
@@ -299,6 +336,81 @@ mod tests {
             )
             .unwrap();
         assert_eq!(result, serde_json::json!("hi"));
+    }
+
+    // --- BLOCKER-2: TextDecoder fatal mode ---
+
+    #[test]
+    fn test_text_decoder_non_fatal_replaces_invalid_bytes() {
+        let mut rt = create_runtime();
+        let result = rt
+            .execute_script(
+                "<test>",
+                r#"
+                const decoder = new TextDecoder(); // fatal: false (default)
+                const bytes = new Uint8Array([104, 105, 0xFF, 0xFE]);
+                const decoded = decoder.decode(bytes);
+                // Invalid bytes should be replaced with U+FFFD
+                decoded.startsWith('hi') && decoded.includes('\uFFFD')
+            "#,
+            )
+            .unwrap();
+        assert_eq!(result, serde_json::json!(true));
+    }
+
+    #[test]
+    fn test_text_decoder_fatal_throws_on_invalid_bytes() {
+        let mut rt = create_runtime();
+        let result = rt
+            .execute_script(
+                "<test>",
+                r#"
+            try {
+                const decoder = new TextDecoder('utf-8', { fatal: true });
+                decoder.decode(new Uint8Array([104, 105, 0xFF, 0xFE]));
+                'no error';
+            } catch (e) {
+                e instanceof TypeError ? 'TypeError' : e.constructor.name;
+            }
+        "#,
+            )
+            .unwrap();
+        assert_eq!(result, serde_json::json!("TypeError"));
+    }
+
+    // --- BLOCKER-3: BOM stripping ---
+
+    #[test]
+    fn test_text_decoder_strips_bom_by_default() {
+        let mut rt = create_runtime();
+        let result = rt
+            .execute_script(
+                "<test>",
+                r#"
+                const decoder = new TextDecoder(); // ignoreBOM: false (default)
+                const bom = new Uint8Array([0xEF, 0xBB, 0xBF, 0x68, 0x69]);
+                decoder.decode(bom)
+            "#,
+            )
+            .unwrap();
+        assert_eq!(result, serde_json::json!("hi"));
+    }
+
+    #[test]
+    fn test_text_decoder_preserves_bom_when_ignore_bom_true() {
+        let mut rt = create_runtime();
+        let result = rt
+            .execute_script(
+                "<test>",
+                r#"
+                const decoder = new TextDecoder('utf-8', { ignoreBOM: true });
+                const bom = new Uint8Array([0xEF, 0xBB, 0xBF, 0x68, 0x69]);
+                const decoded = decoder.decode(bom);
+                decoded === '\uFEFFhi'
+            "#,
+            )
+            .unwrap();
+        assert_eq!(result, serde_json::json!(true));
     }
 
     // --- btoa / atob tests ---
@@ -351,7 +463,6 @@ mod tests {
     #[test]
     fn test_btoa_binary_data() {
         let mut rt = create_runtime();
-        // Latin-1 characters (0-255 range)
         let result = rt
             .execute_script(
                 "<test>",
@@ -359,5 +470,43 @@ mod tests {
             )
             .unwrap();
         assert_eq!(result, serde_json::json!("AAH/"));
+    }
+
+    // --- NIT-2: btoa rejection of non-Latin1 ---
+
+    #[test]
+    fn test_btoa_rejects_non_latin1() {
+        let mut rt = create_runtime();
+        let result = rt.execute_script(
+            "<test>",
+            r#"
+            try {
+                btoa('\u0100');
+                'no error';
+            } catch (e) {
+                e.message.includes('InvalidCharacterError') ? 'rejected' : e.message;
+            }
+        "#,
+        );
+        assert_eq!(result.unwrap(), serde_json::json!("rejected"));
+    }
+
+    // --- NIT-3: atob rejection of invalid base64 ---
+
+    #[test]
+    fn test_atob_rejects_invalid_base64() {
+        let mut rt = create_runtime();
+        let result = rt.execute_script(
+            "<test>",
+            r#"
+            try {
+                atob('not-valid-base64!!!');
+                'no error';
+            } catch (e) {
+                e.message.includes('InvalidCharacterError') ? 'rejected' : e.message;
+            }
+        "#,
+        );
+        assert_eq!(result.unwrap(), serde_json::json!("rejected"));
     }
 }
