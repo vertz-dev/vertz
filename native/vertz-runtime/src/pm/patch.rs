@@ -29,6 +29,22 @@ pub struct PatchApplyResult {
     pub patch_path: String,
 }
 
+/// Result of discarding a patch
+#[derive(Debug)]
+pub struct PatchDiscardResult {
+    pub name: String,
+    pub version: String,
+    pub reapplied_patch: bool,
+}
+
+/// Result of listing patches
+pub struct PatchListResult {
+    /// Active patches (in-progress): (package_name, version)
+    pub active: Vec<(String, String)>,
+    /// Saved patches from package.json: (key like "express@4.21.2", path)
+    pub saved: Vec<(String, String)>,
+}
+
 /// Read the set of patched package names from package.json's vertz.patchedDependencies
 pub fn read_patched_package_names(root_dir: &Path) -> HashSet<String> {
     let pkg_path = root_dir.join("package.json");
@@ -55,6 +71,11 @@ pub fn read_patched_package_names(root_dir: &Path) -> HashSet<String> {
         }
     }
     names
+}
+
+/// Parse the package name from a patchedDependencies key (public variant for CLI use)
+pub fn parse_patch_key_name_pub(key: &str) -> Option<&str> {
+    parse_patch_key_name(key)
 }
 
 /// Parse the package name from a patchedDependencies key like "express@4.21.2"
@@ -195,6 +216,138 @@ pub fn patch_save(
         patch_path: relative_patch_path,
         files_changed,
     })
+}
+
+/// Discard in-progress patch changes and restore from backup
+pub fn patch_discard(
+    root_dir: &Path,
+    package: &str,
+) -> Result<PatchDiscardResult, Box<dyn std::error::Error>> {
+    let node_modules = root_dir.join("node_modules");
+    let pkg_dir = node_modules.join(package);
+    let backup_dir = node_modules.join(BACKUP_DIR).join(package);
+
+    // Check if backup exists
+    if !backup_dir.exists() {
+        return Err(format!(
+            "error: \"{}\" is not being patched. Nothing to discard.",
+            package
+        )
+        .into());
+    }
+
+    // Get version before restoring
+    let version = get_installed_version(root_dir, package)?;
+
+    // Remove current package dir and restore from backup
+    if pkg_dir.exists() {
+        std::fs::remove_dir_all(&pkg_dir)?;
+    }
+    copy_dir_recursive(&backup_dir, &pkg_dir)?;
+
+    // Remove backup
+    std::fs::remove_dir_all(&backup_dir)?;
+
+    // Check if there's a saved patch to re-apply.
+    // The backup may already contain the saved patch (if patch_prepare was called
+    // after a previous patch_save). In that case, re-applying would fail — which is
+    // fine, the backup already has the correct state.
+    let mut reapplied_patch = false;
+    let pkg_path = root_dir.join("package.json");
+    if let Ok(content) = std::fs::read_to_string(&pkg_path) {
+        if let Ok(value) = serde_json::from_str::<serde_json::Value>(&content) {
+            let patch_key = format!("{}@{}", package, version);
+            if let Some(patch_path) = value
+                .get("vertz")
+                .and_then(|v| v.get("patchedDependencies"))
+                .and_then(|v| v.get(&patch_key))
+                .and_then(|v| v.as_str())
+            {
+                let full_patch_path = root_dir.join(patch_path);
+                if let Ok(patch_content) = std::fs::read_to_string(&full_patch_path) {
+                    // Try to apply — if it fails, the backup already has the patch applied
+                    if apply_patch_to_package(root_dir, package, &patch_content).is_ok() {
+                        reapplied_patch = true;
+                    }
+                }
+            }
+        }
+    }
+
+    Ok(PatchDiscardResult {
+        name: package.to_string(),
+        version,
+        reapplied_patch,
+    })
+}
+
+/// List active and saved patches
+pub fn patch_list(root_dir: &Path) -> PatchListResult {
+    let node_modules = root_dir.join("node_modules");
+    let backup_base = node_modules.join(BACKUP_DIR);
+
+    // Find active patches (backup directories)
+    let mut active = Vec::new();
+    if backup_base.exists() {
+        if let Ok(entries) = std::fs::read_dir(&backup_base) {
+            for entry in entries.flatten() {
+                let name = entry.file_name().to_string_lossy().to_string();
+                if entry.file_type().map(|t| t.is_dir()).unwrap_or(false) {
+                    if name.starts_with('@') {
+                        // Scoped package — subdirectories are the actual packages
+                        let scope_dir = backup_base.join(&name);
+                        if let Ok(sub_entries) = std::fs::read_dir(&scope_dir) {
+                            for sub_entry in sub_entries.flatten() {
+                                let sub_name = sub_entry
+                                    .file_name()
+                                    .to_string_lossy()
+                                    .to_string();
+                                if sub_entry
+                                    .file_type()
+                                    .map(|t| t.is_dir())
+                                    .unwrap_or(false)
+                                {
+                                    let full_name = format!("{}/{}", name, sub_name);
+                                    let version = get_installed_version(root_dir, &full_name)
+                                        .unwrap_or_default();
+                                    active.push((full_name, version));
+                                }
+                            }
+                        }
+                    } else {
+                        // Regular package
+                        let version =
+                            get_installed_version(root_dir, &name).unwrap_or_default();
+                        active.push((name, version));
+                    }
+                }
+            }
+        }
+    }
+
+    // Find saved patches from package.json
+    let mut saved = Vec::new();
+    let pkg_path = root_dir.join("package.json");
+    if let Ok(content) = std::fs::read_to_string(&pkg_path) {
+        if let Ok(value) = serde_json::from_str::<serde_json::Value>(&content) {
+            if let Some(patched) = value
+                .get("vertz")
+                .and_then(|v| v.get("patchedDependencies"))
+                .and_then(|v| v.as_object())
+            {
+                for (key, path_value) in patched {
+                    if let Some(path) = path_value.as_str() {
+                        saved.push((key.clone(), path.to_string()));
+                    }
+                }
+            }
+        }
+    }
+
+    active.sort_by(|a, b| a.0.cmp(&b.0));
+    saved.sort_by(|a, b| a.0.cmp(&b.0));
+
+    PatchListResult { active, saved }
 }
 
 /// Apply all saved patches from package.json
@@ -1114,6 +1267,191 @@ mod tests {
 
         let names = read_patched_package_names(root);
         assert!(names.is_empty());
+    }
+
+    // --- vertz patch discard ---
+
+    #[test]
+    fn test_patch_discard_restores_from_backup() {
+        let tmp = TempDir::new().unwrap();
+        let root = setup_test_project(&tmp);
+
+        // Prepare
+        patch_prepare(&root, "express").unwrap();
+
+        // Modify files
+        let router_path = root.join("node_modules/express/lib/router.js");
+        std::fs::write(&router_path, "// modified by user\n").unwrap();
+
+        // Discard
+        let result = patch_discard(&root, "express").unwrap();
+        assert_eq!(result.name, "express");
+        assert_eq!(result.version, "4.21.2");
+        assert!(!result.reapplied_patch);
+
+        // Original content restored
+        let content = std::fs::read_to_string(&router_path).unwrap();
+        assert!(
+            content.contains("var layer = new Layer(path, {"),
+            "Content should be original: {}",
+            content
+        );
+
+        // Backup removed
+        let backup = root
+            .join("node_modules")
+            .join(BACKUP_DIR)
+            .join("express");
+        assert!(!backup.exists());
+    }
+
+    #[test]
+    fn test_patch_discard_not_being_patched() {
+        let tmp = TempDir::new().unwrap();
+        let root = setup_test_project(&tmp);
+
+        let result = patch_discard(&root, "express");
+        assert!(result.is_err());
+        let err = result.unwrap_err().to_string();
+        assert!(err.contains("not being patched"), "Error was: {}", err);
+    }
+
+    #[test]
+    fn test_patch_discard_reapplies_saved_patch() {
+        let tmp = TempDir::new().unwrap();
+        let root = setup_test_project(&tmp);
+
+        // First, create and save a patch
+        patch_prepare(&root, "express").unwrap();
+        let router_path = root.join("node_modules/express/lib/router.js");
+        std::fs::write(
+            &router_path,
+            "// router code\nvar layer = new Layer(path || '/', {\n  sensitive: false\n});\n",
+        )
+        .unwrap();
+        patch_save(&root, "express").unwrap();
+
+        // Now start a new patch session and make different changes
+        patch_prepare(&root, "express").unwrap();
+        std::fs::write(&router_path, "// totally different code\n").unwrap();
+
+        // Discard should restore from backup (which already has saved patch applied)
+        patch_discard(&root, "express").unwrap();
+
+        // Content should have the saved patch (path || '/')
+        // The backup was taken after patch_save, so it already has the saved patch
+        let content = std::fs::read_to_string(&router_path).unwrap();
+        assert!(
+            content.contains("path || '/'"),
+            "Should have saved patch state: {}",
+            content
+        );
+    }
+
+    #[test]
+    fn test_patch_discard_reapplies_when_backup_is_unpatched() {
+        let tmp = TempDir::new().unwrap();
+        let root = setup_test_project(&tmp);
+
+        // Create a saved patch in package.json WITHOUT going through patch_prepare/save
+        // (simulating a repo with patches/ checked in but fresh install didn't apply them)
+        let patches_dir = root.join("patches");
+        std::fs::create_dir_all(&patches_dir).unwrap();
+
+        // Create a patch file manually
+        let patch_content = "diff --git a/lib/router.js b/lib/router.js\n--- a/lib/router.js\n+++ b/lib/router.js\n@@ -1,4 +1,4 @@\n // router code\n-var layer = new Layer(path, {\n+var layer = new Layer(path || '/', {\n   sensitive: false\n });\n";
+        std::fs::write(
+            patches_dir.join("express@4.21.2.patch"),
+            patch_content,
+        )
+        .unwrap();
+
+        // Update package.json with patch reference
+        update_package_json_patches(&root, "express@4.21.2", "patches/express@4.21.2.patch")
+            .unwrap();
+
+        // Now prepare (backup is UNPATCHED original)
+        patch_prepare(&root, "express").unwrap();
+
+        // Make bad changes
+        let router_path = root.join("node_modules/express/lib/router.js");
+        std::fs::write(&router_path, "// bad changes\n").unwrap();
+
+        // Discard should restore from backup (unpatched) and re-apply saved patch
+        let result = patch_discard(&root, "express").unwrap();
+        assert!(result.reapplied_patch);
+
+        // Content should have the saved patch applied
+        let content = std::fs::read_to_string(&router_path).unwrap();
+        assert!(
+            content.contains("path || '/'"),
+            "Saved patch should be re-applied: {}",
+            content
+        );
+    }
+
+    // --- vertz patch list ---
+
+    #[test]
+    fn test_patch_list_shows_active_and_saved() {
+        let tmp = TempDir::new().unwrap();
+        let root = setup_test_project(&tmp);
+
+        // Save a patch
+        patch_prepare(&root, "express").unwrap();
+        let router_path = root.join("node_modules/express/lib/router.js");
+        std::fs::write(&router_path, "// patched code\n").unwrap();
+        patch_save(&root, "express").unwrap();
+
+        // Start patching again (creates a new backup = active)
+        patch_prepare(&root, "express").unwrap();
+
+        let result = patch_list(&root);
+        assert_eq!(result.active.len(), 1);
+        assert_eq!(result.active[0].0, "express");
+        assert_eq!(result.saved.len(), 1);
+        assert_eq!(result.saved[0].0, "express@4.21.2");
+    }
+
+    #[test]
+    fn test_patch_list_scoped_active_package() {
+        let tmp = TempDir::new().unwrap();
+        let root = tmp.path().to_path_buf();
+        let nm = root.join("node_modules");
+
+        // Create scoped package
+        let pkg_dir = nm.join("@types/node");
+        std::fs::create_dir_all(&pkg_dir).unwrap();
+        std::fs::write(
+            pkg_dir.join("package.json"),
+            r#"{"name":"@types/node","version":"22.0.0"}"#,
+        )
+        .unwrap();
+        std::fs::write(pkg_dir.join("index.d.ts"), "// types\n").unwrap();
+
+        std::fs::write(
+            root.join("package.json"),
+            r#"{"devDependencies":{"@types/node":"^22.0.0"}}"#,
+        )
+        .unwrap();
+
+        // Prepare (creates backup under .vertz-patches/@types/node/)
+        patch_prepare(&root, "@types/node").unwrap();
+
+        let result = patch_list(&root);
+        assert_eq!(result.active.len(), 1);
+        assert_eq!(result.active[0].0, "@types/node");
+        assert_eq!(result.active[0].1, "22.0.0");
+    }
+
+    #[test]
+    fn test_patch_list_no_patches() {
+        let tmp = TempDir::new().unwrap();
+        let root = setup_test_project(&tmp);
+
+        let result = patch_list(&root);
+        assert!(result.active.is_empty());
+        assert!(result.saved.is_empty());
     }
 
     // --- file permissions ---

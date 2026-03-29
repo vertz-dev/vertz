@@ -703,13 +703,103 @@ async fn main() {
                         }
                     }
                 }
-                Some(cli::PatchCommand::Discard(_args)) => {
-                    eprintln!("error: patch discard is not yet implemented (Phase 2)");
-                    std::process::exit(1);
+                Some(cli::PatchCommand::Discard(args)) => {
+                    match pm::patch::patch_discard(&root_dir, &args.package) {
+                        Ok(result) => {
+                            if args.json {
+                                let mut obj = serde_json::json!({
+                                    "event": "patch_discarded",
+                                    "package": result.name,
+                                    "version": result.version,
+                                });
+                                if result.reapplied_patch {
+                                    obj["reapplied"] = serde_json::Value::Bool(true);
+                                }
+                                println!("{}", obj);
+                            } else {
+                                eprintln!(
+                                    "Discarded in-progress changes for {}@{}.",
+                                    result.name, result.version
+                                );
+                                if result.reapplied_patch {
+                                    // Find the patch path from package.json
+                                    let patch_key = format!("{}@{}", result.name, result.version);
+                                    let patch_path = std::fs::read_to_string(root_dir.join("package.json"))
+                                        .ok()
+                                        .and_then(|c| serde_json::from_str::<serde_json::Value>(&c).ok())
+                                        .and_then(|v| {
+                                            v.get("vertz")
+                                                .and_then(|v| v.get("patchedDependencies"))
+                                                .and_then(|v| v.get(&patch_key))
+                                                .and_then(|v| v.as_str())
+                                                .map(|s| s.to_string())
+                                        })
+                                        .unwrap_or_default();
+                                    eprintln!("Re-applied saved patch: {} \u{2713}", patch_path);
+                                }
+                            }
+                        }
+                        Err(e) => {
+                            let msg = e.to_string();
+                            if args.json {
+                                let output: Arc<dyn PmOutput> = Arc::new(pm::output::JsonOutput::new());
+                                output.error(error_code_from_message(&msg), &msg);
+                            } else {
+                                eprintln!("{}", msg);
+                            }
+                            std::process::exit(1);
+                        }
+                    }
                 }
-                Some(cli::PatchCommand::List(_args)) => {
-                    eprintln!("error: patch list is not yet implemented (Phase 2)");
-                    std::process::exit(1);
+                Some(cli::PatchCommand::List(args)) => {
+                    let result = pm::patch::patch_list(&root_dir);
+
+                    if args.json {
+                        for (name, version) in &result.active {
+                            println!(
+                                "{}",
+                                serde_json::json!({
+                                    "event": "patch_active",
+                                    "package": name,
+                                    "version": version,
+                                })
+                            );
+                        }
+                        for (key, path) in &result.saved {
+                            let name = pm::patch::parse_patch_key_name_pub(key)
+                                .unwrap_or(key.as_str());
+                            println!(
+                                "{}",
+                                serde_json::json!({
+                                    "event": "patch_saved",
+                                    "package": name,
+                                    "path": path,
+                                })
+                            );
+                        }
+                        if result.active.is_empty() && result.saved.is_empty() {
+                            println!(
+                                "{}",
+                                serde_json::json!({"event": "patch_list_empty"})
+                            );
+                        }
+                    } else if result.active.is_empty() && result.saved.is_empty() {
+                        eprintln!("No patches found.");
+                    } else {
+                        if !result.active.is_empty() {
+                            eprintln!("Active patches (in progress):");
+                            for (name, version) in &result.active {
+                                eprintln!("  {}@{} (editing)", name, version);
+                            }
+                            eprintln!();
+                        }
+                        if !result.saved.is_empty() {
+                            eprintln!("Saved patches:");
+                            for (key, path) in &result.saved {
+                                eprintln!("  {} \u{2192} {}", key, path);
+                            }
+                        }
+                    }
                 }
                 None => {
                     // Default action: prepare package for patching
