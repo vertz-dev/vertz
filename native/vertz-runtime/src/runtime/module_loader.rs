@@ -851,10 +851,7 @@ impl ModuleLoader for VertzModuleLoader {
         let canonical_path = self.canonicalize_cached(&resolved_path);
 
         let url = ModuleSpecifier::from_file_path(&canonical_path).map_err(|_| {
-            deno_core::anyhow::anyhow!(
-                "Cannot convert path to URL: {}",
-                canonical_path.display()
-            )
+            deno_core::anyhow::anyhow!("Cannot convert path to URL: {}", canonical_path.display())
         })?;
 
         Ok(url)
@@ -1456,7 +1453,10 @@ export function Hello() {
         let result1 = loader.canonicalize_cached(&file);
         let result2 = loader.canonicalize_cached(&file);
 
-        assert_eq!(result1, result2, "Cached canonicalization should be consistent");
+        assert_eq!(
+            result1, result2,
+            "Cached canonicalization should be consistent"
+        );
         // On macOS, /tmp -> /private/tmp, so canonical path may differ from input
         assert!(result1.is_absolute(), "Canonical path should be absolute");
     }
