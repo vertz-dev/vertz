@@ -191,14 +191,30 @@ jobs:
       - name: Install dependencies
         run: bun install --frozen-lockfile
 
-      - name: Build, typecheck & test
+      - name: Build & typecheck
         env:
           TURBO_CONCURRENCY: 2
         run: |
           if [ "${{ github.event_name }}" = "push" ]; then
-            bun run ci:core
+            bun run ci:build-typecheck
           else
-            bun run ci:core:affected
+            bun run ci:build-typecheck:affected
+          fi
+
+      - name: Test
+        env:
+          TURBO_CONCURRENCY: 2
+        run: |
+          if [ "${{ github.event_name }}" = "push" ]; then
+            timeout 600 bun run ci:test || {
+              echo "::warning::Test step timed out or failed"
+              exit 1
+            }
+          else
+            timeout 600 bun run ci:test:affected || {
+              echo "::warning::Test step timed out or failed"
+              exit 1
+            }
           fi
 
   coverage:
