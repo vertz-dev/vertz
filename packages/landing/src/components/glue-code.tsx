@@ -44,7 +44,10 @@ export function GlueCode() {
       <div className={s.wrapper}>
         <div className={s.grid}>
           <div className={s.gridItem}>
-            <p className={s.columnLabel} style={{ fontFamily: 'var(--font-mono)', color: '#a1a1aa' }}>
+            <p
+              className={s.columnLabel}
+              style={{ fontFamily: 'var(--font-mono)', color: '#a1a1aa' }}
+            >
               The typical stack
             </p>
             <div className={s.codeBlock} style={{ borderColor: '#1e1e22' }}>
@@ -62,7 +65,10 @@ export function GlueCode() {
           </div>
 
           <div className={s.gridItem}>
-            <p className={s.columnLabel} style={{ fontFamily: 'var(--font-mono)', color: '#3b82f6' }}>
+            <p
+              className={s.columnLabel}
+              style={{ fontFamily: 'var(--font-mono)', color: '#3b82f6' }}
+            >
               With Vertz
             </p>
             <div className={s.codeBlock} style={{ borderColor: 'rgba(59,130,246,0.3)' }}>

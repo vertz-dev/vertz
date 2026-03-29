@@ -188,8 +188,8 @@ describe('ComputedTransformer', () => {
       { name: 'reactive', kind: 'computed', start: 0, end: 0 },
       { name: 'stable', kind: 'static', start: 0, end: 0 },
     ]);
-    expect(result).toContain('const reactive = computed(() => [count * 2, \'hello\'][0])');
-    expect(result).toContain('const stable = [count * 2, \'hello\'][1]');
+    expect(result).toContain("const reactive = computed(() => [count * 2, 'hello'][0])");
+    expect(result).toContain("const stable = [count * 2, 'hello'][1]");
   });
 
   it('transforms array destructuring preserving default values', () => {
@@ -199,7 +199,7 @@ describe('ComputedTransformer', () => {
       { name: 'first', kind: 'computed', start: 0, end: 0 },
       { name: 'second', kind: 'static', start: 0, end: 0 },
     ]);
-    expect(result).toContain("const first = computed(() => getData(count)[0] ?? 0)");
+    expect(result).toContain('const first = computed(() => getData(count)[0] ?? 0)');
     expect(result).toContain("const second = getData(count)[1] ?? 'default'");
   });
 

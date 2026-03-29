@@ -168,9 +168,7 @@ function collectCSS(themeCss: string, module: SSRModule, renderedHtml: string): 
   const ssrCtx = ssrStorage.getStore();
   const tracker = ssrCtx?.cssTracker;
   const useTracker = tracker && tracker.size > 0;
-  const rawComponentCss = useTracker
-    ? Array.from(tracker)
-    : (module.getInjectedCSS?.() ?? []);
+  const rawComponentCss = useTracker ? Array.from(tracker) : (module.getInjectedCSS?.() ?? []);
   let componentCss = rawComponentCss.filter((s) => !alreadyIncluded.has(s));
 
   // When falling back to global CSS (no per-request tracker), filter by HTML

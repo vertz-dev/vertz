@@ -34,6 +34,8 @@ pub struct VertzRuntimeOptions {
     pub root_dir: Option<String>,
     /// Whether to capture console output (for testing). Defaults to false.
     pub capture_output: bool,
+    /// Whether to enable the V8 inspector (for coverage collection). Defaults to false.
+    pub enable_inspector: bool,
 }
 
 /// Wrapper around deno_core's JsRuntime with Vertz-specific extensions.
@@ -86,6 +88,7 @@ impl VertzJsRuntime {
         let mut runtime = JsRuntime::new(RuntimeOptions {
             module_loader: Some(module_loader),
             extensions: vec![ext],
+            inspector: options.enable_inspector,
             ..Default::default()
         });
 

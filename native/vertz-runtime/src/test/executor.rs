@@ -1,8 +1,14 @@
+use std::future::Future;
 use std::path::Path;
+use std::pin::Pin;
+use std::task::Poll;
 use std::time::Instant;
 
 use deno_core::error::AnyError;
+use deno_core::futures::task::noop_waker;
+use deno_core::LocalInspectorSession;
 use deno_core::ModuleSpecifier;
+use deno_core::PollEventLoopOptions;
 use serde::{Deserialize, Serialize};
 
 use crate::runtime::js_runtime::{VertzJsRuntime, VertzRuntimeOptions};
@@ -20,6 +26,9 @@ pub struct TestFileResult {
     pub duration_ms: f64,
     /// Error if the file failed to load/compile.
     pub file_error: Option<String>,
+    /// Raw V8 coverage data (present when coverage is enabled).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub coverage_data: Option<serde_json::Value>,
 }
 
 /// Result of a single test case.
@@ -85,6 +94,8 @@ pub struct ExecuteOptions {
     pub filter: Option<String>,
     /// Timeout in milliseconds (0 = no timeout).
     pub timeout_ms: u64,
+    /// Whether to collect V8 code coverage.
+    pub coverage: bool,
 }
 
 impl Default for ExecuteOptions {
@@ -92,6 +103,7 @@ impl Default for ExecuteOptions {
         Self {
             filter: None,
             timeout_ms: 5000,
+            coverage: false,
         }
     }
 }
@@ -124,17 +136,19 @@ pub fn execute_test_file_with_options(
     let duration_ms = start.elapsed().as_secs_f64() * 1000.0;
 
     match result {
-        Ok(tests) => TestFileResult {
+        Ok((tests, coverage_data)) => TestFileResult {
             file: file_str,
             tests,
             duration_ms,
             file_error: None,
+            coverage_data,
         },
         Err(e) => TestFileResult {
             file: file_str,
             tests: vec![],
             duration_ms,
             file_error: Some(e.to_string()),
+            coverage_data: None,
         },
     }
 }
@@ -143,10 +157,11 @@ fn execute_test_file_inner(
     file_path: &Path,
     root_dir: &str,
     options: &ExecuteOptions,
-) -> Result<Vec<TestResult>, AnyError> {
+) -> Result<(Vec<TestResult>, Option<serde_json::Value>), AnyError> {
     let mut runtime = VertzJsRuntime::new(VertzRuntimeOptions {
         root_dir: Some(root_dir.to_string()),
         capture_output: true,
+        enable_inspector: options.coverage,
     })?;
 
     // 1. Inject test harness (describe, it, expect, etc.)
@@ -167,9 +182,33 @@ fn execute_test_file_inner(
         .enable_all()
         .build()?;
 
+    // 4. Create inspector session for coverage if enabled
+    let mut session = if options.coverage {
+        let inspector = runtime.inner_mut().inspector();
+        let session = inspector.borrow().create_local_session();
+        Some(session)
+    } else {
+        None
+    };
+
+    // 5. Start coverage collection (before module load)
+    if let Some(ref mut session) = session {
+        inspector_post_message_sync(session, &mut runtime, "Profiler.enable", None::<()>)?;
+        inspector_post_message_sync(
+            session,
+            &mut runtime,
+            "Profiler.startPreciseCoverage",
+            Some(serde_json::json!({
+                "callCount": true,
+                "detailed": true,
+            })),
+        )?;
+    }
+
+    // 6. Load module
     tokio_rt.block_on(async { runtime.load_main_module(&specifier).await })?;
 
-    // 4. Run all registered tests with timeout
+    // 7. Run all registered tests with timeout
     let timeout_duration = if options.timeout_ms > 0 {
         Some(std::time::Duration::from_millis(options.timeout_ms))
     } else {
@@ -201,8 +240,78 @@ fn execute_test_file_inner(
         runtime.execute_script("[vertz:collect]", "globalThis.__test_results")
     })?;
 
-    // 5. Parse results from JSON
-    parse_test_results(&results_json)
+    // 8. Collect coverage data if enabled
+    let coverage_data = if let Some(ref mut session) = session {
+        let result = inspector_post_message_sync(
+            session,
+            &mut runtime,
+            "Profiler.takePreciseCoverage",
+            None::<()>,
+        )?;
+
+        // Cleanup: stop and disable profiler
+        let _ = inspector_post_message_sync(
+            session,
+            &mut runtime,
+            "Profiler.stopPreciseCoverage",
+            None::<()>,
+        );
+        let _ = inspector_post_message_sync(session, &mut runtime, "Profiler.disable", None::<()>);
+
+        Some(result)
+    } else {
+        None
+    };
+
+    // 9. Parse results from JSON
+    let tests = parse_test_results(&results_json)?;
+    Ok((tests, coverage_data))
+}
+
+/// Send a CDP message to the inspector session, driving the event loop manually.
+///
+/// The V8 inspector only processes messages when the event loop is polled.
+/// We manually poll both the message future and the event loop in a tight loop
+/// so that the inspector processes the CDP message and returns the response.
+///
+/// Times out after 10 seconds to avoid spinning forever if the inspector is unresponsive.
+fn inspector_post_message_sync<T: serde::Serialize>(
+    session: &mut LocalInspectorSession,
+    runtime: &mut VertzJsRuntime,
+    method: &str,
+    params: Option<T>,
+) -> Result<serde_json::Value, AnyError> {
+    let msg = session.post_message(method, params);
+    tokio::pin!(msg);
+
+    let waker = noop_waker();
+    let mut cx = std::task::Context::from_waker(&waker);
+    let deadline = Instant::now() + std::time::Duration::from_secs(10);
+
+    loop {
+        if Instant::now() > deadline {
+            return Err(deno_core::anyhow::anyhow!(
+                "Inspector CDP message '{}' timed out after 10s",
+                method
+            ));
+        }
+
+        // Poll the event loop to drive the inspector (process CDP messages)
+        let _ = runtime
+            .inner_mut()
+            .poll_event_loop(&mut cx, PollEventLoopOptions::default());
+
+        // Check if the inspector message got a response
+        match Pin::new(&mut msg).poll(&mut cx) {
+            Poll::Ready(result) => {
+                return result.map_err(|e| deno_core::anyhow::anyhow!("{}", e));
+            }
+            Poll::Pending => {
+                // Keep polling — inspector hasn't responded yet
+                std::thread::yield_now();
+            }
+        }
+    }
 }
 
 fn parse_test_results(value: &serde_json::Value) -> Result<Vec<TestResult>, AnyError> {

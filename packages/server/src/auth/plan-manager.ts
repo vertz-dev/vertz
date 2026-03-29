@@ -206,13 +206,7 @@ export function createPlanManager(config: PlanManagerConfig): PlanManager {
     for (const state of grandfatheredList) {
       if (state.graceEnds === null) continue; // indefinite — skip
       if (state.graceEnds.getTime() <= now.getTime()) {
-        await migrateResource(
-          state.resourceType,
-          state.resourceId,
-          planId,
-          currentVersion,
-          now,
-        );
+        await migrateResource(state.resourceType, state.resourceId, planId, currentVersion, now);
       }
     }
   }

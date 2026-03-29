@@ -491,9 +491,7 @@ describe('scaffold', () => {
       await scaffold(tempDir, helloOptions);
 
       // tsconfig
-      const tsconfig = JSON.parse(
-        await fs.readFile(projectPath('tsconfig.json'), 'utf-8'),
-      );
+      const tsconfig = JSON.parse(await fs.readFile(projectPath('tsconfig.json'), 'utf-8'));
       expect(tsconfig.compilerOptions.jsx).toBe('react-jsx');
 
       // bunfig

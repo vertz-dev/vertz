@@ -4,15 +4,27 @@ import { css, Island } from '@vertz/ui';
 
 const s = css({
   section: ['py:24', 'px:6'],
-  container: ['max-w:5xl', 'mx:auto', { '&': { 'overflow': 'hidden' } }],
+  container: ['max-w:5xl', 'mx:auto', { '&': { overflow: 'hidden' } }],
   label: ['font:xs', 'tracking:widest', 'uppercase', 'mb:4', 'text:center'],
-  heading: ['font:2xl', 'mb:4', 'text:center', { '@media (min-width: 768px)': { 'font-size': '2.25rem' } }],
-  subtitle: ['text:center', 'mb:16', 'max-w:2xl', 'mx:auto', 'font:sm', { '@media (min-width: 768px)': { 'font-size': '1rem' } }],
+  heading: [
+    'font:2xl',
+    'mb:4',
+    'text:center',
+    { '@media (min-width: 768px)': { 'font-size': '2.25rem' } },
+  ],
+  subtitle: [
+    'text:center',
+    'mb:16',
+    'max-w:2xl',
+    'mx:auto',
+    'font:sm',
+    { '@media (min-width: 768px)': { 'font-size': '1rem' } },
+  ],
   layout: [
     'grid',
     'gap:8',
     {
-      '&': { 'overflow': 'hidden' },
+      '&': { overflow: 'hidden' },
       '@media (min-width: 768px)': {
         'grid-template-columns': '200px 1fr',
       },
@@ -70,7 +82,11 @@ const s = css({
       '@media (min-width: 768px)': { 'font-size': '1.875rem' },
     },
   ],
-  pageDesc: ['font:sm', 'leading:relaxed', { '@media (min-width: 768px)': { 'font-size': '1rem' } }],
+  pageDesc: [
+    'font:sm',
+    'leading:relaxed',
+    { '@media (min-width: 768px)': { 'font-size': '1rem' } },
+  ],
   codeWrap: [
     'p:4',
     'border:1',
@@ -85,16 +101,16 @@ const s = css({
 
 // ── Token color shorthand ───────────────────────────────────
 
-const K = 'color:#C8451B';                    // keyword
-const F = 'color:#B8A080';                    // function/method
-const S = 'color:#7A9B6D';                    // string
-const N = 'color:#D4A053';                    // number/boolean
-const C = 'color:#4A4540';                    // comment
-const T = 'color:#D4D0C8';                    // text/identifier
-const A = 'color:#B8A080;font-style:italic';  // JSX attribute
-const V = 'color:#E8E4DC;font-style:italic';  // parameter
-const E = 'color:#ef4444';                    // error red
-const H = 'color:#6B6560';                    // hint (code context)
+const K = 'color:#C8451B'; // keyword
+const F = 'color:#B8A080'; // function/method
+const S = 'color:#7A9B6D'; // string
+const N = 'color:#D4A053'; // number/boolean
+const C = 'color:#4A4540'; // comment
+const T = 'color:#D4D0C8'; // text/identifier
+const A = 'color:#B8A080;font-style:italic'; // JSX attribute
+const V = 'color:#E8E4DC;font-style:italic'; // parameter
+const E = 'color:#ef4444'; // error red
+const H = 'color:#6B6560'; // hint (code context)
 
 // ── Types & helpers ─────────────────────────────────────────
 
@@ -128,9 +144,13 @@ function RichText({ text }: { text: string }) {
   return (
     <>
       {parts.map((part, i) =>
-        i % 2 === 1
-          ? <code key={i} style={CODE_STYLE}>{part}</code>
-          : <span key={i}>{part}</span>,
+        i % 2 === 1 ? (
+          <code key={i} style={CODE_STYLE}>
+            {part}
+          </code>
+        ) : (
+          <span key={i}>{part}</span>
+        ),
       )}
     </>
   );
@@ -147,13 +167,31 @@ const PAGES = [
     desc: 'Reference `task.title` in a component — the compiler traces the access and generates a SELECT with only that column. Add `task.dueDate` to the template, the query adapts. Remove it, the column drops. No field lists to maintain. No GraphQL fragments. The compiler knows what your UI needs.',
     code: [
       L([C, 'Your component accesses title and status']),
-      L([K, 'const'], [T, ' tasks '], [K, '='], [T, ' '], [F, 'query'], [T, '(todoApi.'], [F, 'list'], [T, '());']),
+      L(
+        [K, 'const'],
+        [T, ' tasks '],
+        [K, '='],
+        [T, ' '],
+        [F, 'query'],
+        [T, '(todoApi.'],
+        [F, 'list'],
+        [T, '());'],
+      ),
       L(),
       L([K, 'return'], [T, ' (']),
       L([T, '  <'], [K, 'ul'], [T, '>']),
       L([T, '    {tasks.data.'], [F, 'map'], [T, '(('], [V, 't'], [T, ') '], [K, '=>'], [T, ' (']),
-      L([T, '      <'], [K, 'li'], [T, ' '], [A, 'key'], [K, '='], [T, '{t.id}>{t.title} — {t.status}</'], [K, 'li'], [T, '>']),
-      L([T, '    ))}' ]),
+      L(
+        [T, '      <'],
+        [K, 'li'],
+        [T, ' '],
+        [A, 'key'],
+        [K, '='],
+        [T, '{t.id}>{t.title} — {t.status}</'],
+        [K, 'li'],
+        [T, '>'],
+      ),
+      L([T, '    ))}']),
       L([T, '  </'], [K, 'ul'], [T, '>']),
       L([T, ')']),
       L(),
@@ -168,18 +206,63 @@ const PAGES = [
     title: 'Rename a field. Everything breaks — at compile time.',
     desc: 'One schema defines the shape. One type chain flows from database column to API route to form input. Rename `title` to `name` — TypeScript finds every broken reference across your entire stack before you run a single test.',
     code: [
-      L([K, 'const'], [T, ' todos '], [K, '='], [T, ' d.'], [F, 'table'], [T, '('], [S, "'todos'"], [T, ', {']),
+      L(
+        [K, 'const'],
+        [T, ' todos '],
+        [K, '='],
+        [T, ' d.'],
+        [F, 'table'],
+        [T, '('],
+        [S, "'todos'"],
+        [T, ', {'],
+      ),
       L([T, '  id'], [K, ':'], [T, '   d.'], [F, 'uuid'], [T, '().'], [F, 'primary'], [T, '(),']),
-      L({ bg: 'rgba(239,68,68,0.08)', bl: '3px solid #ef4444' }, [E, '- '], [T, 'title'], [K, ':'], [T, ' d.'], [F, 'text'], [T, '(),']),
-      L({ bg: 'rgba(34,197,94,0.08)', bl: '3px solid #22c55e' }, ['color:#22c55e', '+ '], [T, 'name'], [K, ':'], [T, '  d.'], [F, 'text'], [T, '(),']),
-      L([T, '  done'], [K, ':'], [T, '  d.'], [F, 'boolean'], [T, '().'], [F, 'default'], [T, '('], [N, 'false'], [T, '),']),
+      L(
+        { bg: 'rgba(239,68,68,0.08)', bl: '3px solid #ef4444' },
+        [E, '- '],
+        [T, 'title'],
+        [K, ':'],
+        [T, ' d.'],
+        [F, 'text'],
+        [T, '(),'],
+      ),
+      L(
+        { bg: 'rgba(34,197,94,0.08)', bl: '3px solid #22c55e' },
+        ['color:#22c55e', '+ '],
+        [T, 'name'],
+        [K, ':'],
+        [T, '  d.'],
+        [F, 'text'],
+        [T, '(),'],
+      ),
+      L(
+        [T, '  done'],
+        [K, ':'],
+        [T, '  d.'],
+        [F, 'boolean'],
+        [T, '().'],
+        [F, 'default'],
+        [T, '('],
+        [N, 'false'],
+        [T, '),'],
+      ),
       L([T, '});']),
       L(),
-      L([E, '✗ '], [T, 'api.todos.'], [F, 'create'], [T, '({ '], [E, 'title'], [K, ':'], [T, ' '], [S, "'Buy milk'"], [T, ' });']),
-      L([H, '  Property \'title\' does not exist. Did you mean \'name\'?']),
+      L(
+        [E, '✗ '],
+        [T, 'api.todos.'],
+        [F, 'create'],
+        [T, '({ '],
+        [E, 'title'],
+        [K, ':'],
+        [T, ' '],
+        [S, "'Buy milk'"],
+        [T, ' });'],
+      ),
+      L([H, "  Property 'title' does not exist. Did you mean 'name'?"]),
       L(),
       L([E, '✗ '], [T, '<'], [K, 'li'], [T, '>{t.'], [E, 'title'], [T, '}</'], [K, 'li'], [T, '>']),
-      L([H, '  Property \'title\' does not exist on type \'Todo\'.']),
+      L([H, "  Property 'title' does not exist on type 'Todo'."]),
     ],
   },
   {
@@ -189,12 +272,31 @@ const PAGES = [
     title: 'Your schema is the documentation.',
     desc: 'Every entity gets REST endpoints and a fully documented OpenAPI spec. No decorators. No separate spec file. No drift between code and docs. Define the entity, get CRUD operations with complete request/response schemas at `/api/openapi`.',
     code: [
-      L([K, 'export'], [T, ' '], [K, 'const'], [T, ' todos '], [K, '='], [T, ' '], [F, 'entity'], [T, '('], [S, "'todos'"], [T, ', {']),
+      L(
+        [K, 'export'],
+        [T, ' '],
+        [K, 'const'],
+        [T, ' todos '],
+        [K, '='],
+        [T, ' '],
+        [F, 'entity'],
+        [T, '('],
+        [S, "'todos'"],
+        [T, ', {'],
+      ),
       L([T, '  model'], [K, ':'], [T, ' todosModel,']),
       L([T, '  access'], [K, ':'], [T, ' {']),
       L([T, '    list'], [K, ':'], [T, '   rules.'], [F, 'authenticated'], [T, '(),']),
       L([T, '    create'], [K, ':'], [T, ' rules.'], [F, 'authenticated'], [T, '(),']),
-      L([T, '    delete'], [K, ':'], [T, ' rules.'], [F, 'entitlement'], [T, '('], [S, "'todo:delete'"], [T, '),']),
+      L(
+        [T, '    delete'],
+        [K, ':'],
+        [T, ' rules.'],
+        [F, 'entitlement'],
+        [T, '('],
+        [S, "'todo:delete'"],
+        [T, '),'],
+      ),
       L([T, '  },']),
       L([T, '});']),
       L(),
@@ -214,14 +316,52 @@ const PAGES = [
       L([H, '$ vertz codegen']),
       L(),
       L([C, 'Your consumers get fully typed access:']),
-      L([K, 'import'], [T, ' { '], [F, 'createClient'], [T, ' } '], [K, 'from'], [T, ' '], [S, "'@myapp/sdk'"], [T, ';']),
+      L(
+        [K, 'import'],
+        [T, ' { '],
+        [F, 'createClient'],
+        [T, ' } '],
+        [K, 'from'],
+        [T, ' '],
+        [S, "'@myapp/sdk'"],
+        [T, ';'],
+      ),
       L(),
-      L([K, 'const'], [T, ' api '], [K, '='], [T, ' '], [F, 'createClient'], [T, '({ baseUrl'], [K, ':'], [T, ' '], [S, "'https://...'"], [T, ' });']),
+      L(
+        [K, 'const'],
+        [T, ' api '],
+        [K, '='],
+        [T, ' '],
+        [F, 'createClient'],
+        [T, '({ baseUrl'],
+        [K, ':'],
+        [T, ' '],
+        [S, "'https://...'"],
+        [T, ' });'],
+      ),
       L(),
-      L([K, 'const'], [T, ' todos '], [K, '='], [T, ' '], [K, 'await'], [T, ' api.todos.'], [F, 'list'], [T, '();']),
+      L(
+        [K, 'const'],
+        [T, ' todos '],
+        [K, '='],
+        [T, ' '],
+        [K, 'await'],
+        [T, ' api.todos.'],
+        [F, 'list'],
+        [T, '();'],
+      ),
       L([C, '   ^? { id: string; title: string; done: boolean }[]']),
       L(),
-      L([K, 'await'], [T, ' api.todos.'], [F, 'create'], [T, '({ title'], [K, ':'], [T, ' '], [S, "'Ship it'"], [T, ' });']),
+      L(
+        [K, 'await'],
+        [T, ' api.todos.'],
+        [F, 'create'],
+        [T, '({ title'],
+        [K, ':'],
+        [T, ' '],
+        [S, "'Ship it'"],
+        [T, ' });'],
+      ),
       L([C, '                      ^? CreateTodoInput — fully typed']),
     ],
   },
@@ -230,7 +370,7 @@ const PAGES = [
     label: 'Agent-Native',
     tag: '05',
     title: 'One pattern per task. Agents get it right the first time.',
-    desc: 'Every API has one canonical pattern. No framework trivia, no hidden conventions. Add one line to the schema — database, API, SDK, validation, and forms all update. An LLM agent writes correct code on the first try because there\'s only one way to do it.',
+    desc: "Every API has one canonical pattern. No framework trivia, no hidden conventions. Add one line to the schema — database, API, SDK, validation, and forms all update. An LLM agent writes correct code on the first try because there's only one way to do it.",
     code: [
       L([S, 'Agent prompt: "Add a due date to todos"']),
       L(),
@@ -256,10 +396,31 @@ const PAGES = [
       L([C, 'You write this:']),
       L([K, 'export'], [T, ' '], [K, 'function'], [T, ' '], [F, 'Counter'], [T, '() {']),
       L([T, '  '], [K, 'let'], [T, ' count '], [K, '='], [T, ' '], [N, '0'], [T, ';']),
-      L([T, '  '], [K, 'const'], [T, ' double '], [K, '='], [T, ' count '], [K, '*'], [T, ' '], [N, '2'], [T, ';']),
+      L(
+        [T, '  '],
+        [K, 'const'],
+        [T, ' double '],
+        [K, '='],
+        [T, ' count '],
+        [K, '*'],
+        [T, ' '],
+        [N, '2'],
+        [T, ';'],
+      ),
       L(),
       L([T, '  '], [K, 'return'], [T, ' (']),
-      L([T, '    <'], [K, 'button'], [T, ' '], [A, 'onClick'], [K, '='], [T, '{() '], [K, '=>'], [T, ' count'], [K, '++'], [T, '}>']),
+      L(
+        [T, '    <'],
+        [K, 'button'],
+        [T, ' '],
+        [A, 'onClick'],
+        [K, '='],
+        [T, '{() '],
+        [K, '=>'],
+        [T, ' count'],
+        [K, '++'],
+        [T, '}>'],
+      ),
       L([T, '      {count} × 2 = {double}']),
       L([T, '    </'], [K, 'button'], [T, '>']),
       L([T, '  );']),
@@ -299,7 +460,9 @@ function CodeBlock({ lines }: { lines: FeatureLine[] }) {
             }}
           >
             {line.t.map((token, j) => (
-              <span key={j} style={token[0]}>{token[1]}</span>
+              <span key={j} style={token[0]}>
+                {token[1]}
+              </span>
             ))}
           </div>
         );
@@ -325,7 +488,9 @@ function FeatureShowcase() {
               color: activeIndex === i ? '#E8E4DC' : '#9C9690',
               background: activeIndex === i ? 'rgba(200,69,27,0.06)' : 'transparent',
             }}
-            onClick={() => { activeIndex = i; }}
+            onClick={() => {
+              activeIndex = i;
+            }}
           >
             <span
               style={{
@@ -393,7 +558,8 @@ export function Features() {
           Not another framework wrapper.
         </h2>
         <p className={s.subtitle} style={{ color: '#9C9690' }}>
-          Every feature exists because the compiler knows your entire stack — schema, API, and UI — at build time.
+          Every feature exists because the compiler knows your entire stack — schema, API, and UI —
+          at build time.
         </p>
 
         <Island component={FeatureShowcase} />

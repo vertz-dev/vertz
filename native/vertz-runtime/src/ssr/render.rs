@@ -127,6 +127,7 @@ fn render_ssr(options: &SsrOptions) -> Result<SsrResult, AnyError> {
     let mut runtime = VertzJsRuntime::new(VertzRuntimeOptions {
         root_dir: Some(options.root_dir.to_string_lossy().to_string()),
         capture_output: false,
+        ..Default::default()
     })?;
 
     // Load polyfills and shims

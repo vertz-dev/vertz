@@ -45,10 +45,7 @@ function readPageFrontmatter(
           pageTitles[route.filePath] = data.title.replace(/^['"]|['"]$/g, '');
         }
         if (data.description) {
-          pageDescriptions[route.filePath] = data.description.replace(
-            /^['"]|['"]$/g,
-            '',
-          );
+          pageDescriptions[route.filePath] = data.description.replace(/^['"]|['"]$/g, '');
         }
       } catch {
         // Silently skip files that can't be read

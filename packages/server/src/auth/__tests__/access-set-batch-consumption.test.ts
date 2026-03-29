@@ -93,7 +93,9 @@ describe('Feature: single-level batch consumption in computeAccessSet (#1831)', 
         const originalBatch = walletStore.getBatchConsumption.bind(walletStore);
         const originalIndividual = walletStore.getConsumption.bind(walletStore);
 
-        walletStore.getBatchConsumption = (...args: Parameters<typeof walletStore.getBatchConsumption>) => {
+        walletStore.getBatchConsumption = (
+          ...args: Parameters<typeof walletStore.getBatchConsumption>
+        ) => {
           batchCalls++;
           return originalBatch(...args);
         };
@@ -151,7 +153,9 @@ describe('Feature: single-level batch consumption in computeAccessSet (#1831)', 
 
         let batchCallCount = 0;
         const originalBatch = walletStore.getBatchConsumption.bind(walletStore);
-        walletStore.getBatchConsumption = (...args: Parameters<typeof walletStore.getBatchConsumption>) => {
+        walletStore.getBatchConsumption = (
+          ...args: Parameters<typeof walletStore.getBatchConsumption>
+        ) => {
           batchCallCount++;
           return originalBatch(...args);
         };
@@ -239,7 +243,9 @@ describe('Feature: single-level batch consumption in computeAccessSet (#1831)', 
 
         let batchCallCount = 0;
         const originalBatch = walletStore.getBatchConsumption.bind(walletStore);
-        walletStore.getBatchConsumption = (...args: Parameters<typeof walletStore.getBatchConsumption>) => {
+        walletStore.getBatchConsumption = (
+          ...args: Parameters<typeof walletStore.getBatchConsumption>
+        ) => {
           batchCallCount++;
           return originalBatch(...args);
         };
@@ -268,12 +274,22 @@ describe('Feature: single-level batch consumption in computeAccessSet (#1831)', 
         const monthPeriod = calculateBillingPeriod(startedAt, 'month');
         const dayPeriod = calculateBillingPeriod(startedAt, 'day');
         await walletStore.consume(
-          'tenant', 'org-1', 'projects',
-          monthPeriod.periodStart, monthPeriod.periodEnd, 10, 4,
+          'tenant',
+          'org-1',
+          'projects',
+          monthPeriod.periodStart,
+          monthPeriod.periodEnd,
+          10,
+          4,
         );
         await walletStore.consume(
-          'tenant', 'org-1', 'api-calls',
-          dayPeriod.periodStart, dayPeriod.periodEnd, 1000, 150,
+          'tenant',
+          'org-1',
+          'api-calls',
+          dayPeriod.periodStart,
+          dayPeriod.periodEnd,
+          1000,
+          150,
         );
 
         const result = await computeAccessSet({
@@ -315,7 +331,11 @@ describe('Feature: single-level batch consumption in computeAccessSet (#1831)', 
     plans: {
       pro: {
         group: 'main',
-        features: ['organization:create-project', 'organization:storage-upload', 'organization:view'],
+        features: [
+          'organization:create-project',
+          'organization:storage-upload',
+          'organization:view',
+        ],
         limits: {
           projects: { max: 10, gates: 'organization:create-project', per: 'month' },
           storage: { max: 50, gates: 'organization:storage-upload' }, // no per = lifetime
@@ -335,7 +355,9 @@ describe('Feature: single-level batch consumption in computeAccessSet (#1831)', 
 
         let batchCallCount = 0;
         const originalBatch = walletStore.getBatchConsumption.bind(walletStore);
-        walletStore.getBatchConsumption = (...args: Parameters<typeof walletStore.getBatchConsumption>) => {
+        walletStore.getBatchConsumption = (
+          ...args: Parameters<typeof walletStore.getBatchConsumption>
+        ) => {
           batchCallCount++;
           return originalBatch(...args);
         };
@@ -379,7 +401,9 @@ describe('Feature: single-level batch consumption in computeAccessSet (#1831)', 
         });
 
         expect(result.entitlements['organization:create-project'].allowed).toBe(false);
-        expect(result.entitlements['organization:create-project'].reasons).toContain('limit_reached');
+        expect(result.entitlements['organization:create-project'].reasons).toContain(
+          'limit_reached',
+        );
         expect(result.entitlements['organization:create-project'].meta?.limit?.remaining).toBe(0);
       });
     });
@@ -415,7 +439,9 @@ describe('Feature: single-level batch consumption in computeAccessSet (#1831)', 
 
         let batchCallCount = 0;
         const originalBatch = walletStore.getBatchConsumption.bind(walletStore);
-        walletStore.getBatchConsumption = (...args: Parameters<typeof walletStore.getBatchConsumption>) => {
+        walletStore.getBatchConsumption = (
+          ...args: Parameters<typeof walletStore.getBatchConsumption>
+        ) => {
           batchCallCount++;
           return originalBatch(...args);
         };
@@ -466,7 +492,9 @@ describe('Feature: single-level batch consumption in computeAccessSet (#1831)', 
 
         let batchCallCount = 0;
         const originalBatch = walletStore.getBatchConsumption.bind(walletStore);
-        walletStore.getBatchConsumption = (...args: Parameters<typeof walletStore.getBatchConsumption>) => {
+        walletStore.getBatchConsumption = (
+          ...args: Parameters<typeof walletStore.getBatchConsumption>
+        ) => {
           batchCallCount++;
           return originalBatch(...args);
         };
@@ -547,7 +575,9 @@ describe('Feature: multi-level batch consumption in computeAccessSet (#1831)', (
         let individualCalls = 0;
         const originalBatch = walletStore.getBatchConsumption.bind(walletStore);
         const originalIndividual = walletStore.getConsumption.bind(walletStore);
-        walletStore.getBatchConsumption = (...args: Parameters<typeof walletStore.getBatchConsumption>) => {
+        walletStore.getBatchConsumption = (
+          ...args: Parameters<typeof walletStore.getBatchConsumption>
+        ) => {
           batchCalls++;
           return originalBatch(...args);
         };
@@ -587,7 +617,15 @@ describe('Feature: multi-level batch consumption in computeAccessSet (#1831)', (
 
         const { periodStart, periodEnd } = calculateBillingPeriod(startedAt, 'month');
         await walletStore.consume('project', 'proj-1', 'projects', periodStart, periodEnd, 10, 4);
-        await walletStore.consume('project', 'proj-1', 'api-calls', periodStart, periodEnd, 500, 120);
+        await walletStore.consume(
+          'project',
+          'proj-1',
+          'api-calls',
+          periodStart,
+          periodEnd,
+          500,
+          120,
+        );
 
         const result = await computeAccessSet({
           userId: 'user-1',
@@ -704,7 +742,9 @@ describe('Feature: multi-level batch consumption in computeAccessSet (#1831)', (
 
         let batchCalls = 0;
         const originalBatch = walletStore.getBatchConsumption.bind(walletStore);
-        walletStore.getBatchConsumption = (...args: Parameters<typeof walletStore.getBatchConsumption>) => {
+        walletStore.getBatchConsumption = (
+          ...args: Parameters<typeof walletStore.getBatchConsumption>
+        ) => {
           batchCalls++;
           return originalBatch(...args);
         };

@@ -4,7 +4,10 @@ description: 'A realistic task management app demonstrating routing, data fetchi
 ---
 
 <Frame>
-  <img src="/images/examples/task-manager-list.png" alt="Task Manager — task list view with status filters and pagination" />
+  <img
+    src="/images/examples/task-manager-list.png"
+    alt="Task Manager — task list view with status filters and pagination"
+  />
 </Frame>
 
 ## Overview
@@ -13,25 +16,29 @@ The Task Manager is the primary example app for `@vertz/ui`. It's a multi-page S
 
 It uses an in-memory mock API (no server or database required), so you can run it immediately and explore every Vertz feature in action.
 
-<Card title="Source code" icon="github" href="https://github.com/vertz-dev/vertz/tree/main/examples/task-manager">
+<Card
+  title="Source code"
+  icon="github"
+  href="https://github.com/vertz-dev/vertz/tree/main/examples/task-manager"
+>
   Browse the full source on GitHub
 </Card>
 
 ## Features demonstrated
 
-| Feature | API | Where in the app |
-|---------|-----|------------------|
-| Routing | `defineRoutes()`, `createRouter()`, `createLink()` | `router.ts` — 4 routes with typed params and search params |
-| Data fetching | `query()` | `task-list.tsx`, `task-detail.tsx` — reactive queries with loading/error states |
-| Forms | `form()` with schema validation | `task-form.tsx` — per-field errors, submit state, progressive enhancement |
-| Reactive state | `let` (compiler transforms to signals) | `task-list.tsx` — status filter, all pages |
-| Derived values | `const` (compiler transforms to computed) | `task-list.tsx` — filtered tasks derived from query + filter |
-| Context | `createContext()`, `useContext()` | `settings-context.ts` — app-wide theme and default priority |
-| Theming | `configureTheme()`, `ThemeProvider` | `theme.ts`, `app.tsx` — light/dark mode with contextual tokens |
-| Styling | `css()`, `variants()` | `components.ts` — scoped styles and parameterized button/badge variants |
-| Icons | `@vertz/icons` | Sidebar nav, filter buttons, pagination |
-| URL state | `useSearchParams()` | `task-list.tsx` — pagination driven by URL search params |
-| SSR | Server-side rendering with hydration | Full SSR support out of the box |
+| Feature        | API                                                | Where in the app                                                                |
+| -------------- | -------------------------------------------------- | ------------------------------------------------------------------------------- |
+| Routing        | `defineRoutes()`, `createRouter()`, `createLink()` | `router.ts` — 4 routes with typed params and search params                      |
+| Data fetching  | `query()`                                          | `task-list.tsx`, `task-detail.tsx` — reactive queries with loading/error states |
+| Forms          | `form()` with schema validation                    | `task-form.tsx` — per-field errors, submit state, progressive enhancement       |
+| Reactive state | `let` (compiler transforms to signals)             | `task-list.tsx` — status filter, all pages                                      |
+| Derived values | `const` (compiler transforms to computed)          | `task-list.tsx` — filtered tasks derived from query + filter                    |
+| Context        | `createContext()`, `useContext()`                  | `settings-context.ts` — app-wide theme and default priority                     |
+| Theming        | `configureTheme()`, `ThemeProvider`                | `theme.ts`, `app.tsx` — light/dark mode with contextual tokens                  |
+| Styling        | `css()`, `variants()`                              | `components.ts` — scoped styles and parameterized button/badge variants         |
+| Icons          | `@vertz/icons`                                     | Sidebar nav, filter buttons, pagination                                         |
+| URL state      | `useSearchParams()`                                | `task-list.tsx` — pagination driven by URL search params                        |
+| SSR            | Server-side rendering with hydration               | Full SSR support out of the box                                                 |
 
 ## Pages
 
@@ -42,6 +49,7 @@ It uses an in-memory mock API (no server or database required), so you can run i
     <Frame>
       <img src="/images/examples/task-manager-list.png" alt="Task list with filter tabs and pagination" />
     </Frame>
+
   </Tab>
   <Tab title="Task Detail">
     Shows a single task with status transitions (To Do → In Progress → Done), a tabbed view (Details / Activity), and a delete button with a confirmation dialog.
@@ -49,6 +57,7 @@ It uses an in-memory mock API (no server or database required), so you can run i
     <Frame>
       <img src="/images/examples/task-manager-detail.png" alt="Task detail page with status controls and tabs" />
     </Frame>
+
   </Tab>
   <Tab title="Create Task">
     A form with per-field validation, priority selection, and submit state management. Built with `form()` and schema validation.
@@ -56,6 +65,7 @@ It uses an in-memory mock API (no server or database required), so you can run i
     <Frame>
       <img src="/images/examples/task-manager-create.png" alt="Create task form with title, description, and priority fields" />
     </Frame>
+
   </Tab>
   <Tab title="Settings">
     Theme switching (light/dark) and default priority configuration, powered by `createContext()` for app-wide state.
@@ -63,6 +73,7 @@ It uses an in-memory mock API (no server or database required), so you can run i
     <Frame>
       <img src="/images/examples/task-manager-settings.png" alt="Settings page with theme toggle and default priority selector" />
     </Frame>
+
   </Tab>
 </Tabs>
 
@@ -104,8 +115,7 @@ The app supports light and dark themes via `configureTheme()` from `@vertz/theme
     <Tree.File name="entry-client.ts" />
     <Tree.File name="router.ts" />
   </Tree.Folder>
-  <Tree.Folder name="e2e">
-  </Tree.Folder>
+  <Tree.Folder name="e2e"></Tree.Folder>
   <Tree.File name="package.json" />
 </Tree>
 
@@ -120,9 +130,13 @@ The compiler transforms `let` declarations into signals. Assignments become sign
 let statusFilter: TaskStatus | 'all' = 'all';
 
 // Clicking a filter button updates the signal — the UI reacts
-<button onClick={() => { statusFilter = filter.value; }}>
+<button
+  onClick={() => {
+    statusFilter = filter.value;
+  }}
+>
   {filter.label}
-</button>
+</button>;
 ```
 
 ### Data fetching with `query()`
@@ -135,9 +149,10 @@ const sp = useSearchParams<{ page: number }>();
 const tasksQuery = query(api.tasks.list({ page: sp.page, limit: 4 }));
 
 // Derived value — compiler wraps in computed()
-const filteredTasks = statusFilter === 'all'
-  ? tasksQuery.data.items
-  : tasksQuery.data.items.filter((t) => t.status === statusFilter);
+const filteredTasks =
+  statusFilter === 'all'
+    ? tasksQuery.data.items
+    : tasksQuery.data.items.filter((t) => t.status === statusFilter);
 ```
 
 ### Forms with `form()`
@@ -155,7 +170,7 @@ const taskForm = form(taskApi.create, {
   <input name={taskForm.fields.title} />
   <span>{taskForm.title.error}</span>
   <button disabled={taskForm.submitting}>Create Task</button>
-</form>
+</form>;
 ```
 
 ### Routing with `defineRoutes()`

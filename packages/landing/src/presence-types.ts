@@ -5,9 +5,7 @@
 // Only interaction signals and connection lifecycle events.
 
 /** Client → Server messages */
-export type ClientMessage =
-  | { t: 'interact' }
-  | { t: 'ping' };
+export type ClientMessage = { t: 'interact' } | { t: 'ping' };
 
 /** Server → Client messages */
 export type ServerMessage =

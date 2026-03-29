@@ -40,7 +40,7 @@
 
   ```tsx
   // Before
-  import { ListTransition } from "@vertz/ui";
+  import { ListTransition } from '@vertz/ui';
 
   <ListTransition
     each={items}
@@ -49,7 +49,7 @@
   />;
 
   // After
-  import { List } from "@vertz/ui/components";
+  import { List } from '@vertz/ui/components';
 
   <List animate>
     {items.map((item) => (

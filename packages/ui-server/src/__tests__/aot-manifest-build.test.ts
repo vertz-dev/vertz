@@ -564,9 +564,7 @@ describe('generateAotBarrel', () => {
             'function App() { return <div><RouterView router={router} /></div>; }',
             'export function __ssr_App(data, ctx) { return "<div>" + ctx.holes.RouterView() + "</div>"; }',
           ].join('\n'),
-          components: [
-            { name: 'App', tier: 'data-driven', holes: ['RouterView'], queryKeys: [] },
-          ],
+          components: [{ name: 'App', tier: 'data-driven', holes: ['RouterView'], queryKeys: [] }],
         },
       };
       const routeMap: Record<string, AotRouteMapEntry> = {};
@@ -710,10 +708,7 @@ export function __ssr_HomePage(data: Record<string, unknown>, ctx: any): string 
           { name: 'TaskCard', tier: 'static', holes: [], queryKeys: [] },
           { name: 'HomePage', tier: 'static', holes: [], queryKeys: [] },
         ],
-        css: [
-          '._ca2d1234 {\n  border: 1px solid;\n}',
-          '._da0e5678 {\n  padding: 2rem;\n}',
-        ],
+        css: ['._ca2d1234 {\n  border: 1px solid;\n}', '._da0e5678 {\n  padding: 2rem;\n}'],
       },
     };
 
@@ -736,9 +731,7 @@ export function __ssr_HomePage(data: Record<string, unknown>, ctx: any): string 
 export function __ssr_HomePage(data: Record<string, unknown>, ctx: any): string {
   return '<main class="_ab001234">' + ctx.holes.Sidebar() + '</main>';
 }`,
-        components: [
-          { name: 'HomePage', tier: 'static', holes: ['Sidebar'], queryKeys: [] },
-        ],
+        components: [{ name: 'HomePage', tier: 'static', holes: ['Sidebar'], queryKeys: [] }],
         css: ['._ab001234 {\n  display: grid;\n}'],
       },
       'src/sidebar.tsx': {
@@ -746,9 +739,7 @@ export function __ssr_HomePage(data: Record<string, unknown>, ctx: any): string 
 export function __ssr_Sidebar(data: Record<string, unknown>, ctx: any): string {
   return '<aside class="_cd005678">Nav</aside>';
 }`,
-        components: [
-          { name: 'Sidebar', tier: 'static', holes: [], queryKeys: [] },
-        ],
+        components: [{ name: 'Sidebar', tier: 'static', holes: [], queryKeys: [] }],
         css: ['._cd005678 {\n  width: 250px;\n}'],
       },
     };

@@ -483,9 +483,7 @@ describe('Feature: E2E AOT Pipeline', () => {
         });
 
         expect(result.html).toContain('Pikachu');
-        expect(result.ssrData).toEqual([
-          { key: 'cards-get', data: { name: 'Pikachu' } },
-        ]);
+        expect(result.ssrData).toEqual([{ key: 'cards-get', data: { name: 'Pikachu' } }]);
       });
     });
   });

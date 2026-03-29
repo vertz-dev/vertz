@@ -3,7 +3,14 @@ import { css } from '@vertz/ui';
 const s = css({
   section: ['py:24', 'px:6'],
   container: ['max-w:4xl', 'mx:auto'],
-  label: ['font:xs', 'tracking:widest', 'uppercase', 'mb:4', 'text:center', { '&': { color: '#6B6560' } }],
+  label: [
+    'font:xs',
+    'tracking:widest',
+    'uppercase',
+    'mb:4',
+    'text:center',
+    { '&': { color: '#6B6560' } },
+  ],
   heading: ['font:4xl', 'mb:4', 'text:center'],
   subtitle: ['text:center', 'mb:12', 'max-w:xl', 'mx:auto', { '&': { color: '#9C9690' } }],
   list: ['flex', 'flex-col'],

@@ -1024,7 +1024,7 @@ function Counter() {
     );
 
     // Each binding should be expanded into individual signal declarations
-    expect(result.code).toContain("signal(");
+    expect(result.code).toContain('signal(');
     expect(result.code).toContain("'count'");
     expect(result.code).toContain("'label'");
     // Reads in JSX should use .value
@@ -1071,7 +1071,7 @@ function Example() {
     );
 
     // count should be a signal
-    expect(result.code).toContain("signal(");
+    expect(result.code).toContain('signal(');
     expect(result.code).toContain("'count'");
     // doubled and tripled should be signals too (they're let and in JSX)
     expect(result.code).toContain("'doubled'");

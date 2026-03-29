@@ -24,7 +24,15 @@ export default function ManifestoPage() {
     <div className={s.page}>
       <Nav />
       <article className={s.article}>
-        <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 'clamp(2.5rem, 6vw, 4rem)', letterSpacing: '-0.025em', lineHeight: '1.1', marginBottom: '1.5rem' }}>
+        <h1
+          style={{
+            fontFamily: 'var(--font-display)',
+            fontSize: 'clamp(2.5rem, 6vw, 4rem)',
+            letterSpacing: '-0.025em',
+            lineHeight: '1.1',
+            marginBottom: '1.5rem',
+          }}
+        >
           The Vertz Manifesto
         </h1>
         <p className={s.subtitle} style={{ fontStyle: 'italic' }}>
@@ -36,7 +44,9 @@ export default function ManifestoPage() {
           <h2 className={s.sectionTitle} style={{ fontFamily: 'var(--font-display)' }}>
             Not Just for Humans Anymore
           </h2>
-          <p className={s.paragraph}>We built Vertz because the way we write software has changed.</p>
+          <p className={s.paragraph}>
+            We built Vertz because the way we write software has changed.
+          </p>
           <p className={s.paragraph}>
             While building our own products, we saw firsthand how much time teams waste fighting
             their tools instead of building what matters. We decided to do something about it.
@@ -55,7 +65,9 @@ export default function ManifestoPage() {
           </p>
           <p className={s.paragraph}>
             So we asked:{' '}
-            <span className={s.bold}>What if the framework caught these mistakes at build time?</span>
+            <span className={s.bold}>
+              What if the framework caught these mistakes at build time?
+            </span>
           </p>
           <p className={s.paragraph}>
             What if types flowed naturally, so the compiler — not runtime — told you something was
@@ -69,7 +81,10 @@ export default function ManifestoPage() {
 
         <div
           className={s.divider}
-          style={{ height: '1px', background: 'linear-gradient(to right, transparent, #1e1e22, transparent)' }}
+          style={{
+            height: '1px',
+            background: 'linear-gradient(to right, transparent, #1e1e22, transparent)',
+          }}
         />
 
         {/* ── What We Believe ── */}
@@ -78,7 +93,14 @@ export default function ManifestoPage() {
             What We Believe
           </h2>
 
-          <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.25rem', marginBottom: '0.75rem', color: '#e4e4e7' }}>
+          <h3
+            style={{
+              fontFamily: 'var(--font-display)',
+              fontSize: '1.25rem',
+              marginBottom: '0.75rem',
+              color: '#e4e4e7',
+            }}
+          >
             Type Safety Wins
           </h3>
           <p className={s.paragraph}>
@@ -91,7 +113,15 @@ export default function ManifestoPage() {
             <span className={s.highlight}>If your code builds, it runs.</span>
           </p>
 
-          <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.25rem', marginBottom: '0.75rem', marginTop: '2rem', color: '#e4e4e7' }}>
+          <h3
+            style={{
+              fontFamily: 'var(--font-display)',
+              fontSize: '1.25rem',
+              marginBottom: '0.75rem',
+              marginTop: '2rem',
+              color: '#e4e4e7',
+            }}
+          >
             One Way to Do Things
           </h3>
           <p className={s.paragraph}>
@@ -103,7 +133,15 @@ export default function ManifestoPage() {
             <span className={s.highlight}>predictability matters more than flexibility.</span>
           </p>
 
-          <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.25rem', marginBottom: '0.75rem', marginTop: '2rem', color: '#e4e4e7' }}>
+          <h3
+            style={{
+              fontFamily: 'var(--font-display)',
+              fontSize: '1.25rem',
+              marginBottom: '0.75rem',
+              marginTop: '2rem',
+              color: '#e4e4e7',
+            }}
+          >
             Production-Ready by Default
           </h3>
           <p className={s.paragraph}>
@@ -116,7 +154,15 @@ export default function ManifestoPage() {
             not bolted on later.
           </p>
 
-          <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.25rem', marginBottom: '0.75rem', marginTop: '2rem', color: '#e4e4e7' }}>
+          <h3
+            style={{
+              fontFamily: 'var(--font-display)',
+              fontSize: '1.25rem',
+              marginBottom: '0.75rem',
+              marginTop: '2rem',
+              color: '#e4e4e7',
+            }}
+          >
             The Backend Is Just the First Step
           </h3>
           <p className={s.paragraph}>
@@ -132,7 +178,10 @@ export default function ManifestoPage() {
 
         <div
           className={s.divider}
-          style={{ height: '1px', background: 'linear-gradient(to right, transparent, #1e1e22, transparent)' }}
+          style={{
+            height: '1px',
+            background: 'linear-gradient(to right, transparent, #1e1e22, transparent)',
+          }}
         />
 
         {/* ── The Tradeoffs We Accept ── */}
@@ -150,8 +199,8 @@ export default function ManifestoPage() {
               infinite options.
             </li>
             <li className={s.tradeoffItem}>
-              <span className={s.bold}>Compile-time over runtime.</span> Errors surface when you build,
-              not when you deploy.
+              <span className={s.bold}>Compile-time over runtime.</span> Errors surface when you
+              build, not when you deploy.
             </li>
             <li className={s.tradeoffItem}>
               <span className={s.bold}>Predictability over convenience.</span> If a shortcut creates
@@ -162,7 +211,10 @@ export default function ManifestoPage() {
 
         <div
           className={s.divider}
-          style={{ height: '1px', background: 'linear-gradient(to right, transparent, #1e1e22, transparent)' }}
+          style={{
+            height: '1px',
+            background: 'linear-gradient(to right, transparent, #1e1e22, transparent)',
+          }}
         />
 
         {/* ── Who Vertz Is For ── */}
@@ -191,7 +243,10 @@ export default function ManifestoPage() {
 
         <div
           className={s.divider}
-          style={{ height: '1px', background: 'linear-gradient(to right, transparent, #1e1e22, transparent)' }}
+          style={{
+            height: '1px',
+            background: 'linear-gradient(to right, transparent, #1e1e22, transparent)',
+          }}
         />
 
         {/* ── The North Star ── */}
@@ -212,7 +267,10 @@ export default function ManifestoPage() {
 
         <div
           className={s.divider}
-          style={{ height: '1px', background: 'linear-gradient(to right, transparent, #1e1e22, transparent)' }}
+          style={{
+            height: '1px',
+            background: 'linear-gradient(to right, transparent, #1e1e22, transparent)',
+          }}
         />
 
         {/* ── Vertz Is NOT ── */}
@@ -233,11 +291,16 @@ export default function ManifestoPage() {
 
         <div
           className={s.divider}
-          style={{ height: '1px', background: 'linear-gradient(to right, transparent, #1e1e22, transparent)' }}
+          style={{
+            height: '1px',
+            background: 'linear-gradient(to right, transparent, #1e1e22, transparent)',
+          }}
         />
 
         <p className={s.closing}>
-          <span style={{ fontStyle: 'italic' }}>Vertz: Type-safe. LLM-native. Built for what's next.</span>
+          <span style={{ fontStyle: 'italic' }}>
+            Vertz: Type-safe. LLM-native. Built for what's next.
+          </span>
         </p>
       </article>
       <Footer />

@@ -309,9 +309,8 @@ describe('EntityDefinition phantom TActions preservation', () => {
     type ResetAction = Actions['resetPassword'];
 
     // Input type should be { password: string } (from body schema)
-    type ResetInput = ResetAction extends EntityActionDef<infer I, infer _O, infer _R, infer _C>
-      ? I
-      : never;
+    type ResetInput =
+      ResetAction extends EntityActionDef<infer I, infer _O, infer _R, infer _C> ? I : never;
     const _check: { password: string } = {} as ResetInput;
     void _check;
   });

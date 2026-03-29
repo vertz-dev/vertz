@@ -207,7 +207,13 @@ function MetricLabel({ text }: { text: string }) {
   );
 }
 
-function BarRow({ name, value, unit, percent, isVertz }: {
+function BarRow({
+  name,
+  value,
+  unit,
+  percent,
+  isVertz,
+}: {
   name: string;
   value: string;
   unit: string;
@@ -227,7 +233,8 @@ function BarRow({ name, value, unit, percent, isVertz }: {
           className={s.barValue}
           style={{ fontFamily: 'var(--font-mono)', color: isVertz ? '#C8451B' : '#4A4540' }}
         >
-          {value}{unit}
+          {value}
+          {unit}
         </span>
       </div>
       <Bar percent={percent} isVertz={isVertz} />
@@ -264,7 +271,14 @@ function SSRPanel() {
       >
         {(['mean', 'median', 'p99'] as const).map((k) => (
           <div key={k} style={{ textAlign: 'center' }}>
-            <div style={{ fontFamily: 'var(--font-mono)', fontSize: '0.7rem', color: '#4A4540', marginBottom: '0.25rem' }}>
+            <div
+              style={{
+                fontFamily: 'var(--font-mono)',
+                fontSize: '0.7rem',
+                color: '#4A4540',
+                marginBottom: '0.25rem',
+              }}
+            >
               {k}
             </div>
             <div style={{ fontFamily: 'var(--font-mono)', fontSize: '0.8rem', color: '#C8451B' }}>
@@ -464,7 +478,9 @@ function BenchmarkTabs() {
               color: activeTab === tab.id ? '#E8E4DC' : '#6B6560',
               background: activeTab === tab.id ? '#2A2826' : 'transparent',
             }}
-            onClick={() => { activeTab = tab.id; }}
+            onClick={() => {
+              activeTab = tab.id;
+            }}
           >
             {tab.label}
           </button>
@@ -473,19 +489,37 @@ function BenchmarkTabs() {
 
       <div
         className={s.card}
-        style={{ background: '#1C1B1A', borderColor: '#2A2826', borderRadius: '2px', maxWidth: '40rem', margin: '0 auto' }}
+        style={{
+          background: '#1C1B1A',
+          borderColor: '#2A2826',
+          borderRadius: '2px',
+          maxWidth: '40rem',
+          margin: '0 auto',
+        }}
       >
         <div className={s.panelWrap}>
-          <div className={s.panel} style={{ gridArea: '1 / 1', visibility: activeTab === 'ssr' ? 'visible' : 'hidden' }}>
+          <div
+            className={s.panel}
+            style={{ gridArea: '1 / 1', visibility: activeTab === 'ssr' ? 'visible' : 'hidden' }}
+          >
             <SSRPanel />
           </div>
-          <div className={s.panel} style={{ gridArea: '1 / 1', visibility: activeTab === 'dev' ? 'visible' : 'hidden' }}>
+          <div
+            className={s.panel}
+            style={{ gridArea: '1 / 1', visibility: activeTab === 'dev' ? 'visible' : 'hidden' }}
+          >
             <DevPanel />
           </div>
-          <div className={s.panel} style={{ gridArea: '1 / 1', visibility: activeTab === 'vitals' ? 'visible' : 'hidden' }}>
+          <div
+            className={s.panel}
+            style={{ gridArea: '1 / 1', visibility: activeTab === 'vitals' ? 'visible' : 'hidden' }}
+          >
             <WebVitalsPanel />
           </div>
-          <div className={s.panel} style={{ gridArea: '1 / 1', visibility: activeTab === 'llm' ? 'visible' : 'hidden' }}>
+          <div
+            className={s.panel}
+            style={{ gridArea: '1 / 1', visibility: activeTab === 'llm' ? 'visible' : 'hidden' }}
+          >
             <LLMPanel />
           </div>
         </div>
@@ -507,7 +541,8 @@ export function Benchmarks() {
           Fast is the default.
         </h2>
         <p className={s.subtitle} style={{ color: '#9C9690' }}>
-          Tested against the most popular frameworks. Real SSR throughput, real dev workflows, real Lighthouse scores — and the first-ever LLM agent benchmark.
+          Tested against the most popular frameworks. Real SSR throughput, real dev workflows, real
+          Lighthouse scores — and the first-ever LLM agent benchmark.
         </p>
 
         <Island component={BenchmarkTabs} />

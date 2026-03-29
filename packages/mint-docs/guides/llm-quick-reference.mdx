@@ -155,8 +155,13 @@ Group related entities and services into bounded contexts with automatic route p
 ```ts
 import { createServer, domain, entity } from 'vertz/server';
 
-const invoices = entity('invoices', { model: invoicesModel, access: { list: rules.authenticated() } });
-const payments = service('payments', { /* ... */ });
+const invoices = entity('invoices', {
+  model: invoicesModel,
+  access: { list: rules.authenticated() },
+});
+const payments = service('payments', {
+  /* ... */
+});
 
 const billing = domain('billing', {
   entities: [invoices],

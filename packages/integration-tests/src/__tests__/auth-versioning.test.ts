@@ -241,9 +241,21 @@ describe('Feature: Grace period events integration', () => {
     const subscriptionStore = new InMemorySubscriptionStore();
 
     // Grace ends 2026-04-01
-    await grandfatheringStore.setGrandfathered('tenant', 'org-a', 'pro', 1, new Date('2026-04-01T00:00:00Z'));
+    await grandfatheringStore.setGrandfathered(
+      'tenant',
+      'org-a',
+      'pro',
+      1,
+      new Date('2026-04-01T00:00:00Z'),
+    );
     // Grace ends 2026-04-01 (same, for approaching test)
-    await grandfatheringStore.setGrandfathered('tenant', 'org-b', 'pro', 1, new Date('2026-04-01T00:00:00Z'));
+    await grandfatheringStore.setGrandfathered(
+      'tenant',
+      'org-b',
+      'pro',
+      1,
+      new Date('2026-04-01T00:00:00Z'),
+    );
 
     // Clock: March 5 — 27 days before. Within 30-day window, > 7 days.
     const events1: PlanEvent[] = [];
@@ -281,8 +293,20 @@ describe('Feature: Schedule migration', () => {
     const grandfatheringStore = new InMemoryGrandfatheringStore();
     const subscriptionStore = new InMemorySubscriptionStore();
 
-    await grandfatheringStore.setGrandfathered('tenant', 'org-1', 'pro', 1, new Date('2099-01-01T00:00:00Z'));
-    await grandfatheringStore.setGrandfathered('tenant', 'org-2', 'pro', 1, new Date('2099-01-01T00:00:00Z'));
+    await grandfatheringStore.setGrandfathered(
+      'tenant',
+      'org-1',
+      'pro',
+      1,
+      new Date('2099-01-01T00:00:00Z'),
+    );
+    await grandfatheringStore.setGrandfathered(
+      'tenant',
+      'org-2',
+      'pro',
+      1,
+      new Date('2099-01-01T00:00:00Z'),
+    );
 
     const manager = createPlanManager({
       plans: { pro: { group: 'main', features: ['a'] } },

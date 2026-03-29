@@ -2375,8 +2375,7 @@ describe('query()', () => {
         return {
           _tag: 'QueryDescriptor' as const,
           _key: 'GET:/tasks',
-          _fetch: () =>
-            Promise.resolve(ok({ items: [`page-${p}-call-${fetchCallCount}`] })),
+          _fetch: () => Promise.resolve(ok({ items: [`page-${p}-call-${fetchCallCount}`] })),
           // eslint-disable-next-line unicorn/no-thenable -- intentional PromiseLike mock
           then(onFulfilled: any, onRejected: any) {
             return this._fetch().then(onFulfilled, onRejected);

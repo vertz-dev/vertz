@@ -66,9 +66,7 @@ async function benchmark(
 
 function printResult(r: BenchmarkResult): void {
   console.log(`  ${r.name}`);
-  console.log(
-    `    avg: ${r.avgMs}ms | p50: ${r.p50Ms}ms | p95: ${r.p95Ms}ms | p99: ${r.p99Ms}ms`,
-  );
+  console.log(`    avg: ${r.avgMs}ms | p50: ${r.p50Ms}ms | p95: ${r.p95Ms}ms | p99: ${r.p99Ms}ms`);
   console.log(`    min: ${r.minMs}ms | max: ${r.maxMs}ms (${r.iterations} runs)`);
 }
 
@@ -144,12 +142,8 @@ async function main() {
   console.log('  Summary');
   console.log('═══════════════════════════════════════════════════════════════════════');
   console.log('');
-  console.log(
-    '  Approach                          avg       p50       p95       vs Two-pass',
-  );
-  console.log(
-    '  ────────────────────────────────  ────────  ────────  ────────  ───────────',
-  );
+  console.log('  Approach                          avg       p50       p95       vs Two-pass');
+  console.log('  ────────────────────────────────  ────────  ────────  ────────  ───────────');
   console.log(
     `  Two-pass                          ${`${twoPass.avgMs}ms`.padEnd(10)}${`${twoPass.p50Ms}ms`.padEnd(10)}${`${twoPass.p95Ms}ms`.padEnd(10)}baseline`,
   );

@@ -47,7 +47,7 @@ async function benchmarkUrl(
     const start = performance.now();
     const res = await fetch(url, {
       headers: {
-        'Accept': 'text/html',
+        Accept: 'text/html',
         'User-Agent': 'VertzBenchmark/1.0',
         'Cache-Control': 'no-cache',
       },
@@ -80,9 +80,7 @@ async function benchmarkUrl(
 
 function printResult(r: BenchmarkResult): void {
   console.log(`  ${r.name} (${r.statusCode}, ${r.sizeKB} KB)`);
-  console.log(
-    `    avg: ${r.avgMs}ms | p50: ${r.p50Ms}ms | p95: ${r.p95Ms}ms | p99: ${r.p99Ms}ms`,
-  );
+  console.log(`    avg: ${r.avgMs}ms | p50: ${r.p50Ms}ms | p95: ${r.p95Ms}ms | p99: ${r.p99Ms}ms`);
   console.log(`    min: ${r.minMs}ms | max: ${r.maxMs}ms (${r.iterations} runs)`);
 }
 
@@ -115,12 +113,8 @@ async function main() {
   console.log('  Summary');
   console.log('═══════════════════════════════════════════════════════════════');
   console.log('');
-  console.log(
-    '  Page          Status  Size      avg       p50       p95       min',
-  );
-  console.log(
-    '  ────────────  ──────  ────────  ────────  ────────  ────────  ────────',
-  );
+  console.log('  Page          Status  Size      avg       p50       p95       min');
+  console.log('  ────────────  ──────  ────────  ────────  ────────  ────────  ────────');
 
   for (const r of results) {
     const name = r.name.replace(/^GET https:\/\/vertz\.dev/, '').padEnd(14);
@@ -130,8 +124,12 @@ async function main() {
   }
 
   console.log('');
-  console.log('  Note: These times include network latency (client → Cloudflare edge → Worker → response).');
-  console.log('  Compare these numbers after deploying the new version to measure real-world impact.');
+  console.log(
+    '  Note: These times include network latency (client → Cloudflare edge → Worker → response).',
+  );
+  console.log(
+    '  Compare these numbers after deploying the new version to measure real-world impact.',
+  );
   console.log('');
 }
 

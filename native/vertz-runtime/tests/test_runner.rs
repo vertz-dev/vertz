@@ -5,7 +5,7 @@
 
 use std::fs;
 use std::path::{Path, PathBuf};
-use vertz_runtime::test::runner::{run_tests, TestRunConfig};
+use vertz_runtime::test::runner::{run_tests, ReporterFormat, TestRunConfig};
 
 fn setup_project(dir: &Path) {
     fs::create_dir_all(dir.join("src/__tests__")).unwrap();
@@ -30,6 +30,9 @@ fn make_config(root: &Path) -> TestRunConfig {
         filter: None,
         bail: false,
         timeout_ms: 5000,
+        reporter: ReporterFormat::Terminal,
+        coverage: false,
+        coverage_threshold: 95.0,
     }
 }
 

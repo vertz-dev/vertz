@@ -713,7 +713,8 @@ export function createServer(config: ServerConfig): AppBuilder | ServerInstance 
       const tenantLevelNames = levels.map((l) => l.key);
 
       // Attach to auto-tenant or explicit tenant config
-      const tenantTarget = autoTenant ?? (config.auth.tenant as import('./auth/types').TenantConfig | undefined);
+      const tenantTarget =
+        autoTenant ?? (config.auth.tenant as import('./auth/types').TenantConfig | undefined);
       if (tenantTarget) {
         tenantTarget._resolveTenantLevel = resolveTenantLevel;
         tenantTarget._tenantLevelNames = tenantLevelNames;

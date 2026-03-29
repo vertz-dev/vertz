@@ -27,7 +27,6 @@ function isNativeBinaryAvailable(): boolean {
 
 const HAS_NATIVE_BINARY = isNativeBinaryAvailable();
 
-
 // ── Helpers ──────────────────────────────────────────────────────
 
 function createTempProject(): {
@@ -108,10 +107,7 @@ describe('Feature: Native compiler plugin integration', () => {
 
     describe('When the plugin processes the file', () => {
       it('Then produces compiled output with native compiler marker', async () => {
-        const filePath = project.write(
-          'App.tsx',
-          'function App() { return <div>Hello</div>; }',
-        );
+        const filePath = project.write('App.tsx', 'function App() { return <div>Hello</div>; }');
 
         const { plugin } = createVertzBunPlugin({
           projectRoot: project.dir,
@@ -164,10 +160,7 @@ describe('Feature: Native compiler plugin integration', () => {
 
     describe('When the plugin processes the file', () => {
       it('Then uses ts-morph compiler (no native marker)', async () => {
-        const filePath = project.write(
-          'App.tsx',
-          'function App() { return <div>Hello</div>; }',
-        );
+        const filePath = project.write('App.tsx', 'function App() { return <div>Hello</div>; }');
 
         const { plugin } = createVertzBunPlugin({
           projectRoot: project.dir,
@@ -219,10 +212,7 @@ describe('Feature: Native compiler plugin integration', () => {
 
     describe('When the plugin processes the file', () => {
       it('Then produces output with inline source map', async () => {
-        const filePath = project.write(
-          'App.tsx',
-          'function App() { return <div>Hello</div>; }',
-        );
+        const filePath = project.write('App.tsx', 'function App() { return <div>Hello</div>; }');
 
         const { plugin } = createVertzBunPlugin({
           projectRoot: project.dir,
