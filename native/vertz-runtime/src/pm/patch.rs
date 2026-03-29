@@ -37,9 +37,12 @@ pub struct PatchDiscardResult {
     pub name: String,
     pub version: String,
     pub reapplied_patch: bool,
+    /// Path of the re-applied patch (if any)
+    pub patch_path: Option<String>,
 }
 
 /// Result of listing patches
+#[derive(Debug)]
 pub struct PatchListResult {
     /// Active patches (in-progress): (package_name, version)
     pub active: Vec<(String, String)>,
@@ -122,6 +125,18 @@ fn get_installed_version(
         .and_then(|v| v.as_str())
         .map(|v| v.to_string())
         .ok_or_else(|| format!("error: no version field in package.json for \"{}\"", name).into())
+}
+
+/// Get the version of a package from its directory's package.json
+fn get_version_from_dir(dir: &Path) -> Result<String, Box<dyn std::error::Error>> {
+    let pkg_json_path = dir.join("package.json");
+    let content = std::fs::read_to_string(&pkg_json_path)?;
+    let value: serde_json::Value = serde_json::from_str(&content)?;
+    value
+        .get("version")
+        .and_then(|v| v.as_str())
+        .map(|v| v.to_string())
+        .ok_or_else(|| "no version field".into())
 }
 
 /// Check if a package is a direct dependency (listed in package.json)
@@ -309,21 +324,23 @@ pub fn patch_discard(
     // after a previous patch_save). In that case, re-applying would fail — which is
     // fine, the backup already has the correct state.
     let mut reapplied_patch = false;
+    let mut reapplied_path: Option<String> = None;
     let pkg_path = root_dir.join("package.json");
     if let Ok(content) = std::fs::read_to_string(&pkg_path) {
         if let Ok(value) = serde_json::from_str::<serde_json::Value>(&content) {
             let patch_key = format!("{}@{}", package, version);
-            if let Some(patch_path) = value
+            if let Some(patch_path_str) = value
                 .get("vertz")
                 .and_then(|v| v.get("patchedDependencies"))
                 .and_then(|v| v.get(&patch_key))
                 .and_then(|v| v.as_str())
             {
-                let full_patch_path = root_dir.join(patch_path);
+                let full_patch_path = root_dir.join(patch_path_str);
                 if let Ok(patch_content) = std::fs::read_to_string(&full_patch_path) {
                     // Try to apply — if it fails, the backup already has the patch applied
                     if apply_patch_to_package(root_dir, package, &patch_content).is_ok() {
                         reapplied_patch = true;
+                        reapplied_path = Some(patch_path_str.to_string());
                     }
                 }
             }
@@ -334,6 +351,7 @@ pub fn patch_discard(
         name: package.to_string(),
         version,
         reapplied_patch,
+        patch_path: reapplied_path,
     })
 }
 
@@ -358,14 +376,19 @@ pub fn patch_list(root_dir: &Path) -> PatchListResult {
                                 if sub_entry.file_type().map(|t| t.is_dir()).unwrap_or(false) {
                                     let full_name = format!("{}/{}", name, sub_name);
                                     let version = get_installed_version(root_dir, &full_name)
+                                        .or_else(|_| {
+                                            get_version_from_dir(&scope_dir.join(&sub_name))
+                                        })
                                         .unwrap_or_default();
                                     active.push((full_name, version));
                                 }
                             }
                         }
                     } else {
-                        // Regular package
-                        let version = get_installed_version(root_dir, &name).unwrap_or_default();
+                        // Regular package — try node_modules first, fall back to backup
+                        let version = get_installed_version(root_dir, &name)
+                            .or_else(|_| get_version_from_dir(&backup_base.join(&name)))
+                            .unwrap_or_default();
                         active.push((name, version));
                     }
                 }
@@ -1629,6 +1652,30 @@ mod tests {
 
         let result = apply_unified_patch(content, patch).unwrap();
         assert!(result.contains("new line"));
+    }
+
+    #[test]
+    fn test_patch_list_active_falls_back_to_backup_version() {
+        let tmp = TempDir::new().unwrap();
+        let root = tmp.path().to_path_buf();
+        let nm = root.join("node_modules");
+
+        // Create backup but no installed package in node_modules
+        let backup_dir = nm.join(BACKUP_DIR).join("my-pkg");
+        std::fs::create_dir_all(&backup_dir).unwrap();
+        std::fs::write(
+            backup_dir.join("package.json"),
+            r#"{"name":"my-pkg","version":"2.0.0"}"#,
+        )
+        .unwrap();
+
+        // No package.json at root (no saved patches)
+        std::fs::write(root.join("package.json"), r#"{}"#).unwrap();
+
+        let result = patch_list(&root);
+        assert_eq!(result.active.len(), 1);
+        assert_eq!(result.active[0].0, "my-pkg");
+        assert_eq!(result.active[0].1, "2.0.0");
     }
 
     // --- file permissions ---
