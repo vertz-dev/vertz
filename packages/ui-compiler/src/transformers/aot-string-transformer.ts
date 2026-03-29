@@ -505,7 +505,11 @@ export class AotStringTransformer {
           text = text.split(`${qv.varName}.loading`).join('false');
           text = text.split(`${qv.varName}.error`).join('undefined');
           for (const alias of qv.derivedAliases) {
-            text = text.replace(new RegExp(`(?<!\\.)\\b${alias}\\b`, 'g'), localVar);
+            text = replaceIdentifierOutsideStrings(
+              text,
+              new RegExp(`(?<!\\.)\\b${alias}\\b`, 'g'),
+              localVar,
+            );
           }
         }
         return text;
@@ -604,7 +608,11 @@ export class AotStringTransformer {
             text = text.split(`${qv.varName}.loading`).join('false');
             text = text.split(`${qv.varName}.error`).join('undefined');
             for (const alias of qv.derivedAliases) {
-              text = text.replace(new RegExp(`(?<!\\.)\\b${alias}\\b`, 'g'), localVar);
+              text = replaceIdentifierOutsideStrings(
+                text,
+                new RegExp(`(?<!\\.)\\b${alias}\\b`, 'g'),
+                localVar,
+              );
             }
           }
           return text;
@@ -2157,4 +2165,31 @@ export class AotStringTransformer {
       .replace(/\n/g, '\\n')
       .replace(/\r/g, '\\r');
   }
+}
+
+/**
+ * Replace identifier occurrences only in code segments, skipping string literals.
+ *
+ * The AOT string expression uses single-quoted strings for static text
+ * (e.g., `'<p>' + __esc(results) + ' results'`). A naive regex replace of
+ * `results` → `__q0` would also corrupt `' results'` → `' __q0'`.
+ *
+ * This function splits the text into alternating code/string segments and
+ * only applies the replacement pattern to code segments.
+ */
+function replaceIdentifierOutsideStrings(
+  text: string,
+  pattern: RegExp,
+  replacement: string,
+): string {
+  // Split on single-quoted string literals (preserving the delimiters).
+  // Handles escaped quotes inside strings: 'it\\'s ok'
+  const segments = text.split(/('(?:[^'\\]|\\.)*')/);
+  for (let i = 0; i < segments.length; i++) {
+    // Even indices are code, odd indices are string literals
+    if (i % 2 === 0) {
+      segments[i] = (segments[i] as string).replace(pattern, replacement);
+    }
+  }
+  return segments.join('');
 }
