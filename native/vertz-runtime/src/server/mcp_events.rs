@@ -387,6 +387,7 @@ pub async fn build_server_status(state: &crate::server::module_server::DevServer
             (errors.len(), Some(*category))
         }
         crate::errors::broadcaster::ErrorBroadcast::Clear => (0, None),
+        crate::errors::broadcaster::ErrorBroadcast::Info { .. } => (0, None),
     };
     McpEvent::ServerStatus {
         timestamp: iso_timestamp(),
@@ -422,7 +423,8 @@ pub async fn build_error_snapshot(
                 },
             }
         }
-        crate::errors::broadcaster::ErrorBroadcast::Clear => McpEvent::ErrorUpdate {
+        crate::errors::broadcaster::ErrorBroadcast::Clear
+        | crate::errors::broadcaster::ErrorBroadcast::Info { .. } => McpEvent::ErrorUpdate {
             timestamp: iso_timestamp(),
             data: ErrorUpdateData {
                 errors: vec![],

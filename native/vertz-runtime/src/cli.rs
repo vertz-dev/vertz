@@ -66,6 +66,14 @@ pub struct DevArgs {
     #[arg(long, default_value = "public")]
     pub public_dir: PathBuf,
 
+    /// Disable auto-install of missing packages
+    #[arg(long)]
+    pub no_auto_install: bool,
+
+    /// Force-enable auto-install (overrides CI guard and .vertzrc)
+    #[arg(long, conflicts_with = "no_auto_install")]
+    pub auto_install: bool,
+
     /// Disable TypeScript type checking (tsc/tsgo)
     #[arg(long)]
     pub no_typecheck: bool,
@@ -794,6 +802,27 @@ mod tests {
     fn test_typecheck_binary_default_none() {
         let args = parse_dev(&["vertz-runtime", "dev"]);
         assert!(args.typecheck_binary.is_none());
+    }
+
+    #[test]
+    fn test_no_auto_install_flag() {
+        let args = parse_dev(&["vertz-runtime", "dev", "--no-auto-install"]);
+        assert!(args.no_auto_install);
+        assert!(!args.auto_install);
+    }
+
+    #[test]
+    fn test_auto_install_flag() {
+        let args = parse_dev(&["vertz-runtime", "dev", "--auto-install"]);
+        assert!(args.auto_install);
+        assert!(!args.no_auto_install);
+    }
+
+    #[test]
+    fn test_auto_install_defaults_off() {
+        let args = parse_dev(&["vertz-runtime", "dev"]);
+        assert!(!args.no_auto_install);
+        assert!(!args.auto_install);
     }
 
     // --- Test command tests ---

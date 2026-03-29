@@ -24,6 +24,54 @@ pub struct ServerConfig {
     /// Optional server entry file (e.g., "src/server.ts") for API route delegation.
     /// When present, a persistent V8 isolate is created to handle /api/* requests.
     pub server_entry: Option<PathBuf>,
+    /// Whether to auto-install missing packages during dev.
+    pub auto_install: bool,
+}
+
+/// Resolve the `auto_install` setting from multiple sources.
+///
+/// Precedence: CLI flag > `.vertzrc` explicit > CI guard > default (`true`).
+///
+/// Reads `.vertzrc` at most once. Logs a warning on parse failure instead of
+/// silently defaulting.
+pub fn resolve_auto_install(
+    cli_no_auto_install: bool,
+    cli_auto_install: bool,
+    root_dir: &Path,
+) -> bool {
+    // CLI flags take highest priority
+    if cli_no_auto_install {
+        return false;
+    }
+    if cli_auto_install {
+        return true;
+    }
+
+    // Single read of .vertzrc — extract both parsed value and explicit-key check
+    let raw_json = std::fs::read_to_string(root_dir.join(".vertzrc"))
+        .ok()
+        .and_then(|s| match serde_json::from_str::<serde_json::Value>(&s) {
+            Ok(v) => Some(v),
+            Err(e) => {
+                eprintln!("[config] Warning: failed to parse .vertzrc: {}", e);
+                None
+            }
+        });
+
+    if let Some(ref json) = raw_json {
+        if let Some(val) = json.get("autoInstall") {
+            // .vertzrc explicitly sets autoInstall — use that value
+            return val.as_bool().unwrap_or(true);
+        }
+    }
+
+    // CI guard: default to false in CI environments (non-empty CI env var)
+    if std::env::var("CI").map(|v| !v.is_empty()).unwrap_or(false) {
+        return false;
+    }
+
+    // Default
+    true
 }
 
 impl ServerConfig {
@@ -45,6 +93,7 @@ impl ServerConfig {
             typecheck_binary: None,
             open_browser: false,
             server_entry,
+            auto_install: true,
         }
     }
 
@@ -66,6 +115,7 @@ impl ServerConfig {
             typecheck_binary: None,
             open_browser: false,
             server_entry,
+            auto_install: true,
         }
     }
 
@@ -226,5 +276,63 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let result = detect_server_entry(dir.path());
         assert_eq!(result, None);
+    }
+
+    // --- resolve_auto_install tests ---
+
+    #[test]
+    fn test_resolve_auto_install_cli_no_auto_install() {
+        let dir = tempfile::tempdir().unwrap();
+        assert!(!resolve_auto_install(true, false, dir.path()));
+    }
+
+    #[test]
+    fn test_resolve_auto_install_cli_auto_install() {
+        let dir = tempfile::tempdir().unwrap();
+        assert!(resolve_auto_install(false, true, dir.path()));
+    }
+
+    #[test]
+    fn test_resolve_auto_install_vertzrc_explicit_false() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(dir.path().join(".vertzrc"), r#"{"autoInstall": false}"#).unwrap();
+        assert!(!resolve_auto_install(false, false, dir.path()));
+    }
+
+    #[test]
+    fn test_resolve_auto_install_ci_guard_non_empty() {
+        let dir = tempfile::tempdir().unwrap();
+        // No .vertzrc file — CI guard should kick in
+        std::env::set_var("CI", "true");
+        let result = resolve_auto_install(false, false, dir.path());
+        std::env::remove_var("CI");
+        assert!(!result);
+    }
+
+    #[test]
+    fn test_resolve_auto_install_ci_guard_empty_string() {
+        let dir = tempfile::tempdir().unwrap();
+        // CI="" should NOT trigger the guard
+        std::env::set_var("CI", "");
+        let result = resolve_auto_install(false, false, dir.path());
+        std::env::remove_var("CI");
+        assert!(result);
+    }
+
+    #[test]
+    fn test_resolve_auto_install_default_true() {
+        let dir = tempfile::tempdir().unwrap();
+        // No CLI flags, no .vertzrc, no CI
+        std::env::remove_var("CI");
+        assert!(resolve_auto_install(false, false, dir.path()));
+    }
+
+    #[test]
+    fn test_resolve_auto_install_vertzrc_parse_error_falls_through() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(dir.path().join(".vertzrc"), "not valid json").unwrap();
+        // Invalid JSON should warn and fall through to default
+        std::env::remove_var("CI");
+        assert!(resolve_auto_install(false, false, dir.path()));
     }
 }

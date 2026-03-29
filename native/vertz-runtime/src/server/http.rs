@@ -148,6 +148,10 @@ pub fn build_router(config: &ServerConfig) -> (Router, Arc<DevServerState>) {
         port: config.port,
         typecheck_enabled: config.enable_typecheck,
         api_isolate: Arc::new(std::sync::RwLock::new(api_isolate)),
+        auto_install: config.auto_install,
+        auto_install_lock: Arc::new(tokio::sync::Mutex::new(())),
+        auto_install_inflight: Arc::new(std::sync::Mutex::new(std::collections::HashMap::new())),
+        auto_install_failed: Arc::new(std::sync::Mutex::new(std::collections::HashSet::new())),
     });
 
     // Routes: HMR WebSocket, error WebSocket, diagnostics, AI API, fallback
@@ -889,6 +893,11 @@ pub async fn start_server(config: ServerConfig) -> io::Result<()> {
                                     continue;
                                 }
                                 let changes = debouncer.drain();
+
+                                // Clear auto-install failed blacklist on any file change.
+                                // Developer may have fixed a typo in an import.
+                                watcher_state.auto_install_failed.lock().unwrap().clear();
+
                                 for change in &changes {
                                     let change_msg = format!("File changed: {}", change.path.display());
                                     eprintln!("[Server] {}", change_msg);

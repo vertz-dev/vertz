@@ -22,6 +22,9 @@ pub enum ErrorBroadcast {
     /// All errors have been cleared.
     #[serde(rename = "clear")]
     Clear,
+    /// Transient info message (e.g., "Installing zod...").
+    #[serde(rename = "info")]
+    Info { message: String },
 }
 
 impl ErrorBroadcast {
@@ -280,6 +283,14 @@ impl ErrorBroadcaster {
     async fn broadcast_clear(&self) {
         let _ = self.broadcast_tx.send(ErrorBroadcast::Clear.to_json());
     }
+
+    /// Broadcast a transient info message to all clients.
+    pub async fn broadcast_info(&self, message: &str) {
+        let msg = ErrorBroadcast::Info {
+            message: message.to_string(),
+        };
+        let _ = self.broadcast_tx.send(msg.to_json());
+    }
 }
 
 impl Default for ErrorBroadcaster {
@@ -441,7 +452,9 @@ mod tests {
                 assert_eq!(category, ErrorCategory::Build);
                 assert_eq!(errors.len(), 1);
             }
-            ErrorBroadcast::Clear => panic!("Expected error state"),
+            ErrorBroadcast::Clear | ErrorBroadcast::Info { .. } => {
+                panic!("Expected error state")
+            }
         }
     }
 
@@ -463,6 +476,17 @@ mod tests {
     async fn test_broadcaster_default() {
         let broadcaster = ErrorBroadcaster::default();
         assert!(!broadcaster.has_errors().await);
+    }
+
+    #[test]
+    fn test_info_broadcast_serialization() {
+        let msg = ErrorBroadcast::Info {
+            message: "Installing zod...".to_string(),
+        };
+        let json = msg.to_json();
+        let parsed: serde_json::Value = serde_json::from_str(&json).unwrap();
+        assert_eq!(parsed["type"], "info");
+        assert_eq!(parsed["message"], "Installing zod...");
     }
 
     #[tokio::test]

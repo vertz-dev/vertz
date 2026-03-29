@@ -4,7 +4,7 @@ use clap::Parser;
 use cli::{Cli, Command};
 use std::io::IsTerminal;
 use std::sync::Arc;
-use vertz_runtime::config::ServerConfig;
+use vertz_runtime::config::{resolve_auto_install, ServerConfig};
 use vertz_runtime::pm;
 use vertz_runtime::pm::output::{error_code_from_message, JsonOutput, PmOutput, TextOutput};
 
@@ -19,6 +19,10 @@ async fn main() {
             config.open_browser = args.open;
             config.tsconfig_path = args.tsconfig;
             config.typecheck_binary = args.typecheck_binary;
+
+            // Resolve auto_install: CLI flag > .vertzrc > CI guard > default
+            config.auto_install =
+                resolve_auto_install(args.no_auto_install, args.auto_install, &config.root_dir);
 
             if let Err(e) = vertz_runtime::server::http::start_server(config).await {
                 eprintln!("Error: {}", e);
