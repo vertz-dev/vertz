@@ -88,6 +88,12 @@ export type PropertyName =
   | 'overflow'
   | 'overflow-x'
   | 'overflow-y'
+  | 'top'
+  | 'right'
+  | 'bottom'
+  | 'left'
+  | 'object'
+  | 'aspect'
   | 'vt-name'
   | 'view-transition-name'
   | 'content';
@@ -159,6 +165,18 @@ export const PROPERTY_MAP: Record<string, PropertyMapping> = {
   overflow: { properties: ['overflow'], valueType: 'raw' },
   'overflow-x': { properties: ['overflow-x'], valueType: 'raw' },
   'overflow-y': { properties: ['overflow-y'], valueType: 'raw' },
+
+  // Position offsets
+  top: { properties: ['top'], valueType: 'raw' },
+  right: { properties: ['right'], valueType: 'raw' },
+  bottom: { properties: ['bottom'], valueType: 'raw' },
+  left: { properties: ['left'], valueType: 'raw' },
+
+  // Object fit
+  object: { properties: ['object-fit'], valueType: 'raw' },
+
+  // Aspect ratio
+  aspect: { properties: ['aspect-ratio'], valueType: 'raw' },
 
   // Misc properties
   cursor: { properties: ['cursor'], valueType: 'raw' },

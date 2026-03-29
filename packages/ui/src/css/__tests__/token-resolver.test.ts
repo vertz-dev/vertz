@@ -718,4 +718,96 @@ describe('resolveToken', () => {
       expect(isValidColorToken('potato/50')).toBe(false);
     });
   });
+
+  describe('position offsets (top, right, bottom, left)', () => {
+    it('resolves top:0 to top: 0', () => {
+      const result = resolveToken({ property: 'top', value: '0', pseudo: null });
+      expect(result.declarations).toEqual([{ property: 'top', value: '0' }]);
+    });
+
+    it('resolves top:4 to top: 1rem (spacing scale)', () => {
+      const result = resolveToken({ property: 'top', value: '4', pseudo: null });
+      expect(result.declarations).toEqual([{ property: 'top', value: '1rem' }]);
+    });
+
+    it('resolves right:2 to right: 0.5rem', () => {
+      const result = resolveToken({ property: 'right', value: '2', pseudo: null });
+      expect(result.declarations).toEqual([{ property: 'right', value: '0.5rem' }]);
+    });
+
+    it('resolves bottom:auto to bottom: auto', () => {
+      const result = resolveToken({ property: 'bottom', value: 'auto', pseudo: null });
+      expect(result.declarations).toEqual([{ property: 'bottom', value: 'auto' }]);
+    });
+
+    it('resolves left:8 to left: 2rem', () => {
+      const result = resolveToken({ property: 'left', value: '8', pseudo: null });
+      expect(result.declarations).toEqual([{ property: 'left', value: '2rem' }]);
+    });
+
+    it('passes through raw CSS values for top', () => {
+      const result = resolveToken({ property: 'top', value: '50%', pseudo: null });
+      expect(result.declarations).toEqual([{ property: 'top', value: '50%' }]);
+    });
+
+    it('supports pseudo prefix on position offsets', () => {
+      const result = resolveToken({ property: 'top', value: '0', pseudo: 'hover' });
+      expect(result.declarations).toEqual([{ property: 'top', value: '0' }]);
+      expect(result.pseudo).toBe('hover');
+    });
+  });
+
+  describe('object-fit', () => {
+    it('resolves object:cover to object-fit: cover', () => {
+      const result = resolveToken({ property: 'object', value: 'cover', pseudo: null });
+      expect(result.declarations).toEqual([{ property: 'object-fit', value: 'cover' }]);
+    });
+
+    it('resolves object:contain to object-fit: contain', () => {
+      const result = resolveToken({ property: 'object', value: 'contain', pseudo: null });
+      expect(result.declarations).toEqual([{ property: 'object-fit', value: 'contain' }]);
+    });
+
+    it('resolves object:fill to object-fit: fill', () => {
+      const result = resolveToken({ property: 'object', value: 'fill', pseudo: null });
+      expect(result.declarations).toEqual([{ property: 'object-fit', value: 'fill' }]);
+    });
+
+    it('resolves object:none to object-fit: none', () => {
+      const result = resolveToken({ property: 'object', value: 'none', pseudo: null });
+      expect(result.declarations).toEqual([{ property: 'object-fit', value: 'none' }]);
+    });
+
+    it('resolves object:scale-down to object-fit: scale-down', () => {
+      const result = resolveToken({ property: 'object', value: 'scale-down', pseudo: null });
+      expect(result.declarations).toEqual([{ property: 'object-fit', value: 'scale-down' }]);
+    });
+  });
+
+  describe('aspect-ratio', () => {
+    it('resolves aspect:auto to aspect-ratio: auto', () => {
+      const result = resolveToken({ property: 'aspect', value: 'auto', pseudo: null });
+      expect(result.declarations).toEqual([{ property: 'aspect-ratio', value: 'auto' }]);
+    });
+
+    it('resolves aspect:square to aspect-ratio: 1 / 1', () => {
+      const result = resolveToken({ property: 'aspect', value: 'square', pseudo: null });
+      expect(result.declarations).toEqual([{ property: 'aspect-ratio', value: '1 / 1' }]);
+    });
+
+    it('resolves aspect:video to aspect-ratio: 16 / 9', () => {
+      const result = resolveToken({ property: 'aspect', value: 'video', pseudo: null });
+      expect(result.declarations).toEqual([{ property: 'aspect-ratio', value: '16 / 9' }]);
+    });
+
+    it('resolves aspect:photo to aspect-ratio: 4 / 3', () => {
+      const result = resolveToken({ property: 'aspect', value: 'photo', pseudo: null });
+      expect(result.declarations).toEqual([{ property: 'aspect-ratio', value: '4 / 3' }]);
+    });
+
+    it('passes through raw ratio values', () => {
+      const result = resolveToken({ property: 'aspect', value: '21/9', pseudo: null });
+      expect(result.declarations).toEqual([{ property: 'aspect-ratio', value: '21/9' }]);
+    });
+  });
 });

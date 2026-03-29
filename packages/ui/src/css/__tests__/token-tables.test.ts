@@ -262,6 +262,12 @@ describe('token-tables', () => {
       'overflow-y',
       'vt-name',
       'view-transition-name',
+      'top',
+      'right',
+      'bottom',
+      'left',
+      'object',
+      'aspect',
     ];
 
     for (const prop of essential) {
