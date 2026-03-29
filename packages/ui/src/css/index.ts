@@ -27,11 +27,14 @@ export type {
   FallbackFontName,
   FontDescriptor,
   FontFallbackMetrics,
+  GoogleFontMeta,
   FontOptions,
   FontSrc,
   PreloadItem,
 } from './font';
 export { compileFonts, font } from './font';
+export type { GoogleFontOptions } from './google-font';
+export { googleFont } from './google-font';
 export type { GlobalCSSInput, GlobalCSSOutput } from './global-css';
 export { globalCss } from './global-css';
 export { keyframes } from './keyframes';
