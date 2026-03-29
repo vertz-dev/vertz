@@ -1,3 +1,4 @@
+use crate::pm::overrides::OverrideMap;
 use crate::pm::registry::RegistryClient;
 use crate::pm::types::{
     Lockfile, LockfileEntry, PackageMetadata, ResolvedPackage, VersionMetadata,
@@ -60,13 +61,25 @@ impl ResolvedGraph {
     }
 }
 
+/// Record of an override being applied during resolution
+#[derive(Debug, Clone)]
+pub struct OverrideApplication {
+    pub target: String,
+    pub original_range: String,
+    pub forced_version: String,
+    pub pattern: String,
+}
+
 /// Mutable state shared across recursive resolution calls
 struct ResolveState<'a> {
     registry: &'a RegistryClient,
     lockfile: &'a Lockfile,
+    overrides: &'a OverrideMap,
     graph: ResolvedGraph,
     visited: HashSet<String>,
     metadata_cache: HashMap<String, PackageMetadata>,
+    parent_chain: Vec<String>,
+    override_applications: Vec<OverrideApplication>,
 }
 
 /// Recursively resolve all dependencies starting from root deps
@@ -75,13 +88,17 @@ pub async fn resolve_all(
     root_dev_deps: &BTreeMap<String, String>,
     registry: &RegistryClient,
     lockfile: &Lockfile,
-) -> Result<ResolvedGraph, Box<dyn std::error::Error + Send + Sync>> {
+    overrides: &OverrideMap,
+) -> Result<(ResolvedGraph, Vec<OverrideApplication>), Box<dyn std::error::Error + Send + Sync>> {
     let mut state = ResolveState {
         registry,
         lockfile,
+        overrides,
         graph: ResolvedGraph::default(),
         visited: HashSet::new(),
         metadata_cache: HashMap::new(),
+        parent_chain: Vec::new(),
+        override_applications: Vec::new(),
     };
 
     // Resolve regular dependencies
@@ -94,7 +111,7 @@ pub async fn resolve_all(
         resolve_recursive(name, range, &mut state).await?;
     }
 
-    Ok(state.graph)
+    Ok((state.graph, state.override_applications))
 }
 
 #[async_recursion::async_recursion]
@@ -103,58 +120,90 @@ async fn resolve_recursive(
     range: &str,
     state: &mut ResolveState<'_>,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    // Check for override BEFORE visited check — the override applies to THIS dep
+    // Use the original range for the visited key (preserves lockfile keying invariant)
+    let effective_range =
+        if let Some(override_version) = state.overrides.find_override(name, &state.parent_chain) {
+            // Record the override application
+            let pattern = if state.parent_chain.is_empty() {
+                name.to_string()
+            } else {
+                format!("{}>{}", state.parent_chain.join(">"), name)
+            };
+            state.override_applications.push(OverrideApplication {
+                target: name.to_string(),
+                original_range: range.to_string(),
+                forced_version: override_version.to_string(),
+                pattern,
+            });
+            override_version.to_string()
+        } else {
+            range.to_string()
+        };
+
     let visit_key = format!("{}@{}", name, range);
 
-    // Break cycles
+    // Break cycles (use ORIGINAL range for visited key)
     if state.visited.contains(&visit_key) {
         return Ok(());
     }
     state.visited.insert(visit_key);
 
-    // Check lockfile first for pinned version
+    // Check lockfile first for pinned version (use ORIGINAL range for lockfile key)
     let lockfile_key = Lockfile::spec_key(name, range);
     if let Some(entry) = state.lockfile.entries.get(&lockfile_key) {
-        let graph_key = ResolvedGraph::key(name, &entry.version);
-        if state.graph.packages.contains_key(&graph_key) {
-            return Ok(());
-        }
-
-        // Use lockfile version — still need metadata for transitive deps
-        let metadata =
-            get_or_fetch_metadata(name, state.registry, &mut state.metadata_cache).await?;
-        if let Some(version_meta) = metadata.versions.get(&entry.version) {
-            let resolved = ResolvedPackage {
-                name: name.to_string(),
-                version: entry.version.clone(),
-                tarball_url: version_meta.dist.tarball.clone(),
-                integrity: version_meta.dist.integrity.clone(),
-                dependencies: version_meta.dependencies.clone(),
-                bin: version_meta.bin.to_map(name),
-                nest_path: vec![],
-            };
-            if !version_meta.scripts.is_empty() {
-                state
-                    .graph
-                    .scripts
-                    .insert(graph_key.clone(), version_meta.scripts.clone());
-            }
-            state.graph.packages.insert(graph_key, resolved);
-
-            // Resolve transitive deps (skip transitive devDeps)
-            for (dep_name, dep_range) in &version_meta.dependencies {
-                resolve_recursive(dep_name, dep_range, state).await?;
+        // If override is active, ignore lockfile version — use override instead
+        if effective_range == range {
+            let graph_key = ResolvedGraph::key(name, &entry.version);
+            if state.graph.packages.contains_key(&graph_key) {
+                return Ok(());
             }
 
-            return Ok(());
+            // Use lockfile version — still need metadata for transitive deps
+            let metadata =
+                get_or_fetch_metadata(name, state.registry, &mut state.metadata_cache).await?;
+            if let Some(version_meta) = metadata.versions.get(&entry.version) {
+                let resolved = ResolvedPackage {
+                    name: name.to_string(),
+                    version: entry.version.clone(),
+                    tarball_url: version_meta.dist.tarball.clone(),
+                    integrity: version_meta.dist.integrity.clone(),
+                    dependencies: version_meta.dependencies.clone(),
+                    bin: version_meta.bin.to_map(name),
+                    nest_path: vec![],
+                };
+                if !version_meta.scripts.is_empty() {
+                    state
+                        .graph
+                        .scripts
+                        .insert(graph_key.clone(), version_meta.scripts.clone());
+                }
+                state.graph.packages.insert(graph_key, resolved);
+
+                // Resolve transitive deps (skip transitive devDeps)
+                state.parent_chain.push(name.to_string());
+                let deps: Vec<_> = version_meta.dependencies.clone().into_iter().collect();
+                for (dep_name, dep_range) in &deps {
+                    resolve_recursive(dep_name, dep_range, state).await?;
+                }
+                state.parent_chain.pop();
+
+                return Ok(());
+            }
         }
     }
 
     // Fetch metadata from registry
     let metadata = get_or_fetch_metadata(name, state.registry, &mut state.metadata_cache).await?;
 
-    // Resolve version
-    let version_meta = resolve_version(range, &metadata.versions, &metadata.dist_tags)
-        .ok_or_else(|| format!("No version of '{}' matches range '{}'", name, range))?;
+    // Resolve version (using effective range which may be overridden)
+    let version_meta = resolve_version(&effective_range, &metadata.versions, &metadata.dist_tags)
+        .ok_or_else(|| {
+        format!(
+            "No version of '{}' matches range '{}'",
+            name, effective_range
+        )
+    })?;
 
     let graph_key = ResolvedGraph::key(name, &version_meta.version);
     if state.graph.packages.contains_key(&graph_key) {
@@ -179,10 +228,12 @@ async fn resolve_recursive(
     state.graph.packages.insert(graph_key, resolved);
 
     // Resolve transitive deps (skip transitive devDeps — only root devDeps are resolved)
+    state.parent_chain.push(name.to_string());
     let deps = version_meta.dependencies.clone();
     for (dep_name, dep_range) in &deps {
         resolve_recursive(dep_name, dep_range, state).await?;
     }
+    state.parent_chain.pop();
 
     Ok(())
 }
@@ -328,6 +379,7 @@ pub fn graph_to_lockfile(
                     integrity: pkg.integrity.clone(),
                     dependencies: pkg.dependencies.clone(),
                     optional: optional_names.contains(name),
+                    overridden: false,
                 },
             );
         }
@@ -357,6 +409,7 @@ pub fn graph_to_lockfile(
                         integrity: dep_pkg.integrity.clone(),
                         dependencies: dep_pkg.dependencies.clone(),
                         optional: false,
+                        overridden: false,
                     });
                 }
             }
@@ -376,6 +429,7 @@ pub fn graph_to_lockfile(
                 integrity: String::new(),
                 dependencies: BTreeMap::new(),
                 optional: false,
+                overridden: false,
             },
         );
     }

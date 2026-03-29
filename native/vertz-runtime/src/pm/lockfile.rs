@@ -22,6 +22,10 @@ pub fn write_lockfile(path: &Path, lockfile: &Lockfile) -> Result<(), std::io::E
             output.push_str("  optional true\n");
         }
 
+        if entry.overridden {
+            output.push_str("  overridden true\n");
+        }
+
         if !entry.dependencies.is_empty() {
             output.push_str("  dependencies:\n");
             for (dep_name, dep_range) in &entry.dependencies {
@@ -53,6 +57,7 @@ pub fn parse_lockfile(content: &str) -> Result<Lockfile, Box<dyn std::error::Err
         integrity: String::new(),
         dependencies: BTreeMap::new(),
         optional: false,
+        overridden: false,
     };
     let mut in_dependencies = false;
 
@@ -71,6 +76,7 @@ pub fn parse_lockfile(content: &str) -> Result<Lockfile, Box<dyn std::error::Err
                     integrity: String::new(),
                     dependencies: BTreeMap::new(),
                     optional: false,
+                    overridden: false,
                 };
                 in_dependencies = false;
             }
@@ -92,6 +98,7 @@ pub fn parse_lockfile(content: &str) -> Result<Lockfile, Box<dyn std::error::Err
                     integrity: String::new(),
                     dependencies: BTreeMap::new(),
                     optional: false,
+                    overridden: false,
                 };
                 in_dependencies = false;
             }
@@ -127,6 +134,8 @@ pub fn parse_lockfile(content: &str) -> Result<Lockfile, Box<dyn std::error::Err
                 current_entry.integrity = unquote(rest).to_string();
             } else if trimmed == "optional true" {
                 current_entry.optional = true;
+            } else if trimmed == "overridden true" {
+                current_entry.overridden = true;
             }
         }
     }
@@ -188,6 +197,7 @@ mod tests {
                 integrity: "sha512-abc123".to_string(),
                 dependencies: deps,
                 optional: false,
+                overridden: false,
             },
         );
 
@@ -201,6 +211,7 @@ mod tests {
                 integrity: "sha512-def456".to_string(),
                 dependencies: BTreeMap::new(),
                 optional: false,
+                overridden: false,
             },
         );
 
@@ -247,6 +258,7 @@ mod tests {
                 integrity: "hash1".to_string(),
                 dependencies: BTreeMap::new(),
                 optional: false,
+                overridden: false,
             },
         );
         lockfile.entries.insert(
@@ -259,6 +271,7 @@ mod tests {
                 integrity: "hash2".to_string(),
                 dependencies: BTreeMap::new(),
                 optional: false,
+                overridden: false,
             },
         );
 
@@ -286,6 +299,7 @@ mod tests {
                 integrity: "hash".to_string(),
                 dependencies: BTreeMap::new(),
                 optional: false,
+                overridden: false,
             },
         );
         lockfile.entries.insert(
@@ -298,6 +312,7 @@ mod tests {
                 integrity: "hash".to_string(),
                 dependencies: BTreeMap::new(),
                 optional: false,
+                overridden: false,
             },
         );
 
@@ -367,6 +382,7 @@ mod tests {
                 integrity: "sha512-abc".to_string(),
                 dependencies: BTreeMap::new(),
                 optional: false,
+                overridden: false,
             },
         );
 
@@ -381,6 +397,7 @@ mod tests {
                 integrity: String::new(),
                 dependencies: BTreeMap::new(),
                 optional: false,
+                overridden: false,
             },
         );
 
@@ -431,6 +448,7 @@ mod tests {
                 integrity: "sha512-abc".to_string(),
                 dependencies: BTreeMap::new(),
                 optional: true,
+                overridden: false,
             },
         );
         lockfile.entries.insert(
@@ -443,6 +461,7 @@ mod tests {
                 integrity: "sha512-def".to_string(),
                 dependencies: BTreeMap::new(),
                 optional: false,
+                overridden: false,
             },
         );
 
@@ -476,5 +495,64 @@ fsevents@^2.3.0:
         let entry = &lockfile.entries["fsevents@^2.3.0"];
         assert!(entry.optional);
         assert_eq!(entry.version, "2.3.3");
+    }
+
+    #[test]
+    fn test_write_and_read_overridden_entry() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("vertz.lock");
+
+        let mut lockfile = Lockfile::default();
+        lockfile.entries.insert(
+            "qs@~6.5.0".to_string(),
+            LockfileEntry {
+                name: "qs".to_string(),
+                range: "~6.5.0".to_string(),
+                version: "6.11.0".to_string(),
+                resolved: "https://registry.npmjs.org/qs/-/qs-6.11.0.tgz".to_string(),
+                integrity: "sha512-abc".to_string(),
+                dependencies: BTreeMap::new(),
+                optional: false,
+                overridden: true,
+            },
+        );
+        lockfile.entries.insert(
+            "zod@^3.24.0".to_string(),
+            LockfileEntry {
+                name: "zod".to_string(),
+                range: "^3.24.0".to_string(),
+                version: "3.24.4".to_string(),
+                resolved: "https://registry.npmjs.org/zod/-/zod-3.24.4.tgz".to_string(),
+                integrity: "sha512-def".to_string(),
+                dependencies: BTreeMap::new(),
+                optional: false,
+                overridden: false,
+            },
+        );
+
+        write_lockfile(&path, &lockfile).unwrap();
+
+        // Verify the file content contains "overridden true" only for qs
+        let content = std::fs::read_to_string(&path).unwrap();
+        assert!(content.contains("overridden true"));
+
+        let parsed = read_lockfile(&path).unwrap();
+        assert!(parsed.entries["qs@~6.5.0"].overridden);
+        assert!(!parsed.entries["zod@^3.24.0"].overridden);
+    }
+
+    #[test]
+    fn test_parse_lockfile_without_overridden_defaults_false() {
+        let content = r#"# vertz.lock v1 — DO NOT EDIT
+# Run "vertz install" to regenerate
+
+zod@^3.24.0:
+  version "3.24.4"
+  resolved "url"
+  integrity "hash"
+
+"#;
+        let lockfile = parse_lockfile(content).unwrap();
+        assert!(!lockfile.entries["zod@^3.24.0"].overridden);
     }
 }

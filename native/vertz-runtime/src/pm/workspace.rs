@@ -297,6 +297,7 @@ mod tests {
             bin: types::BinField::default(),
             scripts: BTreeMap::new(),
             workspaces: None,
+            overrides: BTreeMap::new(),
         }
     }
 
