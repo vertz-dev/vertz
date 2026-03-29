@@ -1685,7 +1685,7 @@ export default function SearchPage() {
           __data: {},
         });
         expect(html).toContain('42');
-        expect(html).toContain('results found');
+        expect(html).toContain(' results found');
         expect(html).not.toContain('__q0');
       });
     });

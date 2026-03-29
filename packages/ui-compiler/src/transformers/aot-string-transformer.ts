@@ -1837,7 +1837,9 @@ export class AotStringTransformer {
     s: MagicString,
   ): string {
     if (child.isKind(SyntaxKind.JsxText)) {
-      const text = child.getText();
+      // Use getFullText() to preserve leading whitespace (trivia) that is
+      // significant in JSX. getText() strips it, turning ` cards` into `cards`.
+      const text = child.getFullText();
       const cleaned = this._cleanJsxText(text);
       if (!cleaned) return "''";
       return `'${this._escapeStringLiteral(cleaned)}'`;
