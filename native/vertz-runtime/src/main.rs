@@ -283,5 +283,50 @@ async fn main() {
                 }
             }
         }
+        Command::Update(args) => {
+            let root_dir =
+                std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from("."));
+
+            let output: Arc<dyn PmOutput> = if args.json {
+                Arc::new(JsonOutput::new())
+            } else {
+                Arc::new(TextOutput::new(std::io::stderr().is_terminal()))
+            };
+
+            let package_refs: Vec<&str> = args.packages.iter().map(|s| s.as_str()).collect();
+
+            match pm::update(
+                &root_dir,
+                &package_refs,
+                args.latest,
+                args.dry_run,
+                output.clone(),
+            )
+            .await
+            {
+                Ok(results) => {
+                    if args.dry_run && !args.json {
+                        if results.is_empty() {
+                            eprintln!("All packages are up to date.");
+                        } else {
+                            let text = pm::format_update_dry_run_text(&results);
+                            print!("{}", text);
+                        }
+                    } else if args.dry_run && args.json {
+                        let json = pm::format_update_dry_run_json(&results);
+                        print!("{}", json);
+                    }
+                }
+                Err(e) => {
+                    let msg = e.to_string();
+                    if args.json {
+                        output.error(error_code_from_message(&msg), &msg);
+                    } else {
+                        eprintln!("{}", msg);
+                    }
+                    std::process::exit(1);
+                }
+            }
+        }
     }
 }

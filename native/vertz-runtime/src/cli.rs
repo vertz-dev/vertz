@@ -31,6 +31,9 @@ pub enum Command {
     Why(WhyArgs),
     /// Check for newer versions of installed packages
     Outdated(OutdatedArgs),
+    /// Update packages to newer versions
+    #[command(alias = "up")]
+    Update(UpdateArgs),
 }
 
 #[derive(Parser, Debug)]
@@ -200,6 +203,24 @@ pub struct OutdatedArgs {
     pub json: bool,
 }
 
+#[derive(Parser, Debug)]
+pub struct UpdateArgs {
+    /// Package names to update (empty = update all)
+    pub packages: Vec<String>,
+
+    /// Ignore semver ranges — update to latest version
+    #[arg(long)]
+    pub latest: bool,
+
+    /// Show what would be updated without changing anything
+    #[arg(long)]
+    pub dry_run: bool,
+
+    /// Output NDJSON to stdout
+    #[arg(long)]
+    pub json: bool,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -273,6 +294,14 @@ mod tests {
         match cli.command {
             Command::Outdated(args) => args,
             other => panic!("Expected Outdated, got {:?}", other),
+        }
+    }
+
+    fn parse_update(args: &[&str]) -> UpdateArgs {
+        let cli = Cli::parse_from(args);
+        match cli.command {
+            Command::Update(args) => args,
+            other => panic!("Expected Update, got {:?}", other),
         }
     }
 
@@ -762,6 +791,63 @@ mod tests {
     #[test]
     fn test_outdated_json_flag() {
         let args = parse_outdated(&["vertz-runtime", "outdated", "--json"]);
+        assert!(args.json);
+    }
+
+    // --- Update command tests ---
+
+    #[test]
+    fn test_update_default() {
+        let args = parse_update(&["vertz-runtime", "update"]);
+        assert!(args.packages.is_empty());
+        assert!(!args.latest);
+        assert!(!args.dry_run);
+        assert!(!args.json);
+    }
+
+    #[test]
+    fn test_update_alias_up() {
+        let args = parse_update(&["vertz-runtime", "up"]);
+        assert!(args.packages.is_empty());
+    }
+
+    #[test]
+    fn test_update_specific_packages() {
+        let args = parse_update(&["vertz-runtime", "update", "zod", "react"]);
+        assert_eq!(args.packages, vec!["zod", "react"]);
+    }
+
+    #[test]
+    fn test_update_latest_flag() {
+        let args = parse_update(&["vertz-runtime", "update", "--latest"]);
+        assert!(args.latest);
+    }
+
+    #[test]
+    fn test_update_dry_run_flag() {
+        let args = parse_update(&["vertz-runtime", "update", "--dry-run"]);
+        assert!(args.dry_run);
+    }
+
+    #[test]
+    fn test_update_json_flag() {
+        let args = parse_update(&["vertz-runtime", "update", "--json"]);
+        assert!(args.json);
+    }
+
+    #[test]
+    fn test_update_all_flags_combined() {
+        let args = parse_update(&[
+            "vertz-runtime",
+            "update",
+            "zod",
+            "--latest",
+            "--dry-run",
+            "--json",
+        ]);
+        assert_eq!(args.packages, vec!["zod"]);
+        assert!(args.latest);
+        assert!(args.dry_run);
         assert!(args.json);
     }
 }

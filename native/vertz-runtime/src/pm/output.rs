@@ -14,6 +14,7 @@ pub trait PmOutput: Send + Sync {
     fn bin_stubs_created(&self, count: usize);
     fn package_added(&self, name: &str, version: &str, range: &str);
     fn package_removed(&self, name: &str);
+    fn package_updated(&self, name: &str, from: &str, to: &str, range: &str);
     fn done(&self, elapsed_ms: u64);
     fn error(&self, code: &str, message: &str);
 }
@@ -109,6 +110,10 @@ impl PmOutput for TextOutput {
         eprintln!("- {}", name);
     }
 
+    fn package_updated(&self, name: &str, from: &str, to: &str, range: &str) {
+        eprintln!("~ {}@{} → {}@{} ({})", name, from, name, to, range);
+    }
+
     fn done(&self, elapsed_ms: u64) {
         eprintln!("Done in {:.1}s", elapsed_ms as f64 / 1000.0);
     }
@@ -166,6 +171,13 @@ impl PmOutput for JsonOutput {
 
     fn package_removed(&self, name: &str) {
         println!("{}", json!({"event": "removed", "name": name}));
+    }
+
+    fn package_updated(&self, name: &str, from: &str, to: &str, range: &str) {
+        println!(
+            "{}",
+            json!({"event": "updated", "name": name, "from": from, "to": to, "range": range})
+        );
     }
 
     fn done(&self, elapsed_ms: u64) {
@@ -296,5 +308,19 @@ mod tests {
         output.download_tick();
         output.download_complete(10);
         // Non-TTY: no progress bar, just eprintln
+    }
+
+    #[test]
+    fn test_text_output_package_updated() {
+        let output = TextOutput::new(false);
+        // Should not panic
+        output.package_updated("zod", "3.24.0", "3.24.4", "^3.24.0");
+    }
+
+    #[test]
+    fn test_json_output_package_updated() {
+        let output: Arc<dyn PmOutput> = Arc::new(JsonOutput::new());
+        // Should not panic; emits NDJSON to stdout
+        output.package_updated("zod", "3.24.0", "3.24.4", "^3.24.0");
     }
 }

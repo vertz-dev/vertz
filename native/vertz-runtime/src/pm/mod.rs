@@ -975,6 +975,242 @@ pub fn format_outdated_json(entries: &[OutdatedEntry]) -> String {
     output
 }
 
+/// Result of a single package update
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct UpdateResult {
+    pub name: String,
+    pub from: String,
+    pub to: String,
+    pub range: String,
+    pub dev: bool,
+}
+
+/// Update packages to newer versions.
+/// If `packages` is empty, updates all direct dependencies.
+/// Returns a list of updates that were (or would be) applied.
+pub async fn update(
+    root_dir: &Path,
+    packages: &[&str],
+    latest: bool,
+    dry_run: bool,
+    output: Arc<dyn PmOutput>,
+) -> Result<Vec<UpdateResult>, Box<dyn std::error::Error>> {
+    let start = Instant::now();
+    let mut pkg = types::read_package_json(root_dir)?;
+
+    let lockfile_path = root_dir.join("vertz.lock");
+    if !lockfile_path.exists() {
+        return Err("No lockfile found. Run `vertz install` first.".into());
+    }
+
+    let mut lockfile = lockfile::read_lockfile(&lockfile_path)?;
+
+    // Determine which packages to update
+    let targets: Vec<(String, String, bool)> = if packages.is_empty() {
+        // Update all direct deps
+        let mut all = Vec::new();
+        for (name, range) in &pkg.dependencies {
+            all.push((name.clone(), range.clone(), false));
+        }
+        for (name, range) in &pkg.dev_dependencies {
+            all.push((name.clone(), range.clone(), true));
+        }
+        all
+    } else {
+        let mut targets = Vec::new();
+        for &pkg_name in packages {
+            if let Some(range) = pkg.dependencies.get(pkg_name) {
+                targets.push((pkg_name.to_string(), range.clone(), false));
+            } else if let Some(range) = pkg.dev_dependencies.get(pkg_name) {
+                targets.push((pkg_name.to_string(), range.clone(), true));
+            } else {
+                return Err(format!(
+                    "error: package is not a direct dependency: \"{}\"",
+                    pkg_name
+                )
+                .into());
+            }
+        }
+        targets
+    };
+
+    // Use outdated to find what needs updating — but we do our own check for --latest
+    let cache_dir = registry::default_cache_dir();
+    let client = Arc::new(RegistryClient::new(&cache_dir));
+
+    let mut results: Vec<UpdateResult> = Vec::new();
+
+    for (name, range, dev) in &targets {
+        let spec_key = types::Lockfile::spec_key(name, range);
+        let current_version = lockfile
+            .entries
+            .get(&spec_key)
+            .map(|e| e.version.clone())
+            .unwrap_or_default();
+
+        if current_version.is_empty() {
+            continue;
+        }
+
+        let meta = client
+            .fetch_metadata_abbreviated(name)
+            .await
+            .map_err(|e| format!("{}", e))?;
+
+        let new_version = if latest {
+            // --latest: use latest dist-tag version
+            meta.dist_tags.get("latest").cloned()
+        } else {
+            // Default: update within semver range
+            resolve_wanted_version(range, &meta.versions, &meta.dist_tags)
+        };
+
+        if let Some(ref new_ver) = new_version {
+            if new_ver != &current_version {
+                let new_range = if latest {
+                    // Preserve the range operator from the original range
+                    let prefix = extract_range_prefix(range);
+                    format!("{}{}", prefix, new_ver)
+                } else {
+                    range.clone()
+                };
+
+                results.push(UpdateResult {
+                    name: name.clone(),
+                    from: current_version.clone(),
+                    to: new_ver.clone(),
+                    range: new_range.clone(),
+                    dev: *dev,
+                });
+
+                if !dry_run {
+                    output.package_updated(name, &current_version, new_ver, &new_range);
+
+                    // Remove lockfile entries for this package so resolver re-resolves
+                    let keys_to_remove: Vec<String> = lockfile
+                        .entries
+                        .keys()
+                        .filter(|k| {
+                            types::Lockfile::parse_spec_key(k)
+                                .map(|(n, _)| n == name.as_str())
+                                .unwrap_or(false)
+                        })
+                        .cloned()
+                        .collect();
+                    for key in keys_to_remove {
+                        lockfile.entries.remove(&key);
+                    }
+
+                    // Update range in package.json if --latest changed it
+                    if latest {
+                        if *dev {
+                            pkg.dev_dependencies.insert(name.clone(), new_range);
+                        } else {
+                            pkg.dependencies.insert(name.clone(), new_range);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    if !dry_run && !results.is_empty() {
+        // Write updated package.json (only if --latest changed ranges)
+        if latest {
+            types::write_package_json(root_dir, &pkg)?;
+        }
+
+        // Write lockfile with entries removed
+        lockfile::write_lockfile(&lockfile_path, &lockfile)?;
+
+        // Re-install to resolve and link updated packages
+        install(root_dir, false, false, output.clone()).await?;
+    } else if !dry_run && results.is_empty() {
+        let elapsed = start.elapsed();
+        output.done(elapsed.as_millis() as u64);
+    }
+
+    Ok(results)
+}
+
+/// Extract the range prefix operator from a semver range string.
+/// e.g., "^3.24.0" → "^", "~1.0.0" → "~", ">=1.0.0" → ">=", "3.24.0" → ""
+fn extract_range_prefix(range: &str) -> &str {
+    if range.starts_with(">=") {
+        ">="
+    } else if range.starts_with("<=") {
+        "<="
+    } else if range.starts_with('^') {
+        "^"
+    } else if range.starts_with('~') {
+        "~"
+    } else if range.starts_with('>') {
+        ">"
+    } else if range.starts_with('<') {
+        "<"
+    } else {
+        ""
+    }
+}
+
+/// Format update dry-run results as human-readable text
+pub fn format_update_dry_run_text(results: &[UpdateResult]) -> String {
+    if results.is_empty() {
+        return String::new();
+    }
+
+    let name_width = results
+        .iter()
+        .map(|r| r.name.len())
+        .max()
+        .unwrap_or(7)
+        .max(7);
+    let from_width = results
+        .iter()
+        .map(|r| r.from.len())
+        .max()
+        .unwrap_or(7)
+        .max(7);
+
+    let mut output = format!(
+        "{:<name_w$}  {:<from_w$}  To\n",
+        "Package",
+        "Current",
+        name_w = name_width,
+        from_w = from_width,
+    );
+
+    for result in results {
+        output.push_str(&format!(
+            "{:<name_w$}  {:<from_w$}  {}\n",
+            result.name,
+            result.from,
+            result.to,
+            name_w = name_width,
+            from_w = from_width,
+        ));
+    }
+
+    output
+}
+
+/// Format update dry-run results as NDJSON
+pub fn format_update_dry_run_json(results: &[UpdateResult]) -> String {
+    let mut output = String::new();
+    for result in results {
+        let obj = serde_json::json!({
+            "name": result.name,
+            "from": result.from,
+            "to": result.to,
+            "range": result.range,
+            "dev": result.dev,
+        });
+        output.push_str(&obj.to_string());
+        output.push('\n');
+    }
+    output
+}
+
 /// Verify lockfile matches package.json for --frozen mode
 fn verify_frozen(
     pkg: &types::PackageJson,
@@ -1902,6 +2138,115 @@ mod tests {
         ];
 
         let json = format_outdated_json(&entries);
+        let lines: Vec<&str> = json.trim().lines().collect();
+        assert_eq!(lines.len(), 2);
+        let first: serde_json::Value = serde_json::from_str(lines[0]).unwrap();
+        let second: serde_json::Value = serde_json::from_str(lines[1]).unwrap();
+        assert_eq!(first["name"], "react");
+        assert_eq!(second["name"], "typescript");
+        assert_eq!(second["dev"], true);
+    }
+
+    // --- extract_range_prefix tests ---
+
+    #[test]
+    fn test_extract_range_prefix_caret() {
+        assert_eq!(extract_range_prefix("^3.24.0"), "^");
+    }
+
+    #[test]
+    fn test_extract_range_prefix_tilde() {
+        assert_eq!(extract_range_prefix("~1.0.0"), "~");
+    }
+
+    #[test]
+    fn test_extract_range_prefix_gte() {
+        assert_eq!(extract_range_prefix(">=1.0.0"), ">=");
+    }
+
+    #[test]
+    fn test_extract_range_prefix_lte() {
+        assert_eq!(extract_range_prefix("<=2.0.0"), "<=");
+    }
+
+    #[test]
+    fn test_extract_range_prefix_gt() {
+        assert_eq!(extract_range_prefix(">1.0.0"), ">");
+    }
+
+    #[test]
+    fn test_extract_range_prefix_lt() {
+        assert_eq!(extract_range_prefix("<2.0.0"), "<");
+    }
+
+    #[test]
+    fn test_extract_range_prefix_exact() {
+        assert_eq!(extract_range_prefix("3.24.0"), "");
+    }
+
+    // --- format_update_dry_run tests ---
+
+    #[test]
+    fn test_format_update_dry_run_text_empty() {
+        let results: Vec<UpdateResult> = Vec::new();
+        assert_eq!(format_update_dry_run_text(&results), "");
+    }
+
+    #[test]
+    fn test_format_update_dry_run_text_single() {
+        let results = vec![UpdateResult {
+            name: "zod".to_string(),
+            from: "3.24.0".to_string(),
+            to: "3.24.4".to_string(),
+            range: "^3.24.0".to_string(),
+            dev: false,
+        }];
+        let output = format_update_dry_run_text(&results);
+        assert!(output.contains("Package"));
+        assert!(output.contains("Current"));
+        assert!(output.contains("To"));
+        assert!(output.contains("zod"));
+        assert!(output.contains("3.24.0"));
+        assert!(output.contains("3.24.4"));
+    }
+
+    #[test]
+    fn test_format_update_dry_run_json_single() {
+        let results = vec![UpdateResult {
+            name: "zod".to_string(),
+            from: "3.24.0".to_string(),
+            to: "3.24.4".to_string(),
+            range: "^3.24.4".to_string(),
+            dev: false,
+        }];
+        let json = format_update_dry_run_json(&results);
+        let line: serde_json::Value = serde_json::from_str(json.trim()).unwrap();
+        assert_eq!(line["name"], "zod");
+        assert_eq!(line["from"], "3.24.0");
+        assert_eq!(line["to"], "3.24.4");
+        assert_eq!(line["range"], "^3.24.4");
+        assert_eq!(line["dev"], false);
+    }
+
+    #[test]
+    fn test_format_update_dry_run_json_multiple() {
+        let results = vec![
+            UpdateResult {
+                name: "react".to_string(),
+                from: "18.3.0".to_string(),
+                to: "18.3.1".to_string(),
+                range: "^18.3.0".to_string(),
+                dev: false,
+            },
+            UpdateResult {
+                name: "typescript".to_string(),
+                from: "5.7.0".to_string(),
+                to: "5.8.0".to_string(),
+                range: "^5.0.0".to_string(),
+                dev: true,
+            },
+        ];
+        let json = format_update_dry_run_json(&results);
         let lines: Vec<&str> = json.trim().lines().collect();
         assert_eq!(lines.len(), 2);
         let first: serde_json::Value = serde_json::from_str(lines[0]).unwrap();
