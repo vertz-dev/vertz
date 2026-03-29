@@ -180,9 +180,17 @@ async fn resolve_recursive(
                 resolve_recursive(dep_name, dep_range, state).await?;
             }
             state.parent_chain.pop();
+        } else if !state.parent_chain.is_empty() {
+            // Transitive GitHub dep from an npm package — not supported yet.
+            // Root-level GitHub deps are always pre-resolved by install().
+            eprintln!(
+                "warning: transitive GitHub dependency \"{}\" ({}) from {} is not supported — skipping",
+                name,
+                effective_range,
+                state.parent_chain.last().unwrap_or(&"root".to_string())
+            );
         }
-        // If not pre-resolved, skip silently — the caller should have pre-inserted it.
-        // During `install` from lockfile, GitHub deps are pre-resolved from lockfile entries.
+        // If not pre-resolved at root level, skip — the caller should have pre-inserted it.
         return Ok(());
     }
 

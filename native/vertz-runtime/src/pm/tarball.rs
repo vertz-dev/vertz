@@ -112,8 +112,15 @@ impl TarballManager {
             }
         }
     }
+    /// Path to the integrity sidecar file for a GitHub package
+    pub fn integrity_path(&self, name: &str, sha: &str) -> PathBuf {
+        self.store_dir
+            .join(format!("{}@{}.integrity", name.replace('/', "+"), sha))
+    }
+
     /// Download and extract a GitHub tarball to the global store.
     /// Returns `(extracted_path, integrity)` — integrity is the SHA-512 of the tarball bytes.
+    /// Integrity is persisted in a sidecar file so it survives cache hits.
     pub async fn fetch_and_extract_github(
         &self,
         name: &str,
@@ -122,19 +129,20 @@ impl TarballManager {
     ) -> Result<(PathBuf, String), Box<dyn std::error::Error + Send + Sync>> {
         let final_path = self.store_path(name, sha);
 
-        // Skip if already extracted — compute integrity from cached tarball
-        // (We don't store integrity separately, so re-download if needed for the hash.)
-        // For the fast path, the caller should already have integrity from the lockfile.
+        // Skip if already extracted — read integrity from sidecar file
         if final_path.exists() {
-            // Return empty integrity — caller uses lockfile integrity when available
-            return Ok((final_path, String::new()));
+            let integrity = std::fs::read_to_string(self.integrity_path(name, sha))
+                .unwrap_or_default();
+            return Ok((final_path, integrity));
         }
 
         let _permit = self.semaphore.acquire().await?;
 
         // Double-check after acquiring permit
         if final_path.exists() {
-            return Ok((final_path, String::new()));
+            let integrity = std::fs::read_to_string(self.integrity_path(name, sha))
+                .unwrap_or_default();
+            return Ok((final_path, integrity));
         }
 
         // Download tarball
@@ -165,6 +173,9 @@ impl TarballManager {
             extract_github_tarball(&bytes_clone, &staging_clone)
         })
         .await??;
+
+        // Write integrity sidecar before moving into final path
+        std::fs::write(self.integrity_path(name, sha), &integrity).ok();
 
         // Atomic rename to final path
         match std::fs::rename(&staging_dir, &final_path) {

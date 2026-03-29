@@ -122,54 +122,67 @@ pub async fn install(
 
     // Pre-resolve GitHub dependencies before resolver runs
     let mut pre_resolved = Vec::new();
+    let gh_client_install = github::GitHubClient::new();
     for (name, range) in &all_deps {
         if !range.starts_with("github:") {
             continue;
         }
         let lockfile_key = types::Lockfile::spec_key(name, range);
         if let Some(entry) = existing_lockfile.entries.get(&lockfile_key) {
-            // Lockfile has this GitHub dep — reconstruct ResolvedPackage from it
+            // Lockfile has this GitHub dep — reconstruct ResolvedPackage from it.
+            // Read bin entries from cached package.json if available.
+            let bin = {
+                let cached_path = tarball_mgr.store_path(&entry.name, &entry.version);
+                if cached_path.exists() {
+                    types::read_package_json(&cached_path)
+                        .map(|p| p.bin.to_map(&entry.name))
+                        .unwrap_or_default()
+                } else {
+                    BTreeMap::new()
+                }
+            };
             pre_resolved.push(types::ResolvedPackage {
                 name: entry.name.clone(),
                 version: entry.version.clone(),
                 tarball_url: entry.resolved.clone(),
                 integrity: entry.integrity.clone(),
                 dependencies: entry.dependencies.clone(),
-                bin: BTreeMap::new(),
+                bin,
                 nest_path: vec![],
             });
         } else if !frozen {
-            // No lockfile entry — resolve from GitHub API
+            // No lockfile entry — resolve from GitHub API using parse_package_specifier
             output.github_resolve_started(range);
 
-            let rest = range.strip_prefix("github:").unwrap();
-            let (owner_repo, gh_ref) = if let Some(hash_pos) = rest.find('#') {
-                let r = &rest[hash_pos + 1..];
-                (
-                    &rest[..hash_pos],
-                    if r.is_empty() { None } else { Some(r) },
-                )
-            } else {
-                (rest, None)
+            let parsed = types::parse_package_specifier(range);
+            let gh = match parsed {
+                types::ParsedSpecifier::GitHub(gh) => gh,
+                types::ParsedSpecifier::Error(msg) => {
+                    return Err(msg.into());
+                }
+                _ => {
+                    return Err(format!(
+                        "unexpected specifier type for GitHub range: {}",
+                        range
+                    )
+                    .into());
+                }
             };
-            let (owner, repo) = owner_repo.split_once('/').ok_or_else(|| {
-                format!("invalid GitHub specifier in dependencies: {}", range)
-            })?;
 
-            let gh_client = github::GitHubClient::new();
-            let sha = gh_client
-                .resolve_ref(owner, repo, gh_ref)
+            let sha = gh_client_install
+                .resolve_ref(&gh.owner, &gh.repo, gh.ref_.as_deref())
                 .await
                 .map_err(|e| format!("{}", e))?;
             let sha_abbrev = &sha[..7.min(sha.len())];
 
-            let tarball_url = github::GitHubClient::tarball_url(owner, repo, &sha);
+            let tarball_url =
+                github::GitHubClient::tarball_url(&gh.owner, &gh.repo, &sha);
             let (extracted_path, integrity) = tarball_mgr
                 .fetch_and_extract_github(name, &sha, &tarball_url)
                 .await
                 .map_err(|e| format!("{}", e))?;
 
-            // Read package.json from extracted tarball for transitive deps
+            // Read package.json from extracted tarball for transitive deps and bin
             let gh_pkg = types::read_package_json(&extracted_path)?;
 
             output.github_resolve_complete(name, sha_abbrev);
@@ -287,7 +300,7 @@ pub async fn install(
                     let url = pkg.tarball_url.clone();
                     let integrity = pkg.integrity.clone();
                     async move {
-                        if url.contains("codeload.github.com") {
+                        if url.starts_with("https://codeload.github.com/") {
                             // GitHub tarball — use GitHub-specific extraction
                             let (_path, _integrity) = mgr
                                 .fetch_and_extract_github(&name, &version, &url)
@@ -463,6 +476,8 @@ pub async fn add(
 
     let cache_dir = registry::default_cache_dir();
     let registry_client = RegistryClient::new(&cache_dir);
+    let tarball_mgr_add = TarballManager::new(&cache_dir);
+    let gh_client_add = github::GitHubClient::new();
 
     // Resolve all packages first, then mutate package.json once
     for package in packages {
@@ -478,8 +493,7 @@ pub async fn add(
                 };
                 output.github_resolve_started(&specifier);
 
-                let gh_client = github::GitHubClient::new();
-                let sha = gh_client
+                let sha = gh_client_add
                     .resolve_ref(&gh.owner, &gh.repo, gh.ref_.as_deref())
                     .await
                     .map_err(|e| format!("{}", e))?;
@@ -488,12 +502,10 @@ pub async fn add(
                 // Download and extract tarball
                 let tarball_url =
                     github::GitHubClient::tarball_url(&gh.owner, &gh.repo, &sha);
-                let cache_dir_gh = registry::default_cache_dir();
-                let tarball_mgr = TarballManager::new(&cache_dir_gh);
 
                 // Use owner/repo as temporary cache key (we don't know the package name yet)
                 let temp_cache_name = format!("{}/{}", gh.owner, gh.repo);
-                let (extracted_path, _integrity) = tarball_mgr
+                let (extracted_path, _integrity) = tarball_mgr_add
                     .fetch_and_extract_github(&temp_cache_name, &sha, &tarball_url)
                     .await
                     .map_err(|e| format!("{}", e))?;
@@ -508,9 +520,27 @@ pub async fn add(
                 })?;
 
                 // Re-key cache from owner/repo to real package name so install() can find it
-                let correct_cache_path = tarball_mgr.store_path(&pkg_name, &sha);
+                let correct_cache_path = tarball_mgr_add.store_path(&pkg_name, &sha);
                 if extracted_path != correct_cache_path && !correct_cache_path.exists() {
-                    std::fs::rename(&extracted_path, &correct_cache_path).ok();
+                    if let Err(e) = std::fs::rename(&extracted_path, &correct_cache_path) {
+                        // Cross-filesystem rename (EXDEV) — fall back to copy + delete
+                        copy_dir_recursive(&extracted_path, &correct_cache_path)
+                            .map_err(|copy_err| {
+                                format!(
+                                    "failed to cache GitHub package {} (rename: {}, copy: {})",
+                                    pkg_name, e, copy_err
+                                )
+                            })?;
+                        std::fs::remove_dir_all(&extracted_path).ok();
+                    }
+                    // Also re-key the integrity sidecar file
+                    let old_integrity_path = tarball_mgr_add
+                        .integrity_path(&temp_cache_name, &sha);
+                    let new_integrity_path = tarball_mgr_add
+                        .integrity_path(&pkg_name, &sha);
+                    if old_integrity_path.exists() {
+                        std::fs::rename(&old_integrity_path, &new_integrity_path).ok();
+                    }
                 }
 
                 output.github_resolve_complete(&pkg_name, sha_abbrev);
@@ -1815,6 +1845,23 @@ fn shell_escape_windows(s: &str) -> String {
     } else {
         s.to_string()
     }
+}
+
+/// Recursively copy a directory — used as fallback when rename() fails (cross-filesystem).
+fn copy_dir_recursive(src: &Path, dst: &Path) -> Result<(), Box<dyn std::error::Error>> {
+    std::fs::create_dir_all(dst)?;
+    for entry in std::fs::read_dir(src)? {
+        let entry = entry?;
+        let ty = entry.file_type()?;
+        let src_path = entry.path();
+        let dst_path = dst.join(entry.file_name());
+        if ty.is_dir() {
+            copy_dir_recursive(&src_path, &dst_path)?;
+        } else {
+            std::fs::copy(&src_path, &dst_path)?;
+        }
+    }
+    Ok(())
 }
 
 /// Verify lockfile matches package.json for --frozen mode
