@@ -1957,7 +1957,12 @@ pub async fn audit(
     }
 
     // Sort by severity (critical first), then by name
-    all_entries.sort_by(|a, b| a.severity.rank().cmp(&b.severity.rank()).then(a.name.cmp(&b.name)));
+    all_entries.sort_by(|a, b| {
+        a.severity
+            .rank()
+            .cmp(&b.severity.rank())
+            .then(a.name.cmp(&b.name))
+    });
 
     // Filter by severity threshold
     let total_before_filter = all_entries.len();
@@ -2112,8 +2117,7 @@ pub async fn audit_fix(
             .iter()
             .map(|s| s.as_str())
             .collect();
-        let merged = merge_patched_ranges(&patched_refs)
-            .unwrap_or_else(|| entry.patched.clone());
+        let merged = merge_patched_ranges(&patched_refs).unwrap_or_else(|| entry.patched.clone());
 
         packages_to_fix.push((entry.name.clone(), entry.version.clone(), merged));
     }
@@ -2147,12 +2151,16 @@ pub async fn audit_fix(
 
                 match client.fetch_metadata_abbreviated(&name).await {
                     Ok(meta) => {
-                        let fix_version = resolve_fix_version(
-                            &declared_range,
-                            &merged_patched,
-                            &meta.versions,
-                        );
-                        (name, current_version, merged_patched, fix_version, Some(meta.versions), None)
+                        let fix_version =
+                            resolve_fix_version(&declared_range, &merged_patched, &meta.versions);
+                        (
+                            name,
+                            current_version,
+                            merged_patched,
+                            fix_version,
+                            Some(meta.versions),
+                            None,
+                        )
                     }
                     Err(e) => (
                         name,
@@ -2196,11 +2204,8 @@ pub async fn audit_fix(
 
                 if !dry_run {
                     // Extract tarball URL and integrity from metadata
-                    let (resolved_url, integrity) = extract_version_dist(
-                        &name,
-                        &to_version,
-                        versions_meta.as_ref(),
-                    );
+                    let (resolved_url, integrity) =
+                        extract_version_dist(&name, &to_version, versions_meta.as_ref());
 
                     // Update the lockfile entry
                     let spec_key = types::Lockfile::spec_key(&name, &declared_range);
@@ -2212,15 +2217,17 @@ pub async fn audit_fix(
                 }
             }
             None => {
+                let reason = if merged_patched == "<0.0.0" {
+                    "no patched version available".to_string()
+                } else {
+                    format!("patched version outside declared range {}", declared_range)
+                };
                 manual.push(FixManual {
                     name,
                     from: current_version,
                     patched: merged_patched,
                     range: declared_range.clone(),
-                    reason: format!(
-                        "patched version outside declared range {}",
-                        declared_range
-                    ),
+                    reason,
                 });
             }
         }
@@ -2236,7 +2243,10 @@ pub async fn audit_fix(
         let tarball_mgr = TarballManager::new(&registry::default_cache_dir());
         let node_modules = root_dir.join("node_modules");
         for f in &fixed {
-            let spec_key = types::Lockfile::spec_key(&f.name, &declared_ranges.get(&f.name).cloned().unwrap_or_default());
+            let spec_key = types::Lockfile::spec_key(
+                &f.name,
+                &declared_ranges.get(&f.name).cloned().unwrap_or_default(),
+            );
             if let Some(entry) = lockfile.entries.get(&spec_key) {
                 // Download and extract the new tarball to cache
                 match tarball_mgr
@@ -2287,13 +2297,21 @@ pub fn format_fix_text(fixed: &[FixApplied], manual: &[FixManual], dry_run: bool
             output.push_str(&format!(
                 "\nWould fix {} {}:\n",
                 fixed.len(),
-                if fixed.len() == 1 { "vulnerability" } else { "vulnerabilities" }
+                if fixed.len() == 1 {
+                    "vulnerability"
+                } else {
+                    "vulnerabilities"
+                }
             ));
         } else {
             output.push_str(&format!(
                 "\nFixed {} {}:\n",
                 fixed.len(),
-                if fixed.len() == 1 { "vulnerability" } else { "vulnerabilities" }
+                if fixed.len() == 1 {
+                    "vulnerability"
+                } else {
+                    "vulnerabilities"
+                }
             ));
         }
         for f in fixed {
@@ -2305,7 +2323,11 @@ pub fn format_fix_text(fixed: &[FixApplied], manual: &[FixManual], dry_run: bool
         output.push_str(&format!(
             "\n{} {} manual update:\n",
             manual.len(),
-            if manual.len() == 1 { "vulnerability requires" } else { "vulnerabilities require" }
+            if manual.len() == 1 {
+                "vulnerability requires"
+            } else {
+                "vulnerabilities require"
+            }
         ));
         for m in manual {
             output.push_str(&format!(
@@ -2589,10 +2611,7 @@ pub fn format_audit_text(entries: &[types::AuditEntry]) -> String {
 }
 
 /// Format the audit summary line for stderr.
-pub fn format_audit_summary(
-    entries: &[types::AuditEntry],
-    below_threshold: usize,
-) -> String {
+pub fn format_audit_summary(entries: &[types::AuditEntry], below_threshold: usize) -> String {
     if entries.is_empty() && below_threshold == 0 {
         return "No vulnerabilities found.".to_string();
     }
@@ -2605,10 +2624,22 @@ pub fn format_audit_summary(
     }
 
     let total = entries.len();
-    let critical = entries.iter().filter(|e| e.severity == types::Severity::Critical).count();
-    let high = entries.iter().filter(|e| e.severity == types::Severity::High).count();
-    let moderate = entries.iter().filter(|e| e.severity == types::Severity::Moderate).count();
-    let low = entries.iter().filter(|e| e.severity == types::Severity::Low).count();
+    let critical = entries
+        .iter()
+        .filter(|e| e.severity == types::Severity::Critical)
+        .count();
+    let high = entries
+        .iter()
+        .filter(|e| e.severity == types::Severity::High)
+        .count();
+    let moderate = entries
+        .iter()
+        .filter(|e| e.severity == types::Severity::Moderate)
+        .count();
+    let low = entries
+        .iter()
+        .filter(|e| e.severity == types::Severity::Low)
+        .count();
 
     let mut parts = Vec::new();
     if critical > 0 {
@@ -2670,10 +2701,22 @@ pub fn format_audit_json(
     }
 
     // audit_complete event
-    let critical = entries.iter().filter(|e| e.severity == types::Severity::Critical).count();
-    let high = entries.iter().filter(|e| e.severity == types::Severity::High).count();
-    let moderate = entries.iter().filter(|e| e.severity == types::Severity::Moderate).count();
-    let low = entries.iter().filter(|e| e.severity == types::Severity::Low).count();
+    let critical = entries
+        .iter()
+        .filter(|e| e.severity == types::Severity::Critical)
+        .count();
+    let high = entries
+        .iter()
+        .filter(|e| e.severity == types::Severity::High)
+        .count();
+    let moderate = entries
+        .iter()
+        .filter(|e| e.severity == types::Severity::Moderate)
+        .count();
+    let low = entries
+        .iter()
+        .filter(|e| e.severity == types::Severity::Low)
+        .count();
 
     let complete = serde_json::json!({
         "event": "audit_complete",
@@ -3994,9 +4037,30 @@ mod tests {
     #[test]
     fn test_format_audit_summary_with_vulns() {
         let entries = vec![
-            make_audit_entry("lodash", "4.17.15", types::Severity::Critical, "PP", ">=4.17.21", None),
-            make_audit_entry("axios", "0.21.1", types::Severity::High, "SSRF", ">=0.21.2", None),
-            make_audit_entry("tar", "6.1.0", types::Severity::Moderate, "AFO", ">=6.1.9", Some("npm")),
+            make_audit_entry(
+                "lodash",
+                "4.17.15",
+                types::Severity::Critical,
+                "PP",
+                ">=4.17.21",
+                None,
+            ),
+            make_audit_entry(
+                "axios",
+                "0.21.1",
+                types::Severity::High,
+                "SSRF",
+                ">=0.21.2",
+                None,
+            ),
+            make_audit_entry(
+                "tar",
+                "6.1.0",
+                types::Severity::Moderate,
+                "AFO",
+                ">=6.1.9",
+                Some("npm"),
+            ),
         ];
 
         let summary = format_audit_summary(&entries, 0);
@@ -4008,9 +4072,14 @@ mod tests {
 
     #[test]
     fn test_format_audit_summary_single_vuln() {
-        let entries = vec![
-            make_audit_entry("lodash", "4.17.15", types::Severity::Critical, "PP", ">=4.17.21", None),
-        ];
+        let entries = vec![make_audit_entry(
+            "lodash",
+            "4.17.15",
+            types::Severity::Critical,
+            "PP",
+            ">=4.17.21",
+            None,
+        )];
 
         let summary = format_audit_summary(&entries, 0);
         assert!(summary.contains("1 vulnerability found"));
@@ -4026,9 +4095,14 @@ mod tests {
 
     #[test]
     fn test_format_audit_summary_below_threshold() {
-        let entries = vec![
-            make_audit_entry("lodash", "4.17.15", types::Severity::Critical, "PP", ">=4.17.21", None),
-        ];
+        let entries = vec![make_audit_entry(
+            "lodash",
+            "4.17.15",
+            types::Severity::Critical,
+            "PP",
+            ">=4.17.21",
+            None,
+        )];
 
         let summary = format_audit_summary(&entries, 3);
         assert!(summary.contains("1 vulnerability found"));
@@ -4045,9 +4119,14 @@ mod tests {
 
     #[test]
     fn test_format_audit_json_basic() {
-        let entries = vec![
-            make_audit_entry("lodash", "4.17.15", types::Severity::Critical, "Prototype Pollution", ">=4.17.21", None),
-        ];
+        let entries = vec![make_audit_entry(
+            "lodash",
+            "4.17.15",
+            types::Severity::Critical,
+            "Prototype Pollution",
+            ">=4.17.21",
+            None,
+        )];
 
         let json = format_audit_json(&entries, 142, 0);
         let lines: Vec<&str> = json.trim().lines().collect();
@@ -4076,9 +4155,14 @@ mod tests {
 
     #[test]
     fn test_format_audit_json_with_parent() {
-        let entries = vec![
-            make_audit_entry("tar", "6.1.0", types::Severity::High, "AFO", ">=6.1.9", Some("npm")),
-        ];
+        let entries = vec![make_audit_entry(
+            "tar",
+            "6.1.0",
+            types::Severity::High,
+            "AFO",
+            ">=6.1.9",
+            Some("npm"),
+        )];
 
         let json = format_audit_json(&entries, 50, 0);
         let lines: Vec<&str> = json.trim().lines().collect();
@@ -4152,7 +4236,12 @@ mod tests {
         );
         lockfile.entries.insert(
             "body-parser@^1.20.0".to_string(),
-            make_lockfile_entry("body-parser", "^1.20.0", "1.20.2", &[("raw-body", "^2.5.0")]),
+            make_lockfile_entry(
+                "body-parser",
+                "^1.20.0",
+                "1.20.2",
+                &[("raw-body", "^2.5.0")],
+            ),
         );
         lockfile.entries.insert(
             "raw-body@^2.5.0".to_string(),
@@ -4188,11 +4277,7 @@ mod tests {
     #[tokio::test]
     async fn test_audit_empty_lockfile() {
         let dir = tempfile::tempdir().unwrap();
-        std::fs::write(
-            dir.path().join("package.json"),
-            r#"{"name": "test"}"#,
-        )
-        .unwrap();
+        std::fs::write(dir.path().join("package.json"), r#"{"name": "test"}"#).unwrap();
         // Write a valid but empty lockfile
         std::fs::write(
             dir.path().join("vertz.lock"),
@@ -4404,7 +4489,13 @@ mod tests {
         let manual_ev: serde_json::Value = serde_json::from_str(lines[0]).unwrap();
         assert_eq!(manual_ev["event"], "fix_manual");
         assert_eq!(manual_ev["name"], "express");
-        assert_eq!(manual_ev["reason"], "patched version outside declared range");
-        assert!(manual_ev["suggestion"].as_str().unwrap().contains("vertz add express@\"<patched-version>\""));
+        assert_eq!(
+            manual_ev["reason"],
+            "patched version outside declared range"
+        );
+        assert!(manual_ev["suggestion"]
+            .as_str()
+            .unwrap()
+            .contains("vertz add express@\"<patched-version>\""));
     }
 }

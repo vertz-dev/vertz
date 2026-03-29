@@ -245,8 +245,9 @@ impl RegistryClient {
                         > = serde_json::from_str(&body)?;
                         return Ok(advisories);
                     } else {
-                        last_error =
-                            Some(format!("advisory API returned HTTP {}", response.status()).into());
+                        last_error = Some(
+                            format!("advisory API returned HTTP {}", response.status()).into(),
+                        );
                     }
                 }
                 Err(e) => {

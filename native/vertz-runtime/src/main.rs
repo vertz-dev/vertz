@@ -262,9 +262,10 @@ async fn main() {
             let root_dir =
                 std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from("."));
 
-            let severity_threshold =
-                vertz_runtime::pm::types::Severity::parse(args.severity.as_deref().unwrap_or("low"))
-                    .unwrap_or(vertz_runtime::pm::types::Severity::Low);
+            let severity_threshold = vertz_runtime::pm::types::Severity::parse(
+                args.severity.as_deref().unwrap_or("low"),
+            )
+            .unwrap_or(vertz_runtime::pm::types::Severity::Low);
 
             if args.dry_run && !args.fix {
                 eprintln!("error: --dry-run requires --fix");
@@ -277,7 +278,9 @@ async fn main() {
                     let lockfile_path = root_dir.join("vertz.lock");
                     if lockfile_path.exists() {
                         if let Ok(lf) = vertz_runtime::pm::lockfile::read_lockfile(&lockfile_path) {
-                            let pkg_count = lf.entries.values()
+                            let pkg_count = lf
+                                .entries
+                                .values()
                                 .filter(|e| !e.resolved.starts_with("link:"))
                                 .map(|e| &e.name)
                                 .collect::<std::collections::HashSet<_>>()
@@ -296,9 +299,21 @@ async fn main() {
                                 result.audit.below_threshold,
                             );
                             print!("{}", audit_json);
+                            for be in &result.audit.batch_errors {
+                                let obj = serde_json::json!({"event": "batch_error", "batch": be.batch, "error": be.error});
+                                println!("{}", obj);
+                            }
+                            for warning in &result.audit.warnings {
+                                let obj =
+                                    serde_json::json!({"event": "warning", "message": warning});
+                                println!("{}", obj);
+                            }
                             let fix_json = pm::format_fix_json(&result.fixed, &result.manual);
                             print!("{}", fix_json);
                         } else {
+                            for warning in &result.audit.warnings {
+                                eprintln!("{}", warning);
+                            }
                             if !result.audit.entries.is_empty() {
                                 let table = pm::format_audit_text(&result.audit.entries);
                                 print!("{}", table);
@@ -310,11 +325,8 @@ async fn main() {
                                     result.audit.below_threshold
                                 )
                             );
-                            let fix_text = pm::format_fix_text(
-                                &result.fixed,
-                                &result.manual,
-                                args.dry_run,
-                            );
+                            let fix_text =
+                                pm::format_fix_text(&result.fixed, &result.manual, args.dry_run);
                             if !fix_text.is_empty() {
                                 eprint!("{}", fix_text);
                             }
@@ -325,7 +337,10 @@ async fn main() {
                         // package names, not raw advisory count.
                         let fixed_names: std::collections::HashSet<&str> =
                             result.fixed.iter().map(|f| f.name.as_str()).collect();
-                        let has_unfixed = result.audit.entries.iter()
+                        let has_unfixed = result
+                            .audit
+                            .entries
+                            .iter()
                             .any(|e| !fixed_names.contains(e.name.as_str()));
                         if has_unfixed || !result.manual.is_empty() {
                             std::process::exit(1);
@@ -333,7 +348,8 @@ async fn main() {
                     }
                     Err(e) => {
                         if args.json {
-                            let obj = serde_json::json!({"event": "error", "message": e.to_string()});
+                            let obj =
+                                serde_json::json!({"event": "error", "message": e.to_string()});
                             println!("{}", obj);
                         } else {
                             eprintln!("{}", e);
@@ -349,7 +365,9 @@ async fn main() {
                 let lockfile_path = root_dir.join("vertz.lock");
                 if lockfile_path.exists() {
                     if let Ok(lf) = vertz_runtime::pm::lockfile::read_lockfile(&lockfile_path) {
-                        let pkg_count = lf.entries.values()
+                        let pkg_count = lf
+                            .entries
+                            .values()
                             .filter(|e| !e.resolved.starts_with("link:"))
                             .map(|e| &e.name)
                             .collect::<std::collections::HashSet<_>>()
@@ -362,8 +380,11 @@ async fn main() {
             match pm::audit(&root_dir, severity_threshold).await {
                 Ok(result) => {
                     if args.json {
-                        let output =
-                            pm::format_audit_json(&result.entries, result.total_packages, result.below_threshold);
+                        let output = pm::format_audit_json(
+                            &result.entries,
+                            result.total_packages,
+                            result.below_threshold,
+                        );
                         print!("{}", output);
                         for be in &result.batch_errors {
                             let obj = serde_json::json!({"event": "batch_error", "batch": be.batch, "error": be.error});
