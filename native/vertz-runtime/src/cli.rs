@@ -42,6 +42,8 @@ pub enum Command {
     Exec(ExecArgs),
     /// Manage project configuration (.vertzrc)
     Config(ConfigArgs),
+    /// Publish package to npm registry
+    Publish(PublishArgs),
 }
 
 #[derive(Parser, Debug)]
@@ -389,6 +391,25 @@ pub struct ConfigGetArgs {
 pub struct ConfigInitArgs {
     /// Config key (e.g., trust-scripts)
     pub key: String,
+}
+
+#[derive(Parser, Debug)]
+pub struct PublishArgs {
+    /// Dist-tag for this publish (default: "latest")
+    #[arg(long, default_value = "latest")]
+    pub tag: String,
+
+    /// Access level for scoped packages: "public" or "restricted"
+    #[arg(long)]
+    pub access: Option<String>,
+
+    /// Show what would be published without uploading
+    #[arg(long)]
+    pub dry_run: bool,
+
+    /// Output as NDJSON
+    #[arg(long)]
+    pub json: bool,
 }
 
 #[cfg(test)]

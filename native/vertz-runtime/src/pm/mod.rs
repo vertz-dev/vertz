@@ -5,6 +5,7 @@ pub mod linker;
 pub mod lockfile;
 pub mod output;
 pub mod overrides;
+pub mod pack;
 pub mod registry;
 pub mod resolver;
 pub mod scripts;
@@ -1664,6 +1665,130 @@ fn verify_frozen_deps(
     Ok(())
 }
 
+/// Publish a package to the npm registry.
+///
+/// Orchestrates the full publish flow:
+/// 1. Read and validate package.json
+/// 2. Run prepublish/prepare lifecycle scripts
+/// 3. Pack the tarball
+/// 4. Build publish document
+/// 5. Upload to registry (unless --dry-run)
+pub async fn publish(
+    root_dir: &Path,
+    tag: &str,
+    access: Option<&str>,
+    dry_run: bool,
+    output: Arc<dyn PmOutput>,
+) -> Result<(), Box<dyn std::error::Error>> {
+    // 1. Read and validate package.json
+    let pkg = types::read_package_json(root_dir)?;
+    let name = pkg
+        .name
+        .as_ref()
+        .ok_or("Cannot publish: package.json is missing required field 'name'")?
+        .clone();
+    let version = pkg
+        .version
+        .as_ref()
+        .ok_or("Cannot publish: package.json is missing required field 'version'")?
+        .clone();
+
+    // Validate access value
+    if let Some(a) = access {
+        if a != "public" && a != "restricted" {
+            return Err(format!(
+                "Invalid access value: \"{}\". Must be \"public\" or \"restricted\"",
+                a
+            )
+            .into());
+        }
+    }
+
+    // 2. Run lifecycle scripts (npm order: prepublish → prepare → prepublishOnly)
+    scripts::run_lifecycle_script(root_dir, &pkg.scripts, "prepublish", output.clone()).await?;
+    scripts::run_lifecycle_script(root_dir, &pkg.scripts, "prepare", output.clone()).await?;
+    scripts::run_lifecycle_script(root_dir, &pkg.scripts, "prepublishOnly", output.clone()).await?;
+
+    // 3. Pack the tarball
+    output.publish_packing(&name, &version);
+    let pack_result = pack::pack_tarball(root_dir, &pkg)?;
+
+    output.publish_packed(
+        &name,
+        &version,
+        pack_result.files.len(),
+        pack_result.packed_size,
+        pack_result.unpacked_size,
+    );
+
+    // 4. Dry run: list files and exit
+    if dry_run {
+        for file in &pack_result.files {
+            output.publish_file_list(&file.path, file.size);
+        }
+        output.publish_dry_run(
+            &name,
+            &version,
+            tag,
+            access.unwrap_or(if name.starts_with('@') {
+                "restricted"
+            } else {
+                "public"
+            }),
+        );
+        return Ok(());
+    }
+
+    // 5. Load registry config for auth
+    let reg_config = config::load_registry_config(root_dir, None)?;
+    let registry_url = reg_config.registry_url_for_package(&name).to_string();
+    // Auth matching uses prefix comparison — append "/" so "host:port" matches "host:port/"
+    let auth_match_url = format!("{}/", registry_url.trim_end_matches('/'));
+    let auth_header = reg_config
+        .auth_header_for_url(&auth_match_url)
+        .ok_or_else(|| {
+            format!(
+                "Authentication required. Add an auth token to .npmrc for {}",
+                registry_url
+            )
+        })?;
+
+    // 6. Build publish document
+    let raw_pkg = pack::read_package_json_raw(root_dir)?;
+    let normalized = pack::normalize_package_json(&raw_pkg);
+
+    let tarball_base64 = base64::Engine::encode(
+        &base64::engine::general_purpose::STANDARD,
+        &pack_result.tarball,
+    );
+
+    let document = registry::build_publish_document(&registry::PublishParams {
+        name: &name,
+        version: &version,
+        tag,
+        access,
+        tarball_base64: &tarball_base64,
+        tarball_length: pack_result.packed_size,
+        integrity: &pack_result.integrity,
+        shasum: &pack_result.shasum,
+        normalized_pkg: &normalized,
+        registry_url: &registry_url,
+    });
+
+    // 7. Upload
+    output.publish_uploading(&name, &version, tag);
+
+    let cache_dir = registry::default_cache_dir();
+    let client = RegistryClient::new(&cache_dir);
+    client
+        .publish_package(&registry_url, &auth_header, &document)
+        .await?;
+
+    output.publish_complete(&name, &version, tag);
+
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1690,6 +1815,7 @@ mod tests {
             scripts: BTreeMap::new(),
             workspaces: None,
             overrides: BTreeMap::new(),
+            files: None,
         }
     }
 

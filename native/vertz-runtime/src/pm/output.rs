@@ -23,6 +23,14 @@ pub trait PmOutput: Send + Sync {
     fn warning(&self, message: &str);
     fn done(&self, elapsed_ms: u64);
     fn error(&self, code: &str, message: &str);
+
+    // ─── publish events ───
+    fn publish_packing(&self, name: &str, version: &str);
+    fn publish_packed(&self, name: &str, version: &str, files: usize, packed: u64, unpacked: u64);
+    fn publish_uploading(&self, name: &str, version: &str, tag: &str);
+    fn publish_complete(&self, name: &str, version: &str, tag: &str);
+    fn publish_dry_run(&self, name: &str, version: &str, tag: &str, access: &str);
+    fn publish_file_list(&self, path: &str, size: u64);
 }
 
 /// Human-readable output with optional progress bars (when stderr is a TTY)
@@ -162,6 +170,59 @@ impl PmOutput for TextOutput {
     fn error(&self, _code: &str, message: &str) {
         eprintln!("{}", message);
     }
+
+    fn publish_packing(&self, name: &str, version: &str) {
+        eprintln!(" Packing {}@{}...", name, version);
+    }
+
+    fn publish_packed(
+        &self,
+        _name: &str,
+        _version: &str,
+        files: usize,
+        packed: u64,
+        unpacked: u64,
+    ) {
+        eprintln!(" Files:  {}", files);
+        eprintln!(
+            " Size:   {} (packed) / {} (unpacked)",
+            format_bytes(packed),
+            format_bytes(unpacked)
+        );
+    }
+
+    fn publish_uploading(&self, name: &str, version: &str, tag: &str) {
+        eprintln!(" Publishing {}@{} with tag \"{}\"...", name, version, tag);
+    }
+
+    fn publish_complete(&self, name: &str, version: &str, tag: &str) {
+        if tag == "latest" {
+            eprintln!(" + {}@{}", name, version);
+        } else {
+            eprintln!(" + {}@{} (tag: {})", name, version, tag);
+        }
+    }
+
+    fn publish_dry_run(&self, name: &str, version: &str, _tag: &str, _access: &str) {
+        eprintln!(
+            " Would publish {}@{} (dry run — nothing uploaded)",
+            name, version
+        );
+    }
+
+    fn publish_file_list(&self, path: &str, size: u64) {
+        eprintln!("   {:40} {}", path, format_bytes(size));
+    }
+}
+
+fn format_bytes(bytes: u64) -> String {
+    if bytes >= 1_000_000 {
+        format!("{:.1} MB", bytes as f64 / 1_000_000.0)
+    } else if bytes >= 1_000 {
+        format!("{:.1} kB", bytes as f64 / 1_000.0)
+    } else {
+        format!("{} B", bytes)
+    }
 }
 
 /// NDJSON output for machine consumption (--json flag)
@@ -262,6 +323,48 @@ impl PmOutput for JsonOutput {
         println!(
             "{}",
             json!({"event": "error", "code": code, "message": message})
+        );
+    }
+
+    fn publish_packing(&self, name: &str, version: &str) {
+        println!(
+            "{}",
+            json!({"event": "publish_packing", "name": name, "version": version})
+        );
+    }
+
+    fn publish_packed(&self, name: &str, version: &str, files: usize, packed: u64, unpacked: u64) {
+        println!(
+            "{}",
+            json!({"event": "publish_packed", "name": name, "version": version, "files": files, "packed_size": packed, "unpacked_size": unpacked})
+        );
+    }
+
+    fn publish_uploading(&self, name: &str, version: &str, tag: &str) {
+        println!(
+            "{}",
+            json!({"event": "publish_uploading", "name": name, "version": version, "tag": tag})
+        );
+    }
+
+    fn publish_complete(&self, name: &str, version: &str, tag: &str) {
+        println!(
+            "{}",
+            json!({"event": "publish_complete", "name": name, "version": version, "tag": tag})
+        );
+    }
+
+    fn publish_dry_run(&self, name: &str, version: &str, tag: &str, access: &str) {
+        println!(
+            "{}",
+            json!({"event": "publish_dry_run", "name": name, "version": version, "tag": tag, "access": access})
+        );
+    }
+
+    fn publish_file_list(&self, path: &str, size: u64) {
+        println!(
+            "{}",
+            json!({"event": "publish_file", "path": path, "size": size})
         );
     }
 }

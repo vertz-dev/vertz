@@ -25,6 +25,9 @@ pub struct PackageJson {
     pub workspaces: Option<Vec<String>>,
     #[serde(default)]
     pub overrides: BTreeMap<String, String>,
+    /// Files to include in the published package (whitelist mode)
+    #[serde(default)]
+    pub files: Option<Vec<String>>,
 }
 
 /// The `bin` field in package.json can be a string or a map

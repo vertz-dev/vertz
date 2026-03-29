@@ -219,6 +219,44 @@ pub async fn exec_inherit_stdio(
     Ok(status.code().unwrap_or(1))
 }
 
+/// Run a named lifecycle script from package.json in the given directory.
+/// Returns Ok(()) if the script ran successfully, Err if it failed.
+/// If the script doesn't exist, returns Ok(()) (no-op).
+pub async fn run_lifecycle_script(
+    dir: &Path,
+    scripts: &BTreeMap<String, String>,
+    script_name: &str,
+    output: Arc<dyn PmOutput>,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let Some(script) = scripts.get(script_name) else {
+        return Ok(());
+    };
+
+    output.script_started(script_name, script);
+    let start = Instant::now();
+
+    let result = run_script_with_timeout(dir, script, SCRIPT_TIMEOUT_SECS).await;
+    let duration_ms = start.elapsed().as_millis() as u64;
+
+    match result {
+        Ok((_stdout, _stderr, exit_code)) => {
+            if exit_code == 0 {
+                output.script_complete(script_name, duration_ms);
+                Ok(())
+            } else {
+                let msg = format!("{} script exited with code {}", script_name, exit_code);
+                output.script_error(script_name, &msg);
+                Err(msg.into())
+            }
+        }
+        Err(e) => {
+            let msg = e.to_string();
+            output.script_error(script_name, &msg);
+            Err(msg.into())
+        }
+    }
+}
+
 /// Check if a package has a postinstall script
 pub fn has_postinstall(scripts: &Option<BTreeMap<String, String>>) -> bool {
     scripts
