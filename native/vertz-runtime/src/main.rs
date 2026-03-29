@@ -210,6 +210,37 @@ async fn main() {
                 }
             }
         }
+        Command::Outdated(args) => {
+            let root_dir =
+                std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from("."));
+
+            match pm::outdated(&root_dir).await {
+                Ok(entries) => {
+                    if args.json {
+                        let output = pm::format_outdated_json(&entries);
+                        print!("{}", output);
+                    } else if entries.is_empty() {
+                        // Check if there are any deps at all
+                        let pkg = vertz_runtime::pm::types::read_package_json(&root_dir).ok();
+                        let has_deps = pkg
+                            .map(|p| !p.dependencies.is_empty() || !p.dev_dependencies.is_empty())
+                            .unwrap_or(false);
+                        if has_deps {
+                            eprintln!("All packages are up to date.");
+                        } else {
+                            eprintln!("No dependencies found.");
+                        }
+                    } else {
+                        let output = pm::format_outdated_text(&entries);
+                        print!("{}", output);
+                    }
+                }
+                Err(e) => {
+                    eprintln!("{}", e);
+                    std::process::exit(1);
+                }
+            }
+        }
         Command::Why(args) => {
             let root_dir =
                 std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from("."));

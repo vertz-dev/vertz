@@ -754,6 +754,194 @@ pub fn format_list_json(entries: &[ListEntry]) -> String {
     output
 }
 
+/// A single entry in the outdated output
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct OutdatedEntry {
+    pub name: String,
+    pub current: String,
+    pub wanted: String,
+    pub latest: String,
+    pub range: String,
+    pub dev: bool,
+}
+
+/// Resolve the "wanted" version from abbreviated metadata (version keys + range).
+/// Returns the highest version string satisfying the range.
+fn resolve_wanted_version(
+    range_str: &str,
+    version_keys: &BTreeMap<String, serde_json::Value>,
+    dist_tags: &BTreeMap<String, String>,
+) -> Option<String> {
+    // Handle dist-tags like "latest", "next"
+    if let Some(tag_version) = dist_tags.get(range_str) {
+        if version_keys.contains_key(tag_version) {
+            return Some(tag_version.clone());
+        }
+    }
+
+    let range = match node_semver::Range::parse(range_str) {
+        Ok(r) => r,
+        Err(_) => return None,
+    };
+
+    let mut best: Option<(node_semver::Version, String)> = None;
+    for key in version_keys.keys() {
+        if let Ok(ver) = node_semver::Version::parse(key) {
+            if range.satisfies(&ver) {
+                match &best {
+                    None => best = Some((ver, key.clone())),
+                    Some((current_best, _)) => {
+                        if ver > *current_best {
+                            best = Some((ver, key.clone()));
+                        }
+                    }
+                }
+            }
+        }
+    }
+    best.map(|(_, s)| s)
+}
+
+/// Check for outdated packages by comparing installed versions against the registry.
+pub async fn outdated(root_dir: &Path) -> Result<Vec<OutdatedEntry>, Box<dyn std::error::Error>> {
+    let pkg = types::read_package_json(root_dir)?;
+
+    if pkg.dependencies.is_empty() && pkg.dev_dependencies.is_empty() {
+        return Ok(Vec::new());
+    }
+
+    let lockfile_path = root_dir.join("vertz.lock");
+    let lockfile = if lockfile_path.exists() {
+        lockfile::read_lockfile(&lockfile_path)?
+    } else {
+        return Err("No lockfile found. Run `vertz install` first.".into());
+    };
+
+    let cache_dir = registry::default_cache_dir();
+    let client = RegistryClient::new(&cache_dir);
+
+    let mut entries = Vec::new();
+
+    // Collect all direct deps with their dev flag
+    let mut all_deps: Vec<(String, String, bool)> = Vec::new();
+    for (name, range) in &pkg.dependencies {
+        all_deps.push((name.clone(), range.clone(), false));
+    }
+    for (name, range) in &pkg.dev_dependencies {
+        all_deps.push((name.clone(), range.clone(), true));
+    }
+
+    for (name, range, dev) in &all_deps {
+        // Get current installed version from lockfile
+        let spec_key = types::Lockfile::spec_key(name, range);
+        let current = match lockfile.entries.get(&spec_key) {
+            Some(entry) => entry.version.clone(),
+            None => continue, // Not in lockfile, skip
+        };
+
+        // Fetch abbreviated metadata from registry
+        let meta = match client.fetch_metadata_abbreviated(name).await {
+            Ok(m) => m,
+            Err(e) => {
+                eprintln!("warning: could not fetch metadata for {}: {}", name, e);
+                continue;
+            }
+        };
+
+        // Resolve "wanted" — highest version satisfying the range
+        let wanted = resolve_wanted_version(range, &meta.versions, &meta.dist_tags)
+            .unwrap_or_else(|| current.clone());
+
+        // Get "latest" from dist-tags
+        let latest = meta
+            .dist_tags
+            .get("latest")
+            .cloned()
+            .unwrap_or_else(|| current.clone());
+
+        entries.push(OutdatedEntry {
+            name: name.clone(),
+            current,
+            wanted,
+            latest,
+            range: range.clone(),
+            dev: *dev,
+        });
+    }
+
+    Ok(entries)
+}
+
+/// Format outdated entries as a human-readable table
+pub fn format_outdated_text(entries: &[OutdatedEntry]) -> String {
+    if entries.is_empty() {
+        return String::new();
+    }
+
+    // Calculate column widths
+    let name_width = entries
+        .iter()
+        .map(|e| e.name.len())
+        .max()
+        .unwrap_or(7)
+        .max(7);
+    let current_width = entries
+        .iter()
+        .map(|e| e.current.len())
+        .max()
+        .unwrap_or(7)
+        .max(7);
+    let wanted_width = entries
+        .iter()
+        .map(|e| e.wanted.len())
+        .max()
+        .unwrap_or(6)
+        .max(6);
+
+    let mut output = format!(
+        "{:<name_w$}  {:<cur_w$}  {:<want_w$}  Latest\n",
+        "Package",
+        "Current",
+        "Wanted",
+        name_w = name_width,
+        cur_w = current_width,
+        want_w = wanted_width,
+    );
+
+    for entry in entries {
+        output.push_str(&format!(
+            "{:<name_w$}  {:<cur_w$}  {:<want_w$}  {}\n",
+            entry.name,
+            entry.current,
+            entry.wanted,
+            entry.latest,
+            name_w = name_width,
+            cur_w = current_width,
+            want_w = wanted_width,
+        ));
+    }
+
+    output
+}
+
+/// Format outdated entries as NDJSON
+pub fn format_outdated_json(entries: &[OutdatedEntry]) -> String {
+    let mut output = String::new();
+    for entry in entries {
+        let obj = serde_json::json!({
+            "name": entry.name,
+            "current": entry.current,
+            "wanted": entry.wanted,
+            "latest": entry.latest,
+            "range": entry.range,
+            "dev": entry.dev,
+        });
+        output.push_str(&obj.to_string());
+        output.push('\n');
+    }
+    output
+}
+
 /// Verify lockfile matches package.json for --frozen mode
 fn verify_frozen(
     pkg: &types::PackageJson,
@@ -1540,5 +1728,153 @@ mod tests {
         let json = format_why_json(&result);
         let parsed: serde_json::Value = serde_json::from_str(json.trim()).unwrap();
         assert_eq!(parsed["paths"][0].as_array().unwrap().len(), 0);
+    }
+
+    // --- Outdated tests ---
+
+    #[test]
+    fn test_resolve_wanted_version_basic() {
+        let mut versions = BTreeMap::new();
+        versions.insert("1.0.0".to_string(), serde_json::json!({}));
+        versions.insert("1.1.0".to_string(), serde_json::json!({}));
+        versions.insert("1.2.0".to_string(), serde_json::json!({}));
+        versions.insert("2.0.0".to_string(), serde_json::json!({}));
+        let dist_tags = BTreeMap::new();
+
+        let wanted = resolve_wanted_version("^1.0.0", &versions, &dist_tags);
+        assert_eq!(wanted, Some("1.2.0".to_string()));
+    }
+
+    #[test]
+    fn test_resolve_wanted_version_exact() {
+        let mut versions = BTreeMap::new();
+        versions.insert("1.0.0".to_string(), serde_json::json!({}));
+        versions.insert("1.1.0".to_string(), serde_json::json!({}));
+        let dist_tags = BTreeMap::new();
+
+        let wanted = resolve_wanted_version("1.0.0", &versions, &dist_tags);
+        assert_eq!(wanted, Some("1.0.0".to_string()));
+    }
+
+    #[test]
+    fn test_resolve_wanted_version_no_match() {
+        let mut versions = BTreeMap::new();
+        versions.insert("1.0.0".to_string(), serde_json::json!({}));
+        let dist_tags = BTreeMap::new();
+
+        let wanted = resolve_wanted_version("^2.0.0", &versions, &dist_tags);
+        assert!(wanted.is_none());
+    }
+
+    #[test]
+    fn test_resolve_wanted_version_dist_tag() {
+        let mut versions = BTreeMap::new();
+        versions.insert("1.0.0".to_string(), serde_json::json!({}));
+        versions.insert("2.0.0-beta.1".to_string(), serde_json::json!({}));
+        let mut dist_tags = BTreeMap::new();
+        dist_tags.insert("next".to_string(), "2.0.0-beta.1".to_string());
+
+        let wanted = resolve_wanted_version("next", &versions, &dist_tags);
+        assert_eq!(wanted, Some("2.0.0-beta.1".to_string()));
+    }
+
+    #[test]
+    fn test_format_outdated_text_basic() {
+        let entries = vec![
+            OutdatedEntry {
+                name: "react".to_string(),
+                current: "18.3.1".to_string(),
+                wanted: "18.3.1".to_string(),
+                latest: "19.1.0".to_string(),
+                range: "^18.3.0".to_string(),
+                dev: false,
+            },
+            OutdatedEntry {
+                name: "typescript".to_string(),
+                current: "5.7.3".to_string(),
+                wanted: "5.8.2".to_string(),
+                latest: "5.8.2".to_string(),
+                range: "^5.0.0".to_string(),
+                dev: true,
+            },
+        ];
+
+        let text = format_outdated_text(&entries);
+        assert!(text.contains("Package"));
+        assert!(text.contains("Current"));
+        assert!(text.contains("Wanted"));
+        assert!(text.contains("Latest"));
+        assert!(text.contains("react"));
+        assert!(text.contains("18.3.1"));
+        assert!(text.contains("19.1.0"));
+        assert!(text.contains("typescript"));
+        assert!(text.contains("5.7.3"));
+        assert!(text.contains("5.8.2"));
+    }
+
+    #[test]
+    fn test_format_outdated_text_empty() {
+        let entries: Vec<OutdatedEntry> = Vec::new();
+        let text = format_outdated_text(&entries);
+        assert!(text.is_empty());
+    }
+
+    #[test]
+    fn test_format_outdated_json_basic() {
+        let entries = vec![OutdatedEntry {
+            name: "react".to_string(),
+            current: "18.3.1".to_string(),
+            wanted: "18.3.1".to_string(),
+            latest: "19.1.0".to_string(),
+            range: "^18.3.0".to_string(),
+            dev: false,
+        }];
+
+        let json = format_outdated_json(&entries);
+        let parsed: serde_json::Value = serde_json::from_str(json.trim()).unwrap();
+        assert_eq!(parsed["name"], "react");
+        assert_eq!(parsed["current"], "18.3.1");
+        assert_eq!(parsed["wanted"], "18.3.1");
+        assert_eq!(parsed["latest"], "19.1.0");
+        assert_eq!(parsed["range"], "^18.3.0");
+        assert_eq!(parsed["dev"], false);
+    }
+
+    #[test]
+    fn test_format_outdated_json_empty() {
+        let entries: Vec<OutdatedEntry> = Vec::new();
+        let json = format_outdated_json(&entries);
+        assert!(json.is_empty());
+    }
+
+    #[test]
+    fn test_format_outdated_json_multiple() {
+        let entries = vec![
+            OutdatedEntry {
+                name: "react".to_string(),
+                current: "18.3.1".to_string(),
+                wanted: "18.3.1".to_string(),
+                latest: "19.1.0".to_string(),
+                range: "^18.3.0".to_string(),
+                dev: false,
+            },
+            OutdatedEntry {
+                name: "typescript".to_string(),
+                current: "5.7.3".to_string(),
+                wanted: "5.8.2".to_string(),
+                latest: "5.8.2".to_string(),
+                range: "^5.0.0".to_string(),
+                dev: true,
+            },
+        ];
+
+        let json = format_outdated_json(&entries);
+        let lines: Vec<&str> = json.trim().lines().collect();
+        assert_eq!(lines.len(), 2);
+        let first: serde_json::Value = serde_json::from_str(lines[0]).unwrap();
+        let second: serde_json::Value = serde_json::from_str(lines[1]).unwrap();
+        assert_eq!(first["name"], "react");
+        assert_eq!(second["name"], "typescript");
+        assert_eq!(second["dev"], true);
     }
 }

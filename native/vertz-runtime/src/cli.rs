@@ -29,6 +29,8 @@ pub enum Command {
     List(ListArgs),
     /// Show why a package is installed (dependency path tracing)
     Why(WhyArgs),
+    /// Check for newer versions of installed packages
+    Outdated(OutdatedArgs),
 }
 
 #[derive(Parser, Debug)]
@@ -191,6 +193,13 @@ pub struct WhyArgs {
     pub json: bool,
 }
 
+#[derive(Parser, Debug)]
+pub struct OutdatedArgs {
+    /// Output NDJSON to stdout
+    #[arg(long)]
+    pub json: bool,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -256,6 +265,14 @@ mod tests {
         match cli.command {
             Command::Why(args) => args,
             other => panic!("Expected Why, got {:?}", other),
+        }
+    }
+
+    fn parse_outdated(args: &[&str]) -> OutdatedArgs {
+        let cli = Cli::parse_from(args);
+        match cli.command {
+            Command::Outdated(args) => args,
+            other => panic!("Expected Outdated, got {:?}", other),
         }
     }
 
@@ -732,5 +749,19 @@ mod tests {
     fn test_why_scoped_package() {
         let args = parse_why(&["vertz-runtime", "why", "@vertz/ui"]);
         assert_eq!(args.package, "@vertz/ui");
+    }
+
+    // --- Outdated command tests ---
+
+    #[test]
+    fn test_outdated_default() {
+        let args = parse_outdated(&["vertz-runtime", "outdated"]);
+        assert!(!args.json);
+    }
+
+    #[test]
+    fn test_outdated_json_flag() {
+        let args = parse_outdated(&["vertz-runtime", "outdated", "--json"]);
+        assert!(args.json);
     }
 }
