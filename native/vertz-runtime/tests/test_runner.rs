@@ -552,6 +552,130 @@ fn e2e_specific_file_paths() {
     assert_eq!(result.total_passed, 1);
 }
 
+// --- E2E: Codemod migration and test execution ---
+
+#[test]
+fn e2e_codemod_migrates_and_tests_pass() {
+    use vertz_runtime::test::codemod;
+
+    let tmp = tempfile::tempdir().unwrap();
+    std::fs::create_dir_all(tmp.path().join("src")).unwrap();
+
+    // Write test files that use bun:test imports (real-world pattern)
+    write_file(
+        tmp.path(),
+        "src/errors.test.ts",
+        r#"
+import { describe, expect, it } from 'bun:test';
+
+class FetchError extends Error {
+  status: number;
+  constructor(message: string, status: number) {
+    super(message);
+    this.status = status;
+    this.name = 'FetchError';
+  }
+}
+
+describe('FetchError', () => {
+  it('stores status and message', () => {
+    const error = new FetchError('Something went wrong', 500);
+    expect(error).toBeInstanceOf(Error);
+    expect(error.message).toBe('Something went wrong');
+    expect(error.status).toBe(500);
+    expect(error.name).toBe('FetchError');
+  });
+});
+"#,
+    );
+
+    write_file(
+        tmp.path(),
+        "src/math.test.ts",
+        r#"
+import { describe, it, expect } from 'bun:test';
+
+describe('math utils', () => {
+  it('adds numbers', () => {
+    expect(1 + 2).toBe(3);
+  });
+  it('multiplies numbers', () => {
+    expect(3 * 4).toBe(12);
+  });
+});
+"#,
+    );
+
+    // Step 1: Run codemod (not dry-run)
+    let migrate_result = codemod::migrate_tests(tmp.path(), false).unwrap();
+    assert_eq!(
+        migrate_result.files_changed, 2,
+        "Both files should be migrated"
+    );
+
+    // Step 2: Verify the files were rewritten
+    let errors_content = std::fs::read_to_string(tmp.path().join("src/errors.test.ts")).unwrap();
+    assert!(
+        errors_content.contains("'@vertz/test'"),
+        "Should have @vertz/test import"
+    );
+    assert!(
+        !errors_content.contains("'bun:test'"),
+        "Should not have bun:test import"
+    );
+
+    let math_content = std::fs::read_to_string(tmp.path().join("src/math.test.ts")).unwrap();
+    assert!(math_content.contains("'@vertz/test'"));
+
+    // Step 3: Run the migrated tests through vertz test runner
+    let config = TestRunConfig {
+        ..make_config(tmp.path())
+    };
+    let (result, _output) = run_tests(config);
+
+    assert!(result.success(), "Migrated tests should all pass");
+    assert_eq!(result.total_files, 2);
+    assert_eq!(result.total_passed, 3, "3 tests total across 2 files");
+}
+
+#[test]
+fn e2e_vertz_test_import_works_in_runner() {
+    let tmp = tempfile::tempdir().unwrap();
+    std::fs::create_dir_all(tmp.path().join("src")).unwrap();
+
+    // Test file that already uses @vertz/test imports
+    write_file(
+        tmp.path(),
+        "src/native.test.ts",
+        r#"
+import { describe, it, expect, mock } from '@vertz/test';
+
+describe('native vertz test', () => {
+  it('uses @vertz/test imports', () => {
+    expect(true).toBe(true);
+  });
+
+  it('mock function works via import', () => {
+    const fn = mock(() => 42);
+    expect(fn()).toBe(42);
+    expect(fn).toHaveBeenCalledTimes(1);
+  });
+});
+"#,
+    );
+
+    let config = TestRunConfig {
+        ..make_config(tmp.path())
+    };
+    let (result, _output) = run_tests(config);
+
+    assert!(
+        result.success(),
+        "Tests using @vertz/test imports should pass"
+    );
+    assert_eq!(result.total_passed, 2);
+}
+
 // --- E2E: TypeScript features work ---
 
 #[test]
