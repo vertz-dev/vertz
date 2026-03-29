@@ -3334,8 +3334,10 @@ version = "0.1.0"
 dependencies = [
  "axum",
  "clap",
+ "crossbeam-channel",
  "deno_core",
  "futures-util",
+ "glob",
  "local-ip-address",
  "notify",
  "owo-colors",
