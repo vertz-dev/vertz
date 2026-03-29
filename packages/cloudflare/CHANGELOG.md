@@ -166,7 +166,6 @@
 - [#1423](https://github.com/vertz-dev/vertz/pull/1423) [`bfd3e9e`](https://github.com/vertz-dev/vertz/commit/bfd3e9e00eae4b1918e7d119fe8eaa245beb85ef) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - feat: traffic-aware pre-rendering (TPR) for Cloudflare Workers
 
   Adds ISR (Incremental Static Regeneration) and TPR support:
-
   - **ISR caching**: Cache SSR responses in Cloudflare KV with TTL-based revalidation and stale-while-revalidate via `ctx.waitUntil()`
   - **TPR analytics**: Query Cloudflare GraphQL Analytics API to identify hot pages by traffic
   - **Pre-rendering**: Render and store hot pages in KV at deploy time with concurrency control

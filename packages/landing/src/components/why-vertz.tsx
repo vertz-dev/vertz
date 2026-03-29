@@ -43,10 +43,15 @@ export function WhyVertz() {
               className={s.card}
               style={{ background: '#1C1B1A', borderColor: '#2A2826', borderRadius: '2px' }}
             >
-              <h3 className={s.title} style={{ fontFamily: 'var(--font-display)', color: '#E8E4DC' }}>
+              <h3
+                className={s.title}
+                style={{ fontFamily: 'var(--font-display)', color: '#E8E4DC' }}
+              >
                 {f.title}
               </h3>
-              <p className={s.desc} style={{ color: '#9C9690' }}>{f.desc}</p>
+              <p className={s.desc} style={{ color: '#9C9690' }}>
+                {f.desc}
+              </p>
             </div>
           ))}
         </div>

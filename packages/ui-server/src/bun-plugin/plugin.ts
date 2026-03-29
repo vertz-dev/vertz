@@ -403,7 +403,6 @@ export function createVertzBunPlugin(options?: VertzBunPluginOptions): VertzBunP
                   }
                 }
 
-
                 const nativeResult = nativeCompiler.compile(codeAfterImageTransform, {
                   filename: args.path,
                   target: options?.target,

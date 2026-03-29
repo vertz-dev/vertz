@@ -552,8 +552,7 @@ export function query<T, E = unknown>(
           // (e.g. page=1 matching page=10).
           const mc = cache as MemoryCache<T>;
           const found =
-            mc.findByPrefix(initDescriptorKey + '&') ??
-            mc.findByPrefix(initDescriptorKey + ':');
+            mc.findByPrefix(initDescriptorKey + '&') ?? mc.findByPrefix(initDescriptorKey + ':');
           if (found) {
             retainKey(found.key);
             normalizeToEntityStore(found.value);
@@ -816,9 +815,7 @@ export function query<T, E = unknown>(
         if (descriptorKey && 'findByPrefix' in cache) {
           const mc = cache as MemoryCache<T>;
           const found = untrack(
-            () =>
-              mc.findByPrefix(descriptorKey + '&') ??
-              mc.findByPrefix(descriptorKey + ':'),
+            () => mc.findByPrefix(descriptorKey + '&') ?? mc.findByPrefix(descriptorKey + ':'),
           );
           if (found) {
             retainKey(found.key);

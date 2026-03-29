@@ -19,9 +19,7 @@ export class ProjectNameRequiredError extends Error {
  */
 export class InvalidTemplateError extends Error {
   constructor(template: string) {
-    super(
-      `Invalid template "${template}". Available templates: ${VALID_TEMPLATES.join(', ')}`,
-    );
+    super(`Invalid template "${template}". Available templates: ${VALID_TEMPLATES.join(', ')}`);
     this.name = 'InvalidTemplateError';
   }
 }

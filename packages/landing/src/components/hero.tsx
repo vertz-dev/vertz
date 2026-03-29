@@ -99,7 +99,13 @@ const s = css({
       },
     },
   ],
-  badge: ['flex', 'items:center', 'gap:2', 'mb:6', { '@media (min-width: 1024px)': { 'justify-content': 'flex-start' } }],
+  badge: [
+    'flex',
+    'items:center',
+    'gap:2',
+    'mb:6',
+    { '@media (min-width: 1024px)': { 'justify-content': 'flex-start' } },
+  ],
   badgeDotWrap: ['relative', 'flex', 'h:2.5', 'w:2.5'],
   badgeDotPing: ['absolute', 'inline-flex', 'h:full', 'w:full', 'rounded:full', 'opacity:40'],
   badgeDot: ['relative', 'inline-flex', 'rounded:full', 'h:2.5', 'w:2.5'],
@@ -171,13 +177,16 @@ const s = css({
   codeGroup: [
     'border:1',
     'shadow:2xl',
-    { '&': { overflow: 'hidden', 'background-color': '#1C1B1A', 'border-color': '#2A2826', 'border-radius': '2px' } },
+    {
+      '&': {
+        overflow: 'hidden',
+        'background-color': '#1C1B1A',
+        'border-color': '#2A2826',
+        'border-radius': '2px',
+      },
+    },
   ],
-  tabBar: [
-    'flex',
-    'border-b:1',
-    { '&': { 'border-color': '#2A2826' } },
-  ],
+  tabBar: ['flex', 'border-b:1', { '&': { 'border-color': '#2A2826' } }],
   tab: [
     'py:2.5',
     'px:4',
@@ -202,13 +211,7 @@ const s = css({
     { '&': { color: '#D4D0C8' } },
     { '&': { 'overflow-x': 'auto' } },
   ],
-  filename: [
-    'font:xs',
-    'text:gray.500',
-    'px:6',
-    'pt:4',
-    'pb:0',
-  ],
+  filename: ['font:xs', 'text:gray.500', 'px:6', 'pt:4', 'pb:0'],
 });
 
 // ── Mini todo app styles ────────────────────────────────────
@@ -298,11 +301,7 @@ const app = css({
       },
     },
   ],
-  list: [
-    'flex',
-    'flex-col',
-    'gap:1',
-  ],
+  list: ['flex', 'flex-col', 'gap:1'],
   todo: [
     'flex',
     'items:center',
@@ -681,28 +680,49 @@ function MiniTodoApp() {
 
   return (
     <div className={app.wrap}>
-      <form className={app.inputRow} onSubmit={(e: Event) => { e.preventDefault(); addTodo(); }}>
+      <form
+        className={app.inputRow}
+        onSubmit={(e: Event) => {
+          e.preventDefault();
+          addTodo();
+        }}
+      >
         <input
           type="text"
           className={app.input}
-          style={{ height: '36px', padding: '0 0.75rem', border: '1px solid #2A2826', borderRadius: '6px', background: '#111110', color: '#E8E4DC', fontSize: '0.8rem' }}
+          style={{
+            height: '36px',
+            padding: '0 0.75rem',
+            border: '1px solid #2A2826',
+            borderRadius: '6px',
+            background: '#111110',
+            color: '#E8E4DC',
+            fontSize: '0.8rem',
+          }}
           placeholder="What needs to be done?"
           value={inputValue}
-          onInput={(e: Event) => { inputValue = (e.target as HTMLInputElement).value; }}
+          onInput={(e: Event) => {
+            inputValue = (e.target as HTMLInputElement).value;
+          }}
         />
-        <button type="submit" className={app.addBtn} style={{ height: '36px', borderRadius: '6px', border: '1px solid #2A2826' }}>
+        <button
+          type="submit"
+          className={app.addBtn}
+          style={{ height: '36px', borderRadius: '6px', border: '1px solid #2A2826' }}
+        >
           Add
         </button>
       </form>
 
-      <div
-        className={app.listWrap}
-        data-todo-scroll
-        onScroll={handleScroll}
-      >
+      <div className={app.listWrap} data-todo-scroll onScroll={handleScroll}>
         <div
           className={`${app.listFade} ${app.listFadeTop}`}
-          style={{ opacity: showTopFade ? 1 : 0, position: 'sticky', top: '0', marginBottom: '-28px' }}
+          style={{
+            opacity: showTopFade ? 1 : 0,
+            position: 'sticky',
+            top: '0',
+            marginBottom: '-28px',
+          }}
         />
         <List animate={{ duration: 200, easing: 'ease-out' }} className={app.list}>
           {todos.map((todo) => (
@@ -742,11 +762,7 @@ function MiniTodoApp() {
               >
                 {todo.text}
               </span>
-              <button
-                type="button"
-                className={app.deleteBtn}
-                onClick={() => deleteTodo(todo.id)}
-              >
+              <button type="button" className={app.deleteBtn} onClick={() => deleteTodo(todo.id)}>
                 ×
               </button>
             </List.Item>
@@ -754,18 +770,23 @@ function MiniTodoApp() {
         </List>
         <div
           className={`${app.listFade} ${app.listFadeBottom}`}
-          style={{ opacity: showBottomFade ? 1 : 0, position: 'sticky', bottom: '0', marginTop: '-28px' }}
+          style={{
+            opacity: showBottomFade ? 1 : 0,
+            position: 'sticky',
+            bottom: '0',
+            marginTop: '-28px',
+          }}
         />
       </div>
 
-      <div className={app.counter}>
-        {todos.filter((t) => !t.done).length} remaining
-      </div>
+      <div className={app.counter}>{todos.filter((t) => !t.done).length} remaining</div>
 
       {peerCount > 1 && (
         <div className={app.presenceBar}>
           <span className={app.presenceDot} />
-          <span>{peerCount} developer{peerCount !== 1 ? 's' : ''} here now</span>
+          <span>
+            {peerCount} developer{peerCount !== 1 ? 's' : ''} here now
+          </span>
           {peerCount > 3 && (
             <button
               type="button"
@@ -812,9 +833,7 @@ function RotatingWord() {
                 : isLeaving
                   ? 'translateY(100%)'
                   : 'translateY(-100%)',
-              transition: shouldAnimate
-                ? 'transform 0.35s ease, opacity 0.35s ease'
-                : 'none',
+              transition: shouldAnimate ? 'transform 0.35s ease, opacity 0.35s ease' : 'none',
             }}
           >
             {word}
@@ -841,7 +860,9 @@ function HeroCodeGroup() {
               color: activeTab === tab.id ? '#C8451B' : '#6B6560',
               borderBottomColor: activeTab === tab.id ? '#C8451B' : 'transparent',
             }}
-            onClick={() => { activeTab = tab.id; }}
+            onClick={() => {
+              activeTab = tab.id;
+            }}
           >
             {tab.label}
           </button>
@@ -854,7 +875,9 @@ function HeroCodeGroup() {
             color: activeTab === 'app' ? '#C8451B' : '#6B6560',
             borderBottomColor: activeTab === 'app' ? '#C8451B' : 'transparent',
           }}
-          onClick={() => { activeTab = 'app'; }}
+          onClick={() => {
+            activeTab = 'app';
+          }}
         >
           App
         </button>
@@ -894,9 +917,7 @@ function GitHubStars() {
       .then((data) => {
         const count = data?.stargazers_count;
         if (typeof count === 'number') {
-          stars = count >= 1000
-            ? `${(count / 1000).toFixed(1)}k`
-            : String(count);
+          stars = count >= 1000 ? `${(count / 1000).toFixed(1)}k` : String(count);
         }
       })
       .catch(() => {
@@ -919,7 +940,13 @@ function GitHubStars() {
         borderRadius: '4px',
       }}
     >
-      <svg width="12" height="12" viewBox="0 0 16 16" fill="#f59e0b" xmlns="http://www.w3.org/2000/svg">
+      <svg
+        width="12"
+        height="12"
+        viewBox="0 0 16 16"
+        fill="#f59e0b"
+        xmlns="http://www.w3.org/2000/svg"
+      >
         <path d="M8 .25a.75.75 0 0 1 .673.418l1.882 3.815 4.21.612a.75.75 0 0 1 .416 1.279l-3.046 2.97.719 4.192a.75.75 0 0 1-1.088.791L8 12.347l-3.766 1.98a.75.75 0 0 1-1.088-.79l.72-4.194L.818 6.374a.75.75 0 0 1 .416-1.28l4.21-.611L7.327.668A.75.75 0 0 1 8 .25Z" />
       </svg>
       {stars}
@@ -944,7 +971,12 @@ export function Hero() {
 
           <h1
             className={s.h1}
-            style={{ fontFamily: 'var(--font-display)', fontSize: 'clamp(2rem, 4vw, 3.5rem)', letterSpacing: '-0.025em', lineHeight: '1.15' }}
+            style={{
+              fontFamily: 'var(--font-display)',
+              fontSize: 'clamp(2rem, 4vw, 3.5rem)',
+              letterSpacing: '-0.025em',
+              lineHeight: '1.15',
+            }}
           >
             <span className={s.h1Line}>The agent-native</span>
             <span className={s.h1LineFaded}>

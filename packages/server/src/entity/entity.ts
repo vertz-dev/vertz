@@ -25,7 +25,10 @@ export function entity<
     EntityActionDef<any, any, TModel['table']['$response'], EntityContext<TModel, TInject>>
     // eslint-disable-next-line @typescript-eslint/no-empty-object-type -- {} represents an empty actions record
   > = {},
->(name: string, config: EntityConfig<TModel, TActions, TInject>): EntityDefinition<TModel, TActions> {
+>(
+  name: string,
+  config: EntityConfig<TModel, TActions, TInject>,
+): EntityDefinition<TModel, TActions> {
   if (!name || !ENTITY_NAME_PATTERN.test(name)) {
     throw new Error(
       `entity() name must be a non-empty lowercase string matching /^[a-z][a-z0-9-]*$/. Got: "${name}"`,

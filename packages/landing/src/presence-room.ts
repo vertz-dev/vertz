@@ -40,14 +40,22 @@ export class PresenceRoom {
     const send = (id: ConnectionId, msg: string) => {
       const ws = this.idToWs.get(id);
       if (ws) {
-        try { ws.send(msg); } catch { /* closed */ }
+        try {
+          ws.send(msg);
+        } catch {
+          /* closed */
+        }
       }
     };
 
     const broadcast = (msg: string, exclude?: ConnectionId) => {
       for (const [id, ws] of this.idToWs.entries()) {
         if (id !== exclude) {
-          try { ws.send(msg); } catch { /* closed */ }
+          try {
+            ws.send(msg);
+          } catch {
+            /* closed */
+          }
         }
       }
     };

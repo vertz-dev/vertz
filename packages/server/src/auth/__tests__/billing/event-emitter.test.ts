@@ -11,7 +11,11 @@ describe('Feature: Billing event emitter', () => {
         received.push(event);
       });
 
-      emitter.emit('subscription:created', { resourceType: 'tenant', resourceId: 'org-1', planId: 'pro' });
+      emitter.emit('subscription:created', {
+        resourceType: 'tenant',
+        resourceId: 'org-1',
+        planId: 'pro',
+      });
 
       expect(received).toHaveLength(1);
       expect(received[0].resourceType).toBe('tenant');
@@ -32,7 +36,11 @@ describe('Feature: Billing event emitter', () => {
         count++;
       });
 
-      emitter.emit('subscription:created', { resourceType: 'tenant', resourceId: 'org-1', planId: 'pro' });
+      emitter.emit('subscription:created', {
+        resourceType: 'tenant',
+        resourceId: 'org-1',
+        planId: 'pro',
+      });
 
       expect(count).toBe(2);
     });
@@ -42,7 +50,11 @@ describe('Feature: Billing event emitter', () => {
     it('does not throw when emitting', () => {
       const emitter = createBillingEventEmitter();
       expect(() => {
-        emitter.emit('subscription:canceled', { resourceType: 'tenant', resourceId: 'org-1', planId: 'pro' });
+        emitter.emit('subscription:canceled', {
+          resourceType: 'tenant',
+          resourceId: 'org-1',
+          planId: 'pro',
+        });
       }).not.toThrow();
     });
   });
@@ -56,7 +68,12 @@ describe('Feature: Billing event emitter', () => {
         received.push(event);
       });
 
-      emitter.emit('billing:payment_failed', { resourceType: 'tenant', resourceId: 'org-1', planId: 'pro', attempt: 3 });
+      emitter.emit('billing:payment_failed', {
+        resourceType: 'tenant',
+        resourceId: 'org-1',
+        planId: 'pro',
+        attempt: 3,
+      });
 
       expect(received).toHaveLength(1);
       expect(received[0].attempt).toBe(3);
@@ -72,11 +89,19 @@ describe('Feature: Billing event emitter', () => {
       };
 
       emitter.on('subscription:created', handler);
-      emitter.emit('subscription:created', { resourceType: 'tenant', resourceId: 'org-1', planId: 'pro' });
+      emitter.emit('subscription:created', {
+        resourceType: 'tenant',
+        resourceId: 'org-1',
+        planId: 'pro',
+      });
       expect(count).toBe(1);
 
       emitter.off('subscription:created', handler);
-      emitter.emit('subscription:created', { resourceType: 'tenant', resourceId: 'org-1', planId: 'pro' });
+      emitter.emit('subscription:created', {
+        resourceType: 'tenant',
+        resourceId: 'org-1',
+        planId: 'pro',
+      });
       expect(count).toBe(1); // Still 1, handler not called again
     });
   });
@@ -94,7 +119,11 @@ describe('Feature: Billing event emitter', () => {
       });
 
       // Should not throw and second handler should still fire
-      emitter.emit('subscription:created', { resourceType: 'tenant', resourceId: 'org-1', planId: 'pro' });
+      emitter.emit('subscription:created', {
+        resourceType: 'tenant',
+        resourceId: 'org-1',
+        planId: 'pro',
+      });
       expect(secondFired).toBe(true);
     });
   });

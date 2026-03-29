@@ -2,14 +2,6 @@
   "name": "@vertz/landing",
   "private": true,
   "type": "module",
-  "vertz": {
-    "title": "Vertz — The Agent-Native Framework",
-    "description": "One schema derives your database, API, and UI. Fully typed end-to-end. Built for agents to write, humans to ship.",
-    "og": {
-      "image": "/og.png",
-      "url": "https://vertz.dev"
-    }
-  },
   "scripts": {
     "dev": "bun run src/dev-server.ts",
     "dev:presence": "bun run src/presence-dev-server.ts",
@@ -35,5 +27,13 @@
     "shiki": "^4.0.1",
     "typescript": "^5.8.0",
     "wrangler": "^4.78.0"
+  },
+  "vertz": {
+    "title": "Vertz — The Agent-Native Framework",
+    "description": "One schema derives your database, API, and UI. Fully typed end-to-end. Built for agents to write, humans to ship.",
+    "og": {
+      "image": "/og.png",
+      "url": "https://vertz.dev"
+    }
   }
 }

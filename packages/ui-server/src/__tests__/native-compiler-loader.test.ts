@@ -17,7 +17,6 @@ function isNativeBinaryAvailable(): boolean {
 const HAS_NATIVE_BINARY = isNativeBinaryAvailable();
 const describeWithBinary = HAS_NATIVE_BINARY ? describe : describe.skip;
 
-
 describe('Feature: Native compiler loader', () => {
   const originalEnv = process.env.VERTZ_NATIVE_COMPILER;
 

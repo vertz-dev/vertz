@@ -7,7 +7,6 @@
 - [#1980](https://github.com/vertz-dev/vertz/pull/1980) [`bee011e`](https://github.com/vertz-dev/vertz/commit/bee011e47661b31152ad3dfc589fd45eda2f3e44) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - fix(ui-server, ui-compiler, ui, theme-shadcn): AOT SSR pipeline composes App layout shell, portable holes, barrel extraction, CSS inlining, and lazy theme CSS
 
   Five AOT SSR fixes:
-
   1. **App layout composition (#1977)**: The AOT pipeline now wraps page content in the root App layout (header, nav, footer). The build pipeline detects the App component by its RouterView hole, includes it in the AOT manifest, and the runtime pipeline renders the App shell around each page. Gracefully degrades if app render fails.
 
   2. **Portable hole references (#1981)**: The AOT compiler now emits `ctx.holes.ComponentName()` for imported components instead of `__ssr_ComponentName()`. The `__ssr_` prefix is a Bun-internal convention that breaks on non-Bun bundlers (esbuild/workerd). Local components in the same file still use direct `__ssr_*` calls for efficiency.
@@ -27,7 +26,6 @@
 - [#1961](https://github.com/vertz-dev/vertz/pull/1961) [`f523a42`](https://github.com/vertz-dev/vertz/commit/f523a4282996d72c17be9f2a674a34a244455cba) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - feat(ui-compiler): AOT compiler optimizations — compile more components to string-builder functions
 
   Four optimizations that reduce runtime-fallback classifications:
-
   1. Derived variable preamble: body-level variable declarations computed from query data are now included in AOT function preambles instead of falling back to runtime.
   2. Map callback block body preservation: `.map()` callbacks with variable declarations before the return statement are preserved instead of falling back to `__esc()`.
   3. If-else chain flattening: if-else and if-else-if return patterns compile to nested ternaries instead of falling back to runtime.
@@ -201,7 +199,6 @@
 - [#1684](https://github.com/vertz-dev/vertz/pull/1684) [`e24615a`](https://github.com/vertz-dev/vertz/commit/e24615a8619ae84b993c18dbdca2671ca254f9bb) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - fix(ui-compiler): support JSX spread attributes on intrinsic elements and components
 
   JSX spread attributes (`<button {...rest}>`, `<Button {...props}>`) were silently dropped by the compiler. Spread attributes now work correctly:
-
   - **Component calls**: spread emits `...expr` in the props object literal
   - **Intrinsic elements**: spread emits `__spread(el, props)` runtime call that handles event handlers, style, class/className, ref, SVG attributes, and standard HTML attributes
   - **theme-shadcn Button**: removed `applyProps` workaround in favor of native JSX spread
@@ -320,7 +317,6 @@
 - [#1007](https://github.com/vertz-dev/vertz/pull/1007) [`a9211ca`](https://github.com/vertz-dev/vertz/commit/a9211ca751305f541987b93d493d349838cf4822) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - Skip effect wrapping for static JSX expressions. Non-reactive attributes now emit guarded `setAttribute` instead of `__attr()`, and non-reactive children emit `__insert()` instead of `__child(() => ...)`. This eliminates unnecessary `domEffect()` allocations and wrapper `<span>` elements for static expressions like `css()` style references, imported constants, and utility calls. Also fixes a JsxAnalyzer blind spot where destructured props were not classified as reactive sources.
 
 - [#1052](https://github.com/vertz-dev/vertz/pull/1052) [`4eac71c`](https://github.com/vertz-dev/vertz/commit/4eac71c98369d12a0cd7a3cbbeda60ea7cc5bd05) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - Add client-side auth session management (AuthProvider, useAuth, AuthGate)
-
   - AuthProvider wraps app with auth context, manages JWT session lifecycle
   - useAuth() returns reactive state + SdkMethods (signIn, signUp, signOut, mfaChallenge, forgotPassword, resetPassword)
   - SdkMethods work with form() for automatic validation and submission
@@ -434,7 +430,7 @@
   **Before:**
 
   ```ts
-  const tasks = query("/api/tasks");
+  const tasks = query('/api/tasks');
   const isLoading = tasks.loading.value; // Manual .value access
   const data = tasks.data.value;
   ```
@@ -442,19 +438,17 @@
   **After:**
 
   ```ts
-  const tasks = query("/api/tasks");
+  const tasks = query('/api/tasks');
   const isLoading = tasks.loading; // Compiler inserts .value automatically
   const data = tasks.data;
   ```
 
   **Supported APIs:**
-
   - `query()`: `.data`, `.loading`, `.error` (auto-unwrap) | `.refetch` (plain)
   - `form()`: `.submitting`, `.errors`, `.values` (auto-unwrap) | `.reset`, `.submit`, `.handleSubmit` (plain)
   - `createLoader()`: `.data`, `.loading`, `.error` (auto-unwrap) | `.refetch` (plain)
 
   **Features:**
-
   - Works with import aliases: `import { query as fetchData } from '@vertz/ui'`
   - Plain properties (like `.refetch`) are NOT unwrapped
   - Zero runtime overhead - pure compile-time transformation
@@ -470,7 +464,7 @@
   #### Before (old code):
 
   ```ts
-  const tasks = query("/api/tasks");
+  const tasks = query('/api/tasks');
   const isLoading = tasks.loading.value; // ❌ Remove .value
   const data = tasks.data.value; // ❌ Remove .value
   ```
@@ -478,7 +472,7 @@
   #### After (new code):
 
   ```ts
-  const tasks = query("/api/tasks");
+  const tasks = query('/api/tasks');
   const isLoading = tasks.loading; // ✅ Compiler auto-inserts .value
   const data = tasks.data; // ✅ Compiler auto-inserts .value
   ```
@@ -488,7 +482,6 @@
   **Automated migration:** The compiler includes guard logic to detect existing `.value` usage and skip double-transformation, providing a grace period during migration. However, you should still update your code to remove manual `.value` for long-term maintainability.
 
   **Affected APIs:**
-
   - `query()` → `.data`, `.loading`, `.error`
   - `form()` → `.submitting`, `.errors`, `.values`
   - `createLoader()` → `.data`, `.loading`, `.error`
@@ -500,32 +493,27 @@
 - [#267](https://github.com/vertz-dev/vertz/pull/267) [`0a33c14`](https://github.com/vertz-dev/vertz/commit/0a33c142a12a54e0da61423701ca338118ab9c98) Thanks [@vertz-dev-core](https://github.com/apps/vertz-dev-core)! - Zero-config SSR: `vertz({ ssr: true })` makes `vite dev` serve SSR'd HTML automatically.
 
   **@vertz/ui-server:**
-
   - Add `@vertz/ui-server/dom-shim` subpath with SSRElement, installDomShim, toVNode
   - Add `@vertz/ui-server/jsx-runtime` subpath for server-side JSX rendering
 
   **@vertz/ui-compiler:**
-
   - Add `ssr: boolean | SSROptions` to vertzPlugin options
   - Add `configureServer` hook that intercepts HTML requests and renders SSR'd HTML
   - Auto-generate virtual SSR entry module (`\0vertz:ssr-entry`)
   - Handle JSX runtime alias swap for SSR builds
 
   **@vertz/ui:**
-
   - Add `@vertz/ui/jsx-runtime` and `@vertz/ui/jsx-dev-runtime` subpath exports
   - Make router SSR-compatible (auto-detect `__SSR_URL__`, skip popstate in SSR)
 
 ### Patch Changes
 
 - [#293](https://github.com/vertz-dev/vertz/pull/293) [`259e250`](https://github.com/vertz-dev/vertz/commit/259e2501116f805fed49b95471aaeb4f80515256) Thanks [@vertz-dev-core](https://github.com/apps/vertz-dev-core)! - fix(ui-compiler): SSR routing — correct URL normalization and middleware order
-
   - Register SSR middleware BEFORE Vite internals (pre-hook) to prevent SPA fallback from rewriting URLs
   - Normalize URLs in SSR entry: strip /index.html suffix
   - Use surgical module invalidation (only SSR entry module, not entire module graph)
 
 - [#199](https://github.com/vertz-dev/vertz/pull/199) [`63f074e`](https://github.com/vertz-dev/vertz/commit/63f074eefa96b49eb72724f8ec377a14a1f2c630) Thanks [@vertz-tech-lead](https://github.com/apps/vertz-tech-lead)! - Initial release of @vertz/ui v0.1 — a compiler-driven reactive UI framework.
-
   - Reactivity: `signal()`, `computed()`, `effect()`, `batch()`, `untrack()`
   - Compiler: `let` → signal, `const` derived → computed, JSX → DOM helpers, mutation → peek/notify
   - Component model: `ref()`, `onMount()`, `onCleanup()`, `watch()`, `children()`, `createContext()`

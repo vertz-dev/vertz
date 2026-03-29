@@ -29,7 +29,14 @@ export function Nav() {
   return (
     <nav
       className={s.nav}
-      style={{ top: '0', left: '0', right: '0', background: 'rgba(17,17,16,0.85)', backdropFilter: 'blur(12px)', borderBottom: '1px solid #2A2826' }}
+      style={{
+        top: '0',
+        left: '0',
+        right: '0',
+        background: 'rgba(17,17,16,0.85)',
+        backdropFilter: 'blur(12px)',
+        borderBottom: '1px solid #2A2826',
+      }}
     >
       <Link href="/" className={s.logoWrapper}>
         <VertzLogo />
@@ -58,7 +65,11 @@ export function Nav() {
           Discord
         </a>
         */}
-        <a href="https://docs.vertz.dev" className={s.link} style={{ fontFamily: 'var(--font-mono)' }}>
+        <a
+          href="https://docs.vertz.dev"
+          className={s.link}
+          style={{ fontFamily: 'var(--font-mono)' }}
+        >
           Docs
         </a>
       </div>

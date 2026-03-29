@@ -319,11 +319,7 @@ export function createAccessEventBroadcaster(
     broadcastToUser(userId, JSON.stringify(event));
   }
 
-  function broadcastPlanChange(
-    orgId: string,
-    resourceType: string,
-    resourceId: string,
-  ): void {
+  function broadcastPlanChange(orgId: string, resourceType: string, resourceId: string): void {
     const event: AccessEvent = { type: 'access:plan_changed', resourceType, resourceId };
     broadcastToOrg(orgId, JSON.stringify(event));
   }

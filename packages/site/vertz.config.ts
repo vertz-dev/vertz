@@ -9,9 +9,7 @@ export default defineDocsConfig({
     appearance: 'system',
   },
   navbar: {
-    links: [
-      { label: 'GitHub', href: 'https://github.com/vertz-dev/vertz', icon: 'github' },
-    ],
+    links: [{ label: 'GitHub', href: 'https://github.com/vertz-dev/vertz', icon: 'github' }],
     cta: { label: 'Get Started', href: '/quickstart' },
   },
   footer: {

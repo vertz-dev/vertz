@@ -166,11 +166,7 @@ function buildCacheKey(url: URL, isHTML: boolean): Request {
  * Try to serve a pre-compressed Brotli version of the asset.
  * Returns null if client doesn't accept Brotli or .br file doesn't exist.
  */
-async function tryBrotli(
-  request: Request,
-  env: Env,
-  pathname: string,
-): Promise<Response | null> {
+async function tryBrotli(request: Request, env: Env, pathname: string): Promise<Response | null> {
   // Only attempt for compressible file types
   const ext = pathname.substring(pathname.lastIndexOf('.'));
   if (!COMPRESSIBLE_EXTENSIONS.has(ext)) return null;
@@ -204,7 +200,11 @@ async function tryBrotli(
 }
 
 /** Build a new response with cache and performance headers. */
-function addHeaders(response: Response, cacheControl: string, includeEarlyHints: boolean): Response {
+function addHeaders(
+  response: Response,
+  cacheControl: string,
+  includeEarlyHints: boolean,
+): Response {
   const headers = new Headers(response.headers);
   headers.set('Cache-Control', cacheControl);
 
@@ -246,13 +246,21 @@ function isHTMLRoute(pathname: string): boolean {
 function getContentType(pathname: string): string {
   const ext = pathname.substring(pathname.lastIndexOf('.'));
   switch (ext) {
-    case '.html': return 'text/html; charset=utf-8';
-    case '.js': return 'application/javascript; charset=utf-8';
-    case '.css': return 'text/css; charset=utf-8';
-    case '.svg': return 'image/svg+xml';
-    case '.xml': return 'application/xml';
-    case '.json': return 'application/json; charset=utf-8';
-    case '.txt': return 'text/plain; charset=utf-8';
-    default: return 'application/octet-stream';
+    case '.html':
+      return 'text/html; charset=utf-8';
+    case '.js':
+      return 'application/javascript; charset=utf-8';
+    case '.css':
+      return 'text/css; charset=utf-8';
+    case '.svg':
+      return 'image/svg+xml';
+    case '.xml':
+      return 'application/xml';
+    case '.json':
+      return 'application/json; charset=utf-8';
+    case '.txt':
+      return 'text/plain; charset=utf-8';
+    default:
+      return 'application/octet-stream';
   }
 }

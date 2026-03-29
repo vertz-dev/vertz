@@ -123,7 +123,12 @@ function ErrorCodeBlock() {
   return (
     <div
       className={s.codeBlock}
-      style={{ borderColor: 'rgba(239,68,68,0.3)', fontFamily: 'var(--font-mono)', fontSize: '0.8rem', lineHeight: '1.75' }}
+      style={{
+        borderColor: 'rgba(239,68,68,0.3)',
+        fontFamily: 'var(--font-mono)',
+        fontSize: '0.8rem',
+        lineHeight: '1.75',
+      }}
     >
       <div className={s.errorLabel}>
         <span style={{ color: '#ef4444' }}>✗</span> API call
@@ -151,7 +156,9 @@ function ErrorCodeBlock() {
               item.parts ? (
                 <span key={item.content} style={item.style}>
                   {item.parts[0]}
-                  <span style={{ textDecoration: 'wavy underline', textDecorationColor: '#ef4444' }}>
+                  <span
+                    style={{ textDecoration: 'wavy underline', textDecorationColor: '#ef4444' }}
+                  >
                     title
                   </span>
                   {item.parts[1]}
@@ -186,14 +193,20 @@ export function TypeErrorDemo() {
 
         <div className={s.grid}>
           <div>
-            <p className={s.columnLabel} style={{ fontFamily: 'var(--font-mono)', color: '#a1a1aa' }}>
+            <p
+              className={s.columnLabel}
+              style={{ fontFamily: 'var(--font-mono)', color: '#a1a1aa' }}
+            >
               The change
             </p>
             <DiffCodeBlock />
           </div>
 
           <div>
-            <p className={s.columnLabel} style={{ fontFamily: 'var(--font-mono)', color: '#ef4444' }}>
+            <p
+              className={s.columnLabel}
+              style={{ fontFamily: 'var(--font-mono)', color: '#ef4444' }}
+            >
               Compile errors
             </p>
             <ErrorCodeBlock />

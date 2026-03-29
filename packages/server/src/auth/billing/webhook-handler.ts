@@ -31,9 +31,7 @@ interface StripeEventPayload {
 // Helpers
 // ============================================================================
 
-function extractResource(
-  obj: Record<string, unknown>,
-): { type: string; id: string } | null {
+function extractResource(obj: Record<string, unknown>): { type: string; id: string } | null {
   // Try direct metadata first
   const meta = obj.metadata as Record<string, string> | undefined;
   let resourceId = meta?.resourceId ?? meta?.tenantId;

@@ -63,11 +63,7 @@ export function handleJoin(
 /**
  * Handle a connection leaving the room.
  */
-export function handleLeave(
-  room: RoomState,
-  connId: ConnectionId,
-  broadcast: BroadcastFn,
-): void {
+export function handleLeave(room: RoomState, connId: ConnectionId, broadcast: BroadcastFn): void {
   room.connections.delete(connId);
   room.rateLimits.delete(connId);
 

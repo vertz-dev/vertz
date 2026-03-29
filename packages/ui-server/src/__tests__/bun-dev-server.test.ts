@@ -1909,7 +1909,7 @@ describe('parsePluginError', () => {
   describe('Given a plugin error with file path and message', () => {
     it('Then extracts file and message', () => {
       const text =
-        "[vertz-bun-plugin] Failed to process src/pages/tasks.tsx: Expected `}` to close object expression";
+        '[vertz-bun-plugin] Failed to process src/pages/tasks.tsx: Expected `}` to close object expression';
       const result = parsePluginError(text);
       expect(result).not.toBeNull();
       expect(result!.file).toBe('src/pages/tasks.tsx');
@@ -1919,8 +1919,7 @@ describe('parsePluginError', () => {
 
   describe('Given a plugin error with line and column in the message', () => {
     it('Then extracts line and column numbers', () => {
-      const text =
-        '[vertz-bun-plugin] Failed to process src/app.tsx: Unexpected token (42:5)';
+      const text = '[vertz-bun-plugin] Failed to process src/app.tsx: Unexpected token (42:5)';
       const result = parsePluginError(text);
       expect(result).not.toBeNull();
       expect(result!.file).toBe('src/app.tsx');
@@ -1932,7 +1931,7 @@ describe('parsePluginError', () => {
   describe('Given a plugin error without line/column info', () => {
     it('Then line and column are undefined', () => {
       const text =
-        "[vertz-bun-plugin] Failed to process src/utils.ts: Cannot read properties of undefined";
+        '[vertz-bun-plugin] Failed to process src/utils.ts: Cannot read properties of undefined';
       const result = parsePluginError(text);
       expect(result).not.toBeNull();
       expect(result!.file).toBe('src/utils.ts');

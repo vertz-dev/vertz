@@ -42,7 +42,10 @@ export function SchemaFlow() {
           {STEPS.map((step) => (
             <div key={step.label}>
               <div className={s.stepHeader}>
-                <span className={s.stepLabel} style={{ fontFamily: 'var(--font-mono)', color: '#3b82f6' }}>
+                <span
+                  className={s.stepLabel}
+                  style={{ fontFamily: 'var(--font-mono)', color: '#3b82f6' }}
+                >
                   {step.label}
                 </span>
                 <span className={s.stepTitle} style={{ fontFamily: 'var(--font-mono)' }}>

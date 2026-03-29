@@ -28,7 +28,11 @@ function round(n: number): number {
   return Math.round(n * 1000) / 1000;
 }
 
-async function benchmarkUrl(name: string, url: string, iterations: number): Promise<BenchmarkResult> {
+async function benchmarkUrl(
+  name: string,
+  url: string,
+  iterations: number,
+): Promise<BenchmarkResult> {
   // Warmup
   for (let i = 0; i < WARMUP; i++) {
     await fetch(url);
@@ -68,7 +72,9 @@ async function main() {
   try {
     await fetch(BASE);
   } catch {
-    console.error(`Dev server not running at ${BASE}. Start it with: cd sites/landing && bun run dev`);
+    console.error(
+      `Dev server not running at ${BASE}. Start it with: cd sites/landing && bun run dev`,
+    );
     process.exit(1);
   }
 
@@ -109,12 +115,24 @@ async function main() {
   console.log('');
   console.log('  Page          avg       p50       p95       Size');
   console.log('  ────────────  ────────  ────────  ────────  ────────');
-  console.log(`  Home          ${home.avgMs}ms`.padEnd(24) + `${home.p50Ms}ms`.padEnd(10) + `${home.p95Ms}ms`.padEnd(10) + `${(homeHtml.length / 1024).toFixed(1)} KB`);
-  console.log(`  Manifesto     ${manifesto.avgMs}ms`.padEnd(24) + `${manifesto.p50Ms}ms`.padEnd(10) + `${manifesto.p95Ms}ms`.padEnd(10) + `${(manifestoHtml.length / 1024).toFixed(1)} KB`);
+  console.log(
+    `  Home          ${home.avgMs}ms`.padEnd(24) +
+      `${home.p50Ms}ms`.padEnd(10) +
+      `${home.p95Ms}ms`.padEnd(10) +
+      `${(homeHtml.length / 1024).toFixed(1)} KB`,
+  );
+  console.log(
+    `  Manifesto     ${manifesto.avgMs}ms`.padEnd(24) +
+      `${manifesto.p50Ms}ms`.padEnd(10) +
+      `${manifesto.p95Ms}ms`.padEnd(10) +
+      `${(manifestoHtml.length / 1024).toFixed(1)} KB`,
+  );
   console.log('');
   console.log('  Note: The landing page has NO data queries — it is fully static.');
   console.log('  The zero-discovery optimization targets pages with query() calls.');
-  console.log('  These numbers represent the baseline SSR cost (component tree + HTML serialization).');
+  console.log(
+    '  These numbers represent the baseline SSR cost (component tree + HTML serialization).',
+  );
   console.log('');
 }
 

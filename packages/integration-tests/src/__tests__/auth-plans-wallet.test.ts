@@ -322,7 +322,13 @@ describe('Plans & Wallet — canAndConsume / unconsume', () => {
 
     // Verify consumption was recorded under the limit key 'projects'
     const { periodStart, periodEnd } = calculateBillingPeriod(planStart, 'month');
-    const consumed = await walletStore.getConsumption('tenant', 'org-1', 'projects', periodStart, periodEnd);
+    const consumed = await walletStore.getConsumption(
+      'tenant',
+      'org-1',
+      'projects',
+      periodStart,
+      periodEnd,
+    );
     expect(consumed).toBe(1);
   });
 
@@ -354,7 +360,13 @@ describe('Plans & Wallet — canAndConsume / unconsume', () => {
     expect(result).toBe(false);
 
     // Wallet should not have been incremented
-    const consumed = await walletStore.getConsumption('tenant', 'org-1', 'projects', periodStart, periodEnd);
+    const consumed = await walletStore.getConsumption(
+      'tenant',
+      'org-1',
+      'projects',
+      periodStart,
+      periodEnd,
+    );
     expect(consumed).toBe(10);
   });
 
@@ -381,14 +393,18 @@ describe('Plans & Wallet — canAndConsume / unconsume', () => {
       id: 'org-1',
     });
     const { periodStart, periodEnd } = calculateBillingPeriod(planStart, 'month');
-    expect(await walletStore.getConsumption('tenant', 'org-1', 'projects', periodStart, periodEnd)).toBe(1);
+    expect(
+      await walletStore.getConsumption('tenant', 'org-1', 'projects', periodStart, periodEnd),
+    ).toBe(1);
 
     // Unconsume (rollback)
     await ctx.unconsume('organization:create-project', {
       type: 'organization',
       id: 'org-1',
     });
-    expect(await walletStore.getConsumption('tenant', 'org-1', 'projects', periodStart, periodEnd)).toBe(0);
+    expect(
+      await walletStore.getConsumption('tenant', 'org-1', 'projects', periodStart, periodEnd),
+    ).toBe(0);
   });
 });
 

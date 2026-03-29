@@ -108,10 +108,7 @@ export function wrapSignalProps<T>(value: T): T {
  * getter ever produced objects with varying keys, later-appearing properties
  * would be invisible to consumers.
  */
-function wrapSignalPropsLazy<T>(
-  propsObj: ProviderJsxProps<T>,
-  initial: T,
-): T {
+function wrapSignalPropsLazy<T>(propsObj: ProviderJsxProps<T>, initial: T): T {
   if (initial == null || typeof initial !== 'object' || Array.isArray(initial)) {
     return wrapSignalProps(initial);
   }

@@ -51,9 +51,7 @@ export class ComputedTransformer {
         // Handle array destructuring: const [a, b] = expr
         if (nameNode.isKind(SyntaxKind.ArrayBindingPattern)) {
           const elements = nameNode.getElements();
-          const bindingElements = elements.filter(
-            (el) => el.isKind(SyntaxKind.BindingElement),
-          );
+          const bindingElements = elements.filter((el) => el.isKind(SyntaxKind.BindingElement));
           const hasComputedElement = bindingElements.some((el) =>
             computeds.has(el.asKindOrThrow(SyntaxKind.BindingElement).getName()),
           );

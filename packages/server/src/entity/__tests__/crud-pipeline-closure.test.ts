@@ -243,15 +243,11 @@ describe('Feature: Closure table auto-population', () => {
         // Self (depth 0), project (depth 1), account (depth 2)
         expect(ancestors).toHaveLength(3);
 
-        const projectEntry = ancestors.find(
-          (a) => a.type === 'project' && a.id === 'proj-1',
-        );
+        const projectEntry = ancestors.find((a) => a.type === 'project' && a.id === 'proj-1');
         expect(projectEntry).toBeDefined();
         expect(projectEntry!.depth).toBe(1);
 
-        const accountEntry = ancestors.find(
-          (a) => a.type === 'account' && a.id === 'acct-1',
-        );
+        const accountEntry = ancestors.find((a) => a.type === 'account' && a.id === 'acct-1');
         expect(accountEntry).toBeDefined();
         expect(accountEntry!.depth).toBe(2);
       });
@@ -346,9 +342,7 @@ describe('Feature: Closure table auto-population', () => {
 
       // Make closureStore throw on addResource
       const failingClosureStore = new InMemoryClosureStore();
-      spyOn(failingClosureStore, 'addResource').mockRejectedValue(
-        new Error('DB connection lost'),
-      );
+      spyOn(failingClosureStore, 'addResource').mockRejectedValue(new Error('DB connection lost'));
       const warnSpy = spyOn(console, 'warn').mockImplementation(() => {});
 
       const handlers = createCrudHandlers(def, db, {
@@ -385,9 +379,7 @@ describe('Feature: Closure table auto-population', () => {
       }));
 
       const failingClosureStore = new InMemoryClosureStore();
-      spyOn(failingClosureStore, 'addResource').mockRejectedValue(
-        new Error('DB connection lost'),
-      );
+      spyOn(failingClosureStore, 'addResource').mockRejectedValue(new Error('DB connection lost'));
       const warnSpy = spyOn(console, 'warn').mockImplementation(() => {});
 
       const handlers = createCrudHandlers(def, db, {
@@ -421,9 +413,7 @@ describe('Feature: Closure table auto-population', () => {
       }));
 
       const failingClosureStore = new InMemoryClosureStore();
-      spyOn(failingClosureStore, 'addResource').mockRejectedValue(
-        new Error('DB connection lost'),
-      );
+      spyOn(failingClosureStore, 'addResource').mockRejectedValue(new Error('DB connection lost'));
       const warnSpy = spyOn(console, 'warn').mockImplementation(() => {});
 
       const handlers = createCrudHandlers(def, db, {

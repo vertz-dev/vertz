@@ -77,9 +77,7 @@ function transformDeclarations(
       // Handle array destructuring: let [a, b] = expr
       if (nameNode.isKind(SyntaxKind.ArrayBindingPattern)) {
         const elements = nameNode.getElements();
-        const bindingElements = elements.filter(
-          (el) => el.isKind(SyntaxKind.BindingElement),
-        );
+        const bindingElements = elements.filter((el) => el.isKind(SyntaxKind.BindingElement));
         const hasSignalElement = bindingElements.some((el) =>
           signals.has(el.asKindOrThrow(SyntaxKind.BindingElement).getName()),
         );
@@ -109,7 +107,9 @@ function transformDeclarations(
             if (el.getDotDotDotToken()) {
               lines.push(`const ${bindingName} = signal(${initText}.slice(${index}), '${hmrKey}')`);
             } else {
-              lines.push(`const ${bindingName} = signal(${initText}[${index}]${defaultSuffix}, '${hmrKey}')`);
+              lines.push(
+                `const ${bindingName} = signal(${initText}[${index}]${defaultSuffix}, '${hmrKey}')`,
+              );
             }
           } else {
             if (el.getDotDotDotToken()) {
