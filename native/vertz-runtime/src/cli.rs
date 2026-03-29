@@ -40,6 +40,8 @@ pub enum Command {
     Run(RunArgs),
     /// Execute a command with node_modules/.bin on PATH
     Exec(ExecArgs),
+    /// Manage project configuration (.vertzrc)
+    Config(ConfigArgs),
 }
 
 #[derive(Parser, Debug)]
@@ -320,6 +322,65 @@ pub struct ExecArgs {
     /// Target a specific workspace package (by name or path)
     #[arg(short = 'w', long = "workspace")]
     pub workspace: Option<String>,
+}
+
+#[derive(Parser, Debug)]
+pub struct ConfigArgs {
+    #[command(subcommand)]
+    pub command: ConfigCommand,
+}
+
+#[derive(Subcommand, Debug)]
+pub enum ConfigCommand {
+    /// Set a config value (replaces existing)
+    Set(ConfigSetArgs),
+    /// Add values to a config list
+    Add(ConfigAddArgs),
+    /// Remove values from a config list
+    Remove(ConfigRemoveArgs),
+    /// Show a config value
+    Get(ConfigGetArgs),
+    /// Initialize a config value from current project state
+    Init(ConfigInitArgs),
+}
+
+#[derive(Parser, Debug)]
+pub struct ConfigSetArgs {
+    /// Config key (e.g., trust-scripts)
+    pub key: String,
+    /// Values to set
+    #[arg(required = true)]
+    pub values: Vec<String>,
+}
+
+#[derive(Parser, Debug)]
+pub struct ConfigAddArgs {
+    /// Config key (e.g., trust-scripts)
+    pub key: String,
+    /// Values to add
+    #[arg(required = true)]
+    pub values: Vec<String>,
+}
+
+#[derive(Parser, Debug)]
+pub struct ConfigRemoveArgs {
+    /// Config key (e.g., trust-scripts)
+    pub key: String,
+    /// Values to remove
+    #[arg(required = true)]
+    pub values: Vec<String>,
+}
+
+#[derive(Parser, Debug)]
+pub struct ConfigGetArgs {
+    /// Config key (e.g., trust-scripts)
+    pub key: String,
+}
+
+#[derive(Parser, Debug)]
+pub struct ConfigInitArgs {
+    /// Config key (e.g., trust-scripts)
+    pub key: String,
 }
 
 #[cfg(test)]
@@ -1204,5 +1265,147 @@ mod tests {
     fn test_remove_workspace_default_none() {
         let args = parse_remove(&["vertz-runtime", "remove", "zod"]);
         assert!(args.workspace.is_none());
+    }
+
+    // --- Config command tests ---
+
+    fn parse_config(args: &[&str]) -> ConfigArgs {
+        let cli = Cli::parse_from(args);
+        match cli.command {
+            Command::Config(args) => args,
+            other => panic!("Expected Config, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_config_set_trust_scripts() {
+        let args = parse_config(&[
+            "vertz-runtime",
+            "config",
+            "set",
+            "trust-scripts",
+            "esbuild",
+            "prisma",
+        ]);
+        match args.command {
+            ConfigCommand::Set(set_args) => {
+                assert_eq!(set_args.key, "trust-scripts");
+                assert_eq!(set_args.values, vec!["esbuild", "prisma"]);
+            }
+            other => panic!("Expected Set, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_config_add_trust_scripts() {
+        let args = parse_config(&[
+            "vertz-runtime",
+            "config",
+            "add",
+            "trust-scripts",
+            "sharp",
+        ]);
+        match args.command {
+            ConfigCommand::Add(add_args) => {
+                assert_eq!(add_args.key, "trust-scripts");
+                assert_eq!(add_args.values, vec!["sharp"]);
+            }
+            other => panic!("Expected Add, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_config_remove_trust_scripts() {
+        let args = parse_config(&[
+            "vertz-runtime",
+            "config",
+            "remove",
+            "trust-scripts",
+            "esbuild",
+        ]);
+        match args.command {
+            ConfigCommand::Remove(remove_args) => {
+                assert_eq!(remove_args.key, "trust-scripts");
+                assert_eq!(remove_args.values, vec!["esbuild"]);
+            }
+            other => panic!("Expected Remove, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_config_get_trust_scripts() {
+        let args = parse_config(&[
+            "vertz-runtime",
+            "config",
+            "get",
+            "trust-scripts",
+        ]);
+        match args.command {
+            ConfigCommand::Get(get_args) => {
+                assert_eq!(get_args.key, "trust-scripts");
+            }
+            other => panic!("Expected Get, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_config_init_trust_scripts() {
+        let args = parse_config(&[
+            "vertz-runtime",
+            "config",
+            "init",
+            "trust-scripts",
+        ]);
+        match args.command {
+            ConfigCommand::Init(init_args) => {
+                assert_eq!(init_args.key, "trust-scripts");
+            }
+            other => panic!("Expected Init, got {:?}", other),
+        }
+    }
+
+    // --- Install --run-scripts tests ---
+
+    #[test]
+    fn test_install_run_scripts() {
+        let args = parse_install(&["vertz-runtime", "install", "--run-scripts"]);
+        assert!(args.run_scripts);
+        assert!(!args.ignore_scripts);
+    }
+
+    #[test]
+    fn test_install_ignore_scripts() {
+        let args = parse_install(&["vertz-runtime", "install", "--ignore-scripts"]);
+        assert!(args.ignore_scripts);
+        assert!(!args.run_scripts);
+    }
+
+    #[test]
+    fn test_install_run_scripts_conflicts_with_ignore_scripts() {
+        let result = Cli::try_parse_from(&[
+            "vertz-runtime",
+            "install",
+            "--run-scripts",
+            "--ignore-scripts",
+        ]);
+        assert!(result.is_err(), "--run-scripts and --ignore-scripts should conflict");
+    }
+
+    #[test]
+    fn test_add_run_scripts() {
+        let args = parse_add(&["vertz-runtime", "add", "zod", "--run-scripts"]);
+        assert!(args.run_scripts);
+    }
+
+    #[test]
+    fn test_add_run_scripts_conflicts_with_ignore_scripts() {
+        let result = Cli::try_parse_from(&[
+            "vertz-runtime",
+            "add",
+            "zod",
+            "--run-scripts",
+            "--ignore-scripts",
+        ]);
+        assert!(result.is_err(), "--run-scripts and --ignore-scripts should conflict");
     }
 }

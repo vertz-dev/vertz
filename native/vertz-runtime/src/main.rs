@@ -459,5 +459,114 @@ async fn main() {
                 }
             }
         }
+        Command::Config(config_args) => {
+            let root_dir =
+                std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from("."));
+
+            match config_args.command {
+                cli::ConfigCommand::Set(args) => {
+                    if args.key != "trust-scripts" {
+                        eprintln!("error: unknown config key: {}", args.key);
+                        std::process::exit(1);
+                    }
+                    match pm::vertzrc::config_set_trust_scripts(&root_dir, &args.values) {
+                        Ok(removed) => {
+                            for name in &removed {
+                                eprintln!("removed: {}", name);
+                            }
+                            eprintln!(
+                                "trustScripts set to: {}",
+                                args.values.join(", ")
+                            );
+                        }
+                        Err(e) => {
+                            eprintln!("{}", e);
+                            std::process::exit(1);
+                        }
+                    }
+                }
+                cli::ConfigCommand::Add(args) => {
+                    if args.key != "trust-scripts" {
+                        eprintln!("error: unknown config key: {}", args.key);
+                        std::process::exit(1);
+                    }
+                    if let Err(e) =
+                        pm::vertzrc::config_add_trust_scripts(&root_dir, &args.values)
+                    {
+                        eprintln!("{}", e);
+                        std::process::exit(1);
+                    }
+                    eprintln!("added to trustScripts: {}", args.values.join(", "));
+                }
+                cli::ConfigCommand::Remove(args) => {
+                    if args.key != "trust-scripts" {
+                        eprintln!("error: unknown config key: {}", args.key);
+                        std::process::exit(1);
+                    }
+                    match pm::vertzrc::config_remove_trust_scripts(&root_dir, &args.values) {
+                        Ok(removed) => {
+                            if removed.is_empty() {
+                                eprintln!("no matching entries found");
+                            } else {
+                                eprintln!(
+                                    "removed from trustScripts: {}",
+                                    removed.join(", ")
+                                );
+                            }
+                        }
+                        Err(e) => {
+                            eprintln!("{}", e);
+                            std::process::exit(1);
+                        }
+                    }
+                }
+                cli::ConfigCommand::Get(args) => {
+                    if args.key != "trust-scripts" {
+                        eprintln!("error: unknown config key: {}", args.key);
+                        std::process::exit(1);
+                    }
+                    match pm::vertzrc::config_get_trust_scripts(&root_dir) {
+                        Ok(scripts) => {
+                            if scripts.is_empty() {
+                                println!("trustScripts: (empty)");
+                            } else {
+                                for s in &scripts {
+                                    println!("  {}", s);
+                                }
+                            }
+                        }
+                        Err(e) => {
+                            eprintln!("{}", e);
+                            std::process::exit(1);
+                        }
+                    }
+                }
+                cli::ConfigCommand::Init(args) => {
+                    if args.key != "trust-scripts" {
+                        eprintln!("error: unknown config key: {}", args.key);
+                        std::process::exit(1);
+                    }
+                    match pm::vertzrc::config_init_trust_scripts(&root_dir) {
+                        Ok(names) => {
+                            if names.is_empty() {
+                                eprintln!("No packages with postinstall scripts found.");
+                            } else {
+                                eprintln!(
+                                    "Added {} packages to trustScripts:",
+                                    names.len()
+                                );
+                                for name in &names {
+                                    eprintln!("  {}", name);
+                                }
+                            }
+                        }
+                        Err(e) => {
+                            eprintln!("{}", e);
+                            std::process::exit(1);
+                        }
+                    }
+                }
+            }
+        }
     }
 }

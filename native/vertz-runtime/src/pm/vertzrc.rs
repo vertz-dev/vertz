@@ -82,6 +82,132 @@ pub enum ScriptPolicy {
     RunAll,
 }
 
+/// Set trust-scripts to the given values (replaces entire list).
+/// Returns names that were in the old list but not the new one.
+pub fn config_set_trust_scripts(
+    root_dir: &Path,
+    values: &[String],
+) -> Result<Vec<String>, Box<dyn std::error::Error>> {
+    let old = load_vertzrc(root_dir)?;
+    let new_set: std::collections::HashSet<&str> = values.iter().map(|s| s.as_str()).collect();
+    let removed: Vec<String> = old
+        .trust_scripts
+        .iter()
+        .filter(|s| !new_set.contains(s.as_str()))
+        .cloned()
+        .collect();
+
+    let config = VertzConfig {
+        trust_scripts: values.to_vec(),
+    };
+    save_vertzrc(root_dir, &config)?;
+    Ok(removed)
+}
+
+/// Add values to trust-scripts (deduplicates).
+pub fn config_add_trust_scripts(
+    root_dir: &Path,
+    values: &[String],
+) -> Result<(), Box<dyn std::error::Error>> {
+    let mut config = load_vertzrc(root_dir)?;
+    for v in values {
+        if !config.trust_scripts.contains(v) {
+            config.trust_scripts.push(v.clone());
+        }
+    }
+    save_vertzrc(root_dir, &config)?;
+    Ok(())
+}
+
+/// Remove values from trust-scripts.
+/// Returns names that were actually removed.
+pub fn config_remove_trust_scripts(
+    root_dir: &Path,
+    values: &[String],
+) -> Result<Vec<String>, Box<dyn std::error::Error>> {
+    let mut config = load_vertzrc(root_dir)?;
+    let remove_set: std::collections::HashSet<&str> = values.iter().map(|s| s.as_str()).collect();
+    let removed: Vec<String> = config
+        .trust_scripts
+        .iter()
+        .filter(|s| remove_set.contains(s.as_str()))
+        .cloned()
+        .collect();
+    config
+        .trust_scripts
+        .retain(|s| !remove_set.contains(s.as_str()));
+    save_vertzrc(root_dir, &config)?;
+    Ok(removed)
+}
+
+/// Get current trust-scripts list.
+pub fn config_get_trust_scripts(
+    root_dir: &Path,
+) -> Result<Vec<String>, Box<dyn std::error::Error>> {
+    let config = load_vertzrc(root_dir)?;
+    Ok(config.trust_scripts)
+}
+
+/// Initialize trust-scripts by scanning node_modules for packages with
+/// postinstall scripts in their package.json.
+pub fn config_init_trust_scripts(
+    root_dir: &Path,
+) -> Result<Vec<String>, Box<dyn std::error::Error>> {
+    let nm_dir = root_dir.join("node_modules");
+    if !nm_dir.exists() {
+        return Err("No node_modules found. Run `vertz install` first.".into());
+    }
+
+    let mut names: Vec<String> = Vec::new();
+
+    // Scan top-level packages
+    for entry in std::fs::read_dir(&nm_dir)? {
+        let entry = entry?;
+        let name = entry.file_name().to_string_lossy().to_string();
+        if name.starts_with('.') {
+            continue;
+        }
+        if name.starts_with('@') {
+            // Scoped package — scan subdirectory
+            let scope_dir = entry.path();
+            if scope_dir.is_dir() {
+                for sub in std::fs::read_dir(&scope_dir)? {
+                    let sub = sub?;
+                    let sub_name = format!("{}/{}", name, sub.file_name().to_string_lossy());
+                    if has_postinstall_in_node_modules(&nm_dir, &sub_name) {
+                        names.push(sub_name);
+                    }
+                }
+            }
+        } else if has_postinstall_in_node_modules(&nm_dir, &name) {
+            names.push(name);
+        }
+    }
+
+    names.sort();
+    names.dedup();
+
+    if !names.is_empty() {
+        config_add_trust_scripts(root_dir, &names)?;
+    }
+
+    Ok(names)
+}
+
+/// Check if a package in node_modules has a postinstall script.
+fn has_postinstall_in_node_modules(nm_dir: &Path, pkg_name: &str) -> bool {
+    let pkg_json_path = nm_dir.join(pkg_name).join("package.json");
+    if let Ok(content) = std::fs::read_to_string(&pkg_json_path) {
+        if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(&content) {
+            return parsed
+                .get("scripts")
+                .and_then(|s| s.get("postinstall"))
+                .is_some();
+        }
+    }
+    false
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -235,5 +361,193 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         std::fs::write(dir.path().join(".vertzrc"), "not json").unwrap();
         assert!(load_vertzrc(dir.path()).is_err());
+    }
+
+    // --- config operation tests ---
+
+    #[test]
+    fn test_config_set_trust_scripts_creates_file() {
+        let dir = tempfile::tempdir().unwrap();
+        let removed = config_set_trust_scripts(
+            dir.path(),
+            &["esbuild".to_string(), "prisma".to_string()],
+        )
+        .unwrap();
+        assert!(removed.is_empty());
+        let config = load_vertzrc(dir.path()).unwrap();
+        assert_eq!(config.trust_scripts, vec!["esbuild", "prisma"]);
+    }
+
+    #[test]
+    fn test_config_set_trust_scripts_reports_removed() {
+        let dir = tempfile::tempdir().unwrap();
+        config_set_trust_scripts(
+            dir.path(),
+            &["esbuild".to_string(), "prisma".to_string()],
+        )
+        .unwrap();
+        let removed =
+            config_set_trust_scripts(dir.path(), &["esbuild".to_string()]).unwrap();
+        assert_eq!(removed, vec!["prisma"]);
+        let config = load_vertzrc(dir.path()).unwrap();
+        assert_eq!(config.trust_scripts, vec!["esbuild"]);
+    }
+
+    #[test]
+    fn test_config_add_trust_scripts_appends() {
+        let dir = tempfile::tempdir().unwrap();
+        config_set_trust_scripts(dir.path(), &["esbuild".to_string()]).unwrap();
+        config_add_trust_scripts(dir.path(), &["sharp".to_string()]).unwrap();
+        let config = load_vertzrc(dir.path()).unwrap();
+        assert_eq!(config.trust_scripts, vec!["esbuild", "sharp"]);
+    }
+
+    #[test]
+    fn test_config_add_trust_scripts_deduplicates() {
+        let dir = tempfile::tempdir().unwrap();
+        config_set_trust_scripts(dir.path(), &["esbuild".to_string()]).unwrap();
+        config_add_trust_scripts(dir.path(), &["esbuild".to_string()]).unwrap();
+        let config = load_vertzrc(dir.path()).unwrap();
+        assert_eq!(config.trust_scripts, vec!["esbuild"]);
+    }
+
+    #[test]
+    fn test_config_add_trust_scripts_creates_file_if_missing() {
+        let dir = tempfile::tempdir().unwrap();
+        config_add_trust_scripts(dir.path(), &["sharp".to_string()]).unwrap();
+        let config = load_vertzrc(dir.path()).unwrap();
+        assert_eq!(config.trust_scripts, vec!["sharp"]);
+    }
+
+    #[test]
+    fn test_config_remove_trust_scripts() {
+        let dir = tempfile::tempdir().unwrap();
+        config_set_trust_scripts(
+            dir.path(),
+            &["esbuild".to_string(), "prisma".to_string()],
+        )
+        .unwrap();
+        let removed =
+            config_remove_trust_scripts(dir.path(), &["esbuild".to_string()]).unwrap();
+        assert_eq!(removed, vec!["esbuild"]);
+        let config = load_vertzrc(dir.path()).unwrap();
+        assert_eq!(config.trust_scripts, vec!["prisma"]);
+    }
+
+    #[test]
+    fn test_config_remove_trust_scripts_nonexistent() {
+        let dir = tempfile::tempdir().unwrap();
+        config_set_trust_scripts(dir.path(), &["esbuild".to_string()]).unwrap();
+        let removed =
+            config_remove_trust_scripts(dir.path(), &["nonexistent".to_string()]).unwrap();
+        assert!(removed.is_empty());
+    }
+
+    #[test]
+    fn test_config_get_trust_scripts_empty() {
+        let dir = tempfile::tempdir().unwrap();
+        let scripts = config_get_trust_scripts(dir.path()).unwrap();
+        assert!(scripts.is_empty());
+    }
+
+    #[test]
+    fn test_config_get_trust_scripts_with_values() {
+        let dir = tempfile::tempdir().unwrap();
+        config_set_trust_scripts(
+            dir.path(),
+            &["esbuild".to_string(), "@vertz/*".to_string()],
+        )
+        .unwrap();
+        let scripts = config_get_trust_scripts(dir.path()).unwrap();
+        assert_eq!(scripts, vec!["esbuild", "@vertz/*"]);
+    }
+
+    #[test]
+    fn test_config_init_trust_scripts_no_node_modules() {
+        let dir = tempfile::tempdir().unwrap();
+        let result = config_init_trust_scripts(dir.path());
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("No node_modules"));
+    }
+
+    #[test]
+    fn test_config_init_trust_scripts_empty_node_modules() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::create_dir(dir.path().join("node_modules")).unwrap();
+        let names = config_init_trust_scripts(dir.path()).unwrap();
+        assert!(names.is_empty());
+    }
+
+    #[test]
+    fn test_config_init_trust_scripts_finds_postinstall() {
+        let dir = tempfile::tempdir().unwrap();
+        let nm = dir.path().join("node_modules");
+        let pkg_dir = nm.join("esbuild");
+        std::fs::create_dir_all(&pkg_dir).unwrap();
+        std::fs::write(
+            pkg_dir.join("package.json"),
+            r#"{"name": "esbuild", "scripts": {"postinstall": "node install.js"}}"#,
+        )
+        .unwrap();
+
+        // Package without postinstall
+        let zod_dir = nm.join("zod");
+        std::fs::create_dir_all(&zod_dir).unwrap();
+        std::fs::write(
+            zod_dir.join("package.json"),
+            r#"{"name": "zod", "version": "3.24.4"}"#,
+        )
+        .unwrap();
+
+        let names = config_init_trust_scripts(dir.path()).unwrap();
+        assert_eq!(names, vec!["esbuild"]);
+    }
+
+    #[test]
+    fn test_config_init_trust_scripts_finds_scoped() {
+        let dir = tempfile::tempdir().unwrap();
+        let nm = dir.path().join("node_modules");
+        let pkg_dir = nm.join("@prisma").join("client");
+        std::fs::create_dir_all(&pkg_dir).unwrap();
+        std::fs::write(
+            pkg_dir.join("package.json"),
+            r#"{"name": "@prisma/client", "scripts": {"postinstall": "prisma generate"}}"#,
+        )
+        .unwrap();
+
+        let names = config_init_trust_scripts(dir.path()).unwrap();
+        assert_eq!(names, vec!["@prisma/client"]);
+    }
+
+    #[test]
+    fn test_has_postinstall_in_node_modules_true() {
+        let dir = tempfile::tempdir().unwrap();
+        let nm = dir.path().join("node_modules");
+        let pkg_dir = nm.join("esbuild");
+        std::fs::create_dir_all(&pkg_dir).unwrap();
+        std::fs::write(
+            pkg_dir.join("package.json"),
+            r#"{"scripts": {"postinstall": "node install.js"}}"#,
+        )
+        .unwrap();
+        assert!(has_postinstall_in_node_modules(&nm, "esbuild"));
+    }
+
+    #[test]
+    fn test_has_postinstall_in_node_modules_false() {
+        let dir = tempfile::tempdir().unwrap();
+        let nm = dir.path().join("node_modules");
+        let pkg_dir = nm.join("zod");
+        std::fs::create_dir_all(&pkg_dir).unwrap();
+        std::fs::write(pkg_dir.join("package.json"), r#"{"name": "zod"}"#).unwrap();
+        assert!(!has_postinstall_in_node_modules(&nm, "zod"));
+    }
+
+    #[test]
+    fn test_has_postinstall_in_node_modules_missing() {
+        let dir = tempfile::tempdir().unwrap();
+        let nm = dir.path().join("node_modules");
+        std::fs::create_dir_all(&nm).unwrap();
+        assert!(!has_postinstall_in_node_modules(&nm, "nonexistent"));
     }
 }
