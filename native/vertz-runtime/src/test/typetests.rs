@@ -55,6 +55,7 @@ fn is_pruned_dir(entry: &walkdir::DirEntry, custom_exclude: &[String]) -> bool {
     false
 }
 
+#[allow(dead_code)]
 fn is_excluded(path: &Path, default_dirs: &[&str], custom: &[String]) -> bool {
     let s = path.to_string_lossy();
     for dir in default_dirs {

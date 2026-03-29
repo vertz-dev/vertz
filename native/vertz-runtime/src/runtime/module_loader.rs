@@ -276,7 +276,6 @@ impl VertzModuleLoader {
         // fix API names, split internal imports, strip leftover TS, deduplicate imports
         let mut code = post_process_compiled(&result.code);
 
-
         // Inject extracted CSS for SSR collection.
         // The compiler extracts `css()` calls into static class-name objects and returns
         // the generated CSS separately. For SSR, we need this CSS to be collected by

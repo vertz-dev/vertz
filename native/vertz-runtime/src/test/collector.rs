@@ -136,6 +136,7 @@ fn matches_any_pattern(path: &Path, patterns: &[&str]) -> bool {
 }
 
 /// Check if a path should be excluded (used for direct file path filtering).
+#[allow(dead_code)]
 fn is_excluded(path: &Path, custom_exclude: &[String]) -> bool {
     let path_str = path.to_string_lossy();
 
