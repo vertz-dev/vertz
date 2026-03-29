@@ -29,7 +29,7 @@
     "changeset:publish": "bun run build && bash scripts/publish.sh",
     "postinstall": "if [ \"$(git rev-parse --git-dir 2>/dev/null)\" = \"$(git rev-parse --git-common-dir 2>/dev/null)\" ]; then lefthook install || true; fi",
     "test:tree-shaking": "bun test tests/tree-shaking/tree-shaking.test.ts",
-    "build": "turbo run build --filter='!@vertz-examples/*' --filter='!entity-todo-example' --filter='!@vertz/landing-nextjs' --filter='!@vertz/landing-nextjs-vercel'"
+    "build": "turbo run build --filter='!@vertz-examples/*' --filter='!entity-todo-example' --filter='!@vertz/landing-nextjs' --filter='!@vertz/landing-nextjs-vercel' --filter='!@vertz/native-compiler' --filter='!@vertz-benchmarks/*'"
   },
   "devDependencies": {
     "@ampproject/remapping": "^2.3.0",
