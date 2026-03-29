@@ -266,7 +266,12 @@ async fn main() {
                 vertz_runtime::pm::types::Severity::parse(args.severity.as_deref().unwrap_or("low"))
                     .unwrap_or(vertz_runtime::pm::types::Severity::Low);
 
-            if args.fix || args.dry_run {
+            if args.dry_run && !args.fix {
+                eprintln!("error: --dry-run requires --fix");
+                std::process::exit(1);
+            }
+
+            if args.fix {
                 // --fix mode: audit + attempt fixes
                 if !args.json {
                     let lockfile_path = root_dir.join("vertz.lock");
@@ -315,10 +320,14 @@ async fn main() {
                             }
                         }
 
-                        // Exit 1 if unfixed vulns remain
-                        let unfixed = result.audit.entries.len()
-                            - result.fixed.len();
-                        if unfixed > 0 || !result.manual.is_empty() {
+                        // Exit 1 if unfixed vulns remain. A single fix resolves
+                        // all advisories for that package, so compare unique
+                        // package names, not raw advisory count.
+                        let fixed_names: std::collections::HashSet<&str> =
+                            result.fixed.iter().map(|f| f.name.as_str()).collect();
+                        let has_unfixed = result.audit.entries.iter()
+                            .any(|e| !fixed_names.contains(e.name.as_str()));
+                        if has_unfixed || !result.manual.is_empty() {
                             std::process::exit(1);
                         }
                     }

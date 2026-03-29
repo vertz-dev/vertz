@@ -2138,7 +2138,8 @@ pub async fn audit_fix(
                             name.clone(),
                             current_version,
                             merged_patched,
-                            None,
+                            None::<String>,
+                            None::<BTreeMap<String, serde_json::Value>>,
                             Some("transitive dependency — update the parent package".to_string()),
                         );
                     }
@@ -2151,12 +2152,13 @@ pub async fn audit_fix(
                             &merged_patched,
                             &meta.versions,
                         );
-                        (name, current_version, merged_patched, fix_version, None)
+                        (name, current_version, merged_patched, fix_version, Some(meta.versions), None)
                     }
                     Err(e) => (
                         name,
                         current_version,
                         merged_patched,
+                        None,
                         None,
                         Some(format!("failed to fetch metadata: {}", e)),
                     ),
@@ -2167,7 +2169,7 @@ pub async fn audit_fix(
         .collect()
         .await;
 
-    for (name, current_version, merged_patched, fix_version, error) in fix_results {
+    for (name, current_version, merged_patched, fix_version, versions_meta, error) in fix_results {
         let declared_range = declared_ranges.get(&name).cloned().unwrap_or_default();
 
         if let Some(ref err) = error {
@@ -2182,7 +2184,10 @@ pub async fn audit_fix(
         }
 
         match fix_version {
-            Some(to_version) if to_version != current_version => {
+            Some(ref to_version) if *to_version == current_version => {
+                // Already at a patched version — no action needed
+            }
+            Some(to_version) => {
                 fixed.push(FixApplied {
                     name: name.clone(),
                     from: current_version.clone(),
@@ -2190,21 +2195,23 @@ pub async fn audit_fix(
                 });
 
                 if !dry_run {
-                    // Update the lockfile entry version
+                    // Extract tarball URL and integrity from metadata
+                    let (resolved_url, integrity) = extract_version_dist(
+                        &name,
+                        &to_version,
+                        versions_meta.as_ref(),
+                    );
+
+                    // Update the lockfile entry
                     let spec_key = types::Lockfile::spec_key(&name, &declared_range);
                     if let Some(entry) = lockfile.entries.get_mut(&spec_key) {
                         entry.version = to_version.clone();
-                        // Update resolved URL to point to the new version
-                        entry.resolved = format!(
-                            "https://registry.npmjs.org/{}/-/{}-{}.tgz",
-                            name,
-                            name.rsplit('/').next().unwrap_or(&name),
-                            to_version
-                        );
+                        entry.resolved = resolved_url;
+                        entry.integrity = integrity;
                     }
                 }
             }
-            _ => {
+            None => {
                 manual.push(FixManual {
                     name,
                     from: current_version,
@@ -2222,6 +2229,46 @@ pub async fn audit_fix(
     // Write updated lockfile if not dry-run and we fixed something
     if !dry_run && !fixed.is_empty() {
         lockfile::write_lockfile(&lockfile_path, &lockfile)?;
+    }
+
+    // Re-install fixed packages (download tarball + extract + link to node_modules)
+    if !dry_run && !fixed.is_empty() {
+        let tarball_mgr = TarballManager::new(&registry::default_cache_dir());
+        let node_modules = root_dir.join("node_modules");
+        for f in &fixed {
+            let spec_key = types::Lockfile::spec_key(&f.name, &declared_ranges.get(&f.name).cloned().unwrap_or_default());
+            if let Some(entry) = lockfile.entries.get(&spec_key) {
+                // Download and extract the new tarball to cache
+                match tarball_mgr
+                    .fetch_and_extract(&f.name, &f.to, &entry.resolved, &entry.integrity)
+                    .await
+                {
+                    Ok(store_path) => {
+                        // Link from cache to node_modules
+                        let target = node_modules.join(&f.name);
+                        if target.exists() {
+                            std::fs::remove_dir_all(&target).ok();
+                        }
+                        if let Some(parent) = target.parent() {
+                            std::fs::create_dir_all(parent).ok();
+                        }
+                        if let Err(e) = linker::link_directory_recursive(&store_path, &target) {
+                            eprintln!(
+                                "warning: failed to link {} {}: {}. Run `vertz install` to complete.",
+                                f.name, f.to, e
+                            );
+                        }
+                    }
+                    Err(e) => {
+                        // Non-fatal: lockfile is already updated, user can run `vertz install`
+                        eprintln!(
+                            "warning: failed to install {} {}: {}. Run `vertz install` to complete.",
+                            f.name, f.to, e
+                        );
+                    }
+                }
+            }
+        }
     }
 
     Ok(AuditFixResult {
@@ -2262,8 +2309,8 @@ pub fn format_fix_text(fixed: &[FixApplied], manual: &[FixManual], dry_run: bool
         ));
         for m in manual {
             output.push_str(&format!(
-                "  {} {} ({}: {})\n    Run: vertz add {}@{}\n",
-                m.name, m.from, m.range, m.reason, m.name, m.patched
+                "  {} {} ({})\n    Patched versions: {}\n    Run: vertz add {}@\"<patched-version>\"\n",
+                m.name, m.from, m.reason, m.patched, m.name
             ));
         }
     }
@@ -2294,7 +2341,7 @@ pub fn format_fix_json(fixed: &[FixApplied], manual: &[FixManual]) -> String {
             "patched": m.patched,
             "range": m.range,
             "reason": m.reason,
-            "suggestion": format!("vertz add {}@{}", m.name, m.patched),
+            "suggestion": format!("vertz add {}@\"<patched-version>\"", m.name),
         });
         output.push_str(&obj.to_string());
         output.push('\n');
@@ -2309,6 +2356,42 @@ pub fn format_fix_json(fixed: &[FixApplied], manual: &[FixManual]) -> String {
     output.push('\n');
 
     output
+}
+
+/// Extract tarball URL and integrity hash from abbreviated metadata for a specific version.
+/// Falls back to a constructed URL if metadata doesn't contain dist info.
+fn extract_version_dist(
+    name: &str,
+    version: &str,
+    versions_meta: Option<&BTreeMap<String, serde_json::Value>>,
+) -> (String, String) {
+    if let Some(versions) = versions_meta {
+        if let Some(ver_data) = versions.get(version) {
+            let tarball = ver_data
+                .pointer("/dist/tarball")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string();
+            let integrity = ver_data
+                .pointer("/dist/integrity")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string();
+            if !tarball.is_empty() {
+                return (tarball, integrity);
+            }
+        }
+    }
+
+    // Fallback: construct URL (won't have integrity)
+    let unscoped = name.rsplit('/').next().unwrap_or(name);
+    (
+        format!(
+            "https://registry.npmjs.org/{}/-/{}-{}.tgz",
+            name, unscoped, version
+        ),
+        String::new(),
+    )
 }
 
 /// Build a reverse dependency map: for each transitive package, find the direct
@@ -4262,7 +4345,8 @@ mod tests {
         let text = format_fix_text(&fixed, &manual, false);
         assert!(text.contains("1 vulnerability requires manual update"));
         assert!(text.contains("express 3.21.2"));
-        assert!(text.contains("vertz add express@>=4.18.2"));
+        assert!(text.contains("Patched versions: >=4.18.2"));
+        assert!(text.contains("vertz add express@\"<patched-version>\""));
     }
 
     #[test]
@@ -4321,6 +4405,6 @@ mod tests {
         assert_eq!(manual_ev["event"], "fix_manual");
         assert_eq!(manual_ev["name"], "express");
         assert_eq!(manual_ev["reason"], "patched version outside declared range");
-        assert!(manual_ev["suggestion"].as_str().unwrap().contains("vertz add express@>=4.18.2"));
+        assert!(manual_ev["suggestion"].as_str().unwrap().contains("vertz add express@\"<patched-version>\""));
     }
 }

@@ -228,8 +228,9 @@ fn target_path(node_modules: &Path, name: &str, nest_path: &[String]) -> PathBuf
     }
 }
 
-/// Recursively hardlink all files from source to target, creating directories as needed
-fn link_directory_recursive(
+/// Recursively hardlink all files from source to target, creating directories as needed.
+/// Public so `audit --fix` can re-link individual packages without a full ResolvedGraph.
+pub fn link_directory_recursive(
     source: &Path,
     target: &Path,
 ) -> Result<usize, Box<dyn std::error::Error>> {
