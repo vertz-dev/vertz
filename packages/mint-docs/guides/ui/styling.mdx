@@ -46,6 +46,10 @@ Tokens follow the pattern `property:value`:
 | `flex`            | `display: flex`                       |
 | `items:center`    | `align-items: center`                 |
 | `gap:2`           | `gap: 0.5rem`                         |
+| `top:0`           | `top: 0`                              |
+| `left:4`          | `left: 1rem`                          |
+| `object:cover`    | `object-fit: cover`                   |
+| `aspect:video`    | `aspect-ratio: 16 / 9`                |
 
 The full token set comes from your theme (`@vertz/theme-shadcn` or a custom theme defined with `defineTheme()`).
 
@@ -191,7 +195,9 @@ return (
 **Use `css()` for:**
 
 - Layout and spacing (`flex`, `grid`, `p:4`, `gap:2`)
-- Sizing (`w:full`, `h:screen`, `max-w:lg`)
+- Sizing (`w:full`, `h:screen`, `max-w:lg`) and aspect ratios (`aspect:video`, `aspect:square`)
+- Positioning (`absolute`, `top:0`, `left:4`, `right:0`, `bottom:0`, `inset:0`)
+- Images (`object:cover`, `object:contain`)
 - Typography scales (`font:lg`, `font:semibold`, `text:sm`)
 - Borders and radius (`border:1`, `border:border`, `rounded:lg`)
 - Colors from the theme/shade system (`bg:primary.600`, `text:gray.500`)
