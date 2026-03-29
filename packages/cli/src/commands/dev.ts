@@ -21,6 +21,7 @@ import {
   type PipelineConfig,
   PipelineOrchestrator,
 } from '../pipeline';
+import { findRuntimeBinary, launchRuntime, type RuntimeLaunchOptions } from '../runtime/launcher';
 import { formatDuration } from '../utils/format';
 import { findProjectRoot } from '../utils/paths';
 
@@ -31,6 +32,7 @@ export interface DevCommandOptions {
   typecheck?: boolean;
   noTypecheck?: boolean;
   verbose?: boolean;
+  experimentalRuntime?: boolean;
 }
 
 /**
@@ -43,12 +45,18 @@ export async function devAction(options: DevCommandOptions = {}): Promise<Result
     open = false,
     typecheck = true,
     verbose = false,
+    experimentalRuntime = false,
   } = options;
 
   // Find project root
   const projectRoot = findProjectRoot(process.cwd());
   if (!projectRoot) {
     return err(new Error('Could not find project root. Are you in a Vertz project?'));
+  }
+
+  // Experimental: use Rust runtime instead of Bun dev server
+  if (experimentalRuntime) {
+    return startExperimentalRuntime(projectRoot, { port, host, typecheck });
   }
 
   // Detect app type from file conventions
@@ -163,6 +171,7 @@ export function registerDevCommand(program: Command): void {
     .option('--open', 'Open browser on start')
     .option('--no-typecheck', 'Disable background type checking')
     .option('-v, --verbose', 'Verbose output')
+    .option('--experimental-runtime', 'Use the Rust dev server instead of Bun')
     .action(async (opts) => {
       const result = await devAction({
         port: parseInt(opts.port, 10),
@@ -170,10 +179,52 @@ export function registerDevCommand(program: Command): void {
         open: opts.open,
         typecheck: opts.typecheck !== false && !opts.noTypecheck,
         verbose: opts.verbose,
+        experimentalRuntime: opts.experimentalRuntime,
       });
       if (!result.ok) {
         console.error(result.error.message);
         process.exit(1);
       }
     });
+}
+
+/**
+ * Start the Rust runtime binary as a subprocess instead of the Bun dev server.
+ * The Rust binary handles compilation, SSR, HMR, and API routes natively.
+ */
+function startExperimentalRuntime(
+  projectRoot: string,
+  opts: RuntimeLaunchOptions,
+): Result<void, Error> {
+  const binaryPath = findRuntimeBinary(projectRoot);
+  if (!binaryPath) {
+    return err(
+      new Error(
+        'vertz-runtime binary not found.\n' +
+          'Build it with: cd native/vertz-runtime && cargo build\n' +
+          'Or set VERTZ_RUNTIME_BINARY=/path/to/vertz-runtime',
+      ),
+    );
+  }
+
+  console.log(`  Using experimental Rust runtime: ${binaryPath}`);
+  console.log('');
+
+  const child = launchRuntime(binaryPath, opts);
+
+  // Forward signals to the child process
+  const shutdown = () => {
+    child.kill('SIGTERM');
+  };
+  process.on('SIGINT', shutdown);
+  process.on('SIGTERM', shutdown);
+  process.on('SIGHUP', shutdown);
+
+  // Wait for the child to exit — this is a promise that resolves
+  // when the Rust process terminates (Ctrl+C, crash, etc.)
+  child.on('exit', (code) => {
+    process.exit(code ?? 0);
+  });
+
+  return ok(undefined);
 }
