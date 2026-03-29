@@ -473,11 +473,27 @@ function resolveRaw(value: string, property: string): string {
     return value;
   }
 
-  // inset: use spacing scale
-  if (property === 'inset') {
+  // inset, top, right, bottom, left: use spacing scale
+  if (
+    property === 'inset' ||
+    property === 'top' ||
+    property === 'right' ||
+    property === 'bottom' ||
+    property === 'left'
+  ) {
     const spaced = SPACING_SCALE[value];
     if (spaced !== undefined) return spaced;
     return value;
+  }
+
+  // aspect-ratio named values
+  if (property === 'aspect') {
+    const ASPECT_MAP: Record<string, string> = {
+      square: '1 / 1',
+      video: '16 / 9',
+      photo: '4 / 3',
+    };
+    return ASPECT_MAP[value] ?? value;
   }
 
   return value;
