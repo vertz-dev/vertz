@@ -262,14 +262,78 @@ async fn main() {
             let root_dir =
                 std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from("."));
 
-            if args.fix || args.dry_run {
-                eprintln!("error: --fix is not yet implemented");
-                std::process::exit(1);
-            }
-
             let severity_threshold =
                 vertz_runtime::pm::types::Severity::parse(args.severity.as_deref().unwrap_or("low"))
                     .unwrap_or(vertz_runtime::pm::types::Severity::Low);
+
+            if args.fix || args.dry_run {
+                // --fix mode: audit + attempt fixes
+                if !args.json {
+                    let lockfile_path = root_dir.join("vertz.lock");
+                    if lockfile_path.exists() {
+                        if let Ok(lf) = vertz_runtime::pm::lockfile::read_lockfile(&lockfile_path) {
+                            let pkg_count = lf.entries.values()
+                                .filter(|e| !e.resolved.starts_with("link:"))
+                                .map(|e| &e.name)
+                                .collect::<std::collections::HashSet<_>>()
+                                .len();
+                            eprintln!("Scanning {} packages for vulnerabilities...", pkg_count);
+                        }
+                    }
+                }
+
+                match pm::audit_fix(&root_dir, severity_threshold, args.dry_run).await {
+                    Ok(result) => {
+                        if args.json {
+                            let audit_json = pm::format_audit_json(
+                                &result.audit.entries,
+                                result.audit.total_packages,
+                                result.audit.below_threshold,
+                            );
+                            print!("{}", audit_json);
+                            let fix_json = pm::format_fix_json(&result.fixed, &result.manual);
+                            print!("{}", fix_json);
+                        } else {
+                            if !result.audit.entries.is_empty() {
+                                let table = pm::format_audit_text(&result.audit.entries);
+                                print!("{}", table);
+                            }
+                            eprintln!(
+                                "{}",
+                                pm::format_audit_summary(
+                                    &result.audit.entries,
+                                    result.audit.below_threshold
+                                )
+                            );
+                            let fix_text = pm::format_fix_text(
+                                &result.fixed,
+                                &result.manual,
+                                args.dry_run,
+                            );
+                            if !fix_text.is_empty() {
+                                eprint!("{}", fix_text);
+                            }
+                        }
+
+                        // Exit 1 if unfixed vulns remain
+                        let unfixed = result.audit.entries.len()
+                            - result.fixed.len();
+                        if unfixed > 0 || !result.manual.is_empty() {
+                            std::process::exit(1);
+                        }
+                    }
+                    Err(e) => {
+                        if args.json {
+                            let obj = serde_json::json!({"event": "error", "message": e.to_string()});
+                            println!("{}", obj);
+                        } else {
+                            eprintln!("{}", e);
+                        }
+                        std::process::exit(1);
+                    }
+                }
+                return;
+            }
 
             // Print scanning message before the (potentially slow) network call
             if !args.json {
