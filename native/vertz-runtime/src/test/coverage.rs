@@ -1,6 +1,10 @@
 use std::collections::HashMap;
 use std::path::PathBuf;
 
+/// Source map lookup function: given a script URL, returns (original file, line mappings).
+/// Each line mapping is (line_number, byte_offset).
+pub type SourceMapLookup = dyn Fn(&str) -> Option<(String, Vec<(u32, u32)>)>;
+
 /// Coverage data for a single file.
 #[derive(Debug, Clone)]
 pub struct FileCoverage {
@@ -168,7 +172,7 @@ pub fn format_terminal(report: &CoverageReport, threshold: f64) -> String {
 /// ```
 pub fn parse_v8_coverage(
     coverage_json: &serde_json::Value,
-    source_map_lookup: &dyn Fn(&str) -> Option<(String, Vec<(u32, u32)>)>,
+    source_map_lookup: &SourceMapLookup,
 ) -> Vec<FileCoverage> {
     let result = match coverage_json.get("result") {
         Some(r) => r,
