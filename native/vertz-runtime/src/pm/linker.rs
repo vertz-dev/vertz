@@ -125,7 +125,13 @@ pub fn link_packages_incremental(
         let target = target_path(&node_modules, &pkg.name, &pkg.nest_path);
         std::fs::create_dir_all(&target)?;
 
-        let linked = link_directory_recursive(&source, &target)?;
+        let key = manifest_key(&pkg.name, &pkg.version, &pkg.nest_path);
+        let entry = new_manifest.packages.get(&key).unwrap();
+        let linked = if entry.has_scripts {
+            copy_directory_recursive(&source, &target)?
+        } else {
+            link_directory_recursive(&source, &target)?
+        };
         result.packages_linked += 1;
         result.files_linked += linked;
     }
@@ -194,7 +200,11 @@ fn link_incremental(
         }
         std::fs::create_dir_all(&target)?;
 
-        let linked = link_directory_recursive(&source, &target)?;
+        let linked = if new_entry.has_scripts {
+            copy_directory_recursive(&source, &target)?
+        } else {
+            link_directory_recursive(&source, &target)?
+        };
         result.packages_linked += 1;
         result.files_linked += linked;
     }
@@ -243,6 +253,33 @@ fn link_directory_recursive(
                     count += 1;
                 }
             }
+        }
+        // Skip symlinks
+    }
+
+    Ok(count)
+}
+
+/// Recursively copy all files from source to target (no hardlinks)
+/// Used for packages with postinstall scripts to protect the global store.
+fn copy_directory_recursive(
+    source: &Path,
+    target: &Path,
+) -> Result<usize, Box<dyn std::error::Error>> {
+    let mut count = 0;
+
+    for entry in std::fs::read_dir(source)? {
+        let entry = entry?;
+        let file_type = entry.file_type()?;
+        let source_path = entry.path();
+        let target_path = target.join(entry.file_name());
+
+        if file_type.is_dir() {
+            std::fs::create_dir_all(&target_path)?;
+            count += copy_directory_recursive(&source_path, &target_path)?;
+        } else if file_type.is_file() {
+            std::fs::copy(&source_path, &target_path)?;
+            count += 1;
         }
         // Skip symlinks
     }
@@ -807,6 +844,147 @@ mod tests {
         let entry = &manifest.packages["zod@3.24.4"];
         assert_eq!(entry.version, "3.24.4");
         assert!(!entry.has_scripts);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn test_link_copies_packages_with_postinstall_scripts() {
+        use std::os::unix::fs::MetadataExt;
+
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path().join("project");
+        let store = dir.path().join("store");
+        std::fs::create_dir_all(&root).unwrap();
+
+        // zod: no postinstall (should be hardlinked)
+        create_store_package(&store, "zod", "3.24.4", &[("index.js", "zod")]);
+        // esbuild: has postinstall (should be copied)
+        create_store_package(&store, "esbuild", "0.20.0", &[("index.js", "esbuild")]);
+
+        let mut graph = ResolvedGraph::default();
+        graph.packages.insert(
+            "zod@3.24.4".to_string(),
+            ResolvedPackage {
+                name: "zod".to_string(),
+                version: "3.24.4".to_string(),
+                tarball_url: String::new(),
+                integrity: String::new(),
+                dependencies: BTreeMap::new(),
+                bin: BTreeMap::new(),
+                nest_path: vec![],
+            },
+        );
+        graph.packages.insert(
+            "esbuild@0.20.0".to_string(),
+            ResolvedPackage {
+                name: "esbuild".to_string(),
+                version: "0.20.0".to_string(),
+                tarball_url: String::new(),
+                integrity: String::new(),
+                dependencies: BTreeMap::new(),
+                bin: BTreeMap::new(),
+                nest_path: vec![],
+            },
+        );
+        // Mark esbuild as having postinstall
+        let mut pkg_scripts = BTreeMap::new();
+        pkg_scripts.insert("postinstall".to_string(), "node install.js".to_string());
+        graph
+            .scripts
+            .insert("esbuild@0.20.0".to_string(), pkg_scripts);
+
+        link_packages(&root, &graph, &store).unwrap();
+
+        // zod should be hardlinked (same inode)
+        let store_zod = store_path(&store, "zod", "3.24.4").join("index.js");
+        let linked_zod = root.join("node_modules/zod/index.js");
+        assert_eq!(
+            std::fs::metadata(&store_zod).unwrap().ino(),
+            std::fs::metadata(&linked_zod).unwrap().ino(),
+            "zod should be hardlinked (same inode)"
+        );
+
+        // esbuild should be copied (different inode)
+        let store_esbuild = store_path(&store, "esbuild", "0.20.0").join("index.js");
+        let linked_esbuild = root.join("node_modules/esbuild/index.js");
+        assert_ne!(
+            std::fs::metadata(&store_esbuild).unwrap().ino(),
+            std::fs::metadata(&linked_esbuild).unwrap().ino(),
+            "esbuild should be copied (different inode)"
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn test_incremental_link_copies_packages_with_postinstall_scripts() {
+        use std::os::unix::fs::MetadataExt;
+
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path().join("project");
+        let store = dir.path().join("store");
+        std::fs::create_dir_all(&root).unwrap();
+
+        create_store_package(&store, "zod", "3.24.4", &[("index.js", "zod")]);
+        create_store_package(&store, "esbuild", "0.20.0", &[("index.js", "esbuild")]);
+
+        // First install — just zod (no scripts)
+        let mut graph1 = ResolvedGraph::default();
+        graph1.packages.insert(
+            "zod@3.24.4".to_string(),
+            ResolvedPackage {
+                name: "zod".to_string(),
+                version: "3.24.4".to_string(),
+                tarball_url: String::new(),
+                integrity: String::new(),
+                dependencies: BTreeMap::new(),
+                bin: BTreeMap::new(),
+                nest_path: vec![],
+            },
+        );
+        link_packages(&root, &graph1, &store).unwrap();
+
+        // Second install — add esbuild with postinstall (incremental path)
+        let mut graph2 = ResolvedGraph::default();
+        graph2.packages.insert(
+            "zod@3.24.4".to_string(),
+            ResolvedPackage {
+                name: "zod".to_string(),
+                version: "3.24.4".to_string(),
+                tarball_url: String::new(),
+                integrity: String::new(),
+                dependencies: BTreeMap::new(),
+                bin: BTreeMap::new(),
+                nest_path: vec![],
+            },
+        );
+        graph2.packages.insert(
+            "esbuild@0.20.0".to_string(),
+            ResolvedPackage {
+                name: "esbuild".to_string(),
+                version: "0.20.0".to_string(),
+                tarball_url: String::new(),
+                integrity: String::new(),
+                dependencies: BTreeMap::new(),
+                bin: BTreeMap::new(),
+                nest_path: vec![],
+            },
+        );
+        let mut pkg_scripts = BTreeMap::new();
+        pkg_scripts.insert("postinstall".to_string(), "node install.js".to_string());
+        graph2
+            .scripts
+            .insert("esbuild@0.20.0".to_string(), pkg_scripts);
+
+        link_packages(&root, &graph2, &store).unwrap();
+
+        // esbuild should be copied (different inode) via incremental path
+        let store_esbuild = store_path(&store, "esbuild", "0.20.0").join("index.js");
+        let linked_esbuild = root.join("node_modules/esbuild/index.js");
+        assert_ne!(
+            std::fs::metadata(&store_esbuild).unwrap().ino(),
+            std::fs::metadata(&linked_esbuild).unwrap().ino(),
+            "esbuild should be copied (different inode) in incremental path"
+        );
     }
 
     #[test]
