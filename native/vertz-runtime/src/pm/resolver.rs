@@ -751,4 +751,50 @@ mod tests {
             .entries
             .contains_key("@myorg/shared@link:packages/shared"));
     }
+
+    #[test]
+    fn test_graph_to_lockfile_marks_optional_deps() {
+        let mut graph = ResolvedGraph::default();
+        graph.packages.insert(
+            "fsevents@2.3.3".to_string(),
+            ResolvedPackage {
+                name: "fsevents".to_string(),
+                version: "2.3.3".to_string(),
+                tarball_url: "https://registry.npmjs.org/fsevents/-/fsevents-2.3.3.tgz".to_string(),
+                integrity: "sha512-abc".to_string(),
+                dependencies: BTreeMap::new(),
+                bin: BTreeMap::new(),
+                nest_path: vec![],
+            },
+        );
+        graph.packages.insert(
+            "zod@3.24.4".to_string(),
+            ResolvedPackage {
+                name: "zod".to_string(),
+                version: "3.24.4".to_string(),
+                tarball_url: "https://registry.npmjs.org/zod/-/zod-3.24.4.tgz".to_string(),
+                integrity: "sha512-def".to_string(),
+                dependencies: BTreeMap::new(),
+                bin: BTreeMap::new(),
+                nest_path: vec![],
+            },
+        );
+
+        let mut deps = BTreeMap::new();
+        deps.insert("fsevents".to_string(), "^2.3.0".to_string());
+        deps.insert("zod".to_string(), "^3.24.0".to_string());
+
+        let mut optional_names = HashSet::new();
+        optional_names.insert("fsevents".to_string());
+
+        let lockfile = graph_to_lockfile(&graph, &deps, &[], &optional_names);
+
+        // fsevents should be marked optional
+        let fs_entry = &lockfile.entries["fsevents@^2.3.0"];
+        assert!(fs_entry.optional, "fsevents should be marked optional");
+
+        // zod should NOT be marked optional
+        let zod_entry = &lockfile.entries["zod@^3.24.0"];
+        assert!(!zod_entry.optional, "zod should not be marked optional");
+    }
 }

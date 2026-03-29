@@ -568,6 +568,45 @@ pub fn build_list(
         }
     }
 
+    // Process optionalDependencies
+    for (name, range) in &pkg.optional_dependencies {
+        if let Some(ref filter) = options.filter {
+            if name != filter {
+                continue;
+            }
+        }
+
+        let key = types::Lockfile::spec_key(name, range);
+        let version = lockfile.entries.get(&key).map(|e| e.version.clone());
+
+        entries.push(ListEntry {
+            name: name.clone(),
+            version: version.clone(),
+            range: range.clone(),
+            dev: false,
+            depth: 0,
+            parent: None,
+        });
+
+        // Add transitive deps if showing tree
+        if max_depth > 0 {
+            if let Some(entry) = lockfile.entries.get(&key) {
+                let mut visited = HashSet::new();
+                visited.insert(key.clone());
+                add_transitive_deps(
+                    lockfile,
+                    entry,
+                    &mut entries,
+                    1,
+                    max_depth,
+                    false,
+                    name,
+                    &mut visited,
+                );
+            }
+        }
+    }
+
     entries
 }
 
@@ -611,12 +650,15 @@ pub fn build_why(
     lockfile: &types::Lockfile,
     target: &str,
 ) -> Result<WhyResult, Box<dyn std::error::Error>> {
-    // Collect all root deps (both regular and dev)
+    // Collect all root deps (regular, dev, and optional)
     let mut all_root_deps: BTreeMap<String, String> = BTreeMap::new();
     for (k, v) in &pkg.dependencies {
         all_root_deps.insert(k.clone(), v.clone());
     }
     for (k, v) in &pkg.dev_dependencies {
+        all_root_deps.insert(k.clone(), v.clone());
+    }
+    for (k, v) in &pkg.optional_dependencies {
         all_root_deps.insert(k.clone(), v.clone());
     }
 
@@ -993,7 +1035,10 @@ pub async fn outdated(
 ) -> Result<(Vec<OutdatedEntry>, Vec<String>), Box<dyn std::error::Error>> {
     let pkg = types::read_package_json(root_dir)?;
 
-    if pkg.dependencies.is_empty() && pkg.dev_dependencies.is_empty() {
+    if pkg.dependencies.is_empty()
+        && pkg.dev_dependencies.is_empty()
+        && pkg.optional_dependencies.is_empty()
+    {
         return Ok((Vec::new(), Vec::new()));
     }
 
@@ -1019,6 +1064,12 @@ pub async fn outdated(
         let spec_key = types::Lockfile::spec_key(name, range);
         if let Some(entry) = lockfile.entries.get(&spec_key) {
             dep_tasks.push((name.clone(), range.clone(), entry.version.clone(), true));
+        }
+    }
+    for (name, range) in &pkg.optional_dependencies {
+        let spec_key = types::Lockfile::spec_key(name, range);
+        if let Some(entry) = lockfile.entries.get(&spec_key) {
+            dep_tasks.push((name.clone(), range.clone(), entry.version.clone(), false));
         }
     }
 
@@ -1493,19 +1544,43 @@ pub async fn exec_command(
     scripts::exec_inherit_stdio(&target_dir, &full_cmd, &[("PATH", new_path)]).await
 }
 
-/// Escape a shell argument by single-quoting if it contains any shell metacharacters.
-/// Empty strings are returned as '' to avoid being dropped by the shell.
+/// Escape a shell argument for the current platform.
+///
+/// On Unix (sh -c): single-quote if it contains metacharacters.
+/// On Windows (cmd.exe /C): double-quote if it contains metacharacters.
 fn shell_escape(s: &str) -> String {
+    if cfg!(target_os = "windows") {
+        shell_escape_windows(s)
+    } else {
+        shell_escape_unix(s)
+    }
+}
+
+/// Unix shell escaping: wrap in single quotes, escape embedded single quotes.
+fn shell_escape_unix(s: &str) -> String {
     if s.is_empty() {
         return "''".to_string();
     }
-    // If it contains ANY character that could be interpreted by sh, wrap in single quotes.
-    // Single quotes inside the string are handled by ending the quote, inserting an escaped
-    // single quote, and re-opening: 'can'\''t' → can't
     if s.chars()
         .any(|c| !c.is_ascii_alphanumeric() && !matches!(c, '-' | '_' | '.' | '/' | ':' | '@'))
     {
         format!("'{}'", s.replace('\'', "'\\''"))
+    } else {
+        s.to_string()
+    }
+}
+
+/// Windows cmd.exe escaping: wrap in double quotes, escape embedded double quotes.
+fn shell_escape_windows(s: &str) -> String {
+    if s.is_empty() {
+        return "\"\"".to_string();
+    }
+    // cmd.exe metacharacters that require quoting
+    if s.chars().any(|c| {
+        !c.is_ascii_alphanumeric() && !matches!(c, '-' | '_' | '.' | '/' | ':' | '@' | '\\')
+    }) {
+        // Escape internal double quotes by doubling them
+        format!("\"{}\"", s.replace('"', "\"\""))
     } else {
         s.to_string()
     }
@@ -2688,6 +2763,26 @@ mod tests {
         assert_eq!(shell_escape("foo-bar_baz.ts"), "foo-bar_baz.ts");
         assert_eq!(shell_escape("/usr/bin/node"), "/usr/bin/node");
         assert_eq!(shell_escape("@myorg/pkg"), "@myorg/pkg");
+    }
+
+    #[test]
+    fn test_shell_escape_unix_directly() {
+        assert_eq!(shell_escape_unix("hello world"), "'hello world'");
+        assert_eq!(shell_escape_unix("it's"), "'it'\\''s'");
+        assert_eq!(shell_escape_unix(""), "''");
+        assert_eq!(shell_escape_unix("simple"), "simple");
+    }
+
+    #[test]
+    fn test_shell_escape_windows_directly() {
+        assert_eq!(shell_escape_windows("hello world"), "\"hello world\"");
+        assert_eq!(shell_escape_windows("say \"hi\""), "\"say \"\"hi\"\"\"");
+        assert_eq!(shell_escape_windows(""), "\"\"");
+        assert_eq!(shell_escape_windows("simple"), "simple");
+        assert_eq!(shell_escape_windows("foo;bar"), "\"foo;bar\"");
+        assert_eq!(shell_escape_windows("a&b"), "\"a&b\"");
+        // Backslash is safe on Windows (path separator)
+        assert_eq!(shell_escape_windows("C:\\Users\\test"), "C:\\Users\\test");
     }
 
     #[tokio::test]
