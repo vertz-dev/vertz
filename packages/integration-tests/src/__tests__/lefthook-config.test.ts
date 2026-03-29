@@ -20,15 +20,17 @@ describe('lefthook configuration', () => {
     expect(config['pre-push'].commands['quality-gates']).toHaveProperty('run');
   });
 
-  it('should run turborepo for lint, typecheck, and test', () => {
+  it('should run turborepo for typecheck and test, with lint as separate command', () => {
     const config = loadConfig();
     const run = config['pre-push'].commands['quality-gates'].run;
 
     // Must use turborepo (not dagger, not bare bun run)
     expect(run).toContain('turbo');
-    expect(run).toContain('lint');
     expect(run).toContain('typecheck');
     expect(run).toContain('test');
+
+    // Lint runs as a separate lefthook command (not inside turbo)
+    expect(config['pre-push'].commands).toHaveProperty('lint');
 
     // Should NOT reference dagger (migrated away)
     expect(run).not.toContain('dagger');
