@@ -1,5 +1,12 @@
 # @vertz/core
 
+## 0.2.41
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @vertz/schema@0.2.41
+
 ## 0.2.40
 
 ### Patch Changes
@@ -270,6 +277,7 @@
 ### Minor Changes
 
 - [#290](https://github.com/vertz-dev/vertz/pull/290) [`a207936`](https://github.com/vertz-dev/vertz/commit/a2079362c54a8b61ea2368039abcb08681448380) Thanks [@vertz-dev-core](https://github.com/apps/vertz-dev-core)! - Rename `@vertz/core` → `@vertz/server` and `createApp()` → `createServer()`
+
   - Added `@vertz/server` package that re-exports all public API from `@vertz/core`
   - Added `createServer` as the preferred factory function (alias for `createApp`)
   - Added `vertz.server` namespace alias for `vertz.app`

@@ -1,5 +1,7 @@
 # @vertz/create-vertz-app
 
+## 0.2.41
+
 ## 0.2.40
 
 ## 0.2.39
@@ -40,7 +42,7 @@
 
   ```tsx
   // Before
-  import { ListTransition } from '@vertz/ui';
+  import { ListTransition } from "@vertz/ui";
 
   <ListTransition
     each={items}
@@ -49,7 +51,7 @@
   />;
 
   // After
-  import { List } from '@vertz/ui/components';
+  import { List } from "@vertz/ui/components";
 
   <List animate>
     {items.map((item) => (

@@ -1,5 +1,13 @@
 # @vertz/theme-shadcn
 
+## 0.2.41
+
+### Patch Changes
+
+- Updated dependencies [[`7f837fc`](https://github.com/vertz-dev/vertz/commit/7f837fc10a0acd4ad77bfc4bcaf733700c8a4f8b)]:
+  - @vertz/ui@0.2.41
+  - @vertz/ui-primitives@0.2.41
+
 ## 0.2.40
 
 ### Patch Changes
@@ -7,6 +15,7 @@
 - [#1980](https://github.com/vertz-dev/vertz/pull/1980) [`bee011e`](https://github.com/vertz-dev/vertz/commit/bee011e47661b31152ad3dfc589fd45eda2f3e44) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - fix(ui-server, ui-compiler, ui, theme-shadcn): AOT SSR pipeline composes App layout shell, portable holes, barrel extraction, CSS inlining, and lazy theme CSS
 
   Five AOT SSR fixes:
+
   1. **App layout composition (#1977)**: The AOT pipeline now wraps page content in the root App layout (header, nav, footer). The build pipeline detects the App component by its RouterView hole, includes it in the AOT manifest, and the runtime pipeline renders the App shell around each page. Gracefully degrades if app render fails.
 
   2. **Portable hole references (#1981)**: The AOT compiler now emits `ctx.holes.ComponentName()` for imported components instead of `__ssr_ComponentName()`. The `__ssr_` prefix is a Bun-internal convention that breaks on non-Bun bundlers (esbuild/workerd). Local components in the same file still use direct `__ssr_*` calls for efficiency.
@@ -36,11 +45,11 @@
   ```ts
   // Before
   configureTheme({
-    overrides: { tokens: { colors: { primary: { DEFAULT: '#7c3aed' } } } },
+    overrides: { tokens: { colors: { primary: { DEFAULT: "#7c3aed" } } } },
   });
 
   // After
-  configureTheme({ colors: { primary: { DEFAULT: '#7c3aed' } } });
+  configureTheme({ colors: { primary: { DEFAULT: "#7c3aed" } } });
   ```
 
 - Updated dependencies [[`bee011e`](https://github.com/vertz-dev/vertz/commit/bee011e47661b31152ad3dfc589fd45eda2f3e44), [`7c89bf1`](https://github.com/vertz-dev/vertz/commit/7c89bf196ff00ce8d17744f43a40f2dadfb5d989)]:
@@ -182,6 +191,7 @@
 - [#1684](https://github.com/vertz-dev/vertz/pull/1684) [`e24615a`](https://github.com/vertz-dev/vertz/commit/e24615a8619ae84b993c18dbdca2671ca254f9bb) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - fix(ui-compiler): support JSX spread attributes on intrinsic elements and components
 
   JSX spread attributes (`<button {...rest}>`, `<Button {...props}>`) were silently dropped by the compiler. Spread attributes now work correctly:
+
   - **Component calls**: spread emits `...expr` in the props object literal
   - **Intrinsic elements**: spread emits `__spread(el, props)` runtime call that handles event handlers, style, class/className, ref, SVG attributes, and standard HTML attributes
   - **theme-shadcn Button**: removed `applyProps` workaround in favor of native JSX spread
@@ -280,6 +290,7 @@
   Convert the `contextMenu` primitive from an imperative factory function to a
   declarative JSX component with `.Trigger`, `.Content`, `.Item`, `.Group`,
   `.Label`, and `.Separator` sub-components.
+
   - Add `ComposedContextMenu` in `@vertz/ui-primitives` (context-based sub-component wiring)
   - Replace imperative `createThemedContextMenu` factory with `withStyles()` wrapper
   - Promote from lowercase `contextMenu` factory to PascalCase `ContextMenu` compound proxy
@@ -293,6 +304,7 @@
 - [#1355](https://github.com/vertz-dev/vertz/pull/1355) [`cda8b4b`](https://github.com/vertz-dev/vertz/commit/cda8b4b75a52eab1459b41adf686bbe90e5fcf97) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - Move event handler wiring (`wireEventHandlers`, `isKnownEventHandler`, `ElementEventHandlers`) from `@vertz/theme-shadcn` to `@vertz/ui-primitives/utils`. Add `applyProps()` utility that combines event wiring and attribute forwarding. Theme components now delegate DOM behavior to primitives.
 
 - [#1383](https://github.com/vertz-dev/vertz/pull/1383) [`4f5c101`](https://github.com/vertz-dev/vertz/commit/4f5c101424c2f7009ef750b2c12c220f377e0813) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - fix(ui-primitives,theme-shadcn): wire missing DropdownMenu onOpenChange, AlertDialog Header, and Select indicator/chevron
+
   - DropdownMenu: add `onOpenChange` to `ComposedDropdownMenuProps` and themed `DropdownMenuRootProps`, forward to `Menu.Root`
   - AlertDialog: expose `Header` sub-component on `ThemedAlertDialogComponent` type and factory
   - Select: add check indicator (`data-part="indicator"`) to items and chevron icon (`data-part="chevron"`) to trigger, wire `itemIndicator` class through themed factory

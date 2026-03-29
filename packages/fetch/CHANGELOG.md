@@ -1,5 +1,12 @@
 # @vertz/fetch
 
+## 0.2.41
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @vertz/errors@0.2.41
+
 ## 0.2.40
 
 ### Patch Changes
@@ -119,6 +126,7 @@
 - [#1707](https://github.com/vertz-dev/vertz/pull/1707) [`adea2f1`](https://github.com/vertz-dev/vertz/commit/adea2f15f306d09ecebc56fc1f3841ff4b14b2ba) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - Auto-invalidate tenant-scoped queries on tenant switch. When `switchTenant()` succeeds, all active queries with `tenantScoped: true` metadata are automatically cleared and refetched, preventing stale cross-tenant data from being visible.
 
   **What changed:**
+
   - `EntityQueryMeta` now includes an optional `tenantScoped` boolean field
   - `registerActiveQuery()` accepts an optional `clearData` callback for data clearing before refetch
   - `invalidateTenantQueries()` exported from `@vertz/ui` — clears data + refetches all tenant-scoped queries
@@ -188,6 +196,7 @@
 
   Breaking change to EntityRelationsConfig: flat field maps replaced with structured
   RelationConfigObject containing `select`, `allowWhere`, `allowOrderBy`, `maxLimit`.
+
   - Extended VertzQL include entries to support `where`, `orderBy`, `limit`, nested `include`
   - Recursive include validation with path-prefixed errors and maxLimit clamping
   - Include pass-through from route handler → CRUD pipeline → DB adapter

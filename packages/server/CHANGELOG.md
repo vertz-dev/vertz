@@ -1,5 +1,22 @@
 # @vertz/server
 
+## 0.2.41
+
+### Patch Changes
+
+- [#2003](https://github.com/vertz-dev/vertz/pull/2003) [`54d9ab0`](https://github.com/vertz-dev/vertz/commit/54d9ab09dd200700eee78880a200e1fecec057f6) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - Add `action()` helper for typed action I/O in entity and service definitions.
+
+  - `action()` wraps action configs to infer `input` type from `body` schema and check `return` type against `response` schema
+  - Fix service `TCtx` constraint: `ctx` is now typed as `ServiceContext<TInject>` for inline service actions (without `action()`)
+  - Add `__actions` phantom type to `EntityDefinition` for downstream type extraction
+  - New exports: `action`, `ActionDef`, `ActionDefNoBody`
+
+- Updated dependencies []:
+  - @vertz/core@0.2.41
+  - @vertz/db@0.2.41
+  - @vertz/errors@0.2.41
+  - @vertz/schema@0.2.41
+
 ## 0.2.40
 
 ### Patch Changes
@@ -134,6 +151,7 @@
 - [#1789](https://github.com/vertz-dev/vertz/pull/1789) [`0cc2ec8`](https://github.com/vertz-dev/vertz/commit/0cc2ec873c876d9549d0959b7614d823818a8fd9) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - feat(auth): make JWT signing algorithm configurable (ES256, RS256)
 
   Add `session.algorithm` option to `createAuth()`. Defaults to `'RS256'` (no breaking change). Supports `'ES256'` for smaller signatures and better edge runtime performance.
+
   - `createJWT()`/`verifyJWT()` accept algorithm parameter
   - Dev key generation branches on algorithm (RSA vs EC P-256)
   - Key-algorithm mismatch validated at startup with clear errors
@@ -173,13 +191,13 @@
 
   ```ts
   const tenantMembers = d.table(
-    'tenant_members',
+    "tenant_members",
     {
       tenantId: d.uuid(),
       userId: d.uuid(),
-      role: d.text().default('member'),
+      role: d.text().default("member"),
     },
-    { primaryKey: ['tenantId', 'userId'] },
+    { primaryKey: ["tenantId", "userId"] }
   );
   ```
 
@@ -340,6 +358,7 @@
 ### Patch Changes
 
 - [#1237](https://github.com/vertz-dev/vertz/pull/1237) [`e69ef45`](https://github.com/vertz-dev/vertz/commit/e69ef4540fca9e47249fc18c3cd2a74be84f2db8) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - Add Entity Expose API — unified `expose` config replacing `relations` for controlling VertzQL query surface.
+
   - `expose.select` restricts which fields appear in API responses
   - `expose.allowWhere` / `expose.allowOrderBy` restrict filtering and sorting
   - `expose.include` controls relation exposure with fractal structure
@@ -359,6 +378,7 @@
 - [#1165](https://github.com/vertz-dev/vertz/pull/1165) [`15511ba`](https://github.com/vertz-dev/vertz/commit/15511ba68fe78c99ba7d056ef17db94d8380f9fa) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - Thread TModel generic through createActionHandler for typed row and context in custom entity actions
 
 - [#1179](https://github.com/vertz-dev/vertz/pull/1179) [`2f574cc`](https://github.com/vertz-dev/vertz/commit/2f574cce9e941c63503efb2e32ecef7b53951725) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - Add transaction support to DatabaseClient with full model delegates
+
   - `db.transaction(async (tx) => { ... })` wraps multiple operations atomically
   - `TransactionClient` provides the same model delegates as `DatabaseClient` (`tx.users.create()`, `tx.tasks.list()`, etc.)
   - PostgreSQL uses `sql.begin()` for connection-scoped transactions
@@ -383,6 +403,7 @@
 - [#1216](https://github.com/vertz-dev/vertz/pull/1216) [`c1c0638`](https://github.com/vertz-dev/vertz/commit/c1c06383b8ad50c833b64aa5009fe7b494bb559b) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - SSR session injection to eliminate auth loading flash. JWT session data is now injected as `window.__VERTZ_SESSION__` during SSR, so `AuthProvider` hydrates with session data immediately instead of showing a loading state. Zero-config: the CLI auto-wires the session resolver when auth is configured.
 
 - [#1201](https://github.com/vertz-dev/vertz/pull/1201) [`5dfaebc`](https://github.com/vertz-dev/vertz/commit/5dfaebc83853922f08120c2b5e56af7998752a00) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - Refactor plan storage to subscription-based tenant architecture
+
   - `PlanStore` → `SubscriptionStore`, `OrgPlan` → `Subscription`, methods simplified (`assign`, `get`, `remove`)
   - `DbPlanStore` → `DbSubscriptionStore`, `InMemoryPlanStore` → `InMemorySubscriptionStore`
   - All store interfaces (`SubscriptionStore`, `FlagStore`, `WalletStore`) now use `tenantId` instead of `orgId`
@@ -396,6 +417,7 @@
 
   Breaking change to EntityRelationsConfig: flat field maps replaced with structured
   RelationConfigObject containing `select`, `allowWhere`, `allowOrderBy`, `maxLimit`.
+
   - Extended VertzQL include entries to support `where`, `orderBy`, `limit`, nested `include`
   - Recursive include validation with path-prefixed errors and maxLimit clamping
   - Include pass-through from route handler → CRUD pipeline → DB adapter
@@ -441,6 +463,7 @@
 - [#1025](https://github.com/vertz-dev/vertz/pull/1025) [`58fffce`](https://github.com/vertz-dev/vertz/commit/58fffceb6c4e1660fb3d4d1891cd4ce662dca22b) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - Dual-token sessions: replace single 7-day JWT with 60-second JWT (`vertz.sid`) + 7-day opaque refresh token (`vertz.ref`) stored hashed in session store. Adds token rotation with 10-second idempotent grace period, session management API (list/revoke/revoke-all), device name parsing, and pluggable store interfaces (SessionStore, UserStore, RateLimitStore). Decomposes auth monolith into focused modules.
 
 - [#1040](https://github.com/vertz-dev/vertz/pull/1040) [`efda760`](https://github.com/vertz-dev/vertz/commit/efda76032901138dca7a22acd60ad947a4bdf02a) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - Add email verification and password reset flows to auth module.
+
   - Email verification: opt-in via `emailVerification` config, sends token on signup via `onSend` callback
   - POST /api/auth/verify-email — validates token, marks emailVerified: true
   - POST /api/auth/resend-verification — rate limited 3/hour per userId
@@ -451,6 +474,7 @@
   - New stores: InMemoryEmailVerificationStore, InMemoryPasswordResetStore
 
 - [#1037](https://github.com/vertz-dev/vertz/pull/1037) [`3d2799a`](https://github.com/vertz-dev/vertz/commit/3d2799ac4c3e0d8f65d864b4471e205a64db886a) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - Add MFA/TOTP support with backup codes and step-up authentication.
+
   - TOTP (RFC 6238) generation and verification
   - MFA setup, verify, disable, and backup code routes
   - MFA challenge flow: signIn returns MFA_REQUIRED when MFA is enabled
@@ -464,6 +488,7 @@
 - [#1047](https://github.com/vertz-dev/vertz/pull/1047) [`d4af7d0`](https://github.com/vertz-dev/vertz/commit/d4af7d0fa0ff1f3cfc21625e9bd16621f833f9cd) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - feat(auth): plans & wallet — Layer 4/5 plan checks, wallet limits, canAndConsume/unconsume
 
   Adds SaaS plan and wallet infrastructure to the auth system:
+
   - `defineAccess()` now accepts `plans` config with entitlements and limits
   - `PlanStore` / `InMemoryPlanStore` for org-to-plan assignments with expiration and overrides
   - `WalletStore` / `InMemoryWalletStore` for consumption tracking with atomic check-and-increment
@@ -480,6 +505,7 @@
 - [#1039](https://github.com/vertz-dev/vertz/pull/1039) [`45e84cf`](https://github.com/vertz-dev/vertz/commit/45e84cf2f11123bf3ed66ae8cf311efc1393238c) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - feat(auth): resource hierarchy with closure table, role inheritance, and defineAccess()
 
   Introduces hierarchical RBAC replacing flat createAccess():
+
   - `defineAccess()` with hierarchy, roles, inheritance, and entitlements config
   - `rules.*` builders: role(), entitlement(), where(), all(), any(), authenticated(), fva()
   - InMemoryClosureStore for resource hierarchy (4-level depth cap)
@@ -488,6 +514,7 @@
   - Five-layer resolution engine (flags and plan/wallet stubbed for Phase 8/9)
 
 - [#1052](https://github.com/vertz-dev/vertz/pull/1052) [`4eac71c`](https://github.com/vertz-dev/vertz/commit/4eac71c98369d12a0cd7a3cbbeda60ea7cc5bd05) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - Add client-side auth session management (AuthProvider, useAuth, AuthGate)
+
   - AuthProvider wraps app with auth context, manages JWT session lifecycle
   - useAuth() returns reactive state + SdkMethods (signIn, signUp, signOut, mfaChallenge, forgotPassword, resetPassword)
   - SdkMethods work with form() for automatic validation and submission
