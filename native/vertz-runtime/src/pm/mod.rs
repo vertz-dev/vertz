@@ -1257,7 +1257,9 @@ pub async fn update(
         // Write lockfile with entries removed
         lockfile::write_lockfile(&lockfile_path, &lockfile)?;
 
-        // Re-install to resolve and link updated packages
+        // Re-install to resolve and link updated packages.
+        // IgnoreAll: update only re-links — postinstall scripts should be run
+        // via a separate `vertz install` after updating, not implicitly here.
         install(root_dir, false, vertzrc::ScriptPolicy::IgnoreAll, false, output.clone()).await?;
     } else if !dry_run && results.is_empty() {
         let elapsed = start.elapsed();

@@ -1,3 +1,4 @@
+use fs2::FileExt;
 use serde::{Deserialize, Serialize};
 use std::path::Path;
 
@@ -43,16 +44,30 @@ pub fn load_vertzrc(root_dir: &Path) -> Result<VertzConfig, Box<dyn std::error::
 }
 
 /// Save .vertzrc to the given directory with advisory file locking.
+///
+/// Uses `fs2` advisory locking on the target file to prevent concurrent writes
+/// from corrupting the config. Writes atomically via temp file + rename.
 pub fn save_vertzrc(
     root_dir: &Path,
     config: &VertzConfig,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let path = root_dir.join(".vertzrc");
     let content = serde_json::to_string_pretty(config)?;
+
+    // Acquire exclusive advisory lock (creates file if needed)
+    let lock_file = std::fs::OpenOptions::new()
+        .create(true)
+        .write(true)
+        .truncate(false)
+        .open(&path)?;
+    lock_file.lock_exclusive()?;
+
     // Write atomically: write to temp file then rename
-    let tmp_path = path.with_extension("vertzrc.tmp");
+    let tmp_path = root_dir.join(".vertzrc.tmp");
     std::fs::write(&tmp_path, format!("{}\n", content))?;
     std::fs::rename(&tmp_path, &path)?;
+
+    // Lock is released when lock_file is dropped
     Ok(())
 }
 
@@ -201,6 +216,18 @@ mod tests {
 
         let loaded = load_vertzrc(dir.path()).unwrap();
         assert_eq!(loaded.trust_scripts, vec!["sharp"]);
+    }
+
+    #[test]
+    fn test_load_vertzrc_unknown_fields_ignored() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(
+            dir.path().join(".vertzrc"),
+            r#"{"trustScripts": ["esbuild"], "futureFeature": true, "anotherField": 42}"#,
+        )
+        .unwrap();
+        let config = load_vertzrc(dir.path()).unwrap();
+        assert_eq!(config.trust_scripts, vec!["esbuild"]);
     }
 
     #[test]

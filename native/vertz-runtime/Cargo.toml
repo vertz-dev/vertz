@@ -18,6 +18,7 @@ clap = { version = "4", features = ["derive"] }
 crossbeam-channel = "0.5"
 deno_core = "0.311.0"
 flate2 = "1"
+fs2 = "0.4"
 futures-util = "0.3"
 glob = "0.3"
 libc = "0.2"
