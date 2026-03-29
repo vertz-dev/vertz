@@ -8,6 +8,7 @@ pub mod fetch;
 pub mod microtask;
 pub mod path;
 pub mod performance;
+pub mod streams;
 pub mod timers;
 pub mod url;
 pub mod web_api;

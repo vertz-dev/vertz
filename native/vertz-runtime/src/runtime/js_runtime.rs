@@ -22,6 +22,7 @@ use super::ops::fetch;
 use super::ops::microtask;
 use super::ops::path;
 use super::ops::performance;
+use super::ops::streams;
 use super::ops::timers;
 use super::ops::url;
 use super::ops::web_api;
@@ -70,6 +71,7 @@ impl VertzJsRuntime {
         all_ops.extend(url::op_decls());
         all_ops.extend(crypto_subtle::op_decls());
         all_ops.extend(web_api::op_decls());
+        all_ops.extend(streams::op_decls());
 
         let capture = options.capture_output;
         let captured_clone = Arc::clone(&captured_output);
@@ -134,6 +136,7 @@ impl VertzJsRuntime {
             fetch::FETCH_BOOTSTRAP_JS,
             microtask::MICROTASK_BOOTSTRAP_JS,
             url::URL_BOOTSTRAP_JS,
+            streams::STREAMS_BOOTSTRAP_JS,
         ]
         .join("\n")
     }
