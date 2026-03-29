@@ -10,6 +10,7 @@ pub mod microtask;
 pub mod os;
 pub mod path;
 pub mod performance;
+pub mod sqlite;
 pub mod streams;
 pub mod timers;
 pub mod url;
