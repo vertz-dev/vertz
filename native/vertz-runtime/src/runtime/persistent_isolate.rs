@@ -282,7 +282,13 @@ async fn isolate_event_loop(
         }
     }
 
-    // 4. Optionally load server module for API routes
+    // 4. Optionally load server module for API routes.
+    //
+    // Two-step process:
+    // a) Load the server module directly (file:// URL the loader can handle)
+    // b) If the module didn't set globalThis.__vertz_server_module directly
+    //    (test fixtures do this), capture its exports via dynamic import
+    //    (the module is already loaded, so import() returns the cached module)
     if let Some(ref server_entry_path) = server_entry {
         let entry_specifier = match deno_core::ModuleSpecifier::from_file_path(server_entry_path) {
             Ok(s) => s,
@@ -291,31 +297,61 @@ async fn isolate_event_loop(
                     "[Server] Invalid server entry path: {}",
                     server_entry_path.display()
                 );
-                // Continue with SSR-only mode
                 initialized.store(true, std::sync::atomic::Ordering::Release);
                 process_messages(&mut runtime, &mut message_rx).await;
                 return;
             }
         };
 
-        if let Err(e) = runtime.load_side_module(&entry_specifier).await {
-            eprintln!("[Server] Failed to load server module: {}", e);
-            // Continue with SSR-only mode
+        // Step a: Load the server module directly
+        let load_result = if entry_file.exists() {
+            runtime.load_side_module(&entry_specifier).await
         } else {
-            // Extract the handler function
-            match extract_api_handler(&mut runtime) {
-                Ok(true) => {
-                    has_api_handler.store(true, std::sync::atomic::Ordering::Release);
-                    eprintln!(
-                        "[Server] API handler loaded (persistent isolate — module state persists across requests)"
-                    );
+            runtime.load_main_module(&entry_specifier).await
+        };
+
+        match load_result {
+            Ok(()) => {
+                // Step b: Capture module exports if not set by the module itself.
+                // Real server.ts files use `export default createServer(...)` — the
+                // module doesn't set the global. We use dynamic import (cached, no
+                // re-evaluation) to capture the exports.
+                let capture_js = format!(
+                    r#"(async function() {{
+                        if (!globalThis.__vertz_server_module) {{
+                            const mod = await import("{}");
+                            globalThis.__vertz_server_module = mod;
+                        }}
+                    }})()"#,
+                    entry_specifier.as_str()
+                );
+                if let Err(e) = runtime.execute_script_void("<capture-server-exports>", &capture_js)
+                {
+                    eprintln!("[Server] Failed to capture server exports: {}", e);
                 }
-                Ok(false) => {
-                    eprintln!("[Server] Server module loaded but no handler found");
+                if let Err(e) = runtime.run_event_loop().await {
+                    eprintln!("[Server] Event loop error during export capture: {}", e);
                 }
-                Err(e) => {
-                    eprintln!("[Server] Failed to extract API handler: {}", e);
+
+                // Extract the handler function from the module
+                match extract_api_handler(&mut runtime) {
+                    Ok(true) => {
+                        has_api_handler.store(true, std::sync::atomic::Ordering::Release);
+                        eprintln!(
+                            "[Server] API handler loaded (persistent isolate -- module state persists across requests)"
+                        );
+                    }
+                    Ok(false) => {
+                        eprintln!("[Server] Server module loaded but no handler found");
+                    }
+                    Err(e) => {
+                        eprintln!("[Server] Failed to extract API handler: {}", e);
+                    }
                 }
+            }
+            Err(e) => {
+                eprintln!("[Server] Failed to load server module: {}", e);
+                // Continue with SSR-only mode
             }
         }
     }
@@ -415,69 +451,81 @@ async fn process_messages_api_only(
     }
 }
 
+/// JavaScript for dispatching API requests. Reads request data from
+/// `globalThis.__vertz_dispatch_req` (set from Rust via JSON) instead of
+/// string interpolation — preventing injection via URL, method, or headers.
+const API_DISPATCH_JS: &str = r#"
+(async function() {
+    const handler = globalThis.__vertz_api_handler;
+    const reqData = globalThis.__vertz_dispatch_req;
+    delete globalThis.__vertz_dispatch_req;
+    delete globalThis.__vertz_last_response;
+
+    if (!handler) {
+        globalThis.__vertz_last_response = JSON.stringify({ error: 'No handler' });
+        return;
+    }
+
+    const headers = new Headers();
+    for (const [k, v] of (reqData.headers || [])) headers.set(k, v);
+
+    const init = { method: reqData.method, headers: headers };
+    if (reqData.bodyB64 && reqData.method !== 'GET' && reqData.method !== 'HEAD') {
+        init.body = Uint8Array.from(atob(reqData.bodyB64), c => c.charCodeAt(0));
+    }
+    const request = new Request(reqData.url, init);
+
+    try {
+        const response = await handler(request);
+        const responseBody = await response.text();
+        const responseHeaders = [];
+        response.headers.forEach((v, k) => responseHeaders.push([k, v]));
+        globalThis.__vertz_last_response = JSON.stringify({
+            status: response.status,
+            headers: responseHeaders,
+            body: responseBody,
+        });
+    } catch (e) {
+        globalThis.__vertz_last_response = JSON.stringify({
+            error: e.message || String(e),
+            stack: e.stack || '',
+        });
+    }
+})()
+"#;
+
 /// Dispatch a single API request to the V8 handler and collect the response.
+///
+/// Request data is passed through `globalThis.__vertz_dispatch_req` as JSON
+/// to avoid JavaScript injection via URL, method, or header values.
 async fn dispatch_api_request(
     runtime: &mut crate::runtime::js_runtime::VertzJsRuntime,
     request: &IsolateRequest,
 ) -> Result<IsolateResponse, String> {
-    let headers_json =
-        serde_json::to_string(&request.headers).map_err(|e| format!("Header serialize: {}", e))?;
+    // Serialize request data as JSON and pass through a global (safe from injection)
     let body_b64 = request
         .body
         .as_ref()
         .map(|b| base64::Engine::encode(&base64::engine::general_purpose::STANDARD, b));
 
-    let body_arg = match &body_b64 {
-        Some(b) => format!("Uint8Array.from(atob('{}'), c => c.charCodeAt(0))", b),
-        None => "null".to_string(),
-    };
+    let req_data = serde_json::json!({
+        "method": request.method,
+        "url": request.url,
+        "headers": request.headers,
+        "bodyB64": body_b64,
+    });
 
-    let js_code = format!(
-        r#"
-        (async function() {{
-            const handler = globalThis.__vertz_api_handler;
-            if (!handler) {{
-                globalThis.__vertz_last_response = JSON.stringify({{ error: 'No handler' }});
-                return;
-            }}
-
-            const headers = new Headers();
-            const headerPairs = {headers_json};
-            for (const [k, v] of headerPairs) headers.set(k, v);
-
-            const body = {body_arg};
-            const init = {{ method: '{method}', headers: headers }};
-            if (body && '{method}' !== 'GET' && '{method}' !== 'HEAD') {{
-                init.body = body;
-            }}
-            const request = new Request('{url}', init);
-
-            try {{
-                const response = await handler(request);
-                const responseBody = await response.text();
-                const responseHeaders = [];
-                response.headers.forEach((v, k) => responseHeaders.push([k, v]));
-                globalThis.__vertz_last_response = JSON.stringify({{
-                    status: response.status,
-                    headers: responseHeaders,
-                    body: responseBody,
-                }});
-            }} catch (e) {{
-                globalThis.__vertz_last_response = JSON.stringify({{
-                    error: e.message || String(e),
-                    stack: e.stack || '',
-                }});
-            }}
-        }})()
-        "#,
-        headers_json = headers_json,
-        body_arg = body_arg,
-        url = request.url,
-        method = request.method,
+    let setup_js = format!(
+        "globalThis.__vertz_dispatch_req = {};",
+        serde_json::to_string(&req_data).map_err(|e| format!("Serialize request: {}", e))?
     );
 
     runtime
-        .execute_script_void("<api-dispatch>", &js_code)
+        .execute_script_void("<api-setup>", &setup_js)
+        .map_err(|e| format!("Request setup error: {}", e))?;
+
+    runtime
+        .execute_script_void("<api-dispatch>", API_DISPATCH_JS)
         .map_err(|e| format!("JS execution error: {}", e))?;
 
     runtime
