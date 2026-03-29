@@ -25,9 +25,11 @@ pub type SourceMapStore = RefCell<HashMap<String, String>>;
 /// - Node.js-style resolution for bare specifiers (node_modules)
 /// - TypeScript/TSX compilation via vertz-compiler-core
 /// - Source map collection for error reporting
+/// - URL canonicalization to ensure same physical file = same module identity
 pub struct VertzModuleLoader {
     root_dir: PathBuf,
     source_maps: SourceMapStore,
+    canon_cache: RefCell<HashMap<PathBuf, PathBuf>>,
 }
 
 impl VertzModuleLoader {
@@ -35,7 +37,21 @@ impl VertzModuleLoader {
         Self {
             root_dir: PathBuf::from(root_dir),
             source_maps: RefCell::new(HashMap::new()),
+            canon_cache: RefCell::new(HashMap::new()),
         }
+    }
+
+    /// Canonicalize a file path, using a cache to avoid repeated syscalls.
+    /// Falls back to the original path if canonicalization fails (e.g., broken symlink).
+    fn canonicalize_cached(&self, path: &Path) -> PathBuf {
+        if let Some(cached) = self.canon_cache.borrow().get(path) {
+            return cached.clone();
+        }
+        let canonical = path.canonicalize().unwrap_or_else(|_| path.to_path_buf());
+        self.canon_cache
+            .borrow_mut()
+            .insert(path.to_path_buf(), canonical.clone());
+        canonical
     }
 
     /// Resolve a specifier to an absolute file path.
@@ -884,8 +900,17 @@ impl ModuleLoader for VertzModuleLoader {
         };
 
         let resolved_path = self.resolve_specifier(specifier, &referrer_path)?;
-        let url = ModuleSpecifier::from_file_path(&resolved_path).map_err(|_| {
-            deno_core::anyhow::anyhow!("Cannot convert path to URL: {}", resolved_path.display())
+
+        // Canonicalize to ensure same physical file = same module URL.
+        // This prevents instanceof failures across ES module boundaries when the
+        // same file is reached via different paths (symlinks, .. components, etc.).
+        let canonical_path = self.canonicalize_cached(&resolved_path);
+
+        let url = ModuleSpecifier::from_file_path(&canonical_path).map_err(|_| {
+            deno_core::anyhow::anyhow!(
+                "Cannot convert path to URL: {}",
+                canonical_path.display()
+            )
         })?;
 
         Ok(url)
@@ -958,6 +983,12 @@ mod tests {
         tempfile::tempdir().unwrap()
     }
 
+    /// Canonicalize a path for test assertions.
+    /// On macOS, tempdir paths are under /tmp which is a symlink to /private/tmp.
+    fn canon(path: &Path) -> PathBuf {
+        path.canonicalize().unwrap_or_else(|_| path.to_path_buf())
+    }
+
     #[test]
     fn test_resolve_relative_js() {
         let tmp = create_temp_dir();
@@ -971,7 +1002,7 @@ mod tests {
         let result = loader.resolve("./utils.js", referrer.as_str(), ResolutionKind::Import);
         assert!(result.is_ok());
         let resolved = result.unwrap();
-        assert_eq!(resolved.to_file_path().unwrap(), util_file);
+        assert_eq!(resolved.to_file_path().unwrap(), canon(&util_file));
     }
 
     #[test]
@@ -987,7 +1018,7 @@ mod tests {
         let result = loader.resolve("./utils", referrer.as_str(), ResolutionKind::Import);
         assert!(result.is_ok());
         let resolved = result.unwrap();
-        assert_eq!(resolved.to_file_path().unwrap(), util_file);
+        assert_eq!(resolved.to_file_path().unwrap(), canon(&util_file));
     }
 
     #[test]
@@ -1005,7 +1036,7 @@ mod tests {
         let result = loader.resolve("./lib", referrer.as_str(), ResolutionKind::Import);
         assert!(result.is_ok());
         let resolved = result.unwrap();
-        assert_eq!(resolved.to_file_path().unwrap(), index_file);
+        assert_eq!(resolved.to_file_path().unwrap(), canon(&index_file));
     }
 
     #[test]
@@ -1046,7 +1077,7 @@ mod tests {
         let result = loader.resolve("my-pkg", referrer.as_str(), ResolutionKind::Import);
         assert!(result.is_ok());
         let resolved = result.unwrap();
-        assert_eq!(resolved.to_file_path().unwrap(), entry);
+        assert_eq!(resolved.to_file_path().unwrap(), canon(&entry));
     }
 
     #[test]
@@ -1373,5 +1404,116 @@ export function Hello() {
             ModuleLoadResponse::Sync(Err(e)) => panic!("Module load failed: {}", e),
             _ => panic!("Expected synchronous module load"),
         }
+    }
+
+    // --- URL canonicalization (#2071) ---
+
+    #[test]
+    fn test_resolve_canonicalizes_dotdot_paths() {
+        // Given a file imported via a path with .. components
+        // When the same file is also imported via a direct path
+        // Then both resolve to the same canonical module URL
+        let tmp = create_temp_dir();
+        let src_dir = tmp.path().join("src");
+        let lib_dir = tmp.path().join("src").join("lib");
+        std::fs::create_dir_all(&lib_dir).unwrap();
+
+        let main_file = src_dir.join("main.ts");
+        let utils_file = lib_dir.join("utils.ts");
+        std::fs::write(&main_file, "").unwrap();
+        std::fs::write(&utils_file, "export const x = 1;").unwrap();
+
+        let loader = VertzModuleLoader::new(&tmp.path().to_string_lossy());
+        let referrer = ModuleSpecifier::from_file_path(&main_file).unwrap();
+
+        // Direct path
+        let direct = loader
+            .resolve("./lib/utils.ts", referrer.as_str(), ResolutionKind::Import)
+            .unwrap();
+
+        // Path with .. components (goes up then back down)
+        let dotdot = loader
+            .resolve(
+                "../src/lib/../lib/utils.ts",
+                referrer.as_str(),
+                ResolutionKind::Import,
+            )
+            .unwrap();
+
+        assert_eq!(
+            direct, dotdot,
+            "Direct and .. paths should resolve to the same URL"
+        );
+    }
+
+    #[test]
+    fn test_resolve_canonicalizes_symlinked_paths() {
+        // Given a workspace package symlinked in node_modules
+        // When imported via bare specifier and via relative path
+        // Then both resolve to the same module URL
+        let tmp = create_temp_dir();
+
+        // Create the real package directory
+        let real_pkg_dir = tmp.path().join("packages").join("my-lib");
+        let real_dist = real_pkg_dir.join("dist");
+        std::fs::create_dir_all(&real_dist).unwrap();
+        let real_entry = real_dist.join("index.js");
+        std::fs::write(&real_entry, "export const x = 1;").unwrap();
+        std::fs::write(
+            real_pkg_dir.join("package.json"),
+            r#"{ "name": "my-lib", "exports": { ".": "./dist/index.js" } }"#,
+        )
+        .unwrap();
+
+        // Create a symlink in node_modules pointing to the real package
+        let nm_dir = tmp.path().join("node_modules").join("my-lib");
+        std::fs::create_dir_all(tmp.path().join("node_modules")).unwrap();
+        #[cfg(unix)]
+        std::os::unix::fs::symlink(&real_pkg_dir, &nm_dir).unwrap();
+        #[cfg(windows)]
+        std::os::windows::fs::symlink_dir(&real_pkg_dir, &nm_dir).unwrap();
+
+        // Create a source file that could import via either path
+        let src_file = tmp.path().join("src").join("app.ts");
+        std::fs::create_dir_all(tmp.path().join("src")).unwrap();
+        std::fs::write(&src_file, "").unwrap();
+
+        let loader = VertzModuleLoader::new(&tmp.path().to_string_lossy());
+        let referrer = ModuleSpecifier::from_file_path(&src_file).unwrap();
+
+        // Import via bare specifier (goes through node_modules symlink)
+        let via_bare = loader
+            .resolve("my-lib", referrer.as_str(), ResolutionKind::Import)
+            .unwrap();
+
+        // Import via relative path to the real package directory
+        let via_relative = loader
+            .resolve(
+                "../packages/my-lib/dist/index.js",
+                referrer.as_str(),
+                ResolutionKind::Import,
+            )
+            .unwrap();
+
+        assert_eq!(
+            via_bare, via_relative,
+            "Symlink and relative paths to the same file should resolve to the same URL"
+        );
+    }
+
+    #[test]
+    fn test_canonicalize_cached_returns_consistent_results() {
+        let tmp = create_temp_dir();
+        let file = tmp.path().join("test.js");
+        std::fs::write(&file, "export const x = 1;").unwrap();
+
+        let loader = VertzModuleLoader::new(&tmp.path().to_string_lossy());
+
+        let result1 = loader.canonicalize_cached(&file);
+        let result2 = loader.canonicalize_cached(&file);
+
+        assert_eq!(result1, result2, "Cached canonicalization should be consistent");
+        // On macOS, /tmp -> /private/tmp, so canonical path may differ from input
+        assert!(result1.is_absolute(), "Canonical path should be absolute");
     }
 }
