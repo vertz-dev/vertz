@@ -304,7 +304,11 @@ fn parse_github_specifier(rest: &str) -> ParsedSpecifier<'_> {
         let r = &rest[hash_pos + 1..];
         (
             &rest[..hash_pos],
-            if r.is_empty() { None } else { Some(r.to_string()) },
+            if r.is_empty() {
+                None
+            } else {
+                Some(r.to_string())
+            },
         )
     } else {
         (rest, None)
@@ -524,16 +528,14 @@ mod tests {
 
     #[test]
     fn test_lockfile_parse_spec_key_github() {
-        let (name, range) =
-            Lockfile::parse_spec_key("my-lib@github:user/my-lib#v2.1.0").unwrap();
+        let (name, range) = Lockfile::parse_spec_key("my-lib@github:user/my-lib#v2.1.0").unwrap();
         assert_eq!(name, "my-lib");
         assert_eq!(range, "github:user/my-lib#v2.1.0");
     }
 
     #[test]
     fn test_lockfile_parse_spec_key_scoped_github() {
-        let (name, range) =
-            Lockfile::parse_spec_key("@org/lib@github:user/lib").unwrap();
+        let (name, range) = Lockfile::parse_spec_key("@org/lib@github:user/lib").unwrap();
         assert_eq!(name, "@org/lib");
         assert_eq!(range, "github:user/lib");
     }
@@ -855,7 +857,10 @@ mod tests {
         let result = parse_package_specifier("github:invalid");
         match result {
             ParsedSpecifier::Error(msg) => {
-                assert!(msg.contains("github:"), "Error should reference the specifier");
+                assert!(
+                    msg.contains("github:"),
+                    "Error should reference the specifier"
+                );
                 assert!(
                     msg.contains("owner/repo"),
                     "Error should mention expected format"

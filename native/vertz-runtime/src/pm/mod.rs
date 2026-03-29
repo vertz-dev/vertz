@@ -161,11 +161,9 @@ pub async fn install(
                     return Err(msg.into());
                 }
                 _ => {
-                    return Err(format!(
-                        "unexpected specifier type for GitHub range: {}",
-                        range
-                    )
-                    .into());
+                    return Err(
+                        format!("unexpected specifier type for GitHub range: {}", range).into(),
+                    );
                 }
             };
 
@@ -175,8 +173,7 @@ pub async fn install(
                 .map_err(|e| format!("{}", e))?;
             let sha_abbrev = &sha[..7.min(sha.len())];
 
-            let tarball_url =
-                github::GitHubClient::tarball_url(&gh.owner, &gh.repo, &sha);
+            let tarball_url = github::GitHubClient::tarball_url(&gh.owner, &gh.repo, &sha);
             let (extracted_path, integrity) = tarball_mgr
                 .fetch_and_extract_github(name, &sha, &tarball_url)
                 .await
@@ -302,9 +299,8 @@ pub async fn install(
                     async move {
                         if url.starts_with("https://codeload.github.com/") {
                             // GitHub tarball — use GitHub-specific extraction
-                            let (_path, _integrity) = mgr
-                                .fetch_and_extract_github(&name, &version, &url)
-                                .await?;
+                            let (_path, _integrity) =
+                                mgr.fetch_and_extract_github(&name, &version, &url).await?;
                         } else {
                             mgr.fetch_and_extract(&name, &version, &url, &integrity)
                                 .await?;
@@ -500,8 +496,7 @@ pub async fn add(
                 let sha_abbrev = &sha[..7.min(sha.len())];
 
                 // Download and extract tarball
-                let tarball_url =
-                    github::GitHubClient::tarball_url(&gh.owner, &gh.repo, &sha);
+                let tarball_url = github::GitHubClient::tarball_url(&gh.owner, &gh.repo, &sha);
 
                 // Use owner/repo as temporary cache key (we don't know the package name yet)
                 let temp_cache_name = format!("{}/{}", gh.owner, gh.repo);
@@ -524,20 +519,19 @@ pub async fn add(
                 if extracted_path != correct_cache_path && !correct_cache_path.exists() {
                     if let Err(e) = std::fs::rename(&extracted_path, &correct_cache_path) {
                         // Cross-filesystem rename (EXDEV) — fall back to copy + delete
-                        copy_dir_recursive(&extracted_path, &correct_cache_path)
-                            .map_err(|copy_err| {
+                        copy_dir_recursive(&extracted_path, &correct_cache_path).map_err(
+                            |copy_err| {
                                 format!(
                                     "failed to cache GitHub package {} (rename: {}, copy: {})",
                                     pkg_name, e, copy_err
                                 )
-                            })?;
+                            },
+                        )?;
                         std::fs::remove_dir_all(&extracted_path).ok();
                     }
                     // Also re-key the integrity sidecar file
-                    let old_integrity_path = tarball_mgr_add
-                        .integrity_path(&temp_cache_name, &sha);
-                    let new_integrity_path = tarball_mgr_add
-                        .integrity_path(&pkg_name, &sha);
+                    let old_integrity_path = tarball_mgr_add.integrity_path(&temp_cache_name, &sha);
+                    let new_integrity_path = tarball_mgr_add.integrity_path(&pkg_name, &sha);
                     if old_integrity_path.exists() {
                         std::fs::rename(&old_integrity_path, &new_integrity_path).ok();
                     }
@@ -556,8 +550,7 @@ pub async fn add(
                     pkg.optional_dependencies
                         .insert(pkg_name.clone(), specifier.clone());
                 } else {
-                    pkg.dependencies
-                        .insert(pkg_name.clone(), specifier.clone());
+                    pkg.dependencies.insert(pkg_name.clone(), specifier.clone());
                 }
 
                 output.package_added(&pkg_name, sha_abbrev, &specifier);
@@ -4722,10 +4715,7 @@ mod tests {
 
     #[test]
     fn test_verify_frozen_passes_with_github_dep() {
-        let deps = make_deps(&[
-            ("zod", "^3.24.0"),
-            ("my-lib", "github:user/my-lib#v2.1.0"),
-        ]);
+        let deps = make_deps(&[("zod", "^3.24.0"), ("my-lib", "github:user/my-lib#v2.1.0")]);
 
         let mut lockfile = Lockfile::default();
         lockfile.entries.insert(
@@ -4767,10 +4757,7 @@ mod tests {
     #[test]
     fn test_list_github_dep() {
         let pkg = make_pkg(
-            &[
-                ("zod", "^3.24.0"),
-                ("my-lib", "github:user/my-lib#v2.1.0"),
-            ],
+            &[("zod", "^3.24.0"), ("my-lib", "github:user/my-lib#v2.1.0")],
             &[],
         );
         let mut lockfile = Lockfile::default();

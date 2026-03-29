@@ -931,10 +931,7 @@ mod tests {
         let lockfile = graph_to_lockfile(&graph, &deps, &[], &HashSet::new());
         assert_eq!(lockfile.entries.len(), 1);
         let entry = &lockfile.entries["my-lib@github:user/my-lib#v2.1.0"];
-        assert_eq!(
-            entry.version,
-            "a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2"
-        );
+        assert_eq!(entry.version, "a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2");
         assert_eq!(
             entry.resolved,
             "https://codeload.github.com/user/my-lib/tar.gz/a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2"
@@ -962,10 +959,7 @@ mod tests {
 
         // npm parent that depends on the GitHub package
         let mut parent_deps = BTreeMap::new();
-        parent_deps.insert(
-            "gh-lib".to_string(),
-            "github:user/gh-lib".to_string(),
-        );
+        parent_deps.insert("gh-lib".to_string(), "github:user/gh-lib".to_string());
 
         graph.packages.insert(
             "parent@1.0.0".to_string(),
@@ -1041,10 +1035,7 @@ mod tests {
         let entry = &parsed.entries["my-lib@github:user/my-lib#v2.1.0"];
         assert_eq!(entry.name, "my-lib");
         assert_eq!(entry.range, "github:user/my-lib#v2.1.0");
-        assert_eq!(
-            entry.version,
-            "a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2"
-        );
+        assert_eq!(entry.version, "a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2");
         assert_eq!(entry.dependencies["zod"], "^3.24.0");
 
         // Transitive zod should also be there

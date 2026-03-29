@@ -131,8 +131,8 @@ impl TarballManager {
 
         // Skip if already extracted — read integrity from sidecar file
         if final_path.exists() {
-            let integrity = std::fs::read_to_string(self.integrity_path(name, sha))
-                .unwrap_or_default();
+            let integrity =
+                std::fs::read_to_string(self.integrity_path(name, sha)).unwrap_or_default();
             return Ok((final_path, integrity));
         }
 
@@ -140,8 +140,8 @@ impl TarballManager {
 
         // Double-check after acquiring permit
         if final_path.exists() {
-            let integrity = std::fs::read_to_string(self.integrity_path(name, sha))
-                .unwrap_or_default();
+            let integrity =
+                std::fs::read_to_string(self.integrity_path(name, sha)).unwrap_or_default();
             return Ok((final_path, integrity));
         }
 
@@ -515,11 +515,7 @@ mod tests {
         header.set_mode(0o644);
         header.set_cksum();
         builder
-            .append_data(
-                &mut header,
-                "my-lib-a1b2c3d/package.json",
-                &content[..],
-            )
+            .append_data(&mut header, "my-lib-a1b2c3d/package.json", &content[..])
             .unwrap();
 
         let js_content = b"module.exports = {};";
@@ -528,11 +524,7 @@ mod tests {
         js_header.set_mode(0o644);
         js_header.set_cksum();
         builder
-            .append_data(
-                &mut js_header,
-                "my-lib-a1b2c3d/index.js",
-                &js_content[..],
-            )
+            .append_data(&mut js_header, "my-lib-a1b2c3d/index.js", &js_content[..])
             .unwrap();
 
         let tar_bytes = builder.into_inner().unwrap();

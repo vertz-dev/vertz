@@ -18,7 +18,11 @@ pub enum GitHubError {
     /// Repository not found (HTTP 404, no ref specified)
     RepoNotFound { owner: String, repo: String },
     /// Ref not found (HTTP 404, ref specified)
-    RefNotFound { owner: String, repo: String, ref_: String },
+    RefNotFound {
+        owner: String,
+        repo: String,
+        ref_: String,
+    },
     /// Rate limit exceeded (HTTP 403 with X-RateLimit-Remaining: 0)
     RateLimited,
     /// Access denied (HTTP 403, not rate-limited)
@@ -34,11 +38,7 @@ impl std::fmt::Display for GitHubError {
                 write!(f, "repository \"github:{}/{}\" not found", owner, repo)
             }
             GitHubError::RefNotFound { owner, repo, ref_ } => {
-                write!(
-                    f,
-                    "ref \"{}\" not found in github:{}/{}",
-                    ref_, owner, repo
-                )
+                write!(f, "ref \"{}\" not found in github:{}/{}", ref_, owner, repo)
             }
             GitHubError::RateLimited => {
                 write!(
@@ -153,10 +153,9 @@ impl GitHubClient {
             )));
         }
 
-        let commit: CommitResponse = response
-            .json()
-            .await
-            .map_err(|e| GitHubError::Other(format!("Failed to parse GitHub API response: {}", e)))?;
+        let commit: CommitResponse = response.json().await.map_err(|e| {
+            GitHubError::Other(format!("Failed to parse GitHub API response: {}", e))
+        })?;
 
         Ok(commit.sha)
     }
@@ -177,11 +176,8 @@ mod tests {
 
     #[test]
     fn test_tarball_url() {
-        let url = GitHubClient::tarball_url(
-            "user",
-            "my-lib",
-            "a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2",
-        );
+        let url =
+            GitHubClient::tarball_url("user", "my-lib", "a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2");
         assert_eq!(
             url,
             "https://codeload.github.com/user/my-lib/tar.gz/a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2"
