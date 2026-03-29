@@ -112,6 +112,68 @@ impl TarballManager {
             }
         }
     }
+    /// Download and extract a GitHub tarball to the global store.
+    /// Returns (extracted_path, integrity) — integrity is computed from the tarball bytes.
+    pub async fn fetch_and_extract_github(
+        &self,
+        name: &str,
+        sha: &str,
+        tarball_url: &str,
+    ) -> Result<PathBuf, Box<dyn std::error::Error + Send + Sync>> {
+        let final_path = self.store_path(name, sha);
+
+        // Skip if already extracted
+        if final_path.exists() {
+            return Ok(final_path);
+        }
+
+        let _permit = self.semaphore.acquire().await?;
+
+        // Double-check after acquiring permit
+        if final_path.exists() {
+            return Ok(final_path);
+        }
+
+        // Download tarball
+        let response = self.client.get(tarball_url).send().await?;
+        if !response.status().is_success() {
+            return Err(format!(
+                "Failed to download GitHub tarball for {}: HTTP {}",
+                name,
+                response.status()
+            )
+            .into());
+        }
+
+        let bytes = response.bytes().await?;
+
+        // Extract to staging directory, then atomic rename
+        let staging_dir = self.store_dir.join(format!(
+            ".staging/{}@{}-{}",
+            name.replace('/', "+"),
+            sha,
+            uuid::Uuid::new_v4()
+        ));
+        std::fs::create_dir_all(&staging_dir)?;
+
+        let staging_clone = staging_dir.clone();
+        let bytes_clone = bytes.to_vec();
+        tokio::task::spawn_blocking(move || extract_github_tarball(&bytes_clone, &staging_clone))
+            .await??;
+
+        // Atomic rename to final path
+        match std::fs::rename(&staging_dir, &final_path) {
+            Ok(()) => Ok(final_path),
+            Err(_) if final_path.exists() => {
+                std::fs::remove_dir_all(&staging_dir).ok();
+                Ok(final_path)
+            }
+            Err(e) => {
+                std::fs::remove_dir_all(&staging_dir).ok();
+                Err(format!("Failed to install {}: {}", name, e).into())
+            }
+        }
+    }
 }
 
 /// Verify the integrity hash of downloaded bytes

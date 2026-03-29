@@ -394,19 +394,72 @@ pub async fn add(
     for package in packages {
         let parsed = types::parse_package_specifier(package);
 
-        let (name, version_spec) = match parsed {
-            types::ParsedSpecifier::Npm { name, version_spec } => (name, version_spec),
-            types::ParsedSpecifier::GitHub(_gh) => {
-                // TODO: GitHub specifier support — Phase 1
-                return Err(format!(
-                    "GitHub specifiers are not yet supported: {}",
-                    package
-                )
-                .into());
+        match parsed {
+            types::ParsedSpecifier::GitHub(gh) => {
+                // GitHub specifier: resolve ref → SHA, download tarball, read package name
+                let specifier = if let Some(ref r) = gh.ref_ {
+                    format!("github:{}/{}#{}", gh.owner, gh.repo, r)
+                } else {
+                    format!("github:{}/{}", gh.owner, gh.repo)
+                };
+                output.github_resolve_started(&specifier);
+
+                let gh_client = github::GitHubClient::new();
+                let sha = gh_client
+                    .resolve_ref(&gh.owner, &gh.repo, gh.ref_.as_deref())
+                    .await
+                    .map_err(|e| format!("{}", e))?;
+                let sha_abbrev = &sha[..7.min(sha.len())];
+
+                // Download and extract tarball
+                let tarball_url =
+                    github::GitHubClient::tarball_url(&gh.owner, &gh.repo, &sha);
+                let tarball_mgr = TarballManager::new(&registry::default_cache_dir());
+
+                let extracted_path = tarball_mgr
+                    .fetch_and_extract_github(&specifier, &sha, &tarball_url)
+                    .await
+                    .map_err(|e| format!("{}", e))?;
+
+                // Read package.json from extracted tarball
+                let gh_pkg = types::read_package_json(&extracted_path)?;
+                let pkg_name = gh_pkg.name.ok_or_else(|| {
+                    format!(
+                        "package.json in \"{}/{}\" is missing the \"name\" field",
+                        gh.owner, gh.repo
+                    )
+                })?;
+
+                output.github_resolve_complete(&pkg_name, sha_abbrev);
+
+                // Insert into the appropriate dependency section
+                if peer {
+                    pkg.peer_dependencies
+                        .insert(pkg_name.clone(), specifier.clone());
+                } else if dev {
+                    pkg.dev_dependencies
+                        .insert(pkg_name.clone(), specifier.clone());
+                } else if optional {
+                    pkg.optional_dependencies
+                        .insert(pkg_name.clone(), specifier.clone());
+                } else {
+                    pkg.dependencies
+                        .insert(pkg_name.clone(), specifier.clone());
+                }
+
+                output.package_added(&pkg_name, sha_abbrev, &specifier);
+                continue;
             }
             types::ParsedSpecifier::Error(msg) => {
                 return Err(msg.into());
             }
+            types::ParsedSpecifier::Npm { .. } => {}
+        }
+
+        // npm specifier path
+        let (name, version_spec) = match parsed {
+            types::ParsedSpecifier::Npm { name, version_spec } => (name, version_spec),
+            _ => unreachable!(),
         };
 
         let metadata = registry_client
