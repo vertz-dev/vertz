@@ -5,6 +5,7 @@ pub mod crypto_subtle;
 pub mod encoding;
 pub mod env;
 pub mod fetch;
+pub mod fs;
 pub mod microtask;
 pub mod os;
 pub mod path;

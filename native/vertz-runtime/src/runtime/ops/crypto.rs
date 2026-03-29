@@ -23,9 +23,64 @@ pub fn op_crypto_get_random_values(
     Ok(buf)
 }
 
+/// Compute a hash digest synchronously. Used by node:crypto createHash.
+/// Returns the raw hash bytes.
+#[op2]
+#[buffer]
+pub fn op_crypto_hash_digest(
+    #[string] algorithm: String,
+    #[buffer] data: &[u8],
+) -> Result<Vec<u8>, deno_core::error::AnyError> {
+    use ring::digest;
+    let algo = match algorithm.to_uppercase().replace('-', "").as_str() {
+        "SHA256" | "SHA2256" => &digest::SHA256,
+        "SHA384" | "SHA2384" => &digest::SHA384,
+        "SHA512" | "SHA2512" => &digest::SHA512,
+        "SHA1" => &digest::SHA1_FOR_LEGACY_USE_ONLY,
+        _ => {
+            return Err(deno_core::anyhow::anyhow!(
+                "Unsupported hash algorithm: {}",
+                algorithm
+            ))
+        }
+    };
+    let result = digest::digest(algo, data);
+    Ok(result.as_ref().to_vec())
+}
+
+/// Timing-safe comparison of two byte arrays.
+#[op2(fast)]
+pub fn op_crypto_timing_safe_equal(
+    #[buffer] a: &[u8],
+    #[buffer] b: &[u8],
+) -> Result<bool, deno_core::error::AnyError> {
+    if a.len() != b.len() {
+        return Err(deno_core::anyhow::anyhow!(
+            "Input buffers must have the same byte length"
+        ));
+    }
+    Ok(ring::constant_time::verify_slices_are_equal(a, b).is_ok())
+}
+
+/// Generate random bytes (for node:crypto randomBytes).
+#[op2]
+#[buffer]
+pub fn op_crypto_random_bytes(#[smi] size: u32) -> Vec<u8> {
+    let mut buf = vec![0u8; size as usize];
+    use rand::RngCore;
+    rand::thread_rng().fill_bytes(&mut buf);
+    buf
+}
+
 /// Get the op declarations for crypto ops.
 pub fn op_decls() -> Vec<OpDecl> {
-    vec![op_crypto_random_uuid(), op_crypto_get_random_values()]
+    vec![
+        op_crypto_random_uuid(),
+        op_crypto_get_random_values(),
+        op_crypto_hash_digest(),
+        op_crypto_timing_safe_equal(),
+        op_crypto_random_bytes(),
+    ]
 }
 
 /// JavaScript bootstrap code for crypto.randomUUID(), crypto.getRandomValues(), and crypto.subtle.

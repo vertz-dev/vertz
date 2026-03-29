@@ -556,6 +556,188 @@ export const stdout = proc.stdout;
 export const stderr = proc.stderr;
 "#;
 
+/// Synthetic module for `node:fs`.
+const NODE_FS_SPECIFIER: &str = "vertz:node_fs";
+const NODE_FS_MODULE: &str = r#"
+const fs = globalThis.__vertz_fs;
+export const readFileSync = fs.readFileSync;
+export const writeFileSync = fs.writeFileSync;
+export const appendFileSync = fs.appendFileSync;
+export const existsSync = fs.existsSync;
+export const mkdirSync = fs.mkdirSync;
+export const readdirSync = fs.readdirSync;
+export const statSync = fs.statSync;
+export const lstatSync = fs.lstatSync;
+export const rmSync = fs.rmSync;
+export const unlinkSync = fs.unlinkSync;
+export const renameSync = fs.renameSync;
+export const realpathSync = fs.realpathSync;
+export const mkdtempSync = fs.mkdtempSync;
+export const copyFileSync = fs.copyFileSync;
+export const chmodSync = fs.chmodSync;
+export const readFile = fs.readFile;
+export const writeFile = fs.writeFile;
+export const mkdir = fs.mkdir;
+export const readdir = fs.readdir;
+export const stat = fs.stat;
+export const rm = fs.rm;
+export const unlink = fs.unlink;
+export const rename = fs.rename;
+export const realpath = fs.realpath;
+export const promises = fs.promises;
+export default fs;
+"#;
+
+/// Synthetic module for `node:fs/promises`.
+const NODE_FS_PROMISES_SPECIFIER: &str = "vertz:node_fs_promises";
+const NODE_FS_PROMISES_MODULE: &str = r#"
+const p = globalThis.__vertz_fs.promises;
+export const readFile = p.readFile;
+export const writeFile = p.writeFile;
+export const mkdir = p.mkdir;
+export const readdir = p.readdir;
+export const stat = p.stat;
+export const rm = p.rm;
+export const unlink = p.unlink;
+export const rename = p.rename;
+export const realpath = p.realpath;
+export default p;
+"#;
+
+/// Synthetic module for `node:crypto`.
+const NODE_CRYPTO_SPECIFIER: &str = "vertz:node_crypto";
+const NODE_CRYPTO_MODULE: &str = r#"
+class Hash {
+  #algorithm;
+  #data;
+
+  constructor(algorithm) {
+    this.#algorithm = algorithm;
+    this.#data = new Uint8Array(0);
+  }
+
+  update(data, encoding) {
+    let bytes;
+    if (typeof data === 'string') {
+      bytes = new TextEncoder().encode(data);
+    } else if (data instanceof Uint8Array) {
+      bytes = data;
+    } else if (ArrayBuffer.isView(data)) {
+      bytes = new Uint8Array(data.buffer, data.byteOffset, data.byteLength);
+    } else {
+      bytes = new Uint8Array(data);
+    }
+    // Concatenate
+    const merged = new Uint8Array(this.#data.length + bytes.length);
+    merged.set(this.#data);
+    merged.set(bytes, this.#data.length);
+    this.#data = merged;
+    return this;
+  }
+
+  digest(encoding) {
+    const result = Deno.core.ops.op_crypto_hash_digest(this.#algorithm, this.#data);
+    const buf = Buffer.from(result);
+    if (encoding === 'hex') return buf.toString('hex');
+    if (encoding === 'base64') return buf.toString('base64');
+    return buf;
+  }
+}
+
+function createHash(algorithm) {
+  return new Hash(algorithm);
+}
+
+function createHmac(algorithm, key) {
+  // Minimal HMAC using Web Crypto pattern (synchronous via Rust op)
+  let keyBytes;
+  if (typeof key === 'string') {
+    keyBytes = new TextEncoder().encode(key);
+  } else if (key instanceof Uint8Array) {
+    keyBytes = key;
+  } else {
+    keyBytes = new Uint8Array(key);
+  }
+
+  let data = new Uint8Array(0);
+
+  return {
+    update(input) {
+      const bytes = typeof input === 'string' ? new TextEncoder().encode(input) : new Uint8Array(input);
+      const merged = new Uint8Array(data.length + bytes.length);
+      merged.set(data);
+      merged.set(bytes, data.length);
+      data = merged;
+      return this;
+    },
+    digest(encoding) {
+      // HMAC: hash(key XOR opad || hash(key XOR ipad || message))
+      // For simplicity, delegate to the subtle API synchronously via hash
+      // This is a minimal shim — full HMAC available via crypto.subtle
+      const algoMap = { sha256: 'SHA-256', sha384: 'SHA-384', sha512: 'SHA-512', sha1: 'SHA-1' };
+      const normalizedAlgo = algoMap[algorithm.toLowerCase()] || algorithm;
+      const blockSize = normalizedAlgo.includes('512') ? 128 : 64;
+
+      let k = keyBytes;
+      if (k.length > blockSize) {
+        k = new Uint8Array(Deno.core.ops.op_crypto_hash_digest(normalizedAlgo, k));
+      }
+      if (k.length < blockSize) {
+        const padded = new Uint8Array(blockSize);
+        padded.set(k);
+        k = padded;
+      }
+
+      const ipad = new Uint8Array(blockSize);
+      const opad = new Uint8Array(blockSize);
+      for (let i = 0; i < blockSize; i++) {
+        ipad[i] = k[i] ^ 0x36;
+        opad[i] = k[i] ^ 0x5c;
+      }
+
+      const inner = new Uint8Array(ipad.length + data.length);
+      inner.set(ipad);
+      inner.set(data, ipad.length);
+      const innerHash = new Uint8Array(Deno.core.ops.op_crypto_hash_digest(normalizedAlgo, inner));
+
+      const outer = new Uint8Array(opad.length + innerHash.length);
+      outer.set(opad);
+      outer.set(innerHash, opad.length);
+      const result = Deno.core.ops.op_crypto_hash_digest(normalizedAlgo, outer);
+
+      const buf = Buffer.from(result);
+      if (encoding === 'hex') return buf.toString('hex');
+      if (encoding === 'base64') return buf.toString('base64');
+      return buf;
+    },
+  };
+}
+
+function timingSafeEqual(a, b) {
+  const aBuf = a instanceof Uint8Array ? a : new Uint8Array(a);
+  const bBuf = b instanceof Uint8Array ? b : new Uint8Array(b);
+  return Deno.core.ops.op_crypto_timing_safe_equal(aBuf, bBuf);
+}
+
+function randomBytes(size) {
+  return Buffer.from(Deno.core.ops.op_crypto_random_bytes(size));
+}
+
+function randomUUID() {
+  return Deno.core.ops.op_crypto_random_uuid();
+}
+
+export { createHash, createHmac, timingSafeEqual, randomBytes, randomUUID, Hash };
+export default { createHash, createHmac, timingSafeEqual, randomBytes, randomUUID };
+"#;
+
+/// Synthetic module for `node:buffer` / `buffer`.
+const NODE_BUFFER_SPECIFIER: &str = "vertz:node_buffer";
+const NODE_BUFFER_MODULE: &str = r#"
+export const Buffer = globalThis.Buffer;
+export default { Buffer: globalThis.Buffer };
+"#;
+
 /// Map a `node:*` specifier to a synthetic module specifier.
 fn node_specifier_to_synthetic(specifier: &str) -> Option<&'static str> {
     match specifier {
@@ -564,6 +746,10 @@ fn node_specifier_to_synthetic(specifier: &str) -> Option<&'static str> {
         "node:url" => Some(NODE_URL_SPECIFIER),
         "node:events" | "events" => Some(NODE_EVENTS_SPECIFIER),
         "node:process" | "process" => Some(NODE_PROCESS_SPECIFIER),
+        "node:fs" | "fs" => Some(NODE_FS_SPECIFIER),
+        "node:fs/promises" => Some(NODE_FS_PROMISES_SPECIFIER),
+        "node:crypto" | "crypto" => Some(NODE_CRYPTO_SPECIFIER),
+        "node:buffer" | "buffer" => Some(NODE_BUFFER_SPECIFIER),
         _ => None,
     }
 }
@@ -578,6 +764,10 @@ fn synthetic_module_source(specifier: &str) -> Option<&'static str> {
         NODE_URL_GLOBALS_SPECIFIER => Some(NODE_URL_GLOBALS_MODULE),
         NODE_EVENTS_SPECIFIER => Some(NODE_EVENTS_MODULE),
         NODE_PROCESS_SPECIFIER => Some(NODE_PROCESS_MODULE),
+        NODE_FS_SPECIFIER => Some(NODE_FS_MODULE),
+        NODE_FS_PROMISES_SPECIFIER => Some(NODE_FS_PROMISES_MODULE),
+        NODE_CRYPTO_SPECIFIER => Some(NODE_CRYPTO_MODULE),
+        NODE_BUFFER_SPECIFIER => Some(NODE_BUFFER_MODULE),
         _ => None,
     }
 }

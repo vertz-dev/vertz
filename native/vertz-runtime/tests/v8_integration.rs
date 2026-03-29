@@ -479,3 +479,225 @@ async fn test_node_process_import() {
     assert_eq!(output.stdout[0], "env type: object");
     assert_eq!(output.stdout[1], "cwd type: function");
 }
+
+// --- Phase 5b: node:fs and node:crypto integration tests ---
+
+#[tokio::test]
+async fn test_node_fs_sync_operations() {
+    let tmp = tempfile::tempdir().unwrap();
+    let mut rt = VertzJsRuntime::new(VertzRuntimeOptions {
+        capture_output: true,
+        ..Default::default()
+    })
+    .unwrap();
+
+    let specifier = deno_core::ModuleSpecifier::parse("file:///virtual/fs-sync-test.js").unwrap();
+    let tmp_path = tmp.path().to_string_lossy().replace('\\', "/");
+
+    rt.load_main_module_from_code(
+        &specifier,
+        format!(
+            r#"
+        import fs from 'node:fs';
+        const dir = "{}";
+
+        // writeFileSync + readFileSync
+        fs.writeFileSync(dir + "/test.txt", "hello from fs");
+        const content = fs.readFileSync(dir + "/test.txt", "utf-8");
+        console.log("content: " + content);
+
+        // existsSync
+        console.log("exists: " + fs.existsSync(dir + "/test.txt"));
+        console.log("not-exists: " + fs.existsSync(dir + "/nope.txt"));
+
+        // mkdirSync recursive
+        fs.mkdirSync(dir + "/a/b/c", {{ recursive: true }});
+        const stat = fs.statSync(dir + "/a/b/c");
+        console.log("isDir: " + stat.isDirectory());
+
+        // readdirSync
+        fs.writeFileSync(dir + "/a/b/c/x.txt", "x");
+        fs.writeFileSync(dir + "/a/b/c/y.txt", "y");
+        const entries = fs.readdirSync(dir + "/a/b/c").sort();
+        console.log("entries: " + entries.join(","));
+
+        // renameSync
+        fs.renameSync(dir + "/test.txt", dir + "/renamed.txt");
+        console.log("renamed: " + fs.existsSync(dir + "/renamed.txt"));
+        console.log("old-gone: " + !fs.existsSync(dir + "/test.txt"));
+
+        // rmSync recursive
+        fs.rmSync(dir + "/a", {{ recursive: true }});
+        console.log("removed: " + !fs.existsSync(dir + "/a"));
+    "#,
+            tmp_path
+        ),
+    )
+    .await
+    .unwrap();
+
+    let output = rt.captured_output();
+    assert_eq!(output.stdout[0], "content: hello from fs");
+    assert_eq!(output.stdout[1], "exists: true");
+    assert_eq!(output.stdout[2], "not-exists: false");
+    assert_eq!(output.stdout[3], "isDir: true");
+    assert_eq!(output.stdout[4], "entries: x.txt,y.txt");
+    assert_eq!(output.stdout[5], "renamed: true");
+    assert_eq!(output.stdout[6], "old-gone: true");
+    assert_eq!(output.stdout[7], "removed: true");
+}
+
+#[tokio::test]
+async fn test_node_fs_named_imports() {
+    let tmp = tempfile::tempdir().unwrap();
+    let mut rt = VertzJsRuntime::new(VertzRuntimeOptions {
+        capture_output: true,
+        ..Default::default()
+    })
+    .unwrap();
+
+    let specifier = deno_core::ModuleSpecifier::parse("file:///virtual/fs-named-test.js").unwrap();
+    let tmp_path = tmp.path().to_string_lossy().replace('\\', "/");
+
+    rt.load_main_module_from_code(
+        &specifier,
+        format!(
+            r#"
+        import {{ readFileSync, writeFileSync, existsSync, mkdtempSync }} from 'node:fs';
+
+        writeFileSync("{}/named.txt", "named imports work");
+        const content = readFileSync("{}/named.txt", "utf-8");
+        console.log("content: " + content);
+        console.log("exists: " + existsSync("{}/named.txt"));
+
+        const tmpDir = mkdtempSync("vertz-test-");
+        console.log("tmpDir created: " + existsSync(tmpDir));
+    "#,
+            tmp_path, tmp_path, tmp_path
+        ),
+    )
+    .await
+    .unwrap();
+
+    let output = rt.captured_output();
+    assert_eq!(output.stdout[0], "content: named imports work");
+    assert_eq!(output.stdout[1], "exists: true");
+    assert_eq!(output.stdout[2], "tmpDir created: true");
+}
+
+#[tokio::test]
+async fn test_node_fs_promises_import() {
+    let tmp = tempfile::tempdir().unwrap();
+    let mut rt = VertzJsRuntime::new(VertzRuntimeOptions {
+        capture_output: true,
+        ..Default::default()
+    })
+    .unwrap();
+
+    let specifier =
+        deno_core::ModuleSpecifier::parse("file:///virtual/fs-promises-test.js").unwrap();
+    let tmp_path = tmp.path().to_string_lossy().replace('\\', "/");
+
+    rt.load_main_module_from_code(
+        &specifier,
+        format!(
+            r#"
+        import {{ readFile, writeFile }} from 'node:fs/promises';
+
+        await writeFile("{}/async.txt", "async fs works");
+        const content = await readFile("{}/async.txt", "utf-8");
+        console.log("content: " + content);
+    "#,
+            tmp_path, tmp_path
+        ),
+    )
+    .await
+    .unwrap();
+
+    let output = rt.captured_output();
+    assert_eq!(output.stdout[0], "content: async fs works");
+}
+
+#[tokio::test]
+async fn test_node_crypto_import() {
+    let mut rt = VertzJsRuntime::new(VertzRuntimeOptions {
+        capture_output: true,
+        ..Default::default()
+    })
+    .unwrap();
+
+    let specifier = deno_core::ModuleSpecifier::parse("file:///virtual/crypto-test.js").unwrap();
+
+    rt.load_main_module_from_code(
+        &specifier,
+        r#"
+        import { createHash, timingSafeEqual, randomBytes, randomUUID } from 'node:crypto';
+
+        // createHash
+        const hash = createHash('sha256').update('hello').digest('hex');
+        console.log("sha256: " + hash);
+
+        // Should match known SHA-256 of "hello"
+        console.log("hash-ok: " + (hash === '2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824'));
+
+        // timingSafeEqual
+        const a = new Uint8Array([1, 2, 3]);
+        const b = new Uint8Array([1, 2, 3]);
+        const c = new Uint8Array([4, 5, 6]);
+        console.log("equal: " + timingSafeEqual(a, b));
+        console.log("not-equal: " + timingSafeEqual(a, c));
+
+        // randomBytes
+        const bytes = randomBytes(16);
+        console.log("randomBytes: " + (bytes.length === 16));
+
+        // randomUUID
+        const uuid = randomUUID();
+        console.log("uuid: " + (uuid.length === 36));
+    "#
+        .to_string(),
+    )
+    .await
+    .unwrap();
+
+    let output = rt.captured_output();
+    assert_eq!(
+        output.stdout[0],
+        "sha256: 2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824"
+    );
+    assert_eq!(output.stdout[1], "hash-ok: true");
+    assert_eq!(output.stdout[2], "equal: true");
+    assert_eq!(output.stdout[3], "not-equal: false");
+    assert_eq!(output.stdout[4], "randomBytes: true");
+    assert_eq!(output.stdout[5], "uuid: true");
+}
+
+#[tokio::test]
+async fn test_node_buffer_import() {
+    let mut rt = VertzJsRuntime::new(VertzRuntimeOptions {
+        capture_output: true,
+        ..Default::default()
+    })
+    .unwrap();
+
+    let specifier = deno_core::ModuleSpecifier::parse("file:///virtual/buffer-test.js").unwrap();
+
+    rt.load_main_module_from_code(
+        &specifier,
+        r#"
+        import { Buffer } from 'node:buffer';
+        const buf = Buffer.from("hello");
+        console.log("length: " + buf.length);
+        console.log("hex: " + buf.toString("hex"));
+        console.log("isBuffer: " + Buffer.isBuffer(buf));
+    "#
+        .to_string(),
+    )
+    .await
+    .unwrap();
+
+    let output = rt.captured_output();
+    assert_eq!(output.stdout[0], "length: 5");
+    assert_eq!(output.stdout[1], "hex: 68656c6c6f");
+    assert_eq!(output.stdout[2], "isBuffer: true");
+}
