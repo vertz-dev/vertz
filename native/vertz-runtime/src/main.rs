@@ -24,6 +24,12 @@ async fn main() {
             let root_dir =
                 std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from("."));
 
+            let reporter = match args.reporter.as_str() {
+                "json" => vertz_runtime::test::runner::ReporterFormat::Json,
+                "junit" => vertz_runtime::test::runner::ReporterFormat::Junit,
+                _ => vertz_runtime::test::runner::ReporterFormat::Terminal,
+            };
+
             let config = vertz_runtime::test::runner::TestRunConfig {
                 root_dir,
                 paths: args.paths,
@@ -33,13 +39,23 @@ async fn main() {
                 filter: args.filter,
                 bail: args.bail,
                 timeout_ms: args.timeout,
+                reporter,
+                coverage: args.coverage,
+                coverage_threshold: args.coverage_threshold as f64,
             };
 
-            let (result, output) = vertz_runtime::test::runner::run_tests(config);
-            print!("{}", output);
+            if args.watch {
+                if let Err(e) = vertz_runtime::test::watch::run_watch_mode(config).await {
+                    eprintln!("Watch mode error: {}", e);
+                    std::process::exit(1);
+                }
+            } else {
+                let (result, output) = vertz_runtime::test::runner::run_tests(config);
+                print!("{}", output);
 
-            if !result.success() {
-                std::process::exit(1);
+                if !result.success() {
+                    std::process::exit(1);
+                }
             }
         }
     }

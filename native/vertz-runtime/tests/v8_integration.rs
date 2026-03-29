@@ -18,6 +18,7 @@ async fn test_multi_module_execution() {
     let mut rt = VertzJsRuntime::new(VertzRuntimeOptions {
         root_dir: Some(fixture_dir.to_string_lossy().to_string()),
         capture_output: true,
+        ..Default::default()
     })
     .unwrap();
 
@@ -109,6 +110,7 @@ async fn test_module_error_produces_readable_message() {
     let mut rt = VertzJsRuntime::new(VertzRuntimeOptions {
         root_dir: Some(tmp.path().to_string_lossy().to_string()),
         capture_output: true,
+        ..Default::default()
     })
     .unwrap();
 
@@ -135,6 +137,7 @@ async fn test_module_import_missing_produces_error() {
     let mut rt = VertzJsRuntime::new(VertzRuntimeOptions {
         root_dir: Some(tmp.path().to_string_lossy().to_string()),
         capture_output: true,
+        ..Default::default()
     })
     .unwrap();
 
@@ -171,6 +174,7 @@ async fn test_ts_module_compilation_and_execution() {
     let mut rt = VertzJsRuntime::new(VertzRuntimeOptions {
         root_dir: Some(tmp.path().to_string_lossy().to_string()),
         capture_output: true,
+        ..Default::default()
     })
     .unwrap();
 
