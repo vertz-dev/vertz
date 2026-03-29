@@ -82,41 +82,12 @@ pub fn op_decls() -> Vec<OpDecl> {
 }
 
 /// JavaScript bootstrap code for the fetch API.
+/// This uses the Headers, Request, and Response classes from web_api bootstrap
+/// (which must be loaded first).
 pub const FETCH_BOOTSTRAP_JS: &str = r#"
 ((globalThis) => {
-  globalThis.fetch = async function(input, init = {}) {
-    const url = typeof input === 'string' ? input : input.url;
-    const options = {
-      method: init.method || 'GET',
-      headers: {},
-      body: undefined,
-    };
-
-    if (init.headers) {
-      if (typeof init.headers.entries === 'function') {
-        for (const [k, v] of init.headers.entries()) {
-          options.headers[k] = v;
-        }
-      } else if (typeof init.headers === 'object') {
-        Object.assign(options.headers, init.headers);
-      }
-    }
-
-    if (init.body !== undefined) {
-      options.body = init.body;
-    }
-
-    const raw = await Deno.core.ops.op_fetch(url, options);
-
-    return {
-      status: raw.status,
-      statusText: raw.statusText,
-      ok: raw.status >= 200 && raw.status < 300,
-      headers: new Map(Object.entries(raw.headers)),
-      _body: raw.body,
-      text: async function() { return this._body; },
-      json: async function() { return JSON.parse(this._body); },
-    };
-  };
+  // Overwrite the fetch from web_api bootstrap (which already references op_fetch)
+  // This is now a no-op because web_api bootstrap defines the full fetch().
+  // We keep this file's bootstrap empty since web_api handles everything.
 })(globalThis);
 "#;

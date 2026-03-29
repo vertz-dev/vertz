@@ -24,6 +24,7 @@ use super::ops::path;
 use super::ops::performance;
 use super::ops::timers;
 use super::ops::url;
+use super::ops::web_api;
 
 /// Captured output from console operations, used for testing.
 #[derive(Debug, Clone, Default)]
@@ -68,6 +69,7 @@ impl VertzJsRuntime {
         all_ops.extend(fetch::op_decls());
         all_ops.extend(url::op_decls());
         all_ops.extend(crypto_subtle::op_decls());
+        all_ops.extend(web_api::op_decls());
 
         let capture = options.capture_output;
         let captured_clone = Arc::clone(&captured_output);
@@ -128,6 +130,7 @@ impl VertzJsRuntime {
             env::ENV_BOOTSTRAP_JS,
             performance::PERFORMANCE_BOOTSTRAP_JS,
             path::PATH_BOOTSTRAP_JS,
+            web_api::WEB_API_BOOTSTRAP_JS,
             fetch::FETCH_BOOTSTRAP_JS,
             microtask::MICROTASK_BOOTSTRAP_JS,
             url::URL_BOOTSTRAP_JS,

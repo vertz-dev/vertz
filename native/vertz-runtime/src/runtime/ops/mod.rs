@@ -10,3 +10,4 @@ pub mod path;
 pub mod performance;
 pub mod timers;
 pub mod url;
+pub mod web_api;
