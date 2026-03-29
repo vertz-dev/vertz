@@ -628,8 +628,8 @@ mod tests {
 
     #[test]
     fn test_smart_debouncer_multi_file_waits_for_batch() {
-        // Use a long batch debounce so it's definitely not ready
-        let mut debouncer = SmartDebouncer::with_timings(0, 1000);
+        // Use a long batch debounce and long max_wait so it's definitely not ready
+        let mut debouncer = SmartDebouncer::with_timings(0, 1000).with_max_wait(2000);
         debouncer.add(FileChange {
             kind: FileChangeKind::Modify,
             path: PathBuf::from("/src/app.tsx"),
@@ -726,6 +726,25 @@ mod tests {
         assert!(
             debouncer.is_ready(),
             "Rapid continuous events should still fire within max_wait"
+        );
+    }
+
+    #[test]
+    fn test_smart_debouncer_max_wait_zero_fires_immediately() {
+        let mut debouncer = SmartDebouncer::with_timings(0, 1000).with_max_wait(0);
+        debouncer.add(FileChange {
+            kind: FileChangeKind::Modify,
+            path: PathBuf::from("/src/app.tsx"),
+        });
+        debouncer.add(FileChange {
+            kind: FileChangeKind::Modify,
+            path: PathBuf::from("/src/Button.tsx"),
+        });
+
+        // max_wait=0 means multi-file batch fires immediately
+        assert!(
+            debouncer.is_ready(),
+            "max_wait=0 should make multi-file batch immediately ready"
         );
     }
 
