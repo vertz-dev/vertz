@@ -359,6 +359,24 @@ describe('generateAotBarrel', () => {
         expect(result.barrelSource).toContain('export');
       });
 
+      it('Then barrel re-exports use .ts extension for Node ESM compatibility', () => {
+        const compiledFiles: Record<string, AotCompiledFile> = {
+          '/src/home.tsx': {
+            code: 'export function __ssr_HomePage() { return "hi"; }',
+            components: [{ name: 'HomePage', tier: 'static', holes: [], queryKeys: [] }],
+          },
+        };
+        const routeMap: Record<string, AotRouteMapEntry> = {
+          '/': { renderFn: '__ssr_HomePage', holes: [], queryKeys: [] },
+        };
+
+        const result = generateAotBarrel(compiledFiles, routeMap);
+
+        // Node ESM requires explicit .ts extensions — extensionless imports fail silently
+        expect(result.barrelSource).toMatch(/from '\.\/__aot_\d+_home\.ts'/);
+        expect(result.barrelSource).not.toMatch(/from '\.\/__aot_\d+_home'/);
+      });
+
       it('Then returns compiled file mapping for temp dir writing', () => {
         const compiledFiles: Record<string, AotCompiledFile> = {
           '/src/home.tsx': {
@@ -419,8 +437,10 @@ describe('generateAotBarrel', () => {
 
         const helperImport =
           "import { __esc, __esc_attr, __ssr_spread, __ssr_style_object } from '@vertz/ui-server';";
+        const typeImport = "import type { SSRAotContext } from '@vertz/ui-server';";
         for (const [fileName, code] of Object.entries(result.files)) {
           expect(code).toContain(helperImport);
+          expect(code).toContain(typeImport);
           expect(code.indexOf(helperImport)).toBe(0);
         }
       });

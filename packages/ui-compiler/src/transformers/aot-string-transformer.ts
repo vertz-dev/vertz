@@ -38,6 +38,137 @@ function escapeRegex(str: string): string {
   return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
+// ─── Compile-time style pre-computation ─────────────────────────
+
+/**
+ * CSS properties that are unitless (numeric values should NOT get 'px' appended).
+ * Must match the UNITLESS_PROPERTIES set in ssr-aot-runtime.ts exactly.
+ */
+const UNITLESS_PROPERTIES = new Set([
+  'animationIterationCount',
+  'aspectRatio',
+  'borderImageOutset',
+  'borderImageSlice',
+  'borderImageWidth',
+  'boxFlex',
+  'boxFlexGroup',
+  'boxOrdinalGroup',
+  'columnCount',
+  'columns',
+  'flex',
+  'flexGrow',
+  'flexPositive',
+  'flexShrink',
+  'flexNegative',
+  'flexOrder',
+  'fontWeight',
+  'gridArea',
+  'gridColumn',
+  'gridColumnEnd',
+  'gridColumnSpan',
+  'gridColumnStart',
+  'gridRow',
+  'gridRowEnd',
+  'gridRowSpan',
+  'gridRowStart',
+  'lineClamp',
+  'lineHeight',
+  'opacity',
+  'order',
+  'orphans',
+  'scale',
+  'tabSize',
+  'widows',
+  'zIndex',
+  'zoom',
+]);
+
+/**
+ * Convert a camelCase CSS property name to kebab-case at compile time.
+ * Must match camelToKebab() in ssr-aot-runtime.ts exactly.
+ */
+function camelToKebab(prop: string): string {
+  if (prop.startsWith('--')) return prop;
+  if (prop.startsWith('ms')) {
+    return `-${prop.replace(/[A-Z]/g, (m) => `-${m.toLowerCase()}`)}`;
+  }
+  const first = prop.charAt(0);
+  if (first >= 'A' && first <= 'Z') {
+    return `-${first.toLowerCase()}${prop.slice(1).replace(/[A-Z]/g, (m) => `-${m.toLowerCase()}`)}`;
+  }
+  return prop.replace(/[A-Z]/g, (m) => `-${m.toLowerCase()}`);
+}
+
+/**
+ * Try to evaluate a style object expression at compile time.
+ *
+ * Returns the pre-computed CSS string if ALL property values are static
+ * (string literals, numeric literals). Returns `undefined` if any value
+ * is dynamic (variables, function calls, template literals, etc.),
+ * signaling the caller to fall back to runtime `__ssr_style_object()`.
+ */
+function tryPrecomputeStyleObject(expr: Node): string | undefined {
+  if (!expr.isKind(SyntaxKind.ObjectLiteralExpression)) return undefined;
+
+  const parts: string[] = [];
+
+  for (const prop of expr.getProperties()) {
+    if (!prop.isKind(SyntaxKind.PropertyAssignment)) return undefined;
+
+    const nameNode = prop.getNameNode();
+    if (!nameNode) return undefined;
+
+    // Support identifier keys and string literal keys
+    let propName: string;
+    if (nameNode.isKind(SyntaxKind.Identifier)) {
+      propName = nameNode.getText();
+    } else if (nameNode.isKind(SyntaxKind.StringLiteral)) {
+      propName = nameNode.getLiteralText();
+    } else {
+      return undefined; // computed key — bail
+    }
+
+    const init = prop.getInitializer();
+    if (!init) return undefined;
+
+    // Extract static value
+    if (init.isKind(SyntaxKind.StringLiteral)) {
+      const value = init.getLiteralText();
+      if (value === '') continue; // skip empty strings
+      parts.push(`${camelToKebab(propName)}: ${value}`);
+    } else if (init.isKind(SyntaxKind.NumericLiteral)) {
+      const num = Number(init.getText());
+      if (num === 0) {
+        parts.push(`${camelToKebab(propName)}: 0`);
+      } else if (UNITLESS_PROPERTIES.has(propName)) {
+        parts.push(`${camelToKebab(propName)}: ${num}`);
+      } else {
+        parts.push(`${camelToKebab(propName)}: ${num}px`);
+      }
+    } else if (
+      init.isKind(SyntaxKind.PrefixUnaryExpression) &&
+      init.getOperatorToken() === SyntaxKind.MinusToken
+    ) {
+      // Negative numeric literal: -10 → "-10px" or "-10"
+      const operand = init.getOperand();
+      if (operand.isKind(SyntaxKind.NumericLiteral)) {
+        const num = -Number(operand.getText());
+        if (UNITLESS_PROPERTIES.has(propName)) {
+          parts.push(`${camelToKebab(propName)}: ${num}`);
+        } else {
+          parts.push(`${camelToKebab(propName)}: ${num}px`);
+        }
+      } else {
+        return undefined; // dynamic expression
+      }
+    } else {
+      return undefined; // dynamic value — bail
+    }
+  }
+
+  return parts.join('; ');
+}
+
 /** Set of HTML void elements that must not have closing tags. */
 const VOID_ELEMENTS = new Set([
   'area',
@@ -90,6 +221,25 @@ const BOOLEAN_ATTRIBUTES = new Set([
 
 /** JSX props that should not appear in HTML output. */
 const SKIP_PROPS = new Set(['key', 'ref', 'dangerouslySetInnerHTML']);
+
+/**
+ * Resolve ${paramName} and ${sp:paramName} placeholders in a cache key
+ * to runtime expressions for the AOT function output.
+ *
+ * Route params: ${slug} → ${ctx.params.slug}
+ * Search params: ${sp:page|1} → ${ctx.searchParams?.get('page') || '1'}
+ * Search params (no default): ${sp:page} → ${ctx.searchParams?.get('page') ?? ''}
+ */
+function resolveParamRefsInKey(cacheKey: string): string {
+  return cacheKey
+    .replace(/\$\{sp:(\w+)(?:\|([^}]*))?\}/g, (_, spName, defaultVal) => {
+      if (defaultVal !== undefined) {
+        return "${ctx.searchParams?.get('" + spName + "') || '" + defaultVal + "'}";
+      }
+      return "${ctx.searchParams?.get('" + spName + "') ?? ''}";
+    })
+    .replace(/\$\{(\w+)\}/g, (_, paramName) => '${ctx.params.' + paramName + '}');
+}
 
 /** Check if a tag name refers to a component (starts with uppercase). */
 function isComponentTag(tagName: string): boolean {
@@ -144,8 +294,23 @@ export class AotStringTransformer {
     // Extract query variable metadata for standalone page functions
     const queryVars = this._extractQueryVars(sourceFile, component, variables);
 
+    // Collect search param info for derived var rewriting
+    const {
+      excludeVars: searchParamExcludeVars,
+      routerVarName,
+      spVarName,
+    } = this._collectSearchParamVars(bodyNode);
+
     // Collect derived variable declarations for AOT preamble (#1951)
-    const derivedVars = this._collectDerivedVarDecls(bodyNode, s, queryVars, variables);
+    const derivedVars = this._collectDerivedVarDecls(
+      bodyNode,
+      s,
+      queryVars,
+      variables,
+      searchParamExcludeVars,
+      routerVarName,
+      spVarName,
+    );
 
     // If there are query-like variables that couldn't be resolved, fall back to runtime
     const signalApiVarCount = variables.filter(
@@ -322,12 +487,10 @@ export class AotStringTransformer {
       // Build local bindings for query data
       for (const qv of queryVars) {
         if (qv.paramRefs.length > 0) {
-          // Parameterized key: emit backtick template with ctx.params.* substitutions
+          // Parameterized key: emit backtick template with ctx.params.* / ctx.searchParams substitutions
           // e.g., 'game-${slug}' → `game-${ctx.params.slug}`
-          const resolvedKey = qv.cacheKey.replace(
-            /\$\{(\w+)\}/g,
-            (_, paramName) => '${ctx.params.' + paramName + '}',
-          );
+          // e.g., 'set-${slug}-${sp:page}' → `set-${ctx.params.slug}-${ctx.searchParams?.get('page') ?? ''}`
+          const resolvedKey = resolveParamRefsInKey(qv.cacheKey);
           preamble += `\n  const __q${qv.index} = ctx.getData(\`${resolvedKey}\`);`;
         } else {
           preamble += `\n  const __q${qv.index} = ctx.getData('${qv.cacheKey}');`;
@@ -453,10 +616,7 @@ export class AotStringTransformer {
       // Query data bindings
       for (const qv of queryVars) {
         if (qv.paramRefs.length > 0) {
-          const resolvedKey = qv.cacheKey.replace(
-            /\$\{(\w+)\}/g,
-            (_, paramName) => '${ctx.params.' + paramName + '}',
-          );
+          const resolvedKey = resolveParamRefsInKey(qv.cacheKey);
           body += `\n  const __q${qv.index} = ctx.getData(\`${resolvedKey}\`);`;
         } else {
           body += `\n  const __q${qv.index} = ctx.getData('${qv.cacheKey}');`;
@@ -567,18 +727,117 @@ export class AotStringTransformer {
   }
 
   /**
+   * Collect search param variables from useRouter().searchParams.get() patterns.
+   *
+   * Recognizes patterns like:
+   *   const router = useRouter();
+   *   const sp = router.current.value?.searchParams;
+   *   const page = parseInt(sp?.get('page') || '1');
+   *
+   * Returns a Map of local name → { paramName, defaultValue } for search param variables.
+   * Also returns the set of variable names to exclude from derived var emission.
+   */
+  private _collectSearchParamVars(bodyNode: Node): {
+    searchParamMap: Map<string, { paramName: string; defaultValue?: string }>;
+    excludeVars: Set<string>;
+    routerVarName?: string;
+    spVarName?: string;
+  } {
+    const searchParamMap = new Map<string, { paramName: string; defaultValue?: string }>();
+    const excludeVars = new Set<string>();
+    const varDecls = bodyNode.getDescendantsOfKind(SyntaxKind.VariableDeclaration);
+
+    // Phase 1: Find `const router = useRouter()` — record the router variable name
+    let routerVarName: string | undefined;
+    for (const decl of varDecls) {
+      if (isInNestedFunction(decl, bodyNode)) continue;
+      const init = decl.getInitializer();
+      if (!init || !init.isKind(SyntaxKind.CallExpression)) continue;
+      const callee = init.getExpression();
+      if (!callee.isKind(SyntaxKind.Identifier)) continue;
+      if (callee.getText() === 'useRouter') {
+        routerVarName = decl.getName();
+        excludeVars.add(routerVarName);
+        break;
+      }
+    }
+    if (!routerVarName) return { searchParamMap, excludeVars };
+
+    // Phase 2: Find intermediate searchParams variable (e.g., `const sp = router.current.value?.searchParams`)
+    // Must be a direct assignment to searchParams, NOT a .get() call or wrapped expression.
+    let spVarName: string | undefined;
+    const spPattern = new RegExp(
+      `^${escapeRegex(routerVarName)}\\.current\\.value\\??\\.searchParams$`,
+    );
+    for (const decl of varDecls) {
+      if (isInNestedFunction(decl, bodyNode)) continue;
+      const init = decl.getInitializer();
+      if (!init) continue;
+      const initText = init.getText();
+      if (spPattern.test(initText)) {
+        spVarName = decl.getName();
+        excludeVars.add(spVarName);
+        break;
+      }
+    }
+
+    // Phase 3: Find variables derived from .get('paramName') calls on either the sp variable
+    // or directly on router.current.value?.searchParams
+    for (const decl of varDecls) {
+      if (isInNestedFunction(decl, bodyNode)) continue;
+      const init = decl.getInitializer();
+      if (!init) continue;
+      const initText = init.getText();
+
+      // Look for .get('paramName') pattern in the initializer text
+      // Handles: sp?.get('page'), parseInt(sp?.get('page') || '1'), etc.
+      const getCallPattern = spVarName
+        ? new RegExp(`${escapeRegex(spVarName)}\\??\\.(get)\\(`)
+        : new RegExp(
+            `${escapeRegex(routerVarName)}\\.current\\.value\\??\\.(searchParams)\\??\\.(get)\\(`,
+          );
+
+      if (!getCallPattern.test(initText)) continue;
+
+      // Extract the param name from .get('paramName') — find string literal in the .get() call
+      const getMatch = initText.match(/\.get\(\s*['"](\w+)['"]\s*\)/);
+      if (!getMatch) continue;
+
+      const searchParamName = getMatch[1]!;
+      const localName = decl.getName();
+
+      // Extract fallback value from `|| 'default'`, `|| undefined` patterns
+      // `|| undefined` → `${undefined}` = "undefined" in template literals
+      let defaultValue: string | undefined;
+      const stringDefaultMatch = initText.match(/\|\|\s*['"]([^'"]*)['"]/);
+      if (stringDefaultMatch) {
+        defaultValue = stringDefaultMatch[1];
+      } else if (/\|\|\s*undefined\b/.test(initText)) {
+        defaultValue = 'undefined';
+      }
+
+      searchParamMap.set(localName, { paramName: searchParamName, defaultValue });
+      excludeVars.add(localName);
+    }
+
+    return { searchParamMap, excludeVars, routerVarName, spVarName };
+  }
+
+  /**
    * Extract a cache key pattern from a template literal expression.
    *
-   * Returns the cache key with ${routeParamName} placeholders and the list of
-   * route param names referenced, or null if any interpolation is not a simple
-   * identifier from useParams().
+   * Returns the cache key with ${routeParamName} and ${sp:searchParamName}
+   * placeholders, and the list of param names referenced. Returns null if any
+   * interpolation is not a simple identifier from useParams() or useRouter() search params.
    *
    * Example: `game-${slug}` where slug is from useParams() → { cacheKey: 'game-${slug}', paramRefs: ['slug'] }
-   * Example: `game-${gameSlug}` where { slug: gameSlug } from useParams() → { cacheKey: 'game-${slug}', paramRefs: ['slug'] }
+   * Example: `set-${slug}-${page}` where slug is from useParams() and page is from searchParams
+   *   → { cacheKey: 'set-${slug}-${sp:page}', paramRefs: ['slug', 'sp:page'] }
    */
   private _extractTemplateLiteralKey(
     node: Node,
     useParamsMap: Map<string, string>,
+    searchParamMap?: Map<string, { paramName: string; defaultValue?: string }>,
   ): { cacheKey: string; paramRefs: string[] } | null {
     // TemplateExpression: head + spans[]
     // Each span: expression + literal (TemplateMiddle or TemplateTail)
@@ -598,15 +857,26 @@ export class AotStringTransformer {
 
       if (!expr || !literal) return null;
 
-      // Only support simple identifiers from useParams()
+      // Only support simple identifiers
       if (!expr.isKind(SyntaxKind.Identifier)) return null;
 
       const localName = expr.getText();
-      const routeParamName = useParamsMap.get(localName);
-      if (!routeParamName) return null; // Not from useParams() — bail
 
-      paramRefs.push(routeParamName);
-      cacheKey += `\${${routeParamName}}`;
+      // Check useParams() first, then search params
+      const routeParamName = useParamsMap.get(localName);
+      const searchParamEntry = searchParamMap?.get(localName);
+
+      if (routeParamName) {
+        paramRefs.push(routeParamName);
+        cacheKey += `\${${routeParamName}}`;
+      } else if (searchParamEntry) {
+        const { paramName, defaultValue } = searchParamEntry;
+        paramRefs.push(`sp:${paramName}`);
+        const defaultSuffix = defaultValue !== undefined ? `|${defaultValue}` : '';
+        cacheKey += `\${sp:${paramName}${defaultSuffix}}`;
+      } else {
+        return null; // Not from useParams() or search params — bail
+      }
 
       // Append the literal text after the interpolation (remove trailing ` or ${)
       const litText = literal.getText();
@@ -647,6 +917,8 @@ export class AotStringTransformer {
 
     // Collect useParams() destructured variables: local name → route param name
     const useParamsMap = this._collectUseParamsVars(bodyNode);
+    // Collect useRouter() search param variables: local name → search param name
+    const { searchParamMap } = this._collectSearchParamVars(bodyNode);
 
     const varDecls = bodyNode.getDescendantsOfKind(SyntaxKind.VariableDeclaration);
 
@@ -707,7 +979,7 @@ export class AotStringTransformer {
 
         // Strategy 3: { key: `...${param}...` } template literal in options object
         // Handles Pattern B: query(async () => ..., { key: `game-${slug}` })
-        // where slug comes from useParams() destructuring.
+        // where slug comes from useParams() or useRouter() search params.
         if (!cacheKey && args.length >= 2) {
           const secondArg = args[1]!;
           if (secondArg.isKind(SyntaxKind.ObjectLiteralExpression)) {
@@ -715,7 +987,11 @@ export class AotStringTransformer {
               if (prop.isKind(SyntaxKind.PropertyAssignment) && prop.getName() === 'key') {
                 const initializer = prop.getInitializer();
                 if (initializer?.isKind(SyntaxKind.TemplateExpression)) {
-                  const extracted = this._extractTemplateLiteralKey(initializer, useParamsMap);
+                  const extracted = this._extractTemplateLiteralKey(
+                    initializer,
+                    useParamsMap,
+                    searchParamMap,
+                  );
                   if (extracted) {
                     cacheKey = extracted.cacheKey;
                     paramRefs = extracted.paramRefs;
@@ -773,6 +1049,9 @@ export class AotStringTransformer {
     s: MagicString,
     queryVars: QueryVarMeta[],
     variables: VariableInfo[],
+    _searchParamExcludeVars?: Set<string>,
+    routerVarName?: string,
+    spVarName?: string,
   ): DerivedVarDecl[] {
     // Build the set of "known" variable names handled by the AOT system
     const knownNames = new Set<string>();
@@ -786,6 +1065,9 @@ export class AotStringTransformer {
       if (v.kind === 'signal') knownNames.add(v.name);
       if (v.signalProperties && v.signalProperties.size > 0) knownNames.add(v.name);
     }
+    // Exclude the router var and intermediate sp var — replaced by ctx.searchParams
+    if (routerVarName) knownNames.add(routerVarName);
+    if (spVarName) knownNames.add(spVarName);
 
     const derived: DerivedVarDecl[] = [];
     const emittedStmts = new Set<number>(); // track by start position to avoid duplicates
@@ -800,11 +1082,21 @@ export class AotStringTransformer {
         const name = decl.getName();
         if (knownNames.has(name)) continue;
 
-        // Skip useParams() calls — resolved via ctx.params
         const init = decl.getInitializer();
+
+        // Rewrite useParams() → ctx.params (instead of skipping)
         if (init && init.isKind(SyntaxKind.CallExpression)) {
           const callee = init.getExpression();
-          if (callee.isKind(SyntaxKind.Identifier) && callee.getText() === 'useParams') continue;
+          if (callee.isKind(SyntaxKind.Identifier) && callee.getText() === 'useParams') {
+            const stmtStart = stmt.getStart();
+            if (emittedStmts.has(stmtStart)) continue;
+            emittedStmts.add(stmtStart);
+            let sourceText = s.slice(stmtStart, stmt.getEnd());
+            // Replace useParams<...>() or useParams() with ctx.params
+            sourceText = sourceText.replace(/useParams(?:<[^>]*>)?\(\)/, 'ctx.params');
+            derived.push({ name, sourceText });
+            continue;
+          }
         }
 
         // Avoid emitting the same VariableStatement twice (multi-declaration: const a=1, b=2)
@@ -813,7 +1105,23 @@ export class AotStringTransformer {
         emittedStmts.add(stmtStart);
 
         // Extract the full VariableStatement source text (includes const/let keyword)
-        const sourceText = s.slice(stmtStart, stmt.getEnd());
+        let sourceText = s.slice(stmtStart, stmt.getEnd());
+
+        // Rewrite searchParams references to use ctx.searchParams
+        if (routerVarName) {
+          // Replace router.current.value?.searchParams or router.current.value.searchParams
+          const spAccessPattern = new RegExp(
+            `${escapeRegex(routerVarName)}\\.current\\.value\\?\\.searchParams|` +
+              `${escapeRegex(routerVarName)}\\.current\\.value\\.searchParams`,
+            'g',
+          );
+          sourceText = sourceText.replace(spAccessPattern, 'ctx.searchParams');
+        }
+        if (spVarName) {
+          // Replace intermediate sp variable references with ctx.searchParams
+          const spRefPattern = new RegExp(`(?<![\\w.])${escapeRegex(spVarName)}\\b`, 'g');
+          sourceText = sourceText.replace(spRefPattern, 'ctx.searchParams');
+        }
         derived.push({ name, sourceText });
       }
     }
@@ -1413,8 +1721,13 @@ export class AotStringTransformer {
       }
       const exprText = s.slice(expr.getStart(), expr.getEnd());
 
-      // style attribute with object value → use __ssr_style_object()
+      // style attribute with object value → pre-compute at compile time if static,
+      // fall back to runtime __ssr_style_object() for dynamic values
       if (name === 'style') {
+        const precomputed = tryPrecomputeStyleObject(expr);
+        if (precomputed !== undefined) {
+          return `style="${this._escapeAttrValue(precomputed)}"`;
+        }
         return `style="' + __ssr_style_object(${exprText}) + '"`;
       }
 

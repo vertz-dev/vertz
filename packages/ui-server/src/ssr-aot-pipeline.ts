@@ -43,6 +43,9 @@ export interface SSRAotContext {
 
   /** Route params for the current request. */
   params: Record<string, string>;
+
+  /** URL search params for the current request (used by AOT functions with ${sp:name} keys). */
+  searchParams: URLSearchParams | undefined;
 }
 
 /** An AOT render function: takes props/data and context, returns HTML string. */
@@ -87,6 +90,7 @@ export type AotDataResolver = (
   pattern: string,
   params: Record<string, string>,
   unresolvedKeys: string[],
+  searchParams?: URLSearchParams,
 ) => Promise<Map<string, unknown>> | Map<string, unknown>;
 
 /** Options for `ssrRenderAot()`. */
@@ -254,9 +258,12 @@ export async function ssrRenderAot(
   // 2. Build query cache from AOT entry's query keys
   const queryCache = new Map<string, unknown>();
 
+  // Extract search params from the URL for ${sp:name} resolution
+  const searchParams = extractSearchParams(normalizedUrl);
+
   // Resolve parameterized query keys (e.g., 'game-${slug}' → 'game-pokemon-tcg')
   const resolvedQueryKeys = aotEntry.queryKeys
-    ? resolveParamQueryKeys(aotEntry.queryKeys, match.params)
+    ? resolveParamQueryKeys(aotEntry.queryKeys, match.params, searchParams)
     : undefined;
 
   // Prefetch query data via the SSR prefetch manifest (zero-discovery)
@@ -282,7 +289,12 @@ export async function ssrRenderAot(
     const unresolvedKeys = resolvedQueryKeys.filter((k) => !queryCache.has(k));
     if (unresolvedKeys.length > 0) {
       try {
-        const resolved = await options.aotDataResolver(match.pattern, match.params, unresolvedKeys);
+        const resolved = await options.aotDataResolver(
+          match.pattern,
+          match.params,
+          unresolvedKeys,
+          searchParams,
+        );
         for (const [key, value] of resolved) {
           queryCache.set(key, value);
         }
@@ -315,6 +327,7 @@ export async function ssrRenderAot(
       getData: (key) => queryCache.get(key),
       session: options.prefetchSession,
       params: match.params,
+      searchParams,
     };
 
     // 5. Call AOT render function
@@ -360,6 +373,7 @@ export async function ssrRenderAot(
           getData: (key) => queryCache.get(key),
           session: options.prefetchSession,
           params: match.params,
+          searchParams,
         };
 
         html = aotManifest.app.render(data, appCtx);
@@ -490,13 +504,30 @@ function unwrapResult(result: unknown): unknown {
 export function resolveParamQueryKeys(
   queryKeys: string[],
   params: Record<string, string>,
+  searchParams?: URLSearchParams,
 ): string[] {
   return queryKeys.map((key) =>
-    key.replace(/\$\{(\w+)\}/g, (_, paramName) => params[paramName] ?? ''),
+    key
+      .replace(/\$\{sp:(\w+)(?:\|([^}]*))?\}/g, (_, spName, defaultVal) => {
+        const value = searchParams?.get(spName);
+        if (defaultVal !== undefined) {
+          // Use || semantics to match source code's `sp?.get('name') || 'default'`
+          return value || defaultVal;
+        }
+        return value ?? '';
+      })
+      .replace(/\$\{(\w+)\}/g, (_, paramName) => params[paramName] ?? ''),
   );
 }
 
 // ─── Internal helpers ────────────────────────────────────────────
+
+/** Extract URLSearchParams from a URL string. Returns undefined if no query string. */
+function extractSearchParams(url: string): URLSearchParams | undefined {
+  const qIdx = url.indexOf('?');
+  if (qIdx === -1) return undefined;
+  return new URLSearchParams(url.slice(qIdx));
+}
 
 /** Check if VERTZ_DEBUG includes the 'aot' category. */
 export function isAotDebugEnabled(): boolean {
@@ -563,7 +594,9 @@ function collectCSSFromModule(
   // so the result is deterministic — compute once, reuse forever.
   if (routePattern && routeCss) {
     const cached = routeCssCache.get(routePattern);
-    if (cached) return cached;
+    if (cached) {
+      return cached;
+    }
   }
 
   let themeCss = '';

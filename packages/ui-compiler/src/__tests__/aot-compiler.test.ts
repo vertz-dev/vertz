@@ -647,7 +647,7 @@ function Card({ title }: { title: string }) {
       expect(cardInfo!.holes.filter((h) => h === 'Badge')).toHaveLength(1);
     });
 
-    it('handles style objects with __ssr_style_object()', () => {
+    it('handles style objects with __ssr_style_object() for dynamic values', () => {
       const result = compileForSSRAot(
         `
 function Styled({ bg }: { bg: string }) {
@@ -659,6 +659,100 @@ function Styled({ bg }: { bg: string }) {
       const aotFn = extractAotFn(result.code, '__ssr_Styled');
       expect(aotFn).toContain('__ssr_style_object(');
       expect(aotFn).not.toContain('[object Object]');
+    });
+
+    it('pre-computes static style objects at compile time', () => {
+      const result = compileForSSRAot(
+        `
+function Card() {
+  return <div style={{ backgroundColor: 'white', borderRadius: '8px', padding: '16px' }}>content</div>;
+}
+        `.trim(),
+      );
+
+      const aotFn = extractAotFn(result.code, '__ssr_Card');
+      // Should NOT contain __ssr_style_object — pre-computed at compile time
+      expect(aotFn).not.toContain('__ssr_style_object');
+      // Should contain the pre-computed CSS string
+      expect(aotFn).toContain('background-color: white');
+      expect(aotFn).toContain('border-radius: 8px');
+      expect(aotFn).toContain('padding: 16px');
+    });
+
+    it('pre-computes numeric style values with px suffix', () => {
+      const result = compileForSSRAot(
+        `
+function Box() {
+  return <div style={{ marginBottom: 16, opacity: 0.9, fontSize: 14 }}>content</div>;
+}
+        `.trim(),
+      );
+
+      const aotFn = extractAotFn(result.code, '__ssr_Box');
+      expect(aotFn).not.toContain('__ssr_style_object');
+      // marginBottom and fontSize get px, opacity is unitless
+      expect(aotFn).toContain('margin-bottom: 16px');
+      expect(aotFn).toContain('opacity: 0.9');
+      expect(aotFn).toContain('font-size: 14px');
+    });
+
+    it('falls back to __ssr_style_object for mixed static/dynamic styles', () => {
+      const result = compileForSSRAot(
+        `
+function Dynamic({ width }: { width: number }) {
+  return <div style={{ backgroundColor: 'red', width: width }}>content</div>;
+}
+        `.trim(),
+      );
+
+      const aotFn = extractAotFn(result.code, '__ssr_Dynamic');
+      // Must fall back — width is dynamic
+      expect(aotFn).toContain('__ssr_style_object(');
+    });
+
+    it('pre-computes style with zero numeric values without px suffix', () => {
+      const result = compileForSSRAot(
+        `
+function NoMargin() {
+  return <div style={{ margin: 0, padding: '4px' }}>content</div>;
+}
+        `.trim(),
+      );
+
+      const aotFn = extractAotFn(result.code, '__ssr_NoMargin');
+      expect(aotFn).not.toContain('__ssr_style_object');
+      expect(aotFn).toContain('margin: 0');
+      expect(aotFn).not.toContain('margin: 0px');
+      expect(aotFn).toContain('padding: 4px');
+    });
+
+    it('pre-computes vendor-prefixed style properties', () => {
+      const result = compileForSSRAot(
+        `
+function Prefixed() {
+  return <div style={{ WebkitTransform: 'rotate(45deg)', msFlexAlign: 'center' }}>x</div>;
+}
+        `.trim(),
+      );
+
+      const aotFn = extractAotFn(result.code, '__ssr_Prefixed');
+      expect(aotFn).not.toContain('__ssr_style_object');
+      expect(aotFn).toContain('-webkit-transform: rotate(45deg)');
+      expect(aotFn).toContain('-ms-flex-align: center');
+    });
+
+    it('renders pre-computed style correctly in output', () => {
+      const result = compileForSSRAot(
+        `
+function Styled() {
+  return <div style={{ fontSize: '20px', fontWeight: 'bold' }}>text</div>;
+}
+        `.trim(),
+      );
+
+      const html = evalAot(result.code, '__ssr_Styled');
+      expect(html).toContain('style="font-size: 20px; font-weight: bold"');
+      expect(html).toContain('>text</div>');
     });
   });
 
@@ -1236,6 +1330,200 @@ function SearchPage() {
       expect(result.components[0]!.fallbackReason).toBe(
         'query key is not a static string or template literal with useParams() interpolation',
       );
+    });
+
+    it('classifies component with useRouter() search param in template key as AOT-eligible', () => {
+      const result = compileForSSRAot(
+        `
+import { query, useParams, useRouter } from '@vertz/ui';
+
+function SetDetailPage() {
+  const { slug } = useParams();
+  const router = useRouter();
+  const page = parseInt(router.current.value?.searchParams?.get('page') || '1');
+  const setQuery = query(async () => fetchSet(slug, page), { key: \`set-\${slug}-\${page}\` });
+  return <h1>{setQuery.data.name}</h1>;
+}
+        `.trim(),
+      );
+
+      expect(result.components).toHaveLength(1);
+      expect(result.components[0]!.tier).not.toBe('runtime-fallback');
+      expect(result.components[0]!.queryKeys).toEqual(['set-${slug}-${sp:page|1}']);
+    });
+
+    it('classifies component with intermediate searchParams variable as AOT-eligible', () => {
+      const result = compileForSSRAot(
+        `
+import { query, useParams, useRouter } from '@vertz/ui';
+
+function SellerDetailPage() {
+  const { slug } = useParams();
+  const router = useRouter();
+  const sp = router.current.value?.searchParams;
+  const page = parseInt(sp?.get('page') || '1');
+  const sellerQuery = query(async () => fetchSeller(slug, page), { key: \`seller-\${slug}-\${page}\` });
+  return <h1>{sellerQuery.data.name}</h1>;
+}
+        `.trim(),
+      );
+
+      expect(result.components).toHaveLength(1);
+      expect(result.components[0]!.tier).not.toBe('runtime-fallback');
+      expect(result.components[0]!.queryKeys).toEqual(['seller-${slug}-${sp:page|1}']);
+    });
+
+    it('generates ctx.searchParams?.get() in __ssr_ function for search param keys', () => {
+      const result = compileForSSRAot(
+        `
+import { query, useParams, useRouter } from '@vertz/ui';
+
+function SetDetailPage() {
+  const { slug } = useParams();
+  const router = useRouter();
+  const page = parseInt(router.current.value?.searchParams?.get('page') || '1');
+  const setQuery = query(async () => fetchSet(slug, page), { key: \`set-\${slug}-\${page}\` });
+  return <h1>{setQuery.data.name}</h1>;
+}
+        `.trim(),
+      );
+
+      // The generated __ssr_ function should use ctx.params for route params
+      // and ctx.searchParams?.get() for search params
+      // With default value encoding, the getData key uses || 'default' (not ?? '')
+      expect(result.code).toContain(
+        "ctx.getData(`set-${ctx.params.slug}-${ctx.searchParams?.get('page') || '1'}`)",
+      );
+    });
+
+    it('rewrites useParams/searchParams vars in __ssr_ preamble to use ctx', () => {
+      const result = compileForSSRAot(
+        `
+import { query, useParams, useRouter } from '@vertz/ui';
+
+function SetDetailPage() {
+  const { slug } = useParams();
+  const router = useRouter();
+  const page = parseInt(router.current.value?.searchParams?.get('page') || '1');
+  const setQuery = query(async () => fetchSet(slug, page), { key: \`set-\${slug}-\${page}\` });
+  return <h1>{setQuery.data.name}</h1>;
+}
+        `.trim(),
+      );
+
+      const ssrFn = result.code.slice(result.code.indexOf('export function __ssr_SetDetailPage'));
+      // useRouter() must NOT appear — excluded entirely
+      expect(ssrFn).not.toContain('useRouter()');
+      // router.current.value references must be rewritten to ctx.searchParams
+      expect(ssrFn).not.toContain('router.current.value');
+      // useParams() must be rewritten to ctx.params
+      expect(ssrFn).toContain('ctx.params');
+      expect(ssrFn).not.toContain('useParams');
+      // searchParams references rewritten
+      expect(ssrFn).toContain("ctx.searchParams?.get('page')");
+    });
+
+    it('emits useParams vars rewritten to ctx.params and search param vars rewritten to ctx.searchParams', () => {
+      const result = compileForSSRAot(
+        `
+import { query, useParams, useRouter } from '@vertz/ui';
+
+function SetDetailPage() {
+  const { slug } = useParams();
+  const router = useRouter();
+  const page = parseInt(router.current.value?.searchParams?.get('page') || '1');
+  const setQuery = query(async () => fetchSet(slug, page), { key: \`set-\${slug}-\${page}\` });
+  if (!setQuery.data) return <div>Loading...</div>;
+  return (
+    <div>
+      <h1>{setQuery.data.name}</h1>
+      <span>Page {page} of {setQuery.data.totalPages}</span>
+      <a href={'/sets/' + slug + '?page=' + (page + 1)}>Next</a>
+    </div>
+  );
+}
+        `.trim(),
+      );
+
+      const ssrFn = result.code.slice(result.code.indexOf('export function __ssr_SetDetailPage'));
+      // useParams() must be rewritten to ctx.params
+      expect(ssrFn).toContain('ctx.params');
+      // useRouter() call must NOT appear
+      expect(ssrFn).not.toContain('useRouter()');
+      // router.current.value?.searchParams must be rewritten to ctx.searchParams
+      expect(ssrFn).toContain('ctx.searchParams');
+      // slug and page must be defined (not undefined at runtime)
+      expect(ssrFn).toContain('slug');
+      expect(ssrFn).toContain('page');
+    });
+
+    it('classifies component with search-params-only query key as AOT-eligible', () => {
+      const result = compileForSSRAot(
+        `
+import { query, useRouter } from '@vertz/ui';
+
+function SearchPage() {
+  const router = useRouter();
+  const q = router.current.value?.searchParams?.get('q') || '';
+  const searchResults = query(async () => fetchSearch(q), { key: \`search-\${q}\` });
+  return <div>{searchResults.data.length} results</div>;
+}
+        `.trim(),
+      );
+
+      expect(result.components).toHaveLength(1);
+      expect(result.components[0]!.tier).not.toBe('runtime-fallback');
+      // The source has `|| ''` so default is empty string, encoded as ${sp:q|}
+      expect(result.components[0]!.queryKeys).toEqual(['search-${sp:q|}']);
+    });
+
+    it('encodes || undefined default as ${sp:name|undefined} in query keys', () => {
+      const result = compileForSSRAot(
+        `
+import { query, useRouter } from '@vertz/ui';
+
+function SearchPage() {
+  const router = useRouter();
+  const q = router.current.value?.searchParams?.get('q') || undefined;
+  const game = router.current.value?.searchParams?.get('game') || undefined;
+  const sort = router.current.value?.searchParams?.get('sort') || undefined;
+  const order = router.current.value?.searchParams?.get('order') || 'asc';
+  const page = parseInt(router.current.value?.searchParams?.get('page') || '1');
+  const results = query(async () => fetchSearch(q, game, sort, order, page), {
+    key: \`search-\${q}-\${game}-\${sort}-\${order}-\${page}\`,
+  });
+  return <div>{results.data.length} results</div>;
+}
+        `.trim(),
+      );
+
+      expect(result.components).toHaveLength(1);
+      expect(result.components[0]!.tier).not.toBe('runtime-fallback');
+      // || undefined produces "undefined" string in template literals
+      // || 'asc' and || '1' produce string defaults
+      expect(result.components[0]!.queryKeys).toEqual([
+        'search-${sp:q|undefined}-${sp:game|undefined}-${sp:sort|undefined}-${sp:order|asc}-${sp:page|1}',
+      ]);
+    });
+
+    it('generates || "undefined" in getData for search params with || undefined default', () => {
+      const result = compileForSSRAot(
+        `
+import { query, useRouter } from '@vertz/ui';
+
+function SearchPage() {
+  const router = useRouter();
+  const q = router.current.value?.searchParams?.get('q') || undefined;
+  const results = query(async () => fetchSearch(q), { key: \`search-\${q}\` });
+  return <div>{results.data.length} results</div>;
+}
+        `.trim(),
+      );
+
+      const ssrFnText = result.code;
+      // The generated getData key must use || 'undefined' to match runtime behavior
+      // where `${undefined}` produces the string "undefined"
+      expect(ssrFnText).toContain("ctx.searchParams?.get('q') || 'undefined'");
     });
 
     it('falls back to runtime-fallback when query() has no extractable key', () => {

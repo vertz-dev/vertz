@@ -480,10 +480,7 @@ describe('Feature: Runtime holes and SSR integration', () => {
                 render: aotFn,
                 holes: [],
                 // Only the CSS needed by this route — pre-filtered at build time
-                css: [
-                  '._used1234 {\n  padding: 1rem;\n}',
-                  '._used5678 {\n  color: blue;\n}',
-                ],
+                css: ['._used1234 {\n  padding: 1rem;\n}', '._used5678 {\n  color: blue;\n}'],
               },
             },
           };
@@ -1129,6 +1126,81 @@ describe('Feature: Runtime holes and SSR integration', () => {
             expect(resolved).toEqual(['game-']);
           });
         });
+
+        describe('Given queryKeys with ${sp:name} search param placeholders', () => {
+          it('Then resolves search param placeholders from searchParams', () => {
+            const searchParams = new URLSearchParams('page=3');
+            const resolved = resolveParamQueryKeys(
+              ['set-${slug}-${sp:page}'],
+              { slug: 'base-set' },
+              searchParams,
+            );
+            expect(resolved).toEqual(['set-base-set-3']);
+          });
+
+          it('Then defaults to empty string for missing search params', () => {
+            const searchParams = new URLSearchParams('');
+            const resolved = resolveParamQueryKeys(
+              ['set-${slug}-${sp:page}'],
+              { slug: 'base-set' },
+              searchParams,
+            );
+            expect(resolved).toEqual(['set-base-set-']);
+          });
+
+          it('Then resolves search-params-only keys without route params', () => {
+            const searchParams = new URLSearchParams('q=pikachu');
+            const resolved = resolveParamQueryKeys(['search-${sp:q}'], {}, searchParams);
+            expect(resolved).toEqual(['search-pikachu']);
+          });
+        });
+
+        describe('Given queryKeys with ${sp:name|default} format (default values)', () => {
+          it('Then uses default value when search param is missing', () => {
+            const resolved = resolveParamQueryKeys(
+              ['set-${slug}-${sp:page|1}'],
+              { slug: 'base-set' },
+              new URLSearchParams(''),
+            );
+            expect(resolved).toEqual(['set-base-set-1']);
+          });
+
+          it('Then uses actual value when search param is present', () => {
+            const resolved = resolveParamQueryKeys(
+              ['set-${slug}-${sp:page|1}'],
+              { slug: 'base-set' },
+              new URLSearchParams('page=3'),
+            );
+            expect(resolved).toEqual(['set-base-set-3']);
+          });
+
+          it('Then uses default when param is empty string (|| semantics)', () => {
+            const resolved = resolveParamQueryKeys(
+              ['set-${slug}-${sp:page|1}'],
+              { slug: 'base-set' },
+              new URLSearchParams('page='),
+            );
+            expect(resolved).toEqual(['set-base-set-1']);
+          });
+
+          it('Then handles multiple defaults in one key', () => {
+            const resolved = resolveParamQueryKeys(
+              ['search-${sp:q|undefined}-${sp:order|asc}-${sp:page|1}'],
+              {},
+              new URLSearchParams('q=dragon'),
+            );
+            expect(resolved).toEqual(['search-dragon-asc-1']);
+          });
+
+          it('Then keeps backward compat with old format (no default)', () => {
+            const resolved = resolveParamQueryKeys(
+              ['set-${slug}-${sp:page}'],
+              { slug: 'base-set' },
+              new URLSearchParams(''),
+            );
+            expect(resolved).toEqual(['set-base-set-']);
+          });
+        });
       });
 
       describe('ssrRenderAot() with parameterized queryKeys', () => {
@@ -1231,6 +1303,70 @@ describe('Feature: Runtime holes and SSR integration', () => {
               // Falls back to single-pass
               expect(result.html).toContain('app');
             });
+          });
+        });
+      });
+
+      describe('ssrRenderAot() with search param query keys', () => {
+        describe('Given an AOT route with ${sp:name} query keys', () => {
+          it('Then resolves search params from the URL and passes to aotDataResolver', async () => {
+            let capturedKeys: string[] | undefined;
+
+            const aotFn: AotRenderFn = (_data, ctx) => {
+              const d = ctx.getData('set-base-set-2') as { name: string };
+              return `<div>${__esc(d.name)}</div>`;
+            };
+
+            const module = createMockModule();
+            const aotManifest: AotManifest = {
+              routes: {
+                '/sets/:slug': {
+                  render: aotFn,
+                  holes: [],
+                  queryKeys: ['set-${slug}-${sp:page}'],
+                },
+              },
+            };
+
+            const aotDataResolver: AotDataResolver = async (_pattern, _params, unresolvedKeys) => {
+              capturedKeys = unresolvedKeys;
+              return new Map([['set-base-set-2', { name: 'Base Set' }]]);
+            };
+
+            const result = await ssrRenderAot(module, '/sets/base-set?page=2', {
+              aotManifest,
+              aotDataResolver,
+            });
+
+            expect(capturedKeys).toEqual(['set-base-set-2']);
+            expect(result.html).toContain('Base Set');
+          });
+
+          it('Then provides searchParams on ctx for __ssr_ function access', async () => {
+            let capturedSearchParams: URLSearchParams | undefined;
+
+            const aotFn: AotRenderFn = (_data, ctx) => {
+              capturedSearchParams = ctx.searchParams;
+              return '<div>ok</div>';
+            };
+
+            const module = createMockModule();
+            const aotManifest: AotManifest = {
+              routes: {
+                '/search': {
+                  render: aotFn,
+                  holes: [],
+                },
+              },
+            };
+
+            await ssrRenderAot(module, '/search?q=pikachu&page=3', {
+              aotManifest,
+            });
+
+            expect(capturedSearchParams).toBeInstanceOf(URLSearchParams);
+            expect(capturedSearchParams?.get('q')).toBe('pikachu');
+            expect(capturedSearchParams?.get('page')).toBe('3');
           });
         });
       });
