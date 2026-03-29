@@ -79,10 +79,7 @@ pub fn op_path_relative(#[string] from: String, #[string] to: String) -> String 
         .count();
 
     let ups = from_parts.len() - common;
-    let mut result = Vec::new();
-    for _ in 0..ups {
-        result.push("..");
-    }
+    let mut result: Vec<&str> = vec![".."; ups];
     for part in &to_parts[common..] {
         result.push(part);
     }

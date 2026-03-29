@@ -59,7 +59,12 @@ pub fn op_crypto_timing_safe_equal(
             "Input buffers must have the same byte length"
         ));
     }
-    Ok(ring::constant_time::verify_slices_are_equal(a, b).is_ok())
+    // Constant-time comparison using XOR accumulator to avoid timing side channels
+    let mut diff = 0u8;
+    for (x, y) in a.iter().zip(b.iter()) {
+        diff |= x ^ y;
+    }
+    Ok(diff == 0)
 }
 
 /// Generate random bytes (for node:crypto randomBytes).
