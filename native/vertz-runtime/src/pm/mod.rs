@@ -1,6 +1,7 @@
 pub mod bin;
 pub mod cache;
 pub mod config;
+pub mod github;
 pub mod linker;
 pub mod lockfile;
 pub mod output;
@@ -119,6 +120,83 @@ pub async fn install(
     let registry_client = RegistryClient::new(&cache_dir);
     let tarball_mgr = Arc::new(TarballManager::new(&cache_dir));
 
+    // Pre-resolve GitHub dependencies before resolver runs
+    let mut pre_resolved = Vec::new();
+    let gh_client_install = github::GitHubClient::new();
+    for (name, range) in &all_deps {
+        if !range.starts_with("github:") {
+            continue;
+        }
+        let lockfile_key = types::Lockfile::spec_key(name, range);
+        if let Some(entry) = existing_lockfile.entries.get(&lockfile_key) {
+            // Lockfile has this GitHub dep — reconstruct ResolvedPackage from it.
+            // Read bin entries from cached package.json if available.
+            let bin = {
+                let cached_path = tarball_mgr.store_path(&entry.name, &entry.version);
+                if cached_path.exists() {
+                    types::read_package_json(&cached_path)
+                        .map(|p| p.bin.to_map(&entry.name))
+                        .unwrap_or_default()
+                } else {
+                    BTreeMap::new()
+                }
+            };
+            pre_resolved.push(types::ResolvedPackage {
+                name: entry.name.clone(),
+                version: entry.version.clone(),
+                tarball_url: entry.resolved.clone(),
+                integrity: entry.integrity.clone(),
+                dependencies: entry.dependencies.clone(),
+                bin,
+                nest_path: vec![],
+            });
+        } else if !frozen {
+            // No lockfile entry — resolve from GitHub API using parse_package_specifier
+            output.github_resolve_started(range);
+
+            let parsed = types::parse_package_specifier(range);
+            let gh = match parsed {
+                types::ParsedSpecifier::GitHub(gh) => gh,
+                types::ParsedSpecifier::Error(msg) => {
+                    return Err(msg.into());
+                }
+                _ => {
+                    return Err(
+                        format!("unexpected specifier type for GitHub range: {}", range).into(),
+                    );
+                }
+            };
+
+            let sha = gh_client_install
+                .resolve_ref(&gh.owner, &gh.repo, gh.ref_.as_deref())
+                .await
+                .map_err(|e| format!("{}", e))?;
+            let sha_abbrev = &sha[..7.min(sha.len())];
+
+            let tarball_url = github::GitHubClient::tarball_url(&gh.owner, &gh.repo, &sha);
+            let (extracted_path, integrity) = tarball_mgr
+                .fetch_and_extract_github(name, &sha, &tarball_url)
+                .await
+                .map_err(|e| format!("{}", e))?;
+
+            // Read package.json from extracted tarball for transitive deps and bin
+            let gh_pkg = types::read_package_json(&extracted_path)?;
+
+            output.github_resolve_complete(name, sha_abbrev);
+
+            pre_resolved.push(types::ResolvedPackage {
+                name: name.clone(),
+                version: sha.clone(),
+                tarball_url,
+                integrity,
+                dependencies: gh_pkg.dependencies.clone(),
+                bin: gh_pkg.bin.to_map(name),
+                nest_path: vec![],
+            });
+        }
+        // frozen + no lockfile entry → verify_frozen_deps already caught this
+    }
+
     // Resolve dependency graph (required deps)
     output.resolve_started();
 
@@ -128,6 +206,7 @@ pub async fn install(
         &registry_client,
         &existing_lockfile,
         &override_map,
+        pre_resolved,
     )
     .await
     .map_err(|e| format!("{}", e))?;
@@ -143,6 +222,7 @@ pub async fn install(
             &registry_client,
             &existing_lockfile,
             &empty_overrides,
+            Vec::new(),
         )
         .await
         {
@@ -217,8 +297,14 @@ pub async fn install(
                     let url = pkg.tarball_url.clone();
                     let integrity = pkg.integrity.clone();
                     async move {
-                        mgr.fetch_and_extract(&name, &version, &url, &integrity)
-                            .await?;
+                        if url.starts_with("https://codeload.github.com/") {
+                            // GitHub tarball — use GitHub-specific extraction
+                            let (_path, _integrity) =
+                                mgr.fetch_and_extract_github(&name, &version, &url).await?;
+                        } else {
+                            mgr.fetch_and_extract(&name, &version, &url, &integrity)
+                                .await?;
+                        }
                         out.download_tick();
                         Ok(())
                     }
@@ -386,10 +472,101 @@ pub async fn add(
 
     let cache_dir = registry::default_cache_dir();
     let registry_client = RegistryClient::new(&cache_dir);
+    let tarball_mgr_add = TarballManager::new(&cache_dir);
+    let gh_client_add = github::GitHubClient::new();
 
     // Resolve all packages first, then mutate package.json once
     for package in packages {
-        let (name, version_spec) = types::parse_package_specifier(package);
+        let parsed = types::parse_package_specifier(package);
+
+        match parsed {
+            types::ParsedSpecifier::GitHub(gh) => {
+                // GitHub specifier: resolve ref → SHA, download tarball, read package name
+                let specifier = if let Some(ref r) = gh.ref_ {
+                    format!("github:{}/{}#{}", gh.owner, gh.repo, r)
+                } else {
+                    format!("github:{}/{}", gh.owner, gh.repo)
+                };
+                output.github_resolve_started(&specifier);
+
+                let sha = gh_client_add
+                    .resolve_ref(&gh.owner, &gh.repo, gh.ref_.as_deref())
+                    .await
+                    .map_err(|e| format!("{}", e))?;
+                let sha_abbrev = &sha[..7.min(sha.len())];
+
+                // Download and extract tarball
+                let tarball_url = github::GitHubClient::tarball_url(&gh.owner, &gh.repo, &sha);
+
+                // Use owner/repo as temporary cache key (we don't know the package name yet)
+                let temp_cache_name = format!("{}/{}", gh.owner, gh.repo);
+                let (extracted_path, _integrity) = tarball_mgr_add
+                    .fetch_and_extract_github(&temp_cache_name, &sha, &tarball_url)
+                    .await
+                    .map_err(|e| format!("{}", e))?;
+
+                // Read package.json from extracted tarball
+                let gh_pkg = types::read_package_json(&extracted_path)?;
+                let pkg_name = gh_pkg.name.ok_or_else(|| {
+                    format!(
+                        "package.json in \"{}/{}\" is missing the \"name\" field",
+                        gh.owner, gh.repo
+                    )
+                })?;
+
+                // Re-key cache from owner/repo to real package name so install() can find it
+                let correct_cache_path = tarball_mgr_add.store_path(&pkg_name, &sha);
+                if extracted_path != correct_cache_path && !correct_cache_path.exists() {
+                    if let Err(e) = std::fs::rename(&extracted_path, &correct_cache_path) {
+                        // Cross-filesystem rename (EXDEV) — fall back to copy + delete
+                        copy_dir_recursive(&extracted_path, &correct_cache_path).map_err(
+                            |copy_err| {
+                                format!(
+                                    "failed to cache GitHub package {} (rename: {}, copy: {})",
+                                    pkg_name, e, copy_err
+                                )
+                            },
+                        )?;
+                        std::fs::remove_dir_all(&extracted_path).ok();
+                    }
+                    // Also re-key the integrity sidecar file
+                    let old_integrity_path = tarball_mgr_add.integrity_path(&temp_cache_name, &sha);
+                    let new_integrity_path = tarball_mgr_add.integrity_path(&pkg_name, &sha);
+                    if old_integrity_path.exists() {
+                        std::fs::rename(&old_integrity_path, &new_integrity_path).ok();
+                    }
+                }
+
+                output.github_resolve_complete(&pkg_name, sha_abbrev);
+
+                // Insert into the appropriate dependency section
+                if peer {
+                    pkg.peer_dependencies
+                        .insert(pkg_name.clone(), specifier.clone());
+                } else if dev {
+                    pkg.dev_dependencies
+                        .insert(pkg_name.clone(), specifier.clone());
+                } else if optional {
+                    pkg.optional_dependencies
+                        .insert(pkg_name.clone(), specifier.clone());
+                } else {
+                    pkg.dependencies.insert(pkg_name.clone(), specifier.clone());
+                }
+
+                output.package_added(&pkg_name, sha_abbrev, &specifier);
+                continue;
+            }
+            types::ParsedSpecifier::Error(msg) => {
+                return Err(msg.into());
+            }
+            types::ParsedSpecifier::Npm { .. } => {}
+        }
+
+        // npm specifier path
+        let (name, version_spec) = match parsed {
+            types::ParsedSpecifier::Npm { name, version_spec } => (name, version_spec),
+            _ => unreachable!(),
+        };
 
         let metadata = registry_client
             .fetch_metadata(name)
@@ -1661,6 +1838,23 @@ fn shell_escape_windows(s: &str) -> String {
     } else {
         s.to_string()
     }
+}
+
+/// Recursively copy a directory — used as fallback when rename() fails (cross-filesystem).
+fn copy_dir_recursive(src: &Path, dst: &Path) -> Result<(), Box<dyn std::error::Error>> {
+    std::fs::create_dir_all(dst)?;
+    for entry in std::fs::read_dir(src)? {
+        let entry = entry?;
+        let ty = entry.file_type()?;
+        let src_path = entry.path();
+        let dst_path = dst.join(entry.file_name());
+        if ty.is_dir() {
+            copy_dir_recursive(&src_path, &dst_path)?;
+        } else {
+            std::fs::copy(&src_path, &dst_path)?;
+        }
+    }
+    Ok(())
 }
 
 /// Verify lockfile matches package.json for --frozen mode
@@ -4515,5 +4709,86 @@ mod tests {
             .as_str()
             .unwrap()
             .contains("vertz add express@\"<patched-version>\""));
+    }
+
+    // --- GitHub deps in verify_frozen ---
+
+    #[test]
+    fn test_verify_frozen_passes_with_github_dep() {
+        let deps = make_deps(&[("zod", "^3.24.0"), ("my-lib", "github:user/my-lib#v2.1.0")]);
+
+        let mut lockfile = Lockfile::default();
+        lockfile.entries.insert(
+            "zod@^3.24.0".to_string(),
+            make_lockfile_entry("zod", "^3.24.0", "3.24.4", &[]),
+        );
+        lockfile.entries.insert(
+            "my-lib@github:user/my-lib#v2.1.0".to_string(),
+            LockfileEntry {
+                name: "my-lib".to_string(),
+                range: "github:user/my-lib#v2.1.0".to_string(),
+                version: "a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2".to_string(),
+                resolved: "https://codeload.github.com/user/my-lib/tar.gz/a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2".to_string(),
+                integrity: "sha512-fakehash".to_string(),
+                dependencies: BTreeMap::new(),
+                optional: false,
+                overridden: false,
+            },
+        );
+
+        assert!(verify_frozen_deps(&deps, &lockfile).is_ok());
+    }
+
+    #[test]
+    fn test_verify_frozen_fails_missing_github_dep() {
+        let deps = make_deps(&[("my-lib", "github:user/my-lib")]);
+        let lockfile = Lockfile::default();
+
+        let result = verify_frozen_deps(&deps, &lockfile);
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("lockfile is out of date"));
+    }
+
+    // --- build_list with GitHub deps ---
+
+    #[test]
+    fn test_list_github_dep() {
+        let pkg = make_pkg(
+            &[("zod", "^3.24.0"), ("my-lib", "github:user/my-lib#v2.1.0")],
+            &[],
+        );
+        let mut lockfile = Lockfile::default();
+        lockfile.entries.insert(
+            "zod@^3.24.0".to_string(),
+            make_lockfile_entry("zod", "^3.24.0", "3.24.4", &[]),
+        );
+        lockfile.entries.insert(
+            "my-lib@github:user/my-lib#v2.1.0".to_string(),
+            LockfileEntry {
+                name: "my-lib".to_string(),
+                range: "github:user/my-lib#v2.1.0".to_string(),
+                version: "a1b2c3d".to_string(),
+                resolved: "https://codeload.github.com/user/my-lib/tar.gz/a1b2c3d".to_string(),
+                integrity: "sha512-fakehash".to_string(),
+                dependencies: BTreeMap::new(),
+                optional: false,
+                overridden: false,
+            },
+        );
+
+        let options = ListOptions {
+            all: false,
+            depth: None,
+            filter: None,
+        };
+        let entries = build_list(&pkg, &lockfile, &options);
+
+        assert_eq!(entries.len(), 2);
+        let my_lib = entries.iter().find(|e| e.name == "my-lib").unwrap();
+        assert_eq!(my_lib.version, Some("a1b2c3d".to_string()));
+        assert_eq!(my_lib.range, "github:user/my-lib#v2.1.0");
     }
 }
