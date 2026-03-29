@@ -11,7 +11,7 @@
 import { setAdapter } from '@vertz/ui/internals';
 import { createSSRAdapter } from '../ssr-adapter';
 import { ssrStorage } from '../ssr-context';
-import type { VNode } from '../types';
+import { rawHtml, type VNode } from '../types';
 import { SSRComment } from './ssr-comment';
 import { SSRElement } from './ssr-element';
 import { SSRDocumentFragment } from './ssr-fragment';
@@ -306,6 +306,7 @@ export function toVNode(element: any): VNode {
       attrs: {},
       children: element.children.map((child) => {
         if (typeof child === 'string') return child;
+        if (child instanceof SSRComment) return rawHtml(`<!--${child.text}-->`);
         return child.toVNode();
       }),
     };
