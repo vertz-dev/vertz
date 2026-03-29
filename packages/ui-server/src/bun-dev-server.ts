@@ -29,6 +29,7 @@ import { handleDevImageProxy } from './dev-image-proxy';
 import { DiagnosticsCollector } from './diagnostics-collector';
 import { installFetchProxy, runWithScopedFetch } from './fetch-scope';
 import { extractFontMetrics } from './font-metrics';
+import { resolveGoogleFonts } from './google-fonts-resolver';
 import { createReadyGate } from './ready-gate';
 import { createSourceMapResolver, readLineText } from './source-map-resolver';
 import { toPrefetchSession } from './ssr-access-evaluator';
@@ -1404,6 +1405,26 @@ export function createBunDevServer(options: BunDevServerOptions): BunDevServer {
       }
     }
 
+    // Resolve Google Fonts (fetch .woff2 files to .vertz/fonts/) before metric extraction
+    const fontCacheDir = resolve(projectRoot, '.vertz', 'fonts');
+    if (ssrMod.theme?.fonts) {
+      try {
+        const resolvedFonts = await resolveGoogleFonts(
+          ssrMod.theme.fonts,
+          fontCacheDir,
+          projectRoot,
+        );
+        // Replace theme fonts with resolved descriptors (local src paths)
+        // This creates a new object to preserve WeakMap cache integrity
+        ssrMod = {
+          ...ssrMod,
+          theme: { ...ssrMod.theme, fonts: resolvedFonts },
+        };
+      } catch (e) {
+        console.warn('[Server] Failed to resolve Google Fonts:', e);
+      }
+    }
+
     // Extract font fallback metrics once at startup (zero-CLS font loading)
     let fontFallbackMetrics: Record<string, FontFallbackMetrics> | undefined;
     if (ssrMod.theme?.fonts) {
@@ -2346,7 +2367,23 @@ export function createBunDevServer(options: BunDevServerOptions): BunDevServer {
           writeFileSync(ssrWrapperPath, `export * from '${entryPath}';\n`);
           const ssrReloadStart = performance.now();
           try {
-            const freshMod: SSRModule = await import(`${ssrWrapperPath}?t=${Date.now()}`);
+            let freshMod: SSRModule = await import(`${ssrWrapperPath}?t=${Date.now()}`);
+            // Re-resolve Google Fonts so changed googleFont() calls take effect
+            if (freshMod.theme?.fonts) {
+              try {
+                const resolvedFonts = await resolveGoogleFonts(
+                  freshMod.theme.fonts,
+                  fontCacheDir,
+                  projectRoot,
+                );
+                freshMod = {
+                  ...freshMod,
+                  theme: { ...freshMod.theme, fonts: resolvedFonts },
+                };
+              } catch {
+                /* keep original fonts on failure */
+              }
+            }
             ssrMod = freshMod;
             ssrFallback = false;
             if (freshMod.theme?.fonts) {
@@ -2379,7 +2416,23 @@ export function createBunDevServer(options: BunDevServerOptions): BunDevServer {
             mkdirSync(devDir, { recursive: true });
             writeFileSync(ssrWrapperPath, `export * from '${entryPath}';\n`);
             try {
-              const freshMod: SSRModule = await import(`${ssrWrapperPath}?t=${Date.now()}`);
+              let freshMod: SSRModule = await import(`${ssrWrapperPath}?t=${Date.now()}`);
+              // Re-resolve Google Fonts so changed googleFont() calls take effect
+              if (freshMod.theme?.fonts) {
+                try {
+                  const resolvedFonts = await resolveGoogleFonts(
+                    freshMod.theme.fonts,
+                    fontCacheDir,
+                    projectRoot,
+                  );
+                  freshMod = {
+                    ...freshMod,
+                    theme: { ...freshMod.theme, fonts: resolvedFonts },
+                  };
+                } catch {
+                  /* keep original fonts on failure */
+                }
+              }
               ssrMod = freshMod;
               ssrFallback = false;
               if (freshMod.theme?.fonts) {

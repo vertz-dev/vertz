@@ -65,6 +65,15 @@ export interface FontOptions {
 type FontStyle = 'normal' | 'italic';
 type FontDisplay = 'auto' | 'block' | 'swap' | 'fallback' | 'optional';
 
+/** @internal Metadata for Google Fonts descriptors. Present only on googleFont() results. */
+export interface GoogleFontMeta {
+  readonly family: string;
+  readonly weight: string | number | number[];
+  readonly style: FontStyle[];
+  readonly subsets: string[];
+  readonly display: FontDisplay;
+}
+
 export interface FontDescriptor {
   readonly __brand: 'FontDescriptor';
   readonly family: string;
@@ -76,6 +85,8 @@ export interface FontDescriptor {
   readonly subsets: string[];
   readonly unicodeRange?: string;
   readonly adjustFontFallback: boolean | FallbackFontName;
+  /** @internal — Google Fonts metadata. Present only for googleFont() descriptors. */
+  readonly __google?: GoogleFontMeta;
 }
 
 /** Structured description of a resource to preload. */

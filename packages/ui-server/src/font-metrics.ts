@@ -10,7 +10,7 @@
 
 import { access as fsAccess } from 'node:fs/promises';
 import { readFile } from 'node:fs/promises';
-import { join } from 'node:path';
+import { isAbsolute, join } from 'node:path';
 import { fromBuffer } from '@capsizecss/unpack';
 import type { FallbackFontName, FontDescriptor, FontFallbackMetrics } from '@vertz/ui';
 
@@ -128,6 +128,15 @@ function getPrimarySrcPath(descriptor: FontDescriptor): string | null {
  * `public/` subdirectory — which is the standard static-asset convention.
  */
 async function resolveFilePath(urlPath: string, rootDir: string): Promise<string> {
+  // Absolute paths (e.g., from Google Fonts resolver cache) — use directly
+  if (isAbsolute(urlPath)) {
+    try {
+      await fsAccess(urlPath);
+      return urlPath;
+    } catch {
+      // Fall through to root-relative resolution
+    }
+  }
   const cleaned = urlPath.startsWith('/') ? urlPath.slice(1) : urlPath;
   const direct = join(rootDir, cleaned);
   try {

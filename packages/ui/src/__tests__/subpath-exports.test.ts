@@ -134,6 +134,7 @@ describe('Subpath Exports — @vertz/ui/css', () => {
     'defineTheme',
     'font',
     'globalCss',
+    'googleFont',
     's',
     'variants',
   ];
