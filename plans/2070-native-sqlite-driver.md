@@ -26,7 +26,7 @@ const info = db.run('INSERT INTO users (id, name) VALUES (?, ?)', 1, 'Alice');
 // Prepared statements
 const stmt = db.prepare('SELECT * FROM users WHERE id = ?');
 const rows = stmt.all(1);          // => [{ id: 1, name: 'Alice' }]
-const row = stmt.get(1);           // => { id: 1, name: 'Alice' } or undefined
+const row = stmt.get(1);           // => { id: 1, name: 'Alice' } or null
 const result = stmt.run(2, 'Bob'); // => { changes: 1 }
 
 // Cleanup
@@ -47,7 +47,7 @@ declare module 'bun:sqlite' {
 
   export class Statement {
     all(...params: unknown[]): Record<string, unknown>[];
-    get(...params: unknown[]): Record<string, unknown> | undefined;
+    get(...params: unknown[]): Record<string, unknown> | null;
     run(...params: unknown[]): { changes: number };
   }
 }
@@ -121,7 +121,7 @@ JS: stmt.all(...params)
 JS: stmt.get(...params)
   → op_sqlite_query_get(db_id: u32, sql: string, params: unknown[])
   → rusqlite: prepare(sql) → query_row(params)
-  → Option<Map<String, serde_json::Value>> → Record<string, unknown> | undefined
+  → Option<Map<String, serde_json::Value>> → Record<string, unknown> | null
 
 JS: stmt.run(...params)
   → op_sqlite_query_run(db_id: u32, sql: string, params: unknown[])
@@ -186,7 +186,7 @@ describe('bun:sqlite on native runtime', () => {
     expect(row).toEqual({ id: 1, label: 'test' });
 
     const missing = db.prepare('SELECT * FROM items WHERE id = ?').get(999);
-    expect(missing).toBeUndefined();
+    expect(missing).toBeNull();
 
     db.close();
   });
@@ -241,10 +241,14 @@ describe('bun:sqlite on native runtime', () => {
     db.close();
   });
 
-  it('closed database throws on use', () => {
+  it('closed database throws on prepare/exec/run', () => {
     const db = new Database(':memory:');
     db.close();
     expect(() => db.prepare('SELECT 1')).toThrow();
+    expect(() => db.exec('SELECT 1')).toThrow();
+    expect(() => db.run('SELECT 1')).toThrow();
+    // Double close is idempotent (no error)
+    db.close();
   });
 
   // @ts-expect-error — Database requires a path argument

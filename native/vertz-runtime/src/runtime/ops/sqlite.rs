@@ -260,7 +260,8 @@ mod tests {
         let path_str = db_path.to_string_lossy().to_string();
 
         let mut rt = create_runtime();
-        let script = format!("Deno.core.ops.op_sqlite_open('{}')", path_str);
+        let escaped = serde_json::to_string(&path_str).unwrap();
+        let script = format!("Deno.core.ops.op_sqlite_open({})", escaped);
         let result = rt.execute_script("<test>", &script).unwrap();
         assert!(result.is_number());
 
@@ -537,5 +538,42 @@ mod tests {
             .unwrap();
 
         assert_eq!(result, serde_json::json!([1, 2]));
+    }
+
+    #[test]
+    fn test_sqlite_ddl_returns_zero_changes() {
+        let mut rt = create_runtime();
+        let result = rt
+            .execute_script(
+                "<test>",
+                r#"
+                const dbId = Deno.core.ops.op_sqlite_open(':memory:');
+                Deno.core.ops.op_sqlite_query_run(dbId, 'CREATE TABLE t (id INTEGER PRIMARY KEY)', []);
+                "#,
+            )
+            .unwrap();
+
+        assert_eq!(result["changes"], 0);
+    }
+
+    #[test]
+    fn test_sqlite_boolean_params() {
+        let mut rt = create_runtime();
+        let result = rt
+            .execute_script(
+                "<test>",
+                r#"
+                const dbId = Deno.core.ops.op_sqlite_open(':memory:');
+                Deno.core.ops.op_sqlite_exec(dbId, 'CREATE TABLE flags (id INTEGER, active INTEGER)');
+                Deno.core.ops.op_sqlite_query_run(dbId, 'INSERT INTO flags (id, active) VALUES (?, ?)', [1, true]);
+                Deno.core.ops.op_sqlite_query_run(dbId, 'INSERT INTO flags (id, active) VALUES (?, ?)', [2, false]);
+                Deno.core.ops.op_sqlite_query_all(dbId, 'SELECT * FROM flags ORDER BY id', []);
+                "#,
+            )
+            .unwrap();
+
+        let rows = result.as_array().unwrap();
+        assert_eq!(rows[0]["active"], 1); // true → 1
+        assert_eq!(rows[1]["active"], 0); // false → 0
     }
 }

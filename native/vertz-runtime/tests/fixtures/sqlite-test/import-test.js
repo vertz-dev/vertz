@@ -54,14 +54,35 @@ db.exec('PRAGMA journal_mode = WAL');
 const pragmaRows = db.prepare('PRAGMA journal_mode').all();
 if (!('journal_mode' in pragmaRows[0])) throw new Error('PRAGMA missing journal_mode key');
 
-// Close and verify error on reuse
+// Close and verify error on reuse — prepare() should throw immediately
 db.close();
-let closeError = false;
+let prepareError = false;
+try {
+  db.prepare('SELECT 1');
+} catch (e) {
+  prepareError = true;
+}
+if (!prepareError) throw new Error('Expected error from prepare() after close');
+
+// exec() should also throw after close
+let execError = false;
 try {
   db.exec('SELECT 1');
 } catch (e) {
-  closeError = true;
+  execError = true;
 }
-if (!closeError) throw new Error('Expected error after close');
+if (!execError) throw new Error('Expected error from exec() after close');
+
+// run() should also throw after close
+let runError = false;
+try {
+  db.run('SELECT 1');
+} catch (e) {
+  runError = true;
+}
+if (!runError) throw new Error('Expected error from run() after close');
+
+// Double close should be idempotent (no error)
+db.close();
 
 console.log('bun:sqlite import test passed');

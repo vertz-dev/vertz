@@ -382,27 +382,36 @@ class Statement {
 
 class Database {
   #id;
+  #closed = false;
   constructor(path) {
     if (typeof path !== 'string') throw new TypeError('Database path must be a string');
     this.#id = Deno.core.ops.op_sqlite_open(path);
     _registry.register(this, this.#id, this);
   }
+  #assertOpen() {
+    if (this.#closed) throw new TypeError('database is closed');
+  }
   prepare(sql) {
+    this.#assertOpen();
     return new Statement(this.#id, sql);
   }
   exec(sql) {
+    this.#assertOpen();
     Deno.core.ops.op_sqlite_exec(this.#id, sql);
   }
   run(sql, ...params) {
+    this.#assertOpen();
     return Deno.core.ops.op_sqlite_query_run(this.#id, sql, params);
   }
   close() {
+    if (this.#closed) return;
+    this.#closed = true;
     _registry.unregister(this);
     Deno.core.ops.op_sqlite_close(this.#id);
   }
 }
 
-export { Database };
+export { Database, Statement };
 export default Database;
 "#;
 
