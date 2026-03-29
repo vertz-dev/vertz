@@ -113,6 +113,10 @@ pub struct AddArgs {
     /// Pin exact version (no ^ prefix)
     #[arg(short = 'E', long)]
     pub exact: bool,
+
+    /// Install globally (not yet supported)
+    #[arg(short = 'g', long)]
+    pub global: bool,
 }
 
 #[derive(Parser, Debug)]
@@ -120,6 +124,10 @@ pub struct RemoveArgs {
     /// Package names to remove
     #[arg(required = true)]
     pub packages: Vec<String>,
+
+    /// Remove globally (not yet supported)
+    #[arg(short = 'g', long)]
+    pub global: bool,
 }
 
 #[cfg(test)]
@@ -257,6 +265,42 @@ mod tests {
     fn test_remove_multiple_packages() {
         let args = parse_remove(&["vertz-runtime", "remove", "zod", "react"]);
         assert_eq!(args.packages, vec!["zod", "react"]);
+    }
+
+    #[test]
+    fn test_add_global_flag() {
+        let args = parse_add(&["vertz-runtime", "add", "-g", "zod"]);
+        assert!(args.global);
+    }
+
+    #[test]
+    fn test_add_global_long_flag() {
+        let args = parse_add(&["vertz-runtime", "add", "--global", "zod"]);
+        assert!(args.global);
+    }
+
+    #[test]
+    fn test_add_global_default_false() {
+        let args = parse_add(&["vertz-runtime", "add", "zod"]);
+        assert!(!args.global);
+    }
+
+    #[test]
+    fn test_remove_global_flag() {
+        let args = parse_remove(&["vertz-runtime", "remove", "-g", "zod"]);
+        assert!(args.global);
+    }
+
+    #[test]
+    fn test_remove_global_long_flag() {
+        let args = parse_remove(&["vertz-runtime", "remove", "--global", "zod"]);
+        assert!(args.global);
+    }
+
+    #[test]
+    fn test_remove_global_default_false() {
+        let args = parse_remove(&["vertz-runtime", "remove", "zod"]);
+        assert!(!args.global);
     }
 
     // --- Dev command tests ---

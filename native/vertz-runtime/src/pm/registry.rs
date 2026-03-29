@@ -35,7 +35,13 @@ impl RegistryClient {
     ) -> Result<PackageMetadata, Box<dyn std::error::Error + Send + Sync>> {
         let _permit = self.semaphore.acquire().await?;
 
-        let url = format!("{}/{}", REGISTRY_URL, package_name);
+        // URL-encode scoped package names: @scope/pkg → @scope%2fpkg
+        let encoded_name = if package_name.starts_with('@') {
+            package_name.replacen('/', "%2f", 1)
+        } else {
+            package_name.to_string()
+        };
+        let url = format!("{}/{}", REGISTRY_URL, encoded_name);
         let cache_file = self.cache_path(package_name);
         let etag_file = self.etag_path(package_name);
 

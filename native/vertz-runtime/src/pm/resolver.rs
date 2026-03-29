@@ -310,21 +310,17 @@ pub fn graph_to_lockfile(graph: &ResolvedGraph, all_deps: &BTreeMap<String, Stri
         for (dep_name, dep_range) in &pkg.dependencies {
             let key = Lockfile::spec_key(dep_name, dep_range);
             if let std::collections::btree_map::Entry::Vacant(entry) = lockfile.entries.entry(key) {
-                // Find the resolved package that matches both name AND semver range
-                let dep_pkg = graph
-                    .packages
-                    .values()
-                    .find(|p| {
-                        p.name == *dep_name
-                            && Range::parse(dep_range)
-                                .ok()
-                                .and_then(|r| {
-                                    Version::parse(&p.version).ok().map(|v| r.satisfies(&v))
-                                })
-                                .unwrap_or(false)
-                    })
-                    // Fail-closed: if no range match, fall back to name-only
-                    .or_else(|| graph.packages.values().find(|p| p.name == *dep_name));
+                // Find the resolved package that matches both name AND semver range.
+                // Fail-closed: no name-only fallback — if range doesn't match, skip.
+                let dep_pkg = graph.packages.values().find(|p| {
+                    p.name == *dep_name
+                        && Range::parse(dep_range)
+                            .ok()
+                            .and_then(|r| {
+                                Version::parse(&p.version).ok().map(|v| r.satisfies(&v))
+                            })
+                            .unwrap_or(false)
+                });
 
                 if let Some(dep_pkg) = dep_pkg {
                     entry.insert(LockfileEntry {

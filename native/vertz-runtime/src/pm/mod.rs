@@ -129,9 +129,19 @@ pub async fn install(
             pb.finish_and_clear();
         }
 
-        // Check for download errors
-        for result in results {
-            result.map_err(|e| format!("{}", e))?;
+        // Check for download errors — collect all failures
+        let download_errors: Vec<_> = results
+            .into_iter()
+            .filter_map(|r| r.err())
+            .collect();
+        if !download_errors.is_empty() {
+            let msgs: Vec<_> = download_errors.iter().map(|e| e.to_string()).collect();
+            return Err(format!(
+                "Failed to download {} package(s):\n  {}",
+                msgs.len(),
+                msgs.join("\n  ")
+            )
+            .into());
         }
 
         eprintln!("Downloaded {} packages", download_count);
@@ -187,13 +197,18 @@ pub async fn add(
             // Check if specifier already contains a range operator
             if spec.contains('^') || spec.contains('~') || spec.contains('>') || spec.contains('|')
             {
-                // Validate that the range resolves to something
-                resolver::resolve_version(spec, &metadata.versions, &metadata.dist_tags)
+                // Resolve to get the actual matching version
+                let v = resolver::resolve_version(spec, &metadata.versions, &metadata.dist_tags)
                     .ok_or_else(|| {
                         format!("error: no version of \"{}\" matches \"{}\"", name, spec)
                     })?;
-                // Use the spec as-is (preserve explicit range)
-                None
+                if exact {
+                    // --exact strips range operators and pins to resolved version
+                    Some(v.version.clone())
+                } else {
+                    // Preserve explicit range as-is
+                    None
+                }
             } else {
                 // Bare version — resolve it
                 let v = resolver::resolve_version(spec, &metadata.versions, &metadata.dist_tags)
@@ -249,20 +264,35 @@ pub async fn add(
 /// Remove packages from dependencies (batch — single install pass)
 pub async fn remove(root_dir: &Path, packages: &[&str]) -> Result<(), Box<dyn std::error::Error>> {
     let mut pkg = types::read_package_json(root_dir)?;
+    let mut not_found: Vec<&str> = Vec::new();
 
     for package in packages {
         let removed = pkg.dependencies.remove(*package).is_some()
             || pkg.dev_dependencies.remove(*package).is_some();
 
         if !removed {
-            return Err(format!(
-                "error: package \"{}\" is not a direct dependency",
-                package
-            )
-            .into());
+            not_found.push(package);
+        } else {
+            eprintln!("- {}", package);
         }
+    }
 
-        eprintln!("- {}", package);
+    if !not_found.is_empty() {
+        let names = not_found
+            .iter()
+            .map(|p| format!("\"{}\"", p))
+            .collect::<Vec<_>>()
+            .join(", ");
+        return Err(format!(
+            "error: {} not a direct dependency: {}",
+            if not_found.len() == 1 {
+                "package is"
+            } else {
+                "packages are"
+            },
+            names
+        )
+        .into());
     }
 
     types::write_package_json(root_dir, &pkg)?;

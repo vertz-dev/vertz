@@ -69,6 +69,11 @@ async fn main() {
             }
         }
         Command::Add(args) => {
+            if args.global {
+                eprintln!("error: global packages are not yet supported");
+                std::process::exit(1);
+            }
+
             let root_dir =
                 std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from("."));
 
@@ -80,6 +85,11 @@ async fn main() {
             }
         }
         Command::Remove(args) => {
+            if args.global {
+                eprintln!("error: global packages are not yet supported");
+                std::process::exit(1);
+            }
+
             let root_dir =
                 std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from("."));
 
