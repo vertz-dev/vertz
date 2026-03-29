@@ -440,6 +440,34 @@ async fn main() {
                 }
             }
         }
+        Command::Publish(args) => {
+            let root_dir =
+                std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from("."));
+
+            let output: Arc<dyn PmOutput> = if args.json {
+                Arc::new(JsonOutput::new())
+            } else {
+                Arc::new(TextOutput::new(std::io::stderr().is_terminal()))
+            };
+
+            if let Err(e) = pm::publish(
+                &root_dir,
+                &args.tag,
+                args.access.as_deref(),
+                args.dry_run,
+                output.clone(),
+            )
+            .await
+            {
+                let msg = e.to_string();
+                if args.json {
+                    output.error(error_code_from_message(&msg), &msg);
+                } else {
+                    eprintln!("{}", msg);
+                }
+                std::process::exit(1);
+            }
+        }
         Command::Cache(cache_args) => {
             let cache_dir = pm::registry::default_cache_dir();
 

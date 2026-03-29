@@ -298,6 +298,7 @@ mod tests {
             scripts: BTreeMap::new(),
             workspaces: None,
             overrides: BTreeMap::new(),
+            files: None,
         }
     }
 
