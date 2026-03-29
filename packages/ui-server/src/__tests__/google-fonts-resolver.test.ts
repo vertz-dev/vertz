@@ -358,4 +358,41 @@ describe('resolveGoogleFonts()', () => {
     const manifest = JSON.parse(readFileSync(manifestPath, 'utf-8'));
     expect(manifest.entries).toEqual({});
   });
+
+  it('uses relative src paths when projectRoot is provided', async () => {
+    const sans = googleFont('Inter', { weight: '100..900' });
+
+    // Create a project root that is the parent of cacheDir
+    // cacheDir is like /tmp/vertz-font-test-xxx/.vertz/fonts
+    const projectRoot = join(cacheDir, '..', '..');
+    const nestedCacheDir = join(projectRoot, '.vertz', 'fonts');
+    mkdirSync(nestedCacheDir, { recursive: true });
+
+    // Pre-populate cache
+    const fakeWoff2 = Buffer.alloc(200, 0x42);
+    const fileName = 'inter-rel.woff2';
+    writeFileSync(join(nestedCacheDir, fileName), fakeWoff2);
+
+    const { createHash } = await import('node:crypto');
+    const data = JSON.stringify({
+      family: 'Inter',
+      weight: '100..900',
+      style: ['normal'],
+      subsets: ['latin'],
+      display: 'swap',
+    });
+    const realHash = createHash('sha256').update(data).digest('hex').slice(0, 12);
+
+    const manifest = {
+      entries: {
+        [realHash]: { hash: realHash, files: [fileName], sizes: [200] },
+      },
+    };
+    writeFileSync(join(nestedCacheDir, 'manifest.json'), JSON.stringify(manifest));
+
+    const result = await resolveGoogleFonts({ sans }, nestedCacheDir, projectRoot);
+
+    // src should be a root-relative URL path
+    expect(result.sans.src).toBe('/' + join('.vertz', 'fonts', fileName));
+  });
 });

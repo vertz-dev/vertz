@@ -29,6 +29,7 @@ import { handleDevImageProxy } from './dev-image-proxy';
 import { DiagnosticsCollector } from './diagnostics-collector';
 import { installFetchProxy, runWithScopedFetch } from './fetch-scope';
 import { extractFontMetrics } from './font-metrics';
+import { resolveGoogleFonts } from './google-fonts-resolver';
 import { createReadyGate } from './ready-gate';
 import { createSourceMapResolver, readLineText } from './source-map-resolver';
 import { toPrefetchSession } from './ssr-access-evaluator';
@@ -1401,6 +1402,26 @@ export function createBunDevServer(options: BunDevServerOptions): BunDevServer {
         });
       } else {
         process.exit(1);
+      }
+    }
+
+    // Resolve Google Fonts (fetch .woff2 files to .vertz/fonts/) before metric extraction
+    const fontCacheDir = resolve(projectRoot, '.vertz', 'fonts');
+    if (ssrMod.theme?.fonts) {
+      try {
+        const resolvedFonts = await resolveGoogleFonts(
+          ssrMod.theme.fonts,
+          fontCacheDir,
+          projectRoot,
+        );
+        // Replace theme fonts with resolved descriptors (local src paths)
+        // This creates a new object to preserve WeakMap cache integrity
+        ssrMod = {
+          ...ssrMod,
+          theme: { ...ssrMod.theme, fonts: resolvedFonts },
+        };
+      } catch (e) {
+        console.warn('[Server] Failed to resolve Google Fonts:', e);
       }
     }
 

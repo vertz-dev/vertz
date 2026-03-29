@@ -7,7 +7,7 @@
 
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
-import { join } from 'node:path';
+import { join, relative } from 'node:path';
 import type { FontDescriptor, GoogleFontMeta } from '@vertz/ui/css';
 
 // ─── Types ──────────────────────────────────────────────────
@@ -141,11 +141,19 @@ async function downloadFile(url: string, destPath: string): Promise<number> {
  * Resolve Google Font descriptors by fetching .woff2 files to a local cache.
  *
  * Non-google descriptors are passed through unchanged.
- * Google descriptors get new FontDescriptor objects with local `src` paths.
+ * Google descriptors get new FontDescriptor objects with `src` paths
+ * relative to `projectRoot` (e.g., `.vertz/fonts/inter-abc123.woff2`).
+ *
+ * @param fonts - Font descriptors from theme
+ * @param cacheDir - Absolute path to cache directory (e.g., `<projectRoot>/.vertz/fonts`)
+ * @param projectRoot - Optional project root for generating relative src paths.
+ *   When provided, src paths are relative to root (for URL generation in @font-face CSS).
+ *   When omitted, src paths are absolute (for unit tests).
  */
 export async function resolveGoogleFonts(
   fonts: Record<string, FontDescriptor>,
   cacheDir: string,
+  projectRoot?: string,
 ): Promise<Record<string, FontDescriptor>> {
   mkdirSync(cacheDir, { recursive: true });
 
@@ -172,7 +180,7 @@ export async function resolveGoogleFonts(
       const cached = manifest.entries[hash];
       if (cached && isCacheValid(cacheDir, cached)) {
         // Cache hit — create resolved descriptor
-        const srcPath = join(cacheDir, cached.files[0]!);
+        const srcPath = toSrcPath(cacheDir, cached.files[0]!, projectRoot);
         result[key] = createResolvedDescriptor(descriptor, srcPath);
         return;
       }
@@ -216,7 +224,8 @@ export async function resolveGoogleFonts(
         const totalKB = Math.round(size / 1024);
         console.log(`[vertz] Fetching Google Font: ${meta.family}... done (1 file, ${totalKB}KB)`);
 
-        result[key] = createResolvedDescriptor(descriptor, destPath);
+        const srcPath = toSrcPath(cacheDir, fileName, projectRoot);
+        result[key] = createResolvedDescriptor(descriptor, srcPath);
       } catch (error) {
         const msg = error instanceof Error ? error.message : String(error);
         console.error(`[vertz] Error resolving Google Font "${meta.family}": ${msg}`);
@@ -228,6 +237,20 @@ export async function resolveGoogleFonts(
   writeManifest(cacheDir, manifest);
 
   return result;
+}
+
+/**
+ * Convert a cache dir + filename to the src path stored on the descriptor.
+ * When projectRoot is provided, returns a root-relative URL path
+ * (e.g., `/.vertz/fonts/inter-abc.woff2`) for use in CSS `url()` and preload `href`.
+ * Otherwise returns the absolute filesystem path (used in tests).
+ */
+function toSrcPath(cacheDir: string, fileName: string, projectRoot?: string): string {
+  const absPath = join(cacheDir, fileName);
+  if (projectRoot) {
+    return '/' + relative(projectRoot, absPath);
+  }
+  return absPath;
 }
 
 function createResolvedDescriptor(original: FontDescriptor, srcPath: string): FontDescriptor {
