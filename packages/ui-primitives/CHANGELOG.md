@@ -1,5 +1,12 @@
 # @vertz/ui-primitives
 
+## 0.2.41
+
+### Patch Changes
+
+- Updated dependencies [[`7f837fc`](https://github.com/vertz-dev/vertz/commit/7f837fc10a0acd4ad77bfc4bcaf733700c8a4f8b)]:
+  - @vertz/ui@0.2.41
+
 ## 0.2.40
 
 ### Patch Changes
@@ -196,6 +203,7 @@
   Convert the `contextMenu` primitive from an imperative factory function to a
   declarative JSX component with `.Trigger`, `.Content`, `.Item`, `.Group`,
   `.Label`, and `.Separator` sub-components.
+
   - Add `ComposedContextMenu` in `@vertz/ui-primitives` (context-based sub-component wiring)
   - Replace imperative `createThemedContextMenu` factory with `withStyles()` wrapper
   - Promote from lowercase `contextMenu` factory to PascalCase `ContextMenu` compound proxy
@@ -205,6 +213,7 @@
 - [#1355](https://github.com/vertz-dev/vertz/pull/1355) [`cda8b4b`](https://github.com/vertz-dev/vertz/commit/cda8b4b75a52eab1459b41adf686bbe90e5fcf97) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - Move event handler wiring (`wireEventHandlers`, `isKnownEventHandler`, `ElementEventHandlers`) from `@vertz/theme-shadcn` to `@vertz/ui-primitives/utils`. Add `applyProps()` utility that combines event wiring and attribute forwarding. Theme components now delegate DOM behavior to primitives.
 
 - [#1383](https://github.com/vertz-dev/vertz/pull/1383) [`4f5c101`](https://github.com/vertz-dev/vertz/commit/4f5c101424c2f7009ef750b2c12c220f377e0813) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - fix(ui-primitives,theme-shadcn): wire missing DropdownMenu onOpenChange, AlertDialog Header, and Select indicator/chevron
+
   - DropdownMenu: add `onOpenChange` to `ComposedDropdownMenuProps` and themed `DropdownMenuRootProps`, forward to `Menu.Root`
   - AlertDialog: expose `Header` sub-component on `ThemedAlertDialogComponent` type and factory
   - Select: add check indicator (`data-part="indicator"`) to items and chevron icon (`data-part="chevron"`) to trigger, wire `itemIndicator` class through themed factory
@@ -352,6 +361,7 @@
 ### Patch Changes
 
 - [#199](https://github.com/vertz-dev/vertz/pull/199) [`63f074e`](https://github.com/vertz-dev/vertz/commit/63f074eefa96b49eb72724f8ec377a14a1f2c630) Thanks [@vertz-tech-lead](https://github.com/apps/vertz-tech-lead)! - Initial release of @vertz/ui v0.1 — a compiler-driven reactive UI framework.
+
   - Reactivity: `signal()`, `computed()`, `effect()`, `batch()`, `untrack()`
   - Compiler: `let` → signal, `const` derived → computed, JSX → DOM helpers, mutation → peek/notify
   - Component model: `ref()`, `onMount()`, `onCleanup()`, `watch()`, `children()`, `createContext()`

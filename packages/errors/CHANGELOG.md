@@ -1,5 +1,7 @@
 # @vertz/errors
 
+## 0.2.41
+
 ## 0.2.40
 
 ## 0.2.39
@@ -59,6 +61,7 @@
 ### Patch Changes
 
 - [#1040](https://github.com/vertz-dev/vertz/pull/1040) [`efda760`](https://github.com/vertz-dev/vertz/commit/efda76032901138dca7a22acd60ad947a4bdf02a) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - Add email verification and password reset flows to auth module.
+
   - Email verification: opt-in via `emailVerification` config, sends token on signup via `onSend` callback
   - POST /api/auth/verify-email — validates token, marks emailVerified: true
   - POST /api/auth/resend-verification — rate limited 3/hour per userId
@@ -69,6 +72,7 @@
   - New stores: InMemoryEmailVerificationStore, InMemoryPasswordResetStore
 
 - [#1037](https://github.com/vertz-dev/vertz/pull/1037) [`3d2799a`](https://github.com/vertz-dev/vertz/commit/3d2799ac4c3e0d8f65d864b4471e205a64db886a) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - Add MFA/TOTP support with backup codes and step-up authentication.
+
   - TOTP (RFC 6238) generation and verification
   - MFA setup, verify, disable, and backup code routes
   - MFA challenge flow: signIn returns MFA_REQUIRED when MFA is enabled
