@@ -225,7 +225,9 @@ export function generateAotBarrel(
     // Use relative module name based on source file basename
     const moduleName = basename(filePath, '.tsx').replace(/[^a-zA-Z0-9_-]/g, '_');
     const tempFileName = `__aot_${fileIndex}_${moduleName}`;
-    const moduleRef = `./${tempFileName}`;
+    // Use .ts extension in re-exports — required for Node ESM which doesn't
+    // resolve extensionless TypeScript imports. Bun handles .ts natively.
+    const moduleRef = `./${tempFileName}.ts`;
     lines.push(`export { ${fns.sort().join(', ')} } from '${moduleRef}';`);
 
     // Extract only the __ssr_* functions from compiled code — NOT the original source.
@@ -235,7 +237,8 @@ export function generateAotBarrel(
     const compiled = compiledFiles[filePath];
     if (compiled) {
       const helperImport =
-        "import { __esc, __esc_attr, __ssr_spread, __ssr_style_object } from '@vertz/ui-server';\n";
+        "import { __esc, __esc_attr, __ssr_spread, __ssr_style_object } from '@vertz/ui-server';\n" +
+        "import type { SSRAotContext } from '@vertz/ui-server';\n";
       const extracted = extractSsrFunctions(compiled.code, fns);
       files[`${tempFileName}.ts`] = helperImport + extracted;
     }
