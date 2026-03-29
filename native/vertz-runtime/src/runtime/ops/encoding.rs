@@ -425,9 +425,7 @@ mod tests {
     #[test]
     fn test_atob_basic() {
         let mut rt = create_runtime();
-        let result = rt
-            .execute_script("<test>", "atob('aGVsbG8=')")
-            .unwrap();
+        let result = rt.execute_script("<test>", "atob('aGVsbG8=')").unwrap();
         assert_eq!(result, serde_json::json!("hello"));
     }
 
@@ -464,10 +462,7 @@ mod tests {
     fn test_btoa_binary_data() {
         let mut rt = create_runtime();
         let result = rt
-            .execute_script(
-                "<test>",
-                r#"btoa(String.fromCharCode(0, 1, 255))"#,
-            )
+            .execute_script("<test>", r#"btoa(String.fromCharCode(0, 1, 255))"#)
             .unwrap();
         assert_eq!(result, serde_json::json!("AAH/"));
     }

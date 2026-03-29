@@ -28,16 +28,15 @@ pub fn op_url_parse(
     #[string] base: String,
 ) -> Result<UrlParts, deno_core::error::AnyError> {
     let parsed = if base.is_empty() {
-        url::Url::parse(&href).map_err(|e| {
-            deno_core::anyhow::anyhow!("TypeError: Invalid URL '{}': {}", href, e)
-        })?
+        url::Url::parse(&href)
+            .map_err(|e| deno_core::anyhow::anyhow!("TypeError: Invalid URL '{}': {}", href, e))?
     } else {
         let base_url = url::Url::parse(&base).map_err(|e| {
             deno_core::anyhow::anyhow!("TypeError: Invalid base URL '{}': {}", base, e)
         })?;
-        base_url.join(&href).map_err(|e| {
-            deno_core::anyhow::anyhow!("TypeError: Invalid URL '{}': {}", href, e)
-        })?
+        base_url
+            .join(&href)
+            .map_err(|e| deno_core::anyhow::anyhow!("TypeError: Invalid URL '{}': {}", href, e))?
     };
 
     let origin = if parsed.scheme() == "http" || parsed.scheme() == "https" {
@@ -63,10 +62,7 @@ pub fn op_url_parse(
             })
             .unwrap_or_default(),
         hostname: parsed.host_str().unwrap_or("").to_string(),
-        port: parsed
-            .port()
-            .map(|p| p.to_string())
-            .unwrap_or_default(),
+        port: parsed.port().map(|p| p.to_string()).unwrap_or_default(),
         pathname: parsed.path().to_string(),
         search: if let Some(q) = parsed.query() {
             format!("?{}", q)
@@ -87,9 +83,7 @@ pub fn op_url_can_parse(#[string] href: String, #[string] base: String) -> bool 
     if base.is_empty() {
         url::Url::parse(&href).is_ok()
     } else {
-        url::Url::parse(&base)
-            .and_then(|b| b.join(&href))
-            .is_ok()
+        url::Url::parse(&base).and_then(|b| b.join(&href)).is_ok()
     }
 }
 
@@ -431,10 +425,7 @@ mod tests {
     fn test_url_host_with_port() {
         let mut rt = create_runtime();
         let result = rt
-            .execute_script(
-                "<test>",
-                r#"new URL('https://example.com:3000/path').host"#,
-            )
+            .execute_script("<test>", r#"new URL('https://example.com:3000/path').host"#)
             .unwrap();
         assert_eq!(result, serde_json::json!("example.com:3000"));
     }
@@ -443,10 +434,7 @@ mod tests {
     fn test_url_host_without_port() {
         let mut rt = create_runtime();
         let result = rt
-            .execute_script(
-                "<test>",
-                r#"new URL('https://example.com/path').host"#,
-            )
+            .execute_script("<test>", r#"new URL('https://example.com/path').host"#)
             .unwrap();
         assert_eq!(result, serde_json::json!("example.com"));
     }
@@ -455,10 +443,7 @@ mod tests {
     fn test_url_port_empty_when_default() {
         let mut rt = create_runtime();
         let result = rt
-            .execute_script(
-                "<test>",
-                r#"new URL('https://example.com/path').port"#,
-            )
+            .execute_script("<test>", r#"new URL('https://example.com/path').port"#)
             .unwrap();
         assert_eq!(result, serde_json::json!(""));
     }
@@ -521,10 +506,7 @@ mod tests {
     fn test_url_can_parse_with_base() {
         let mut rt = create_runtime();
         let result = rt
-            .execute_script(
-                "<test>",
-                "URL.canParse('/path', 'https://example.com')",
-            )
+            .execute_script("<test>", "URL.canParse('/path', 'https://example.com')")
             .unwrap();
         assert_eq!(result, serde_json::json!(true));
     }
@@ -669,10 +651,7 @@ mod tests {
             "#,
             )
             .unwrap();
-        assert_eq!(
-            result,
-            serde_json::json!("https://example.com/?a=1&b=2")
-        );
+        assert_eq!(result, serde_json::json!("https://example.com/?a=1&b=2"));
     }
 
     // --- URLSearchParams tests ---
@@ -789,10 +768,7 @@ mod tests {
     fn test_search_params_get_missing_returns_null() {
         let mut rt = create_runtime();
         let result = rt
-            .execute_script(
-                "<test>",
-                "new URLSearchParams('a=1').get('missing')",
-            )
+            .execute_script("<test>", "new URLSearchParams('a=1').get('missing')")
             .unwrap();
         assert!(result.is_null());
     }
@@ -820,10 +796,7 @@ mod tests {
     fn test_search_params_size() {
         let mut rt = create_runtime();
         let result = rt
-            .execute_script(
-                "<test>",
-                "new URLSearchParams('a=1&b=2&c=3').size",
-            )
+            .execute_script("<test>", "new URLSearchParams('a=1&b=2&c=3').size")
             .unwrap();
         assert_eq!(result, serde_json::json!(3));
     }

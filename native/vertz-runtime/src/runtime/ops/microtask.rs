@@ -64,9 +64,7 @@ mod tests {
         )
         .unwrap();
         rt.run_event_loop().await.unwrap();
-        let result = rt
-            .execute_script("<test>", "globalThis.__order")
-            .unwrap();
+        let result = rt.execute_script("<test>", "globalThis.__order").unwrap();
         // Microtasks run before timers
         assert_eq!(result, serde_json::json!(["sync", "microtask", "timeout"]));
     }

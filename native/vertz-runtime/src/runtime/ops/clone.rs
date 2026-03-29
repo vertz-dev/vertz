@@ -48,14 +48,13 @@ fn structured_clone_callback(
     let data = serializer.release();
 
     // Deserialize
-    let deserializer =
-        v8::ValueDeserializer::new(scope, Box::new(DeserializerDelegate), &data);
+    let deserializer = v8::ValueDeserializer::new(scope, Box::new(DeserializerDelegate), &data);
     let context = scope.get_current_context();
     match deserializer.read_header(context) {
         Some(true) => {}
         _ => {
-            let msg = v8::String::new(scope, "DataCloneError: Failed to read serialized data.")
-                .unwrap();
+            let msg =
+                v8::String::new(scope, "DataCloneError: Failed to read serialized data.").unwrap();
             let error = v8::Exception::type_error(scope, msg);
             scope.throw_exception(error);
             return;
@@ -64,9 +63,8 @@ fn structured_clone_callback(
     match deserializer.read_value(context) {
         Some(val) => rv.set(val),
         None => {
-            let msg =
-                v8::String::new(scope, "DataCloneError: Failed to deserialize cloned data.")
-                    .unwrap();
+            let msg = v8::String::new(scope, "DataCloneError: Failed to deserialize cloned data.")
+                .unwrap();
             let error = v8::Exception::type_error(scope, msg);
             scope.throw_exception(error);
         }
@@ -270,9 +268,6 @@ mod tests {
             "#,
             )
             .unwrap();
-        assert_eq!(
-            result,
-            serde_json::json!([true, true, true, true, true])
-        );
+        assert_eq!(result, serde_json::json!([true, true, true, true, true]));
     }
 }
