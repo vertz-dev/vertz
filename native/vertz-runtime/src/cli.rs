@@ -36,6 +36,10 @@ pub enum Command {
     Update(UpdateArgs),
     /// Manage the package cache
     Cache(CacheArgs),
+    /// Run a package.json script
+    Run(RunArgs),
+    /// Execute a command with node_modules/.bin on PATH
+    Exec(ExecArgs),
 }
 
 #[derive(Parser, Debug)]
@@ -281,6 +285,35 @@ pub struct CacheListArgs {
     pub json: bool,
 }
 
+#[derive(Parser, Debug)]
+pub struct RunArgs {
+    /// Script name to run (omit to list available scripts)
+    pub script: Option<String>,
+
+    /// Extra arguments to pass to the script (after --)
+    #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
+    pub args: Vec<String>,
+
+    /// Target a specific workspace package (by name or path)
+    #[arg(short = 'w', long = "workspace")]
+    pub workspace: Option<String>,
+}
+
+#[derive(Parser, Debug)]
+pub struct ExecArgs {
+    /// Command to execute
+    #[arg(required = true)]
+    pub command: String,
+
+    /// Arguments to pass to the command
+    #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
+    pub args: Vec<String>,
+
+    /// Target a specific workspace package (by name or path)
+    #[arg(short = 'w', long = "workspace")]
+    pub workspace: Option<String>,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -370,6 +403,22 @@ mod tests {
         match cli.command {
             Command::Cache(args) => args,
             other => panic!("Expected Cache, got {:?}", other),
+        }
+    }
+
+    fn parse_run(args: &[&str]) -> RunArgs {
+        let cli = Cli::parse_from(args);
+        match cli.command {
+            Command::Run(args) => args,
+            other => panic!("Expected Run, got {:?}", other),
+        }
+    }
+
+    fn parse_exec(args: &[&str]) -> ExecArgs {
+        let cli = Cli::parse_from(args);
+        match cli.command {
+            Command::Exec(args) => args,
+            other => panic!("Expected Exec, got {:?}", other),
         }
     }
 
@@ -1032,6 +1081,71 @@ mod tests {
     fn test_install_force_default_false() {
         let args = parse_install(&["vertz-runtime", "install"]);
         assert!(!args.force);
+    }
+
+    // --- Run command tests ---
+
+    #[test]
+    fn test_run_no_script() {
+        let args = parse_run(&["vertz-runtime", "run"]);
+        assert!(args.script.is_none());
+        assert!(args.workspace.is_none());
+    }
+
+    #[test]
+    fn test_run_with_script() {
+        let args = parse_run(&["vertz-runtime", "run", "build"]);
+        assert_eq!(args.script, Some("build".to_string()));
+    }
+
+    #[test]
+    fn test_run_with_workspace() {
+        let args = parse_run(&["vertz-runtime", "run", "-w", "@myorg/api", "build"]);
+        assert_eq!(args.workspace, Some("@myorg/api".to_string()));
+        assert_eq!(args.script, Some("build".to_string()));
+    }
+
+    #[test]
+    fn test_run_workspace_long_flag() {
+        let args = parse_run(&[
+            "vertz-runtime",
+            "run",
+            "--workspace",
+            "packages/api",
+            "test",
+        ]);
+        assert_eq!(args.workspace, Some("packages/api".to_string()));
+        assert_eq!(args.script, Some("test".to_string()));
+    }
+
+    #[test]
+    fn test_run_with_extra_args() {
+        let args = parse_run(&["vertz-runtime", "run", "test", "--", "--bail", "--verbose"]);
+        assert_eq!(args.script, Some("test".to_string()));
+        assert_eq!(args.args, vec!["--bail", "--verbose"]);
+    }
+
+    // --- Exec command tests ---
+
+    #[test]
+    fn test_exec_basic() {
+        let args = parse_exec(&["vertz-runtime", "exec", "tsc"]);
+        assert_eq!(args.command, "tsc");
+        assert!(args.args.is_empty());
+    }
+
+    #[test]
+    fn test_exec_with_args() {
+        let args = parse_exec(&["vertz-runtime", "exec", "tsc", "--version"]);
+        assert_eq!(args.command, "tsc");
+        assert_eq!(args.args, vec!["--version"]);
+    }
+
+    #[test]
+    fn test_exec_with_workspace() {
+        let args = parse_exec(&["vertz-runtime", "exec", "-w", "@myorg/api", "tsc"]);
+        assert_eq!(args.workspace, Some("@myorg/api".to_string()));
+        assert_eq!(args.command, "tsc");
     }
 
     // --- -w / --workspace flag tests ---

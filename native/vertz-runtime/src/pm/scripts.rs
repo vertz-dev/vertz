@@ -174,6 +174,30 @@ async fn run_script_with_timeout(
     }
 }
 
+/// Execute a shell command with inherited stdio (no capture, no timeout).
+/// Used for `vertz run` and `vertz exec` where user sees output in real time.
+/// Returns the exit code of the child process.
+pub async fn exec_inherit_stdio(
+    dir: &Path,
+    script: &str,
+    env_overrides: &[(&str, String)],
+) -> Result<i32, Box<dyn std::error::Error>> {
+    let mut cmd = tokio::process::Command::new("sh");
+    cmd.arg("-c")
+        .arg(script)
+        .current_dir(dir)
+        .stdout(std::process::Stdio::inherit())
+        .stderr(std::process::Stdio::inherit())
+        .stdin(std::process::Stdio::inherit());
+
+    for (key, value) in env_overrides {
+        cmd.env(key, value);
+    }
+
+    let status = cmd.spawn()?.wait().await?;
+    Ok(status.code().unwrap_or(1))
+}
+
 /// Check if a package has a postinstall script
 pub fn has_postinstall(scripts: &Option<BTreeMap<String, String>>) -> bool {
     scripts
@@ -311,6 +335,33 @@ mod tests {
         // Sorted by name
         assert_eq!(result[0].0, "esbuild");
         assert_eq!(result[1].0, "prisma");
+    }
+
+    #[tokio::test]
+    async fn test_exec_inherit_stdio_success() {
+        let dir = tempfile::tempdir().unwrap();
+        let code = exec_inherit_stdio(dir.path(), "true", &[]).await.unwrap();
+        assert_eq!(code, 0);
+    }
+
+    #[tokio::test]
+    async fn test_exec_inherit_stdio_failure() {
+        let dir = tempfile::tempdir().unwrap();
+        let code = exec_inherit_stdio(dir.path(), "false", &[]).await.unwrap();
+        assert_ne!(code, 0);
+    }
+
+    #[tokio::test]
+    async fn test_exec_inherit_stdio_with_env() {
+        let dir = tempfile::tempdir().unwrap();
+        let code = exec_inherit_stdio(
+            dir.path(),
+            "echo $MY_VAR | grep -q hello",
+            &[("MY_VAR", "hello".to_string())],
+        )
+        .await
+        .unwrap();
+        assert_eq!(code, 0);
     }
 
     #[tokio::test]
