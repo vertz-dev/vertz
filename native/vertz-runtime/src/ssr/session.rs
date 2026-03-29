@@ -6,7 +6,7 @@
 use std::collections::HashMap;
 
 /// Parsed session data from cookies.
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, serde::Serialize)]
 pub struct SsrSession {
     /// The raw session token (if found).
     pub token: Option<String>,

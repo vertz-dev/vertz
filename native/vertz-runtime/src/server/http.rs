@@ -5,6 +5,9 @@ use crate::errors::broadcaster::ErrorBroadcaster;
 use crate::errors::categories::{extract_snippet, DevError, ErrorCategory};
 use crate::hmr::recovery::RestartTriggers;
 use crate::hmr::websocket::HmrHub;
+use crate::runtime::persistent_isolate::{
+    IsolateRequest, PersistentIsolate, PersistentIsolateOptions,
+};
 use crate::server::console_log::{ConsoleLog, LogLevel};
 use crate::server::diagnostics;
 use crate::server::html_shell;
@@ -15,7 +18,7 @@ use crate::server::module_server::{self, DevServerState};
 use crate::server::theme_css;
 use crate::typecheck::process;
 use crate::watcher;
-use crate::watcher::file_watcher::{Debouncer, FileWatcher, FileWatcherConfig};
+use crate::watcher::file_watcher::{FileWatcher, FileWatcherConfig, SmartDebouncer};
 use axum::body::Body;
 use axum::extract::ws::WebSocketUpgrade;
 use axum::extract::State;
@@ -98,6 +101,35 @@ pub fn build_router(config: &ServerConfig) -> (Router, Arc<DevServerState>) {
     let mcp_event_hub = McpEventHub::new();
     let module_graph = watcher::new_shared_module_graph();
 
+    // Create persistent V8 isolate for API route delegation and SSR rendering.
+    // The isolate is created when SSR is enabled or a server_entry exists.
+    let api_isolate = if config.enable_ssr || config.server_entry.is_some() {
+        let opts = PersistentIsolateOptions {
+            root_dir: config.root_dir.clone(),
+            entry_file: config.entry_file.clone(),
+            server_entry: config.server_entry.clone(),
+            channel_capacity: 256,
+        };
+        match PersistentIsolate::new(opts) {
+            Ok(isolate) => {
+                let mode = match (&config.server_entry, config.enable_ssr) {
+                    (Some(entry), true) => format!("API ({}) + SSR", entry.display()),
+                    (Some(entry), false) => format!("API ({})", entry.display()),
+                    (None, true) => "SSR only".to_string(),
+                    (None, false) => "idle".to_string(),
+                };
+                eprintln!("[Server] Persistent V8 isolate created (mode: {})", mode);
+                Some(Arc::new(isolate))
+            }
+            Err(e) => {
+                eprintln!("[Server] Failed to create persistent isolate: {}", e);
+                None
+            }
+        }
+    } else {
+        None
+    };
+
     let state = Arc::new(DevServerState {
         pipeline,
         root_dir: config.root_dir.clone(),
@@ -115,6 +147,7 @@ pub fn build_router(config: &ServerConfig) -> (Router, Arc<DevServerState>) {
         enable_ssr: config.enable_ssr,
         port: config.port,
         typecheck_enabled: config.enable_typecheck,
+        api_isolate: Arc::new(std::sync::RwLock::new(api_isolate)),
     });
 
     // Routes: HMR WebSocket, error WebSocket, diagnostics, AI API, fallback
@@ -407,6 +440,11 @@ async fn dev_server_handler(
         return module_server::handle_source_file(state, req).await;
     }
 
+    // API route delegation: /api/* → persistent V8 isolate
+    if path.starts_with("/api/") || path == "/api" {
+        return handle_api_request(state, req, &path).await;
+    }
+
     // Check for static files in public_dir
     let public_file = state
         .root_dir
@@ -444,6 +482,78 @@ async fn dev_server_handler(
             let session =
                 crate::ssr::session::extract_session_from_cookies(cookie_header.as_deref());
 
+            // Try persistent isolate SSR first (Phase 2: zero per-request overhead)
+            let isolate = state
+                .api_isolate
+                .read()
+                .unwrap_or_else(|e| e.into_inner())
+                .clone();
+            if let Some(isolate) = isolate.as_ref() {
+                if isolate.is_initialized() {
+                    let session_json = serde_json::to_string(&session).ok();
+                    let ssr_req = crate::runtime::persistent_isolate::SsrRequest {
+                        url: path.clone(),
+                        session_json,
+                    };
+
+                    match isolate.handle_ssr(ssr_req).await {
+                        Ok(ssr_resp) => {
+                            if ssr_resp.render_time_ms > 0.0 {
+                                let render_msg = format!(
+                                    "{} rendered in {:.1}ms ({})",
+                                    path,
+                                    ssr_resp.render_time_ms,
+                                    if ssr_resp.is_ssr {
+                                        "ssr-persistent"
+                                    } else {
+                                        "client-only"
+                                    }
+                                );
+                                eprintln!("[SSR] {}", render_msg);
+                                state
+                                    .console_log
+                                    .push(LogLevel::Info, render_msg, Some("ssr"));
+                            }
+
+                            // Assemble the full HTML document from SSR response
+                            let css_string = format_ssr_css(&ssr_resp.css_entries);
+                            let entry_url = crate::ssr::html_document::entry_path_to_url(
+                                &state.entry_file,
+                                &state.root_dir,
+                            );
+                            let html = crate::ssr::html_document::assemble_ssr_document(
+                                &crate::ssr::html_document::SsrHtmlOptions {
+                                    title: "Vertz App",
+                                    ssr_content: &ssr_resp.content,
+                                    inline_css: &css_string,
+                                    theme_css: state.theme_css.as_deref(),
+                                    hydration_script: &ssr_resp.hydration_json,
+                                    entry_url: &entry_url,
+                                    preload_hints: &[],
+                                    enable_hmr: true,
+                                },
+                            );
+
+                            return axum::response::Response::builder()
+                                .status(StatusCode::OK)
+                                .header(header::CONTENT_TYPE, "text/html; charset=utf-8")
+                                .header(header::CACHE_CONTROL, "no-cache")
+                                .body(Body::from(html))
+                                .unwrap();
+                        }
+                        Err(e) => {
+                            let error_msg = format!("Persistent SSR error: {}", e);
+                            eprintln!("[SSR] {} — falling back to per-request SSR", error_msg);
+                            state
+                                .console_log
+                                .push(LogLevel::Error, error_msg, Some("ssr"));
+                            // Fall through to legacy per-request SSR
+                        }
+                    }
+                }
+            }
+
+            // Legacy fallback: per-request SSR (spawn_blocking + fresh V8)
             let ssr_options = crate::ssr::render::SsrOptions {
                 root_dir: state.root_dir.clone(),
                 entry_file: state.entry_file.clone(),
@@ -519,6 +629,148 @@ async fn dev_server_handler(
         .header(header::CONTENT_TYPE, "text/plain")
         .body(Body::from("Not Found"))
         .unwrap()
+}
+
+/// Format CSS entries from persistent isolate SSR into inline style tags.
+fn format_ssr_css(entries: &[(String, Option<String>)]) -> String {
+    if entries.is_empty() {
+        return String::new();
+    }
+    let mut seen = std::collections::HashSet::new();
+    let mut parts = Vec::new();
+    for (css, id) in entries {
+        if let Some(id) = id {
+            if !seen.insert(id.as_str()) {
+                continue;
+            }
+        }
+        if !css.is_empty() {
+            parts.push(css.as_str());
+        }
+    }
+    if parts.is_empty() {
+        return String::new();
+    }
+    format!("  <style data-vertz-ssr>{}</style>\n", parts.join("\n"))
+}
+
+/// Maximum API request body size (10 MB).
+const MAX_API_BODY_SIZE: usize = 10 * 1024 * 1024;
+
+/// Handle API requests by delegating to the persistent V8 isolate.
+///
+/// Converts the Axum `Request` into an `IsolateRequest`, sends it to the
+/// persistent V8 thread, and converts the `IsolateResponse` back to an Axum
+/// `Response`.
+async fn handle_api_request(
+    state: State<Arc<DevServerState>>,
+    req: Request<Body>,
+    path: &str,
+) -> axum::response::Response<Body> {
+    let isolate = match state
+        .api_isolate
+        .read()
+        .unwrap_or_else(|e| e.into_inner())
+        .clone()
+    {
+        Some(isolate) => isolate,
+        None => {
+            return axum::response::Response::builder()
+                .status(StatusCode::NOT_FOUND)
+                .header(header::CONTENT_TYPE, "application/json; charset=utf-8")
+                .body(Body::from(
+                    r#"{"error":"No server entry configured. Create src/server.ts with a default export handler."}"#,
+                ))
+                .unwrap();
+        }
+    };
+
+    if !isolate.is_initialized() {
+        return axum::response::Response::builder()
+            .status(StatusCode::SERVICE_UNAVAILABLE)
+            .header(header::CONTENT_TYPE, "application/json; charset=utf-8")
+            .body(Body::from(
+                r#"{"error":"API isolate is still initializing. Try again shortly."}"#,
+            ))
+            .unwrap();
+    }
+
+    // Convert Axum Request → IsolateRequest
+    let method = req.method().to_string();
+    let url = format!(
+        "http://localhost:{}{}",
+        state.port,
+        req.uri()
+            .path_and_query()
+            .map(|pq| pq.as_str())
+            .unwrap_or(path)
+    );
+    let headers: Vec<(String, String)> = req
+        .headers()
+        .iter()
+        .map(|(k, v)| (k.to_string(), v.to_str().unwrap_or("").to_string()))
+        .collect();
+
+    let body_bytes = match axum::body::to_bytes(req.into_body(), MAX_API_BODY_SIZE).await {
+        Ok(b) if !b.is_empty() => Some(b.to_vec()),
+        Ok(_) => None,
+        Err(_) => {
+            return axum::response::Response::builder()
+                .status(StatusCode::PAYLOAD_TOO_LARGE)
+                .header(header::CONTENT_TYPE, "application/json; charset=utf-8")
+                .body(Body::from(
+                    r#"{"error":"Request body exceeds 10 MB limit."}"#,
+                ))
+                .unwrap();
+        }
+    };
+
+    let isolate_req = IsolateRequest {
+        method,
+        url,
+        headers,
+        body: body_bytes,
+    };
+
+    let start = Instant::now();
+    match isolate.handle_request(isolate_req).await {
+        Ok(response) => {
+            let elapsed = start.elapsed();
+            state.console_log.push(
+                LogLevel::Info,
+                format!(
+                    "{} {} → {} ({:.1}ms)",
+                    "API",
+                    path,
+                    response.status,
+                    elapsed.as_secs_f64() * 1000.0
+                ),
+                Some("api"),
+            );
+
+            let mut builder = axum::response::Response::builder().status(response.status);
+            for (key, value) in &response.headers {
+                builder = builder.header(key.as_str(), value.as_str());
+            }
+            // Ensure CORS headers for dev
+            builder = builder.header("access-control-allow-origin", "*");
+            builder.body(Body::from(response.body)).unwrap()
+        }
+        Err(e) => {
+            let error_msg = format!("API handler error: {}", e);
+            eprintln!("[Server] {}", error_msg);
+            state
+                .console_log
+                .push(LogLevel::Error, error_msg, Some("api"));
+
+            let body = serde_json::json!({ "error": e.to_string() }).to_string();
+            axum::response::Response::builder()
+                .status(StatusCode::INTERNAL_SERVER_ERROR)
+                .header(header::CONTENT_TYPE, "application/json; charset=utf-8")
+                .body(Body::from(body))
+                .unwrap()
+        }
+    }
 }
 
 /// Guess a MIME type from a file path extension.
@@ -620,17 +872,18 @@ pub async fn start_server(config: ServerConfig) -> io::Result<()> {
                 let watcher_state = state.clone();
                 let entry_file = config.entry_file.clone();
                 let root_dir = config.root_dir.clone();
+                let server_entry = config.server_entry.clone();
 
                 // Spawn file watcher task with error broadcasting
                 tokio::spawn(async move {
-                    let mut debouncer = Debouncer::new(50);
+                    let mut debouncer = SmartDebouncer::new();
 
                     loop {
                         tokio::select! {
                             Some(change) = rx.recv() => {
                                 debouncer.add(change);
                             }
-                            _ = tokio::time::sleep(std::time::Duration::from_millis(60)),
+                            _ = tokio::time::sleep(std::time::Duration::from_millis(6)),
                               if debouncer.has_pending() => {
                                 if !debouncer.is_ready() {
                                     continue;
@@ -690,6 +943,61 @@ pub async fn start_server(config: ServerConfig) -> io::Result<()> {
                                         // Clear compilation cache for full rebuild
                                         watcher_state.pipeline.cache().clear();
                                         continue;
+                                    }
+
+                                    // Check if a server module changed — restart the persistent isolate.
+                                    // Strategy: create new isolate FIRST while old one still serves
+                                    // requests, then atomically swap. This avoids a None window where
+                                    // requests would get 404s, and preserves the old isolate on failure.
+                                    if let Some(ref se) = server_entry {
+                                        if change.path == *se {
+                                            eprintln!(
+                                                "[Server] Server module changed: {}",
+                                                change.path.display()
+                                            );
+                                            // Read options from current isolate (read lock — no contention)
+                                            let opts = {
+                                                let guard = watcher_state
+                                                    .api_isolate
+                                                    .read()
+                                                    .unwrap_or_else(|e| e.into_inner());
+                                                guard.as_ref().map(|iso| iso.options().clone())
+                                            };
+                                            if let Some(opts) = opts {
+                                                // Create new isolate while old one continues serving
+                                                match PersistentIsolate::new(opts) {
+                                                    Ok(new_isolate) => {
+                                                        // Atomically swap old → new
+                                                        let old = {
+                                                            let mut guard = watcher_state
+                                                                .api_isolate
+                                                                .write()
+                                                                .unwrap_or_else(|e| e.into_inner());
+                                                            guard.replace(Arc::new(new_isolate))
+                                                        };
+                                                        // Log if old isolate still has in-flight refs
+                                                        if let Some(old_arc) = old {
+                                                            let refs = Arc::strong_count(&old_arc);
+                                                            if refs > 1 {
+                                                                eprintln!(
+                                                                    "[Server] Old isolate still draining ({} refs)",
+                                                                    refs - 1
+                                                                );
+                                                            }
+                                                        }
+                                                        eprintln!("[Server] Isolate restarted successfully");
+                                                    }
+                                                    Err(e) => {
+                                                        // Old isolate is still in place — no downtime
+                                                        eprintln!(
+                                                            "[Server] Failed to create new isolate: {} (old isolate still serving)",
+                                                            e
+                                                        );
+                                                    }
+                                                }
+                                            }
+                                            // Don't continue — still need to compile for client HMR
+                                        }
                                     }
 
                                     // Clear any previous errors for this file

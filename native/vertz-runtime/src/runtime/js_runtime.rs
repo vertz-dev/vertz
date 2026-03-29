@@ -201,6 +201,21 @@ impl VertzJsRuntime {
         Ok(())
     }
 
+    /// Load and evaluate an ES module as a side module (not "main").
+    ///
+    /// Unlike `load_main_module`, this can be called after a main module has
+    /// already been loaded. Used for loading the server entry alongside the
+    /// app entry in the persistent isolate.
+    pub async fn load_side_module(&mut self, specifier: &ModuleSpecifier) -> Result<(), AnyError> {
+        let mod_id = self.runtime.load_side_es_module(specifier).await?;
+        let result = self.runtime.mod_evaluate(mod_id);
+        self.runtime
+            .run_event_loop(PollEventLoopOptions::default())
+            .await?;
+        result.await?;
+        Ok(())
+    }
+
     /// Run the event loop until all pending operations complete.
     pub async fn run_event_loop(&mut self) -> Result<(), AnyError> {
         self.runtime

@@ -11,6 +11,7 @@ use crate::errors::broadcaster::ErrorBroadcaster;
 use crate::errors::categories::{extract_snippet, DevError, ErrorCategory};
 use crate::errors::suggestions;
 use crate::hmr::websocket::HmrHub;
+use crate::runtime::persistent_isolate::PersistentIsolate;
 use crate::server::console_log::ConsoleLog;
 use crate::server::css_server;
 use crate::server::html_shell;
@@ -48,6 +49,10 @@ pub struct DevServerState {
     pub port: u16,
     /// Whether type checking is enabled.
     pub typecheck_enabled: bool,
+    /// Persistent V8 isolate for API route delegation (`/api/*`) and SSR.
+    /// Wrapped in `Arc<RwLock>` to allow hot-swap on server module changes.
+    /// `None` when no `server_entry` is configured.
+    pub api_isolate: Arc<std::sync::RwLock<Option<Arc<PersistentIsolate>>>>,
 }
 
 /// Handle requests for source files: `GET /src/**/*.tsx` → compiled JavaScript.
@@ -563,6 +568,7 @@ mod tests {
             enable_ssr: false,
             port: 3000,
             typecheck_enabled: false,
+            api_isolate: Arc::new(std::sync::RwLock::new(None)),
         })
     }
 
