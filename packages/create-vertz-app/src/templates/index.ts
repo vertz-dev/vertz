@@ -1054,6 +1054,11 @@ bun run build        # Production build
 
 To add API and database support, see https://docs.vertz.dev/guides/server/overview
 
+## Routing
+
+Routes are defined in \`src/router.tsx\` using \`defineRoutes\` and \`createRouter\`.
+To add a new page, create a component in \`src/pages/\` and add a route entry in \`src/router.tsx\`.
+
 ## Conventions
 
 - See \`.claude/rules/\` for UI development conventions
@@ -1100,12 +1105,13 @@ export default {};
 }
 
 /**
- * src/app.tsx for hello-world — simple App with ThemeProvider
+ * src/app.tsx for hello-world — App with RouterContext.Provider, RouterView, and NavBar
  */
 export function helloWorldAppTemplate(): string {
-  return `import { css, getInjectedCSS, globalCss, ThemeProvider } from 'vertz/ui';
-import { HomePage } from './pages/home';
+  return `import { css, getInjectedCSS, globalCss, RouterContext, RouterView, ThemeProvider } from 'vertz/ui';
+import { appRouter } from './router';
 import { appTheme, themeGlobals } from './styles/theme';
+import { NavBar } from './components/nav-bar';
 
 const appGlobals = globalCss({
   a: {
@@ -1116,6 +1122,7 @@ const appGlobals = globalCss({
 
 const styles = css({
   shell: ['min-h:screen', 'bg:background', 'text:foreground'],
+  main: ['max-w:2xl', 'mx:auto', 'px:6', 'py:8'],
 });
 
 export { getInjectedCSS };
@@ -1125,11 +1132,19 @@ export const globalStyles = [themeGlobals.css, appGlobals.css];
 export function App() {
   return (
     <div data-testid="app-root">
-      <ThemeProvider theme="light">
-        <div className={styles.shell}>
-          <HomePage />
-        </div>
-      </ThemeProvider>
+      <RouterContext.Provider value={appRouter}>
+        <ThemeProvider theme="light">
+          <div className={styles.shell}>
+            <NavBar />
+            <main className={styles.main}>
+              <RouterView
+                router={appRouter}
+                fallback={() => <div>Page not found</div>}
+              />
+            </main>
+          </div>
+        </ThemeProvider>
+      </RouterContext.Provider>
     </div>
   );
 }
@@ -1145,7 +1160,7 @@ export function helloWorldHomePageTemplate(): string {
 import { Button } from '@vertz/ui/components';
 
 const styles = css({
-  container: ['flex', 'flex-col', 'items:center', 'justify:center', 'min-h:screen', 'gap:6'],
+  container: ['flex', 'flex-col', 'items:center', 'justify:center', 'py:16', 'gap:6'],
   title: ['font:4xl', 'font:bold', 'text:foreground'],
   subtitle: ['text:muted-foreground', 'text:lg'],
   count: ['font:6xl', 'font:bold', 'text:primary'],
@@ -1165,6 +1180,92 @@ export function HomePage() {
         <Button onClick={() => { count++; }}>Count is {count}</Button>
       </div>
     </div>
+  );
+}
+`;
+}
+
+/**
+ * src/router.tsx for hello-world — route definitions + router instance
+ */
+export function helloWorldRouterTemplate(): string {
+  return `import { createRouter, defineRoutes } from 'vertz/ui';
+import { HomePage } from './pages/home';
+import { AboutPage } from './pages/about';
+
+export const routes = defineRoutes({
+  '/': {
+    component: () => <HomePage />,
+  },
+  '/about': {
+    component: () => <AboutPage />,
+  },
+});
+
+export const appRouter = createRouter(routes);
+`;
+}
+
+/**
+ * src/pages/about.tsx for hello-world — simple second page
+ */
+export function helloWorldAboutPageTemplate(): string {
+  return `import { css } from 'vertz/ui';
+
+const styles = css({
+  container: ['flex', 'flex-col', 'items:center', 'justify:center', 'py:16', 'gap:4'],
+  title: ['font:3xl', 'font:bold', 'text:foreground'],
+  text: ['text:muted-foreground', 'text:lg', 'max-w:lg', 'text:center'],
+  code: ['font:mono', 'bg:muted', 'px:2', 'py:1', 'rounded:sm', 'text:sm'],
+});
+
+export function AboutPage() {
+  return (
+    <div className={styles.container} data-testid="about-page">
+      <h1 className={styles.title}>About</h1>
+      <p className={styles.text}>
+        This app was built with Vertz — a type-safe, LLM-native framework.
+      </p>
+      <p className={styles.text}>
+        Edit this page at <code className={styles.code}>src/pages/about.tsx</code>
+      </p>
+    </div>
+  );
+}
+`;
+}
+
+/**
+ * src/components/nav-bar.tsx for hello-world — navigation with Link
+ */
+export function helloWorldNavBarTemplate(): string {
+  return `import { css, Link } from 'vertz/ui';
+
+const styles = css({
+  nav: [
+    'flex',
+    'items:center',
+    'justify:between',
+    'px:6',
+    'py:4',
+    'border-b:1',
+    'border:border',
+  ],
+  brand: ['font:lg', 'font:bold', 'text:foreground'],
+  links: ['flex', 'gap:4'],
+  link: ['text:sm', 'text:muted-foreground', 'hover:text:foreground', 'transition:colors'],
+  active: ['text:foreground', 'font:medium'],
+});
+
+export function NavBar() {
+  return (
+    <nav className={styles.nav}>
+      <div className={styles.brand}>My Vertz App</div>
+      <div className={styles.links}>
+        <Link href="/" className={styles.link} activeClass={styles.active}>Home</Link>
+        <Link href="/about" className={styles.link} activeClass={styles.active}>About</Link>
+      </div>
+    </nav>
   );
 }
 `;

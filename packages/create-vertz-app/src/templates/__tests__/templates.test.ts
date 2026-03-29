@@ -12,6 +12,11 @@ import {
   envModuleTemplate,
   envTemplate,
   gitignoreTemplate,
+  helloWorldAboutPageTemplate,
+  helloWorldAppTemplate,
+  helloWorldClaudeMdTemplate,
+  helloWorldNavBarTemplate,
+  helloWorldRouterTemplate,
   homePageTemplate,
   packageJsonTemplate,
   schemaTemplate,
@@ -506,6 +511,143 @@ describe('templates', () => {
     });
   });
 
+  // ── Hello World router templates ─────────────────────────
+
+  describe('helloWorldRouterTemplate', () => {
+    it('imports defineRoutes and createRouter from vertz/ui', () => {
+      const result = helloWorldRouterTemplate();
+      expect(result).toContain("from 'vertz/ui'");
+      expect(result).toContain('defineRoutes');
+      expect(result).toContain('createRouter');
+    });
+
+    it('defines / and /about routes', () => {
+      const result = helloWorldRouterTemplate();
+      expect(result).toContain("'/'");
+      expect(result).toContain("'/about'");
+    });
+
+    it('exports routes and appRouter', () => {
+      const result = helloWorldRouterTemplate();
+      expect(result).toContain('export const routes');
+      expect(result).toContain('export const appRouter');
+    });
+
+    it('imports HomePage and AboutPage', () => {
+      const result = helloWorldRouterTemplate();
+      expect(result).toContain("from './pages/home'");
+      expect(result).toContain("from './pages/about'");
+    });
+  });
+
+  describe('helloWorldAboutPageTemplate', () => {
+    it('exports AboutPage component', () => {
+      const result = helloWorldAboutPageTemplate();
+      expect(result).toContain('export function AboutPage()');
+    });
+
+    it('includes edit hint pointing to src/pages/about.tsx', () => {
+      const result = helloWorldAboutPageTemplate();
+      expect(result).toContain('src/pages/about.tsx');
+    });
+
+    it('uses css() for styling', () => {
+      const result = helloWorldAboutPageTemplate();
+      expect(result).toContain("from 'vertz/ui'");
+      expect(result).toContain('css(');
+    });
+
+    it('has a data-testid attribute', () => {
+      const result = helloWorldAboutPageTemplate();
+      expect(result).toContain('data-testid="about-page"');
+    });
+  });
+
+  describe('helloWorldNavBarTemplate', () => {
+    it('exports NavBar component', () => {
+      const result = helloWorldNavBarTemplate();
+      expect(result).toContain('export function NavBar()');
+    });
+
+    it('imports Link from vertz/ui', () => {
+      const result = helloWorldNavBarTemplate();
+      expect(result).toContain('Link');
+      expect(result).toContain("from 'vertz/ui'");
+    });
+
+    it('has Link components for / and /about', () => {
+      const result = helloWorldNavBarTemplate();
+      expect(result).toContain('href="/"');
+      expect(result).toContain('href="/about"');
+    });
+
+    it('uses activeClass for current route highlighting', () => {
+      const result = helloWorldNavBarTemplate();
+      expect(result).toContain('activeClass');
+    });
+  });
+
+  describe('helloWorldClaudeMdTemplate (with router)', () => {
+    it('mentions defineRoutes for adding new pages', () => {
+      const result = helloWorldClaudeMdTemplate('test-app');
+      expect(result).toContain('defineRoutes');
+    });
+
+    it('mentions src/router.tsx as the routing entry point', () => {
+      const result = helloWorldClaudeMdTemplate('test-app');
+      expect(result).toContain('src/router.tsx');
+    });
+  });
+
+  describe('helloWorldAppTemplate (with router)', () => {
+    it('imports RouterContext and RouterView from vertz/ui', () => {
+      const result = helloWorldAppTemplate();
+      expect(result).toContain('RouterContext');
+      expect(result).toContain('RouterView');
+    });
+
+    it('imports appRouter from ./router', () => {
+      const result = helloWorldAppTemplate();
+      expect(result).toContain("from './router'");
+      expect(result).toContain('appRouter');
+    });
+
+    it('imports NavBar from ./components/nav-bar', () => {
+      const result = helloWorldAppTemplate();
+      expect(result).toContain("from './components/nav-bar'");
+      expect(result).toContain('NavBar');
+    });
+
+    it('wraps app in RouterContext.Provider with appRouter', () => {
+      const result = helloWorldAppTemplate();
+      expect(result).toContain('RouterContext.Provider');
+      expect(result).toContain('appRouter');
+    });
+
+    it('renders RouterView with appRouter and a fallback', () => {
+      const result = helloWorldAppTemplate();
+      expect(result).toContain('<RouterView');
+      expect(result).toContain('router={appRouter}');
+      expect(result).toContain('fallback');
+    });
+
+    it('does NOT directly render HomePage', () => {
+      const result = helloWorldAppTemplate();
+      expect(result).not.toContain('<HomePage');
+      expect(result).not.toContain("from './pages/home'");
+    });
+
+    it('renders NavBar component', () => {
+      const result = helloWorldAppTemplate();
+      expect(result).toContain('<NavBar');
+    });
+
+    it('exports getInjectedCSS for SSR', () => {
+      const result = helloWorldAppTemplate();
+      expect(result).toContain('getInjectedCSS');
+    });
+  });
+
   describe('all templates return non-empty strings', () => {
     it('every template function returns a non-empty string', () => {
       const templates = [
@@ -530,6 +672,9 @@ describe('templates', () => {
         homePageTemplate,
         apiDevelopmentRuleTemplate,
         uiDevelopmentRuleTemplate,
+        helloWorldRouterTemplate,
+        helloWorldAboutPageTemplate,
+        helloWorldNavBarTemplate,
       ];
 
       for (const template of templates) {

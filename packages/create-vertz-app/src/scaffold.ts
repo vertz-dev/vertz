@@ -14,10 +14,13 @@ import {
   envTemplate,
   faviconTemplate,
   gitignoreTemplate,
+  helloWorldAboutPageTemplate,
   helloWorldAppTemplate,
   helloWorldClaudeMdTemplate,
   helloWorldHomePageTemplate,
+  helloWorldNavBarTemplate,
   helloWorldPackageJsonTemplate,
+  helloWorldRouterTemplate,
   helloWorldVertzConfigTemplate,
   homePageTemplate,
   packageJsonTemplate,
@@ -74,12 +77,14 @@ export async function scaffold(parentDir: string, options: ScaffoldOptions): Pro
 async function scaffoldHelloWorld(projectDir: string, projectName: string): Promise<void> {
   const srcDir = path.join(projectDir, 'src');
   const pagesDir = path.join(srcDir, 'pages');
+  const componentsDir = path.join(srcDir, 'components');
   const stylesDir = path.join(srcDir, 'styles');
   const claudeRulesDir = path.join(projectDir, '.claude', 'rules');
   const publicDir = path.join(projectDir, 'public');
 
   await Promise.all([
     fs.mkdir(pagesDir, { recursive: true }),
+    fs.mkdir(componentsDir, { recursive: true }),
     fs.mkdir(stylesDir, { recursive: true }),
     fs.mkdir(claudeRulesDir, { recursive: true }),
     fs.mkdir(publicDir, { recursive: true }),
@@ -97,7 +102,10 @@ async function scaffoldHelloWorld(projectDir: string, projectName: string): Prom
     // UI source files
     writeFile(srcDir, 'app.tsx', helloWorldAppTemplate()),
     writeFile(srcDir, 'entry-client.ts', entryClientTemplate()),
+    writeFile(srcDir, 'router.tsx', helloWorldRouterTemplate()),
     writeFile(pagesDir, 'home.tsx', helloWorldHomePageTemplate()),
+    writeFile(pagesDir, 'about.tsx', helloWorldAboutPageTemplate()),
+    writeFile(componentsDir, 'nav-bar.tsx', helloWorldNavBarTemplate()),
     writeFile(stylesDir, 'theme.ts', themeTemplate()),
 
     // Static assets
