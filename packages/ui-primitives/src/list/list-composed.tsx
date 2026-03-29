@@ -238,10 +238,21 @@ function createAnimationHooks(animate: boolean | AnimateConfig): ListAnimationHo
           el.style.paddingBottom = '0';
           el.style.opacity = '0';
 
-          el.addEventListener('transitionend', () => done(), { once: true });
+          // Guard against double done() calls — transitionend and safety timeout
+          // can both fire, but done() must only be called once.
+          let exitDone = false;
+          let safetyTimer: ReturnType<typeof setTimeout>;
+          const safeDone = () => {
+            if (exitDone) return;
+            exitDone = true;
+            clearTimeout(safetyTimer);
+            done();
+          };
+
+          el.addEventListener('transitionend', safeDone, { once: true });
 
           // Safety timeout in case transitionend doesn't fire
-          setTimeout(() => done(), duration + 50);
+          safetyTimer = setTimeout(safeDone, duration + 50);
         } else {
           done();
         }
