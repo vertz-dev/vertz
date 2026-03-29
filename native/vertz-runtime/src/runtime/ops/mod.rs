@@ -6,6 +6,7 @@ pub mod encoding;
 pub mod env;
 pub mod fetch;
 pub mod microtask;
+pub mod os;
 pub mod path;
 pub mod performance;
 pub mod streams;

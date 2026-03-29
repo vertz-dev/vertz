@@ -87,9 +87,52 @@ pub fn op_url_can_parse(#[string] href: String, #[string] base: String) -> bool 
     }
 }
 
+/// Convert a file:// URL to a platform path.
+#[op2]
+#[string]
+pub fn op_file_url_to_path(
+    #[string] url_str: String,
+) -> Result<String, deno_core::error::AnyError> {
+    let parsed = url::Url::parse(&url_str)
+        .map_err(|e| deno_core::anyhow::anyhow!("TypeError: Invalid URL: {}", e))?;
+    if parsed.scheme() != "file" {
+        return Err(deno_core::anyhow::anyhow!(
+            "TypeError: The URL must be of scheme file"
+        ));
+    }
+    let path = parsed
+        .to_file_path()
+        .map_err(|_| deno_core::anyhow::anyhow!("TypeError: Invalid file URL: {}", url_str))?;
+    Ok(path.to_string_lossy().to_string())
+}
+
+/// Convert a platform path to a file:// URL string.
+#[op2]
+#[string]
+pub fn op_path_to_file_url(
+    #[string] path_str: String,
+) -> Result<String, deno_core::error::AnyError> {
+    let path = std::path::PathBuf::from(&path_str);
+    let abs_path = if path.is_absolute() {
+        path
+    } else {
+        std::env::current_dir()
+            .unwrap_or_else(|_| std::path::PathBuf::from("/"))
+            .join(path)
+    };
+    let url = url::Url::from_file_path(&abs_path)
+        .map_err(|_| deno_core::anyhow::anyhow!("TypeError: Invalid file path: {}", path_str))?;
+    Ok(url.to_string())
+}
+
 /// Get the op declarations for URL ops.
 pub fn op_decls() -> Vec<OpDecl> {
-    vec![op_url_parse(), op_url_can_parse()]
+    vec![
+        op_url_parse(),
+        op_url_can_parse(),
+        op_file_url_to_path(),
+        op_path_to_file_url(),
+    ]
 }
 
 /// JavaScript bootstrap code for URL and URLSearchParams.
@@ -964,5 +1007,72 @@ mod tests {
             )
             .unwrap();
         assert_eq!(result, serde_json::json!([0, ""]));
+    }
+
+    // --- Phase 5a: fileURLToPath / pathToFileURL ---
+
+    #[test]
+    fn test_file_url_to_path() {
+        let mut rt = create_runtime();
+        let result = rt
+            .execute_script(
+                "<test>",
+                r#"Deno.core.ops.op_file_url_to_path("file:///home/user/file.txt")"#,
+            )
+            .unwrap();
+        assert_eq!(result, serde_json::json!("/home/user/file.txt"));
+    }
+
+    #[test]
+    fn test_file_url_to_path_encoded() {
+        let mut rt = create_runtime();
+        let result = rt
+            .execute_script(
+                "<test>",
+                r#"Deno.core.ops.op_file_url_to_path("file:///home/user/my%20file.txt")"#,
+            )
+            .unwrap();
+        assert_eq!(result, serde_json::json!("/home/user/my file.txt"));
+    }
+
+    #[test]
+    fn test_file_url_to_path_non_file_scheme_errors() {
+        let mut rt = create_runtime();
+        let result = rt.execute_script(
+            "<test>",
+            r#"
+            try {
+                Deno.core.ops.op_file_url_to_path("https://example.com");
+                "no error";
+            } catch (e) {
+                "error";
+            }
+        "#,
+        );
+        assert_eq!(result.unwrap(), serde_json::json!("error"));
+    }
+
+    #[test]
+    fn test_path_to_file_url() {
+        let mut rt = create_runtime();
+        let result = rt
+            .execute_script(
+                "<test>",
+                r#"Deno.core.ops.op_path_to_file_url("/home/user/file.txt")"#,
+            )
+            .unwrap();
+        assert_eq!(result, serde_json::json!("file:///home/user/file.txt"));
+    }
+
+    #[test]
+    fn test_path_to_file_url_with_spaces() {
+        let mut rt = create_runtime();
+        let result = rt
+            .execute_script(
+                "<test>",
+                r#"Deno.core.ops.op_path_to_file_url("/home/user/my file.txt")"#,
+            )
+            .unwrap();
+        assert_eq!(result, serde_json::json!("file:///home/user/my%20file.txt"));
     }
 }
