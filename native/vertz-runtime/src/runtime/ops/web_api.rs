@@ -190,8 +190,8 @@ pub const WEB_API_BOOTSTRAP_JS: &str = r#"
         'QuotaExceededError': 22,
         'NotSupportedError': 9,
         'InvalidAccessError': 15,
-        'DataError': 30,
-        'OperationError': 34,
+        'DataError': 0,
+        'OperationError': 0,
       };
       return codes[name] || 0;
     }
@@ -342,7 +342,10 @@ pub const WEB_API_BOOTSTRAP_JS: &str = r#"
         this.#url = input.url;
         this.#method = init.method || input.method;
         this.#headers = new Headers(init.headers || input.headers);
-        this.#body = createBodyMixin(init.body !== undefined ? init.body : null);
+        // Copy body from input Request when init.body not provided
+        this.#body = init.body !== undefined
+          ? createBodyMixin(init.body)
+          : (input.bodyUsed ? createBodyMixin(null) : input.#body.clone());
         this.#signal = init.signal || input.signal || null;
       } else {
         this.#url = String(input);
@@ -474,6 +477,9 @@ pub const WEB_API_BOOTSTRAP_JS: &str = r#"
 
     if (init.body !== undefined) {
       options.body = init.body;
+    } else if (input instanceof Request && !req.bodyUsed && req.method !== 'GET' && req.method !== 'HEAD') {
+      // Read body from Request object
+      options.body = await req.text();
     }
 
     // Set up abort handling

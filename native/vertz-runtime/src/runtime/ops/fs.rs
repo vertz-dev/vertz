@@ -5,6 +5,22 @@ use deno_core::op2;
 use deno_core::OpDecl;
 use serde::Serialize;
 
+// NOTE: FS access is intentionally unrestricted, matching Bun/Node.js semantics.
+// The runtime trusts the executing script. A future permission system (like Deno's
+// --allow-read/--allow-write) may be added as an opt-in layer.
+
+/// Map an `io::Error` to the appropriate POSIX-style error code prefix.
+fn io_error_code(e: &std::io::Error) -> &'static str {
+    match e.kind() {
+        std::io::ErrorKind::NotFound => "ENOENT",
+        std::io::ErrorKind::PermissionDenied => "EACCES",
+        std::io::ErrorKind::AlreadyExists => "EEXIST",
+        std::io::ErrorKind::NotADirectory => "ENOTDIR",
+        std::io::ErrorKind::IsADirectory => "EISDIR",
+        _ => "EIO",
+    }
+}
+
 /// Stat result returned to JavaScript.
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -72,14 +88,15 @@ fn metadata_to_stat(meta: &std::fs::Metadata) -> StatResult {
 #[string]
 pub fn op_fs_read_file_sync(#[string] path: String) -> Result<String, AnyError> {
     std::fs::read_to_string(&path)
-        .map_err(|e| deno_core::anyhow::anyhow!("ENOENT: {}: '{}'", e, path))
+        .map_err(|e| deno_core::anyhow::anyhow!("{}: {}: '{}'", io_error_code(&e), e, path))
 }
 
 /// Read a file as raw bytes (returned as Vec<u8>).
 #[op2]
 #[buffer]
 pub fn op_fs_read_file_bytes_sync(#[string] path: String) -> Result<Vec<u8>, AnyError> {
-    std::fs::read(&path).map_err(|e| deno_core::anyhow::anyhow!("ENOENT: {}: '{}'", e, path))
+    std::fs::read(&path)
+        .map_err(|e| deno_core::anyhow::anyhow!("{}: {}: '{}'", io_error_code(&e), e, path))
 }
 
 /// Write string contents to a file.
@@ -88,13 +105,8 @@ pub fn op_fs_write_file_sync(
     #[string] path: String,
     #[string] data: String,
 ) -> Result<(), AnyError> {
-    // Ensure parent directory exists
-    if let Some(parent) = PathBuf::from(&path).parent() {
-        if !parent.exists() && !parent.as_os_str().is_empty() {
-            // Don't auto-create — match Node behavior (ENOENT if parent missing)
-        }
-    }
-    std::fs::write(&path, data).map_err(|e| deno_core::anyhow::anyhow!("ENOENT: {}: '{}'", e, path))
+    std::fs::write(&path, data)
+        .map_err(|e| deno_core::anyhow::anyhow!("{}: {}: '{}'", io_error_code(&e), e, path))
 }
 
 /// Write raw bytes to a file.
@@ -103,7 +115,8 @@ pub fn op_fs_write_file_bytes_sync(
     #[string] path: String,
     #[buffer] data: &[u8],
 ) -> Result<(), AnyError> {
-    std::fs::write(&path, data).map_err(|e| deno_core::anyhow::anyhow!("ENOENT: {}: '{}'", e, path))
+    std::fs::write(&path, data)
+        .map_err(|e| deno_core::anyhow::anyhow!("{}: {}: '{}'", io_error_code(&e), e, path))
 }
 
 /// Append string contents to a file.
@@ -144,7 +157,7 @@ pub fn op_fs_mkdir_sync(#[string] path: String, recursive: bool) -> Result<(), A
 #[serde]
 pub fn op_fs_readdir_sync(#[string] path: String) -> Result<Vec<String>, AnyError> {
     let entries = std::fs::read_dir(&path)
-        .map_err(|e| deno_core::anyhow::anyhow!("ENOENT: {}: '{}'", e, path))?;
+        .map_err(|e| deno_core::anyhow::anyhow!("{}: {}: '{}'", io_error_code(&e), e, path))?;
     let mut names = Vec::new();
     for entry in entries {
         let entry = entry.map_err(|e| deno_core::anyhow::anyhow!("{}", e))?;
@@ -158,7 +171,7 @@ pub fn op_fs_readdir_sync(#[string] path: String) -> Result<Vec<String>, AnyErro
 #[serde]
 pub fn op_fs_stat_sync(#[string] path: String) -> Result<StatResult, AnyError> {
     let meta = std::fs::metadata(&path)
-        .map_err(|e| deno_core::anyhow::anyhow!("ENOENT: {}: '{}'", e, path))?;
+        .map_err(|e| deno_core::anyhow::anyhow!("{}: {}: '{}'", io_error_code(&e), e, path))?;
     Ok(metadata_to_stat(&meta))
 }
 
@@ -167,7 +180,7 @@ pub fn op_fs_stat_sync(#[string] path: String) -> Result<StatResult, AnyError> {
 #[serde]
 pub fn op_fs_lstat_sync(#[string] path: String) -> Result<StatResult, AnyError> {
     let meta = std::fs::symlink_metadata(&path)
-        .map_err(|e| deno_core::anyhow::anyhow!("ENOENT: {}: '{}'", e, path))?;
+        .map_err(|e| deno_core::anyhow::anyhow!("{}: {}: '{}'", io_error_code(&e), e, path))?;
     Ok(metadata_to_stat(&meta))
 }
 
@@ -218,7 +231,7 @@ pub fn op_fs_rename_sync(
 pub fn op_fs_realpath_sync(#[string] path: String) -> Result<String, AnyError> {
     std::fs::canonicalize(&path)
         .map(|p| p.to_string_lossy().to_string())
-        .map_err(|e| deno_core::anyhow::anyhow!("ENOENT: {}: '{}'", e, path))
+        .map_err(|e| deno_core::anyhow::anyhow!("{}: {}: '{}'", io_error_code(&e), e, path))
 }
 
 /// Create a unique temporary directory with the given prefix.
@@ -267,7 +280,7 @@ pub fn op_fs_chmod_sync(#[string] path: String, #[smi] mode: u32) -> Result<(), 
 pub async fn op_fs_read_file(#[string] path: String) -> Result<String, AnyError> {
     tokio::fs::read_to_string(&path)
         .await
-        .map_err(|e| deno_core::anyhow::anyhow!("ENOENT: {}: '{}'", e, path))
+        .map_err(|e| deno_core::anyhow::anyhow!("{}: {}: '{}'", io_error_code(&e), e, path))
 }
 
 /// Read a file as raw bytes (async).
@@ -276,7 +289,7 @@ pub async fn op_fs_read_file(#[string] path: String) -> Result<String, AnyError>
 pub async fn op_fs_read_file_bytes(#[string] path: String) -> Result<Vec<u8>, AnyError> {
     tokio::fs::read(&path)
         .await
-        .map_err(|e| deno_core::anyhow::anyhow!("ENOENT: {}: '{}'", e, path))
+        .map_err(|e| deno_core::anyhow::anyhow!("{}: {}: '{}'", io_error_code(&e), e, path))
 }
 
 /// Write string contents to a file (async).
@@ -287,7 +300,7 @@ pub async fn op_fs_write_file(
 ) -> Result<(), AnyError> {
     tokio::fs::write(&path, data)
         .await
-        .map_err(|e| deno_core::anyhow::anyhow!("ENOENT: {}: '{}'", e, path))
+        .map_err(|e| deno_core::anyhow::anyhow!("{}: {}: '{}'", io_error_code(&e), e, path))
 }
 
 /// Create a directory (async, optionally recursive).
@@ -307,7 +320,7 @@ pub async fn op_fs_mkdir(#[string] path: String, recursive: bool) -> Result<(), 
 pub async fn op_fs_readdir(#[string] path: String) -> Result<Vec<String>, AnyError> {
     let mut entries = tokio::fs::read_dir(&path)
         .await
-        .map_err(|e| deno_core::anyhow::anyhow!("ENOENT: {}: '{}'", e, path))?;
+        .map_err(|e| deno_core::anyhow::anyhow!("{}: {}: '{}'", io_error_code(&e), e, path))?;
     let mut names = Vec::new();
     while let Some(entry) = entries
         .next_entry()
@@ -325,7 +338,7 @@ pub async fn op_fs_readdir(#[string] path: String) -> Result<Vec<String>, AnyErr
 pub async fn op_fs_stat(#[string] path: String) -> Result<StatResult, AnyError> {
     let meta = tokio::fs::metadata(&path)
         .await
-        .map_err(|e| deno_core::anyhow::anyhow!("ENOENT: {}: '{}'", e, path))?;
+        .map_err(|e| deno_core::anyhow::anyhow!("{}: {}: '{}'", io_error_code(&e), e, path))?;
     Ok(metadata_to_stat(&meta))
 }
 
@@ -385,7 +398,7 @@ pub async fn op_fs_realpath(#[string] path: String) -> Result<String, AnyError> 
     tokio::fs::canonicalize(&path)
         .await
         .map(|p| p.to_string_lossy().to_string())
-        .map_err(|e| deno_core::anyhow::anyhow!("ENOENT: {}: '{}'", e, path))
+        .map_err(|e| deno_core::anyhow::anyhow!("{}: {}: '{}'", io_error_code(&e), e, path))
 }
 
 /// Get the op declarations for fs ops.

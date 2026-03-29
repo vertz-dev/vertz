@@ -538,7 +538,7 @@ if (!proc.argv) proc.argv = [];
 if (!proc.platform) proc.platform = Deno.core.ops.op_os_platform();
 if (!proc.version) proc.version = 'v20.0.0';
 if (!proc.versions) proc.versions = {};
-if (!proc.exit) proc.exit = () => {};
+if (!proc.exit) proc.exit = (code) => { throw new Error('process.exit(' + (code !== undefined ? code : '') + ') is not supported in the Vertz runtime'); };
 if (!proc.nextTick) proc.nextTick = (fn, ...args) => queueMicrotask(() => fn(...args));
 if (!proc.stdout) proc.stdout = { write: (s) => { console.log(s); } };
 if (!proc.stderr) proc.stderr = { write: (s) => { console.error(s); } };
@@ -676,7 +676,7 @@ function createHmac(algorithm, key) {
       // This is a minimal shim — full HMAC available via crypto.subtle
       const algoMap = { sha256: 'SHA-256', sha384: 'SHA-384', sha512: 'SHA-512', sha1: 'SHA-1' };
       const normalizedAlgo = algoMap[algorithm.toLowerCase()] || algorithm;
-      const blockSize = normalizedAlgo.includes('512') ? 128 : 64;
+      const blockSize = (normalizedAlgo.includes('512') || normalizedAlgo.includes('384')) ? 128 : 64;
 
       let k = keyBytes;
       if (k.length > blockSize) {
@@ -743,7 +743,7 @@ fn node_specifier_to_synthetic(specifier: &str) -> Option<&'static str> {
     match specifier {
         "node:path" | "path" => Some(NODE_PATH_SPECIFIER),
         "node:os" | "os" => Some(NODE_OS_SPECIFIER),
-        "node:url" => Some(NODE_URL_SPECIFIER),
+        "node:url" | "url" => Some(NODE_URL_SPECIFIER),
         "node:events" | "events" => Some(NODE_EVENTS_SPECIFIER),
         "node:process" | "process" => Some(NODE_PROCESS_SPECIFIER),
         "node:fs" | "fs" => Some(NODE_FS_SPECIFIER),

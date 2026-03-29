@@ -41,11 +41,13 @@ pub struct StoredKey {
 }
 
 impl CryptoKeyStore {
-    pub fn insert(&mut self, key: StoredKey) -> u32 {
+    pub fn insert(&mut self, key: StoredKey) -> Result<u32, AnyError> {
         let id = self.next_id;
-        self.next_id += 1;
+        self.next_id = self.next_id.checked_add(1).ok_or_else(|| {
+            deno_core::anyhow::anyhow!("CryptoKeyStore: key ID overflow (too many keys created)")
+        })?;
         self.keys.insert(id, key);
-        id
+        Ok(id)
     }
 
     pub fn get(&self, id: u32) -> Option<&StoredKey> {
@@ -249,7 +251,7 @@ pub fn op_crypto_subtle_import_key(
                 extractable: args.extractable,
                 usages: args.usages.clone(),
                 key_type: "secret".to_string(),
-            });
+            })?;
             Ok(CryptoKeyResult {
                 key_id: id,
                 key_type: "secret".to_string(),
@@ -278,7 +280,7 @@ pub fn op_crypto_subtle_import_key(
                 extractable: args.extractable,
                 usages: args.usages.clone(),
                 key_type: "secret".to_string(),
-            });
+            })?;
             Ok(CryptoKeyResult {
                 key_id: id,
                 key_type: "secret".to_string(),
@@ -300,7 +302,7 @@ pub fn op_crypto_subtle_import_key(
                 extractable: false, // HKDF keys are never extractable per spec
                 usages: args.usages.clone(),
                 key_type: "secret".to_string(),
-            });
+            })?;
             Ok(CryptoKeyResult {
                 key_id: id,
                 key_type: "secret".to_string(),
@@ -332,7 +334,7 @@ pub fn op_crypto_subtle_import_key(
                         extractable: args.extractable,
                         usages: args.usages.clone(),
                         key_type: "private".to_string(),
-                    });
+                    })?;
                     Ok(CryptoKeyResult {
                         key_id: id,
                         key_type: "private".to_string(),
@@ -349,7 +351,7 @@ pub fn op_crypto_subtle_import_key(
                         extractable: args.extractable,
                         usages: args.usages.clone(),
                         key_type: "public".to_string(),
-                    });
+                    })?;
                     Ok(CryptoKeyResult {
                         key_id: id,
                         key_type: "public".to_string(),
@@ -379,7 +381,7 @@ pub fn op_crypto_subtle_import_key(
                         extractable: args.extractable,
                         usages: args.usages.clone(),
                         key_type: "private".to_string(),
-                    });
+                    })?;
                     Ok(CryptoKeyResult {
                         key_id: id,
                         key_type: "private".to_string(),
@@ -396,7 +398,7 @@ pub fn op_crypto_subtle_import_key(
                         extractable: args.extractable,
                         usages: args.usages.clone(),
                         key_type: "public".to_string(),
-                    });
+                    })?;
                     Ok(CryptoKeyResult {
                         key_id: id,
                         key_type: "public".to_string(),
@@ -741,7 +743,7 @@ pub fn op_crypto_subtle_generate_key(
                 extractable: args.extractable,
                 usages: args.usages.clone(),
                 key_type: "secret".to_string(),
-            });
+            })?;
             Ok(serde_json::to_value(CryptoKeyResult {
                 key_id: id,
                 key_type: "secret".to_string(),
@@ -772,7 +774,7 @@ pub fn op_crypto_subtle_generate_key(
                 extractable: args.extractable,
                 usages: args.usages.clone(),
                 key_type: "secret".to_string(),
-            });
+            })?;
             Ok(serde_json::to_value(CryptoKeyResult {
                 key_id: id,
                 key_type: "secret".to_string(),
@@ -816,7 +818,7 @@ pub fn op_crypto_subtle_generate_key(
                             .cloned()
                             .collect(),
                         key_type: "private".to_string(),
-                    });
+                    })?;
                     let pub_id = store.insert(StoredKey {
                         material: KeyMaterial::EcPublic(pub_bytes),
                         algorithm: "ECDSA::P-256".to_string(),
@@ -828,7 +830,7 @@ pub fn op_crypto_subtle_generate_key(
                             .cloned()
                             .collect(),
                         key_type: "public".to_string(),
-                    });
+                    })?;
                     Ok(serde_json::to_value(CryptoKeyPairResult {
                         public_key: CryptoKeyResult {
                             key_id: pub_id,
@@ -885,7 +887,7 @@ pub fn op_crypto_subtle_generate_key(
                             .cloned()
                             .collect(),
                         key_type: "private".to_string(),
-                    });
+                    })?;
                     let pub_id = store.insert(StoredKey {
                         material: KeyMaterial::EcPublic(pub_bytes),
                         algorithm: "ECDSA::P-384".to_string(),
@@ -897,7 +899,7 @@ pub fn op_crypto_subtle_generate_key(
                             .cloned()
                             .collect(),
                         key_type: "public".to_string(),
-                    });
+                    })?;
                     Ok(serde_json::to_value(CryptoKeyPairResult {
                         public_key: CryptoKeyResult {
                             key_id: pub_id,
@@ -966,7 +968,7 @@ pub fn op_crypto_subtle_generate_key(
                     .cloned()
                     .collect(),
                 key_type: "private".to_string(),
-            });
+            })?;
             let pub_id = store.insert(StoredKey {
                 material: KeyMaterial::RsaPublic(pub_der.as_bytes().to_vec()),
                 algorithm: algo_str,
@@ -978,7 +980,7 @@ pub fn op_crypto_subtle_generate_key(
                     .cloned()
                     .collect(),
                 key_type: "public".to_string(),
-            });
+            })?;
             Ok(serde_json::to_value(CryptoKeyPairResult {
                 public_key: CryptoKeyResult {
                     key_id: pub_id,
@@ -1045,8 +1047,17 @@ pub fn op_crypto_subtle_encrypt(
         ));
     };
 
-    let unbound_key = ring::aead::UnboundKey::new(&ring::aead::AES_256_GCM, raw)
-        .or_else(|_| ring::aead::UnboundKey::new(&ring::aead::AES_128_GCM, raw))
+    let algo = match raw.len() {
+        16 => &ring::aead::AES_128_GCM,
+        32 => &ring::aead::AES_256_GCM,
+        _ => {
+            return Err(deno_core::anyhow::anyhow!(
+                "OperationError: AES key must be 128 or 256 bits, got {} bits",
+                raw.len() * 8
+            ))
+        }
+    };
+    let unbound_key = ring::aead::UnboundKey::new(algo, raw)
         .map_err(|e| deno_core::anyhow::anyhow!("OperationError: Invalid AES key: {}", e))?;
 
     let nonce = ring::aead::Nonce::try_assume_unique_for_key(&args.algorithm.iv)
@@ -1095,8 +1106,17 @@ pub fn op_crypto_subtle_decrypt(
         ));
     };
 
-    let unbound_key = ring::aead::UnboundKey::new(&ring::aead::AES_256_GCM, raw)
-        .or_else(|_| ring::aead::UnboundKey::new(&ring::aead::AES_128_GCM, raw))
+    let algo = match raw.len() {
+        16 => &ring::aead::AES_128_GCM,
+        32 => &ring::aead::AES_256_GCM,
+        _ => {
+            return Err(deno_core::anyhow::anyhow!(
+                "OperationError: AES key must be 128 or 256 bits, got {} bits",
+                raw.len() * 8
+            ))
+        }
+    };
+    let unbound_key = ring::aead::UnboundKey::new(algo, raw)
         .map_err(|e| deno_core::anyhow::anyhow!("OperationError: Invalid AES key: {}", e))?;
 
     let nonce = ring::aead::Nonce::try_assume_unique_for_key(&args.algorithm.iv)
@@ -1256,7 +1276,7 @@ pub fn op_crypto_subtle_derive_key(
                 extractable: args.extractable,
                 usages: args.usages.clone(),
                 key_type: "secret".to_string(),
-            });
+            })?;
             Ok(CryptoKeyResult {
                 key_id: id,
                 key_type: "secret".to_string(),
@@ -1274,7 +1294,7 @@ pub fn op_crypto_subtle_derive_key(
                 extractable: args.extractable,
                 usages: args.usages.clone(),
                 key_type: "secret".to_string(),
-            });
+            })?;
             Ok(CryptoKeyResult {
                 key_id: id,
                 key_type: "secret".to_string(),

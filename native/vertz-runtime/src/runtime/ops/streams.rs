@@ -60,7 +60,7 @@ pub const STREAMS_BOOTSTRAP_JS: &str = r#"
     _locked = false;
     #queue = [];
     #closed = false;
-    #pullResolvers = [];
+    #pullResolvers = []; // Array of {resolve, reject}
     #cancelFn = null;
     #pullFn = null;
     #started = false;
@@ -70,7 +70,7 @@ pub const STREAMS_BOOTSTRAP_JS: &str = r#"
         enqueue: (chunk) => {
           if (this.#closed) return;
           if (this.#pullResolvers.length > 0) {
-            const resolve = this.#pullResolvers.shift();
+            const { resolve } = this.#pullResolvers.shift();
             resolve(chunk);
           } else {
             this.#queue.push(chunk);
@@ -79,15 +79,16 @@ pub const STREAMS_BOOTSTRAP_JS: &str = r#"
         close: () => {
           this.#closed = true;
           // Resolve any pending pulls with null (EOF)
-          for (const resolve of this.#pullResolvers) {
+          for (const { resolve } of this.#pullResolvers) {
             resolve(null);
           }
           this.#pullResolvers = [];
         },
         error: (e) => {
           this.#closed = true;
-          for (const resolve of this.#pullResolvers) {
-            resolve(null);
+          // Reject pending pulls with the error
+          for (const { reject } of this.#pullResolvers) {
+            reject(e);
           }
           this.#pullResolvers = [];
         },
@@ -124,9 +125,9 @@ pub const STREAMS_BOOTSTRAP_JS: &str = r#"
         if (this.#queue.length > 0) return this.#queue.shift();
         if (this.#closed) return null;
       }
-      // Wait for next enqueue or close
-      return new Promise(resolve => {
-        this.#pullResolvers.push(resolve);
+      // Wait for next enqueue, close, or error
+      return new Promise((resolve, reject) => {
+        this.#pullResolvers.push({ resolve, reject });
       });
     }
 
@@ -486,12 +487,8 @@ pub const STREAMS_BOOTSTRAP_JS: &str = r#"
     }
 
     *keys() {
-      const seen = new Set();
       for (const [k] of this.#entries) {
-        if (!seen.has(k)) {
-          seen.add(k);
-          yield k;
-        }
+        yield k;
       }
     }
 

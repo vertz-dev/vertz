@@ -32,6 +32,19 @@ pub fn op_os_platform() -> String {
     }
 }
 
+/// Get the CPU architecture (matching Node.js conventions).
+#[op2]
+#[string]
+pub fn op_os_arch() -> String {
+    match std::env::consts::ARCH {
+        "x86_64" => "x64".to_string(),
+        "aarch64" => "arm64".to_string(),
+        "x86" => "ia32".to_string(),
+        "arm" => "arm".to_string(),
+        other => other.to_string(),
+    }
+}
+
 /// Get the hostname.
 #[op2]
 #[string]
@@ -59,6 +72,7 @@ pub fn op_decls() -> Vec<OpDecl> {
         op_os_tmpdir(),
         op_os_homedir(),
         op_os_platform(),
+        op_os_arch(),
         op_os_hostname(),
     ]
 }
@@ -67,7 +81,7 @@ pub fn op_decls() -> Vec<OpDecl> {
 /// Stores the module on globalThis for synthetic node:os module access.
 pub const OS_BOOTSTRAP_JS: &str = r#"
 ((globalThis) => {
-  const EOL = '\n';
+  const EOL = Deno.core.ops.op_os_platform() === 'win32' ? '\r\n' : '\n';
   const osModule = {
     tmpdir: () => Deno.core.ops.op_os_tmpdir(),
     homedir: () => Deno.core.ops.op_os_homedir(),
@@ -81,7 +95,7 @@ pub const OS_BOOTSTRAP_JS: &str = r#"
       if (p === 'win32') return 'Windows_NT';
       return p;
     },
-    arch: () => 'arm64',
+    arch: () => Deno.core.ops.op_os_arch(),
     cpus: () => [],
     totalmem: () => 0,
     freemem: () => 0,

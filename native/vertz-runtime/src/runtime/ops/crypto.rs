@@ -159,6 +159,8 @@ pub const CRYPTO_BOOTSTRAP_JS: &str = r#"
   }
 
   // --- SubtleCrypto ---
+  // TODO: Move RSA key generation to tokio::spawn_blocking to avoid
+  // blocking the event loop for large key sizes (e.g. 4096-bit).
   class SubtleCrypto {
     async digest(algorithm, data) {
       const algo = normalizeAlgorithm(algorithm);
