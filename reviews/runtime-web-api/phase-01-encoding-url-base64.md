@@ -275,4 +275,21 @@ The should-fixes are important for spec conformance but less likely to cause imm
 
 ## Resolution
 
-*(to be filled by author after addressing findings)*
+All 3 blockers and 5 of 7 should-fixes addressed in commit 48757ed81:
+
+| Finding | Status | Notes |
+|---------|--------|-------|
+| BLOCKER-1: URL.#reparse no-op | **Fixed** | Setters now mutate `#parts` directly and call `#rebuildHref()` |
+| BLOCKER-2: TextDecoder fatal mode | **Fixed** | Rust op now takes `fatal` + `ignore_bom` params; non-fatal uses `from_utf8_lossy` |
+| BLOCKER-3: BOM stripping | **Fixed** | `strip_prefix('\u{FEFF}')` when `ignoreBOM` is false |
+| SHOULD-FIX-1: + as space | **Fixed** | `formDecode()` replaces `+` with space; `formEncode()` replaces `%20` with `+` |
+| SHOULD-FIX-2: delete/has value | **Fixed** | Both accept optional second `value` param |
+| SHOULD-FIX-3: TypeError | **Fixed** | URL constructor catches op error and re-throws as `TypeError` |
+| SHOULD-FIX-4: btoa error type | **Deferred** | Requires `DOMException` class (not yet in runtime). Added as known gap. |
+| SHOULD-FIX-5: encodeInto double-encode | **Fixed** | Removed second `op_text_encode` call, reuses `bytes` from first |
+| SHOULD-FIX-6: searchParams live | **Fixed** | `URLSearchParams` calls `_onSearchParamsChange()` on URL; href rebuilt |
+| SHOULD-FIX-7: transfer option | **Deferred** | V8 serializer supports transfers but not needed for monorepo tests. Phase 4+ |
+| NITs 1-5 | **Fixed** | Added tests for ArrayBuffer input, btoa/atob rejection, no-arg constructor |
+| NITs 6-7 | **Deferred** | toStringTag and error message wording are cosmetic |
+
+19 new tests added. Total: 925 tests passing.
