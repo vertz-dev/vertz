@@ -1,4 +1,5 @@
 pub mod bin;
+pub mod cache;
 pub mod linker;
 pub mod lockfile;
 pub mod output;

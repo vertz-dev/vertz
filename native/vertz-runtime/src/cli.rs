@@ -34,6 +34,8 @@ pub enum Command {
     /// Update packages to newer versions
     #[command(alias = "up")]
     Update(UpdateArgs),
+    /// Manage the package cache
+    Cache(CacheArgs),
 }
 
 #[derive(Parser, Debug)]
@@ -225,6 +227,40 @@ pub struct UpdateArgs {
     pub json: bool,
 }
 
+#[derive(Parser, Debug)]
+pub struct CacheArgs {
+    #[command(subcommand)]
+    pub command: CacheCommand,
+}
+
+#[derive(Subcommand, Debug)]
+pub enum CacheCommand {
+    /// Remove cached packages and metadata
+    Clean(CacheCleanArgs),
+    /// Show cache location and size
+    List(CacheListArgs),
+    /// Print cache directory path
+    Path,
+}
+
+#[derive(Parser, Debug)]
+pub struct CacheCleanArgs {
+    /// Only clear registry metadata cache (keep package store)
+    #[arg(long)]
+    pub metadata: bool,
+
+    /// Output NDJSON to stdout
+    #[arg(long)]
+    pub json: bool,
+}
+
+#[derive(Parser, Debug)]
+pub struct CacheListArgs {
+    /// Output NDJSON to stdout
+    #[arg(long)]
+    pub json: bool,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -306,6 +342,14 @@ mod tests {
         match cli.command {
             Command::Update(args) => args,
             other => panic!("Expected Update, got {:?}", other),
+        }
+    }
+
+    fn parse_cache(args: &[&str]) -> CacheArgs {
+        let cli = Cli::parse_from(args);
+        match cli.command {
+            Command::Cache(args) => args,
+            other => panic!("Expected Cache, got {:?}", other),
         }
     }
 
@@ -872,5 +916,61 @@ mod tests {
         assert!(args.latest);
         assert!(args.dry_run);
         assert!(args.json);
+    }
+
+    // --- Cache command tests ---
+
+    #[test]
+    fn test_cache_clean_default() {
+        let cache = parse_cache(&["vertz-runtime", "cache", "clean"]);
+        match cache.command {
+            CacheCommand::Clean(args) => {
+                assert!(!args.metadata);
+                assert!(!args.json);
+            }
+            other => panic!("Expected Clean, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_cache_clean_metadata_flag() {
+        let cache = parse_cache(&["vertz-runtime", "cache", "clean", "--metadata"]);
+        match cache.command {
+            CacheCommand::Clean(args) => assert!(args.metadata),
+            other => panic!("Expected Clean, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_cache_clean_json_flag() {
+        let cache = parse_cache(&["vertz-runtime", "cache", "clean", "--json"]);
+        match cache.command {
+            CacheCommand::Clean(args) => assert!(args.json),
+            other => panic!("Expected Clean, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_cache_list_default() {
+        let cache = parse_cache(&["vertz-runtime", "cache", "list"]);
+        match cache.command {
+            CacheCommand::List(args) => assert!(!args.json),
+            other => panic!("Expected List, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_cache_list_json_flag() {
+        let cache = parse_cache(&["vertz-runtime", "cache", "list", "--json"]);
+        match cache.command {
+            CacheCommand::List(args) => assert!(args.json),
+            other => panic!("Expected List, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_cache_path() {
+        let cache = parse_cache(&["vertz-runtime", "cache", "path"]);
+        assert!(matches!(cache.command, CacheCommand::Path));
     }
 }

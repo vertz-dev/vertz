@@ -333,5 +333,30 @@ async fn main() {
                 }
             }
         }
+        Command::Cache(cache_args) => {
+            let cache_dir = pm::registry::default_cache_dir();
+
+            match cache_args.command {
+                cli::CacheCommand::Clean(args) => {
+                    let result = pm::cache::cache_clean(&cache_dir, args.metadata);
+                    if args.json {
+                        print!("{}", pm::cache::format_cache_clean_json(&result));
+                    } else {
+                        eprint!("{}", pm::cache::format_cache_clean_text(&result));
+                    }
+                }
+                cli::CacheCommand::List(args) => {
+                    let stats = pm::cache::cache_stats(&cache_dir);
+                    if args.json {
+                        print!("{}", pm::cache::format_cache_list_json(&stats));
+                    } else {
+                        eprint!("{}", pm::cache::format_cache_list_text(&stats));
+                    }
+                }
+                cli::CacheCommand::Path => {
+                    println!("{}", cache_dir.display());
+                }
+            }
+        }
     }
 }
