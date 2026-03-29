@@ -18,6 +18,10 @@ pub fn write_lockfile(path: &Path, lockfile: &Lockfile) -> Result<(), std::io::E
         output.push_str(&format!("  resolved \"{}\"\n", entry.resolved));
         output.push_str(&format!("  integrity \"{}\"\n", entry.integrity));
 
+        if entry.optional {
+            output.push_str("  optional true\n");
+        }
+
         if !entry.dependencies.is_empty() {
             output.push_str("  dependencies:\n");
             for (dep_name, dep_range) in &entry.dependencies {
@@ -48,6 +52,7 @@ pub fn parse_lockfile(content: &str) -> Result<Lockfile, Box<dyn std::error::Err
         resolved: String::new(),
         integrity: String::new(),
         dependencies: BTreeMap::new(),
+        optional: false,
     };
     let mut in_dependencies = false;
 
@@ -65,6 +70,7 @@ pub fn parse_lockfile(content: &str) -> Result<Lockfile, Box<dyn std::error::Err
                     resolved: String::new(),
                     integrity: String::new(),
                     dependencies: BTreeMap::new(),
+                    optional: false,
                 };
                 in_dependencies = false;
             }
@@ -85,6 +91,7 @@ pub fn parse_lockfile(content: &str) -> Result<Lockfile, Box<dyn std::error::Err
                     resolved: String::new(),
                     integrity: String::new(),
                     dependencies: BTreeMap::new(),
+                    optional: false,
                 };
                 in_dependencies = false;
             }
@@ -118,6 +125,8 @@ pub fn parse_lockfile(content: &str) -> Result<Lockfile, Box<dyn std::error::Err
                 current_entry.resolved = unquote(rest).to_string();
             } else if let Some(rest) = trimmed.strip_prefix("integrity ") {
                 current_entry.integrity = unquote(rest).to_string();
+            } else if trimmed == "optional true" {
+                current_entry.optional = true;
             }
         }
     }
@@ -178,6 +187,7 @@ mod tests {
                 resolved: "https://registry.npmjs.org/react/-/react-18.3.1.tgz".to_string(),
                 integrity: "sha512-abc123".to_string(),
                 dependencies: deps,
+                optional: false,
             },
         );
 
@@ -190,6 +200,7 @@ mod tests {
                 resolved: "https://registry.npmjs.org/zod/-/zod-3.24.4.tgz".to_string(),
                 integrity: "sha512-def456".to_string(),
                 dependencies: BTreeMap::new(),
+                optional: false,
             },
         );
 
@@ -235,6 +246,7 @@ mod tests {
                 resolved: "url1".to_string(),
                 integrity: "hash1".to_string(),
                 dependencies: BTreeMap::new(),
+                optional: false,
             },
         );
         lockfile.entries.insert(
@@ -246,6 +258,7 @@ mod tests {
                 resolved: "url2".to_string(),
                 integrity: "hash2".to_string(),
                 dependencies: BTreeMap::new(),
+                optional: false,
             },
         );
 
@@ -272,6 +285,7 @@ mod tests {
                 resolved: "url".to_string(),
                 integrity: "hash".to_string(),
                 dependencies: BTreeMap::new(),
+                optional: false,
             },
         );
         lockfile.entries.insert(
@@ -283,6 +297,7 @@ mod tests {
                 resolved: "url".to_string(),
                 integrity: "hash".to_string(),
                 dependencies: BTreeMap::new(),
+                optional: false,
             },
         );
 
@@ -351,6 +366,7 @@ mod tests {
                 resolved: "https://registry.npmjs.org/zod/-/zod-3.24.4.tgz".to_string(),
                 integrity: "sha512-abc".to_string(),
                 dependencies: BTreeMap::new(),
+                optional: false,
             },
         );
 
@@ -364,6 +380,7 @@ mod tests {
                 resolved: "link:packages/shared".to_string(),
                 integrity: String::new(),
                 dependencies: BTreeMap::new(),
+                optional: false,
             },
         );
 
@@ -396,5 +413,68 @@ mod tests {
         let content = "# vertz.lock v1 — DO NOT EDIT\n# Run \"vertz install\" to regenerate\n";
         let lockfile = parse_lockfile(content).unwrap();
         assert!(lockfile.entries.is_empty());
+    }
+
+    #[test]
+    fn test_write_and_read_optional_entry() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("vertz.lock");
+
+        let mut lockfile = Lockfile::default();
+        lockfile.entries.insert(
+            "fsevents@^2.3.0".to_string(),
+            LockfileEntry {
+                name: "fsevents".to_string(),
+                range: "^2.3.0".to_string(),
+                version: "2.3.3".to_string(),
+                resolved: "https://registry.npmjs.org/fsevents/-/fsevents-2.3.3.tgz".to_string(),
+                integrity: "sha512-abc".to_string(),
+                dependencies: BTreeMap::new(),
+                optional: true,
+            },
+        );
+        lockfile.entries.insert(
+            "zod@^3.24.0".to_string(),
+            LockfileEntry {
+                name: "zod".to_string(),
+                range: "^3.24.0".to_string(),
+                version: "3.24.4".to_string(),
+                resolved: "https://registry.npmjs.org/zod/-/zod-3.24.4.tgz".to_string(),
+                integrity: "sha512-def".to_string(),
+                dependencies: BTreeMap::new(),
+                optional: false,
+            },
+        );
+
+        write_lockfile(&path, &lockfile).unwrap();
+
+        // Verify the file contains "optional true"
+        let content = std::fs::read_to_string(&path).unwrap();
+        assert!(content.contains("optional true"));
+
+        // Verify round-trip
+        let parsed = read_lockfile(&path).unwrap();
+        assert_eq!(parsed.entries.len(), 2);
+        assert!(parsed.entries["fsevents@^2.3.0"].optional);
+        assert!(!parsed.entries["zod@^3.24.0"].optional);
+    }
+
+    #[test]
+    fn test_parse_optional_marker() {
+        let content = r#"# vertz.lock v1 — DO NOT EDIT
+# Run "vertz install" to regenerate
+
+fsevents@^2.3.0:
+  version "2.3.3"
+  resolved "https://registry.npmjs.org/fsevents/-/fsevents-2.3.3.tgz"
+  integrity "sha512-abc"
+  optional true
+
+"#;
+        let lockfile = parse_lockfile(content).unwrap();
+        assert_eq!(lockfile.entries.len(), 1);
+        let entry = &lockfile.entries["fsevents@^2.3.0"];
+        assert!(entry.optional);
+        assert_eq!(entry.version, "2.3.3");
     }
 }
