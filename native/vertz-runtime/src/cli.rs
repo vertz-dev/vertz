@@ -114,6 +114,10 @@ pub struct InstallArgs {
     #[arg(long, alias = "frozen-lockfile")]
     pub frozen: bool,
 
+    /// Skip postinstall scripts
+    #[arg(long)]
+    pub ignore_scripts: bool,
+
     /// Output NDJSON to stdout
     #[arg(long)]
     pub json: bool,
@@ -140,6 +144,10 @@ pub struct AddArgs {
     /// Install globally (not yet supported)
     #[arg(short = 'g', long)]
     pub global: bool,
+
+    /// Skip postinstall scripts
+    #[arg(long)]
+    pub ignore_scripts: bool,
 
     /// Output NDJSON to stdout
     #[arg(long)]
@@ -972,5 +980,31 @@ mod tests {
     fn test_cache_path() {
         let cache = parse_cache(&["vertz-runtime", "cache", "path"]);
         assert!(matches!(cache.command, CacheCommand::Path));
+    }
+
+    // --- --ignore-scripts flag tests ---
+
+    #[test]
+    fn test_install_ignore_scripts_flag() {
+        let args = parse_install(&["vertz-runtime", "install", "--ignore-scripts"]);
+        assert!(args.ignore_scripts);
+    }
+
+    #[test]
+    fn test_install_ignore_scripts_default_false() {
+        let args = parse_install(&["vertz-runtime", "install"]);
+        assert!(!args.ignore_scripts);
+    }
+
+    #[test]
+    fn test_add_ignore_scripts_flag() {
+        let args = parse_add(&["vertz-runtime", "add", "zod", "--ignore-scripts"]);
+        assert!(args.ignore_scripts);
+    }
+
+    #[test]
+    fn test_add_ignore_scripts_default_false() {
+        let args = parse_add(&["vertz-runtime", "add", "zod"]);
+        assert!(!args.ignore_scripts);
     }
 }

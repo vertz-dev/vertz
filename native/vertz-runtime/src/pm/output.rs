@@ -15,6 +15,9 @@ pub trait PmOutput: Send + Sync {
     fn package_added(&self, name: &str, version: &str, range: &str);
     fn package_removed(&self, name: &str);
     fn package_updated(&self, name: &str, from: &str, to: &str, range: &str);
+    fn script_started(&self, name: &str, script: &str);
+    fn script_complete(&self, name: &str, duration_ms: u64);
+    fn script_error(&self, name: &str, error: &str);
     fn done(&self, elapsed_ms: u64);
     fn error(&self, code: &str, message: &str);
 }
@@ -114,6 +117,22 @@ impl PmOutput for TextOutput {
         eprintln!("~ {}@{} → {}@{} ({})", name, from, name, to, range);
     }
 
+    fn script_started(&self, name: &str, script: &str) {
+        eprintln!("Running postinstall for {}: {}", name, script);
+    }
+
+    fn script_complete(&self, name: &str, duration_ms: u64) {
+        eprintln!(
+            "Postinstall for {} completed in {:.1}s",
+            name,
+            duration_ms as f64 / 1000.0
+        );
+    }
+
+    fn script_error(&self, name: &str, error: &str) {
+        eprintln!("Postinstall for {} failed: {}", name, error);
+    }
+
     fn done(&self, elapsed_ms: u64) {
         eprintln!("Done in {:.1}s", elapsed_ms as f64 / 1000.0);
     }
@@ -177,6 +196,27 @@ impl PmOutput for JsonOutput {
         println!(
             "{}",
             json!({"event": "updated", "name": name, "from": from, "to": to, "range": range})
+        );
+    }
+
+    fn script_started(&self, name: &str, script: &str) {
+        println!(
+            "{}",
+            json!({"event": "script_started", "package": name, "script": script})
+        );
+    }
+
+    fn script_complete(&self, name: &str, duration_ms: u64) {
+        println!(
+            "{}",
+            json!({"event": "script_complete", "package": name, "duration_ms": duration_ms})
+        );
+    }
+
+    fn script_error(&self, name: &str, error: &str) {
+        println!(
+            "{}",
+            json!({"event": "script_error", "package": name, "error": error})
         );
     }
 
@@ -322,5 +362,21 @@ mod tests {
         let output: Arc<dyn PmOutput> = Arc::new(JsonOutput::new());
         // Should not panic; emits NDJSON to stdout
         output.package_updated("zod", "3.24.0", "3.24.4", "^3.24.0");
+    }
+
+    #[test]
+    fn test_text_output_script_lifecycle() {
+        let output = TextOutput::new(false);
+        output.script_started("esbuild", "node install.js");
+        output.script_complete("esbuild", 1200);
+        output.script_error("prisma", "script exited with code 1");
+    }
+
+    #[test]
+    fn test_json_output_script_lifecycle() {
+        let output: Arc<dyn PmOutput> = Arc::new(JsonOutput::new());
+        output.script_started("esbuild", "node install.js");
+        output.script_complete("esbuild", 1200);
+        output.script_error("prisma", "script exited with code 1");
     }
 }

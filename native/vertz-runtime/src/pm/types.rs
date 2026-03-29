@@ -91,6 +91,8 @@ pub struct VersionMetadata {
     #[serde(default)]
     pub bin: BinField,
     #[serde(default)]
+    pub scripts: BTreeMap<String, String>,
+    #[serde(default)]
     pub dist: DistInfo,
     #[serde(default)]
     pub os: Option<Vec<String>>,

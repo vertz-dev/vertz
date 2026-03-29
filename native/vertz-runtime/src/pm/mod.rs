@@ -6,6 +6,7 @@ pub mod lockfile;
 pub mod output;
 pub mod registry;
 pub mod resolver;
+pub mod scripts;
 pub mod tarball;
 pub mod types;
 
@@ -40,7 +41,7 @@ pub struct ListEntry {
 pub async fn install(
     root_dir: &Path,
     frozen: bool,
-    _ignore_scripts: bool,
+    ignore_scripts: bool,
     output: Arc<dyn PmOutput>,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let start = Instant::now();
@@ -143,6 +144,15 @@ pub async fn install(
     let bin_count = bin::generate_bin_stubs(root_dir, &graph)?;
     output.bin_stubs_created(bin_count);
 
+    // Run postinstall scripts (unless --ignore-scripts)
+    if !ignore_scripts {
+        let postinstall_pkgs = scripts::packages_with_postinstall(&graph, &graph.scripts);
+        if !postinstall_pkgs.is_empty() {
+            scripts::run_postinstall_scripts(root_dir, &postinstall_pkgs, Arc::clone(&output))
+                .await;
+        }
+    }
+
     // Write lockfile
     let new_lockfile = resolver::graph_to_lockfile(&graph, &all_deps);
     lockfile::write_lockfile(&lockfile_path, &new_lockfile)?;
@@ -160,6 +170,7 @@ pub async fn add(
     dev: bool,
     peer: bool,
     exact: bool,
+    ignore_scripts: bool,
     output: Arc<dyn PmOutput>,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let mut pkg = types::read_package_json(root_dir)?;
@@ -249,7 +260,7 @@ pub async fn add(
         Ok(())
     } else {
         // Single install pass for all packages
-        install(root_dir, false, false, output).await
+        install(root_dir, false, ignore_scripts, output).await
     }
 }
 
