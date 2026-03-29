@@ -92,6 +92,9 @@ pub const TEST_HARNESS_JS: &str = r#"
   const MOCK_BRAND = Symbol('__vertz_mock');
 
   function createMockFunction(impl) {
+    if (impl !== undefined && impl !== null && typeof impl !== 'function') {
+      throw new Error('mock() argument must be a function or undefined');
+    }
     let currentImpl = impl || null;
     let onceQueue = [];
     const mockState = { calls: [], results: [], lastCall: undefined };
@@ -134,6 +137,9 @@ pub const TEST_HARNESS_JS: &str = r#"
     mockFn.mockResolvedValue = (val) => { currentImpl = () => Promise.resolve(val); return mockFn; };
     mockFn.mockResolvedValueOnce = (val) => { onceQueue.push(() => Promise.resolve(val)); return mockFn; };
     mockFn.mockReturnValueOnce = (val) => { onceQueue.push(() => val); return mockFn; };
+    mockFn.mockRejectedValue = (val) => { currentImpl = () => Promise.reject(val); return mockFn; };
+    mockFn.mockRejectedValueOnce = (val) => { onceQueue.push(() => Promise.reject(val)); return mockFn; };
+    mockFn.mockImplementationOnce = (fn) => { onceQueue.push(fn); return mockFn; };
 
     mockFn.mockReset = () => {
       mockState.calls.length = 0;
@@ -165,6 +171,9 @@ pub const TEST_HARNESS_JS: &str = r#"
   }
 
   function spyOn(obj, method) {
+    if (typeof obj[method] !== 'function') {
+      throw new Error(`spyOn: ${method} is not a function on the target object`);
+    }
     const original = obj[method];
     const spy = createMockFunction((...args) => original.apply(obj, args));
     spy.mockRestore = () => {
@@ -177,7 +186,7 @@ pub const TEST_HARNESS_JS: &str = r#"
   }
 
   // --- Expect ---
-  function deepEqual(a, b) {
+  function deepEqual(a, b, seen) {
     if (a === b) return true;
     // NaN === NaN should be true for testing purposes
     if (typeof a === 'number' && typeof b === 'number' && Number.isNaN(a) && Number.isNaN(b)) return true;
@@ -185,22 +194,54 @@ pub const TEST_HARNESS_JS: &str = r#"
     if (typeof a !== typeof b) return false;
     if (typeof a !== 'object') return false;
 
+    // Circular reference protection
+    if (!seen) seen = new WeakSet();
+    if (seen.has(a)) return false; // conservative: treat circular as not-equal
+    seen.add(a);
+
     // Date comparison by time value
     if (a instanceof Date && b instanceof Date) return a.getTime() === b.getTime();
     // RegExp comparison by source and flags
     if (a instanceof RegExp && b instanceof RegExp) return a.source === b.source && a.flags === b.flags;
 
+    // Map comparison
+    if (a instanceof Map && b instanceof Map) {
+      if (a.size !== b.size) return false;
+      for (const [key, val] of a) {
+        if (!b.has(key) || !deepEqual(val, b.get(key), seen)) return false;
+      }
+      return true;
+    }
+    if ((a instanceof Map) !== (b instanceof Map)) return false;
+
+    // Set comparison
+    if (a instanceof Set && b instanceof Set) {
+      if (a.size !== b.size) return false;
+      for (const val of a) {
+        // For primitives, use has(); for objects, scan with deepEqual
+        if (typeof val === 'object' && val !== null) {
+          let found = false;
+          for (const bVal of b) { if (deepEqual(val, bVal, seen)) { found = true; break; } }
+          if (!found) return false;
+        } else {
+          if (!b.has(val)) return false;
+        }
+      }
+      return true;
+    }
+    if ((a instanceof Set) !== (b instanceof Set)) return false;
+
     if (Array.isArray(a) !== Array.isArray(b)) return false;
 
     if (Array.isArray(a)) {
       if (a.length !== b.length) return false;
-      return a.every((v, i) => deepEqual(v, b[i]));
+      return a.every((v, i) => deepEqual(v, b[i], seen));
     }
 
     const keysA = Object.keys(a);
     const keysB = Object.keys(b);
     if (keysA.length !== keysB.length) return false;
-    return keysA.every(k => deepEqual(a[k], b[k]));
+    return keysA.every(k => deepEqual(a[k], b[k], seen));
   }
 
   function formatValue(v) {
@@ -208,6 +249,7 @@ pub const TEST_HARNESS_JS: &str = r#"
     if (v === null) return 'null';
     if (typeof v === 'string') return JSON.stringify(v);
     if (typeof v === 'function') return '[Function]';
+    if (v instanceof Error) return `${v.constructor.name}: ${v.message}`;
     try { return JSON.stringify(v); } catch { return String(v); }
   }
 
@@ -330,15 +372,27 @@ pub const TEST_HARNESS_JS: &str = r#"
     };
 
     // Objects
-    matchers.toHaveProperty = function(key, value) {
-      const has = actual != null && key in Object(actual);
+    matchers.toHaveProperty = function(keyPath, value) {
+      // Support dot-path strings ('a.b.c') and array paths (['a', 0, 'b'])
+      const parts = Array.isArray(keyPath) ? keyPath : String(keyPath).split('.');
+      let current = actual;
+      let has = actual != null;
+      for (let i = 0; has && i < parts.length; i++) {
+        const part = parts[i];
+        if (current == null || typeof current !== 'object' && typeof current !== 'function') {
+          has = false;
+        } else {
+          has = part in Object(current);
+          current = current[part];
+        }
+      }
       if (arguments.length > 1) {
-        assert(has && deepEqual(actual[key], value), () =>
-          `Expected property "${key}" ${negated ? 'not ' : ''}to be ${formatValue(value)}, got ${formatValue(actual?.[key])}`
+        assert(has && deepEqual(current, value), () =>
+          `Expected property "${keyPath}" ${negated ? 'not ' : ''}to be ${formatValue(value)}, got ${formatValue(current)}`
         );
       } else {
         assert(has, () =>
-          `Expected object ${negated ? 'not ' : ''}to have property "${key}"`
+          `Expected object ${negated ? 'not ' : ''}to have property "${keyPath}"`
         );
       }
     };
@@ -461,8 +515,6 @@ pub const TEST_HARNESS_JS: &str = r#"
               if (matcherName === 'toThrow' || matcherName === 'toThrowError') {
                 const thrower = () => { throw err; };
                 createMatchers(thrower, negated)[matcherName](...args);
-              } else if (matcherName === 'toBeInstanceOf') {
-                createMatchers(err, negated)[matcherName](...args);
               } else {
                 createMatchers(err, negated)[matcherName](...args);
               }
@@ -476,8 +528,8 @@ pub const TEST_HARNESS_JS: &str = r#"
       };
     };
 
-    // Build all matcher methods as async wrappers
-    const matcherNames = [
+    // Build all matcher methods as async wrappers (including custom matchers)
+    const builtinNames = [
       'toBe', 'toEqual', 'toBeTruthy', 'toBeFalsy', 'toBeNull', 'toBeUndefined',
       'toBeDefined', 'toBeGreaterThan', 'toBeGreaterThanOrEqual', 'toBeLessThan',
       'toBeLessThanOrEqual', 'toContain', 'toContainEqual', 'toHaveLength', 'toMatch',
@@ -485,6 +537,7 @@ pub const TEST_HARNESS_JS: &str = r#"
       'toThrow', 'toThrowError', 'toHaveBeenCalled', 'toHaveBeenCalledOnce',
       'toHaveBeenCalledTimes', 'toHaveBeenCalledWith', 'toHaveBeenLastCalledWith',
     ];
+    const matcherNames = [...builtinNames, ...Object.keys(customMatchers)];
 
     for (const name of matcherNames) {
       proxy[name] = wrapMatcher(name);
@@ -552,7 +605,11 @@ pub const TEST_HARNESS_JS: &str = r#"
         results.push({ name: test.name, path: suitePath, status: 'todo', duration: 0 });
         continue;
       }
-      const testRunnable = !test.skip && suiteRunnable && (!hasOnly || test.only || parentOnly || suite.only);
+      // Apply name filter: skip tests whose full name doesn't include the filter substring
+      const filter = globalThis.__vertz_test_filter || null;
+      const fullName = suitePath ? `${suitePath} > ${test.name}` : test.name;
+      const matchesFilter = !filter || fullName.includes(filter);
+      const testRunnable = matchesFilter && !test.skip && suiteRunnable && (!hasOnly || test.only || parentOnly || suite.only);
       if (!testRunnable) {
         results.push({ name: test.name, path: suitePath, status: 'skip', duration: 0 });
         continue;
@@ -615,8 +672,6 @@ pub const TEST_HARNESS_JS: &str = r#"
   // Optional filter: if globalThis.__vertz_test_filter is set, only tests whose
   // full name (path > name) includes the filter substring will run.
   globalThis.__vertz_run_tests = async function() {
-    const filter = globalThis.__vertz_test_filter || null;
-
     // Root-level beforeAll/afterAll
     await runHooks(rootHooks.beforeAll);
 
@@ -628,14 +683,6 @@ pub const TEST_HARNESS_JS: &str = r#"
     }
 
     await runHooks(rootHooks.afterAll);
-
-    // Apply filter if set
-    if (filter) {
-      return allResults.filter(r => {
-        const fullName = r.path ? `${r.path} > ${r.name}` : r.name;
-        return fullName.includes(filter);
-      });
-    }
 
     return allResults;
   };
@@ -1166,15 +1213,15 @@ mod tests {
         );
 
         let arr = results.as_array().unwrap();
-        // Filter 'math' should match 'math > adds' and 'math > subtracts' but not 'string > trims'
-        assert_eq!(
-            arr.len(),
-            2,
-            "Filter should only return matching tests: {:?}",
-            arr
-        );
+        // Filter 'math' should match 'math > adds' and 'math > subtracts'.
+        // 'string > trims' doesn't match filter and should be skipped (not executed).
+        assert_eq!(arr.len(), 3, "All tests should appear in results: {:?}", arr);
         assert_eq!(arr[0]["name"], "adds");
+        assert_eq!(arr[0]["status"], "pass");
         assert_eq!(arr[1]["name"], "subtracts");
+        assert_eq!(arr[1]["status"], "pass");
+        assert_eq!(arr[2]["name"], "trims");
+        assert_eq!(arr[2]["status"], "skip");
     }
 
     #[test]
@@ -1726,6 +1773,225 @@ mod tests {
                 i, item["name"], item["error"]
             );
         }
+    }
+
+    #[test]
+    fn test_mock_rejected_value() {
+        let mut rt = create_test_runtime();
+        let results = run_test_code(
+            &mut rt,
+            r#"
+            describe('mockRejectedValue', () => {
+                it('mockRejectedValue rejects with value', async () => {
+                    const fn = mock();
+                    fn.mockRejectedValue(new Error('fail'));
+                    let caught = false;
+                    try { await fn(); } catch (e) { caught = true; expect(e.message).toBe('fail'); }
+                    expect(caught).toBe(true);
+                });
+                it('mockRejectedValueOnce', async () => {
+                    const fn = mock();
+                    fn.mockRejectedValueOnce(new Error('once'));
+                    let caught = false;
+                    try { await fn(); } catch (e) { caught = true; expect(e.message).toBe('once'); }
+                    expect(caught).toBe(true);
+                    expect(fn()).toBeUndefined();
+                });
+                it('mockImplementationOnce', () => {
+                    const fn = mock(() => 'default');
+                    fn.mockImplementationOnce(() => 'once');
+                    expect(fn()).toBe('once');
+                    expect(fn()).toBe('default');
+                });
+            });
+            "#,
+        );
+
+        let arr = results.as_array().unwrap();
+        assert_eq!(arr.len(), 3);
+        for (i, item) in arr.iter().enumerate() {
+            assert_eq!(
+                item["status"], "pass",
+                "mockRejectedValue test {} ({}) failed: {:?}",
+                i, item["name"], item["error"]
+            );
+        }
+    }
+
+    #[test]
+    fn test_mock_return_value_once_fallback() {
+        let mut rt = create_test_runtime();
+        let results = run_test_code(
+            &mut rt,
+            r#"
+            describe('mockReturnValueOnce fallback', () => {
+                it('falls back to base impl after once-queue exhausted', () => {
+                    const fn = mock(() => 'default');
+                    fn.mockReturnValueOnce('first');
+                    expect(fn()).toBe('first');
+                    expect(fn()).toBe('default');
+                });
+            });
+            "#,
+        );
+
+        let arr = results.as_array().unwrap();
+        assert_eq!(arr.len(), 1);
+        assert_eq!(arr[0]["status"], "pass", "fallback test failed: {:?}", arr[0]["error"]);
+    }
+
+    #[test]
+    fn test_deep_equal_map_set() {
+        let mut rt = create_test_runtime();
+        let results = run_test_code(
+            &mut rt,
+            r#"
+            describe('deepEqual Map/Set', () => {
+                it('Map equality', () => {
+                    expect(new Map([['a', 1], ['b', 2]])).toEqual(new Map([['a', 1], ['b', 2]]));
+                });
+                it('Map inequality', () => {
+                    expect(new Map([['a', 1]])).not.toEqual(new Map([['a', 2]]));
+                });
+                it('Set equality', () => {
+                    expect(new Set([1, 2, 3])).toEqual(new Set([1, 2, 3]));
+                });
+                it('Set inequality', () => {
+                    expect(new Set([1, 2])).not.toEqual(new Set([1, 3]));
+                });
+                it('circular reference does not crash', () => {
+                    const obj = { a: 1 };
+                    obj.self = obj;
+                    expect(obj).not.toEqual({ a: 2 });
+                });
+            });
+            "#,
+        );
+
+        let arr = results.as_array().unwrap();
+        assert_eq!(arr.len(), 5);
+        for (i, item) in arr.iter().enumerate() {
+            assert_eq!(
+                item["status"], "pass",
+                "Map/Set/circular test {} ({}) failed: {:?}",
+                i, item["name"], item["error"]
+            );
+        }
+    }
+
+    #[test]
+    fn test_to_have_property_nested() {
+        let mut rt = create_test_runtime();
+        let results = run_test_code(
+            &mut rt,
+            r#"
+            describe('toHaveProperty nested', () => {
+                it('dot path', () => {
+                    expect({ a: { b: { c: 42 } } }).toHaveProperty('a.b.c', 42);
+                });
+                it('array path', () => {
+                    expect({ a: [{ b: 1 }] }).toHaveProperty(['a', 0, 'b'], 1);
+                });
+                it('dot path existence', () => {
+                    expect({ a: { b: 1 } }).toHaveProperty('a.b');
+                });
+                it('.not nested', () => {
+                    expect({ a: { b: 1 } }).not.toHaveProperty('a.c');
+                });
+            });
+            "#,
+        );
+
+        let arr = results.as_array().unwrap();
+        assert_eq!(arr.len(), 4);
+        for (i, item) in arr.iter().enumerate() {
+            assert_eq!(
+                item["status"], "pass",
+                "nested toHaveProperty test {} ({}) failed: {:?}",
+                i, item["name"], item["error"]
+            );
+        }
+    }
+
+    #[test]
+    fn test_spy_on_validation() {
+        let mut rt = create_test_runtime();
+        let results = run_test_code(
+            &mut rt,
+            r#"
+            describe('spyOn validation', () => {
+                it('throws when method does not exist', () => {
+                    expect(() => spyOn({}, 'nonexistent')).toThrow('not a function');
+                });
+                it('throws for non-function property', () => {
+                    expect(() => spyOn({ x: 42 }, 'x')).toThrow('not a function');
+                });
+            });
+            "#,
+        );
+
+        let arr = results.as_array().unwrap();
+        assert_eq!(arr.len(), 2);
+        for (i, item) in arr.iter().enumerate() {
+            assert_eq!(
+                item["status"], "pass",
+                "spyOn validation test {} ({}) failed: {:?}",
+                i, item["name"], item["error"]
+            );
+        }
+    }
+
+    #[test]
+    fn test_mock_invalid_impl() {
+        let mut rt = create_test_runtime();
+        let results = run_test_code(
+            &mut rt,
+            r#"
+            describe('mock() validation', () => {
+                it('throws when passed non-function', () => {
+                    expect(() => mock(42)).toThrow('must be a function');
+                });
+            });
+            "#,
+        );
+
+        let arr = results.as_array().unwrap();
+        assert_eq!(arr.len(), 1);
+        assert_eq!(arr[0]["status"], "pass", "mock validation failed: {:?}", arr[0]["error"]);
+    }
+
+    #[test]
+    fn test_filter_skips_non_matching() {
+        let mut rt = create_test_runtime();
+        rt.execute_script_void("[set-filter]", "globalThis.__vertz_test_filter = 'adds'")
+            .unwrap();
+        let results = run_test_code(
+            &mut rt,
+            r#"
+            const sideEffects = [];
+            describe('math', () => {
+                it('adds', () => { sideEffects.push('adds'); expect(1 + 1).toBe(2); });
+                it('subtracts', () => { sideEffects.push('subtracts'); expect(5 - 3).toBe(2); });
+            });
+            // Verify only 'adds' ran, not 'subtracts'
+            describe('verify', () => {
+                it('adds ran', () => {
+                    expect(sideEffects).toEqual(['adds']);
+                });
+            });
+            "#,
+        );
+
+        let arr = results.as_array().unwrap();
+        // 'adds' should pass, 'subtracts' should be skipped,
+        // 'adds ran' is outside filter scope so also skipped
+        // Actually the filter is "adds" — "math > adds" includes "adds" ✓
+        // "math > subtracts" does not include "adds" → skip
+        // "verify > adds ran" includes "adds" → runs
+        let pass_count = arr.iter().filter(|r| r["status"] == "pass").count();
+        let skip_count = arr.iter().filter(|r| r["status"] == "skip").count();
+        assert!(pass_count >= 1, "At least 'adds' should pass");
+        assert!(skip_count >= 1, "At least 'subtracts' should be skipped");
     }
 
     #[test]
