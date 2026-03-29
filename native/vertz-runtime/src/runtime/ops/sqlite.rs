@@ -96,7 +96,11 @@ pub fn op_sqlite_open(state: &mut OpState, #[string] path: String) -> Result<u32
 }
 
 #[op2(fast)]
-pub fn op_sqlite_exec(state: &mut OpState, #[smi] db_id: u32, #[string] sql: String) -> Result<(), AnyError> {
+pub fn op_sqlite_exec(
+    state: &mut OpState,
+    #[smi] db_id: u32,
+    #[string] sql: String,
+) -> Result<(), AnyError> {
     let store = state.borrow::<SqliteStore>();
     let conn = store.get(db_id)?;
     conn.execute_batch(&sql)?;
@@ -115,11 +119,7 @@ pub fn op_sqlite_query_all(
     let conn = store.get(db_id)?;
 
     let mut stmt = conn.prepare(&sql)?;
-    let column_names: Vec<String> = stmt
-        .column_names()
-        .iter()
-        .map(|s| s.to_string())
-        .collect();
+    let column_names: Vec<String> = stmt.column_names().iter().map(|s| s.to_string()).collect();
 
     let sqlite_params: Vec<SqliteValue> = params.iter().map(json_to_sqlite_value).collect();
     let param_refs: Vec<&dyn rusqlite::types::ToSql> = sqlite_params
@@ -154,11 +154,7 @@ pub fn op_sqlite_query_get(
     let conn = store.get(db_id)?;
 
     let mut stmt = conn.prepare(&sql)?;
-    let column_names: Vec<String> = stmt
-        .column_names()
-        .iter()
-        .map(|s| s.to_string())
-        .collect();
+    let column_names: Vec<String> = stmt.column_names().iter().map(|s| s.to_string()).collect();
 
     let sqlite_params: Vec<SqliteValue> = params.iter().map(json_to_sqlite_value).collect();
     let param_refs: Vec<&dyn rusqlite::types::ToSql> = sqlite_params
@@ -417,9 +413,10 @@ mod tests {
     #[test]
     fn test_sqlite_close_and_reuse_fails() {
         let mut rt = create_runtime();
-        let result = rt.execute_script(
-            "<test>",
-            r#"
+        let result = rt
+            .execute_script(
+                "<test>",
+                r#"
             const dbId = Deno.core.ops.op_sqlite_open(':memory:');
             Deno.core.ops.op_sqlite_close(dbId);
             try {
@@ -429,8 +426,8 @@ mod tests {
                 e.message;
             }
             "#,
-        )
-        .unwrap();
+            )
+            .unwrap();
 
         assert_eq!(result, "database is closed");
     }
