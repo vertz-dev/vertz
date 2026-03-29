@@ -31,6 +31,11 @@ pub enum Command {
     Why(WhyArgs),
     /// Check for newer versions of installed packages
     Outdated(OutdatedArgs),
+    /// Update packages to newer versions
+    #[command(alias = "up")]
+    Update(UpdateArgs),
+    /// Manage the package cache
+    Cache(CacheArgs),
 }
 
 #[derive(Parser, Debug)]
@@ -109,6 +114,14 @@ pub struct InstallArgs {
     #[arg(long, alias = "frozen-lockfile")]
     pub frozen: bool,
 
+    /// Skip postinstall scripts
+    #[arg(long)]
+    pub ignore_scripts: bool,
+
+    /// Force full re-link (skip incremental check)
+    #[arg(long)]
+    pub force: bool,
+
     /// Output NDJSON to stdout
     #[arg(long)]
     pub json: bool,
@@ -124,6 +137,10 @@ pub struct AddArgs {
     #[arg(short = 'D', long)]
     pub dev: bool,
 
+    /// Add to peerDependencies
+    #[arg(short = 'P', long)]
+    pub peer: bool,
+
     /// Pin exact version (no ^ prefix)
     #[arg(short = 'E', long)]
     pub exact: bool,
@@ -131,6 +148,14 @@ pub struct AddArgs {
     /// Install globally (not yet supported)
     #[arg(short = 'g', long)]
     pub global: bool,
+
+    /// Skip postinstall scripts
+    #[arg(long)]
+    pub ignore_scripts: bool,
+
+    /// Target a specific workspace package (by name or path)
+    #[arg(short = 'w', long = "workspace")]
+    pub workspace: Option<String>,
 
     /// Output NDJSON to stdout
     #[arg(long)]
@@ -146,6 +171,10 @@ pub struct RemoveArgs {
     /// Remove globally (not yet supported)
     #[arg(short = 'g', long)]
     pub global: bool,
+
+    /// Target a specific workspace package (by name or path)
+    #[arg(short = 'w', long = "workspace")]
+    pub workspace: Option<String>,
 
     /// Output NDJSON to stdout
     #[arg(long)]
@@ -195,6 +224,58 @@ pub struct WhyArgs {
 
 #[derive(Parser, Debug)]
 pub struct OutdatedArgs {
+    /// Output NDJSON to stdout
+    #[arg(long)]
+    pub json: bool,
+}
+
+#[derive(Parser, Debug)]
+pub struct UpdateArgs {
+    /// Package names to update (empty = update all)
+    pub packages: Vec<String>,
+
+    /// Ignore semver ranges — update to latest version
+    #[arg(long)]
+    pub latest: bool,
+
+    /// Show what would be updated without changing anything
+    #[arg(long)]
+    pub dry_run: bool,
+
+    /// Output NDJSON to stdout
+    #[arg(long)]
+    pub json: bool,
+}
+
+#[derive(Parser, Debug)]
+pub struct CacheArgs {
+    #[command(subcommand)]
+    pub command: CacheCommand,
+}
+
+#[derive(Subcommand, Debug)]
+pub enum CacheCommand {
+    /// Remove cached packages and metadata
+    Clean(CacheCleanArgs),
+    /// Show cache location and size
+    List(CacheListArgs),
+    /// Print cache directory path
+    Path,
+}
+
+#[derive(Parser, Debug)]
+pub struct CacheCleanArgs {
+    /// Only clear registry metadata cache (keep package store)
+    #[arg(long)]
+    pub metadata: bool,
+
+    /// Output NDJSON to stdout
+    #[arg(long)]
+    pub json: bool,
+}
+
+#[derive(Parser, Debug)]
+pub struct CacheListArgs {
     /// Output NDJSON to stdout
     #[arg(long)]
     pub json: bool,
@@ -276,6 +357,22 @@ mod tests {
         }
     }
 
+    fn parse_update(args: &[&str]) -> UpdateArgs {
+        let cli = Cli::parse_from(args);
+        match cli.command {
+            Command::Update(args) => args,
+            other => panic!("Expected Update, got {:?}", other),
+        }
+    }
+
+    fn parse_cache(args: &[&str]) -> CacheArgs {
+        let cli = Cli::parse_from(args);
+        match cli.command {
+            Command::Cache(args) => args,
+            other => panic!("Expected Cache, got {:?}", other),
+        }
+    }
+
     // --- Install command tests ---
 
     #[test]
@@ -353,6 +450,25 @@ mod tests {
     fn test_add_scoped_package() {
         let args = parse_add(&["vertz-runtime", "add", "@vertz/ui@^0.1.0"]);
         assert_eq!(args.packages, vec!["@vertz/ui@^0.1.0"]);
+    }
+
+    #[test]
+    fn test_add_peer_flag() {
+        let args = parse_add(&["vertz-runtime", "add", "-P", "react"]);
+        assert!(args.peer);
+        assert!(!args.dev);
+    }
+
+    #[test]
+    fn test_add_peer_long_flag() {
+        let args = parse_add(&["vertz-runtime", "add", "--peer", "react"]);
+        assert!(args.peer);
+    }
+
+    #[test]
+    fn test_add_peer_default_false() {
+        let args = parse_add(&["vertz-runtime", "add", "react"]);
+        assert!(!args.peer);
     }
 
     // --- Remove command tests ---
@@ -763,5 +879,208 @@ mod tests {
     fn test_outdated_json_flag() {
         let args = parse_outdated(&["vertz-runtime", "outdated", "--json"]);
         assert!(args.json);
+    }
+
+    // --- Update command tests ---
+
+    #[test]
+    fn test_update_default() {
+        let args = parse_update(&["vertz-runtime", "update"]);
+        assert!(args.packages.is_empty());
+        assert!(!args.latest);
+        assert!(!args.dry_run);
+        assert!(!args.json);
+    }
+
+    #[test]
+    fn test_update_alias_up() {
+        let args = parse_update(&["vertz-runtime", "up"]);
+        assert!(args.packages.is_empty());
+    }
+
+    #[test]
+    fn test_update_specific_packages() {
+        let args = parse_update(&["vertz-runtime", "update", "zod", "react"]);
+        assert_eq!(args.packages, vec!["zod", "react"]);
+    }
+
+    #[test]
+    fn test_update_latest_flag() {
+        let args = parse_update(&["vertz-runtime", "update", "--latest"]);
+        assert!(args.latest);
+    }
+
+    #[test]
+    fn test_update_dry_run_flag() {
+        let args = parse_update(&["vertz-runtime", "update", "--dry-run"]);
+        assert!(args.dry_run);
+    }
+
+    #[test]
+    fn test_update_json_flag() {
+        let args = parse_update(&["vertz-runtime", "update", "--json"]);
+        assert!(args.json);
+    }
+
+    #[test]
+    fn test_update_all_flags_combined() {
+        let args = parse_update(&[
+            "vertz-runtime",
+            "update",
+            "zod",
+            "--latest",
+            "--dry-run",
+            "--json",
+        ]);
+        assert_eq!(args.packages, vec!["zod"]);
+        assert!(args.latest);
+        assert!(args.dry_run);
+        assert!(args.json);
+    }
+
+    // --- Cache command tests ---
+
+    #[test]
+    fn test_cache_clean_default() {
+        let cache = parse_cache(&["vertz-runtime", "cache", "clean"]);
+        match cache.command {
+            CacheCommand::Clean(args) => {
+                assert!(!args.metadata);
+                assert!(!args.json);
+            }
+            other => panic!("Expected Clean, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_cache_clean_metadata_flag() {
+        let cache = parse_cache(&["vertz-runtime", "cache", "clean", "--metadata"]);
+        match cache.command {
+            CacheCommand::Clean(args) => assert!(args.metadata),
+            other => panic!("Expected Clean, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_cache_clean_json_flag() {
+        let cache = parse_cache(&["vertz-runtime", "cache", "clean", "--json"]);
+        match cache.command {
+            CacheCommand::Clean(args) => assert!(args.json),
+            other => panic!("Expected Clean, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_cache_list_default() {
+        let cache = parse_cache(&["vertz-runtime", "cache", "list"]);
+        match cache.command {
+            CacheCommand::List(args) => assert!(!args.json),
+            other => panic!("Expected List, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_cache_list_json_flag() {
+        let cache = parse_cache(&["vertz-runtime", "cache", "list", "--json"]);
+        match cache.command {
+            CacheCommand::List(args) => assert!(args.json),
+            other => panic!("Expected List, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_cache_path() {
+        let cache = parse_cache(&["vertz-runtime", "cache", "path"]);
+        assert!(matches!(cache.command, CacheCommand::Path));
+    }
+
+    // --- --ignore-scripts flag tests ---
+
+    #[test]
+    fn test_install_ignore_scripts_flag() {
+        let args = parse_install(&["vertz-runtime", "install", "--ignore-scripts"]);
+        assert!(args.ignore_scripts);
+    }
+
+    #[test]
+    fn test_install_ignore_scripts_default_false() {
+        let args = parse_install(&["vertz-runtime", "install"]);
+        assert!(!args.ignore_scripts);
+    }
+
+    #[test]
+    fn test_add_ignore_scripts_flag() {
+        let args = parse_add(&["vertz-runtime", "add", "zod", "--ignore-scripts"]);
+        assert!(args.ignore_scripts);
+    }
+
+    #[test]
+    fn test_add_ignore_scripts_default_false() {
+        let args = parse_add(&["vertz-runtime", "add", "zod"]);
+        assert!(!args.ignore_scripts);
+    }
+
+    // --- --force flag tests ---
+
+    #[test]
+    fn test_install_force_flag() {
+        let args = parse_install(&["vertz-runtime", "install", "--force"]);
+        assert!(args.force);
+    }
+
+    #[test]
+    fn test_install_force_default_false() {
+        let args = parse_install(&["vertz-runtime", "install"]);
+        assert!(!args.force);
+    }
+
+    // --- -w / --workspace flag tests ---
+
+    #[test]
+    fn test_add_workspace_short_flag() {
+        let args = parse_add(&["vertz-runtime", "add", "zod", "-w", "@myorg/api"]);
+        assert_eq!(args.workspace, Some("@myorg/api".to_string()));
+    }
+
+    #[test]
+    fn test_add_workspace_long_flag() {
+        let args = parse_add(&["vertz-runtime", "add", "zod", "--workspace", "@myorg/api"]);
+        assert_eq!(args.workspace, Some("@myorg/api".to_string()));
+    }
+
+    #[test]
+    fn test_add_workspace_default_none() {
+        let args = parse_add(&["vertz-runtime", "add", "zod"]);
+        assert!(args.workspace.is_none());
+    }
+
+    #[test]
+    fn test_add_workspace_with_path() {
+        let args = parse_add(&["vertz-runtime", "add", "zod", "-w", "packages/api"]);
+        assert_eq!(args.workspace, Some("packages/api".to_string()));
+    }
+
+    #[test]
+    fn test_remove_workspace_short_flag() {
+        let args = parse_remove(&["vertz-runtime", "remove", "zod", "-w", "@myorg/api"]);
+        assert_eq!(args.workspace, Some("@myorg/api".to_string()));
+    }
+
+    #[test]
+    fn test_remove_workspace_long_flag() {
+        let args = parse_remove(&[
+            "vertz-runtime",
+            "remove",
+            "zod",
+            "--workspace",
+            "@myorg/api",
+        ]);
+        assert_eq!(args.workspace, Some("@myorg/api".to_string()));
+    }
+
+    #[test]
+    fn test_remove_workspace_default_none() {
+        let args = parse_remove(&["vertz-runtime", "remove", "zod"]);
+        assert!(args.workspace.is_none());
     }
 }

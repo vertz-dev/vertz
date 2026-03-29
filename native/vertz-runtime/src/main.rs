@@ -95,7 +95,15 @@ async fn main() {
                 Arc::new(TextOutput::new(std::io::stderr().is_terminal()))
             };
 
-            if let Err(e) = pm::install(&root_dir, args.frozen, false, output.clone()).await {
+            if let Err(e) = pm::install(
+                &root_dir,
+                args.frozen,
+                args.ignore_scripts,
+                args.force,
+                output.clone(),
+            )
+            .await
+            {
                 let msg = e.to_string();
                 if args.json {
                     output.error(error_code_from_message(&msg), &msg);
@@ -108,6 +116,10 @@ async fn main() {
         Command::Add(args) => {
             if args.global {
                 eprintln!("error: global packages are not yet supported");
+                std::process::exit(1);
+            }
+            if args.peer && args.dev {
+                eprintln!("error: --peer and --dev cannot be used together");
                 std::process::exit(1);
             }
 
@@ -126,7 +138,10 @@ async fn main() {
                 &root_dir,
                 &package_refs,
                 args.dev,
+                args.peer,
                 args.exact,
+                args.ignore_scripts,
+                args.workspace.as_deref(),
                 output.clone(),
             )
             .await
@@ -157,7 +172,14 @@ async fn main() {
 
             let package_refs: Vec<&str> = args.packages.iter().map(|s| s.as_str()).collect();
 
-            if let Err(e) = pm::remove(&root_dir, &package_refs, output.clone()).await {
+            if let Err(e) = pm::remove(
+                &root_dir,
+                &package_refs,
+                args.workspace.as_deref(),
+                output.clone(),
+            )
+            .await
+            {
                 let msg = e.to_string();
                 if args.json {
                     output.error(error_code_from_message(&msg), &msg);
@@ -280,6 +302,76 @@ async fn main() {
                         eprintln!("{}", msg);
                     }
                     std::process::exit(1);
+                }
+            }
+        }
+        Command::Update(args) => {
+            let root_dir =
+                std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from("."));
+
+            let output: Arc<dyn PmOutput> = if args.json {
+                Arc::new(JsonOutput::new())
+            } else {
+                Arc::new(TextOutput::new(std::io::stderr().is_terminal()))
+            };
+
+            let package_refs: Vec<&str> = args.packages.iter().map(|s| s.as_str()).collect();
+
+            match pm::update(
+                &root_dir,
+                &package_refs,
+                args.latest,
+                args.dry_run,
+                output.clone(),
+            )
+            .await
+            {
+                Ok(results) => {
+                    if args.dry_run && !args.json {
+                        if results.is_empty() {
+                            eprintln!("All packages are up to date.");
+                        } else {
+                            let text = pm::format_update_dry_run_text(&results);
+                            print!("{}", text);
+                        }
+                    } else if args.dry_run && args.json {
+                        let json = pm::format_update_dry_run_json(&results);
+                        print!("{}", json);
+                    }
+                }
+                Err(e) => {
+                    let msg = e.to_string();
+                    if args.json {
+                        output.error(error_code_from_message(&msg), &msg);
+                    } else {
+                        eprintln!("{}", msg);
+                    }
+                    std::process::exit(1);
+                }
+            }
+        }
+        Command::Cache(cache_args) => {
+            let cache_dir = pm::registry::default_cache_dir();
+
+            match cache_args.command {
+                cli::CacheCommand::Clean(args) => {
+                    let result = pm::cache::cache_clean(&cache_dir, args.metadata);
+                    if args.json {
+                        print!("{}", pm::cache::format_cache_clean_json(&result));
+                    } else {
+                        eprint!("{}", pm::cache::format_cache_clean_text(&result));
+                    }
+                }
+                cli::CacheCommand::List(args) => {
+                    let stats = pm::cache::cache_stats(&cache_dir);
+                    if args.json {
+                        print!("{}", pm::cache::format_cache_list_json(&stats));
+                    } else {
+                        eprint!("{}", pm::cache::format_cache_list_text(&stats));
+                    }
+                }
+                cli::CacheCommand::Path => {
+                    println!("{}", cache_dir.display());
                 }
             }
         }

@@ -10,10 +10,15 @@ pub trait PmOutput: Send + Sync {
     fn download_tick(&self);
     fn download_complete(&self, count: usize);
     fn link_started(&self);
-    fn link_complete(&self, packages: usize, files: usize);
+    fn link_complete(&self, packages: usize, files: usize, cached: usize);
     fn bin_stubs_created(&self, count: usize);
     fn package_added(&self, name: &str, version: &str, range: &str);
     fn package_removed(&self, name: &str);
+    fn package_updated(&self, name: &str, from: &str, to: &str, range: &str);
+    fn workspace_linked(&self, count: usize);
+    fn script_started(&self, name: &str, script: &str);
+    fn script_complete(&self, name: &str, duration_ms: u64);
+    fn script_error(&self, name: &str, error: &str);
     fn done(&self, elapsed_ms: u64);
     fn error(&self, code: &str, message: &str);
 }
@@ -91,8 +96,15 @@ impl PmOutput for TextOutput {
         eprintln!("Linking packages...");
     }
 
-    fn link_complete(&self, packages: usize, files: usize) {
-        eprintln!("Linked {} packages ({} files)", packages, files);
+    fn link_complete(&self, packages: usize, files: usize, cached: usize) {
+        if cached > 0 {
+            eprintln!(
+                "Linked {} packages ({} files, {} cached)",
+                packages, files, cached
+            );
+        } else {
+            eprintln!("Linked {} packages ({} files)", packages, files);
+        }
     }
 
     fn bin_stubs_created(&self, count: usize) {
@@ -107,6 +119,30 @@ impl PmOutput for TextOutput {
 
     fn package_removed(&self, name: &str) {
         eprintln!("- {}", name);
+    }
+
+    fn package_updated(&self, name: &str, from: &str, to: &str, range: &str) {
+        eprintln!("~ {}@{} → {}@{} ({})", name, from, name, to, range);
+    }
+
+    fn workspace_linked(&self, count: usize) {
+        eprintln!("Linked {} workspace packages", count);
+    }
+
+    fn script_started(&self, name: &str, script: &str) {
+        eprintln!("Running postinstall for {}: {}", name, script);
+    }
+
+    fn script_complete(&self, name: &str, duration_ms: u64) {
+        eprintln!(
+            "Postinstall for {} completed in {:.1}s",
+            name,
+            duration_ms as f64 / 1000.0
+        );
+    }
+
+    fn script_error(&self, name: &str, error: &str) {
+        eprintln!("Postinstall for {} failed: {}", name, error);
     }
 
     fn done(&self, elapsed_ms: u64) {
@@ -148,10 +184,10 @@ impl PmOutput for JsonOutput {
 
     fn link_started(&self) {}
 
-    fn link_complete(&self, packages: usize, files: usize) {
+    fn link_complete(&self, packages: usize, files: usize, cached: usize) {
         println!(
             "{}",
-            json!({"event": "link", "packages": packages, "files": files})
+            json!({"event": "link", "packages": packages, "files": files, "cached": cached})
         );
     }
 
@@ -166,6 +202,38 @@ impl PmOutput for JsonOutput {
 
     fn package_removed(&self, name: &str) {
         println!("{}", json!({"event": "removed", "name": name}));
+    }
+
+    fn package_updated(&self, name: &str, from: &str, to: &str, range: &str) {
+        println!(
+            "{}",
+            json!({"event": "updated", "name": name, "from": from, "to": to, "range": range})
+        );
+    }
+
+    fn workspace_linked(&self, count: usize) {
+        println!("{}", json!({"event": "workspace_linked", "count": count}));
+    }
+
+    fn script_started(&self, name: &str, script: &str) {
+        println!(
+            "{}",
+            json!({"event": "script_started", "package": name, "script": script})
+        );
+    }
+
+    fn script_complete(&self, name: &str, duration_ms: u64) {
+        println!(
+            "{}",
+            json!({"event": "script_complete", "package": name, "duration_ms": duration_ms})
+        );
+    }
+
+    fn script_error(&self, name: &str, error: &str) {
+        println!(
+            "{}",
+            json!({"event": "script_error", "package": name, "error": error})
+        );
     }
 
     fn done(&self, elapsed_ms: u64) {
@@ -224,7 +292,7 @@ mod tests {
     fn test_json_output_as_trait_object() {
         let output: Arc<dyn PmOutput> = Arc::new(JsonOutput::new());
         output.resolve_complete(10);
-        output.link_complete(5, 100);
+        output.link_complete(5, 100, 0);
         output.done(1200);
     }
 
@@ -296,5 +364,35 @@ mod tests {
         output.download_tick();
         output.download_complete(10);
         // Non-TTY: no progress bar, just eprintln
+    }
+
+    #[test]
+    fn test_text_output_package_updated() {
+        let output = TextOutput::new(false);
+        // Should not panic
+        output.package_updated("zod", "3.24.0", "3.24.4", "^3.24.0");
+    }
+
+    #[test]
+    fn test_json_output_package_updated() {
+        let output: Arc<dyn PmOutput> = Arc::new(JsonOutput::new());
+        // Should not panic; emits NDJSON to stdout
+        output.package_updated("zod", "3.24.0", "3.24.4", "^3.24.0");
+    }
+
+    #[test]
+    fn test_text_output_script_lifecycle() {
+        let output = TextOutput::new(false);
+        output.script_started("esbuild", "node install.js");
+        output.script_complete("esbuild", 1200);
+        output.script_error("prisma", "script exited with code 1");
+    }
+
+    #[test]
+    fn test_json_output_script_lifecycle() {
+        let output: Arc<dyn PmOutput> = Arc::new(JsonOutput::new());
+        output.script_started("esbuild", "node install.js");
+        output.script_complete("esbuild", 1200);
+        output.script_error("prisma", "script exited with code 1");
     }
 }

@@ -1,11 +1,15 @@
 pub mod bin;
+pub mod cache;
+pub mod config;
 pub mod linker;
 pub mod lockfile;
 pub mod output;
 pub mod registry;
 pub mod resolver;
+pub mod scripts;
 pub mod tarball;
 pub mod types;
+pub mod workspace;
 
 use futures_util::stream::{self, StreamExt};
 use output::PmOutput;
@@ -38,7 +42,8 @@ pub struct ListEntry {
 pub async fn install(
     root_dir: &Path,
     frozen: bool,
-    _ignore_scripts: bool,
+    ignore_scripts: bool,
+    force: bool,
     output: Arc<dyn PmOutput>,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let start = Instant::now();
@@ -52,15 +57,34 @@ pub async fn install(
         types::Lockfile::default()
     };
 
-    // Frozen mode: verify lockfile matches package.json
-    if frozen {
-        verify_frozen(&pkg, &existing_lockfile)?;
+    // Workspace support: discover workspace packages, validate, and merge deps
+    let workspaces = if let Some(ref patterns) = pkg.workspaces {
+        if !patterns.is_empty() {
+            let ws = workspace::discover_workspaces(root_dir, patterns)?;
+            workspace::validate_workspace_graph(&ws)?;
+            ws
+        } else {
+            Vec::new()
+        }
+    } else {
+        Vec::new()
+    };
+
+    // Combine all deps for resolution (with workspace deps merged if applicable)
+    let (resolved_deps, resolved_dev_deps) = if !workspaces.is_empty() {
+        workspace::merge_workspace_deps(&pkg, &workspaces)
+    } else {
+        (pkg.dependencies.clone(), pkg.dev_dependencies.clone())
+    };
+
+    let mut all_deps = resolved_deps.clone();
+    for (k, v) in &resolved_dev_deps {
+        all_deps.insert(k.clone(), v.clone());
     }
 
-    // Combine all deps for resolution
-    let mut all_deps = pkg.dependencies.clone();
-    for (k, v) in &pkg.dev_dependencies {
-        all_deps.insert(k.clone(), v.clone());
+    // Frozen mode: verify lockfile matches merged deps (after workspace merging)
+    if frozen {
+        verify_frozen_deps(&all_deps, &existing_lockfile)?;
     }
 
     let cache_dir = registry::default_cache_dir();
@@ -71,8 +95,8 @@ pub async fn install(
     output.resolve_started();
 
     let mut graph = resolver::resolve_all(
-        &pkg.dependencies,
-        &pkg.dev_dependencies,
+        &resolved_deps,
+        &resolved_dev_deps,
         &registry_client,
         &existing_lockfile,
     )
@@ -131,15 +155,36 @@ pub async fn install(
         output.download_complete(download_count);
     }
 
-    // Link packages into node_modules
+    // Link packages into node_modules (incremental unless --force)
     output.link_started();
     let store_dir = cache_dir.join("store");
-    let link_result = linker::link_packages(root_dir, &graph, &store_dir)?;
-    output.link_complete(link_result.packages_linked, link_result.files_linked);
+    let link_result = linker::link_packages_incremental(root_dir, &graph, &store_dir, force)?;
+    output.link_complete(
+        link_result.packages_linked,
+        link_result.files_linked,
+        link_result.packages_cached,
+    );
+
+    // Symlink workspace packages into node_modules/
+    if !workspaces.is_empty() {
+        let ws_linked = workspace::link_workspaces(root_dir, &workspaces)?;
+        if ws_linked > 0 {
+            output.workspace_linked(ws_linked);
+        }
+    }
 
     // Generate .bin/ stubs
     let bin_count = bin::generate_bin_stubs(root_dir, &graph)?;
     output.bin_stubs_created(bin_count);
+
+    // Run postinstall scripts (unless --ignore-scripts)
+    if !ignore_scripts {
+        let postinstall_pkgs = scripts::packages_with_postinstall(&graph, &graph.scripts);
+        if !postinstall_pkgs.is_empty() {
+            scripts::run_postinstall_scripts(root_dir, &postinstall_pkgs, Arc::clone(&output))
+                .await;
+        }
+    }
 
     // Write lockfile
     let new_lockfile = resolver::graph_to_lockfile(&graph, &all_deps);
@@ -152,14 +197,29 @@ pub async fn install(
 }
 
 /// Add packages to dependencies (batch — single install pass)
+#[allow(clippy::too_many_arguments)]
 pub async fn add(
     root_dir: &Path,
     packages: &[&str],
     dev: bool,
+    peer: bool,
     exact: bool,
+    ignore_scripts: bool,
+    workspace_target: Option<&str>,
     output: Arc<dyn PmOutput>,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let mut pkg = types::read_package_json(root_dir)?;
+    if peer && dev {
+        return Err("error: --peer and --dev cannot be used together".into());
+    }
+
+    // Determine target directory: workspace dir (if -w) or root_dir
+    let target_dir = if let Some(ws) = workspace_target {
+        workspace::resolve_workspace_dir(root_dir, ws)?
+    } else {
+        root_dir.to_path_buf()
+    };
+
+    let mut pkg = types::read_package_json(&target_dir)?;
 
     let cache_dir = registry::default_cache_dir();
     let registry_client = RegistryClient::new(&cache_dir);
@@ -226,7 +286,10 @@ pub async fn add(
             version_spec.unwrap().to_string()
         };
 
-        if dev {
+        if peer {
+            pkg.peer_dependencies
+                .insert(name.to_string(), range.clone());
+        } else if dev {
             pkg.dev_dependencies.insert(name.to_string(), range.clone());
         } else {
             pkg.dependencies.insert(name.to_string(), range.clone());
@@ -236,24 +299,38 @@ pub async fn add(
         output.package_added(name, version_str, &range);
     }
 
-    types::write_package_json(root_dir, &pkg)?;
+    types::write_package_json(&target_dir, &pkg)?;
 
-    // Single install pass for all packages
-    install(root_dir, false, false, output).await
+    if peer {
+        // Peer deps are NOT installed — just recorded in package.json
+        Ok(())
+    } else {
+        // Install from root — workspace deps are merged during install
+        install(root_dir, false, ignore_scripts, false, output).await
+    }
 }
 
 /// Remove packages from dependencies (batch — single install pass)
 pub async fn remove(
     root_dir: &Path,
     packages: &[&str],
+    workspace_target: Option<&str>,
     output: Arc<dyn PmOutput>,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let mut pkg = types::read_package_json(root_dir)?;
+    // Determine target directory: workspace dir (if -w) or root_dir
+    let target_dir = if let Some(ws) = workspace_target {
+        workspace::resolve_workspace_dir(root_dir, ws)?
+    } else {
+        root_dir.to_path_buf()
+    };
+
+    let mut pkg = types::read_package_json(&target_dir)?;
     let mut not_found: Vec<&str> = Vec::new();
 
     for package in packages {
         let removed = pkg.dependencies.remove(*package).is_some()
-            || pkg.dev_dependencies.remove(*package).is_some();
+            || pkg.dev_dependencies.remove(*package).is_some()
+            || pkg.peer_dependencies.remove(*package).is_some();
 
         if !removed {
             not_found.push(package);
@@ -280,10 +357,10 @@ pub async fn remove(
         .into());
     }
 
-    types::write_package_json(root_dir, &pkg)?;
+    types::write_package_json(&target_dir, &pkg)?;
 
-    // Single install pass to clean orphaned deps
-    install(root_dir, false, false, output).await
+    // Install from root — workspace deps are merged during install
+    install(root_dir, false, false, false, output).await
 }
 
 /// List installed packages from lockfile and package.json
@@ -975,17 +1052,249 @@ pub fn format_outdated_json(entries: &[OutdatedEntry]) -> String {
     output
 }
 
-/// Verify lockfile matches package.json for --frozen mode
-fn verify_frozen(
-    pkg: &types::PackageJson,
-    lockfile: &types::Lockfile,
-) -> Result<(), Box<dyn std::error::Error>> {
-    let mut all_deps: BTreeMap<String, String> = pkg.dependencies.clone();
-    for (k, v) in &pkg.dev_dependencies {
-        all_deps.insert(k.clone(), v.clone());
+/// Result of a single package update
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct UpdateResult {
+    pub name: String,
+    pub from: String,
+    pub to: String,
+    pub range: String,
+    pub dev: bool,
+}
+
+/// Update packages to newer versions.
+/// If `packages` is empty, updates all direct dependencies.
+/// Returns a list of updates that were (or would be) applied.
+pub async fn update(
+    root_dir: &Path,
+    packages: &[&str],
+    latest: bool,
+    dry_run: bool,
+    output: Arc<dyn PmOutput>,
+) -> Result<Vec<UpdateResult>, Box<dyn std::error::Error>> {
+    let start = Instant::now();
+    let mut pkg = types::read_package_json(root_dir)?;
+
+    let lockfile_path = root_dir.join("vertz.lock");
+    if !lockfile_path.exists() {
+        return Err("No lockfile found. Run `vertz install` first.".into());
     }
 
-    for (name, range) in &all_deps {
+    let mut lockfile = lockfile::read_lockfile(&lockfile_path)?;
+
+    // Determine which packages to update
+    let targets: Vec<(String, String, bool)> = if packages.is_empty() {
+        // Update all direct deps
+        let mut all = Vec::new();
+        for (name, range) in &pkg.dependencies {
+            all.push((name.clone(), range.clone(), false));
+        }
+        for (name, range) in &pkg.dev_dependencies {
+            all.push((name.clone(), range.clone(), true));
+        }
+        all
+    } else {
+        let mut targets = Vec::new();
+        for &pkg_name in packages {
+            if let Some(range) = pkg.dependencies.get(pkg_name) {
+                targets.push((pkg_name.to_string(), range.clone(), false));
+            } else if let Some(range) = pkg.dev_dependencies.get(pkg_name) {
+                targets.push((pkg_name.to_string(), range.clone(), true));
+            } else {
+                return Err(format!(
+                    "error: package is not a direct dependency: \"{}\"",
+                    pkg_name
+                )
+                .into());
+            }
+        }
+        targets
+    };
+
+    // Use outdated to find what needs updating — but we do our own check for --latest
+    let cache_dir = registry::default_cache_dir();
+    let client = Arc::new(RegistryClient::new(&cache_dir));
+
+    let mut results: Vec<UpdateResult> = Vec::new();
+
+    for (name, range, dev) in &targets {
+        let spec_key = types::Lockfile::spec_key(name, range);
+        let current_version = lockfile
+            .entries
+            .get(&spec_key)
+            .map(|e| e.version.clone())
+            .unwrap_or_default();
+
+        if current_version.is_empty() {
+            continue;
+        }
+
+        let meta = client
+            .fetch_metadata_abbreviated(name)
+            .await
+            .map_err(|e| format!("{}", e))?;
+
+        let new_version = if latest {
+            // --latest: use latest dist-tag version
+            meta.dist_tags.get("latest").cloned()
+        } else {
+            // Default: update within semver range
+            resolve_wanted_version(range, &meta.versions, &meta.dist_tags)
+        };
+
+        if let Some(ref new_ver) = new_version {
+            if new_ver != &current_version {
+                let new_range = if latest {
+                    // Preserve the range operator from the original range
+                    let prefix = extract_range_prefix(range);
+                    format!("{}{}", prefix, new_ver)
+                } else {
+                    range.clone()
+                };
+
+                results.push(UpdateResult {
+                    name: name.clone(),
+                    from: current_version.clone(),
+                    to: new_ver.clone(),
+                    range: new_range.clone(),
+                    dev: *dev,
+                });
+
+                if !dry_run {
+                    output.package_updated(name, &current_version, new_ver, &new_range);
+
+                    // Remove lockfile entries for this package so resolver re-resolves
+                    let keys_to_remove: Vec<String> = lockfile
+                        .entries
+                        .keys()
+                        .filter(|k| {
+                            types::Lockfile::parse_spec_key(k)
+                                .map(|(n, _)| n == name.as_str())
+                                .unwrap_or(false)
+                        })
+                        .cloned()
+                        .collect();
+                    for key in keys_to_remove {
+                        lockfile.entries.remove(&key);
+                    }
+
+                    // Update range in package.json if --latest changed it
+                    if latest {
+                        if *dev {
+                            pkg.dev_dependencies.insert(name.clone(), new_range);
+                        } else {
+                            pkg.dependencies.insert(name.clone(), new_range);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    if !dry_run && !results.is_empty() {
+        // Write updated package.json (only if --latest changed ranges)
+        if latest {
+            types::write_package_json(root_dir, &pkg)?;
+        }
+
+        // Write lockfile with entries removed
+        lockfile::write_lockfile(&lockfile_path, &lockfile)?;
+
+        // Re-install to resolve and link updated packages
+        install(root_dir, false, false, false, output.clone()).await?;
+    } else if !dry_run && results.is_empty() {
+        let elapsed = start.elapsed();
+        output.done(elapsed.as_millis() as u64);
+    }
+
+    Ok(results)
+}
+
+/// Extract the range prefix operator from a semver range string.
+/// e.g., "^3.24.0" → "^", "~1.0.0" → "~", ">=1.0.0" → ">=", "3.24.0" → ""
+fn extract_range_prefix(range: &str) -> &str {
+    if range.starts_with(">=") {
+        ">="
+    } else if range.starts_with("<=") {
+        "<="
+    } else if range.starts_with('^') {
+        "^"
+    } else if range.starts_with('~') {
+        "~"
+    } else if range.starts_with('>') {
+        ">"
+    } else if range.starts_with('<') {
+        "<"
+    } else {
+        ""
+    }
+}
+
+/// Format update dry-run results as human-readable text
+pub fn format_update_dry_run_text(results: &[UpdateResult]) -> String {
+    if results.is_empty() {
+        return String::new();
+    }
+
+    let name_width = results
+        .iter()
+        .map(|r| r.name.len())
+        .max()
+        .unwrap_or(7)
+        .max(7);
+    let from_width = results
+        .iter()
+        .map(|r| r.from.len())
+        .max()
+        .unwrap_or(7)
+        .max(7);
+
+    let mut output = format!(
+        "{:<name_w$}  {:<from_w$}  To\n",
+        "Package",
+        "Current",
+        name_w = name_width,
+        from_w = from_width,
+    );
+
+    for result in results {
+        output.push_str(&format!(
+            "{:<name_w$}  {:<from_w$}  {}\n",
+            result.name,
+            result.from,
+            result.to,
+            name_w = name_width,
+            from_w = from_width,
+        ));
+    }
+
+    output
+}
+
+/// Format update dry-run results as NDJSON
+pub fn format_update_dry_run_json(results: &[UpdateResult]) -> String {
+    let mut output = String::new();
+    for result in results {
+        let obj = serde_json::json!({
+            "name": result.name,
+            "from": result.from,
+            "to": result.to,
+            "range": result.range,
+            "dev": result.dev,
+        });
+        output.push_str(&obj.to_string());
+        output.push('\n');
+    }
+    output
+}
+
+/// Verify lockfile matches package.json for --frozen mode
+/// Verify lockfile matches the given merged deps map (used after workspace dep merging)
+fn verify_frozen_deps(
+    all_deps: &BTreeMap<String, String>,
+    lockfile: &types::Lockfile,
+) -> Result<(), Box<dyn std::error::Error>> {
+    for (name, range) in all_deps {
         let key = types::Lockfile::spec_key(name, range);
         if !lockfile.entries.contains_key(&key) {
             return Err(format!(
@@ -1023,6 +1332,7 @@ mod tests {
             bundled_dependencies: vec![],
             bin: types::BinField::default(),
             scripts: BTreeMap::new(),
+            workspaces: None,
         }
     }
 
@@ -1051,9 +1361,15 @@ mod tests {
 
     // --- verify_frozen tests ---
 
+    fn make_deps(deps: &[(&str, &str)]) -> BTreeMap<String, String> {
+        deps.iter()
+            .map(|(k, v)| (k.to_string(), v.to_string()))
+            .collect()
+    }
+
     #[test]
     fn test_verify_frozen_passes() {
-        let pkg = make_pkg(&[("zod", "^3.24.0")], &[]);
+        let deps = make_deps(&[("zod", "^3.24.0")]);
 
         let mut lockfile = Lockfile::default();
         lockfile.entries.insert(
@@ -1061,15 +1377,15 @@ mod tests {
             make_lockfile_entry("zod", "^3.24.0", "3.24.4", &[]),
         );
 
-        assert!(verify_frozen(&pkg, &lockfile).is_ok());
+        assert!(verify_frozen_deps(&deps, &lockfile).is_ok());
     }
 
     #[test]
     fn test_verify_frozen_fails_missing_dep() {
-        let pkg = make_pkg(&[("zod", "^3.24.0")], &[]);
+        let deps = make_deps(&[("zod", "^3.24.0")]);
         let lockfile = Lockfile::default();
 
-        let result = verify_frozen(&pkg, &lockfile);
+        let result = verify_frozen_deps(&deps, &lockfile);
         assert!(result.is_err());
         assert!(result
             .unwrap_err()
@@ -1079,7 +1395,7 @@ mod tests {
 
     #[test]
     fn test_verify_frozen_fails_changed_range() {
-        let pkg = make_pkg(&[("zod", "^4.0.0")], &[]); // Changed range
+        let deps = make_deps(&[("zod", "^4.0.0")]); // Changed range
 
         let mut lockfile = Lockfile::default();
         lockfile.entries.insert(
@@ -1087,7 +1403,7 @@ mod tests {
             make_lockfile_entry("zod", "^3.24.0", "3.24.4", &[]),
         );
 
-        let result = verify_frozen(&pkg, &lockfile);
+        let result = verify_frozen_deps(&deps, &lockfile);
         assert!(result.is_err());
     }
 
@@ -1902,6 +2218,115 @@ mod tests {
         ];
 
         let json = format_outdated_json(&entries);
+        let lines: Vec<&str> = json.trim().lines().collect();
+        assert_eq!(lines.len(), 2);
+        let first: serde_json::Value = serde_json::from_str(lines[0]).unwrap();
+        let second: serde_json::Value = serde_json::from_str(lines[1]).unwrap();
+        assert_eq!(first["name"], "react");
+        assert_eq!(second["name"], "typescript");
+        assert_eq!(second["dev"], true);
+    }
+
+    // --- extract_range_prefix tests ---
+
+    #[test]
+    fn test_extract_range_prefix_caret() {
+        assert_eq!(extract_range_prefix("^3.24.0"), "^");
+    }
+
+    #[test]
+    fn test_extract_range_prefix_tilde() {
+        assert_eq!(extract_range_prefix("~1.0.0"), "~");
+    }
+
+    #[test]
+    fn test_extract_range_prefix_gte() {
+        assert_eq!(extract_range_prefix(">=1.0.0"), ">=");
+    }
+
+    #[test]
+    fn test_extract_range_prefix_lte() {
+        assert_eq!(extract_range_prefix("<=2.0.0"), "<=");
+    }
+
+    #[test]
+    fn test_extract_range_prefix_gt() {
+        assert_eq!(extract_range_prefix(">1.0.0"), ">");
+    }
+
+    #[test]
+    fn test_extract_range_prefix_lt() {
+        assert_eq!(extract_range_prefix("<2.0.0"), "<");
+    }
+
+    #[test]
+    fn test_extract_range_prefix_exact() {
+        assert_eq!(extract_range_prefix("3.24.0"), "");
+    }
+
+    // --- format_update_dry_run tests ---
+
+    #[test]
+    fn test_format_update_dry_run_text_empty() {
+        let results: Vec<UpdateResult> = Vec::new();
+        assert_eq!(format_update_dry_run_text(&results), "");
+    }
+
+    #[test]
+    fn test_format_update_dry_run_text_single() {
+        let results = vec![UpdateResult {
+            name: "zod".to_string(),
+            from: "3.24.0".to_string(),
+            to: "3.24.4".to_string(),
+            range: "^3.24.0".to_string(),
+            dev: false,
+        }];
+        let output = format_update_dry_run_text(&results);
+        assert!(output.contains("Package"));
+        assert!(output.contains("Current"));
+        assert!(output.contains("To"));
+        assert!(output.contains("zod"));
+        assert!(output.contains("3.24.0"));
+        assert!(output.contains("3.24.4"));
+    }
+
+    #[test]
+    fn test_format_update_dry_run_json_single() {
+        let results = vec![UpdateResult {
+            name: "zod".to_string(),
+            from: "3.24.0".to_string(),
+            to: "3.24.4".to_string(),
+            range: "^3.24.4".to_string(),
+            dev: false,
+        }];
+        let json = format_update_dry_run_json(&results);
+        let line: serde_json::Value = serde_json::from_str(json.trim()).unwrap();
+        assert_eq!(line["name"], "zod");
+        assert_eq!(line["from"], "3.24.0");
+        assert_eq!(line["to"], "3.24.4");
+        assert_eq!(line["range"], "^3.24.4");
+        assert_eq!(line["dev"], false);
+    }
+
+    #[test]
+    fn test_format_update_dry_run_json_multiple() {
+        let results = vec![
+            UpdateResult {
+                name: "react".to_string(),
+                from: "18.3.0".to_string(),
+                to: "18.3.1".to_string(),
+                range: "^18.3.0".to_string(),
+                dev: false,
+            },
+            UpdateResult {
+                name: "typescript".to_string(),
+                from: "5.7.0".to_string(),
+                to: "5.8.0".to_string(),
+                range: "^5.0.0".to_string(),
+                dev: true,
+            },
+        ];
+        let json = format_update_dry_run_json(&results);
         let lines: Vec<&str> = json.trim().lines().collect();
         assert_eq!(lines.len(), 2);
         let first: serde_json::Value = serde_json::from_str(lines[0]).unwrap();

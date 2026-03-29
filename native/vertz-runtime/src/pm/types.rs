@@ -21,6 +21,8 @@ pub struct PackageJson {
     pub bin: BinField,
     #[serde(default)]
     pub scripts: BTreeMap<String, String>,
+    #[serde(default)]
+    pub workspaces: Option<Vec<String>>,
 }
 
 /// The `bin` field in package.json can be a string or a map
@@ -90,6 +92,8 @@ pub struct VersionMetadata {
     pub bundled_dependencies: Vec<String>,
     #[serde(default)]
     pub bin: BinField,
+    #[serde(default)]
+    pub scripts: BTreeMap<String, String>,
     #[serde(default)]
     pub dist: DistInfo,
     #[serde(default)]
@@ -170,7 +174,8 @@ pub fn read_package_json(root_dir: &Path) -> Result<PackageJson, Box<dyn std::er
 }
 
 /// Write package.json back to disk using read-modify-write to preserve unmodeled fields.
-/// Only updates `dependencies` and `devDependencies` — all other fields are preserved as-is.
+/// Updates `dependencies`, `devDependencies`, and `peerDependencies` — all other fields
+/// are preserved as-is.
 pub fn write_package_json(
     root_dir: &Path,
     pkg: &PackageJson,
@@ -200,6 +205,15 @@ pub fn write_package_json(
         obj.insert(
             "devDependencies".into(),
             serde_json::to_value(&pkg.dev_dependencies)?,
+        );
+    }
+
+    if pkg.peer_dependencies.is_empty() {
+        obj.remove("peerDependencies");
+    } else {
+        obj.insert(
+            "peerDependencies".into(),
+            serde_json::to_value(&pkg.peer_dependencies)?,
         );
     }
 
@@ -526,6 +540,68 @@ mod tests {
         assert!(!obj.contains_key("dependencies"));
         // devDependencies should still be present
         assert!(obj.contains_key("devDependencies"));
+    }
+
+    #[test]
+    fn test_write_package_json_peer_dependencies() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(
+            dir.path().join("package.json"),
+            r#"{"name": "my-lib", "version": "1.0.0"}"#,
+        )
+        .unwrap();
+
+        let mut pkg = read_package_json(dir.path()).unwrap();
+        pkg.peer_dependencies
+            .insert("react".to_string(), "^18.0.0".to_string());
+        write_package_json(dir.path(), &pkg).unwrap();
+
+        let written = std::fs::read_to_string(dir.path().join("package.json")).unwrap();
+        let value: serde_json::Value = serde_json::from_str(&written).unwrap();
+        let obj = value.as_object().unwrap();
+        assert!(obj.contains_key("peerDependencies"));
+        assert_eq!(obj["peerDependencies"]["react"], "^18.0.0");
+    }
+
+    #[test]
+    fn test_write_package_json_removes_empty_peer_deps() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(
+            dir.path().join("package.json"),
+            r#"{"name": "my-lib", "peerDependencies": {"react": "^18.0.0"}}"#,
+        )
+        .unwrap();
+
+        let mut pkg = read_package_json(dir.path()).unwrap();
+        pkg.peer_dependencies.clear();
+        write_package_json(dir.path(), &pkg).unwrap();
+
+        let written = std::fs::read_to_string(dir.path().join("package.json")).unwrap();
+        let value: serde_json::Value = serde_json::from_str(&written).unwrap();
+        let obj = value.as_object().unwrap();
+        assert!(!obj.contains_key("peerDependencies"));
+    }
+
+    #[test]
+    fn test_write_package_json_preserves_existing_peer_deps() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(
+            dir.path().join("package.json"),
+            r#"{"name": "my-lib", "peerDependencies": {"react": "^18.0.0"}, "dependencies": {"zod": "^3.0.0"}}"#,
+        )
+        .unwrap();
+
+        let mut pkg = read_package_json(dir.path()).unwrap();
+        pkg.peer_dependencies
+            .insert("react-dom".to_string(), "^18.0.0".to_string());
+        write_package_json(dir.path(), &pkg).unwrap();
+
+        let written = std::fs::read_to_string(dir.path().join("package.json")).unwrap();
+        let value: serde_json::Value = serde_json::from_str(&written).unwrap();
+        let obj = value.as_object().unwrap();
+        assert_eq!(obj["peerDependencies"]["react"], "^18.0.0");
+        assert_eq!(obj["peerDependencies"]["react-dom"], "^18.0.0");
+        assert_eq!(obj["dependencies"]["zod"], "^3.0.0");
     }
 
     #[test]

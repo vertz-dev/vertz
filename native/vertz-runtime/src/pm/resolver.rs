@@ -50,6 +50,8 @@ pub fn resolve_version<'a>(
 pub struct ResolvedGraph {
     /// All resolved packages indexed by "name@version"
     pub packages: BTreeMap<String, ResolvedPackage>,
+    /// Scripts per package: "name@version" → { scriptName → scriptCommand }
+    pub scripts: BTreeMap<String, BTreeMap<String, String>>,
 }
 
 impl ResolvedGraph {
@@ -130,6 +132,12 @@ async fn resolve_recursive(
                 bin: version_meta.bin.to_map(name),
                 nest_path: vec![],
             };
+            if !version_meta.scripts.is_empty() {
+                state
+                    .graph
+                    .scripts
+                    .insert(graph_key.clone(), version_meta.scripts.clone());
+            }
             state.graph.packages.insert(graph_key, resolved);
 
             // Resolve transitive deps (skip transitive devDeps)
@@ -162,6 +170,12 @@ async fn resolve_recursive(
         bin: version_meta.bin.to_map(name),
         nest_path: vec![],
     };
+    if !version_meta.scripts.is_empty() {
+        state
+            .graph
+            .scripts
+            .insert(graph_key.clone(), version_meta.scripts.clone());
+    }
     state.graph.packages.insert(graph_key, resolved);
 
     // Resolve transitive deps (skip transitive devDeps — only root devDeps are resolved)
@@ -356,6 +370,7 @@ mod tests {
             optional_dependencies: BTreeMap::new(),
             bundled_dependencies: vec![],
             bin: crate::pm::types::BinField::default(),
+            scripts: BTreeMap::new(),
             dist: DistInfo {
                 tarball: format!(
                     "https://registry.npmjs.org/{}/-/{}-{}.tgz",
