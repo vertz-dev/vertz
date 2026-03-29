@@ -674,7 +674,9 @@ describe('PostgreSQL Integration Tests (PGlite)', () => {
       expect(result.ok).toBe(false);
       if (!result.ok) {
         expect(result.error.code).toBe('CONSTRAINT_ERROR');
-        expect(result.error.table).toBeDefined();
+        if (result.error.code === 'CONSTRAINT_ERROR') {
+          expect(result.error.table).toBeDefined();
+        }
       }
     });
 
@@ -690,7 +692,9 @@ describe('PostgreSQL Integration Tests (PGlite)', () => {
       expect(result.ok).toBe(false);
       if (!result.ok) {
         expect(result.error.code).toBe('CONSTRAINT_ERROR');
-        expect(result.error.table).toBeDefined();
+        if (result.error.code === 'CONSTRAINT_ERROR') {
+          expect(result.error.table).toBeDefined();
+        }
       }
     });
 
@@ -701,7 +705,9 @@ describe('PostgreSQL Integration Tests (PGlite)', () => {
       expect(result.ok).toBe(false);
       if (!result.ok) {
         expect(result.error.code).toBe('NotFound');
-        expect(result.error.table).toBe('posts');
+        if (result.error.code === 'NotFound') {
+          expect(result.error.table).toBe('posts');
+        }
       }
     });
 
