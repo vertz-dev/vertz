@@ -298,7 +298,7 @@ jobs:
       - name: Build packages
         env:
           TURBO_CONCURRENCY: 2
-        run: timeout --kill-after=10 900 bunx turbo run build --filter='!@vertz-examples/*' --filter='!entity-todo-example' --filter='!@vertz/landing-nextjs' --filter='!@vertz/landing-nextjs-vercel' --filter='!@vertz/native-compiler' --filter='!@vertz/site' --filter='!@vertz/og' --filter='!@vertz/mint-docs' --filter='!@vertz-benchmarks/*' --filter='!contacts-api-example' --filter='!create-vertz' --filter='!landing' --filter='!@vertz/component-docs'
+        run: timeout --kill-after=10 900 bunx turbo run build --filter='!@vertz-examples/*' --filter='!entity-todo-example' --filter='!@vertz/landing-nextjs' --filter='!@vertz/landing-nextjs-vercel' --filter='!@vertz/native-compiler' --filter='!@vertz/landing' --filter='!@vertz/component-docs' --filter='!@vertz/site' --filter='!@vertz/og' --filter='!@vertz/mint-docs' --filter='!@vertz-benchmarks/*' --filter='!contacts-api-example' --filter='!create-vertz'
 
       - name: Run tests with coverage
         env:
