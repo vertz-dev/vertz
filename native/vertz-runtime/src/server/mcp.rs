@@ -631,6 +631,13 @@ mod tests {
             typecheck_enabled: false,
             api_isolate: std::sync::Arc::new(std::sync::RwLock::new(None)),
             auto_install: false,
+            auto_install_lock: std::sync::Arc::new(tokio::sync::Mutex::new(())),
+            auto_install_inflight: std::sync::Arc::new(std::sync::Mutex::new(
+                std::collections::HashMap::new(),
+            )),
+            auto_install_failed: std::sync::Arc::new(std::sync::Mutex::new(
+                std::collections::HashSet::new(),
+            )),
         })
     }
 

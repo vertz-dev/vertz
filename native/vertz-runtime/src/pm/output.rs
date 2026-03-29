@@ -386,6 +386,38 @@ pub fn error_code_from_message(msg: &str) -> &'static str {
     }
 }
 
+/// Lightweight output adapter for auto-install during dev.
+///
+/// Only logs `package_added` and `error` to stderr with `[PM]` prefix.
+/// All other methods are no-ops. Does NOT use TTY progress bars.
+pub struct DevPmOutput;
+
+impl PmOutput for DevPmOutput {
+    fn resolve_started(&self) {}
+    fn resolve_complete(&self, _count: usize) {}
+    fn download_started(&self, _total: usize) {}
+    fn download_tick(&self) {}
+    fn download_complete(&self, _count: usize) {}
+    fn link_started(&self) {}
+    fn link_complete(&self, _packages: usize, _files: usize, _cached: usize) {}
+    fn bin_stubs_created(&self, _count: usize) {}
+    fn package_added(&self, name: &str, version: &str, range: &str) {
+        eprintln!("[PM] + {}@{} ({} added to package.json)", name, version, range);
+    }
+    fn package_removed(&self, _name: &str) {}
+    fn package_updated(&self, _name: &str, _from: &str, _to: &str, _range: &str) {}
+    fn workspace_linked(&self, _count: usize) {}
+    fn script_started(&self, _name: &str, _script: &str) {}
+    fn script_complete(&self, _name: &str, _duration_ms: u64) {}
+    fn script_error(&self, _name: &str, _error: &str) {}
+    fn info(&self, _message: &str) {}
+    fn warning(&self, _message: &str) {}
+    fn done(&self, _elapsed_ms: u64) {}
+    fn error(&self, _code: &str, message: &str) {
+        eprintln!("[PM] Error: {}", message);
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -515,5 +547,18 @@ mod tests {
         output.script_started("esbuild", "node install.js");
         output.script_complete("esbuild", 1200);
         output.script_error("prisma", "script exited with code 1");
+    }
+
+    #[test]
+    fn test_dev_output_package_added() {
+        let output = DevPmOutput;
+        // Should not panic — just prints to stderr
+        output.package_added("zod", "3.24.0", "^3.24.0");
+    }
+
+    #[test]
+    fn test_dev_output_error() {
+        let output = DevPmOutput;
+        output.error("NOT_FOUND", "package not found");
     }
 }

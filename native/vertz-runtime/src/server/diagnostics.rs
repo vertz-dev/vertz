@@ -67,7 +67,8 @@ pub async fn collect_diagnostics(
         let state = error_broadcaster.current_state().await;
         match state {
             crate::errors::broadcaster::ErrorBroadcast::Error { errors, .. } => errors,
-            crate::errors::broadcaster::ErrorBroadcast::Clear => vec![],
+            crate::errors::broadcaster::ErrorBroadcast::Clear
+            | crate::errors::broadcaster::ErrorBroadcast::Info { .. } => vec![],
         }
     };
 
