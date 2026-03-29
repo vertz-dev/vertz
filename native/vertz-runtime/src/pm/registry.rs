@@ -208,6 +208,57 @@ impl RegistryClient {
         }
     }
 
+    /// Fetch bulk advisories from the npm advisory API.
+    /// Sends a POST request with a map of package names to version lists.
+    /// Does NOT acquire the semaphore — concurrency is controlled at the call site
+    /// via `buffer_unordered(4)`.
+    /// Retries up to MAX_RETRIES times with exponential backoff (safe: idempotent read-only POST).
+    pub async fn fetch_advisories_bulk(
+        &self,
+        packages: &std::collections::BTreeMap<String, Vec<String>>,
+    ) -> Result<
+        std::collections::BTreeMap<String, Vec<crate::pm::types::Advisory>>,
+        Box<dyn std::error::Error + Send + Sync>,
+    > {
+        let url = format!("{}/-/npm/v1/security/advisories/bulk", REGISTRY_URL);
+        let mut last_error = None;
+
+        for attempt in 0..MAX_RETRIES {
+            if attempt > 0 {
+                tokio::time::sleep(std::time::Duration::from_millis(100 * 2u64.pow(attempt))).await;
+            }
+
+            match self
+                .client
+                .post(&url)
+                .header("Content-Type", "application/json")
+                .json(packages)
+                .send()
+                .await
+            {
+                Ok(response) => {
+                    if response.status().is_success() {
+                        let body = response.text().await?;
+                        let advisories: std::collections::BTreeMap<
+                            String,
+                            Vec<crate::pm::types::Advisory>,
+                        > = serde_json::from_str(&body)?;
+                        return Ok(advisories);
+                    } else {
+                        last_error = Some(
+                            format!("advisory API returned HTTP {}", response.status()).into(),
+                        );
+                    }
+                }
+                Err(e) => {
+                    last_error = Some(Box::new(e) as Box<dyn std::error::Error + Send + Sync>);
+                }
+            }
+        }
+
+        Err(last_error.unwrap_or_else(|| "Unknown error fetching advisories".into()))
+    }
+
     /// Sanitize a package name into a safe filename component.
     /// Replaces `/` with `__` and removes `..` to prevent path traversal.
     fn sanitize_cache_name(name: &str) -> String {

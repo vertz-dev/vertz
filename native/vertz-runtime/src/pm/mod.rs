@@ -1789,6 +1789,950 @@ pub async fn publish(
     Ok(())
 }
 
+/// A batch error from the advisory API
+#[derive(Debug)]
+pub struct BatchError {
+    pub batch: usize,
+    pub error: String,
+}
+
+/// Result of running `vertz audit`
+#[derive(Debug)]
+pub struct AuditResult {
+    pub entries: Vec<types::AuditEntry>,
+    pub warnings: Vec<String>,
+    pub batch_errors: Vec<BatchError>,
+    pub total_packages: usize,
+    /// Number of entries excluded by severity filter
+    pub below_threshold: usize,
+}
+
+/// Run a vulnerability audit against the npm advisory API.
+/// Reads the lockfile, deduplicates packages, queries the bulk advisory endpoint,
+/// resolves parent dependencies, and filters by severity threshold.
+pub async fn audit(
+    root_dir: &Path,
+    severity_threshold: types::Severity,
+) -> Result<AuditResult, Box<dyn std::error::Error>> {
+    let lockfile_path = root_dir.join("vertz.lock");
+    if !lockfile_path.exists() {
+        return Err("No lockfile found. Run `vertz install` first.".into());
+    }
+
+    let lockfile = lockfile::read_lockfile(&lockfile_path)?;
+    let pkg = types::read_package_json(root_dir)?;
+
+    // Collect unique (name, version) pairs, skipping link: entries (workspace packages)
+    let mut package_versions: BTreeMap<String, HashSet<String>> = BTreeMap::new();
+    for entry in lockfile.entries.values() {
+        if entry.resolved.starts_with("link:") {
+            continue;
+        }
+        package_versions
+            .entry(entry.name.clone())
+            .or_default()
+            .insert(entry.version.clone());
+    }
+
+    let total_packages = package_versions.len();
+
+    // Build bulk request map: name → [versions]
+    let bulk_request: BTreeMap<String, Vec<String>> = package_versions
+        .iter()
+        .map(|(name, versions)| {
+            let mut v: Vec<String> = versions.iter().cloned().collect();
+            v.sort();
+            (name.clone(), v)
+        })
+        .collect();
+
+    if bulk_request.is_empty() {
+        return Ok(AuditResult {
+            entries: Vec::new(),
+            warnings: Vec::new(),
+            batch_errors: Vec::new(),
+            total_packages: 0,
+            below_threshold: 0,
+        });
+    }
+
+    // Batch into chunks of 100 packages
+    let batches: Vec<BTreeMap<String, Vec<String>>> = {
+        let items: Vec<(String, Vec<String>)> = bulk_request.into_iter().collect();
+        items
+            .chunks(100)
+            .map(|chunk| chunk.iter().cloned().collect())
+            .collect()
+    };
+
+    let cache_dir = registry::default_cache_dir();
+    let client = Arc::new(RegistryClient::new(&cache_dir));
+
+    // Fetch advisories with buffer_unordered(4) concurrency
+    let batch_results: Vec<_> = stream::iter(batches)
+        .map(|batch| {
+            let client = client.clone();
+            async move { client.fetch_advisories_bulk(&batch).await }
+        })
+        .buffer_unordered(4)
+        .collect()
+        .await;
+
+    // Merge batch results
+    let mut all_advisories: BTreeMap<String, Vec<types::Advisory>> = BTreeMap::new();
+    let mut warnings = Vec::new();
+    let mut batch_errors = Vec::new();
+    for (batch_idx, result) in batch_results.into_iter().enumerate() {
+        match result {
+            Ok(advisories) => {
+                for (name, advs) in advisories {
+                    all_advisories.entry(name).or_default().extend(advs);
+                }
+            }
+            Err(e) => {
+                let error_msg = e.to_string();
+                warnings.push(format!(
+                    "warning: advisory batch {} failed: {}",
+                    batch_idx + 1,
+                    error_msg
+                ));
+                batch_errors.push(BatchError {
+                    batch: batch_idx + 1,
+                    error: error_msg,
+                });
+            }
+        }
+    }
+
+    // Build direct dependency set for parent resolution
+    let mut direct_deps: HashSet<String> = HashSet::new();
+    for name in pkg.dependencies.keys() {
+        direct_deps.insert(name.clone());
+    }
+    for name in pkg.dev_dependencies.keys() {
+        direct_deps.insert(name.clone());
+    }
+    for name in pkg.optional_dependencies.keys() {
+        direct_deps.insert(name.clone());
+    }
+
+    // Build reverse dependency map: package → direct dep that requires it
+    let reverse_deps = build_reverse_dep_map(&lockfile, &direct_deps);
+
+    // Convert advisories to AuditEntry list
+    let mut all_entries: Vec<types::AuditEntry> = Vec::new();
+    for (name, advisories) in &all_advisories {
+        if let Some(versions) = package_versions.get(name) {
+            for version in versions {
+                for advisory in advisories {
+                    let severity = match types::Severity::parse(&advisory.severity) {
+                        Some(s) => s,
+                        None => {
+                            warnings.push(format!(
+                                "warning: unknown severity '{}' for advisory {} on {} — treating as low",
+                                advisory.severity, advisory.id, name
+                            ));
+                            types::Severity::Low
+                        }
+                    };
+                    let parent = if direct_deps.contains(name) {
+                        None
+                    } else {
+                        reverse_deps.get(name).cloned()
+                    };
+
+                    all_entries.push(types::AuditEntry {
+                        name: name.clone(),
+                        version: version.clone(),
+                        severity,
+                        title: advisory.title.clone(),
+                        url: advisory.url.clone(),
+                        patched: advisory.patched_versions.clone(),
+                        id: advisory.id,
+                        parent,
+                    });
+                }
+            }
+        }
+    }
+
+    // Sort by severity (critical first), then by name
+    all_entries.sort_by(|a, b| {
+        a.severity
+            .rank()
+            .cmp(&b.severity.rank())
+            .then(a.name.cmp(&b.name))
+    });
+
+    // Filter by severity threshold
+    let total_before_filter = all_entries.len();
+    let entries: Vec<types::AuditEntry> = all_entries
+        .into_iter()
+        .filter(|e| e.severity.at_or_above(severity_threshold))
+        .collect();
+    let below_threshold = total_before_filter - entries.len();
+
+    Ok(AuditResult {
+        entries,
+        warnings,
+        batch_errors,
+        total_packages,
+        below_threshold,
+    })
+}
+
+/// Result of a single fix attempt
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FixApplied {
+    pub name: String,
+    pub from: String,
+    pub to: String,
+}
+
+/// A vulnerability that requires manual intervention
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FixManual {
+    pub name: String,
+    pub from: String,
+    pub patched: String,
+    pub range: String,
+    pub reason: String,
+}
+
+/// Result of `vertz audit --fix`
+#[derive(Debug)]
+pub struct AuditFixResult {
+    pub audit: AuditResult,
+    pub fixed: Vec<FixApplied>,
+    pub manual: Vec<FixManual>,
+}
+
+/// Given a declared range, a patched_versions range, and available versions from the registry,
+/// find the highest version satisfying both ranges. Returns None if no such version exists.
+pub fn resolve_fix_version(
+    declared_range_str: &str,
+    patched_range_str: &str,
+    available_versions: &BTreeMap<String, serde_json::Value>,
+) -> Option<String> {
+    let declared = match node_semver::Range::parse(declared_range_str) {
+        Ok(r) => r,
+        Err(_) => return None,
+    };
+    let patched = match node_semver::Range::parse(patched_range_str) {
+        Ok(r) => r,
+        Err(_) => return None,
+    };
+
+    let mut best: Option<(node_semver::Version, String)> = None;
+    for key in available_versions.keys() {
+        if let Ok(ver) = node_semver::Version::parse(key) {
+            if declared.satisfies(&ver) && patched.satisfies(&ver) {
+                match &best {
+                    None => best = Some((ver, key.clone())),
+                    Some((current_best, _)) => {
+                        if ver > *current_best {
+                            best = Some((ver, key.clone()));
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    best.map(|(_, s)| s)
+}
+
+/// Compute the strictest patched range when a package has multiple advisories.
+/// Returns the range where all patched_versions ranges intersect (i.e., the version
+/// must satisfy ALL patched ranges simultaneously). For ">=" ranges, this is the
+/// highest minimum.
+pub fn merge_patched_ranges(patched_ranges: &[&str]) -> Option<String> {
+    if patched_ranges.is_empty() {
+        return None;
+    }
+    if patched_ranges.len() == 1 {
+        return Some(patched_ranges[0].to_string());
+    }
+
+    // For multiple ranges, we need ALL to be satisfied — AND semantics.
+    // Build a combined range string: ">=4.17.19 >=4.17.20 >=4.17.21"
+    // node_semver parses space-separated comparators as AND (intersection).
+    let combined = patched_ranges.join(" ");
+    // Verify it parses
+    node_semver::Range::parse(&combined).ok()?;
+    Some(combined)
+}
+
+/// Run audit with --fix: audit packages, then attempt to update vulnerable ones.
+pub async fn audit_fix(
+    root_dir: &Path,
+    severity_threshold: types::Severity,
+    dry_run: bool,
+) -> Result<AuditFixResult, Box<dyn std::error::Error>> {
+    let audit_result = audit(root_dir, severity_threshold).await?;
+
+    if audit_result.entries.is_empty() {
+        return Ok(AuditFixResult {
+            audit: audit_result,
+            fixed: Vec::new(),
+            manual: Vec::new(),
+        });
+    }
+
+    let pkg = types::read_package_json(root_dir)?;
+    let lockfile_path = root_dir.join("vertz.lock");
+    let mut lockfile = lockfile::read_lockfile(&lockfile_path)?;
+
+    // Collect all declared ranges from package.json
+    let mut declared_ranges: BTreeMap<String, String> = BTreeMap::new();
+    for (name, range) in &pkg.dependencies {
+        declared_ranges.insert(name.clone(), range.clone());
+    }
+    for (name, range) in &pkg.dev_dependencies {
+        declared_ranges.insert(name.clone(), range.clone());
+    }
+    for (name, range) in &pkg.optional_dependencies {
+        declared_ranges.insert(name.clone(), range.clone());
+    }
+
+    // Group advisories by package name for multi-advisory merging
+    let mut patched_by_pkg: BTreeMap<String, Vec<String>> = BTreeMap::new();
+    for entry in &audit_result.entries {
+        patched_by_pkg
+            .entry(entry.name.clone())
+            .or_default()
+            .push(entry.patched.clone());
+    }
+
+    // Deduplicate packages to fix (a package may have multiple advisories)
+    let mut packages_to_fix: Vec<(String, String, String)> = Vec::new(); // (name, version, merged_patched)
+    let mut seen: HashSet<String> = HashSet::new();
+    for entry in &audit_result.entries {
+        if seen.contains(&entry.name) {
+            continue;
+        }
+        seen.insert(entry.name.clone());
+
+        let patched_refs: Vec<&str> = patched_by_pkg[&entry.name]
+            .iter()
+            .map(|s| s.as_str())
+            .collect();
+        let merged = merge_patched_ranges(&patched_refs).unwrap_or_else(|| entry.patched.clone());
+
+        packages_to_fix.push((entry.name.clone(), entry.version.clone(), merged));
+    }
+
+    let cache_dir = registry::default_cache_dir();
+    let client = Arc::new(RegistryClient::new(&cache_dir));
+
+    let mut fixed = Vec::new();
+    let mut manual = Vec::new();
+
+    // Resolve fix versions in parallel
+    let fix_results: Vec<_> = stream::iter(packages_to_fix)
+        .map(|(name, current_version, merged_patched)| {
+            let client = client.clone();
+            let declared = declared_ranges.get(&name).cloned();
+            async move {
+                let declared_range = match declared {
+                    Some(r) => r,
+                    None => {
+                        // Transitive dependency — we can't fix it directly
+                        return (
+                            name.clone(),
+                            current_version,
+                            merged_patched,
+                            None::<String>,
+                            None::<BTreeMap<String, serde_json::Value>>,
+                            Some("transitive dependency — update the parent package".to_string()),
+                        );
+                    }
+                };
+
+                match client.fetch_metadata_abbreviated(&name).await {
+                    Ok(meta) => {
+                        let fix_version =
+                            resolve_fix_version(&declared_range, &merged_patched, &meta.versions);
+                        (
+                            name,
+                            current_version,
+                            merged_patched,
+                            fix_version,
+                            Some(meta.versions),
+                            None,
+                        )
+                    }
+                    Err(e) => (
+                        name,
+                        current_version,
+                        merged_patched,
+                        None,
+                        None,
+                        Some(format!("failed to fetch metadata: {}", e)),
+                    ),
+                }
+            }
+        })
+        .buffer_unordered(16)
+        .collect()
+        .await;
+
+    for (name, current_version, merged_patched, fix_version, versions_meta, error) in fix_results {
+        let declared_range = declared_ranges.get(&name).cloned().unwrap_or_default();
+
+        if let Some(ref err) = error {
+            manual.push(FixManual {
+                name,
+                from: current_version,
+                patched: merged_patched,
+                range: declared_range,
+                reason: err.clone(),
+            });
+            continue;
+        }
+
+        match fix_version {
+            Some(ref to_version) if *to_version == current_version => {
+                // Already at a patched version — no action needed
+            }
+            Some(to_version) => {
+                fixed.push(FixApplied {
+                    name: name.clone(),
+                    from: current_version.clone(),
+                    to: to_version.clone(),
+                });
+
+                if !dry_run {
+                    // Extract tarball URL and integrity from metadata
+                    let (resolved_url, integrity) =
+                        extract_version_dist(&name, &to_version, versions_meta.as_ref());
+
+                    // Update the lockfile entry
+                    let spec_key = types::Lockfile::spec_key(&name, &declared_range);
+                    if let Some(entry) = lockfile.entries.get_mut(&spec_key) {
+                        entry.version = to_version.clone();
+                        entry.resolved = resolved_url;
+                        entry.integrity = integrity;
+                    }
+                }
+            }
+            None => {
+                let reason = if merged_patched == "<0.0.0" {
+                    "no patched version available".to_string()
+                } else {
+                    format!("patched version outside declared range {}", declared_range)
+                };
+                manual.push(FixManual {
+                    name,
+                    from: current_version,
+                    patched: merged_patched,
+                    range: declared_range.clone(),
+                    reason,
+                });
+            }
+        }
+    }
+
+    // Write updated lockfile if not dry-run and we fixed something
+    if !dry_run && !fixed.is_empty() {
+        lockfile::write_lockfile(&lockfile_path, &lockfile)?;
+    }
+
+    // Re-install fixed packages (download tarball + extract + link to node_modules)
+    if !dry_run && !fixed.is_empty() {
+        let tarball_mgr = TarballManager::new(&registry::default_cache_dir());
+        let node_modules = root_dir.join("node_modules");
+        for f in &fixed {
+            let spec_key = types::Lockfile::spec_key(
+                &f.name,
+                &declared_ranges.get(&f.name).cloned().unwrap_or_default(),
+            );
+            if let Some(entry) = lockfile.entries.get(&spec_key) {
+                // Download and extract the new tarball to cache
+                match tarball_mgr
+                    .fetch_and_extract(&f.name, &f.to, &entry.resolved, &entry.integrity)
+                    .await
+                {
+                    Ok(store_path) => {
+                        // Link from cache to node_modules
+                        let target = node_modules.join(&f.name);
+                        if target.exists() {
+                            std::fs::remove_dir_all(&target).ok();
+                        }
+                        if let Some(parent) = target.parent() {
+                            std::fs::create_dir_all(parent).ok();
+                        }
+                        if let Err(e) = linker::link_directory_recursive(&store_path, &target) {
+                            eprintln!(
+                                "warning: failed to link {} {}: {}. Run `vertz install` to complete.",
+                                f.name, f.to, e
+                            );
+                        }
+                    }
+                    Err(e) => {
+                        // Non-fatal: lockfile is already updated, user can run `vertz install`
+                        eprintln!(
+                            "warning: failed to install {} {}: {}. Run `vertz install` to complete.",
+                            f.name, f.to, e
+                        );
+                    }
+                }
+            }
+        }
+    }
+
+    Ok(AuditFixResult {
+        audit: audit_result,
+        fixed,
+        manual,
+    })
+}
+
+/// Format the fix results as text for stderr
+pub fn format_fix_text(fixed: &[FixApplied], manual: &[FixManual], dry_run: bool) -> String {
+    let mut output = String::new();
+
+    if !fixed.is_empty() {
+        if dry_run {
+            output.push_str(&format!(
+                "\nWould fix {} {}:\n",
+                fixed.len(),
+                if fixed.len() == 1 {
+                    "vulnerability"
+                } else {
+                    "vulnerabilities"
+                }
+            ));
+        } else {
+            output.push_str(&format!(
+                "\nFixed {} {}:\n",
+                fixed.len(),
+                if fixed.len() == 1 {
+                    "vulnerability"
+                } else {
+                    "vulnerabilities"
+                }
+            ));
+        }
+        for f in fixed {
+            output.push_str(&format!("  {} {} → {}\n", f.name, f.from, f.to));
+        }
+    }
+
+    if !manual.is_empty() {
+        output.push_str(&format!(
+            "\n{} {} manual update:\n",
+            manual.len(),
+            if manual.len() == 1 {
+                "vulnerability requires"
+            } else {
+                "vulnerabilities require"
+            }
+        ));
+        for m in manual {
+            output.push_str(&format!(
+                "  {} {} ({})\n    Patched versions: {}\n    Run: vertz add {}@\"<patched-version>\"\n",
+                m.name, m.from, m.reason, m.patched, m.name
+            ));
+        }
+    }
+
+    output
+}
+
+/// Format the fix results as NDJSON
+pub fn format_fix_json(fixed: &[FixApplied], manual: &[FixManual]) -> String {
+    let mut output = String::new();
+
+    for f in fixed {
+        let obj = serde_json::json!({
+            "event": "fix_applied",
+            "name": f.name,
+            "from": f.from,
+            "to": f.to,
+        });
+        output.push_str(&obj.to_string());
+        output.push('\n');
+    }
+
+    for m in manual {
+        let obj = serde_json::json!({
+            "event": "fix_manual",
+            "name": m.name,
+            "from": m.from,
+            "patched": m.patched,
+            "range": m.range,
+            "reason": m.reason,
+            "suggestion": format!("vertz add {}@\"<patched-version>\"", m.name),
+        });
+        output.push_str(&obj.to_string());
+        output.push('\n');
+    }
+
+    let complete = serde_json::json!({
+        "event": "audit_fix_complete",
+        "fixed": fixed.len(),
+        "manual": manual.len(),
+    });
+    output.push_str(&complete.to_string());
+    output.push('\n');
+
+    output
+}
+
+/// Extract tarball URL and integrity hash from abbreviated metadata for a specific version.
+/// Falls back to a constructed URL if metadata doesn't contain dist info.
+fn extract_version_dist(
+    name: &str,
+    version: &str,
+    versions_meta: Option<&BTreeMap<String, serde_json::Value>>,
+) -> (String, String) {
+    if let Some(versions) = versions_meta {
+        if let Some(ver_data) = versions.get(version) {
+            let tarball = ver_data
+                .pointer("/dist/tarball")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string();
+            let integrity = ver_data
+                .pointer("/dist/integrity")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string();
+            if !tarball.is_empty() {
+                return (tarball, integrity);
+            }
+        }
+    }
+
+    // Fallback: construct URL (won't have integrity)
+    let unscoped = name.rsplit('/').next().unwrap_or(name);
+    (
+        format!(
+            "https://registry.npmjs.org/{}/-/{}-{}.tgz",
+            name, unscoped, version
+        ),
+        String::new(),
+    )
+}
+
+/// Build a reverse dependency map: for each transitive package, find the direct
+/// dependency that pulls it in. Uses BFS from each direct dependency to walk
+/// the full transitive tree (not just one level).
+fn build_reverse_dep_map(
+    lockfile: &types::Lockfile,
+    direct_deps: &HashSet<String>,
+) -> BTreeMap<String, String> {
+    let mut reverse: BTreeMap<String, String> = BTreeMap::new();
+
+    // Build a name → LockfileEntry lookup for BFS
+    let mut by_name: BTreeMap<String, Vec<&types::LockfileEntry>> = BTreeMap::new();
+    for entry in lockfile.entries.values() {
+        by_name.entry(entry.name.clone()).or_default().push(entry);
+    }
+
+    // BFS from each direct dependency
+    for direct_name in direct_deps {
+        let mut queue: std::collections::VecDeque<String> = std::collections::VecDeque::new();
+
+        // Seed queue with the direct dep's transitive deps
+        if let Some(entries) = by_name.get(direct_name) {
+            for entry in entries {
+                for dep_name in entry.dependencies.keys() {
+                    if !direct_deps.contains(dep_name) && !reverse.contains_key(dep_name) {
+                        queue.push_back(dep_name.clone());
+                    }
+                }
+            }
+        }
+
+        // BFS: walk transitive deps, attributing all to this direct dep
+        while let Some(name) = queue.pop_front() {
+            if reverse.contains_key(&name) {
+                continue;
+            }
+            reverse.insert(name.clone(), direct_name.clone());
+
+            // Enqueue this package's own dependencies
+            if let Some(entries) = by_name.get(&name) {
+                for entry in entries {
+                    for dep_name in entry.dependencies.keys() {
+                        if !direct_deps.contains(dep_name) && !reverse.contains_key(dep_name) {
+                            queue.push_back(dep_name.clone());
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    reverse
+}
+
+/// Format audit entries as a human-readable table for stdout.
+pub fn format_audit_text(entries: &[types::AuditEntry]) -> String {
+    if entries.is_empty() {
+        return String::new();
+    }
+
+    // Calculate column widths
+    let sev_width = entries
+        .iter()
+        .map(|e| e.severity.as_str().len())
+        .max()
+        .unwrap_or(8)
+        .max(8);
+    let pkg_width = entries
+        .iter()
+        .map(|e| e.name.len())
+        .max()
+        .unwrap_or(7)
+        .max(7);
+    let ver_width = entries
+        .iter()
+        .map(|e| e.version.len())
+        .max()
+        .unwrap_or(7)
+        .max(7);
+    let patch_width = entries
+        .iter()
+        .map(|e| e.patched.len())
+        .max()
+        .unwrap_or(7)
+        .max(7);
+    let title_width = entries
+        .iter()
+        .map(|e| e.title.len().max(e.url.len()))
+        .max()
+        .unwrap_or(5)
+        .max(5);
+
+    let mut output = String::new();
+
+    // Top border
+    output.push_str(&format!(
+        "┌{:─<sw$}┬{:─<pw$}┬{:─<vw$}┬{:─<ptw$}┬{:─<tw$}┐\n",
+        "",
+        "",
+        "",
+        "",
+        "",
+        sw = sev_width + 2,
+        pw = pkg_width + 2,
+        vw = ver_width + 2,
+        ptw = patch_width + 2,
+        tw = title_width + 2,
+    ));
+
+    // Header
+    output.push_str(&format!(
+        "│ {:<sw$} │ {:<pw$} │ {:<vw$} │ {:<ptw$} │ {:<tw$} │\n",
+        "Severity",
+        "Package",
+        "Version",
+        "Patched",
+        "Title",
+        sw = sev_width,
+        pw = pkg_width,
+        vw = ver_width,
+        ptw = patch_width,
+        tw = title_width,
+    ));
+
+    // Header separator
+    output.push_str(&format!(
+        "├{:─<sw$}┼{:─<pw$}┼{:─<vw$}┼{:─<ptw$}┼{:─<tw$}┤\n",
+        "",
+        "",
+        "",
+        "",
+        "",
+        sw = sev_width + 2,
+        pw = pkg_width + 2,
+        vw = ver_width + 2,
+        ptw = patch_width + 2,
+        tw = title_width + 2,
+    ));
+
+    // Data rows
+    for entry in entries {
+        let parent_label = match &entry.parent {
+            Some(p) => format!("via {}", p),
+            None => "(direct)".to_string(),
+        };
+
+        // First line: severity, package, version, patched, title
+        output.push_str(&format!(
+            "│ {:<sw$} │ {:<pw$} │ {:<vw$} │ {:<ptw$} │ {:<tw$} │\n",
+            entry.severity.as_str(),
+            entry.name,
+            entry.version,
+            entry.patched,
+            entry.title,
+            sw = sev_width,
+            pw = pkg_width,
+            vw = ver_width,
+            ptw = patch_width,
+            tw = title_width,
+        ));
+
+        // Second line: parent info and URL
+        output.push_str(&format!(
+            "│ {:<sw$} │ {:<pw$} │ {:<vw$} │ {:<ptw$} │ {:<tw$} │\n",
+            "",
+            parent_label,
+            "",
+            "",
+            entry.url,
+            sw = sev_width,
+            pw = pkg_width,
+            vw = ver_width,
+            ptw = patch_width,
+            tw = title_width,
+        ));
+    }
+
+    // Bottom border
+    output.push_str(&format!(
+        "└{:─<sw$}┴{:─<pw$}┴{:─<vw$}┴{:─<ptw$}┴{:─<tw$}┘\n",
+        "",
+        "",
+        "",
+        "",
+        "",
+        sw = sev_width + 2,
+        pw = pkg_width + 2,
+        vw = ver_width + 2,
+        ptw = patch_width + 2,
+        tw = title_width + 2,
+    ));
+
+    output
+}
+
+/// Format the audit summary line for stderr.
+pub fn format_audit_summary(entries: &[types::AuditEntry], below_threshold: usize) -> String {
+    if entries.is_empty() && below_threshold == 0 {
+        return "No vulnerabilities found.".to_string();
+    }
+
+    if entries.is_empty() && below_threshold > 0 {
+        return format!(
+            "No vulnerabilities found at or above threshold. {} below threshold not shown.",
+            below_threshold
+        );
+    }
+
+    let total = entries.len();
+    let critical = entries
+        .iter()
+        .filter(|e| e.severity == types::Severity::Critical)
+        .count();
+    let high = entries
+        .iter()
+        .filter(|e| e.severity == types::Severity::High)
+        .count();
+    let moderate = entries
+        .iter()
+        .filter(|e| e.severity == types::Severity::Moderate)
+        .count();
+    let low = entries
+        .iter()
+        .filter(|e| e.severity == types::Severity::Low)
+        .count();
+
+    let mut parts = Vec::new();
+    if critical > 0 {
+        parts.push(format!("{} critical", critical));
+    }
+    if high > 0 {
+        parts.push(format!("{} high", high));
+    }
+    if moderate > 0 {
+        parts.push(format!("{} moderate", moderate));
+    }
+    if low > 0 {
+        parts.push(format!("{} low", low));
+    }
+
+    let vuln_word = if total == 1 {
+        "vulnerability"
+    } else {
+        "vulnerabilities"
+    };
+
+    let mut summary = format!("{} {} found ({})", total, vuln_word, parts.join(", "));
+
+    if below_threshold > 0 {
+        summary.push_str(&format!(". {} below threshold not shown.", below_threshold));
+    }
+
+    summary
+}
+
+/// Format audit entries as NDJSON for stdout.
+pub fn format_audit_json(
+    entries: &[types::AuditEntry],
+    total_packages: usize,
+    below_threshold: usize,
+) -> String {
+    let mut output = String::new();
+
+    // audit_start event
+    let start = serde_json::json!({"event": "audit_start", "packages": total_packages});
+    output.push_str(&start.to_string());
+    output.push('\n');
+
+    // advisory events
+    for entry in entries {
+        let obj = serde_json::json!({
+            "event": "advisory",
+            "name": entry.name,
+            "version": entry.version,
+            "severity": entry.severity.as_str(),
+            "title": entry.title,
+            "url": entry.url,
+            "patched": entry.patched,
+            "id": entry.id,
+            "parent": entry.parent,
+        });
+        output.push_str(&obj.to_string());
+        output.push('\n');
+    }
+
+    // audit_complete event
+    let critical = entries
+        .iter()
+        .filter(|e| e.severity == types::Severity::Critical)
+        .count();
+    let high = entries
+        .iter()
+        .filter(|e| e.severity == types::Severity::High)
+        .count();
+    let moderate = entries
+        .iter()
+        .filter(|e| e.severity == types::Severity::Moderate)
+        .count();
+    let low = entries
+        .iter()
+        .filter(|e| e.severity == types::Severity::Low)
+        .count();
+
+    let complete = serde_json::json!({
+        "event": "audit_complete",
+        "vulnerabilities": entries.len(),
+        "critical": critical,
+        "high": high,
+        "moderate": moderate,
+        "low": low,
+        "below_threshold": below_threshold,
+    });
+    output.push_str(&complete.to_string());
+    output.push('\n');
+
+    output
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -3018,5 +3962,540 @@ mod tests {
             .await
             .unwrap();
         assert_ne!(code, 0);
+    }
+
+    // --- audit formatter tests ---
+
+    fn make_audit_entry(
+        name: &str,
+        version: &str,
+        severity: types::Severity,
+        title: &str,
+        patched: &str,
+        parent: Option<&str>,
+    ) -> types::AuditEntry {
+        types::AuditEntry {
+            name: name.to_string(),
+            version: version.to_string(),
+            severity,
+            title: title.to_string(),
+            url: format!("https://github.com/advisories/GHSA-{}", name),
+            patched: patched.to_string(),
+            id: 1234,
+            parent: parent.map(|s| s.to_string()),
+        }
+    }
+
+    #[test]
+    fn test_format_audit_text_with_entries() {
+        let entries = vec![
+            make_audit_entry(
+                "lodash",
+                "4.17.15",
+                types::Severity::Critical,
+                "Prototype Pollution",
+                ">=4.17.21",
+                None,
+            ),
+            make_audit_entry(
+                "tar",
+                "6.1.0",
+                types::Severity::Moderate,
+                "Arbitrary File Overwrite",
+                ">=6.1.9",
+                Some("npm"),
+            ),
+        ];
+
+        let text = format_audit_text(&entries);
+        assert!(text.contains("Severity"));
+        assert!(text.contains("Package"));
+        assert!(text.contains("Version"));
+        assert!(text.contains("Patched"));
+        assert!(text.contains("Title"));
+        assert!(text.contains("lodash"));
+        assert!(text.contains("4.17.15"));
+        assert!(text.contains("critical"));
+        assert!(text.contains("Prototype Pollution"));
+        assert!(text.contains(">=4.17.21"));
+        assert!(text.contains("(direct)"));
+        assert!(text.contains("tar"));
+        assert!(text.contains("via npm"));
+        // Box-drawing characters
+        assert!(text.contains("┌"));
+        assert!(text.contains("┘"));
+        assert!(text.contains("│"));
+    }
+
+    #[test]
+    fn test_format_audit_text_empty() {
+        let entries: Vec<types::AuditEntry> = Vec::new();
+        let text = format_audit_text(&entries);
+        assert!(text.is_empty());
+    }
+
+    #[test]
+    fn test_format_audit_summary_with_vulns() {
+        let entries = vec![
+            make_audit_entry(
+                "lodash",
+                "4.17.15",
+                types::Severity::Critical,
+                "PP",
+                ">=4.17.21",
+                None,
+            ),
+            make_audit_entry(
+                "axios",
+                "0.21.1",
+                types::Severity::High,
+                "SSRF",
+                ">=0.21.2",
+                None,
+            ),
+            make_audit_entry(
+                "tar",
+                "6.1.0",
+                types::Severity::Moderate,
+                "AFO",
+                ">=6.1.9",
+                Some("npm"),
+            ),
+        ];
+
+        let summary = format_audit_summary(&entries, 0);
+        assert!(summary.contains("3 vulnerabilities found"));
+        assert!(summary.contains("1 critical"));
+        assert!(summary.contains("1 high"));
+        assert!(summary.contains("1 moderate"));
+    }
+
+    #[test]
+    fn test_format_audit_summary_single_vuln() {
+        let entries = vec![make_audit_entry(
+            "lodash",
+            "4.17.15",
+            types::Severity::Critical,
+            "PP",
+            ">=4.17.21",
+            None,
+        )];
+
+        let summary = format_audit_summary(&entries, 0);
+        assert!(summary.contains("1 vulnerability found"));
+        assert!(!summary.contains("vulnerabilities"));
+    }
+
+    #[test]
+    fn test_format_audit_summary_no_vulns() {
+        let entries: Vec<types::AuditEntry> = Vec::new();
+        let summary = format_audit_summary(&entries, 0);
+        assert_eq!(summary, "No vulnerabilities found.");
+    }
+
+    #[test]
+    fn test_format_audit_summary_below_threshold() {
+        let entries = vec![make_audit_entry(
+            "lodash",
+            "4.17.15",
+            types::Severity::Critical,
+            "PP",
+            ">=4.17.21",
+            None,
+        )];
+
+        let summary = format_audit_summary(&entries, 3);
+        assert!(summary.contains("1 vulnerability found"));
+        assert!(summary.contains("3 below threshold not shown."));
+    }
+
+    #[test]
+    fn test_format_audit_summary_all_below_threshold() {
+        let entries: Vec<types::AuditEntry> = Vec::new();
+        let summary = format_audit_summary(&entries, 5);
+        assert!(summary.contains("No vulnerabilities found at or above threshold"));
+        assert!(summary.contains("5 below threshold not shown."));
+    }
+
+    #[test]
+    fn test_format_audit_json_basic() {
+        let entries = vec![make_audit_entry(
+            "lodash",
+            "4.17.15",
+            types::Severity::Critical,
+            "Prototype Pollution",
+            ">=4.17.21",
+            None,
+        )];
+
+        let json = format_audit_json(&entries, 142, 0);
+        let lines: Vec<&str> = json.trim().lines().collect();
+        assert_eq!(lines.len(), 3); // start + 1 advisory + complete
+
+        let start: serde_json::Value = serde_json::from_str(lines[0]).unwrap();
+        assert_eq!(start["event"], "audit_start");
+        assert_eq!(start["packages"], 142);
+
+        let advisory: serde_json::Value = serde_json::from_str(lines[1]).unwrap();
+        assert_eq!(advisory["event"], "advisory");
+        assert_eq!(advisory["name"], "lodash");
+        assert_eq!(advisory["version"], "4.17.15");
+        assert_eq!(advisory["severity"], "critical");
+        assert_eq!(advisory["title"], "Prototype Pollution");
+        assert_eq!(advisory["patched"], ">=4.17.21");
+        assert_eq!(advisory["id"], 1234);
+        assert!(advisory["parent"].is_null());
+
+        let complete: serde_json::Value = serde_json::from_str(lines[2]).unwrap();
+        assert_eq!(complete["event"], "audit_complete");
+        assert_eq!(complete["vulnerabilities"], 1);
+        assert_eq!(complete["critical"], 1);
+        assert_eq!(complete["high"], 0);
+    }
+
+    #[test]
+    fn test_format_audit_json_with_parent() {
+        let entries = vec![make_audit_entry(
+            "tar",
+            "6.1.0",
+            types::Severity::High,
+            "AFO",
+            ">=6.1.9",
+            Some("npm"),
+        )];
+
+        let json = format_audit_json(&entries, 50, 0);
+        let lines: Vec<&str> = json.trim().lines().collect();
+        let advisory: serde_json::Value = serde_json::from_str(lines[1]).unwrap();
+        assert_eq!(advisory["parent"], "npm");
+    }
+
+    #[test]
+    fn test_format_audit_json_empty() {
+        let entries: Vec<types::AuditEntry> = Vec::new();
+        let json = format_audit_json(&entries, 50, 0);
+        let lines: Vec<&str> = json.trim().lines().collect();
+        assert_eq!(lines.len(), 2); // start + complete
+
+        let complete: serde_json::Value = serde_json::from_str(lines[1]).unwrap();
+        assert_eq!(complete["vulnerabilities"], 0);
+    }
+
+    #[test]
+    fn test_format_audit_json_below_threshold() {
+        let entries: Vec<types::AuditEntry> = Vec::new();
+        let json = format_audit_json(&entries, 50, 3);
+        let lines: Vec<&str> = json.trim().lines().collect();
+        let complete: serde_json::Value = serde_json::from_str(lines[1]).unwrap();
+        assert_eq!(complete["below_threshold"], 3);
+    }
+
+    // --- build_reverse_dep_map tests ---
+
+    #[test]
+    fn test_build_reverse_dep_map_direct() {
+        let mut lockfile = Lockfile::default();
+        lockfile.entries.insert(
+            "express@^4.0.0".to_string(),
+            make_lockfile_entry("express", "^4.0.0", "4.18.2", &[("body-parser", "^1.20.0")]),
+        );
+        lockfile.entries.insert(
+            "body-parser@^1.20.0".to_string(),
+            make_lockfile_entry("body-parser", "^1.20.0", "1.20.2", &[]),
+        );
+
+        let mut direct = HashSet::new();
+        direct.insert("express".to_string());
+
+        let reverse = build_reverse_dep_map(&lockfile, &direct);
+        assert_eq!(reverse.get("body-parser"), Some(&"express".to_string()));
+    }
+
+    #[test]
+    fn test_build_reverse_dep_map_no_transitive() {
+        let mut lockfile = Lockfile::default();
+        lockfile.entries.insert(
+            "zod@^3.0.0".to_string(),
+            make_lockfile_entry("zod", "^3.0.0", "3.24.4", &[]),
+        );
+
+        let mut direct = HashSet::new();
+        direct.insert("zod".to_string());
+
+        let reverse = build_reverse_dep_map(&lockfile, &direct);
+        assert!(reverse.is_empty());
+    }
+
+    #[test]
+    fn test_build_reverse_dep_map_deep_transitive() {
+        let mut lockfile = Lockfile::default();
+        // express -> body-parser -> raw-body
+        lockfile.entries.insert(
+            "express@^4.0.0".to_string(),
+            make_lockfile_entry("express", "^4.0.0", "4.18.2", &[("body-parser", "^1.20.0")]),
+        );
+        lockfile.entries.insert(
+            "body-parser@^1.20.0".to_string(),
+            make_lockfile_entry(
+                "body-parser",
+                "^1.20.0",
+                "1.20.2",
+                &[("raw-body", "^2.5.0")],
+            ),
+        );
+        lockfile.entries.insert(
+            "raw-body@^2.5.0".to_string(),
+            make_lockfile_entry("raw-body", "^2.5.0", "2.5.2", &[]),
+        );
+
+        let mut direct = HashSet::new();
+        direct.insert("express".to_string());
+
+        let reverse = build_reverse_dep_map(&lockfile, &direct);
+        // Both body-parser and raw-body should be attributed to express
+        assert_eq!(reverse.get("body-parser"), Some(&"express".to_string()));
+        assert_eq!(reverse.get("raw-body"), Some(&"express".to_string()));
+    }
+
+    // --- audit() unit tests ---
+
+    #[tokio::test]
+    async fn test_audit_no_lockfile() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(
+            dir.path().join("package.json"),
+            r#"{"name": "test", "dependencies": {"zod": "^3.0.0"}}"#,
+        )
+        .unwrap();
+
+        let result = audit(dir.path(), types::Severity::Low).await;
+        assert!(result.is_err());
+        let err = result.unwrap_err().to_string();
+        assert!(err.contains("No lockfile found"), "got: {}", err);
+    }
+
+    #[tokio::test]
+    async fn test_audit_empty_lockfile() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(dir.path().join("package.json"), r#"{"name": "test"}"#).unwrap();
+        // Write a valid but empty lockfile
+        std::fs::write(
+            dir.path().join("vertz.lock"),
+            "# vertz.lock v1 (custom format) — DO NOT EDIT\n# Run \"vertz install\" to regenerate\n",
+        )
+        .unwrap();
+
+        let result = audit(dir.path(), types::Severity::Low).await.unwrap();
+        assert!(result.entries.is_empty());
+        assert_eq!(result.total_packages, 0);
+    }
+
+    #[tokio::test]
+    async fn test_audit_all_link_entries() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(
+            dir.path().join("package.json"),
+            r#"{"name": "test", "dependencies": {"@vertz/ui": "workspace:*"}}"#,
+        )
+        .unwrap();
+        // Write a lockfile with only link: entries
+        std::fs::write(
+            dir.path().join("vertz.lock"),
+            "# vertz.lock v1 (custom format) — DO NOT EDIT\n# Run \"vertz install\" to regenerate\n\n@vertz/ui@workspace:*:\n  version \"0.1.0\"\n  resolved \"link:../ui\"\n  integrity \"\"\n\n",
+        )
+        .unwrap();
+
+        let result = audit(dir.path(), types::Severity::Low).await.unwrap();
+        assert!(result.entries.is_empty());
+        assert_eq!(result.total_packages, 0);
+    }
+
+    // --- resolve_fix_version tests ---
+
+    #[test]
+    fn test_resolve_fix_version_compatible() {
+        let mut versions = BTreeMap::new();
+        versions.insert("4.17.15".to_string(), serde_json::json!({}));
+        versions.insert("4.17.19".to_string(), serde_json::json!({}));
+        versions.insert("4.17.20".to_string(), serde_json::json!({}));
+        versions.insert("4.17.21".to_string(), serde_json::json!({}));
+        versions.insert("4.17.25".to_string(), serde_json::json!({}));
+
+        // declared ^4.17.0, patched >=4.17.21 → should pick 4.17.25 (highest in both)
+        let result = resolve_fix_version("^4.17.0", ">=4.17.21", &versions);
+        assert_eq!(result, Some("4.17.25".to_string()));
+    }
+
+    #[test]
+    fn test_resolve_fix_version_incompatible() {
+        let mut versions = BTreeMap::new();
+        versions.insert("3.21.2".to_string(), serde_json::json!({}));
+        versions.insert("4.18.2".to_string(), serde_json::json!({}));
+
+        // declared ^3.0.0, patched >=4.18.2 → no version in ^3.0.0 satisfies >=4.18.2
+        let result = resolve_fix_version("^3.0.0", ">=4.18.2", &versions);
+        assert_eq!(result, None);
+    }
+
+    #[test]
+    fn test_resolve_fix_version_picks_highest() {
+        let mut versions = BTreeMap::new();
+        versions.insert("0.21.1".to_string(), serde_json::json!({}));
+        versions.insert("0.21.2".to_string(), serde_json::json!({}));
+        versions.insert("0.21.3".to_string(), serde_json::json!({}));
+        versions.insert("1.0.0".to_string(), serde_json::json!({}));
+
+        // declared ^0.21.0, patched >=0.21.2 → should pick 0.21.3
+        let result = resolve_fix_version("^0.21.0", ">=0.21.2", &versions);
+        assert_eq!(result, Some("0.21.3".to_string()));
+    }
+
+    #[test]
+    fn test_resolve_fix_version_no_versions_available() {
+        let versions = BTreeMap::new();
+        let result = resolve_fix_version("^1.0.0", ">=1.0.1", &versions);
+        assert_eq!(result, None);
+    }
+
+    #[test]
+    fn test_resolve_fix_version_invalid_declared_range() {
+        let mut versions = BTreeMap::new();
+        versions.insert("1.0.0".to_string(), serde_json::json!({}));
+        let result = resolve_fix_version("not-a-range", ">=1.0.0", &versions);
+        assert_eq!(result, None);
+    }
+
+    #[test]
+    fn test_resolve_fix_version_invalid_patched_range() {
+        let mut versions = BTreeMap::new();
+        versions.insert("1.0.0".to_string(), serde_json::json!({}));
+        let result = resolve_fix_version("^1.0.0", "not-a-range", &versions);
+        assert_eq!(result, None);
+    }
+
+    // --- merge_patched_ranges tests ---
+
+    #[test]
+    fn test_merge_patched_ranges_single() {
+        let result = merge_patched_ranges(&[">=4.17.21"]);
+        assert_eq!(result, Some(">=4.17.21".to_string()));
+    }
+
+    #[test]
+    fn test_merge_patched_ranges_multiple() {
+        let result = merge_patched_ranges(&[">=4.17.19", ">=4.17.20", ">=4.17.21"]);
+        assert!(result.is_some());
+        // The combined range should satisfy 4.17.21 but not 4.17.20
+        let combined = result.unwrap();
+        let range = node_semver::Range::parse(&combined).unwrap();
+        let v21 = node_semver::Version::parse("4.17.21").unwrap();
+        let v20 = node_semver::Version::parse("4.17.20").unwrap();
+        assert!(range.satisfies(&v21));
+        assert!(!range.satisfies(&v20));
+    }
+
+    #[test]
+    fn test_merge_patched_ranges_empty() {
+        let result = merge_patched_ranges(&[]);
+        assert_eq!(result, None);
+    }
+
+    // --- format_fix_text tests ---
+
+    #[test]
+    fn test_format_fix_text_applied() {
+        let fixed = vec![FixApplied {
+            name: "lodash".to_string(),
+            from: "4.17.15".to_string(),
+            to: "4.17.21".to_string(),
+        }];
+        let manual: Vec<FixManual> = Vec::new();
+
+        let text = format_fix_text(&fixed, &manual, false);
+        assert!(text.contains("Fixed 1 vulnerability"));
+        assert!(text.contains("lodash 4.17.15 → 4.17.21"));
+    }
+
+    #[test]
+    fn test_format_fix_text_manual() {
+        let fixed: Vec<FixApplied> = Vec::new();
+        let manual = vec![FixManual {
+            name: "express".to_string(),
+            from: "3.21.2".to_string(),
+            patched: ">=4.18.2".to_string(),
+            range: "^3.0.0".to_string(),
+            reason: "patched version outside declared range ^3.0.0".to_string(),
+        }];
+
+        let text = format_fix_text(&fixed, &manual, false);
+        assert!(text.contains("1 vulnerability requires manual update"));
+        assert!(text.contains("express 3.21.2"));
+        assert!(text.contains("Patched versions: >=4.18.2"));
+        assert!(text.contains("vertz add express@\"<patched-version>\""));
+    }
+
+    #[test]
+    fn test_format_fix_text_dry_run() {
+        let fixed = vec![FixApplied {
+            name: "lodash".to_string(),
+            from: "4.17.15".to_string(),
+            to: "4.17.21".to_string(),
+        }];
+
+        let text = format_fix_text(&fixed, &[], true);
+        assert!(text.contains("Would fix 1 vulnerability"));
+    }
+
+    // --- format_fix_json tests ---
+
+    #[test]
+    fn test_format_fix_json_applied() {
+        let fixed = vec![FixApplied {
+            name: "lodash".to_string(),
+            from: "4.17.15".to_string(),
+            to: "4.17.21".to_string(),
+        }];
+
+        let json = format_fix_json(&fixed, &[]);
+        let lines: Vec<&str> = json.trim().lines().collect();
+        assert_eq!(lines.len(), 2); // fix_applied + audit_fix_complete
+
+        let applied: serde_json::Value = serde_json::from_str(lines[0]).unwrap();
+        assert_eq!(applied["event"], "fix_applied");
+        assert_eq!(applied["name"], "lodash");
+        assert_eq!(applied["from"], "4.17.15");
+        assert_eq!(applied["to"], "4.17.21");
+
+        let complete: serde_json::Value = serde_json::from_str(lines[1]).unwrap();
+        assert_eq!(complete["event"], "audit_fix_complete");
+        assert_eq!(complete["fixed"], 1);
+        assert_eq!(complete["manual"], 0);
+    }
+
+    #[test]
+    fn test_format_fix_json_manual() {
+        let manual = vec![FixManual {
+            name: "express".to_string(),
+            from: "3.21.2".to_string(),
+            patched: ">=4.18.2".to_string(),
+            range: "^3.0.0".to_string(),
+            reason: "patched version outside declared range".to_string(),
+        }];
+
+        let json = format_fix_json(&[], &manual);
+        let lines: Vec<&str> = json.trim().lines().collect();
+        assert_eq!(lines.len(), 2); // fix_manual + audit_fix_complete
+
+        let manual_ev: serde_json::Value = serde_json::from_str(lines[0]).unwrap();
+        assert_eq!(manual_ev["event"], "fix_manual");
+        assert_eq!(manual_ev["name"], "express");
+        assert_eq!(
+            manual_ev["reason"],
+            "patched version outside declared range"
+        );
+        assert!(manual_ev["suggestion"]
+            .as_str()
+            .unwrap()
+            .contains("vertz add express@\"<patched-version>\""));
     }
 }
