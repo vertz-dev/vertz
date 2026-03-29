@@ -378,14 +378,14 @@ That's the complete setup. The dev server handles everything else:
 
 **`googleFont()` options:**
 
-| Option | Type | Default | Description |
-| --- | --- | --- | --- |
-| `weight` | `string \| number \| number[]` | (required) | Weight range (`'100..900'`), single weight (`400`), or multiple (`[400, 700]`) |
-| `style` | `'normal' \| 'italic' \| ('normal' \| 'italic')[]` | `'normal'` | Font style(s) |
-| `display` | `'auto' \| 'block' \| 'swap' \| 'fallback' \| 'optional'` | `'swap'` | `font-display` strategy |
-| `subsets` | `string[]` | `['latin']` | Character subsets |
-| `fallback` | `string[]` | auto-detected | Fallback font stack |
-| `adjustFontFallback` | `boolean` | `true` | Enable zero-CLS metric-adjusted fallback |
+| Option               | Type                                                      | Default       | Description                                                                    |
+| -------------------- | --------------------------------------------------------- | ------------- | ------------------------------------------------------------------------------ |
+| `weight`             | `string \| number \| number[]`                            | (required)    | Weight range (`'100..900'`), single weight (`400`), or multiple (`[400, 700]`) |
+| `style`              | `'normal' \| 'italic' \| ('normal' \| 'italic')[]`        | `'normal'`    | Font style(s)                                                                  |
+| `display`            | `'auto' \| 'block' \| 'swap' \| 'fallback' \| 'optional'` | `'swap'`      | `font-display` strategy                                                        |
+| `subsets`            | `string[]`                                                | `['latin']`   | Character subsets                                                              |
+| `fallback`           | `string[]`                                                | auto-detected | Fallback font stack                                                            |
+| `adjustFontFallback` | `boolean`                                                 | `true`        | Enable zero-CLS metric-adjusted fallback                                       |
 
 **Static font with specific weights:**
 
@@ -415,7 +415,8 @@ configureTheme({ fonts: { sans, brand } });
 ```
 
 <Note>
-  Google Fonts are all open-source licensed (SIL OFL or Apache 2.0). Self-hosting is explicitly permitted.
+  Google Fonts are all open-source licensed (SIL OFL or Apache 2.0). Self-hosting is explicitly
+  permitted.
 </Note>
 
 ### Offline and CI caching
