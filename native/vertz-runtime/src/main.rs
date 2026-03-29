@@ -16,6 +16,7 @@ async fn main() {
         Command::Dev(args) => {
             let mut config = ServerConfig::new(args.port, args.host, args.public_dir);
             config.enable_typecheck = !args.no_typecheck;
+            config.open_browser = args.open;
             config.tsconfig_path = args.tsconfig;
             config.typecheck_binary = args.typecheck_binary;
 

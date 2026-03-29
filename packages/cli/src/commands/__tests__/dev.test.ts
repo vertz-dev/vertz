@@ -830,9 +830,9 @@ describe('devAction --experimental-runtime', () => {
       kill: vi.fn(),
       pid: 12345,
     };
-    launchSpy = vi
-      .spyOn(launcherMod, 'launchRuntime')
-      .mockReturnValue(mockChild as never) as Mock<(...args: unknown[]) => unknown>;
+    launchSpy = vi.spyOn(launcherMod, 'launchRuntime').mockReturnValue(mockChild as never) as Mock<
+      (...args: unknown[]) => unknown
+    >;
 
     const { devAction } = await import('../dev');
     const result = await devAction({ experimentalRuntime: true, port: 4000, host: '0.0.0.0' });
@@ -842,6 +842,7 @@ describe('devAction --experimental-runtime', () => {
       port: 4000,
       host: '0.0.0.0',
       typecheck: true,
+      open: false,
     });
   });
 
@@ -859,9 +860,9 @@ describe('devAction --experimental-runtime', () => {
       kill: vi.fn(),
       pid: 12345,
     };
-    launchSpy = vi
-      .spyOn(launcherMod, 'launchRuntime')
-      .mockReturnValue(mockChild as never) as Mock<(...args: unknown[]) => unknown>;
+    launchSpy = vi.spyOn(launcherMod, 'launchRuntime').mockReturnValue(mockChild as never) as Mock<
+      (...args: unknown[]) => unknown
+    >;
 
     const pipelineMod = await import('../../pipeline');
     const orchestratorSpy = vi

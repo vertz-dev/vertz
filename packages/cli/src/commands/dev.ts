@@ -56,7 +56,7 @@ export async function devAction(options: DevCommandOptions = {}): Promise<Result
 
   // Experimental: use Rust runtime instead of Bun dev server
   if (experimentalRuntime) {
-    return startExperimentalRuntime(projectRoot, { port, host, typecheck });
+    return startExperimentalRuntime(projectRoot, { port, host, typecheck, open });
   }
 
   // Detect app type from file conventions
@@ -220,9 +220,20 @@ function startExperimentalRuntime(
   process.on('SIGTERM', shutdown);
   process.on('SIGHUP', shutdown);
 
-  // Wait for the child to exit — this is a promise that resolves
-  // when the Rust process terminates (Ctrl+C, crash, etc.)
+  // Handle spawn errors (e.g., binary not executable)
+  child.on('error', (error) => {
+    console.error(`Failed to start Rust runtime: ${error.message}`);
+    process.removeListener('SIGINT', shutdown);
+    process.removeListener('SIGTERM', shutdown);
+    process.removeListener('SIGHUP', shutdown);
+    process.exit(1);
+  });
+
+  // Clean up signal handlers and exit when the child terminates
   child.on('exit', (code) => {
+    process.removeListener('SIGINT', shutdown);
+    process.removeListener('SIGTERM', shutdown);
+    process.removeListener('SIGHUP', shutdown);
     process.exit(code ?? 0);
   });
 

@@ -6,6 +6,7 @@ export interface RuntimeLaunchOptions {
   port?: number;
   host?: string;
   typecheck?: boolean;
+  open?: boolean;
 }
 
 /**
@@ -43,6 +44,10 @@ export function buildRuntimeArgs(opts: RuntimeLaunchOptions): string[] {
 
   if (opts.typecheck === false) {
     args.push('--no-typecheck');
+  }
+
+  if (opts.open) {
+    args.push('--open');
   }
 
   return args;

@@ -2,7 +2,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'bun:test';
 import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { findRuntimeBinary, type RuntimeLaunchOptions, buildRuntimeArgs } from '../launcher';
+import {
+  findRuntimeBinary,
+  launchRuntime,
+  type RuntimeLaunchOptions,
+  buildRuntimeArgs,
+} from '../launcher';
 
 describe('findRuntimeBinary', () => {
   let tmpDir: string;
@@ -115,11 +120,62 @@ describe('buildRuntimeArgs', () => {
     expect(args).not.toContain('--no-typecheck');
   });
 
+  it('includes --open when open is true', () => {
+    const opts: RuntimeLaunchOptions = {
+      port: 3000,
+      host: 'localhost',
+      open: true,
+    };
+
+    const args = buildRuntimeArgs(opts);
+
+    expect(args).toContain('--open');
+  });
+
+  it('does not include --open when open is false or undefined', () => {
+    const args1 = buildRuntimeArgs({ open: false });
+    const args2 = buildRuntimeArgs({});
+
+    expect(args1).not.toContain('--open');
+    expect(args2).not.toContain('--open');
+  });
+
   it('uses default port 3000 and host localhost', () => {
     const opts: RuntimeLaunchOptions = {};
 
     const args = buildRuntimeArgs(opts);
 
     expect(args).toEqual(['dev', '--port', '3000', '--host', 'localhost']);
+  });
+});
+
+vi.mock('node:child_process', () => ({
+  spawn: vi.fn(() => ({ pid: 12345 })),
+}));
+
+describe('launchRuntime', () => {
+  it('spawns the binary with correct args and stdio inherit', async () => {
+    const { spawn } = await import('node:child_process');
+
+    const child = launchRuntime('/usr/bin/vertz-runtime', { port: 8080, host: '0.0.0.0' });
+
+    expect(spawn).toHaveBeenCalledWith(
+      '/usr/bin/vertz-runtime',
+      ['dev', '--port', '8080', '--host', '0.0.0.0'],
+      { stdio: 'inherit', env: process.env },
+    );
+    expect(child).toBeDefined();
+  });
+
+  it('passes --open and --no-typecheck flags through to spawn', async () => {
+    const { spawn } = await import('node:child_process');
+
+    launchRuntime('/usr/bin/vertz-runtime', { open: true, typecheck: false });
+
+    expect(spawn).toHaveBeenCalledWith(
+      '/usr/bin/vertz-runtime',
+      ['dev', '--port', '3000', '--host', 'localhost', '--no-typecheck', '--open'],
+      { stdio: 'inherit', env: process.env },
+    );
   });
 });
