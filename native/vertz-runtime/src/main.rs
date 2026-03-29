@@ -215,24 +215,36 @@ async fn main() {
                 std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from("."));
 
             match pm::outdated(&root_dir).await {
-                Ok(entries) => {
+                Ok((entries, warnings)) => {
                     if args.json {
                         let output = pm::format_outdated_json(&entries);
                         print!("{}", output);
-                    } else if entries.is_empty() {
-                        // Check if there are any deps at all
-                        let pkg = vertz_runtime::pm::types::read_package_json(&root_dir).ok();
-                        let has_deps = pkg
-                            .map(|p| !p.dependencies.is_empty() || !p.dev_dependencies.is_empty())
-                            .unwrap_or(false);
-                        if has_deps {
-                            eprintln!("All packages are up to date.");
-                        } else {
-                            eprintln!("No dependencies found.");
+                        // JSON consumers get warnings as NDJSON error events
+                        for warning in &warnings {
+                            let obj = serde_json::json!({"event": "warning", "message": warning});
+                            println!("{}", obj);
                         }
                     } else {
-                        let output = pm::format_outdated_text(&entries);
-                        print!("{}", output);
+                        // Print warnings to stderr for human output
+                        for warning in &warnings {
+                            eprintln!("{}", warning);
+                        }
+                        if entries.is_empty() {
+                            let pkg = vertz_runtime::pm::types::read_package_json(&root_dir).ok();
+                            let has_deps = pkg
+                                .map(|p| {
+                                    !p.dependencies.is_empty() || !p.dev_dependencies.is_empty()
+                                })
+                                .unwrap_or(false);
+                            if has_deps {
+                                eprintln!("All packages are up to date.");
+                            } else {
+                                eprintln!("No dependencies found.");
+                            }
+                        } else {
+                            let output = pm::format_outdated_text(&entries);
+                            print!("{}", output);
+                        }
                     }
                 }
                 Err(e) => {

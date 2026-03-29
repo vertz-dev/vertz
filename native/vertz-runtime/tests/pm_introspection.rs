@@ -294,27 +294,25 @@ async fn test_outdated_with_installed_package() {
         .await
         .unwrap();
 
-    let entries = pm::outdated(dir.path()).await.unwrap();
+    let (entries, _warnings) = pm::outdated(dir.path()).await.unwrap();
 
-    // is-number should appear in outdated list (even if up to date)
-    assert!(
-        entries.iter().any(|e| e.name == "is-number"),
-        "is-number should be in outdated entries"
-    );
-
-    let entry = entries.iter().find(|e| e.name == "is-number").unwrap();
-    assert!(!entry.current.is_empty());
-    assert!(!entry.wanted.is_empty());
-    assert!(!entry.latest.is_empty());
-    assert!(!entry.range.is_empty());
+    // is-number may or may not be outdated — if it is, verify fields
+    // If all packages are up to date, entries will be empty (which is correct)
+    for entry in &entries {
+        assert!(!entry.current.is_empty());
+        assert!(!entry.wanted.is_empty());
+        assert!(!entry.latest.is_empty());
+        assert!(!entry.range.is_empty());
+    }
 }
 
 #[tokio::test]
 async fn test_outdated_no_deps() {
     let dir = create_project("");
 
-    let entries = pm::outdated(dir.path()).await.unwrap();
+    let (entries, warnings) = pm::outdated(dir.path()).await.unwrap();
     assert!(entries.is_empty(), "no deps = empty outdated list");
+    assert!(warnings.is_empty(), "no deps = no warnings");
 }
 
 #[tokio::test]
@@ -334,7 +332,7 @@ async fn test_outdated_json_format() {
         .await
         .unwrap();
 
-    let entries = pm::outdated(dir.path()).await.unwrap();
+    let (entries, _warnings) = pm::outdated(dir.path()).await.unwrap();
     let json = pm::format_outdated_json(&entries);
 
     if !entries.is_empty() {
@@ -357,7 +355,7 @@ async fn test_outdated_text_format() {
         .await
         .unwrap();
 
-    let entries = pm::outdated(dir.path()).await.unwrap();
+    let (entries, _warnings) = pm::outdated(dir.path()).await.unwrap();
 
     if !entries.is_empty() {
         let text = pm::format_outdated_text(&entries);
@@ -376,9 +374,11 @@ async fn test_outdated_dev_dependency() {
         .await
         .unwrap();
 
-    let entries = pm::outdated(dir.path()).await.unwrap();
+    let (entries, _warnings) = pm::outdated(dir.path()).await.unwrap();
 
-    let entry = entries.iter().find(|e| e.name == "is-number");
-    assert!(entry.is_some(), "is-number should be in outdated entries");
-    assert!(entry.unwrap().dev, "is-number should be marked as dev dep");
+    // If is-number is outdated, it should be marked as dev dep
+    if let Some(entry) = entries.iter().find(|e| e.name == "is-number") {
+        assert!(entry.dev, "is-number should be marked as dev dep");
+    }
+    // If is-number is up to date, it won't appear in entries (correct behavior)
 }

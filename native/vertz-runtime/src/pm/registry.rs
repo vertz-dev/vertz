@@ -206,15 +206,21 @@ impl RegistryClient {
         }
     }
 
+    /// Sanitize a package name into a safe filename component.
+    /// Replaces `/` with `__` and removes `..` to prevent path traversal.
+    fn sanitize_cache_name(name: &str) -> String {
+        name.replace('/', "__").replace("..", "")
+    }
+
     fn cache_path(&self, package_name: &str) -> PathBuf {
         self.cache_dir
-            .join(package_name.replace('/', "__"))
+            .join(Self::sanitize_cache_name(package_name))
             .with_extension("json")
     }
 
     fn etag_path(&self, package_name: &str) -> PathBuf {
         self.cache_dir
-            .join(package_name.replace('/', "__"))
+            .join(Self::sanitize_cache_name(package_name))
             .with_extension("etag")
     }
 }
@@ -273,5 +279,33 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let _client = RegistryClient::new(dir.path());
         assert!(dir.path().join("registry-metadata").exists());
+    }
+
+    #[test]
+    fn test_cache_path_sanitizes_path_traversal() {
+        let dir = tempfile::tempdir().unwrap();
+        let client = RegistryClient::new(dir.path());
+        let path = client.cache_path("../../../etc/passwd");
+        let path_str = path.to_str().unwrap();
+        // Should not contain ".." — path traversal is sanitized
+        assert!(
+            !path_str.contains(".."),
+            "cache path should not contain '..': {}",
+            path_str
+        );
+    }
+
+    #[test]
+    fn test_sanitize_cache_name() {
+        assert_eq!(RegistryClient::sanitize_cache_name("react"), "react");
+        assert_eq!(
+            RegistryClient::sanitize_cache_name("@vertz/ui"),
+            "@vertz__ui"
+        );
+        assert_eq!(
+            RegistryClient::sanitize_cache_name("../../../etc/passwd"),
+            "______etc__passwd"
+        );
+        assert_eq!(RegistryClient::sanitize_cache_name("..foo..bar"), "foobar");
     }
 }

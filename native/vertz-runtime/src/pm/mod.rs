@@ -500,7 +500,15 @@ pub fn build_why(
         initial_visited.insert(root_key.clone());
         queue.push_back((root_entry, vec![root_path_entry], initial_visited));
 
+        // Cap total paths to prevent exponential blowup on diamond dependency graphs
+        const MAX_PATHS: usize = 100;
+        let mut total_paths: usize = versions_found.values().map(|v| v.len()).sum();
+
         while let Some((current_entry, current_path, visited)) = queue.pop_front() {
+            if total_paths >= MAX_PATHS {
+                break;
+            }
+
             for (dep_name, dep_range) in &current_entry.dependencies {
                 let dep_key = types::Lockfile::spec_key(dep_name, dep_range);
 
@@ -522,6 +530,7 @@ pub fn build_why(
                             .entry(dep_entry.version.clone())
                             .or_default()
                             .push(path);
+                        total_paths += 1;
                     } else {
                         // Continue BFS
                         let mut next_visited = visited.clone();
@@ -803,11 +812,15 @@ fn resolve_wanted_version(
 }
 
 /// Check for outdated packages by comparing installed versions against the registry.
-pub async fn outdated(root_dir: &Path) -> Result<Vec<OutdatedEntry>, Box<dyn std::error::Error>> {
+/// Returns only packages where current != wanted or current != latest.
+/// Warnings about failed metadata fetches are collected and returned alongside entries.
+pub async fn outdated(
+    root_dir: &Path,
+) -> Result<(Vec<OutdatedEntry>, Vec<String>), Box<dyn std::error::Error>> {
     let pkg = types::read_package_json(root_dir)?;
 
     if pkg.dependencies.is_empty() && pkg.dev_dependencies.is_empty() {
-        return Ok(Vec::new());
+        return Ok((Vec::new(), Vec::new()));
     }
 
     let lockfile_path = root_dir.join("vertz.lock");
@@ -818,58 +831,78 @@ pub async fn outdated(root_dir: &Path) -> Result<Vec<OutdatedEntry>, Box<dyn std
     };
 
     let cache_dir = registry::default_cache_dir();
-    let client = RegistryClient::new(&cache_dir);
+    let client = Arc::new(RegistryClient::new(&cache_dir));
 
-    let mut entries = Vec::new();
-
-    // Collect all direct deps with their dev flag
-    let mut all_deps: Vec<(String, String, bool)> = Vec::new();
+    // Collect all direct deps with their current installed version
+    let mut dep_tasks: Vec<(String, String, String, bool)> = Vec::new();
     for (name, range) in &pkg.dependencies {
-        all_deps.push((name.clone(), range.clone(), false));
+        let spec_key = types::Lockfile::spec_key(name, range);
+        if let Some(entry) = lockfile.entries.get(&spec_key) {
+            dep_tasks.push((name.clone(), range.clone(), entry.version.clone(), false));
+        }
     }
     for (name, range) in &pkg.dev_dependencies {
-        all_deps.push((name.clone(), range.clone(), true));
-    }
-
-    for (name, range, dev) in &all_deps {
-        // Get current installed version from lockfile
         let spec_key = types::Lockfile::spec_key(name, range);
-        let current = match lockfile.entries.get(&spec_key) {
-            Some(entry) => entry.version.clone(),
-            None => continue, // Not in lockfile, skip
-        };
-
-        // Fetch abbreviated metadata from registry
-        let meta = match client.fetch_metadata_abbreviated(name).await {
-            Ok(m) => m,
-            Err(e) => {
-                eprintln!("warning: could not fetch metadata for {}: {}", name, e);
-                continue;
-            }
-        };
-
-        // Resolve "wanted" — highest version satisfying the range
-        let wanted = resolve_wanted_version(range, &meta.versions, &meta.dist_tags)
-            .unwrap_or_else(|| current.clone());
-
-        // Get "latest" from dist-tags
-        let latest = meta
-            .dist_tags
-            .get("latest")
-            .cloned()
-            .unwrap_or_else(|| current.clone());
-
-        entries.push(OutdatedEntry {
-            name: name.clone(),
-            current,
-            wanted,
-            latest,
-            range: range.clone(),
-            dev: *dev,
-        });
+        if let Some(entry) = lockfile.entries.get(&spec_key) {
+            dep_tasks.push((name.clone(), range.clone(), entry.version.clone(), true));
+        }
     }
 
-    Ok(entries)
+    // Fetch metadata in parallel
+    let results: Vec<_> = stream::iter(dep_tasks)
+        .map(|(name, range, current, dev)| {
+            let client = client.clone();
+            async move {
+                match client.fetch_metadata_abbreviated(&name).await {
+                    Ok(meta) => {
+                        let wanted =
+                            resolve_wanted_version(&range, &meta.versions, &meta.dist_tags)
+                                .unwrap_or_else(|| current.clone());
+                        let latest = meta
+                            .dist_tags
+                            .get("latest")
+                            .cloned()
+                            .unwrap_or_else(|| current.clone());
+
+                        // Only include if actually outdated
+                        if current != wanted || current != latest {
+                            Ok(Some(OutdatedEntry {
+                                name,
+                                current,
+                                wanted,
+                                latest,
+                                range,
+                                dev,
+                            }))
+                        } else {
+                            Ok(None)
+                        }
+                    }
+                    Err(e) => Err(format!(
+                        "warning: could not fetch metadata for {}: {}",
+                        name, e
+                    )),
+                }
+            }
+        })
+        .buffer_unordered(16)
+        .collect()
+        .await;
+
+    let mut entries = Vec::new();
+    let mut warnings = Vec::new();
+    for result in results {
+        match result {
+            Ok(Some(entry)) => entries.push(entry),
+            Ok(None) => {} // Up to date, skip
+            Err(warning) => warnings.push(warning),
+        }
+    }
+
+    // Sort by name for stable output
+    entries.sort_by(|a, b| a.name.cmp(&b.name));
+
+    Ok((entries, warnings))
 }
 
 /// Format outdated entries as a human-readable table
