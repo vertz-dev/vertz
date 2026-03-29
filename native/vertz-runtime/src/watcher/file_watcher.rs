@@ -170,6 +170,21 @@ impl Debouncer {
     pub fn has_pending(&self) -> bool {
         !self.pending.is_empty()
     }
+
+    /// Cancel any pending debounce operation, discarding all pending changes.
+    ///
+    /// This is also called automatically on drop to ensure no stale pending
+    /// state survives the debouncer's lifetime.
+    pub fn cancel(&mut self) {
+        self.pending.clear();
+        self.last_event_time = None;
+    }
+}
+
+impl Drop for Debouncer {
+    fn drop(&mut self) {
+        self.cancel();
+    }
 }
 
 /// Smart debouncer for HMR: immediate dispatch for single-file changes,
@@ -554,6 +569,46 @@ mod tests {
 
         // Drop should clean up without panicking
         drop(watcher);
+    }
+
+    // ── Debouncer cancel/drop tests ────────────────────────────────────
+
+    #[test]
+    fn test_debouncer_cancel_clears_pending() {
+        let mut debouncer = Debouncer::new(100);
+        debouncer.add(FileChange {
+            kind: FileChangeKind::Modify,
+            path: PathBuf::from("/src/app.tsx"),
+        });
+        debouncer.add(FileChange {
+            kind: FileChangeKind::Modify,
+            path: PathBuf::from("/src/Button.tsx"),
+        });
+        assert!(debouncer.has_pending());
+
+        debouncer.cancel();
+
+        assert!(!debouncer.has_pending());
+        assert!(!debouncer.is_ready());
+
+        // Verify reuse after cancel works
+        debouncer.add(FileChange {
+            kind: FileChangeKind::Create,
+            path: PathBuf::from("/src/NewFile.tsx"),
+        });
+        assert!(debouncer.has_pending());
+    }
+
+    #[test]
+    fn test_debouncer_drop_with_pending_does_not_panic() {
+        let mut debouncer = Debouncer::new(100);
+        debouncer.add(FileChange {
+            kind: FileChangeKind::Modify,
+            path: PathBuf::from("/src/app.tsx"),
+        });
+        assert!(debouncer.has_pending());
+        drop(debouncer);
+        // Reaching here means Drop ran successfully without panic
     }
 
     // ── SmartDebouncer tests ──────────────────────────────────────────

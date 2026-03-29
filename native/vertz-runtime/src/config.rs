@@ -279,6 +279,10 @@ mod tests {
     }
 
     // --- resolve_auto_install tests ---
+    //
+    // Tests that mutate the CI env var must be serialized to avoid races
+    // when cargo runs tests in parallel threads.
+    static CI_ENV_MUTEX: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
     #[test]
     fn test_resolve_auto_install_cli_no_auto_install() {
@@ -301,6 +305,7 @@ mod tests {
 
     #[test]
     fn test_resolve_auto_install_ci_guard_non_empty() {
+        let _lock = CI_ENV_MUTEX.lock().unwrap();
         let dir = tempfile::tempdir().unwrap();
         // No .vertzrc file — CI guard should kick in
         std::env::set_var("CI", "true");
@@ -311,6 +316,7 @@ mod tests {
 
     #[test]
     fn test_resolve_auto_install_ci_guard_empty_string() {
+        let _lock = CI_ENV_MUTEX.lock().unwrap();
         let dir = tempfile::tempdir().unwrap();
         // CI="" should NOT trigger the guard
         std::env::set_var("CI", "");
@@ -321,6 +327,7 @@ mod tests {
 
     #[test]
     fn test_resolve_auto_install_default_true() {
+        let _lock = CI_ENV_MUTEX.lock().unwrap();
         let dir = tempfile::tempdir().unwrap();
         // No CLI flags, no .vertzrc, no CI
         std::env::remove_var("CI");
@@ -329,6 +336,7 @@ mod tests {
 
     #[test]
     fn test_resolve_auto_install_vertzrc_parse_error_falls_through() {
+        let _lock = CI_ENV_MUTEX.lock().unwrap();
         let dir = tempfile::tempdir().unwrap();
         std::fs::write(dir.path().join(".vertzrc"), "not valid json").unwrap();
         // Invalid JSON should warn and fall through to default
