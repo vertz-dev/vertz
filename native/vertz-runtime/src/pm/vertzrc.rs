@@ -443,11 +443,7 @@ mod tests {
     #[test]
     fn test_auto_install_false_from_vertzrc() {
         let dir = tempfile::tempdir().unwrap();
-        std::fs::write(
-            dir.path().join(".vertzrc"),
-            r#"{"autoInstall": false}"#,
-        )
-        .unwrap();
+        std::fs::write(dir.path().join(".vertzrc"), r#"{"autoInstall": false}"#).unwrap();
         let config = load_vertzrc(dir.path()).unwrap();
         assert!(!config.auto_install);
     }
@@ -455,11 +451,7 @@ mod tests {
     #[test]
     fn test_auto_install_true_from_vertzrc() {
         let dir = tempfile::tempdir().unwrap();
-        std::fs::write(
-            dir.path().join(".vertzrc"),
-            r#"{"autoInstall": true}"#,
-        )
-        .unwrap();
+        std::fs::write(dir.path().join(".vertzrc"), r#"{"autoInstall": true}"#).unwrap();
         let config = load_vertzrc(dir.path()).unwrap();
         assert!(config.auto_install);
     }

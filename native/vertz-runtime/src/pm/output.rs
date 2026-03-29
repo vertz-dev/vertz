@@ -402,7 +402,10 @@ impl PmOutput for DevPmOutput {
     fn link_complete(&self, _packages: usize, _files: usize, _cached: usize) {}
     fn bin_stubs_created(&self, _count: usize) {}
     fn package_added(&self, name: &str, version: &str, range: &str) {
-        eprintln!("[PM] + {}@{} ({} added to package.json)", name, version, range);
+        eprintln!(
+            "[PM] + {}@{} ({} added to package.json)",
+            name, version, range
+        );
     }
     fn package_removed(&self, _name: &str) {}
     fn package_updated(&self, _name: &str, _from: &str, _to: &str, _range: &str) {}
@@ -416,6 +419,20 @@ impl PmOutput for DevPmOutput {
     fn error(&self, _code: &str, message: &str) {
         eprintln!("[PM] Error: {}", message);
     }
+    fn publish_packing(&self, _name: &str, _version: &str) {}
+    fn publish_packed(
+        &self,
+        _name: &str,
+        _version: &str,
+        _files: usize,
+        _packed: u64,
+        _unpacked: u64,
+    ) {
+    }
+    fn publish_uploading(&self, _name: &str, _version: &str, _tag: &str) {}
+    fn publish_complete(&self, _name: &str, _version: &str, _tag: &str) {}
+    fn publish_dry_run(&self, _name: &str, _version: &str, _tag: &str, _access: &str) {}
+    fn publish_file_list(&self, _path: &str, _size: u64) {}
 }
 
 #[cfg(test)]

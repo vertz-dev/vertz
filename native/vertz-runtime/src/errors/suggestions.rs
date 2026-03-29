@@ -282,8 +282,16 @@ mod tests {
         let suggestion = suggest_build_fix("Cannot find module '@vertz/fetch'");
         assert!(suggestion.is_some());
         let s = suggestion.unwrap();
-        assert!(s.contains("vertz add"), "expected 'vertz add' but got: {}", s);
-        assert!(!s.contains("bun add"), "should not contain 'bun add' but got: {}", s);
+        assert!(
+            s.contains("vertz add"),
+            "expected 'vertz add' but got: {}",
+            s
+        );
+        assert!(
+            !s.contains("bun add"),
+            "should not contain 'bun add' but got: {}",
+            s
+        );
     }
 
     #[test]
@@ -341,8 +349,16 @@ mod tests {
         let suggestion = suggest_build_fix("Cannot find module 'zod'");
         assert!(suggestion.is_some());
         let s = suggestion.unwrap();
-        assert!(s.contains("vertz add zod"), "expected 'vertz add zod' but got: {}", s);
-        assert!(!s.contains("bun add"), "should not contain 'bun add' but got: {}", s);
+        assert!(
+            s.contains("vertz add zod"),
+            "expected 'vertz add zod' but got: {}",
+            s
+        );
+        assert!(
+            !s.contains("bun add"),
+            "should not contain 'bun add' but got: {}",
+            s
+        );
     }
 
     #[test]
@@ -350,8 +366,16 @@ mod tests {
         let suggestion = suggest_resolve_fix("Package not found 404", "@vertz/fetch");
         assert!(suggestion.is_some());
         let s = suggestion.unwrap();
-        assert!(s.contains("vertz add"), "expected 'vertz add' but got: {}", s);
-        assert!(!s.contains("bun add"), "should not contain 'bun add' but got: {}", s);
+        assert!(
+            s.contains("vertz add"),
+            "expected 'vertz add' but got: {}",
+            s
+        );
+        assert!(
+            !s.contains("bun add"),
+            "should not contain 'bun add' but got: {}",
+            s
+        );
     }
 
     #[test]

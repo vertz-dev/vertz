@@ -285,50 +285,63 @@ pub async fn handle_deps_request(
 
     if state.auto_install {
         // Check failed-install blacklist
-        let is_blacklisted = state
-            .auto_install_failed
-            .lock()
-            .unwrap()
-            .contains(pkg_name);
+        let is_blacklisted = state.auto_install_failed.lock().unwrap().contains(pkg_name);
 
         if !is_blacklisted {
-            // Per-package dedup: check if another request is already installing this package
-            let existing_notify = {
-                let inflight = state.auto_install_inflight.lock().unwrap();
-                inflight.get(pkg_name).cloned()
+            // Per-package dedup: single lock scope to atomically check + insert.
+            // This prevents a TOCTOU race where two requests both see "not inflight"
+            // and both proceed to install.
+            //
+            // For waiters: we clone the Arc<Notify> while holding the lock, then
+            // call .notified().await after releasing. Tokio's Notify guarantees that
+            // if notify_waiters() is called between .notified() creation and .await,
+            // the notification is stored and the await returns immediately.
+            let is_installer = {
+                let mut inflight = state.auto_install_inflight.lock().unwrap();
+                if inflight.contains_key(pkg_name) {
+                    false
+                } else {
+                    let notify = Arc::new(tokio::sync::Notify::new());
+                    inflight.insert(pkg_name.to_string(), notify);
+                    true
+                }
             };
 
-            if let Some(notify) = existing_notify {
-                // Another request is installing this package — wait for it
-                notify.notified().await;
-                // Re-attempt resolution after install completes
-                if let Some(resolved) = re_resolve_dep(specifier, &state) {
-                    return serve_js_file(&resolved, &state.root_dir);
-                }
-            } else {
-                // First request for this package — we do the install
-                let notify = Arc::new(tokio::sync::Notify::new());
-                state
-                    .auto_install_inflight
-                    .lock()
-                    .unwrap()
-                    .insert(pkg_name.to_string(), notify.clone());
+            if is_installer {
+                let install_result = auto_install_package(pkg_name, &state).await;
 
-                let install_result =
-                    auto_install_package(pkg_name, &state).await;
-
-                // Remove from inflight and notify all waiters
-                {
-                    let mut inflight = state.auto_install_inflight.lock().unwrap();
-                    inflight.remove(pkg_name);
+                // Get the notify handle, remove from inflight, then notify waiters
+                let notify = state.auto_install_inflight.lock().unwrap().remove(pkg_name);
+                if let Some(notify) = notify {
+                    notify.notify_waiters();
                 }
-                notify.notify_waiters();
 
                 if install_result.is_ok() {
-                    // Re-attempt resolution
                     if let Some(resolved) = re_resolve_dep(specifier, &state) {
                         return serve_js_file(&resolved, &state.root_dir);
                     }
+                }
+            } else {
+                // Another request is installing this package — get notify handle and wait
+                let notify = state
+                    .auto_install_inflight
+                    .lock()
+                    .unwrap()
+                    .get(pkg_name)
+                    .cloned();
+
+                if let Some(notify) = notify {
+                    // Create the Notified future — even if notify_waiters() fires
+                    // between this line and .await, tokio stores the notification
+                    // and the await returns immediately. Add a timeout as safety net.
+                    let _ =
+                        tokio::time::timeout(std::time::Duration::from_secs(35), notify.notified())
+                            .await;
+                }
+
+                // Re-attempt resolution after install completes (or timeout)
+                if let Some(resolved) = re_resolve_dep(specifier, &state) {
+                    return serve_js_file(&resolved, &state.root_dir);
                 }
             }
         }
@@ -351,7 +364,10 @@ pub async fn handle_deps_request(
     Response::builder()
         .status(StatusCode::NOT_FOUND)
         .header(header::CONTENT_TYPE, "text/plain")
-        .body(Body::from(format!("Dependency not found: /@deps/{}", specifier)))
+        .body(Body::from(format!(
+            "Dependency not found: /@deps/{}",
+            specifier
+        )))
         .unwrap()
 }
 
@@ -359,10 +375,11 @@ pub async fn handle_deps_request(
 ///
 /// Returns `Ok(())` on success, `Err(message)` on failure.
 /// On failure, adds the package to the failed-install blacklist.
-async fn auto_install_package(
-    pkg_name: &str,
-    state: &DevServerState,
-) -> Result<(), String> {
+async fn auto_install_package(pkg_name: &str, state: &DevServerState) -> Result<(), String> {
+    // Acquire the global install lock first (serializes all pm::add calls).
+    // This ensures we only broadcast "Installing..." when it's actually our turn.
+    let _guard = state.auto_install_lock.lock().await;
+
     eprintln!("[PM] Auto-installing {}...", pkg_name);
 
     // Broadcast info to connected browser clients
@@ -370,9 +387,6 @@ async fn auto_install_package(
         .error_broadcaster
         .broadcast_info(&format!("Installing {}...", pkg_name))
         .await;
-
-    // Acquire the global install lock (serializes all pm::add calls)
-    let _guard = state.auto_install_lock.lock().await;
 
     let root_dir = state.root_dir.clone();
     let pkg = pkg_name.to_string();
@@ -386,12 +400,12 @@ async fn auto_install_package(
             rt.block_on(crate::pm::add(
                 &root_dir,
                 &[pkg.as_str()],
-                false, // not dev
-                false, // not peer
-                false, // not optional
-                false, // not exact (caret range)
+                false,                                       // not dev
+                false,                                       // not peer
+                false,                                       // not optional
+                false,                                       // not exact (caret range)
                 crate::pm::vertzrc::ScriptPolicy::IgnoreAll, // no postinstall during auto-install
-                None,  // no workspace target
+                None,                                        // no workspace target
                 Arc::new(crate::pm::output::DevPmOutput),
             ))
             .map_err(|e| e.to_string())
@@ -974,7 +988,11 @@ mod tests {
             .lock()
             .unwrap()
             .insert("some-pkg".to_string());
-        assert!(state.auto_install_failed.lock().unwrap().contains("some-pkg"));
+        assert!(state
+            .auto_install_failed
+            .lock()
+            .unwrap()
+            .contains("some-pkg"));
 
         // Clear (simulates what the watcher does)
         state.auto_install_failed.lock().unwrap().clear();
@@ -1006,13 +1024,21 @@ mod tests {
             .insert("zod".to_string(), notify.clone());
 
         // Verify it's in the inflight map
-        assert!(state.auto_install_inflight.lock().unwrap().contains_key("zod"));
+        assert!(state
+            .auto_install_inflight
+            .lock()
+            .unwrap()
+            .contains_key("zod"));
 
         // Notify and remove (simulates install completion)
         state.auto_install_inflight.lock().unwrap().remove("zod");
         notify.notify_waiters();
 
-        assert!(!state.auto_install_inflight.lock().unwrap().contains_key("zod"));
+        assert!(!state
+            .auto_install_inflight
+            .lock()
+            .unwrap()
+            .contains_key("zod"));
     }
 
     #[test]
