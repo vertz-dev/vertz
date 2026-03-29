@@ -711,7 +711,8 @@ async fn main() {
                         Err(e) => {
                             let msg = e.to_string();
                             if args.json {
-                                let output: Arc<dyn PmOutput> = Arc::new(pm::output::JsonOutput::new());
+                                let output: Arc<dyn PmOutput> =
+                                    Arc::new(pm::output::JsonOutput::new());
                                 output.error(error_code_from_message(&msg), &msg);
                             } else {
                                 eprintln!("{}", msg);
@@ -741,17 +742,20 @@ async fn main() {
                                 if result.reapplied_patch {
                                     // Find the patch path from package.json
                                     let patch_key = format!("{}@{}", result.name, result.version);
-                                    let patch_path = std::fs::read_to_string(root_dir.join("package.json"))
-                                        .ok()
-                                        .and_then(|c| serde_json::from_str::<serde_json::Value>(&c).ok())
-                                        .and_then(|v| {
-                                            v.get("vertz")
-                                                .and_then(|v| v.get("patchedDependencies"))
-                                                .and_then(|v| v.get(&patch_key))
-                                                .and_then(|v| v.as_str())
-                                                .map(|s| s.to_string())
-                                        })
-                                        .unwrap_or_default();
+                                    let patch_path =
+                                        std::fs::read_to_string(root_dir.join("package.json"))
+                                            .ok()
+                                            .and_then(|c| {
+                                                serde_json::from_str::<serde_json::Value>(&c).ok()
+                                            })
+                                            .and_then(|v| {
+                                                v.get("vertz")
+                                                    .and_then(|v| v.get("patchedDependencies"))
+                                                    .and_then(|v| v.get(&patch_key))
+                                                    .and_then(|v| v.as_str())
+                                                    .map(|s| s.to_string())
+                                            })
+                                            .unwrap_or_default();
                                     eprintln!("Re-applied saved patch: {} \u{2713}", patch_path);
                                 }
                             }
@@ -759,7 +763,8 @@ async fn main() {
                         Err(e) => {
                             let msg = e.to_string();
                             if args.json {
-                                let output: Arc<dyn PmOutput> = Arc::new(pm::output::JsonOutput::new());
+                                let output: Arc<dyn PmOutput> =
+                                    Arc::new(pm::output::JsonOutput::new());
                                 output.error(error_code_from_message(&msg), &msg);
                             } else {
                                 eprintln!("{}", msg);
@@ -783,8 +788,8 @@ async fn main() {
                             );
                         }
                         for (key, path) in &result.saved {
-                            let name = pm::patch::parse_patch_key_name_pub(key)
-                                .unwrap_or(key.as_str());
+                            let name =
+                                pm::patch::parse_patch_key_name_pub(key).unwrap_or(key.as_str());
                             println!(
                                 "{}",
                                 serde_json::json!({
@@ -795,10 +800,7 @@ async fn main() {
                             );
                         }
                         if result.active.is_empty() && result.saved.is_empty() {
-                            println!(
-                                "{}",
-                                serde_json::json!({"event": "patch_list_empty"})
-                            );
+                            println!("{}", serde_json::json!({"event": "patch_list_empty"}));
                         }
                     } else if result.active.is_empty() && result.saved.is_empty() {
                         eprintln!("No patches found.");
@@ -839,7 +841,10 @@ async fn main() {
                                     })
                                 );
                             } else {
-                                eprintln!("Prepared {}@{} for patching.", result.name, result.version);
+                                eprintln!(
+                                    "Prepared {}@{} for patching.",
+                                    result.name, result.version
+                                );
                                 eprintln!();
                                 eprintln!("Edit files in node_modules/{}/ then run:", result.name);
                                 eprintln!("  vertz patch save {}", result.name);
@@ -848,7 +853,8 @@ async fn main() {
                         Err(e) => {
                             let msg = e.to_string();
                             if patch_args.json {
-                                let output: Arc<dyn PmOutput> = Arc::new(pm::output::JsonOutput::new());
+                                let output: Arc<dyn PmOutput> =
+                                    Arc::new(pm::output::JsonOutput::new());
                                 output.error(error_code_from_message(&msg), &msg);
                             } else {
                                 eprintln!("{}", msg);

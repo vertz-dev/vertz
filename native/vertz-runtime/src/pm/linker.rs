@@ -45,10 +45,7 @@ pub fn write_manifest(
 }
 
 /// Build the desired manifest from the resolved graph
-pub fn build_manifest(
-    graph: &ResolvedGraph,
-    patched_packages: &HashSet<String>,
-) -> LinkManifest {
+pub fn build_manifest(graph: &ResolvedGraph, patched_packages: &HashSet<String>) -> LinkManifest {
     let mut packages = BTreeMap::new();
     for pkg in graph.packages.values() {
         let key = manifest_key(&pkg.name, &pkg.version, &pkg.nest_path);
@@ -784,7 +781,8 @@ mod tests {
         link_packages(&root, &graph, &store, &HashSet::new()).unwrap();
 
         // Force relink — should relink everything despite manifest
-        let result = link_packages_incremental(&root, &graph, &store, true, &HashSet::new()).unwrap();
+        let result =
+            link_packages_incremental(&root, &graph, &store, true, &HashSet::new()).unwrap();
         assert_eq!(result.packages_linked, 1);
         assert_eq!(result.packages_cached, 0);
     }

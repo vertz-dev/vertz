@@ -84,9 +84,9 @@ pub fn parse_patch_key_name_pub(key: &str) -> Option<&str> {
 /// or "@types/node@22.0.0"
 fn parse_patch_key_name(key: &str) -> Option<&str> {
     // Handle scoped packages: "@scope/name@version"
-    if key.starts_with('@') {
+    if let Some(rest) = key.strip_prefix('@') {
         // Find the second '@' (after @scope/name)
-        if let Some(pos) = key[1..].find('@') {
+        if let Some(pos) = rest.find('@') {
             return Some(&key[..pos + 1]);
         }
     } else if let Some(pos) = key.find('@') {
@@ -101,10 +101,20 @@ fn escape_package_name(name: &str) -> String {
 }
 
 /// Get the version of an installed package from its package.json
-fn get_installed_version(root_dir: &Path, name: &str) -> Result<String, Box<dyn std::error::Error>> {
-    let pkg_json_path = root_dir.join("node_modules").join(name).join("package.json");
-    let content = std::fs::read_to_string(&pkg_json_path)
-        .map_err(|_| format!("error: \"{}\" is not installed. Run \"vertz install\" first.", name))?;
+fn get_installed_version(
+    root_dir: &Path,
+    name: &str,
+) -> Result<String, Box<dyn std::error::Error>> {
+    let pkg_json_path = root_dir
+        .join("node_modules")
+        .join(name)
+        .join("package.json");
+    let content = std::fs::read_to_string(&pkg_json_path).map_err(|_| {
+        format!(
+            "error: \"{}\" is not installed. Run \"vertz install\" first.",
+            name
+        )
+    })?;
     let value: serde_json::Value = serde_json::from_str(&content)
         .map_err(|_| format!("error: invalid package.json for \"{}\"", name))?;
     value
@@ -232,7 +242,12 @@ pub fn patch_save(
     }
 
     // Count files changed
-    let files_changed = diff.matches("\ndiff --git ").count() + if diff.starts_with("diff --git ") { 1 } else { 0 };
+    let files_changed = diff.matches("\ndiff --git ").count()
+        + if diff.starts_with("diff --git ") {
+            1
+        } else {
+            0
+        };
 
     // Write patch file
     let escaped_name = escape_package_name(package);
@@ -339,15 +354,8 @@ pub fn patch_list(root_dir: &Path) -> PatchListResult {
                         let scope_dir = backup_base.join(&name);
                         if let Ok(sub_entries) = std::fs::read_dir(&scope_dir) {
                             for sub_entry in sub_entries.flatten() {
-                                let sub_name = sub_entry
-                                    .file_name()
-                                    .to_string_lossy()
-                                    .to_string();
-                                if sub_entry
-                                    .file_type()
-                                    .map(|t| t.is_dir())
-                                    .unwrap_or(false)
-                                {
+                                let sub_name = sub_entry.file_name().to_string_lossy().to_string();
+                                if sub_entry.file_type().map(|t| t.is_dir()).unwrap_or(false) {
                                     let full_name = format!("{}/{}", name, sub_name);
                                     let version = get_installed_version(root_dir, &full_name)
                                         .unwrap_or_default();
@@ -357,8 +365,7 @@ pub fn patch_list(root_dir: &Path) -> PatchListResult {
                         }
                     } else {
                         // Regular package
-                        let version =
-                            get_installed_version(root_dir, &name).unwrap_or_default();
+                        let version = get_installed_version(root_dir, &name).unwrap_or_default();
                         active.push((name, version));
                     }
                 }
@@ -392,9 +399,7 @@ pub fn patch_list(root_dir: &Path) -> PatchListResult {
 }
 
 /// Apply all saved patches from package.json
-pub fn apply_patches(
-    root_dir: &Path,
-) -> Result<Vec<PatchApplyResult>, Box<dyn std::error::Error>> {
+pub fn apply_patches(root_dir: &Path) -> Result<Vec<PatchApplyResult>, Box<dyn std::error::Error>> {
     let pkg_path = root_dir.join("package.json");
     let content = match std::fs::read_to_string(&pkg_path) {
         Ok(c) => c,
@@ -529,14 +534,16 @@ fn split_multi_file_patch(patch_content: &str) -> Vec<(String, PatchChange)> {
         let mut is_add = false;
 
         for line in section.lines() {
-            if line.starts_with("+++ b/") {
-                file_path = line[6..].to_string();
+            if let Some(path) = line.strip_prefix("+++ b/") {
+                file_path = path.to_string();
             } else if line.starts_with("+++ /dev/null") {
                 is_delete = true;
             } else if line.starts_with("--- /dev/null") {
                 is_add = true;
-            } else if line.starts_with("--- a/") && file_path.is_empty() {
-                file_path = line[6..].to_string();
+            } else if let Some(path) = line.strip_prefix("--- a/") {
+                if file_path.is_empty() {
+                    file_path = path.to_string();
+                }
             }
         }
 
@@ -613,15 +620,13 @@ fn apply_unified_patch(content: &str, patch: &str) -> Result<String, String> {
                     content_idx += 1;
                 }
                 HunkLine::Remove(text) => {
-                    if content_idx < content_lines.len() {
-                        if content_lines[content_idx] != *text {
-                            return Err(format!(
-                                "remove mismatch at line {}: expected {:?}, got {:?}",
-                                content_idx + 1,
-                                text,
-                                content_lines[content_idx]
-                            ));
-                        }
+                    if content_idx < content_lines.len() && content_lines[content_idx] != *text {
+                        return Err(format!(
+                            "remove mismatch at line {}: expected {:?}, got {:?}",
+                            content_idx + 1,
+                            text,
+                            content_lines[content_idx]
+                        ));
                     }
                     content_idx += 1; // skip removed line
                 }
@@ -741,10 +746,7 @@ fn update_package_json_patches(
 }
 
 /// Generate a unified diff between two directories
-fn generate_diff(
-    old_dir: &Path,
-    new_dir: &Path,
-) -> Result<String, Box<dyn std::error::Error>> {
+fn generate_diff(old_dir: &Path, new_dir: &Path) -> Result<String, Box<dyn std::error::Error>> {
     let mut diff_output = String::new();
 
     // Collect all files from both directories
@@ -875,10 +877,7 @@ fn is_binary(content: &str) -> bool {
 }
 
 /// Recursively copy a directory
-fn copy_dir_recursive(
-    source: &Path,
-    target: &Path,
-) -> Result<(), Box<dyn std::error::Error>> {
+fn copy_dir_recursive(source: &Path, target: &Path) -> Result<(), Box<dyn std::error::Error>> {
     std::fs::create_dir_all(target)?;
     for entry in std::fs::read_dir(source)? {
         let entry = entry?;
@@ -951,7 +950,7 @@ mod tests {
         .unwrap();
         let lib_dir = express_dir.join("lib");
         std::fs::create_dir_all(&lib_dir).unwrap();
-        std::fs::write(&lib_dir.join("express.js"), "// express main\n").unwrap();
+        std::fs::write(lib_dir.join("express.js"), "// express main\n").unwrap();
         std::fs::write(
             lib_dir.join("router.js"),
             "// router code\nvar layer = new Layer(path, {\n  sensitive: false\n});\n",
@@ -980,10 +979,7 @@ mod tests {
         assert_eq!(result.version, "4.21.2");
 
         // Backup should exist
-        let backup = root
-            .join("node_modules")
-            .join(BACKUP_DIR)
-            .join("express");
+        let backup = root.join("node_modules").join(BACKUP_DIR).join("express");
         assert!(backup.exists());
         assert!(backup.join("package.json").exists());
         assert!(backup.join("lib/router.js").exists());
@@ -1044,17 +1040,10 @@ mod tests {
         let patch_file = root.join("patches/express@4.21.2.patch");
         assert!(patch_file.exists());
         let content = std::fs::read_to_string(&patch_file).unwrap();
-        assert!(
-            content.contains("diff --git"),
-            "Patch content: {}",
-            content
-        );
+        assert!(content.contains("diff --git"), "Patch content: {}", content);
 
         // Backup should be cleaned up
-        let backup = root
-            .join("node_modules")
-            .join(BACKUP_DIR)
-            .join("express");
+        let backup = root.join("node_modules").join(BACKUP_DIR).join("express");
         assert!(!backup.exists());
     }
 
@@ -1134,11 +1123,7 @@ mod tests {
         patch_prepare(&root, "@types/node").unwrap();
 
         // Modify
-        std::fs::write(
-            nm.join("@types/node/index.d.ts"),
-            "// patched types\n",
-        )
-        .unwrap();
+        std::fs::write(nm.join("@types/node/index.d.ts"), "// patched types\n").unwrap();
 
         let result = patch_save(&root, "@types/node").unwrap();
         assert_eq!(result.patch_path, "patches/@types+node@22.0.0.patch");
@@ -1353,10 +1338,7 @@ mod tests {
         );
 
         // Backup removed
-        let backup = root
-            .join("node_modules")
-            .join(BACKUP_DIR)
-            .join("express");
+        let backup = root.join("node_modules").join(BACKUP_DIR).join("express");
         assert!(!backup.exists());
     }
 
@@ -1415,11 +1397,7 @@ mod tests {
 
         // Create a patch file manually
         let patch_content = "diff --git a/lib/router.js b/lib/router.js\n--- a/lib/router.js\n+++ b/lib/router.js\n@@ -1,4 +1,4 @@\n // router code\n-var layer = new Layer(path, {\n+var layer = new Layer(path || '/', {\n   sensitive: false\n });\n";
-        std::fs::write(
-            patches_dir.join("express@4.21.2.patch"),
-            patch_content,
-        )
-        .unwrap();
+        std::fs::write(patches_dir.join("express@4.21.2.patch"), patch_content).unwrap();
 
         // Update package.json with patch reference
         update_package_json_patches(&root, "express@4.21.2", "patches/express@4.21.2.patch")
@@ -1537,11 +1515,7 @@ mod tests {
         let result = patch_prepare(&root, "transitive-dep");
         assert!(result.is_err());
         let err = result.unwrap_err().to_string();
-        assert!(
-            err.contains("transitive dependency"),
-            "Error was: {}",
-            err
-        );
+        assert!(err.contains("transitive dependency"), "Error was: {}", err);
         assert!(
             err.contains("vertz add transitive-dep"),
             "Error should suggest adding as direct dep: {}",
@@ -1595,7 +1569,8 @@ mod tests {
     #[test]
     fn test_apply_unified_patch_context_mismatch() {
         let content = "line1\nline2\nline3\n";
-        let patch = "--- a/file\n+++ b/file\n@@ -1,3 +1,3 @@\n line1\n-wrong_line\n+replacement\n line3\n";
+        let patch =
+            "--- a/file\n+++ b/file\n@@ -1,3 +1,3 @@\n line1\n-wrong_line\n+replacement\n line3\n";
 
         let result = apply_unified_patch(content, patch);
         assert!(result.is_err());

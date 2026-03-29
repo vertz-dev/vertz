@@ -267,7 +267,11 @@ pub async fn install(
     // Apply saved patches (after linking, before postinstall scripts)
     let patch_results = patch::apply_patches(root_dir)?;
     if !patch_results.is_empty() {
-        output.info(&format!("Applying {} patch{}:", patch_results.len(), if patch_results.len() == 1 { "" } else { "es" }));
+        output.info(&format!(
+            "Applying {} patch{}:",
+            patch_results.len(),
+            if patch_results.len() == 1 { "" } else { "es" }
+        ));
         for result in &patch_results {
             output.info(&format!("  {} \u{2713}", result.patch_path));
         }
