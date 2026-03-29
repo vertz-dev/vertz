@@ -120,6 +120,25 @@ pub async fn run_postinstall_scripts(
     results
 }
 
+/// Returns the platform shell command and its flag for running a script string.
+/// Unix: `("sh", "-c")`, Windows: `("cmd.exe", "/C")`.
+fn platform_shell() -> (&'static str, &'static str) {
+    if cfg!(target_os = "windows") {
+        ("cmd.exe", "/C")
+    } else {
+        ("sh", "-c")
+    }
+}
+
+/// Returns the platform PATH separator: `";"` on Windows, `":"` on Unix.
+pub fn path_separator() -> &'static str {
+    if cfg!(target_os = "windows") {
+        ";"
+    } else {
+        ":"
+    }
+}
+
 /// Execute a single shell script in the given directory with a timeout.
 /// Kills the child process if the timeout fires.
 async fn run_script_with_timeout(
@@ -127,8 +146,9 @@ async fn run_script_with_timeout(
     script: &str,
     timeout_secs: u64,
 ) -> Result<(String, String, i32), Box<dyn std::error::Error + Send + Sync>> {
-    let mut child = tokio::process::Command::new("sh")
-        .arg("-c")
+    let (shell, flag) = platform_shell();
+    let mut child = tokio::process::Command::new(shell)
+        .arg(flag)
         .arg(script)
         .current_dir(dir)
         .stdout(std::process::Stdio::piped())
@@ -182,8 +202,9 @@ pub async fn exec_inherit_stdio(
     script: &str,
     env_overrides: &[(&str, String)],
 ) -> Result<i32, Box<dyn std::error::Error>> {
-    let mut cmd = tokio::process::Command::new("sh");
-    cmd.arg("-c")
+    let (shell, flag) = platform_shell();
+    let mut cmd = tokio::process::Command::new(shell);
+    cmd.arg(flag)
         .arg(script)
         .current_dir(dir)
         .stdout(std::process::Stdio::inherit())
@@ -430,5 +451,32 @@ mod tests {
             .as_ref()
             .unwrap()
             .contains("directory not found"));
+    }
+
+    #[test]
+    fn test_platform_shell_returns_valid_pair() {
+        let (shell, flag) = platform_shell();
+        assert!(!shell.is_empty());
+        assert!(!flag.is_empty());
+        // On Unix (where tests run), should be sh -c
+        #[cfg(not(target_os = "windows"))]
+        {
+            assert_eq!(shell, "sh");
+            assert_eq!(flag, "-c");
+        }
+        #[cfg(target_os = "windows")]
+        {
+            assert_eq!(shell, "cmd.exe");
+            assert_eq!(flag, "/C");
+        }
+    }
+
+    #[test]
+    fn test_path_separator() {
+        let sep = path_separator();
+        #[cfg(not(target_os = "windows"))]
+        assert_eq!(sep, ":");
+        #[cfg(target_os = "windows")]
+        assert_eq!(sep, ";");
     }
 }

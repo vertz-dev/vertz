@@ -300,11 +300,13 @@ pub struct WorkspaceInfo {
     pub path: String,
 }
 
-/// Convert resolved graph to lockfile entries
+/// Convert resolved graph to lockfile entries.
+/// `optional_names` contains the set of package names that came from optionalDependencies.
 pub fn graph_to_lockfile(
     graph: &ResolvedGraph,
     all_deps: &BTreeMap<String, String>,
     workspaces: &[WorkspaceInfo],
+    optional_names: &HashSet<String>,
 ) -> Lockfile {
     let mut lockfile = Lockfile::default();
 
@@ -325,6 +327,7 @@ pub fn graph_to_lockfile(
                     resolved: pkg.tarball_url.clone(),
                     integrity: pkg.integrity.clone(),
                     dependencies: pkg.dependencies.clone(),
+                    optional: optional_names.contains(name),
                 },
             );
         }
@@ -353,6 +356,7 @@ pub fn graph_to_lockfile(
                         resolved: dep_pkg.tarball_url.clone(),
                         integrity: dep_pkg.integrity.clone(),
                         dependencies: dep_pkg.dependencies.clone(),
+                        optional: false,
                     });
                 }
             }
@@ -371,6 +375,7 @@ pub fn graph_to_lockfile(
                 resolved: format!("link:{}", ws.path),
                 integrity: String::new(),
                 dependencies: BTreeMap::new(),
+                optional: false,
             },
         );
     }
@@ -544,7 +549,7 @@ mod tests {
         let mut deps = BTreeMap::new();
         deps.insert("zod".to_string(), "^3.24.0".to_string());
 
-        let lockfile = graph_to_lockfile(&graph, &deps, &[]);
+        let lockfile = graph_to_lockfile(&graph, &deps, &[], &HashSet::new());
         assert_eq!(lockfile.entries.len(), 1);
 
         let entry = &lockfile.entries["zod@^3.24.0"];
@@ -612,7 +617,7 @@ mod tests {
         let mut deps = BTreeMap::new();
         deps.insert("parent".to_string(), "^1.0.0".to_string());
 
-        let lockfile = graph_to_lockfile(&graph, &deps, &[]);
+        let lockfile = graph_to_lockfile(&graph, &deps, &[], &HashSet::new());
 
         // The transitive lodash@^4.0.0 should match lodash@4.17.21, NOT lodash@3.10.1
         let lodash_entry = &lockfile.entries["lodash@^4.0.0"];
@@ -674,7 +679,7 @@ mod tests {
         let mut deps = BTreeMap::new();
         deps.insert("react".to_string(), "^18.3.0".to_string());
 
-        let lockfile = graph_to_lockfile(&graph, &deps, &[]);
+        let lockfile = graph_to_lockfile(&graph, &deps, &[], &HashSet::new());
         // Should have react, loose-envify, and js-tokens
         assert!(lockfile.entries.contains_key("react@^18.3.0"));
         assert!(lockfile.entries.contains_key("loose-envify@^1.1.0"));
@@ -697,7 +702,7 @@ mod tests {
             },
         ];
         let deps = BTreeMap::new();
-        let lockfile = graph_to_lockfile(&graph, &deps, &workspaces);
+        let lockfile = graph_to_lockfile(&graph, &deps, &workspaces, &HashSet::new());
 
         assert_eq!(lockfile.entries.len(), 2);
 
@@ -737,7 +742,7 @@ mod tests {
         let mut deps = BTreeMap::new();
         deps.insert("zod".to_string(), "^3.24.0".to_string());
 
-        let lockfile = graph_to_lockfile(&graph, &deps, &workspaces);
+        let lockfile = graph_to_lockfile(&graph, &deps, &workspaces, &HashSet::new());
 
         // Both registry and workspace entries should exist
         assert_eq!(lockfile.entries.len(), 2);
@@ -745,5 +750,51 @@ mod tests {
         assert!(lockfile
             .entries
             .contains_key("@myorg/shared@link:packages/shared"));
+    }
+
+    #[test]
+    fn test_graph_to_lockfile_marks_optional_deps() {
+        let mut graph = ResolvedGraph::default();
+        graph.packages.insert(
+            "fsevents@2.3.3".to_string(),
+            ResolvedPackage {
+                name: "fsevents".to_string(),
+                version: "2.3.3".to_string(),
+                tarball_url: "https://registry.npmjs.org/fsevents/-/fsevents-2.3.3.tgz".to_string(),
+                integrity: "sha512-abc".to_string(),
+                dependencies: BTreeMap::new(),
+                bin: BTreeMap::new(),
+                nest_path: vec![],
+            },
+        );
+        graph.packages.insert(
+            "zod@3.24.4".to_string(),
+            ResolvedPackage {
+                name: "zod".to_string(),
+                version: "3.24.4".to_string(),
+                tarball_url: "https://registry.npmjs.org/zod/-/zod-3.24.4.tgz".to_string(),
+                integrity: "sha512-def".to_string(),
+                dependencies: BTreeMap::new(),
+                bin: BTreeMap::new(),
+                nest_path: vec![],
+            },
+        );
+
+        let mut deps = BTreeMap::new();
+        deps.insert("fsevents".to_string(), "^2.3.0".to_string());
+        deps.insert("zod".to_string(), "^3.24.0".to_string());
+
+        let mut optional_names = HashSet::new();
+        optional_names.insert("fsevents".to_string());
+
+        let lockfile = graph_to_lockfile(&graph, &deps, &[], &optional_names);
+
+        // fsevents should be marked optional
+        let fs_entry = &lockfile.entries["fsevents@^2.3.0"];
+        assert!(fs_entry.optional, "fsevents should be marked optional");
+
+        // zod should NOT be marked optional
+        let zod_entry = &lockfile.entries["zod@^3.24.0"];
+        assert!(!zod_entry.optional, "zod should not be marked optional");
     }
 }

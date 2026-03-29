@@ -78,8 +78,15 @@ pub async fn install(
         (pkg.dependencies.clone(), pkg.dev_dependencies.clone())
     };
 
+    // Collect optional dependency names for lockfile marking
+    let optional_names: HashSet<String> = pkg.optional_dependencies.keys().cloned().collect();
+
     let mut all_deps = resolved_deps.clone();
     for (k, v) in &resolved_dev_deps {
+        all_deps.insert(k.clone(), v.clone());
+    }
+    // Include optional deps in all_deps for resolution
+    for (k, v) in &pkg.optional_dependencies {
         all_deps.insert(k.clone(), v.clone());
     }
 
@@ -92,7 +99,7 @@ pub async fn install(
     let registry_client = RegistryClient::new(&cache_dir);
     let tarball_mgr = Arc::new(TarballManager::new(&cache_dir));
 
-    // Resolve dependency graph
+    // Resolve dependency graph (required deps)
     output.resolve_started();
 
     let mut graph = resolver::resolve_all(
@@ -103,6 +110,36 @@ pub async fn install(
     )
     .await
     .map_err(|e| format!("{}", e))?;
+
+    // Resolve optional deps — failures are warnings, not errors
+    for (name, range) in &pkg.optional_dependencies {
+        let mut optional_deps = BTreeMap::new();
+        optional_deps.insert(name.clone(), range.clone());
+        match resolver::resolve_all(
+            &optional_deps,
+            &BTreeMap::new(),
+            &registry_client,
+            &existing_lockfile,
+        )
+        .await
+        {
+            Ok(optional_graph) => {
+                // Merge optional packages into the main graph
+                for (key, pkg) in optional_graph.packages {
+                    graph.packages.entry(key).or_insert(pkg);
+                }
+                for (key, scripts) in optional_graph.scripts {
+                    graph.scripts.entry(key).or_insert(scripts);
+                }
+            }
+            Err(e) => {
+                output.warning(&format!(
+                    "optional dependency {} failed to resolve: {}",
+                    name, e
+                ));
+            }
+        }
+    }
 
     output.resolve_complete(graph.packages.len());
 
@@ -234,7 +271,7 @@ pub async fn install(
             path: ws.path.to_string_lossy().to_string(),
         })
         .collect();
-    let new_lockfile = resolver::graph_to_lockfile(&graph, &all_deps, &ws_info);
+    let new_lockfile = resolver::graph_to_lockfile(&graph, &all_deps, &ws_info, &optional_names);
     lockfile::write_lockfile(&lockfile_path, &new_lockfile)?;
 
     let elapsed = start.elapsed();
@@ -250,13 +287,15 @@ pub async fn add(
     packages: &[&str],
     dev: bool,
     peer: bool,
+    optional: bool,
     exact: bool,
     script_policy: vertzrc::ScriptPolicy,
     workspace_target: Option<&str>,
     output: Arc<dyn PmOutput>,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    if peer && dev {
-        return Err("error: --peer and --dev cannot be used together".into());
+    let exclusive_count = [dev, peer, optional].iter().filter(|&&x| x).count();
+    if exclusive_count > 1 {
+        return Err("error: --dev, --peer, and --optional are mutually exclusive".into());
     }
 
     // Determine target directory: workspace dir (if -w) or root_dir
@@ -338,6 +377,9 @@ pub async fn add(
                 .insert(name.to_string(), range.clone());
         } else if dev {
             pkg.dev_dependencies.insert(name.to_string(), range.clone());
+        } else if optional {
+            pkg.optional_dependencies
+                .insert(name.to_string(), range.clone());
         } else {
             pkg.dependencies.insert(name.to_string(), range.clone());
         }
@@ -377,7 +419,8 @@ pub async fn remove(
     for package in packages {
         let removed = pkg.dependencies.remove(*package).is_some()
             || pkg.dev_dependencies.remove(*package).is_some()
-            || pkg.peer_dependencies.remove(*package).is_some();
+            || pkg.peer_dependencies.remove(*package).is_some()
+            || pkg.optional_dependencies.remove(*package).is_some();
 
         if !removed {
             not_found.push(package);
@@ -525,6 +568,45 @@ pub fn build_list(
         }
     }
 
+    // Process optionalDependencies
+    for (name, range) in &pkg.optional_dependencies {
+        if let Some(ref filter) = options.filter {
+            if name != filter {
+                continue;
+            }
+        }
+
+        let key = types::Lockfile::spec_key(name, range);
+        let version = lockfile.entries.get(&key).map(|e| e.version.clone());
+
+        entries.push(ListEntry {
+            name: name.clone(),
+            version: version.clone(),
+            range: range.clone(),
+            dev: false,
+            depth: 0,
+            parent: None,
+        });
+
+        // Add transitive deps if showing tree
+        if max_depth > 0 {
+            if let Some(entry) = lockfile.entries.get(&key) {
+                let mut visited = HashSet::new();
+                visited.insert(key.clone());
+                add_transitive_deps(
+                    lockfile,
+                    entry,
+                    &mut entries,
+                    1,
+                    max_depth,
+                    false,
+                    name,
+                    &mut visited,
+                );
+            }
+        }
+    }
+
     entries
 }
 
@@ -568,12 +650,15 @@ pub fn build_why(
     lockfile: &types::Lockfile,
     target: &str,
 ) -> Result<WhyResult, Box<dyn std::error::Error>> {
-    // Collect all root deps (both regular and dev)
+    // Collect all root deps (regular, dev, and optional)
     let mut all_root_deps: BTreeMap<String, String> = BTreeMap::new();
     for (k, v) in &pkg.dependencies {
         all_root_deps.insert(k.clone(), v.clone());
     }
     for (k, v) in &pkg.dev_dependencies {
+        all_root_deps.insert(k.clone(), v.clone());
+    }
+    for (k, v) in &pkg.optional_dependencies {
         all_root_deps.insert(k.clone(), v.clone());
     }
 
@@ -950,7 +1035,10 @@ pub async fn outdated(
 ) -> Result<(Vec<OutdatedEntry>, Vec<String>), Box<dyn std::error::Error>> {
     let pkg = types::read_package_json(root_dir)?;
 
-    if pkg.dependencies.is_empty() && pkg.dev_dependencies.is_empty() {
+    if pkg.dependencies.is_empty()
+        && pkg.dev_dependencies.is_empty()
+        && pkg.optional_dependencies.is_empty()
+    {
         return Ok((Vec::new(), Vec::new()));
     }
 
@@ -976,6 +1064,12 @@ pub async fn outdated(
         let spec_key = types::Lockfile::spec_key(name, range);
         if let Some(entry) = lockfile.entries.get(&spec_key) {
             dep_tasks.push((name.clone(), range.clone(), entry.version.clone(), true));
+        }
+    }
+    for (name, range) in &pkg.optional_dependencies {
+        let spec_key = types::Lockfile::spec_key(name, range);
+        if let Some(entry) = lockfile.entries.get(&spec_key) {
+            dep_tasks.push((name.clone(), range.clone(), entry.version.clone(), false));
         }
     }
 
@@ -1406,8 +1500,7 @@ pub async fn run_script(
     if let Ok(existing_path) = std::env::var("PATH") {
         path_parts.push(existing_path);
     }
-    // Unix PATH separator; Windows (#2043) will need ";"
-    let new_path = path_parts.join(":");
+    let new_path = path_parts.join(scripts::path_separator());
 
     scripts::exec_inherit_stdio(&target_dir, &full_cmd, &[("PATH", new_path)]).await
 }
@@ -1446,24 +1539,48 @@ pub async fn exec_command(
     if let Ok(existing_path) = std::env::var("PATH") {
         path_parts.push(existing_path);
     }
-    let new_path = path_parts.join(":");
+    let new_path = path_parts.join(scripts::path_separator());
 
     scripts::exec_inherit_stdio(&target_dir, &full_cmd, &[("PATH", new_path)]).await
 }
 
-/// Escape a shell argument by single-quoting if it contains any shell metacharacters.
-/// Empty strings are returned as '' to avoid being dropped by the shell.
+/// Escape a shell argument for the current platform.
+///
+/// On Unix (sh -c): single-quote if it contains metacharacters.
+/// On Windows (cmd.exe /C): double-quote if it contains metacharacters.
 fn shell_escape(s: &str) -> String {
+    if cfg!(target_os = "windows") {
+        shell_escape_windows(s)
+    } else {
+        shell_escape_unix(s)
+    }
+}
+
+/// Unix shell escaping: wrap in single quotes, escape embedded single quotes.
+fn shell_escape_unix(s: &str) -> String {
     if s.is_empty() {
         return "''".to_string();
     }
-    // If it contains ANY character that could be interpreted by sh, wrap in single quotes.
-    // Single quotes inside the string are handled by ending the quote, inserting an escaped
-    // single quote, and re-opening: 'can'\''t' → can't
     if s.chars()
         .any(|c| !c.is_ascii_alphanumeric() && !matches!(c, '-' | '_' | '.' | '/' | ':' | '@'))
     {
         format!("'{}'", s.replace('\'', "'\\''"))
+    } else {
+        s.to_string()
+    }
+}
+
+/// Windows cmd.exe escaping: wrap in double quotes, escape embedded double quotes.
+fn shell_escape_windows(s: &str) -> String {
+    if s.is_empty() {
+        return "\"\"".to_string();
+    }
+    // cmd.exe metacharacters that require quoting
+    if s.chars().any(|c| {
+        !c.is_ascii_alphanumeric() && !matches!(c, '-' | '_' | '.' | '/' | ':' | '@' | '\\')
+    }) {
+        // Escape internal double quotes by doubling them
+        format!("\"{}\"", s.replace('"', "\"\""))
     } else {
         s.to_string()
     }
@@ -1537,6 +1654,7 @@ mod tests {
             ),
             integrity: format!("sha512-fake-{}", name),
             dependencies,
+            optional: false,
         }
     }
 
@@ -2645,6 +2763,26 @@ mod tests {
         assert_eq!(shell_escape("foo-bar_baz.ts"), "foo-bar_baz.ts");
         assert_eq!(shell_escape("/usr/bin/node"), "/usr/bin/node");
         assert_eq!(shell_escape("@myorg/pkg"), "@myorg/pkg");
+    }
+
+    #[test]
+    fn test_shell_escape_unix_directly() {
+        assert_eq!(shell_escape_unix("hello world"), "'hello world'");
+        assert_eq!(shell_escape_unix("it's"), "'it'\\''s'");
+        assert_eq!(shell_escape_unix(""), "''");
+        assert_eq!(shell_escape_unix("simple"), "simple");
+    }
+
+    #[test]
+    fn test_shell_escape_windows_directly() {
+        assert_eq!(shell_escape_windows("hello world"), "\"hello world\"");
+        assert_eq!(shell_escape_windows("say \"hi\""), "\"say \"\"hi\"\"\"");
+        assert_eq!(shell_escape_windows(""), "\"\"");
+        assert_eq!(shell_escape_windows("simple"), "simple");
+        assert_eq!(shell_escape_windows("foo;bar"), "\"foo;bar\"");
+        assert_eq!(shell_escape_windows("a&b"), "\"a&b\"");
+        // Backslash is safe on Windows (path separator)
+        assert_eq!(shell_escape_windows("C:\\Users\\test"), "C:\\Users\\test");
     }
 
     #[tokio::test]

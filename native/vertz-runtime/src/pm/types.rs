@@ -136,6 +136,7 @@ pub struct LockfileEntry {
     pub resolved: String,
     pub integrity: String,
     pub dependencies: BTreeMap<String, String>,
+    pub optional: bool,
 }
 
 /// Full lockfile representation
@@ -214,6 +215,15 @@ pub fn write_package_json(
         obj.insert(
             "peerDependencies".into(),
             serde_json::to_value(&pkg.peer_dependencies)?,
+        );
+    }
+
+    if pkg.optional_dependencies.is_empty() {
+        obj.remove("optionalDependencies");
+    } else {
+        obj.insert(
+            "optionalDependencies".into(),
+            serde_json::to_value(&pkg.optional_dependencies)?,
         );
     }
 
@@ -630,5 +640,58 @@ mod tests {
         let (name, version) = parse_package_specifier("@vertz/ui@^0.1.0");
         assert_eq!(name, "@vertz/ui");
         assert_eq!(version, Some("^0.1.0"));
+    }
+
+    #[test]
+    fn test_parse_optional_dependencies() {
+        let json = r#"{
+            "name": "my-app",
+            "optionalDependencies": {
+                "fsevents": "^2.3.0"
+            }
+        }"#;
+        let pkg: PackageJson = serde_json::from_str(json).unwrap();
+        assert_eq!(pkg.optional_dependencies.len(), 1);
+        assert_eq!(pkg.optional_dependencies["fsevents"], "^2.3.0");
+    }
+
+    #[test]
+    fn test_write_package_json_optional_dependencies() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(
+            dir.path().join("package.json"),
+            r#"{"name": "test", "version": "1.0.0"}"#,
+        )
+        .unwrap();
+
+        let mut pkg = read_package_json(dir.path()).unwrap();
+        pkg.optional_dependencies
+            .insert("fsevents".to_string(), "^2.3.0".to_string());
+        write_package_json(dir.path(), &pkg).unwrap();
+
+        let written = std::fs::read_to_string(dir.path().join("package.json")).unwrap();
+        let value: serde_json::Value = serde_json::from_str(&written).unwrap();
+        let obj = value.as_object().unwrap();
+        assert!(obj.contains_key("optionalDependencies"));
+        assert_eq!(obj["optionalDependencies"]["fsevents"], "^2.3.0");
+    }
+
+    #[test]
+    fn test_write_package_json_removes_empty_optional_deps() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(
+            dir.path().join("package.json"),
+            r#"{"name": "test", "optionalDependencies": {"fsevents": "^2.3.0"}}"#,
+        )
+        .unwrap();
+
+        let mut pkg = read_package_json(dir.path()).unwrap();
+        pkg.optional_dependencies.clear();
+        write_package_json(dir.path(), &pkg).unwrap();
+
+        let written = std::fs::read_to_string(dir.path().join("package.json")).unwrap();
+        let value: serde_json::Value = serde_json::from_str(&written).unwrap();
+        let obj = value.as_object().unwrap();
+        assert!(!obj.contains_key("optionalDependencies"));
     }
 }

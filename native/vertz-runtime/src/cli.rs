@@ -151,6 +151,10 @@ pub struct AddArgs {
     #[arg(short = 'P', long)]
     pub peer: bool,
 
+    /// Add to optionalDependencies
+    #[arg(short = 'O', long)]
+    pub optional: bool,
+
     /// Pin exact version (no ^ prefix)
     #[arg(short = 'E', long)]
     pub exact: bool,
@@ -587,6 +591,24 @@ mod tests {
     fn test_add_peer_default_false() {
         let args = parse_add(&["vertz-runtime", "add", "react"]);
         assert!(!args.peer);
+    }
+
+    #[test]
+    fn test_add_optional_flag() {
+        let args = parse_add(&["vertz-runtime", "add", "-O", "fsevents"]);
+        assert!(args.optional);
+    }
+
+    #[test]
+    fn test_add_optional_long_flag() {
+        let args = parse_add(&["vertz-runtime", "add", "--optional", "fsevents"]);
+        assert!(args.optional);
+    }
+
+    #[test]
+    fn test_add_optional_default_false() {
+        let args = parse_add(&["vertz-runtime", "add", "zod"]);
+        assert!(!args.optional);
     }
 
     // --- Remove command tests ---
