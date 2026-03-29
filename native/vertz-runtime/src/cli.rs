@@ -127,6 +127,10 @@ pub struct AddArgs {
     #[arg(short = 'D', long)]
     pub dev: bool,
 
+    /// Add to peerDependencies
+    #[arg(short = 'P', long)]
+    pub peer: bool,
+
     /// Pin exact version (no ^ prefix)
     #[arg(short = 'E', long)]
     pub exact: bool,
@@ -382,6 +386,25 @@ mod tests {
     fn test_add_scoped_package() {
         let args = parse_add(&["vertz-runtime", "add", "@vertz/ui@^0.1.0"]);
         assert_eq!(args.packages, vec!["@vertz/ui@^0.1.0"]);
+    }
+
+    #[test]
+    fn test_add_peer_flag() {
+        let args = parse_add(&["vertz-runtime", "add", "-P", "react"]);
+        assert!(args.peer);
+        assert!(!args.dev);
+    }
+
+    #[test]
+    fn test_add_peer_long_flag() {
+        let args = parse_add(&["vertz-runtime", "add", "--peer", "react"]);
+        assert!(args.peer);
+    }
+
+    #[test]
+    fn test_add_peer_default_false() {
+        let args = parse_add(&["vertz-runtime", "add", "react"]);
+        assert!(!args.peer);
     }
 
     // --- Remove command tests ---

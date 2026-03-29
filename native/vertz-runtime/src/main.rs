@@ -110,6 +110,10 @@ async fn main() {
                 eprintln!("error: global packages are not yet supported");
                 std::process::exit(1);
             }
+            if args.peer && args.dev {
+                eprintln!("error: --peer and --dev cannot be used together");
+                std::process::exit(1);
+            }
 
             let root_dir =
                 std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from("."));
@@ -126,6 +130,7 @@ async fn main() {
                 &root_dir,
                 &package_refs,
                 args.dev,
+                args.peer,
                 args.exact,
                 output.clone(),
             )

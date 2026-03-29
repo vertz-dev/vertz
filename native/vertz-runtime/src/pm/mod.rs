@@ -156,6 +156,7 @@ pub async fn add(
     root_dir: &Path,
     packages: &[&str],
     dev: bool,
+    peer: bool,
     exact: bool,
     output: Arc<dyn PmOutput>,
 ) -> Result<(), Box<dyn std::error::Error>> {
@@ -226,7 +227,10 @@ pub async fn add(
             version_spec.unwrap().to_string()
         };
 
-        if dev {
+        if peer {
+            pkg.peer_dependencies
+                .insert(name.to_string(), range.clone());
+        } else if dev {
             pkg.dev_dependencies.insert(name.to_string(), range.clone());
         } else {
             pkg.dependencies.insert(name.to_string(), range.clone());
@@ -238,8 +242,13 @@ pub async fn add(
 
     types::write_package_json(root_dir, &pkg)?;
 
-    // Single install pass for all packages
-    install(root_dir, false, false, output).await
+    if peer {
+        // Peer deps are NOT installed — just recorded in package.json
+        Ok(())
+    } else {
+        // Single install pass for all packages
+        install(root_dir, false, false, output).await
+    }
 }
 
 /// Remove packages from dependencies (batch — single install pass)
@@ -253,7 +262,8 @@ pub async fn remove(
 
     for package in packages {
         let removed = pkg.dependencies.remove(*package).is_some()
-            || pkg.dev_dependencies.remove(*package).is_some();
+            || pkg.dev_dependencies.remove(*package).is_some()
+            || pkg.peer_dependencies.remove(*package).is_some();
 
         if !removed {
             not_found.push(package);
