@@ -1296,6 +1296,106 @@ pub fn format_update_dry_run_json(results: &[UpdateResult]) -> String {
     output
 }
 
+/// List scripts from package.json in the given directory
+pub fn list_scripts(
+    root_dir: &Path,
+) -> Result<BTreeMap<String, String>, Box<dyn std::error::Error>> {
+    let pkg = types::read_package_json(root_dir)?;
+    Ok(pkg.scripts)
+}
+
+/// Run a named script from package.json
+pub async fn run_script(
+    root_dir: &Path,
+    script_name: &str,
+    extra_args: &[String],
+    workspace_target: Option<&str>,
+) -> Result<i32, Box<dyn std::error::Error>> {
+    let target_dir = if let Some(ws) = workspace_target {
+        workspace::resolve_workspace_dir(root_dir, ws)?
+    } else {
+        root_dir.to_path_buf()
+    };
+
+    let pkg = types::read_package_json(&target_dir)?;
+
+    let script_cmd = pkg
+        .scripts
+        .get(script_name)
+        .ok_or_else(|| format!("error: script not found: \"{}\"", script_name))?;
+
+    // Append extra args if provided
+    let full_cmd = if extra_args.is_empty() {
+        script_cmd.clone()
+    } else {
+        format!("{} {}", script_cmd, extra_args.join(" "))
+    };
+
+    // Build PATH with node_modules/.bin prepended
+    let bin_dir = root_dir.join("node_modules").join(".bin");
+    let mut path_parts = vec![bin_dir.to_string_lossy().to_string()];
+
+    // If workspace, also add workspace's .bin
+    if workspace_target.is_some() && target_dir != root_dir.to_path_buf() {
+        let ws_bin_dir = target_dir.join("node_modules").join(".bin");
+        path_parts.insert(0, ws_bin_dir.to_string_lossy().to_string());
+    }
+
+    if let Ok(existing_path) = std::env::var("PATH") {
+        path_parts.push(existing_path);
+    }
+    let new_path = path_parts.join(":");
+
+    scripts::exec_inherit_stdio(&target_dir, &full_cmd, &[("PATH", new_path)]).await
+}
+
+/// Execute a command with node_modules/.bin on PATH
+pub async fn exec_command(
+    root_dir: &Path,
+    command: &str,
+    args: &[String],
+    workspace_target: Option<&str>,
+) -> Result<i32, Box<dyn std::error::Error>> {
+    let target_dir = if let Some(ws) = workspace_target {
+        workspace::resolve_workspace_dir(root_dir, ws)?
+    } else {
+        root_dir.to_path_buf()
+    };
+
+    // Build the full command string
+    let full_cmd = if args.is_empty() {
+        command.to_string()
+    } else {
+        let args_str: Vec<String> = args.iter().map(|a| shell_escape(a)).collect();
+        format!("{} {}", command, args_str.join(" "))
+    };
+
+    // Build PATH with node_modules/.bin prepended
+    let bin_dir = root_dir.join("node_modules").join(".bin");
+    let mut path_parts = vec![bin_dir.to_string_lossy().to_string()];
+
+    if workspace_target.is_some() && target_dir != root_dir.to_path_buf() {
+        let ws_bin_dir = target_dir.join("node_modules").join(".bin");
+        path_parts.insert(0, ws_bin_dir.to_string_lossy().to_string());
+    }
+
+    if let Ok(existing_path) = std::env::var("PATH") {
+        path_parts.push(existing_path);
+    }
+    let new_path = path_parts.join(":");
+
+    scripts::exec_inherit_stdio(&target_dir, &full_cmd, &[("PATH", new_path)]).await
+}
+
+/// Escape a shell argument
+fn shell_escape(s: &str) -> String {
+    if s.contains(' ') || s.contains('\'') || s.contains('"') || s.contains('\\') {
+        format!("'{}'", s.replace('\'', "'\\''"))
+    } else {
+        s.to_string()
+    }
+}
+
 /// Verify lockfile matches package.json for --frozen mode
 /// Verify lockfile matches the given merged deps map (used after workspace dep merging)
 fn verify_frozen_deps(
@@ -2342,5 +2442,112 @@ mod tests {
         assert_eq!(first["name"], "react");
         assert_eq!(second["name"], "typescript");
         assert_eq!(second["dev"], true);
+    }
+
+    // --- list_scripts tests ---
+
+    #[test]
+    fn test_list_scripts() {
+        let dir = tempfile::tempdir().unwrap();
+        let pkg_json = r#"{"scripts": {"build": "tsc", "test": "bun test"}}"#;
+        std::fs::write(dir.path().join("package.json"), pkg_json).unwrap();
+
+        let scripts = list_scripts(dir.path()).unwrap();
+        assert_eq!(scripts.len(), 2);
+        assert_eq!(scripts["build"], "tsc");
+        assert_eq!(scripts["test"], "bun test");
+    }
+
+    #[test]
+    fn test_list_scripts_empty() {
+        let dir = tempfile::tempdir().unwrap();
+        let pkg_json = r#"{"name": "test"}"#;
+        std::fs::write(dir.path().join("package.json"), pkg_json).unwrap();
+
+        let scripts = list_scripts(dir.path()).unwrap();
+        assert!(scripts.is_empty());
+    }
+
+    // --- run_script tests ---
+
+    #[tokio::test]
+    async fn test_run_script_not_found() {
+        let dir = tempfile::tempdir().unwrap();
+        let pkg_json = r#"{"scripts": {"build": "tsc"}}"#;
+        std::fs::write(dir.path().join("package.json"), pkg_json).unwrap();
+
+        let result = run_script(dir.path(), "nonexistent", &[], None).await;
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("script not found"));
+    }
+
+    #[tokio::test]
+    async fn test_run_script_success() {
+        let dir = tempfile::tempdir().unwrap();
+        let pkg_json = r#"{"scripts": {"greet": "echo hello"}}"#;
+        std::fs::write(dir.path().join("package.json"), pkg_json).unwrap();
+
+        let code = run_script(dir.path(), "greet", &[], None).await.unwrap();
+        assert_eq!(code, 0);
+    }
+
+    #[tokio::test]
+    async fn test_run_script_path_prepend() {
+        let dir = tempfile::tempdir().unwrap();
+
+        // Create a fake binary in node_modules/.bin/
+        let bin_dir = dir.path().join("node_modules").join(".bin");
+        std::fs::create_dir_all(&bin_dir).unwrap();
+        let bin_path = bin_dir.join("mybin");
+        std::fs::write(&bin_path, "#!/bin/sh\nexit 0").unwrap();
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            std::fs::set_permissions(&bin_path, std::fs::Permissions::from_mode(0o755)).unwrap();
+        }
+
+        let pkg_json = r#"{"scripts": {"mybuild": "mybin"}}"#;
+        std::fs::write(dir.path().join("package.json"), pkg_json).unwrap();
+
+        let code = run_script(dir.path(), "mybuild", &[], None).await.unwrap();
+        assert_eq!(code, 0);
+    }
+
+    // --- exec_command tests ---
+
+    #[tokio::test]
+    async fn test_exec_command_success() {
+        let dir = tempfile::tempdir().unwrap();
+
+        // Create fake binary
+        let bin_dir = dir.path().join("node_modules").join(".bin");
+        std::fs::create_dir_all(&bin_dir).unwrap();
+        let bin_path = bin_dir.join("mybin");
+        std::fs::write(&bin_path, "#!/bin/sh\nexit 0").unwrap();
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            std::fs::set_permissions(&bin_path, std::fs::Permissions::from_mode(0o755)).unwrap();
+        }
+
+        let code = exec_command(dir.path(), "mybin", &[], None).await.unwrap();
+        assert_eq!(code, 0);
+    }
+
+    // --- shell_escape tests ---
+
+    #[test]
+    fn test_shell_escape_simple() {
+        assert_eq!(shell_escape("hello"), "hello");
+    }
+
+    #[test]
+    fn test_shell_escape_with_spaces() {
+        assert_eq!(shell_escape("hello world"), "'hello world'");
+    }
+
+    #[test]
+    fn test_shell_escape_with_quotes() {
+        assert_eq!(shell_escape("it's"), "'it'\\''s'");
     }
 }

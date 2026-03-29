@@ -350,6 +350,74 @@ async fn main() {
                 }
             }
         }
+        Command::Run(args) => {
+            let root_dir =
+                std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from("."));
+
+            match args.script {
+                None => {
+                    // No script name — list available scripts
+                    match pm::list_scripts(&root_dir) {
+                        Ok(scripts) => {
+                            if scripts.is_empty() {
+                                eprintln!("No scripts found in package.json");
+                            } else {
+                                for (name, cmd) in &scripts {
+                                    println!("  {}: {}", name, cmd);
+                                }
+                            }
+                        }
+                        Err(e) => {
+                            eprintln!("{}", e);
+                            std::process::exit(1);
+                        }
+                    }
+                }
+                Some(script_name) => {
+                    match pm::run_script(
+                        &root_dir,
+                        &script_name,
+                        &args.args,
+                        args.workspace.as_deref(),
+                    )
+                    .await
+                    {
+                        Ok(code) => {
+                            if code != 0 {
+                                std::process::exit(code);
+                            }
+                        }
+                        Err(e) => {
+                            eprintln!("{}", e);
+                            std::process::exit(1);
+                        }
+                    }
+                }
+            }
+        }
+        Command::Exec(args) => {
+            let root_dir =
+                std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from("."));
+
+            match pm::exec_command(
+                &root_dir,
+                &args.command,
+                &args.args,
+                args.workspace.as_deref(),
+            )
+            .await
+            {
+                Ok(code) => {
+                    if code != 0 {
+                        std::process::exit(code);
+                    }
+                }
+                Err(e) => {
+                    eprintln!("{}", e);
+                    std::process::exit(1);
+                }
+            }
+        }
         Command::Cache(cache_args) => {
             let cache_dir = pm::registry::default_cache_dir();
 
