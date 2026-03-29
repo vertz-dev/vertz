@@ -340,3 +340,94 @@ Omit `src` to generate a CSS custom property without an `@font-face` block:
 const system = font('system-ui', { weight: '400' });
 // compileFonts({ system }) → --font-system: 'system-ui'; (no @font-face)
 ```
+
+### Google Fonts
+
+Use `googleFont()` to declare a Google Font by name. The framework automatically fetches the `.woff2` file at dev/build time, caches it locally, and serves it self-hosted. No manual downloads needed.
+
+```tsx
+import { googleFont } from '@vertz/ui/css';
+import { configureTheme } from '@vertz/theme-shadcn';
+import { registerTheme } from '@vertz/ui';
+
+const sans = googleFont('Inter', {
+  weight: '100..900',
+  subsets: ['latin'],
+});
+
+const mono = googleFont('JetBrains Mono', {
+  weight: '100..800',
+  subsets: ['latin'],
+});
+
+const config = configureTheme({
+  palette: 'zinc',
+  fonts: { sans, mono },
+});
+
+registerTheme(config);
+```
+
+That's the complete setup. The dev server handles everything else:
+
+- Fetches the font from Google Fonts CSS2 API on first startup
+- Downloads the `.woff2` file to `.vertz/fonts/` (cached across restarts)
+- Generates `@font-face` CSS with the local file path
+- Computes zero-CLS fallback metrics automatically
+- Injects `<link rel="preload">` tags in SSR
+
+**`googleFont()` options:**
+
+| Option | Type | Default | Description |
+| --- | --- | --- | --- |
+| `weight` | `string \| number \| number[]` | (required) | Weight range (`'100..900'`), single weight (`400`), or multiple (`[400, 700]`) |
+| `style` | `'normal' \| 'italic' \| ('normal' \| 'italic')[]` | `'normal'` | Font style(s) |
+| `display` | `'auto' \| 'block' \| 'swap' \| 'fallback' \| 'optional'` | `'swap'` | `font-display` strategy |
+| `subsets` | `string[]` | `['latin']` | Character subsets |
+| `fallback` | `string[]` | auto-detected | Fallback font stack |
+| `adjustFontFallback` | `boolean` | `true` | Enable zero-CLS metric-adjusted fallback |
+
+**Static font with specific weights:**
+
+```tsx
+const heading = googleFont('Playfair Display', {
+  weight: [400, 700],
+  style: ['normal', 'italic'],
+  subsets: ['latin'],
+});
+```
+
+**Using `font()` alongside `googleFont()`:**
+
+`font()` and `googleFont()` return the same `FontDescriptor` type and can be mixed freely in themes:
+
+```tsx
+import { font, googleFont } from '@vertz/ui/css';
+
+const sans = googleFont('Inter', { weight: '100..900' });
+const brand = font('Custom Brand', {
+  weight: '400..700',
+  src: '/fonts/brand.woff2',
+  fallback: ['sans-serif'],
+});
+
+configureTheme({ fonts: { sans, brand } });
+```
+
+<Note>
+  Google Fonts are all open-source licensed (SIL OFL or Apache 2.0). Self-hosting is explicitly permitted.
+</Note>
+
+### Offline and CI caching
+
+Font files are cached in `.vertz/fonts/` and persist across dev server restarts. For CI environments without network access, cache this directory:
+
+```yaml
+# GitHub Actions example
+- uses: actions/cache@v4
+  with:
+    path: .vertz/fonts
+    key: vertz-fonts-${{ hashFiles('src/styles/theme.ts') }}
+```
+
+If the cache is empty and no network is available, the dev server logs an error and falls back to system fonts.
