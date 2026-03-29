@@ -257,6 +257,83 @@ pub fn parse_package_specifier(spec: &str) -> (&str, Option<&str>) {
     }
 }
 
+/// Severity levels for vulnerability advisories, ordered from most to least severe.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Severity {
+    Critical,
+    High,
+    Moderate,
+    Low,
+}
+
+impl Severity {
+    /// Parse a severity string (case-insensitive).
+    pub fn parse(s: &str) -> Option<Self> {
+        match s.to_lowercase().as_str() {
+            "critical" => Some(Severity::Critical),
+            "high" => Some(Severity::High),
+            "moderate" => Some(Severity::Moderate),
+            "low" => Some(Severity::Low),
+            _ => None,
+        }
+    }
+
+    /// Return the numeric rank for sorting (lower = more severe).
+    pub fn rank(self) -> u8 {
+        match self {
+            Severity::Critical => 0,
+            Severity::High => 1,
+            Severity::Moderate => 2,
+            Severity::Low => 3,
+        }
+    }
+
+    /// Returns true if this severity is at or above the given threshold.
+    pub fn at_or_above(self, threshold: Severity) -> bool {
+        self.rank() <= threshold.rank()
+    }
+
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Severity::Critical => "critical",
+            Severity::High => "high",
+            Severity::Moderate => "moderate",
+            Severity::Low => "low",
+        }
+    }
+}
+
+impl std::fmt::Display for Severity {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(self.as_str())
+    }
+}
+
+/// A single advisory from the npm bulk advisory API response.
+#[derive(Debug, Clone, Deserialize)]
+pub struct Advisory {
+    pub id: u64,
+    pub title: String,
+    pub severity: String,
+    pub url: String,
+    pub vulnerable_versions: String,
+    pub patched_versions: String,
+}
+
+/// A single vulnerability entry in the audit output.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AuditEntry {
+    pub name: String,
+    pub version: String,
+    pub severity: Severity,
+    pub title: String,
+    pub url: String,
+    pub patched: String,
+    pub id: u64,
+    /// Direct dependency that pulls in this transitive dep, or None if direct.
+    pub parent: Option<String>,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -700,5 +777,92 @@ mod tests {
         let value: serde_json::Value = serde_json::from_str(&written).unwrap();
         let obj = value.as_object().unwrap();
         assert!(!obj.contains_key("optionalDependencies"));
+    }
+
+    // --- Severity tests ---
+
+    #[test]
+    fn test_severity_parse() {
+        assert_eq!(Severity::parse("critical"), Some(Severity::Critical));
+        assert_eq!(Severity::parse("high"), Some(Severity::High));
+        assert_eq!(Severity::parse("moderate"), Some(Severity::Moderate));
+        assert_eq!(Severity::parse("low"), Some(Severity::Low));
+        assert_eq!(Severity::parse("Critical"), Some(Severity::Critical));
+        assert_eq!(Severity::parse("HIGH"), Some(Severity::High));
+        assert_eq!(Severity::parse("unknown"), None);
+    }
+
+    #[test]
+    fn test_severity_ordering() {
+        assert!(Severity::Critical.rank() < Severity::High.rank());
+        assert!(Severity::High.rank() < Severity::Moderate.rank());
+        assert!(Severity::Moderate.rank() < Severity::Low.rank());
+    }
+
+    #[test]
+    fn test_severity_at_or_above() {
+        assert!(Severity::Critical.at_or_above(Severity::High));
+        assert!(Severity::High.at_or_above(Severity::High));
+        assert!(!Severity::Moderate.at_or_above(Severity::High));
+        assert!(!Severity::Low.at_or_above(Severity::High));
+        // Low threshold shows everything
+        assert!(Severity::Low.at_or_above(Severity::Low));
+        assert!(Severity::Critical.at_or_above(Severity::Low));
+    }
+
+    #[test]
+    fn test_severity_as_str() {
+        assert_eq!(Severity::Critical.as_str(), "critical");
+        assert_eq!(Severity::High.as_str(), "high");
+        assert_eq!(Severity::Moderate.as_str(), "moderate");
+        assert_eq!(Severity::Low.as_str(), "low");
+    }
+
+    #[test]
+    fn test_severity_display() {
+        assert_eq!(format!("{}", Severity::Critical), "critical");
+        assert_eq!(format!("{}", Severity::High), "high");
+    }
+
+    // --- Advisory parsing tests ---
+
+    #[test]
+    fn test_parse_advisory_json() {
+        let json = r#"{
+            "id": 1234,
+            "title": "Prototype Pollution",
+            "severity": "critical",
+            "url": "https://github.com/advisories/GHSA-xxxx",
+            "vulnerable_versions": "<4.17.21",
+            "patched_versions": ">=4.17.21"
+        }"#;
+        let advisory: Advisory = serde_json::from_str(json).unwrap();
+        assert_eq!(advisory.id, 1234);
+        assert_eq!(advisory.title, "Prototype Pollution");
+        assert_eq!(advisory.severity, "critical");
+        assert_eq!(advisory.url, "https://github.com/advisories/GHSA-xxxx");
+        assert_eq!(advisory.vulnerable_versions, "<4.17.21");
+        assert_eq!(advisory.patched_versions, ">=4.17.21");
+    }
+
+    #[test]
+    fn test_parse_bulk_advisory_response() {
+        let json = r#"{
+            "lodash": [
+                {
+                    "id": 1234,
+                    "title": "Prototype Pollution",
+                    "severity": "critical",
+                    "url": "https://github.com/advisories/GHSA-xxxx",
+                    "vulnerable_versions": "<4.17.21",
+                    "patched_versions": ">=4.17.21"
+                }
+            ]
+        }"#;
+        let response: BTreeMap<String, Vec<Advisory>> = serde_json::from_str(json).unwrap();
+        assert_eq!(response.len(), 1);
+        assert!(response.contains_key("lodash"));
+        assert_eq!(response["lodash"].len(), 1);
+        assert_eq!(response["lodash"][0].id, 1234);
     }
 }

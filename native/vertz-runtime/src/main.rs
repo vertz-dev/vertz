@@ -258,6 +258,57 @@ async fn main() {
                 }
             }
         }
+        Command::Audit(args) => {
+            let root_dir =
+                std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from("."));
+
+            let severity_threshold =
+                vertz_runtime::pm::types::Severity::parse(args.severity.as_deref().unwrap_or("low"))
+                    .unwrap_or(vertz_runtime::pm::types::Severity::Low);
+
+            match pm::audit(&root_dir, severity_threshold).await {
+                Ok(result) => {
+                    if args.json {
+                        let output =
+                            pm::format_audit_json(&result.entries, result.total_packages, result.below_threshold);
+                        print!("{}", output);
+                        for warning in &result.warnings {
+                            let obj = serde_json::json!({"event": "warning", "message": warning});
+                            println!("{}", obj);
+                        }
+                    } else {
+                        eprintln!(
+                            "Scanning {} packages for vulnerabilities...",
+                            result.total_packages
+                        );
+                        for warning in &result.warnings {
+                            eprintln!("{}", warning);
+                        }
+                        if !result.entries.is_empty() {
+                            let output = pm::format_audit_text(&result.entries);
+                            print!("{}", output);
+                        }
+                        eprintln!(
+                            "{}",
+                            pm::format_audit_summary(&result.entries, result.below_threshold)
+                        );
+                    }
+
+                    if !result.entries.is_empty() {
+                        std::process::exit(1);
+                    }
+                }
+                Err(e) => {
+                    if args.json {
+                        let obj = serde_json::json!({"event": "error", "message": e.to_string()});
+                        println!("{}", obj);
+                    } else {
+                        eprintln!("{}", e);
+                    }
+                    std::process::exit(1);
+                }
+            }
+        }
         Command::Outdated(args) => {
             let root_dir =
                 std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from("."));

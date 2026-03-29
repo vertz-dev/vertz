@@ -1789,6 +1789,436 @@ pub async fn publish(
     Ok(())
 }
 
+/// Result of running `vertz audit`
+pub struct AuditResult {
+    pub entries: Vec<types::AuditEntry>,
+    pub warnings: Vec<String>,
+    pub total_packages: usize,
+    /// Number of entries excluded by severity filter
+    pub below_threshold: usize,
+}
+
+/// Run a vulnerability audit against the npm advisory API.
+/// Reads the lockfile, deduplicates packages, queries the bulk advisory endpoint,
+/// resolves parent dependencies, and filters by severity threshold.
+pub async fn audit(
+    root_dir: &Path,
+    severity_threshold: types::Severity,
+) -> Result<AuditResult, Box<dyn std::error::Error>> {
+    let lockfile_path = root_dir.join("vertz.lock");
+    if !lockfile_path.exists() {
+        return Err("No lockfile found. Run `vertz install` first.".into());
+    }
+
+    let lockfile = lockfile::read_lockfile(&lockfile_path)?;
+    let pkg = types::read_package_json(root_dir)?;
+
+    // Collect unique (name, version) pairs, skipping link: entries (workspace packages)
+    let mut package_versions: BTreeMap<String, HashSet<String>> = BTreeMap::new();
+    for entry in lockfile.entries.values() {
+        if entry.resolved.starts_with("link:") {
+            continue;
+        }
+        package_versions
+            .entry(entry.name.clone())
+            .or_default()
+            .insert(entry.version.clone());
+    }
+
+    let total_packages = package_versions.len();
+
+    // Build bulk request map: name → [versions]
+    let bulk_request: BTreeMap<String, Vec<String>> = package_versions
+        .iter()
+        .map(|(name, versions)| {
+            let mut v: Vec<String> = versions.iter().cloned().collect();
+            v.sort();
+            (name.clone(), v)
+        })
+        .collect();
+
+    if bulk_request.is_empty() {
+        return Ok(AuditResult {
+            entries: Vec::new(),
+            warnings: Vec::new(),
+            total_packages: 0,
+            below_threshold: 0,
+        });
+    }
+
+    // Batch into chunks of 100 packages
+    let batches: Vec<BTreeMap<String, Vec<String>>> = {
+        let items: Vec<(String, Vec<String>)> = bulk_request.into_iter().collect();
+        items
+            .chunks(100)
+            .map(|chunk| chunk.iter().cloned().collect())
+            .collect()
+    };
+
+    let cache_dir = registry::default_cache_dir();
+    let client = Arc::new(RegistryClient::new(&cache_dir));
+
+    // Fetch advisories with buffer_unordered(4) concurrency
+    let batch_results: Vec<_> = stream::iter(batches)
+        .map(|batch| {
+            let client = client.clone();
+            async move { client.fetch_advisories_bulk(&batch).await }
+        })
+        .buffer_unordered(4)
+        .collect()
+        .await;
+
+    // Merge batch results
+    let mut all_advisories: BTreeMap<String, Vec<types::Advisory>> = BTreeMap::new();
+    let mut warnings = Vec::new();
+    for (batch_idx, result) in batch_results.into_iter().enumerate() {
+        match result {
+            Ok(advisories) => {
+                for (name, advs) in advisories {
+                    all_advisories.entry(name).or_default().extend(advs);
+                }
+            }
+            Err(e) => {
+                warnings.push(format!(
+                    "warning: advisory batch {} failed: {}",
+                    batch_idx + 1,
+                    e
+                ));
+            }
+        }
+    }
+
+    // Build direct dependency set for parent resolution
+    let mut direct_deps: HashSet<String> = HashSet::new();
+    for name in pkg.dependencies.keys() {
+        direct_deps.insert(name.clone());
+    }
+    for name in pkg.dev_dependencies.keys() {
+        direct_deps.insert(name.clone());
+    }
+    for name in pkg.optional_dependencies.keys() {
+        direct_deps.insert(name.clone());
+    }
+
+    // Build reverse dependency map: package → direct dep that requires it
+    let reverse_deps = build_reverse_dep_map(&lockfile, &direct_deps);
+
+    // Convert advisories to AuditEntry list
+    let mut all_entries: Vec<types::AuditEntry> = Vec::new();
+    for (name, advisories) in &all_advisories {
+        if let Some(versions) = package_versions.get(name) {
+            for version in versions {
+                for advisory in advisories {
+                    let severity = match types::Severity::parse(&advisory.severity) {
+                        Some(s) => s,
+                        None => continue,
+                    };
+                    let parent = if direct_deps.contains(name) {
+                        None
+                    } else {
+                        reverse_deps.get(name).cloned()
+                    };
+
+                    all_entries.push(types::AuditEntry {
+                        name: name.clone(),
+                        version: version.clone(),
+                        severity,
+                        title: advisory.title.clone(),
+                        url: advisory.url.clone(),
+                        patched: advisory.patched_versions.clone(),
+                        id: advisory.id,
+                        parent,
+                    });
+                }
+            }
+        }
+    }
+
+    // Sort by severity (critical first), then by name
+    all_entries.sort_by(|a, b| a.severity.rank().cmp(&b.severity.rank()).then(a.name.cmp(&b.name)));
+
+    // Filter by severity threshold
+    let total_before_filter = all_entries.len();
+    let entries: Vec<types::AuditEntry> = all_entries
+        .into_iter()
+        .filter(|e| e.severity.at_or_above(severity_threshold))
+        .collect();
+    let below_threshold = total_before_filter - entries.len();
+
+    Ok(AuditResult {
+        entries,
+        warnings,
+        total_packages,
+        below_threshold,
+    })
+}
+
+/// Build a reverse dependency map: for each transitive package, find the direct
+/// dependency that pulls it in (the immediate parent in the dependency chain).
+fn build_reverse_dep_map(
+    lockfile: &types::Lockfile,
+    direct_deps: &HashSet<String>,
+) -> BTreeMap<String, String> {
+    let mut reverse: BTreeMap<String, String> = BTreeMap::new();
+
+    // For each direct dependency, walk its transitive deps
+    for entry in lockfile.entries.values() {
+        if !direct_deps.contains(&entry.name) {
+            continue;
+        }
+        for dep_name in entry.dependencies.keys() {
+            if !direct_deps.contains(dep_name) && !reverse.contains_key(dep_name) {
+                reverse.insert(dep_name.clone(), entry.name.clone());
+            }
+        }
+    }
+
+    reverse
+}
+
+/// Format audit entries as a human-readable table for stdout.
+pub fn format_audit_text(entries: &[types::AuditEntry]) -> String {
+    if entries.is_empty() {
+        return String::new();
+    }
+
+    // Calculate column widths
+    let sev_width = entries
+        .iter()
+        .map(|e| e.severity.as_str().len())
+        .max()
+        .unwrap_or(8)
+        .max(8);
+    let pkg_width = entries
+        .iter()
+        .map(|e| e.name.len())
+        .max()
+        .unwrap_or(7)
+        .max(7);
+    let ver_width = entries
+        .iter()
+        .map(|e| e.version.len())
+        .max()
+        .unwrap_or(7)
+        .max(7);
+    let patch_width = entries
+        .iter()
+        .map(|e| e.patched.len())
+        .max()
+        .unwrap_or(7)
+        .max(7);
+    let title_width = entries
+        .iter()
+        .map(|e| e.title.len())
+        .max()
+        .unwrap_or(5)
+        .max(5);
+
+    let mut output = String::new();
+
+    // Top border
+    output.push_str(&format!(
+        "┌{:─<sw$}┬{:─<pw$}┬{:─<vw$}┬{:─<ptw$}┬{:─<tw$}┐\n",
+        "",
+        "",
+        "",
+        "",
+        "",
+        sw = sev_width + 2,
+        pw = pkg_width + 2,
+        vw = ver_width + 2,
+        ptw = patch_width + 2,
+        tw = title_width + 2,
+    ));
+
+    // Header
+    output.push_str(&format!(
+        "│ {:<sw$} │ {:<pw$} │ {:<vw$} │ {:<ptw$} │ {:<tw$} │\n",
+        "Severity",
+        "Package",
+        "Version",
+        "Patched",
+        "Title",
+        sw = sev_width,
+        pw = pkg_width,
+        vw = ver_width,
+        ptw = patch_width,
+        tw = title_width,
+    ));
+
+    // Header separator
+    output.push_str(&format!(
+        "├{:─<sw$}┼{:─<pw$}┼{:─<vw$}┼{:─<ptw$}┼{:─<tw$}┤\n",
+        "",
+        "",
+        "",
+        "",
+        "",
+        sw = sev_width + 2,
+        pw = pkg_width + 2,
+        vw = ver_width + 2,
+        ptw = patch_width + 2,
+        tw = title_width + 2,
+    ));
+
+    // Data rows
+    for entry in entries {
+        let parent_label = match &entry.parent {
+            Some(p) => format!("via {}", p),
+            None => "(direct)".to_string(),
+        };
+
+        // First line: severity, package, version, patched, title
+        output.push_str(&format!(
+            "│ {:<sw$} │ {:<pw$} │ {:<vw$} │ {:<ptw$} │ {:<tw$} │\n",
+            entry.severity.as_str(),
+            entry.name,
+            entry.version,
+            entry.patched,
+            entry.title,
+            sw = sev_width,
+            pw = pkg_width,
+            vw = ver_width,
+            ptw = patch_width,
+            tw = title_width,
+        ));
+
+        // Second line: parent info and URL
+        output.push_str(&format!(
+            "│ {:<sw$} │ {:<pw$} │ {:<vw$} │ {:<ptw$} │ {:<tw$} │\n",
+            "",
+            parent_label,
+            "",
+            "",
+            entry.url,
+            sw = sev_width,
+            pw = pkg_width,
+            vw = ver_width,
+            ptw = patch_width,
+            tw = title_width.max(entry.url.len()),
+        ));
+    }
+
+    // Bottom border
+    output.push_str(&format!(
+        "└{:─<sw$}┴{:─<pw$}┴{:─<vw$}┴{:─<ptw$}┴{:─<tw$}┘\n",
+        "",
+        "",
+        "",
+        "",
+        "",
+        sw = sev_width + 2,
+        pw = pkg_width + 2,
+        vw = ver_width + 2,
+        ptw = patch_width + 2,
+        tw = title_width + 2,
+    ));
+
+    output
+}
+
+/// Format the audit summary line for stderr.
+pub fn format_audit_summary(
+    entries: &[types::AuditEntry],
+    below_threshold: usize,
+) -> String {
+    if entries.is_empty() && below_threshold == 0 {
+        return "No vulnerabilities found.".to_string();
+    }
+
+    if entries.is_empty() && below_threshold > 0 {
+        return format!(
+            "No vulnerabilities found at or above threshold. {} below threshold not shown.",
+            below_threshold
+        );
+    }
+
+    let total = entries.len();
+    let critical = entries.iter().filter(|e| e.severity == types::Severity::Critical).count();
+    let high = entries.iter().filter(|e| e.severity == types::Severity::High).count();
+    let moderate = entries.iter().filter(|e| e.severity == types::Severity::Moderate).count();
+    let low = entries.iter().filter(|e| e.severity == types::Severity::Low).count();
+
+    let mut parts = Vec::new();
+    if critical > 0 {
+        parts.push(format!("{} critical", critical));
+    }
+    if high > 0 {
+        parts.push(format!("{} high", high));
+    }
+    if moderate > 0 {
+        parts.push(format!("{} moderate", moderate));
+    }
+    if low > 0 {
+        parts.push(format!("{} low", low));
+    }
+
+    let vuln_word = if total == 1 {
+        "vulnerability"
+    } else {
+        "vulnerabilities"
+    };
+
+    let mut summary = format!("{} {} found ({})", total, vuln_word, parts.join(", "));
+
+    if below_threshold > 0 {
+        summary.push_str(&format!(". {} below threshold not shown", below_threshold));
+    }
+
+    summary
+}
+
+/// Format audit entries as NDJSON for stdout.
+pub fn format_audit_json(
+    entries: &[types::AuditEntry],
+    total_packages: usize,
+    below_threshold: usize,
+) -> String {
+    let mut output = String::new();
+
+    // audit_start event
+    let start = serde_json::json!({"event": "audit_start", "packages": total_packages});
+    output.push_str(&start.to_string());
+    output.push('\n');
+
+    // advisory events
+    for entry in entries {
+        let obj = serde_json::json!({
+            "event": "advisory",
+            "name": entry.name,
+            "version": entry.version,
+            "severity": entry.severity.as_str(),
+            "title": entry.title,
+            "url": entry.url,
+            "patched": entry.patched,
+            "id": entry.id,
+            "parent": entry.parent,
+        });
+        output.push_str(&obj.to_string());
+        output.push('\n');
+    }
+
+    // audit_complete event
+    let critical = entries.iter().filter(|e| e.severity == types::Severity::Critical).count();
+    let high = entries.iter().filter(|e| e.severity == types::Severity::High).count();
+    let moderate = entries.iter().filter(|e| e.severity == types::Severity::Moderate).count();
+    let low = entries.iter().filter(|e| e.severity == types::Severity::Low).count();
+
+    let complete = serde_json::json!({
+        "event": "audit_complete",
+        "vulnerabilities": entries.len(),
+        "critical": critical,
+        "high": high,
+        "moderate": moderate,
+        "low": low,
+        "below_threshold": below_threshold,
+    });
+    output.push_str(&complete.to_string());
+    output.push('\n');
+
+    output
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -3018,5 +3448,226 @@ mod tests {
             .await
             .unwrap();
         assert_ne!(code, 0);
+    }
+
+    // --- audit formatter tests ---
+
+    fn make_audit_entry(
+        name: &str,
+        version: &str,
+        severity: types::Severity,
+        title: &str,
+        patched: &str,
+        parent: Option<&str>,
+    ) -> types::AuditEntry {
+        types::AuditEntry {
+            name: name.to_string(),
+            version: version.to_string(),
+            severity,
+            title: title.to_string(),
+            url: format!("https://github.com/advisories/GHSA-{}", name),
+            patched: patched.to_string(),
+            id: 1234,
+            parent: parent.map(|s| s.to_string()),
+        }
+    }
+
+    #[test]
+    fn test_format_audit_text_with_entries() {
+        let entries = vec![
+            make_audit_entry(
+                "lodash",
+                "4.17.15",
+                types::Severity::Critical,
+                "Prototype Pollution",
+                ">=4.17.21",
+                None,
+            ),
+            make_audit_entry(
+                "tar",
+                "6.1.0",
+                types::Severity::Moderate,
+                "Arbitrary File Overwrite",
+                ">=6.1.9",
+                Some("npm"),
+            ),
+        ];
+
+        let text = format_audit_text(&entries);
+        assert!(text.contains("Severity"));
+        assert!(text.contains("Package"));
+        assert!(text.contains("Version"));
+        assert!(text.contains("Patched"));
+        assert!(text.contains("Title"));
+        assert!(text.contains("lodash"));
+        assert!(text.contains("4.17.15"));
+        assert!(text.contains("critical"));
+        assert!(text.contains("Prototype Pollution"));
+        assert!(text.contains(">=4.17.21"));
+        assert!(text.contains("(direct)"));
+        assert!(text.contains("tar"));
+        assert!(text.contains("via npm"));
+        // Box-drawing characters
+        assert!(text.contains("┌"));
+        assert!(text.contains("┘"));
+        assert!(text.contains("│"));
+    }
+
+    #[test]
+    fn test_format_audit_text_empty() {
+        let entries: Vec<types::AuditEntry> = Vec::new();
+        let text = format_audit_text(&entries);
+        assert!(text.is_empty());
+    }
+
+    #[test]
+    fn test_format_audit_summary_with_vulns() {
+        let entries = vec![
+            make_audit_entry("lodash", "4.17.15", types::Severity::Critical, "PP", ">=4.17.21", None),
+            make_audit_entry("axios", "0.21.1", types::Severity::High, "SSRF", ">=0.21.2", None),
+            make_audit_entry("tar", "6.1.0", types::Severity::Moderate, "AFO", ">=6.1.9", Some("npm")),
+        ];
+
+        let summary = format_audit_summary(&entries, 0);
+        assert!(summary.contains("3 vulnerabilities found"));
+        assert!(summary.contains("1 critical"));
+        assert!(summary.contains("1 high"));
+        assert!(summary.contains("1 moderate"));
+    }
+
+    #[test]
+    fn test_format_audit_summary_single_vuln() {
+        let entries = vec![
+            make_audit_entry("lodash", "4.17.15", types::Severity::Critical, "PP", ">=4.17.21", None),
+        ];
+
+        let summary = format_audit_summary(&entries, 0);
+        assert!(summary.contains("1 vulnerability found"));
+        assert!(!summary.contains("vulnerabilities"));
+    }
+
+    #[test]
+    fn test_format_audit_summary_no_vulns() {
+        let entries: Vec<types::AuditEntry> = Vec::new();
+        let summary = format_audit_summary(&entries, 0);
+        assert_eq!(summary, "No vulnerabilities found.");
+    }
+
+    #[test]
+    fn test_format_audit_summary_below_threshold() {
+        let entries = vec![
+            make_audit_entry("lodash", "4.17.15", types::Severity::Critical, "PP", ">=4.17.21", None),
+        ];
+
+        let summary = format_audit_summary(&entries, 3);
+        assert!(summary.contains("1 vulnerability found"));
+        assert!(summary.contains("3 below threshold not shown"));
+    }
+
+    #[test]
+    fn test_format_audit_summary_all_below_threshold() {
+        let entries: Vec<types::AuditEntry> = Vec::new();
+        let summary = format_audit_summary(&entries, 5);
+        assert!(summary.contains("No vulnerabilities found at or above threshold"));
+        assert!(summary.contains("5 below threshold not shown"));
+    }
+
+    #[test]
+    fn test_format_audit_json_basic() {
+        let entries = vec![
+            make_audit_entry("lodash", "4.17.15", types::Severity::Critical, "Prototype Pollution", ">=4.17.21", None),
+        ];
+
+        let json = format_audit_json(&entries, 142, 0);
+        let lines: Vec<&str> = json.trim().lines().collect();
+        assert_eq!(lines.len(), 3); // start + 1 advisory + complete
+
+        let start: serde_json::Value = serde_json::from_str(lines[0]).unwrap();
+        assert_eq!(start["event"], "audit_start");
+        assert_eq!(start["packages"], 142);
+
+        let advisory: serde_json::Value = serde_json::from_str(lines[1]).unwrap();
+        assert_eq!(advisory["event"], "advisory");
+        assert_eq!(advisory["name"], "lodash");
+        assert_eq!(advisory["version"], "4.17.15");
+        assert_eq!(advisory["severity"], "critical");
+        assert_eq!(advisory["title"], "Prototype Pollution");
+        assert_eq!(advisory["patched"], ">=4.17.21");
+        assert_eq!(advisory["id"], 1234);
+        assert!(advisory["parent"].is_null());
+
+        let complete: serde_json::Value = serde_json::from_str(lines[2]).unwrap();
+        assert_eq!(complete["event"], "audit_complete");
+        assert_eq!(complete["vulnerabilities"], 1);
+        assert_eq!(complete["critical"], 1);
+        assert_eq!(complete["high"], 0);
+    }
+
+    #[test]
+    fn test_format_audit_json_with_parent() {
+        let entries = vec![
+            make_audit_entry("tar", "6.1.0", types::Severity::High, "AFO", ">=6.1.9", Some("npm")),
+        ];
+
+        let json = format_audit_json(&entries, 50, 0);
+        let lines: Vec<&str> = json.trim().lines().collect();
+        let advisory: serde_json::Value = serde_json::from_str(lines[1]).unwrap();
+        assert_eq!(advisory["parent"], "npm");
+    }
+
+    #[test]
+    fn test_format_audit_json_empty() {
+        let entries: Vec<types::AuditEntry> = Vec::new();
+        let json = format_audit_json(&entries, 50, 0);
+        let lines: Vec<&str> = json.trim().lines().collect();
+        assert_eq!(lines.len(), 2); // start + complete
+
+        let complete: serde_json::Value = serde_json::from_str(lines[1]).unwrap();
+        assert_eq!(complete["vulnerabilities"], 0);
+    }
+
+    #[test]
+    fn test_format_audit_json_below_threshold() {
+        let entries: Vec<types::AuditEntry> = Vec::new();
+        let json = format_audit_json(&entries, 50, 3);
+        let lines: Vec<&str> = json.trim().lines().collect();
+        let complete: serde_json::Value = serde_json::from_str(lines[1]).unwrap();
+        assert_eq!(complete["below_threshold"], 3);
+    }
+
+    // --- build_reverse_dep_map tests ---
+
+    #[test]
+    fn test_build_reverse_dep_map_direct() {
+        let mut lockfile = Lockfile::default();
+        lockfile.entries.insert(
+            "express@^4.0.0".to_string(),
+            make_lockfile_entry("express", "^4.0.0", "4.18.2", &[("body-parser", "^1.20.0")]),
+        );
+        lockfile.entries.insert(
+            "body-parser@^1.20.0".to_string(),
+            make_lockfile_entry("body-parser", "^1.20.0", "1.20.2", &[]),
+        );
+
+        let mut direct = HashSet::new();
+        direct.insert("express".to_string());
+
+        let reverse = build_reverse_dep_map(&lockfile, &direct);
+        assert_eq!(reverse.get("body-parser"), Some(&"express".to_string()));
+    }
+
+    #[test]
+    fn test_build_reverse_dep_map_no_transitive() {
+        let mut lockfile = Lockfile::default();
+        lockfile.entries.insert(
+            "zod@^3.0.0".to_string(),
+            make_lockfile_entry("zod", "^3.0.0", "3.24.4", &[]),
+        );
+
+        let mut direct = HashSet::new();
+        direct.insert("zod".to_string());
+
+        let reverse = build_reverse_dep_map(&lockfile, &direct);
+        assert!(reverse.is_empty());
     }
 }

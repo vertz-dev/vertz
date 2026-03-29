@@ -29,6 +29,8 @@ pub enum Command {
     List(ListArgs),
     /// Show why a package is installed (dependency path tracing)
     Why(WhyArgs),
+    /// Scan installed packages for known vulnerabilities
+    Audit(AuditArgs),
     /// Check for newer versions of installed packages
     Outdated(OutdatedArgs),
     /// Update packages to newer versions
@@ -244,6 +246,25 @@ pub struct WhyArgs {
     /// Output NDJSON to stdout
     #[arg(long)]
     pub json: bool,
+}
+
+#[derive(Parser, Debug)]
+pub struct AuditArgs {
+    /// Output NDJSON to stdout
+    #[arg(long)]
+    pub json: bool,
+
+    /// Severity threshold: only show vulnerabilities at or above this level
+    #[arg(long, value_parser = ["critical", "high", "moderate", "low"])]
+    pub severity: Option<String>,
+
+    /// Attempt to update vulnerable packages to patched versions
+    #[arg(long)]
+    pub fix: bool,
+
+    /// Show what --fix would change without modifying anything
+    #[arg(long)]
+    pub dry_run: bool,
 }
 
 #[derive(Parser, Debug)]
