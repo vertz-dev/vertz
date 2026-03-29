@@ -30,6 +30,13 @@ export class AppError<C extends string = string> extends Error {
    */
   readonly code: C;
 
+  // NOTE: AppError intentionally does NOT have Symbol.hasInstance or __brands.
+  // Users subclass AppError for their domain errors. If we added Symbol.hasInstance
+  // here, it would be inherited by all subclasses via the static prototype chain,
+  // causing `new PaymentError() instanceof InventoryError` to return true (both
+  // share the same brand). The URL canonicalization fix (Phase 1) handles the
+  // cross-module identity problem for AppError instead.
+
   /**
    * Creates a new AppError.
    *

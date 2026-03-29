@@ -17,6 +17,15 @@ export abstract class FetchError extends Error {
    */
   readonly code: string;
 
+  /** Brand tags for cross-module instanceof checks via Symbol.hasInstance. */
+  readonly __brands: readonly string[] = ['VertzFetchError'];
+
+  static [Symbol.hasInstance](obj: unknown): boolean {
+    if (typeof obj !== 'object' || obj === null || !('__brands' in obj)) return false;
+    const brands = (obj as { __brands: readonly string[] }).__brands;
+    return Array.isArray(brands) && brands.includes('VertzFetchError');
+  }
+
   constructor(code: string, message: string) {
     super(message);
     this.code = code;
@@ -40,6 +49,13 @@ export abstract class FetchError extends Error {
  */
 export class FetchNetworkError extends FetchError {
   readonly code = 'NetworkError' as const;
+  override readonly __brands: readonly string[] = ['VertzFetchNetworkError', 'VertzFetchError'];
+
+  static [Symbol.hasInstance](obj: unknown): boolean {
+    if (typeof obj !== 'object' || obj === null || !('__brands' in obj)) return false;
+    const brands = (obj as { __brands: readonly string[] }).__brands;
+    return Array.isArray(brands) && brands.includes('VertzFetchNetworkError');
+  }
 
   constructor(message = 'Network request failed') {
     super('NetworkError', message);
@@ -73,6 +89,13 @@ export function isFetchNetworkError(error: unknown): error is FetchNetworkError 
  */
 export class HttpError extends FetchError {
   readonly code = 'HttpError' as const;
+  override readonly __brands: readonly string[] = ['VertzHttpError', 'VertzFetchError'];
+
+  static [Symbol.hasInstance](obj: unknown): boolean {
+    if (typeof obj !== 'object' || obj === null || !('__brands' in obj)) return false;
+    const brands = (obj as { __brands: readonly string[] }).__brands;
+    return Array.isArray(brands) && brands.includes('VertzHttpError');
+  }
 
   /**
    * HTTP status code.
@@ -109,6 +132,17 @@ export function isHttpError(error: unknown): error is HttpError {
 export class FetchBadRequestError extends HttpError {
   readonly code = 'HttpError' as const;
   declare readonly status: 400;
+  override readonly __brands: readonly string[] = [
+    'VertzFetchBadRequestError',
+    'VertzHttpError',
+    'VertzFetchError',
+  ];
+
+  static [Symbol.hasInstance](obj: unknown): boolean {
+    if (typeof obj !== 'object' || obj === null || !('__brands' in obj)) return false;
+    const brands = (obj as { __brands: readonly string[] }).__brands;
+    return Array.isArray(brands) && brands.includes('VertzFetchBadRequestError');
+  }
 
   constructor(message: string, serverCode?: string) {
     super(400, message, serverCode);
@@ -129,6 +163,17 @@ export function isFetchBadRequestError(error: unknown): error is FetchBadRequest
 export class FetchUnauthorizedError extends HttpError {
   readonly code = 'HttpError' as const;
   declare readonly status: 401;
+  override readonly __brands: readonly string[] = [
+    'VertzFetchUnauthorizedError',
+    'VertzHttpError',
+    'VertzFetchError',
+  ];
+
+  static [Symbol.hasInstance](obj: unknown): boolean {
+    if (typeof obj !== 'object' || obj === null || !('__brands' in obj)) return false;
+    const brands = (obj as { __brands: readonly string[] }).__brands;
+    return Array.isArray(brands) && brands.includes('VertzFetchUnauthorizedError');
+  }
 
   constructor(message: string, serverCode?: string) {
     super(401, message, serverCode);
@@ -149,6 +194,17 @@ export function isFetchUnauthorizedError(error: unknown): error is FetchUnauthor
 export class FetchForbiddenError extends HttpError {
   readonly code = 'HttpError' as const;
   declare readonly status: 403;
+  override readonly __brands: readonly string[] = [
+    'VertzFetchForbiddenError',
+    'VertzHttpError',
+    'VertzFetchError',
+  ];
+
+  static [Symbol.hasInstance](obj: unknown): boolean {
+    if (typeof obj !== 'object' || obj === null || !('__brands' in obj)) return false;
+    const brands = (obj as { __brands: readonly string[] }).__brands;
+    return Array.isArray(brands) && brands.includes('VertzFetchForbiddenError');
+  }
 
   constructor(message: string, serverCode?: string) {
     super(403, message, serverCode);
@@ -169,6 +225,17 @@ export function isFetchForbiddenError(error: unknown): error is FetchForbiddenEr
 export class FetchNotFoundError extends HttpError {
   readonly code = 'HttpError' as const;
   declare readonly status: 404;
+  override readonly __brands: readonly string[] = [
+    'VertzFetchNotFoundError',
+    'VertzHttpError',
+    'VertzFetchError',
+  ];
+
+  static [Symbol.hasInstance](obj: unknown): boolean {
+    if (typeof obj !== 'object' || obj === null || !('__brands' in obj)) return false;
+    const brands = (obj as { __brands: readonly string[] }).__brands;
+    return Array.isArray(brands) && brands.includes('VertzFetchNotFoundError');
+  }
 
   constructor(message: string, serverCode?: string) {
     super(404, message, serverCode);
@@ -189,6 +256,17 @@ export function isFetchNotFoundError(error: unknown): error is FetchNotFoundErro
 export class FetchConflictError extends HttpError {
   readonly code = 'HttpError' as const;
   declare readonly status: 409;
+  override readonly __brands: readonly string[] = [
+    'VertzFetchConflictError',
+    'VertzHttpError',
+    'VertzFetchError',
+  ];
+
+  static [Symbol.hasInstance](obj: unknown): boolean {
+    if (typeof obj !== 'object' || obj === null || !('__brands' in obj)) return false;
+    const brands = (obj as { __brands: readonly string[] }).__brands;
+    return Array.isArray(brands) && brands.includes('VertzFetchConflictError');
+  }
 
   constructor(message: string, serverCode?: string) {
     super(409, message, serverCode);
@@ -209,6 +287,17 @@ export function isFetchConflictError(error: unknown): error is FetchConflictErro
 export class FetchGoneError extends HttpError {
   readonly code = 'HttpError' as const;
   declare readonly status: 410;
+  override readonly __brands: readonly string[] = [
+    'VertzFetchGoneError',
+    'VertzHttpError',
+    'VertzFetchError',
+  ];
+
+  static [Symbol.hasInstance](obj: unknown): boolean {
+    if (typeof obj !== 'object' || obj === null || !('__brands' in obj)) return false;
+    const brands = (obj as { __brands: readonly string[] }).__brands;
+    return Array.isArray(brands) && brands.includes('VertzFetchGoneError');
+  }
 
   constructor(message: string, serverCode?: string) {
     super(410, message, serverCode);
@@ -229,6 +318,17 @@ export function isFetchGoneError(error: unknown): error is FetchGoneError {
 export class FetchUnprocessableEntityError extends HttpError {
   readonly code = 'HttpError' as const;
   declare readonly status: 422;
+  override readonly __brands: readonly string[] = [
+    'VertzFetchUnprocessableEntityError',
+    'VertzHttpError',
+    'VertzFetchError',
+  ];
+
+  static [Symbol.hasInstance](obj: unknown): boolean {
+    if (typeof obj !== 'object' || obj === null || !('__brands' in obj)) return false;
+    const brands = (obj as { __brands: readonly string[] }).__brands;
+    return Array.isArray(brands) && brands.includes('VertzFetchUnprocessableEntityError');
+  }
 
   constructor(message: string, serverCode?: string) {
     super(422, message, serverCode);
@@ -251,6 +351,17 @@ export function isFetchUnprocessableEntityError(
 export class FetchRateLimitError extends HttpError {
   readonly code = 'HttpError' as const;
   declare readonly status: 429;
+  override readonly __brands: readonly string[] = [
+    'VertzFetchRateLimitError',
+    'VertzHttpError',
+    'VertzFetchError',
+  ];
+
+  static [Symbol.hasInstance](obj: unknown): boolean {
+    if (typeof obj !== 'object' || obj === null || !('__brands' in obj)) return false;
+    const brands = (obj as { __brands: readonly string[] }).__brands;
+    return Array.isArray(brands) && brands.includes('VertzFetchRateLimitError');
+  }
 
   constructor(message: string, serverCode?: string) {
     super(429, message, serverCode);
@@ -275,6 +386,17 @@ export function isFetchRateLimitError(error: unknown): error is FetchRateLimitEr
 export class FetchInternalServerError extends HttpError {
   readonly code = 'HttpError' as const;
   declare readonly status: 500;
+  override readonly __brands: readonly string[] = [
+    'VertzFetchInternalServerError',
+    'VertzHttpError',
+    'VertzFetchError',
+  ];
+
+  static [Symbol.hasInstance](obj: unknown): boolean {
+    if (typeof obj !== 'object' || obj === null || !('__brands' in obj)) return false;
+    const brands = (obj as { __brands: readonly string[] }).__brands;
+    return Array.isArray(brands) && brands.includes('VertzFetchInternalServerError');
+  }
 
   constructor(message: string, serverCode?: string) {
     super(500, message, serverCode);
@@ -295,6 +417,17 @@ export function isFetchInternalServerError(error: unknown): error is FetchIntern
 export class FetchServiceUnavailableError extends HttpError {
   readonly code = 'HttpError' as const;
   declare readonly status: 503;
+  override readonly __brands: readonly string[] = [
+    'VertzFetchServiceUnavailableError',
+    'VertzHttpError',
+    'VertzFetchError',
+  ];
+
+  static [Symbol.hasInstance](obj: unknown): boolean {
+    if (typeof obj !== 'object' || obj === null || !('__brands' in obj)) return false;
+    const brands = (obj as { __brands: readonly string[] }).__brands;
+    return Array.isArray(brands) && brands.includes('VertzFetchServiceUnavailableError');
+  }
 
   constructor(message: string, serverCode?: string) {
     super(503, message, serverCode);
@@ -330,6 +463,13 @@ export function isFetchServiceUnavailableError(
  */
 export class FetchTimeoutError extends FetchError {
   readonly code = 'TimeoutError' as const;
+  override readonly __brands: readonly string[] = ['VertzFetchTimeoutError', 'VertzFetchError'];
+
+  static [Symbol.hasInstance](obj: unknown): boolean {
+    if (typeof obj !== 'object' || obj === null || !('__brands' in obj)) return false;
+    const brands = (obj as { __brands: readonly string[] }).__brands;
+    return Array.isArray(brands) && brands.includes('VertzFetchTimeoutError');
+  }
 
   constructor(message = 'Request timed out') {
     super('TimeoutError', message);
@@ -361,6 +501,13 @@ export function isFetchTimeoutError(error: unknown): error is FetchTimeoutError 
  */
 export class ParseError extends FetchError {
   readonly code = 'ParseError' as const;
+  override readonly __brands: readonly string[] = ['VertzParseError', 'VertzFetchError'];
+
+  static [Symbol.hasInstance](obj: unknown): boolean {
+    if (typeof obj !== 'object' || obj === null || !('__brands' in obj)) return false;
+    const brands = (obj as { __brands: readonly string[] }).__brands;
+    return Array.isArray(brands) && brands.includes('VertzParseError');
+  }
 
   /**
    * Path where parsing failed.
@@ -413,6 +560,13 @@ export function isParseError(error: unknown): error is ParseError {
  */
 export class FetchValidationError extends FetchError {
   readonly code = 'ValidationError' as const;
+  override readonly __brands: readonly string[] = ['VertzFetchValidationError', 'VertzFetchError'];
+
+  static [Symbol.hasInstance](obj: unknown): boolean {
+    if (typeof obj !== 'object' || obj === null || !('__brands' in obj)) return false;
+    const brands = (obj as { __brands: readonly string[] }).__brands;
+    return Array.isArray(brands) && brands.includes('VertzFetchValidationError');
+  }
 
   /**
    * Validation errors matching server format.
