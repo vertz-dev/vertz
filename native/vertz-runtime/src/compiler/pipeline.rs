@@ -889,6 +889,213 @@ fn extract_import_names(line: &str) -> Vec<String> {
     Vec::new()
 }
 
+/// Remove cross-specifier duplicate bindings from import statements.
+///
+/// After post-processing (API name fixing, internals splitting), a file may end up
+/// with the same binding imported from two different specifiers:
+///   import { domEffect } from '@vertz/ui/internals';   // injected by compiler
+///   import { deferredDomEffect, domEffect } from '../runtime/signal';  // original
+///
+/// ES modules don't allow duplicate bindings. This function detects such collisions
+/// and removes the duplicate binding from the compiler-injected import line
+/// (`@vertz/ui`, `@vertz/ui/internals`). The original user import takes priority.
+fn remove_cross_specifier_duplicates(code: &str) -> String {
+    use std::collections::{HashMap, HashSet};
+
+    let lines: Vec<&str> = code.lines().collect();
+
+    // First pass: collect all bindings per import statement using brace-matching
+    // that handles multi-line imports.
+    // Track: binding_name → vec of (line_index_of_import_start, specifier, is_injected)
+    let mut binding_lines: HashMap<String, Vec<(usize, String, bool)>> = HashMap::new();
+
+    // Use full-text brace matching for imports (handles multi-line)
+    let mut pos = 0;
+    while pos < code.len() {
+        if let Some(import_offset) = code[pos..].find("import ") {
+            let abs_start = pos + import_offset;
+
+            // Verify it's at the start of a line
+            let is_line_start =
+                abs_start == 0 || code.as_bytes().get(abs_start - 1) == Some(&b'\n');
+
+            if !is_line_start {
+                pos = abs_start + 7;
+                continue;
+            }
+
+            let rest = &code[abs_start + 7..];
+            if rest.starts_with("type ") {
+                pos = abs_start + 12;
+                continue;
+            }
+
+            // Find which line this import starts on
+            let import_line_idx = code[..abs_start].matches('\n').count();
+
+            if let Some(brace_offset) = rest.find('{') {
+                let brace_abs = abs_start + 7 + brace_offset;
+                if let Some(close_offset) = code[brace_abs + 1..].find('}') {
+                    let names_str = &code[brace_abs + 1..brace_abs + 1 + close_offset];
+                    let after_brace = &code[brace_abs + 1 + close_offset + 1..];
+                    let after_trimmed = after_brace.trim_start();
+
+                    if let Some(from_rest) = after_trimmed.strip_prefix("from") {
+                        let specifier_part = from_rest.trim();
+                        let specifier = extract_quoted_string(specifier_part);
+
+                        if let Some(spec) = specifier {
+                            let is_injected = spec == "@vertz/ui"
+                                || spec == "@vertz/ui/internals"
+                                || spec == "@vertz/tui/internals";
+
+                            for name in names_str.split(',') {
+                                let name = name.trim();
+                                let binding = if let Some((_orig, alias)) = name.split_once(" as ")
+                                {
+                                    alias.trim()
+                                } else {
+                                    name
+                                };
+                                if !binding.is_empty() {
+                                    binding_lines.entry(binding.to_string()).or_default().push((
+                                        import_line_idx,
+                                        spec.clone(),
+                                        is_injected,
+                                    ));
+                                }
+                            }
+                        }
+                    }
+
+                    pos = brace_abs + 1 + close_offset + 1;
+                    continue;
+                }
+            }
+
+            pos = abs_start + 7;
+            continue;
+        } else {
+            break;
+        }
+    }
+
+    // Also collect locally declared names (function, const, let, var, class)
+    // to detect conflicts with injected imports
+    let mut local_declarations: HashSet<String> = HashSet::new();
+    for line in &lines {
+        let trimmed = line.trim();
+        // Skip imports
+        if trimmed.starts_with("import ") {
+            continue;
+        }
+        let decl = trimmed.strip_prefix("export ").unwrap_or(trimmed);
+        if let Some(rest) = decl.strip_prefix("function ") {
+            let name = rest.split(['(', '<', ' ']).next().unwrap_or("").trim();
+            if !name.is_empty() {
+                local_declarations.insert(name.to_string());
+            }
+        }
+        for keyword in &["const ", "let ", "var "] {
+            if let Some(rest) = decl.strip_prefix(keyword) {
+                let first = rest.trim_start().as_bytes().first();
+                if first == Some(&b'{') || first == Some(&b'[') {
+                    break;
+                }
+                let name = rest.split(['=', ':', ' ', ';']).next().unwrap_or("").trim();
+                if !name.is_empty() {
+                    local_declarations.insert(name.to_string());
+                }
+                break;
+            }
+        }
+    }
+
+    // Find bindings that appear in multiple specifiers OR conflict with local declarations
+    // For each duplicate, mark the injected import line for modification
+    let mut names_to_remove_from_line: HashMap<usize, HashSet<String>> = HashMap::new();
+
+    for (binding, locations) in &binding_lines {
+        let has_conflict = locations.len() > 1 || local_declarations.contains(binding);
+        if has_conflict {
+            // Find the injected location(s) and mark for removal
+            for (line_idx, _spec, is_injected) in locations {
+                if *is_injected {
+                    names_to_remove_from_line
+                        .entry(*line_idx)
+                        .or_default()
+                        .insert(binding.clone());
+                }
+            }
+        }
+    }
+
+    if names_to_remove_from_line.is_empty() {
+        return code.to_string();
+    }
+
+    // Rebuild the output, modifying affected lines
+    let mut result: Vec<String> = Vec::with_capacity(lines.len());
+
+    for (idx, line) in lines.iter().enumerate() {
+        if let Some(names_to_remove) = names_to_remove_from_line.get(&idx) {
+            let trimmed = line.trim();
+            // Re-parse this import line and remove the duplicate names
+            if let Some(rest) = trimmed.strip_prefix("import ") {
+                if let Some(brace_start) = rest.find('{') {
+                    if let Some(brace_end) = rest[brace_start..].find('}') {
+                        let names_str = &rest[brace_start + 1..brace_start + brace_end];
+                        let after_brace = &rest[brace_start + brace_end + 1..];
+
+                        let remaining_names: Vec<&str> = names_str
+                            .split(',')
+                            .map(|n| n.trim())
+                            .filter(|n| {
+                                if n.is_empty() {
+                                    return false;
+                                }
+                                let binding = if let Some((_orig, alias)) = n.split_once(" as ") {
+                                    alias.trim()
+                                } else {
+                                    n
+                                };
+                                !names_to_remove.contains(binding)
+                            })
+                            .collect();
+
+                        if remaining_names.is_empty() {
+                            // Entire import line is duplicate — drop it
+                            continue;
+                        }
+
+                        // Rebuild import with remaining names
+                        let quote = if trimmed.contains('"') { '"' } else { '\'' };
+                        if let Some(from_idx) = after_brace.find("from") {
+                            let specifier_part = after_brace[from_idx + 4..].trim();
+                            if let Some(spec) = extract_quoted_string(specifier_part) {
+                                result.push(format!(
+                                    "import {{ {} }} from {}{}{};",
+                                    remaining_names.join(", "),
+                                    quote,
+                                    spec,
+                                    quote,
+                                ));
+                                continue;
+                            }
+                        }
+                    }
+                }
+            }
+            // Fallback: keep original line if parsing failed
+            result.push(line.to_string());
+        } else {
+            result.push(line.to_string());
+        }
+    }
+
+    result.join("\n")
+}
+
 /// Strip `import.meta.hot` lines entirely.
 ///
 /// `import.meta.hot` is Bun's bundler-level HMR API (accept/decline/dispose).
@@ -935,7 +1142,8 @@ pub fn post_process_compiled(code: &str) -> String {
     let internals_fixed = fix_internals_imports(&fixed);
     let cleaned = strip_leftover_typescript(&internals_fixed);
     let deduped = deduplicate_imports(&cleaned);
-    strip_import_meta_hot(&deduped)
+    let no_cross_dupes = remove_cross_specifier_duplicates(&deduped);
+    strip_import_meta_hot(&no_cross_dupes)
 }
 
 /// Simple hash function for generating CSS keys.

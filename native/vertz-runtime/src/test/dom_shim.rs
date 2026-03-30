@@ -555,7 +555,8 @@ pub const TEST_DOM_SHIM_JS: &str = r#"
     get textContent() {
       return this.childNodes.map(c => {
         if (c.nodeType === TEXT_NODE) return c.data;
-        return c.textContent || '';
+        if (c.nodeType === ELEMENT_NODE || c.nodeType === DOCUMENT_FRAGMENT_NODE) return c.textContent || '';
+        return '';
       }).join('');
     }
 
@@ -585,17 +586,19 @@ pub const TEST_DOM_SHIM_JS: &str = r#"
   class Text extends Node {
     constructor(data) {
       super(TEXT_NODE, '#text');
-      this.data = data != null ? String(data) : '';
+      this._data = data != null ? String(data) : '';
     }
 
-    get nodeValue() { return this.data; }
-    set nodeValue(v) { this.data = v != null ? String(v) : ''; }
-    get textContent() { return this.data; }
-    set textContent(v) { this.data = v != null ? String(v) : ''; }
-    get wholeText() { return this.data; }
-    get length() { return this.data.length; }
+    get data() { return this._data; }
+    set data(v) { this._data = v != null ? String(v) : ''; }
+    get nodeValue() { return this._data; }
+    set nodeValue(v) { this._data = v != null ? String(v) : ''; }
+    get textContent() { return this._data; }
+    set textContent(v) { this._data = v != null ? String(v) : ''; }
+    get wholeText() { return this._data; }
+    get length() { return this._data.length; }
 
-    cloneNode() { return new Text(this.data); }
+    cloneNode() { return new Text(this._data); }
   }
 
   // --- Comment ---
@@ -645,11 +648,21 @@ pub const TEST_DOM_SHIM_JS: &str = r#"
 
   // --- Element ---
   class Element extends Node {
-    constructor(tagName) {
-      super(ELEMENT_NODE, tagName ? tagName.toUpperCase() : '');
+    constructor(tagName, namespaceURI) {
+      const isSvgNs = namespaceURI === 'http://www.w3.org/2000/svg';
+      // SVG elements preserve case; HTML elements uppercase tagName
+      const normalizedTag = tagName ? (isSvgNs ? tagName : tagName.toUpperCase()) : '';
+      super(ELEMENT_NODE, normalizedTag);
       this.tagName = this.nodeName;
       this.localName = tagName ? tagName.toLowerCase() : '';
+      this.namespaceURI = namespaceURI || null;
       this.attributes = {};
+      // NamedNodeMap-compatible: add .length getter that counts own properties
+      Object.defineProperty(this.attributes, 'length', {
+        get() { return Object.keys(this).length; },
+        enumerable: false,
+        configurable: true,
+      });
       this._classList = new ClassList(this);
       this._styleMap = new StyleMap(this);
       this._datasetMap = new DatasetMap(this);
@@ -844,7 +857,7 @@ pub const TEST_DOM_SHIM_JS: &str = r#"
 
     // --- Clone ---
     cloneNode(deep) {
-      const clone = _createElement(this.localName);
+      const clone = _createElement(this.localName, this.namespaceURI);
       // Copy attributes
       for (const [k, v] of Object.entries(this.attributes)) {
         clone.attributes[k] = v;
@@ -864,7 +877,7 @@ pub const TEST_DOM_SHIM_JS: &str = r#"
 
   // --- HTMLElement ---
   class HTMLElement extends Element {
-    constructor(tagName) { super(tagName); }
+    constructor(tagName, namespaceURI) { super(tagName, namespaceURI); }
 
     get hidden() { return this.hasAttribute('hidden'); }
     set hidden(val) { val ? this.setAttribute('hidden', '') : this.removeAttribute('hidden'); }
@@ -887,8 +900,8 @@ pub const TEST_DOM_SHIM_JS: &str = r#"
 
   // --- Specific HTML Element types ---
   class HTMLInputElement extends HTMLElement {
-    constructor(tag) {
-      super(tag || 'input');
+    constructor(tag, ns) {
+      super(tag || 'input', ns);
       this._value = '';
       this._checked = false;
     }
@@ -911,8 +924,8 @@ pub const TEST_DOM_SHIM_JS: &str = r#"
   }
 
   class HTMLTextAreaElement extends HTMLElement {
-    constructor(tag) {
-      super(tag || 'textarea');
+    constructor(tag, ns) {
+      super(tag || 'textarea', ns);
       this._value = '';
     }
     get value() { return this._value; }
@@ -930,13 +943,33 @@ pub const TEST_DOM_SHIM_JS: &str = r#"
   }
 
   class HTMLSelectElement extends HTMLElement {
-    constructor(tag) {
-      super(tag || 'select');
+    constructor(tag, ns) {
+      super(tag || 'select', ns);
       this._value = '';
+      this._valueSet = false;
       this._selectedIndex = -1;
     }
-    get value() { return this._value; }
-    set value(v) { this._value = String(v); }
+    get value() {
+      // If value was explicitly set via setter, return it
+      if (this._valueSet) return this._value;
+      // Otherwise check selected options
+      const opts = this.querySelectorAll('option');
+      for (const opt of opts) {
+        if (opt._selected || opt.hasAttribute('selected')) return opt.value;
+      }
+      // Default to first option's value (browser behavior)
+      if (opts.length > 0) return opts[0].value;
+      return '';
+    }
+    set value(v) {
+      this._value = String(v);
+      this._valueSet = true;
+      // Select the matching option
+      const opts = this.querySelectorAll('option');
+      for (const opt of opts) {
+        opt._selected = (opt.value === this._value);
+      }
+    }
     get selectedIndex() { return this._selectedIndex; }
     set selectedIndex(v) { this._selectedIndex = v; }
     get disabled() { return this.hasAttribute('disabled'); }
@@ -947,11 +980,15 @@ pub const TEST_DOM_SHIM_JS: &str = r#"
   }
 
   class HTMLOptionElement extends HTMLElement {
-    constructor(tag) { super(tag || 'option'); this._selected = false; }
+    constructor(tag, ns) { super(tag || 'option', ns); this._selected = false; }
     get value() { return this.getAttribute('value') || this.textContent; }
     set value(v) { this.setAttribute('value', v); }
     get selected() { return this._selected; }
-    set selected(v) { this._selected = !!v; }
+    set selected(v) {
+      this._selected = !!v;
+      if (v) this.setAttribute('selected', '');
+      else this.removeAttribute('selected');
+    }
     get text() { return this.textContent; }
     set text(v) { this.textContent = v; }
     get label() { return this.getAttribute('label') || this.textContent; }
@@ -959,7 +996,7 @@ pub const TEST_DOM_SHIM_JS: &str = r#"
   }
 
   class HTMLButtonElement extends HTMLElement {
-    constructor(tag) { super(tag || 'button'); }
+    constructor(tag, ns) { super(tag || 'button', ns); }
     get disabled() { return this.hasAttribute('disabled'); }
     set disabled(v) { v ? this.setAttribute('disabled', '') : this.removeAttribute('disabled'); }
     get type() { return this.getAttribute('type') || 'submit'; }
@@ -971,7 +1008,7 @@ pub const TEST_DOM_SHIM_JS: &str = r#"
   }
 
   class HTMLFormElement extends HTMLElement {
-    constructor(tag) { super(tag || 'form'); }
+    constructor(tag, ns) { super(tag || 'form', ns); }
     get elements() { return this.querySelectorAll('input,select,textarea,button'); }
     submit() {}
     reset() {}
@@ -982,7 +1019,7 @@ pub const TEST_DOM_SHIM_JS: &str = r#"
   }
 
   class HTMLAnchorElement extends HTMLElement {
-    constructor(tag) { super(tag || 'a'); }
+    constructor(tag, ns) { super(tag || 'a', ns); }
     get href() { return this.getAttribute('href') || ''; }
     set href(v) { this.setAttribute('href', v); }
     get target() { return this.getAttribute('target') || ''; }
@@ -992,7 +1029,7 @@ pub const TEST_DOM_SHIM_JS: &str = r#"
   }
 
   class HTMLImageElement extends HTMLElement {
-    constructor(tag) { super(tag || 'img'); }
+    constructor(tag, ns) { super(tag || 'img', ns); }
     get src() { return this.getAttribute('src') || ''; }
     set src(v) { this.setAttribute('src', v); }
     get alt() { return this.getAttribute('alt') || ''; }
@@ -1006,7 +1043,7 @@ pub const TEST_DOM_SHIM_JS: &str = r#"
   }
 
   class HTMLDialogElement extends HTMLElement {
-    constructor(tag) { super(tag || 'dialog'); this._open = false; this.returnValue = ''; }
+    constructor(tag, ns) { super(tag || 'dialog', ns); this._open = false; this.returnValue = ''; }
     get open() { return this._open; }
     set open(v) { this._open = !!v; }
     showModal() { this._open = true; this.setAttribute('open', ''); }
@@ -1020,22 +1057,22 @@ pub const TEST_DOM_SHIM_JS: &str = r#"
   }
 
   class HTMLLabelElement extends HTMLElement {
-    constructor(tag) { super(tag || 'label'); }
+    constructor(tag, ns) { super(tag || 'label', ns); }
     get htmlFor() { return this.getAttribute('for') || ''; }
     set htmlFor(v) { this.setAttribute('for', v); }
   }
 
   class HTMLTemplateElement extends HTMLElement {
-    constructor(tag) { super(tag || 'template'); this._content = new DocumentFragment(); }
+    constructor(tag, ns) { super(tag || 'template', ns); this._content = new DocumentFragment(); }
     get content() { return this._content; }
   }
 
-  class HTMLDivElement extends HTMLElement { constructor(tag) { super(tag || 'div'); } }
-  class HTMLSpanElement extends HTMLElement { constructor(tag) { super(tag || 'span'); } }
-  class HTMLStyleElement extends HTMLElement { constructor(tag) { super(tag || 'style'); } }
-  class HTMLHeadElement extends HTMLElement { constructor(tag) { super(tag || 'head'); } }
-  class HTMLBodyElement extends HTMLElement { constructor(tag) { super(tag || 'body'); } }
-  class HTMLHtmlElement extends HTMLElement { constructor(tag) { super(tag || 'html'); } }
+  class HTMLDivElement extends HTMLElement { constructor(tag, ns) { super(tag || 'div', ns); } }
+  class HTMLSpanElement extends HTMLElement { constructor(tag, ns) { super(tag || 'span', ns); } }
+  class HTMLStyleElement extends HTMLElement { constructor(tag, ns) { super(tag || 'style', ns); } }
+  class HTMLHeadElement extends HTMLElement { constructor(tag, ns) { super(tag || 'head', ns); } }
+  class HTMLBodyElement extends HTMLElement { constructor(tag, ns) { super(tag || 'body', ns); } }
+  class HTMLHtmlElement extends HTMLElement { constructor(tag, ns) { super(tag || 'html', ns); } }
 
   // --- TAG_MAP dispatch table ---
   const TAG_MAP = {
@@ -1058,10 +1095,13 @@ pub const TEST_DOM_SHIM_JS: &str = r#"
     html: HTMLHtmlElement,
   };
 
-  function _createElement(tagName) {
+  const HTML_NS = 'http://www.w3.org/1999/xhtml';
+  const SVG_NS = 'http://www.w3.org/2000/svg';
+
+  function _createElement(tagName, namespaceURI) {
     const lower = tagName.toLowerCase();
     const Cls = TAG_MAP[lower] || HTMLElement;
-    return new Cls(lower);
+    return new Cls(lower, namespaceURI || HTML_NS);
   }
 
   // --- DOMException ---
@@ -1150,6 +1190,21 @@ pub const TEST_DOM_SHIM_JS: &str = r#"
       this.data = options?.data ?? null;
       this.inputType = options?.inputType ?? '';
       this.isComposing = options?.isComposing ?? false;
+    }
+  }
+
+  class PopStateEvent extends Event {
+    constructor(type, options) {
+      super(type, options);
+      this.state = options?.state ?? null;
+    }
+  }
+
+  class HashChangeEvent extends Event {
+    constructor(type, options) {
+      super(type, options);
+      this.oldURL = options?.oldURL ?? '';
+      this.newURL = options?.newURL ?? '';
     }
   }
 
@@ -1766,7 +1821,18 @@ pub const TEST_DOM_SHIM_JS: &str = r#"
   class IntersectionObserver { constructor() {} observe() {} unobserve() {} disconnect() {} }
 
   // --- CSSStyleSheet stub ---
-  class CSSStyleSheet { constructor() { this.cssRules = []; } insertRule() {} deleteRule() {} }
+  class CSSStyleSheet {
+    constructor() { this.cssRules = []; this._cssText = ''; }
+    insertRule(rule, index) {
+      const ruleObj = { cssText: rule };
+      if (index !== undefined) { this.cssRules.splice(index, 0, ruleObj); }
+      else { this.cssRules.push(ruleObj); }
+      return index !== undefined ? index : this.cssRules.length - 1;
+    }
+    deleteRule(index) { this.cssRules.splice(index, 1); }
+    replaceSync(cssText) { this._cssText = cssText; this.cssRules = [{ cssText }]; }
+    replace(cssText) { this.replaceSync(cssText); return Promise.resolve(this); }
+  }
 
   // --- Document ---
   let _document;
@@ -1793,7 +1859,7 @@ pub const TEST_DOM_SHIM_JS: &str = r#"
     createTextNode(text) { return new Text(text); }
     createComment(data) { return new Comment(data || ''); }
     createDocumentFragment() { return new DocumentFragment(); }
-    createElementNS(_ns, tagName) { return _createElement(tagName); }
+    createElementNS(ns, tagName) { return _createElement(tagName, ns); }
 
     createEvent(type) {
       if (type === 'MouseEvent' || type === 'MouseEvents') return new MouseEvent('');
@@ -2012,12 +2078,19 @@ pub const TEST_DOM_SHIM_JS: &str = r#"
 
   // Window globals
   globalThis.document = _document;
+
+  // Make globalThis (= window) an EventTarget so window.addEventListener works.
+  const _windowET = new EventTarget();
+  globalThis.addEventListener = _windowET.addEventListener.bind(_windowET);
+  globalThis.removeEventListener = _windowET.removeEventListener.bind(_windowET);
+  globalThis.dispatchEvent = _windowET.dispatchEvent.bind(_windowET);
+
   globalThis.window = globalThis;
 
   // Constructors
   Object.assign(globalThis, {
     Node, Element, EventTarget, Event, CustomEvent, DOMException,
-    MouseEvent, KeyboardEvent, FocusEvent, InputEvent,
+    MouseEvent, KeyboardEvent, FocusEvent, InputEvent, PopStateEvent, HashChangeEvent,
     HTMLElement, HTMLDivElement, HTMLSpanElement,
     HTMLInputElement, HTMLTextAreaElement, HTMLSelectElement,
     HTMLOptionElement, HTMLButtonElement, HTMLFormElement,
@@ -2078,9 +2151,26 @@ pub const TEST_DOM_SHIM_JS: &str = r#"
         globalThis.location.href = parsed.href;
       }
     },
-    back() {},
-    forward() {},
-    go() {},
+    back() { this.go(-1); },
+    forward() { this.go(1); },
+    go(delta) {
+      if (!delta) return;
+      const newIndex = this._index + delta;
+      if (newIndex < 0 || newIndex >= this._entries.length) return;
+      this._index = newIndex;
+      const entry = this._entries[this._index];
+      if (entry.url) {
+        const parsed = new URL(entry.url, globalThis.location.href);
+        globalThis.location.pathname = parsed.pathname;
+        globalThis.location.search = parsed.search;
+        globalThis.location.hash = parsed.hash;
+        globalThis.location.href = parsed.href;
+      }
+      // Dispatch popstate event asynchronously (per spec)
+      setTimeout(() => {
+        globalThis.dispatchEvent(new PopStateEvent('popstate', { state: entry.state }));
+      }, 0);
+    },
   };
 
   globalThis.requestAnimationFrame = function(cb) { return setTimeout(cb, 0); };

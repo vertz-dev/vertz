@@ -48,10 +48,12 @@ fn get_removable_statement_span(stmt: &Statement) -> Option<(u32, u32)> {
         }
         // declare class
         Statement::ClassDeclaration(cls) if cls.declare => Some((cls.span.start, cls.span.end)),
-        // declare module / declare namespace (NOT runtime namespaces without declare)
+        // declare module / declare namespace
         Statement::TSModuleDeclaration(decl) if decl.declare => {
             Some((decl.span.start, decl.span.end))
         }
+        // declare global { ... } (global augmentation — type-only, always strip)
+        Statement::TSGlobalDeclaration(decl) => Some((decl.span.start, decl.span.end)),
         // declare enum / declare const enum
         Statement::TSEnumDeclaration(decl) if decl.declare => {
             Some((decl.span.start, decl.span.end))
@@ -380,6 +382,27 @@ impl<'a, 'b, 'c> Visit<'c> for InlineTsStripper<'a, 'b> {
         }
         // Remove `<T>` on function definitions
         self.ms.overwrite(params.span.start, params.span.end, "");
+    }
+
+    fn visit_variable_declarator(&mut self, decl: &VariableDeclarator<'c>) {
+        if self.is_in_removed_span(decl.span.start) {
+            return;
+        }
+        // Handle definite assignment assertion: `let x!: Type` → `let x`
+        // The `!` sits between the binding identifier end and the type annotation start.
+        // The type annotation itself is handled by visit_ts_type_annotation.
+        if decl.definite {
+            let id_end = decl.id.span().end;
+            // The `!` is the character right after the identifier
+            let bang_end = id_end + 1;
+            // Only strip if the character is actually `!`
+            let source_slice = self.ms.slice(id_end, bang_end);
+            if source_slice == "!" {
+                self.ms.overwrite(id_end, bang_end, "");
+            }
+        }
+        // Continue walking to strip type annotations and other TS syntax
+        walk::walk_variable_declarator(self, decl);
     }
 
     fn visit_ts_type_annotation(&mut self, annot: &TSTypeAnnotation<'c>) {
@@ -1443,6 +1466,29 @@ export type EntityErrorType =
             result.contains("function foo("),
             "function signature missing"
         );
+    }
+
+    #[test]
+    fn test_declare_global_is_stripped() {
+        let result = strip(
+            r#"declare global {
+  interface Window {
+    __VERTZ_SESSION__?: { user: string; expiresAt: number };
+  }
+}
+export const x = 1;"#,
+        );
+        assert!(
+            !result.contains("declare global"),
+            "declare global survived: {}",
+            result
+        );
+        assert!(
+            !result.contains("interface Window"),
+            "interface Window survived: {}",
+            result
+        );
+        assert!(result.contains("export const x = 1;"));
     }
 
     #[test]
