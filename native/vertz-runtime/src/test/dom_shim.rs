@@ -3708,4 +3708,391 @@ mod tests {
         assert_eq!(v["len"], 1);
         assert_eq!(v["after"], 0);
     }
+
+    #[test]
+    fn test_storage_key_method() {
+        let mut rt = create_runtime_with_dom();
+        let result = eval_js(
+            &mut rt,
+            r#"
+            localStorage.clear();
+            localStorage.setItem('a', '1');
+            localStorage.setItem('b', '2');
+            JSON.stringify({
+                key0: localStorage.key(0),
+                key1: localStorage.key(1),
+                key2: localStorage.key(2),
+                length: localStorage.length,
+            })
+        "#,
+        );
+        let v: serde_json::Value = serde_json::from_str(result.as_str().unwrap()).unwrap();
+        assert_eq!(v["key0"], "a");
+        assert_eq!(v["key1"], "b");
+        assert!(v["key2"].is_null());
+        assert_eq!(v["length"], 2);
+    }
+
+    #[test]
+    fn test_storage_clear() {
+        let mut rt = create_runtime_with_dom();
+        let result = eval_js(
+            &mut rt,
+            r#"
+            sessionStorage.setItem('x', '1');
+            sessionStorage.setItem('y', '2');
+            sessionStorage.clear();
+            sessionStorage.length
+        "#,
+        );
+        assert_eq!(result, serde_json::json!(0));
+    }
+
+    // ===== Phase 4: Window + Document remaining APIs =====
+
+    #[test]
+    fn test_location_search_hash() {
+        let mut rt = create_runtime_with_dom();
+        let result = eval_js(
+            &mut rt,
+            r#"
+            history.pushState({}, '', '/tasks?status=open#section1');
+            JSON.stringify({
+                pathname: location.pathname,
+                search: location.search,
+                hash: location.hash,
+            })
+        "#,
+        );
+        let v: serde_json::Value = serde_json::from_str(result.as_str().unwrap()).unwrap();
+        assert_eq!(v["pathname"], "/tasks");
+        assert_eq!(v["search"], "?status=open");
+        assert_eq!(v["hash"], "#section1");
+    }
+
+    #[test]
+    fn test_replace_state() {
+        let mut rt = create_runtime_with_dom();
+        let result = eval_js(
+            &mut rt,
+            r#"
+            history.pushState({}, '', '/page1');
+            history.replaceState({ replaced: true }, '', '/page2');
+            JSON.stringify({
+                pathname: location.pathname,
+                length: history.length,
+                state: history.state,
+            })
+        "#,
+        );
+        let v: serde_json::Value = serde_json::from_str(result.as_str().unwrap()).unwrap();
+        assert_eq!(v["pathname"], "/page2");
+        // replaceState doesn't add an entry
+        assert_eq!(v["length"], 2); // initial + pushState (replaceState replaced the last one)
+        assert_eq!(v["state"]["replaced"], true);
+    }
+
+    #[test]
+    fn test_observer_stubs_exist() {
+        let mut rt = create_runtime_with_dom();
+        let result = eval_js(
+            &mut rt,
+            r#"
+            const mo = new MutationObserver(() => {});
+            const ro = new ResizeObserver(() => {});
+            const io = new IntersectionObserver(() => {});
+            // All should be callable no-ops
+            mo.observe(document.body);
+            mo.disconnect();
+            ro.observe(document.body);
+            ro.unobserve(document.body);
+            ro.disconnect();
+            io.observe(document.body);
+            io.unobserve(document.body);
+            io.disconnect();
+            JSON.stringify({
+                moRecords: mo.takeRecords().length,
+                hasMO: typeof MutationObserver === 'function',
+                hasRO: typeof ResizeObserver === 'function',
+                hasIO: typeof IntersectionObserver === 'function',
+            })
+        "#,
+        );
+        let v: serde_json::Value = serde_json::from_str(result.as_str().unwrap()).unwrap();
+        assert_eq!(v["moRecords"], 0);
+        assert_eq!(v["hasMO"], true);
+        assert_eq!(v["hasRO"], true);
+        assert_eq!(v["hasIO"], true);
+    }
+
+    #[test]
+    fn test_request_animation_frame() {
+        // Uses snapshot runtime because rAF delegates to setTimeout (from bootstrap JS)
+        let mut rt = VertzJsRuntime::new_for_test(VertzRuntimeOptions {
+            capture_output: true,
+            ..Default::default()
+        })
+        .unwrap();
+        let tokio_rt = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .unwrap();
+
+        let result = tokio_rt.block_on(async {
+            rt.execute_script_void(
+                "<test>",
+                r#"
+                globalThis.__rafFired = false;
+                requestAnimationFrame(() => { globalThis.__rafFired = true; });
+                "#,
+            )
+            .unwrap();
+            rt.run_event_loop().await.unwrap();
+            rt.execute_script("<collect>", "globalThis.__rafFired")
+                .unwrap()
+        });
+        assert_eq!(result, serde_json::json!(true));
+    }
+
+    #[test]
+    fn test_cancel_animation_frame() {
+        // Uses snapshot runtime because cancelAnimationFrame delegates to clearTimeout
+        let mut rt = VertzJsRuntime::new_for_test(VertzRuntimeOptions {
+            capture_output: true,
+            ..Default::default()
+        })
+        .unwrap();
+        let tokio_rt = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .unwrap();
+
+        let result = tokio_rt.block_on(async {
+            rt.execute_script_void(
+                "<test>",
+                r#"
+                globalThis.__rafFired = false;
+                const id = requestAnimationFrame(() => { globalThis.__rafFired = true; });
+                cancelAnimationFrame(id);
+                // Give time for the cancelled callback to NOT fire
+                setTimeout(() => {}, 10);
+                "#,
+            )
+            .unwrap();
+            rt.run_event_loop().await.unwrap();
+            rt.execute_script("<collect>", "globalThis.__rafFired")
+                .unwrap()
+        });
+        assert_eq!(result, serde_json::json!(false));
+    }
+
+    #[test]
+    fn test_get_computed_style() {
+        let mut rt = create_runtime_with_dom();
+        let result = eval_js(
+            &mut rt,
+            r#"
+            const el = document.createElement('div');
+            el.style.setProperty('color', 'red');
+            el.style.setProperty('font-size', '16px');
+            const cs = getComputedStyle(el);
+            JSON.stringify({
+                color: cs.getPropertyValue('color'),
+                fontSize: cs.getPropertyValue('font-size'),
+            })
+        "#,
+        );
+        let v: serde_json::Value = serde_json::from_str(result.as_str().unwrap()).unwrap();
+        assert_eq!(v["color"], "red");
+        assert_eq!(v["fontSize"], "16px");
+    }
+
+    #[test]
+    fn test_match_media() {
+        let mut rt = create_runtime_with_dom();
+        let result = eval_js(
+            &mut rt,
+            r#"
+            const mql = matchMedia('(prefers-color-scheme: dark)');
+            JSON.stringify({ matches: mql.matches, media: mql.media })
+        "#,
+        );
+        let v: serde_json::Value = serde_json::from_str(result.as_str().unwrap()).unwrap();
+        assert_eq!(v["matches"], false);
+        assert_eq!(v["media"], "(prefers-color-scheme: dark)");
+    }
+
+    #[test]
+    fn test_window_dimensions() {
+        let mut rt = create_runtime_with_dom();
+        let result = eval_js(
+            &mut rt,
+            r#"
+            JSON.stringify({
+                width: innerWidth,
+                height: innerHeight,
+                isWindow: window === globalThis,
+            })
+        "#,
+        );
+        let v: serde_json::Value = serde_json::from_str(result.as_str().unwrap()).unwrap();
+        assert_eq!(v["width"], 1024);
+        assert_eq!(v["height"], 768);
+        assert_eq!(v["isWindow"], true);
+    }
+
+    // ===== Phase 5: Snapshot integration validation =====
+
+    #[test]
+    fn test_dom_shim_in_snapshot() {
+        // Verify the DOM shim works when restored from V8 snapshot
+        // (uses new_for_test which restores from snapshot)
+        let mut rt = VertzJsRuntime::new_for_test(VertzRuntimeOptions {
+            capture_output: true,
+            ..Default::default()
+        })
+        .unwrap();
+
+        let result = rt
+            .execute_script(
+                "<test>",
+                r#"
+                const div = document.createElement('div');
+                div.innerHTML = '<span class="test">hello</span>';
+                const span = div.querySelector('.test');
+                JSON.stringify({
+                    domMode: globalThis.__VERTZ_DOM_MODE,
+                    tag: span.tagName,
+                    text: span.textContent,
+                    hasDocument: typeof document !== 'undefined',
+                    hasWindow: typeof window !== 'undefined',
+                    bodyTag: document.body.tagName,
+                })
+            "#,
+            )
+            .unwrap();
+        let v: serde_json::Value = serde_json::from_str(result.as_str().unwrap()).unwrap();
+        assert_eq!(v["domMode"], "test");
+        assert_eq!(v["tag"], "SPAN");
+        assert_eq!(v["text"], "hello");
+        assert_eq!(v["hasDocument"], true);
+        assert_eq!(v["hasWindow"], true);
+        assert_eq!(v["bodyTag"], "BODY");
+    }
+
+    #[test]
+    fn test_snapshot_event_dispatch() {
+        // Verify event dispatch works after snapshot restore
+        let mut rt = VertzJsRuntime::new_for_test(VertzRuntimeOptions {
+            capture_output: true,
+            ..Default::default()
+        })
+        .unwrap();
+
+        let result = rt
+            .execute_script(
+                "<test>",
+                r#"
+                const parent = document.createElement('div');
+                const child = document.createElement('button');
+                parent.appendChild(child);
+                const log = [];
+                parent.addEventListener('click', () => log.push('parent'), true);
+                child.addEventListener('click', () => log.push('child'));
+                parent.addEventListener('click', () => log.push('parent-bubble'));
+                child.dispatchEvent(new Event('click', { bubbles: true }));
+                JSON.stringify(log)
+            "#,
+            )
+            .unwrap();
+        let v: serde_json::Value = serde_json::from_str(result.as_str().unwrap()).unwrap();
+        assert_eq!(v, serde_json::json!(["parent", "child", "parent-bubble"]));
+    }
+
+    #[test]
+    fn test_snapshot_selectors() {
+        // Verify enhanced selectors work after snapshot restore
+        let mut rt = VertzJsRuntime::new_for_test(VertzRuntimeOptions {
+            capture_output: true,
+            ..Default::default()
+        })
+        .unwrap();
+
+        let result = rt
+            .execute_script(
+                "<test>",
+                r#"
+                const div = document.createElement('div');
+                div.innerHTML = '<ul><li>1</li><li>2</li><li>3</li></ul>';
+                const second = div.querySelector('ul > li:nth-child(2)');
+                second.textContent
+            "#,
+            )
+            .unwrap();
+        assert_eq!(result, serde_json::json!("2"));
+    }
+
+    #[test]
+    fn test_snapshot_harness_and_dom_coexist() {
+        // Verify test harness (describe/it/expect) and DOM both work from snapshot
+        let mut rt = VertzJsRuntime::new_for_test(VertzRuntimeOptions {
+            capture_output: true,
+            ..Default::default()
+        })
+        .unwrap();
+
+        let tokio_rt = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .unwrap();
+
+        let result = tokio_rt.block_on(async {
+            rt.execute_script_void(
+                "<test-file>",
+                r#"
+                describe('DOM + harness', () => {
+                    it('creates elements', () => {
+                        const el = document.createElement('div');
+                        el.textContent = 'hello';
+                        expect(el.textContent).toBe('hello');
+                    });
+                    it('queries selectors', () => {
+                        const div = document.createElement('div');
+                        div.innerHTML = '<span class="x">found</span>';
+                        expect(div.querySelector('.x').textContent).toBe('found');
+                    });
+                    it('dispatches events', () => {
+                        const el = document.createElement('button');
+                        let clicked = false;
+                        el.addEventListener('click', () => { clicked = true; });
+                        el.click();
+                        expect(clicked).toBe(true);
+                    });
+                });
+                "#,
+            )
+            .unwrap();
+
+            rt.execute_script_void(
+                "<run>",
+                "globalThis.__vertz_run_tests().then(r => globalThis.__test_results = r)",
+            )
+            .unwrap();
+
+            rt.run_event_loop().await.unwrap();
+            rt.execute_script("<collect>", "JSON.stringify(globalThis.__test_results)")
+                .unwrap()
+        });
+
+        let results: Vec<serde_json::Value> =
+            serde_json::from_str(result.as_str().unwrap()).unwrap();
+        assert_eq!(results.len(), 3);
+        for (i, result) in results.iter().enumerate() {
+            assert_eq!(
+                result["status"], "pass",
+                "Test {} should pass, got: {:?}",
+                i, result
+            );
+        }
+    }
 }
