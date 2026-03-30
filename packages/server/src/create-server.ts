@@ -31,6 +31,8 @@ import { generateOpenAPISpec, type ServiceDefForOpenAPI } from './entity/openapi
 import { generateEntityRoutes } from './entity/route-generator';
 import { resolveTenantChain } from './entity/tenant-chain';
 import type { EntityDefinition } from './entity/types';
+import { generateAgentRoutes } from './agent/route-generator';
+import type { AgentLike, AgentRunnerFn } from './agent/types';
 import { generateServiceRoutes } from './service/route-generator';
 import type { ServiceDefinition } from './service/types';
 
@@ -128,6 +130,10 @@ export interface ServerConfig extends Omit<AppConfig, '_entityDbFactory' | 'enti
   services?: ServiceDefinition[];
   /** Domain definitions created via domain() from @vertz/server */
   domains?: DomainDefinition[];
+  /** Agent definitions created via agent() from @vertz/agents */
+  agents?: AgentLike[];
+  /** Agent execution callback — created via createAgentRunner() from @vertz/agents */
+  agentRunner?: AgentRunnerFn;
   /**
    * Database for entity CRUD operations.
    * Accepts either:
@@ -539,6 +545,19 @@ export function createServer(config: ServerConfig): ServerApp | ServerInstance {
         }
       }
       allRoutes.push(...routes);
+    }
+  }
+
+  // Process agents
+  if (config.agents && config.agents.length > 0) {
+    if (config.agentRunner) {
+      const agentRoutes = generateAgentRoutes(config.agents, config.agentRunner, { apiPrefix });
+      allRoutes.push(...agentRoutes);
+    } else {
+      console.warn(
+        '[vertz] agents provided to createServer() but no agentRunner configured — ' +
+          'agent routes will not be generated. Use createAgentRunner() from @vertz/agents.',
+      );
     }
   }
 
