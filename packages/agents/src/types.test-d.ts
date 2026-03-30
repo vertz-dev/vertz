@@ -1,5 +1,9 @@
 import { s } from '@vertz/schema';
 import { agent } from './agent';
+import type { LLMAdapter } from './loop/react-loop';
+import { run } from './run';
+import type { SessionLoopResult, StatelessLoopResult } from './run';
+import { memoryStore } from './stores/memory-store';
 import { tool } from './tool';
 
 // ---------------------------------------------------------------------------
@@ -163,3 +167,40 @@ agent('with-interval', {
   model: { provider: 'cloudflare', model: 'test' },
   loop: { maxIterations: 10, checkpointInterval: 5 },
 });
+
+// ---------------------------------------------------------------------------
+// Run options discriminated union — type safety
+// ---------------------------------------------------------------------------
+
+const testLlm: LLMAdapter = { chat: async () => ({ text: '', toolCalls: [] }) };
+const testAgent = agent('test', {
+  state: s.object({}),
+  initialState: {},
+  tools: {},
+  model: { provider: 'cloudflare', model: 'test' },
+});
+
+// @ts-expect-error — sessionId without store
+run(testAgent, { message: 'hi', llm: testLlm, sessionId: 'abc' });
+
+// @ts-expect-error — maxStoredMessages without store
+run(testAgent, { message: 'hi', llm: testLlm, maxStoredMessages: 100 });
+
+// Stateless result has no sessionId
+async function checkStateless() {
+  const result: StatelessLoopResult = await run(testAgent, { message: 'hi', llm: testLlm });
+  void result.status;
+  void result.response;
+  // @ts-expect-error — sessionId doesn't exist on StatelessLoopResult
+  void result.sessionId;
+}
+void checkStateless;
+
+// Session result has sessionId
+async function checkSession() {
+  const store = memoryStore();
+  const result: SessionLoopResult = await run(testAgent, { message: 'hi', llm: testLlm, store });
+  const _id: string = result.sessionId;
+  void _id;
+}
+void checkSession;

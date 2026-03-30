@@ -36,8 +36,19 @@ export type {
 export { reactLoop } from './loop/react-loop';
 
 // Agent runner
-export type { RunOptions } from './run';
+export type {
+  RunOptions,
+  RunOptionsStateless,
+  RunOptionsWithStore,
+  StatelessLoopResult,
+  SessionLoopResult,
+} from './run';
 export { run } from './run';
+
+// Stores
+export type { AgentSession, AgentStore, ListSessionsFilter } from './stores/types';
+export { memoryStore } from './stores/memory-store';
+export { SessionNotFoundError, SessionAccessDeniedError } from './stores/errors';
 
 // Provider utilities
 export type { AdapterFactory, CreateAdapterOptions, ToolDescription } from './providers/types';
