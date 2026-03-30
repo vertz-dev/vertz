@@ -25,6 +25,11 @@ struct ReactivityContext {
     /// Callback-local reactive variables to inline: name → replacement expression.
     /// Set only when processing JSX inside a .map() callback with reactive locals.
     inline_locals: HashMap<String, String>,
+    /// The component's __props parameter name (e.g., "__props").
+    /// When set, __spread calls emit a third argument for reactive source:
+    ///   __spread(el, rest, __props)
+    /// Only set when the component had destructured props that were rewritten.
+    props_param: Option<String>,
 }
 
 // ─── IDL properties ──────────────────────────────────────────────────────────
@@ -77,6 +82,13 @@ pub fn transform_jsx(
             .map(|v| v.name.clone())
             .collect(),
         inline_locals: HashMap::new(),
+        // If the component had destructured props, transform_props rewrote them to __props.
+        // Pass __props as the reactive source for __spread calls.
+        props_param: if !component.destructured_prop_names.is_empty() {
+            Some("__props".to_string())
+        } else {
+            None
+        },
     };
 
     let mut counter = 0;
@@ -1301,7 +1313,11 @@ fn process_attr(
             expr_end,
         } => {
             let expr_text = ms.get_transformed_slice(*expr_start, *expr_end);
-            Some(format!("__spread({}, {})", el_var, expr_text))
+            if let Some(ref pp) = rx.props_param {
+                Some(format!("__spread({}, {}, {})", el_var, expr_text, pp))
+            } else {
+                Some(format!("__spread({}, {})", el_var, expr_text))
+            }
         }
     }
 }
@@ -2010,6 +2026,7 @@ fn build_extended_rx_for_list(
             field_signal_api_vars: rx.field_signal_api_vars.clone(),
             reactive_sources: rx.reactive_sources.clone(),
             inline_locals: HashMap::new(),
+            props_param: rx.props_param.clone(),
         };
     }
 
@@ -2027,5 +2044,6 @@ fn build_extended_rx_for_list(
         field_signal_api_vars: rx.field_signal_api_vars.clone(),
         reactive_sources: rx.reactive_sources.clone(),
         inline_locals,
+        props_param: rx.props_param.clone(),
     }
 }
