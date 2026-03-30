@@ -1,5 +1,6 @@
-import { dirname, join } from 'node:path';
+import { existsSync } from 'node:fs';
 import { createRequire } from 'node:module';
+import { dirname, join } from 'node:path';
 
 const require = createRequire(import.meta.url);
 
@@ -18,5 +19,13 @@ export function getBinaryPath(): string {
         `See: https://vertz.dev/docs/runtime`,
     );
   }
-  return join(pkgDir, 'vertz-runtime');
+  const binaryPath = join(pkgDir, 'vertz-runtime');
+  if (!existsSync(binaryPath)) {
+    throw new Error(
+      `Vertz runtime package ${pkg} is installed but the binary is missing at ${binaryPath}.\n` +
+        `The package may be corrupted or incompletely installed.\n\n` +
+        `Try: npm rebuild ${pkg}`,
+    );
+  }
+  return binaryPath;
 }

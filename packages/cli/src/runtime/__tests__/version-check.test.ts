@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { checkVersionCompatibility } from '../launcher';
+import { checkVersionCompatibility, isNewerSemver } from '../launcher';
 
 describe('Feature: version compatibility check', () => {
   let tmpDir: string;
@@ -67,5 +67,27 @@ describe('Feature: version compatibility check', () => {
         expect(warning).toBeNull();
       });
     });
+  });
+});
+
+describe('Feature: isNewerSemver compares versions correctly', () => {
+  it('handles single-digit components', () => {
+    expect(isNewerSemver('0.2.5', '0.2.3')).toBe(true);
+    expect(isNewerSemver('0.2.3', '0.2.5')).toBe(false);
+    expect(isNewerSemver('0.2.3', '0.2.3')).toBe(false);
+  });
+
+  it('handles double-digit components (where string comparison breaks)', () => {
+    expect(isNewerSemver('0.2.10', '0.2.9')).toBe(true);
+    expect(isNewerSemver('0.2.9', '0.2.10')).toBe(false);
+  });
+
+  it('handles major/minor differences', () => {
+    expect(isNewerSemver('1.0.0', '0.9.9')).toBe(true);
+    expect(isNewerSemver('0.3.0', '0.2.99')).toBe(true);
+  });
+
+  it('handles equal versions', () => {
+    expect(isNewerSemver('1.2.3', '1.2.3')).toBe(false);
   });
 });

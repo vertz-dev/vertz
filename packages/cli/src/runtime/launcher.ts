@@ -76,7 +76,7 @@ export function checkVersionCompatibility(binaryPath: string, cliVersion: string
 
   if (runtimeVersion === cliVersion) return null;
 
-  const updatePkg = cliVersion > runtimeVersion ? '@vertz/runtime' : '@vertz/cli';
+  const updatePkg = isNewerSemver(cliVersion, runtimeVersion) ? '@vertz/runtime' : '@vertz/cli';
   return (
     `[vertz] Warning: CLI version ${cliVersion} but runtime version ${runtimeVersion}.\n` +
     `Run 'npm update ${updatePkg}' to sync versions.`
@@ -101,6 +101,19 @@ export function buildRuntimeArgs(opts: RuntimeLaunchOptions): string[] {
   }
 
   return args;
+}
+
+/**
+ * Compare two semver version strings. Returns true if `a` is newer than `b`.
+ */
+export function isNewerSemver(a: string, b: string): boolean {
+  const pa = a.split('.').map(Number);
+  const pb = b.split('.').map(Number);
+  for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
+    if ((pa[i] ?? 0) > (pb[i] ?? 0)) return true;
+    if ((pa[i] ?? 0) < (pb[i] ?? 0)) return false;
+  }
+  return false;
 }
 
 /**

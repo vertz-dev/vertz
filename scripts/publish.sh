@@ -6,6 +6,17 @@ set -euo pipefail
 # 2. Source packages (packages/) — `bun publish` which resolves workspace:* protocols
 
 FAILED=()
+MODIFIED_PKGS=()
+
+# Cleanup: restore "private" field in any package.json we modified
+cleanup_private() {
+  for pkg_json in "${MODIFIED_PKGS[@]}"; do
+    if [ -f "$pkg_json" ]; then
+      jq '. + {"private": true}' "$pkg_json" > "$pkg_json.tmp" && mv "$pkg_json.tmp" "$pkg_json"
+    fi
+  done
+}
+trap cleanup_private EXIT
 
 # Helper: check if a version is already published
 is_published() {
@@ -35,9 +46,10 @@ for pkg_json in npm/runtime-*/package.json npm/runtime/package.json; do
       continue
     fi
 
-    # For CI publishing, temporarily remove private flag
+    # For CI publishing, temporarily remove private flag (restored by EXIT trap)
     if [ -f "$dir/vertz-runtime" ]; then
       jq 'del(.private)' "$pkg_json" > "$pkg_json.tmp" && mv "$pkg_json.tmp" "$pkg_json"
+      MODIFIED_PKGS+=("$pkg_json")
     else
       echo "⏭️  Skipping $name (private, no binary)"
       continue

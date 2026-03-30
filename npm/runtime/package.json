@@ -19,12 +19,13 @@
     "@vertz/runtime-linux-arm64": "0.1.0"
   },
   "scripts": {
-    "postinstall": "node postinstall.js"
+    "build": "bun build index.ts --outdir . --target node",
+    "postinstall": "node postinstall.cjs"
   },
   "files": [
     "index.js",
     "index.d.ts",
-    "postinstall.js"
+    "postinstall.cjs"
   ],
   "devDependencies": {
     "@types/node": "^22.15.32"

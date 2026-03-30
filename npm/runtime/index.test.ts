@@ -27,11 +27,8 @@ describe('Feature: getBinaryPath() resolves platform binary', () => {
           // And it should contain the platform package name directory
           expect(result).toContain(`runtime-${process.platform}-${process.arch}`);
         } catch (e: unknown) {
-          // On CI or platforms where the package.json resolves but no binary,
-          // the function should still return a path (it doesn't check if the file exists)
-          // If require.resolve itself fails, that's also valid for this test
-          // as it means the platform package isn't installed.
-          // We'll verify the error message is correct in the next test.
+          // Platform package not installed, or installed but binary missing.
+          // Either error message should reference the expected package name.
           const error = e as Error;
           expect(error.message).toContain(expectedPkg);
         }

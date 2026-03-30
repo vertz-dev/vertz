@@ -4,8 +4,8 @@ use std::path::PathBuf;
 /// Version from VERTZ_VERSION env var (set by CI from npm package version),
 /// falling back to CARGO_PKG_VERSION for local dev builds.
 const VERSION: &str = match option_env!("VERTZ_VERSION") {
-    Some(v) => v,
-    None => env!("CARGO_PKG_VERSION"),
+    Some(v) if !v.is_empty() => v,
+    _ => env!("CARGO_PKG_VERSION"),
 };
 
 #[derive(Parser, Debug)]
