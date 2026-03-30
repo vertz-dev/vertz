@@ -193,4 +193,51 @@ describe('generateAgentRoutes()', () => {
       });
     });
   });
+
+  // ---------------------------------------------------------------------------
+  // Session ID passthrough
+  // ---------------------------------------------------------------------------
+
+  describe('Given a request body with sessionId', () => {
+    describe('When the route handler is called', () => {
+      it('Then passes sessionId to the runner as part of options bag', async () => {
+        const agent = makeAgent({ access: { invoke: rules.public } });
+        let capturedOptions: { message: string; sessionId?: string } | undefined;
+        const runner: AgentRunnerFn = mock(async (_name, opts) => {
+          capturedOptions = opts;
+          return { status: 'complete', response: 'ok', sessionId: 'sess_abc' };
+        });
+        const routes = generateAgentRoutes([agent], runner);
+        const handler = routes[0].handler;
+
+        const response = (await handler(
+          makeCtx({ body: { message: 'Hello', sessionId: 'sess_abc' } }),
+        )) as Response;
+
+        expect(response.status).toBe(200);
+        expect(capturedOptions!.message).toBe('Hello');
+        expect(capturedOptions!.sessionId).toBe('sess_abc');
+      });
+    });
+  });
+
+  describe('Given a runner that returns sessionId', () => {
+    describe('When the route handler returns the result', () => {
+      it('Then includes sessionId in the response body', async () => {
+        const agent = makeAgent({ access: { invoke: rules.public } });
+        const runner: AgentRunnerFn = mock(async () => ({
+          status: 'complete',
+          response: 'ok',
+          sessionId: 'sess_new-123',
+        }));
+        const routes = generateAgentRoutes([agent], runner);
+        const handler = routes[0].handler;
+
+        const response = (await handler(makeCtx())) as Response;
+        const body = await response.json();
+
+        expect(body.sessionId).toBe('sess_new-123');
+      });
+    });
+  });
 });

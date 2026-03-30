@@ -1,6 +1,7 @@
 import type { LLMAdapter } from './loop/react-loop';
 import { run } from './run';
 import type { CreateAdapterOptions } from './providers/types';
+import type { AgentStore } from './stores/types';
 import type { AgentDefinition } from './types';
 
 // ---------------------------------------------------------------------------
@@ -17,16 +18,23 @@ interface BaseContextLike {
   role(...roles: string[]): boolean;
 }
 
+/** Options bag for agent runner invocation — mirrors AgentRunOptions from @vertz/server. */
+interface AgentRunOptions {
+  readonly message: string;
+  readonly sessionId?: string;
+}
+
 /** Result shape expected by @vertz/server's agent route handler. */
 interface AgentRunResult {
   readonly status: string;
   readonly response: string;
+  readonly sessionId?: string;
 }
 
 /** The runner function signature — matches AgentRunnerFn from @vertz/server. */
 type RunnerFn = (
   agentName: string,
-  message: string,
+  options: AgentRunOptions,
   ctx: BaseContextLike,
 ) => Promise<AgentRunResult>;
 
@@ -39,6 +47,8 @@ export interface CreateAgentRunnerOptions {
   readonly llm?: LLMAdapter;
   /** A factory that creates an LLM adapter per agent. Takes precedence over `llm`. */
   readonly createAdapter?: (options: CreateAdapterOptions) => LLMAdapter;
+  /** Persistence store for multi-turn sessions. */
+  readonly store?: AgentStore;
 }
 
 // ---------------------------------------------------------------------------
@@ -71,7 +81,7 @@ export function createAgentRunner(
     agentMap.set(agentDef.name, agentDef);
   }
 
-  return async (agentName, message, _ctx) => {
+  return async (agentName, runOptions, ctx) => {
     const agentDef = agentMap.get(agentName);
     if (!agentDef) {
       throw new Error(
@@ -83,7 +93,24 @@ export function createAgentRunner(
       ? options.createAdapter({ config: agentDef.model, tools: agentDef.tools })
       : options.llm!;
 
-    const result = await run(agentDef, { message, llm });
+    if (options.store) {
+      const result = await run(agentDef, {
+        message: runOptions.message,
+        llm,
+        store: options.store,
+        sessionId: runOptions.sessionId,
+        userId: ctx.userId,
+        tenantId: ctx.tenantId,
+      });
+
+      return {
+        status: result.status,
+        response: result.response,
+        sessionId: result.sessionId,
+      };
+    }
+
+    const result = await run(agentDef, { message: runOptions.message, llm });
 
     return {
       status: result.status,

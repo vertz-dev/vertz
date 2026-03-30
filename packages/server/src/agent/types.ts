@@ -18,10 +18,17 @@ export interface AgentLike {
   readonly access: Partial<Record<string, unknown>>;
 }
 
+/** Options bag for agent runner invocation. */
+export interface AgentRunOptions {
+  readonly message: string;
+  readonly sessionId?: string;
+}
+
 /** Result returned by an agent runner after invocation. */
 export interface AgentRunResult {
   readonly status: string;
   readonly response: string;
+  readonly sessionId?: string;
 }
 
 /**
@@ -32,6 +39,6 @@ export interface AgentRunResult {
  */
 export type AgentRunnerFn = (
   agentName: string,
-  message: string,
+  options: AgentRunOptions,
   ctx: BaseContext,
 ) => Promise<AgentRunResult>;

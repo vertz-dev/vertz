@@ -124,8 +124,11 @@ export function generateAgentRoutes(
             );
           }
 
+          // Extract optional sessionId
+          const sessionId = typeof body?.sessionId === 'string' ? body.sessionId : undefined;
+
           // Execute agent
-          const result = await runner(agent.name, message, baseCtx);
+          const result = await runner(agent.name, { message, sessionId }, baseCtx);
 
           return jsonResponse(result);
         } catch (error) {
