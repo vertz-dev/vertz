@@ -222,4 +222,44 @@ describe('reactLoop()', () => {
       });
     });
   });
+
+  describe('Given a tool with a typed input schema', () => {
+    describe('When the LLM passes invalid input', () => {
+      it('Then feeds a validation error back to the LLM instead of calling the handler', async () => {
+        const typedTool: ToolDefinition = {
+          kind: 'tool',
+          description: 'Requires a name string',
+          input: s.object({ name: s.string() }),
+          output: s.object({ greeting: s.string() }),
+          handler(input: { name: string }) {
+            return { greeting: `Hi ${input.name}` };
+          },
+          execution: 'server',
+        };
+
+        const llm = mockLLM([
+          // LLM passes number instead of string
+          { toolCalls: [{ name: 'greet', arguments: { name: 42 } }] },
+          { text: 'Validation failed, got it.' },
+        ]);
+
+        const result = await reactLoop({
+          llm,
+          tools: { greet: typedTool },
+          systemPrompt: 'You are helpful.',
+          userMessage: 'Greet someone',
+          maxIterations: 10,
+        });
+
+        expect(result.status).toBe('complete');
+        expect(result.iterations).toBe(2);
+        // The tool error message should contain validation info
+        const toolMessage = result.messages.find(
+          (m) => m.role === 'tool' && m.toolName === 'greet',
+        );
+        expect(toolMessage).toBeDefined();
+        expect(toolMessage!.content).toContain('Invalid input');
+      });
+    });
+  });
 });

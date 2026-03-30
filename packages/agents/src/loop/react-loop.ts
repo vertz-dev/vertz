@@ -1,4 +1,5 @@
 import type { ToolDefinition } from '../types';
+import { validateToolInput } from './validate-tool-input';
 
 // ---------------------------------------------------------------------------
 // LLM adapter interface — provider-agnostic
@@ -132,8 +133,22 @@ export async function reactLoop(options: ReactLoopOptions): Promise<LoopResult> 
         continue;
       }
 
+      // Validate tool input against schema
+      const validation = validateToolInput(toolDef, toolCall.arguments);
+      if (!validation.ok) {
+        messages.push({
+          role: 'tool',
+          toolCallId: callId,
+          toolName: toolCall.name,
+          content: JSON.stringify({
+            error: `Invalid input for tool "${toolCall.name}": ${validation.error}`,
+          }),
+        });
+        continue;
+      }
+
       try {
-        const result = await toolDef.handler(toolCall.arguments, {
+        const result = await toolDef.handler(validation.data, {
           agentId: 'loop',
           agentName: 'loop',
         });
