@@ -53,6 +53,15 @@ export default {
       }, allowedWidths);
     }
 
+    // Redirect /docs/* to docs.vertz.dev/*
+    if (url.pathname === '/docs' || url.pathname.startsWith('/docs/')) {
+      const subpath = url.pathname.replace(/^\/docs\/?/, '');
+      const target = subpath
+        ? `https://docs.vertz.dev/${subpath}`
+        : 'https://docs.vertz.dev';
+      return Response.redirect(target, 301);
+    }
+
     // Delegate everything else to vinext, forwarding ctx so that
     // ctx.waitUntil() is available to background cache writes and
     // other deferred work via getRequestExecutionContext().
