@@ -25,7 +25,7 @@ export interface BuildConfig {
 /**
  * Build target platform
  */
-export type BuildTarget = 'node' | 'edge' | 'worker';
+export type BuildTarget = 'node' | 'edge' | 'worker' | 'cloudflare';
 
 /**
  * Status of each build stage
