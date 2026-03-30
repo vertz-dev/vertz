@@ -3,9 +3,9 @@ title: Form
 description: 'API reference for form() — type-safe form handling with validation'
 ---
 
-`form()` creates a type-safe form instance bound to a [generated SDK](/api-reference/fetch/sdk) mutation method. It provides reactive field state, schema validation, progressive enhancement attributes (`action`, `method`), and per-field error tracking.
+`form()` creates a type-safe form instance from any `SdkMethod` — whether it's a [generated SDK](/api-reference/fetch/sdk) mutation, a [service action](/guides/server/services), or a custom endpoint. It provides reactive field state, schema validation, progressive enhancement attributes (`action`, `method`), and per-field error tracking.
 
-The SDK method carries the validation schema in its metadata, so `form()` picks it up automatically — the `Result` type is handled internally. When the mutation returns `{ ok: false }`, field errors are extracted and mapped to the form fields.
+When the SDK method carries a validation schema in its metadata (as generated methods do), `form()` picks it up automatically. For custom methods without metadata, pass a `schema` in the options. The `Result` type is handled internally — when the method returns `{ ok: false }`, field errors are extracted and mapped to the form fields.
 
 ## form()
 

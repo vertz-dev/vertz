@@ -91,16 +91,45 @@ Query results are reactive objects with `.data`, `.loading`, `.error`, `.revalid
 
 ## Forms (UI)
 
-Pass SDK mutation methods to `form()` — **never raw strings or URLs**:
+`form()` works with **any `SdkMethod`** — entity CRUD, service actions, or custom endpoints. It is **not limited to entities**.
+
+Pass SDK methods to `form()` — **never raw strings or URLs**:
 
 ```ts
 import { form } from 'vertz/ui';
 import { api } from '../client';
 
+// Entity CRUD
 const taskForm = form(api.tasks.create, { onSuccess });
+
+// Service action (non-entity)
+const contactForm = form(api.support.sendMessage, { onSuccess, resetOnSuccess: true });
+```
+
+For custom (non-SDK) endpoints, create an `SdkMethod` manually and pass a `schema`:
+
+```ts
+import { s } from 'vertz/schema';
+
+const searchMethod = Object.assign(
+  async (body: { query: string; status: string }) => {
+    /* fetch logic returning { ok: true, data } */
+  },
+  { url: '/api/search', method: 'POST' },
+);
+
+const searchForm = form(searchMethod, {
+  schema: s.object({ query: s.string(), status: s.enum(['all', 'active', 'archived']) }),
+  initial: { query: '', status: 'all' },
+  onSuccess: (results) => {
+    /* handle results */
+  },
+});
 ```
 
 Wire into JSX using `taskForm.action`, `taskForm.method`, `taskForm.onSubmit`. Input names: `<input name={taskForm.fields.title} />`. Per-field errors: `taskForm.title.error`. Per-field values: `taskForm.title.value`.
+
+Use `form()` when you need validation, field state, or progressive enhancement. For pure client-side state without submission (e.g., a filter toggle), `let` variables are simpler.
 
 ## Reactivity (UI)
 
