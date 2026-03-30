@@ -131,6 +131,73 @@ impl VertzJsRuntime {
         })
     }
 
+    /// Create a new VertzJsRuntime from the pre-built test snapshot.
+    ///
+    /// Significantly faster than `new()` because bootstrap JS, async context,
+    /// and test harness are pre-baked into a V8 snapshot, skipping JS
+    /// parsing/execution overhead.
+    ///
+    /// Post-restore steps:
+    /// 1. Re-registers native V8 functions (structuredClone, promise hooks)
+    /// 2. Re-installs promise hooks from stored functions on globalThis
+    pub fn new_for_test(options: VertzRuntimeOptions) -> Result<Self, AnyError> {
+        let captured_output = Arc::new(Mutex::new(CapturedOutput::default()));
+        let start_time = Instant::now();
+
+        let capture = options.capture_output;
+        let captured_clone = Arc::clone(&captured_output);
+
+        let ext = Extension {
+            name: "vertz",
+            ops: std::borrow::Cow::Owned(crate::test::snapshot::all_op_decls()),
+            op_state_fn: Some(Box::new(move |state| {
+                state.put(console::ConsoleState {
+                    capture,
+                    captured: Arc::clone(&captured_clone),
+                });
+                state.put(performance::PerformanceState { start_time });
+                state.put(crypto_subtle::CryptoKeyStore::default());
+                state.put(sqlite::SqliteStore::default());
+            })),
+            ..Default::default()
+        };
+
+        let root_dir = options.root_dir.unwrap_or_else(|| {
+            std::env::current_dir()
+                .unwrap()
+                .to_string_lossy()
+                .to_string()
+        });
+        let module_loader = Rc::new(VertzModuleLoader::new(&root_dir));
+
+        let snapshot = crate::test::snapshot::get_test_snapshot();
+
+        let mut runtime = JsRuntime::new(RuntimeOptions {
+            startup_snapshot: Some(snapshot),
+            module_loader: Some(module_loader),
+            extensions: vec![ext],
+            inspector: options.enable_inspector,
+            ..Default::default()
+        });
+
+        // Re-register native V8 functions (not preserved in snapshot)
+        clone::register_structured_clone(&mut runtime);
+        async_context::register_promise_hooks(&mut runtime);
+
+        // Re-install promise hooks from stored functions on globalThis
+        runtime.execute_script(
+            "[vertz:rehook]",
+            deno_core::FastString::from(
+                crate::test::snapshot::ASYNC_CONTEXT_REHOOK_JS.to_string(),
+            ),
+        )?;
+
+        Ok(Self {
+            runtime,
+            captured_output,
+        })
+    }
+
     /// Concatenate all bootstrap JS into a single string.
     fn bootstrap_js() -> String {
         [
