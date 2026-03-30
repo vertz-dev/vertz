@@ -28,6 +28,13 @@ export function memoryStore(): AgentStore {
       messages.set(sessionId, existing);
     },
 
+    async pruneMessages(sessionId, keepCount) {
+      const existing = messages.get(sessionId);
+      if (existing && existing.length > keepCount) {
+        messages.set(sessionId, existing.slice(existing.length - keepCount));
+      }
+    },
+
     async deleteSession(sessionId) {
       sessions.delete(sessionId);
       messages.delete(sessionId);

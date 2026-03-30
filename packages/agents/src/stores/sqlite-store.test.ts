@@ -232,6 +232,28 @@ describe('sqliteStore()', () => {
     });
   });
 
+  describe('Given a session is saved and then re-saved with updated userId/tenantId', () => {
+    describe('When loadSession is called', () => {
+      it('Then returns the updated userId and tenantId', async () => {
+        const store = sqliteStore({ path: ':memory:' });
+        await store.saveSession(makeSession({ userId: null, tenantId: null }));
+
+        // Re-save with userId and tenantId set (e.g., user authenticated after session creation)
+        await store.saveSession(
+          makeSession({
+            userId: 'user-new',
+            tenantId: 'tenant-new',
+            updatedAt: '2026-03-30T01:00:00.000Z',
+          }),
+        );
+
+        const loaded = await store.loadSession('sess_test-1');
+        expect(loaded!.userId).toBe('user-new');
+        expect(loaded!.tenantId).toBe('tenant-new');
+      });
+    });
+  });
+
   describe('Given loadMessages is called for a non-existent session', () => {
     it('Then returns an empty array', async () => {
       const store = sqliteStore({ path: ':memory:' });
@@ -244,6 +266,30 @@ describe('sqliteStore()', () => {
     it('Then does not throw', async () => {
       const store = sqliteStore({ path: ':memory:' });
       await expect(store.deleteSession('sess_nonexistent')).resolves.toBeUndefined();
+    });
+  });
+
+  describe('Given a session with 6 messages and pruneMessages(sessionId, 4) is called', () => {
+    describe('When loadMessages is called', () => {
+      it('Then returns only the 4 most recent messages', async () => {
+        const store = sqliteStore({ path: ':memory:' });
+        await store.saveSession(makeSession());
+        await store.appendMessages('sess_test-1', [
+          { role: 'user', content: 'M1' },
+          { role: 'assistant', content: 'M2' },
+          { role: 'user', content: 'M3' },
+          { role: 'assistant', content: 'M4' },
+          { role: 'user', content: 'M5' },
+          { role: 'assistant', content: 'M6' },
+        ]);
+
+        await store.pruneMessages('sess_test-1', 4);
+        const messages = await store.loadMessages('sess_test-1');
+
+        expect(messages).toHaveLength(4);
+        expect(messages[0].content).toBe('M3');
+        expect(messages[3].content).toBe('M6');
+      });
     });
   });
 

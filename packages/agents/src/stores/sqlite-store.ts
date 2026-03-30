@@ -119,6 +119,8 @@ export function sqliteStore(options: SqliteStoreOptions): AgentStore {
     `INSERT INTO agent_sessions (id, agent_name, user_id, tenant_id, state, created_at, updated_at)
      VALUES (?, ?, ?, ?, ?, ?, ?)
      ON CONFLICT(id) DO UPDATE SET
+       user_id = excluded.user_id,
+       tenant_id = excluded.tenant_id,
        state = excluded.state,
        updated_at = excluded.updated_at`,
   );
@@ -185,6 +187,20 @@ export function sqliteStore(options: SqliteStoreOptions): AgentStore {
         }
       });
       tx();
+    },
+
+    async pruneMessages(sessionId, keepCount) {
+      const pruneStmt = db.prepare<void, [string, string, number]>(
+        `DELETE FROM agent_messages
+         WHERE session_id = ?
+           AND seq NOT IN (
+             SELECT seq FROM agent_messages
+             WHERE session_id = ?
+             ORDER BY seq DESC
+             LIMIT ?
+           )`,
+      );
+      pruneStmt.run(sessionId, sessionId, keepCount);
     },
 
     async deleteSession(sessionId) {

@@ -17,6 +17,38 @@ function mockD1Binding(): D1Binding {
   const db = new Database(':memory:');
   db.exec('PRAGMA foreign_keys = ON');
 
+  type MockStmt = ReturnType<typeof makePrepared>;
+
+  function makePrepared(query: string) {
+    const stmt = db.prepare(query);
+
+    const self = {
+      _params: [] as unknown[],
+
+      bind(...values: unknown[]) {
+        self._params = values;
+        return self;
+      },
+
+      async all<T>(): Promise<{ results: T[]; success: boolean }> {
+        const results = stmt.all(...self._params) as T[];
+        return { results, success: true };
+      },
+
+      async run(): Promise<{ results: unknown[]; success: boolean }> {
+        stmt.run(...self._params);
+        return { results: [], success: true };
+      },
+
+      async first<T>(): Promise<T | null> {
+        const result = stmt.get(...self._params) as T | null;
+        return result ?? null;
+      },
+    };
+
+    return self;
+  }
+
   return {
     async exec(query: string) {
       db.exec(query);
@@ -24,33 +56,19 @@ function mockD1Binding(): D1Binding {
     },
 
     prepare(query: string) {
-      const stmt = db.prepare(query);
+      return makePrepared(query);
+    },
 
-      const self = {
-        _params: [] as unknown[],
-
-        bind(...values: unknown[]) {
-          self._params = values;
-          return self;
-        },
-
-        async all<T>(): Promise<{ results: T[]; success: boolean }> {
-          const results = stmt.all(...self._params) as T[];
-          return { results, success: true };
-        },
-
-        async run(): Promise<{ results: unknown[]; success: boolean }> {
-          stmt.run(...self._params);
-          return { results: [], success: true };
-        },
-
-        async first<T>(): Promise<T | null> {
-          const result = stmt.get(...self._params) as T | null;
-          return result ?? null;
-        },
-      };
-
-      return self;
+    async batch(statements: MockStmt[]) {
+      const results = [];
+      const tx = db.transaction(() => {
+        for (const s of statements) {
+          s.run();
+          results.push({ results: [], success: true });
+        }
+      });
+      tx();
+      return results;
     },
   };
 }
@@ -117,6 +135,27 @@ describe('d1Store()', () => {
     });
   });
 
+  describe('Given a session is saved and then re-saved with updated userId/tenantId', () => {
+    describe('When loadSession is called', () => {
+      it('Then returns the updated userId and tenantId', async () => {
+        const store = d1Store({ binding: mockD1Binding() });
+        await store.saveSession(makeSession({ userId: null, tenantId: null }));
+
+        await store.saveSession(
+          makeSession({
+            userId: 'user-new',
+            tenantId: 'tenant-new',
+            updatedAt: '2026-03-30T01:00:00.000Z',
+          }),
+        );
+
+        const loaded = await store.loadSession('sess_test-1');
+        expect(loaded!.userId).toBe('user-new');
+        expect(loaded!.tenantId).toBe('tenant-new');
+      });
+    });
+  });
+
   describe('Given messages are appended to a session', () => {
     describe('When loadMessages is called', () => {
       it('Then returns the messages in order', async () => {
@@ -163,6 +202,30 @@ describe('d1Store()', () => {
         ]);
         expect(loaded[2].toolCallId).toBe('call_1');
         expect(loaded[2].toolName).toBe('myTool');
+      });
+    });
+  });
+
+  describe('Given a session with 6 messages and pruneMessages(sessionId, 4) is called', () => {
+    describe('When loadMessages is called', () => {
+      it('Then returns only the 4 most recent messages', async () => {
+        const store = d1Store({ binding: mockD1Binding() });
+        await store.saveSession(makeSession());
+        await store.appendMessages('sess_test-1', [
+          { role: 'user', content: 'M1' },
+          { role: 'assistant', content: 'M2' },
+          { role: 'user', content: 'M3' },
+          { role: 'assistant', content: 'M4' },
+          { role: 'user', content: 'M5' },
+          { role: 'assistant', content: 'M6' },
+        ]);
+
+        await store.pruneMessages('sess_test-1', 4);
+        const messages = await store.loadMessages('sess_test-1');
+
+        expect(messages).toHaveLength(4);
+        expect(messages[0].content).toBe('M3');
+        expect(messages[3].content).toBe('M6');
       });
     });
   });

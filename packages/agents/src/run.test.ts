@@ -433,6 +433,142 @@ describe('run()', () => {
     });
   });
 
+  describe('Given maxStoredMessages is set to 4', () => {
+    describe('When message count exceeds the cap after multiple turns', () => {
+      it('Then prunes the oldest messages to stay within the limit', async () => {
+        const store = memoryStore();
+        const llm = mockLLM([
+          { text: 'Response 1' },
+          { text: 'Response 2' },
+          { text: 'Response 3' },
+        ]);
+
+        // Turn 1: creates 2 messages (user + assistant)
+        const r1 = await run(greeterAgent, {
+          message: 'First',
+          llm,
+          store,
+          maxStoredMessages: 4,
+        });
+
+        // Turn 2: adds 2 more messages (total 4 = at cap)
+        await run(greeterAgent, {
+          message: 'Second',
+          llm,
+          store,
+          sessionId: r1.sessionId,
+          maxStoredMessages: 4,
+        });
+
+        // Turn 3: adds 2 more (total would be 6, should prune to 4)
+        await run(greeterAgent, {
+          message: 'Third',
+          llm,
+          store,
+          sessionId: r1.sessionId,
+          maxStoredMessages: 4,
+        });
+
+        const messages = await store.loadMessages(r1.sessionId);
+        expect(messages).toHaveLength(4);
+        // Oldest messages (First / Response 1) should be pruned
+        expect(messages[0].content).toBe('Second');
+        expect(messages[1].content).toBe('Response 2');
+        expect(messages[2].content).toBe('Third');
+        expect(messages[3].content).toBe('Response 3');
+      });
+    });
+  });
+
+  describe('Given an existing session with messages and the LLM fails on resume', () => {
+    describe('When run() returns an error status', () => {
+      it('Then pre-existing messages are preserved and no new messages added', async () => {
+        const store = memoryStore();
+        let callCount = 0;
+        const llm: LLMAdapter = {
+          async chat() {
+            callCount++;
+            if (callCount === 1) {
+              return { text: 'First response', toolCalls: [] };
+            }
+            throw new Error('LLM provider failed on resume');
+          },
+        };
+
+        // Turn 1 succeeds
+        const r1 = await run(greeterAgent, { message: 'Hello', llm, store });
+        expect(r1.status).toBe('complete');
+
+        const messagesBeforeResume = await store.loadMessages(r1.sessionId);
+        expect(messagesBeforeResume).toHaveLength(2);
+
+        // Turn 2 fails
+        const r2 = await run(greeterAgent, {
+          message: 'Resume and fail',
+          llm,
+          store,
+          sessionId: r1.sessionId,
+        });
+        expect(r2.status).toBe('error');
+
+        // Pre-existing messages must be intact, no new messages added
+        const messagesAfterFailure = await store.loadMessages(r1.sessionId);
+        expect(messagesAfterFailure).toHaveLength(2);
+        expect(messagesAfterFailure[0].content).toBe('Hello');
+        expect(messagesAfterFailure[1].content).toBe('First response');
+      });
+    });
+  });
+
+  describe('Given an existing session and the LLM fails on resume', () => {
+    describe('When run() returns an error status', () => {
+      it('Then the session state and updatedAt are NOT modified', async () => {
+        const store = memoryStore();
+        let callCount = 0;
+        const llm: LLMAdapter = {
+          async chat() {
+            callCount++;
+            if (callCount === 1) {
+              return { text: 'Done', toolCalls: [] };
+            }
+            throw new Error('LLM failed');
+          },
+        };
+
+        const stateAgent = agent('stateful', {
+          state: s.object({ topic: s.string() }),
+          initialState: { topic: 'none' },
+          tools: {},
+          model: { provider: 'cloudflare', model: 'test' },
+          loop: { maxIterations: 5 },
+          onComplete(ctx) {
+            ctx.state.topic = 'set-by-turn-1';
+          },
+        });
+
+        // Turn 1 succeeds and modifies state
+        const r1 = await run(stateAgent, { message: 'Set state', llm, store });
+        const sessionBefore = await store.loadSession(r1.sessionId);
+        expect(JSON.parse(sessionBefore!.state)).toEqual({ topic: 'set-by-turn-1' });
+        const updatedAtBefore = sessionBefore!.updatedAt;
+
+        // Turn 2 fails
+        const r2 = await run(stateAgent, {
+          message: 'Fail now',
+          llm,
+          store,
+          sessionId: r1.sessionId,
+        });
+        expect(r2.status).toBe('error');
+
+        // Session row must be unchanged
+        const sessionAfter = await store.loadSession(r1.sessionId);
+        expect(JSON.parse(sessionAfter!.state)).toEqual({ topic: 'set-by-turn-1' });
+        expect(sessionAfter!.updatedAt).toBe(updatedAtBefore);
+      });
+    });
+  });
+
   describe('Given system prompts', () => {
     describe('When messages are persisted', () => {
       it('Then system prompt messages are NOT stored', async () => {

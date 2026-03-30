@@ -105,6 +105,7 @@ export async function run(
   let sessionId: string | undefined;
   let previousMessages: Message[] | undefined;
   let initialState = structuredClone(agentDef.initialState);
+  let existingCreatedAt: string | undefined;
 
   if (hasStore(options)) {
     const { store } = options;
@@ -126,6 +127,7 @@ export async function run(
       }
 
       sessionId = session.id;
+      existingCreatedAt = session.createdAt;
 
       // Restore state — parse, validate, fall back to initialState on failure
       try {
@@ -196,15 +198,7 @@ export async function run(
 
     if (result.status !== 'error') {
       const now = new Date().toISOString();
-      let createdAt = now;
-
-      // If resuming, preserve original createdAt
-      if (options.sessionId) {
-        const existing = await store.loadSession(sessionId);
-        if (existing) {
-          createdAt = existing.createdAt;
-        }
-      }
+      const createdAt = existingCreatedAt ?? now;
 
       const session: AgentSession = {
         id: sessionId,
@@ -227,6 +221,12 @@ export async function run(
 
       if (messagesToPersist.length > 0) {
         await store.appendMessages(sessionId, [...messagesToPersist]);
+      }
+
+      // Prune messages if maxStoredMessages is set
+      const maxStored = options.maxStoredMessages;
+      if (maxStored !== undefined) {
+        await store.pruneMessages(sessionId, maxStored);
       }
     }
 

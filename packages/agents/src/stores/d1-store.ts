@@ -9,6 +9,7 @@ import type { AgentSession, AgentStore, ListSessionsFilter } from './types';
 export interface D1Binding {
   exec(query: string): Promise<unknown>;
   prepare(query: string): D1PreparedStatement;
+  batch(statements: D1PreparedStatement[]): Promise<D1Result<unknown>[]>;
 }
 
 interface D1PreparedStatement {
@@ -158,6 +159,8 @@ export function d1Store(options: D1StoreOptions): AgentStore {
           `INSERT INTO agent_sessions (id, agent_name, user_id, tenant_id, state, created_at, updated_at)
            VALUES (?, ?, ?, ?, ?, ?, ?)
            ON CONFLICT(id) DO UPDATE SET
+             user_id = excluded.user_id,
+             tenant_id = excluded.tenant_id,
              state = excluded.state,
              updated_at = excluded.updated_at`,
         )
@@ -191,25 +194,48 @@ export function d1Store(options: D1StoreOptions): AgentStore {
       let seq = ((seqResult?.max_seq as number | null) ?? 0) + 1;
       const now = new Date().toISOString();
 
+      const statements: D1PreparedStatement[] = [];
       for (const msg of messages) {
-        await db
-          .prepare(
-            `INSERT INTO agent_messages (session_id, seq, role, content, tool_call_id, tool_name, tool_calls, created_at)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-          )
-          .bind(
-            sessionId,
-            seq,
-            msg.role,
-            msg.content,
-            msg.toolCallId ?? null,
-            msg.toolName ?? null,
-            msg.toolCalls ? JSON.stringify(msg.toolCalls) : null,
-            now,
-          )
-          .run();
+        statements.push(
+          db
+            .prepare(
+              `INSERT INTO agent_messages (session_id, seq, role, content, tool_call_id, tool_name, tool_calls, created_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+            )
+            .bind(
+              sessionId,
+              seq,
+              msg.role,
+              msg.content,
+              msg.toolCallId ?? null,
+              msg.toolName ?? null,
+              msg.toolCalls ? JSON.stringify(msg.toolCalls) : null,
+              now,
+            ),
+        );
         seq++;
       }
+
+      if (statements.length > 0) {
+        await db.batch(statements);
+      }
+    },
+
+    async pruneMessages(sessionId, keepCount) {
+      await ensureTables();
+      await db
+        .prepare(
+          `DELETE FROM agent_messages
+           WHERE session_id = ?
+             AND seq NOT IN (
+               SELECT seq FROM agent_messages
+               WHERE session_id = ?
+               ORDER BY seq DESC
+               LIMIT ?
+             )`,
+        )
+        .bind(sessionId, sessionId, keepCount)
+        .run();
     },
 
     async deleteSession(sessionId) {

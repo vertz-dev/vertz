@@ -40,6 +40,9 @@ export interface AgentStore {
   /** Append messages to a session. Assigns seq values starting from the current max + 1. */
   appendMessages(sessionId: string, messages: Message[]): Promise<void>;
 
+  /** Delete the oldest messages for a session, keeping only the most recent `keepCount`. */
+  pruneMessages(sessionId: string, keepCount: number): Promise<void>;
+
   /** Delete a session and all its messages. */
   deleteSession(sessionId: string): Promise<void>;
 

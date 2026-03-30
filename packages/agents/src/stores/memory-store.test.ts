@@ -201,6 +201,29 @@ describe('memoryStore()', () => {
     });
   });
 
+  describe('Given a session with 6 messages and pruneMessages(sessionId, 4) is called', () => {
+    describe('When loadMessages is called', () => {
+      it('Then returns only the 4 most recent messages', async () => {
+        const store = memoryStore();
+        await store.appendMessages('sess_test-1', [
+          { role: 'user', content: 'M1' },
+          { role: 'assistant', content: 'M2' },
+          { role: 'user', content: 'M3' },
+          { role: 'assistant', content: 'M4' },
+          { role: 'user', content: 'M5' },
+          { role: 'assistant', content: 'M6' },
+        ]);
+
+        await store.pruneMessages('sess_test-1', 4);
+        const messages = await store.loadMessages('sess_test-1');
+
+        expect(messages).toHaveLength(4);
+        expect(messages[0].content).toBe('M3');
+        expect(messages[3].content).toBe('M6');
+      });
+    });
+  });
+
   describe('Given loadMessages is called for a non-existent session', () => {
     it('Then returns an empty array', async () => {
       const store = memoryStore();
