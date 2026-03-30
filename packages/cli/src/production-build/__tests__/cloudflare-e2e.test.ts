@@ -128,7 +128,8 @@ describe('Feature: Entity-todo E2E deployment pipeline', () => {
         expect(code).toContain('export default createHandler');
         expect(code).toContain('let cachedApp');
         expect(code).toContain('initApp(env)');
-        expect(code).toContain("createDb({ dialect: 'sqlite', d1: env.DB })");
+        expect(code).toContain('createDb({ models:');
+        expect(code).toContain('d1: env.DB');
       });
 
       it('includes SSR fallback for API-only deployment', () => {

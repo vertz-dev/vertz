@@ -210,20 +210,20 @@ describe('Feature: Cloudflare deployment', () => {
       describe('When running deploy', () => {
         it('uses the custom config path for wrangler', async () => {
           const manifest = createTestManifest();
-          let capturedCommand = '';
+          let capturedArgs: string[] = [];
           const options: CloudflareDeployOptions = {
             projectRoot: '/tmp/test',
             dryRun: false,
             config: '/tmp/test/custom-wrangler.toml',
             _testManifest: manifest,
-            _execCommand: async (cmd: string) => {
-              capturedCommand = cmd;
+            _execCommand: async (_cmd: string, args?: string[]) => {
+              capturedArgs = args ?? [];
               return { stdout: 'https://my-app.workers.dev', stderr: '' };
             },
           };
           const result = await deployCloudflare(options);
           expect(result.ok).toBe(true);
-          expect(capturedCommand).toContain('custom-wrangler.toml');
+          expect(capturedArgs).toContain('/tmp/test/custom-wrangler.toml');
         });
       });
     });
@@ -258,8 +258,8 @@ describe('Feature: Cloudflare deployment', () => {
             projectRoot: '/tmp/test',
             dryRun: false,
             _testManifest: manifest,
-            _execCommand: async (cmd: string) => {
-              if (cmd.includes('--version')) {
+            _execCommand: async (_cmd: string, args?: string[]) => {
+              if (args?.includes('--version')) {
                 return { stdout: 'wrangler 3.0.0', stderr: '' };
               }
               throw new Error('Authentication error: You must be logged in. Run `wrangler login`.');

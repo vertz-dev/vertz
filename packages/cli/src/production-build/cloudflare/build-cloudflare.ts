@@ -82,7 +82,12 @@ export async function buildForCloudflare(
 
   // Step 4: Generate worker entry
   console.log('⚙️  Generating worker entry...');
-  const entryGenerator = new WorkerEntryGenerator(entities.value, WORKER_OUTPUT_DIR);
+  const serverEntry = detected.serverEntry
+    ? detected.serverEntry.replace(`${detected.projectRoot}/`, '')
+    : undefined;
+  const entryGenerator = new WorkerEntryGenerator(entities.value, WORKER_OUTPUT_DIR, {
+    serverEntry,
+  });
   const entryCode = entryGenerator.generate();
 
   // Step 5: Generate wrangler config

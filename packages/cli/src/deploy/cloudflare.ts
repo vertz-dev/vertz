@@ -36,7 +36,7 @@ export interface CloudflareDeployOptions {
   /** @internal — inject manifest for testing (bypasses file read) */
   _testManifest?: DeploymentManifest;
   /** @internal — inject command executor for testing (bypasses shell exec) */
-  _execCommand?: (cmd: string) => Promise<{ stdout: string; stderr: string }>;
+  _execCommand?: (cmd: string, args?: string[]) => Promise<{ stdout: string; stderr: string }>;
 }
 
 export interface DeployResult {
@@ -175,14 +175,14 @@ export async function deployCloudflare(
   // Step 4: Check wrangler availability
   const execCommand =
     _execCommand ??
-    (async (cmd: string) => {
-      const { execSync } = await import('node:child_process');
-      const result = execSync(cmd, { encoding: 'utf-8', cwd: projectRoot });
+    (async (cmd: string, args: string[] = []) => {
+      const { execFileSync } = await import('node:child_process');
+      const result = execFileSync(cmd, args, { encoding: 'utf-8', cwd: projectRoot });
       return { stdout: result, stderr: '' };
     });
 
   try {
-    await execCommand('wrangler --version');
+    await execCommand('wrangler', ['--version']);
   } catch {
     return err(
       new Error(
@@ -194,13 +194,12 @@ export async function deployCloudflare(
 
   // Step 5: Deploy via wrangler
   const configPath = config ?? join(projectRoot, WRANGLER_CONFIG_PATH);
-  const deployCmd = `wrangler deploy --config "${configPath}"`;
 
   console.log('🚀 Deploying to Cloudflare Workers...\n');
   console.log(formatDeployPlan(manifest, workerName));
 
   try {
-    const { stdout } = await execCommand(deployCmd);
+    const { stdout } = await execCommand('wrangler', ['deploy', '--config', configPath]);
     const url = extractDeployUrl(stdout);
 
     console.log('✅ Deployment successful!');
