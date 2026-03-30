@@ -27,6 +27,7 @@ import type { DomainDefinition } from './domain/types';
 import type { EntityOperations } from './entity/entity-operations';
 import { EntityRegistry } from './entity/entity-registry';
 import { stripHiddenFields } from './entity/field-filter';
+import { generateOpenAPISpec, type ServiceDefForOpenAPI } from './entity/openapi-generator';
 import { generateEntityRoutes } from './entity/route-generator';
 import { resolveTenantChain } from './entity/tenant-chain';
 import type { EntityDefinition } from './entity/types';
@@ -62,10 +63,39 @@ function isDatabaseClient(db: DatabaseClientLike | EntityDbAdapter): db is Datab
 }
 
 // ---------------------------------------------------------------------------
+// OpenAPI spec types
+// ---------------------------------------------------------------------------
+
+/** Options for getOpenAPISpec() — subset of OpenAPISpecOptions without apiPrefix (derived from config). */
+export interface GetOpenAPISpecOptions {
+  info?: { title: string; version: string; description?: string };
+  servers?: { url: string; description?: string }[];
+}
+
+// ---------------------------------------------------------------------------
+// ServerApp — base return type with getOpenAPISpec()
+// ---------------------------------------------------------------------------
+
+/** OpenAPI 3.1 specification document. */
+export interface OpenAPIDocument {
+  openapi: string;
+  info: { title: string; version: string; description?: string };
+  servers?: { url: string; description?: string }[];
+  paths: Record<string, unknown>;
+  components?: Record<string, unknown>;
+  tags?: { name: string }[];
+}
+
+export interface ServerApp extends AppBuilder {
+  /** Returns the OpenAPI 3.1 spec generated from registered entities and services. */
+  getOpenAPISpec(options?: GetOpenAPISpecOptions): OpenAPIDocument;
+}
+
+// ---------------------------------------------------------------------------
 // ServerInstance — extended return type when db + auth are provided
 // ---------------------------------------------------------------------------
 
-export interface ServerInstance extends AppBuilder {
+export interface ServerInstance extends ServerApp {
   auth: AuthInstance;
   initialize(): Promise<void>;
   /** Routes auth requests (/api/auth/*) to auth.handler, everything else to entity handler */
@@ -115,6 +145,8 @@ export interface ServerConfig extends Omit<AppConfig, '_entityDbFactory' | 'enti
   auth?: AuthConfig;
   /** Cloud-managed auth — when set, auth is handled by Vertz Cloud proxy */
   cloud?: CloudServerConfig;
+  /** Set to false to disable the /api/openapi.json endpoint. @default true */
+  openapi?: false;
 }
 
 // ---------------------------------------------------------------------------
@@ -225,8 +257,8 @@ export function createServer(
   config: ServerConfig & { db: DatabaseClientLike; auth: AuthConfig },
 ): ServerInstance;
 export function createServer(config: ServerConfig & { cloud: CloudServerConfig }): ServerInstance;
-export function createServer(config: ServerConfig): AppBuilder;
-export function createServer(config: ServerConfig): AppBuilder | ServerInstance {
+export function createServer(config: ServerConfig): ServerApp;
+export function createServer(config: ServerConfig): ServerApp | ServerInstance {
   const allRoutes: EntityRouteEntry[] = [];
   const registry = new EntityRegistry();
   const apiPrefix = config.apiPrefix === undefined ? '/api' : config.apiPrefix;
@@ -510,10 +542,111 @@ export function createServer(config: ServerConfig): AppBuilder | ServerInstance 
     }
   }
 
+  // ---------------------------------------------------------------------------
+  // Register /api/openapi.json route (unless openapi: false)
+  // ---------------------------------------------------------------------------
+
+  // getOpenAPISpec is attached after coreCreateServer; the route handler
+  // captures this ref and calls it lazily on first request.
+  let getOpenAPISpecFn: (() => OpenAPIDocument) | null = null;
+
+  if (config.openapi !== false) {
+    allRoutes.push({
+      method: 'GET',
+      path: `${apiPrefix}/openapi.json`,
+      handler: () => {
+        const spec = getOpenAPISpecFn!();
+        return new Response(JSON.stringify(spec), {
+          headers: { 'Content-Type': 'application/json' },
+        });
+      },
+    });
+  }
+
   const app = coreCreateServer({
     ...config,
     _entityRoutes: allRoutes.length > 0 ? allRoutes : undefined,
   } as AppConfig);
+
+  // ---------------------------------------------------------------------------
+  // Attach getOpenAPISpec() — generates OpenAPI 3.1 spec from entities + services
+  // ---------------------------------------------------------------------------
+
+  const entityDefs = (config.entities ?? []) as EntityDefinition[];
+  const serviceDefs = (config.services ?? []) as ServiceDefinition[];
+  const domainMap = entityDomainMap;
+  const defaultVersion = config.version ?? '0.1.0';
+
+  let cachedDefaultSpec: OpenAPIDocument | null = null;
+
+  const serverApp = app as ServerApp;
+  serverApp.getOpenAPISpec = (opts?: GetOpenAPISpecOptions) => {
+    const info = opts?.info ?? { title: 'Vertz API', version: defaultVersion };
+
+    // Memoize only the default (no-options) call
+    if (!opts) {
+      if (cachedDefaultSpec) return cachedDefaultSpec;
+    }
+
+    // Build services in the shape expected by the generator
+    const svcForOpenAPI: ServiceDefForOpenAPI[] = serviceDefs.map((svc) => ({
+      kind: 'service' as const,
+      name: svc.name,
+      access: svc.access,
+      actions: svc.actions,
+    }));
+
+    // Group entities by domain prefix
+    const nonDomainEntities: EntityDefinition[] = [];
+    const domainGroups = new Map<string, EntityDefinition[]>();
+    for (const eDef of entityDefs) {
+      const domain = domainMap.get(eDef.name);
+      if (domain) {
+        let group = domainGroups.get(domain);
+        if (!group) {
+          group = [];
+          domainGroups.set(domain, group);
+        }
+        group.push(eDef);
+      } else {
+        nonDomainEntities.push(eDef);
+      }
+    }
+
+    // Generate spec for non-domain entities (includes services)
+    const spec = generateOpenAPISpec(nonDomainEntities, {
+      info,
+      servers: opts?.servers,
+      apiPrefix,
+      services: svcForOpenAPI,
+    });
+
+    // Merge domain-scoped entity specs
+    for (const [domain, entities] of domainGroups) {
+      const domainSpec = generateOpenAPISpec(entities, {
+        info,
+        apiPrefix: `${apiPrefix}/${domain}`,
+      });
+      Object.assign(spec.paths, domainSpec.paths);
+      if (domainSpec.components?.schemas) {
+        Object.assign(spec.components!.schemas!, domainSpec.components.schemas);
+      }
+      if (domainSpec.tags) {
+        spec.tags!.push(...domainSpec.tags);
+      }
+    }
+
+    const result: OpenAPIDocument = spec;
+
+    if (!opts) {
+      cachedDefaultSpec = result;
+    }
+
+    return result;
+  };
+
+  // Wire up the lazy reference for the /api/openapi.json route handler
+  getOpenAPISpecFn = () => serverApp.getOpenAPISpec();
 
   // ---------------------------------------------------------------------------
   // Cloud mode branching — bypasses createAuth() entirely (design doc §9)
@@ -804,5 +937,5 @@ export function createServer(config: ServerConfig): AppBuilder | ServerInstance 
     return serverInstance as ServerInstance;
   }
 
-  return app;
+  return serverApp;
 }

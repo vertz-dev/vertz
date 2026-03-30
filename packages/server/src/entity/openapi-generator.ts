@@ -290,11 +290,30 @@ export function entityUpdateInputSchema(def: EntityDefinition): EntitySchemaObje
 // Full OpenAPI spec generation
 // ---------------------------------------------------------------------------
 
+/** Minimal shape for service definitions consumed by the OpenAPI generator. */
+export interface ServiceDefForOpenAPI {
+  readonly kind: 'service';
+  readonly name: string;
+  readonly access: Partial<Record<string, unknown>>;
+  readonly actions: Record<
+    string,
+    {
+      readonly method?: string;
+      readonly path?: string;
+      readonly body?: unknown;
+      readonly response?: unknown;
+      readonly handler: (...args: unknown[]) => unknown;
+    }
+  >;
+}
+
 export interface OpenAPISpecOptions {
   info: { title: string; version: string; description?: string };
   servers?: { url: string; description?: string }[];
   /** API path prefix. Defaults to '/api'. */
   apiPrefix?: string;
+  /** Service definitions to include in the spec. */
+  services?: ServiceDefForOpenAPI[];
 }
 
 interface OpenAPIOperation {
@@ -508,6 +527,42 @@ export function generateOpenAPISpec(
         }
 
         paths[fullPath] = pathItem;
+      }
+    }
+  }
+
+  // -------------------------------------------------------------------------
+  // Service routes
+  // -------------------------------------------------------------------------
+
+  if (options.services) {
+    for (const svcDef of options.services) {
+      const tag = svcDef.name;
+      tags.push({ name: tag });
+
+      for (const [actionName, actionDef] of Object.entries(svcDef.actions)) {
+        const accessRule = svcDef.access[actionName];
+
+        // No access rule → deny by default → skip
+        if (accessRule === undefined) continue;
+
+        const method = (actionDef.method ?? 'POST').toUpperCase();
+        const routePath = actionDef.path ?? `${apiPrefix}/${svcDef.name}/${actionName}`;
+
+        if (accessRule === false) {
+          // Explicitly disabled → 405
+          const pathItem: OpenAPIPathItem = {};
+          const disabledOp = buildServiceDisabledOperation(svcDef.name, actionName, tag);
+          assignMethodToPathItem(pathItem, method, disabledOp);
+          paths[routePath] = pathItem;
+          continue;
+        }
+
+        // Active service action
+        const operation = buildServiceActionOperation(svcDef.name, actionName, actionDef, tag);
+        const pathItem: OpenAPIPathItem = {};
+        assignMethodToPathItem(pathItem, method, operation);
+        paths[routePath] = pathItem;
       }
     }
   }
@@ -790,6 +845,77 @@ function buildActionOperation(
       content: {
         'application/json': {
           schema: extractJsonSchema(actionDef.body, entityName, actionName, 'body'),
+        },
+      },
+    };
+  }
+
+  return operation;
+}
+
+// ---------------------------------------------------------------------------
+// Service action helpers
+// ---------------------------------------------------------------------------
+
+function assignMethodToPathItem(
+  pathItem: OpenAPIPathItem,
+  method: string,
+  operation: OpenAPIOperation,
+): void {
+  const key = method.toLowerCase() as keyof OpenAPIPathItem;
+  if (key === 'get' || key === 'post' || key === 'patch' || key === 'delete') {
+    pathItem[key] = operation;
+  }
+}
+
+function buildServiceDisabledOperation(
+  serviceName: string,
+  actionName: string,
+  tag: string,
+): OpenAPIOperation {
+  return {
+    operationId: `${serviceName}_${actionName}`,
+    tags: [tag],
+    summary: `${actionName} is disabled for ${serviceName}`,
+    responses: {
+      '405': {
+        description: `Method Not Allowed — action "${actionName}" is disabled for ${serviceName}`,
+      },
+    },
+  };
+}
+
+function buildServiceActionOperation(
+  serviceName: string,
+  actionName: string,
+  actionDef: ServiceDefForOpenAPI['actions'][string],
+  tag: string,
+): OpenAPIOperation {
+  const operation: OpenAPIOperation = {
+    operationId: `${serviceName}_${actionName}`,
+    tags: [tag],
+    summary: `${actionName} on ${serviceName}`,
+    responses: {
+      '200': {
+        description: 'OK',
+        content: {
+          'application/json': {
+            schema: actionDef.response
+              ? extractJsonSchema(actionDef.response, serviceName, actionName, 'response')
+              : { description: 'No response schema defined.' },
+          },
+        },
+      },
+      ...errorRefs('400', '401'),
+    },
+  };
+
+  if (actionDef.body) {
+    operation.requestBody = {
+      required: true,
+      content: {
+        'application/json': {
+          schema: extractJsonSchema(actionDef.body, serviceName, actionName, 'body'),
         },
       },
     };

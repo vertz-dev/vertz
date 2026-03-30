@@ -984,3 +984,261 @@ describe('Feature: Full OpenAPI spec generation', () => {
     });
   });
 });
+
+// ---------------------------------------------------------------------------
+// Phase 4: Service routes in OpenAPI spec
+// ---------------------------------------------------------------------------
+
+describe('Feature: Service routes in OpenAPI spec', () => {
+  const tasksDef = entity('tasks', {
+    model: tasksModel,
+    access: {
+      list: rules.authenticated(),
+      get: rules.authenticated(),
+      create: rules.authenticated(),
+    },
+  });
+
+  const bodySchema = {
+    parse: (v: unknown) => v,
+    toJSONSchema: () => ({
+      type: 'object' as const,
+      properties: { from: { type: 'string' }, to: { type: 'string' } },
+      required: ['from', 'to'],
+    }),
+  };
+  const responseSchema = {
+    parse: (v: unknown) => v,
+    toJSONSchema: () => ({
+      type: 'object' as const,
+      properties: { count: { type: 'number' }, average: { type: 'number' } },
+    }),
+  };
+  const responseSchemaNoBody = {
+    parse: (v: unknown) => v,
+    toJSONSchema: () => ({
+      type: 'object' as const,
+      properties: { status: { type: 'string' } },
+    }),
+  };
+
+  describe('Given a service with body and response schemas', () => {
+    const svcDef = {
+      kind: 'service' as const,
+      name: 'analytics',
+      inject: {},
+      access: { summary: rules.authenticated() },
+      actions: {
+        summary: {
+          method: 'POST',
+          body: bodySchema,
+          response: responseSchema,
+          handler: async () => ({ count: 0, average: 0 }),
+        },
+      },
+    };
+
+    describe('When generateOpenAPISpec is called with services', () => {
+      it('Then includes service action paths with correct methods', () => {
+        const spec = generateOpenAPISpec([], {
+          info: { title: 'Test', version: '1.0' },
+          services: [svcDef],
+        });
+        expect(spec.paths['/api/analytics/summary']).toBeDefined();
+        expect(spec.paths['/api/analytics/summary']!.post).toBeDefined();
+      });
+
+      it('Then includes request body schema from service body', () => {
+        const spec = generateOpenAPISpec([], {
+          info: { title: 'Test', version: '1.0' },
+          services: [svcDef],
+        });
+        const op = spec.paths['/api/analytics/summary']!.post!;
+        expect(op.requestBody).toBeDefined();
+        const bodySchemaResult = op.requestBody!.content['application/json'].schema;
+        expect(bodySchemaResult.properties).toHaveProperty('from');
+        expect(bodySchemaResult.properties).toHaveProperty('to');
+      });
+
+      it('Then includes response schema from service response', () => {
+        const spec = generateOpenAPISpec([], {
+          info: { title: 'Test', version: '1.0' },
+          services: [svcDef],
+        });
+        const op = spec.paths['/api/analytics/summary']!.post!;
+        const respSchema = op.responses['200']?.content?.['application/json']?.schema;
+        expect(respSchema?.properties).toHaveProperty('count');
+        expect(respSchema?.properties).toHaveProperty('average');
+      });
+
+      it('Then operationId uses serviceName_actionName format', () => {
+        const spec = generateOpenAPISpec([], {
+          info: { title: 'Test', version: '1.0' },
+          services: [svcDef],
+        });
+        const op = spec.paths['/api/analytics/summary']!.post!;
+        expect(op.operationId).toBe('analytics_summary');
+      });
+
+      it('Then service tag is included', () => {
+        const spec = generateOpenAPISpec([], {
+          info: { title: 'Test', version: '1.0' },
+          services: [svcDef],
+        });
+        expect(spec.tags).toContainEqual({ name: 'analytics' });
+        const op = spec.paths['/api/analytics/summary']!.post!;
+        expect(op.tags).toContain('analytics');
+      });
+    });
+  });
+
+  describe('Given a service action without access rule', () => {
+    const svcDef = {
+      kind: 'service' as const,
+      name: 'internal',
+      inject: {},
+      access: {},
+      actions: {
+        hidden: {
+          response: responseSchemaNoBody,
+          handler: async () => ({ status: 'ok' }),
+        },
+      },
+    };
+
+    describe('When generateOpenAPISpec is called', () => {
+      it('Then the action is excluded from the spec (deny by default)', () => {
+        const spec = generateOpenAPISpec([], {
+          info: { title: 'Test', version: '1.0' },
+          services: [svcDef],
+        });
+        expect(spec.paths['/api/internal/hidden']).toBeUndefined();
+      });
+    });
+  });
+
+  describe('Given a service action with access: false', () => {
+    const svcDef = {
+      kind: 'service' as const,
+      name: 'legacy',
+      inject: {},
+      access: { deprecated: false as const },
+      actions: {
+        deprecated: {
+          response: responseSchemaNoBody,
+          handler: async () => ({ status: 'ok' }),
+        },
+      },
+    };
+
+    describe('When generateOpenAPISpec is called', () => {
+      it('Then the action gets 405 in the spec', () => {
+        const spec = generateOpenAPISpec([], {
+          info: { title: 'Test', version: '1.0' },
+          services: [svcDef],
+        });
+        expect(spec.paths['/api/legacy/deprecated']).toBeDefined();
+        const op = spec.paths['/api/legacy/deprecated']!.post!;
+        expect(op.responses['405']).toBeDefined();
+      });
+    });
+  });
+
+  describe('Given a service with custom path', () => {
+    const svcDef = {
+      kind: 'service' as const,
+      name: 'webhook',
+      inject: {},
+      access: { receive: rules.public },
+      actions: {
+        receive: {
+          method: 'POST',
+          path: '/webhooks/stripe',
+          body: bodySchema,
+          response: responseSchemaNoBody,
+          handler: async () => ({ status: 'ok' }),
+        },
+      },
+    };
+
+    describe('When generateOpenAPISpec is called', () => {
+      it('Then uses the custom path as-is in the spec', () => {
+        const spec = generateOpenAPISpec([], {
+          info: { title: 'Test', version: '1.0' },
+          services: [svcDef],
+        });
+        expect(spec.paths['/webhooks/stripe']).toBeDefined();
+        expect(spec.paths['/webhooks/stripe']!.post).toBeDefined();
+        // Standard path should not exist
+        expect(spec.paths['/api/webhook/receive']).toBeUndefined();
+      });
+    });
+  });
+
+  describe('Given a service with GET method (no body)', () => {
+    const svcDef = {
+      kind: 'service' as const,
+      name: 'health',
+      inject: {},
+      access: { check: rules.public },
+      actions: {
+        check: {
+          method: 'GET',
+          response: responseSchemaNoBody,
+          handler: async () => ({ status: 'ok' }),
+        },
+      },
+    };
+
+    describe('When generateOpenAPISpec is called', () => {
+      it('Then uses GET method and has no requestBody', () => {
+        const spec = generateOpenAPISpec([], {
+          info: { title: 'Test', version: '1.0' },
+          services: [svcDef],
+        });
+        const op = spec.paths['/api/health/check']!.get!;
+        expect(op).toBeDefined();
+        expect(op.requestBody).toBeUndefined();
+      });
+    });
+  });
+
+  describe('Given both entities and services', () => {
+    const svcDef = {
+      kind: 'service' as const,
+      name: 'analytics',
+      inject: {},
+      access: { summary: rules.authenticated() },
+      actions: {
+        summary: {
+          method: 'GET',
+          response: responseSchema,
+          handler: async () => ({ count: 0, average: 0 }),
+        },
+      },
+    };
+
+    describe('When generateOpenAPISpec is called', () => {
+      it('Then merges entity and service paths into one spec', () => {
+        const spec = generateOpenAPISpec([tasksDef], {
+          info: { title: 'Test', version: '1.0' },
+          services: [svcDef],
+        });
+        // Entity paths
+        expect(spec.paths['/api/tasks']).toBeDefined();
+        expect(spec.paths['/api/tasks/{id}']).toBeDefined();
+        // Service paths
+        expect(spec.paths['/api/analytics/summary']).toBeDefined();
+      });
+
+      it('Then entity and service tags are separate', () => {
+        const spec = generateOpenAPISpec([tasksDef], {
+          info: { title: 'Test', version: '1.0' },
+          services: [svcDef],
+        });
+        expect(spec.tags).toContainEqual({ name: 'tasks' });
+        expect(spec.tags).toContainEqual({ name: 'analytics' });
+      });
+    });
+  });
+});
