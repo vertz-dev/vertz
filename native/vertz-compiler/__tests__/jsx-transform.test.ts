@@ -265,6 +265,27 @@ describe('Feature: JSX element transform', () => {
     });
   });
 
+  describe('Given a component with destructured props that spreads onto a native element', () => {
+    describe('When compiled', () => {
+      it('Then emits __spread(el, rest, __props) to preserve reactive getters', () => {
+        const code = compileAndGetCode(
+          `function ComposedInput({ classes, ...props }: { classes?: Record<string, string>; [key: string]: unknown }) {\n  return <input {...props} />;\n}`,
+        );
+        expect(code).toContain('__spread(');
+        expect(code).toMatch(/__spread\([^,]+,\s*props,\s*__props\)/);
+      });
+
+      it('Then does NOT emit __props for non-destructured props', () => {
+        const code = compileAndGetCode(
+          `function App() {\n  const rest = { 'data-testid': 'btn' };\n  return <input {...rest} />;\n}`,
+        );
+        expect(code).toContain('__spread(');
+        expect(code).toMatch(/__spread\([^,]+,\s*rest\)/);
+        expect(code).not.toContain('__props');
+      });
+    });
+  });
+
   describe('Given a ref attribute', () => {
     describe('When compiled', () => {
       it('Then assigns .current on the element variable', () => {
