@@ -1,15 +1,26 @@
 /**
  * WorkerEntryGenerator — generates Cloudflare Worker entry point code
  *
- * Generates an index.js that:
+ * Two modes:
+ * 1. Server entry mode (default): wraps the user's existing server module with createHandler.
+ *    The server module already has entities, db, and models wired — no re-creation needed.
+ *
+ * 2. Standalone mode (D1 override): imports entities and models individually, creates a fresh
+ *    server with D1 database. Used when the build pipeline needs to swap sqlite for D1.
+ *
+ * The generated code:
  * - Uses createHandler() from @vertz/cloudflare (existing handler)
- * - Uses createDb({ d1 }) from @vertz/db (existing D1 support)
- * - Initializes createServer() once per cold start (lazy init)
- * - Imports entities from their source files
+ * - Caches the app per-isolate (lazy init on first request)
+ * - Provides SSR fallback for API-only workers
  */
 
 import { relative } from 'node:path';
 import type { EntityIR } from '@vertz/compiler';
+
+export interface WorkerEntryConfig {
+  /** Path to the user's server entry file (e.g., 'src/api/server.ts') */
+  serverEntry?: string;
+}
 
 export class WorkerEntryGenerator {
   /** Output directory for the generated entry (used to compute relative imports) */
@@ -18,14 +29,40 @@ export class WorkerEntryGenerator {
   constructor(
     private readonly entities: EntityIR[],
     outputDir: string = '.vertz/build/worker',
+    private readonly config: WorkerEntryConfig = {},
   ) {
     this.outputDir = outputDir;
   }
 
   generate(): string {
-    const imports = this.generateImports();
+    if (this.config.serverEntry) {
+      return this.generateServerEntryWrapper();
+    }
+    return this.generateStandalone();
+  }
+
+  /**
+   * Server entry wrapper: imports the user's server module and wraps with createHandler.
+   * The server module exports a default app with .handler — we just wrap it.
+   */
+  private generateServerEntryWrapper(): string {
+    const serverImportPath = this.resolveImportPath(this.config.serverEntry!);
+
+    return `import { createHandler } from '@vertz/cloudflare';
+import app from '${serverImportPath}';
+
+export default createHandler(app);
+`;
+  }
+
+  /**
+   * Standalone: imports entities and models individually, creates server with D1.
+   * Uses model variable names and import sources from EntityIR.
+   */
+  private generateStandalone(): string {
+    const imports = this.generateStandaloneImports();
+    const modelEntries = this.generateModelEntries();
     const entityNames = this.entities.map((e) => this.entityVarName(e.name));
-    const entityArrayLiteral = entityNames.join(', ');
 
     return `${imports}
 
@@ -33,8 +70,8 @@ let cachedApp = null;
 let cachedEnv = null;
 
 function initApp(env) {
-  const db = createDb({ dialect: 'sqlite', d1: env.DB });
-  return createServer({ entities: [${entityArrayLiteral}], db });
+  const db = createDb({ models: { ${modelEntries} }, dialect: 'sqlite', d1: env.DB });
+  return createServer({ entities: [${entityNames.join(', ')}], db });
 }
 
 export default createHandler({
@@ -50,28 +87,57 @@ export default createHandler({
 `;
   }
 
-  private generateImports(): string {
+  private generateStandaloneImports(): string {
     const lines: string[] = [];
 
     lines.push("import { createHandler } from '@vertz/cloudflare';");
     lines.push("import { createServer } from '@vertz/server';");
     lines.push("import { createDb } from '@vertz/db';");
 
-    // Group entities by source file
-    const byFile = new Map<string, EntityIR[]>();
+    // Import models by their variable names from their source files
+    const modelImports = new Map<string, Set<string>>();
     for (const entity of this.entities) {
-      const existing = byFile.get(entity.sourceFile) ?? [];
-      existing.push(entity);
-      byFile.set(entity.sourceFile, existing);
+      const source = entity.modelRef.importSource;
+      if (!source) continue;
+      const existing = modelImports.get(source) ?? new Set<string>();
+      existing.add(entity.modelRef.variableName);
+      modelImports.set(source, existing);
     }
 
-    for (const [file, entities] of byFile) {
-      const names = entities.map((e) => this.entityVarName(e.name));
+    for (const [source, vars] of modelImports) {
+      const importPath = this.resolveImportPath(source);
+      lines.push(`import { ${[...vars].join(', ')} } from '${importPath}';`);
+    }
+
+    // Import entities by their export variable names from their source files
+    // Convention: entity exported variable = entity name (camelCase of kebab-case name)
+    const entityImports = new Map<string, Set<string>>();
+    for (const entity of this.entities) {
+      const existing = entityImports.get(entity.sourceFile) ?? new Set<string>();
+      existing.add(this.entityVarName(entity.name));
+      entityImports.set(entity.sourceFile, existing);
+    }
+
+    for (const [file, vars] of entityImports) {
       const importPath = this.resolveImportPath(file);
-      lines.push(`import { ${names.join(', ')} } from '${importPath}';`);
+      lines.push(`import { ${[...vars].join(', ')} } from '${importPath}';`);
     }
 
     return lines.join('\n');
+  }
+
+  /**
+   * Generate model entries for createDb({ models: { ... } }).
+   * Maps entity name → model variable name.
+   */
+  private generateModelEntries(): string {
+    return this.entities
+      .map((e) => {
+        const key = e.modelRef.tableName ?? e.name;
+        const value = e.modelRef.variableName;
+        return key === value ? key : `${key}: ${value}`;
+      })
+      .join(', ');
   }
 
   private resolveImportPath(sourceFile: string): string {

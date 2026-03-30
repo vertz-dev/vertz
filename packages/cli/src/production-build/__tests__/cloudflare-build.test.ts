@@ -360,6 +360,46 @@ describe('Feature: Cloudflare build pipeline', () => {
         });
       });
     });
+
+    describe('Given a server entry path', () => {
+      describe('When generating worker entry with server entry wrapper', () => {
+        it('imports the server module and wraps with createHandler', () => {
+          const entities = [createTestEntity()];
+          const generator = new WorkerEntryGenerator(entities, '.vertz/build/worker', {
+            serverEntry: 'src/api/server.ts',
+          });
+          const code = generator.generate();
+
+          expect(code).toContain("import app from '../../../src/api/server'");
+          expect(code).toContain('export default createHandler(app)');
+          expect(code).not.toContain('createServer');
+          expect(code).not.toContain('createDb');
+        });
+      });
+    });
+
+    describe('Given standalone mode with model imports', () => {
+      describe('When generating worker entry', () => {
+        it('imports models from their source and passes to createDb', () => {
+          const entities = [
+            createTestEntity({
+              modelRef: {
+                variableName: 'todosModel',
+                importSource: 'src/schema.ts',
+                tableName: 'todos',
+                schemaRefs: { resolved: true },
+                primaryKey: 'id',
+              },
+            }),
+          ];
+          const generator = new WorkerEntryGenerator(entities);
+          const code = generator.generate();
+
+          expect(code).toContain("import { todosModel } from '../../../src/schema'");
+          expect(code).toContain('models: { todos: todosModel }');
+        });
+      });
+    });
   });
 
   describe('WranglerConfigGenerator', () => {
