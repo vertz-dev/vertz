@@ -1,6 +1,7 @@
-use crate::banner::print_banner;
+use crate::banner::print_banner_with_upstream;
 use crate::compiler::pipeline::CompilationPipeline;
 use crate::config::ServerConfig;
+use crate::deps::linked::{discover_linked_packages, WatchTarget};
 use crate::errors::broadcaster::ErrorBroadcaster;
 use crate::errors::categories::{extract_snippet, DevError, ErrorCategory};
 use crate::hmr::recovery::RestartTriggers;
@@ -18,6 +19,7 @@ use crate::server::module_server::{self, DevServerState};
 use crate::server::theme_css;
 use crate::typecheck::process;
 use crate::watcher;
+use crate::watcher::dep_watcher::{DepWatcher, DepWatcherConfig};
 use crate::watcher::file_watcher::{FileWatcher, FileWatcherConfig, SmartDebouncer};
 use axum::body::Body;
 use axum::extract::ws::WebSocketUpgrade;
@@ -818,7 +820,15 @@ pub async fn start_server(config: ServerConfig) -> io::Result<()> {
     let mut actual_config = config.clone();
     actual_config.port = actual_port;
 
-    print_banner(&actual_config, start.elapsed());
+    // Discover upstream deps early so the banner can show them
+    let upstream_package_names: Vec<String> = if config.watch_deps {
+        let linked = discover_linked_packages(&config.root_dir);
+        linked.iter().map(|lp| lp.name.clone()).collect()
+    } else {
+        vec![]
+    };
+
+    print_banner_with_upstream(&actual_config, start.elapsed(), &upstream_package_names);
 
     let (router, state) = build_router(&config);
 
@@ -1096,6 +1106,146 @@ pub async fn start_server(config: ServerConfig) -> io::Result<()> {
             }
             Err(e) => {
                 eprintln!("[Server] Warning: File watcher failed to start: {}", e);
+            }
+        }
+    }
+
+    // Start the dep watcher for upstream dependency changes
+    if config.watch_deps {
+        let linked = discover_linked_packages(&config.root_dir);
+
+        // Build watch targets from auto-discovered + extra paths
+        let mut watch_targets: Vec<WatchTarget> = linked
+            .iter()
+            .map(|lp| WatchTarget {
+                watch_dir: lp.target.clone(), // already canonicalized
+                output_dir_name: lp.output_dir_name.clone(),
+                package_name: Some(lp.name.clone()),
+            })
+            .collect();
+
+        // Add extraWatchPaths from config (canonicalized)
+        for path_str in &config.extra_watch_paths {
+            let path = config.root_dir.join(path_str);
+            match path.canonicalize() {
+                Ok(canonical) => watch_targets.push(WatchTarget {
+                    watch_dir: canonical,
+                    output_dir_name: None,
+                    package_name: None,
+                }),
+                Err(_) => {
+                    eprintln!(
+                        "[DepWatcher] Warning: extra watch path does not exist: {}",
+                        path_str
+                    );
+                }
+            }
+        }
+
+        if !watch_targets.is_empty() {
+            let dep_config = DepWatcherConfig::default();
+            match DepWatcher::start(&watch_targets, dep_config) {
+                Ok((_dep_watcher, mut dep_rx)) => {
+                    let dep_state = state.clone();
+                    let root_dir = config.root_dir.clone();
+                    let deps_dir = config.deps_dir();
+
+                    // Spawn dep watcher event loop
+                    tokio::spawn(async move {
+                        // Batch-only mode: u64::MAX batch window forces all events
+                        // through the batch path. 200ms batch debounce, 500ms max-wait.
+                        let mut debouncer =
+                            SmartDebouncer::with_timings(u64::MAX, 200).with_max_wait(500);
+
+                        loop {
+                            tokio::select! {
+                                Some(change) = dep_rx.recv() => {
+                                    // Convert DepChange to FileChange for debouncer
+                                    debouncer.add(crate::watcher::file_watcher::FileChange {
+                                        path: change.path,
+                                        kind: crate::watcher::file_watcher::FileChangeKind::Modify,
+                                    });
+                                }
+                                _ = tokio::time::sleep(std::time::Duration::from_millis(50)),
+                                  if debouncer.has_pending() => {
+                                    if !debouncer.is_ready() {
+                                        continue;
+                                    }
+                                    let changes = debouncer.drain();
+
+                                    // Reconstruct DepChange from FileChange paths
+                                    // by mapping back to watch targets
+                                    let dep_changes: Vec<crate::watcher::dep_watcher::DepChange> = changes
+                                        .iter()
+                                        .map(|c| crate::watcher::dep_watcher::DepChange {
+                                            package: crate::watcher::dep_watcher::map_path_to_package(
+                                                &c.path, &watch_targets,
+                                            ),
+                                            path: c.path.clone(),
+                                        })
+                                        .collect();
+
+                                    // Handle re-bundling on a blocking thread (esbuild is sync)
+                                    let rd = root_dir.clone();
+                                    let dd = deps_dir.clone();
+                                    let result = tokio::task::spawn_blocking(move || {
+                                        crate::watcher::dep_watcher::handle_dep_changes(
+                                            &dep_changes, &rd, &dd,
+                                        )
+                                    })
+                                    .await;
+
+                                    match result {
+                                        Ok(dep_result) => {
+                                            // Broadcast re-bundle errors to the overlay
+                                            for (pkg, err_msg) in &dep_result.failed {
+                                                let error = DevError::build(format!(
+                                                    "Failed to re-bundle upstream dep {}: {}",
+                                                    pkg, err_msg
+                                                ));
+                                                dep_state
+                                                    .error_broadcaster
+                                                    .report_error(error)
+                                                    .await;
+                                            }
+
+                                            if dep_result.should_clear_cache {
+                                                // Clear compilation cache
+                                                dep_state.pipeline.cache().clear();
+
+                                                // Full reload
+                                                dep_state
+                                                    .hmr_hub
+                                                    .broadcast(
+                                                        crate::hmr::protocol::HmrMessage::FullReload {
+                                                            reason: dep_result.reload_reason,
+                                                        },
+                                                    )
+                                                    .await;
+                                            }
+                                        }
+                                        Err(e) => {
+                                            eprintln!(
+                                                "[Server] Dep watcher spawn_blocking failed: {}",
+                                                e
+                                            );
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    });
+
+                    // Keep the dep watcher alive
+                    let _dep_watcher_handle = Box::new(_dep_watcher);
+                    tokio::spawn(async move {
+                        let _keep_alive = _dep_watcher_handle;
+                        tokio::signal::ctrl_c().await.ok();
+                    });
+                }
+                Err(e) => {
+                    eprintln!("[Server] Warning: Failed to start dep watcher: {}", e);
+                }
             }
         }
     }
