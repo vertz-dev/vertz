@@ -19,6 +19,10 @@
     ".": {
       "import": "./dist/index.js",
       "types": "./dist/index.d.ts"
+    },
+    "./cloudflare": {
+      "import": "./dist/cloudflare.js",
+      "types": "./dist/cloudflare.d.ts"
     }
   },
   "publishConfig": {
