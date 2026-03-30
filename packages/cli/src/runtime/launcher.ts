@@ -6,7 +6,7 @@ import { join } from 'node:path';
 const require = createRequire(import.meta.url);
 
 /** Commands supported by the native runtime. Others fall back to Bun. */
-export const NATIVE_RUNTIME_COMMANDS = new Set(['dev', 'test']);
+export const NATIVE_RUNTIME_COMMANDS: Set<string> = new Set(['dev', 'test']);
 
 export interface RuntimeLaunchOptions {
   port?: number;
