@@ -12,13 +12,14 @@ import { resolve } from 'node:path';
 import { err, ok, type Result } from '@vertz/errors';
 import { type DetectedApp, detectAppType } from '../dev-server/app-detector';
 import { type BuildConfig, BuildOrchestrator, buildUI } from '../production-build';
+import { buildForCloudflare } from '../production-build/cloudflare/build-cloudflare';
 import { formatDuration, formatFileSize } from '../utils/format';
 import { findProjectRoot } from '../utils/paths';
 
 export interface BuildCommandOptions {
   strict?: boolean;
   output?: string;
-  target?: 'node' | 'edge' | 'worker';
+  target?: 'node' | 'edge' | 'worker' | 'cloudflare';
   noTypecheck?: boolean;
   noMinify?: boolean;
   sourcemap?: boolean;
@@ -57,6 +58,11 @@ export async function buildAction(options: BuildCommandOptions = {}): Promise<Re
     console.log(`Detected app type: ${detected.type}`);
   }
 
+  // Cloudflare target uses a dedicated pipeline regardless of app type
+  if (target === 'cloudflare') {
+    return buildForCloudflare(detected, options);
+  }
+
   switch (detected.type) {
     case 'api-only':
       return buildApiOnly(detected, { output, target, noTypecheck, noMinify, sourcemap, verbose });
@@ -81,7 +87,7 @@ async function buildApiOnly(
   detected: DetectedApp,
   options: {
     output?: string;
-    target?: 'node' | 'edge' | 'worker';
+    target?: 'node' | 'edge' | 'worker' | 'cloudflare';
     noTypecheck?: boolean;
     noMinify?: boolean;
     sourcemap?: boolean;
@@ -235,7 +241,7 @@ async function buildFullStack(
   detected: DetectedApp,
   options: {
     output?: string;
-    target?: 'node' | 'edge' | 'worker';
+    target?: 'node' | 'edge' | 'worker' | 'cloudflare';
     noTypecheck?: boolean;
     noMinify?: boolean;
     sourcemap?: boolean;
