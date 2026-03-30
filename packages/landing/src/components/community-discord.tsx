@@ -5,9 +5,7 @@ const s = css({
   container: ['max-w:4xl', 'mx:auto', 'text:center'],
   inner: ['max-w:2xl', 'mx:auto'],
   badge: ['flex', 'items:center', 'justify:center', 'gap:2', 'mb:6'],
-  badgeDotWrap: ['relative', 'flex', 'h:2.5', 'w:2.5'],
-  badgeDotPing: ['absolute', 'inline-flex', 'h:full', 'w:full', 'rounded:full', 'opacity:40'],
-  badgeDot: ['relative', 'inline-flex', 'rounded:full', 'h:2.5', 'w:2.5'],
+  badgeDot: ['inline-flex', 'rounded:full', 'h:2.5', 'w:2.5'],
   badgeText: ['font:xs', 'tracking:widest', 'uppercase', { '&': { color: '#6B6560' } }],
   heading: ['font:4xl', 'mb:6'],
   desc: ['font:lg', 'leading:relaxed', 'mb:10'],
@@ -64,10 +62,7 @@ export function CommunityDiscord() {
       <div className={s.container} style={{ position: 'relative', zIndex: '1' }}>
         <div className={s.inner}>
           <div className={s.badge}>
-            <span className={s.badgeDotWrap}>
-              <span className={s.badgeDotPing} style={{ background: '#5865F2' }} />
-              <span className={s.badgeDot} style={{ background: '#5865F2' }} />
-            </span>
+            <span className={s.badgeDot} style={{ background: '#5865F2' }} />
             <span className={s.badgeText} style={{ fontFamily: 'var(--font-mono)' }}>
               Community
             </span>
