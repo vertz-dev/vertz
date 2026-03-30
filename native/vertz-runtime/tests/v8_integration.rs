@@ -495,6 +495,29 @@ async fn test_node_events_async_context_propagation() {
         });
         ee5.emit('multi');
         console.log('test5: ' + captured5a + ',' + captured5b);
+
+        // Test 6: listeners() returns unwrapped functions, not entry objects
+        const fn6 = () => {};
+        const ee6 = new EventEmitter();
+        storage.run('ctx6', () => { ee6.on('ls', fn6); });
+        const lsList = ee6.listeners('ls');
+        console.log('test6: isFn=' + (typeof lsList[0] === 'function') + ' same=' + (lsList[0] === fn6));
+
+        // Test 7: rawListeners() returns wrapper functions for once(), not entry objects
+        const fn7 = () => {};
+        const ee7 = new EventEmitter();
+        ee7.once('raw', fn7);
+        const rawList = ee7.rawListeners('raw');
+        console.log('test7: isFn=' + (typeof rawList[0] === 'function') + ' hasOriginal=' + (rawList[0]._original === fn7));
+
+        // Test 8: prependListener captures context
+        let captured8;
+        const ee8 = new EventEmitter();
+        storage.run('prepend-ctx', () => {
+            ee8.prependListener('prep', () => { captured8 = storage.getStore(); });
+        });
+        ee8.emit('prep');
+        console.log('test8: ' + captured8);
     "#
         .to_string(),
     )
@@ -521,6 +544,18 @@ async fn test_node_events_async_context_propagation() {
     assert_eq!(
         output.stdout[4], "test5: ctx-a,ctx-b",
         "Multiple listeners should each see their own registration context"
+    );
+    assert_eq!(
+        output.stdout[5], "test6: isFn=true same=true",
+        "listeners() should return unwrapped functions, not entry objects"
+    );
+    assert_eq!(
+        output.stdout[6], "test7: isFn=true hasOriginal=true",
+        "rawListeners() should return wrapper functions, not entry objects"
+    );
+    assert_eq!(
+        output.stdout[7], "test8: prepend-ctx",
+        "prependListener should capture registration context"
     );
 }
 
