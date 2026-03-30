@@ -470,10 +470,8 @@ fn filter_openapi_spec(spec_json: &str, filter: &str) -> String {
                         .and_then(|op| op.get("tags"))
                         .and_then(|t| t.as_array())
                         .is_some_and(|arr| {
-                            arr.iter().any(|tag| {
-                                tag.as_str()
-                                    .is_some_and(|t| tags.iter().any(|f| *f == t))
-                            })
+                            arr.iter()
+                                .any(|tag| tag.as_str().is_some_and(|t| tags.contains(&t)))
                         })
                 });
             if !has_matching_tag {
@@ -486,10 +484,7 @@ fn filter_openapi_spec(spec_json: &str, filter: &str) -> String {
     }
 
     // Transitively collect refs from components/responses referenced by paths
-    if let Some(responses) = spec
-        .get("components")
-        .and_then(|c| c.get("responses"))
-    {
+    if let Some(responses) = spec.get("components").and_then(|c| c.get("responses")) {
         let response_refs: Vec<String> = refs_used
             .iter()
             .filter(|r| r.starts_with("#/components/responses/"))
@@ -504,10 +499,7 @@ fn filter_openapi_spec(spec_json: &str, filter: &str) -> String {
     }
 
     // Transitively collect refs from retained schemas (one level deep)
-    if let Some(schemas) = spec
-        .get("components")
-        .and_then(|c| c.get("schemas"))
-    {
+    if let Some(schemas) = spec.get("components").and_then(|c| c.get("schemas")) {
         let schema_refs: Vec<String> = refs_used
             .iter()
             .filter(|r| r.starts_with("#/components/schemas/"))
@@ -543,7 +535,7 @@ fn filter_openapi_spec(spec_json: &str, filter: &str) -> String {
         tag_arr.retain(|t| {
             t.get("name")
                 .and_then(|n| n.as_str())
-                .is_some_and(|n| tags.iter().any(|f| *f == n))
+                .is_some_and(|n| tags.contains(&n))
         });
     }
 
