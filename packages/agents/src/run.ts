@@ -168,6 +168,19 @@ export async function run(
     agentDef.prompt.system ??
     `You are an AI agent named "${agentDef.name}". Use the available tools to accomplish the user's request.`;
 
+  // Build agent invoker for ctx.agents.invoke()
+  const agents = {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- agent definitions have varying types
+    async invoke(targetAgent: AgentDefinition<any, any, any>, invokeOpts: { message: string; instanceId?: string }) {
+      const invokeResult = await run(targetAgent, {
+        message: invokeOpts.message,
+        llm,
+        instanceId: invokeOpts.instanceId,
+      });
+      return { response: invokeResult.response };
+    },
+  };
+
   // Run the ReAct loop
   const result = await reactLoop({
     llm,
@@ -176,7 +189,7 @@ export async function run(
     userMessage: message,
     maxIterations: agentDef.loop.maxIterations,
     stuckThreshold: agentDef.loop.stuckThreshold,
-    toolContext: { agentId, agentName: agentDef.name },
+    toolContext: { agentId, agentName: agentDef.name, agents },
     checkpointInterval: agentDef.loop.checkpointInterval,
     previousMessages,
   });

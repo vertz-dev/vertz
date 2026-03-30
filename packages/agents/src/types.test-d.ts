@@ -243,3 +243,33 @@ void _wfKind;
 // workflow() is a WorkflowDefinition
 const _wfType: WorkflowDefinition = pipeline;
 void _wfType;
+
+// ---------------------------------------------------------------------------
+// Agent-to-agent invocation type safety
+// ---------------------------------------------------------------------------
+
+import type { AgentInvoker, InvokeOptions } from './types';
+
+// ToolContext has agents.invoke()
+const _toolCtx: import('./types').ToolContext = {
+  agentId: 'test',
+  agentName: 'test',
+  agents: {
+    async invoke(_agentDef, _opts) {
+      return { response: 'hello' };
+    },
+  },
+};
+void _toolCtx;
+
+// invoke() returns Promise<{ response: string }>
+async function checkInvoke(invoker: AgentInvoker) {
+  const result = await invoker.invoke(testAgent, { message: 'hi' });
+  const _resp: string = result.response;
+  void _resp;
+}
+void checkInvoke;
+
+// InvokeOptions requires message
+const _invokeOpts: InvokeOptions = { message: 'test' };
+void _invokeOpts;

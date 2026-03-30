@@ -5,11 +5,13 @@ export type {
   AgentConfig,
   AgentContext,
   AgentDefinition,
+  AgentInvoker,
   AgentLoopConfig,
   AgentModelConfig,
   AgentPromptConfig,
   InferAgentOutput,
   InferSchema,
+  InvokeOptions,
   ModelProvider,
   OnStuckBehavior,
   ToolApprovalConfig,
@@ -54,13 +56,18 @@ export { SessionNotFoundError, SessionAccessDeniedError } from './stores/errors'
 
 // Workflow
 export type {
+  RunWorkflowOptions,
+  StepApprovalConfig,
   StepConfig,
   StepContext,
   StepDefinition,
+  StepResult,
   WorkflowConfig,
   WorkflowDefinition,
+  WorkflowResult,
+  WorkflowStatus,
 } from './workflow';
-export { step, workflow } from './workflow';
+export { runWorkflow, step, workflow } from './workflow';
 
 // Provider utilities
 export type { AdapterFactory, CreateAdapterOptions, ToolDescription } from './providers/types';

@@ -582,4 +582,63 @@ describe('run()', () => {
       });
     });
   });
+
+  describe('Given an agent with tools that invoke another agent', () => {
+    describe('When the tool calls ctx.agents.invoke()', () => {
+      it('Then the invoked agent runs and returns its response', async () => {
+        // Agent B — simple responder
+        const agentB = agent('responder', {
+          state: s.object({}),
+          initialState: {},
+          tools: {},
+          model: { provider: 'cloudflare', model: 'test' },
+        });
+
+        // Agent A — has a tool that invokes agent B
+        let invokeResult: { response: string } | undefined;
+        const invokeToolDef = tool({
+          description: 'Invoke agent B',
+          input: s.object({ msg: s.string() }),
+          output: s.object({ response: s.string() }),
+          async handler(_input, ctx) {
+            invokeResult = await ctx.agents.invoke(agentB, { message: 'hello from A' });
+            return { response: invokeResult.response };
+          },
+        });
+
+        const agentA = agent('orchestrator', {
+          state: s.object({}),
+          initialState: {},
+          tools: { invokeB: invokeToolDef },
+          model: { provider: 'cloudflare', model: 'test' },
+        });
+
+        let callCount = 0;
+        const llm: LLMAdapter = {
+          async chat(messages) {
+            callCount++;
+            const systemMsg = messages.find((m) => m.role === 'system')?.content ?? '';
+            // Agent B responds immediately
+            if (systemMsg.includes('responder')) {
+              return { text: 'I am agent B', toolCalls: [] };
+            }
+            // Agent A: first call → invoke tool, second call → complete
+            if (callCount === 1) {
+              return {
+                text: '',
+                toolCalls: [{ name: 'invokeB', arguments: { msg: 'test' } }],
+              };
+            }
+            return { text: 'Agent A done', toolCalls: [] };
+          },
+        };
+
+        const result = await run(agentA, { message: 'Orchestrate', llm });
+
+        expect(result.status).toBe('complete');
+        expect(invokeResult).toBeDefined();
+        expect(invokeResult!.response).toBe('I am agent B');
+      });
+    });
+  });
 });
