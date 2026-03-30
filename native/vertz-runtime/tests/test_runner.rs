@@ -34,6 +34,7 @@ fn make_config(root: &Path) -> TestRunConfig {
         coverage: false,
         coverage_threshold: 95.0,
         preload: vec![],
+        no_cache: false,
     }
 }
 

@@ -257,6 +257,7 @@ async fn isolate_event_loop(
         root_dir: Some(root_dir.to_string_lossy().to_string()),
         capture_output: false,
         enable_inspector: false,
+        compile_cache: false,
     }) {
         Ok(rt) => rt,
         Err(e) => {

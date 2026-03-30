@@ -9,6 +9,3 @@ pub mod runner;
 pub mod snapshot;
 pub mod typetests;
 pub mod watch;
-
-#[cfg(test)]
-mod snapshot_poc;

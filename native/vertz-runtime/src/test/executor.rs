@@ -99,6 +99,8 @@ pub struct ExecuteOptions {
     /// Root directory for module resolution (workspace root).
     /// When set, overrides the default behavior of using the file's parent directory.
     pub root_dir: Option<std::path::PathBuf>,
+    /// Whether to skip the compilation cache (compile everything fresh).
+    pub no_cache: bool,
 }
 
 impl Default for ExecuteOptions {
@@ -109,6 +111,7 @@ impl Default for ExecuteOptions {
             coverage: false,
             preload: vec![],
             root_dir: None,
+            no_cache: false,
         }
     }
 }
@@ -173,6 +176,7 @@ fn execute_test_file_inner(
         root_dir: Some(root_dir.to_string()),
         capture_output: true,
         enable_inspector: options.coverage,
+        compile_cache: !options.no_cache,
     })?;
 
     // NOTE: async context + test harness are pre-baked in the V8 snapshot,

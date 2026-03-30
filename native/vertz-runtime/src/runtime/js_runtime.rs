@@ -47,6 +47,8 @@ pub struct VertzRuntimeOptions {
     pub capture_output: bool,
     /// Whether to enable the V8 inspector (for coverage collection). Defaults to false.
     pub enable_inspector: bool,
+    /// Whether to enable the disk-backed compilation cache. Defaults to false.
+    pub compile_cache: bool,
 }
 
 /// Wrapper around deno_core's JsRuntime with Vertz-specific extensions.
@@ -162,13 +164,14 @@ impl VertzJsRuntime {
             ..Default::default()
         };
 
+        let cache_enabled = options.compile_cache;
         let root_dir = options.root_dir.unwrap_or_else(|| {
             std::env::current_dir()
                 .unwrap()
                 .to_string_lossy()
                 .to_string()
         });
-        let module_loader = Rc::new(VertzModuleLoader::new(&root_dir));
+        let module_loader = Rc::new(VertzModuleLoader::new_with_cache(&root_dir, cache_enabled));
 
         let snapshot = crate::test::snapshot::get_test_snapshot();
 
