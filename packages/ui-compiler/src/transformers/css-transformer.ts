@@ -439,9 +439,91 @@ function resolveValueInline(value: string, valueType: string, property: string):
     }
     case 'content':
       return CONTENT_MAP[value] ?? null;
+    case 'raw':
+      return resolveRawInline(value, property);
     default:
       return value;
   }
+}
+
+function resolveRawInline(value: string, property: string): string {
+  // border-r/l/t/b: numeric -> px
+  if (
+    property === 'border-r' ||
+    property === 'border-l' ||
+    property === 'border-t' ||
+    property === 'border-b'
+  ) {
+    const num = Number(value);
+    if (!Number.isNaN(num)) return `${num}px`;
+    return value;
+  }
+
+  // transition shorthand aliases
+  if (property === 'transition') {
+    const TIMING = '150ms cubic-bezier(0.4, 0, 0.2, 1)';
+    const COLOR_PROPS = [
+      'color',
+      'background-color',
+      'border-color',
+      'outline-color',
+      'text-decoration-color',
+      'fill',
+      'stroke',
+    ];
+    const TRANSITION_MAP: Record<string, string> = {
+      none: 'none',
+      all: `all ${TIMING}`,
+      colors: COLOR_PROPS.map((p) => `${p} ${TIMING}`).join(', '),
+      shadow: `box-shadow ${TIMING}`,
+      transform: `transform ${TIMING}`,
+      opacity: `opacity ${TIMING}`,
+    };
+    return TRANSITION_MAP[value] ?? value;
+  }
+
+  // tracking (letter-spacing)
+  if (property === 'tracking') {
+    const TRACKING_MAP: Record<string, string> = {
+      tighter: '-0.05em',
+      tight: '-0.025em',
+      normal: '0em',
+      wide: '0.025em',
+      wider: '0.05em',
+      widest: '0.1em',
+    };
+    return TRACKING_MAP[value] ?? value;
+  }
+
+  // grid-cols: number -> repeat(N, minmax(0, 1fr))
+  if (property === 'grid-cols') {
+    const num = Number(value);
+    if (!Number.isNaN(num) && num > 0) return `repeat(${num}, minmax(0, 1fr))`;
+    return value;
+  }
+
+  // inset, top, right, bottom, left: use spacing scale
+  if (
+    property === 'inset' ||
+    property === 'top' ||
+    property === 'right' ||
+    property === 'bottom' ||
+    property === 'left'
+  ) {
+    return SPACING_SCALE[value] ?? value;
+  }
+
+  // aspect-ratio named values
+  if (property === 'aspect') {
+    const ASPECT_MAP: Record<string, string> = {
+      square: '1 / 1',
+      video: '16 / 9',
+      photo: '4 / 3',
+    };
+    return ASPECT_MAP[value] ?? value;
+  }
+
+  return value;
 }
 
 function resolveColorInline(value: string): string | null {
