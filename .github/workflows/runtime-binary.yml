@@ -1,0 +1,82 @@
+name: Runtime Binary Build
+
+on:
+  workflow_call:
+    inputs:
+      release_version:
+        description: "Version to stamp into the binary (from npm package version)"
+        required: false
+        type: string
+        default: ""
+  workflow_dispatch:
+    inputs:
+      release_version:
+        description: "Version to stamp into the binary"
+        required: false
+        type: string
+        default: ""
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: aarch64-apple-darwin
+            os: macos-14
+            pkg: runtime-darwin-arm64
+            expected_arch: arm64
+          # darwin-x64 deferred to Phase 2 (V8 cross-compile issue)
+          - target: x86_64-unknown-linux-gnu
+            os: ubuntu-24.04
+            pkg: runtime-linux-x64
+            expected_arch: x86_64
+          - target: aarch64-unknown-linux-gnu
+            os: ubuntu-24.04-arm64
+            pkg: runtime-linux-arm64
+            expected_arch: aarch64
+
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Verify runner architecture
+        run: |
+          ACTUAL=$(uname -m)
+          if [ "$ACTUAL" != "${{ matrix.expected_arch }}" ]; then
+            echo "::error::Expected architecture ${{ matrix.expected_arch }} but got $ACTUAL"
+            exit 1
+          fi
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: native
+
+      - name: Build runtime binary
+        working-directory: native
+        env:
+          VERTZ_VERSION: ${{ inputs.release_version }}
+        run: cargo build --release --target ${{ matrix.target }}
+
+      - name: Copy binary to package directory
+        run: |
+          cp native/target/${{ matrix.target }}/release/vertz-runtime npm/${{ matrix.pkg }}/vertz-runtime
+          chmod +x npm/${{ matrix.pkg }}/vertz-runtime
+
+      - name: Verify binary
+        if: matrix.expected_arch == 'arm64' || matrix.expected_arch == 'x86_64'
+        run: |
+          # Only verify on native builds (not cross-compiled)
+          if [ "$(uname -m)" = "${{ matrix.expected_arch }}" ]; then
+            npm/${{ matrix.pkg }}/vertz-runtime --version
+          fi
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.pkg }}
+          path: npm/${{ matrix.pkg }}/vertz-runtime
+          retention-days: 1
