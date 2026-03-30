@@ -1184,26 +1184,133 @@ pub const TEST_DOM_SHIM_JS: &str = r#"
   // Phase 3 will replace this with a full selector engine.
   function matchesSimpleSelector(el, selector) {
     if (!selector || el.nodeType !== ELEMENT_NODE) return false;
-    // Handle comma-separated selectors
-    if (selector.includes(',')) {
-      return selector.split(',').some(s => matchesSimpleSelector(el, s.trim()));
+    // Handle comma-separated selectors (respecting parentheses)
+    const groups = splitSelectorByComma(selector);
+    if (groups.length > 1) {
+      return groups.some(s => matchesSimpleSelector(el, s.trim()));
     }
-    // Handle descendant combinator (basic: "div span")
-    const parts = selector.trim().split(/\s+/);
-    if (parts.length > 1) {
-      // For now, just match the last part against this element
-      // and check if an ancestor matches the rest
-      const last = parts.pop();
-      if (!matchesSingle(el, last)) return false;
-      const rest = parts.join(' ');
-      let parent = el.parentNode;
-      while (parent && parent.nodeType === ELEMENT_NODE) {
-        if (matchesSimpleSelector(parent, rest)) return true;
-        parent = parent.parentNode;
+
+    // Tokenize selector into compound selectors and combinators
+    const tokens = tokenizeCombinators(selector.trim());
+    if (tokens.length === 1) return matchesSingle(el, tokens[0]);
+
+    // Walk tokens from right to left: last token must match el,
+    // then walk combinators backwards
+    let idx = tokens.length - 1;
+    if (!matchesSingle(el, tokens[idx])) return false;
+    idx--;
+    let current = el;
+
+    while (idx >= 0) {
+      const combinator = tokens[idx];
+      idx--;
+      if (idx < 0) return false;
+      const compound = tokens[idx];
+      idx--;
+
+      if (combinator === ' ') {
+        // Descendant: any ancestor
+        let ancestor = current.parentNode;
+        let found = false;
+        while (ancestor && ancestor.nodeType === ELEMENT_NODE) {
+          if (matchesSingle(ancestor, compound)) { found = true; current = ancestor; break; }
+          ancestor = ancestor.parentNode;
+        }
+        if (!found) return false;
+      } else if (combinator === '>') {
+        // Child: immediate parent
+        const parent = current.parentNode;
+        if (!parent || parent.nodeType !== ELEMENT_NODE || !matchesSingle(parent, compound)) return false;
+        current = parent;
+      } else if (combinator === '+') {
+        // Adjacent sibling: immediately preceding element sibling
+        const prev = current.previousElementSibling;
+        if (!prev || !matchesSingle(prev, compound)) return false;
+        current = prev;
+      } else if (combinator === '~') {
+        // General sibling: any preceding element sibling
+        let sib = current.previousElementSibling;
+        let found = false;
+        while (sib) {
+          if (matchesSingle(sib, compound)) { found = true; current = sib; break; }
+          sib = sib.previousElementSibling;
+        }
+        if (!found) return false;
+      } else {
+        return false;
       }
-      return false;
     }
-    return matchesSingle(el, selector);
+    return true;
+  }
+
+  // Split selector by commas, respecting parentheses (for :not(), :has(), etc.)
+  function splitSelectorByComma(sel) {
+    const groups = [];
+    let depth = 0;
+    let start = 0;
+    for (let i = 0; i < sel.length; i++) {
+      if (sel[i] === '(') depth++;
+      else if (sel[i] === ')') depth--;
+      else if (sel[i] === ',' && depth === 0) {
+        groups.push(sel.slice(start, i));
+        start = i + 1;
+      }
+    }
+    groups.push(sel.slice(start));
+    return groups;
+  }
+
+  // Tokenize a single selector group into [compound, combinator, compound, ...]
+  // Combinators: ' ', '>', '+', '~'
+  function tokenizeCombinators(sel) {
+    const tokens = [];
+    let i = 0;
+    const len = sel.length;
+
+    while (i < len) {
+      // Skip whitespace
+      while (i < len && sel[i] === ' ') i++;
+      if (i >= len) break;
+
+      // Check for combinator
+      if (tokens.length > 0 && (sel[i] === '>' || sel[i] === '+' || sel[i] === '~')) {
+        tokens.push(sel[i]);
+        i++;
+        continue;
+      }
+
+      // If we already have a compound and next is also a compound, insert descendant combinator
+      if (tokens.length > 0 && tokens[tokens.length - 1] !== ' ' &&
+          tokens[tokens.length - 1] !== '>' && tokens[tokens.length - 1] !== '+' &&
+          tokens[tokens.length - 1] !== '~') {
+        tokens.push(' ');
+      }
+
+      // Parse compound selector
+      let start = i;
+      while (i < len) {
+        if (sel[i] === ' ' || sel[i] === '>' || sel[i] === '+' || sel[i] === '~') break;
+        if (sel[i] === '(') {
+          // Skip parenthesized content
+          let depth = 1;
+          i++;
+          while (i < len && depth > 0) {
+            if (sel[i] === '(') depth++;
+            else if (sel[i] === ')') depth--;
+            i++;
+          }
+        } else if (sel[i] === '[') {
+          // Skip bracketed content
+          i++;
+          while (i < len && sel[i] !== ']') i++;
+          if (i < len) i++;
+        } else {
+          i++;
+        }
+      }
+      if (i > start) tokens.push(sel.slice(start, i));
+    }
+    return tokens;
   }
 
   function matchesSingle(el, sel) {
@@ -1251,26 +1358,72 @@ pub const TEST_DOM_SHIM_JS: &str = r#"
         if (!matchAttr(el, inside)) return false;
         pos = close + 1;
       } else if (sel[pos] === ':') {
-        // Pseudo-class (basic)
+        // Pseudo-class
         let end = pos + 1;
         if (sel[end] === ':') return false; // pseudo-element — not supported
         // Handle :not(...)
         if (sel.slice(pos, pos + 5) === ':not(') {
-          const closeP = sel.indexOf(')', pos + 5);
+          const closeP = findCloseParen(sel, pos + 4);
           if (closeP < 0) return false;
           const inner = sel.slice(pos + 5, closeP);
           if (matchesSingle(el, inner)) return false;
           pos = closeP + 1;
-        } else if (sel.slice(pos) === ':first-child') {
+        } else if (sel.slice(pos, pos + 5) === ':has(') {
+          const closeP = findCloseParen(sel, pos + 4);
+          if (closeP < 0) return false;
+          const inner = sel.slice(pos + 5, closeP);
+          // :has() matches if any descendant matches the inner selector
+          const found = querySelect(el, inner);
+          if (!found) return false;
+          pos = closeP + 1;
+        } else if (sel.slice(pos, pos + 11) === ':nth-child(') {
+          const closeP = findCloseParen(sel, pos + 10);
+          if (closeP < 0) return false;
+          const expr = sel.slice(pos + 11, closeP).trim();
+          if (!el.parentNode) return false;
+          const siblings = el.parentNode.children;
+          const idx = siblings.indexOf(el) + 1; // 1-based
+          if (!matchNthExpr(expr, idx)) return false;
+          pos = closeP + 1;
+        } else if (sel.slice(pos, pos + 16) === ':nth-last-child(') {
+          const closeP = findCloseParen(sel, pos + 15);
+          if (closeP < 0) return false;
+          const expr = sel.slice(pos + 16, closeP).trim();
+          if (!el.parentNode) return false;
+          const siblings = el.parentNode.children;
+          const idx = siblings.length - siblings.indexOf(el); // 1-based from end
+          if (!matchNthExpr(expr, idx)) return false;
+          pos = closeP + 1;
+        } else if (sel.slice(pos, pos + 12) === ':first-child') {
           if (!el.parentNode) return false;
           const siblings = el.parentNode.children;
           if (siblings[0] !== el) return false;
           pos += 12;
-        } else if (sel.slice(pos) === ':last-child') {
+        } else if (sel.slice(pos, pos + 11) === ':last-child') {
           if (!el.parentNode) return false;
           const siblings = el.parentNode.children;
           if (siblings[siblings.length - 1] !== el) return false;
           pos += 11;
+        } else if (sel.slice(pos, pos + 11) === ':only-child') {
+          if (!el.parentNode) return false;
+          const siblings = el.parentNode.children;
+          if (siblings.length !== 1) return false;
+          pos += 11;
+        } else if (sel.slice(pos, pos + 6) === ':empty') {
+          if (el.childNodes.length > 0) return false;
+          pos += 6;
+        } else if (sel.slice(pos, pos + 8) === ':checked') {
+          if (!el.checked) return false;
+          pos += 8;
+        } else if (sel.slice(pos, pos + 9) === ':disabled') {
+          if (!el.disabled) return false;
+          pos += 9;
+        } else if (sel.slice(pos, pos + 8) === ':enabled') {
+          if (el.disabled) return false;
+          pos += 8;
+        } else if (sel.slice(pos, pos + 6) === ':focus') {
+          if (!_document || _document.activeElement !== el) return false;
+          pos += 6;
         } else {
           return false; // Unsupported pseudo-class
         }
@@ -1279,6 +1432,30 @@ pub const TEST_DOM_SHIM_JS: &str = r#"
       }
     }
     return true;
+  }
+
+  // Find the matching closing parenthesis from an open paren at `openPos`
+  function findCloseParen(sel, openPos) {
+    let depth = 1;
+    for (let i = openPos + 1; i < sel.length; i++) {
+      if (sel[i] === '(') depth++;
+      else if (sel[i] === ')') { depth--; if (depth === 0) return i; }
+    }
+    return -1;
+  }
+
+  // Match an nth-child expression (e.g., "2", "odd", "even", "2n+1", "3n", "-n+3")
+  function matchNthExpr(expr, idx) {
+    if (expr === 'odd') return idx % 2 === 1;
+    if (expr === 'even') return idx % 2 === 0;
+    // Parse An+B
+    const m = expr.match(/^([+-]?\d*)?n([+-]\d+)?$|^([+-]?\d+)$/);
+    if (!m) return false;
+    if (m[3] !== undefined) return idx === parseInt(m[3], 10);
+    let a = m[1] === undefined || m[1] === '' || m[1] === '+' ? 1 : m[1] === '-' ? -1 : parseInt(m[1], 10);
+    let b = m[2] ? parseInt(m[2], 10) : 0;
+    if (a === 0) return idx === b;
+    return (idx - b) % a === 0 && (idx - b) / a >= 0;
   }
 
   function matchAttr(el, attrSel) {
@@ -3214,6 +3391,226 @@ mod tests {
         );
         // Bubble listener should still be there
         assert_eq!(result, serde_json::json!(1));
+    }
+
+    // ===== Selector Engine — Phase 3: combinators + pseudo-classes =====
+
+    #[test]
+    fn test_child_combinator() {
+        let mut rt = create_runtime_with_dom();
+        let result = eval_js(
+            &mut rt,
+            r#"
+            const div = document.createElement('div');
+            div.innerHTML = '<ul><li><span>deep</span></li><li>direct</li></ul>';
+            // "ul > li" should match direct children of ul
+            const items = div.querySelectorAll('ul > li');
+            // "ul > span" should NOT match (span is grandchild)
+            const spans = div.querySelectorAll('ul > span');
+            JSON.stringify({ items: items.length, spans: spans.length })
+        "#,
+        );
+        let v: serde_json::Value = serde_json::from_str(result.as_str().unwrap()).unwrap();
+        assert_eq!(v["items"], 2);
+        assert_eq!(v["spans"], 0);
+    }
+
+    #[test]
+    fn test_adjacent_sibling_combinator() {
+        let mut rt = create_runtime_with_dom();
+        let result = eval_js(
+            &mut rt,
+            r#"
+            const div = document.createElement('div');
+            div.innerHTML = '<h1>Title</h1><p>First</p><p>Second</p>';
+            // "h1 + p" matches the p immediately after h1
+            const match = div.querySelector('h1 + p');
+            JSON.stringify({ text: match?.textContent, found: !!match })
+        "#,
+        );
+        let v: serde_json::Value = serde_json::from_str(result.as_str().unwrap()).unwrap();
+        assert_eq!(v["text"], "First");
+        assert_eq!(v["found"], true);
+    }
+
+    #[test]
+    fn test_general_sibling_combinator() {
+        let mut rt = create_runtime_with_dom();
+        let result = eval_js(
+            &mut rt,
+            r#"
+            const div = document.createElement('div');
+            div.innerHTML = '<h1>Title</h1><p>First</p><p>Second</p><span>Not</span>';
+            // "h1 ~ p" matches all p siblings after h1
+            const matches = div.querySelectorAll('h1 ~ p');
+            JSON.stringify({ count: matches.length, texts: matches.map(m => m.textContent) })
+        "#,
+        );
+        let v: serde_json::Value = serde_json::from_str(result.as_str().unwrap()).unwrap();
+        assert_eq!(v["count"], 2);
+        assert_eq!(v["texts"], serde_json::json!(["First", "Second"]));
+    }
+
+    #[test]
+    fn test_nth_child_number() {
+        let mut rt = create_runtime_with_dom();
+        let result = eval_js(
+            &mut rt,
+            r#"
+            const ul = document.createElement('ul');
+            ul.innerHTML = '<li>1</li><li>2</li><li>3</li>';
+            const second = ul.querySelector('li:nth-child(2)');
+            second.textContent
+        "#,
+        );
+        assert_eq!(result, serde_json::json!("2"));
+    }
+
+    #[test]
+    fn test_nth_child_odd_even() {
+        let mut rt = create_runtime_with_dom();
+        let result = eval_js(
+            &mut rt,
+            r#"
+            const ul = document.createElement('ul');
+            ul.innerHTML = '<li>1</li><li>2</li><li>3</li><li>4</li>';
+            const odd = ul.querySelectorAll('li:nth-child(odd)').map(e => e.textContent);
+            const even = ul.querySelectorAll('li:nth-child(even)').map(e => e.textContent);
+            JSON.stringify({ odd, even })
+        "#,
+        );
+        let v: serde_json::Value = serde_json::from_str(result.as_str().unwrap()).unwrap();
+        assert_eq!(v["odd"], serde_json::json!(["1", "3"]));
+        assert_eq!(v["even"], serde_json::json!(["2", "4"]));
+    }
+
+    #[test]
+    fn test_nth_child_formula() {
+        let mut rt = create_runtime_with_dom();
+        let result = eval_js(
+            &mut rt,
+            r#"
+            const ul = document.createElement('ul');
+            ul.innerHTML = '<li>1</li><li>2</li><li>3</li><li>4</li><li>5</li><li>6</li>';
+            // 3n selects 3rd, 6th
+            const every3 = ul.querySelectorAll('li:nth-child(3n)').map(e => e.textContent);
+            // 2n+1 = odd
+            const odd = ul.querySelectorAll('li:nth-child(2n+1)').map(e => e.textContent);
+            JSON.stringify({ every3, odd })
+        "#,
+        );
+        let v: serde_json::Value = serde_json::from_str(result.as_str().unwrap()).unwrap();
+        assert_eq!(v["every3"], serde_json::json!(["3", "6"]));
+        assert_eq!(v["odd"], serde_json::json!(["1", "3", "5"]));
+    }
+
+    #[test]
+    fn test_has_pseudo_class() {
+        let mut rt = create_runtime_with_dom();
+        let result = eval_js(
+            &mut rt,
+            r#"
+            const div = document.createElement('div');
+            div.innerHTML = '<div class="a"><span>yes</span></div><div class="b">no</div>';
+            // "div:has(span)" matches divs that contain a span descendant
+            const match = div.querySelector('div:has(span)');
+            match.getAttribute('class')
+        "#,
+        );
+        assert_eq!(result, serde_json::json!("a"));
+    }
+
+    #[test]
+    fn test_only_child() {
+        let mut rt = create_runtime_with_dom();
+        let result = eval_js(
+            &mut rt,
+            r#"
+            const div = document.createElement('div');
+            div.innerHTML = '<ul><li>only</li></ul>';
+            const li = div.querySelector('li:only-child');
+            JSON.stringify({ found: !!li, text: li?.textContent })
+        "#,
+        );
+        let v: serde_json::Value = serde_json::from_str(result.as_str().unwrap()).unwrap();
+        assert_eq!(v["found"], true);
+        assert_eq!(v["text"], "only");
+    }
+
+    #[test]
+    fn test_empty_pseudo_class() {
+        let mut rt = create_runtime_with_dom();
+        let result = eval_js(
+            &mut rt,
+            r#"
+            const div = document.createElement('div');
+            div.innerHTML = '<span></span><span>text</span>';
+            const empties = div.querySelectorAll('span:empty');
+            empties.length
+        "#,
+        );
+        assert_eq!(result, serde_json::json!(1));
+    }
+
+    #[test]
+    fn test_checked_pseudo_class() {
+        let mut rt = create_runtime_with_dom();
+        let result = eval_js(
+            &mut rt,
+            r#"
+            const div = document.createElement('div');
+            const cb1 = document.createElement('input');
+            cb1.type = 'checkbox';
+            cb1.checked = true;
+            const cb2 = document.createElement('input');
+            cb2.type = 'checkbox';
+            cb2.checked = false;
+            div.appendChild(cb1);
+            div.appendChild(cb2);
+            div.querySelectorAll('input:checked').length
+        "#,
+        );
+        assert_eq!(result, serde_json::json!(1));
+    }
+
+    #[test]
+    fn test_complex_selector_chain() {
+        let mut rt = create_runtime_with_dom();
+        let result = eval_js(
+            &mut rt,
+            r#"
+            const div = document.createElement('div');
+            div.innerHTML = '<div class="list"><ul><li class="active">A</li><li>B</li></ul></div>';
+            // Complex: descendant + child + class
+            const el = div.querySelector('.list > ul > li.active');
+            el?.textContent
+        "#,
+        );
+        assert_eq!(result, serde_json::json!("A"));
+    }
+
+    #[test]
+    fn test_matches_with_combinators() {
+        let mut rt = create_runtime_with_dom();
+        let result = eval_js(
+            &mut rt,
+            r#"
+            const parent = document.createElement('div');
+            parent.className = 'container';
+            const child = document.createElement('span');
+            child.className = 'item';
+            parent.appendChild(child);
+            JSON.stringify({
+                descendant: child.matches('.container span'),
+                child: child.matches('.container > span'),
+                wrongParent: child.matches('.other > span'),
+            })
+        "#,
+        );
+        let v: serde_json::Value = serde_json::from_str(result.as_str().unwrap()).unwrap();
+        assert_eq!(v["descendant"], true);
+        assert_eq!(v["child"], true);
+        assert_eq!(v["wrongParent"], false);
     }
 
     // ===== __VERTZ_DOM_MODE guard =====
