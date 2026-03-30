@@ -161,9 +161,9 @@ describe('createCloudflareAdapter()', () => {
           tools: {},
         });
 
-        await expect(
-          adapter.chat([{ role: 'user', content: 'Hi' }]),
-        ).rejects.toThrow('Cloudflare Workers AI request failed (429)');
+        await expect(adapter.chat([{ role: 'user', content: 'Hi' }])).rejects.toThrow(
+          'Cloudflare Workers AI request failed (429)',
+        );
       });
     });
   });

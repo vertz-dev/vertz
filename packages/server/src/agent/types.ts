@@ -1,4 +1,4 @@
-import type { AccessRule, BaseContext } from '../entity/types';
+import type { BaseContext } from '../entity/types';
 
 // ---------------------------------------------------------------------------
 // Structural types for agent integration

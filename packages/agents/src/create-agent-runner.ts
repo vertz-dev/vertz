@@ -1,6 +1,7 @@
 import type { LLMAdapter } from './loop/react-loop';
 import { run } from './run';
-import type { AgentDefinition, AgentModelConfig, ToolDefinition } from './types';
+import type { CreateAdapterOptions } from './providers/types';
+import type { AgentDefinition } from './types';
 
 // ---------------------------------------------------------------------------
 // Runner context — mirrors @vertz/server's BaseContext structurally
@@ -36,8 +37,8 @@ type RunnerFn = (
 export interface CreateAgentRunnerOptions {
   /** A shared LLM adapter for all agents. */
   readonly llm?: LLMAdapter;
-  /** A factory that creates an LLM adapter per agent model config. Takes precedence over `llm`. */
-  readonly createAdapter?: (config: AgentModelConfig) => LLMAdapter;
+  /** A factory that creates an LLM adapter per agent. Takes precedence over `llm`. */
+  readonly createAdapter?: (options: CreateAdapterOptions) => LLMAdapter;
 }
 
 // ---------------------------------------------------------------------------
@@ -78,7 +79,9 @@ export function createAgentRunner(
       );
     }
 
-    const llm = options.createAdapter ? options.createAdapter(agentDef.model) : options.llm!;
+    const llm = options.createAdapter
+      ? options.createAdapter({ config: agentDef.model, tools: agentDef.tools })
+      : options.llm!;
 
     const result = await run(agentDef, { message, llm });
 

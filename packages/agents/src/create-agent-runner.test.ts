@@ -91,7 +91,7 @@ describe('createAgentRunner()', () => {
 
   describe('Given a createAdapter factory instead of a shared LLM', () => {
     describe('When the runner is called', () => {
-      it('Then creates an adapter for the specific agent model config', async () => {
+      it('Then creates an adapter with model config and tools', async () => {
         const factoryFn = mock(() => mockLLM('Adapter created.'));
         const runner = createAgentRunner([testAgent], { createAdapter: factoryFn });
 
@@ -112,6 +112,10 @@ describe('createAgentRunner()', () => {
         expect(result.status).toBe('complete');
         expect(result.response).toBe('Adapter created.');
         expect(factoryFn).toHaveBeenCalledTimes(1);
+        expect(factoryFn).toHaveBeenCalledWith({
+          config: { provider: 'cloudflare', model: 'test' },
+          tools: testAgent.tools,
+        });
       });
     });
   });

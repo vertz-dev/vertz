@@ -135,9 +135,9 @@ describe('createMinimaxAdapter()', () => {
           tools: {},
         });
 
-        await expect(
-          adapter.chat([{ role: 'user', content: 'Hi' }]),
-        ).rejects.toThrow('MiniMax API request failed (401)');
+        await expect(adapter.chat([{ role: 'user', content: 'Hi' }])).rejects.toThrow(
+          'MiniMax API request failed (401)',
+        );
       });
     });
   });
