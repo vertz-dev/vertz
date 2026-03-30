@@ -5,6 +5,8 @@ import { run } from './run';
 import type { SessionLoopResult, StatelessLoopResult } from './run';
 import { memoryStore } from './stores/memory-store';
 import { tool } from './tool';
+import { step, workflow } from './workflow';
+import type { StepDefinition, WorkflowDefinition } from './workflow';
 
 // ---------------------------------------------------------------------------
 // Tool type safety
@@ -204,3 +206,70 @@ async function checkSession() {
   void _id;
 }
 void checkSession;
+
+// ---------------------------------------------------------------------------
+// Step type safety
+// ---------------------------------------------------------------------------
+
+// step() carries name as literal type
+const greetStep = step('greet', {
+  output: s.object({ greeting: s.string() }),
+});
+const _stepName: 'greet' = greetStep.name;
+void _stepName;
+
+// step() carries output schema type
+const _stepKind: 'step' = greetStep.kind;
+void _stepKind;
+
+// ---------------------------------------------------------------------------
+// Workflow type safety
+// ---------------------------------------------------------------------------
+
+// workflow() preserves input schema type
+const pipeline = workflow('test-pipeline', {
+  input: s.object({ userName: s.string() }),
+  steps: [
+    step('greet', {
+      agent: testAgent,
+      output: s.object({ greeting: s.string() }),
+    }),
+  ],
+});
+
+const _wfKind: 'workflow' = pipeline.kind;
+void _wfKind;
+
+// workflow() is a WorkflowDefinition
+const _wfType: WorkflowDefinition = pipeline;
+void _wfType;
+
+// ---------------------------------------------------------------------------
+// Agent-to-agent invocation type safety
+// ---------------------------------------------------------------------------
+
+import type { AgentInvoker, InvokeOptions } from './types';
+
+// ToolContext has agents.invoke()
+const _toolCtx: import('./types').ToolContext = {
+  agentId: 'test',
+  agentName: 'test',
+  agents: {
+    async invoke(_agentDef, _opts) {
+      return { response: 'hello' };
+    },
+  },
+};
+void _toolCtx;
+
+// invoke() returns Promise<{ response: string }>
+async function checkInvoke(invoker: AgentInvoker) {
+  const result = await invoker.invoke(testAgent, { message: 'hi' });
+  const _resp: string = result.response;
+  void _resp;
+}
+void checkInvoke;
+
+// InvokeOptions requires message
+const _invokeOpts: InvokeOptions = { message: 'test' };
+void _invokeOpts;
