@@ -48,10 +48,12 @@ fn get_removable_statement_span(stmt: &Statement) -> Option<(u32, u32)> {
         }
         // declare class
         Statement::ClassDeclaration(cls) if cls.declare => Some((cls.span.start, cls.span.end)),
-        // declare module / declare namespace (NOT runtime namespaces without declare)
+        // declare module / declare namespace
         Statement::TSModuleDeclaration(decl) if decl.declare => {
             Some((decl.span.start, decl.span.end))
         }
+        // declare global { ... } (global augmentation — type-only, always strip)
+        Statement::TSGlobalDeclaration(decl) => Some((decl.span.start, decl.span.end)),
         // declare enum / declare const enum
         Statement::TSEnumDeclaration(decl) if decl.declare => {
             Some((decl.span.start, decl.span.end))
@@ -1464,6 +1466,29 @@ export type EntityErrorType =
             result.contains("function foo("),
             "function signature missing"
         );
+    }
+
+    #[test]
+    fn test_declare_global_is_stripped() {
+        let result = strip(
+            r#"declare global {
+  interface Window {
+    __VERTZ_SESSION__?: { user: string; expiresAt: number };
+  }
+}
+export const x = 1;"#,
+        );
+        assert!(
+            !result.contains("declare global"),
+            "declare global survived: {}",
+            result
+        );
+        assert!(
+            !result.contains("interface Window"),
+            "interface Window survived: {}",
+            result
+        );
+        assert!(result.contains("export const x = 1;"));
     }
 
     #[test]
