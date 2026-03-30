@@ -103,6 +103,15 @@ export default {
       });
     }
 
+    // ── 0c. Redirect /docs/* to docs.vertz.dev ────────────────
+    if (pathname === '/docs' || pathname.startsWith('/docs/')) {
+      const subpath = pathname.replace(/^\/docs\/?/, '');
+      const target = subpath
+        ? `https://docs.vertz.dev/${subpath}`
+        : 'https://docs.vertz.dev';
+      return Response.redirect(target, 301);
+    }
+
     const isHTML = isHTMLRoute(pathname);
 
     // ── 1. Check Worker-level cache (Cache API) ─────────────────
