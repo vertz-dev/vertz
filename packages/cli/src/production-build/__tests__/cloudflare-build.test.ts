@@ -36,12 +36,12 @@ function createTestEntity(overrides: Partial<EntityIR> = {}): EntityIR {
       primaryKey: 'id',
     },
     access: defaultAccess,
-    hooks: { before: {}, after: {} },
+    hooks: { before: [], after: [] },
     actions: [],
     relations: [],
-    file: 'src/entities.ts',
-    line: 1,
-    column: 0,
+    sourceFile: 'src/entities.ts',
+    sourceLine: 1,
+    sourceColumn: 0,
     ...overrides,
   };
 }
@@ -109,8 +109,22 @@ describe('Feature: Cloudflare build pipeline', () => {
       describe('When building the manifest', () => {
         it('includes all entities in the manifest', () => {
           const entities = [
-            createTestEntity({ name: 'todo', modelRef: { variableName: 'todoModel', tableName: 'todos', schemaRefs: { resolved: false } } }),
-            createTestEntity({ name: 'user', modelRef: { variableName: 'userModel', tableName: 'users', schemaRefs: { resolved: false } } }),
+            createTestEntity({
+              name: 'todo',
+              modelRef: {
+                variableName: 'todoModel',
+                tableName: 'todos',
+                schemaRefs: { resolved: false },
+              },
+            }),
+            createTestEntity({
+              name: 'user',
+              modelRef: {
+                variableName: 'userModel',
+                tableName: 'users',
+                schemaRefs: { resolved: false },
+              },
+            }),
           ];
           const builder = new ManifestBuilder(entities);
           const manifest = builder.build();
@@ -125,19 +139,27 @@ describe('Feature: Cloudflare build pipeline', () => {
     describe('Given an entity with custom actions', () => {
       describe('When building the manifest', () => {
         it('includes custom action names in operations', () => {
-          const entities = [createTestEntity({
-            actions: [
-              { name: 'archive', method: 'POST', file: 'src/entities.ts', line: 1, column: 0 },
-            ],
-            access: {
-              list: 'function',
-              get: 'function',
-              create: 'function',
-              update: 'function',
-              delete: 'function',
-              custom: { archive: 'function' },
-            },
-          })];
+          const entities = [
+            createTestEntity({
+              actions: [
+                {
+                  name: 'archive',
+                  method: 'POST',
+                  sourceFile: 'src/entities.ts',
+                  sourceLine: 1,
+                  sourceColumn: 0,
+                },
+              ],
+              access: {
+                list: 'function',
+                get: 'function',
+                create: 'function',
+                update: 'function',
+                delete: 'function',
+                custom: { archive: 'function' },
+              },
+            }),
+          ];
           const builder = new ManifestBuilder(entities);
           const manifest = builder.build();
 
@@ -187,6 +209,49 @@ describe('Feature: Cloudflare build pipeline', () => {
       });
     });
 
+    describe('Given an entity with custom actions', () => {
+      describe('When building routes', () => {
+        it('generates routes for custom actions', () => {
+          const entities = [
+            createTestEntity({
+              actions: [
+                {
+                  name: 'archive',
+                  method: 'POST',
+                  sourceFile: 'src/entities.ts',
+                  sourceLine: 1,
+                  sourceColumn: 0,
+                },
+                {
+                  name: 'export',
+                  method: 'GET',
+                  path: 'export-csv',
+                  sourceFile: 'src/entities.ts',
+                  sourceLine: 2,
+                  sourceColumn: 0,
+                },
+              ],
+            }),
+          ];
+          const builder = new ManifestBuilder(entities);
+          const manifest = builder.build();
+
+          expect(manifest.routes).toContainEqual({
+            method: 'POST',
+            path: '/api/todo/archive',
+            entity: 'todo',
+            operation: 'archive',
+          });
+          expect(manifest.routes).toContainEqual({
+            method: 'GET',
+            path: '/api/todo/export-csv',
+            entity: 'todo',
+            operation: 'export',
+          });
+        });
+      });
+    });
+
     describe('Given entities with D1 database requirement', () => {
       describe('When building bindings', () => {
         it('includes a D1 binding', () => {
@@ -208,7 +273,7 @@ describe('Feature: Cloudflare build pipeline', () => {
     describe('Given entities with source locations', () => {
       describe('When generating worker entry code', () => {
         it('imports createHandler from @vertz/cloudflare', () => {
-          const entities = [createTestEntity({ file: 'src/entities.ts' })];
+          const entities = [createTestEntity({ sourceFile: 'src/entities.ts' })];
           const generator = new WorkerEntryGenerator(entities);
           const code = generator.generate();
 
@@ -217,7 +282,7 @@ describe('Feature: Cloudflare build pipeline', () => {
         });
 
         it('imports createServer from @vertz/server', () => {
-          const entities = [createTestEntity({ file: 'src/entities.ts' })];
+          const entities = [createTestEntity({ sourceFile: 'src/entities.ts' })];
           const generator = new WorkerEntryGenerator(entities);
           const code = generator.generate();
 
@@ -226,7 +291,7 @@ describe('Feature: Cloudflare build pipeline', () => {
         });
 
         it('imports createDb from @vertz/db', () => {
-          const entities = [createTestEntity({ file: 'src/entities.ts' })];
+          const entities = [createTestEntity({ sourceFile: 'src/entities.ts' })];
           const generator = new WorkerEntryGenerator(entities);
           const code = generator.generate();
 
@@ -235,9 +300,7 @@ describe('Feature: Cloudflare build pipeline', () => {
         });
 
         it('imports entity variables from their source files', () => {
-          const entities = [
-            createTestEntity({ name: 'todo', file: 'src/entities.ts' }),
-          ];
+          const entities = [createTestEntity({ name: 'todo', sourceFile: 'src/entities.ts' })];
           const generator = new WorkerEntryGenerator(entities);
           const code = generator.generate();
 
@@ -260,6 +323,25 @@ describe('Feature: Cloudflare build pipeline', () => {
 
           expect(code).toContain('export default createHandler');
         });
+
+        it('includes ssr fallback for API-only workers', () => {
+          const entities = [createTestEntity()];
+          const generator = new WorkerEntryGenerator(entities);
+          const code = generator.generate();
+
+          expect(code).toContain('ssr:');
+          expect(code).toContain('Not Found');
+          expect(code).toContain('404');
+        });
+
+        it('converts kebab-case entity names to camelCase variable names', () => {
+          const entities = [createTestEntity({ name: 'todo-item', sourceFile: 'src/entities.ts' })];
+          const generator = new WorkerEntryGenerator(entities);
+          const code = generator.generate();
+
+          expect(code).toContain('import { todoItem }');
+          expect(code).toContain('entities: [todoItem]');
+        });
       });
     });
 
@@ -267,8 +349,8 @@ describe('Feature: Cloudflare build pipeline', () => {
       describe('When generating imports', () => {
         it('groups imports by source file', () => {
           const entities = [
-            createTestEntity({ name: 'todo', file: 'src/todo.ts' }),
-            createTestEntity({ name: 'user', file: 'src/user.ts' }),
+            createTestEntity({ name: 'todo', sourceFile: 'src/todo.ts' }),
+            createTestEntity({ name: 'user', sourceFile: 'src/user.ts' }),
           ];
           const generator = new WorkerEntryGenerator(entities);
           const code = generator.generate();
@@ -320,6 +402,18 @@ describe('Feature: Cloudflare build pipeline', () => {
       });
     });
 
+    describe('Given a worker name with special characters', () => {
+      describe('When generating wrangler.toml', () => {
+        it('sanitizes the worker name to lowercase alphanumeric with hyphens', () => {
+          const manifest = new ManifestBuilder([createTestEntity()]).build();
+          const generator = new WranglerConfigGenerator(manifest, '@scope/My App_Name');
+          const toml = generator.generate();
+
+          expect(toml).toContain('name = "scope-my-app-name"');
+        });
+      });
+    });
+
     describe('Given a manifest with client assets', () => {
       describe('When generating wrangler.toml', () => {
         it('includes assets configuration', () => {
@@ -350,16 +444,18 @@ describe('Feature: Cloudflare build pipeline', () => {
     describe('Given an entity with a missing access rule (none)', () => {
       describe('When validating', () => {
         it('returns an error for the missing operation', () => {
-          const entities = [createTestEntity({
-            access: {
-              list: 'none',
-              get: 'function',
-              create: 'function',
-              update: 'function',
-              delete: 'function',
-              custom: {},
-            },
-          })];
+          const entities = [
+            createTestEntity({
+              access: {
+                list: 'none',
+                get: 'function',
+                create: 'function',
+                update: 'function',
+                delete: 'function',
+                custom: {},
+              },
+            }),
+          ];
           const errors = validateAccessRules(entities);
 
           expect(errors).toHaveLength(1);
@@ -372,16 +468,18 @@ describe('Feature: Cloudflare build pipeline', () => {
     describe('Given an entity with multiple missing rules', () => {
       describe('When validating', () => {
         it('returns errors for all missing operations', () => {
-          const entities = [createTestEntity({
-            access: {
-              list: 'none',
-              get: 'none',
-              create: 'function',
-              update: 'function',
-              delete: 'none',
-              custom: {},
-            },
-          })];
+          const entities = [
+            createTestEntity({
+              access: {
+                list: 'none',
+                get: 'none',
+                create: 'function',
+                update: 'function',
+                delete: 'none',
+                custom: {},
+              },
+            }),
+          ];
           const errors = validateAccessRules(entities);
 
           expect(errors).toHaveLength(3);
@@ -392,16 +490,18 @@ describe('Feature: Cloudflare build pipeline', () => {
     describe('Given an entity with access: false (explicitly denied)', () => {
       describe('When validating', () => {
         it('treats false as a valid rule (explicitly denied access)', () => {
-          const entities = [createTestEntity({
-            access: {
-              list: 'false',
-              get: 'false',
-              create: 'false',
-              update: 'false',
-              delete: 'false',
-              custom: {},
-            },
-          })];
+          const entities = [
+            createTestEntity({
+              access: {
+                list: 'false',
+                get: 'false',
+                create: 'false',
+                update: 'false',
+                delete: 'false',
+                custom: {},
+              },
+            }),
+          ];
           const errors = validateAccessRules(entities);
 
           expect(errors).toHaveLength(0);
