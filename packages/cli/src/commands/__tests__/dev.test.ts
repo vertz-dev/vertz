@@ -807,15 +807,13 @@ describe('devAction --experimental-runtime', () => {
     const fullstackMod = await import('../../dev-server/fullstack-server');
     const devServerSpy = vi.spyOn(fullstackMod, 'startDevServer').mockResolvedValue(undefined);
     const pipelineMod = await import('../../pipeline');
-    const orchestratorSpy = vi
-      .spyOn(pipelineMod, 'PipelineOrchestrator')
-      .mockImplementation(
-        () =>
-          ({
-            runFull: vi.fn().mockResolvedValue({ success: true, stages: [] }),
-            dispose: vi.fn(),
-          }) as never,
-      ) as Mock<(...args: unknown[]) => unknown>;
+    const orchestratorSpy = vi.spyOn(pipelineMod, 'PipelineOrchestrator').mockImplementation(
+      () =>
+        ({
+          runFull: vi.fn().mockResolvedValue({ success: true, stages: [] }),
+          dispose: vi.fn(),
+        }) as never,
+    ) as Mock<(...args: unknown[]) => unknown>;
     vi.spyOn(pipelineMod, 'createPipelineWatcher').mockReturnValue({
       close: vi.fn(),
     } as never);
@@ -824,9 +822,7 @@ describe('devAction --experimental-runtime', () => {
     const result = await devAction({ experimentalRuntime: true });
 
     // Should log fallback info and proceed to Bun dev server
-    expect(consoleLogSpy).toHaveBeenCalledWith(
-      expect.stringContaining('Native runtime not found'),
-    );
+    expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining('Native runtime not found'));
     expect(result.ok).toBe(true);
 
     orchestratorSpy.mockRestore();

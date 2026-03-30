@@ -1,13 +1,19 @@
 {
   "name": "@vertz/runtime-linux-arm64",
   "version": "0.1.0",
+  "private": true,
   "description": "Vertz runtime binary for Linux arm64",
-  "os": ["linux"],
-  "cpu": ["arm64"],
+  "files": [
+    "vertz-runtime"
+  ],
+  "os": [
+    "linux"
+  ],
+  "cpu": [
+    "arm64"
+  ],
   "exports": {
     "./package.json": "./package.json"
   },
-  "files": ["vertz-runtime"],
-  "preferUnplugged": true,
-  "private": true
+  "preferUnplugged": true
 }

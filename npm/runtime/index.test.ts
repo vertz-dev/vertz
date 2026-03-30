@@ -67,7 +67,10 @@ describe('Feature: getBinaryPath() resolves platform binary', () => {
             expect(error.message).toContain('Supported platforms:');
           }
         } finally {
-          Object.defineProperty(process, 'platform', { value: originalPlatform, configurable: true });
+          Object.defineProperty(process, 'platform', {
+            value: originalPlatform,
+            configurable: true,
+          });
           Object.defineProperty(process, 'arch', { value: originalArch, configurable: true });
         }
       });
@@ -92,7 +95,10 @@ describe('Feature: getBinaryPath() resolves platform binary', () => {
             expect(error.message).toContain('linux-arm64');
           }
         } finally {
-          Object.defineProperty(process, 'platform', { value: originalPlatform, configurable: true });
+          Object.defineProperty(process, 'platform', {
+            value: originalPlatform,
+            configurable: true,
+          });
           Object.defineProperty(process, 'arch', { value: originalArch, configurable: true });
         }
       });

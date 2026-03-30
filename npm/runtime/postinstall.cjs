@@ -7,7 +7,7 @@ try {
   const pkg = `@vertz/runtime-${process.platform}-${process.arch}`;
   console.warn(
     `\x1b[33m[vertz]\x1b[0m Runtime binary not found for ${process.platform}-${process.arch}. ` +
-    `\`vertz dev\` will fall back to Bun.\n` +
-    `Try: npm install ${pkg}`,
+      `\`vertz dev\` will fall back to Bun.\n` +
+      `Try: npm install ${pkg}`,
   );
 }
