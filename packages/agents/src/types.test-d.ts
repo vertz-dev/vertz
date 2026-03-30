@@ -5,6 +5,8 @@ import { run } from './run';
 import type { SessionLoopResult, StatelessLoopResult } from './run';
 import { memoryStore } from './stores/memory-store';
 import { tool } from './tool';
+import { step, workflow } from './workflow';
+import type { StepDefinition, WorkflowDefinition } from './workflow';
 
 // ---------------------------------------------------------------------------
 // Tool type safety
@@ -204,3 +206,40 @@ async function checkSession() {
   void _id;
 }
 void checkSession;
+
+// ---------------------------------------------------------------------------
+// Step type safety
+// ---------------------------------------------------------------------------
+
+// step() carries name as literal type
+const greetStep = step('greet', {
+  output: s.object({ greeting: s.string() }),
+});
+const _stepName: 'greet' = greetStep.name;
+void _stepName;
+
+// step() carries output schema type
+const _stepKind: 'step' = greetStep.kind;
+void _stepKind;
+
+// ---------------------------------------------------------------------------
+// Workflow type safety
+// ---------------------------------------------------------------------------
+
+// workflow() preserves input schema type
+const pipeline = workflow('test-pipeline', {
+  input: s.object({ userName: s.string() }),
+  steps: [
+    step('greet', {
+      agent: testAgent,
+      output: s.object({ greeting: s.string() }),
+    }),
+  ],
+});
+
+const _wfKind: 'workflow' = pipeline.kind;
+void _wfKind;
+
+// workflow() is a WorkflowDefinition
+const _wfType: WorkflowDefinition = pipeline;
+void _wfType;

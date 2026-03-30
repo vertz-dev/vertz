@@ -52,6 +52,16 @@ export { sqliteStore } from './stores/sqlite-store';
 export type { SqliteStoreOptions } from './stores/sqlite-store';
 export { SessionNotFoundError, SessionAccessDeniedError } from './stores/errors';
 
+// Workflow
+export type {
+  StepConfig,
+  StepContext,
+  StepDefinition,
+  WorkflowConfig,
+  WorkflowDefinition,
+} from './workflow';
+export { step, workflow } from './workflow';
+
 // Provider utilities
 export type { AdapterFactory, CreateAdapterOptions, ToolDescription } from './providers/types';
 export { toolsToDescriptions } from './providers/tool-description';
