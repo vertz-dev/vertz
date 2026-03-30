@@ -64,8 +64,15 @@ export function withStyles<C extends ComposedPrimitive>(
         'Check that @vertz/ui-primitives is installed and its exports resolve correctly.',
     );
   }
-  const styled = (props: Omit<Parameters<C>[0], 'classes'>) =>
-    component({ ...props, classes } as Parameters<C>[0]);
+  const styled = (props: Omit<Parameters<C>[0], 'classes'>) => {
+    // Preserve getter descriptors from compiler-generated reactive props.
+    // Object spread ({ ...props }) eagerly evaluates getters, destroying reactivity.
+    // Instead, copy all property descriptors and add `classes`.
+    const merged = Object.create(null);
+    Object.defineProperties(merged, Object.getOwnPropertyDescriptors(props));
+    merged.classes = classes;
+    return component(merged as Parameters<C>[0]);
+  };
 
   // Copy all sub-component properties (Trigger, Content, Title, etc.)
   const subComponents: Record<string, unknown> = {};

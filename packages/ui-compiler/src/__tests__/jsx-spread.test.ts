@@ -218,6 +218,25 @@ function App() {
       });
     });
 
+    describe('Given a component with destructured props that spreads onto a native element', () => {
+      describe('When compiled', () => {
+        it('Then emits __spread(el, rest, __props) to preserve reactive getters', () => {
+          const result = compile(
+            `
+function ComposedInput({ classes, ...props }: { classes?: Record<string, string>; [key: string]: unknown }) {
+  return <input {...props} />;
+}
+          `.trim(),
+          );
+
+          const code = result.code;
+          // Should pass __props as the third argument for reactive source
+          expect(code).toContain('__spread(');
+          expect(code).toMatch(/__spread\([^,]+,\s*props,\s*__props\)/);
+        });
+      });
+    });
+
     describe('Given a signal variable also used in a spread (MagicString correctness)', () => {
       describe('When compiled', () => {
         it('Then source.slice picks up .value transforms applied by signal transformer', () => {

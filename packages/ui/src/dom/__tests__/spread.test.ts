@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'bun:test';
+import { signal } from '../../runtime/signal';
 import { __spread } from '../spread';
 import { SVG_NS } from '../svg-tags';
 
@@ -187,6 +188,47 @@ describe('Feature: Intrinsic element spread attributes', () => {
     });
   });
 
+  describe('Given a spread with IDL properties on form elements', () => {
+    describe('When __spread sets value on an input', () => {
+      it('Then sets the IDL property, not just the HTML attribute', () => {
+        const el = document.createElement('input');
+        // Simulate user typing (changes IDL property but not attribute)
+        el.value = 'user-typed';
+        __spread(el, { value: 'programmatic' });
+        expect(el.value).toBe('programmatic');
+      });
+
+      it('Then checked is set as IDL property on input', () => {
+        const el = document.createElement('input');
+        el.type = 'checkbox';
+        __spread(el, { checked: true });
+        expect(el.checked).toBe(true);
+      });
+    });
+
+    describe('When __spread sets value on a select', () => {
+      it('Then sets the IDL property', () => {
+        const el = document.createElement('select');
+        const opt1 = document.createElement('option');
+        opt1.value = 'a';
+        const opt2 = document.createElement('option');
+        opt2.value = 'b';
+        el.appendChild(opt1);
+        el.appendChild(opt2);
+        __spread(el, { value: 'b' });
+        expect(el.value).toBe('b');
+      });
+    });
+
+    describe('When __spread sets value on a textarea', () => {
+      it('Then sets the IDL property', () => {
+        const el = document.createElement('textarea');
+        __spread(el, { value: 'hello' });
+        expect(el.value).toBe('hello');
+      });
+    });
+  });
+
   describe('Given an empty spread object', () => {
     describe('When __spread is called', () => {
       it('Then no attributes are set (no-op)', () => {
@@ -195,6 +237,82 @@ describe('Feature: Intrinsic element spread attributes', () => {
         __spread(el, {});
         expect(el.getAttribute('data-existing')).toBe('keep');
         expect(el.attributes.length).toBe(1);
+      });
+    });
+  });
+
+  describe('Given a spread with a reactive source (getter-based props)', () => {
+    describe('When the source has getter descriptors for IDL properties', () => {
+      it('Then IDL properties update reactively when the signal changes', () => {
+        const el = document.createElement('input');
+        const name = signal('initial');
+
+        // Simulate compiler output: rest has the eagerly-evaluated value,
+        // source (__props) has the getter that reads the signal
+        const source = Object.defineProperties(
+          {} as Record<string, unknown>,
+          {
+            value: {
+              get() { return name.value; },
+              enumerable: true,
+              configurable: true,
+            },
+          },
+        );
+        const rest = { value: name.value }; // eagerly evaluated
+
+        __spread(el, rest, source);
+        expect(el.value).toBe('initial');
+
+        name.value = 'updated';
+        expect(el.value).toBe('updated');
+      });
+    });
+
+    describe('When the source has getter descriptors for regular attributes', () => {
+      it('Then attributes update reactively when the signal changes', () => {
+        const el = document.createElement('div');
+        const label = signal('Close');
+
+        const source = Object.defineProperties(
+          {} as Record<string, unknown>,
+          {
+            'aria-label': {
+              get() { return label.value; },
+              enumerable: true,
+              configurable: true,
+            },
+          },
+        );
+        const rest = { 'aria-label': label.value };
+
+        __spread(el, rest, source);
+        expect(el.getAttribute('aria-label')).toBe('Close');
+
+        label.value = 'Open';
+        expect(el.getAttribute('aria-label')).toBe('Open');
+      });
+    });
+
+    describe('When the source does NOT have a getter for a key', () => {
+      it('Then the key is set one-shot from the rest object (no effect)', () => {
+        const el = document.createElement('div');
+        // Source has a getter only for aria-label, not data-static
+        const source = Object.defineProperties(
+          {} as Record<string, unknown>,
+          {
+            'aria-label': {
+              get() { return 'reactive'; },
+              enumerable: true,
+              configurable: true,
+            },
+          },
+        );
+        const rest = { 'aria-label': 'reactive', 'data-static': 'fixed' };
+
+        __spread(el, rest, source);
+        expect(el.getAttribute('aria-label')).toBe('reactive');
+        expect(el.getAttribute('data-static')).toBe('fixed');
       });
     });
   });

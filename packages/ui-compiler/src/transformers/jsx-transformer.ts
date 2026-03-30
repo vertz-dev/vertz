@@ -125,6 +125,14 @@ function cleanJsxText(raw: string): string {
 
 let varCounter = 0;
 
+/**
+ * The component's __props parameter name (set during transform, cleared after).
+ * When set, __spread calls emit a third argument for reactive source:
+ *   __spread(el, rest, __props)
+ * Synchronous compilation makes this safe — one component at a time.
+ */
+let _currentPropsParam: string | undefined;
+
 function genVar(): string {
   return `__el${varCounter++}`;
 }
@@ -169,7 +177,9 @@ export class JsxTransformer {
     // Find ALL JSX nodes in the function body (not just return statements).
     // This handles JSX in variable assignments, for-loops, function arguments,
     // if-blocks, and any other imperative position.
+    _currentPropsParam = component.propsParam ?? undefined;
     this.transformAllJsx(bodyNode, reactiveNames, jsxMap, source, formVarNames);
+    _currentPropsParam = undefined;
   }
 
   /**
@@ -306,7 +316,8 @@ function transformJsxElement(
       const expr = attr.getExpression();
       // Read from MagicString to pick up .value transforms from signal transformer
       const exprText = source.slice(expr.getStart(), expr.getEnd());
-      statements.push(`__spread(${elVar}, ${exprText})`);
+      const sourceArg = _currentPropsParam ? `, ${_currentPropsParam}` : '';
+      statements.push(`__spread(${elVar}, ${exprText}${sourceArg})`);
       continue;
     }
     if (!attr.isKind(SyntaxKind.JsxAttribute)) continue;
@@ -374,7 +385,8 @@ function transformSelfClosingElement(
       const expr = attr.getExpression();
       // Read from MagicString to pick up .value transforms from signal transformer
       const exprText = source.slice(expr.getStart(), expr.getEnd());
-      statements.push(`__spread(${elVar}, ${exprText})`);
+      const sourceArg = _currentPropsParam ? `, ${_currentPropsParam}` : '';
+      statements.push(`__spread(${elVar}, ${exprText}${sourceArg})`);
       continue;
     }
     if (!attr.isKind(SyntaxKind.JsxAttribute)) continue;
