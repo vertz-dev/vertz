@@ -112,8 +112,8 @@ For custom (non-SDK) endpoints, create an `SdkMethod` manually and pass a `schem
 import { s } from 'vertz/schema';
 
 const searchMethod = Object.assign(
-  async (body) => {
-    /* fetch logic returning Result */
+  async (body: { query: string; status: string }) => {
+    /* fetch logic returning { ok: true, data } */
   },
   { url: '/api/search', method: 'POST' },
 );
