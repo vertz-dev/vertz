@@ -48,6 +48,8 @@ export { run } from './run';
 // Stores
 export type { AgentSession, AgentStore, ListSessionsFilter } from './stores/types';
 export { memoryStore } from './stores/memory-store';
+export { sqliteStore } from './stores/sqlite-store';
+export type { SqliteStoreOptions } from './stores/sqlite-store';
 export { SessionNotFoundError, SessionAccessDeniedError } from './stores/errors';
 
 // Provider utilities
