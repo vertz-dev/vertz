@@ -249,16 +249,15 @@ describe('Feature: Intrinsic element spread attributes', () => {
 
         // Simulate compiler output: rest has the eagerly-evaluated value,
         // source (__props) has the getter that reads the signal
-        const source = Object.defineProperties(
-          {} as Record<string, unknown>,
-          {
-            value: {
-              get() { return name.value; },
-              enumerable: true,
-              configurable: true,
+        const source = Object.defineProperties({} as Record<string, unknown>, {
+          value: {
+            get() {
+              return name.value;
             },
+            enumerable: true,
+            configurable: true,
           },
-        );
+        });
         const rest = { value: name.value }; // eagerly evaluated
 
         __spread(el, rest, source);
@@ -274,16 +273,15 @@ describe('Feature: Intrinsic element spread attributes', () => {
         const el = document.createElement('div');
         const label = signal('Close');
 
-        const source = Object.defineProperties(
-          {} as Record<string, unknown>,
-          {
-            'aria-label': {
-              get() { return label.value; },
-              enumerable: true,
-              configurable: true,
+        const source = Object.defineProperties({} as Record<string, unknown>, {
+          'aria-label': {
+            get() {
+              return label.value;
             },
+            enumerable: true,
+            configurable: true,
           },
-        );
+        });
         const rest = { 'aria-label': label.value };
 
         __spread(el, rest, source);
@@ -298,16 +296,15 @@ describe('Feature: Intrinsic element spread attributes', () => {
       it('Then the key is set one-shot from the rest object (no effect)', () => {
         const el = document.createElement('div');
         // Source has a getter only for aria-label, not data-static
-        const source = Object.defineProperties(
-          {} as Record<string, unknown>,
-          {
-            'aria-label': {
-              get() { return 'reactive'; },
-              enumerable: true,
-              configurable: true,
+        const source = Object.defineProperties({} as Record<string, unknown>, {
+          'aria-label': {
+            get() {
+              return 'reactive';
             },
+            enumerable: true,
+            configurable: true,
           },
-        );
+        });
         const rest = { 'aria-label': 'reactive', 'data-static': 'fixed' };
 
         __spread(el, rest, source);

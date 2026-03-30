@@ -36,19 +36,16 @@ describe('withStyles', () => {
     describe('When withStyles passes props to the underlying component', () => {
       it('Then getter descriptors are preserved, not eagerly evaluated', () => {
         let callCount = 0;
-        const propsWithGetters = Object.defineProperties(
-          {} as Record<string, unknown>,
-          {
-            value: {
-              get() {
-                callCount++;
-                return 'reactive-value';
-              },
-              enumerable: true,
-              configurable: true,
+        const propsWithGetters = Object.defineProperties({} as Record<string, unknown>, {
+          value: {
+            get() {
+              callCount++;
+              return 'reactive-value';
             },
+            enumerable: true,
+            configurable: true,
           },
-        );
+        });
 
         let receivedProps: Record<string, unknown> | null = null;
         const mockComponent = Object.assign(

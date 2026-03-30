@@ -237,6 +237,27 @@ function ComposedInput({ classes, ...props }: { classes?: Record<string, string>
       });
     });
 
+    describe('Given a component WITHOUT destructured props that spreads onto a native element', () => {
+      describe('When compiled', () => {
+        it('Then emits __spread(el, expr) without __props (no reactive source)', () => {
+          const result = compile(
+            `
+function App() {
+  const rest = { 'data-testid': 'btn' };
+  return <input {...rest} />;
+}
+          `.trim(),
+          );
+
+          const code = result.code;
+          expect(code).toContain('__spread(');
+          // Should NOT have a third argument — no __props for non-destructured params
+          expect(code).toMatch(/__spread\([^,]+,\s*rest\)/);
+          expect(code).not.toContain('__props');
+        });
+      });
+    });
+
     describe('Given a signal variable also used in a spread (MagicString correctness)', () => {
       describe('When compiled', () => {
         it('Then source.slice picks up .value transforms applied by signal transformer', () => {
