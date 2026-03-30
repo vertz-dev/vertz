@@ -303,8 +303,26 @@ pub const WEB_API_BOOTSTRAP_JS: &str = r#"
       bodyUsed = true;
     }
 
+    function getBytes() {
+      if (bodyBytes !== null) return bodyBytes;
+      if (bodyText !== null) return new TextEncoder().encode(bodyText);
+      return new Uint8Array(0);
+    }
+
     return {
       get bodyUsed() { return bodyUsed; },
+      get body() {
+        // Return a ReadableStream that enqueues the body bytes
+        const bytes = getBytes();
+        return new ReadableStream({
+          start(controller) {
+            if (bytes.byteLength > 0) {
+              controller.enqueue(new Uint8Array(bytes));
+            }
+            controller.close();
+          }
+        });
+      },
       async text() {
         consumeBody();
         if (bodyText !== null) return bodyText;
@@ -359,6 +377,7 @@ pub const WEB_API_BOOTSTRAP_JS: &str = r#"
     get url() { return this.#url; }
     get method() { return this.#method; }
     get headers() { return this.#headers; }
+    get body() { return this.#body.body; }
     get bodyUsed() { return this.#body.bodyUsed; }
     get signal() { return this.#signal; }
 
@@ -404,6 +423,7 @@ pub const WEB_API_BOOTSTRAP_JS: &str = r#"
     get statusText() { return this.#statusText; }
     get headers() { return this.#headers; }
     get ok() { return this.#ok; }
+    get body() { return this.#body.body; }
     get bodyUsed() { return this.#body.bodyUsed; }
     get url() { return this.#url; }
     get type() { return this.#type; }
