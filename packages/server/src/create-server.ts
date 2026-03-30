@@ -549,9 +549,16 @@ export function createServer(config: ServerConfig): ServerApp | ServerInstance {
   }
 
   // Process agents
-  if (config.agents && config.agents.length > 0 && config.agentRunner) {
-    const agentRoutes = generateAgentRoutes(config.agents, config.agentRunner, { apiPrefix });
-    allRoutes.push(...agentRoutes);
+  if (config.agents && config.agents.length > 0) {
+    if (config.agentRunner) {
+      const agentRoutes = generateAgentRoutes(config.agents, config.agentRunner, { apiPrefix });
+      allRoutes.push(...agentRoutes);
+    } else {
+      console.warn(
+        '[vertz] agents provided to createServer() but no agentRunner configured — ' +
+          'agent routes will not be generated. Use createAgentRunner() from @vertz/agents.',
+      );
+    }
   }
 
   // ---------------------------------------------------------------------------

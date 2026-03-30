@@ -13,6 +13,8 @@ export interface Message {
   readonly toolCallId?: string;
   /** Tool name for tool result messages. */
   readonly toolName?: string;
+  /** Tool calls requested by the assistant (present on assistant messages that triggered tool use). */
+  readonly toolCalls?: readonly ToolCall[];
 }
 
 /** A tool call requested by the LLM. */
@@ -124,10 +126,15 @@ export async function reactLoop(options: ReactLoopOptions): Promise<LoopResult> 
       };
     }
 
-    // LLM requested tool calls — execute them
+    // LLM requested tool calls — store them on the assistant message for protocol fidelity
     messages.push({
       role: 'assistant',
       content: response.text || `[Calling ${response.toolCalls.map((tc) => tc.name).join(', ')}]`,
+      toolCalls: response.toolCalls.map((tc) => ({
+        id: tc.id,
+        name: tc.name,
+        arguments: tc.arguments,
+      })),
     });
 
     let hadSuccessfulToolCall = false;

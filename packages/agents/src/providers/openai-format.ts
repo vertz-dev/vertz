@@ -66,8 +66,20 @@ export function toOpenAIMessages(messages: readonly Message[]): OpenAIMessage[] 
       };
     }
 
-    if (msg.role === 'assistant' && msg.content.startsWith('[Calling ')) {
-      return { role: 'assistant' as const, content: null };
+    // Assistant message with tool calls — include tool_calls array
+    if (msg.role === 'assistant' && msg.toolCalls && msg.toolCalls.length > 0) {
+      return {
+        role: 'assistant' as const,
+        content: msg.content.startsWith('[Calling ') ? null : msg.content,
+        tool_calls: msg.toolCalls.map((tc) => ({
+          id: tc.id ?? `call_${tc.name}`,
+          type: 'function' as const,
+          function: {
+            name: tc.name,
+            arguments: JSON.stringify(tc.arguments),
+          },
+        })),
+      };
     }
 
     return { role: msg.role, content: msg.content };
@@ -93,19 +105,36 @@ export function toOpenAITools(
 
 /**
  * Convert an OpenAI chat completion response to a Vertz `LLMResponse`.
+ *
+ * Validates the response shape to produce clear errors when the API
+ * returns unexpected formats instead of cryptic TypeErrors.
  */
-export function fromOpenAIResponse(response: OpenAIChatResponse): LLMResponse {
-  if (response.choices.length === 0) {
+export function fromOpenAIResponse(response: unknown): LLMResponse {
+  const resp = response as Record<string, unknown>;
+  if (!resp || !Array.isArray(resp.choices)) {
     return { text: '', toolCalls: [] };
   }
 
-  const message = response.choices[0].message;
-  const text = message.content ?? '';
-  const toolCalls = (message.tool_calls ?? []).map((tc) => ({
-    id: tc.id,
-    name: tc.function.name,
-    arguments: parseArguments(tc.function.arguments),
-  }));
+  if (resp.choices.length === 0) {
+    return { text: '', toolCalls: [] };
+  }
+
+  const choice = resp.choices[0] as Record<string, unknown>;
+  const message = choice?.message as Record<string, unknown> | undefined;
+  if (!message) {
+    return { text: '', toolCalls: [] };
+  }
+
+  const text = (typeof message.content === 'string' ? message.content : '') ?? '';
+  const rawToolCalls = Array.isArray(message.tool_calls) ? message.tool_calls : [];
+  const toolCalls = rawToolCalls.map((tc: Record<string, unknown>) => {
+    const fn = tc.function as Record<string, unknown> | undefined;
+    return {
+      id: typeof tc.id === 'string' ? tc.id : undefined,
+      name: typeof fn?.name === 'string' ? fn.name : 'unknown',
+      arguments: typeof fn?.arguments === 'string' ? parseArguments(fn.arguments) : {},
+    };
+  });
 
   return { text, toolCalls };
 }

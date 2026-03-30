@@ -2,11 +2,7 @@ import { describe, expect, it } from 'bun:test';
 import { s } from '@vertz/schema';
 import type { Message } from '../loop/react-loop';
 import { tool } from '../tool';
-import {
-  fromOpenAIResponse,
-  toOpenAIMessages,
-  toOpenAITools,
-} from './openai-format';
+import { fromOpenAIResponse, toOpenAIMessages, toOpenAITools } from './openai-format';
 
 // ---------------------------------------------------------------------------
 // toOpenAIMessages
@@ -58,16 +54,52 @@ describe('toOpenAIMessages()', () => {
     });
   });
 
-  describe('Given an assistant message that represents a tool call', () => {
-    describe('When the content starts with "[Calling "', () => {
-      it('Then sets content to null (OpenAI expects null for tool-calling turns)', () => {
+  describe('Given an assistant message with tool calls', () => {
+    describe('When converting to OpenAI format', () => {
+      it('Then includes tool_calls array and sets content to null for synthetic content', () => {
         const messages: Message[] = [
-          { role: 'assistant', content: '[Calling readFile]' },
+          {
+            role: 'assistant',
+            content: '[Calling readFile]',
+            toolCalls: [{ id: 'call_1', name: 'readFile', arguments: { path: 'test.txt' } }],
+          },
         ];
 
         const result = toOpenAIMessages(messages);
 
-        expect(result).toEqual([{ role: 'assistant', content: null }]);
+        expect(result).toEqual([
+          {
+            role: 'assistant',
+            content: null,
+            tool_calls: [
+              {
+                id: 'call_1',
+                type: 'function',
+                function: { name: 'readFile', arguments: '{"path":"test.txt"}' },
+              },
+            ],
+          },
+        ]);
+      });
+    });
+  });
+
+  describe('Given an assistant message with tool calls and real text content', () => {
+    describe('When converting to OpenAI format', () => {
+      it('Then preserves the text content alongside tool_calls', () => {
+        const messages: Message[] = [
+          {
+            role: 'assistant',
+            content: 'Let me look that up for you.',
+            toolCalls: [{ name: 'search', arguments: { q: 'test' } }],
+          },
+        ];
+
+        const result = toOpenAIMessages(messages);
+
+        expect(result[0].content).toBe('Let me look that up for you.');
+        expect(result[0].tool_calls).toHaveLength(1);
+        expect(result[0].tool_calls![0].function.name).toBe('search');
       });
     });
   });

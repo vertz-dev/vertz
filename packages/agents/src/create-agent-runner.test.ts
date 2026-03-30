@@ -115,4 +115,14 @@ describe('createAgentRunner()', () => {
       });
     });
   });
+
+  describe('Given neither llm nor createAdapter is provided', () => {
+    describe('When createAgentRunner is called', () => {
+      it('Then throws a configuration error', () => {
+        expect(() => createAgentRunner([testAgent], {})).toThrow(
+          'createAgentRunner requires either "llm" or "createAdapter" option',
+        );
+      });
+    });
+  });
 });

@@ -10,7 +10,10 @@ import type { AgentDefinition, AgentModelConfig, ToolDefinition } from './types'
 interface BaseContextLike {
   readonly userId: string | null;
   readonly tenantId: string | null;
+  readonly tenantLevel?: string | null;
   authenticated(): boolean;
+  tenant(): boolean;
+  role(...roles: string[]): boolean;
 }
 
 /** Result shape expected by @vertz/server's agent route handler. */

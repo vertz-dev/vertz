@@ -79,9 +79,12 @@ export function generateAgentRoutes(
           const tenantId = (ctx.tenantId as string | null | undefined) ?? null;
           const roles = (ctx.roles as string[] | undefined) ?? [];
 
+          const tenantLevel = (ctx.tenantLevel as string | null | undefined) ?? null;
+
           const baseCtx: BaseContext = {
             userId,
             tenantId,
+            tenantLevel,
             authenticated() {
               return userId !== null;
             },
