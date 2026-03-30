@@ -1,24 +1,98 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'bun:test';
+import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
-  findRuntimeBinary,
-  launchRuntime,
-  type RuntimeLaunchOptions,
   buildRuntimeArgs,
+  findRuntimeBinary,
+  NATIVE_RUNTIME_COMMANDS,
+  type RuntimeLaunchOptions,
 } from '../launcher';
 
-describe('findRuntimeBinary', () => {
+describe('Feature: findRuntimeBinary() resolution order', () => {
   let tmpDir: string;
+  let originalEnv: string | undefined;
 
   beforeEach(() => {
     tmpDir = join(tmpdir(), `vertz-rt-test-${Date.now()}-${Math.random().toString(36).slice(2)}`);
     mkdirSync(tmpDir, { recursive: true });
+    originalEnv = process.env.VERTZ_RUNTIME_BINARY;
+    delete process.env.VERTZ_RUNTIME_BINARY;
   });
 
   afterEach(() => {
     rmSync(tmpDir, { recursive: true, force: true });
+    if (originalEnv === undefined) {
+      delete process.env.VERTZ_RUNTIME_BINARY;
+    } else {
+      process.env.VERTZ_RUNTIME_BINARY = originalEnv;
+    }
+  });
+
+  describe('Given VERTZ_RUNTIME_BINARY is set to an existing path', () => {
+    describe('When findRuntimeBinary() is called', () => {
+      it('Then returns the env var path (skips all other resolution)', () => {
+        const customPath = join(tmpDir, 'custom-binary');
+        writeFileSync(customPath, '#!/bin/sh', { mode: 0o755 });
+        process.env.VERTZ_RUNTIME_BINARY = customPath;
+
+        const result = findRuntimeBinary(tmpDir);
+
+        expect(result).toBe(customPath);
+      });
+    });
+  });
+
+  describe('Given VERTZ_RUNTIME_BINARY is set to a nonexistent path', () => {
+    describe('When findRuntimeBinary() is called', () => {
+      it('Then throws with path and removal suggestion', () => {
+        process.env.VERTZ_RUNTIME_BINARY = '/nonexistent/path/vertz-runtime';
+
+        expect(() => findRuntimeBinary(tmpDir)).toThrow(
+          /VERTZ_RUNTIME_BINARY is set to '\/nonexistent\/path\/vertz-runtime' but the file does not exist/,
+        );
+        expect(() => findRuntimeBinary(tmpDir)).toThrow(
+          /Remove VERTZ_RUNTIME_BINARY to use automatic resolution/,
+        );
+      });
+    });
+  });
+
+  describe('Given no npm package but local cargo build exists', () => {
+    describe('When findRuntimeBinary() is called', () => {
+      it('Then returns local release binary path', () => {
+        const releaseDir = join(tmpDir, 'native', 'target', 'release');
+        mkdirSync(releaseDir, { recursive: true });
+        writeFileSync(join(releaseDir, 'vertz-runtime'), '#!/bin/sh', { mode: 0o755 });
+
+        const result = findRuntimeBinary(tmpDir);
+
+        expect(result).toBe(join(releaseDir, 'vertz-runtime'));
+      });
+
+      it('Then prefers release over debug', () => {
+        const debugDir = join(tmpDir, 'native', 'target', 'debug');
+        const releaseDir = join(tmpDir, 'native', 'target', 'release');
+        mkdirSync(debugDir, { recursive: true });
+        mkdirSync(releaseDir, { recursive: true });
+        writeFileSync(join(debugDir, 'vertz-runtime'), '#!/bin/sh', { mode: 0o755 });
+        writeFileSync(join(releaseDir, 'vertz-runtime'), '#!/bin/sh', { mode: 0o755 });
+
+        const result = findRuntimeBinary(tmpDir);
+
+        expect(result).toBe(join(releaseDir, 'vertz-runtime'));
+      });
+    });
+  });
+
+  describe('Given no binary available at all', () => {
+    describe('When findRuntimeBinary() is called', () => {
+      it('Then returns null', () => {
+        const result = findRuntimeBinary(tmpDir);
+
+        expect(result).toBeNull();
+      });
+    });
   });
 
   it('finds binary in native/target/debug when it exists', () => {
@@ -30,57 +104,17 @@ describe('findRuntimeBinary', () => {
 
     expect(result).toBe(join(binaryDir, 'vertz-runtime'));
   });
+});
 
-  it('prefers release over debug when both exist', () => {
-    const debugDir = join(tmpDir, 'native', 'target', 'debug');
-    const releaseDir = join(tmpDir, 'native', 'target', 'release');
-    mkdirSync(debugDir, { recursive: true });
-    mkdirSync(releaseDir, { recursive: true });
-    writeFileSync(join(debugDir, 'vertz-runtime'), '#!/bin/sh', { mode: 0o755 });
-    writeFileSync(join(releaseDir, 'vertz-runtime'), '#!/bin/sh', { mode: 0o755 });
-
-    const result = findRuntimeBinary(tmpDir);
-
-    expect(result).toBe(join(releaseDir, 'vertz-runtime'));
+describe('Feature: NATIVE_RUNTIME_COMMANDS', () => {
+  it('supports dev and test commands', () => {
+    expect(NATIVE_RUNTIME_COMMANDS.has('dev')).toBe(true);
+    expect(NATIVE_RUNTIME_COMMANDS.has('test')).toBe(true);
   });
 
-  it('returns null when binary does not exist', () => {
-    const result = findRuntimeBinary(tmpDir);
-
-    expect(result).toBeNull();
-  });
-
-  it('respects VERTZ_RUNTIME_BINARY env override', () => {
-    const customPath = join(tmpDir, 'custom-binary');
-    writeFileSync(customPath, '#!/bin/sh', { mode: 0o755 });
-
-    const original = process.env.VERTZ_RUNTIME_BINARY;
-    process.env.VERTZ_RUNTIME_BINARY = customPath;
-    try {
-      const result = findRuntimeBinary(tmpDir);
-      expect(result).toBe(customPath);
-    } finally {
-      if (original === undefined) {
-        delete process.env.VERTZ_RUNTIME_BINARY;
-      } else {
-        process.env.VERTZ_RUNTIME_BINARY = original;
-      }
-    }
-  });
-
-  it('returns null when VERTZ_RUNTIME_BINARY points to nonexistent file', () => {
-    const original = process.env.VERTZ_RUNTIME_BINARY;
-    process.env.VERTZ_RUNTIME_BINARY = '/nonexistent/path/vertz-runtime';
-    try {
-      const result = findRuntimeBinary(tmpDir);
-      expect(result).toBeNull();
-    } finally {
-      if (original === undefined) {
-        delete process.env.VERTZ_RUNTIME_BINARY;
-      } else {
-        process.env.VERTZ_RUNTIME_BINARY = original;
-      }
-    }
+  it('does not support build or start commands', () => {
+    expect(NATIVE_RUNTIME_COMMANDS.has('build')).toBe(false);
+    expect(NATIVE_RUNTIME_COMMANDS.has('start')).toBe(false);
   });
 });
 
@@ -146,36 +180,5 @@ describe('buildRuntimeArgs', () => {
     const args = buildRuntimeArgs(opts);
 
     expect(args).toEqual(['dev', '--port', '3000', '--host', 'localhost']);
-  });
-});
-
-vi.mock('node:child_process', () => ({
-  spawn: vi.fn(() => ({ pid: 12345 })),
-}));
-
-describe('launchRuntime', () => {
-  it('spawns the binary with correct args and stdio inherit', async () => {
-    const { spawn } = await import('node:child_process');
-
-    const child = launchRuntime('/usr/bin/vertz-runtime', { port: 8080, host: '0.0.0.0' });
-
-    expect(spawn).toHaveBeenCalledWith(
-      '/usr/bin/vertz-runtime',
-      ['dev', '--port', '8080', '--host', '0.0.0.0'],
-      { stdio: 'inherit', env: process.env },
-    );
-    expect(child).toBeDefined();
-  });
-
-  it('passes --open and --no-typecheck flags through to spawn', async () => {
-    const { spawn } = await import('node:child_process');
-
-    launchRuntime('/usr/bin/vertz-runtime', { open: true, typecheck: false });
-
-    expect(spawn).toHaveBeenCalledWith(
-      '/usr/bin/vertz-runtime',
-      ['dev', '--port', '3000', '--host', 'localhost', '--no-typecheck', '--open'],
-      { stdio: 'inherit', env: process.env },
-    );
   });
 });

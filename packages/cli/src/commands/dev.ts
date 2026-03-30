@@ -21,7 +21,13 @@ import {
   type PipelineConfig,
   PipelineOrchestrator,
 } from '../pipeline';
-import { findRuntimeBinary, launchRuntime, type RuntimeLaunchOptions } from '../runtime/launcher';
+import {
+  checkVersionCompatibility,
+  findRuntimeBinary,
+  launchRuntime,
+  NATIVE_RUNTIME_COMMANDS,
+  type RuntimeLaunchOptions,
+} from '../runtime/launcher';
 import { formatDuration } from '../utils/format';
 import { findProjectRoot } from '../utils/paths';
 
@@ -54,10 +60,109 @@ export async function devAction(options: DevCommandOptions = {}): Promise<Result
     return err(new Error('Could not find project root. Are you in a Vertz project?'));
   }
 
-  // Experimental: use Rust runtime instead of Bun dev server
+  // Deprecation warning for --experimental-runtime
   if (experimentalRuntime) {
-    return startExperimentalRuntime(projectRoot, { port, host, typecheck, open });
+    console.warn(
+      '[vertz] --experimental-runtime is deprecated, the native runtime is now the default. ' +
+        'This flag will be removed in a future version.',
+    );
   }
+
+  // Try native runtime first (it's now the default)
+  if (NATIVE_RUNTIME_COMMANDS.has('dev')) {
+    const runtimeResult = tryNativeRuntime(projectRoot, { port, host, typecheck, open }, verbose);
+    if (runtimeResult !== null) return runtimeResult;
+  }
+
+  // Fallback to Bun-based dev server
+  return startBunDevServer(projectRoot, { port, host, open, typecheck, verbose });
+}
+
+/**
+ * Attempt to start the native runtime. Returns:
+ * - ok(undefined) if native runtime started successfully
+ * - err() if native runtime found but failed to start
+ * - null if no native runtime available (caller should fall back to Bun)
+ */
+function tryNativeRuntime(
+  projectRoot: string,
+  opts: RuntimeLaunchOptions,
+  verbose: boolean,
+): Result<void, Error> | null {
+  let binaryPath: string | null;
+  try {
+    binaryPath = findRuntimeBinary(projectRoot);
+  } catch (e) {
+    // VERTZ_RUNTIME_BINARY was set but path doesn't exist — propagate the error
+    return err(e instanceof Error ? e : new Error(String(e)));
+  }
+
+  if (!binaryPath) {
+    console.log(
+      '[vertz] Native runtime not found — falling back to Bun. ' +
+        'Install @vertz/runtime for the native dev server (faster HMR, built-in test runner).',
+    );
+    return null;
+  }
+
+  if (verbose) {
+    console.log(`[vertz] Using native runtime: ${binaryPath}`);
+  }
+
+  // Version compatibility check
+  try {
+    // Read CLI version from package.json
+    const cliPkg = require('../../../package.json') as { version: string };
+    const warning = checkVersionCompatibility(binaryPath, cliPkg.version);
+    if (warning) console.warn(warning);
+  } catch {
+    // Skip version check if we can't read CLI version
+  }
+
+  const child = launchRuntime(binaryPath, opts);
+
+  // Forward signals to the child process
+  const shutdown = () => {
+    child.kill('SIGTERM');
+  };
+  process.on('SIGINT', shutdown);
+  process.on('SIGTERM', shutdown);
+  process.on('SIGHUP', shutdown);
+
+  // Handle spawn errors
+  child.on('error', (error) => {
+    console.error(`Failed to start native runtime: ${error.message}`);
+    process.removeListener('SIGINT', shutdown);
+    process.removeListener('SIGTERM', shutdown);
+    process.removeListener('SIGHUP', shutdown);
+    process.exit(1);
+  });
+
+  // Clean up signal handlers and exit when the child terminates
+  child.on('exit', (code) => {
+    process.removeListener('SIGINT', shutdown);
+    process.removeListener('SIGTERM', shutdown);
+    process.removeListener('SIGHUP', shutdown);
+    process.exit(code ?? 0);
+  });
+
+  return ok(undefined);
+}
+
+/**
+ * Start the Bun-based dev server (fallback path)
+ */
+async function startBunDevServer(
+  projectRoot: string,
+  options: {
+    port: number;
+    host: string;
+    open: boolean;
+    typecheck: boolean;
+    verbose: boolean;
+  },
+): Promise<Result<void, Error>> {
+  const { port, host, open, typecheck, verbose } = options;
 
   // Detect app type from file conventions
   let detected: ReturnType<typeof detectAppType>;
@@ -171,7 +276,7 @@ export function registerDevCommand(program: Command): void {
     .option('--open', 'Open browser on start')
     .option('--no-typecheck', 'Disable background type checking')
     .option('-v, --verbose', 'Verbose output')
-    .option('--experimental-runtime', 'Use the Rust dev server instead of Bun')
+    .option('--experimental-runtime', '(deprecated) Use the native runtime — now the default')
     .action(async (opts) => {
       const result = await devAction({
         port: parseInt(opts.port, 10),
@@ -186,56 +291,4 @@ export function registerDevCommand(program: Command): void {
         process.exit(1);
       }
     });
-}
-
-/**
- * Start the Rust runtime binary as a subprocess instead of the Bun dev server.
- * The Rust binary handles compilation, SSR, HMR, and API routes natively.
- */
-function startExperimentalRuntime(
-  projectRoot: string,
-  opts: RuntimeLaunchOptions,
-): Result<void, Error> {
-  const binaryPath = findRuntimeBinary(projectRoot);
-  if (!binaryPath) {
-    return err(
-      new Error(
-        'vertz-runtime binary not found.\n' +
-          'Build it with: cd native/vertz-runtime && cargo build\n' +
-          'Or set VERTZ_RUNTIME_BINARY=/path/to/vertz-runtime',
-      ),
-    );
-  }
-
-  console.log(`  Using experimental Rust runtime: ${binaryPath}`);
-  console.log('');
-
-  const child = launchRuntime(binaryPath, opts);
-
-  // Forward signals to the child process
-  const shutdown = () => {
-    child.kill('SIGTERM');
-  };
-  process.on('SIGINT', shutdown);
-  process.on('SIGTERM', shutdown);
-  process.on('SIGHUP', shutdown);
-
-  // Handle spawn errors (e.g., binary not executable)
-  child.on('error', (error) => {
-    console.error(`Failed to start Rust runtime: ${error.message}`);
-    process.removeListener('SIGINT', shutdown);
-    process.removeListener('SIGTERM', shutdown);
-    process.removeListener('SIGHUP', shutdown);
-    process.exit(1);
-  });
-
-  // Clean up signal handlers and exit when the child terminates
-  child.on('exit', (code) => {
-    process.removeListener('SIGINT', shutdown);
-    process.removeListener('SIGTERM', shutdown);
-    process.removeListener('SIGHUP', shutdown);
-    process.exit(code ?? 0);
-  });
-
-  return ok(undefined);
 }

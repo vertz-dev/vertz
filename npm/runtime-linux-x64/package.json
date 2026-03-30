@@ -1,0 +1,19 @@
+{
+  "name": "@vertz/runtime-linux-x64",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Vertz runtime binary for Linux x64",
+  "files": [
+    "vertz-runtime"
+  ],
+  "os": [
+    "linux"
+  ],
+  "cpu": [
+    "x64"
+  ],
+  "exports": {
+    "./package.json": "./package.json"
+  },
+  "preferUnplugged": true
+}

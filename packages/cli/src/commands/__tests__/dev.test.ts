@@ -797,19 +797,36 @@ describe('devAction --experimental-runtime', () => {
     registeredListeners = [];
   });
 
-  it('returns err when binary is not found', async () => {
+  it('falls back to Bun dev server when binary is not found', async () => {
     const launcherMod = await import('../../runtime/launcher');
     findBinarySpy = vi.spyOn(launcherMod, 'findRuntimeBinary').mockReturnValue(null) as Mock<
       (...args: unknown[]) => unknown
     >;
 
+    // Mock the Bun fallback path to prevent it from actually starting
+    const fullstackMod = await import('../../dev-server/fullstack-server');
+    const devServerSpy = vi.spyOn(fullstackMod, 'startDevServer').mockResolvedValue(undefined);
+    const pipelineMod = await import('../../pipeline');
+    const orchestratorSpy = vi.spyOn(pipelineMod, 'PipelineOrchestrator').mockImplementation(
+      () =>
+        ({
+          runFull: vi.fn().mockResolvedValue({ success: true, stages: [] }),
+          dispose: vi.fn(),
+        }) as never,
+    ) as Mock<(...args: unknown[]) => unknown>;
+    vi.spyOn(pipelineMod, 'createPipelineWatcher').mockReturnValue({
+      close: vi.fn(),
+    } as never);
+
     const { devAction } = await import('../dev');
     const result = await devAction({ experimentalRuntime: true });
 
-    expect(result.ok).toBe(false);
-    if (!result.ok) {
-      expect(result.error.message).toContain('vertz-runtime binary not found');
-    }
+    // Should log fallback info and proceed to Bun dev server
+    expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining('Native runtime not found'));
+    expect(result.ok).toBe(true);
+
+    orchestratorSpy.mockRestore();
+    devServerSpy.mockRestore();
   });
 
   it('spawns the Rust binary when found', async () => {

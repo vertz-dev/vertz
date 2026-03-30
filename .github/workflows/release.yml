@@ -10,8 +10,16 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # Job 1: Build platform-specific runtime binaries
+  build-binaries:
+    uses: ./.github/workflows/runtime-binary.yml
+    with:
+      release_version: ""  # Version is stamped after changeset version
+
+  # Job 2: Version, build JS packages, and publish everything
   release:
     name: Release
+    needs: build-binaries
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -26,6 +34,37 @@ jobs:
 
       - name: Install dependencies
         run: bun install --frozen-lockfile
+
+      # Download all runtime binary artifacts
+      - name: Download darwin-arm64 binary
+        uses: actions/download-artifact@v4
+        with:
+          name: runtime-darwin-arm64
+          path: npm/runtime-darwin-arm64/
+        continue-on-error: true
+
+      - name: Download linux-x64 binary
+        uses: actions/download-artifact@v4
+        with:
+          name: runtime-linux-x64
+          path: npm/runtime-linux-x64/
+        continue-on-error: true
+
+      - name: Download linux-arm64 binary
+        uses: actions/download-artifact@v4
+        with:
+          name: runtime-linux-arm64
+          path: npm/runtime-linux-arm64/
+        continue-on-error: true
+
+      - name: Make binaries executable
+        run: |
+          for dir in npm/runtime-*/; do
+            if [ -f "${dir}vertz-runtime" ]; then
+              chmod +x "${dir}vertz-runtime"
+              echo "Binary found: ${dir}vertz-runtime"
+            fi
+          done
 
       - name: Build
         run: bun run build --filter='!@vertz/native-compiler' --filter='!@vertz/landing' --filter='!@vertz/component-docs' --filter='!@vertz/site' --filter='!@vertz/og' --filter='!@vertz/mint-docs' --filter='!@vertz-benchmarks/*' --filter='!contacts-api-example' --filter='!create-vertz'
