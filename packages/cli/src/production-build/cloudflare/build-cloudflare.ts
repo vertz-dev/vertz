@@ -42,7 +42,7 @@ export async function buildForCloudflare(
     return entities;
   }
 
-  if (entities.value.length === 0) {
+  if (entities.data.length === 0) {
     return err(
       new Error('No entities found. Cloudflare Workers build requires at least one entity.'),
     );
@@ -50,13 +50,13 @@ export async function buildForCloudflare(
 
   if (verbose) {
     console.log(
-      `   Found ${entities.value.length} entity(s): ${entities.value.map((e: EntityIR) => e.name).join(', ')}`,
+      `   Found ${entities.data.length} entity(s): ${entities.data.map((e: EntityIR) => e.name).join(', ')}`,
     );
   }
 
   // Step 2: Validate access rules
   console.log('🔒 Validating access rules...');
-  const accessErrors = validateAccessRules(entities.value);
+  const accessErrors = validateAccessRules(entities.data);
   if (accessErrors.length > 0) {
     const msg = [
       'Build failed: missing access rules for production deployment.',
@@ -70,7 +70,7 @@ export async function buildForCloudflare(
 
   // Step 3: Generate manifest
   console.log('📋 Generating deployment manifest...');
-  const builder = new ManifestBuilder(entities.value);
+  const builder = new ManifestBuilder(entities.data);
   const manifest = builder.build();
 
   // Set SSR and assets info based on app type
@@ -85,7 +85,7 @@ export async function buildForCloudflare(
   const serverEntry = detected.serverEntry
     ? detected.serverEntry.replace(`${detected.projectRoot}/`, '')
     : undefined;
-  const entryGenerator = new WorkerEntryGenerator(entities.value, WORKER_OUTPUT_DIR, {
+  const entryGenerator = new WorkerEntryGenerator(entities.data, WORKER_OUTPUT_DIR, {
     serverEntry,
   });
   const entryCode = entryGenerator.generate();
@@ -118,9 +118,9 @@ export async function buildForCloudflare(
 
   console.log('\n✅ Cloudflare Workers build complete!');
   console.log(`   Output: ${WORKER_OUTPUT_DIR}/`);
-  console.log(`   Entities: ${entities.value.length}`);
+  console.log(`   Entities: ${entities.data.length}`);
   console.log(`   Routes: ${manifest.routes.length}`);
-  console.log(`   Bundle: ${formatFileSize(bundleResult.value)}`);
+  console.log(`   Bundle: ${formatFileSize(bundleResult.data)}`);
   console.log(`   Time: ${formatDuration(durationMs)}`);
   console.log(`\n   Deploy with: vertz deploy`);
 
