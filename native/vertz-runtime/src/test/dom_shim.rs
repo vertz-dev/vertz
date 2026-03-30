@@ -303,7 +303,7 @@ pub const TEST_DOM_SHIM_JS: &str = r#"
     [Symbol.iterator]() { return this._getList()[Symbol.iterator](); }
   }
 
-  // --- EventTarget (shell — Phase 2 fills in real dispatch) ---
+  // --- EventTarget (full spec dispatch: capture → target → bubble) ---
   class EventTarget {
     constructor() {
       this._listeners = {};
@@ -326,20 +326,60 @@ pub const TEST_DOM_SHIM_JS: &str = r#"
     }
 
     dispatchEvent(event) {
-      // Phase 1: simple dispatch (no capture/bubble). Phase 2 adds full spec dispatch.
       event.target = this;
-      event.currentTarget = this;
-      const entries = this._listeners[event.type];
-      if (entries) {
-        const snapshot = entries.slice();
+
+      // Build propagation path: target → ancestors (root-first order for capture).
+      const path = [];
+      let node = this.parentNode;
+      while (node) {
+        path.unshift(node);
+        node = node.parentNode;
+      }
+
+      // Helper: invoke listeners on a single node for the given phase.
+      function invokeListeners(node, event, phase) {
+        const entries = node._listeners[event.type];
+        if (!entries) return;
+        const snapshot = entries.slice(); // Snapshot semantics: additions during dispatch are ignored.
         for (const entry of snapshot) {
           if (event._stopImmediate) break;
-          entry.listener.call(this, event);
+          // During capture phase, only call capture listeners.
+          // During bubble phase, only call non-capture listeners.
+          // During at-target phase, call ALL listeners (regardless of capture flag).
+          if (phase === 1 && !entry.capture) continue;
+          if (phase === 3 && entry.capture) continue;
+          event.currentTarget = node;
+          event.eventPhase = phase;
+          entry.listener.call(node, event);
           if (entry.once) {
-            this.removeEventListener(event.type, entry.listener, { capture: entry.capture });
+            node.removeEventListener(event.type, entry.listener, { capture: entry.capture });
           }
         }
       }
+
+      // 1. Capture phase — root to parent of target
+      event.eventPhase = 1;
+      for (const ancestor of path) {
+        if (event._stopProp) break;
+        invokeListeners(ancestor, event, 1);
+      }
+
+      // 2. At-target phase
+      if (!event._stopProp) {
+        event.eventPhase = 2;
+        invokeListeners(this, event, 2);
+      }
+
+      // 3. Bubble phase — parent of target to root (only if event bubbles)
+      if (event.bubbles && !event._stopProp) {
+        event.eventPhase = 3;
+        for (let i = path.length - 1; i >= 0; i--) {
+          if (event._stopProp) break;
+          invokeListeners(path[i], event, 3);
+        }
+      }
+
+      event.eventPhase = 0;
       event.currentTarget = null;
       return !event.defaultPrevented;
     }
@@ -2811,6 +2851,368 @@ mod tests {
             count
         "#,
         );
+        assert_eq!(result, serde_json::json!(1));
+    }
+
+    // ===== Event dispatch — Phase 2: capture/target/bubble =====
+
+    #[test]
+    fn test_event_bubbles_through_ancestors() {
+        let mut rt = create_runtime_with_dom();
+        let result = eval_js(
+            &mut rt,
+            r#"
+            const grandparent = document.createElement('div');
+            const parent = document.createElement('div');
+            const child = document.createElement('span');
+            grandparent.appendChild(parent);
+            parent.appendChild(child);
+
+            const log = [];
+            grandparent.addEventListener('click', () => log.push('grandparent-bubble'));
+            parent.addEventListener('click', () => log.push('parent-bubble'));
+            child.addEventListener('click', () => log.push('child-target'));
+            child.dispatchEvent(new Event('click', { bubbles: true }));
+            JSON.stringify(log)
+        "#,
+        );
+        let v: serde_json::Value = serde_json::from_str(result.as_str().unwrap()).unwrap();
+        assert_eq!(
+            v,
+            serde_json::json!(["child-target", "parent-bubble", "grandparent-bubble"])
+        );
+    }
+
+    #[test]
+    fn test_event_no_bubble_when_bubbles_false() {
+        let mut rt = create_runtime_with_dom();
+        let result = eval_js(
+            &mut rt,
+            r#"
+            const parent = document.createElement('div');
+            const child = document.createElement('span');
+            parent.appendChild(child);
+
+            let parentCalled = false;
+            parent.addEventListener('click', () => { parentCalled = true; });
+            child.dispatchEvent(new Event('click', { bubbles: false }));
+            parentCalled
+        "#,
+        );
+        assert_eq!(result, serde_json::json!(false));
+    }
+
+    #[test]
+    fn test_event_capture_phase() {
+        let mut rt = create_runtime_with_dom();
+        let result = eval_js(
+            &mut rt,
+            r#"
+            const parent = document.createElement('div');
+            const child = document.createElement('span');
+            parent.appendChild(child);
+
+            const log = [];
+            parent.addEventListener('click', () => log.push('parent-capture'), true);
+            parent.addEventListener('click', () => log.push('parent-bubble'));
+            child.addEventListener('click', () => log.push('child-target'));
+            child.dispatchEvent(new Event('click', { bubbles: true }));
+            JSON.stringify(log)
+        "#,
+        );
+        let v: serde_json::Value = serde_json::from_str(result.as_str().unwrap()).unwrap();
+        assert_eq!(
+            v,
+            serde_json::json!(["parent-capture", "child-target", "parent-bubble"])
+        );
+    }
+
+    #[test]
+    fn test_event_at_target_fires_both_capture_and_bubble_listeners() {
+        let mut rt = create_runtime_with_dom();
+        let result = eval_js(
+            &mut rt,
+            r#"
+            const el = document.createElement('div');
+            const log = [];
+            el.addEventListener('click', () => log.push('capture'), true);
+            el.addEventListener('click', () => log.push('bubble'), false);
+            el.dispatchEvent(new Event('click', { bubbles: true }));
+            JSON.stringify(log)
+        "#,
+        );
+        let v: serde_json::Value = serde_json::from_str(result.as_str().unwrap()).unwrap();
+        // At-target phase: ALL listeners fire in registration order, regardless of capture flag
+        assert_eq!(v, serde_json::json!(["capture", "bubble"]));
+    }
+
+    #[test]
+    fn test_stop_propagation_halts_bubbling() {
+        let mut rt = create_runtime_with_dom();
+        let result = eval_js(
+            &mut rt,
+            r#"
+            const grandparent = document.createElement('div');
+            const parent = document.createElement('div');
+            const child = document.createElement('span');
+            grandparent.appendChild(parent);
+            parent.appendChild(child);
+
+            const log = [];
+            grandparent.addEventListener('click', () => log.push('grandparent'));
+            parent.addEventListener('click', (e) => {
+                log.push('parent');
+                e.stopPropagation();
+            });
+            child.addEventListener('click', () => log.push('child'));
+            child.dispatchEvent(new Event('click', { bubbles: true }));
+            JSON.stringify(log)
+        "#,
+        );
+        let v: serde_json::Value = serde_json::from_str(result.as_str().unwrap()).unwrap();
+        assert_eq!(v, serde_json::json!(["child", "parent"]));
+    }
+
+    #[test]
+    fn test_stop_immediate_propagation() {
+        let mut rt = create_runtime_with_dom();
+        let result = eval_js(
+            &mut rt,
+            r#"
+            const el = document.createElement('div');
+            const log = [];
+            el.addEventListener('click', (e) => {
+                log.push('first');
+                e.stopImmediatePropagation();
+            });
+            el.addEventListener('click', () => log.push('second'));
+            el.dispatchEvent(new Event('click'));
+            JSON.stringify(log)
+        "#,
+        );
+        let v: serde_json::Value = serde_json::from_str(result.as_str().unwrap()).unwrap();
+        assert_eq!(v, serde_json::json!(["first"]));
+    }
+
+    #[test]
+    fn test_stop_propagation_in_capture_phase() {
+        let mut rt = create_runtime_with_dom();
+        let result = eval_js(
+            &mut rt,
+            r#"
+            const parent = document.createElement('div');
+            const child = document.createElement('span');
+            parent.appendChild(child);
+
+            const log = [];
+            parent.addEventListener('click', (e) => {
+                log.push('parent-capture');
+                e.stopPropagation();
+            }, true);
+            child.addEventListener('click', () => log.push('child-target'));
+            parent.addEventListener('click', () => log.push('parent-bubble'));
+            child.dispatchEvent(new Event('click', { bubbles: true }));
+            JSON.stringify(log)
+        "#,
+        );
+        let v: serde_json::Value = serde_json::from_str(result.as_str().unwrap()).unwrap();
+        // Only capture listener fires; target and bubble never reached
+        assert_eq!(v, serde_json::json!(["parent-capture"]));
+    }
+
+    #[test]
+    fn test_event_phase_values() {
+        let mut rt = create_runtime_with_dom();
+        let result = eval_js(
+            &mut rt,
+            r#"
+            const parent = document.createElement('div');
+            const child = document.createElement('span');
+            parent.appendChild(child);
+
+            const phases = [];
+            parent.addEventListener('click', (e) => phases.push(e.eventPhase), true);
+            child.addEventListener('click', (e) => phases.push(e.eventPhase));
+            parent.addEventListener('click', (e) => phases.push(e.eventPhase));
+            child.dispatchEvent(new Event('click', { bubbles: true }));
+            JSON.stringify(phases)
+        "#,
+        );
+        let v: serde_json::Value = serde_json::from_str(result.as_str().unwrap()).unwrap();
+        // 1 = CAPTURING_PHASE, 2 = AT_TARGET, 3 = BUBBLING_PHASE
+        assert_eq!(v, serde_json::json!([1, 2, 3]));
+    }
+
+    #[test]
+    fn test_current_target_set_correctly() {
+        let mut rt = create_runtime_with_dom();
+        let result = eval_js(
+            &mut rt,
+            r#"
+            const parent = document.createElement('div');
+            parent.id = 'parent';
+            const child = document.createElement('span');
+            child.id = 'child';
+            parent.appendChild(child);
+
+            const targets = [];
+            parent.addEventListener('click', (e) => targets.push(e.currentTarget.id), true);
+            child.addEventListener('click', (e) => targets.push(e.currentTarget.id));
+            parent.addEventListener('click', (e) => targets.push(e.currentTarget.id));
+            child.dispatchEvent(new Event('click', { bubbles: true }));
+            JSON.stringify(targets)
+        "#,
+        );
+        let v: serde_json::Value = serde_json::from_str(result.as_str().unwrap()).unwrap();
+        assert_eq!(v, serde_json::json!(["parent", "child", "parent"]));
+    }
+
+    #[test]
+    fn test_prevent_default() {
+        let mut rt = create_runtime_with_dom();
+        let result = eval_js(
+            &mut rt,
+            r#"
+            const el = document.createElement('button');
+            el.addEventListener('click', (e) => e.preventDefault());
+            const result = el.dispatchEvent(new Event('click', { cancelable: true }));
+            JSON.stringify({ returnValue: result, defaultPrevented: true })
+        "#,
+        );
+        let v: serde_json::Value = serde_json::from_str(result.as_str().unwrap()).unwrap();
+        assert_eq!(v["returnValue"], false);
+    }
+
+    #[test]
+    fn test_prevent_default_non_cancelable() {
+        let mut rt = create_runtime_with_dom();
+        let result = eval_js(
+            &mut rt,
+            r#"
+            const el = document.createElement('button');
+            el.addEventListener('click', (e) => e.preventDefault());
+            const result = el.dispatchEvent(new Event('click', { cancelable: false }));
+            result
+        "#,
+        );
+        // Non-cancelable events can't be prevented
+        assert_eq!(result, serde_json::json!(true));
+    }
+
+    #[test]
+    fn test_listener_snapshot_semantics() {
+        let mut rt = create_runtime_with_dom();
+        let result = eval_js(
+            &mut rt,
+            r#"
+            const el = document.createElement('div');
+            const log = [];
+            el.addEventListener('click', () => {
+                log.push('first');
+                // Adding a listener during dispatch should NOT fire in this dispatch
+                el.addEventListener('click', () => log.push('added-during'));
+            });
+            el.dispatchEvent(new Event('click'));
+            JSON.stringify(log)
+        "#,
+        );
+        let v: serde_json::Value = serde_json::from_str(result.as_str().unwrap()).unwrap();
+        assert_eq!(v, serde_json::json!(["first"]));
+    }
+
+    #[test]
+    fn test_click_method_bubbles() {
+        let mut rt = create_runtime_with_dom();
+        let result = eval_js(
+            &mut rt,
+            r#"
+            const parent = document.createElement('div');
+            const child = document.createElement('button');
+            parent.appendChild(child);
+
+            let parentCalled = false;
+            parent.addEventListener('click', () => { parentCalled = true; });
+            child.click();
+            parentCalled
+        "#,
+        );
+        assert_eq!(result, serde_json::json!(true));
+    }
+
+    #[test]
+    fn test_custom_event_detail() {
+        let mut rt = create_runtime_with_dom();
+        let result = eval_js(
+            &mut rt,
+            r#"
+            const el = document.createElement('div');
+            let received = null;
+            el.addEventListener('my-event', (e) => { received = e.detail; });
+            el.dispatchEvent(new CustomEvent('my-event', { detail: { foo: 42 } }));
+            JSON.stringify(received)
+        "#,
+        );
+        let v: serde_json::Value = serde_json::from_str(result.as_str().unwrap()).unwrap();
+        assert_eq!(v["foo"], 42);
+    }
+
+    #[test]
+    fn test_focus_blur_events() {
+        let mut rt = create_runtime_with_dom();
+        let result = eval_js(
+            &mut rt,
+            r#"
+            const input = document.createElement('input');
+            document.body.appendChild(input);
+            input.focus();
+            const afterFocus = document.activeElement === input;
+            input.blur();
+            const afterBlur = document.activeElement === document.body;
+            JSON.stringify({ afterFocus, afterBlur })
+        "#,
+        );
+        let v: serde_json::Value = serde_json::from_str(result.as_str().unwrap()).unwrap();
+        assert_eq!(v["afterFocus"], true);
+        assert_eq!(v["afterBlur"], true);
+    }
+
+    #[test]
+    fn test_remove_event_listener() {
+        let mut rt = create_runtime_with_dom();
+        let result = eval_js(
+            &mut rt,
+            r#"
+            const el = document.createElement('div');
+            let count = 0;
+            const handler = () => { count++; };
+            el.addEventListener('click', handler);
+            el.dispatchEvent(new Event('click'));
+            el.removeEventListener('click', handler);
+            el.dispatchEvent(new Event('click'));
+            count
+        "#,
+        );
+        assert_eq!(result, serde_json::json!(1));
+    }
+
+    #[test]
+    fn test_remove_capture_listener_only() {
+        let mut rt = create_runtime_with_dom();
+        let result = eval_js(
+            &mut rt,
+            r#"
+            const el = document.createElement('div');
+            const log = [];
+            const handler = () => log.push('fired');
+            el.addEventListener('click', handler, true);  // capture
+            el.addEventListener('click', handler, false);  // bubble
+            // Remove only the capture one
+            el.removeEventListener('click', handler, true);
+            el.dispatchEvent(new Event('click'));
+            log.length
+        "#,
+        );
+        // Bubble listener should still be there
         assert_eq!(result, serde_json::json!(1));
     }
 
