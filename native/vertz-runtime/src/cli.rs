@@ -1,8 +1,15 @@
 use clap::{Parser, Subcommand};
 use std::path::PathBuf;
 
+/// Version from VERTZ_VERSION env var (set by CI from npm package version),
+/// falling back to CARGO_PKG_VERSION for local dev builds.
+const VERSION: &str = match option_env!("VERTZ_VERSION") {
+    Some(v) => v,
+    None => env!("CARGO_PKG_VERSION"),
+};
+
 #[derive(Parser, Debug)]
-#[command(name = "vertz-runtime", version, about = "Vertz Development Runtime")]
+#[command(name = "vertz-runtime", version = VERSION, about = "Vertz Development Runtime")]
 pub struct Cli {
     #[command(subcommand)]
     pub command: Command,
