@@ -22,6 +22,7 @@
 //! - `vertz_get_diagnostics` — Server health snapshot
 //! - `vertz_get_events_url` — WebSocket URL for real-time LLM event push
 
+use crate::runtime::persistent_isolate::IsolateRequest;
 use crate::server::console_log::LogLevel;
 use crate::server::module_server::DevServerState;
 use axum::body::{Body, Bytes};
@@ -209,6 +210,20 @@ fn tool_definitions() -> serde_json::Value {
                     "properties": {},
                     "required": []
                 }
+            },
+            {
+                "name": "vertz_get_api_spec",
+                "description": "Returns the app's OpenAPI 3.1 specification including all entity CRUD routes, service endpoints, schemas, and access rules.",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "filter": {
+                            "type": "string",
+                            "description": "Filter by entity or service name (e.g., 'tasks', 'analytics'). Returns only paths tagged with the matching name. Comma-separated for multiple (e.g., 'tasks,users'). Component schemas are pruned to only those referenced by included paths."
+                        }
+                    },
+                    "required": []
+                }
             }
         ]
     })
@@ -365,7 +380,159 @@ async fn execute_tool(
             }))
         }
 
+        "vertz_get_api_spec" => {
+            let filter = args.get("filter").and_then(|v| v.as_str());
+
+            // Fetch the OpenAPI spec from the API isolate
+            let isolate = state
+                .api_isolate
+                .read()
+                .unwrap_or_else(|e| e.into_inner())
+                .clone();
+
+            let isolate = match isolate {
+                Some(i) if i.is_initialized() => i,
+                _ => {
+                    return Ok(serde_json::json!({
+                        "content": [{
+                            "type": "text",
+                            "text": "No API server configured or server is still initializing."
+                        }],
+                        "isError": true
+                    }));
+                }
+            };
+
+            let req = IsolateRequest {
+                method: "GET".to_string(),
+                url: format!("http://localhost:{}/api/openapi.json", state.port),
+                headers: vec![],
+                body: None,
+            };
+
+            match isolate.handle_request(req).await {
+                Ok(response) if response.status == 200 => {
+                    let body_str = String::from_utf8_lossy(&response.body).to_string();
+
+                    // Apply tag-based filter if provided
+                    let result_text = if let Some(filter_str) = filter {
+                        filter_openapi_spec(&body_str, filter_str)
+                    } else {
+                        body_str
+                    };
+
+                    Ok(serde_json::json!({
+                        "content": [{ "type": "text", "text": result_text }]
+                    }))
+                }
+                Ok(response) => Ok(serde_json::json!({
+                    "content": [{
+                        "type": "text",
+                        "text": format!(
+                            "OpenAPI spec not available (HTTP {}). The server may not have entities/services configured, or openapi may be disabled.",
+                            response.status
+                        )
+                    }],
+                    "isError": true
+                })),
+                Err(e) => Err(format!("Failed to fetch OpenAPI spec: {}", e)),
+            }
+        }
+
         _ => Err(format!("Unknown tool: {}", name)),
+    }
+}
+
+// ── OpenAPI Spec Filtering ──────────────────────────────────────────
+
+/// Filters an OpenAPI spec JSON string by tag names.
+/// Returns only paths whose operations include at least one matching tag.
+/// Component schemas are pruned to those referenced by included paths.
+fn filter_openapi_spec(spec_json: &str, filter: &str) -> String {
+    let mut spec: serde_json::Value = match serde_json::from_str(spec_json) {
+        Ok(v) => v,
+        Err(_) => return spec_json.to_string(),
+    };
+
+    let tags: Vec<&str> = filter.split(',').map(|s| s.trim()).collect();
+
+    // Filter paths: keep only those whose operations have a matching tag
+    let mut refs_used: Vec<String> = Vec::new();
+    if let Some(paths) = spec.get_mut("paths").and_then(|p| p.as_object_mut()) {
+        let keys: Vec<String> = paths.keys().cloned().collect();
+        for key in keys {
+            let path_item = &paths[&key];
+            let has_matching_tag = ["get", "post", "put", "patch", "delete"]
+                .iter()
+                .any(|method| {
+                    path_item
+                        .get(method)
+                        .and_then(|op| op.get("tags"))
+                        .and_then(|t| t.as_array())
+                        .is_some_and(|arr| {
+                            arr.iter().any(|tag| {
+                                tag.as_str()
+                                    .is_some_and(|t| tags.iter().any(|f| *f == t))
+                            })
+                        })
+                });
+            if !has_matching_tag {
+                paths.remove(&key);
+            } else {
+                // Collect $ref references from included paths
+                collect_refs(path_item, &mut refs_used);
+            }
+        }
+    }
+
+    // Prune component schemas to only referenced ones
+    if !refs_used.is_empty() {
+        if let Some(schemas) = spec
+            .get_mut("components")
+            .and_then(|c| c.get_mut("schemas"))
+            .and_then(|s| s.as_object_mut())
+        {
+            let schema_keys: Vec<String> = schemas.keys().cloned().collect();
+            for key in schema_keys {
+                let ref_name = format!("#/components/schemas/{}", key);
+                if !refs_used.contains(&ref_name) {
+                    schemas.remove(&key);
+                }
+            }
+        }
+    }
+
+    // Filter tags array
+    if let Some(tag_arr) = spec.get_mut("tags").and_then(|t| t.as_array_mut()) {
+        tag_arr.retain(|t| {
+            t.get("name")
+                .and_then(|n| n.as_str())
+                .is_some_and(|n| tags.iter().any(|f| *f == n))
+        });
+    }
+
+    serde_json::to_string_pretty(&spec).unwrap_or_else(|_| spec_json.to_string())
+}
+
+/// Recursively collects all $ref strings from a JSON value.
+fn collect_refs(value: &serde_json::Value, refs: &mut Vec<String>) {
+    match value {
+        serde_json::Value::Object(map) => {
+            if let Some(r) = map.get("$ref").and_then(|v| v.as_str()) {
+                if !refs.contains(&r.to_string()) {
+                    refs.push(r.to_string());
+                }
+            }
+            for v in map.values() {
+                collect_refs(v, refs);
+            }
+        }
+        serde_json::Value::Array(arr) => {
+            for v in arr {
+                collect_refs(v, refs);
+            }
+        }
+        _ => {}
     }
 }
 
@@ -722,7 +889,7 @@ mod tests {
         let defs = tool_definitions();
         let tools = defs["tools"].as_array().unwrap();
 
-        assert_eq!(tools.len(), 6);
+        assert_eq!(tools.len(), 7);
 
         let names: Vec<&str> = tools.iter().map(|t| t["name"].as_str().unwrap()).collect();
         assert!(names.contains(&"vertz_get_errors"));
@@ -731,6 +898,7 @@ mod tests {
         assert!(names.contains(&"vertz_navigate"));
         assert!(names.contains(&"vertz_get_diagnostics"));
         assert!(names.contains(&"vertz_get_events_url"));
+        assert!(names.contains(&"vertz_get_api_spec"));
     }
 
     #[test]
@@ -824,7 +992,7 @@ mod tests {
         let resp = handle_mcp_message(&state, req).await.unwrap();
         let result = resp.result.unwrap();
         let tools = result["tools"].as_array().unwrap();
-        assert_eq!(tools.len(), 6);
+        assert_eq!(tools.len(), 7);
     }
 
     #[tokio::test]
@@ -1069,5 +1237,122 @@ mod tests {
         let resp = handle_mcp_message(&state, req).await.unwrap();
         assert!(resp.error.is_some());
         assert_eq!(resp.error.unwrap().code, -32603);
+    }
+
+    #[test]
+    fn test_filter_openapi_spec_by_tag() {
+        let spec = serde_json::json!({
+            "openapi": "3.1.0",
+            "info": { "title": "Test API", "version": "1.0.0" },
+            "paths": {
+                "/api/tasks": {
+                    "get": {
+                        "tags": ["tasks"],
+                        "operationId": "listTasks"
+                    }
+                },
+                "/api/users": {
+                    "get": {
+                        "tags": ["users"],
+                        "operationId": "listUsers"
+                    }
+                }
+            },
+            "tags": [
+                { "name": "tasks" },
+                { "name": "users" }
+            ],
+            "components": {
+                "schemas": {
+                    "TasksResponse": { "type": "object" },
+                    "UsersResponse": { "type": "object" }
+                }
+            }
+        });
+
+        let result = filter_openapi_spec(&spec.to_string(), "tasks");
+        let filtered: serde_json::Value = serde_json::from_str(&result).unwrap();
+
+        assert!(filtered["paths"]["/api/tasks"].is_object());
+        assert!(filtered["paths"]["/api/users"].is_null());
+        assert_eq!(filtered["tags"].as_array().unwrap().len(), 1);
+        assert_eq!(filtered["tags"][0]["name"], "tasks");
+    }
+
+    #[test]
+    fn test_filter_openapi_spec_multiple_tags() {
+        let spec = serde_json::json!({
+            "openapi": "3.1.0",
+            "paths": {
+                "/api/tasks": { "get": { "tags": ["tasks"] } },
+                "/api/users": { "get": { "tags": ["users"] } },
+                "/api/analytics": { "get": { "tags": ["analytics"] } }
+            },
+            "tags": [
+                { "name": "tasks" },
+                { "name": "users" },
+                { "name": "analytics" }
+            ]
+        });
+
+        let result = filter_openapi_spec(&spec.to_string(), "tasks,users");
+        let filtered: serde_json::Value = serde_json::from_str(&result).unwrap();
+
+        assert!(filtered["paths"]["/api/tasks"].is_object());
+        assert!(filtered["paths"]["/api/users"].is_object());
+        assert!(filtered["paths"]["/api/analytics"].is_null());
+    }
+
+    #[test]
+    fn test_filter_openapi_spec_no_match() {
+        let spec = serde_json::json!({
+            "openapi": "3.1.0",
+            "paths": {
+                "/api/tasks": { "get": { "tags": ["tasks"] } }
+            }
+        });
+
+        let result = filter_openapi_spec(&spec.to_string(), "nonexistent");
+        let filtered: serde_json::Value = serde_json::from_str(&result).unwrap();
+
+        assert!(filtered["paths"].as_object().unwrap().is_empty());
+    }
+
+    #[test]
+    fn test_filter_openapi_spec_prunes_schemas() {
+        let spec = serde_json::json!({
+            "openapi": "3.1.0",
+            "paths": {
+                "/api/tasks": {
+                    "get": {
+                        "tags": ["tasks"],
+                        "responses": {
+                            "200": {
+                                "content": {
+                                    "application/json": {
+                                        "schema": { "$ref": "#/components/schemas/TasksResponse" }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "components": {
+                "schemas": {
+                    "TasksResponse": { "type": "object" },
+                    "UsersResponse": { "type": "object" },
+                    "ErrorResponse": { "type": "object" }
+                }
+            }
+        });
+
+        let result = filter_openapi_spec(&spec.to_string(), "tasks");
+        let filtered: serde_json::Value = serde_json::from_str(&result).unwrap();
+
+        let schemas = filtered["components"]["schemas"].as_object().unwrap();
+        assert!(schemas.contains_key("TasksResponse"));
+        assert!(!schemas.contains_key("UsersResponse"));
+        assert!(!schemas.contains_key("ErrorResponse"));
     }
 }
