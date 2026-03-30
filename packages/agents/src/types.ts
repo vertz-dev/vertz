@@ -46,10 +46,28 @@ export interface ToolConfig<
   readonly execution?: ToolExecution;
 }
 
+/** Options for invoking another agent. */
+export interface InvokeOptions {
+  readonly message: string;
+  readonly instanceId?: string;
+}
+
+/** Agent invocation capability on tool context. */
+export interface AgentInvoker {
+  /* eslint-disable @typescript-eslint/no-explicit-any -- agent definitions have varying types */
+  invoke(
+    agentDef: AgentDefinition<any, any, any>,
+    options: InvokeOptions,
+  ): Promise<{ response: string }>;
+  /* eslint-enable @typescript-eslint/no-explicit-any */
+}
+
 /** Runtime context available to tool handlers. */
 export interface ToolContext {
   readonly agentId: string;
   readonly agentName: string;
+  /** Invoke another agent from within a tool handler. */
+  readonly agents: AgentInvoker;
 }
 
 /** The frozen definition returned by `tool()`. */
