@@ -1,4 +1,5 @@
 import { Benchmarks } from '../components/benchmarks';
+import { CommunityDiscord } from '../components/community-discord';
 import { FAQ } from '../components/faq';
 import { Features } from '../components/features';
 import { Footer } from '../components/footer';
@@ -113,6 +114,8 @@ export function HomePage() {
         <FAQ />
         <Divider />
         <Founders />
+        <Divider />
+        <CommunityDiscord />
       </main>
       <Footer />
     </div>
