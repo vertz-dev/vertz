@@ -13,6 +13,7 @@ use deno_core::RequestedModuleType;
 use deno_core::ResolutionKind;
 
 use crate::compiler::pipeline::post_process_compiled;
+use crate::runtime::compile_cache::{CachedCompilation, CompileCache};
 use vertz_compiler_core::CompileOptions;
 
 /// Source maps collected during module loading.
@@ -26,10 +27,12 @@ pub type SourceMapStore = RefCell<HashMap<String, String>>;
 /// - TypeScript/TSX compilation via vertz-compiler-core
 /// - Source map collection for error reporting
 /// - URL canonicalization to ensure same physical file = same module identity
+/// - Compilation caching (disk-backed, content-hash-keyed)
 pub struct VertzModuleLoader {
     root_dir: PathBuf,
     source_maps: SourceMapStore,
     canon_cache: RefCell<HashMap<PathBuf, PathBuf>>,
+    compile_cache: CompileCache,
 }
 
 impl VertzModuleLoader {
@@ -38,6 +41,17 @@ impl VertzModuleLoader {
             root_dir: PathBuf::from(root_dir),
             source_maps: RefCell::new(HashMap::new()),
             canon_cache: RefCell::new(HashMap::new()),
+            compile_cache: CompileCache::new(Path::new(root_dir), false),
+        }
+    }
+
+    /// Create a new module loader with compilation caching enabled.
+    pub fn new_with_cache(root_dir: &str, cache_enabled: bool) -> Self {
+        Self {
+            root_dir: PathBuf::from(root_dir),
+            source_maps: RefCell::new(HashMap::new()),
+            canon_cache: RefCell::new(HashMap::new()),
+            compile_cache: CompileCache::new(Path::new(root_dir), cache_enabled),
         }
     }
 
@@ -259,13 +273,56 @@ impl VertzModuleLoader {
         ))
     }
 
+    /// Prepend a CSS injection call to compiled JS code.
+    ///
+    /// If CSS was extracted by the compiler, this wraps it in a
+    /// `__vertz_inject_css()` call so the SSR renderer can collect styles.
+    fn prepend_css_injection(code: String, css: Option<&str>, filename: &str) -> String {
+        match css {
+            Some(css) => {
+                let escaped = css
+                    .replace('\\', "\\\\")
+                    .replace('`', "\\`")
+                    .replace("${", "\\${");
+                format!(
+                    "if (typeof __vertz_inject_css === 'function') {{ __vertz_inject_css(`{}`, '{}'); }}\n{}",
+                    escaped,
+                    filename.replace('\\', "/"),
+                    code
+                )
+            }
+            None => code,
+        }
+    }
+
     /// Compile TypeScript/TSX source code using vertz-compiler-core.
+    ///
+    /// Checks the disk-backed compilation cache first. On cache hit, skips
+    /// the compiler entirely and returns the cached result. On cache miss,
+    /// compiles, post-processes, caches the result, and returns.
     fn compile_source(&self, source: &str, filename: &str) -> Result<String, AnyError> {
+        let target = "ssr";
+
+        // Check compilation cache first
+        if let Some(cached) = self.compile_cache.get(source, target) {
+            // Restore source map from cache
+            if let Some(ref map) = cached.source_map {
+                self.source_maps
+                    .borrow_mut()
+                    .insert(filename.to_string(), map.clone());
+            }
+            return Ok(Self::prepend_css_injection(
+                cached.code,
+                cached.css.as_deref(),
+                filename,
+            ));
+        }
+
         let result = vertz_compiler_core::compile(
             source,
             CompileOptions {
                 filename: Some(filename.to_string()),
-                target: Some("ssr".to_string()),
+                target: Some(target.to_string()),
                 ..Default::default()
             },
         );
@@ -298,26 +355,24 @@ impl VertzModuleLoader {
 
         // Apply the same post-processing as the browser pipeline:
         // fix API names, split internal imports, strip leftover TS, deduplicate imports
-        let mut code = post_process_compiled(&result.code);
+        let code = post_process_compiled(&result.code);
 
-        // Inject extracted CSS for SSR collection.
-        // The compiler extracts `css()` calls into static class-name objects and returns
-        // the generated CSS separately. For SSR, we need this CSS to be collected by
-        // the DOM shim's `__vertz_inject_css()` so it ends up in the HTML `<head>`.
-        if let Some(ref css) = result.css {
-            let escaped = css
-                .replace('\\', "\\\\")
-                .replace('`', "\\`")
-                .replace("${", "\\${");
-            code = format!(
-                "if (typeof __vertz_inject_css === 'function') {{ __vertz_inject_css(`{}`, '{}'); }}\n{}",
-                escaped,
-                filename.replace('\\', "/"),
-                code
-            );
-        }
+        // Cache the compilation result (code + source map + CSS, before CSS injection)
+        self.compile_cache.put(
+            source,
+            target,
+            &CachedCompilation {
+                code: code.clone(),
+                source_map: result.map.clone(),
+                css: result.css.clone(),
+            },
+        );
 
-        Ok(code)
+        Ok(Self::prepend_css_injection(
+            code,
+            result.css.as_deref(),
+            filename,
+        ))
     }
 }
 

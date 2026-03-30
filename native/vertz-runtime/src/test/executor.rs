@@ -11,10 +11,7 @@ use deno_core::ModuleSpecifier;
 use deno_core::PollEventLoopOptions;
 use serde::{Deserialize, Serialize};
 
-use crate::runtime::async_context::load_async_context;
 use crate::runtime::js_runtime::{VertzJsRuntime, VertzRuntimeOptions};
-
-use super::globals::TEST_HARNESS_JS;
 
 /// Result of executing a single test file.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -102,6 +99,8 @@ pub struct ExecuteOptions {
     /// Root directory for module resolution (workspace root).
     /// When set, overrides the default behavior of using the file's parent directory.
     pub root_dir: Option<std::path::PathBuf>,
+    /// Whether to skip the compilation cache (compile everything fresh).
+    pub no_cache: bool,
 }
 
 impl Default for ExecuteOptions {
@@ -112,6 +111,7 @@ impl Default for ExecuteOptions {
             coverage: false,
             preload: vec![],
             root_dir: None,
+            no_cache: false,
         }
     }
 }
@@ -172,19 +172,17 @@ fn execute_test_file_inner(
     root_dir: &str,
     options: &ExecuteOptions,
 ) -> Result<(Vec<TestResult>, Option<serde_json::Value>), AnyError> {
-    let mut runtime = VertzJsRuntime::new(VertzRuntimeOptions {
+    let mut runtime = VertzJsRuntime::new_for_test(VertzRuntimeOptions {
         root_dir: Some(root_dir.to_string()),
         capture_output: true,
         enable_inspector: options.coverage,
+        compile_cache: !options.no_cache,
     })?;
 
-    // 1. Load async context polyfill (must be before any other JS to capture all promises)
-    load_async_context(&mut runtime)?;
+    // NOTE: async context + test harness are pre-baked in the V8 snapshot,
+    // so we skip load_async_context() and TEST_HARNESS_JS injection.
 
-    // 2. Inject test harness (describe, it, expect, etc.)
-    runtime.execute_script_void("[vertz:test-harness]", TEST_HARNESS_JS)?;
-
-    // 3. Set filter if provided
+    // 1. Set filter if provided
     if let Some(ref filter) = options.filter {
         let escaped = filter.replace('\\', "\\\\").replace('\'', "\\'");
         let set_filter = format!("globalThis.__vertz_test_filter = '{}'", escaped);

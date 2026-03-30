@@ -145,6 +145,10 @@ pub struct TestArgs {
     /// Workspace root directory for module resolution (default: current directory)
     #[arg(long)]
     pub root_dir: Option<PathBuf>,
+
+    /// Skip compilation cache (compile everything fresh)
+    #[arg(long)]
+    pub no_cache: bool,
 }
 
 #[derive(Parser, Debug)]
@@ -990,6 +994,12 @@ mod tests {
     fn test_test_root_dir_default() {
         let args = parse_test(&["vertz-runtime", "test"]);
         assert!(args.root_dir.is_none());
+    }
+
+    #[test]
+    fn test_test_no_cache() {
+        let args = parse_test(&["vertz-runtime", "test", "--no-cache"]);
+        assert!(args.no_cache);
     }
 
     #[test]

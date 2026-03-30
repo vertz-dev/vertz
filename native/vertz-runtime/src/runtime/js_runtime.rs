@@ -47,6 +47,8 @@ pub struct VertzRuntimeOptions {
     pub capture_output: bool,
     /// Whether to enable the V8 inspector (for coverage collection). Defaults to false.
     pub enable_inspector: bool,
+    /// Whether to enable the disk-backed compilation cache. Defaults to false.
+    pub compile_cache: bool,
 }
 
 /// Wrapper around deno_core's JsRuntime with Vertz-specific extensions.
@@ -56,30 +58,61 @@ pub struct VertzJsRuntime {
 }
 
 impl VertzJsRuntime {
+    /// Collect all op declarations for the Vertz runtime extension.
+    ///
+    /// Single source of truth — used by both `new()` and the test snapshot.
+    pub(crate) fn all_op_decls() -> Vec<deno_core::OpDecl> {
+        let mut ops = Vec::new();
+        ops.extend(async_context::op_decls());
+        ops.extend(clone::op_decls());
+        ops.extend(console::op_decls());
+        ops.extend(timers::op_decls());
+        ops.extend(crypto::op_decls());
+        ops.extend(encoding::op_decls());
+        ops.extend(env::op_decls());
+        ops.extend(performance::op_decls());
+        ops.extend(path::op_decls());
+        ops.extend(fetch::op_decls());
+        ops.extend(url::op_decls());
+        ops.extend(crypto_subtle::op_decls());
+        ops.extend(web_api::op_decls());
+        ops.extend(streams::op_decls());
+        ops.extend(os::op_decls());
+        ops.extend(fs::op_decls());
+        ops.extend(sqlite::op_decls());
+        ops
+    }
+
+    /// Concatenate all bootstrap JS into a single string.
+    ///
+    /// Single source of truth — used by both `new()` and the test snapshot.
+    pub(crate) fn bootstrap_js() -> String {
+        [
+            clone::CLONE_BOOTSTRAP_JS,
+            console::CONSOLE_BOOTSTRAP_JS,
+            timers::TIMERS_BOOTSTRAP_JS,
+            crypto::CRYPTO_BOOTSTRAP_JS,
+            encoding::ENCODING_BOOTSTRAP_JS,
+            env::ENV_BOOTSTRAP_JS,
+            performance::PERFORMANCE_BOOTSTRAP_JS,
+            path::PATH_BOOTSTRAP_JS,
+            web_api::WEB_API_BOOTSTRAP_JS,
+            fetch::FETCH_BOOTSTRAP_JS,
+            microtask::MICROTASK_BOOTSTRAP_JS,
+            url::URL_BOOTSTRAP_JS,
+            streams::STREAMS_BOOTSTRAP_JS,
+            os::OS_BOOTSTRAP_JS,
+            fs::FS_BOOTSTRAP_JS,
+        ]
+        .join("\n")
+    }
+
     /// Create a new VertzJsRuntime with all Vertz extensions registered.
     pub fn new(options: VertzRuntimeOptions) -> Result<Self, AnyError> {
         let captured_output = Arc::new(Mutex::new(CapturedOutput::default()));
         let start_time = Instant::now();
 
-        // Collect all op declarations
-        let mut all_ops = Vec::new();
-        all_ops.extend(async_context::op_decls());
-        all_ops.extend(clone::op_decls());
-        all_ops.extend(console::op_decls());
-        all_ops.extend(timers::op_decls());
-        all_ops.extend(crypto::op_decls());
-        all_ops.extend(encoding::op_decls());
-        all_ops.extend(env::op_decls());
-        all_ops.extend(performance::op_decls());
-        all_ops.extend(path::op_decls());
-        all_ops.extend(fetch::op_decls());
-        all_ops.extend(url::op_decls());
-        all_ops.extend(crypto_subtle::op_decls());
-        all_ops.extend(web_api::op_decls());
-        all_ops.extend(streams::op_decls());
-        all_ops.extend(os::op_decls());
-        all_ops.extend(fs::op_decls());
-        all_ops.extend(sqlite::op_decls());
+        let all_ops = Self::all_op_decls();
 
         let capture = options.capture_output;
         let captured_clone = Arc::clone(&captured_output);
@@ -122,7 +155,7 @@ impl VertzJsRuntime {
         // Bootstrap all JS globals
         runtime.execute_script(
             "[vertz:bootstrap]",
-            deno_core::FastString::from(Self::bootstrap_js().to_string()),
+            deno_core::FastString::from(Self::bootstrap_js()),
         )?;
 
         Ok(Self {
@@ -131,26 +164,70 @@ impl VertzJsRuntime {
         })
     }
 
-    /// Concatenate all bootstrap JS into a single string.
-    fn bootstrap_js() -> String {
-        [
-            clone::CLONE_BOOTSTRAP_JS,
-            console::CONSOLE_BOOTSTRAP_JS,
-            timers::TIMERS_BOOTSTRAP_JS,
-            crypto::CRYPTO_BOOTSTRAP_JS,
-            encoding::ENCODING_BOOTSTRAP_JS,
-            env::ENV_BOOTSTRAP_JS,
-            performance::PERFORMANCE_BOOTSTRAP_JS,
-            path::PATH_BOOTSTRAP_JS,
-            web_api::WEB_API_BOOTSTRAP_JS,
-            fetch::FETCH_BOOTSTRAP_JS,
-            microtask::MICROTASK_BOOTSTRAP_JS,
-            url::URL_BOOTSTRAP_JS,
-            streams::STREAMS_BOOTSTRAP_JS,
-            os::OS_BOOTSTRAP_JS,
-            fs::FS_BOOTSTRAP_JS,
-        ]
-        .join("\n")
+    /// Create a new VertzJsRuntime from the pre-built test snapshot.
+    ///
+    /// Significantly faster than `new()` because bootstrap JS, async context,
+    /// and test harness are pre-baked into a V8 snapshot, skipping JS
+    /// parsing/execution overhead.
+    ///
+    /// Post-restore steps:
+    /// 1. Re-registers native V8 functions (structuredClone, promise hooks)
+    /// 2. Re-installs promise hooks from stored functions on globalThis
+    pub fn new_for_test(options: VertzRuntimeOptions) -> Result<Self, AnyError> {
+        let captured_output = Arc::new(Mutex::new(CapturedOutput::default()));
+        let start_time = Instant::now();
+
+        let capture = options.capture_output;
+        let captured_clone = Arc::clone(&captured_output);
+
+        let ext = Extension {
+            name: "vertz",
+            ops: std::borrow::Cow::Owned(Self::all_op_decls()),
+            op_state_fn: Some(Box::new(move |state| {
+                state.put(console::ConsoleState {
+                    capture,
+                    captured: Arc::clone(&captured_clone),
+                });
+                state.put(performance::PerformanceState { start_time });
+                state.put(crypto_subtle::CryptoKeyStore::default());
+                state.put(sqlite::SqliteStore::default());
+            })),
+            ..Default::default()
+        };
+
+        let cache_enabled = options.compile_cache;
+        let root_dir = options.root_dir.unwrap_or_else(|| {
+            std::env::current_dir()
+                .unwrap()
+                .to_string_lossy()
+                .to_string()
+        });
+        let module_loader = Rc::new(VertzModuleLoader::new_with_cache(&root_dir, cache_enabled));
+
+        let snapshot = crate::test::snapshot::get_test_snapshot();
+
+        let mut runtime = JsRuntime::new(RuntimeOptions {
+            startup_snapshot: Some(snapshot),
+            module_loader: Some(module_loader),
+            extensions: vec![ext],
+            inspector: options.enable_inspector,
+            ..Default::default()
+        });
+
+        // Re-register native V8 functions (not preserved in snapshot)
+        clone::register_structured_clone(&mut runtime);
+        async_context::register_promise_hooks(&mut runtime);
+
+        // Re-install promise hooks from stored functions on globalThis
+        runtime.execute_script(
+            "[vertz:rehook]",
+            deno_core::FastString::from(crate::test::snapshot::ASYNC_CONTEXT_REHOOK_JS.to_string()),
+        )?;
+
+        Ok(Self {
+            runtime,
+            captured_output,
+        })
     }
 
     /// Execute a JavaScript snippet and return the result as a serde_json::Value.

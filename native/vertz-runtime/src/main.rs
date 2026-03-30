@@ -79,6 +79,7 @@ async fn main() {
                 } else {
                     file_config.preload
                 },
+                no_cache: args.no_cache,
             };
 
             if args.watch {
