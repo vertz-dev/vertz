@@ -193,7 +193,7 @@ describe('reactLoop()', () => {
   });
 
   describe('Given a checkpoint callback', () => {
-    describe('When checkpointEvery iterations pass', () => {
+    describe('When checkpointInterval iterations pass', () => {
       it('Then calls the checkpoint callback at the right intervals', async () => {
         const noop = makeTool('noop', () => ({}));
         const checkpoints: number[] = [];
@@ -212,7 +212,7 @@ describe('reactLoop()', () => {
           systemPrompt: 'You are helpful.',
           userMessage: 'Do stuff',
           maxIterations: 10,
-          checkpointEvery: 2,
+          checkpointInterval: 2,
           onCheckpoint(iteration, messages) {
             checkpoints.push(iteration);
           },

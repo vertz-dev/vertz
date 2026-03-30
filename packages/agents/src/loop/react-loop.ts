@@ -56,7 +56,7 @@ export interface ReactLoopOptions {
   readonly systemPrompt: string;
   readonly userMessage: string;
   readonly maxIterations: number;
-  readonly checkpointEvery?: number;
+  readonly checkpointInterval?: number;
   readonly onCheckpoint?: (iteration: number, messages: readonly Message[]) => void;
 }
 
@@ -72,7 +72,7 @@ export interface ReactLoopOptions {
  * limit is reached.
  */
 export async function reactLoop(options: ReactLoopOptions): Promise<LoopResult> {
-  const { llm, tools, systemPrompt, userMessage, maxIterations, checkpointEvery, onCheckpoint } =
+  const { llm, tools, systemPrompt, userMessage, maxIterations, checkpointInterval, onCheckpoint } =
     options;
 
   const messages: Message[] = [
@@ -170,7 +170,7 @@ export async function reactLoop(options: ReactLoopOptions): Promise<LoopResult> 
     }
 
     // Checkpoint callback
-    if (checkpointEvery && onCheckpoint && iteration % checkpointEvery === 0) {
+    if (checkpointInterval && onCheckpoint && iteration % checkpointInterval === 0) {
       onCheckpoint(iteration, messages);
     }
   }

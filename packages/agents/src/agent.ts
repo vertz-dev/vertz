@@ -1,8 +1,9 @@
-import type { Schema, SchemaAny } from '@vertz/schema';
+import type { SchemaAny } from '@vertz/schema';
 import type {
   AgentConfig,
   AgentDefinition,
   AgentLoopConfig,
+  AgentPromptConfig,
   InferSchema,
   ToolDefinition,
 } from './types';
@@ -13,8 +14,10 @@ const DEFAULT_LOOP: AgentLoopConfig = {
   maxIterations: 20,
   onStuck: 'stop',
   stuckThreshold: 3,
-  checkpointEvery: 5,
+  checkpointInterval: 5,
 };
+
+const DEFAULT_PROMPT: AgentPromptConfig = {};
 
 /**
  * Define an AI agent with typed state, tools, and LLM configuration.
@@ -29,11 +32,12 @@ export function agent<
     string,
     ToolDefinition<any, any>
   >,
->
-/* eslint-enable @typescript-eslint/no-explicit-any */(
+  TOutputSchema extends SchemaAny | undefined = undefined,
+>(
   name: string,
-  config: AgentConfig<InferSchema<TStateSchema>, TStateSchema, TTools>,
-): AgentDefinition<InferSchema<TStateSchema>, TTools> {
+  config: AgentConfig<InferSchema<TStateSchema>, TStateSchema, TTools, TOutputSchema>,
+): AgentDefinition<InferSchema<TStateSchema>, TTools, TOutputSchema> {
+  /* eslint-enable @typescript-eslint/no-explicit-any */
   if (!name || !AGENT_NAME_PATTERN.test(name)) {
     throw new Error(
       `agent() name must be a non-empty lowercase string matching /^[a-z][a-z0-9-]*$/. Got: "${name}"`,
@@ -44,14 +48,21 @@ export function agent<
     ? { ...DEFAULT_LOOP, ...config.loop }
     : { ...DEFAULT_LOOP };
 
+  const prompt: AgentPromptConfig = config.prompt
+    ? { ...DEFAULT_PROMPT, ...config.prompt }
+    : { ...DEFAULT_PROMPT };
+
   type TState = InferSchema<TStateSchema>;
-  const def: AgentDefinition<TState, TTools> = {
+  const def: AgentDefinition<TState, TTools, TOutputSchema> = {
     kind: 'agent',
     name,
+    description: config.description,
     state: config.state as SchemaAny,
     initialState: config.initialState,
+    output: config.output,
     tools: config.tools,
     model: config.model,
+    prompt,
     loop,
     access: config.access ?? {},
     inject: config.inject ?? {},

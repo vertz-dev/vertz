@@ -7,6 +7,16 @@ import type { Schema, SchemaAny } from '@vertz/schema';
 /** Infer the output type from a Schema instance. */
 export type InferSchema<T extends SchemaAny> = T['_output'];
 
+/** Infer the output type of an agent. Resolves to the output schema type if defined, otherwise `{ response: string }`. */
+/* eslint-disable @typescript-eslint/no-explicit-any -- any needed for conditional type matching */
+export type InferAgentOutput<T extends AgentDefinition<any, any, any>> =
+  T extends AgentDefinition<any, any, infer TOutput>
+    ? TOutput extends SchemaAny
+      ? InferSchema<TOutput>
+      : { response: string }
+    : { response: string };
+/* eslint-enable @typescript-eslint/no-explicit-any */
+
 // ---------------------------------------------------------------------------
 // Tool types
 // ---------------------------------------------------------------------------
@@ -60,11 +70,15 @@ export interface ToolDefinition<TInput = unknown, TOutput = unknown> {
 /** LLM provider identifier. */
 export type ModelProvider = 'cloudflare' | 'anthropic' | 'minimax' | 'openai';
 
-/** LLM model configuration for an agent. */
+/** LLM model selection for an agent. Provider credentials are environment-level, not code. */
 export interface AgentModelConfig {
   readonly provider: ModelProvider;
   readonly model: string;
-  readonly systemPrompt?: string;
+}
+
+/** Agent prompt and behavior configuration. */
+export interface AgentPromptConfig {
+  readonly system?: string;
   readonly maxTokens?: number;
 }
 
@@ -76,7 +90,7 @@ export interface AgentLoopConfig {
   readonly maxIterations: number;
   readonly onStuck?: OnStuckBehavior;
   readonly stuckThreshold?: number;
-  readonly checkpointEvery?: number;
+  readonly checkpointInterval?: number;
 }
 
 /** Configuration passed to the `agent()` factory. */
@@ -88,12 +102,15 @@ export interface AgentConfig<
     string,
     ToolDefinition<any, any>
   >,
->
-/* eslint-enable @typescript-eslint/no-explicit-any */ {
+  TOutputSchema extends SchemaAny | undefined = undefined,
+> {
+  /* eslint-enable @typescript-eslint/no-explicit-any */ readonly description?: string;
   readonly state: TStateSchema;
   readonly initialState: NoInfer<TState>;
+  readonly output?: TOutputSchema;
   readonly tools: TTools;
   readonly model: AgentModelConfig;
+  readonly prompt?: AgentPromptConfig;
   readonly loop?: AgentLoopConfig;
   readonly access?: Partial<Record<'invoke' | 'approve', unknown>>;
   readonly inject?: Record<string, unknown>;
@@ -119,14 +136,17 @@ export interface AgentDefinition<
     string,
     ToolDefinition<any, any>
   >,
->
-/* eslint-enable @typescript-eslint/no-explicit-any */ {
-  readonly kind: 'agent';
+  TOutputSchema extends SchemaAny | undefined = undefined,
+> {
+  /* eslint-enable @typescript-eslint/no-explicit-any */ readonly kind: 'agent';
   readonly name: string;
+  readonly description?: string;
   readonly state: SchemaAny;
   readonly initialState: TState;
+  readonly output?: TOutputSchema;
   readonly tools: TTools;
   readonly model: AgentModelConfig;
+  readonly prompt: AgentPromptConfig;
   readonly loop: AgentLoopConfig;
   readonly access: Partial<Record<string, unknown>>;
   readonly inject: Record<string, unknown>;

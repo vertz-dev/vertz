@@ -90,3 +90,76 @@ agent('bad-loop', {
   // @ts-expect-error — 'invalid-behavior' is not a valid OnStuckBehavior
   loop: { maxIterations: 10, onStuck: 'invalid-behavior' },
 });
+
+// ---------------------------------------------------------------------------
+// Description field on agent
+// ---------------------------------------------------------------------------
+
+// Agent accepts description
+agent('described', {
+  description: 'A test agent that does things',
+  state: s.object({}),
+  initialState: {},
+  tools: {},
+  model: { provider: 'cloudflare', model: 'test' },
+});
+
+// ---------------------------------------------------------------------------
+// Output schema on agent
+// ---------------------------------------------------------------------------
+
+// Agent accepts output schema
+const agentWithOutput = agent('with-output', {
+  state: s.object({ count: s.number() }),
+  initialState: { count: 0 },
+  output: s.object({ summary: s.string(), total: s.number() }),
+  tools: {},
+  model: { provider: 'cloudflare', model: 'test' },
+});
+
+// InferAgentOutput resolves to the output schema type
+import type { InferAgentOutput } from './types';
+type OutputType = InferAgentOutput<typeof agentWithOutput>;
+const _output: OutputType = { summary: 'done', total: 5 };
+void _output;
+
+// @ts-expect-error — wrong type for InferAgentOutput (summary should be string, not number)
+const _badOutput: OutputType = { summary: 123, total: 5 };
+void _badOutput;
+
+// InferAgentOutput defaults to { response: string } when no output schema
+const agentNoOutput = agent('no-output', {
+  state: s.object({}),
+  initialState: {},
+  tools: {},
+  model: { provider: 'cloudflare', model: 'test' },
+});
+type DefaultOutputType = InferAgentOutput<typeof agentNoOutput>;
+const _defaultOutput: DefaultOutputType = { response: 'hello' };
+void _defaultOutput;
+
+// ---------------------------------------------------------------------------
+// Prompt config (separate from model)
+// ---------------------------------------------------------------------------
+
+// Agent accepts prompt config
+agent('with-prompt', {
+  state: s.object({}),
+  initialState: {},
+  tools: {},
+  model: { provider: 'cloudflare', model: 'test' },
+  prompt: { system: 'You are helpful.', maxTokens: 4096 },
+});
+
+// ---------------------------------------------------------------------------
+// checkpointInterval (renamed from checkpointEvery)
+// ---------------------------------------------------------------------------
+
+// Agent accepts checkpointInterval in loop config
+agent('with-interval', {
+  state: s.object({}),
+  initialState: {},
+  tools: {},
+  model: { provider: 'cloudflare', model: 'test' },
+  loop: { maxIterations: 10, checkpointInterval: 5 },
+});

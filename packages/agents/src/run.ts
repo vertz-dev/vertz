@@ -31,7 +31,7 @@ export interface RunOptions {
  */
 export async function run(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- agent definitions have varying state/tool types
-  agentDef: AgentDefinition<any, any>,
+  agentDef: AgentDefinition<any, any, any>,
   options: RunOptions,
 ): Promise<LoopResult> {
   const { message, llm, instanceId } = options;
@@ -57,7 +57,7 @@ export async function run(
 
   // Build system prompt
   const systemPrompt =
-    agentDef.model.systemPrompt ??
+    agentDef.prompt.system ??
     `You are an AI agent named "${agentDef.name}". Use the available tools to accomplish the user's request.`;
 
   // Run the ReAct loop
@@ -67,7 +67,7 @@ export async function run(
     systemPrompt,
     userMessage: message,
     maxIterations: agentDef.loop.maxIterations,
-    checkpointEvery: agentDef.loop.checkpointEvery,
+    checkpointInterval: agentDef.loop.checkpointInterval,
   });
 
   // Lifecycle: onComplete or onStuck

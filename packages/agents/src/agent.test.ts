@@ -48,7 +48,7 @@ describe('agent()', () => {
             maxIterations: 50,
             onStuck: 'escalate',
             stuckThreshold: 5,
-            checkpointEvery: 10,
+            checkpointInterval: 10,
           },
         });
 
@@ -56,7 +56,7 @@ describe('agent()', () => {
           maxIterations: 50,
           onStuck: 'escalate',
           stuckThreshold: 5,
-          checkpointEvery: 10,
+          checkpointInterval: 10,
         });
       });
     });
@@ -76,7 +76,7 @@ describe('agent()', () => {
           maxIterations: 20,
           onStuck: 'stop',
           stuckThreshold: 3,
-          checkpointEvery: 5,
+          checkpointInterval: 5,
         });
       });
     });
@@ -128,6 +128,88 @@ describe('agent()', () => {
         expect(hooked.onStart).toBe(onStart);
         expect(hooked.onComplete).toBe(onComplete);
         expect(hooked.onStuck).toBe(onStuck);
+      });
+    });
+  });
+
+  describe('Given an agent config with a description', () => {
+    describe('When agent() is called', () => {
+      it('Then stores the description on the definition', () => {
+        const described = agent('described', {
+          description: 'A test agent that reviews code',
+          state: s.object({}),
+          initialState: {},
+          tools: {},
+          model: { provider: 'cloudflare', model: 'test' },
+        });
+
+        expect(described.description).toBe('A test agent that reviews code');
+      });
+
+      it('Then leaves description undefined when not provided', () => {
+        const undescribed = agent('undescribed', {
+          state: s.object({}),
+          initialState: {},
+          tools: {},
+          model: { provider: 'cloudflare', model: 'test' },
+        });
+
+        expect(undescribed.description).toBeUndefined();
+      });
+    });
+  });
+
+  describe('Given an agent config with an output schema', () => {
+    describe('When agent() is called', () => {
+      it('Then stores the output schema on the definition', () => {
+        const outputSchema = s.object({ summary: s.string() });
+        const withOutput = agent('with-output', {
+          state: s.object({}),
+          initialState: {},
+          output: outputSchema,
+          tools: {},
+          model: { provider: 'cloudflare', model: 'test' },
+        });
+
+        expect(withOutput.output).toBe(outputSchema);
+      });
+
+      it('Then leaves output undefined when not provided', () => {
+        const noOutput = agent('no-output', {
+          state: s.object({}),
+          initialState: {},
+          tools: {},
+          model: { provider: 'cloudflare', model: 'test' },
+        });
+
+        expect(noOutput.output).toBeUndefined();
+      });
+    });
+  });
+
+  describe('Given an agent config with prompt settings', () => {
+    describe('When agent() is called', () => {
+      it('Then stores the prompt config on the definition', () => {
+        const withPrompt = agent('prompted', {
+          state: s.object({}),
+          initialState: {},
+          tools: {},
+          model: { provider: 'cloudflare', model: 'test' },
+          prompt: { system: 'You are helpful.', maxTokens: 4096 },
+        });
+
+        expect(withPrompt.prompt).toEqual({ system: 'You are helpful.', maxTokens: 4096 });
+      });
+
+      it('Then applies empty defaults when prompt is not provided', () => {
+        const noPrompt = agent('no-prompt', {
+          state: s.object({}),
+          initialState: {},
+          tools: {},
+          model: { provider: 'cloudflare', model: 'test' },
+        });
+
+        expect(noPrompt.prompt).toEqual({});
       });
     });
   });

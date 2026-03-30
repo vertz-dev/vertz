@@ -66,18 +66,15 @@ describe('run()', () => {
     });
   });
 
-  describe('Given an agent with a system prompt in model config', () => {
+  describe('Given an agent with a system prompt in prompt config', () => {
     describe('When run() is called', () => {
-      it('Then uses the system prompt from the agent model config', async () => {
+      it('Then uses the system prompt from the agent prompt config', async () => {
         const promptAgent = agent('prompt-agent', {
           state: s.object({}),
           initialState: {},
           tools: {},
-          model: {
-            provider: 'cloudflare',
-            model: 'test',
-            systemPrompt: 'You are a code reviewer.',
-          },
+          model: { provider: 'cloudflare', model: 'test' },
+          prompt: { system: 'You are a code reviewer.' },
           loop: { maxIterations: 5 },
         });
 
