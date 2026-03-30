@@ -19,6 +19,7 @@ use deno_core::RuntimeOptions;
 use crate::runtime::js_runtime::{CapturedOutput, VertzJsRuntime};
 use crate::runtime::ops::{console, crypto_subtle, performance, sqlite};
 
+use super::dom_shim::TEST_DOM_SHIM_JS;
 use super::globals::TEST_HARNESS_JS;
 
 /// Lazily-initialized test snapshot, created once and shared across all test files.
@@ -140,7 +141,7 @@ if (typeof __vertz_setPromiseHooks === 'function' && globalThis.__vertz_promiseH
 }
 "#;
 
-/// Create a V8 snapshot with bootstrap JS + async context + test harness pre-baked.
+/// Create a V8 snapshot with bootstrap JS + async context + DOM shim + test harness pre-baked.
 fn create_test_snapshot() -> Box<[u8]> {
     let start_time = Instant::now();
     let captured = Arc::new(Mutex::new(CapturedOutput::default()));
@@ -184,6 +185,15 @@ fn create_test_snapshot() -> Box<[u8]> {
             deno_core::FastString::from(ASYNC_CONTEXT_SNAPSHOT_JS.to_string()),
         )
         .expect("snapshot: async context JS failed");
+
+    // Execute DOM shim (document, window, Element, Event, etc.)
+    // Must run before test harness so DOM globals are available for test utilities.
+    runtime
+        .execute_script(
+            "[vertz:dom-shim]",
+            deno_core::FastString::from(TEST_DOM_SHIM_JS.to_string()),
+        )
+        .expect("snapshot: DOM shim JS failed");
 
     // Execute test harness (describe, it, expect, mock, etc.)
     runtime
