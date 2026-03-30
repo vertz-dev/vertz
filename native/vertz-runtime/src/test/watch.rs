@@ -112,11 +112,10 @@ pub async fn run_watch_mode(config: TestRunConfig) -> Result<(), String> {
     // Run initial suite on a blocking thread to avoid nesting Tokio runtimes.
     // The executor creates its own tokio runtime per-file, which panics if
     // called from within an existing runtime. (#2110)
-    let (initial_result, initial_output) = tokio::task::spawn_blocking(move || {
-        super::runner::run_tests(config)
-    })
-    .await
-    .expect("initial test run panicked");
+    let (initial_result, initial_output) =
+        tokio::task::spawn_blocking(move || super::runner::run_tests(config))
+            .await
+            .expect("initial test run panicked");
     clear_screen();
     print!("{}", initial_output);
     print_watch_status(&initial_result);
@@ -366,12 +365,32 @@ mod tests {
         assert!(affected.contains(&PathBuf::from("/src/b.test.ts")));
     }
 
-    /// Regression test for #2110: executing a single test file from within an
-    /// async context (Tokio runtime) should not panic with "Cannot start a
-    /// runtime from within a runtime". The fix uses `spawn_blocking` to run
-    /// the executor on a plain OS thread.
+    /// Proves the bug from #2110: calling execute_test_file_with_options
+    /// directly from within an async context panics because the executor
+    /// creates a nested Tokio runtime.
     #[tokio::test]
-    async fn test_execute_single_file_from_async_context_no_panic() {
+    #[should_panic(expected = "Cannot start a runtime from within a runtime")]
+    async fn test_execute_from_async_context_panics_without_spawn_blocking() {
+        let tmp = tempfile::tempdir().unwrap();
+        let file_path = tmp.path().join("basic.test.ts");
+        std::fs::write(
+            &file_path,
+            r#"
+            describe('basic', () => {
+                it('passes', () => { expect(1).toBe(1); });
+            });
+            "#,
+        )
+        .unwrap();
+
+        // This panics — the executor creates its own tokio runtime internally.
+        execute_test_file_with_options(&file_path, &ExecuteOptions::default());
+    }
+
+    /// Regression test for #2110: wrapping in spawn_blocking prevents the
+    /// nested runtime panic, which is what the watch mode fix does.
+    #[tokio::test]
+    async fn test_execute_single_file_from_async_context_with_spawn_blocking() {
         let tmp = tempfile::tempdir().unwrap();
         let file_path = tmp.path().join("basic.test.ts");
         std::fs::write(
@@ -386,11 +405,10 @@ mod tests {
 
         let opts = Arc::new(ExecuteOptions::default());
         let path = file_path.clone();
-        let result = tokio::task::spawn_blocking(move || {
-            execute_test_file_with_options(&path, &opts)
-        })
-        .await
-        .expect("spawn_blocking panicked");
+        let result =
+            tokio::task::spawn_blocking(move || execute_test_file_with_options(&path, &opts))
+                .await
+                .expect("spawn_blocking panicked");
 
         assert!(
             result.file_error.is_none(),
