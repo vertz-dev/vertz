@@ -251,6 +251,8 @@ export type {
   ServerInstance,
 } from './create-server';
 export { createServer } from './create-server';
+// Agent integration — structural types for agent definitions
+export type { AgentLike, AgentRunnerFn, AgentRunResult } from './agent/types';
 // Config helpers — identity functions for extractable, type-safe config
 export { defineAuth } from './define-auth';
 export { defineEntities } from './define-entities';

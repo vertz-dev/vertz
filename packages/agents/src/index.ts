@@ -42,3 +42,12 @@ export { run } from './run';
 // Provider utilities
 export type { AdapterFactory, CreateAdapterOptions, ToolDescription } from './providers/types';
 export { toolsToDescriptions } from './providers/tool-description';
+
+// LLM adapters
+export { createAdapter } from './providers/create-adapter';
+export { createCloudflareAdapter } from './providers/cloudflare';
+export { createMinimaxAdapter } from './providers/minimax';
+
+// Agent runner (for @vertz/server integration)
+export type { CreateAgentRunnerOptions } from './create-agent-runner';
+export { createAgentRunner } from './create-agent-runner';
