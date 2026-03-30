@@ -382,6 +382,27 @@ impl<'a, 'b, 'c> Visit<'c> for InlineTsStripper<'a, 'b> {
         self.ms.overwrite(params.span.start, params.span.end, "");
     }
 
+    fn visit_variable_declarator(&mut self, decl: &VariableDeclarator<'c>) {
+        if self.is_in_removed_span(decl.span.start) {
+            return;
+        }
+        // Handle definite assignment assertion: `let x!: Type` → `let x`
+        // The `!` sits between the binding identifier end and the type annotation start.
+        // The type annotation itself is handled by visit_ts_type_annotation.
+        if decl.definite {
+            let id_end = decl.id.span().end;
+            // The `!` is the character right after the identifier
+            let bang_end = id_end + 1;
+            // Only strip if the character is actually `!`
+            let source_slice = self.ms.slice(id_end, bang_end);
+            if source_slice == "!" {
+                self.ms.overwrite(id_end, bang_end, "");
+            }
+        }
+        // Continue walking to strip type annotations and other TS syntax
+        walk::walk_variable_declarator(self, decl);
+    }
+
     fn visit_ts_type_annotation(&mut self, annot: &TSTypeAnnotation<'c>) {
         if self.is_in_removed_span(annot.span.start) {
             return;
