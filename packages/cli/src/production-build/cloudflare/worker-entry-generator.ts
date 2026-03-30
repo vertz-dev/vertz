@@ -45,6 +45,7 @@ export default createHandler({
     }
     return cachedApp;
   },
+  ssr: () => Promise.resolve(new Response('Not Found', { status: 404 })),
 });
 `;
   }
@@ -59,10 +60,9 @@ export default createHandler({
     // Group entities by source file
     const byFile = new Map<string, EntityIR[]>();
     for (const entity of this.entities) {
-      const file = entity.file;
-      const existing = byFile.get(file) ?? [];
+      const existing = byFile.get(entity.sourceFile) ?? [];
       existing.push(entity);
-      byFile.set(file, existing);
+      byFile.set(entity.sourceFile, existing);
     }
 
     for (const [file, entities] of byFile) {

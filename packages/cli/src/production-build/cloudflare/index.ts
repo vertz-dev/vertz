@@ -4,6 +4,7 @@
  * Exports for building Vertz apps targeting Cloudflare Workers.
  */
 
+export { buildForCloudflare } from './build-cloudflare';
 export { ManifestBuilder } from './manifest-builder';
 export type {
   BindingManifestEntry,
