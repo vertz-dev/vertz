@@ -946,6 +946,7 @@ function SocialLinks() {
     color: '#9C9690',
     border: '1px solid #2A2826',
     borderRadius: '4px',
+    transition: 'opacity 0.4s ease',
   };
 
   return (
