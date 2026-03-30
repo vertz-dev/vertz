@@ -20,6 +20,9 @@ pub const TEST_DOM_SHIM_JS: &str = r#"
 (function() {
   'use strict';
 
+  // Guard against double-initialization (e.g., if SSR shim already loaded)
+  if (globalThis.__VERTZ_DOM_MODE) return;
+
   globalThis.__VERTZ_DOM_MODE = 'test';
 
   // --- Constants ---
@@ -311,9 +314,14 @@ pub const TEST_DOM_SHIM_JS: &str = r#"
 
     addEventListener(type, listener, options) {
       if (!listener) return;
-      const capture = typeof options === 'boolean' ? options : (options?.capture || false);
-      const once = typeof options === 'object' ? (options?.once || false) : false;
+      const capture = typeof options === 'boolean' ? options : (options?.capture ?? false);
+      const once = typeof options === 'object' ? (options?.once ?? false) : false;
       if (!this._listeners[type]) this._listeners[type] = [];
+      // Deduplicate: same type + listener + capture = no-op (per spec)
+      const exists = this._listeners[type].some(
+        e => e.listener === listener && e.capture === capture
+      );
+      if (exists) return;
       this._listeners[type].push({ listener, capture, once });
     }
 
@@ -417,21 +425,22 @@ pub const TEST_DOM_SHIM_JS: &str = r#"
 
     removeChild(child) {
       const idx = this.childNodes.indexOf(child);
-      if (idx >= 0) {
-        this.childNodes.splice(idx, 1);
-        child.parentNode = null;
+      if (idx < 0) {
+        throw new DOMException('Node is not a child of this node', 'NotFoundError');
       }
+      this.childNodes.splice(idx, 1);
+      child.parentNode = null;
       return child;
     }
 
     insertBefore(newChild, refChild) {
       if (!refChild) return this.appendChild(newChild);
       if (newChild instanceof DocumentFragment) {
-        const idx = this.childNodes.indexOf(refChild);
+        let insertIdx = this.childNodes.indexOf(refChild);
         for (const c of [...newChild.childNodes]) {
           if (c.parentNode) c.parentNode.removeChild(c);
           c.parentNode = this;
-          this.childNodes.splice(idx, 0, c);
+          this.childNodes.splice(insertIdx++, 0, c);
         }
         newChild.childNodes = [];
         return newChild;
@@ -545,7 +554,7 @@ pub const TEST_DOM_SHIM_JS: &str = r#"
 
     get textContent() {
       return this.childNodes.map(c => {
-        if (c.nodeType === TEXT_NODE || c.nodeType === COMMENT_NODE) return c.data;
+        if (c.nodeType === TEXT_NODE) return c.data;
         return c.textContent || '';
       }).join('');
     }
@@ -1055,13 +1064,22 @@ pub const TEST_DOM_SHIM_JS: &str = r#"
     return new Cls(lower);
   }
 
+  // --- DOMException ---
+  class DOMException extends Error {
+    constructor(message, name) {
+      super(message);
+      this.name = name || 'Error';
+      this.code = 0;
+    }
+  }
+
   // --- Event classes ---
   class Event {
     constructor(type, options) {
       this.type = type;
-      this.bubbles = options?.bubbles || false;
-      this.cancelable = options?.cancelable || false;
-      this.composed = options?.composed || false;
+      this.bubbles = options?.bubbles ?? false;
+      this.cancelable = options?.cancelable ?? false;
+      this.composed = options?.composed ?? false;
       this.defaultPrevented = false;
       this.target = null;
       this.currentTarget = null;
@@ -1090,48 +1108,48 @@ pub const TEST_DOM_SHIM_JS: &str = r#"
   class MouseEvent extends Event {
     constructor(type, options) {
       super(type, options);
-      this.button = options?.button || 0;
-      this.buttons = options?.buttons || 0;
-      this.clientX = options?.clientX || 0;
-      this.clientY = options?.clientY || 0;
-      this.screenX = options?.screenX || 0;
-      this.screenY = options?.screenY || 0;
-      this.altKey = options?.altKey || false;
-      this.ctrlKey = options?.ctrlKey || false;
-      this.metaKey = options?.metaKey || false;
-      this.shiftKey = options?.shiftKey || false;
-      this.relatedTarget = options?.relatedTarget || null;
+      this.button = options?.button ?? 0;
+      this.buttons = options?.buttons ?? 0;
+      this.clientX = options?.clientX ?? 0;
+      this.clientY = options?.clientY ?? 0;
+      this.screenX = options?.screenX ?? 0;
+      this.screenY = options?.screenY ?? 0;
+      this.altKey = options?.altKey ?? false;
+      this.ctrlKey = options?.ctrlKey ?? false;
+      this.metaKey = options?.metaKey ?? false;
+      this.shiftKey = options?.shiftKey ?? false;
+      this.relatedTarget = options?.relatedTarget ?? null;
     }
   }
 
   class KeyboardEvent extends Event {
     constructor(type, options) {
       super(type, options);
-      this.key = options?.key || '';
-      this.code = options?.code || '';
-      this.location = options?.location || 0;
-      this.altKey = options?.altKey || false;
-      this.ctrlKey = options?.ctrlKey || false;
-      this.metaKey = options?.metaKey || false;
-      this.shiftKey = options?.shiftKey || false;
-      this.repeat = options?.repeat || false;
-      this.isComposing = options?.isComposing || false;
+      this.key = options?.key ?? '';
+      this.code = options?.code ?? '';
+      this.location = options?.location ?? 0;
+      this.altKey = options?.altKey ?? false;
+      this.ctrlKey = options?.ctrlKey ?? false;
+      this.metaKey = options?.metaKey ?? false;
+      this.shiftKey = options?.shiftKey ?? false;
+      this.repeat = options?.repeat ?? false;
+      this.isComposing = options?.isComposing ?? false;
     }
   }
 
   class FocusEvent extends Event {
     constructor(type, options) {
       super(type, options);
-      this.relatedTarget = options?.relatedTarget || null;
+      this.relatedTarget = options?.relatedTarget ?? null;
     }
   }
 
   class InputEvent extends Event {
     constructor(type, options) {
       super(type, options);
-      this.data = options?.data || null;
-      this.inputType = options?.inputType || '';
-      this.isComposing = options?.isComposing || false;
+      this.data = options?.data ?? null;
+      this.inputType = options?.inputType ?? '';
+      this.isComposing = options?.isComposing ?? false;
     }
   }
 
@@ -1998,7 +2016,7 @@ pub const TEST_DOM_SHIM_JS: &str = r#"
 
   // Constructors
   Object.assign(globalThis, {
-    Node, Element, EventTarget, Event, CustomEvent,
+    Node, Element, EventTarget, Event, CustomEvent, DOMException,
     MouseEvent, KeyboardEvent, FocusEvent, InputEvent,
     HTMLElement, HTMLDivElement, HTMLSpanElement,
     HTMLInputElement, HTMLTextAreaElement, HTMLSelectElement,
@@ -2270,6 +2288,89 @@ mod tests {
         let v: serde_json::Value = serde_json::from_str(result.as_str().unwrap()).unwrap();
         assert_eq!(v["order"], serde_json::json!(["a", "b", "c"]));
         assert_eq!(v["bParent"], true);
+    }
+
+    #[test]
+    fn test_insert_before_fragment_order() {
+        let mut rt = create_runtime_with_dom();
+        let result = eval_js(
+            &mut rt,
+            r#"
+            const parent = document.createElement('div');
+            const existing = document.createElement('span');
+            existing.textContent = 'existing';
+            parent.appendChild(existing);
+
+            const frag = document.createDocumentFragment();
+            const a = document.createElement('span');
+            a.textContent = 'A';
+            const b = document.createElement('span');
+            b.textContent = 'B';
+            const c = document.createElement('span');
+            c.textContent = 'C';
+            frag.appendChild(a);
+            frag.appendChild(b);
+            frag.appendChild(c);
+
+            parent.insertBefore(frag, existing);
+            parent.childNodes.map(n => n.textContent).join(',')
+        "#,
+        );
+        // Fragment children must be inserted in order BEFORE the reference
+        assert_eq!(result, serde_json::json!("A,B,C,existing"));
+    }
+
+    #[test]
+    fn test_remove_child_non_child_throws() {
+        let mut rt = create_runtime_with_dom();
+        let result = eval_js(
+            &mut rt,
+            r#"
+            const parent = document.createElement('div');
+            const notChild = document.createElement('span');
+            let error = null;
+            try {
+                parent.removeChild(notChild);
+            } catch (e) {
+                error = { name: e.name, message: e.message };
+            }
+            JSON.stringify(error)
+        "#,
+        );
+        let v: serde_json::Value = serde_json::from_str(result.as_str().unwrap()).unwrap();
+        assert_eq!(v["name"], "NotFoundError");
+    }
+
+    #[test]
+    fn test_text_content_excludes_comments() {
+        let mut rt = create_runtime_with_dom();
+        let result = eval_js(
+            &mut rt,
+            r#"
+            const div = document.createElement('div');
+            div.innerHTML = 'hello<!--comment-->world';
+            div.textContent
+        "#,
+        );
+        assert_eq!(result, serde_json::json!("helloworld"));
+    }
+
+    #[test]
+    fn test_add_event_listener_deduplication() {
+        let mut rt = create_runtime_with_dom();
+        let result = eval_js(
+            &mut rt,
+            r#"
+            const el = document.createElement('div');
+            let count = 0;
+            const handler = () => { count++; };
+            el.addEventListener('click', handler);
+            el.addEventListener('click', handler); // duplicate — should be ignored
+            el.dispatchEvent(new Event('click'));
+            count
+        "#,
+        );
+        assert_eq!(result, serde_json::json!(1));
     }
 
     #[test]
