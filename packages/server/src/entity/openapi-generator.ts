@@ -300,8 +300,8 @@ export interface ServiceDefForOpenAPI {
     {
       readonly method?: string;
       readonly path?: string;
-      readonly body?: { toJSONSchema?: () => JSONSchemaObject };
-      readonly response?: { toJSONSchema?: () => JSONSchemaObject };
+      readonly body?: unknown;
+      readonly response?: unknown;
       readonly handler: (...args: unknown[]) => unknown;
     }
   >;
