@@ -1,4 +1,4 @@
-# `@vertz/agents` — Design Document (Rev 1)
+# `@vertz/agents` — Design Document (Rev 2)
 
 > "AI agents are first-class users." — Vertz Vision, Principle 3
 
@@ -7,16 +7,53 @@
 | Rev | Date | Changes |
 |---|---|---|
 | 1 | 2026-03-30 | Initial draft |
+| 2 | 2026-03-30 | Address review findings: portability strategy, runtime mapping, schema clarification, workflow simplification, testing strategy, phase restructuring, API surface fixes |
+
+### Rev 2 Changes Summary
+
+**Blockers resolved:**
+- Added "Runtime Mapping" section (Tech B1) — codegen approach for CF class generation
+- Simplified workflows to linear-only for v1, deferred DAG typing (Tech B2, DX B2/B3)
+- Documented why `@vertz/schema` is used directly with `toJSONSchema()` (Tech B3)
+- Added portability strategy — core is runtime-agnostic, CF bindings in adapter (Prod B3)
+- Stated priority sequencing relative to test runner (Prod B1)
+- Added POC gates for U2/U3 before Phase 1 proceeds to CF integration (Prod B2)
+- Documented why tools use `input`/`output` (LLM function-calling convention) (DX B1)
+
+**Should-fixes resolved:**
+- Removed Phase 4 from phase list — separate design doc (Prod S1)
+- Moved server integration into Phase 1 for vertical slice (Prod S2)
+- Separated model provider config from agent behavior config (Prod S3, DX S2)
+- Added testing strategy section (Prod S4, Tech #7)
+- Picked Daytona as v1 sandbox provider (Prod S5)
+- Replaced `agents()` wrapper with plain array (DX S1)
+- Moved `invoke()` to `ctx.agents.invoke()` (DX S3)
+- Accepted `goto` as stringly-typed for v1 with documentation (DX S4)
+- Accepted `when` callbacks for v1, acknowledged divergence from `rules.*` (DX S5)
+- Added `description` field to `agent()` (DX S6)
+- Deferred `execution: 'client'` to v2 (DX S7, Tech #10)
+- Added agent-level `sandbox` default (DX S8)
+- Added error recovery design to ReAct loop (Tech #4)
+- Simplified sandbox to Daytona-only, added lifecycle hooks (Tech #5)
+- Specified state persistence proxy mechanism (Tech #6)
+- Fixed package dependency direction (Tech #8)
+- Added `output` schema to `agent()`, defined `invoke()` return type (Tech #9)
 
 ---
 
 ## Executive Summary
 
-Build `@vertz/agents` — a declarative abstraction over Cloudflare's Agents SDK that lets Vertz developers define AI agents, multi-step workflows, and tools using the same patterns they already know from `entity()`, `service()`, and `rules.*`.
+Build `@vertz/agents` — a declarative, runtime-agnostic abstraction for AI agents that lets Vertz developers define agents, tools, and workflows using the same patterns they already know from `entity()`, `service()`, and `rules.*`.
+
+The core API (`agent()`, `tool()`, `workflow()`) is **runtime-agnostic** — it produces frozen definition objects like `entity()` does. A separate **Cloudflare adapter** maps these definitions to Durable Objects, Workers AI, and Cloudflare Workflows. Future adapters (Vertz Runtime, self-hosted) can target the same definitions.
 
 Cloudflare provides the infrastructure: durable state, hibernation, scheduling, WebSocket connections, human-in-the-loop gates. Vertz provides the developer experience: typed schemas, declarative access rules, one way to do things, and an LLM-native API surface.
 
-The first consumer is the Vertz dev orchestrator — an agent system that automates the full development workflow (design → review → implement → PR → merge). But `@vertz/agents` is a general-purpose package: any Vertz developer can use it to build agents on Cloudflare.
+The first consumer is the Vertz dev orchestrator — an agent system that automates the full development workflow (design → review → implement → PR → merge). But `@vertz/agents` is a general-purpose package: any Vertz developer can use it to build agents.
+
+### Priority Sequencing
+
+`@vertz/agents` runs **in parallel** with the Vertz Runtime test runner work. The test runner targets the Rust+V8 runtime; agents target Cloudflare's platform. There is no dependency between them — agents use Cloudflare's infrastructure directly, not the Vertz Runtime.
 
 ---
 
@@ -47,7 +84,23 @@ Vertz already has declarative primitives for all of these:
 | Dependency injection | `inject` config |
 | Error handling | `Result<T>` pattern |
 
-The gap is a **binding layer** that maps these primitives to Cloudflare's agent infrastructure.
+The gap is a **binding layer** that maps these primitives to agent infrastructure.
+
+---
+
+## Schema System: Why `@vertz/schema` Directly
+
+Entities and services use `SchemaLike<T>` from `@vertz/db` — a structural interface that accepts any schema library. Agents use `@vertz/schema` (`s.*`) **directly** because:
+
+1. **`toJSONSchema()` is required.** LLM function-calling requires JSON Schema descriptions of tool parameters. `@vertz/schema` provides `toJSONSchema(schema)` natively. `SchemaLike` has no equivalent — it only requires `parse()`.
+
+2. **`Infer<T>` for state typing.** Agent state types are extracted from the schema using `InferSchema<T>`. This requires `SchemaAny` (which has `_output` phantom type), not `SchemaLike` (which only has `parse()`).
+
+3. **Runtime validation.** Tool inputs from LLMs are untrusted. `schema.parse(input)` provides structured error messages that get fed back to the LLM for self-correction.
+
+4. **Consistency within the package.** All `@vertz/agents` schemas (tool input/output, agent state, workflow input) use the same schema system.
+
+This is an intentional divergence from `entity()`/`service()`. Entities need DB-agnostic schemas; agents need LLM-compatible schemas. Different consumers, different requirements.
 
 ---
 
@@ -62,6 +115,8 @@ import { s } from '@vertz/schema';
 import { tasksEntity, usersEntity } from './entities';
 
 const codeReviewAgent = agent('code-review', {
+  description: 'Reviews code changes and produces structured findings',
+
   // Schema for the agent's durable state
   state: s.object({
     repository: s.string(),
@@ -82,6 +137,16 @@ const codeReviewAgent = agent('code-review', {
     status: 'idle',
     findings: [],
   },
+
+  // Agent output — what invoke() returns on completion
+  output: s.object({
+    summary: s.string(),
+    findings: s.array(s.object({
+      file: s.string(),
+      severity: s.string(),
+      message: s.string(),
+    })),
+  }),
 
   // Access control — who can interact with this agent
   access: {
@@ -130,11 +195,18 @@ const codeReviewAgent = agent('code-review', {
     }),
   },
 
-  // LLM configuration
+  // Default sandbox for all tools in this agent
+  sandbox: daytonaSandbox,
+
+  // LLM model selection (provider config is environment-level)
   model: {
-    provider: 'cloudflare',      // 'cloudflare' | 'anthropic' | 'minimax' | 'openai'
-    model: 'kimi-k2',            // provider-specific model identifier
-    systemPrompt: 'You are a code reviewer. Be thorough and adversarial.',
+    provider: 'cloudflare',
+    model: 'kimi-k2',
+  },
+
+  // Agent behavior config (separate from model)
+  prompt: {
+    system: 'You are a code reviewer. Be thorough and adversarial.',
     maxTokens: 4096,
   },
 
@@ -143,7 +215,7 @@ const codeReviewAgent = agent('code-review', {
     maxIterations: 50,           // hard cap on think→act→observe cycles
     onStuck: 'escalate',         // 'escalate' | 'stop' | 'retry'
     stuckThreshold: 5,           // consecutive iterations without progress
-    checkpointEvery: 5,          // persist conversation to durable state every N iterations
+    checkpointInterval: 5,       // persist conversation to durable state every N iterations
   },
 
   // Lifecycle hooks
@@ -163,7 +235,7 @@ const codeReviewAgent = agent('code-review', {
 
 ### `tool()` — Define a tool
 
-Tools are the unit of agent capability. They follow the same `action()` pattern:
+Tools are the unit of agent capability. They use `input`/`output` naming (not `body`/`response` from `action()`) because this aligns with the **LLM function-calling convention** — every major LLM provider uses "input parameters" and "output" in their tool/function schemas. An LLM trained on tool-calling documentation will naturally use `input`/`output`. Vertz actions use `body`/`response` because they model HTTP semantics.
 
 ```typescript
 import { tool } from '@vertz/agents';
@@ -197,19 +269,15 @@ const deployTool = tool({
     return await deploy(input.version);
   },
 });
-
-// Client-side tool — runs in the browser
-const screenshotTool = tool({
-  description: 'Take a screenshot of the current page',
-  input: s.object({ selector: s.string().optional() }),
-  output: s.object({ dataUrl: s.string() }),
-  execution: 'client',           // 'server' (default) | 'client'
-});
 ```
 
-### `workflow()` — Multi-step orchestrated pipelines
+> **Note:** `execution: 'client'` (browser-side tool execution) is **deferred to v2**. It requires a WebSocket protocol for server-to-browser tool delegation, disconnection handling, timeout, multi-client arbitration, and a client-side tool registry. All tools in v1 execute on the server.
 
-Workflows coordinate multiple agents and approval gates. Built on Cloudflare's `Workflow` with Vertz's typed step definitions:
+### `workflow()` — Multi-step orchestrated pipelines (v1: linear only)
+
+Workflows coordinate multiple agents and approval gates. **v1 supports linear sequential steps only.** Parallel execution, conditional branching (`when`/`goto`), and DAG-based dependency resolution are deferred to v2 — the type system for accumulating outputs across parallel/conditional paths requires recursive mapped types that need validation via `.test-d.ts` before shipping.
+
+Every step callback receives the same unified `StepContext` object:
 
 ```typescript
 import { workflow, step } from '@vertz/agents';
@@ -229,10 +297,11 @@ const designPipeline = workflow('design-pipeline', {
     approve: rules.entitlement('design:approve'),
   },
 
-  // Ordered steps
+  // Linear steps — each receives a unified StepContext
   steps: [
     step('write-design-doc', {
       agent: designWriterAgent,
+      // Every step gets StepContext with workflow input + previous step outputs
       input: (ctx) => ({
         issue: ctx.workflow.input.issueNumber,
         repo: ctx.workflow.input.repository,
@@ -245,7 +314,8 @@ const designPipeline = workflow('design-pipeline', {
 
     step('dx-review', {
       agent: dxReviewAgent,
-      input: (prev) => ({ docPath: prev['write-design-doc'].docPath }),
+      // Same StepContext shape — ctx.prev has all previous step outputs
+      input: (ctx) => ({ docPath: ctx.prev['write-design-doc'].docPath }),
       output: s.object({
         approved: s.boolean(),
         findings: s.array(s.object({ issue: s.string(), severity: s.string() })),
@@ -254,48 +324,17 @@ const designPipeline = workflow('design-pipeline', {
 
     step('technical-review', {
       agent: technicalReviewAgent,
-      input: (prev) => ({ docPath: prev['write-design-doc'].docPath }),
+      input: (ctx) => ({ docPath: ctx.prev['write-design-doc'].docPath }),
       output: s.object({
         approved: s.boolean(),
         findings: s.array(s.object({ issue: s.string(), severity: s.string() })),
       }),
-      // Runs in parallel with dx-review
-      parallel: ['dx-review'],
-    }),
-
-    step('product-review', {
-      agent: productReviewAgent,
-      input: (prev) => ({ docPath: prev['write-design-doc'].docPath }),
-      output: s.object({
-        approved: s.boolean(),
-        findings: s.array(s.object({ issue: s.string(), severity: s.string() })),
-      }),
-      // Runs in parallel with dx-review and technical-review
-      parallel: ['dx-review', 'technical-review'],
-    }),
-
-    // Fix-review loop: if any reviewer rejects, go back to design
-    step('address-feedback', {
-      agent: designWriterAgent,
-      input: (prev) => ({
-        docPath: prev['write-design-doc'].docPath,
-        dxFindings: prev['dx-review'].findings,
-        techFindings: prev['technical-review'].findings,
-        productFindings: prev['product-review'].findings,
-      }),
-      // Conditional: only runs if any reviewer rejected
-      when: (prev) =>
-        !prev['dx-review'].approved ||
-        !prev['technical-review'].approved ||
-        !prev['product-review'].approved,
-      // Loop back to reviews after addressing
-      goto: 'dx-review',
     }),
 
     // Human approval gate
     step('human-approval', {
       approval: {
-        message: (prev) => `Design doc ready for review: ${prev['write-design-doc'].docPath}`,
+        message: (ctx) => `Design doc ready: ${ctx.prev['write-design-doc'].docPath}`,
         timeout: '7d',
       },
     }),
@@ -303,45 +342,79 @@ const designPipeline = workflow('design-pipeline', {
 });
 ```
 
+**v1 step input callback — unified `StepContext`:**
+
+```typescript
+interface StepContext<TPrev, TWorkflowInput> {
+  /** Workflow-level input */
+  readonly workflow: { input: TWorkflowInput };
+  /** Accumulated outputs from all preceding steps, keyed by step name */
+  readonly prev: TPrev;
+}
+```
+
+Every step callback receives the same `StepContext` shape. The first step has `prev: {}` (empty). Each subsequent step accumulates previous step outputs in `prev`.
+
 ### `sandbox()` — Compute environments for code execution
 
-Agents that need to run code (tests, builds, git operations) require a sandboxed environment:
+**v1 targets Daytona only.** Cloudflare Containers are deferred until validated by POC (see U1). Daytona has a proven TypeScript SDK, persistent filesystem with git support, and sufficient resources for `bun test` / `bun run typecheck` workloads.
 
 ```typescript
 import { sandbox } from '@vertz/agents';
 import { s } from '@vertz/schema';
 
-// Cloudflare Container (preferred — zero config)
-const cfSandbox = sandbox('cloudflare', {
-  image: 'vertz/dev-env:latest',
-  memory: '512MB',
-  timeout: '10m',
-});
-
-// Daytona (fallback — for heavy workloads)
-const daytonaSandbox = sandbox('daytona', {
+const devSandbox = sandbox('daytona', {
   image: 'vertz/dev-env:latest',
   resources: { cpu: 2, memory: '4GB' },
+  persistence: 'workspace',      // 'ephemeral' | 'workspace' (git-backed)
+  onInit: async (ctx) => {
+    await ctx.exec('bun', ['install']);
+  },
+  onDestroy: async (ctx) => {
+    // Cleanup: remove temp files, close connections
+  },
 });
 
-// Use in agent tools
-const runTests = tool({
-  description: 'Run the test suite',
-  input: s.object({ packages: s.array(s.string()).optional() }),
-  output: s.object({
-    passed: s.number(),
-    failed: s.number(),
-    output: s.string(),
-  }),
-  sandbox: cfSandbox,            // tool executes inside the sandbox
-  async handler(input, ctx) {
-    const result = await ctx.sandbox.exec('bun', ['test', ...(input.packages ?? [])]);
-    return {
-      passed: result.exitCode === 0 ? 1 : 0,
-      failed: result.exitCode === 0 ? 0 : 1,
-      output: result.stdout,
-    };
+// Use as agent-level default
+const implementationAgent = agent('implementer', {
+  sandbox: devSandbox,           // All tools inherit this sandbox
+  tools: {
+    runTests: tool({
+      description: 'Run the test suite',
+      input: s.object({ packages: s.array(s.string()).optional() }),
+      output: s.object({
+        passed: s.number(),
+        failed: s.number(),
+        output: s.string(),
+      }),
+      // No per-tool sandbox — inherits agent default
+      async handler(input, ctx) {
+        const result = await ctx.sandbox.exec('bun', ['test', ...(input.packages ?? [])]);
+        return {
+          passed: result.exitCode === 0 ? 1 : 0,
+          failed: result.exitCode === 0 ? 0 : 1,
+          output: result.stdout,
+        };
+      },
+    }),
+
+    runTypecheck: tool({
+      description: 'Run TypeScript type checking',
+      input: s.object({ packages: s.array(s.string()).optional() }),
+      output: s.object({ clean: s.boolean(), output: s.string() }),
+      // Per-tool sandbox override
+      sandbox: sandbox('daytona', {
+        image: 'vertz/dev-env:latest',
+        resources: { cpu: 4, memory: '8GB' },  // more resources for typecheck
+        persistence: 'workspace',
+      }),
+      async handler(input, ctx) {
+        const result = await ctx.sandbox.exec('bun', ['run', 'typecheck']);
+        return { clean: result.exitCode === 0, output: result.stdout };
+      },
+    }),
   },
+  // ...
 });
 ```
 
@@ -358,52 +431,314 @@ interface AgentContext<TState, TInject> {
 
   // Agent-specific
   agent: { id: string; name: string };
-  state: TState;                           // typed durable state (read/write)
+  state: TState;                           // typed durable state (read/write Proxy)
   entities: InjectToOperations<TInject>;   // typed entity CRUD access
 
-  // Sandbox (when configured)
+  // Agent-to-agent communication (on ctx, not standalone import)
+  agents: {
+    invoke<TAgent extends AgentDefinition>(
+      agent: TAgent,
+      options: InvokeOptions,
+    ): Promise<InferAgentOutput<TAgent>>;
+  };
+
+  // Sandbox (when configured — agent-level or tool-level)
   sandbox: SandboxHandle;
 
   // Communication
   emit(event: string, data: unknown): void;  // WebSocket broadcast
-  log(level: 'info' | 'warn' | 'error', message: string): void;
+
+  // Observability
+  log(level: 'info' | 'warn' | 'error', message: string, data?: Record<string, unknown>): void;
 }
 ```
 
 ### Agent-to-Agent Communication
 
-Agents invoke each other through typed references:
+Agents invoke each other through `ctx.agents.invoke()` — on the context, not a standalone import. This ensures auth propagation and consistency with `ctx.entities`:
 
 ```typescript
-import { invoke } from '@vertz/agents';
+// Inside a tool handler
+async handler(input, ctx) {
+  const reviewResult = await ctx.agents.invoke(codeReviewAgent, {
+    // Instance ID — determines which Durable Object handles the request
+    instance: `review-${prNumber}`,
+    // Input message
+    message: 'Review the changes in PR #123',
+    // Wait strategy
+    waitFor: 'complete',          // 'complete' | 'started'
+    timeout: '30m',               // max wait time
+  });
 
-// Inside a tool handler or workflow step
-const reviewResult = await invoke(codeReviewAgent, {
-  // Instance ID — determines which Durable Object handles the request
-  instance: `review-${prNumber}`,
-  // Input message
-  message: 'Review the changes in PR #123',
-  // Wait for completion
-  waitFor: 'complete',
-});
+  // reviewResult is typed as InferAgentOutput<typeof codeReviewAgent>
+  // i.e., { summary: string; findings: Array<...> }
+}
 ```
+
+**`invoke()` return type:** Determined by the agent's `output` schema. If no `output` schema is defined, `invoke()` returns `{ response: string }` (the LLM's final text response).
+
+**`waitFor` mechanism:** Implemented via Durable Object alarm-based callbacks. The invoking agent's DO sets an alarm that polls the target agent's completion status. This avoids WebSocket complexity and works with DO hibernation.
 
 ### Registration — Wire agents into the Vertz app
 
 ```typescript
 import { createServer } from '@vertz/server';
-import { agents } from '@vertz/agents';
 
 const server = createServer({
   entities: [tasksEntity, usersEntity],
   services: [notificationService],
-  agents: agents([
+  // Plain array — no wrapper function needed (same as entities/services)
+  agents: [
     codeReviewAgent,
     designWriterAgent,
     dxReviewAgent,
-  ]),
+  ],
 });
 ```
+
+---
+
+## Runtime Mapping: How Definitions Become Cloudflare Durable Objects
+
+`agent()` returns a frozen `AgentDefinition` config object — not a class. This matches `entity()` returning `EntityDefinition`. But Cloudflare Durable Objects require exported classes referenced in `wrangler.toml`.
+
+### The Codegen Approach
+
+The Vertz CLI generates the Cloudflare binding layer before `wrangler deploy`:
+
+```
+vertz build → generates .vertz/agents/ → wrangler deploy
+```
+
+**Step 1: `vertz build` scans agent definitions.**
+
+The build step finds all `AgentDefinition` objects passed to `createServer({ agents: [...] })` and generates:
+
+```typescript
+// .vertz/agents/code-review.ts (generated)
+import { Agent } from 'agents';
+import { createAgentHandler } from '@vertz/agents/cloudflare';
+import { codeReviewAgent } from '../../src/agents/code-review';
+
+export class CodeReviewAgent extends Agent {
+  handler = createAgentHandler(codeReviewAgent);
+
+  async onRequest(request: Request) {
+    return this.handler.fetch(request, this);
+  }
+}
+```
+
+**Step 2: `vertz build` generates `wrangler.toml` bindings.**
+
+```toml
+# Auto-generated by vertz build
+[durable_objects]
+bindings = [
+  { name = "CODE_REVIEW_AGENT", class_name = "CodeReviewAgent" },
+  { name = "DESIGN_WRITER_AGENT", class_name = "DesignWriterAgent" },
+]
+```
+
+**Step 3: `createAgentHandler()` bridges the definition to the CF runtime.**
+
+The handler maps: incoming DO requests → ReAct loop execution → state persistence → WebSocket broadcasting. It handles the DO lifecycle (`onStart`, `onAlarm`, state hibernation) and maps them to the definition's lifecycle hooks.
+
+**Why codegen instead of runtime class creation:**
+- `wrangler` needs static class exports for tree-shaking and module analysis
+- Runtime `eval()` or `new Function()` is blocked in Workers
+- Codegen is already the pattern in Vertz (`vertz build` generates routes, types, etc.)
+
+### Alternative Considered: `agent()` Returns a Class
+
+Rejected because:
+1. Breaks the config-object pattern (entity/service return frozen objects, not classes)
+2. Class exports must be at module top-level for wrangler — can't define inline in `createServer()`
+3. Loses the clean separation between definition (portable) and runtime binding (CF-specific)
+
+---
+
+## Model Configuration
+
+Model configuration is split into two concerns:
+
+### Agent-level: Model selection (in code)
+
+```typescript
+model: {
+  provider: 'cloudflare',       // which provider to use
+  model: 'kimi-k2',            // provider-specific model identifier
+},
+```
+
+### Environment-level: Provider credentials (not in code)
+
+Provider API keys, endpoints, and rate limits are **environment bindings**, not code:
+
+```toml
+# wrangler.toml (or .dev.vars for local)
+[vars]
+ANTHROPIC_API_KEY = "sk-..."
+MINIMAX_API_KEY = "..."
+
+# Workers AI uses the built-in AI binding — no key needed
+[[ai]]
+binding = "AI"
+```
+
+The agent's `provider` field selects which credentials to use. The credentials themselves are never in the agent definition.
+
+### Agent-level: Prompt and behavior (in code)
+
+```typescript
+prompt: {
+  system: 'You are a code reviewer.',
+  maxTokens: 4096,
+},
+```
+
+---
+
+## State Management
+
+### Proxy-based state with schema validation
+
+`ctx.state` is a **Proxy** over the Cloudflare DO's built-in `this.state` storage. The proxy:
+
+1. **Intercepts writes** — validates mutations against the state schema before persisting
+2. **Batches persistence** — writes are batched per iteration, not per mutation. At the end of each ReAct loop iteration, the proxy flushes all accumulated changes to DO storage.
+3. **Integrates with CF's `onStateUpdate()`** — the proxy triggers `onStateUpdate()` after each flush, enabling WebSocket state sync to connected clients.
+
+```typescript
+// Writes are schema-validated at flush time (end of iteration)
+ctx.state.status = 'reviewing';           // queued
+ctx.state.findings = [...findings, new];  // queued
+// → end of iteration: validate full state against schema, persist to DO storage
+```
+
+**Schema validation runs at persistence boundaries** (end of iteration, checkpoint), not on every mutation. This avoids the overhead of validating intermediate states during a multi-mutation iteration.
+
+---
+
+## ReAct Loop Error Recovery
+
+### Progress Detection
+
+"Progress" is defined as: **the LLM called at least one tool that returned a non-error result**. Specifically:
+
+- Tool call returned successfully → progress
+- Tool call returned an error → NOT progress (LLM is spinning on failures)
+- LLM responded with text only → loop ends (completion)
+- LLM called a non-existent tool → NOT progress
+
+The `stuckThreshold` counts consecutive iterations without progress.
+
+### Error Handling Per Failure Mode
+
+| Failure | Behavior |
+|---|---|
+| Malformed tool call (invalid JSON args) | Feed parse error back to LLM as tool result |
+| Tool not found | Feed "tool not found, available: [...]" back to LLM |
+| Tool handler throws | Feed error message back to LLM as tool result |
+| Tool input validation fails | Feed schema validation errors back to LLM |
+| LLM refuses to use tools | Treated as text-only response → loop completes |
+| LLM provider rate limit (429) | Exponential backoff (1s, 2s, 4s), max 3 retries per iteration |
+| LLM provider error (5xx) | Retry once after 2s. If still failing, set status = 'error', return with error details |
+| Context window exceeded | Summarize oldest N messages (keeping system prompt + last 5 messages), retry |
+
+### `onStuck` Escalation
+
+When `onStuck: 'escalate'`:
+1. Set agent state `status = 'waiting-for-human'`
+2. Persist the current conversation state as a checkpoint
+3. Emit a WebSocket event `{ type: 'agent:stuck', agentId, instanceId, iteration }`
+4. The agent hibernates — near-zero cost while waiting
+
+The delivery mechanism for "notify a human" is **application-level**: the developer wires the WebSocket event to their notification system (Slack, email, dashboard alert). Vertz doesn't embed a notification provider.
+
+---
+
+## Testing Strategy
+
+### What Can Be Tested With `bun test` (No Cloudflare Runtime)
+
+| Component | Testable? | How |
+|---|---|---|
+| `tool()` factory | Yes | Schema validation, handler execution, frozen output |
+| `agent()` factory | Yes | Config validation, defaults, frozen output |
+| `workflow()` / `step()` factories | Yes | Step ordering, type extraction |
+| ReAct loop logic | Yes | Mock `LLMAdapter`, test iteration/checkpoint/stuck/error paths |
+| Tool input validation | Yes | `@vertz/schema` parse against test inputs |
+| Tool descriptions (JSON Schema) | Yes | `toJSONSchema()` output verification |
+| Type flow (`.test-d.ts`) | Yes | `@ts-expect-error` assertions |
+| `run()` entry point | Yes | Mock LLM + tools, verify lifecycle hooks called |
+
+### What Requires `@cloudflare/vitest-pool-workers` (Miniflare)
+
+| Component | Why |
+|---|---|
+| State persistence (DO storage) | Needs actual Durable Object runtime |
+| Agent-to-agent `invoke()` | Needs DO stub routing |
+| WebSocket state broadcasting | Needs DO WebSocket API |
+| Alarm-based scheduling | Needs DO alarm system |
+| Workflow step execution (CF Workflows) | Needs Workflow runtime |
+| Access rule evaluation at DO boundary | Needs request context |
+
+### How to Mock Entity Injection for Tool Tests
+
+```typescript
+// In bun tests — mock the entity operations
+const mockEntities = {
+  tasks: {
+    list: mock(() => [{ id: '1', title: 'Test' }]),
+    get: mock((id: string) => ({ id, title: 'Test' })),
+    create: mock((data: unknown) => ({ id: '2', ...data })),
+  },
+};
+
+// Pass to tool handler via context
+await toolDef.handler(input, {
+  agentId: 'test',
+  agentName: 'test',
+  entities: mockEntities,
+});
+```
+
+### Test File Naming
+
+- Unit tests: `*.test.ts` (run in CI via `bun test`)
+- Type tests: `*.test-d.ts` (run via `bun run typecheck`)
+- Cloudflare integration tests: `*.cf.test.ts` (run via `vitest` with `@cloudflare/vitest-pool-workers`)
+- Local integration tests: `*.local.ts` (manual only, not in CI)
+
+---
+
+## Portability Strategy
+
+### Core Layer (Runtime-Agnostic)
+
+The `@vertz/agents` package contains:
+- `agent()`, `tool()`, `workflow()`, `step()` factories → frozen definition objects
+- `LLMAdapter` interface → provider-agnostic LLM communication
+- ReAct loop implementation → pure TypeScript, no platform dependencies
+- Schema validation → `@vertz/schema` only
+- Type definitions → no runtime imports
+
+This layer has **zero Cloudflare dependencies**. It runs on any TypeScript runtime.
+
+### Cloudflare Adapter (`@vertz/agents/cloudflare`)
+
+A separate entrypoint (or future separate package) contains:
+- `createAgentHandler()` → bridges AgentDefinition to CF Durable Object
+- Workers AI adapter → implements `LLMAdapter` for CF's `AI` binding
+- State persistence → maps to DO storage
+- Codegen → generates DO class wrappers and `wrangler.toml` bindings
+- Workflow runtime → maps workflow definitions to CF Workflows
+
+### Future Adapters
+
+- `@vertz/agents/runtime` — for the Vertz Rust+V8 runtime (when ready)
+- `@vertz/agents/standalone` — for self-hosted Node.js/Bun with SQLite state
 
 ---
 
@@ -413,8 +748,9 @@ const server = createServer({
 
 - `state` schemas are validated at definition time — invalid initial state is a type error
 - Tool `input`/`output` schemas enforce type safety end-to-end
-- Workflow step `input` functions are typed against previous step outputs — referencing a non-existent step or wrong field is a compile error
+- Workflow step `input` functions are typed against previous step outputs (v1: linear accumulation)
 - `access` rules use the existing `rules.*` type system
+- Agent `output` schema types the return value of `invoke()`
 
 ### Principle 2: One way to do things
 
@@ -428,15 +764,16 @@ const server = createServer({
 
 This package is literally building AI agents. But more importantly, the API itself must be LLM-usable:
 - `agent()` follows the same pattern as `entity()` — an LLM that knows Vertz can use it immediately
-- Tool definitions mirror `action()` — `input`, `output`, `handler`
+- Tool definitions use `input`/`output` — matching LLM function-calling conventions
 - No hidden configuration, no magic strings, no decorator ordering
 
 ### Principle 5: Type safety wins
 
-- Workflow step outputs flow into subsequent step inputs via generics
 - Agent state type is inferred from the `state` schema
+- Agent output type is inferred from the `output` schema
 - Tool handler receives typed `input` and must return typed `output`
 - `inject` config maps to typed `ctx.entities` (same as entity/service)
+- Workflow step outputs accumulate into typed `prev` (v1: linear only)
 
 ### Principle 6: If you can't demo it, it's not done
 
@@ -456,22 +793,26 @@ This package is literally building AI agents. But more importantly, the API itse
 - **Decorator-based tool registration** — rejected per manifesto (decorators break type inference)
 - **Implicit tool discovery via MCP** — rejected in favor of explicit tool lists per agent; MCP is an optional exposure mechanism, not the definition mechanism
 - **Generic "middleware" for agent pipelines** — rejected per "one way to do things"; workflows with explicit steps are more predictable
+- **`body`/`response` naming for tools** — rejected because tools serve LLM function-calling, not HTTP. `input`/`output` matches every major LLM provider's convention.
+- **Full DAG workflows in v1** — rejected because the type system for parallel/conditional step output accumulation needs `.test-d.ts` validation. Linear-only is a solid v1.
 
 ---
 
 ## Non-Goals
 
-1. **General-purpose orchestration framework** — This is not Temporal, Inngest, or a generic workflow engine. It's specifically for AI agent workflows on Cloudflare.
+1. **General-purpose orchestration framework** — This is not Temporal, Inngest, or a generic workflow engine. It's specifically for AI agent workflows.
 
 2. **LLM provider abstraction** — We don't wrap every LLM API. We support specific providers (Cloudflare models, MiniMax, Anthropic) with explicit config, not a universal adapter.
 
 3. **Agent marketplace/registry** — No dynamic agent discovery or plugin system. Agents are defined in code, imported explicitly.
 
-4. **Self-hosted agent runtime** — v1 targets Cloudflare only. Self-hosted support (Vertz Runtime) is a future consideration gated on the runtime reaching production readiness.
+4. **Chat UI** — `AIChatAgent` and `useAgentChat` from Cloudflare's SDK can be used directly. We don't re-abstract chat interfaces.
 
-5. **Replacing Claude Code** — The dev orchestrator uses agents for structured workflow automation, not as a general-purpose coding assistant. Human developers + Claude Code remain the primary development interface.
+5. **Replacing Claude Code** — The dev orchestrator uses agents for structured workflow automation, not as a general-purpose coding assistant.
 
-6. **Chat UI** — `AIChatAgent` and `useAgentChat` from Cloudflare's SDK can be used directly. We don't re-abstract chat interfaces.
+6. **Parallel/conditional workflows in v1** — DAG-based step execution with typed parallel groups, `when` guards, and `goto` loops are v2. v1 is linear sequential steps.
+
+7. **Client-side tool execution in v1** — Browser-side tool delegation requires a WebSocket protocol that's out of scope for v1.
 
 ---
 
@@ -481,26 +822,37 @@ This package is literally building AI agents. But more importantly, the API itse
 
 Cloudflare Containers are relatively new. Can they reliably run `bun test`, `bun run typecheck`, and git operations? What are the cold start times? Memory limits?
 
-**Resolution:** POC before Phase 2. If containers are insufficient, fallback to Daytona.
+**Resolution:** POC before sandbox integration. If containers are insufficient, Daytona remains the only sandbox provider.
 
-### U2: ReAct loop context window management
+### U2: ReAct loop context window management (needs POC before CF integration)
 
-Long-running agents (50+ iterations) will exceed context windows. How do we summarize/truncate prior observations without losing critical information?
+**POC Gate:** Must validate context window summarization strategy before Phase 2 starts. Long-running agents (50+ iterations) will exceed context windows.
 
-**Resolution:** Research phase. Options:
-- Rolling window with summarization (summarize oldest N messages)
-- Hierarchical memory (short-term in context, long-term in durable SQLite)
-- Checkpoint-based restart with summary injection
+**POC scope:** Run a mock agent through 50+ iterations with Kimi K2 on Workers AI. Measure:
+- At what iteration count does context exceed the model's window?
+- Does rolling-window summarization (summarize oldest N messages, keep recent 5) preserve task coherence?
+- What's the token overhead of summarization vs. simple truncation?
 
-### U3: Cost model for open-source LLMs on Workers AI
+**Resolution options (ranked):**
+1. Rolling window with summarization (summarize oldest N messages)
+2. Checkpoint-based restart with summary injection
+3. Hard iteration cap below context window limit
 
-Kimi K2 and Gwenn on Workers AI — what's the token throughput? Latency? Cost per million tokens? Is it viable for agents that make 50+ LLM calls per task?
+### U3: Cost model for open-source LLMs on Workers AI (needs POC before CF integration)
 
-**Resolution:** POC with benchmarks before committing to specific models.
+**POC Gate:** Must benchmark Workers AI models before committing to Cloudflare as the primary LLM provider for agents.
+
+**POC scope:** Run the ReAct loop test suite against Workers AI with Kimi K2. Measure:
+- Latency per chat() call (p50, p95)
+- Token throughput (tokens/second)
+- Cost per million tokens
+- Tool-calling accuracy (does the model reliably output structured tool calls?)
+
+**Resolution:** If Workers AI is too slow or expensive for 50+ iteration agents, fall back to MiniMax or Anthropic for heavy workloads.
 
 ### U4: MiniMax API integration
 
-MiniMax's direct API — authentication, rate limits, streaming support, tool calling format. Is it compatible with the Vercel AI SDK adapter pattern?
+MiniMax's direct API — authentication, rate limits, streaming support, tool calling format.
 
 **Resolution:** Spike during Phase 1.
 
@@ -515,8 +867,9 @@ When a step fails mid-execution (sandbox timeout, LLM error), what's the retry s
 ## POC Results
 
 None yet. POCs planned:
-- **U1:** Cloudflare Containers for code execution (before Phase 2)
-- **U3:** Workers AI model benchmarks (during Phase 1)
+- **U2:** ReAct loop context window management (gate for Phase 2)
+- **U3:** Workers AI model benchmarks (gate for Phase 2)
+- **U1:** Cloudflare Containers for code execution (gate for sandbox integration)
 - **U4:** MiniMax API integration spike (during Phase 1)
 
 ---
@@ -526,27 +879,33 @@ None yet. POCs planned:
 ### `agent()` type flow
 
 ```
-s.object({ ... })                    → TState (inferred from state schema)
+s.object({ ... })                    → TStateSchema (schema type)
+  ↓ InferSchema<TStateSchema>
+  TState                             → inferred output type
   ↓
-agent('name', { state, tools, inject })
-  ↓                          ↓           ↓
-  TState flows to →    tool handler    AgentContext<TState, TInject>
-                       ctx.state: TState
-                       ctx.entities: InjectToOperations<TInject>
+agent('name', { state, initialState, output, tools, inject })
+  ↓              ↓           ↓          ↓         ↓
+  │     initialState:     output:      tool    AgentContext<TState, TInject>
+  │     NoInfer<TState>   s.object()  handler   ctx.state: TState
+  │     (prevents         ↓            ↓         ctx.entities: InjectToOperations<TInject>
+  │      wrong inference) InferAgentOutput<T>    ctx.agents.invoke(): typed return
+  ↓
+AgentDefinition<TState, TTools>
 ```
 
-### `workflow()` type flow
+### `workflow()` type flow (v1: linear accumulation)
 
 ```
 step('step-a', { output: s.object({ x: s.string() }) })
   ↓
   TOutputA = { x: string }
   ↓
-step('step-b', { input: (prev) => prev['step-a'].x })
-                                          ↑
-                    prev is typed: { 'step-a': TOutputA }
-                    prev['step-a'].x is string ✓
-                    prev['step-a'].y is @ts-expect-error ✗
+step('step-b', { input: (ctx) => ctx.prev['step-a'].x })
+                                     ↑
+              ctx.prev is typed: { 'step-a': TOutputA }
+              ctx.prev['step-a'].x is string ✓
+              ctx.prev['step-a'].y is @ts-expect-error ✗
+              ctx.workflow.input is TWorkflowInput ✓
 ```
 
 ### `tool()` type flow
@@ -566,12 +925,12 @@ handler(input: TInput, ctx): TOutput | Promise<TOutput>
 
 ## E2E Acceptance Test
 
-### Developer walkthrough: Define and deploy an agent
+### Developer walkthrough: Define and run an agent
 
 ```typescript
 // acceptance-test.ts — tests the full developer experience
 
-import { agent, tool, workflow, step, sandbox, invoke } from '@vertz/agents';
+import { agent, tool, workflow, step, run } from '@vertz/agents';
 import { rules } from '@vertz/server';
 import { s } from '@vertz/schema';
 
@@ -585,12 +944,17 @@ const greetTool = tool({
   },
 });
 
-// 2. Define an agent with state and tools
+// 2. Define an agent with state, tools, and output
 const greeterAgent = agent('greeter', {
+  description: 'Greets users by name',
   state: s.object({
     greetingsGiven: s.number(),
   }),
   initialState: { greetingsGiven: 0 },
+  output: s.object({
+    greeting: s.string(),
+    totalGreetings: s.number(),
+  }),
   access: {
     invoke: rules.public,
   },
@@ -601,6 +965,9 @@ const greeterAgent = agent('greeter', {
     provider: 'cloudflare',
     model: 'llama-3.3-70b-instruct-fp8-fast',
   },
+  prompt: {
+    system: 'You are a friendly greeter.',
+  },
   loop: {
     maxIterations: 10,
     onStuck: 'stop',
@@ -609,6 +976,7 @@ const greeterAgent = agent('greeter', {
 
 // 3. Type safety: wrong state shape is a compile error
 const badAgent = agent('bad', {
+  description: 'Test agent',
   state: s.object({ count: s.number() }),
   // @ts-expect-error — initialState doesn't match schema
   initialState: { count: 'not a number' },
@@ -627,7 +995,7 @@ const badTool = tool({
   },
 });
 
-// 5. Define a workflow with typed step transitions
+// 5. Define a workflow with typed step transitions (v1: linear)
 const pipeline = workflow('greeting-pipeline', {
   input: s.object({ userName: s.string() }),
   access: { start: rules.public },
@@ -639,8 +1007,8 @@ const pipeline = workflow('greeting-pipeline', {
     }),
     step('log', {
       agent: greeterAgent,
-      // prev is typed — 'greet' step output is available
-      input: (prev) => ({ message: `Log: ${prev['greet'].greeting}` }),
+      // ctx.prev is typed — 'greet' step output is available
+      input: (ctx) => ({ message: `Log: ${ctx.prev['greet'].greeting}` }),
       output: s.object({ logged: s.boolean() }),
     }),
   ],
@@ -654,7 +1022,7 @@ const badPipeline = workflow('bad-pipeline', {
     step('only-step', {
       agent: greeterAgent,
       // @ts-expect-error — 'nonexistent' step doesn't exist
-      input: (prev) => ({ message: prev['nonexistent'].greeting }),
+      input: (ctx) => ({ message: ctx.prev['nonexistent'].greeting }),
       output: s.object({ done: s.boolean() }),
     }),
   ],
@@ -665,19 +1033,20 @@ const badPipeline = workflow('bad-pipeline', {
 
 ## Implementation Plan
 
-### Phase 1: Core Definitions + Tool Execution
+### Phase 1: Core Definitions + Tool Execution + Server Integration
 
-**Goal:** `agent()`, `tool()`, and the ReAct loop running on a single Cloudflare Worker with Workers AI.
+**Goal:** `agent()`, `tool()`, ReAct loop, LLM provider adapters, and basic server registration — a complete vertical slice from definition to HTTP endpoint.
 
 **Acceptance criteria:**
 ```typescript
 describe('Feature: Agent definition and tool execution', () => {
-  describe('Given an agent with tools and Workers AI model', () => {
-    describe('When the agent receives a message', () => {
+  describe('Given an agent with tools and a mock LLM', () => {
+    describe('When the agent receives a message via run()', () => {
       it('Then executes the ReAct loop: think → tool call → observe → respond', () => {});
       it('Then validates tool inputs against the schema', () => {});
-      it('Then persists state to durable storage after each iteration', () => {});
       it('Then stops after maxIterations', () => {});
+      it('Then calls onStart/onComplete lifecycle hooks', () => {});
+      it('Then feeds tool errors back to the LLM for self-correction', () => {});
     });
   });
 
@@ -687,26 +1056,29 @@ describe('Feature: Agent definition and tool execution', () => {
     });
   });
 
-  describe('Given a tool with approval required', () => {
-    describe('When the agent calls the tool', () => {
-      it('Then pauses execution and waits for human approval', () => {});
-      it('Then resumes after approval', () => {});
+  describe('Given an agent registered in createServer()', () => {
+    describe('When the server starts', () => {
+      it('Then accepts agent definitions in the agents array', () => {});
     });
   });
 });
 ```
 
 **Deliverables:**
-- `agent()` factory that produces a Cloudflare `Agent` subclass
+- `agent()` factory that produces frozen `AgentDefinition`
 - `tool()` factory with schema validation
-- ReAct loop with configurable iteration limits and checkpointing
-- Workers AI integration (Kimi K2, Llama)
-- MiniMax direct API spike
+- ReAct loop with configurable iteration limits, checkpointing, and error recovery
+- `LLMAdapter` interface with Workers AI and MiniMax adapters
+- `run()` entry point for executing agents
+- `AgentDefinition` type accepted by `createServer({ agents: [...] })`
 - Access rule evaluation on agent invocation
+- MiniMax API spike
 
 ### Phase 2: Workflows + Sandbox
 
 **Goal:** `workflow()`, `step()`, `sandbox()`, and agent-to-agent communication.
+
+**Prerequisites:** U2 and U3 POC results (context window management, Workers AI cost model).
 
 **Acceptance criteria:**
 ```typescript
@@ -715,19 +1087,7 @@ describe('Feature: Multi-step workflows', () => {
     describe('When the workflow starts', () => {
       it('Then executes steps in order, passing outputs forward', () => {});
       it('Then validates step outputs against their schemas', () => {});
-    });
-  });
-
-  describe('Given a workflow with parallel steps', () => {
-    describe('When parallel steps are reached', () => {
-      it('Then executes them concurrently', () => {});
-      it('Then waits for all parallel steps before proceeding', () => {});
-    });
-  });
-
-  describe('Given a workflow with a conditional goto', () => {
-    describe('When the condition is met', () => {
-      it('Then loops back to the specified step', () => {});
+      it('Then types ctx.prev correctly for each step', () => {});
     });
   });
 
@@ -737,58 +1097,69 @@ describe('Feature: Multi-step workflows', () => {
     });
   });
 
-  describe('Given a tool with a sandbox', () => {
+  describe('Given a tool with a Daytona sandbox', () => {
     describe('When the tool executes', () => {
       it('Then runs the handler inside the sandboxed environment', () => {});
       it('Then returns stdout/stderr from the sandbox', () => {});
     });
   });
+
+  describe('Given agent A invoking agent B via ctx.agents.invoke()', () => {
+    describe('When agent B completes', () => {
+      it('Then returns the typed output to agent A', () => {});
+    });
+  });
 });
 ```
 
 **Deliverables:**
-- `workflow()` and `step()` factories
-- Step dependency resolution and parallel execution
-- Conditional steps and goto/loop
-- `sandbox()` with Cloudflare Containers (or Daytona fallback)
-- `invoke()` for agent-to-agent communication
-- Cloudflare Containers POC results
+- `workflow()` and `step()` factories (linear sequential)
+- `sandbox()` with Daytona integration
+- `ctx.agents.invoke()` for agent-to-agent communication
+- Workflow step type accumulation (`.test-d.ts` proof)
+- U2/U3 POC results documented
 
-### Phase 3: Entity Injection + Server Integration
+### Phase 3: Cloudflare Runtime Integration
 
-**Goal:** `inject` config, `agents()` registration in `createServer()`, and dashboard WebSocket API.
+**Goal:** Codegen for Durable Object class generation, state persistence, WebSocket broadcasting, and deployment pipeline.
 
 **Acceptance criteria:**
 ```typescript
-describe('Feature: Entity injection in agents', () => {
-  describe('Given an agent with injected entities', () => {
+describe('Feature: Cloudflare runtime integration', () => {
+  describe('Given agent definitions and vertz build', () => {
+    describe('When the build runs', () => {
+      it('Then generates DO class wrappers in .vertz/agents/', () => {});
+      it('Then generates wrangler.toml bindings', () => {});
+    });
+  });
+
+  describe('Given a deployed agent on Cloudflare', () => {
+    describe('When the agent runs', () => {
+      it('Then persists state to DO storage after each iteration', () => {});
+      it('Then broadcasts state changes via WebSocket', () => {});
+      it('Then hibernates when idle', () => {});
+    });
+  });
+
+  describe('Given entity injection configured', () => {
     describe('When a tool handler accesses ctx.entities', () => {
       it('Then provides typed CRUD operations', () => {});
       it('Then enforces entity access rules', () => {});
     });
   });
-
-  describe('Given agents registered with createServer()', () => {
-    describe('When the server starts', () => {
-      it('Then routes /agents/:name/:instance to the correct Agent Durable Object', () => {});
-      it('Then exposes agent state via WebSocket for dashboard', () => {});
-    });
-  });
 });
 ```
 
 **Deliverables:**
-- `inject` config for agents (reusing entity injection machinery)
-- `agents()` helper for server registration
+- Codegen: `vertz build` generates DO class wrappers and `wrangler.toml` bindings
+- `createAgentHandler()` — bridges AgentDefinition to CF Durable Object
+- State persistence via DO storage with Proxy-based state management
+- WebSocket state broadcasting
+- Entity injection via `inject` config
 - HTTP routing for agent invocation
-- WebSocket state broadcasting for monitoring
-- Agent dashboard data API
+- CF Containers POC (for future sandbox option)
 
-### Phase 4: Dev Orchestrator (Dogfood)
-
-**Goal:** Build the Vertz development workflow orchestrator using `@vertz/agents`.
-
-This phase is a separate design doc — it defines the specific agents (design writer, DX reviewer, technical reviewer, implementation agent, PR agent) and the orchestration workflow. Phase 4 is the validation that Phases 1-3 deliver the right abstractions.
+> **Note:** Phase 4 (Dev Orchestrator) is a **separate design doc**. It defines the specific agents, workflows, and orchestration for Vertz's development automation. It is the validation that Phases 1-3 deliver the right abstractions.
 
 ---
 
@@ -798,40 +1169,73 @@ This phase is a separate design doc — it defines the specific agents (design w
 packages/agents/
 ├── package.json
 ├── src/
-│   ├── index.ts            # Public API: agent, tool, workflow, step, sandbox, invoke
-│   ├── agent.ts            # agent() factory
-│   ├── tool.ts             # tool() factory
-│   ├── workflow.ts         # workflow() and step() factories
-│   ├── sandbox.ts          # sandbox() factory
-│   ├── invoke.ts           # Agent-to-agent communication
+│   ├── index.ts              # Public API: agent, tool, workflow, step, sandbox, run
+│   ├── agent.ts              # agent() factory
+│   ├── tool.ts               # tool() factory
+│   ├── workflow.ts           # workflow() and step() factories
+│   ├── sandbox.ts            # sandbox() factory (Daytona)
+│   ├── run.ts                # run() entry point
 │   ├── loop/
-│   │   ├── react-loop.ts   # ReAct loop implementation
-│   │   ├── checkpoint.ts   # Durable state checkpointing
-│   │   └── context-mgmt.ts # Token budget and window management
+│   │   ├── react-loop.ts     # ReAct loop implementation
+│   │   ├── validate-tool-input.ts  # Schema validation for tool inputs
+│   │   ├── checkpoint.ts     # Durable state checkpointing
+│   │   └── context-mgmt.ts   # Token budget and window management
 │   ├── providers/
-│   │   ├── workers-ai.ts   # Cloudflare Workers AI adapter
-│   │   ├── minimax.ts      # MiniMax direct API adapter
-│   │   └── types.ts        # Provider interface
-│   ├── runtime/
-│   │   ├── cloudflare.ts   # Cloudflare Agent/Workflow class generation
-│   │   └── routing.ts      # HTTP/WS routing integration
-│   └── types.ts            # All public types
+│   │   ├── workers-ai.ts     # Cloudflare Workers AI adapter
+│   │   ├── minimax.ts        # MiniMax direct API adapter
+│   │   └── tool-description.ts  # Tool → JSON Schema conversion
+│   ├── cloudflare/           # CF-specific adapter (separate entrypoint)
+│   │   ├── handler.ts        # createAgentHandler()
+│   │   ├── state-proxy.ts    # Proxy-based state over DO storage
+│   │   └── codegen.ts        # DO class + wrangler.toml generation
+│   └── types.ts              # All public types
 ├── test/
 │   ├── agent.test.ts
 │   ├── tool.test.ts
 │   ├── workflow.test.ts
-│   ├── loop.test.ts
-│   └── types.test-d.ts     # Type-level tests
+│   ├── loop/
+│   │   ├── react-loop.test.ts
+│   │   ├── validate-tool-input.test.ts
+│   │   └── run.test.ts
+│   ├── providers/
+│   │   └── tool-description.test.ts
+│   └── types.test-d.ts       # Type-level tests
 └── bunup.config.ts
 ```
 
 ---
 
-## Dependencies
+## Package Dependencies
 
-| Package | Relationship |
-|---|---|
-| `@vertz/schema` | `dependency` — schema validation for state, tool I/O |
-| `@vertz/server` | `peerDependency` — `rules.*`, `createServer()` integration |
-| `agents` (Cloudflare) | `dependency` — underlying Agent/Workflow runtime |
-| `@vertz/db` | `peerDependency` — for entity injection (optional) |
+| Package | Relationship | Why |
+|---|---|---|
+| `@vertz/schema` | `dependency` | Schema validation, `toJSONSchema()` for LLM tool descriptions |
+| `@vertz/errors` | `dependency` | VertzException subclasses |
+| `@vertz/server` | `peerDependency` | `rules.*` for access control, `AgentDefinition` structural type, `createServer()` integration |
+| `@vertz/db` | `peerDependency` (optional) | Entity injection — only needed if `inject` is used |
+| `agents` (Cloudflare) | `dependency` (in `cloudflare/` adapter only) | Underlying Agent/Workflow runtime |
+
+### Dependency Direction
+
+`AgentDefinition` (the structural type) is defined in `@vertz/server` — matching how `EntityDefinition` and `ServiceDefinition` live there. `@vertz/agents` produces objects that satisfy this structural type. `@vertz/server` accepts them in `createServer({ agents: [...] })`.
+
+This avoids circular references: `@vertz/agents` → `@vertz/server` (peer), `@vertz/server` doesn't import `@vertz/agents`.
+
+---
+
+## Access Rules for Agents
+
+Agent access uses `invoke` and `approve` keys (not entity CRUD keys like `list`/`get`/`create`/`update`/`delete`). The `rules.where()` builder is **not valid** for agent access — there is no "row" to check conditions against. Valid builders for agent access:
+
+```typescript
+access: {
+  invoke: rules.authenticated(),              // ✓
+  invoke: rules.entitlement('agent:invoke'),  // ✓
+  invoke: rules.role('admin'),                // ✓
+  invoke: rules.public,                       // ✓
+  // @ts-expect-error — rules.where() is not valid for agent access
+  invoke: rules.where({ createdBy: rules.user.id }),  // ✗
+}
+```
+
+Workflow access uses `start` and `approve` (convention: `start` for initiating, `invoke` for RPC-style calls).

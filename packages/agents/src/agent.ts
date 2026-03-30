@@ -22,14 +22,15 @@ const DEFAULT_LOOP: AgentLoopConfig = {
  * Follows the same config-object pattern as `entity()` and `service()`.
  * Returns a frozen `AgentDefinition` that can be registered with `createServer()`.
  */
+/* eslint-disable @typescript-eslint/no-explicit-any -- TInput/TOutput must remain any for variance */
 export function agent<
   TStateSchema extends SchemaAny,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- TInput/TOutput must remain any for variance
   TTools extends Record<string, ToolDefinition<any, any>> = Record<
     string,
     ToolDefinition<any, any>
   >,
->(
+>
+/* eslint-enable @typescript-eslint/no-explicit-any */(
   name: string,
   config: AgentConfig<InferSchema<TStateSchema>, TStateSchema, TTools>,
 ): AgentDefinition<InferSchema<TStateSchema>, TTools> {

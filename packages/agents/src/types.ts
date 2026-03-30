@@ -80,15 +80,16 @@ export interface AgentLoopConfig {
 }
 
 /** Configuration passed to the `agent()` factory. */
+/* eslint-disable @typescript-eslint/no-explicit-any -- TInput/TOutput must remain any for variance */
 export interface AgentConfig<
   TState,
   TStateSchema extends SchemaAny = SchemaAny,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- TInput/TOutput must remain any for variance
   TTools extends Record<string, ToolDefinition<any, any>> = Record<
     string,
     ToolDefinition<any, any>
   >,
-> {
+>
+/* eslint-enable @typescript-eslint/no-explicit-any */ {
   readonly state: TStateSchema;
   readonly initialState: NoInfer<TState>;
   readonly tools: TTools;
@@ -111,14 +112,15 @@ export interface AgentContext<TState = unknown> {
 }
 
 /** The frozen definition returned by `agent()`. */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any -- any for variance compat (same pattern as EntityDefinition)
+/* eslint-disable @typescript-eslint/no-explicit-any -- any for variance compat (same pattern as EntityDefinition) */
 export interface AgentDefinition<
   TState = unknown,
   TTools extends Record<string, ToolDefinition<any, any>> = Record<
     string,
     ToolDefinition<any, any>
   >,
-> {
+>
+/* eslint-enable @typescript-eslint/no-explicit-any */ {
   readonly kind: 'agent';
   readonly name: string;
   readonly state: SchemaAny;
