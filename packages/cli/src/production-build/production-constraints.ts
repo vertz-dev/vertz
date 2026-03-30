@@ -7,7 +7,7 @@
  * - Startup diagnostics logging
  */
 
-import type { EntityIR } from '@vertz/compiler';
+import type { EntityActionIR, EntityIR } from '@vertz/compiler';
 
 const CRUD_OPERATIONS = ['list', 'get', 'create', 'update', 'delete'] as const;
 
@@ -71,7 +71,7 @@ export function formatStartupDiagnostics(entities: EntityIR[]): string {
   if (entities.length > 0) {
     lines.push('');
     for (const entity of entities) {
-      const ops = [...CRUD_OPERATIONS, ...entity.actions.map((a) => a.name)];
+      const ops = [...CRUD_OPERATIONS, ...entity.actions.map((a: EntityActionIR) => a.name)];
       const scope = entity.tenantScoped ? ' (tenant-scoped)' : '';
       lines.push(`   - ${entity.name}: ${ops.join(', ')}${scope}`);
     }
