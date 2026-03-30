@@ -16,8 +16,8 @@ use std::time::Instant;
 
 use deno_core::error::AnyError;
 
+use crate::runtime::async_context::load_async_context;
 use crate::runtime::js_runtime::{VertzJsRuntime, VertzRuntimeOptions};
-use crate::ssr::async_local_storage::load_async_local_storage;
 use crate::ssr::css_collector;
 use crate::ssr::dom_shim;
 use crate::ssr::html_document::{assemble_ssr_document, entry_path_to_url, SsrHtmlOptions};
@@ -131,7 +131,7 @@ fn render_ssr(options: &SsrOptions) -> Result<SsrResult, AnyError> {
     })?;
 
     // Load polyfills and shims
-    load_async_local_storage(&mut runtime)?;
+    load_async_context(&mut runtime)?;
     dom_shim::load_dom_shim(&mut runtime)?;
 
     // Set location for router
@@ -284,7 +284,7 @@ pub fn render_inline_ssr(js_code: &str, url: &str) -> Result<SsrResult, AnyError
     })?;
 
     // Load polyfills and shims
-    load_async_local_storage(&mut runtime)?;
+    load_async_context(&mut runtime)?;
     dom_shim::load_dom_shim(&mut runtime)?;
     dom_shim::set_ssr_location(&mut runtime, url)?;
 

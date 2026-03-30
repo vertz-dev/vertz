@@ -12,6 +12,7 @@ use deno_core::PollEventLoopOptions;
 use deno_core::RuntimeOptions;
 
 use super::module_loader::VertzModuleLoader;
+use super::ops::async_context;
 use super::ops::clone;
 use super::ops::console;
 use super::ops::crypto;
@@ -62,6 +63,7 @@ impl VertzJsRuntime {
 
         // Collect all op declarations
         let mut all_ops = Vec::new();
+        all_ops.extend(async_context::op_decls());
         all_ops.extend(clone::op_decls());
         all_ops.extend(console::op_decls());
         all_ops.extend(timers::op_decls());
@@ -115,6 +117,7 @@ impl VertzJsRuntime {
 
         // Register V8 native functions (before bootstrap JS)
         clone::register_structured_clone(&mut runtime);
+        async_context::register_promise_hooks(&mut runtime);
 
         // Bootstrap all JS globals
         runtime.execute_script(

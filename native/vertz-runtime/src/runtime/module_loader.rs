@@ -85,8 +85,16 @@ impl VertzModuleLoader {
             return Ok(path.to_path_buf());
         }
 
-        // Try with extensions
+        // Try appending extensions (e.g., foo.service -> foo.service.ts)
         let extensions = [".ts", ".tsx", ".js", ".jsx", ".mjs"];
+        for ext in &extensions {
+            let appended = PathBuf::from(format!("{}{}", path.display(), ext));
+            if appended.is_file() {
+                return Ok(appended);
+            }
+        }
+
+        // Try replacing extension (e.g., foo -> foo.ts)
         for ext in &extensions {
             let with_ext = path.with_extension(ext.trim_start_matches('.'));
             if with_ext.is_file() {
@@ -803,8 +811,54 @@ function randomUUID() {
   return Deno.core.ops.op_crypto_random_uuid();
 }
 
-export { createHash, createHmac, timingSafeEqual, randomBytes, randomUUID, Hash };
-export default { createHash, createHmac, timingSafeEqual, randomBytes, randomUUID };
+// webcrypto: expose the Web Crypto API (available in V8 via globalThis.crypto)
+const webcrypto = globalThis.crypto;
+
+// KeyObject stub for RSA key operations (the runtime uses Rust-native JWT ops)
+class KeyObject {
+  constructor(type, data) {
+    this._type = type;
+    this._data = data;
+  }
+  get type() { return this._type; }
+  export(options) {
+    if (options && options.type === 'pkcs1' && options.format === 'pem') {
+      return this._data;
+    }
+    if (options && options.type === 'spki' && options.format === 'pem') {
+      return this._data;
+    }
+    return this._data;
+  }
+}
+
+function createPrivateKey(input) {
+  const key = typeof input === 'string' ? input : (input.key || input);
+  return new KeyObject('private', key);
+}
+
+function createPublicKey(input) {
+  const key = typeof input === 'string' ? input : (input.key || input);
+  return new KeyObject('public', key);
+}
+
+function generateKeyPairSync(type, options) {
+  // Delegate to Rust op if available
+  if (typeof Deno !== 'undefined' && Deno.core && Deno.core.ops.op_crypto_generate_keypair) {
+    const result = Deno.core.ops.op_crypto_generate_keypair(
+      type,
+      options.modulusLength || 2048
+    );
+    return {
+      publicKey: createPublicKey(result.publicKey),
+      privateKey: createPrivateKey(result.privateKey),
+    };
+  }
+  throw new Error('generateKeyPairSync is not supported in the Vertz runtime without the crypto op');
+}
+
+export { createHash, createHmac, timingSafeEqual, randomBytes, randomUUID, Hash, webcrypto, KeyObject, createPrivateKey, createPublicKey, generateKeyPairSync };
+export default { createHash, createHmac, timingSafeEqual, randomBytes, randomUUID, webcrypto, KeyObject, createPrivateKey, createPublicKey, generateKeyPairSync };
 "#;
 
 /// Synthetic module for `node:buffer` / `buffer`.
@@ -812,6 +866,32 @@ const NODE_BUFFER_SPECIFIER: &str = "vertz:node_buffer";
 const NODE_BUFFER_MODULE: &str = r#"
 export const Buffer = globalThis.Buffer;
 export default { Buffer: globalThis.Buffer };
+"#;
+
+/// Synthetic module for `node:module`.
+/// Provides createRequire for CJS interop (used by bunup-generated shims).
+const NODE_MODULE_SPECIFIER: &str = "vertz:node_module";
+const NODE_MODULE_MODULE: &str = r#"
+// createRequire shim: resolves bare specifiers via dynamic import
+// This is used by bunup's CJS interop: `var __require = createRequire(import.meta.url)`
+export function createRequire(_url) {
+  return function require(specifier) {
+    throw new Error(
+      `createRequire().require("${specifier}") is not supported in the Vertz runtime. ` +
+      `Use ESM imports instead.`
+    );
+  };
+}
+export default { createRequire };
+"#;
+
+/// Synthetic module for `node:async_hooks`.
+/// Delegates to the AsyncContext polyfill installed by load_async_context().
+const NODE_ASYNC_HOOKS_SPECIFIER: &str = "vertz:node_async_hooks";
+const NODE_ASYNC_HOOKS_MODULE: &str = r#"
+const { AsyncLocalStorage, AsyncResource } = globalThis.__vertz_async_hooks || {};
+export { AsyncLocalStorage, AsyncResource };
+export default { AsyncLocalStorage, AsyncResource };
 "#;
 
 /// Map a `node:*` specifier to a synthetic module specifier.
@@ -826,6 +906,8 @@ fn node_specifier_to_synthetic(specifier: &str) -> Option<&'static str> {
         "node:fs/promises" => Some(NODE_FS_PROMISES_SPECIFIER),
         "node:crypto" | "crypto" => Some(NODE_CRYPTO_SPECIFIER),
         "node:buffer" | "buffer" => Some(NODE_BUFFER_SPECIFIER),
+        "node:module" | "module" => Some(NODE_MODULE_SPECIFIER),
+        "node:async_hooks" | "async_hooks" => Some(NODE_ASYNC_HOOKS_SPECIFIER),
         _ => None,
     }
 }
@@ -844,6 +926,8 @@ fn synthetic_module_source(specifier: &str) -> Option<&'static str> {
         NODE_FS_PROMISES_SPECIFIER => Some(NODE_FS_PROMISES_MODULE),
         NODE_CRYPTO_SPECIFIER => Some(NODE_CRYPTO_MODULE),
         NODE_BUFFER_SPECIFIER => Some(NODE_BUFFER_MODULE),
+        NODE_MODULE_SPECIFIER => Some(NODE_MODULE_MODULE),
+        NODE_ASYNC_HOOKS_SPECIFIER => Some(NODE_ASYNC_HOOKS_MODULE),
         VERTZ_SQLITE_SPECIFIER => Some(VERTZ_SQLITE_MODULE),
         _ => None,
     }
