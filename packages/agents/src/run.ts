@@ -170,8 +170,8 @@ export async function run(
 
   // Build agent invoker for ctx.agents.invoke()
   const agents = {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- agent definitions have varying types
     async invoke(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- agent definitions have varying types
       targetAgent: AgentDefinition<any, any, any>,
       invokeOpts: { message: string; instanceId?: string },
     ) {
