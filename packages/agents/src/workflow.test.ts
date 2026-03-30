@@ -360,4 +360,141 @@ describe('runWorkflow()', () => {
 
     expect(capturedMessage).toBe('Execute step "auto"');
   });
+
+  it('suspends on approval step and returns pending status', async () => {
+    const noopAgent = agent('noop', {
+      state: s.object({}),
+      initialState: {},
+      tools: {},
+      model: { provider: 'cloudflare', model: 'test' },
+    });
+
+    const llm: LLMAdapter = {
+      async chat() {
+        return { text: 'done', toolCalls: [] };
+      },
+    };
+
+    const pipeline = workflow('approval-pipeline', {
+      input: s.object({ docPath: s.string() }),
+      steps: [
+        step('write-doc', {
+          agent: noopAgent,
+          input: () => 'Write the doc',
+          output: s.object({}),
+        }),
+        step('human-review', {
+          approval: {
+            message: (ctx) => `Review doc: ${(ctx.prev as Record<string, unknown>)['write-doc']}`,
+            timeout: '7d',
+          },
+          output: s.object({ approved: s.boolean() }),
+        }),
+        step('implement', {
+          agent: noopAgent,
+          input: () => 'Start implementation',
+          output: s.object({}),
+        }),
+      ],
+    });
+
+    const result = await runWorkflow(pipeline, {
+      input: { docPath: '/plans/feature.md' },
+      llm,
+    });
+
+    expect(result.status).toBe('pending');
+    expect(result.pendingStep).toBe('human-review');
+    // First step should have completed
+    expect(result.stepResults['write-doc'].status).toBe('complete');
+    // Steps after approval should not have run
+    expect(result.stepResults).not.toHaveProperty('implement');
+  });
+
+  it('resumes a workflow from a specific step after approval', async () => {
+    const noopAgent = agent('noop', {
+      state: s.object({}),
+      initialState: {},
+      tools: {},
+      model: { provider: 'cloudflare', model: 'test' },
+    });
+
+    const llm: LLMAdapter = {
+      async chat() {
+        return { text: 'done', toolCalls: [] };
+      },
+    };
+
+    const pipeline = workflow('resume-pipeline', {
+      input: s.object({}),
+      steps: [
+        step('first', {
+          agent: noopAgent,
+          input: () => 'Step 1',
+          output: s.object({}),
+        }),
+        step('approve', {
+          approval: { message: 'Approve?' },
+          output: s.object({ approved: s.boolean() }),
+        }),
+        step('last', {
+          agent: noopAgent,
+          input: () => 'Step 3',
+          output: s.object({}),
+        }),
+      ],
+    });
+
+    // Resume from after the approval step, providing previous results
+    const result = await runWorkflow(pipeline, {
+      input: {},
+      llm,
+      resumeAfter: 'approve',
+      previousResults: {
+        first: { status: 'complete', response: 'Step 1 done', iterations: 1 },
+      },
+    });
+
+    expect(result.status).toBe('complete');
+    // Should have only run 'last'
+    expect(result.stepResults).toHaveProperty('first');
+    expect(result.stepResults).toHaveProperty('last');
+    expect(result.stepResults['last'].status).toBe('complete');
+  });
+
+  it('returns approval message from function', async () => {
+    const noopAgent = agent('noop', {
+      state: s.object({}),
+      initialState: {},
+      tools: {},
+      model: { provider: 'cloudflare', model: 'test' },
+    });
+
+    const llm: LLMAdapter = {
+      async chat() {
+        return { text: 'done', toolCalls: [] };
+      },
+    };
+
+    const pipeline = workflow('msg-pipeline', {
+      input: s.object({ docPath: s.string() }),
+      steps: [
+        step('review', {
+          approval: {
+            message: (ctx) =>
+              `Please review: ${(ctx.workflow.input as { docPath: string }).docPath}`,
+          },
+          output: s.object({}),
+        }),
+      ],
+    });
+
+    const result = await runWorkflow(pipeline, {
+      input: { docPath: '/plans/test.md' },
+      llm,
+    });
+
+    expect(result.status).toBe('pending');
+    expect(result.approvalMessage).toBe('Please review: /plans/test.md');
+  });
 });

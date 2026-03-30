@@ -18,9 +18,17 @@ export interface StepContext<TWorkflowInput = unknown> {
   readonly prev: Record<string, unknown>;
 }
 
+/** Approval gate configuration for a step. */
+export interface StepApprovalConfig {
+  /** Message shown to the human approver. */
+  readonly message: string | ((ctx: StepContext) => string);
+  /** How long to wait for approval. */
+  readonly timeout?: string;
+}
+
 /** Configuration passed to the `step()` factory. */
 export interface StepConfig<TOutputSchema extends SchemaAny = SchemaAny> {
-  /** The agent to execute for this step. */
+  /** The agent to execute for this step. Omit for approval-only steps. */
   /* eslint-disable @typescript-eslint/no-explicit-any -- agent definitions have varying state/tool types */
   readonly agent?: AgentDefinition<any, any, any>;
   /* eslint-enable @typescript-eslint/no-explicit-any */
@@ -28,6 +36,8 @@ export interface StepConfig<TOutputSchema extends SchemaAny = SchemaAny> {
   readonly input?: (ctx: StepContext) => string | { message: string };
   /** Schema for validating step output. */
   readonly output: TOutputSchema;
+  /** Approval gate — suspends the workflow until a human approves. */
+  readonly approval?: StepApprovalConfig;
 }
 
 /** The frozen definition returned by `step()`. */
@@ -42,6 +52,7 @@ export interface StepDefinition<
   /* eslint-enable @typescript-eslint/no-explicit-any */
   readonly input?: (ctx: StepContext) => string | { message: string };
   readonly output: TOutputSchema;
+  readonly approval?: StepApprovalConfig;
 }
 
 // ---------------------------------------------------------------------------
@@ -71,6 +82,7 @@ export function step<TName extends string, TOutputSchema extends SchemaAny>(
     agent: config.agent,
     input: config.input,
     output: config.output,
+    approval: config.approval,
   };
 
   return deepFreeze(def);
@@ -147,8 +159,8 @@ export function workflow<TInputSchema extends SchemaAny>(
 // Workflow execution
 // ---------------------------------------------------------------------------
 
-/** Status of a completed workflow. */
-export type WorkflowStatus = 'complete' | 'error';
+/** Status of a workflow execution. */
+export type WorkflowStatus = 'complete' | 'error' | 'pending';
 
 /** Result of a single step execution. */
 export interface StepResult {
@@ -163,6 +175,10 @@ export interface RunWorkflowOptions<TInput = unknown> {
   readonly input: TInput;
   /** The LLM adapter to use for all agent steps. */
   readonly llm: LLMAdapter;
+  /** Resume execution after a specific step (e.g., after approval). Steps up to and including this step are skipped. */
+  readonly resumeAfter?: string;
+  /** Previous step results to restore when resuming. */
+  readonly previousResults?: Record<string, StepResult>;
 }
 
 /** Result of a workflow execution. */
@@ -172,6 +188,10 @@ export interface WorkflowResult {
   readonly stepResults: Record<string, StepResult>;
   /** Step name where the workflow stopped (only set on error). */
   readonly failedStep?: string;
+  /** Step name where the workflow is waiting for approval (only set on pending). */
+  readonly pendingStep?: string;
+  /** Approval message for the pending step. */
+  readonly approvalMessage?: string;
 }
 
 /**
@@ -184,7 +204,7 @@ export async function runWorkflow<TInputSchema extends SchemaAny>(
   workflowDef: WorkflowDefinition<TInputSchema>,
   options: RunWorkflowOptions<InferSchema<TInputSchema>>,
 ): Promise<WorkflowResult> {
-  const { input, llm } = options;
+  const { input, llm, resumeAfter, previousResults } = options;
 
   // Validate input against workflow schema
   const parseResult = workflowDef.input.parse(input);
@@ -197,16 +217,49 @@ export async function runWorkflow<TInputSchema extends SchemaAny>(
   const stepResults: Record<string, StepResult> = {};
   const prev: Record<string, unknown> = {};
 
-  for (const stepDef of workflowDef.steps) {
-    if (!stepDef.agent) {
-      throw new Error(`Step "${stepDef.name}" has no agent assigned.`);
+  // When resuming, restore previous results and skip steps
+  if (previousResults) {
+    for (const [name, result] of Object.entries(previousResults)) {
+      stepResults[name] = result;
+      prev[name] = { response: result.response, status: result.status };
     }
+  }
 
-    // Build step context
+  let skipping = !!resumeAfter;
+
+  for (const stepDef of workflowDef.steps) {
+    // Skip steps until we pass the resumeAfter step
+    if (skipping) {
+      if (stepDef.name === resumeAfter) {
+        skipping = false;
+      }
+      continue;
+    }
+    // Build step context (shared by both agent and approval steps)
     const ctx: StepContext = {
       workflow: { input },
       prev: { ...prev },
     };
+
+    // Approval gate — suspend workflow
+    if (stepDef.approval) {
+      const approvalMsg =
+        typeof stepDef.approval.message === 'function'
+          ? stepDef.approval.message(ctx)
+          : stepDef.approval.message;
+
+      return {
+        status: 'pending',
+        stepResults,
+        pendingStep: stepDef.name,
+        approvalMessage: approvalMsg,
+      };
+    }
+
+    // Agent step — requires an agent
+    if (!stepDef.agent) {
+      throw new Error(`Step "${stepDef.name}" has no agent assigned.`);
+    }
 
     // Resolve the message for this step
     let message: string;
