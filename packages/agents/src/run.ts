@@ -81,18 +81,18 @@ function hasStore(opts: RunOptions): opts is RunOptionsWithStore {
  * 4. Calls onComplete or onStuck based on the result
  * 5. Returns the loop result
  */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any -- agent definitions have varying state/tool types
 export async function run(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- agent definitions have varying state/tool types
   agentDef: AgentDefinition<any, any, any>,
   opts: RunOptionsStateless,
 ): Promise<StatelessLoopResult>;
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export async function run(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- overload signature
   agentDef: AgentDefinition<any, any, any>,
   opts: RunOptionsWithStore,
 ): Promise<SessionLoopResult>;
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export async function run(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- implementation signature
   agentDef: AgentDefinition<any, any, any>,
   options: RunOptions,
 ): Promise<StatelessLoopResult | SessionLoopResult> {
