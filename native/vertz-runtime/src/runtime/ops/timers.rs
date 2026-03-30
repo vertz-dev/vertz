@@ -13,11 +13,37 @@ pub fn op_decls() -> Vec<OpDecl> {
 }
 
 /// JavaScript bootstrap code for timer globals.
-/// Uses a simple cancelled flag instead of AbortController (not available in bare V8).
+///
+/// Cancelled timers are handled by breaking long sleeps into short chunks
+/// (max 100ms each) and checking the `cancelled` flag between chunks.
+/// This ensures that `clearTimeout`/`clearInterval` causes the underlying
+/// `op_timer_sleep` ops to drain quickly instead of keeping the event loop
+/// alive for the full original duration.
+///
+/// Without this, a cancelled 1-hour timer would block `run_event_loop()`
+/// for up to 1 hour — causing test file timeouts in `vertz test`.
 pub const TIMERS_BOOTSTRAP_JS: &str = r#"
 ((globalThis) => {
   let nextId = 1;
   const activeTimers = new Map();
+
+  // Maximum sleep chunk in ms. Cancelled timers drain within this interval.
+  const CANCEL_CHECK_MS = 100;
+
+  async function sleepCancellable(state, delay) {
+    let remaining = Math.max(0, delay);
+    if (remaining <= CANCEL_CHECK_MS) {
+      // Short delay — sleep in one go (common fast path)
+      await Deno.core.ops.op_timer_sleep(BigInt(remaining));
+      return;
+    }
+    // Long delay — chunk into CANCEL_CHECK_MS slices, bail on cancellation
+    while (remaining > 0 && !state.cancelled) {
+      const chunk = Math.min(remaining, CANCEL_CHECK_MS);
+      await Deno.core.ops.op_timer_sleep(BigInt(chunk));
+      remaining -= chunk;
+    }
+  }
 
   globalThis.setTimeout = function(callback, delay = 0) {
     const id = nextId++;
@@ -26,7 +52,7 @@ pub const TIMERS_BOOTSTRAP_JS: &str = r#"
 
     (async () => {
       try {
-        await Deno.core.ops.op_timer_sleep(BigInt(Math.max(0, delay)));
+        await sleepCancellable(state, delay);
         if (!state.cancelled) {
           activeTimers.delete(id);
           callback();
@@ -55,7 +81,7 @@ pub const TIMERS_BOOTSTRAP_JS: &str = r#"
     (async () => {
       try {
         while (!state.cancelled) {
-          await Deno.core.ops.op_timer_sleep(BigInt(Math.max(0, delay)));
+          await sleepCancellable(state, delay);
           if (!state.cancelled) {
             callback();
           }
@@ -181,5 +207,105 @@ mod tests {
         rt.run_event_loop().await.unwrap();
         let output = rt.captured_output();
         assert_eq!(output.stdout, vec!["zero delay"]);
+    }
+
+    /// Cancelled long-lived timers must not keep the event loop alive.
+    /// Before the fix, a cancelled 10-second timer would block run_event_loop()
+    /// for 10 seconds (or hit the file-level timeout).
+    #[tokio::test]
+    async fn test_cancelled_timer_frees_event_loop() {
+        let mut rt = create_capturing_runtime();
+        rt.execute_script_void(
+            "<test>",
+            r#"
+            // Schedule a long timer and immediately cancel it
+            const id = setTimeout(() => console.log('should not fire'), 60000);
+            clearTimeout(id);
+            // Schedule a short timer to prove the event loop completes quickly
+            setTimeout(() => console.log('done'), 5);
+        "#,
+        )
+        .unwrap();
+
+        let start = std::time::Instant::now();
+        rt.run_event_loop().await.unwrap();
+        let elapsed = start.elapsed();
+
+        let output = rt.captured_output();
+        assert_eq!(output.stdout, vec!["done"]);
+        // Event loop must complete in well under 1 second (not 60s).
+        // The chunked sleep drains cancelled timers in <= 100ms.
+        assert!(
+            elapsed.as_millis() < 1000,
+            "Event loop took {}ms — cancelled timer kept it alive",
+            elapsed.as_millis()
+        );
+    }
+
+    /// Cancelled interval must not keep the event loop alive.
+    #[tokio::test]
+    async fn test_cancelled_interval_frees_event_loop() {
+        let mut rt = create_capturing_runtime();
+        rt.execute_script_void(
+            "<test>",
+            r#"
+            const id = setInterval(() => {}, 60000);
+            clearInterval(id);
+            setTimeout(() => console.log('done'), 5);
+        "#,
+        )
+        .unwrap();
+
+        let start = std::time::Instant::now();
+        rt.run_event_loop().await.unwrap();
+        let elapsed = start.elapsed();
+
+        let output = rt.captured_output();
+        assert_eq!(output.stdout, vec!["done"]);
+        assert!(
+            elapsed.as_millis() < 1000,
+            "Event loop took {}ms — cancelled interval kept it alive",
+            elapsed.as_millis()
+        );
+    }
+
+    /// Self-rescheduling setTimeout chain (like RelativeTime component) must
+    /// clean up properly when clearTimeout cancels the pending timer.
+    #[tokio::test]
+    async fn test_self_rescheduling_timer_cleanup() {
+        let mut rt = create_capturing_runtime();
+        rt.execute_script_void(
+            "<test>",
+            r#"
+            let timerId;
+            let count = 0;
+            function tick() {
+                count++;
+                console.log('tick ' + count);
+                timerId = setTimeout(tick, 10);
+            }
+            timerId = setTimeout(tick, 10);
+
+            // After 50ms, cancel the chain
+            setTimeout(() => {
+                clearTimeout(timerId);
+                console.log('stopped');
+            }, 55);
+        "#,
+        )
+        .unwrap();
+
+        let start = std::time::Instant::now();
+        rt.run_event_loop().await.unwrap();
+        let elapsed = start.elapsed();
+
+        let output = rt.captured_output();
+        assert!(output.stdout.last().unwrap() == "stopped");
+        // Must complete quickly after cancellation, not hang
+        assert!(
+            elapsed.as_millis() < 1000,
+            "Event loop took {}ms",
+            elapsed.as_millis()
+        );
     }
 }

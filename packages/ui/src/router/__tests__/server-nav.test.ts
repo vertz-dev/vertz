@@ -108,18 +108,20 @@ describe('prefetchNavData', () => {
   it('sends fetch with X-Vertz-Nav header', () => {
     const mockFetch = mock(() => new Promise<Response>(() => {}));
     globalThis.fetch = mockFetch;
-    prefetchNavData('/tasks');
+    const handle = prefetchNavData('/tasks');
     expect(mockFetch).toHaveBeenCalled();
     const callArgs = mockFetch.mock.calls[0] as unknown as [string, RequestInit];
     const [url, opts] = callArgs;
     expect(url).toBe('/tasks');
     expect((opts.headers as Record<string, string>)['X-Vertz-Nav']).toBe('1');
+    handle.abort();
   });
 
   it('sets __VERTZ_NAV_PREFETCH_ACTIVE__ to true when starting', () => {
     globalThis.fetch = mock(() => new Promise<Response>(() => {}));
-    prefetchNavData('/tasks');
+    const handle = prefetchNavData('/tasks');
     expect(isNavPrefetchActive()).toBe(true);
+    handle.abort();
   });
 
   it('pushes received SSE data into hydration bus', async () => {
@@ -219,11 +221,13 @@ describe('prefetchNavData', () => {
     const mockFetch = mock(() => new Promise<Response>(() => {}));
     globalThis.fetch = mockFetch;
 
-    prefetchNavData('/tasks');
-    prefetchNavData('/tasks/123');
+    const handleA = prefetchNavData('/tasks');
+    const handleB = prefetchNavData('/tasks/123');
 
     // Both calls should initiate fetches — the caller (router) manages aborting
     expect(mockFetch).toHaveBeenCalledTimes(2);
+    handleA.abort();
+    handleB.abort();
   });
 
   it('ignores unknown event types without crashing', async () => {
