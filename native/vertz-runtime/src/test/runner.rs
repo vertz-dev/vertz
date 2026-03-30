@@ -43,6 +43,8 @@ pub struct TestRunConfig {
     pub coverage_threshold: f64,
     /// Preload script paths (relative to root_dir).
     pub preload: Vec<String>,
+    /// Skip compilation cache (compile everything fresh).
+    pub no_cache: bool,
 }
 
 /// Summary of a completed test run.
@@ -128,6 +130,7 @@ pub fn run_tests(config: TestRunConfig) -> (TestRunResult, String) {
         coverage: config.coverage,
         preload: preload_paths,
         root_dir: Some(config.root_dir.clone()),
+        no_cache: config.no_cache,
     });
 
     let mut results = execute_parallel(&files, concurrency, config.bail, exec_options);
@@ -339,6 +342,7 @@ mod tests {
             coverage: false,
             coverage_threshold: 95.0,
             preload: vec![],
+            no_cache: false,
         };
 
         let (result, output) = run_tests(config);
@@ -376,6 +380,7 @@ mod tests {
             coverage: false,
             coverage_threshold: 95.0,
             preload: vec![],
+            no_cache: false,
         };
 
         let (result, output) = run_tests(config);
@@ -415,6 +420,7 @@ mod tests {
             coverage: false,
             coverage_threshold: 95.0,
             preload: vec![],
+            no_cache: false,
         };
 
         let (result, _output) = run_tests(config);
@@ -470,6 +476,7 @@ mod tests {
             coverage: false,
             coverage_threshold: 95.0,
             preload: vec![],
+            no_cache: false,
         };
 
         let (result, output) = run_tests(config);
@@ -522,6 +529,7 @@ mod tests {
             coverage: false,
             coverage_threshold: 95.0,
             preload: vec![],
+            no_cache: false,
         };
 
         let (result, _output) = run_tests(config);
@@ -573,6 +581,7 @@ mod tests {
             coverage: false,
             coverage_threshold: 95.0,
             preload: vec![],
+            no_cache: false,
         };
 
         let (result, _output) = run_tests(config);
@@ -608,6 +617,7 @@ mod tests {
             coverage: false,
             coverage_threshold: 95.0,
             preload: vec![],
+            no_cache: false,
         };
 
         let (result, _output) = run_tests(config);
@@ -646,6 +656,7 @@ mod tests {
             coverage: false,
             coverage_threshold: 95.0,
             preload: vec![],
+            no_cache: false,
         };
 
         let (result, _output) = run_tests(config);
@@ -683,6 +694,7 @@ mod tests {
             coverage: false,
             coverage_threshold: 95.0,
             preload: vec![],
+            no_cache: false,
         };
 
         let (result, _output) = run_tests(config);
@@ -719,6 +731,7 @@ mod tests {
             coverage: false,
             coverage_threshold: 95.0,
             preload: vec![],
+            no_cache: false,
         };
 
         let (result, output) = run_tests(config);
@@ -757,6 +770,7 @@ mod tests {
             coverage: false,
             coverage_threshold: 95.0,
             preload: vec![],
+            no_cache: false,
         };
 
         let (result, output) = run_tests(config);
@@ -795,6 +809,7 @@ mod tests {
             coverage: true,
             coverage_threshold: 0.0, // Low threshold so it passes
             preload: vec![],
+            no_cache: false,
         };
 
         let (result, output) = run_tests(config);
@@ -840,6 +855,7 @@ mod tests {
             coverage: true,
             coverage_threshold: 100.0, // Very high threshold
             preload: vec![],
+            no_cache: false,
         };
 
         let (result, _output) = run_tests(config);

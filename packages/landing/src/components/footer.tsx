@@ -39,12 +39,10 @@ export function Footer() {
           >
             GitHub
           </a>
-          {/* FLAG:DISCORD - Uncomment when Discord invite is ready
           <span className={s.separator}>|</span>
-          <a href="https://discord.gg/INVITE_CODE" target="_blank" rel="noopener" className={s.link}>
+          <a href="https://discord.gg/C7JkeBhH5" target="_blank" rel="noopener" className={s.link}>
             Discord
           </a>
-          */}
           <span className={s.separator}>|</span>
           <a href="https://x.com/vinicius_dacal" target="_blank" rel="noopener" className={s.link}>
             @vinicius_dacal
