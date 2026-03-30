@@ -22,9 +22,7 @@ describe('step()', () => {
   });
 
   it('throws on invalid step name', () => {
-    expect(() =>
-      step('Invalid Name', { output: s.object({}) }),
-    ).toThrow(/step\(\) name must be/);
+    expect(() => step('Invalid Name', { output: s.object({}) })).toThrow(/step\(\) name must be/);
   });
 
   it('preserves agent reference', () => {
@@ -144,7 +142,12 @@ describe('workflow()', () => {
 // ---------------------------------------------------------------------------
 
 /** Create a mock LLM that returns tool calls then completes. */
-function createMockLlm(responses: Array<{ text: string; toolCalls?: Array<{ id?: string; name: string; arguments: Record<string, unknown> }> }>): LLMAdapter {
+function createMockLlm(
+  responses: Array<{
+    text: string;
+    toolCalls?: Array<{ id?: string; name: string; arguments: Record<string, unknown> }>;
+  }>,
+): LLMAdapter {
   let callIndex = 0;
   return {
     async chat() {
