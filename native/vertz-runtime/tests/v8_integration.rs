@@ -425,6 +425,140 @@ async fn test_node_events_import() {
     );
 }
 
+/// Regression test for #2106: EventEmitter listeners should see the async
+/// context from registration time, not emission time.
+#[tokio::test]
+async fn test_node_events_async_context_propagation() {
+    let mut rt = VertzJsRuntime::new(VertzRuntimeOptions {
+        capture_output: true,
+        ..Default::default()
+    })
+    .unwrap();
+
+    // Load async context polyfill first (provides AsyncContext.Snapshot)
+    vertz_runtime::runtime::async_context::load_async_context(&mut rt).unwrap();
+
+    let specifier =
+        deno_core::ModuleSpecifier::parse("file:///virtual/events-ctx-test.js").unwrap();
+
+    rt.load_main_module_from_code(
+        &specifier,
+        r#"
+        import { EventEmitter } from 'node:events';
+
+        const storage = new AsyncLocalStorage();
+        const ee = new EventEmitter();
+
+        // Test 1: Listener registered in ctx1, emitted from ctx2
+        let captured1;
+        storage.run('ctx1', () => {
+            ee.on('data', () => { captured1 = storage.getStore(); });
+        });
+        storage.run('ctx2', () => {
+            ee.emit('data');
+        });
+        console.log('test1: ' + captured1);
+
+        // Test 2: Listener sees registration context when emitted from no context
+        let captured2;
+        const ee2 = new EventEmitter();
+        storage.run('reg-ctx', () => {
+            ee2.on('ping', () => { captured2 = storage.getStore(); });
+        });
+        ee2.emit('ping');
+        console.log('test2: ' + captured2);
+
+        // Test 3: removeListener works with context-wrapped listeners
+        const fn3 = () => {};
+        const ee3 = new EventEmitter();
+        storage.run('ctx3', () => { ee3.on('evt', fn3); });
+        ee3.removeListener('evt', fn3);
+        console.log('test3: ' + ee3.listenerCount('evt'));
+
+        // Test 4: once() captures context and auto-removes
+        let captured4;
+        const ee4 = new EventEmitter();
+        storage.run('once-ctx', () => {
+            ee4.once('fire', () => { captured4 = storage.getStore(); });
+        });
+        ee4.emit('fire');
+        console.log('test4: ' + captured4 + ' count=' + ee4.listenerCount('fire'));
+
+        // Test 5: Multiple listeners each see their own registration context
+        let captured5a, captured5b;
+        const ee5 = new EventEmitter();
+        storage.run('ctx-a', () => {
+            ee5.on('multi', () => { captured5a = storage.getStore(); });
+        });
+        storage.run('ctx-b', () => {
+            ee5.on('multi', () => { captured5b = storage.getStore(); });
+        });
+        ee5.emit('multi');
+        console.log('test5: ' + captured5a + ',' + captured5b);
+
+        // Test 6: listeners() returns unwrapped functions, not entry objects
+        const fn6 = () => {};
+        const ee6 = new EventEmitter();
+        storage.run('ctx6', () => { ee6.on('ls', fn6); });
+        const lsList = ee6.listeners('ls');
+        console.log('test6: isFn=' + (typeof lsList[0] === 'function') + ' same=' + (lsList[0] === fn6));
+
+        // Test 7: rawListeners() returns wrapper functions for once(), not entry objects
+        const fn7 = () => {};
+        const ee7 = new EventEmitter();
+        ee7.once('raw', fn7);
+        const rawList = ee7.rawListeners('raw');
+        console.log('test7: isFn=' + (typeof rawList[0] === 'function') + ' hasOriginal=' + (rawList[0]._original === fn7));
+
+        // Test 8: prependListener captures context
+        let captured8;
+        const ee8 = new EventEmitter();
+        storage.run('prepend-ctx', () => {
+            ee8.prependListener('prep', () => { captured8 = storage.getStore(); });
+        });
+        ee8.emit('prep');
+        console.log('test8: ' + captured8);
+    "#
+        .to_string(),
+    )
+    .await
+    .unwrap();
+
+    let output = rt.captured_output();
+    assert_eq!(
+        output.stdout[0], "test1: ctx1",
+        "Listener should see registration context, not emit context"
+    );
+    assert_eq!(
+        output.stdout[1], "test2: reg-ctx",
+        "Listener should see registration context when emitted from outside any scope"
+    );
+    assert_eq!(
+        output.stdout[2], "test3: 0",
+        "removeListener should work with context-wrapped listeners"
+    );
+    assert_eq!(
+        output.stdout[3], "test4: once-ctx count=0",
+        "once() should capture context and auto-remove"
+    );
+    assert_eq!(
+        output.stdout[4], "test5: ctx-a,ctx-b",
+        "Multiple listeners should each see their own registration context"
+    );
+    assert_eq!(
+        output.stdout[5], "test6: isFn=true same=true",
+        "listeners() should return unwrapped functions, not entry objects"
+    );
+    assert_eq!(
+        output.stdout[6], "test7: isFn=true hasOriginal=true",
+        "rawListeners() should return wrapper functions, not entry objects"
+    );
+    assert_eq!(
+        output.stdout[7], "test8: prepend-ctx",
+        "prependListener should capture registration context"
+    );
+}
+
 #[tokio::test]
 async fn test_node_url_import() {
     let mut rt = VertzJsRuntime::new(VertzRuntimeOptions {

@@ -513,6 +513,19 @@ export const URLSearchParams = globalThis.URLSearchParams;
 /// Synthetic module for `node:events`.
 const NODE_EVENTS_SPECIFIER: &str = "vertz:node_events";
 const NODE_EVENTS_MODULE: &str = r#"
+// Snapshot helper: captures async context at registration time if available.
+const _Snapshot = typeof globalThis.AsyncContext?.Snapshot === 'function'
+  ? globalThis.AsyncContext.Snapshot
+  : null;
+
+function _snap() {
+  return _Snapshot ? new _Snapshot() : null;
+}
+
+// Listeners are stored as { fn, snapshot } entries.
+// - fn: the listener function (or once-wrapper with _original)
+// - snapshot: AsyncContext.Snapshot captured at on() time, or null
+
 class EventEmitter {
   #listeners = new Map();
   #maxListeners = 10;
@@ -521,7 +534,7 @@ class EventEmitter {
     if (!this.#listeners.has(event)) {
       this.#listeners.set(event, []);
     }
-    this.#listeners.get(event).push(listener);
+    this.#listeners.get(event).push({ fn: listener, snapshot: _snap() });
     return this;
   }
 
@@ -545,7 +558,7 @@ class EventEmitter {
   removeListener(event, listener) {
     const arr = this.#listeners.get(event);
     if (!arr) return this;
-    const idx = arr.findIndex(fn => fn === listener || fn._original === listener);
+    const idx = arr.findIndex(entry => entry.fn === listener || entry.fn._original === listener);
     if (idx !== -1) arr.splice(idx, 1);
     if (arr.length === 0) this.#listeners.delete(event);
     return this;
@@ -563,8 +576,12 @@ class EventEmitter {
   emit(event, ...args) {
     const arr = this.#listeners.get(event);
     if (!arr || arr.length === 0) return false;
-    for (const listener of [...arr]) {
-      listener.apply(this, args);
+    for (const entry of [...arr]) {
+      if (entry.snapshot) {
+        entry.snapshot.run(() => entry.fn.apply(this, args));
+      } else {
+        entry.fn.apply(this, args);
+      }
     }
     return true;
   }
@@ -577,12 +594,12 @@ class EventEmitter {
   listeners(event) {
     const arr = this.#listeners.get(event);
     if (!arr) return [];
-    return arr.map(fn => fn._original || fn);
+    return arr.map(entry => entry.fn._original || entry.fn);
   }
 
   rawListeners(event) {
     const arr = this.#listeners.get(event);
-    return arr ? [...arr] : [];
+    return arr ? arr.map(entry => entry.fn) : [];
   }
 
   eventNames() {
@@ -593,7 +610,7 @@ class EventEmitter {
     if (!this.#listeners.has(event)) {
       this.#listeners.set(event, []);
     }
-    this.#listeners.get(event).unshift(listener);
+    this.#listeners.get(event).unshift({ fn: listener, snapshot: _snap() });
     return this;
   }
 

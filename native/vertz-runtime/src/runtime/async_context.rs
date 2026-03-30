@@ -136,8 +136,27 @@ pub const ASYNC_CONTEXT_JS: &str = r#"
     triggerAsyncId() { return -1; }
   }
 
+  // --- AsyncContext.Snapshot (TC39 Stage 2) ---
+  // Captures the current context mapping at construction time.
+  // snapshot.run(fn) restores that mapping for the duration of fn.
+  class Snapshot {
+    #mapping;
+    constructor() {
+      this.#mapping = __currentMapping;
+    }
+    run(fn, ...args) {
+      const prev = __currentMapping;
+      __currentMapping = this.#mapping;
+      try {
+        return fn(...args);
+      } finally {
+        __currentMapping = prev;
+      }
+    }
+  }
+
   // --- Install on globalThis ---
-  globalThis.AsyncContext = { Variable };
+  globalThis.AsyncContext = { Variable, Snapshot };
   globalThis.AsyncLocalStorage = AsyncLocalStorage;
   globalThis.__vertz_async_hooks = { AsyncLocalStorage, AsyncResource };
 })();
@@ -630,5 +649,35 @@ mod tests {
         assert_eq!(result["type"], serde_json::json!("test"));
         assert_eq!(result["val"], serde_json::json!(42));
         assert_eq!(result["asyncId"], serde_json::json!(-1));
+    }
+
+    #[test]
+    fn test_snapshot_captures_and_restores_context() {
+        let mut rt = create_runtime();
+        load_async_context(&mut rt).unwrap();
+        let result = rt
+            .execute_script(
+                "<test>",
+                r#"
+                const v = new AsyncContext.Variable();
+                let snapshot;
+
+                // Capture context inside a run() scope
+                v.run('captured-value', () => {
+                    snapshot = new AsyncContext.Snapshot();
+                });
+
+                // Outside the run scope, v.get() is undefined
+                const outsideValue = v.get();
+
+                // Restore via snapshot.run()
+                const restoredValue = snapshot.run(() => v.get());
+
+                ({ outsideValue, restoredValue })
+                "#,
+            )
+            .unwrap();
+        assert_eq!(result["outsideValue"], serde_json::json!(null));
+        assert_eq!(result["restoredValue"], serde_json::json!("captured-value"));
     }
 }
