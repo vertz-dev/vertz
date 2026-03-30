@@ -1,4 +1,4 @@
-import type { ToolDefinition } from '../types';
+import type { ToolContext, ToolDefinition } from '../types';
 import { validateToolInput } from './validate-tool-input';
 
 // ---------------------------------------------------------------------------
@@ -17,6 +17,7 @@ export interface Message {
 
 /** A tool call requested by the LLM. */
 export interface ToolCall {
+  readonly id?: string;
   readonly name: string;
   readonly arguments: Record<string, unknown>;
 }
@@ -56,6 +57,8 @@ export interface ReactLoopOptions {
   readonly systemPrompt: string;
   readonly userMessage: string;
   readonly maxIterations: number;
+  readonly stuckThreshold?: number;
+  readonly toolContext: ToolContext;
   readonly checkpointInterval?: number;
   readonly onCheckpoint?: (iteration: number, messages: readonly Message[]) => void;
 }
@@ -68,12 +71,21 @@ export interface ReactLoopOptions {
  * Execute a ReAct (Reasoning + Acting) loop.
  *
  * The loop cycles through: think → call tool(s) → observe → think → ...
- * until the LLM responds with text only (no tool calls) or the iteration
- * limit is reached.
+ * until the LLM responds with text only (no tool calls), the iteration
+ * limit is reached, or the agent gets stuck (no progress for N iterations).
  */
 export async function reactLoop(options: ReactLoopOptions): Promise<LoopResult> {
-  const { llm, tools, systemPrompt, userMessage, maxIterations, checkpointInterval, onCheckpoint } =
-    options;
+  const {
+    llm,
+    tools,
+    systemPrompt,
+    userMessage,
+    maxIterations,
+    stuckThreshold,
+    toolContext,
+    checkpointInterval,
+    onCheckpoint,
+  } = options;
 
   const messages: Message[] = [
     { role: 'system', content: systemPrompt },
@@ -81,11 +93,24 @@ export async function reactLoop(options: ReactLoopOptions): Promise<LoopResult> 
   ];
 
   let iteration = 0;
+  let consecutiveNoProgress = 0;
 
   while (iteration < maxIterations) {
     iteration++;
 
-    const response = await llm.chat(messages);
+    // Call the LLM — wrap in try/catch for provider errors
+    let response: LLMResponse;
+    try {
+      response = await llm.chat(messages);
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : String(err);
+      return {
+        status: 'error',
+        response: errorMessage,
+        iterations: iteration,
+        messages: Object.freeze([...messages]),
+      };
+    }
 
     // No tool calls — LLM is done
     if (response.toolCalls.length === 0) {
@@ -95,7 +120,7 @@ export async function reactLoop(options: ReactLoopOptions): Promise<LoopResult> 
         status: 'complete',
         response: response.text,
         iterations: iteration,
-        messages,
+        messages: Object.freeze([...messages]),
       };
     }
 
@@ -105,9 +130,11 @@ export async function reactLoop(options: ReactLoopOptions): Promise<LoopResult> 
       content: response.text || `[Calling ${response.toolCalls.map((tc) => tc.name).join(', ')}]`,
     });
 
+    let hadSuccessfulToolCall = false;
+
     for (const toolCall of response.toolCalls) {
       const toolDef = tools[toolCall.name];
-      const callId = `call_${iteration}_${toolCall.name}`;
+      const callId = toolCall.id ?? `call_${iteration}_${toolCall.name}`;
 
       if (!toolDef) {
         messages.push({
@@ -148,16 +175,14 @@ export async function reactLoop(options: ReactLoopOptions): Promise<LoopResult> 
       }
 
       try {
-        const result = await toolDef.handler(validation.data, {
-          agentId: 'loop',
-          agentName: 'loop',
-        });
+        const result = await toolDef.handler(validation.data, toolContext);
         messages.push({
           role: 'tool',
           toolCallId: callId,
           toolName: toolCall.name,
           content: JSON.stringify(result),
         });
+        hadSuccessfulToolCall = true;
       } catch (err) {
         const errorMessage = err instanceof Error ? err.message : String(err);
         messages.push({
@@ -167,6 +192,23 @@ export async function reactLoop(options: ReactLoopOptions): Promise<LoopResult> 
           content: JSON.stringify({ error: errorMessage }),
         });
       }
+    }
+
+    // Track progress for stuck detection
+    if (hadSuccessfulToolCall) {
+      consecutiveNoProgress = 0;
+    } else {
+      consecutiveNoProgress++;
+    }
+
+    // Check stuck threshold
+    if (stuckThreshold && consecutiveNoProgress >= stuckThreshold) {
+      return {
+        status: 'stuck',
+        response: '',
+        iterations: iteration,
+        messages: Object.freeze([...messages]),
+      };
     }
 
     // Checkpoint callback
@@ -180,6 +222,6 @@ export async function reactLoop(options: ReactLoopOptions): Promise<LoopResult> 
     status: 'max-iterations',
     response: '',
     iterations: iteration,
-    messages,
+    messages: Object.freeze([...messages]),
   };
 }

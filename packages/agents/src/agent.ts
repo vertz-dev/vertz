@@ -7,6 +7,7 @@ import type {
   InferSchema,
   ToolDefinition,
 } from './types';
+import { deepFreeze } from './utils';
 
 const AGENT_NAME_PATTERN = /^[a-z][a-z0-9-]*$/;
 
@@ -48,6 +49,10 @@ export function agent<
     ? { ...DEFAULT_LOOP, ...config.loop }
     : { ...DEFAULT_LOOP };
 
+  if (loop.maxIterations < 1) {
+    throw new Error(`agent() loop.maxIterations must be >= 1. Got: ${loop.maxIterations}`);
+  }
+
   const prompt: AgentPromptConfig = config.prompt
     ? { ...DEFAULT_PROMPT, ...config.prompt }
     : { ...DEFAULT_PROMPT };
@@ -71,5 +76,5 @@ export function agent<
     onStuck: config.onStuck,
   };
 
-  return Object.freeze(def);
+  return deepFreeze(def);
 }

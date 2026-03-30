@@ -83,6 +83,39 @@ describe('tool()', () => {
     });
   });
 
+  describe('Given a server tool config without a handler', () => {
+    describe('When tool() is called', () => {
+      it('Then throws an error because server tools must have handlers', () => {
+        expect(() =>
+          tool({
+            description: 'No handler server tool',
+            input: s.object({}),
+            output: s.object({}),
+          }),
+        ).toThrow('tool() with execution "server" (default) must provide a handler function');
+      });
+    });
+  });
+
+  describe('Given a tool definition returned by tool()', () => {
+    describe('When checking immutability', () => {
+      it('Then nested objects are also frozen (deep freeze)', () => {
+        const def = tool({
+          description: 'Deep frozen tool',
+          input: s.object({}),
+          output: s.object({}),
+          approval: { required: true, message: 'Approve?', timeout: '1d' },
+          handler() {
+            return {};
+          },
+        });
+
+        expect(Object.isFrozen(def)).toBe(true);
+        expect(Object.isFrozen(def.approval)).toBe(true);
+      });
+    });
+  });
+
   describe('Given a tool config with approval message as a function', () => {
     describe('When tool() is called', () => {
       it('Then preserves the function in the approval config', () => {

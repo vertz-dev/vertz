@@ -66,6 +66,37 @@ describe('run()', () => {
     });
   });
 
+  describe('Given a custom instanceId', () => {
+    describe('When run() is called with instanceId', () => {
+      it('Then uses the provided instanceId as the agent context id', async () => {
+        let capturedCtxId: string | undefined;
+        const spyTool = tool({
+          description: 'Capture context',
+          input: s.object({}),
+          output: s.object({}),
+          handler(_input, ctx) {
+            capturedCtxId = ctx.agentId;
+            return {};
+          },
+        });
+
+        const spyAgent = agent('spy', {
+          state: s.object({}),
+          initialState: {},
+          tools: { spy: spyTool },
+          model: { provider: 'cloudflare', model: 'test' },
+          loop: { maxIterations: 5 },
+        });
+
+        const llm = mockLLM([{ toolCalls: [{ name: 'spy', arguments: {} }] }, { text: 'Done.' }]);
+
+        await run(spyAgent, { message: 'Go', llm, instanceId: 'my-custom-id' });
+
+        expect(capturedCtxId).toBe('my-custom-id');
+      });
+    });
+  });
+
   describe('Given an agent with a system prompt in prompt config', () => {
     describe('When run() is called', () => {
       it('Then uses the system prompt from the agent prompt config', async () => {

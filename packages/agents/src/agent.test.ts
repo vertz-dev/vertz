@@ -108,6 +108,54 @@ describe('agent()', () => {
     });
   });
 
+  describe('Given an agent config with maxIterations < 1', () => {
+    describe('When agent() is called', () => {
+      it('Then throws an error for zero maxIterations', () => {
+        expect(() =>
+          agent('bad-loop', {
+            state: s.object({}),
+            initialState: {},
+            tools: {},
+            model: { provider: 'cloudflare', model: 'test' },
+            loop: { maxIterations: 0 },
+          }),
+        ).toThrow('agent() loop.maxIterations must be >= 1');
+      });
+
+      it('Then throws an error for negative maxIterations', () => {
+        expect(() =>
+          agent('bad-loop', {
+            state: s.object({}),
+            initialState: {},
+            tools: {},
+            model: { provider: 'cloudflare', model: 'test' },
+            loop: { maxIterations: -5 },
+          }),
+        ).toThrow('agent() loop.maxIterations must be >= 1');
+      });
+    });
+  });
+
+  describe('Given an agent definition returned by agent()', () => {
+    describe('When checking immutability', () => {
+      it('Then nested objects are also frozen (deep freeze)', () => {
+        const def = agent('immutable', {
+          state: s.object({}),
+          initialState: {},
+          tools: {},
+          model: { provider: 'cloudflare', model: 'test' },
+          loop: { maxIterations: 10 },
+        });
+
+        expect(Object.isFrozen(def)).toBe(true);
+        expect(Object.isFrozen(def.loop)).toBe(true);
+        expect(Object.isFrozen(def.model)).toBe(true);
+        expect(Object.isFrozen(def.prompt)).toBe(true);
+        expect(Object.isFrozen(def.access)).toBe(true);
+      });
+    });
+  });
+
   describe('Given an agent config with lifecycle hooks', () => {
     describe('When agent() is called', () => {
       it('Then preserves the hook functions', () => {

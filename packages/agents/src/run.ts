@@ -36,10 +36,12 @@ export async function run(
 ): Promise<LoopResult> {
   const { message, llm, instanceId } = options;
 
+  const agentId = instanceId ?? crypto.randomUUID();
+
   // Create agent context
   const ctx: AgentContext = {
     agent: {
-      id: instanceId ?? crypto.randomUUID(),
+      id: agentId,
       name: agentDef.name,
     },
     state: structuredClone(agentDef.initialState),
@@ -67,6 +69,11 @@ export async function run(
     systemPrompt,
     userMessage: message,
     maxIterations: agentDef.loop.maxIterations,
+    stuckThreshold: agentDef.loop.stuckThreshold,
+    toolContext: {
+      agentId,
+      agentName: agentDef.name,
+    },
     checkpointInterval: agentDef.loop.checkpointInterval,
   });
 

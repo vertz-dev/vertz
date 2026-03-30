@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, mock } from 'bun:test';
+import { describe, expect, it } from 'bun:test';
 import { s } from '@vertz/schema';
 import type { ToolDefinition } from '../types';
 import { type LoopResult, type LLMAdapter, reactLoop } from './react-loop';
@@ -6,6 +6,8 @@ import { type LoopResult, type LLMAdapter, reactLoop } from './react-loop';
 // ---------------------------------------------------------------------------
 // Test helpers
 // ---------------------------------------------------------------------------
+
+const TEST_TOOL_CONTEXT = { agentId: 'test-agent-id', agentName: 'test-agent' };
 
 function makeTool(name: string, handler: (input: unknown) => unknown): ToolDefinition {
   return {
@@ -22,7 +24,7 @@ function makeTool(name: string, handler: (input: unknown) => unknown): ToolDefin
 function mockLLM(
   responses: Array<{
     text?: string;
-    toolCalls?: Array<{ name: string; arguments: Record<string, unknown> }>;
+    toolCalls?: Array<{ id?: string; name: string; arguments: Record<string, unknown> }>;
   }>,
 ): LLMAdapter {
   let callIndex = 0;
@@ -53,6 +55,7 @@ describe('reactLoop()', () => {
           systemPrompt: 'You are helpful.',
           userMessage: 'What is the answer?',
           maxIterations: 10,
+          toolContext: TEST_TOOL_CONTEXT,
         });
 
         expect(result.status).toBe('complete');
@@ -78,6 +81,7 @@ describe('reactLoop()', () => {
           systemPrompt: 'You are helpful.',
           userMessage: 'Read test.txt',
           maxIterations: 10,
+          toolContext: TEST_TOOL_CONTEXT,
         });
 
         expect(result.status).toBe('complete');
@@ -105,6 +109,7 @@ describe('reactLoop()', () => {
           systemPrompt: 'You are helpful.',
           userMessage: 'Do something',
           maxIterations: 3,
+          toolContext: TEST_TOOL_CONTEXT,
         });
 
         expect(result.status).toBe('max-iterations');
@@ -127,6 +132,7 @@ describe('reactLoop()', () => {
           systemPrompt: 'You are helpful.',
           userMessage: 'Use nonExistent tool',
           maxIterations: 10,
+          toolContext: TEST_TOOL_CONTEXT,
         });
 
         expect(result.status).toBe('complete');
@@ -153,6 +159,7 @@ describe('reactLoop()', () => {
           systemPrompt: 'You are helpful.',
           userMessage: 'Try failing tool',
           maxIterations: 10,
+          toolContext: TEST_TOOL_CONTEXT,
         });
 
         expect(result.status).toBe('complete');
@@ -184,6 +191,7 @@ describe('reactLoop()', () => {
           systemPrompt: 'You are helpful.',
           userMessage: 'Use both tools',
           maxIterations: 10,
+          toolContext: TEST_TOOL_CONTEXT,
         });
 
         expect(result.status).toBe('complete');
@@ -212,8 +220,9 @@ describe('reactLoop()', () => {
           systemPrompt: 'You are helpful.',
           userMessage: 'Do stuff',
           maxIterations: 10,
+          toolContext: TEST_TOOL_CONTEXT,
           checkpointInterval: 2,
-          onCheckpoint(iteration, messages) {
+          onCheckpoint(iteration, _messages) {
             checkpoints.push(iteration);
           },
         });
@@ -249,6 +258,7 @@ describe('reactLoop()', () => {
           systemPrompt: 'You are helpful.',
           userMessage: 'Greet someone',
           maxIterations: 10,
+          toolContext: TEST_TOOL_CONTEXT,
         });
 
         expect(result.status).toBe('complete');
@@ -259,6 +269,154 @@ describe('reactLoop()', () => {
         );
         expect(toolMessage).toBeDefined();
         expect(toolMessage!.content).toContain('Invalid input');
+      });
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // Stuck detection (B2)
+  // ---------------------------------------------------------------------------
+
+  describe('Given a stuckThreshold of 2 and all tool calls fail', () => {
+    describe('When the agent makes 2 consecutive no-progress iterations', () => {
+      it('Then returns status "stuck"', async () => {
+        const failing = makeTool('failing', () => {
+          throw new Error('Always fails');
+        });
+
+        const llm = mockLLM([
+          { toolCalls: [{ name: 'failing', arguments: {} }] },
+          { toolCalls: [{ name: 'failing', arguments: {} }] },
+          { toolCalls: [{ name: 'failing', arguments: {} }] },
+        ]);
+
+        const result = await reactLoop({
+          llm,
+          tools: { failing },
+          systemPrompt: 'You are helpful.',
+          userMessage: 'Do something',
+          maxIterations: 10,
+          stuckThreshold: 2,
+          toolContext: TEST_TOOL_CONTEXT,
+        });
+
+        expect(result.status).toBe('stuck');
+        expect(result.iterations).toBe(2);
+      });
+    });
+  });
+
+  describe('Given a stuckThreshold and a successful tool call resets the counter', () => {
+    describe('When the agent recovers after a failed iteration', () => {
+      it('Then does not report stuck', async () => {
+        let callCount = 0;
+        const sometimesFails = makeTool('flaky', () => {
+          callCount++;
+          // Fails on first call, succeeds on second
+          if (callCount === 1) throw new Error('Transient failure');
+          return { ok: true };
+        });
+
+        const llm = mockLLM([
+          { toolCalls: [{ name: 'flaky', arguments: {} }] }, // fails → noProgress = 1
+          { toolCalls: [{ name: 'flaky', arguments: {} }] }, // succeeds → noProgress = 0
+          { text: 'Done.' },
+        ]);
+
+        const result = await reactLoop({
+          llm,
+          tools: { flaky: sometimesFails },
+          systemPrompt: 'You are helpful.',
+          userMessage: 'Try it',
+          maxIterations: 10,
+          stuckThreshold: 2,
+          toolContext: TEST_TOOL_CONTEXT,
+        });
+
+        expect(result.status).toBe('complete');
+        expect(result.iterations).toBe(3);
+      });
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // LLM error handling (B3)
+  // ---------------------------------------------------------------------------
+
+  describe('Given an LLM adapter that throws an error', () => {
+    describe('When the loop calls llm.chat()', () => {
+      it('Then returns status "error" with the error message', async () => {
+        const llm: LLMAdapter = {
+          async chat() {
+            throw new Error('Provider rate limit exceeded');
+          },
+        };
+
+        const result = await reactLoop({
+          llm,
+          tools: {},
+          systemPrompt: 'You are helpful.',
+          userMessage: 'Hello',
+          maxIterations: 10,
+          toolContext: TEST_TOOL_CONTEXT,
+        });
+
+        expect(result.status).toBe('error');
+        expect(result.response).toBe('Provider rate limit exceeded');
+        expect(result.iterations).toBe(1);
+      });
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // Tool call ID passthrough (S2)
+  // ---------------------------------------------------------------------------
+
+  describe('Given an LLM that returns tool calls with IDs', () => {
+    describe('When the loop executes tools', () => {
+      it('Then uses the LLM-provided ID in the tool result message', async () => {
+        const noop = makeTool('noop', () => ({ ok: true }));
+
+        const llm = mockLLM([
+          { toolCalls: [{ id: 'call_abc123', name: 'noop', arguments: {} }] },
+          { text: 'Done.' },
+        ]);
+
+        const result = await reactLoop({
+          llm,
+          tools: { noop },
+          systemPrompt: 'You are helpful.',
+          userMessage: 'Do it',
+          maxIterations: 10,
+          toolContext: TEST_TOOL_CONTEXT,
+        });
+
+        const toolMsg = result.messages.find((m) => m.role === 'tool');
+        expect(toolMsg).toBeDefined();
+        expect(toolMsg!.toolCallId).toBe('call_abc123');
+      });
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // Messages array immutability (S7)
+  // ---------------------------------------------------------------------------
+
+  describe('Given a completed loop result', () => {
+    describe('When inspecting the messages array', () => {
+      it('Then the messages array is frozen', async () => {
+        const llm = mockLLM([{ text: 'Done.' }]);
+
+        const result = await reactLoop({
+          llm,
+          tools: {},
+          systemPrompt: 'You are helpful.',
+          userMessage: 'Hello',
+          maxIterations: 10,
+          toolContext: TEST_TOOL_CONTEXT,
+        });
+
+        expect(Object.isFrozen(result.messages)).toBe(true);
       });
     });
   });

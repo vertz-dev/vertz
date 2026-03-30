@@ -1,17 +1,24 @@
 import type { SchemaAny } from '@vertz/schema';
 import type { ToolConfig, ToolDefinition } from './types';
+import { deepFreeze } from './utils';
 
 /**
  * Define a tool that an agent can use.
  *
  * Tools are typed units of capability: each has a description, input/output schemas,
- * and an optional handler. Client-side tools omit the handler (execution: 'client').
+ * and a handler. All tools in v1 execute on the server.
  */
 export function tool<TInput, TOutput>(
   config: ToolConfig<TInput, TOutput>,
 ): ToolDefinition<TInput, TOutput> {
   if (!config.description || config.description.trim() === '') {
     throw new Error('tool() description must be a non-empty string.');
+  }
+
+  const execution = config.execution ?? 'server';
+
+  if (execution === 'server' && !config.handler) {
+    throw new Error('tool() with execution "server" (default) must provide a handler function.');
   }
 
   const def: ToolDefinition<TInput, TOutput> = {
@@ -21,8 +28,8 @@ export function tool<TInput, TOutput>(
     output: config.output as SchemaAny,
     handler: config.handler,
     approval: config.approval,
-    execution: config.execution ?? 'server',
+    execution,
   };
 
-  return Object.freeze(def);
+  return deepFreeze(def);
 }
