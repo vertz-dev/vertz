@@ -63,6 +63,8 @@ export interface ReactLoopOptions {
   readonly toolContext: ToolContext;
   readonly checkpointInterval?: number;
   readonly onCheckpoint?: (iteration: number, messages: readonly Message[]) => void;
+  /** Pre-existing conversation messages (from a resumed session). Injected between system prompt and new user message. */
+  readonly previousMessages?: readonly Message[];
 }
 
 // ---------------------------------------------------------------------------
@@ -87,10 +89,12 @@ export async function reactLoop(options: ReactLoopOptions): Promise<LoopResult> 
     toolContext,
     checkpointInterval,
     onCheckpoint,
+    previousMessages,
   } = options;
 
   const messages: Message[] = [
     { role: 'system', content: systemPrompt },
+    ...(previousMessages ?? []),
     { role: 'user', content: userMessage },
   ];
 

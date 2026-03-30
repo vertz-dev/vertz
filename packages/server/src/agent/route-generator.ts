@@ -23,6 +23,22 @@ function jsonResponse(data: unknown, status = 200): Response {
 }
 
 // ---------------------------------------------------------------------------
+// Session error detection (duck-typed to avoid cross-package import)
+// ---------------------------------------------------------------------------
+
+interface SessionError extends Error {
+  code: 'SESSION_NOT_FOUND' | 'SESSION_ACCESS_DENIED';
+}
+
+function isSessionError(error: unknown): error is SessionError {
+  return (
+    error instanceof Error &&
+    'code' in error &&
+    (error.code === 'SESSION_NOT_FOUND' || error.code === 'SESSION_ACCESS_DENIED')
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Route generator
 // ---------------------------------------------------------------------------
 
@@ -124,11 +140,27 @@ export function generateAgentRoutes(
             );
           }
 
+          // Extract optional sessionId
+          const sessionId = typeof body?.sessionId === 'string' ? body.sessionId : undefined;
+
           // Execute agent
-          const result = await runner(agent.name, message, baseCtx);
+          const result = await runner(agent.name, { message, sessionId }, baseCtx);
 
           return jsonResponse(result);
         } catch (error) {
+          // Session errors return 404 (unified to prevent enumeration)
+          if (isSessionError(error)) {
+            return jsonResponse(
+              {
+                error: {
+                  code: 'NotFound',
+                  message: error.message,
+                },
+              },
+              404,
+            );
+          }
+
           const errorMessage = error instanceof Error ? error.message : 'Internal server error';
           return jsonResponse(
             { error: { code: 'InternalServerError', message: errorMessage } },

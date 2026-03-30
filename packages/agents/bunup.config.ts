@@ -1,7 +1,7 @@
 import { defineConfig } from 'bunup';
 
 export default defineConfig({
-  entry: ['src/index.ts'],
+  entry: ['src/index.ts', 'src/cloudflare.ts'],
   format: ['esm'],
   dts: { inferTypes: true },
   clean: true,

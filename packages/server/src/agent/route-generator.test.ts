@@ -3,6 +3,22 @@ import { rules } from '../auth/rules';
 import { generateAgentRoutes } from './route-generator';
 import type { AgentLike, AgentRunnerFn } from './types';
 
+// Minimal error stubs matching the code property used by isSessionError()
+class SessionNotFoundError extends Error {
+  readonly code = 'SESSION_NOT_FOUND' as const;
+  constructor(sessionId: string) {
+    super(`Session not found or access denied: ${sessionId}`);
+    this.name = 'SessionNotFoundError';
+  }
+}
+class SessionAccessDeniedError extends Error {
+  readonly code = 'SESSION_ACCESS_DENIED' as const;
+  constructor(sessionId: string) {
+    super(`Session not found or access denied: ${sessionId}`);
+    this.name = 'SessionAccessDeniedError';
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -156,7 +172,47 @@ describe('generateAgentRoutes()', () => {
     });
   });
 
-  describe('Given the runner throws an error', () => {
+  describe('Given the runner throws SessionNotFoundError', () => {
+    describe('When the route handler is called', () => {
+      it('Then returns 404 (not 500) to indicate invalid session', async () => {
+        const agent = makeAgent({ access: { invoke: rules.public } });
+        const runner: AgentRunnerFn = async () => {
+          throw new SessionNotFoundError('sess_missing');
+        };
+        const routes = generateAgentRoutes([agent], runner);
+        const handler = routes[0].handler;
+
+        const response = (await handler(makeCtx())) as Response;
+
+        expect(response.status).toBe(404);
+        const body = await response.json();
+        expect(body.error.code).toBe('NotFound');
+        expect(body.error.message).toContain('not found or access denied');
+      });
+    });
+  });
+
+  describe('Given the runner throws SessionAccessDeniedError', () => {
+    describe('When the route handler is called', () => {
+      it('Then returns 404 (unified with not-found for enumeration prevention)', async () => {
+        const agent = makeAgent({ access: { invoke: rules.public } });
+        const runner: AgentRunnerFn = async () => {
+          throw new SessionAccessDeniedError('sess_other-user');
+        };
+        const routes = generateAgentRoutes([agent], runner);
+        const handler = routes[0].handler;
+
+        const response = (await handler(makeCtx())) as Response;
+
+        expect(response.status).toBe(404);
+        const body = await response.json();
+        expect(body.error.code).toBe('NotFound');
+        expect(body.error.message).toContain('not found or access denied');
+      });
+    });
+  });
+
+  describe('Given the runner throws a generic error', () => {
     describe('When the route handler is called', () => {
       it('Then returns 500 with the error message', async () => {
         const agent = makeAgent({ access: { invoke: rules.public } });
@@ -190,6 +246,53 @@ describe('generateAgentRoutes()', () => {
 
         expect(response.status).toBe(200);
         expect(runner).toHaveBeenCalledTimes(1);
+      });
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // Session ID passthrough
+  // ---------------------------------------------------------------------------
+
+  describe('Given a request body with sessionId', () => {
+    describe('When the route handler is called', () => {
+      it('Then passes sessionId to the runner as part of options bag', async () => {
+        const agent = makeAgent({ access: { invoke: rules.public } });
+        let capturedOptions: { message: string; sessionId?: string } | undefined;
+        const runner: AgentRunnerFn = mock(async (_name, opts) => {
+          capturedOptions = opts;
+          return { status: 'complete', response: 'ok', sessionId: 'sess_abc' };
+        });
+        const routes = generateAgentRoutes([agent], runner);
+        const handler = routes[0].handler;
+
+        const response = (await handler(
+          makeCtx({ body: { message: 'Hello', sessionId: 'sess_abc' } }),
+        )) as Response;
+
+        expect(response.status).toBe(200);
+        expect(capturedOptions!.message).toBe('Hello');
+        expect(capturedOptions!.sessionId).toBe('sess_abc');
+      });
+    });
+  });
+
+  describe('Given a runner that returns sessionId', () => {
+    describe('When the route handler returns the result', () => {
+      it('Then includes sessionId in the response body', async () => {
+        const agent = makeAgent({ access: { invoke: rules.public } });
+        const runner: AgentRunnerFn = mock(async () => ({
+          status: 'complete',
+          response: 'ok',
+          sessionId: 'sess_new-123',
+        }));
+        const routes = generateAgentRoutes([agent], runner);
+        const handler = routes[0].handler;
+
+        const response = (await handler(makeCtx())) as Response;
+        const body = await response.json();
+
+        expect(body.sessionId).toBe('sess_new-123');
       });
     });
   });

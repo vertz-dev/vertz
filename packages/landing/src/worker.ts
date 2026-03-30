@@ -106,9 +106,7 @@ export default {
     // ── 0c. Redirect /docs/* to docs.vertz.dev ────────────────
     if (pathname === '/docs' || pathname.startsWith('/docs/')) {
       const subpath = pathname.replace(/^\/docs\/?/, '');
-      const target = subpath
-        ? `https://docs.vertz.dev/${subpath}`
-        : 'https://docs.vertz.dev';
+      const target = subpath ? `https://docs.vertz.dev/${subpath}` : 'https://docs.vertz.dev';
       return Response.redirect(target, 301);
     }
 

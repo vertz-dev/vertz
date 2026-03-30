@@ -420,4 +420,73 @@ describe('reactLoop()', () => {
       });
     });
   });
+
+  // ---------------------------------------------------------------------------
+  // previousMessages — conversation history injection
+  // ---------------------------------------------------------------------------
+
+  describe('Given previousMessages from a stored session', () => {
+    describe('When reactLoop is executed', () => {
+      it('Then injects them between system prompt and new user message', async () => {
+        let capturedMessages: { role: string; content: string }[] = [];
+        const llm: LLMAdapter = {
+          async chat(messages) {
+            // Snapshot the messages at call time (array is mutated later)
+            capturedMessages = messages.map((m) => ({ role: m.role, content: m.content }));
+            return { text: 'I remember!', toolCalls: [] };
+          },
+        };
+
+        await reactLoop({
+          llm,
+          tools: {},
+          systemPrompt: 'You are helpful.',
+          userMessage: 'What did I ask before?',
+          maxIterations: 10,
+          toolContext: TEST_TOOL_CONTEXT,
+          previousMessages: [
+            { role: 'user', content: 'What is 2+2?' },
+            { role: 'assistant', content: 'It is 4.' },
+          ],
+        });
+
+        expect(capturedMessages).toHaveLength(4);
+        expect(capturedMessages[0].role).toBe('system');
+        expect(capturedMessages[1].role).toBe('user');
+        expect(capturedMessages[1].content).toBe('What is 2+2?');
+        expect(capturedMessages[2].role).toBe('assistant');
+        expect(capturedMessages[2].content).toBe('It is 4.');
+        expect(capturedMessages[3].role).toBe('user');
+        expect(capturedMessages[3].content).toBe('What did I ask before?');
+      });
+    });
+  });
+
+  describe('Given no previousMessages (undefined)', () => {
+    describe('When reactLoop is executed', () => {
+      it('Then starts with just system prompt and user message (backward compat)', async () => {
+        let capturedMessages: { role: string; content: string }[] = [];
+        const llm: LLMAdapter = {
+          async chat(messages) {
+            // Snapshot at call time (array is mutated later)
+            capturedMessages = messages.map((m) => ({ role: m.role, content: m.content }));
+            return { text: 'Hello!', toolCalls: [] };
+          },
+        };
+
+        await reactLoop({
+          llm,
+          tools: {},
+          systemPrompt: 'You are helpful.',
+          userMessage: 'Hi',
+          maxIterations: 10,
+          toolContext: TEST_TOOL_CONTEXT,
+        });
+
+        expect(capturedMessages).toHaveLength(2);
+        expect(capturedMessages[0].role).toBe('system');
+        expect(capturedMessages[1].role).toBe('user');
+      });
+    });
+  });
 });
