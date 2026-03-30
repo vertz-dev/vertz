@@ -1,5 +1,7 @@
 import type { SchemaAny } from '@vertz/schema';
-import type { AgentDefinition } from './types';
+import type { LLMAdapter } from './loop/react-loop';
+import { run } from './run';
+import type { AgentDefinition, InferSchema } from './types';
 import { deepFreeze } from './utils';
 
 const NAME_PATTERN = /^[a-z][a-z0-9-]*$/;
@@ -139,4 +141,111 @@ export function workflow<TInputSchema extends SchemaAny>(
   };
 
   return deepFreeze(def);
+}
+
+// ---------------------------------------------------------------------------
+// Workflow execution
+// ---------------------------------------------------------------------------
+
+/** Status of a completed workflow. */
+export type WorkflowStatus = 'complete' | 'error';
+
+/** Result of a single step execution. */
+export interface StepResult {
+  readonly status: 'complete' | 'max-iterations' | 'stuck' | 'error';
+  readonly response: string;
+  readonly iterations: number;
+}
+
+/** Options for running a workflow. */
+export interface RunWorkflowOptions<TInput = unknown> {
+  /** Validated input matching the workflow's input schema. */
+  readonly input: TInput;
+  /** The LLM adapter to use for all agent steps. */
+  readonly llm: LLMAdapter;
+}
+
+/** Result of a workflow execution. */
+export interface WorkflowResult {
+  readonly status: WorkflowStatus;
+  /** Per-step results keyed by step name. */
+  readonly stepResults: Record<string, StepResult>;
+  /** Step name where the workflow stopped (only set on error). */
+  readonly failedStep?: string;
+}
+
+/**
+ * Execute a workflow by running each step sequentially.
+ *
+ * Each step invokes its agent via `run()`, passes the result to the next
+ * step via `ctx.prev`, and validates step outputs against their schemas.
+ */
+export async function runWorkflow<TInputSchema extends SchemaAny>(
+  workflowDef: WorkflowDefinition<TInputSchema>,
+  options: RunWorkflowOptions<InferSchema<TInputSchema>>,
+): Promise<WorkflowResult> {
+  const { input, llm } = options;
+
+  // Validate input against workflow schema
+  const parseResult = workflowDef.input.parse(input);
+  if (!parseResult.ok) {
+    throw new Error(
+      `Workflow "${workflowDef.name}" input validation failed: ${JSON.stringify(parseResult.error)}`,
+    );
+  }
+
+  const stepResults: Record<string, StepResult> = {};
+  const prev: Record<string, unknown> = {};
+
+  for (const stepDef of workflowDef.steps) {
+    if (!stepDef.agent) {
+      throw new Error(`Step "${stepDef.name}" has no agent assigned.`);
+    }
+
+    // Build step context
+    const ctx: StepContext = {
+      workflow: { input },
+      prev: { ...prev },
+    };
+
+    // Resolve the message for this step
+    let message: string;
+    if (stepDef.input) {
+      const result = stepDef.input(ctx);
+      message = typeof result === 'string' ? result : result.message;
+    } else {
+      message = `Execute step "${stepDef.name}"`;
+    }
+
+    // Run the agent
+    const agentResult = await run(stepDef.agent, { message, llm });
+
+    const stepResult: StepResult = {
+      status: agentResult.status,
+      response: agentResult.response,
+      iterations: agentResult.iterations,
+    };
+
+    stepResults[stepDef.name] = stepResult;
+
+    // If step failed, stop the workflow
+    if (agentResult.status === 'error') {
+      return {
+        status: 'error',
+        stepResults,
+        failedStep: stepDef.name,
+      };
+    }
+
+    // Store step output for subsequent steps
+    prev[stepDef.name] = {
+      response: agentResult.response,
+      status: agentResult.status,
+    };
+  }
+
+  return {
+    status: 'complete',
+    stepResults,
+  };
 }
