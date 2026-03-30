@@ -31,7 +31,7 @@ use axum::http::{header, StatusCode};
 use axum::response::sse::{Event, KeepAlive, Sse};
 use futures_util::stream::unfold;
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::convert::Infallible;
 use std::sync::Arc;
 use tokio::sync::{mpsc, RwLock};
@@ -457,7 +457,7 @@ fn filter_openapi_spec(spec_json: &str, filter: &str) -> String {
     let tags: Vec<&str> = filter.split(',').map(|s| s.trim()).collect();
 
     // Filter paths: keep only those whose operations have a matching tag
-    let mut refs_used: Vec<String> = Vec::new();
+    let mut refs_used: HashSet<String> = HashSet::new();
     if let Some(paths) = spec.get_mut("paths").and_then(|p| p.as_object_mut()) {
         let keys: Vec<String> = paths.keys().cloned().collect();
         for key in keys {
@@ -481,6 +481,42 @@ fn filter_openapi_spec(spec_json: &str, filter: &str) -> String {
             } else {
                 // Collect $ref references from included paths
                 collect_refs(path_item, &mut refs_used);
+            }
+        }
+    }
+
+    // Transitively collect refs from components/responses referenced by paths
+    if let Some(responses) = spec
+        .get("components")
+        .and_then(|c| c.get("responses"))
+    {
+        let response_refs: Vec<String> = refs_used
+            .iter()
+            .filter(|r| r.starts_with("#/components/responses/"))
+            .cloned()
+            .collect();
+        for response_ref in response_refs {
+            let name = response_ref.trim_start_matches("#/components/responses/");
+            if let Some(response_obj) = responses.get(name) {
+                collect_refs(response_obj, &mut refs_used);
+            }
+        }
+    }
+
+    // Transitively collect refs from retained schemas (one level deep)
+    if let Some(schemas) = spec
+        .get("components")
+        .and_then(|c| c.get("schemas"))
+    {
+        let schema_refs: Vec<String> = refs_used
+            .iter()
+            .filter(|r| r.starts_with("#/components/schemas/"))
+            .cloned()
+            .collect();
+        for schema_ref in schema_refs {
+            let name = schema_ref.trim_start_matches("#/components/schemas/");
+            if let Some(schema_obj) = schemas.get(name) {
+                collect_refs(schema_obj, &mut refs_used);
             }
         }
     }
@@ -515,13 +551,11 @@ fn filter_openapi_spec(spec_json: &str, filter: &str) -> String {
 }
 
 /// Recursively collects all $ref strings from a JSON value.
-fn collect_refs(value: &serde_json::Value, refs: &mut Vec<String>) {
+fn collect_refs(value: &serde_json::Value, refs: &mut HashSet<String>) {
     match value {
         serde_json::Value::Object(map) => {
             if let Some(r) = map.get("$ref").and_then(|v| v.as_str()) {
-                if !refs.contains(&r.to_string()) {
-                    refs.push(r.to_string());
-                }
+                refs.insert(r.to_string());
             }
             for v in map.values() {
                 collect_refs(v, refs);
@@ -1341,8 +1375,7 @@ mod tests {
             "components": {
                 "schemas": {
                     "TasksResponse": { "type": "object" },
-                    "UsersResponse": { "type": "object" },
-                    "ErrorResponse": { "type": "object" }
+                    "UsersResponse": { "type": "object" }
                 }
             }
         });
@@ -1353,6 +1386,59 @@ mod tests {
         let schemas = filtered["components"]["schemas"].as_object().unwrap();
         assert!(schemas.contains_key("TasksResponse"));
         assert!(!schemas.contains_key("UsersResponse"));
-        assert!(!schemas.contains_key("ErrorResponse"));
+    }
+
+    #[test]
+    fn test_filter_openapi_spec_transitive_refs() {
+        let spec = serde_json::json!({
+            "openapi": "3.1.0",
+            "paths": {
+                "/api/tasks": {
+                    "get": {
+                        "tags": ["tasks"],
+                        "responses": {
+                            "200": {
+                                "content": {
+                                    "application/json": {
+                                        "schema": { "$ref": "#/components/schemas/TasksResponse" }
+                                    }
+                                }
+                            },
+                            "400": {
+                                "$ref": "#/components/responses/BadRequest"
+                            }
+                        }
+                    }
+                }
+            },
+            "components": {
+                "responses": {
+                    "BadRequest": {
+                        "description": "Bad Request",
+                        "content": {
+                            "application/json": {
+                                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
+                            }
+                        }
+                    }
+                },
+                "schemas": {
+                    "TasksResponse": { "type": "object" },
+                    "ErrorResponse": { "type": "object" },
+                    "UsersResponse": { "type": "object" }
+                }
+            }
+        });
+
+        let result = filter_openapi_spec(&spec.to_string(), "tasks");
+        let filtered: serde_json::Value = serde_json::from_str(&result).unwrap();
+
+        let schemas = filtered["components"]["schemas"].as_object().unwrap();
+        // TasksResponse: directly referenced by path
+        assert!(schemas.contains_key("TasksResponse"));
+        // ErrorResponse: transitively referenced via responses/BadRequest
+        assert!(schemas.contains_key("ErrorResponse"));
+        // UsersResponse: not referenced
+        assert!(!schemas.contains_key("UsersResponse"));
     }
 }
