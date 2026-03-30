@@ -542,6 +542,78 @@ mod tests {
         assert_eq!(result, serde_json::json!("async-value"));
     }
 
+    #[test]
+    fn test_variable_async_propagation_after_rejection() {
+        let mut rt = create_runtime();
+        load_async_context(&mut rt).unwrap();
+
+        let tokio_rt = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .unwrap();
+
+        let result = tokio_rt.block_on(async {
+            rt.execute_script_void(
+                "<test>",
+                r#"
+                const v = new AsyncContext.Variable();
+                globalThis.__rejectionResult = v.run('in-rejection', async () => {
+                    await Promise.reject('err').catch(() => {});
+                    return v.get();
+                }).then(val => {
+                    globalThis.__rejVal = val;
+                });
+                "#,
+            )
+            .unwrap();
+
+            rt.run_event_loop().await.unwrap();
+            rt.execute_script("<get>", "globalThis.__rejVal")
+                .unwrap()
+        });
+
+        assert_eq!(result, serde_json::json!("in-rejection"));
+    }
+
+    #[test]
+    fn test_variable_multiple_sequential_awaits() {
+        let mut rt = create_runtime();
+        load_async_context(&mut rt).unwrap();
+
+        let tokio_rt = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .unwrap();
+
+        let result = tokio_rt.block_on(async {
+            rt.execute_script_void(
+                "<test>",
+                r#"
+                const v = new AsyncContext.Variable();
+                globalThis.__multiAwait = v.run('multi', async () => {
+                    const results = [];
+                    await new Promise(r => setTimeout(r, 1));
+                    results.push(v.get());
+                    await new Promise(r => setTimeout(r, 1));
+                    results.push(v.get());
+                    await new Promise(r => setTimeout(r, 1));
+                    results.push(v.get());
+                    return results;
+                }).then(val => {
+                    globalThis.__multiVal = val;
+                });
+                "#,
+            )
+            .unwrap();
+
+            rt.run_event_loop().await.unwrap();
+            rt.execute_script("<get>", "globalThis.__multiVal")
+                .unwrap()
+        });
+
+        assert_eq!(result, serde_json::json!(["multi", "multi", "multi"]));
+    }
+
     // --- AsyncResource stub tests ---
 
     #[test]

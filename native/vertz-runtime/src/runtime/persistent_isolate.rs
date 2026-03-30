@@ -265,13 +265,13 @@ async fn isolate_event_loop(
         }
     };
 
-    // 2. Load DOM shim and ALS polyfill (required for SSR)
-    if let Err(e) = crate::ssr::dom_shim::load_dom_shim(&mut runtime) {
-        eprintln!("[Server] Failed to load DOM shim: {}", e);
-        return;
-    }
+    // 2. Load async context polyfill (must be before DOM shim to capture all promises)
     if let Err(e) = crate::runtime::async_context::load_async_context(&mut runtime) {
         eprintln!("[Server] Failed to load async context polyfill: {}", e);
+        return;
+    }
+    if let Err(e) = crate::ssr::dom_shim::load_dom_shim(&mut runtime) {
+        eprintln!("[Server] Failed to load DOM shim: {}", e);
         return;
     }
 

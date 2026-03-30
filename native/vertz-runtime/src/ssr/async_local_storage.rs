@@ -1,11 +1,11 @@
-//! AsyncLocalStorage polyfill for SSR context propagation.
+//! DEPRECATED: Stack-based AsyncLocalStorage polyfill.
 //!
-//! Since Vertz SSR is synchronous (not streaming), we use a simple
-//! global variable approach. V8 is single-threaded, so setting a global
-//! before render and clearing after is safe — no concurrent access.
+//! This polyfill is broken for async callbacks: the `finally` block pops
+//! the context immediately when the Promise is returned, before the first
+//! `await` suspends. Use `runtime::async_context::load_async_context()` instead,
+//! which uses V8 promise hooks for correct async propagation.
 //!
-//! For async operations (like query fetching between SSR passes),
-//! we use a stack-based approach that supports nested `run()` calls.
+//! Kept for backward compatibility but no longer called by any production code.
 
 /// JavaScript implementation of the AsyncLocalStorage polyfill.
 ///
@@ -69,6 +69,10 @@ pub const ASYNC_LOCAL_STORAGE_JS: &str = r#"
 "#;
 
 /// Load the AsyncLocalStorage polyfill into a V8 runtime.
+///
+/// DEPRECATED: Use `crate::runtime::async_context::load_async_context()` instead.
+/// This stack-based polyfill is broken for async callbacks.
+#[deprecated(note = "Use runtime::async_context::load_async_context() instead")]
 pub fn load_async_local_storage(
     runtime: &mut crate::runtime::js_runtime::VertzJsRuntime,
 ) -> Result<(), deno_core::error::AnyError> {
