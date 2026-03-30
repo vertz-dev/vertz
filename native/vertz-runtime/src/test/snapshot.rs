@@ -204,10 +204,7 @@ mod tests {
     #[test]
     fn test_snapshot_creates_successfully() {
         let snapshot = get_test_snapshot();
-        assert!(
-            !snapshot.is_empty(),
-            "Snapshot should have non-zero size"
-        );
+        assert!(!snapshot.is_empty(), "Snapshot should have non-zero size");
     }
 
     #[test]

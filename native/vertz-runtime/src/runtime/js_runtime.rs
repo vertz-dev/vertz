@@ -221,9 +221,7 @@ impl VertzJsRuntime {
         // Re-install promise hooks from stored functions on globalThis
         runtime.execute_script(
             "[vertz:rehook]",
-            deno_core::FastString::from(
-                crate::test::snapshot::ASYNC_CONTEXT_REHOOK_JS.to_string(),
-            ),
+            deno_core::FastString::from(crate::test::snapshot::ASYNC_CONTEXT_REHOOK_JS.to_string()),
         )?;
 
         Ok(Self {
