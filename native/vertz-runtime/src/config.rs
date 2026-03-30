@@ -26,6 +26,11 @@ pub struct ServerConfig {
     pub server_entry: Option<PathBuf>,
     /// Whether to auto-install missing packages during dev.
     pub auto_install: bool,
+    /// Whether to watch upstream deps for changes (default: true).
+    pub watch_deps: bool,
+    /// Additional directories to watch for dependency changes.
+    /// Relative to root_dir. From .vertzrc "extraWatchPaths" field.
+    pub extra_watch_paths: Vec<String>,
 }
 
 /// Resolve the `auto_install` setting from multiple sources.
@@ -94,6 +99,8 @@ impl ServerConfig {
             open_browser: false,
             server_entry,
             auto_install: true,
+            watch_deps: true,
+            extra_watch_paths: Vec::new(),
         }
     }
 
@@ -116,6 +123,8 @@ impl ServerConfig {
             open_browser: false,
             server_entry,
             auto_install: true,
+            watch_deps: true,
+            extra_watch_paths: Vec::new(),
         }
     }
 
@@ -342,5 +351,28 @@ mod tests {
         // Invalid JSON should warn and fall through to default
         std::env::remove_var("CI");
         assert!(resolve_auto_install(false, false, dir.path()));
+    }
+
+    // --- watch_deps and extra_watch_paths tests ---
+
+    #[test]
+    fn test_watch_deps_defaults_to_true() {
+        let config = ServerConfig::new(3000, "localhost".to_string(), PathBuf::from("public"));
+        assert!(config.watch_deps);
+    }
+
+    #[test]
+    fn test_extra_watch_paths_defaults_to_empty() {
+        let config = ServerConfig::new(3000, "localhost".to_string(), PathBuf::from("public"));
+        assert!(config.extra_watch_paths.is_empty());
+    }
+
+    #[test]
+    fn test_watch_deps_with_root() {
+        let root = PathBuf::from("/tmp/test-project");
+        let config =
+            ServerConfig::with_root(3000, "localhost".to_string(), PathBuf::from("public"), root);
+        assert!(config.watch_deps);
+        assert!(config.extra_watch_paths.is_empty());
     }
 }

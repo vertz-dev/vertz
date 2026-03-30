@@ -16,6 +16,11 @@ pub struct VertzConfig {
     #[serde(rename = "autoInstall", default = "default_true")]
     pub auto_install: bool,
 
+    /// Additional directories to watch for dependency changes during `vertz dev`.
+    /// Paths are relative to the project root directory.
+    #[serde(rename = "extraWatchPaths", default)]
+    pub extra_watch_paths: Vec<String>,
+
     /// Preserve unknown fields for forward compatibility.
     #[serde(flatten)]
     pub extra: serde_json::Map<String, serde_json::Value>,
@@ -30,6 +35,7 @@ impl Default for VertzConfig {
         Self {
             trust_scripts: Vec::new(),
             auto_install: true,
+            extra_watch_paths: Vec::new(),
             extra: serde_json::Map::new(),
         }
     }
@@ -671,5 +677,63 @@ mod tests {
         let nm = dir.path().join("node_modules");
         std::fs::create_dir_all(&nm).unwrap();
         assert!(!has_postinstall_in_node_modules(&nm, "nonexistent"));
+    }
+
+    // --- extraWatchPaths field tests ---
+
+    #[test]
+    fn test_extra_watch_paths_defaults_to_empty() {
+        let dir = tempfile::tempdir().unwrap();
+        let config = load_vertzrc(dir.path()).unwrap();
+        assert!(config.extra_watch_paths.is_empty());
+    }
+
+    #[test]
+    fn test_extra_watch_paths_from_vertzrc() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(
+            dir.path().join(".vertzrc"),
+            r#"{"extraWatchPaths": ["../shared-lib/build", "../common/dist"]}"#,
+        )
+        .unwrap();
+        let config = load_vertzrc(dir.path()).unwrap();
+        assert_eq!(
+            config.extra_watch_paths,
+            vec!["../shared-lib/build", "../common/dist"]
+        );
+    }
+
+    #[test]
+    fn test_extra_watch_paths_empty_array() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(dir.path().join(".vertzrc"), r#"{"extraWatchPaths": []}"#).unwrap();
+        let config = load_vertzrc(dir.path()).unwrap();
+        assert!(config.extra_watch_paths.is_empty());
+    }
+
+    #[test]
+    fn test_extra_watch_paths_round_trip() {
+        let dir = tempfile::tempdir().unwrap();
+        let config = VertzConfig {
+            extra_watch_paths: vec!["../shared/build".to_string()],
+            ..Default::default()
+        };
+        save_vertzrc(dir.path(), &config).unwrap();
+        let loaded = load_vertzrc(dir.path()).unwrap();
+        assert_eq!(loaded.extra_watch_paths, vec!["../shared/build"]);
+    }
+
+    #[test]
+    fn test_extra_watch_paths_preserved_with_other_fields() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(
+            dir.path().join(".vertzrc"),
+            r#"{"trustScripts": ["esbuild"], "extraWatchPaths": ["../lib/dist"]}"#,
+        )
+        .unwrap();
+        config_add_trust_scripts(dir.path(), &["sharp".to_string()]).unwrap();
+        let loaded = load_vertzrc(dir.path()).unwrap();
+        assert_eq!(loaded.trust_scripts, vec!["esbuild", "sharp"]);
+        assert_eq!(loaded.extra_watch_paths, vec!["../lib/dist"]);
     }
 }

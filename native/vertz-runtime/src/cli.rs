@@ -87,6 +87,10 @@ pub struct DevArgs {
     /// Explicit type checker binary path (skips auto-detection)
     #[arg(long)]
     pub typecheck_binary: Option<PathBuf>,
+
+    /// Disable upstream dependency watching (auto-discovery + extra paths)
+    #[arg(long)]
+    pub no_watch_deps: bool,
 }
 
 #[derive(Parser, Debug)]
@@ -1633,5 +1637,19 @@ mod tests {
             }
             other => panic!("Expected List, got {:?}", other),
         }
+    }
+
+    // --- --no-watch-deps flag tests ---
+
+    #[test]
+    fn test_no_watch_deps_flag() {
+        let args = parse_dev(&["vertz-runtime", "dev", "--no-watch-deps"]);
+        assert!(args.no_watch_deps);
+    }
+
+    #[test]
+    fn test_no_watch_deps_default_false() {
+        let args = parse_dev(&["vertz-runtime", "dev"]);
+        assert!(!args.no_watch_deps);
     }
 }

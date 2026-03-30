@@ -1,3 +1,4 @@
+pub mod dep_watcher;
 pub mod file_watcher;
 pub mod module_graph;
 

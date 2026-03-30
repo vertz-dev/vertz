@@ -24,6 +24,14 @@ async fn main() {
             config.auto_install =
                 resolve_auto_install(args.no_auto_install, args.auto_install, &config.root_dir);
 
+            // Wire --no-watch-deps flag
+            config.watch_deps = !args.no_watch_deps;
+
+            // Load extraWatchPaths from .vertzrc
+            if let Ok(vertzrc) = vertz_runtime::pm::vertzrc::load_vertzrc(&config.root_dir) {
+                config.extra_watch_paths = vertzrc.extra_watch_paths;
+            }
+
             if let Err(e) = vertz_runtime::server::http::start_server(config).await {
                 eprintln!("Error: {}", e);
                 std::process::exit(1);
