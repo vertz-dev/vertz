@@ -123,3 +123,64 @@ describe('Feature: server.getOpenAPISpec()', () => {
     });
   });
 });
+
+// ---------------------------------------------------------------------------
+// Phase 3: Auto-serving at /api/openapi.json
+// ---------------------------------------------------------------------------
+
+describe('Feature: /api/openapi.json auto-serving', () => {
+  describe('Given a server with entities and services', () => {
+    const server = createServer({
+      entities: [tasksDef],
+      services: [analyticsDef],
+    });
+
+    describe('When GET /api/openapi.json is requested', () => {
+      it('Then returns 200 with the OpenAPI spec as JSON', async () => {
+        const request = new Request('http://localhost/api/openapi.json');
+        const response = await server.handler(request);
+        expect(response.status).toBe(200);
+        const body = await response.json();
+        expect(body.openapi).toBe('3.1.0');
+        expect(body.paths['/api/tasks']).toBeDefined();
+        expect(body.paths['/api/analytics/summary']).toBeDefined();
+      });
+
+      it('Then Content-Type is application/json', async () => {
+        const request = new Request('http://localhost/api/openapi.json');
+        const response = await server.handler(request);
+        expect(response.headers.get('content-type')).toContain('application/json');
+      });
+    });
+
+    describe('When POST /api/openapi.json is requested', () => {
+      it('Then returns 405 Method Not Allowed', async () => {
+        const request = new Request('http://localhost/api/openapi.json', { method: 'POST' });
+        const response = await server.handler(request);
+        expect(response.status).toBe(405);
+      });
+    });
+  });
+
+  describe('Given a server with openapi: false', () => {
+    const server = createServer({
+      entities: [tasksDef],
+      openapi: false,
+    });
+
+    describe('When GET /api/openapi.json is requested', () => {
+      it('Then returns 404', async () => {
+        const request = new Request('http://localhost/api/openapi.json');
+        const response = await server.handler(request);
+        expect(response.status).toBe(404);
+      });
+    });
+
+    describe('When getOpenAPISpec() is called', () => {
+      it('Then still returns the spec (only endpoint is disabled)', () => {
+        const spec = server.getOpenAPISpec();
+        expect(spec.openapi).toBe('3.1.0');
+      });
+    });
+  });
+});

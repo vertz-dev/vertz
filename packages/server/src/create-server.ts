@@ -145,6 +145,8 @@ export interface ServerConfig extends Omit<AppConfig, '_entityDbFactory' | 'enti
   auth?: AuthConfig;
   /** Cloud-managed auth — when set, auth is handled by Vertz Cloud proxy */
   cloud?: CloudServerConfig;
+  /** Set to false to disable the /api/openapi.json endpoint. @default true */
+  openapi?: false;
 }
 
 // ---------------------------------------------------------------------------
@@ -540,6 +542,27 @@ export function createServer(config: ServerConfig): ServerApp | ServerInstance {
     }
   }
 
+  // ---------------------------------------------------------------------------
+  // Register /api/openapi.json route (unless openapi: false)
+  // ---------------------------------------------------------------------------
+
+  // getOpenAPISpec is attached after coreCreateServer; the route handler
+  // captures this ref and calls it lazily on first request.
+  let getOpenAPISpecFn: (() => OpenAPIDocument) | null = null;
+
+  if (config.openapi !== false) {
+    allRoutes.push({
+      method: 'GET',
+      path: `${apiPrefix}/openapi.json`,
+      handler: () => {
+        const spec = getOpenAPISpecFn!();
+        return new Response(JSON.stringify(spec), {
+          headers: { 'Content-Type': 'application/json' },
+        });
+      },
+    });
+  }
+
   const app = coreCreateServer({
     ...config,
     _entityRoutes: allRoutes.length > 0 ? allRoutes : undefined,
@@ -621,6 +644,9 @@ export function createServer(config: ServerConfig): ServerApp | ServerInstance {
 
     return result;
   };
+
+  // Wire up the lazy reference for the /api/openapi.json route handler
+  getOpenAPISpecFn = () => serverApp.getOpenAPISpec();
 
   // ---------------------------------------------------------------------------
   // Cloud mode branching — bypasses createAuth() entirely (design doc §9)
