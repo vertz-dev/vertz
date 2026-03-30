@@ -46,7 +46,10 @@ pub fn prebundle_dependencies(
 }
 
 /// Pre-bundle a single dependency using esbuild.
-fn prebundle_single(package: &str, root_dir: &Path, deps_dir: &Path) -> PrebundleResult {
+///
+/// This is public so that the dep watcher can re-bundle individual packages
+/// when upstream dependency changes are detected (via `spawn_blocking`).
+pub fn prebundle_single(package: &str, root_dir: &Path, deps_dir: &Path) -> PrebundleResult {
     let output_filename = package_to_filename(package);
     let output_path = deps_dir.join(&output_filename);
 
