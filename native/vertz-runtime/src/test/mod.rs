@@ -2,6 +2,7 @@ pub mod codemod;
 pub mod collector;
 pub mod config;
 pub mod coverage;
+pub mod dom_shim;
 pub mod executor;
 pub mod globals;
 pub mod reporter;
