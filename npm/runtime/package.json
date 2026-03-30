@@ -1,0 +1,32 @@
+{
+  "name": "@vertz/runtime",
+  "version": "0.1.0",
+  "description": "Vertz runtime binary (platform selector)",
+  "type": "module",
+  "main": "index.js",
+  "types": "index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./index.js",
+      "types": "./index.d.ts"
+    },
+    "./package.json": "./package.json"
+  },
+  "optionalDependencies": {
+    "@vertz/runtime-darwin-arm64": "0.1.0",
+    "@vertz/runtime-darwin-x64": "0.1.0",
+    "@vertz/runtime-linux-x64": "0.1.0",
+    "@vertz/runtime-linux-arm64": "0.1.0"
+  },
+  "scripts": {
+    "postinstall": "node postinstall.js"
+  },
+  "files": [
+    "index.js",
+    "index.d.ts",
+    "postinstall.js"
+  ],
+  "devDependencies": {
+    "@types/node": "^22.15.32"
+  }
+}

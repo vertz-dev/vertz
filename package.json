@@ -8,7 +8,8 @@
     "examples/*",
     "sites/*",
     "benchmarks/vertz",
-    "native/*"
+    "native/*",
+    "npm/*"
   ],
   "scripts": {
     "test:watch": "bun run --filter '*' test:watch",

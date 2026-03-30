@@ -1,0 +1,13 @@
+{
+  "name": "@vertz/runtime-darwin-arm64",
+  "version": "0.1.0",
+  "description": "Vertz runtime binary for macOS arm64",
+  "os": ["darwin"],
+  "cpu": ["arm64"],
+  "exports": {
+    "./package.json": "./package.json"
+  },
+  "files": ["vertz-runtime"],
+  "preferUnplugged": true,
+  "private": true
+}
