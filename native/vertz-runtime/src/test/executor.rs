@@ -11,6 +11,7 @@ use deno_core::ModuleSpecifier;
 use deno_core::PollEventLoopOptions;
 use serde::{Deserialize, Serialize};
 
+use crate::runtime::async_context::load_async_context;
 use crate::runtime::js_runtime::{VertzJsRuntime, VertzRuntimeOptions};
 
 use super::globals::TEST_HARNESS_JS;
@@ -167,17 +168,20 @@ fn execute_test_file_inner(
         enable_inspector: options.coverage,
     })?;
 
-    // 1. Inject test harness (describe, it, expect, etc.)
+    // 1. Load async context polyfill (must be before any other JS to capture all promises)
+    load_async_context(&mut runtime)?;
+
+    // 2. Inject test harness (describe, it, expect, etc.)
     runtime.execute_script_void("[vertz:test-harness]", TEST_HARNESS_JS)?;
 
-    // 2. Set filter if provided
+    // 3. Set filter if provided
     if let Some(ref filter) = options.filter {
         let escaped = filter.replace('\\', "\\\\").replace('\'', "\\'");
         let set_filter = format!("globalThis.__vertz_test_filter = '{}'", escaped);
         runtime.execute_script_void("[vertz:set-filter]", &set_filter)?;
     }
 
-    // 3. Execute preload scripts (run as classic scripts, not modules — no import support)
+    // 4. Execute preload scripts (run as classic scripts, not modules — no import support)
     for preload_path in &options.preload {
         let preload_source = std::fs::read_to_string(preload_path).map_err(|e| {
             deno_core::anyhow::anyhow!(
@@ -209,7 +213,7 @@ fn execute_test_file_inner(
         runtime.execute_script_void("[vertz:preload]", &code)?;
     }
 
-    // 4. Load the test file as an ES module
+    // 5. Load the test file as an ES module
     let specifier = ModuleSpecifier::from_file_path(file_path)
         .map_err(|_| deno_core::anyhow::anyhow!("Invalid file path: {}", file_path.display()))?;
 

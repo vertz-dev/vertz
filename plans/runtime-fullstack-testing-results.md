@@ -56,13 +56,16 @@ Build succeeded on first attempt. No system dependency issues on macOS ARM64.
 ### Tier 2 — SSR Tests (ssr.test.ts): 0/5 (LOAD ERROR)
 
 ```
-Error: Cannot find module 'node:async_hooks' in node_modules
-  (searched from packages/ui-server/dist/shared)
+Error: Uncaught SyntaxError: The requested module 'ts-morph' does not provide an export named 'Project'
 ```
 
-The `@vertz/ui-server` package imports `node:async_hooks` for async context tracking during SSR rendering. The runtime has no `node:async_hooks` shim. This blocks all SSR tests at module load time — individual tests never execute.
+~~Previously blocked by missing `node:async_hooks`~~ — **FIXED** (async context polyfill with V8 promise hooks + `node:async_hooks` synthetic module added).
 
-**Required to fix:** Add `node:async_hooks` synthetic module with `AsyncLocalStorage` implementation.
+Now blocked by `ts-morph` CJS interop: `@vertz/ui-server` dist transitively imports `@vertz/ui-compiler` which imports `{ Project }` from `ts-morph`. The `ts-morph` package is CJS-only (no ESM exports field) and the runtime's module loader cannot extract named exports from CJS modules.
+
+**Required to fix:** CJS interop for named exports in the module loader, or restructure `@vertz/ui-server` dist to not bundle the compiler (SSR tests don't need it at runtime).
+
+**Note:** Even after fixing this, SSR tests have a pre-existing query data bug (`todosQuery.data.value.items` is undefined) that also fails on Bun.
 
 ### Tier 3 — Component Tests (todo-form, todo-list): 0/11 (LOAD ERROR)
 
@@ -135,11 +138,12 @@ Not measured separately in this run. The API test file (`api.test.ts`) is pure T
 
 | Gap | Blocks | Effort to Fix |
 |---|---|---|
+| CJS interop (named exports from CJS modules) | SSR tests (Tier 2) — ts-morph | Medium — implement CJS→ESM named export extraction in `module_loader.rs` |
 | `package.json#imports` resolution | Component tests (Tier 3) | Medium — implement in `module_loader.rs` |
-| `node:async_hooks` (AsyncLocalStorage) | SSR tests (Tier 2) | Large — core Node.js compat |
 | Interactive DOM (event propagation, listeners) | Component tests (Tier 3) | Large — needs happy-dom integration or major DOM shim expansion |
 | `FormData` constructor | Component tests (form submission) | Small |
 | `Event` with options (`bubbles`, `cancelable`) | Component tests (event dispatch) | Medium |
+| ~~`node:async_hooks` (AsyncLocalStorage)~~ | ~~SSR tests (Tier 2)~~ | **FIXED** — TC39 AsyncContext.Variable + V8 promise hooks |
 
 ### Bugs Fixed During This Initiative
 
@@ -149,6 +153,7 @@ Not measured separately in this run. The API test file (`api.test.ts`) is pure T
 | Missing `Request.body` / `Response.body` ReadableStream | `web_api.rs` | Any code using streaming body reads |
 | Missing `node:crypto` exports (webcrypto, key ops) | `module_loader.rs` | Auth/JWT layer |
 | Missing `node:module` shim | `module_loader.rs` | Any bunup-built package with CJS interop |
+| Missing `node:async_hooks` / AsyncLocalStorage | `async_context.rs`, `module_loader.rs` | SSR async context tracking, any `node:async_hooks` import |
 
 ### Codemod Validation
 
@@ -167,17 +172,19 @@ Error messages are clear and actionable:
 
 ## Recommendations
 
-1. **Ship the 4 bug fixes** — extension resolution, Request.body, crypto exports, node:module shim. These are real gaps that affect any non-trivial project.
+1. **Ship the 5 bug fixes** — extension resolution, Request.body, crypto exports, node:module shim, node:async_hooks. These are real gaps that affect any non-trivial project.
 
-2. **Add `package.json#imports` resolution** — blocks component tests and is needed for any project using Node.js subpath imports. Medium effort.
+2. ~~**Add `node:async_hooks` shim**~~ — **DONE.** TC39 AsyncContext.Variable as the native primitive, AsyncLocalStorage as compat wrapper, V8 promise hooks for async propagation. Correct across await, concurrent, and nested contexts.
 
-3. **Add `node:async_hooks` shim** — blocks SSR tests. `AsyncLocalStorage` is widely used. This is the highest-impact Node.js compat gap.
+3. **Add CJS interop** — blocks SSR tests via ts-morph. Many npm packages are CJS-only. The runtime needs to extract named exports from CJS bundles. Medium effort.
 
-4. **Defer DOM shim expansion** — component tests need a full interactive DOM. Rather than expanding the native DOM shim, integrate happy-dom as an optional preload. This is how Bun/Vitest handle it.
+4. **Add `package.json#imports` resolution** — blocks component tests and is needed for any project using Node.js subpath imports. Medium effort.
 
-5. **Run contacts-api as second data point** — simpler server-only example (28 tests). Would validate the fixes work beyond entity-todo.
+5. **Defer DOM shim expansion** — component tests need a full interactive DOM. Rather than expanding the native DOM shim, integrate happy-dom as an optional preload. This is how Bun/Vitest handle it.
 
-6. **Add import chain to error messages** — when a module fails to resolve, show which file imported it. Currently only shows the search path.
+6. **Run contacts-api as second data point** — simpler server-only example (28 tests). Would validate the fixes work beyond entity-todo.
+
+7. **Add import chain to error messages** — when a module fails to resolve, show which file imported it. Currently only shows the search path.
 
 ---
 

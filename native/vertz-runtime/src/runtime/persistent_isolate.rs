@@ -270,8 +270,8 @@ async fn isolate_event_loop(
         eprintln!("[Server] Failed to load DOM shim: {}", e);
         return;
     }
-    if let Err(e) = crate::ssr::async_local_storage::load_async_local_storage(&mut runtime) {
-        eprintln!("[Server] Failed to load ALS polyfill: {}", e);
+    if let Err(e) = crate::runtime::async_context::load_async_context(&mut runtime) {
+        eprintln!("[Server] Failed to load async context polyfill: {}", e);
         return;
     }
 
