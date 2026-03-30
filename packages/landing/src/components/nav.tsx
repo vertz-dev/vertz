@@ -54,9 +54,8 @@ export function Nav() {
         >
           GitHub
         </a>
-        {/* FLAG:DISCORD - Uncomment when Discord invite is ready
         <a
-          href="https://discord.gg/INVITE_CODE"
+          href="https://discord.gg/C7JkeBhH5"
           target="_blank"
           rel="noopener"
           className={s.link}
@@ -64,7 +63,6 @@ export function Nav() {
         >
           Discord
         </a>
-        */}
         <a
           href="https://docs.vertz.dev"
           className={s.link}
