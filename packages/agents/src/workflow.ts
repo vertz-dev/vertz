@@ -10,7 +10,14 @@ const NAME_PATTERN = /^[a-z][a-z0-9-]*$/;
 // Step types
 // ---------------------------------------------------------------------------
 
-/** Context available to a step's input callback. */
+/**
+ * Context available to a step's input callback.
+ *
+ * v1: `prev` is `Record<string, unknown>` — typed accumulation
+ * (where `prev['step-a']` is strongly typed based on step-a's output schema)
+ * requires a builder pattern or recursive tuple types that are deferred to v2.
+ * Runtime validation via output schemas ensures data integrity.
+ */
 export interface StepContext<TWorkflowInput = unknown> {
   /** Workflow-level input. */
   readonly workflow: { readonly input: TWorkflowInput };
@@ -34,8 +41,8 @@ export interface StepConfig<TOutputSchema extends SchemaAny = SchemaAny> {
   /* eslint-enable @typescript-eslint/no-explicit-any */
   /** Transform workflow context into the message sent to the agent. */
   readonly input?: (ctx: StepContext) => string | { message: string };
-  /** Schema for validating step output. */
-  readonly output: TOutputSchema;
+  /** Schema for validating step output. Optional for approval-only steps. */
+  readonly output?: TOutputSchema;
   /** Approval gate — suspends the workflow until a human approves. */
   readonly approval?: StepApprovalConfig;
 }
@@ -51,7 +58,7 @@ export interface StepDefinition<
   readonly agent?: AgentDefinition<any, any, any>;
   /* eslint-enable @typescript-eslint/no-explicit-any */
   readonly input?: (ctx: StepContext) => string | { message: string };
-  readonly output: TOutputSchema;
+  readonly output?: TOutputSchema;
   readonly approval?: StepApprovalConfig;
 }
 
@@ -225,7 +232,14 @@ export async function runWorkflow<TInputSchema extends SchemaAny>(
     }
   }
 
+  // Validate resumeAfter step exists
   let skipping = !!resumeAfter;
+  if (resumeAfter) {
+    const stepExists = workflowDef.steps.some((s) => s.name === resumeAfter);
+    if (!stepExists) {
+      throw new Error(`Step "${resumeAfter}" not found in workflow "${workflowDef.name}".`);
+    }
+  }
 
   for (const stepDef of workflowDef.steps) {
     // Skip steps until we pass the resumeAfter step
@@ -281,8 +295,8 @@ export async function runWorkflow<TInputSchema extends SchemaAny>(
 
     stepResults[stepDef.name] = stepResult;
 
-    // If step failed, stop the workflow
-    if (agentResult.status === 'error') {
+    // If step did not complete successfully, stop the workflow
+    if (agentResult.status !== 'complete') {
       return {
         status: 'error',
         stepResults,
@@ -290,11 +304,23 @@ export async function runWorkflow<TInputSchema extends SchemaAny>(
       };
     }
 
+    // Validate step output against schema (if output schema defined)
+    let stepOutput: unknown = { response: agentResult.response };
+    if (stepDef.output) {
+      try {
+        const parsed = JSON.parse(agentResult.response);
+        const validated = stepDef.output.parse(parsed);
+        if (validated.ok) {
+          stepOutput = validated.data;
+        }
+      } catch {
+        // Response is not valid JSON or doesn't match schema — store raw response
+        stepOutput = { response: agentResult.response };
+      }
+    }
+
     // Store step output for subsequent steps
-    prev[stepDef.name] = {
-      response: agentResult.response,
-      status: agentResult.status,
-    };
+    prev[stepDef.name] = stepOutput;
   }
 
   return {

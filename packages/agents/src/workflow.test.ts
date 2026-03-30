@@ -391,7 +391,6 @@ describe('runWorkflow()', () => {
             message: (ctx) => `Review doc: ${(ctx.prev as Record<string, unknown>)['write-doc']}`,
             timeout: '7d',
           },
-          output: s.object({ approved: s.boolean() }),
         }),
         step('implement', {
           agent: noopAgent,
@@ -438,7 +437,6 @@ describe('runWorkflow()', () => {
         }),
         step('approve', {
           approval: { message: 'Approve?' },
-          output: s.object({ approved: s.boolean() }),
         }),
         step('last', {
           agent: noopAgent,
@@ -487,7 +485,6 @@ describe('runWorkflow()', () => {
             message: (ctx) =>
               `Please review: ${(ctx.workflow.input as { docPath: string }).docPath}`,
           },
-          output: s.object({}),
         }),
       ],
     });
@@ -499,5 +496,93 @@ describe('runWorkflow()', () => {
 
     expect(result.status).toBe('pending');
     expect(result.approvalMessage).toBe('Please review: /plans/test.md');
+  });
+
+  it('throws when resumeAfter references a nonexistent step', async () => {
+    const noopAgent = agent('noop', {
+      state: s.object({}),
+      initialState: {},
+      tools: {},
+      model: { provider: 'cloudflare', model: 'test' },
+    });
+
+    const llm: LLMAdapter = {
+      async chat() {
+        return { text: 'done', toolCalls: [] };
+      },
+    };
+
+    const pipeline = workflow('bad-resume', {
+      input: s.object({}),
+      steps: [step('only', { agent: noopAgent, output: s.object({}) })],
+    });
+
+    await expect(
+      runWorkflow(pipeline, { input: {}, llm, resumeAfter: 'nonexistent' }),
+    ).rejects.toThrow(/Step "nonexistent" not found/);
+  });
+
+  it('treats stuck agent as workflow error', async () => {
+    const noopAgent = agent('noop', {
+      state: s.object({}),
+      initialState: {},
+      tools: {},
+      model: { provider: 'cloudflare', model: 'test' },
+      loop: { maxIterations: 2 },
+    });
+
+    const llm: LLMAdapter = {
+      async chat() {
+        // Always request a nonexistent tool — triggers stuck detection
+        return { text: '', toolCalls: [{ name: 'missing-tool', arguments: {} }] };
+      },
+    };
+
+    const pipeline = workflow('stuck-pipeline', {
+      input: s.object({}),
+      steps: [
+        step('will-get-stuck', { agent: noopAgent, output: s.object({}) }),
+        step('never-reached', { agent: noopAgent, output: s.object({}) }),
+      ],
+    });
+
+    const result = await runWorkflow(pipeline, { input: {}, llm });
+
+    expect(result.status).toBe('error');
+    expect(result.failedStep).toBe('will-get-stuck');
+    expect(result.stepResults['will-get-stuck'].status).toBe('max-iterations');
+    expect(result.stepResults).not.toHaveProperty('never-reached');
+  });
+
+  it('passes message from { message: string } form of step input callback', async () => {
+    const noopAgent = agent('noop', {
+      state: s.object({}),
+      initialState: {},
+      tools: {},
+      model: { provider: 'cloudflare', model: 'test' },
+    });
+
+    let capturedMessage = '';
+    const llm: LLMAdapter = {
+      async chat(messages) {
+        capturedMessage = messages.find((m) => m.role === 'user')?.content ?? '';
+        return { text: 'done', toolCalls: [] };
+      },
+    };
+
+    const pipeline = workflow('object-input', {
+      input: s.object({}),
+      steps: [
+        step('work', {
+          agent: noopAgent,
+          input: () => ({ message: 'Hello from object form' }),
+          output: s.object({}),
+        }),
+      ],
+    });
+
+    await runWorkflow(pipeline, { input: {}, llm });
+
+    expect(capturedMessage).toBe('Hello from object form');
   });
 });
