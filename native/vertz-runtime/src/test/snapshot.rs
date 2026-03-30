@@ -7,8 +7,8 @@
 //! The snapshot is created lazily on first use and cached for the process
 //! lifetime via `LazyLock`.
 
-use std::sync::LazyLock;
 use std::sync::Arc;
+use std::sync::LazyLock;
 use std::sync::Mutex;
 use std::time::Instant;
 
@@ -16,25 +16,8 @@ use deno_core::Extension;
 use deno_core::JsRuntimeForSnapshot;
 use deno_core::RuntimeOptions;
 
-use crate::runtime::js_runtime::CapturedOutput;
-use crate::runtime::ops::async_context;
-use crate::runtime::ops::clone;
-use crate::runtime::ops::console;
-use crate::runtime::ops::crypto;
-use crate::runtime::ops::crypto_subtle;
-use crate::runtime::ops::encoding;
-use crate::runtime::ops::env;
-use crate::runtime::ops::fetch;
-use crate::runtime::ops::fs;
-use crate::runtime::ops::microtask;
-use crate::runtime::ops::os;
-use crate::runtime::ops::path;
-use crate::runtime::ops::performance;
-use crate::runtime::ops::sqlite;
-use crate::runtime::ops::streams;
-use crate::runtime::ops::timers;
-use crate::runtime::ops::url;
-use crate::runtime::ops::web_api;
+use crate::runtime::js_runtime::{CapturedOutput, VertzJsRuntime};
+use crate::runtime::ops::{console, crypto_subtle, performance, sqlite};
 
 use super::globals::TEST_HARNESS_JS;
 
@@ -157,51 +140,6 @@ if (typeof __vertz_setPromiseHooks === 'function' && globalThis.__vertz_promiseH
 }
 "#;
 
-/// Collect all op declarations (same set as `VertzJsRuntime::new()`).
-pub(crate) fn all_op_decls() -> Vec<deno_core::OpDecl> {
-    let mut ops = Vec::new();
-    ops.extend(async_context::op_decls());
-    ops.extend(clone::op_decls());
-    ops.extend(console::op_decls());
-    ops.extend(timers::op_decls());
-    ops.extend(crypto::op_decls());
-    ops.extend(encoding::op_decls());
-    ops.extend(env::op_decls());
-    ops.extend(performance::op_decls());
-    ops.extend(path::op_decls());
-    ops.extend(fetch::op_decls());
-    ops.extend(url::op_decls());
-    ops.extend(crypto_subtle::op_decls());
-    ops.extend(web_api::op_decls());
-    ops.extend(streams::op_decls());
-    ops.extend(os::op_decls());
-    ops.extend(fs::op_decls());
-    ops.extend(sqlite::op_decls());
-    ops
-}
-
-/// Build the concatenated bootstrap JS (same as `VertzJsRuntime::bootstrap_js()`).
-fn bootstrap_js() -> String {
-    [
-        clone::CLONE_BOOTSTRAP_JS,
-        console::CONSOLE_BOOTSTRAP_JS,
-        timers::TIMERS_BOOTSTRAP_JS,
-        crypto::CRYPTO_BOOTSTRAP_JS,
-        encoding::ENCODING_BOOTSTRAP_JS,
-        env::ENV_BOOTSTRAP_JS,
-        performance::PERFORMANCE_BOOTSTRAP_JS,
-        path::PATH_BOOTSTRAP_JS,
-        web_api::WEB_API_BOOTSTRAP_JS,
-        fetch::FETCH_BOOTSTRAP_JS,
-        microtask::MICROTASK_BOOTSTRAP_JS,
-        url::URL_BOOTSTRAP_JS,
-        streams::STREAMS_BOOTSTRAP_JS,
-        os::OS_BOOTSTRAP_JS,
-        fs::FS_BOOTSTRAP_JS,
-    ]
-    .join("\n")
-}
-
 /// Create a V8 snapshot with bootstrap JS + async context + test harness pre-baked.
 fn create_test_snapshot() -> Box<[u8]> {
     let start_time = Instant::now();
@@ -210,7 +148,7 @@ fn create_test_snapshot() -> Box<[u8]> {
 
     let ext = Extension {
         name: "vertz",
-        ops: std::borrow::Cow::Owned(all_op_decls()),
+        ops: std::borrow::Cow::Owned(VertzJsRuntime::all_op_decls()),
         op_state_fn: Some(Box::new(move |state| {
             state.put(console::ConsoleState {
                 capture: false,
@@ -232,7 +170,7 @@ fn create_test_snapshot() -> Box<[u8]> {
     runtime
         .execute_script(
             "[vertz:bootstrap]",
-            deno_core::FastString::from(bootstrap_js()),
+            deno_core::FastString::from(VertzJsRuntime::bootstrap_js()),
         )
         .expect("snapshot: bootstrap JS failed");
 

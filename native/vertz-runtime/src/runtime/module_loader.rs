@@ -273,6 +273,28 @@ impl VertzModuleLoader {
         ))
     }
 
+    /// Prepend a CSS injection call to compiled JS code.
+    ///
+    /// If CSS was extracted by the compiler, this wraps it in a
+    /// `__vertz_inject_css()` call so the SSR renderer can collect styles.
+    fn prepend_css_injection(code: String, css: Option<&str>, filename: &str) -> String {
+        match css {
+            Some(css) => {
+                let escaped = css
+                    .replace('\\', "\\\\")
+                    .replace('`', "\\`")
+                    .replace("${", "\\${");
+                format!(
+                    "if (typeof __vertz_inject_css === 'function') {{ __vertz_inject_css(`{}`, '{}'); }}\n{}",
+                    escaped,
+                    filename.replace('\\', "/"),
+                    code
+                )
+            }
+            None => code,
+        }
+    }
+
     /// Compile TypeScript/TSX source code using vertz-compiler-core.
     ///
     /// Checks the disk-backed compilation cache first. On cache hit, skips
@@ -289,21 +311,11 @@ impl VertzModuleLoader {
                     .borrow_mut()
                     .insert(filename.to_string(), map.clone());
             }
-            // Reconstruct CSS injection prefix if CSS was cached
-            let mut code = cached.code;
-            if let Some(ref css) = cached.css {
-                let escaped = css
-                    .replace('\\', "\\\\")
-                    .replace('`', "\\`")
-                    .replace("${", "\\${");
-                code = format!(
-                    "if (typeof __vertz_inject_css === 'function') {{ __vertz_inject_css(`{}`, '{}'); }}\n{}",
-                    escaped,
-                    filename.replace('\\', "/"),
-                    code
-                );
-            }
-            return Ok(code);
+            return Ok(Self::prepend_css_injection(
+                cached.code,
+                cached.css.as_deref(),
+                filename,
+            ));
         }
 
         let result = vertz_compiler_core::compile(
@@ -356,22 +368,11 @@ impl VertzModuleLoader {
             },
         );
 
-        // Inject extracted CSS for SSR collection.
-        let mut code = code;
-        if let Some(ref css) = result.css {
-            let escaped = css
-                .replace('\\', "\\\\")
-                .replace('`', "\\`")
-                .replace("${", "\\${");
-            code = format!(
-                "if (typeof __vertz_inject_css === 'function') {{ __vertz_inject_css(`{}`, '{}'); }}\n{}",
-                escaped,
-                filename.replace('\\', "/"),
-                code
-            );
-        }
-
-        Ok(code)
+        Ok(Self::prepend_css_injection(
+            code,
+            result.css.as_deref(),
+            filename,
+        ))
     }
 }
 
