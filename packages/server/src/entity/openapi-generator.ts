@@ -552,23 +552,14 @@ export function generateOpenAPISpec(
         if (accessRule === false) {
           // Explicitly disabled → 405
           const pathItem: OpenAPIPathItem = {};
-          const disabledOp = buildServiceDisabledOperation(
-            svcDef.name,
-            actionName,
-            tag,
-          );
+          const disabledOp = buildServiceDisabledOperation(svcDef.name, actionName, tag);
           assignMethodToPathItem(pathItem, method, disabledOp);
           paths[routePath] = pathItem;
           continue;
         }
 
         // Active service action
-        const operation = buildServiceActionOperation(
-          svcDef.name,
-          actionName,
-          actionDef,
-          tag,
-        );
+        const operation = buildServiceActionOperation(svcDef.name, actionName, actionDef, tag);
         const pathItem: OpenAPIPathItem = {};
         assignMethodToPathItem(pathItem, method, operation);
         paths[routePath] = pathItem;

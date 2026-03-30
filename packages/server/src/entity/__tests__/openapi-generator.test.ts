@@ -1055,8 +1055,7 @@ describe('Feature: Service routes in OpenAPI spec', () => {
         });
         const op = spec.paths['/api/analytics/summary']!.post!;
         expect(op.requestBody).toBeDefined();
-        const bodySchemaResult =
-          op.requestBody!.content['application/json'].schema;
+        const bodySchemaResult = op.requestBody!.content['application/json'].schema;
         expect(bodySchemaResult.properties).toHaveProperty('from');
         expect(bodySchemaResult.properties).toHaveProperty('to');
       });
@@ -1067,8 +1066,7 @@ describe('Feature: Service routes in OpenAPI spec', () => {
           services: [svcDef],
         });
         const op = spec.paths['/api/analytics/summary']!.post!;
-        const respSchema =
-          op.responses['200']?.content?.['application/json']?.schema;
+        const respSchema = op.responses['200']?.content?.['application/json']?.schema;
         expect(respSchema?.properties).toHaveProperty('count');
         expect(respSchema?.properties).toHaveProperty('average');
       });
