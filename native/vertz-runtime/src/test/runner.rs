@@ -127,6 +127,7 @@ pub fn run_tests(config: TestRunConfig) -> (TestRunResult, String) {
         timeout_ms: config.timeout_ms,
         coverage: config.coverage,
         preload: preload_paths,
+        root_dir: Some(config.root_dir.clone()),
     });
 
     let mut results = execute_parallel(&files, concurrency, config.bail, exec_options);

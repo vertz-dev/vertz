@@ -98,6 +98,7 @@ pub async fn run_watch_mode(config: TestRunConfig) -> Result<(), String> {
         timeout_ms: config.timeout_ms,
         coverage: false,
         preload: preload_paths,
+        root_dir: Some(config.root_dir.clone()),
     });
 
     // Initial run

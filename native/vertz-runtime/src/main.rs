@@ -38,8 +38,9 @@ async fn main() {
             }
         }
         Command::Test(args) => {
-            let root_dir =
-                std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from("."));
+            let root_dir = args.root_dir.unwrap_or_else(|| {
+                std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from("."))
+            });
 
             // Load config file (if present)
             let file_config =

@@ -99,6 +99,9 @@ pub struct ExecuteOptions {
     pub coverage: bool,
     /// Preload script paths (absolute) to execute before the test file.
     pub preload: Vec<std::path::PathBuf>,
+    /// Root directory for module resolution (workspace root).
+    /// When set, overrides the default behavior of using the file's parent directory.
+    pub root_dir: Option<std::path::PathBuf>,
 }
 
 impl Default for ExecuteOptions {
@@ -108,6 +111,7 @@ impl Default for ExecuteOptions {
             timeout_ms: 5000,
             coverage: false,
             preload: vec![],
+            root_dir: None,
         }
     }
 }
@@ -128,12 +132,18 @@ pub fn execute_test_file_with_options(
     let file_str = file_path.to_string_lossy().to_string();
     let start = Instant::now();
 
-    // Determine root dir from file path (parent of the file)
-    let root_dir = file_path
-        .parent()
-        .unwrap_or(Path::new("."))
-        .to_string_lossy()
-        .to_string();
+    // Use explicit root_dir from options (workspace root), falling back to file's parent
+    let root_dir = options
+        .root_dir
+        .as_ref()
+        .map(|p| p.to_string_lossy().to_string())
+        .unwrap_or_else(|| {
+            file_path
+                .parent()
+                .unwrap_or(Path::new("."))
+                .to_string_lossy()
+                .to_string()
+        });
 
     let result = execute_test_file_inner(file_path, &root_dir, options);
 
@@ -708,5 +718,83 @@ mod tests {
             .as_ref()
             .unwrap()
             .contains("Cannot read preload script"));
+    }
+
+    #[test]
+    fn test_root_dir_affects_bun_cache_resolution() {
+        // The module loader's Bun cache fallback starts from `self.root_dir`.
+        // When root_dir is the workspace root (not the test file's parent),
+        // packages in `node_modules/.bun/node_modules/` are found correctly.
+        //
+        // This test places a package ONLY in the Bun cache at the workspace root
+        // and puts the test file in a sibling directory. Walk-up from the test
+        // file's parent never reaches the workspace, so root_dir is the only
+        // way the module loader finds the Bun cache.
+        let tmp = tempfile::tempdir().unwrap();
+        let base = tmp.path();
+
+        // Workspace root: package ONLY in Bun's internal cache
+        let workspace = base.join("workspace");
+        let bun_cache_lib = workspace
+            .join("node_modules")
+            .join(".bun")
+            .join("node_modules")
+            .join("my-lib");
+        fs::create_dir_all(&bun_cache_lib).unwrap();
+        fs::write(
+            bun_cache_lib.join("package.json"),
+            r#"{"name": "my-lib", "main": "index.js"}"#,
+        )
+        .unwrap();
+        fs::write(bun_cache_lib.join("index.js"), "export const value = 42;").unwrap();
+
+        // Test file in a sibling directory (NOT under workspace/)
+        let test_dir = base.join("isolated");
+        fs::create_dir_all(&test_dir).unwrap();
+        let test_file = test_dir.join("core.test.ts");
+        fs::write(
+            &test_file,
+            r#"
+            import { value } from 'my-lib';
+            describe('bun cache import', () => {
+                it('resolves from workspace root bun cache', () => {
+                    expect(value).toBe(42);
+                });
+            });
+            "#,
+        )
+        .unwrap();
+
+        // Without root_dir: defaults to file parent (isolated/), walk-up never
+        // reaches workspace/, Bun cache walk-up also starts from isolated/.
+        // Import fails because my-lib is only in workspace's bun cache.
+        let result_no_root = execute_test_file_with_options(
+            &test_file,
+            &ExecuteOptions {
+                root_dir: None,
+                ..Default::default()
+            },
+        );
+        assert!(
+            result_no_root.file_error.is_some(),
+            "Without root_dir, should fail to find package in bun cache"
+        );
+
+        // With root_dir pointing to workspace: Bun cache walk-up starts from
+        // workspace/, finds node_modules/.bun/node_modules/my-lib/.
+        let result_with_root = execute_test_file_with_options(
+            &test_file,
+            &ExecuteOptions {
+                root_dir: Some(workspace),
+                ..Default::default()
+            },
+        );
+        assert!(
+            result_with_root.file_error.is_none(),
+            "With root_dir, should resolve from bun cache: {:?}",
+            result_with_root.file_error
+        );
+        assert_eq!(result_with_root.tests.len(), 1);
+        assert_eq!(result_with_root.tests[0].status, TestStatus::Pass);
     }
 }

@@ -141,6 +141,10 @@ pub struct TestArgs {
     /// Skip preload scripts
     #[arg(long)]
     pub no_preload: bool,
+
+    /// Workspace root directory for module resolution (default: current directory)
+    #[arg(long)]
+    pub root_dir: Option<PathBuf>,
 }
 
 #[derive(Parser, Debug)]
@@ -974,6 +978,18 @@ mod tests {
     fn test_test_no_preload() {
         let args = parse_test(&["vertz-runtime", "test", "--no-preload"]);
         assert!(args.no_preload);
+    }
+
+    #[test]
+    fn test_test_root_dir() {
+        let args = parse_test(&["vertz-runtime", "test", "--root-dir", "/workspace/root"]);
+        assert_eq!(args.root_dir, Some(PathBuf::from("/workspace/root")));
+    }
+
+    #[test]
+    fn test_test_root_dir_default() {
+        let args = parse_test(&["vertz-runtime", "test"]);
+        assert!(args.root_dir.is_none());
     }
 
     #[test]
