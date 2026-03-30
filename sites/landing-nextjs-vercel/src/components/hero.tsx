@@ -50,6 +50,12 @@ export function Hero() {
         >
           View on GitHub →
         </a>
+        <a
+          href="https://docs.vertz.dev"
+          className="inline-flex items-center justify-center gap-2 py-3 px-6 text-sm uppercase tracking-wider transition-colors text-gray-400 font-[family-name:var(--font-mono)]"
+        >
+          Read the Docs →
+        </a>
       </div>
     </section>
   );

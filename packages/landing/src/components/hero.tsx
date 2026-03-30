@@ -190,6 +190,22 @@ const s = css({
       '@media (min-width: 640px)': { display: 'inline-flex' },
     },
   ],
+  docsLink: [
+    'flex',
+    'items:center',
+    'justify:center',
+    'gap:2',
+    'py:3',
+    'px:6',
+    'font:sm',
+    'uppercase',
+    'tracking:wider',
+    'transition:colors',
+    { '&': { color: '#6B6560' } },
+    {
+      '@media (min-width: 640px)': { display: 'inline-flex' },
+    },
+  ],
   // Code group styles
   codeGroup: [
     'border:1',
@@ -1077,6 +1093,13 @@ export function Hero() {
           <div className={s.ctas}>
             <Island component={CopyButton} />
             <Island component={SocialLinks} />
+            <a
+              href="https://docs.vertz.dev"
+              className={s.docsLink}
+              style={{ fontFamily: 'var(--font-mono)' }}
+            >
+              Read the Docs →
+            </a>
           </div>
         </div>
 
