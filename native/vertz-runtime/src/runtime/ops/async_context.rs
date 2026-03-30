@@ -15,30 +15,10 @@ fn set_promise_hooks_callback(
     _rv: v8::ReturnValue,
 ) {
     // Extract the 4 function arguments, converting to Option<Local<Function>>
-    let init = args
-        .get(0)
-        .try_into()
-        .ok()
-        .filter(|v: &v8::Local<v8::Value>| v.is_function())
-        .map(|v| v8::Local::<v8::Function>::try_from(v).unwrap());
-    let before = args
-        .get(1)
-        .try_into()
-        .ok()
-        .filter(|v: &v8::Local<v8::Value>| v.is_function())
-        .map(|v| v8::Local::<v8::Function>::try_from(v).unwrap());
-    let after = args
-        .get(2)
-        .try_into()
-        .ok()
-        .filter(|v: &v8::Local<v8::Value>| v.is_function())
-        .map(|v| v8::Local::<v8::Function>::try_from(v).unwrap());
-    let resolve = args
-        .get(3)
-        .try_into()
-        .ok()
-        .filter(|v: &v8::Local<v8::Value>| v.is_function())
-        .map(|v| v8::Local::<v8::Function>::try_from(v).unwrap());
+    let init = v8::Local::<v8::Function>::try_from(args.get(0)).ok();
+    let before = v8::Local::<v8::Function>::try_from(args.get(1)).ok();
+    let after = v8::Local::<v8::Function>::try_from(args.get(2)).ok();
+    let resolve = v8::Local::<v8::Function>::try_from(args.get(3)).ok();
 
     // Wire up V8's internal promise lifecycle hooks.
     // These fire for every promise creation, continuation, and resolution.
@@ -78,10 +58,7 @@ mod tests {
     fn test_promise_hooks_fn_exists_on_global() {
         let mut rt = create_runtime();
         let result = rt
-            .execute_script(
-                "<test>",
-                "typeof __vertz_setPromiseHooks === 'function'",
-            )
+            .execute_script("<test>", "typeof __vertz_setPromiseHooks === 'function'")
             .unwrap();
         assert_eq!(result, serde_json::json!(true));
     }

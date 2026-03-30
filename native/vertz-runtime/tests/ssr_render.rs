@@ -523,8 +523,8 @@ fn test_ssr_render_performance() {
 
 #[test]
 fn test_async_local_storage_in_ssr_context() {
+    use vertz_runtime::runtime::async_context::load_async_context;
     use vertz_runtime::runtime::js_runtime::{VertzJsRuntime, VertzRuntimeOptions};
-    use vertz_runtime::ssr::async_local_storage;
 
     let mut rt = VertzJsRuntime::new(VertzRuntimeOptions {
         capture_output: true,
@@ -532,7 +532,7 @@ fn test_async_local_storage_in_ssr_context() {
     })
     .unwrap();
 
-    async_local_storage::load_async_local_storage(&mut rt).unwrap();
+    load_async_context(&mut rt).unwrap();
     dom_shim::load_dom_shim(&mut rt).unwrap();
 
     // Simulate SSR context usage

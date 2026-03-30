@@ -80,6 +80,7 @@ pub fn load_async_local_storage(
 }
 
 #[cfg(test)]
+#[allow(deprecated)]
 mod tests {
     use super::*;
     use crate::runtime::js_runtime::{VertzJsRuntime, VertzRuntimeOptions};

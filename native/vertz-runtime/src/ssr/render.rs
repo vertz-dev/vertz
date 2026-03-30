@@ -16,8 +16,8 @@ use std::time::Instant;
 
 use deno_core::error::AnyError;
 
-use crate::runtime::js_runtime::{VertzJsRuntime, VertzRuntimeOptions};
 use crate::runtime::async_context::load_async_context;
+use crate::runtime::js_runtime::{VertzJsRuntime, VertzRuntimeOptions};
 use crate::ssr::css_collector;
 use crate::ssr::dom_shim;
 use crate::ssr::html_document::{assemble_ssr_document, entry_path_to_url, SsrHtmlOptions};

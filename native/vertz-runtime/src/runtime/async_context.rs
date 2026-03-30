@@ -472,8 +472,7 @@ mod tests {
             .unwrap();
 
             rt.run_event_loop().await.unwrap();
-            rt.execute_script("<get>", "globalThis.__results")
-                .unwrap()
+            rt.execute_script("<get>", "globalThis.__results").unwrap()
         });
 
         assert_eq!(result, serde_json::json!(["ctx-1", "ctx-2"]));
@@ -505,8 +504,7 @@ mod tests {
             .unwrap();
 
             rt.run_event_loop().await.unwrap();
-            rt.execute_script("<get>", "globalThis.__alsStore")
-                .unwrap()
+            rt.execute_script("<get>", "globalThis.__alsStore").unwrap()
         });
 
         assert_eq!(result["requestId"], serde_json::json!("req-42"));
@@ -568,8 +566,7 @@ mod tests {
             .unwrap();
 
             rt.run_event_loop().await.unwrap();
-            rt.execute_script("<get>", "globalThis.__rejVal")
-                .unwrap()
+            rt.execute_script("<get>", "globalThis.__rejVal").unwrap()
         });
 
         assert_eq!(result, serde_json::json!("in-rejection"));
@@ -607,8 +604,7 @@ mod tests {
             .unwrap();
 
             rt.run_event_loop().await.unwrap();
-            rt.execute_script("<get>", "globalThis.__multiVal")
-                .unwrap()
+            rt.execute_script("<get>", "globalThis.__multiVal").unwrap()
         });
 
         assert_eq!(result, serde_json::json!(["multi", "multi", "multi"]));
