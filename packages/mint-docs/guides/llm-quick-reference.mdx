@@ -294,3 +294,76 @@ res.body.items; // typed array
 ```
 
 </Warning>
+
+## Agents
+
+Define AI agents with typed tools and run them via a ReAct loop:
+
+```ts
+import { agent, tool, run, createAdapter } from '@vertz/agents';
+import { s } from '@vertz/schema';
+
+const searchTool = tool({
+  description: 'Search the knowledge base',
+  input: s.object({ query: s.string() }),
+  output: s.object({ results: s.array(s.string()) }),
+  async handler(input) {
+    return { results: await searchKB(input.query) };
+  },
+});
+
+const assistant = agent('assistant', {
+  state: s.object({}),
+  initialState: {},
+  tools: { search: searchTool },
+  model: { provider: 'openai', model: 'gpt-4o' },
+});
+
+const llm = createAdapter({ provider: 'openai' });
+const result = await run(assistant, { message: 'Find docs about auth', llm });
+```
+
+### Workflows
+
+Coordinate multiple agents into sequential pipelines with approval gates:
+
+```ts
+import { workflow, step, runWorkflow } from '@vertz/agents';
+
+const pipeline = workflow('review-pipeline', {
+  input: s.object({ docPath: s.string() }),
+  steps: [
+    step('review', {
+      agent: reviewerAgent,
+      input: (ctx) => `Review: ${ctx.workflow.input.docPath}`,
+      output: s.object({ approved: s.boolean() }),
+    }),
+    step('human-approval', {
+      approval: { message: 'Review complete. Approve to publish.' },
+    }),
+    step('publish', {
+      agent: publisherAgent,
+      input: (ctx) => `Publish: ${ctx.workflow.input.docPath}`,
+    }),
+  ],
+});
+
+const result = await runWorkflow(pipeline, { input: { docPath: '/api.md' }, llm });
+// result.status: 'complete' | 'error' | 'pending'
+```
+
+### Agent-to-agent invocation
+
+Tools can invoke other agents via `ctx.agents.invoke()`:
+
+```ts
+const delegateTool = tool({
+  description: 'Delegate to specialist',
+  input: s.object({ task: s.string() }),
+  output: s.object({ result: s.string() }),
+  async handler(input, ctx) {
+    const r = await ctx.agents.invoke(specialistAgent, { message: input.task });
+    return { result: r.response };
+  },
+});
+```
