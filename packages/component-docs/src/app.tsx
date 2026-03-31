@@ -7,7 +7,7 @@ import {
   getCustomizationCookie,
   setModuleState,
 } from './hooks/use-customization';
-import { getInitialTheme, useTheme } from './hooks/use-theme';
+import { getInitialTheme, setThemeCookie, ThemeContext } from './hooks/use-theme';
 import { components } from './manifest';
 import { ComponentPage } from './pages/component-page';
 import { IndexRedirect } from './pages/index-redirect';
@@ -39,7 +39,18 @@ const router = createRouter(routes);
 
 // ── App component ──────────────────────────────────────────
 export function App() {
-  const { theme: currentTheme } = useTheme();
+  let currentTheme = getInitialTheme();
+
+  function toggle() {
+    const next = currentTheme === 'dark' ? 'light' : 'dark';
+    currentTheme = next;
+    setThemeCookie(next);
+    if (typeof document !== 'undefined') {
+      document.querySelector('[data-theme]')?.setAttribute('data-theme', next);
+      // Re-apply customization needs to be imported lazily to avoid circular deps
+      import('./hooks/use-customization').then((m) => m.reapplyCustomization(next));
+    }
+  }
 
   // Restore saved customization on mount
   if (typeof document !== 'undefined') {
@@ -55,8 +66,10 @@ export function App() {
   }
 
   return (
-    <ThemeProvider theme={currentTheme}>
-      <RouterView router={router} fallback={() => <div>Page not found</div>} />
-    </ThemeProvider>
+    <ThemeContext.Provider value={{ theme: currentTheme, toggle }}>
+      <ThemeProvider theme={currentTheme}>
+        <RouterView router={router} fallback={() => <div>Page not found</div>} />
+      </ThemeProvider>
+    </ThemeContext.Provider>
   );
 }

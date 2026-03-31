@@ -1,19 +1,14 @@
 /**
- * App-global theme state.
+ * App-global theme state via Context.
  *
- * Uses module-level shared state instead of context because the production
- * build code-splits route components into dynamic imports. Dynamic imports
- * resolve asynchronously, after the synchronous Provider._stack has already
- * been popped — so context-based theme sharing breaks across route boundaries.
- *
- * Module-level state avoids this entirely: every import references the same
- * variable, regardless of when the importing module loads.
- *
- * During SSR, `document.cookie` is automatically populated from the request's
- * Cookie header by the framework, so `getThemeCookie()` returns the real value.
+ * Previously used a module-level signal workaround because production builds
+ * code-split route components into dynamic imports that resolved after the
+ * synchronous Provider._stack was popped. This has been fixed in the framework
+ * (commit caaee3414) — RouterView now captures the full ContextScope before
+ * resolving dynamic imports and restores it when rendering lazy components.
  */
 
-import { signal } from '@vertz/ui';
+import { createContext, useContext } from '@vertz/ui';
 
 // ── Cookie helpers ──────────────────────────────────────────
 
@@ -28,33 +23,25 @@ function setThemeCookie(value: 'dark' | 'light'): void {
   document.cookie = `theme=${value};path=/;max-age=31536000;SameSite=Lax`;
 }
 
-// ── Shared state ────────────────────────────────────────────
+// ── Initial theme ───────────────────────────────────────────
 
 export function getInitialTheme(): 'dark' | 'light' {
   return getThemeCookie() ?? 'dark';
 }
 
-const themeSignal = signal<'dark' | 'light'>(getInitialTheme());
+// ── Theme context ───────────────────────────────────────────
 
-export function useTheme(): { theme: 'dark' | 'light'; toggle: () => void } {
-  return {
-    get theme() {
-      // During SSR, read directly from the cookie (populated per-request by the
-      // framework) since the module-level signal was initialized at import time
-      // and doesn't reflect per-request cookie state.
-      return getThemeCookie() ?? themeSignal.value;
-    },
-    toggle,
-  };
+interface ThemeContextValue {
+  theme: 'dark' | 'light';
+  toggle: () => void;
 }
 
-function toggle(): void {
-  const next = themeSignal.value === 'dark' ? 'light' : 'dark';
-  themeSignal.value = next;
-  setThemeCookie(next);
-  if (typeof document !== 'undefined') {
-    document.querySelector('[data-theme]')?.setAttribute('data-theme', next);
-    // Re-apply customization needs to be imported lazily to avoid circular deps
-    import('./use-customization').then((m) => m.reapplyCustomization(next));
-  }
+export const ThemeContext = createContext<ThemeContextValue>();
+
+export function useTheme(): ThemeContextValue {
+  const ctx = useContext(ThemeContext);
+  if (!ctx) throw new Error('useTheme must be called within ThemeContext.Provider');
+  return ctx;
 }
+
+export { setThemeCookie };
