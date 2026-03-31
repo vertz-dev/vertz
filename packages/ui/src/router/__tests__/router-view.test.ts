@@ -1644,4 +1644,31 @@ describe('RouterView', () => {
     expect(capturedValue).toBe('app-value');
     router.dispose();
   });
+
+  test('errorFallback catches rejected dynamic import (#2163)', async () => {
+    // When the dynamic import itself rejects (network error, missing chunk),
+    // the error should be caught and rendered via errorFallback.
+    const routes = defineRoutes({
+      '/': {
+        component: () => Promise.reject(new Error('chunk load failed')),
+      },
+    });
+    const router = createRouter(routes, '/');
+    let view: HTMLElement;
+    RouterContext.Provider(router, () => {
+      view = RouterView({
+        router,
+        errorFallback: ({ error }) => {
+          const el = document.createElement('div');
+          el.setAttribute('data-testid', 'error-fallback');
+          el.textContent = `Error: ${error.message}`;
+          return el;
+        },
+      });
+    });
+    await new Promise((r) => setTimeout(r, 10));
+    expect(view!.querySelector('[data-testid="error-fallback"]')).not.toBeNull();
+    expect(view!.textContent).toContain('Error: chunk load failed');
+    router.dispose();
+  });
 });

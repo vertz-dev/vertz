@@ -177,87 +177,104 @@ export function RouterView({ router, fallback, errorFallback }: RouterViewProps)
             // captured since the component returned a Promise instead of
             // rendering synchronously.
             popScope();
-            result.then((mod) => {
-              if (gen !== renderGen) return;
+            result
+              .then((mod) => {
+                if (gen !== renderGen) return;
 
-              let node!: Node;
-              pageCleanups = pushScope();
+                let node!: Node;
+                pageCleanups = pushScope();
 
-              // Restore ancestor context scope so RouterContext.Provider
-              // inherits all contexts that were active above RouterView.
-              const prevScope = setContextScope(capturedScope);
-              try {
-                if (wasHydrating) {
-                  // Re-enter hydration scoped to this container so the
-                  // lazy component claims SSR nodes via __element()
-                  // instead of creating new ones.
-                  // Wrap with beginDeferringMounts/flushDeferredMounts so
-                  // onMount in the lazy component runs after mini-hydration.
-                  beginDeferringMounts();
-                  startHydration(container);
-                  let miniHydrationOk = false;
-                  try {
-                    RouterContext.Provider(router, () => {
-                      node = (mod as { default: () => Node }).default();
-                      __append(container, node);
-                    });
-                    miniHydrationOk = true;
-                  } finally {
-                    endHydration();
-                    if (miniHydrationOk) {
-                      flushDeferredMounts();
-                    } else {
-                      discardDeferredMounts();
+                // Restore ancestor context scope so RouterContext.Provider
+                // inherits all contexts that were active above RouterView.
+                const prevScope = setContextScope(capturedScope);
+                try {
+                  if (wasHydrating) {
+                    // Re-enter hydration scoped to this container so the
+                    // lazy component claims SSR nodes via __element()
+                    // instead of creating new ones.
+                    // Wrap with beginDeferringMounts/flushDeferredMounts so
+                    // onMount in the lazy component runs after mini-hydration.
+                    beginDeferringMounts();
+                    startHydration(container);
+                    let miniHydrationOk = false;
+                    try {
+                      RouterContext.Provider(router, () => {
+                        node = (mod as { default: () => Node }).default();
+                        __append(container, node);
+                      });
+                      miniHydrationOk = true;
+                    } finally {
+                      endHydration();
+                      if (miniHydrationOk) {
+                        flushDeferredMounts();
+                      } else {
+                        discardDeferredMounts();
+                      }
                     }
-                  }
-                  // Safety fallback: if the component's root wasn't claimed
-                  // (SSR/client tree mismatch), fall back to CSR append.
-                  if (!container.contains(node)) {
+                    // Safety fallback: if the component's root wasn't claimed
+                    // (SSR/client tree mismatch), fall back to CSR append.
+                    if (!container.contains(node)) {
+                      while (container.firstChild) {
+                        container.removeChild(container.firstChild);
+                      }
+                      container.appendChild(node);
+                    }
+                  } else {
+                    // CSR: clear existing content and append the new component.
                     while (container.firstChild) {
                       container.removeChild(container.firstChild);
                     }
-                    container.appendChild(node);
+                    RouterContext.Provider(router, () => {
+                      node = (mod as { default: () => Node }).default();
+                      container.appendChild(node);
+                    });
                   }
-                } else {
-                  // CSR: clear existing content and append the new component.
-                  while (container.firstChild) {
-                    container.removeChild(container.firstChild);
-                  }
-                  RouterContext.Provider(router, () => {
-                    node = (mod as { default: () => Node }).default();
-                    container.appendChild(node);
-                  });
-                }
-              } catch (thrown: unknown) {
-                // Lazy route component threw after resolution — render error
-                // fallback if configured, otherwise re-throw.
-                if (lazyFallback) {
-                  const error = thrown instanceof Error ? thrown : new Error(String(thrown));
-                  while (container.firstChild) {
-                    container.removeChild(container.firstChild);
-                  }
-                  const fallbackNode = lazyFallback({
-                    error,
-                    retry: () => {
-                      try {
-                        const retryNode = (mod as { default: () => Node }).default();
-                        if (fallbackNode.parentNode) {
-                          fallbackNode.parentNode.replaceChild(retryNode, fallbackNode);
+                } catch (thrown: unknown) {
+                  // Lazy route component threw after resolution — render error
+                  // fallback if configured, otherwise re-throw.
+                  if (lazyFallback) {
+                    const error = thrown instanceof Error ? thrown : new Error(String(thrown));
+                    while (container.firstChild) {
+                      container.removeChild(container.firstChild);
+                    }
+                    const fallbackNode = lazyFallback({
+                      error,
+                      retry: () => {
+                        try {
+                          const retryNode = (mod as { default: () => Node }).default();
+                          if (fallbackNode.parentNode) {
+                            fallbackNode.parentNode.replaceChild(retryNode, fallbackNode);
+                          }
+                        } catch {
+                          // Retry failed — keep the fallback
                         }
-                      } catch {
-                        // Retry failed — keep the fallback
-                      }
-                    },
-                  });
-                  container.appendChild(fallbackNode);
-                } else {
-                  throw thrown;
+                      },
+                    });
+                    container.appendChild(fallbackNode);
+                  } else {
+                    throw thrown;
+                  }
+                } finally {
+                  setContextScope(prevScope);
+                  popScope();
                 }
-              } finally {
-                setContextScope(prevScope);
-                popScope();
-              }
-            });
+              })
+              .catch((thrown: unknown) => {
+                // Dynamic import rejected (network error, missing chunk).
+                if (gen !== renderGen) return;
+                if (lazyFallback) {
+                  pageCleanups = pushScope();
+                  try {
+                    const error = thrown instanceof Error ? thrown : new Error(String(thrown));
+                    while (container.firstChild) {
+                      container.removeChild(container.firstChild);
+                    }
+                    container.appendChild(lazyFallback({ error, retry: () => {} }));
+                  } finally {
+                    popScope();
+                  }
+                }
+              });
           } else {
             // Guard: if a synchronous navigate() was called during component
             // execution (e.g., a redirect component), a re-entrant effect run
