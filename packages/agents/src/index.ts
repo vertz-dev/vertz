@@ -27,13 +27,19 @@ export { tool } from './tool';
 
 // ReAct loop
 export type {
+  ContextCompressionConfig,
+  DiminishingReturnsConfig,
   LLMAdapter,
   LLMResponse,
   LoopResult,
   LoopStatus,
   Message,
   ReactLoopOptions,
+  TokenBudgetConfig,
+  TokenUsage,
+  TokenUsageSummary,
   ToolCall,
+  ToolCallSummaryEntry,
 } from './loop/react-loop';
 export { reactLoop } from './loop/react-loop';
 

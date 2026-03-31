@@ -29,6 +29,7 @@ export function tool<TInput, TOutput>(
     handler: config.handler,
     approval: config.approval,
     execution,
+    parallel: config.parallel,
   };
 
   return deepFreeze(def);

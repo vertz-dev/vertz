@@ -1,4 +1,10 @@
-import type { LLMAdapter, LoopResult, Message } from './loop/react-loop';
+import type {
+  LLMAdapter,
+  LoopResult,
+  Message,
+  TokenUsageSummary,
+  ToolCallSummaryEntry,
+} from './loop/react-loop';
 import { reactLoop } from './loop/react-loop';
 import { SessionAccessDeniedError, SessionNotFoundError } from './stores/errors';
 import type { AgentSession, AgentStore } from './stores/types';
@@ -48,6 +54,9 @@ export interface StatelessLoopResult {
   readonly response: string;
   readonly iterations: number;
   readonly messages: readonly Message[];
+  readonly tokenUsage?: TokenUsageSummary;
+  readonly compressionCount?: number;
+  readonly toolCallSummary?: readonly ToolCallSummaryEntry[];
 }
 
 /** Result from a session run — includes sessionId. */
@@ -195,6 +204,10 @@ export async function run(
     toolContext: { agentId, agentName: agentDef.name, agents },
     checkpointInterval: agentDef.loop.checkpointInterval,
     previousMessages,
+    tokenBudget: agentDef.loop.tokenBudget,
+    diminishingReturns: agentDef.loop.diminishingReturns,
+    maxToolConcurrency: agentDef.loop.maxToolConcurrency,
+    contextCompression: agentDef.loop.contextCompression,
   });
 
   // Lifecycle: onComplete or onStuck
@@ -202,7 +215,12 @@ export async function run(
     if (agentDef.onComplete) {
       await agentDef.onComplete(ctx);
     }
-  } else if (result.status === 'max-iterations' || result.status === 'stuck') {
+  } else if (
+    result.status === 'max-iterations' ||
+    result.status === 'stuck' ||
+    result.status === 'token-budget-exhausted' ||
+    result.status === 'diminishing-returns'
+  ) {
     if (agentDef.onStuck) {
       await agentDef.onStuck(ctx);
     }
@@ -251,6 +269,9 @@ export async function run(
       response: result.response,
       iterations: result.iterations,
       messages: result.messages,
+      tokenUsage: result.tokenUsage,
+      compressionCount: result.compressionCount,
+      toolCallSummary: result.toolCallSummary,
       sessionId,
     };
   }
