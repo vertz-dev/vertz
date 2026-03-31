@@ -25,6 +25,7 @@ import {
 } from './commands/docs';
 import { generateAction } from './commands/generate';
 import { loadDbContext, loadIntrospectContext } from './commands/load-db-context';
+import { inspectAction } from './commands/inspect';
 import { startAction } from './commands/start';
 
 const pkg = JSON.parse(readFileSync(resolve(import.meta.dirname, '../package.json'), 'utf-8'));
@@ -227,6 +228,15 @@ export function createCLI(): Command {
 
       console.log(result.data.output);
       process.exit(0);
+    });
+
+  // Inspect — project state as structured JSON
+  program
+    .command('inspect')
+    .description('Show project state: entities, routes, and suggestions')
+    .option('--json', 'Output as JSON (for agent consumption)')
+    .action(async (opts: { json?: boolean }) => {
+      await inspectAction({ json: opts.json });
     });
 
   program
