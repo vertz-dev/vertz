@@ -195,6 +195,10 @@ export async function run(
     toolContext: { agentId, agentName: agentDef.name, agents },
     checkpointInterval: agentDef.loop.checkpointInterval,
     previousMessages,
+    tokenBudget: agentDef.loop.tokenBudget,
+    diminishingReturns: agentDef.loop.diminishingReturns,
+    maxToolConcurrency: agentDef.loop.maxToolConcurrency,
+    contextCompression: agentDef.loop.contextCompression,
   });
 
   // Lifecycle: onComplete or onStuck
@@ -202,7 +206,12 @@ export async function run(
     if (agentDef.onComplete) {
       await agentDef.onComplete(ctx);
     }
-  } else if (result.status === 'max-iterations' || result.status === 'stuck') {
+  } else if (
+    result.status === 'max-iterations' ||
+    result.status === 'stuck' ||
+    result.status === 'token-budget-exhausted' ||
+    result.status === 'diminishing-returns'
+  ) {
     if (agentDef.onStuck) {
       await agentDef.onStuck(ctx);
     }

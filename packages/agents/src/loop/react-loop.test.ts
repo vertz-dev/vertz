@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'bun:test';
 import { s } from '@vertz/schema';
 import type { ToolDefinition } from '../types';
-import { type LoopResult, type LLMAdapter, reactLoop } from './react-loop';
+import { type LoopResult, type LLMAdapter, type Message, reactLoop } from './react-loop';
 
 // ---------------------------------------------------------------------------
 // Test helpers
@@ -489,4 +489,665 @@ describe('reactLoop()', () => {
       });
     });
   });
+
+  // ---------------------------------------------------------------------------
+  // Token budget tracking
+  // ---------------------------------------------------------------------------
+
+  describe('Given a tokenBudget with max = 1000 and stopThreshold = 0.9', () => {
+    describe('When the LLM reports cumulative usage exceeding 900 tokens (90%)', () => {
+      it('Then exits with status "token-budget-exhausted"', async () => {
+        const noop = makeTool('noop', () => ({ ok: true }));
+
+        // Each call reports 500 tokens — second call puts us at 1000 total (100%)
+        const llm = mockLLMWithUsage([
+          { toolCalls: [{ name: 'noop', arguments: {} }], usage: { inputTokens: 300, outputTokens: 200 } },
+          { toolCalls: [{ name: 'noop', arguments: {} }], usage: { inputTokens: 300, outputTokens: 200 } },
+          { text: 'Should not reach here', usage: { inputTokens: 100, outputTokens: 50 } },
+        ]);
+
+        const result = await reactLoop({
+          llm,
+          tools: { noop },
+          systemPrompt: 'You are helpful.',
+          userMessage: 'Do stuff',
+          maxIterations: 10,
+          toolContext: TEST_TOOL_CONTEXT,
+          tokenBudget: { max: 1000, stopThreshold: 0.9 },
+        });
+
+        expect(result.status).toBe('token-budget-exhausted');
+        expect(result.tokenUsage).toBeDefined();
+        expect(result.tokenUsage!.totalTokens).toBe(1000);
+        expect(result.tokenUsage!.budgetUsedPercent).toBeGreaterThanOrEqual(90);
+      });
+    });
+  });
+
+  describe('Given a tokenBudget with warningThreshold = 0.8', () => {
+    describe('When usage reaches 80%', () => {
+      it('Then injects a warning system message once', async () => {
+        const noop = makeTool('noop', () => ({ ok: true }));
+        const capturedMessages: Message[][] = [];
+
+        // Track messages sent to LLM at each call
+        let callIndex = 0;
+        const responses = [
+          { toolCalls: [{ name: 'noop', arguments: {} }], usage: { inputTokens: 350, outputTokens: 50 } }, // 400 = 40%
+          { toolCalls: [{ name: 'noop', arguments: {} }], usage: { inputTokens: 350, outputTokens: 50 } }, // 800 = 80% → warning
+          { toolCalls: [{ name: 'noop', arguments: {} }], usage: { inputTokens: 50, outputTokens: 50 } },  // 900 = 90% → check no duplicate warning
+          { text: 'Done' },
+        ];
+
+        const llm: LLMAdapter = {
+          async chat(messages) {
+            capturedMessages.push([...messages]);
+            const resp = responses[callIndex++]!;
+            return {
+              text: resp.text ?? '',
+              toolCalls: resp.toolCalls ?? [],
+              usage: resp.usage,
+            };
+          },
+        };
+
+        const result = await reactLoop({
+          llm,
+          tools: { noop },
+          systemPrompt: 'You are helpful.',
+          userMessage: 'Do stuff',
+          maxIterations: 10,
+          toolContext: TEST_TOOL_CONTEXT,
+          tokenBudget: { max: 1000, warningThreshold: 0.8, stopThreshold: 0.95 },
+        });
+
+        expect(result.status).toBe('complete');
+
+        // After iteration 2 (80%), a warning message should be in the messages
+        const warningMessages = result.messages.filter(
+          (m) => m.role === 'system' && m.content.includes('token budget'),
+        );
+        // Should be injected exactly once
+        expect(warningMessages).toHaveLength(1);
+      });
+    });
+  });
+
+  describe('Given a tokenBudget with custom warningMessage', () => {
+    describe('When warning threshold is reached', () => {
+      it('Then uses the custom message', async () => {
+        const noop = makeTool('noop', () => ({ ok: true }));
+
+        const llm = mockLLMWithUsage([
+          { toolCalls: [{ name: 'noop', arguments: {} }], usage: { inputTokens: 400, outputTokens: 100 } }, // 500 = 50%
+          { toolCalls: [{ name: 'noop', arguments: {} }], usage: { inputTokens: 200, outputTokens: 200 } }, // 900 = 90%
+          { text: 'Done' },
+        ]);
+
+        const result = await reactLoop({
+          llm,
+          tools: { noop },
+          systemPrompt: 'You are helpful.',
+          userMessage: 'Do stuff',
+          maxIterations: 10,
+          toolContext: TEST_TOOL_CONTEXT,
+          tokenBudget: {
+            max: 1000,
+            warningThreshold: 0.8,
+            stopThreshold: 0.95,
+            warningMessage: (pct, _used, _max) => `Custom: ${pct}% used`,
+          },
+        });
+
+        const warningMsg = result.messages.find(
+          (m) => m.role === 'system' && m.content.includes('Custom:'),
+        );
+        expect(warningMsg).toBeDefined();
+        expect(warningMsg!.content).toContain('Custom:');
+      });
+    });
+  });
+
+  describe('Given an LLM adapter that does not report usage', () => {
+    describe('When tokenBudget is configured', () => {
+      it('Then token budget tracking is silently skipped', async () => {
+        const llm = mockLLM([{ text: 'Done.' }]);
+
+        const result = await reactLoop({
+          llm,
+          tools: {},
+          systemPrompt: 'You are helpful.',
+          userMessage: 'Hello',
+          maxIterations: 10,
+          toolContext: TEST_TOOL_CONTEXT,
+          tokenBudget: { max: 1000 },
+        });
+
+        expect(result.status).toBe('complete');
+        expect(result.tokenUsage).toBeUndefined();
+      });
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // Diminishing returns
+  // ---------------------------------------------------------------------------
+
+  describe('Given diminishingReturns with consecutiveThreshold = 3 and minDeltaTokens = 500', () => {
+    describe('When 3 consecutive iterations each have token delta < 500', () => {
+      it('Then exits with status "diminishing-returns"', async () => {
+        const noop = makeTool('noop', () => ({ ok: true }));
+
+        // Each call adds < 500 tokens (delta = 100 each)
+        const llm = mockLLMWithUsage([
+          { toolCalls: [{ name: 'noop', arguments: {} }], usage: { inputTokens: 80, outputTokens: 20 } },
+          { toolCalls: [{ name: 'noop', arguments: {} }], usage: { inputTokens: 80, outputTokens: 20 } },
+          { toolCalls: [{ name: 'noop', arguments: {} }], usage: { inputTokens: 80, outputTokens: 20 } },
+          { text: 'Should not reach here' },
+        ]);
+
+        const result = await reactLoop({
+          llm,
+          tools: { noop },
+          systemPrompt: 'You are helpful.',
+          userMessage: 'Do stuff',
+          maxIterations: 10,
+          toolContext: TEST_TOOL_CONTEXT,
+          diminishingReturns: { consecutiveThreshold: 3, minDeltaTokens: 500 },
+        });
+
+        expect(result.status).toBe('diminishing-returns');
+      });
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // Backward compatibility
+  // ---------------------------------------------------------------------------
+
+  describe('Given an agent with NO new config (tokenBudget, diminishingReturns)', () => {
+    describe('When the agent runs', () => {
+      it('Then result.tokenUsage is undefined and behavior is unchanged', async () => {
+        const llm = mockLLM([{ text: 'Done.' }]);
+
+        const result = await reactLoop({
+          llm,
+          tools: {},
+          systemPrompt: 'You are helpful.',
+          userMessage: 'Hello',
+          maxIterations: 10,
+          toolContext: TEST_TOOL_CONTEXT,
+        });
+
+        expect(result.status).toBe('complete');
+        expect(result.tokenUsage).toBeUndefined();
+        expect(result.compressionCount).toBeUndefined();
+        expect(result.toolCallSummary).toBeUndefined();
+      });
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // Parallel tool execution
+  // ---------------------------------------------------------------------------
+
+  describe('Given tools with parallel: true', () => {
+    describe('When LLM returns multiple parallel tool calls', () => {
+      it('Then they execute concurrently', async () => {
+        const executionLog: string[] = [];
+
+        const parallelA = makeParallelTool('parallel-a', async () => {
+          executionLog.push('a-start');
+          await sleep(50);
+          executionLog.push('a-end');
+          return { result: 'A' };
+        });
+
+        const parallelB = makeParallelTool('parallel-b', async () => {
+          executionLog.push('b-start');
+          await sleep(50);
+          executionLog.push('b-end');
+          return { result: 'B' };
+        });
+
+        const llm = mockLLM([
+          {
+            toolCalls: [
+              { name: 'parallelA', arguments: {} },
+              { name: 'parallelB', arguments: {} },
+            ],
+          },
+          { text: 'Done' },
+        ]);
+
+        const result = await reactLoop({
+          llm,
+          tools: { parallelA, parallelB },
+          systemPrompt: 'You are helpful.',
+          userMessage: 'Do both',
+          maxIterations: 10,
+          toolContext: TEST_TOOL_CONTEXT,
+        });
+
+        expect(result.status).toBe('complete');
+        // Both started before either ended → concurrent
+        expect(executionLog[0]).toBe('a-start');
+        expect(executionLog[1]).toBe('b-start');
+      });
+    });
+  });
+
+  describe('Given interleaved parallel/serial tool calls', () => {
+    describe('When LLM returns [parallel-A, serial-B, parallel-C, parallel-D]', () => {
+      it('Then partitioned into maximal consecutive batches', async () => {
+        const executionOrder: string[] = [];
+
+        const parallelA = makeParallelTool('parallel-a', async () => {
+          executionOrder.push('A');
+          return { result: 'A' };
+        });
+        const serialB = makeTool('serial-b', () => {
+          executionOrder.push('B');
+          return { result: 'B' };
+        });
+        const parallelC = makeParallelTool('parallel-c', async () => {
+          executionOrder.push('C');
+          return { result: 'C' };
+        });
+        const parallelD = makeParallelTool('parallel-d', async () => {
+          executionOrder.push('D');
+          return { result: 'D' };
+        });
+
+        const llm = mockLLM([
+          {
+            toolCalls: [
+              { name: 'parallelA', arguments: {} },
+              { name: 'serialB', arguments: {} },
+              { name: 'parallelC', arguments: {} },
+              { name: 'parallelD', arguments: {} },
+            ],
+          },
+          { text: 'Done' },
+        ]);
+
+        const result = await reactLoop({
+          llm,
+          tools: { parallelA, serialB, parallelC, parallelD },
+          systemPrompt: 'You are helpful.',
+          userMessage: 'Do all',
+          maxIterations: 10,
+          toolContext: TEST_TOOL_CONTEXT,
+        });
+
+        expect(result.status).toBe('complete');
+        // A runs first (batch 1), then B (batch 2), then C and D (batch 3)
+        expect(executionOrder.indexOf('A')).toBeLessThan(executionOrder.indexOf('B'));
+        expect(executionOrder.indexOf('B')).toBeLessThan(executionOrder.indexOf('C'));
+        expect(executionOrder.indexOf('B')).toBeLessThan(executionOrder.indexOf('D'));
+      });
+    });
+  });
+
+  describe('Given concurrent tools where one throws an error', () => {
+    describe('When both parallel tools are called', () => {
+      it('Then sibling tools still complete and both results are returned', async () => {
+        const parallelOk = makeParallelTool('parallel-ok', async () => {
+          return { result: 'success' };
+        });
+        const parallelFail = makeParallelTool('parallel-fail', async () => {
+          throw new Error('Tool crashed');
+        });
+
+        const llm = mockLLM([
+          {
+            toolCalls: [
+              { name: 'parallelOk', arguments: {} },
+              { name: 'parallelFail', arguments: {} },
+            ],
+          },
+          { text: 'One succeeded, one failed' },
+        ]);
+
+        const result = await reactLoop({
+          llm,
+          tools: { parallelOk, parallelFail },
+          systemPrompt: 'You are helpful.',
+          userMessage: 'Try both',
+          maxIterations: 10,
+          toolContext: TEST_TOOL_CONTEXT,
+        });
+
+        expect(result.status).toBe('complete');
+        const toolMessages = result.messages.filter((m) => m.role === 'tool');
+        expect(toolMessages).toHaveLength(2);
+        // One succeeded
+        const okMsg = toolMessages.find((m) => m.toolName === 'parallelOk');
+        expect(okMsg!.content).toContain('success');
+        // One errored
+        const failMsg = toolMessages.find((m) => m.toolName === 'parallelFail');
+        expect(failMsg!.content).toContain('Tool crashed');
+      });
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // Context compression
+  // ---------------------------------------------------------------------------
+
+  describe('Given contextCompression.maxMessages = 5', () => {
+    describe('When messages exceed threshold during the loop', () => {
+      it('Then compress callback is invoked with non-system messages', async () => {
+        let compressedInput: Message[] = [];
+        const noop = makeTool('noop', () => ({ ok: true }));
+
+        // System + user + (assistant + tool) × 3 iterations = 8 messages before compression check
+        const llm = mockLLM([
+          { toolCalls: [{ name: 'noop', arguments: {} }] }, // iter 1: +2 messages (assistant + tool) = 4 total
+          { toolCalls: [{ name: 'noop', arguments: {} }] }, // iter 2: +2 = 6 total → exceeds 5 → compress fires before iter 3
+          { text: 'Done' }, // iter 3
+        ]);
+
+        const result = await reactLoop({
+          llm,
+          tools: { noop },
+          systemPrompt: 'You are helpful.',
+          userMessage: 'Do stuff',
+          maxIterations: 10,
+          toolContext: TEST_TOOL_CONTEXT,
+          contextCompression: {
+            maxMessages: 5,
+            compress: (msgs) => {
+              compressedInput = [...msgs];
+              // Return a summary
+              return [{ role: 'assistant', content: 'Summary of previous work.' }];
+            },
+          },
+        });
+
+        expect(result.status).toBe('complete');
+        // compress() should NOT receive the system prompt
+        expect(compressedInput.every((m) => m.role !== 'system' || !m.content.includes('You are helpful'))).toBe(true);
+        expect(result.compressionCount).toBe(1);
+      });
+
+      it('Then system prompt is auto-re-prepended after compression', async () => {
+        let capturedMessages: Message[] = [];
+        const noop = makeTool('noop', () => ({ ok: true }));
+
+        let callCount = 0;
+        const llm: LLMAdapter = {
+          async chat(messages) {
+            callCount++;
+            // Capture messages on call 3 (after compression)
+            if (callCount === 3) {
+              capturedMessages = [...messages];
+            }
+            if (callCount <= 2) {
+              return { text: '', toolCalls: [{ name: 'noop', arguments: {} }] };
+            }
+            return { text: 'Done', toolCalls: [] };
+          },
+        };
+
+        await reactLoop({
+          llm,
+          tools: { noop },
+          systemPrompt: 'You are helpful.',
+          userMessage: 'Do stuff',
+          maxIterations: 10,
+          toolContext: TEST_TOOL_CONTEXT,
+          contextCompression: {
+            maxMessages: 5,
+            compress: () => [{ role: 'assistant', content: 'Summary.' }],
+          },
+        });
+
+        // First message should still be the system prompt
+        expect(capturedMessages[0]?.role).toBe('system');
+        expect(capturedMessages[0]?.content).toBe('You are helpful.');
+      });
+    });
+
+    describe('When compress returns empty array', () => {
+      it('Then throws an error', async () => {
+        const noop = makeTool('noop', () => ({ ok: true }));
+
+        const llm = mockLLM([
+          { toolCalls: [{ name: 'noop', arguments: {} }] },
+          { toolCalls: [{ name: 'noop', arguments: {} }] },
+          { text: 'Done' },
+        ]);
+
+        await expect(
+          reactLoop({
+            llm,
+            tools: { noop },
+            systemPrompt: 'You are helpful.',
+            userMessage: 'Do stuff',
+            maxIterations: 10,
+            toolContext: TEST_TOOL_CONTEXT,
+            contextCompression: {
+              maxMessages: 5,
+              compress: () => [],
+            },
+          }),
+        ).rejects.toThrow('Context compression returned empty message array');
+      });
+    });
+  });
+
+  describe('Given contextCompression.maxTokenEstimate = 100', () => {
+    describe('When estimated tokens exceed threshold', () => {
+      it('Then compress callback is invoked', async () => {
+        let compressCalled = false;
+        const noop = makeTool('noop', () => ({ ok: true }));
+
+        // Each message adds ~content.length/4 estimated tokens
+        const llm = mockLLM([
+          { toolCalls: [{ name: 'noop', arguments: {} }] },
+          { text: 'Done' },
+        ]);
+
+        const result = await reactLoop({
+          llm,
+          tools: { noop },
+          systemPrompt: 'A'.repeat(200), // 200 chars = ~50 tokens
+          userMessage: 'B'.repeat(200), // another ~50 = ~100 total
+          maxIterations: 10,
+          toolContext: TEST_TOOL_CONTEXT,
+          contextCompression: {
+            maxTokenEstimate: 100,
+            compress: (msgs) => {
+              compressCalled = true;
+              return [msgs[msgs.length - 1]!]; // keep last message
+            },
+          },
+        });
+
+        expect(result.status).toBe('complete');
+        expect(compressCalled).toBe(true);
+      });
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // Tool call summary
+  // ---------------------------------------------------------------------------
+
+  describe('Given an agent that calls tools during execution', () => {
+    describe('When the loop completes', () => {
+      it('Then result.toolCallSummary contains { toolName, callCount } entries', async () => {
+        const readFile = makeTool('read-file', () => ({ content: 'data' }));
+        const writeFile = makeTool('write-file', () => ({ ok: true }));
+
+        const llm = mockLLM([
+          { toolCalls: [{ name: 'readFile', arguments: {} }] },
+          {
+            toolCalls: [
+              { name: 'readFile', arguments: {} },
+              { name: 'writeFile', arguments: {} },
+            ],
+          },
+          { text: 'Done' },
+        ]);
+
+        const result = await reactLoop({
+          llm,
+          tools: { readFile, writeFile },
+          systemPrompt: 'You are helpful.',
+          userMessage: 'Do stuff',
+          maxIterations: 10,
+          toolContext: TEST_TOOL_CONTEXT,
+        });
+
+        expect(result.status).toBe('complete');
+        expect(result.toolCallSummary).toBeDefined();
+        expect(result.toolCallSummary).toHaveLength(2);
+
+        const readEntry = result.toolCallSummary!.find((e) => e.toolName === 'readFile');
+        expect(readEntry!.callCount).toBe(2);
+
+        const writeEntry = result.toolCallSummary!.find((e) => e.toolName === 'writeFile');
+        expect(writeEntry!.callCount).toBe(1);
+      });
+    });
+  });
+
+  describe('Given an agent that calls no tools', () => {
+    describe('When the loop completes', () => {
+      it('Then result.toolCallSummary is undefined', async () => {
+        const llm = mockLLM([{ text: 'Done.' }]);
+        const result = await reactLoop({
+          llm,
+          tools: {},
+          systemPrompt: 'You are helpful.',
+          userMessage: 'Hello',
+          maxIterations: 10,
+          toolContext: TEST_TOOL_CONTEXT,
+        });
+        expect(result.toolCallSummary).toBeUndefined();
+      });
+    });
+  });
+
+  describe('Given no contextCompression config', () => {
+    describe('When loop runs', () => {
+      it('Then compressionCount is undefined', async () => {
+        const llm = mockLLM([{ text: 'Done.' }]);
+        const result = await reactLoop({
+          llm,
+          tools: {},
+          systemPrompt: 'You are helpful.',
+          userMessage: 'Hello',
+          maxIterations: 10,
+          toolContext: TEST_TOOL_CONTEXT,
+        });
+        expect(result.compressionCount).toBeUndefined();
+      });
+    });
+  });
+
+  describe('Given maxToolConcurrency = 2 and 4 parallel tool calls', () => {
+    describe('When the tools execute', () => {
+      it('Then at most 2 tools run at the same time', async () => {
+        let currentRunning = 0;
+        let maxRunning = 0;
+
+        const makeThrottledTool = (name: string): ToolDefinition => ({
+          kind: 'tool',
+          description: `Throttled: ${name}`,
+          input: s.object({}),
+          output: s.object({}),
+          parallel: true,
+          execution: 'server',
+          async handler() {
+            currentRunning++;
+            maxRunning = Math.max(maxRunning, currentRunning);
+            await sleep(30);
+            currentRunning--;
+            return { ok: true };
+          },
+        });
+
+        const llm = mockLLM([
+          {
+            toolCalls: [
+              { name: 't1', arguments: {} },
+              { name: 't2', arguments: {} },
+              { name: 't3', arguments: {} },
+              { name: 't4', arguments: {} },
+            ],
+          },
+          { text: 'Done' },
+        ]);
+
+        const result = await reactLoop({
+          llm,
+          tools: {
+            t1: makeThrottledTool('t1'),
+            t2: makeThrottledTool('t2'),
+            t3: makeThrottledTool('t3'),
+            t4: makeThrottledTool('t4'),
+          },
+          systemPrompt: 'You are helpful.',
+          userMessage: 'Run 4 tools',
+          maxIterations: 10,
+          toolContext: TEST_TOOL_CONTEXT,
+          maxToolConcurrency: 2,
+        });
+
+        expect(result.status).toBe('complete');
+        expect(maxRunning).toBeLessThanOrEqual(2);
+      });
+    });
+  });
 });
+
+// ---------------------------------------------------------------------------
+// Test helpers
+// ---------------------------------------------------------------------------
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function makeParallelTool(name: string, handler: (input: unknown) => unknown): ToolDefinition {
+  return {
+    kind: 'tool',
+    description: `Parallel test tool: ${name}`,
+    input: s.object({}),
+    output: s.object({}),
+    handler: handler as ToolDefinition['handler'],
+    execution: 'server',
+    parallel: true,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Test helper: mock LLM with usage reporting
+// ---------------------------------------------------------------------------
+
+function mockLLMWithUsage(
+  responses: Array<{
+    text?: string;
+    toolCalls?: Array<{ id?: string; name: string; arguments: Record<string, unknown> }>;
+    usage?: { inputTokens: number; outputTokens: number };
+  }>,
+): LLMAdapter {
+  let callIndex = 0;
+  return {
+    async chat(_messages) {
+      const response = responses[callIndex];
+      if (!response) {
+        return { text: 'No more responses', toolCalls: [] };
+      }
+      callIndex++;
+      return {
+        text: response.text ?? '',
+        toolCalls: response.toolCalls ?? [],
+        usage: response.usage,
+      };
+    },
+  };
+}

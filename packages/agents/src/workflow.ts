@@ -1,5 +1,5 @@
 import type { SchemaAny } from '@vertz/schema';
-import type { LLMAdapter } from './loop/react-loop';
+import type { LLMAdapter, LoopStatus } from './loop/react-loop';
 import { run } from './run';
 import type { AgentDefinition, InferSchema } from './types';
 import { deepFreeze } from './utils';
@@ -171,7 +171,7 @@ export type WorkflowStatus = 'complete' | 'error' | 'pending';
 
 /** Result of a single step execution. */
 export interface StepResult {
-  readonly status: 'complete' | 'max-iterations' | 'stuck' | 'error';
+  readonly status: LoopStatus;
   readonly response: string;
   readonly iterations: number;
 }

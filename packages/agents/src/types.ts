@@ -44,6 +44,8 @@ export interface ToolConfig<
   readonly handler?: (input: TInput, ctx: ToolContext) => TOutput | Promise<TOutput>;
   readonly approval?: ToolApprovalConfig<TInput>;
   readonly execution?: ToolExecution;
+  /** When true, this tool can execute concurrently with other parallel tools. Default: false. */
+  readonly parallel?: boolean;
 }
 
 /** Options for invoking another agent. */
@@ -79,6 +81,8 @@ export interface ToolDefinition<TInput = unknown, TOutput = unknown> {
   readonly handler?: (input: TInput, ctx: ToolContext) => TOutput | Promise<TOutput>;
   readonly approval?: ToolApprovalConfig<TInput>;
   readonly execution: ToolExecution;
+  /** When true, this tool can execute concurrently with other parallel tools. */
+  readonly parallel?: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -109,6 +113,10 @@ export interface AgentLoopConfig {
   readonly onStuck?: OnStuckBehavior;
   readonly stuckThreshold?: number;
   readonly checkpointInterval?: number;
+  readonly tokenBudget?: import('./loop/react-loop').TokenBudgetConfig;
+  readonly diminishingReturns?: import('./loop/react-loop').DiminishingReturnsConfig;
+  readonly maxToolConcurrency?: number;
+  readonly contextCompression?: import('./loop/react-loop').ContextCompressionConfig;
 }
 
 /** Configuration passed to the `agent()` factory. */
