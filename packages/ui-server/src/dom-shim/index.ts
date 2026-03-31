@@ -113,7 +113,12 @@ export function installDomShim(): void {
     getElementById: () => null,
     addEventListener: () => {},
     removeEventListener: () => {},
-    cookie: '',
+    // document.cookie reads per-request cookies from the SSR context when
+    // inside a render, so app code (e.g. theme/locale from cookie) works
+    // the same way during SSR as in a browser.
+    get cookie() {
+      return ssrStorage.getStore()?.cookies ?? '';
+    },
   };
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- SSR shim requires globalThis augmentation

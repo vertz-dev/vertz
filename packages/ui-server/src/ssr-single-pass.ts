@@ -61,6 +61,12 @@ export interface SSRSinglePassOptions {
   manifest?: SSRPrefetchManifest;
   /** Session data for access rule evaluation. */
   prefetchSession?: PrefetchSession;
+  /**
+   * Raw Cookie header from the request.
+   * When set, `document.cookie` returns this value during SSR rendering,
+   * so app code that reads cookies works the same as in a browser.
+   */
+  cookies?: string;
 }
 
 /**
@@ -124,6 +130,9 @@ export async function ssrRenderSinglePass(
   const renderCtx = createRequestContext(normalizedUrl);
   if (options?.ssrAuth) {
     renderCtx.ssrAuth = options.ssrAuth;
+  }
+  if (options?.cookies) {
+    renderCtx.cookies = options.cookies;
   }
 
   // Pre-populate the query cache with discovered data
@@ -252,6 +261,9 @@ export async function ssrRenderProgressive(
   if (options?.ssrAuth) {
     renderCtx.ssrAuth = options.ssrAuth;
   }
+  if (options?.cookies) {
+    renderCtx.cookies = options.cookies;
+  }
 
   for (const { key, data } of discoveryResult.resolvedQueries) {
     renderCtx.queryCache.set(key, data);
@@ -331,6 +343,9 @@ async function runDiscoveryPhase(
   const discoveryCtx = createRequestContext(normalizedUrl);
   if (options?.ssrAuth) {
     discoveryCtx.ssrAuth = options.ssrAuth;
+  }
+  if (options?.cookies) {
+    discoveryCtx.cookies = options.cookies;
   }
 
   return ssrStorage.run(discoveryCtx, async () => {
@@ -509,6 +524,9 @@ async function renderWithPrefetchedData(
   const renderCtx = createRequestContext(normalizedUrl);
   if (options?.ssrAuth) {
     renderCtx.ssrAuth = options.ssrAuth;
+  }
+  if (options?.cookies) {
+    renderCtx.cookies = options.cookies;
   }
 
   // Pre-populate the query cache with prefetched data

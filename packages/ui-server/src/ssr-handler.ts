@@ -146,6 +146,9 @@ export function createSSRHandler(
       ssrAuth = result.ssrAuth;
     }
 
+    // Extract request cookies so document.cookie works during SSR
+    const cookies = request.headers.get('Cookie') ?? undefined;
+
     // Normal HTML request: SSR render
     // Progressive streaming: use streaming path when enabled and NOT zero-discovery.
     // Zero-discovery routes always use buffered rendering (redirect safety — see design doc).
@@ -169,6 +172,7 @@ export function createSSRHandler(
         sessionScript,
         ssrAuth,
         manifest,
+        cookies,
       );
     }
 
@@ -188,6 +192,7 @@ export function createSSRHandler(
       manifest,
       aotManifest,
       aotDataResolver,
+      cookies,
     );
   };
 }
@@ -241,6 +246,7 @@ async function handleProgressiveHTMLRequest(
   sessionScript?: string,
   ssrAuth?: SSRAuth,
   manifest?: SSRPrefetchManifest,
+  cookies?: string,
 ): Promise<Response> {
   try {
     const result = await ssrRenderProgressive(module, url, {
@@ -248,6 +254,7 @@ async function handleProgressiveHTMLRequest(
       fallbackMetrics,
       ssrAuth,
       manifest,
+      cookies,
     });
 
     // SSR redirect — return 302 without streaming
@@ -334,6 +341,7 @@ async function handleHTMLRequest(
   manifest?: SSRPrefetchManifest,
   aotManifest?: AotManifest,
   aotDataResolver?: AotDataResolver,
+  cookies?: string,
 ): Promise<Response> {
   try {
     // Derive prefetch session from ssrAuth for access rule evaluation
@@ -350,6 +358,7 @@ async function handleHTMLRequest(
           ssrAuth,
           prefetchSession,
           aotDataResolver,
+          cookies,
         })
       : await ssrRenderSinglePass(module, url, {
           ssrTimeout,
@@ -357,6 +366,7 @@ async function handleHTMLRequest(
           ssrAuth,
           manifest,
           prefetchSession,
+          cookies,
         });
 
     // SSR redirect — return 302 instead of rendered HTML

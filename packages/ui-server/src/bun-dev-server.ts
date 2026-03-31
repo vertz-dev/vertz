@@ -1881,6 +1881,7 @@ export function createBunDevServer(options: BunDevServerOptions): BunDevServer {
               ssrAuth,
               manifest: prefetchManager?.getSSRManifest(),
               prefetchSession: toPrefetchSession(ssrAuth, ssrAccessSet),
+              cookies: request.headers.get('Cookie') ?? undefined,
             });
             logger.log('ssr', 'render-done', {
               url: pathname,

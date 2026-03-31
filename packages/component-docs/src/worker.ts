@@ -1,36 +1,32 @@
 /**
  * Vertz Component Docs — Cloudflare Worker
  *
- * Optimized edge delivery for the component documentation site:
- * 1. Cache API — Worker-level cache eliminates ASSETS.fetch() on warm requests
- * 2. Deploy-versioned cache keys — instant cache invalidation on deploy
- * 3. SPA fallback — unknown routes serve index.html for client-side routing
- * 4. Brotli content negotiation — serves pre-compressed .br assets when available
- * 5. Security headers — nosniff, DENY frame, strict referrer
+ * Full SSR Worker that:
+ * 1. Serves static assets from ASSETS binding with cache headers
+ * 2. Renders HTML via `createSSRHandler` (single-pass SSR)
+ * 3. Adds security headers to all responses
+ *
+ * Theme cookie handling: The SSR handler automatically reads the Cookie
+ * header from the request and populates `document.cookie` during SSR,
+ * so `useTheme()` reads the real cookie value — no Worker-level parsing needed.
  */
 
-// Minimal ambient declarations for Cloudflare Worker APIs.
-// The component-docs tsconfig uses bun-types, which doesn't include these.
-// At runtime, wrangler provides the real implementations.
+import { createSSRHandler } from '@vertz/ui-server/ssr';
+// The SSR module is bundled by `vertz build` — wrangler resolves this at Worker build time.
+import * as ssrModule from '../dist/server/app.js';
+
+// Ambient declarations for Cloudflare Worker APIs.
+// component-docs tsconfig uses bun-types which doesn't include these.
 declare interface Fetcher {
   fetch(input: RequestInfo, init?: RequestInit): Promise<Response>;
 }
 declare interface ExportedHandler<E = unknown> {
   fetch(request: Request, env: E): Promise<Response>;
 }
-declare const caches: { default: Cache };
 
 interface Env {
   ASSETS: Fetcher;
 }
-
-/**
- * Deploy version — injected at build time via wrangler --define.
- * Used to namespace Cache API keys so that new deploys get fresh cache entries.
- * Old entries are evicted by LRU. Hashed assets (/assets/*) don't need this
- * because their URLs already change on content change.
- */
-declare const DEPLOY_VERSION: string;
 
 // ── Cache policies ─────────────────────────────────────────────────
 
@@ -44,161 +40,106 @@ const FONT_CACHE = 'public, max-age=31536000, immutable';
 const STATIC_CACHE = 'public, max-age=86400, s-maxage=604800, stale-while-revalidate=86400';
 
 /**
- * HTML pages — short browser cache, long edge cache with stale-while-revalidate.
- * Edge serves instantly from cache; revalidates async after deploy.
+ * HTML pages — no browser cache (theme-dependent), short edge cache.
+ * `Vary: Cookie` ensures edge doesn't serve dark HTML to a light-theme user.
  */
-const HTML_CACHE = 'public, max-age=60, s-maxage=3600, stale-while-revalidate=86400';
+const HTML_CACHE = 'public, max-age=0, s-maxage=60';
 
-// ── Compressible file types for Brotli pre-compression ─────────────
+// ── Security headers ───────────────────────────────────────────────
 
-const COMPRESSIBLE_EXTENSIONS = new Set(['.html', '.js', '.css', '.svg', '.xml', '.txt', '.json']);
+const SECURITY_HEADERS: Record<string, string> = {
+  'X-Content-Type-Options': 'nosniff',
+  'X-Frame-Options': 'DENY',
+  'Referrer-Policy': 'strict-origin-when-cross-origin',
+};
+
+// ── Route classification ───────────────────────────────────────────
+
+/** Check if a path is a static asset (not an HTML page route). */
+function isStaticAsset(pathname: string): boolean {
+  if (pathname.startsWith('/assets/')) return true;
+  if (pathname.startsWith('/fonts/')) return true;
+  if (/\.\w{2,5}$/.test(pathname) && !pathname.endsWith('.html')) return true;
+  return false;
+}
+
+/** Determine cache control based on asset type. */
+function getCacheControl(pathname: string): string {
+  if (pathname.startsWith('/assets/')) return IMMUTABLE_CACHE;
+  if (pathname.startsWith('/fonts/') || pathname.endsWith('.woff2')) return FONT_CACHE;
+  return STATIC_CACHE;
+}
+
+// ── SSR handler (initialized lazily on first HTML request) ─────────
+
+let ssrHandler: ((request: Request) => Promise<Response>) | null = null;
+let templatePromise: Promise<string> | null = null;
+
+async function getSSRHandler(env: Env): Promise<(request: Request) => Promise<Response>> {
+  if (ssrHandler) return ssrHandler;
+
+  // Fetch the HTML template from the static assets on first request.
+  // The template contains <div id="app">…pre-rendered…</div> — the SSR handler
+  // replaces the content inside the div with the freshly rendered HTML.
+  if (!templatePromise) {
+    templatePromise = env.ASSETS.fetch(new Request('https://dummy/index.html')).then((r) =>
+      r.text(),
+    );
+  }
+
+  const template = await templatePromise;
+
+  ssrHandler = createSSRHandler({
+    module: ssrModule,
+    template,
+    cacheControl: HTML_CACHE,
+  });
+
+  return ssrHandler;
+}
+
+// ── Worker ─────────────────────────────────────────────────────────
 
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
     const pathname = url.pathname;
-    const isHTML = isHTMLRoute(pathname);
 
-    // ── 1. Check Worker-level cache (Cache API) ─────────────────
-    // Mutable content (HTML) uses a versioned cache key so deploys
-    // instantly invalidate without needing API-based cache purge.
-    // Immutable content (hashed assets, fonts) uses the raw URL.
-    const cache = caches.default;
-    const cacheKey = buildCacheKey(url, isHTML);
+    // ── Static assets: passthrough with cache headers ──────────
+    if (isStaticAsset(pathname)) {
+      const response = await env.ASSETS.fetch(request);
+      if (response.status !== 200) return response;
 
-    const cachedResponse = await cache.match(cacheKey);
-    if (cachedResponse) {
-      return cachedResponse;
+      const headers = new Headers(response.headers);
+      headers.set('Cache-Control', getCacheControl(pathname));
+      for (const [key, value] of Object.entries(SECURITY_HEADERS)) {
+        headers.set(key, value);
+      }
+
+      return new Response(response.body, {
+        status: response.status,
+        statusText: response.statusText,
+        headers,
+      });
     }
 
-    // ── 2. Fetch from ASSETS binding ────────────────────────────
-    const cacheControl = getCacheControl(pathname);
+    // ── HTML routes: real SSR ──────────────────────────────────
+    // The SSR handler reads the Cookie header automatically and sets
+    // document.cookie in the SSR context — no app-level workarounds needed.
+    const handler = await getSSRHandler(env);
+    const response = await handler(request);
 
-    // Try Brotli pre-compressed version first, fall back to original
-    let assetResponse: Response =
-      (await tryBrotli(request, env, pathname)) ?? (await env.ASSETS.fetch(request));
-
-    // ── 3. SPA fallback ─────────────────────────────────────────
-    // wrangler's not_found_handling = "single-page-application" is
-    // the safety net, but we handle it explicitly for cache control.
-    if (assetResponse.status === 404 && isHTML) {
-      const fallbackRequest = new Request(new URL('/', request.url), request);
-      assetResponse = await env.ASSETS.fetch(fallbackRequest);
+    // Add security headers + Vary: Cookie to SSR response
+    const headers = new Headers(response.headers);
+    headers.set('Vary', 'Cookie');
+    for (const [key, value] of Object.entries(SECURITY_HEADERS)) {
+      headers.set(key, value);
     }
 
-    // ── 4. Add performance headers ──────────────────────────────
-    const response = addHeaders(assetResponse, cacheControl);
-
-    // ── 5. Store in Worker-level cache ──────────────────────────
-    if (response.status === 200) {
-      cache.put(cacheKey, response.clone());
-    }
-
-    return response;
+    return new Response(response.body, {
+      status: response.status,
+      statusText: response.statusText,
+      headers,
+    });
   },
 } satisfies ExportedHandler<Env>;
-
-// ── Cache key construction ────────────────────────────────────────
-
-/**
- * Build a cache key for the request.
- *
- * - HTML pages: URL + deploy version → cache invalidated on every deploy
- * - Hashed assets: raw URL → cached forever (URL changes on content change)
- */
-export function buildCacheKey(url: URL, isHTML: boolean): Request {
-  if (isHTML) {
-    const versionedUrl = new URL(url.toString());
-    versionedUrl.searchParams.set('__v', DEPLOY_VERSION);
-    return new Request(versionedUrl.toString(), { method: 'GET' });
-  }
-  return new Request(url.toString(), { method: 'GET' });
-}
-
-/**
- * Try to serve a pre-compressed Brotli version of the asset.
- * Returns null if client doesn't accept Brotli or .br file doesn't exist.
- */
-export async function tryBrotli(
-  request: Request,
-  env: Env,
-  pathname: string,
-): Promise<Response | null> {
-  const ext = pathname.substring(pathname.lastIndexOf('.'));
-  if (!COMPRESSIBLE_EXTENSIONS.has(ext)) return null;
-
-  const acceptEncoding = request.headers.get('Accept-Encoding') || '';
-  if (!acceptEncoding.includes('br')) return null;
-
-  const brUrl = new URL(request.url);
-  brUrl.pathname = `${pathname}.br`;
-  const brRequest = new Request(brUrl.toString(), request);
-
-  try {
-    const brResponse = await env.ASSETS.fetch(brRequest);
-    if (brResponse.status === 200) {
-      const headers = new Headers(brResponse.headers);
-      headers.set('Content-Encoding', 'br');
-      headers.set('Content-Type', getContentType(pathname));
-      return new Response(brResponse.body, { status: 200, headers });
-    }
-  } catch {
-    // .br file doesn't exist, fall through
-  }
-
-  return null;
-}
-
-/** Build a new response with cache and security headers. */
-export function addHeaders(response: Response, cacheControl: string): Response {
-  const headers = new Headers(response.headers);
-  headers.set('Cache-Control', cacheControl);
-
-  // Security headers
-  headers.set('X-Content-Type-Options', 'nosniff');
-  headers.set('X-Frame-Options', 'DENY');
-  headers.set('Referrer-Policy', 'strict-origin-when-cross-origin');
-
-  return new Response(response.body, {
-    status: response.status,
-    statusText: response.statusText,
-    headers,
-  });
-}
-
-/** Determine the cache control header based on the request path. */
-export function getCacheControl(pathname: string): string {
-  if (pathname.startsWith('/assets/')) return IMMUTABLE_CACHE;
-  if (pathname.startsWith('/fonts/') || pathname.endsWith('.woff2')) return FONT_CACHE;
-  if (/\.\w{2,5}$/.test(pathname) && !pathname.endsWith('.html')) return STATIC_CACHE;
-  return HTML_CACHE;
-}
-
-/** Check if a path looks like an HTML page route (no file extension, or .html). */
-export function isHTMLRoute(pathname: string): boolean {
-  if (pathname.endsWith('.html')) return true;
-  return !/\.\w{2,5}$/.test(pathname);
-}
-
-/** Map file extensions to MIME types for Brotli responses. */
-export function getContentType(pathname: string): string {
-  const ext = pathname.substring(pathname.lastIndexOf('.'));
-  switch (ext) {
-    case '.html':
-      return 'text/html; charset=utf-8';
-    case '.js':
-      return 'application/javascript; charset=utf-8';
-    case '.css':
-      return 'text/css; charset=utf-8';
-    case '.svg':
-      return 'image/svg+xml';
-    case '.xml':
-      return 'application/xml';
-    case '.json':
-      return 'application/json; charset=utf-8';
-    case '.txt':
-      return 'text/plain; charset=utf-8';
-    default:
-      return 'application/octet-stream';
-  }
-}
