@@ -25,6 +25,8 @@ import {
 } from './commands/docs';
 import { generateAction } from './commands/generate';
 import { loadDbContext, loadIntrospectContext } from './commands/load-db-context';
+import { addPageAction } from './commands/add-page';
+import { checkProjectAction } from './commands/check-project';
 import { startAction } from './commands/start';
 
 const pkg = JSON.parse(readFileSync(resolve(import.meta.dirname, '../package.json'), 'utf-8'));
@@ -54,7 +56,11 @@ export function createCLI(): Command {
     .command('check')
     .description('Type-check and validate the project')
     .option('--strict', 'Enable strict mode')
-    .option('--format <format>', 'Output format (text, json, github)', 'text');
+    .option('--format <format>', 'Output format (text, json, github)', 'text')
+    .option('--json', 'Output validation results as JSON')
+    .action(async (opts: { json?: boolean }) => {
+      await checkProjectAction({ json: opts.json });
+    });
 
   program
     .command('build')
@@ -227,6 +233,19 @@ export function createCLI(): Command {
 
       console.log(result.data.output);
       process.exit(0);
+    });
+
+  // Add commands — add features to the project
+  const addCommand = program.command('add').description('Add features to the project');
+
+  addCommand
+    .command('page <name>')
+    .description('Add a new page with routing')
+    .option('--crud', 'Generate CRUD views for an entity')
+    .option('--for <entity>', 'Entity to generate CRUD for')
+    .option('--dry-run', 'Preview changes without applying')
+    .action(async (name: string, opts: { crud?: boolean; for?: string; dryRun?: boolean }) => {
+      await addPageAction(name, opts);
     });
 
   program
