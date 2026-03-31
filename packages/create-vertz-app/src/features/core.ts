@@ -125,11 +125,26 @@ const health = service('health', {
 
 ### Field types
 
-\`d.uuid()\`, \`d.text()\`, \`d.boolean()\`, \`d.integer()\`, \`d.timestamp()\`
+\`d.uuid()\`, \`d.text()\`, \`d.boolean()\`, \`d.integer()\`, \`d.timestamp()\`, \`d.enum(['a','b'])\`
 
-Modifiers: \`.primary()\`, \`.default(value)\`, \`.readOnly()\`, \`.autoUpdate()\`, \`.unique()\`
+Modifiers: \`.primary()\`, \`.default(value)\`, \`.readOnly()\`, \`.autoUpdate()\`, \`.unique()\`, \`.min(n)\`, \`.max(n)\`
 
-### DB setup uses \`migrations: { autoApply: true }\` — tables are created automatically.`);
+**Important:** Fields are required by default. There is no \`.optional()\` modifier on \`d\` fields. To make a field optional, use \`.default(value)\` instead.
+
+### DB
+
+- \`migrations: { autoApply: true }\` — tables are created/updated automatically on dev server start
+- SQLite is the default dev database (\`dialect: 'sqlite'\`)
+
+### Codegen
+
+After adding/modifying entities, run \`bun run codegen\` (or restart dev server) to regenerate the typed client SDK in \`.vertz/generated/\`. The client (\`src/client.ts\`) imports from \`#generated\` which maps to this output.
+
+### HTTP methods
+
+Vertz entities use **PATCH** for updates (not PUT). If the spec requires PUT, the dev server or a middleware must rewrite PUT → PATCH.
+
+List responses return \`{ items: T[], total, limit, nextCursor, hasNextPage }\`, not a plain array.`);
   }
 
   // UI quick reference
