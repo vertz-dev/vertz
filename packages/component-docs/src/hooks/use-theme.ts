@@ -31,6 +31,16 @@ export function getInitialTheme(): 'dark' | 'light' {
   return getThemeCookie() ?? 'dark';
 }
 
+/**
+ * Set the theme for the current SSR render.
+ * Called by the Worker before each SSR pass so the rendered HTML
+ * matches the user's cookie preference.
+ */
+export function setSSRTheme(value: 'dark' | 'light'): void {
+  themeSignal.value = value;
+}
+
+
 const themeSignal = signal<'dark' | 'light'>(getInitialTheme());
 
 export function useTheme(): { theme: 'dark' | 'light'; toggle: () => void } {

@@ -1,16 +1,16 @@
 /**
  * Vertz Component Docs — Cloudflare Worker
  *
- * Lightweight edge Worker that:
- * 1. Reads the `theme` cookie from the request
- * 2. Patches pre-rendered HTML with the correct `data-theme` attribute
- * 3. Serves static assets with optimized cache headers
- * 4. Adds security headers
- *
- * This avoids full SSR — the build already pre-renders all routes.
- * The only cookie-dependent part is the theme attribute on the root div.
- * String replacement is ~0.1ms vs ~3ms for full SSR.
+ * Full SSR Worker that:
+ * 1. Serves static assets from ASSETS binding with cache headers
+ * 2. Reads the `theme` cookie and sets it before SSR rendering
+ * 3. Renders HTML via `createSSRHandler` (single-pass SSR)
+ * 4. Adds security headers to all responses
  */
+
+import { createSSRHandler } from '@vertz/ui-server/ssr';
+// The SSR module is bundled by `vertz build` — wrangler resolves this at Worker build time.
+import * as ssrModule from '../dist/server/app.js';
 
 // Ambient declarations for Cloudflare Worker APIs.
 // component-docs tsconfig uses bun-types which doesn't include these.
@@ -62,10 +62,8 @@ function getThemeFromCookie(request: Request): 'dark' | 'light' {
 
 /** Check if a path is a static asset (not an HTML page route). */
 function isStaticAsset(pathname: string): boolean {
-  // Hashed assets, fonts, images, etc.
   if (pathname.startsWith('/assets/')) return true;
   if (pathname.startsWith('/fonts/')) return true;
-  // Files with extensions (except .html) are static assets
   if (/\.\w{2,5}$/.test(pathname) && !pathname.endsWith('.html')) return true;
   return false;
 }
@@ -77,28 +75,31 @@ function getCacheControl(pathname: string): string {
   return STATIC_CACHE;
 }
 
-// ── Theme patching ─────────────────────────────────────────────────
+// ── SSR handler (initialized lazily on first HTML request) ─────────
 
-const DARK_THEME_COLOR = '#111110';
-const LIGHT_THEME_COLOR = '#fafafa';
+let ssrHandler: ((request: Request) => Promise<Response>) | null = null;
+let templatePromise: Promise<string> | null = null;
 
-/**
- * Patch theme-dependent values in pre-rendered HTML.
- * Only modifies the HTML element attribute and meta theme-color,
- * NOT the CSS selectors (which use bracket syntax `[data-theme="dark"]`).
- */
-function patchTheme(html: string, theme: 'dark' | 'light'): string {
-  if (theme === 'dark') return html;
+async function getSSRHandler(env: Env): Promise<(request: Request) => Promise<Response>> {
+  if (ssrHandler) return ssrHandler;
 
-  // Replace the HTML element's data-theme attribute (not CSS selectors)
-  // CSS selectors use [data-theme="dark"], HTML uses data-theme="dark"
-  // We target the specific pattern: `<div data-theme="dark">`
-  let patched = html.replace('<div data-theme="dark">', '<div data-theme="light">');
+  // Fetch the HTML template from the static assets on first request.
+  // The template contains <div id="app">…pre-rendered…</div> — the SSR handler
+  // replaces the content inside the div with the freshly rendered HTML.
+  if (!templatePromise) {
+    templatePromise = env.ASSETS.fetch(new Request('https://dummy/index.html'))
+      .then((r) => r.text());
+  }
 
-  // Update meta theme-color for light mode
-  patched = patched.replace(`content="${DARK_THEME_COLOR}"`, `content="${LIGHT_THEME_COLOR}"`);
+  const template = await templatePromise;
 
-  return patched;
+  ssrHandler = createSSRHandler({
+    module: ssrModule,
+    template,
+    cacheControl: HTML_CACHE,
+  });
+
+  return ssrHandler;
 }
 
 // ── Worker ─────────────────────────────────────────────────────────
@@ -126,25 +127,29 @@ export default {
       });
     }
 
-    // ── HTML routes: fetch pre-rendered, patch theme ───────────
+    // ── HTML routes: real SSR ──────────────────────────────────
     const theme = getThemeFromCookie(request);
-    const assetResponse = await env.ASSETS.fetch(request);
 
-    if (assetResponse.status !== 200) {
-      return assetResponse;
+    // Set theme on the SSR module before rendering so the component tree
+    // renders with the correct theme from the user's cookie.
+    if (typeof ssrModule.setSSRTheme === 'function') {
+      ssrModule.setSSRTheme(theme);
     }
 
-    const html = await assetResponse.text();
-    const patched = patchTheme(html, theme);
+    const handler = await getSSRHandler(env);
+    const response = await handler(request);
 
-    const headers = new Headers();
-    headers.set('Content-Type', 'text/html; charset=utf-8');
-    headers.set('Cache-Control', HTML_CACHE);
+    // Add security headers + Vary: Cookie to SSR response
+    const headers = new Headers(response.headers);
     headers.set('Vary', 'Cookie');
     for (const [key, value] of Object.entries(SECURITY_HEADERS)) {
       headers.set(key, value);
     }
 
-    return new Response(patched, { status: 200, headers });
+    return new Response(response.body, {
+      status: response.status,
+      statusText: response.statusText,
+      headers,
+    });
   },
 } satisfies ExportedHandler<Env>;
