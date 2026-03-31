@@ -23,30 +23,30 @@ import {
   Textarea,
   Toggle,
   ToggleGroup,
-} from "@vertz/ui/components";
-import { Header } from "../components/header";
+} from '@vertz/ui/components';
+import { Header } from '../components/header';
 
 // ── Shared styles ────────────────────────────────────────────
 const cardStyle: Record<string, string> = {
-  border: "1px solid var(--color-border)",
-  borderRadius: "calc(var(--radius) * 2)",
-  padding: "24px",
-  backgroundColor: "var(--color-card)",
-  breakInside: "avoid",
-  marginBottom: "16px",
+  border: '1px solid var(--color-border)',
+  borderRadius: 'calc(var(--radius) * 2)',
+  padding: '24px',
+  backgroundColor: 'var(--color-card)',
+  breakInside: 'avoid',
+  marginBottom: '16px',
 };
 
 const cardTitleStyle: Record<string, string> = {
-  fontSize: "14px",
-  fontWeight: "600",
-  color: "var(--color-foreground)",
-  margin: "0 0 4px",
+  fontSize: '14px',
+  fontWeight: '600',
+  color: 'var(--color-foreground)',
+  margin: '0 0 4px',
 };
 
 const cardDescStyle: Record<string, string> = {
-  fontSize: "13px",
-  color: "var(--color-muted-foreground)",
-  margin: "0 0 16px",
+  fontSize: '13px',
+  color: 'var(--color-muted-foreground)',
+  margin: '0 0 16px',
 };
 
 // no longer used
@@ -60,10 +60,10 @@ function ButtonsDemo() {
       <p style={cardDescStyle}>All button variants and sizes.</p>
       <div
         style={{
-          display: "flex",
-          gap: "8px",
-          flexWrap: "wrap",
-          alignItems: "center",
+          display: 'flex',
+          gap: '8px',
+          flexWrap: 'wrap',
+          alignItems: 'center',
         }}
       >
         <Button intent="primary" size="sm">
@@ -81,10 +81,10 @@ function ButtonsDemo() {
       </div>
       <div
         style={{
-          display: "flex",
-          gap: "8px",
-          marginTop: "12px",
-          alignItems: "center",
+          display: 'flex',
+          gap: '8px',
+          marginTop: '12px',
+          alignItems: 'center',
         }}
       >
         <Button size="sm">Small</Button>
@@ -93,10 +93,10 @@ function ButtonsDemo() {
       </div>
       <div
         style={{
-          display: "flex",
-          gap: "8px",
-          marginTop: "12px",
-          alignItems: "center",
+          display: 'flex',
+          gap: '8px',
+          marginTop: '12px',
+          alignItems: 'center',
         }}
       >
         <Button intent="destructive" size="sm">
@@ -117,12 +117,12 @@ function InputsDemo() {
   return (
     <div style={cardStyle}>
       <p style={cardDescStyle}>Text fields and textareas.</p>
-      <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
-        <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
           <Label>Email</Label>
           <Input type="email" placeholder="you@example.com" />
         </div>
-        <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
           <Label>Message</Label>
           <Textarea placeholder="Type your message here..." />
         </div>
@@ -137,7 +137,7 @@ function SliderDemo() {
       <p style={cardTitleStyle}>Slider</p>
       <p style={cardDescStyle}>Range input with track and thumb.</p>
       <Slider defaultValue={50} max={100} step={1} />
-      <div style={{ marginTop: "16px" }}>
+      <div style={{ marginTop: '16px' }}>
         <Slider defaultValue={75} max={100} step={5} />
       </div>
     </div>
@@ -149,39 +149,71 @@ function SelectionControlsDemo() {
     <div style={cardStyle}>
       <p style={cardTitleStyle}>Selection Controls</p>
       <p style={cardDescStyle}>Checkboxes, radios, switches, and toggles.</p>
-      <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-          <label style={{ display: "flex", alignItems: "center", gap: "6px", cursor: "pointer", userSelect: "none" }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <span
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              cursor: 'pointer',
+              userSelect: 'none',
+            }}
+          >
             <Checkbox defaultChecked />
             Accept terms
-          </label>
-          <label style={{ display: "flex", alignItems: "center", gap: "6px", cursor: "pointer", userSelect: "none" }}>
+          </span>
+          <span
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              cursor: 'pointer',
+              userSelect: 'none',
+            }}
+          >
             <Checkbox />
             Subscribe
-          </label>
+          </span>
         </div>
         <RadioGroup defaultValue="option-1">
-          <div style={{ display: "flex", gap: "16px" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+          <div style={{ display: 'flex', gap: '16px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
               <RadioGroup.Item value="option-1">Default</RadioGroup.Item>
             </div>
-            <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
               <RadioGroup.Item value="option-2">Comfortable</RadioGroup.Item>
             </div>
-            <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
               <RadioGroup.Item value="option-3">Compact</RadioGroup.Item>
             </div>
           </div>
         </RadioGroup>
-        <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-          <label style={{ display: "flex", alignItems: "center", gap: "6px", cursor: "pointer", userSelect: "none" }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <span
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              cursor: 'pointer',
+              userSelect: 'none',
+            }}
+          >
             <Switch />
             Airplane Mode
-          </label>
-          <label style={{ display: "flex", alignItems: "center", gap: "6px", cursor: "pointer", userSelect: "none" }}>
+          </span>
+          <span
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              cursor: 'pointer',
+              userSelect: 'none',
+            }}
+          >
             <Switch defaultChecked />
             Notifications
-          </label>
+          </span>
         </div>
       </div>
     </div>
@@ -193,7 +225,7 @@ function BadgesDemo() {
     <div style={cardStyle}>
       <p style={cardTitleStyle}>Badges</p>
       <p style={cardDescStyle}>Status indicators and labels.</p>
-      <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+      <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
         <Badge>Default</Badge>
         <Badge color="blue">Blue</Badge>
         <Badge color="green">Success</Badge>
@@ -212,17 +244,17 @@ function ToggleDemo() {
       <p style={cardDescStyle}>Single and grouped toggle buttons.</p>
       <div
         style={{
-          display: "flex",
-          gap: "8px",
-          alignItems: "center",
-          marginBottom: "12px",
+          display: 'flex',
+          gap: '8px',
+          alignItems: 'center',
+          marginBottom: '12px',
         }}
       >
         <Toggle aria-label="Bold">B</Toggle>
         <Toggle aria-label="Italic">I</Toggle>
         <Toggle aria-label="Underline">U</Toggle>
       </div>
-      <ToggleGroup type="single" defaultValue={["center"]}>
+      <ToggleGroup type="single" defaultValue={['center']}>
         <ToggleGroup.Item value="left">Left</ToggleGroup.Item>
         <ToggleGroup.Item value="center">Center</ToggleGroup.Item>
         <ToggleGroup.Item value="right">Right</ToggleGroup.Item>
@@ -233,27 +265,19 @@ function ToggleDemo() {
 
 function CardDemo() {
   return (
-    <div style={{ breakInside: "avoid", marginBottom: "16px" }}>
+    <div style={{ breakInside: 'avoid', marginBottom: '16px' }}>
       <Card>
         <Card.Header>
           <Card.Title>Create project</Card.Title>
-          <Card.Description>
-            Deploy your new project in one-click.
-          </Card.Description>
+          <Card.Description>Deploy your new project in one-click.</Card.Description>
         </Card.Header>
         <Card.Content>
-          <div
-            style={{ display: "flex", flexDirection: "column", gap: "12px" }}
-          >
-            <div
-              style={{ display: "flex", flexDirection: "column", gap: "4px" }}
-            >
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
               <Label>Name</Label>
               <Input placeholder="My awesome project" />
             </div>
-            <div
-              style={{ display: "flex", flexDirection: "column", gap: "4px" }}
-            >
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
               <Label>Framework</Label>
               <Input placeholder="Vertz" />
             </div>
@@ -284,21 +308,21 @@ function TabsDemo() {
           <Tabs.Trigger value="settings">Settings</Tabs.Trigger>
         </Tabs.List>
         <Tabs.Content value="account">
-          <div style={{ padding: "16px 0" }}>
+          <div style={{ padding: '16px 0' }}>
             <p
               style={{
-                fontSize: "14px",
-                color: "var(--color-foreground)",
-                margin: "0 0 8px",
+                fontSize: '14px',
+                color: 'var(--color-foreground)',
+                margin: '0 0 8px',
               }}
             >
               Account Settings
             </p>
             <p
               style={{
-                fontSize: "13px",
-                color: "var(--color-muted-foreground)",
-                margin: "0",
+                fontSize: '13px',
+                color: 'var(--color-muted-foreground)',
+                margin: '0',
               }}
             >
               Manage your account preferences and profile information.
@@ -306,12 +330,12 @@ function TabsDemo() {
           </div>
         </Tabs.Content>
         <Tabs.Content value="password">
-          <div style={{ padding: "16px 0" }}>
+          <div style={{ padding: '16px 0' }}>
             <p
               style={{
-                fontSize: "14px",
-                color: "var(--color-foreground)",
-                margin: "0",
+                fontSize: '14px',
+                color: 'var(--color-foreground)',
+                margin: '0',
               }}
             >
               Change your password here.
@@ -319,12 +343,12 @@ function TabsDemo() {
           </div>
         </Tabs.Content>
         <Tabs.Content value="settings">
-          <div style={{ padding: "16px 0" }}>
+          <div style={{ padding: '16px 0' }}>
             <p
               style={{
-                fontSize: "14px",
-                color: "var(--color-foreground)",
-                margin: "0",
+                fontSize: '14px',
+                color: 'var(--color-foreground)',
+                margin: '0',
               }}
             >
               Configure your app settings.
@@ -341,8 +365,8 @@ function SelectDemo() {
     <div style={cardStyle}>
       <p style={cardTitleStyle}>Select</p>
       <p style={cardDescStyle}>Dropdown selection menus.</p>
-      <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
-        <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
           <Label>Fruit</Label>
           <Select placeholder="Select a fruit">
             <Select.Trigger />
@@ -396,15 +420,13 @@ function TableDemo() {
 
 function AccordionDemo() {
   return (
-    <div style={{ ...cardStyle, minHeight: "280px" }}>
+    <div style={{ ...cardStyle, minHeight: '280px' }}>
       <p style={cardTitleStyle}>Accordion</p>
       <p style={cardDescStyle}>Expandable content sections.</p>
-      <Accordion type="single" defaultValue={["item-1"]}>
+      <Accordion type="single" defaultValue={['item-1']}>
         <Accordion.Item value="item-1">
           <Accordion.Trigger>Is it accessible?</Accordion.Trigger>
-          <Accordion.Content>
-            Yes. It adheres to the WAI-ARIA design pattern.
-          </Accordion.Content>
+          <Accordion.Content>Yes. It adheres to the WAI-ARIA design pattern.</Accordion.Content>
         </Accordion.Item>
         <Accordion.Item value="item-2">
           <Accordion.Trigger>Is it styled?</Accordion.Trigger>
@@ -428,18 +450,14 @@ function AlertDemo() {
     <div style={cardStyle}>
       <p style={cardTitleStyle}>Alerts</p>
       <p style={cardDescStyle}>Informational messages and warnings.</p>
-      <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
         <Alert>
           <Alert.Title>Heads up!</Alert.Title>
-          <Alert.Description>
-            You can add components to your app using the CLI.
-          </Alert.Description>
+          <Alert.Description>You can add components to your app using the CLI.</Alert.Description>
         </Alert>
         <Alert>
           <Alert.Title>Error</Alert.Title>
-          <Alert.Description>
-            Your session has expired. Please log in again.
-          </Alert.Description>
+          <Alert.Description>Your session has expired. Please log in again.</Alert.Description>
         </Alert>
       </div>
     </div>
@@ -448,10 +466,10 @@ function AlertDemo() {
 
 function CalendarDemo() {
   return (
-    <div style={{ ...cardStyle, minHeight: "430px" }}>
+    <div style={{ ...cardStyle, minHeight: '430px' }}>
       <p style={cardTitleStyle}>Calendar</p>
       <p style={cardDescStyle}>Date picker calendar grid.</p>
-      <div style={{ display: "flex", justifyContent: "center" }}>
+      <div style={{ display: 'flex', justifyContent: 'center' }}>
         <Calendar mode="single" />
       </div>
     </div>
@@ -463,7 +481,7 @@ function AvatarDemo() {
     <div style={cardStyle}>
       <p style={cardTitleStyle}>Avatar</p>
       <p style={cardDescStyle}>User profile images with fallback.</p>
-      <div style={{ display: "flex", gap: "12px", alignItems: "center" }}>
+      <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
         <Avatar>
           <Avatar.Fallback>CN</Avatar.Fallback>
         </Avatar>
@@ -486,7 +504,7 @@ function ProgressDemo() {
     <div style={cardStyle}>
       <p style={cardTitleStyle}>Progress</p>
       <p style={cardDescStyle}>Visual progress indicators.</p>
-      <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
         <Progress defaultValue={25} />
         <Progress defaultValue={60} />
         <Progress defaultValue={90} />
@@ -500,14 +518,14 @@ function SkeletonDemo() {
     <div style={cardStyle}>
       <p style={cardTitleStyle}>Skeleton</p>
       <p style={cardDescStyle}>Loading placeholder animations.</p>
-      <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
         <Skeleton width="48px" height="48px" className="skeleton-circle" />
         <div
           style={{
-            display: "flex",
-            flexDirection: "column",
-            gap: "8px",
-            flex: "1",
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '8px',
+            flex: '1',
           }}
         >
           <Skeleton width="60%" height="16px" />
@@ -516,10 +534,10 @@ function SkeletonDemo() {
       </div>
       <div
         style={{
-          marginTop: "16px",
-          display: "flex",
-          flexDirection: "column",
-          gap: "8px",
+          marginTop: '16px',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '8px',
         }}
       >
         <Skeleton width="100%" height="14px" />
@@ -576,9 +594,9 @@ function SeparatorDemo() {
       <div>
         <p
           style={{
-            fontSize: "14px",
-            color: "var(--color-foreground)",
-            margin: "0 0 8px",
+            fontSize: '14px',
+            color: 'var(--color-foreground)',
+            margin: '0 0 8px',
           }}
         >
           Section A
@@ -586,9 +604,9 @@ function SeparatorDemo() {
         <Separator />
         <p
           style={{
-            fontSize: "14px",
-            color: "var(--color-foreground)",
-            margin: "8px 0",
+            fontSize: '14px',
+            color: 'var(--color-foreground)',
+            margin: '8px 0',
           }}
         >
           Section B
@@ -596,9 +614,9 @@ function SeparatorDemo() {
         <Separator />
         <p
           style={{
-            fontSize: "14px",
-            color: "var(--color-foreground)",
-            margin: "8px 0 0",
+            fontSize: '14px',
+            color: 'var(--color-foreground)',
+            margin: '8px 0 0',
           }}
         >
           Section C
@@ -611,51 +629,49 @@ function SeparatorDemo() {
 function TypographyDemo() {
   return (
     <div style={cardStyle}>
-      <p style={{ ...cardTitleStyle, fontSize: "16px", margin: "0 0 8px" }}>
-        Typography & Colors
-      </p>
+      <p style={{ ...cardTitleStyle, fontSize: '16px', margin: '0 0 8px' }}>Typography & Colors</p>
       <p
         style={{
-          fontSize: "13px",
-          color: "var(--color-muted-foreground)",
-          margin: "0 0 16px",
+          fontSize: '13px',
+          color: 'var(--color-muted-foreground)',
+          margin: '0 0 16px',
         }}
       >
         Theme tokens and type hierarchy.
       </p>
       <div
         style={{
-          display: "flex",
-          flexDirection: "column",
-          gap: "4px",
-          marginBottom: "16px",
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '4px',
+          marginBottom: '16px',
         }}
       >
         <p
           style={{
-            fontSize: "24px",
-            fontWeight: "700",
-            color: "var(--color-foreground)",
-            margin: "0",
+            fontSize: '24px',
+            fontWeight: '700',
+            color: 'var(--color-foreground)',
+            margin: '0',
           }}
         >
           Heading
         </p>
         <p
           style={{
-            fontSize: "16px",
-            fontWeight: "500",
-            color: "var(--color-foreground)",
-            margin: "0",
+            fontSize: '16px',
+            fontWeight: '500',
+            color: 'var(--color-foreground)',
+            margin: '0',
           }}
         >
           Subheading text
         </p>
         <p
           style={{
-            fontSize: "14px",
-            color: "var(--color-muted-foreground)",
-            margin: "0",
+            fontSize: '14px',
+            color: 'var(--color-muted-foreground)',
+            margin: '0',
           }}
         >
           Body text with muted color for descriptions and secondary content.
@@ -663,9 +679,9 @@ function TypographyDemo() {
       </div>
       <div
         style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(4, 1fr)",
-          gap: "8px",
+          display: 'grid',
+          gridTemplateColumns: 'repeat(4, 1fr)',
+          gap: '8px',
         }}
       >
         <ColorSwatch name="background" />
@@ -685,112 +701,100 @@ function ColorSwatch({ name }: { name: string }) {
   return (
     <div
       style={{
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "center",
-        gap: "4px",
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        gap: '4px',
       }}
     >
       <div
         style={{
-          width: "100%",
-          aspectRatio: "1",
-          borderRadius: "calc(var(--radius) * 1.33)",
+          width: '100%',
+          aspectRatio: '1',
+          borderRadius: 'calc(var(--radius) * 1.33)',
           backgroundColor: `var(--color-${name})`,
-          border: "1px solid var(--color-border)",
+          border: '1px solid var(--color-border)',
         }}
       />
-      <span
-        style={{ fontSize: "10px", color: "var(--color-muted-foreground)" }}
-      >
-        {name}
-      </span>
+      <span style={{ fontSize: '10px', color: 'var(--color-muted-foreground)' }}>{name}</span>
     </div>
   );
 }
 
 function NotificationsCardDemo() {
   return (
-    <div style={{ breakInside: "avoid", marginBottom: "16px" }}>
+    <div style={{ breakInside: 'avoid', marginBottom: '16px' }}>
       <Card>
         <Card.Header>
           <Card.Title>Notifications</Card.Title>
           <Card.Description>You have 3 unread messages.</Card.Description>
         </Card.Header>
         <Card.Content>
-          <div
-            style={{ display: "flex", flexDirection: "column", gap: "12px" }}
-          >
-            <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
               <span
                 style={{
-                  width: "8px",
-                  height: "8px",
-                  borderRadius: "50%",
-                  backgroundColor: "var(--color-primary)",
-                  flexShrink: "0",
+                  width: '8px',
+                  height: '8px',
+                  borderRadius: '50%',
+                  backgroundColor: 'var(--color-primary)',
+                  flexShrink: '0',
                 }}
               />
               <div>
-                <p style={{ fontSize: "14px", margin: "0" }}>
-                  Your call has been confirmed.
-                </p>
+                <p style={{ fontSize: '14px', margin: '0' }}>Your call has been confirmed.</p>
                 <p
                   style={{
-                    fontSize: "13px",
-                    color: "var(--color-muted-foreground)",
-                    margin: "0",
+                    fontSize: '13px',
+                    color: 'var(--color-muted-foreground)',
+                    margin: '0',
                   }}
                 >
                   5 min ago
                 </p>
               </div>
             </div>
-            <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
               <span
                 style={{
-                  width: "8px",
-                  height: "8px",
-                  borderRadius: "50%",
-                  backgroundColor: "var(--color-primary)",
-                  flexShrink: "0",
+                  width: '8px',
+                  height: '8px',
+                  borderRadius: '50%',
+                  backgroundColor: 'var(--color-primary)',
+                  flexShrink: '0',
                 }}
               />
               <div>
-                <p style={{ fontSize: "14px", margin: "0" }}>
-                  You have a new message!
-                </p>
+                <p style={{ fontSize: '14px', margin: '0' }}>You have a new message!</p>
                 <p
                   style={{
-                    fontSize: "13px",
-                    color: "var(--color-muted-foreground)",
-                    margin: "0",
+                    fontSize: '13px',
+                    color: 'var(--color-muted-foreground)',
+                    margin: '0',
                   }}
                 >
                   1 hour ago
                 </p>
               </div>
             </div>
-            <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
               <span
                 style={{
-                  width: "8px",
-                  height: "8px",
-                  borderRadius: "50%",
-                  backgroundColor: "transparent",
-                  border: "1px solid var(--color-muted-foreground)",
-                  flexShrink: "0",
+                  width: '8px',
+                  height: '8px',
+                  borderRadius: '50%',
+                  backgroundColor: 'transparent',
+                  border: '1px solid var(--color-muted-foreground)',
+                  flexShrink: '0',
                 }}
               />
               <div>
-                <p style={{ fontSize: "14px", margin: "0" }}>
-                  Your subscription is expiring.
-                </p>
+                <p style={{ fontSize: '14px', margin: '0' }}>Your subscription is expiring.</p>
                 <p
                   style={{
-                    fontSize: "13px",
-                    color: "var(--color-muted-foreground)",
-                    margin: "0",
+                    fontSize: '13px',
+                    color: 'var(--color-muted-foreground)',
+                    margin: '0',
                   }}
                 >
                   2 hours ago
@@ -806,43 +810,37 @@ function NotificationsCardDemo() {
 
 function TeamCardDemo() {
   return (
-    <div style={{ breakInside: "avoid", marginBottom: "16px" }}>
+    <div style={{ breakInside: 'avoid', marginBottom: '16px' }}>
       <Card>
         <Card.Header>
           <div
             style={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
             }}
           >
             <Card.Title>Team Members</Card.Title>
             <Badge>5 members</Badge>
           </div>
-          <Card.Description>
-            Manage who has access to this project.
-          </Card.Description>
+          <Card.Description>Manage who has access to this project.</Card.Description>
         </Card.Header>
         <Card.Content>
-          <div
-            style={{ display: "flex", flexDirection: "column", gap: "12px" }}
-          >
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
             <div
               style={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
               }}
             >
               <div>
-                <p style={{ fontSize: "14px", fontWeight: "500", margin: "0" }}>
-                  Sofia Davis
-                </p>
+                <p style={{ fontSize: '14px', fontWeight: '500', margin: '0' }}>Sofia Davis</p>
                 <p
                   style={{
-                    fontSize: "13px",
-                    color: "var(--color-muted-foreground)",
-                    margin: "0",
+                    fontSize: '13px',
+                    color: 'var(--color-muted-foreground)',
+                    margin: '0',
                   }}
                 >
                   sofia@example.com
@@ -853,20 +851,18 @@ function TeamCardDemo() {
             <Separator />
             <div
               style={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
               }}
             >
               <div>
-                <p style={{ fontSize: "14px", fontWeight: "500", margin: "0" }}>
-                  Jackson Lee
-                </p>
+                <p style={{ fontSize: '14px', fontWeight: '500', margin: '0' }}>Jackson Lee</p>
                 <p
                   style={{
-                    fontSize: "13px",
-                    color: "var(--color-muted-foreground)",
-                    margin: "0",
+                    fontSize: '13px',
+                    color: 'var(--color-muted-foreground)',
+                    margin: '0',
                   }}
                 >
                   jackson@example.com
@@ -894,37 +890,37 @@ export function OverviewPage() {
       <Header />
       <div
         style={{
-          maxWidth: "1200px",
-          margin: "0 auto",
-          padding: "32px 24px",
+          maxWidth: '1200px',
+          margin: '0 auto',
+          padding: '32px 24px',
         }}
       >
         <h1
           style={{
-            fontSize: "30px",
-            fontWeight: "700",
-            lineHeight: "1.2",
-            color: "var(--color-foreground)",
-            margin: "0 0 8px",
+            fontSize: '30px',
+            fontWeight: '700',
+            lineHeight: '1.2',
+            color: 'var(--color-foreground)',
+            margin: '0 0 8px',
           }}
         >
           Component Overview
         </h1>
         <p
           style={{
-            fontSize: "16px",
-            lineHeight: "1.6",
-            color: "var(--color-muted-foreground)",
-            margin: "0 0 32px",
+            fontSize: '16px',
+            lineHeight: '1.6',
+            color: 'var(--color-muted-foreground)',
+            margin: '0 0 32px',
           }}
         >
-          All components on a single page. Use the theme customizer to preview
-          how they look together.
+          All components on a single page. Use the theme customizer to preview how they look
+          together.
         </p>
         <div
           style={{
             columnCount: 3,
-            columnGap: "16px",
+            columnGap: '16px',
           }}
         >
           <TypographyDemo />

@@ -54,7 +54,7 @@ describe('getAdjacentComponents', () => {
     expect(prev).toBeDefined();
     expect(next).toBeDefined();
     expect(prev?.name).toBe('button');
-    expect(next?.name).toBe('date-picker');
+    expect(next?.name).toBe('combobox');
   });
 
   it('returns no prev for the first component', () => {

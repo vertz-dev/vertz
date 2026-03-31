@@ -2,14 +2,12 @@
   "name": "@vertz/component-docs",
   "private": true,
   "type": "module",
-  "vertz": {
-    "title": "Vertz UI — Component Documentation",
-    "description": "Interactive component documentation for Vertz UI, built with Vertz itself."
-  },
   "scripts": {
     "dev": "bun run src/dev-server.ts",
     "build": "bun node_modules/@vertz/cli/dist/vertz.js build",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "deploy": "bun run build && bunx wrangler deploy --define DEPLOY_VERSION:\"'$(date +%s)'\"",
+    "deploy:preview": "bun run build && bunx wrangler deploy --env preview --define DEPLOY_VERSION:\"'$(date +%s)'\""
   },
   "dependencies": {
     "@vertz/mdx": "workspace:*",
@@ -23,6 +21,11 @@
     "@vertz/cli": "workspace:*",
     "@vertz/ui-compiler": "workspace:*",
     "bun-types": "^1.3.9",
-    "typescript": "^5.8.0"
+    "typescript": "^5.8.0",
+    "wrangler": "^4.78.0"
+  },
+  "vertz": {
+    "title": "Vertz UI — Component Documentation",
+    "description": "Interactive component documentation for Vertz UI, built with Vertz itself."
   }
 }
