@@ -355,7 +355,9 @@ const result = await api.notifications.sendEmail({
 
 // Use with form() for form submissions
 const contactForm = form(api.notifications.sendEmail, {
-  onSuccess: () => { /* handle success */ },
+  onSuccess: () => {
+    /* handle success */
+  },
 });
 ```
 
