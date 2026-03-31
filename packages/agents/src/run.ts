@@ -1,4 +1,10 @@
-import type { LLMAdapter, LoopResult, Message } from './loop/react-loop';
+import type {
+  LLMAdapter,
+  LoopResult,
+  Message,
+  TokenUsageSummary,
+  ToolCallSummaryEntry,
+} from './loop/react-loop';
 import { reactLoop } from './loop/react-loop';
 import { SessionAccessDeniedError, SessionNotFoundError } from './stores/errors';
 import type { AgentSession, AgentStore } from './stores/types';
@@ -48,6 +54,9 @@ export interface StatelessLoopResult {
   readonly response: string;
   readonly iterations: number;
   readonly messages: readonly Message[];
+  readonly tokenUsage?: TokenUsageSummary;
+  readonly compressionCount?: number;
+  readonly toolCallSummary?: readonly ToolCallSummaryEntry[];
 }
 
 /** Result from a session run — includes sessionId. */
@@ -260,6 +269,9 @@ export async function run(
       response: result.response,
       iterations: result.iterations,
       messages: result.messages,
+      tokenUsage: result.tokenUsage,
+      compressionCount: result.compressionCount,
+      toolCallSummary: result.toolCallSummary,
       sessionId,
     };
   }

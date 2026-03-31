@@ -7,7 +7,11 @@ import { type LoopResult, type LLMAdapter, type Message, reactLoop } from './rea
 // Test helpers
 // ---------------------------------------------------------------------------
 
-const TEST_TOOL_CONTEXT = { agentId: 'test-agent-id', agentName: 'test-agent' };
+const TEST_TOOL_CONTEXT = {
+  agentId: 'test-agent-id',
+  agentName: 'test-agent',
+  agents: { invoke: async () => ({ response: '' }) },
+};
 
 function makeTool(name: string, handler: (input: unknown) => unknown): ToolDefinition {
   return {
@@ -608,6 +612,40 @@ describe('reactLoop()', () => {
     });
   });
 
+  describe('Given a tokenBudget with static string warningMessage', () => {
+    describe('When warning threshold is reached', () => {
+      it('Then uses the static string', async () => {
+        const noop = makeTool('noop', () => ({ ok: true }));
+
+        const llm = mockLLMWithUsage([
+          { toolCalls: [{ name: 'noop', arguments: {} }], usage: { inputTokens: 400, outputTokens: 100 } },
+          { toolCalls: [{ name: 'noop', arguments: {} }], usage: { inputTokens: 200, outputTokens: 200 } },
+          { text: 'Done' },
+        ]);
+
+        const result = await reactLoop({
+          llm,
+          tools: { noop },
+          systemPrompt: 'You are helpful.',
+          userMessage: 'Do stuff',
+          maxIterations: 10,
+          toolContext: TEST_TOOL_CONTEXT,
+          tokenBudget: {
+            max: 1000,
+            warningThreshold: 0.8,
+            stopThreshold: 0.95,
+            warningMessage: 'Heads up: running low on tokens!',
+          },
+        });
+
+        const warningMsg = result.messages.find(
+          (m) => m.role === 'system' && m.content === 'Heads up: running low on tokens!',
+        );
+        expect(warningMsg).toBeDefined();
+      });
+    });
+  });
+
   describe('Given an LLM adapter that does not report usage', () => {
     describe('When tokenBudget is configured', () => {
       it('Then token budget tracking is silently skipped', async () => {
@@ -657,6 +695,34 @@ describe('reactLoop()', () => {
         });
 
         expect(result.status).toBe('diminishing-returns');
+      });
+    });
+  });
+
+  describe('Given diminishingReturns configured but adapter reports no usage', () => {
+    describe('When the loop runs', () => {
+      it('Then diminishing returns detection is skipped', async () => {
+        // Use mockLLM (no usage) with diminishingReturns config
+        const noop = makeTool('noop', () => ({ ok: true }));
+        const llm = mockLLM([
+          { toolCalls: [{ name: 'noop', arguments: {} }] },
+          { toolCalls: [{ name: 'noop', arguments: {} }] },
+          { toolCalls: [{ name: 'noop', arguments: {} }] },
+          { text: 'Done' },
+        ]);
+
+        const result = await reactLoop({
+          llm,
+          tools: { noop },
+          systemPrompt: 'You are helpful.',
+          userMessage: 'Do stuff',
+          maxIterations: 10,
+          toolContext: TEST_TOOL_CONTEXT,
+          diminishingReturns: { consecutiveThreshold: 3, minDeltaTokens: 500 },
+        });
+
+        // Should NOT exit with diminishing-returns since no usage is reported
+        expect(result.status).toBe('complete');
       });
     });
   });
@@ -1027,6 +1093,27 @@ describe('reactLoop()', () => {
           toolContext: TEST_TOOL_CONTEXT,
         });
         expect(result.toolCallSummary).toBeUndefined();
+      });
+    });
+  });
+
+  describe('Given contextCompression configured but threshold not reached', () => {
+    describe('When loop runs with few messages', () => {
+      it('Then compressionCount is 0', async () => {
+        const llm = mockLLM([{ text: 'Done.' }]);
+        const result = await reactLoop({
+          llm,
+          tools: {},
+          systemPrompt: 'You are helpful.',
+          userMessage: 'Hello',
+          maxIterations: 10,
+          toolContext: TEST_TOOL_CONTEXT,
+          contextCompression: {
+            maxMessages: 100,
+            compress: () => [{ role: 'assistant', content: 'Summary' }],
+          },
+        });
+        expect(result.compressionCount).toBe(0);
       });
     });
   });

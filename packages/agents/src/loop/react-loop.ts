@@ -258,7 +258,11 @@ export async function reactLoop(options: ReactLoopOptions): Promise<LoopResult> 
         const usedPct = totalTokens / tokenBudget.max;
 
         if (usedPct >= stopThreshold) {
-          return buildResult('token-budget-exhausted', '');
+          // Preserve the LLM response text in messages even though we're stopping
+          if (response.text) {
+            messages.push({ role: 'assistant', content: response.text });
+          }
+          return buildResult('token-budget-exhausted', response.text);
         }
 
         if (!warningSent && usedPct >= warningThreshold) {
@@ -289,7 +293,10 @@ export async function reactLoop(options: ReactLoopOptions): Promise<LoopResult> 
         if (delta < diminishingReturns.minDeltaTokens) {
           consecutiveLowDelta++;
           if (consecutiveLowDelta >= diminishingReturns.consecutiveThreshold) {
-            return buildResult('diminishing-returns', '');
+            if (response.text) {
+              messages.push({ role: 'assistant', content: response.text });
+            }
+            return buildResult('diminishing-returns', response.text);
           }
         } else {
           consecutiveLowDelta = 0;
