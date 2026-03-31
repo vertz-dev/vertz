@@ -1,7 +1,7 @@
 import { createInterface } from 'node:readline';
 import type { CliOptions, ScaffoldOptions, TemplateType } from './types.js';
 
-const VALID_TEMPLATES: TemplateType[] = ['hello-world', 'todo-app'];
+const VALID_TEMPLATES: TemplateType[] = ['hello-world', 'todo-app', 'api', 'ui', 'full-stack'];
 const DEFAULT_TEMPLATE: TemplateType = 'todo-app';
 
 /**

@@ -1,7 +1,7 @@
 /**
- * Available scaffold template types
+ * Available scaffold template types (presets)
  */
-export type TemplateType = 'hello-world' | 'todo-app';
+export type TemplateType = 'hello-world' | 'todo-app' | 'api' | 'ui' | 'full-stack';
 
 /**
  * Options for the scaffold function
@@ -9,8 +9,10 @@ export type TemplateType = 'hello-world' | 'todo-app';
 export interface ScaffoldOptions {
   /** Name of the project to create */
   projectName: string;
-  /** Template to scaffold (default: 'todo-app') */
+  /** Template preset to scaffold (default: 'todo-app') */
   template: TemplateType;
+  /** Custom feature list (overrides template if provided) */
+  withFeatures?: string[];
 }
 
 /**
