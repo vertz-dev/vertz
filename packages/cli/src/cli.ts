@@ -26,6 +26,8 @@ import {
 import { generateAction } from './commands/generate';
 import { loadDbContext, loadIntrospectContext } from './commands/load-db-context';
 import { addEntityAction } from './commands/add';
+import { addPageAction } from './commands/add-page';
+import { checkProjectAction } from './commands/check-project';
 import { inspectAction } from './commands/inspect';
 import { startAction } from './commands/start';
 import { syncContextAction } from './commands/sync-context';
@@ -57,7 +59,11 @@ export function createCLI(): Command {
     .command('check')
     .description('Type-check and validate the project')
     .option('--strict', 'Enable strict mode')
-    .option('--format <format>', 'Output format (text, json, github)', 'text');
+    .option('--format <format>', 'Output format (text, json, github)', 'text')
+    .option('--json', 'Output validation results as JSON')
+    .action(async (opts: { json?: boolean }) => {
+      await checkProjectAction({ json: opts.json });
+    });
 
   program
     .command('build')
@@ -241,7 +247,7 @@ export function createCLI(): Command {
       await inspectAction({ json: opts.json });
     });
 
-  // Add entity — full-stack entity generation with plan/dry-run
+  // Add commands — add features to the project
   const addCommand = program.command('add').description('Add features to the project');
 
   addCommand
@@ -253,6 +259,16 @@ export function createCLI(): Command {
     .option('--json', 'Output plan as JSON')
     .action(async (name: string, opts: { fields: string; belongsTo?: string; dryRun?: boolean; json?: boolean }) => {
       await addEntityAction(name, opts);
+    });
+
+  addCommand
+    .command('page <name>')
+    .description('Add a new page with routing')
+    .option('--crud', 'Generate CRUD views for an entity')
+    .option('--for <entity>', 'Entity to generate CRUD for')
+    .option('--dry-run', 'Preview changes without applying')
+    .action(async (name: string, opts: { crud?: boolean; for?: string; dryRun?: boolean }) => {
+      await addPageAction(name, opts);
     });
 
   program
