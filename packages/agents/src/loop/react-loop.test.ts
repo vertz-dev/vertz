@@ -505,8 +505,14 @@ describe('reactLoop()', () => {
 
         // Each call reports 500 tokens — second call puts us at 1000 total (100%)
         const llm = mockLLMWithUsage([
-          { toolCalls: [{ name: 'noop', arguments: {} }], usage: { inputTokens: 300, outputTokens: 200 } },
-          { toolCalls: [{ name: 'noop', arguments: {} }], usage: { inputTokens: 300, outputTokens: 200 } },
+          {
+            toolCalls: [{ name: 'noop', arguments: {} }],
+            usage: { inputTokens: 300, outputTokens: 200 },
+          },
+          {
+            toolCalls: [{ name: 'noop', arguments: {} }],
+            usage: { inputTokens: 300, outputTokens: 200 },
+          },
           { text: 'Should not reach here', usage: { inputTokens: 100, outputTokens: 50 } },
         ]);
 
@@ -537,9 +543,18 @@ describe('reactLoop()', () => {
         // Track messages sent to LLM at each call
         let callIndex = 0;
         const responses = [
-          { toolCalls: [{ name: 'noop', arguments: {} }], usage: { inputTokens: 350, outputTokens: 50 } }, // 400 = 40%
-          { toolCalls: [{ name: 'noop', arguments: {} }], usage: { inputTokens: 350, outputTokens: 50 } }, // 800 = 80% → warning
-          { toolCalls: [{ name: 'noop', arguments: {} }], usage: { inputTokens: 50, outputTokens: 50 } },  // 900 = 90% → check no duplicate warning
+          {
+            toolCalls: [{ name: 'noop', arguments: {} }],
+            usage: { inputTokens: 350, outputTokens: 50 },
+          }, // 400 = 40%
+          {
+            toolCalls: [{ name: 'noop', arguments: {} }],
+            usage: { inputTokens: 350, outputTokens: 50 },
+          }, // 800 = 80% → warning
+          {
+            toolCalls: [{ name: 'noop', arguments: {} }],
+            usage: { inputTokens: 50, outputTokens: 50 },
+          }, // 900 = 90% → check no duplicate warning
           { text: 'Done' },
         ];
 
@@ -583,8 +598,14 @@ describe('reactLoop()', () => {
         const noop = makeTool('noop', () => ({ ok: true }));
 
         const llm = mockLLMWithUsage([
-          { toolCalls: [{ name: 'noop', arguments: {} }], usage: { inputTokens: 400, outputTokens: 100 } }, // 500 = 50%
-          { toolCalls: [{ name: 'noop', arguments: {} }], usage: { inputTokens: 200, outputTokens: 200 } }, // 900 = 90%
+          {
+            toolCalls: [{ name: 'noop', arguments: {} }],
+            usage: { inputTokens: 400, outputTokens: 100 },
+          }, // 500 = 50%
+          {
+            toolCalls: [{ name: 'noop', arguments: {} }],
+            usage: { inputTokens: 200, outputTokens: 200 },
+          }, // 900 = 90%
           { text: 'Done' },
         ]);
 
@@ -618,8 +639,14 @@ describe('reactLoop()', () => {
         const noop = makeTool('noop', () => ({ ok: true }));
 
         const llm = mockLLMWithUsage([
-          { toolCalls: [{ name: 'noop', arguments: {} }], usage: { inputTokens: 400, outputTokens: 100 } },
-          { toolCalls: [{ name: 'noop', arguments: {} }], usage: { inputTokens: 200, outputTokens: 200 } },
+          {
+            toolCalls: [{ name: 'noop', arguments: {} }],
+            usage: { inputTokens: 400, outputTokens: 100 },
+          },
+          {
+            toolCalls: [{ name: 'noop', arguments: {} }],
+            usage: { inputTokens: 200, outputTokens: 200 },
+          },
           { text: 'Done' },
         ]);
 
@@ -678,9 +705,18 @@ describe('reactLoop()', () => {
 
         // Each call adds < 500 tokens (delta = 100 each)
         const llm = mockLLMWithUsage([
-          { toolCalls: [{ name: 'noop', arguments: {} }], usage: { inputTokens: 80, outputTokens: 20 } },
-          { toolCalls: [{ name: 'noop', arguments: {} }], usage: { inputTokens: 80, outputTokens: 20 } },
-          { toolCalls: [{ name: 'noop', arguments: {} }], usage: { inputTokens: 80, outputTokens: 20 } },
+          {
+            toolCalls: [{ name: 'noop', arguments: {} }],
+            usage: { inputTokens: 80, outputTokens: 20 },
+          },
+          {
+            toolCalls: [{ name: 'noop', arguments: {} }],
+            usage: { inputTokens: 80, outputTokens: 20 },
+          },
+          {
+            toolCalls: [{ name: 'noop', arguments: {} }],
+            usage: { inputTokens: 80, outputTokens: 20 },
+          },
           { text: 'Should not reach here' },
         ]);
 
@@ -933,7 +969,11 @@ describe('reactLoop()', () => {
 
         expect(result.status).toBe('complete');
         // compress() should NOT receive the system prompt
-        expect(compressedInput.every((m) => m.role !== 'system' || !m.content.includes('You are helpful'))).toBe(true);
+        expect(
+          compressedInput.every(
+            (m) => m.role !== 'system' || !m.content.includes('You are helpful'),
+          ),
+        ).toBe(true);
         expect(result.compressionCount).toBe(1);
       });
 
@@ -1010,10 +1050,7 @@ describe('reactLoop()', () => {
         const noop = makeTool('noop', () => ({ ok: true }));
 
         // Each message adds ~content.length/4 estimated tokens
-        const llm = mockLLM([
-          { toolCalls: [{ name: 'noop', arguments: {} }] },
-          { text: 'Done' },
-        ]);
+        const llm = mockLLM([{ toolCalls: [{ name: 'noop', arguments: {} }] }, { text: 'Done' }]);
 
         const result = await reactLoop({
           llm,
