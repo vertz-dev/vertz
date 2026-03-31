@@ -328,7 +328,7 @@ describe('Tenant Isolation', () => {
         expect(body.title).toBe('New Task');
       });
 
-      it('Then tenantId cannot be spoofed via request body', async () => {
+      it('Then tenantId in request body is rejected (422) — tenant column is auto-set', async () => {
         const app = createApp();
         const res = await request(app, 'POST', '/api/tasks', {
           body: { title: 'Spoofed', tenantId: 'tenant-b', createdBy: 'user-a1' },
@@ -336,10 +336,8 @@ describe('Tenant Isolation', () => {
           tenantId: 'tenant-a',
         });
 
-        expect(res.status).toBe(201);
-        const body = await res.json();
-        // tenantId should be from context (tenant-a), not from body (tenant-b)
-        expect(body.tenantId).toBe('tenant-a');
+        // tenantId is excluded from create schema — rejected as unrecognized key
+        expect(res.status).toBe(422);
       });
     });
 

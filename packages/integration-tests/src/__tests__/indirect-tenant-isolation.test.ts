@@ -66,6 +66,26 @@ const commentsModel = d.model(commentsTable, {
 });
 const featureFlagsModel = d.model(featureFlagsTable);
 
+// ---------------------------------------------------------------------------
+// UUID constants — d.uuid() columns now validate UUID format
+// ---------------------------------------------------------------------------
+
+const ORG_A = '00000000-0000-4000-a000-000000000001';
+const ORG_B = '00000000-0000-4000-a000-000000000002';
+const PROJ_A1 = '00000000-0000-4000-a000-000000000011';
+const PROJ_A2 = '00000000-0000-4000-a000-000000000012';
+const PROJ_B1 = '00000000-0000-4000-a000-000000000013';
+const TASK_A1 = '00000000-0000-4000-a000-000000000021';
+const TASK_A2 = '00000000-0000-4000-a000-000000000022';
+const TASK_A3 = '00000000-0000-4000-a000-000000000023';
+const TASK_B1 = '00000000-0000-4000-a000-000000000024';
+const COM_A1 = '00000000-0000-4000-a000-000000000031';
+const COM_A2 = '00000000-0000-4000-a000-000000000032';
+const COM_B1 = '00000000-0000-4000-a000-000000000033';
+const FLAG_1 = '00000000-0000-4000-a000-000000000041';
+const FLAG_2 = '00000000-0000-4000-a000-000000000042';
+const NONEXISTENT = '00000000-0000-4000-a000-000000000099';
+
 // Compute tenant graph
 const registry = {
   organizations: organizationsModel,
@@ -95,52 +115,52 @@ interface SharedStore {
 function createSharedStore(): SharedStore {
   return {
     organizations: [
-      { id: 'org-a', name: 'Org A' },
-      { id: 'org-b', name: 'Org B' },
+      { id: ORG_A, name: 'Org A' },
+      { id: ORG_B, name: 'Org B' },
     ],
     projects: [
-      { id: 'proj-a1', organizationId: 'org-a', name: 'Project A1' },
-      { id: 'proj-a2', organizationId: 'org-a', name: 'Project A2' },
-      { id: 'proj-b1', organizationId: 'org-b', name: 'Project B1' },
+      { id: PROJ_A1, organizationId: ORG_A, name: 'Project A1' },
+      { id: PROJ_A2, organizationId: ORG_A, name: 'Project A2' },
+      { id: PROJ_B1, organizationId: ORG_B, name: 'Project B1' },
     ],
     tasks: [
       {
-        id: 'task-a1',
-        projectId: 'proj-a1',
+        id: TASK_A1,
+        projectId: PROJ_A1,
         title: 'Task A1',
         status: 'open',
         createdBy: 'user-1',
       },
       {
-        id: 'task-a2',
-        projectId: 'proj-a1',
+        id: TASK_A2,
+        projectId: PROJ_A1,
         title: 'Task A2',
         status: 'closed',
         createdBy: 'user-2',
       },
       {
-        id: 'task-a3',
-        projectId: 'proj-a2',
+        id: TASK_A3,
+        projectId: PROJ_A2,
         title: 'Task A3',
         status: 'open',
         createdBy: 'user-1',
       },
       {
-        id: 'task-b1',
-        projectId: 'proj-b1',
+        id: TASK_B1,
+        projectId: PROJ_B1,
         title: 'Task B1',
         status: 'open',
         createdBy: 'user-3',
       },
     ],
     comments: [
-      { id: 'com-a1', taskId: 'task-a1', body: 'Comment on A1' },
-      { id: 'com-a2', taskId: 'task-a2', body: 'Comment on A2' },
-      { id: 'com-b1', taskId: 'task-b1', body: 'Comment on B1' },
+      { id: COM_A1, taskId: TASK_A1, body: 'Comment on A1' },
+      { id: COM_A2, taskId: TASK_A2, body: 'Comment on A2' },
+      { id: COM_B1, taskId: TASK_B1, body: 'Comment on B1' },
     ],
     featureFlags: [
-      { id: 'flag-1', name: 'dark-mode' },
-      { id: 'flag-2', name: 'beta-feature' },
+      { id: FLAG_1, name: 'dark-mode' },
+      { id: FLAG_2, name: 'beta-feature' },
     ],
   };
 }
@@ -331,16 +351,16 @@ describe('Feature: Single-hop indirect tenant scoping (tasks)', () => {
         const { app } = createTestServer();
         const res = await makeRequest(app, 'GET', '/api/tasks', {
           userId: 'user-1',
-          tenantId: 'org-a',
+          tenantId: ORG_A,
         });
         expect(res.status).toBe(200);
         const body = await res.json();
         expect(body.items).toHaveLength(3);
         const ids = body.items.map((i: Record<string, unknown>) => i.id);
-        expect(ids).toContain('task-a1');
-        expect(ids).toContain('task-a2');
-        expect(ids).toContain('task-a3');
-        expect(ids).not.toContain('task-b1');
+        expect(ids).toContain(TASK_A1);
+        expect(ids).toContain(TASK_A2);
+        expect(ids).toContain(TASK_A3);
+        expect(ids).not.toContain(TASK_B1);
       });
     });
 
@@ -349,12 +369,12 @@ describe('Feature: Single-hop indirect tenant scoping (tasks)', () => {
         const { app } = createTestServer();
         const res = await makeRequest(app, 'GET', '/api/tasks', {
           userId: 'user-3',
-          tenantId: 'org-b',
+          tenantId: ORG_B,
         });
         expect(res.status).toBe(200);
         const body = await res.json();
         expect(body.items).toHaveLength(1);
-        expect(body.items[0].id).toBe('task-b1');
+        expect(body.items[0].id).toBe(TASK_B1);
       });
     });
   });
@@ -363,9 +383,9 @@ describe('Feature: Single-hop indirect tenant scoping (tasks)', () => {
     describe('When org-A user GETs it by ID', () => {
       it('Then returns 404 — no information leakage', async () => {
         const { app } = createTestServer();
-        const res = await makeRequest(app, 'GET', '/api/tasks/task-b1', {
+        const res = await makeRequest(app, 'GET', `/api/tasks/${TASK_B1}`, {
           userId: 'user-1',
-          tenantId: 'org-a',
+          tenantId: ORG_A,
         });
         expect(res.status).toBe(404);
       });
@@ -374,13 +394,13 @@ describe('Feature: Single-hop indirect tenant scoping (tasks)', () => {
     describe('When org-B user GETs it by ID', () => {
       it('Then returns 200 with the task', async () => {
         const { app } = createTestServer();
-        const res = await makeRequest(app, 'GET', '/api/tasks/task-b1', {
+        const res = await makeRequest(app, 'GET', `/api/tasks/${TASK_B1}`, {
           userId: 'user-3',
-          tenantId: 'org-b',
+          tenantId: ORG_B,
         });
         expect(res.status).toBe(200);
         const body = await res.json();
-        expect(body.id).toBe('task-b1');
+        expect(body.id).toBe(TASK_B1);
       });
     });
   });
@@ -391,8 +411,8 @@ describe('Feature: Single-hop indirect tenant scoping (tasks)', () => {
         const { app } = createTestServer();
         const res = await makeRequest(app, 'POST', '/api/tasks', {
           userId: 'user-1',
-          tenantId: 'org-a',
-          body: { projectId: 'proj-a1', title: 'New Task' },
+          tenantId: ORG_A,
+          body: { projectId: PROJ_A1, title: 'New Task' },
         });
         expect(res.status).toBe(201);
       });
@@ -403,8 +423,8 @@ describe('Feature: Single-hop indirect tenant scoping (tasks)', () => {
         const { app } = createTestServer();
         const res = await makeRequest(app, 'POST', '/api/tasks', {
           userId: 'user-1',
-          tenantId: 'org-a',
-          body: { projectId: 'proj-b1', title: 'Hacked Task' },
+          tenantId: ORG_A,
+          body: { projectId: PROJ_B1, title: 'Hacked Task' },
         });
         expect(res.status).toBe(403);
       });
@@ -415,8 +435,8 @@ describe('Feature: Single-hop indirect tenant scoping (tasks)', () => {
         const { app } = createTestServer();
         const res = await makeRequest(app, 'POST', '/api/tasks', {
           userId: 'user-1',
-          tenantId: 'org-a',
-          body: { projectId: 'nonexistent', title: 'Ghost Task' },
+          tenantId: ORG_A,
+          body: { projectId: NONEXISTENT, title: 'Ghost Task' },
         });
         expect(res.status).toBe(404);
       });
@@ -426,9 +446,9 @@ describe('Feature: Single-hop indirect tenant scoping (tasks)', () => {
   describe('Given org-A user trying to update a task from org-B', () => {
     it('Then returns 404', async () => {
       const { app } = createTestServer();
-      const res = await makeRequest(app, 'PATCH', '/api/tasks/task-b1', {
+      const res = await makeRequest(app, 'PATCH', `/api/tasks/${TASK_B1}`, {
         userId: 'user-1',
-        tenantId: 'org-a',
+        tenantId: ORG_A,
         body: { title: 'Updated' },
       });
       expect(res.status).toBe(404);
@@ -438,9 +458,9 @@ describe('Feature: Single-hop indirect tenant scoping (tasks)', () => {
   describe('Given org-A user trying to delete a task from org-B', () => {
     it('Then returns 404', async () => {
       const { app } = createTestServer();
-      const res = await makeRequest(app, 'DELETE', '/api/tasks/task-b1', {
+      const res = await makeRequest(app, 'DELETE', `/api/tasks/${TASK_B1}`, {
         userId: 'user-1',
-        tenantId: 'org-a',
+        tenantId: ORG_A,
       });
       expect(res.status).toBe(404);
     });
@@ -454,15 +474,15 @@ describe('Feature: Multi-hop indirect tenant scoping (comments)', () => {
         const { app } = createTestServer();
         const res = await makeRequest(app, 'GET', '/api/comments', {
           userId: 'user-1',
-          tenantId: 'org-a',
+          tenantId: ORG_A,
         });
         expect(res.status).toBe(200);
         const body = await res.json();
         expect(body.items).toHaveLength(2);
         const ids = body.items.map((i: Record<string, unknown>) => i.id);
-        expect(ids).toContain('com-a1');
-        expect(ids).toContain('com-a2');
-        expect(ids).not.toContain('com-b1');
+        expect(ids).toContain(COM_A1);
+        expect(ids).toContain(COM_A2);
+        expect(ids).not.toContain(COM_B1);
       });
     });
   });
@@ -471,9 +491,9 @@ describe('Feature: Multi-hop indirect tenant scoping (comments)', () => {
     describe('When org-A user GETs it by ID', () => {
       it('Then returns 404', async () => {
         const { app } = createTestServer();
-        const res = await makeRequest(app, 'GET', '/api/comments/com-b1', {
+        const res = await makeRequest(app, 'GET', `/api/comments/${COM_B1}`, {
           userId: 'user-1',
-          tenantId: 'org-a',
+          tenantId: ORG_A,
         });
         expect(res.status).toBe(404);
       });
@@ -486,8 +506,8 @@ describe('Feature: Multi-hop indirect tenant scoping (comments)', () => {
         const { app } = createTestServer();
         const res = await makeRequest(app, 'POST', '/api/comments', {
           userId: 'user-1',
-          tenantId: 'org-a',
-          body: { taskId: 'task-a1', body: 'New comment' },
+          tenantId: ORG_A,
+          body: { taskId: TASK_A1, body: 'New comment' },
         });
         expect(res.status).toBe(201);
       });
@@ -498,8 +518,8 @@ describe('Feature: Multi-hop indirect tenant scoping (comments)', () => {
         const { app } = createTestServer();
         const res = await makeRequest(app, 'POST', '/api/comments', {
           userId: 'user-1',
-          tenantId: 'org-a',
-          body: { taskId: 'task-b1', body: 'Hacked comment' },
+          tenantId: ORG_A,
+          body: { taskId: TASK_B1, body: 'Hacked comment' },
         });
         expect(res.status).toBe(403);
       });
@@ -514,7 +534,7 @@ describe('Feature: Mixed scoping modes in same app', () => {
         const { app } = createTestServer();
         const res = await makeRequest(app, 'GET', '/api/projects', {
           userId: 'user-1',
-          tenantId: 'org-a',
+          tenantId: ORG_A,
         });
         expect(res.status).toBe(200);
         const body = await res.json();
@@ -531,7 +551,7 @@ describe('Feature: Mixed scoping modes in same app', () => {
         const { app } = createTestServer();
         const res = await makeRequest(app, 'GET', '/api/feature-flags', {
           userId: 'user-1',
-          tenantId: 'org-a',
+          tenantId: ORG_A,
         });
         expect(res.status).toBe(200);
         const body = await res.json();
@@ -549,7 +569,7 @@ describe('Feature: Edge cases', () => {
       // First request as org-A
       const resA = await makeRequest(app, 'GET', '/api/tasks', {
         userId: 'user-1',
-        tenantId: 'org-a',
+        tenantId: ORG_A,
       });
       const bodyA = await resA.json();
       expect(bodyA.items).toHaveLength(3);
@@ -557,11 +577,11 @@ describe('Feature: Edge cases', () => {
       // Second request as org-B (tenant switch)
       const resB = await makeRequest(app, 'GET', '/api/tasks', {
         userId: 'user-1',
-        tenantId: 'org-b',
+        tenantId: ORG_B,
       });
       const bodyB = await resB.json();
       expect(bodyB.items).toHaveLength(1);
-      expect(bodyB.items[0].id).toBe('task-b1');
+      expect(bodyB.items[0].id).toBe(TASK_B1);
     });
   });
 
@@ -570,15 +590,15 @@ describe('Feature: Edge cases', () => {
       const { app, store } = createTestServer();
 
       // Add an orphaned task (references non-existent project)
-      store.tasks.push({ id: 'task-orphan', projectId: 'deleted-proj', title: 'Orphaned' });
+      store.tasks.push({ id: NONEXISTENT, projectId: NONEXISTENT, title: 'Orphaned' });
 
       const res = await makeRequest(app, 'GET', '/api/tasks', {
         userId: 'user-1',
-        tenantId: 'org-a',
+        tenantId: ORG_A,
       });
       const body = await res.json();
       const ids = body.items.map((i: Record<string, unknown>) => i.id);
-      expect(ids).not.toContain('task-orphan');
+      expect(ids).not.toContain(NONEXISTENT);
     });
   });
 
@@ -587,8 +607,8 @@ describe('Feature: Edge cases', () => {
       const { app } = createTestServer();
 
       const [resA, resB] = await Promise.all([
-        makeRequest(app, 'GET', '/api/tasks', { userId: 'user-1', tenantId: 'org-a' }),
-        makeRequest(app, 'GET', '/api/tasks', { userId: 'user-3', tenantId: 'org-b' }),
+        makeRequest(app, 'GET', '/api/tasks', { userId: 'user-1', tenantId: ORG_A }),
+        makeRequest(app, 'GET', '/api/tasks', { userId: 'user-3', tenantId: ORG_B }),
       ]);
 
       const bodyA = await resA.json();
@@ -596,8 +616,8 @@ describe('Feature: Edge cases', () => {
 
       expect(bodyA.items).toHaveLength(3);
       expect(bodyB.items).toHaveLength(1);
-      expect(bodyA.items.every((i: Record<string, unknown>) => i.id !== 'task-b1')).toBe(true);
-      expect(bodyB.items[0].id).toBe('task-b1');
+      expect(bodyA.items.every((i: Record<string, unknown>) => i.id !== TASK_B1)).toBe(true);
+      expect(bodyB.items[0].id).toBe(TASK_B1);
     });
   });
 
@@ -606,9 +626,9 @@ describe('Feature: Edge cases', () => {
       const store = createSharedStore();
       // Remove all tasks for org-a projects
       store.tasks = store.tasks.filter(
-        (t) => t.projectId !== 'proj-a1' && t.projectId !== 'proj-a2',
+        (t) => t.projectId !== PROJ_A1 && t.projectId !== PROJ_A2,
       );
-      store.comments = store.comments.filter((c) => c.taskId === 'task-b1');
+      store.comments = store.comments.filter((c) => c.taskId === TASK_B1);
 
       const queryParentIds = async (
         tableName: string,
@@ -636,7 +656,7 @@ describe('Feature: Edge cases', () => {
 
       const res = await makeRequest(app, 'GET', '/api/comments', {
         userId: 'user-1',
-        tenantId: 'org-a',
+        tenantId: ORG_A,
       });
       expect(res.status).toBe(200);
       const body = await res.json();
