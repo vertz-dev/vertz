@@ -3,7 +3,7 @@
  * QueryDescriptors from manifest metadata + route params + API client.
  */
 import { describe, expect, it } from 'bun:test';
-import type { ExtractedQuery } from '../../compiler/prefetch-manifest';
+import type { ExtractedQuery } from '../compiler/prefetch-manifest';
 import { reconstructDescriptors } from '../ssr-manifest-prefetch';
 
 // ─── Mock API client ─────────────────────────────────────────────
