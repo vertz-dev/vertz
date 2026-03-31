@@ -26,6 +26,7 @@ import {
 import { generateAction } from './commands/generate';
 import { loadDbContext, loadIntrospectContext } from './commands/load-db-context';
 import { startAction } from './commands/start';
+import { syncContextAction } from './commands/sync-context';
 
 const pkg = JSON.parse(readFileSync(resolve(import.meta.dirname, '../package.json'), 'utf-8'));
 
@@ -233,6 +234,15 @@ export function createCLI(): Command {
     .command('routes')
     .description('Display the route table')
     .option('--format <format>', 'Output format (table, json)', 'table');
+
+  // Context sync — generate AGENTS.md, CLAUDE.md, .cursorrules, etc.
+  program
+    .command('sync-context')
+    .description('Generate agent context files (AGENTS.md, CLAUDE.md, .cursorrules)')
+    .option('--only <adapter>', 'Only generate for this tool (claude, cursor, copilot, generic)')
+    .action(async (opts: { only?: string }) => {
+      await syncContextAction({ only: opts.only });
+    });
 
   // Database commands
   const dbCommand = program.command('db').description('Database management commands');
