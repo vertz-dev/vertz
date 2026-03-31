@@ -32,7 +32,7 @@ jobs:
             pkg: runtime-linux-x64
             expected_arch: x86_64
           - target: aarch64-unknown-linux-gnu
-            os: ubuntu-24.04-arm64
+            os: ubuntu-24.04-arm
             pkg: runtime-linux-arm64
             expected_arch: aarch64
 
