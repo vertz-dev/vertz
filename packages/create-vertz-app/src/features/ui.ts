@@ -140,17 +140,21 @@ export const uiFeature: Feature = {
     return files;
   },
 
-  packages: {
-    dependencies: {
-      '@vertz/theme-shadcn': '^0.2.0',
-    },
-    devDependencies: {
-      '@vertz/cli': '^0.2.0',
-      '@vertz/ui-compiler': '^0.2.0',
-    },
-    scripts: {
-      dev: 'vertz dev',
-      build: 'vertz build',
-    },
+  packages(ctx) {
+    const scripts: Record<string, string> = { build: 'vertz build' };
+    // When api feature provides dev.ts, don't override with vertz dev
+    if (!ctx.hasFeature('api')) {
+      scripts.dev = 'vertz dev';
+    }
+    return {
+      dependencies: {
+        '@vertz/theme-shadcn': '^0.2.0',
+      },
+      devDependencies: {
+        '@vertz/cli': '^0.2.0',
+        '@vertz/ui-compiler': '^0.2.0',
+      },
+      scripts,
+    };
   },
 };

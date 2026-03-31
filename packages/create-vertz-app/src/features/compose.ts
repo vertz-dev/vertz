@@ -82,11 +82,12 @@ export function compose(projectName: string, features: Feature[]): ComposeResult
 
   for (const feat of ordered) {
     if (!feat.packages) continue;
-    Object.assign(dependencies, feat.packages.dependencies);
-    Object.assign(devDependencies, feat.packages.devDependencies);
-    Object.assign(scripts, feat.packages.scripts);
-    if (feat.packages.imports) {
-      Object.assign(imports, feat.packages.imports);
+    const pkg = typeof feat.packages === 'function' ? feat.packages(ctx) : feat.packages;
+    Object.assign(dependencies, pkg.dependencies);
+    Object.assign(devDependencies, pkg.devDependencies);
+    Object.assign(scripts, pkg.scripts);
+    if (pkg.imports) {
+      Object.assign(imports, pkg.imports);
       hasImports = true;
     }
   }

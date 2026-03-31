@@ -322,7 +322,7 @@ describe('scaffold: full-stack template', () => {
     await scaffold(tempDir, fsOptions);
 
     const pkg = JSON.parse(await fs.readFile(projectPath('package.json'), 'utf-8'));
-    expect(pkg.scripts.dev).toBe('vertz dev');
+    expect(pkg.scripts.dev).toBe('bun run dev.ts');
     expect(pkg.scripts.build).toBe('vertz build');
     expect(pkg.scripts.start).toBe('vertz start');
     expect(pkg.scripts.codegen).toBe('vertz codegen');

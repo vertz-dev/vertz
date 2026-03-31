@@ -9,8 +9,8 @@ export interface Feature {
   dependencies: string[];
   /** Generate files for this feature */
   files(ctx: FeatureContext): FileEntry[];
-  /** Contributions to the shared package.json */
-  packages?: PackageContributions;
+  /** Contributions to the shared package.json — static object or context-aware function */
+  packages?: PackageContributions | ((ctx: FeatureContext) => PackageContributions);
 }
 
 /**
