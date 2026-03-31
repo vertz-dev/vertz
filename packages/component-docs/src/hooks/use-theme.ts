@@ -34,7 +34,12 @@ export function getInitialTheme(): 'dark' | 'light' {
 const themeSignal = signal<'dark' | 'light'>(getInitialTheme());
 
 export function useTheme(): { theme: 'dark' | 'light'; toggle: () => void } {
-  return { get theme() { return themeSignal.value; }, toggle };
+  return {
+    get theme() {
+      return themeSignal.value;
+    },
+    toggle,
+  };
 }
 
 function toggle(): void {
