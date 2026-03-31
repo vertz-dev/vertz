@@ -63,7 +63,6 @@ export function CodeBlock({ code, lang = 'tsx', style }: CodeBlockProps) {
             (container as HTMLElement).innerHTML = highlighted;
             const pre = container.querySelector('pre');
             if (pre) {
-              pre.setAttribute('tabindex', '0');
               // Force background to match page — CSS !important on .code-block-highlighted pre
               // doesn't reliably override shiki's output in Bun's dev server CSS pipeline.
               pre.style.setProperty('background-color', 'var(--color-background)', 'important');
@@ -71,7 +70,7 @@ export function CodeBlock({ code, lang = 'tsx', style }: CodeBlockProps) {
           }}
         />
       ) : (
-        <pre style={preStyle} tabindex={0}>
+        <pre style={preStyle}>
           <code>{code}</code>
         </pre>
       )}

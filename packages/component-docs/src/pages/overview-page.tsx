@@ -151,14 +151,14 @@ function SelectionControlsDemo() {
       <p style={cardDescStyle}>Checkboxes, radios, switches, and toggles.</p>
       <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
         <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-          <label style={{ display: "flex", alignItems: "center", gap: "6px", cursor: "pointer", userSelect: "none" }}>
+          <span style={{ display: "flex", alignItems: "center", gap: "6px", cursor: "pointer", userSelect: "none" }}>
             <Checkbox defaultChecked />
             Accept terms
-          </label>
-          <label style={{ display: "flex", alignItems: "center", gap: "6px", cursor: "pointer", userSelect: "none" }}>
+          </span>
+          <span style={{ display: "flex", alignItems: "center", gap: "6px", cursor: "pointer", userSelect: "none" }}>
             <Checkbox />
             Subscribe
-          </label>
+          </span>
         </div>
         <RadioGroup defaultValue="option-1">
           <div style={{ display: "flex", gap: "16px" }}>
@@ -174,14 +174,14 @@ function SelectionControlsDemo() {
           </div>
         </RadioGroup>
         <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-          <label style={{ display: "flex", alignItems: "center", gap: "6px", cursor: "pointer", userSelect: "none" }}>
+          <span style={{ display: "flex", alignItems: "center", gap: "6px", cursor: "pointer", userSelect: "none" }}>
             <Switch />
             Airplane Mode
-          </label>
-          <label style={{ display: "flex", alignItems: "center", gap: "6px", cursor: "pointer", userSelect: "none" }}>
+          </span>
+          <span style={{ display: "flex", alignItems: "center", gap: "6px", cursor: "pointer", userSelect: "none" }}>
             <Switch defaultChecked />
             Notifications
-          </label>
+          </span>
         </div>
       </div>
     </div>
