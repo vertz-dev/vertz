@@ -7,9 +7,11 @@ import { resolveOptions, scaffold } from '@vertz/create-vertz-app';
 const pkg = JSON.parse(readFileSync(resolve(import.meta.dir, '../package.json'), 'utf-8'));
 
 const name = process.argv[2];
+const templateIdx = process.argv.indexOf('--template');
+const template = templateIdx !== -1 ? process.argv[templateIdx + 1] : undefined;
 
 try {
-  const resolved = await resolveOptions({ projectName: name });
+  const resolved = await resolveOptions({ projectName: name, template });
 
   console.log(`Creating Vertz app: ${resolved.projectName} (v${pkg.version})`);
 

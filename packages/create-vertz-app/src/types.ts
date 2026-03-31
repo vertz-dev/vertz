@@ -1,7 +1,7 @@
 /**
  * Available scaffold template types (presets)
  */
-export type TemplateType = 'hello-world' | 'todo-app' | 'api' | 'ui' | 'full-stack';
+export type TemplateType = 'hello-world' | 'todo-app' | 'api' | 'ui' | 'full-stack' | 'minimal';
 
 /**
  * Options for the scaffold function

@@ -3,6 +3,7 @@ import { clientFeature } from './client.js';
 import { coreFeature } from './core.js';
 import { dbFeature } from './db.js';
 import { entityExampleFeature } from './entity-example.js';
+import { minimalFeature } from './minimal.js';
 import { routerFeature } from './router.js';
 import type { Feature } from './types.js';
 import { uiFeature } from './ui.js';
@@ -18,6 +19,7 @@ const FEATURES: Record<string, Feature> = {
   ui: uiFeature,
   router: routerFeature,
   client: clientFeature,
+  minimal: minimalFeature,
 };
 
 /**
@@ -25,6 +27,8 @@ const FEATURES: Record<string, Feature> = {
  * Aliases (hello-world, todo-app) provide backward compatibility.
  */
 export const PRESETS: Record<string, string[]> = {
+  // Minimal — 5 files, CLI-first. Best for AI agents.
+  minimal: ['minimal'],
   api: ['core', 'api', 'db', 'entity-example'],
   ui: ['core', 'ui', 'router'],
   'hello-world': ['core', 'ui', 'router'],
