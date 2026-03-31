@@ -16,7 +16,6 @@
   "devDependencies": {
     "@playwright/test": "^1.52.0",
     "@vertz/cli": "workspace:*",
-    "@vertz/ui-compiler": "workspace:*",
     "bun-types": "^1.3.9",
     "typescript": "^5.8.0"
   }

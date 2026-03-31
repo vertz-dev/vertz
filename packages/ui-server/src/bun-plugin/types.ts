@@ -1,4 +1,4 @@
-import type { CSSExtractionResult } from '@vertz/ui-compiler';
+import type { CSSExtractionResult } from '../compiler/css/types';
 import type { DebugLogger } from '../debug-logger';
 import type { DiagnosticsCollector } from '../diagnostics-collector';
 

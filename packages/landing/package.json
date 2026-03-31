@@ -21,7 +21,6 @@
   "devDependencies": {
     "@resvg/resvg-js": "^2.6.2",
     "@vertz/cli": "workspace:*",
-    "@vertz/ui-compiler": "workspace:*",
     "bun-types": "^1.3.9",
     "satori": "^0.25.0",
     "shiki": "^4.0.1",

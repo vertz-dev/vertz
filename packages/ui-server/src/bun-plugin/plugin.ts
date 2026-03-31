@@ -2,39 +2,35 @@
  * Unified Bun plugin for Vertz UI compilation with optional HMR and Fast Refresh.
  *
  * Pipeline:
- * 1. Hydration transform (adds hydration IDs)
- * 2. Context stable IDs (if fastRefresh — injects __stableId for HMR)
- * 2.1. Island ID injection (auto-generates id prop for <Island> elements)
- * 2.5. Field selection injection (analyzes field access, injects select into queries)
- * 2.7. Image transform (detects <Image>, processes images, replaces with <picture>)
- * 3. Compile (reactive signals + JSX transforms)
- * 4. Source map chaining — remapping([compile, image, hydration]) (output→source order)
- * 5. CSS extraction → sidecar file (if CSS found)
- * 6. Fast Refresh wrappers (if fastRefresh — component tracking + registration)
- * 7. import.meta.hot.accept() (if hmr — self-accept HMR updates)
- * 8. Assemble final output with inline source map
+ * 1. Image transform (detects <Image>, processes images, replaces with <picture>)
+ * 2. Field selection injection (analyzes field access, injects select into queries)
+ * 3. Context stable IDs (if fastRefresh — injects __stableId for HMR)
+ * 4. Island ID injection (auto-generates id prop for <Island> elements)
+ * 5. Native compile (reactive signals + JSX + hydration + route splitting + CSS)
+ * 6. Source map chaining — remapping([compile, image]) (output→source order)
+ * 7. CSS extraction → sidecar file (if CSS found)
+ * 8. Fast Refresh wrappers (if fastRefresh — component tracking + registration)
+ * 9. import.meta.hot.accept() (if hmr — self-accept HMR updates)
+ * 10. Assemble final output with inline source map
  */
 
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, relative, resolve } from 'node:path';
 import type { EncodedSourceMap } from '@ampproject/remapping';
 import remapping from '@ampproject/remapping';
-import type { LoadedReactivityManifest } from '@vertz/ui-compiler';
+import type { LoadedReactivityManifest } from '../compiler/types';
+import type { ReactivityManifest } from '../compiler/types';
+import { compile as nativeCompile } from '../compiler/native-compiler';
+import type { ManifestEntry } from '../compiler/native-compiler';
 import {
-  ComponentAnalyzer,
-  CSSExtractor,
-  compile,
   generateAllManifests,
-  HydrationTransformer,
   regenerateFileManifest,
   resolveModuleSpecifier,
-  transformRouteSplitting,
-} from '@vertz/ui-compiler';
+} from '../compiler/manifest-resolver';
 import type { BunPlugin } from 'bun';
 import MagicString from 'magic-string';
-import { Project, ts } from 'ts-morph';
+import ts from 'typescript';
 import { injectContextStableIds } from './context-stable-ids';
-import { tryLoadNativeCompiler } from './native-compiler-loader';
 import { loadEntitySchema } from './entity-schema-loader';
 import { generateRefreshCode } from './fast-refresh-codegen';
 import type { EntitySchemaManifest } from './field-selection-inject';
@@ -99,6 +95,38 @@ function setsEqual(a: Set<string>, b: Set<string>): boolean {
 }
 
 /**
+ * Convert loaded reactivity manifests to native compiler ManifestEntry array.
+ */
+function convertManifestsToEntries(
+  manifests: Map<string, LoadedReactivityManifest>,
+): ManifestEntry[] {
+  const entries: ManifestEntry[] = [];
+  for (const [specifier, manifest] of manifests) {
+    for (const [exportName, info] of Object.entries(manifest.exports)) {
+      if (info.reactivity.type === 'signal-api') {
+        entries.push({
+          moduleSpecifier: specifier,
+          exportName,
+          reactivityType: info.reactivity.type,
+          signalProperties: [...info.reactivity.signalProperties],
+          plainProperties: [...info.reactivity.plainProperties],
+          fieldSignalProperties: info.reactivity.fieldSignalProperties
+            ? [...info.reactivity.fieldSignalProperties]
+            : undefined,
+        });
+      } else if (info.reactivity.type !== 'static') {
+        entries.push({
+          moduleSpecifier: specifier,
+          exportName,
+          reactivityType: info.reactivity.type,
+        });
+      }
+    }
+  }
+  return entries;
+}
+
+/**
  * Create a Vertz Bun plugin with CSS sidecar support and optional Fast Refresh.
  *
  * Returns the plugin along with maps for CSS extractions and sidecar paths,
@@ -111,8 +139,6 @@ export function createVertzBunPlugin(options?: VertzBunPluginOptions): VertzBunP
   const routeSplitting = options?.routeSplitting ?? false;
   const projectRoot = options?.projectRoot ?? process.cwd();
   const cssOutDir = options?.cssOutDir ?? resolve(projectRoot, '.vertz', 'css');
-  const cssExtractor = new CSSExtractor();
-  const componentAnalyzer = new ComponentAnalyzer();
   const logger = options?.logger;
   const diagnostics = options?.diagnostics;
 
@@ -127,7 +153,7 @@ export function createVertzBunPlugin(options?: VertzBunPluginOptions): VertzBunP
   // Load the raw JSON manifest to avoid Set→Array round-trip
   const frameworkManifestJson = require(
     require.resolve('@vertz/ui/reactivity.json'),
-  ) as import('@vertz/ui-compiler').ReactivityManifest;
+  ) as ReactivityManifest;
   const manifestResult = generateAllManifests({
     srcDir,
     packageManifests: { '@vertz/ui': frameworkManifestJson, 'vertz/ui': frameworkManifestJson },
@@ -136,16 +162,12 @@ export function createVertzBunPlugin(options?: VertzBunPluginOptions): VertzBunP
   // Mutable manifest map — HMR updates can modify it
   const manifests: Map<string, LoadedReactivityManifest> = manifestResult.manifests;
 
-  // Cached Record view of the manifest map — rebuilt only when dirty
-  let manifestsRecord: Record<string, LoadedReactivityManifest> | null = null;
-  const getManifestsRecord = (): Record<string, LoadedReactivityManifest> => {
-    if (manifestsRecord) return manifestsRecord;
-    const record: Record<string, LoadedReactivityManifest> = {};
-    for (const [key, value] of manifests) {
-      record[key] = value;
-    }
-    manifestsRecord = record;
-    return record;
+  // Cached ManifestEntry array — rebuilt only when dirty
+  let cachedManifestEntries: ManifestEntry[] | null = null;
+  const getManifestEntries = (): ManifestEntry[] => {
+    if (cachedManifestEntries) return cachedManifestEntries;
+    cachedManifestEntries = convertManifestsToEntries(manifests);
+    return cachedManifestEntries;
   };
 
   if (logger?.isEnabled('manifest')) {
@@ -211,10 +233,6 @@ export function createVertzBunPlugin(options?: VertzBunPluginOptions): VertzBunP
     });
   }
 
-  // ── Native compiler (optional, behind VERTZ_NATIVE_COMPILER=1) ──
-  const nativeCompiler = tryLoadNativeCompiler();
-  let nativeManifestWarningLogged = false;
-
   // Ensure CSS output directory exists
   mkdirSync(cssOutDir, { recursive: true });
 
@@ -229,106 +247,7 @@ export function createVertzBunPlugin(options?: VertzBunPluginOptions): VertzBunP
 
           logger?.log('plugin', 'onLoad', { file: relPath, bytes: source.length });
 
-          // ── 0. Route splitting (production only) ────────────────
-          let sourceAfterRouteSplit = source;
-          let routeSplitMap: EncodedSourceMap | null = null;
-          if (routeSplitting) {
-            const splitResult = transformRouteSplitting(source, args.path);
-            if (splitResult.transformed) {
-              sourceAfterRouteSplit = splitResult.code;
-              routeSplitMap = splitResult.map as unknown as EncodedSourceMap;
-              if (logger?.isEnabled('plugin')) {
-                for (const d of splitResult.diagnostics) {
-                  logger.log('plugin', 'route-split', {
-                    file: relPath,
-                    route: d.routePath,
-                    import: d.importSource,
-                    symbol: d.symbolName,
-                  });
-                }
-                for (const s of splitResult.skipped) {
-                  logger.log('plugin', 'route-split-skip', {
-                    file: relPath,
-                    route: s.routePath,
-                    reason: s.reason,
-                  });
-                }
-              }
-            }
-          }
-
-          // ── 1. Hydration transform ─────────────────────────────
-          const hydrationS = new MagicString(sourceAfterRouteSplit);
-          const hydrationProject = new Project({
-            useInMemoryFileSystem: true,
-            compilerOptions: {
-              jsx: ts.JsxEmit.Preserve,
-              strict: true,
-            },
-          });
-          const hydrationSourceFile = hydrationProject.createSourceFile(
-            args.path,
-            sourceAfterRouteSplit,
-          );
-          const hydrationTransformer = new HydrationTransformer();
-          hydrationTransformer.transform(hydrationS, hydrationSourceFile);
-
-          // ── 2. Context stable IDs (Fast Refresh only) ──────────
-          if (fastRefresh) {
-            const relFilePath = relative(projectRoot, args.path);
-            injectContextStableIds(hydrationS, hydrationSourceFile, relFilePath);
-          }
-
-          // ── 2.1. Island ID injection ────────────────────────────
-          {
-            const relFilePath = relative(projectRoot, args.path);
-            injectIslandIds(hydrationS, hydrationSourceFile, relFilePath);
-          }
-
-          const hydratedCode = hydrationS.toString();
-          const hydrationMap = hydrationS.generateMap({
-            source: args.path,
-            includeContent: true,
-          });
-
-          // ── 2.5. Field selection injection ───────────────────
-          // Analyze field access and inject select into query descriptors
-          // Uses cross-file manifest to merge child component fields
-          const fieldSelectionResult = injectFieldSelection(args.path, hydratedCode, {
-            manifest: fieldSelectionManifest,
-            resolveImport: fieldSelectionResolveImport,
-            entitySchema,
-          });
-          const codeForCompile = fieldSelectionResult.code;
-
-          // Log field selection results
-          if (logger?.isEnabled('fields') && fieldSelectionResult.diagnostics.length > 0) {
-            for (const diag of fieldSelectionResult.diagnostics) {
-              logger.log('fields', 'query', {
-                file: relPath,
-                queryVar: diag.queryVar,
-                fields: diag.combinedFields,
-                opaque: diag.hasOpaqueAccess,
-                injected: diag.injected,
-                crossFile: diag.crossFileFields.length,
-              });
-            }
-          }
-
-          // Record in diagnostics
-          if (diagnostics && fieldSelectionResult.diagnostics.length > 0) {
-            diagnostics.recordFieldSelection(relPath, {
-              queries: fieldSelectionResult.diagnostics.map((d) => ({
-                queryVar: d.queryVar,
-                fields: d.combinedFields,
-                hasOpaqueAccess: d.hasOpaqueAccess,
-                crossFileFields: d.crossFileFields,
-                injected: d.injected,
-              })),
-            });
-          }
-
-          // ── 2.7. Image transform ────────────────────────────────
+          // ── 1. Image transform ────────────────────────────────────
           const imageOutputDir = resolve(projectRoot, '.vertz', 'images');
           const imageQueue: Array<{
             sourcePath: string;
@@ -339,7 +258,7 @@ export function createVertzBunPlugin(options?: VertzBunPluginOptions): VertzBunP
             outputDir: string;
           }> = [];
 
-          const imageResult = transformImages(codeForCompile, args.path, {
+          const imageResult = transformImages(source, args.path, {
             projectRoot,
             resolveImagePath: (src) => resolveImageSrc(src, args.path, projectRoot),
             getImageOutputPaths: (sourcePath, w, h, q, f) => {
@@ -377,88 +296,104 @@ export function createVertzBunPlugin(options?: VertzBunPluginOptions): VertzBunP
             );
           }
 
-          // ── 3. Compile (reactive + JSX transforms) ─────────────
-          // Use native Rust compiler when available (20-50x faster),
-          // otherwise fall back to ts-morph TypeScript compiler.
-          // When using native compiler, CSS is extracted during compilation
-          // (returned in nativeResult.css) instead of the TS cssExtractor.
-          let nativeCss: string | undefined;
-          const compileResult = nativeCompiler
-            ? (() => {
-                // Warn once that native compiler does not support cross-file
-                // reactivity manifests. User-defined hooks returning signal APIs
-                // won't have .value inserted for their properties.
-                if (!nativeManifestWarningLogged && manifests.size > 0) {
-                  nativeManifestWarningLogged = true;
-                  const userManifestCount = [...manifests.keys()].filter(
-                    (k) => !k.includes('node_modules'),
-                  ).length;
-                  if (userManifestCount > 0) {
-                    console.warn(
-                      `[vertz-bun-plugin] Native compiler does not support cross-file reactivity manifests. ` +
-                        `${userManifestCount} user module(s) with exported signal APIs will not have ` +
-                        `.value insertion for their signal properties. ` +
-                        `Set VERTZ_NATIVE_COMPILER=0 if cross-file reactivity is needed.`,
-                    );
-                  }
-                }
+          // ── 2. Field selection injection ───────────────────────
+          // Analyze field access and inject select into query descriptors
+          // Uses cross-file manifest to merge child component fields
+          const fieldSelectionResult = injectFieldSelection(args.path, codeAfterImageTransform, {
+            manifest: fieldSelectionManifest,
+            resolveImport: fieldSelectionResolveImport,
+            entitySchema,
+          });
+          const codeAfterFieldSelection = fieldSelectionResult.code;
 
-                const nativeResult = nativeCompiler.compile(codeAfterImageTransform, {
-                  filename: args.path,
-                  target: options?.target,
-                  // Plugin handles context stable IDs and fast refresh separately
-                  fastRefresh: false,
-                });
-                // Capture CSS extracted by the native compiler for step 5
-                if (nativeResult.css) {
-                  nativeCss = nativeResult.css;
-                }
-                return {
-                  code: nativeResult.code,
-                  map: nativeResult.map
-                    ? (JSON.parse(nativeResult.map) as EncodedSourceMap)
-                    : ({ version: 3, sources: [], mappings: '', names: [] } as EncodedSourceMap),
-                  diagnostics: (nativeResult.diagnostics ?? []).map((d) => ({
-                    code: 'native-diagnostic',
-                    message: d.message,
-                    severity: 'warning' as const,
-                    line: d.line ?? 1,
-                    column: d.column ?? 0,
-                  })),
-                };
-              })()
-            : compile(codeAfterImageTransform, {
-                filename: args.path,
-                target: options?.target,
-                manifests: getManifestsRecord(),
+          // Log field selection results
+          if (logger?.isEnabled('fields') && fieldSelectionResult.diagnostics.length > 0) {
+            for (const diag of fieldSelectionResult.diagnostics) {
+              logger.log('fields', 'query', {
+                file: relPath,
+                queryVar: diag.queryVar,
+                fields: diag.combinedFields,
+                opaque: diag.hasOpaqueAccess,
+                injected: diag.injected,
+                crossFile: diag.crossFileFields.length,
               });
+            }
+          }
 
-          // ── 4. Source map chaining ──────────────────────────────
-          // Chain maps in output→source order: compile → image → hydration
-          const mapsToChain: EncodedSourceMap[] = [compileResult.map as EncodedSourceMap];
+          // Record in diagnostics
+          if (diagnostics && fieldSelectionResult.diagnostics.length > 0) {
+            diagnostics.recordFieldSelection(relPath, {
+              queries: fieldSelectionResult.diagnostics.map((d) => ({
+                queryVar: d.queryVar,
+                fields: d.combinedFields,
+                hasOpaqueAccess: d.hasOpaqueAccess,
+                crossFileFields: d.crossFileFields,
+                injected: d.injected,
+              })),
+            });
+          }
+
+          // ── 3. Context stable IDs + Island ID injection ──────────
+          // Create a lightweight TypeScript SourceFile for AST-based pre-transforms
+          let codeForCompile = codeAfterFieldSelection;
+          {
+            const preTransformS = new MagicString(codeAfterFieldSelection);
+            const tsSourceFile = ts.createSourceFile(
+              args.path,
+              codeAfterFieldSelection,
+              ts.ScriptTarget.Latest,
+              true,
+              ts.ScriptKind.TSX,
+            );
+
+            if (fastRefresh) {
+              const relFilePath = relative(projectRoot, args.path);
+              injectContextStableIds(preTransformS, tsSourceFile, relFilePath);
+            }
+
+            {
+              const relFilePath = relative(projectRoot, args.path);
+              injectIslandIds(preTransformS, tsSourceFile, relFilePath);
+            }
+
+            if (preTransformS.hasChanged()) {
+              codeForCompile = preTransformS.toString();
+            }
+          }
+
+          // ── 4. Native compile (reactive + JSX + hydration + route splitting + CSS) ──
+          const compileResult = nativeCompile(codeForCompile, {
+            filename: args.path,
+            target: options?.target,
+            hydrationMarkers: true,
+            fastRefresh: false,
+            routeSplitting,
+            manifests: getManifestEntries(),
+          });
+
+          const compileMap: EncodedSourceMap = compileResult.map
+            ? (JSON.parse(compileResult.map) as EncodedSourceMap)
+            : ({ version: 3, sources: [], mappings: '', names: [] } as EncodedSourceMap);
+
+          // ── 5. Source map chaining ──────────────────────────────
+          // Chain maps in output→source order: compile → image
+          const mapsToChain: EncodedSourceMap[] = [compileMap];
           if (imageResult.map) {
             mapsToChain.push(imageResult.map as unknown as EncodedSourceMap);
           }
-          mapsToChain.push(hydrationMap as EncodedSourceMap);
-          if (routeSplitMap) {
-            mapsToChain.push(routeSplitMap);
-          }
           const remapped = remapping(mapsToChain, () => null);
 
-          // ── 5. CSS extraction → sidecar file ───────────────────
-          // When native compiler is used, it already extracted CSS and replaced
-          // css() calls with class name objects. Use the native CSS directly.
-          // Otherwise, use the TS-based cssExtractor on the original source.
-          const extraction: { css: string; blockNames: string[] } = nativeCss
-            ? { css: nativeCss, blockNames: [] }
-            : cssExtractor.extract(source, args.path);
+          // ── 6. CSS extraction → sidecar file ───────────────────
+          const extraction: { css: string; blockNames: string[] } = compileResult.css
+            ? { css: compileResult.css, blockNames: [] }
+            : { css: '', blockNames: [] };
           let cssImportLine = '';
 
           // When native compiler extracted CSS, we need to inject it at runtime
           // so SSR's getInjectedCSS() can collect it. The native compiler replaces
           // css() calls with plain class-name objects, skipping runtime injection.
           let nativeCssInjection = '';
-          if (nativeCss && extraction.css.length > 0) {
+          if (compileResult.css && extraction.css.length > 0) {
             // Escape the CSS for embedding in a JS string
             const escaped = extraction.css
               .replace(/\\/g, '\\\\')
@@ -480,30 +415,32 @@ export function createVertzBunPlugin(options?: VertzBunPluginOptions): VertzBunP
               cssSidecarMap.set(args.path, cssFilePath);
 
               // Compute relative import path from source file to CSS file
-              const relPath = relative(dirname(args.path), cssFilePath);
-              const importPath = relPath.startsWith('.') ? relPath : `./${relPath}`;
+              const relCssPath = relative(dirname(args.path), cssFilePath);
+              const importPath = relCssPath.startsWith('.') ? relCssPath : `./${relCssPath}`;
               cssImportLine = `import '${importPath}';\n`;
             }
           }
 
-          // ── 6. Fast Refresh: detect components and inject wrappers ──
+          // ── 7. Fast Refresh: detect components and inject wrappers ──
           let refreshPreamble = '';
           let refreshEpilogue = '';
 
-          if (fastRefresh) {
-            const components = componentAnalyzer.analyze(hydrationSourceFile);
-            // Per-component hashing: each component gets a hash of its own body,
-            // so only the actually-changed component is marked dirty and re-mounted.
-            // This prevents parent component refreshes from overwriting child state
-            // when both components live in the same file.
-            const refreshCode = generateRefreshCode(args.path, components, source);
+          if (fastRefresh && compileResult.components && compileResult.components.length > 0) {
+            const componentInfos = compileResult.components.map((c) => ({
+              name: c.name,
+              propsParam: null as string | null,
+              hasDestructuredProps: false,
+              bodyStart: c.bodyStart,
+              bodyEnd: c.bodyEnd,
+            }));
+            const refreshCode = generateRefreshCode(args.path, componentInfos, source);
             if (refreshCode) {
               refreshPreamble = refreshCode.preamble;
               refreshEpilogue = refreshCode.epilogue;
             }
           }
 
-          // ── 7. Assemble output ─────────────────────────────────
+          // ── 8. Assemble output ─────────────────────────────────
 
           // Count lines prepended before compileResult.code so we can
           // offset the source map. Without this, breakpoints land on
@@ -551,10 +488,9 @@ export function createVertzBunPlugin(options?: VertzBunPluginOptions): VertzBunP
           if (logger?.isEnabled('plugin')) {
             const durationMs = Math.round(performance.now() - startMs);
             const stages = [
-              routeSplitting && sourceAfterRouteSplit !== source ? 'routeSplit' : null,
-              'hydration',
-              fastRefresh ? 'stableIds' : null,
               'compile',
+              routeSplitting ? 'routeSplit' : null,
+              fastRefresh ? 'stableIds' : null,
               'sourceMap',
               extraction.css.length > 0 ? 'css' : null,
               fastRefresh && refreshPreamble ? 'fastRefresh' : null,
@@ -574,48 +510,6 @@ export function createVertzBunPlugin(options?: VertzBunPluginOptions): VertzBunP
           throw err;
         }
       });
-
-      // ── .ts route file handler (production route splitting only) ──
-      if (routeSplitting) {
-        build.onLoad({ filter: /\.ts$/ }, async (args) => {
-          const source = await Bun.file(args.path).text();
-
-          // Fast bail-out: must contain both defineRoutes( and a vertz import
-          if (!source.includes('defineRoutes(') || !source.includes('@vertz/ui')) {
-            return { contents: source, loader: 'ts' };
-          }
-
-          const splitResult = transformRouteSplitting(source, args.path);
-
-          if (splitResult.transformed && logger?.isEnabled('plugin')) {
-            const relPath = relative(projectRoot, args.path);
-            for (const d of splitResult.diagnostics) {
-              logger.log('plugin', 'route-split', {
-                file: relPath,
-                route: d.routePath,
-                import: d.importSource,
-                symbol: d.symbolName,
-              });
-            }
-            for (const s of splitResult.skipped) {
-              logger.log('plugin', 'route-split-skip', {
-                file: relPath,
-                route: s.routePath,
-                reason: s.reason,
-              });
-            }
-          }
-
-          // Append inline source map if the transform changed the code
-          let contents = splitResult.code;
-          if (splitResult.transformed && splitResult.map) {
-            const mapBase64 = Buffer.from(splitResult.map.toString()).toString('base64');
-            contents += `\n//# sourceMappingURL=data:application/json;base64,${mapBase64}`;
-          }
-
-          return { contents, loader: 'ts' };
-        });
-      }
     },
   };
 
@@ -633,7 +527,7 @@ export function createVertzBunPlugin(options?: VertzBunPluginOptions): VertzBunP
     const changed = !manifestsEqual(oldManifest, newManifest);
 
     if (changed) {
-      manifestsRecord = null; // Invalidate cached Record view
+      cachedManifestEntries = null; // Invalidate cached ManifestEntry array
     }
 
     // Update field selection manifest incrementally (.tsx for components, .ts for barrel re-exports)
@@ -662,7 +556,7 @@ export function createVertzBunPlugin(options?: VertzBunPluginOptions): VertzBunP
   function deleteManifest(filePath: string): boolean {
     const existed = manifests.delete(filePath);
     if (existed) {
-      manifestsRecord = null; // Invalidate cached Record view
+      cachedManifestEntries = null; // Invalidate cached ManifestEntry array
 
       if (logger?.isEnabled('manifest')) {
         logger.log('manifest', 'hmr-delete', {

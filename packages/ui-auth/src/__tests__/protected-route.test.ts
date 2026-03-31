@@ -5,6 +5,7 @@ import { AccessContext, AuthContext } from '@vertz/ui/auth';
 import type { Router } from '@vertz/ui/router';
 import { RouterContext } from '@vertz/ui/router';
 import { ProtectedRoute } from '../protected-route';
+import { itWithNativeCompiler } from './native-compiler-test-utils.test';
 
 function mockAuthContext(status: AuthStatus) {
   const statusSignal = signal<AuthStatus>(status);
@@ -146,25 +147,28 @@ describe('ProtectedRoute', () => {
     expect(navigateFn).not.toHaveBeenCalled();
   });
 
-  it('transitions from fallback to children when status changes to authenticated', () => {
-    const { ctx, statusSignal } = mockAuthContext('loading');
-    let wrapper: HTMLElement | undefined;
+  itWithNativeCompiler(
+    'transitions from fallback to children when status changes to authenticated',
+    () => {
+      const { ctx, statusSignal } = mockAuthContext('loading');
+      let wrapper: HTMLElement | undefined;
 
-    AuthContext.Provider({
-      value: ctx,
-      children: () => {
-        wrapper = ProtectedRoute({
-          fallback: () => 'loading-fallback',
-          children: () => 'main-content',
-        });
-      },
-    });
+      AuthContext.Provider({
+        value: ctx,
+        children: () => {
+          wrapper = ProtectedRoute({
+            fallback: () => 'loading-fallback',
+            children: () => 'main-content',
+          });
+        },
+      });
 
-    expect(wrapper?.textContent).toBe('loading-fallback');
+      expect(wrapper?.textContent).toBe('loading-fallback');
 
-    statusSignal.value = 'authenticated';
-    expect(wrapper?.textContent).toBe('main-content');
-  });
+      statusSignal.value = 'authenticated';
+      expect(wrapper?.textContent).toBe('main-content');
+    },
+  );
 
   it('renders children when requires entitlements are met', () => {
     const { ctx } = mockAuthContext('authenticated');

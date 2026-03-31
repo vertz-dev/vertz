@@ -91,64 +91,54 @@ HTTP Request
 The Vertz Bun plugin (`createVertzBunPlugin`) processes `.tsx` files through
 `build.onLoad`. Each stage builds on the previous, and order matters.
 
-### Stage 1: Hydration Transform
+### Stage 1: Pre-transforms (MagicString + TypeScript AST)
 
-Adds hydration IDs to JSX elements so the client-side hydration system can
-match SSR-rendered DOM nodes to their component counterparts.
+Before the native compiler runs, the plugin applies lightweight transforms
+using `MagicString` and `ts.createSourceFile()` from the `typescript` package:
 
-Uses `HydrationTransformer` from `@vertz/ui-compiler` operating on a
-`MagicString` instance with a ts-morph `SourceFile` for AST access.
+- **Image transform**: Rewrites `<Image src="./photo.jpg" />` to use the
+  image optimization pipeline.
+- **Field selection injection**: Injects `.__select()` calls for VertzQL
+  auto field selection.
+- **Context stable IDs** (Fast Refresh only): Injects a `__stableId` argument
+  into `createContext()` calls (format: `relFilePath::varName`). Preserves
+  context identity across HMR cycles.
+- **Island ID injection**: Injects island IDs for partial hydration.
 
-### Stage 2: Context Stable IDs (Fast Refresh only)
+### Stage 2: Native Compile (Single Call)
 
-Injects a `__stableId` argument into `createContext()` calls. The ID format
-is `relFilePath::varName` (e.g., `src/contexts/settings.tsx::SettingsContext`).
+The native Rust compiler (`@vertz/native-compiler`) handles all major transforms
+in a single `compile()` call with options:
 
-This ensures that when Bun re-evaluates a module during HMR, `createContext()`
-returns the existing context object from the global registry instead of
-creating a new one. Without this, `ContextScope` Map keys lose identity
-across HMR cycles, breaking `useContext()` lookups.
+- `hydrationMarkers: true` — adds hydration IDs to JSX elements
+- `routeSplitting` — splits route components into separate chunks
+- `fieldSelection` — field selection analysis
+- `prefetchManifest` — prefetch manifest generation
+- `fastRefresh` — component metadata for Fast Refresh
+- `manifests` — reactivity manifests for cross-module signal tracking
 
-Only runs when `fastRefresh` is enabled. SSR builds skip this -- the server
-does not need HMR-stable context identity.
+The native compiler returns `code`, `css`, `map`, `components`, and other
+metadata in a single result object. The `target` option controls output:
+`'dom'` (default) or `'tui'`.
 
-### Stage 3: Compile (Reactive + JSX Transforms)
+### Stage 3: Source Map Chain
 
-The core Vertz compiler pass via `compile()` from `@vertz/ui-compiler`.
-Transforms reactive `let` declarations into signals, inserts `.value` unwraps,
-and converts JSX to `__element`/`__append`/`__on` calls.
-
-Operates on the hydration-transformed code (not the original source), so
-hydration IDs are already present in the AST.
-
-The `target` option controls output: `'dom'` (default) or `'tui'`.
-
-### Stage 4: Source Map Chain
-
-Chains the hydration transform source map with the compile source map using
+Chains pre-transform source maps with the native compile source map using
 `@ampproject/remapping`. This produces a single source map that traces from
 the final compiled output back to the original source file.
 
-Without chaining, debugger breakpoints and error locations would point to the
-hydration-transformed intermediate code instead of the developer's source.
+### Stage 4: CSS Sidecar
 
-### Stage 5: CSS Extraction
+CSS is returned directly by the native compiler in `result.css`. In HMR mode,
+extracted CSS is written to a sidecar `.css` file at `.vertz/css/<hash>.css`,
+and an `import '<path>.css'` line is prepended to the module output. Bun's
+built-in CSS HMR detects changes to these files and hot-swaps stylesheets
+without a page reload.
 
-Extracts `css()` and `variants()` calls from the **original** source (not the
-compiled output) using `CSSExtractor` from `@vertz/ui-compiler`.
+### Stage 5: Fast Refresh Wrappers (Fast Refresh only)
 
-In HMR mode, extracted CSS is written to a sidecar `.css` file at
-`.vertz/css/<hash>.css`, and an `import '<path>.css'` line is prepended to the
-module output. Bun's built-in CSS HMR detects changes to these files and
-hot-swaps stylesheets without a page reload.
-
-The `fileExtractions` map tracks all extractions for production dead CSS
-elimination. The `cssSidecarMap` tracks source-to-sidecar mappings for debugging.
-
-### Stage 6: Fast Refresh Wrappers (Fast Refresh only)
-
-Uses `ComponentAnalyzer` from `@vertz/ui-compiler` to detect exported function
-components in the source file. For each detected component, generates:
+Uses the native compiler's `components` metadata to detect exported function
+components. For each detected component, generates:
 
 - **Preamble**: accesses the Fast Refresh runtime from `globalThis` (NOT via
   import -- see section on why this matters).

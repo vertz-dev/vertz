@@ -47,7 +47,6 @@ export function createCLI(): Command {
         console.error(result.error.message);
         process.exit(1);
       }
-      process.exit(0);
     });
 
   program
@@ -80,7 +79,6 @@ export function createCLI(): Command {
         console.error(result.error.message);
         process.exit(1);
       }
-      process.exit(0);
     });
 
   // Unified dev command - Phase 1 implementation
@@ -226,7 +224,6 @@ export function createCLI(): Command {
       }
 
       console.log(result.data.output);
-      process.exit(0);
     });
 
   program

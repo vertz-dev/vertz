@@ -1,15 +1,17 @@
 import { describe, expect, it } from 'bun:test';
 import MagicString from 'magic-string';
-import { Project, ts } from 'ts-morph';
+import ts from 'typescript';
 import { injectContextStableIds } from '../context-stable-ids';
 
 function transform(source: string, filePath = 'src/contexts/settings.tsx') {
   const s = new MagicString(source);
-  const project = new Project({
-    useInMemoryFileSystem: true,
-    compilerOptions: { jsx: ts.JsxEmit.Preserve, strict: true },
-  });
-  const sourceFile = project.createSourceFile(filePath, source);
+  const sourceFile = ts.createSourceFile(
+    filePath,
+    source,
+    ts.ScriptTarget.Latest,
+    true,
+    ts.ScriptKind.TSX,
+  );
   injectContextStableIds(s, sourceFile, filePath);
   return s.toString();
 }

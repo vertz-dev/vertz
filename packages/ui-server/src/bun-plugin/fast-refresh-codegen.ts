@@ -1,4 +1,4 @@
-import type { ComponentInfo } from '@vertz/ui-compiler';
+import type { ComponentInfo } from '../compiler/types';
 
 /**
  * Generate the Fast Refresh preamble code injected at the top of a module.

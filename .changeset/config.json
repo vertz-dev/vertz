@@ -25,7 +25,6 @@
     "@vertz/tui",
     "@vertz/ui",
     "@vertz/ui-canvas",
-    "@vertz/ui-compiler",
     "@vertz/ui-primitives",
     "@vertz/ui-server",
     "vertz"

@@ -3,6 +3,7 @@ import { computed, signal } from '@vertz/ui';
 import type { AuthClientError, AuthContextValue, AuthStatus, User } from '@vertz/ui/auth';
 import { AuthContext } from '@vertz/ui/auth';
 import { UserAvatar } from '../user-avatar';
+import { itWithNativeCompiler } from './native-compiler-test-utils.test';
 
 function mockAuthContext(user: User | null) {
   const userSignal = signal<User | null>(user);
@@ -79,7 +80,7 @@ describe('UserAvatar', () => {
     expect(wrapper?.innerHTML).toContain('<svg');
   });
 
-  it('updates reactively when auth user changes', () => {
+  itWithNativeCompiler('updates reactively when auth user changes', () => {
     const { ctx, userSignal } = mockAuthContext({
       id: '1',
       email: 'jane@example.com',
@@ -106,41 +107,44 @@ describe('UserAvatar', () => {
     expect(wrapper?.querySelector('img')?.getAttribute('src')).toBe('/bob.jpg');
   });
 
-  it('reuses the same img element when avatarUrl changes (in-place update)', () => {
-    const { ctx, userSignal } = mockAuthContext({
-      id: '1',
-      email: 'jane@example.com',
-      role: 'user',
-      avatarUrl: '/jane.jpg',
-    });
-    let wrapper: HTMLElement | undefined;
+  itWithNativeCompiler(
+    'reuses the same img element when avatarUrl changes (in-place update)',
+    () => {
+      const { ctx, userSignal } = mockAuthContext({
+        id: '1',
+        email: 'jane@example.com',
+        role: 'user',
+        avatarUrl: '/jane.jpg',
+      });
+      let wrapper: HTMLElement | undefined;
 
-    AuthContext.Provider({
-      value: ctx,
-      children: () => {
-        wrapper = UserAvatar({});
-      },
-    });
+      AuthContext.Provider({
+        value: ctx,
+        children: () => {
+          wrapper = UserAvatar({});
+        },
+      });
 
-    const img1 = wrapper?.querySelector('img');
-    expect(img1).not.toBeNull();
-    expect(img1?.getAttribute('src')).toBe('/jane.jpg');
+      const img1 = wrapper?.querySelector('img');
+      expect(img1).not.toBeNull();
+      expect(img1?.getAttribute('src')).toBe('/jane.jpg');
 
-    // Change avatar URL — img element should be reused (in-place attribute update)
-    userSignal.value = {
-      id: '1',
-      email: 'jane@example.com',
-      role: 'user',
-      avatarUrl: '/jane-new.jpg',
-    };
+      // Change avatar URL — img element should be reused (in-place attribute update)
+      userSignal.value = {
+        id: '1',
+        email: 'jane@example.com',
+        role: 'user',
+        avatarUrl: '/jane-new.jpg',
+      };
 
-    const img2 = wrapper?.querySelector('img');
-    expect(img2).not.toBeNull();
-    expect(img2?.getAttribute('src')).toBe('/jane-new.jpg');
-    expect(img2).toBe(img1); // Same DOM element — not rebuilt
-  });
+      const img2 = wrapper?.querySelector('img');
+      expect(img2).not.toBeNull();
+      expect(img2?.getAttribute('src')).toBe('/jane-new.jpg');
+      expect(img2).toBe(img1); // Same DOM element — not rebuilt
+    },
+  );
 
-  it('recovers from failed image when avatarUrl changes to a new URL', () => {
+  itWithNativeCompiler('recovers from failed image when avatarUrl changes to a new URL', () => {
     const { ctx, userSignal } = mockAuthContext({
       id: '1',
       email: 'jane@example.com',

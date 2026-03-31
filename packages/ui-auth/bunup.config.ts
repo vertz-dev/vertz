@@ -1,4 +1,4 @@
-import { createVertzLibraryPlugin } from '@vertz/ui-compiler';
+import { createVertzLibraryPlugin } from '@vertz/ui-server';
 import { defineConfig } from 'bunup';
 
 export default defineConfig({

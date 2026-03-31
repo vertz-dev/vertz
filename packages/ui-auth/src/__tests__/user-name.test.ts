@@ -3,6 +3,7 @@ import { computed, signal } from '@vertz/ui';
 import type { AuthClientError, AuthContextValue, AuthStatus, User } from '@vertz/ui/auth';
 import { AuthContext } from '@vertz/ui/auth';
 import { UserName } from '../user-name';
+import { itWithNativeCompiler } from './native-compiler-test-utils.test';
 
 function mockAuthContext(user: User | null) {
   const userSignal = signal<User | null>(user);
@@ -83,7 +84,7 @@ describe('UserName', () => {
     expect(wrapper?.textContent).toBe('—');
   });
 
-  it('updates reactively when auth user changes', () => {
+  itWithNativeCompiler('updates reactively when auth user changes', () => {
     const { ctx, userSignal } = mockAuthContext({
       id: '1',
       email: 'jane@example.com',
@@ -105,7 +106,7 @@ describe('UserName', () => {
     expect(wrapper?.textContent).toBe('Bob Smith');
   });
 
-  it('updates text content in-place without rebuilding text node', () => {
+  itWithNativeCompiler('updates text content in-place without rebuilding text node', () => {
     const { ctx, userSignal } = mockAuthContext({
       id: '1',
       email: 'jane@example.com',

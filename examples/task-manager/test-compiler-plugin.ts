@@ -5,7 +5,7 @@
  * JSX list rendering) are applied during `bun test`, matching the
  * behaviour of the Vite plugin at dev/build time.
  */
-import { compile } from '@vertz/ui-compiler';
+import { compile } from '@vertz/ui-server';
 import { plugin } from 'bun';
 
 plugin({
@@ -13,7 +13,7 @@ plugin({
   setup(build) {
     build.onLoad({ filter: /examples\/task-manager\/src\/.*\.tsx$/ }, async (args) => {
       const source = await Bun.file(args.path).text();
-      const result = compile(source, args.path);
+      const result = compile(source, { filename: args.path, target: 'dom' });
       return { contents: result.code, loader: 'tsx' };
     });
   },

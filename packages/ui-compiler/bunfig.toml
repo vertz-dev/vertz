@@ -1,2 +1,0 @@
-[test]
-coveragePathIgnorePatterns = ["**/ui/dist/**", "**/__tests__/**"]

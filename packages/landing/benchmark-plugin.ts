@@ -1,7 +1,7 @@
 /**
  * Bun preload plugin for the landing page benchmark.
  */
-import { compile } from '@vertz/ui-compiler';
+import { compile } from '@vertz/ui-server';
 import { plugin } from 'bun';
 
 plugin({
@@ -9,7 +9,7 @@ plugin({
   setup(build) {
     build.onLoad({ filter: /sites\/landing\/src\/.*\.tsx$/ }, async (args) => {
       const source = await Bun.file(args.path).text();
-      const result = compile(source, args.path);
+      const result = compile(source, { filename: args.path, target: 'dom' });
       return { contents: result.code, loader: 'tsx' };
     });
   },

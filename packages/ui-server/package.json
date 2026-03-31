@@ -69,16 +69,13 @@
     "@jridgewell/trace-mapping": "^0.3.31",
     "@vertz/core": "workspace:^",
     "@vertz/ui": "workspace:^",
-    "@vertz/ui-compiler": "workspace:^",
     "magic-string": "^0.30.0",
-    "sharp": "^0.34.5",
-    "ts-morph": "^27.0.2"
+    "sharp": "^0.34.5"
   },
   "devDependencies": {
     "@happy-dom/global-registrator": "^20.8.3",
     "@playwright/test": "^1.58.2",
     "@vertz/codegen": "workspace:^",
-    "@vertz/ui-auth": "workspace:^",
     "bun-types": "^1.3.10",
     "bunup": "^0.16.31",
     "happy-dom": "^20.8.3",

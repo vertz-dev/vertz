@@ -5,7 +5,7 @@
  * real QueryDescriptors by calling the code-generated SDK factories directly.
  * This avoids duplicating key construction logic (resolveVertzQL, serializeQuery).
  */
-import type { ExtractedQuery, QueryBindings } from '@vertz/ui-compiler';
+import type { ExtractedQuery, QueryBindings } from './compiler/prefetch-manifest';
 
 export interface ReconstructedDescriptor {
   key: string;

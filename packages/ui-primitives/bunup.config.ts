@@ -1,5 +1,5 @@
 import { existsSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { createVertzLibraryPlugin } from '@vertz/ui-compiler';
+import { createVertzLibraryPlugin } from '@vertz/ui-server';
 import type { BunupPlugin } from 'bunup';
 import { defineConfig } from 'bunup';
 

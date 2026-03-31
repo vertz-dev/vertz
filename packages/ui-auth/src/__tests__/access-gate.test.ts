@@ -3,6 +3,7 @@ import { signal } from '@vertz/ui';
 import type { AccessContextValue, AccessSet } from '@vertz/ui/auth';
 import { AccessContext } from '@vertz/ui/auth';
 import { AccessGate } from '../access-gate';
+import { itWithNativeCompiler } from './native-compiler-test-utils.test';
 
 function makeAccessSet(): AccessSet {
   return {
@@ -71,7 +72,7 @@ describe('AccessGate', () => {
     expect(wrapper?.textContent).toBe('');
   });
 
-  it('transitions from fallback to children when access set loads', () => {
+  itWithNativeCompiler('transitions from fallback to children when access set loads', () => {
     const accessSet = signal<AccessSet | null>(null);
     const loading = signal(true);
     const value: AccessContextValue = { accessSet, loading };

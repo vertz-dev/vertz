@@ -51,7 +51,6 @@ describe('templates', () => {
       const result = packageJsonTemplate('test-app');
       const pkg = JSON.parse(result);
       expect(pkg.devDependencies['@vertz/cli']).toBeDefined();
-      expect(pkg.devDependencies['@vertz/ui-compiler']).toBeDefined();
       expect(pkg.devDependencies['bun-types']).toBeDefined();
     });
 

@@ -5,7 +5,7 @@
  * for the `/__vertz_ssr_aot` dev endpoint.
  */
 
-/** AOT tier classification (mirrored from @vertz/ui-compiler to avoid cross-package dependency). */
+/** AOT tier classification. */
 export type AotTier = 'static' | 'data-driven' | 'conditional' | 'runtime-fallback';
 
 /** Per-component diagnostic entry in the snapshot. */

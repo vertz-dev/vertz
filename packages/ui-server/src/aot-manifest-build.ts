@@ -1,7 +1,7 @@
 /**
  * AOT Manifest Build — Generate AOT compilation manifest at build time.
  *
- * Scans all TSX files in the source directory, runs compileForSSRAot()
+ * Scans all TSX files in the source directory, runs compileForSsrAot()
  * on each, and collects per-component classification and hole info.
  *
  * Used by the production build pipeline (`buildUI()`) to generate
@@ -9,8 +9,8 @@
  */
 import { readdirSync, readFileSync } from 'node:fs';
 import { basename, join } from 'node:path';
-import type { AotComponentInfo } from '@vertz/ui-compiler';
-import { compileForSSRAot } from '@vertz/ui-compiler';
+import type { AotComponentInfo } from './compiler/types';
+import { compileForSsrAot } from './compiler/native-compiler';
 
 export interface AotBuildComponentEntry {
   tier: 'static' | 'data-driven' | 'conditional' | 'runtime-fallback';
@@ -65,7 +65,7 @@ export function generateAotBuildManifest(srcDir: string): AotBuildManifest {
   for (const filePath of tsxFiles) {
     try {
       const source = readFileSync(filePath, 'utf-8');
-      const result = compileForSSRAot(source, { filename: filePath });
+      const result = compileForSsrAot(source, { filename: filePath });
 
       for (const comp of result.components) {
         components[comp.name] = {

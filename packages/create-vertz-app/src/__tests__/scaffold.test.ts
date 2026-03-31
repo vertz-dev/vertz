@@ -121,7 +121,6 @@ describe('scaffold', () => {
       const content = await fs.readFile(projectPath('package.json'), 'utf-8');
       const pkg = JSON.parse(content);
       expect(pkg.devDependencies['@vertz/cli']).toBeDefined();
-      expect(pkg.devDependencies['@vertz/ui-compiler']).toBeDefined();
       expect(pkg.devDependencies['bun-types']).toBeDefined();
     });
 
