@@ -403,6 +403,17 @@ describe('templates', () => {
       const result = claudeMdTemplate('test-app');
       expect(result).toContain('.claude/rules/');
     });
+
+    it('documents auto-generated SDK', () => {
+      const result = claudeMdTemplate('test-app');
+      expect(result).toContain('Auto-Generated SDK');
+      expect(result).toContain('.vertz/generated/');
+    });
+
+    it('warns against raw fetch()', () => {
+      const result = claudeMdTemplate('test-app');
+      expect(result).toContain('NEVER use raw `fetch()`');
+    });
   });
 
   describe('apiDevelopmentRuleTemplate', () => {
@@ -447,6 +458,17 @@ describe('templates', () => {
       const result = apiDevelopmentRuleTemplate();
       expect(result).toContain('Custom Actions');
       expect(result).toContain('automatically');
+    });
+
+    it('documents auto-generated SDK from entities and services', () => {
+      const result = apiDevelopmentRuleTemplate();
+      expect(result).toContain('Auto-Generated SDK');
+      expect(result).toContain('.vertz/generated/');
+    });
+
+    it('warns against raw fetch()', () => {
+      const result = apiDevelopmentRuleTemplate();
+      expect(result).toContain('NEVER use raw `fetch()`');
     });
   });
 
@@ -507,6 +529,17 @@ describe('templates', () => {
     it('documents useRouter for navigation', () => {
       const result = uiDevelopmentRuleTemplate();
       expect(result).toContain('useRouter');
+    });
+
+    it('warns against raw fetch()', () => {
+      const result = uiDevelopmentRuleTemplate();
+      expect(result).toContain('NEVER use raw `fetch()`');
+    });
+
+    it('documents that api is auto-generated from entity and service definitions', () => {
+      const result = uiDevelopmentRuleTemplate();
+      expect(result).toContain('auto-generated');
+      expect(result).toContain('entity and service definitions');
     });
   });
 

@@ -242,6 +242,15 @@ The request pipeline for each route:
 6. After hook (for mutations)
 7. Response serialization (strip hidden fields)
 
+<Note>
+  Every entity operation also generates typed SDK methods for the UI client. When you define
+  `entity('tasks', { ... })` with access rules for `list`, `get`, `create`, `update`, and `delete`,
+  the SDK automatically produces `api.tasks.list()`, `api.tasks.get(id)`, `api.tasks.create(data)`, etc.
+  Custom actions generate SDK methods too — `api.tasks.archive(id, data)`. The SDK is generated
+  automatically when you run `vertz dev` or `vertz build` — you don't need to run codegen manually.
+  See [Data Fetching](/guides/ui/data-fetching) for UI usage.
+</Note>
+
 ## Server setup
 
 Pass entities to `createServer()`:

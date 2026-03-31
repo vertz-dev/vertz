@@ -5,6 +5,19 @@ description: 'Fetch and cache data with query()'
 
 `query()` connects your UI to your API with reactive data fetching, caching, and automatic cleanup.
 
+<Warning>
+**NEVER use raw `fetch()` to call entity or service endpoints.** The `api` object (from `src/client.ts`) is a fully typed SDK auto-generated from your entity and service definitions. It provides type safety, SSR integration, caching, and optimistic updates that raw `fetch()` cannot. For truly custom non-SDK endpoints, wrap `fetch()` in a `query()` thunk with a cache key (shown below).
+
+```ts
+// WRONG — raw fetch for entity/service endpoints
+const res = await fetch('/api/tasks');
+
+// RIGHT — use the auto-generated SDK
+const tasks = query(api.tasks.list());
+```
+
+</Warning>
+
 ## Basic usage
 
 ```tsx

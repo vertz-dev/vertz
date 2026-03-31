@@ -337,3 +337,32 @@ createServer({
   db,
 }).listen({ port: 3000 });
 ```
+
+## Using services from the UI
+
+Like entities, services generate typed SDK methods via codegen. Each action becomes a callable method on the API client:
+
+```ts
+import { api } from '../client';
+import { form } from 'vertz/ui';
+
+// Call a service action directly
+const result = await api.notifications.sendEmail({
+  to: 'user@example.com',
+  subject: 'Hello',
+  body: 'World',
+});
+
+// Use with form() for form submissions
+const contactForm = form(api.notifications.sendEmail, {
+  onSuccess: () => {
+    /* handle success */
+  },
+});
+```
+
+<Warning>
+  **NEVER use raw `fetch()` to call service endpoints.** The generated SDK provides type safety, SSR
+  integration, and validation schema metadata that `form()` uses automatically. See [SDK & Fetch
+  Client](/guides/fetch) for details.
+</Warning>
