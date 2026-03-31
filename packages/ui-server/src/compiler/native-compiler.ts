@@ -5,10 +5,9 @@
  * This is the sole compilation path. The native compiler is required,
  * not optional. It replaces the ts-morph-based @vertz/ui-compiler.
  *
- * NAPI-RS auto-converts Rust snake_case fields to JS camelCase,
- * so the NAPI output already matches our TypeScript interfaces.
- * The only exception is compile options going IN to the native compiler,
- * which still need snake_case (NAPI-RS doesn't convert input objects).
+ * NAPI-RS auto-converts between Rust snake_case and JS camelCase
+ * in both directions, so our TypeScript interfaces use camelCase
+ * and the NAPI layer handles the conversion transparently.
  */
 
 // ─── Public types ───────────────────────────────────────────────────
