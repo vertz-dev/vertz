@@ -1,40 +1,29 @@
 /**
  * Vertz Component Docs — Cloudflare Worker
  *
- * Optimized edge delivery for the component documentation site:
- * 1. Cache API — Worker-level cache eliminates ASSETS.fetch() on warm requests
- * 2. Deploy-versioned cache keys — instant cache invalidation on deploy
- * 3. SPA fallback — unknown routes serve index.html for client-side routing
- * 4. Brotli content negotiation — serves pre-compressed .br assets when available
- * 5. Security headers — nosniff, DENY frame, strict referrer
+ * Lightweight edge Worker that:
+ * 1. Reads the `theme` cookie from the request
+ * 2. Patches pre-rendered HTML with the correct `data-theme` attribute
+ * 3. Serves static assets with optimized cache headers
+ * 4. Adds security headers
+ *
+ * This avoids full SSR — the build already pre-renders all routes.
+ * The only cookie-dependent part is the theme attribute on the root div.
+ * String replacement is ~0.1ms vs ~3ms for full SSR.
  */
 
-// Minimal ambient declarations for Cloudflare Worker APIs.
-// The component-docs tsconfig uses bun-types, which doesn't include these.
-// At runtime, wrangler provides the real implementations.
+// Ambient declarations for Cloudflare Worker APIs.
+// component-docs tsconfig uses bun-types which doesn't include these.
 declare interface Fetcher {
   fetch(input: RequestInfo, init?: RequestInit): Promise<Response>;
 }
 declare interface ExportedHandler<E = unknown> {
   fetch(request: Request, env: E): Promise<Response>;
 }
-declare const caches: { default: Cache };
 
 interface Env {
   ASSETS: Fetcher;
 }
-
-/**
- * Deploy version — injected at build time via wrangler --define.
- * Used to namespace Cache API keys so that new deploys get fresh cache entries.
- * Old entries are evicted by LRU. Hashed assets (/assets/*) don't need this
- * because their URLs already change on content change.
- */
-declare const DEPLOY_VERSION: string | undefined;
-
-/** Safe access — falls back to a timestamp if wrangler --define didn't inject it. */
-const deployVersion: string =
-  typeof DEPLOY_VERSION !== 'undefined' ? DEPLOY_VERSION : String(Date.now());
 
 // ── Cache policies ─────────────────────────────────────────────────
 
@@ -48,161 +37,114 @@ const FONT_CACHE = 'public, max-age=31536000, immutable';
 const STATIC_CACHE = 'public, max-age=86400, s-maxage=604800, stale-while-revalidate=86400';
 
 /**
- * HTML pages — short browser cache, long edge cache with stale-while-revalidate.
- * Edge serves instantly from cache; revalidates async after deploy.
+ * HTML pages — no browser cache (theme-dependent), short edge cache.
+ * `Vary: Cookie` ensures edge doesn't serve dark HTML to a light-theme user.
  */
-const HTML_CACHE = 'public, max-age=60, s-maxage=3600, stale-while-revalidate=86400';
+const HTML_CACHE = 'public, max-age=0, s-maxage=60';
 
-// ── Compressible file types for Brotli pre-compression ─────────────
+// ── Security headers ───────────────────────────────────────────────
 
-const COMPRESSIBLE_EXTENSIONS = new Set(['.html', '.js', '.css', '.svg', '.xml', '.txt', '.json']);
+const SECURITY_HEADERS: Record<string, string> = {
+  'X-Content-Type-Options': 'nosniff',
+  'X-Frame-Options': 'DENY',
+  'Referrer-Policy': 'strict-origin-when-cross-origin',
+};
+
+// ── Theme cookie parsing ───────────────────────────────────────────
+
+function getThemeFromCookie(request: Request): 'dark' | 'light' {
+  const cookie = request.headers.get('Cookie') ?? '';
+  const match = cookie.match(/(?:^|; )theme=(light|dark)/);
+  return (match?.[1] as 'dark' | 'light') ?? 'dark';
+}
+
+// ── Route classification ───────────────────────────────────────────
+
+/** Check if a path is a static asset (not an HTML page route). */
+function isStaticAsset(pathname: string): boolean {
+  // Hashed assets, fonts, images, etc.
+  if (pathname.startsWith('/assets/')) return true;
+  if (pathname.startsWith('/fonts/')) return true;
+  // Files with extensions (except .html) are static assets
+  if (/\.\w{2,5}$/.test(pathname) && !pathname.endsWith('.html')) return true;
+  return false;
+}
+
+/** Determine cache control based on asset type. */
+function getCacheControl(pathname: string): string {
+  if (pathname.startsWith('/assets/')) return IMMUTABLE_CACHE;
+  if (pathname.startsWith('/fonts/') || pathname.endsWith('.woff2')) return FONT_CACHE;
+  return STATIC_CACHE;
+}
+
+// ── Theme patching ─────────────────────────────────────────────────
+
+const DARK_THEME_COLOR = '#111110';
+const LIGHT_THEME_COLOR = '#fafafa';
+
+/**
+ * Patch theme-dependent values in pre-rendered HTML.
+ * Only modifies the HTML element attribute and meta theme-color,
+ * NOT the CSS selectors (which use bracket syntax `[data-theme="dark"]`).
+ */
+function patchTheme(html: string, theme: 'dark' | 'light'): string {
+  if (theme === 'dark') return html;
+
+  // Replace the HTML element's data-theme attribute (not CSS selectors)
+  // CSS selectors use [data-theme="dark"], HTML uses data-theme="dark"
+  // We target the specific pattern: `<div data-theme="dark">`
+  let patched = html.replace('<div data-theme="dark">', '<div data-theme="light">');
+
+  // Update meta theme-color for light mode
+  patched = patched.replace(`content="${DARK_THEME_COLOR}"`, `content="${LIGHT_THEME_COLOR}"`);
+
+  return patched;
+}
+
+// ── Worker ─────────────────────────────────────────────────────────
 
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
     const pathname = url.pathname;
-    const isHTML = isHTMLRoute(pathname);
 
-    // ── 1. Check Worker-level cache (Cache API) ─────────────────
-    // Mutable content (HTML) uses a versioned cache key so deploys
-    // instantly invalidate without needing API-based cache purge.
-    // Immutable content (hashed assets, fonts) uses the raw URL.
-    const cache = caches.default;
-    const cacheKey = buildCacheKey(url, isHTML);
+    // ── Static assets: passthrough with cache headers ──────────
+    if (isStaticAsset(pathname)) {
+      const response = await env.ASSETS.fetch(request);
+      if (response.status !== 200) return response;
 
-    const cachedResponse = await cache.match(cacheKey);
-    if (cachedResponse) {
-      return cachedResponse;
+      const headers = new Headers(response.headers);
+      headers.set('Cache-Control', getCacheControl(pathname));
+      for (const [key, value] of Object.entries(SECURITY_HEADERS)) {
+        headers.set(key, value);
+      }
+
+      return new Response(response.body, {
+        status: response.status,
+        statusText: response.statusText,
+        headers,
+      });
     }
 
-    // ── 2. Fetch from ASSETS binding ────────────────────────────
-    const cacheControl = getCacheControl(pathname);
+    // ── HTML routes: fetch pre-rendered, patch theme ───────────
+    const theme = getThemeFromCookie(request);
+    const assetResponse = await env.ASSETS.fetch(request);
 
-    // Try Brotli pre-compressed version first, fall back to original
-    let assetResponse: Response =
-      (await tryBrotli(request, env, pathname)) ?? (await env.ASSETS.fetch(request));
-
-    // ── 3. SPA fallback ─────────────────────────────────────────
-    // wrangler's not_found_handling = "single-page-application" is
-    // the safety net, but we handle it explicitly for cache control.
-    if (assetResponse.status === 404 && isHTML) {
-      const fallbackRequest = new Request(new URL('/', request.url), request);
-      assetResponse = await env.ASSETS.fetch(fallbackRequest);
+    if (assetResponse.status !== 200) {
+      return assetResponse;
     }
 
-    // ── 4. Add performance headers ──────────────────────────────
-    const response = addHeaders(assetResponse, cacheControl);
+    const html = await assetResponse.text();
+    const patched = patchTheme(html, theme);
 
-    // ── 5. Store in Worker-level cache ──────────────────────────
-    if (response.status === 200) {
-      cache.put(cacheKey, response.clone());
+    const headers = new Headers();
+    headers.set('Content-Type', 'text/html; charset=utf-8');
+    headers.set('Cache-Control', HTML_CACHE);
+    headers.set('Vary', 'Cookie');
+    for (const [key, value] of Object.entries(SECURITY_HEADERS)) {
+      headers.set(key, value);
     }
 
-    return response;
+    return new Response(patched, { status: 200, headers });
   },
 } satisfies ExportedHandler<Env>;
-
-// ── Cache key construction ────────────────────────────────────────
-
-/**
- * Build a cache key for the request.
- *
- * - HTML pages: URL + deploy version → cache invalidated on every deploy
- * - Hashed assets: raw URL → cached forever (URL changes on content change)
- */
-export function buildCacheKey(url: URL, isHTML: boolean): Request {
-  if (isHTML) {
-    const versionedUrl = new URL(url.toString());
-    versionedUrl.searchParams.set('__v', deployVersion);
-    return new Request(versionedUrl.toString(), { method: 'GET' });
-  }
-  return new Request(url.toString(), { method: 'GET' });
-}
-
-/**
- * Try to serve a pre-compressed Brotli version of the asset.
- * Returns null if client doesn't accept Brotli or .br file doesn't exist.
- */
-export async function tryBrotli(
-  request: Request,
-  env: Env,
-  pathname: string,
-): Promise<Response | null> {
-  const ext = pathname.substring(pathname.lastIndexOf('.'));
-  if (!COMPRESSIBLE_EXTENSIONS.has(ext)) return null;
-
-  const acceptEncoding = request.headers.get('Accept-Encoding') || '';
-  if (!acceptEncoding.includes('br')) return null;
-
-  const brUrl = new URL(request.url);
-  brUrl.pathname = `${pathname}.br`;
-  const brRequest = new Request(brUrl.toString(), request);
-
-  try {
-    const brResponse = await env.ASSETS.fetch(brRequest);
-    if (brResponse.status === 200) {
-      const headers = new Headers(brResponse.headers);
-      headers.set('Content-Encoding', 'br');
-      headers.set('Content-Type', getContentType(pathname));
-      return new Response(brResponse.body, { status: 200, headers });
-    }
-  } catch {
-    // .br file doesn't exist, fall through
-  }
-
-  return null;
-}
-
-/** Build a new response with cache and security headers. */
-export function addHeaders(response: Response, cacheControl: string): Response {
-  const headers = new Headers(response.headers);
-  headers.set('Cache-Control', cacheControl);
-
-  // Security headers
-  headers.set('X-Content-Type-Options', 'nosniff');
-  headers.set('X-Frame-Options', 'DENY');
-  headers.set('Referrer-Policy', 'strict-origin-when-cross-origin');
-
-  return new Response(response.body, {
-    status: response.status,
-    statusText: response.statusText,
-    headers,
-  });
-}
-
-/** Determine the cache control header based on the request path. */
-export function getCacheControl(pathname: string): string {
-  if (pathname.startsWith('/assets/')) return IMMUTABLE_CACHE;
-  if (pathname.startsWith('/fonts/') || pathname.endsWith('.woff2')) return FONT_CACHE;
-  if (/\.\w{2,5}$/.test(pathname) && !pathname.endsWith('.html')) return STATIC_CACHE;
-  return HTML_CACHE;
-}
-
-/** Check if a path looks like an HTML page route (no file extension, or .html). */
-export function isHTMLRoute(pathname: string): boolean {
-  if (pathname.endsWith('.html')) return true;
-  return !/\.\w{2,5}$/.test(pathname);
-}
-
-/** Map file extensions to MIME types for Brotli responses. */
-export function getContentType(pathname: string): string {
-  const ext = pathname.substring(pathname.lastIndexOf('.'));
-  switch (ext) {
-    case '.html':
-      return 'text/html; charset=utf-8';
-    case '.js':
-      return 'application/javascript; charset=utf-8';
-    case '.css':
-      return 'text/css; charset=utf-8';
-    case '.svg':
-      return 'image/svg+xml';
-    case '.xml':
-      return 'application/xml';
-    case '.json':
-      return 'application/json; charset=utf-8';
-    case '.txt':
-      return 'text/plain; charset=utf-8';
-    default:
-      return 'application/octet-stream';
-  }
-}
