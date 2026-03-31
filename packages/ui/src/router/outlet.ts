@@ -6,7 +6,13 @@
  * when rendering nested routes.
  */
 
-import { type Context, createContext, useContext } from '../component/context';
+import {
+  type Context,
+  createContext,
+  getContextScope,
+  setContextScope,
+  useContext,
+} from '../component/context';
 import {
   beginDeferringMounts,
   discardDeferredMounts,
@@ -79,64 +85,79 @@ export function Outlet(): HTMLElement {
       childCleanups = pushScope();
 
       if (factory) {
+        // Capture the full context scope while ancestor Providers are active.
+        // Dynamic imports resolve after the synchronous Provider stack unwinds,
+        // so we restore this scope in the async handler to propagate ancestor
+        // contexts (e.g., ThemeContext) to the lazy component. (#2163)
+        const capturedScope = getContextScope();
+
         const result = factory();
         if (result instanceof Promise) {
           // Capture the router for context restoration in the async callback.
           const router = ctx.router;
           popScope();
-          result.then((mod) => {
-            // Guard against stale resolution from rapid navigation.
-            if (gen !== renderGen) return;
+          result
+            .then((mod) => {
+              // Guard against stale resolution from rapid navigation.
+              if (gen !== renderGen) return;
 
-            let node!: Node;
-            childCleanups = pushScope();
+              let node!: Node;
+              childCleanups = pushScope();
 
-            try {
-              if (wasHydrating) {
-                // Re-enter hydration scoped to this container so the
-                // lazy component claims SSR nodes via __element()
-                // instead of creating new ones.
-                // Wrap with beginDeferringMounts/flushDeferredMounts so
-                // onMount in the lazy component runs after mini-hydration.
-                beginDeferringMounts();
-                startHydration(container);
-                let miniHydrationOk = false;
-                try {
+              // Restore ancestor context scope so RouterContext.Provider
+              // inherits all contexts that were active above the Outlet.
+              const prevScope = setContextScope(capturedScope);
+              try {
+                if (wasHydrating) {
+                  // Re-enter hydration scoped to this container so the
+                  // lazy component claims SSR nodes via __element()
+                  // instead of creating new ones.
+                  // Wrap with beginDeferringMounts/flushDeferredMounts so
+                  // onMount in the lazy component runs after mini-hydration.
+                  beginDeferringMounts();
+                  startHydration(container);
+                  let miniHydrationOk = false;
+                  try {
+                    RouterContext.Provider(router, () => {
+                      node = (mod as { default: () => Node }).default();
+                      __append(container, node);
+                    });
+                    miniHydrationOk = true;
+                  } finally {
+                    endHydration();
+                    if (miniHydrationOk) {
+                      flushDeferredMounts();
+                    } else {
+                      discardDeferredMounts();
+                    }
+                  }
+                  // Safety fallback: if the component's root wasn't claimed
+                  // (SSR/client tree mismatch), fall back to CSR append.
+                  if (!container.contains(node)) {
+                    while (container.firstChild) {
+                      container.removeChild(container.firstChild);
+                    }
+                    container.appendChild(node);
+                  }
+                } else {
+                  // CSR: clear existing content and append the new component.
+                  while (container.firstChild) {
+                    container.removeChild(container.firstChild);
+                  }
                   RouterContext.Provider(router, () => {
                     node = (mod as { default: () => Node }).default();
                     __append(container, node);
                   });
-                  miniHydrationOk = true;
-                } finally {
-                  endHydration();
-                  if (miniHydrationOk) {
-                    flushDeferredMounts();
-                  } else {
-                    discardDeferredMounts();
-                  }
                 }
-                // Safety fallback: if the component's root wasn't claimed
-                // (SSR/client tree mismatch), fall back to CSR append.
-                if (!container.contains(node)) {
-                  while (container.firstChild) {
-                    container.removeChild(container.firstChild);
-                  }
-                  container.appendChild(node);
-                }
-              } else {
-                // CSR: clear existing content and append the new component.
-                while (container.firstChild) {
-                  container.removeChild(container.firstChild);
-                }
-                RouterContext.Provider(router, () => {
-                  node = (mod as { default: () => Node }).default();
-                  __append(container, node);
-                });
+              } finally {
+                setContextScope(prevScope);
+                popScope();
               }
-            } finally {
-              popScope();
-            }
-          });
+            })
+            .catch(() => {
+              // Dynamic import rejected — Outlet has no error fallback mechanism.
+              // Catch to prevent unhandled promise rejection.
+            });
         } else {
           __append(container, result);
           // Safety fallback: if hydration suppressed __append and the node
