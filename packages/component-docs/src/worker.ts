@@ -87,7 +87,11 @@ async function getSSRHandler(env: Env): Promise<(request: Request) => Promise<Re
     );
   }
 
-  const template = await templatePromise;
+  let template = await templatePromise;
+
+  // Strip modulepreload links baked in by the bundler — the SSR handler
+  // injects only the route-relevant preloads per request.
+  template = template.replace(/\s*<link rel="modulepreload" href="[^"]*">\n?/g, '');
 
   ssrHandler = createSSRHandler({
     module: ssrModule,
@@ -129,6 +133,17 @@ export default {
     const handler = await getSSRHandler(env);
     const response = await handler(request);
 
+    // Read theme from cookie so we can set data-theme on <html> to prevent
+    // FOUC — the CSS defines :root as light and [data-theme="dark"] as dark,
+    // so without data-theme on <html> the browser briefly renders light colors
+    // before it reaches the <div data-theme="dark"> deep in the body.
+    const cookieHeader = request.headers.get('Cookie') ?? '';
+    const themeMatch = cookieHeader.match(/(?:^|; )theme=(light|dark)/);
+    const theme = themeMatch?.[1] ?? 'dark';
+
+    let html = await response.text();
+    html = html.replace('<html lang="en">', `<html lang="en" data-theme="${theme}">`);
+
     // Add security headers + Vary: Cookie to SSR response
     const headers = new Headers(response.headers);
     headers.set('Vary', 'Cookie');
@@ -136,7 +151,7 @@ export default {
       headers.set(key, value);
     }
 
-    return new Response(response.body, {
+    return new Response(html, {
       status: response.status,
       statusText: response.statusText,
       headers,
