@@ -1,6 +1,5 @@
 import type MagicString from 'magic-string';
-import type { SourceFile } from 'ts-morph';
-import { ts } from 'ts-morph';
+import ts from 'typescript';
 
 /**
  * Inject stable IDs into createContext() calls for HMR support.
@@ -12,14 +11,14 @@ import { ts } from 'ts-morph';
  */
 export function injectContextStableIds(
   source: MagicString,
-  sourceFile: SourceFile,
+  sourceFile: ts.SourceFile,
   relFilePath: string,
 ): void {
-  for (const stmt of sourceFile.getStatements()) {
-    if (!ts.isVariableStatement(stmt.compilerNode)) continue;
-    for (const decl of stmt.compilerNode.declarationList.declarations) {
+  for (const stmt of sourceFile.statements) {
+    if (!ts.isVariableStatement(stmt)) continue;
+    for (const decl of stmt.declarationList.declarations) {
       if (!decl.initializer || !ts.isCallExpression(decl.initializer)) continue;
-      const callText = decl.initializer.expression.getText(sourceFile.compilerNode);
+      const callText = decl.initializer.expression.getText(sourceFile);
       if (callText !== 'createContext') continue;
       if (!ts.isIdentifier(decl.name)) continue;
 

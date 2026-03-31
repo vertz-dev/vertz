@@ -358,7 +358,7 @@ function extractFieldFromChain(chain: string[]): { field: string; nestedPath: st
   // Strip structural prefix properties: data, items (only from leading positions)
   const structural = new Set(['data', 'items']);
   let prefixEnd = 0;
-  while (prefixEnd < path.length && path[prefixEnd] && structural.has(path[prefixEnd])) {
+  while (prefixEnd < path.length && path[prefixEnd] && structural.has(path[prefixEnd]!)) {
     prefixEnd++;
   }
   const fieldParts = path.slice(prefixEnd);

@@ -351,7 +351,7 @@ function isDirectory(p: string): boolean {
  */
 function matchTsconfigPath(specifier: string, pattern: string): string | null {
   if (pattern.includes('*')) {
-    const [prefix, suffix] = pattern.split('*');
+    const [prefix, suffix] = pattern.split('*') as [string, string];
     if (specifier.startsWith(prefix) && specifier.endsWith(suffix)) {
       return specifier.slice(prefix.length, specifier.length - suffix.length);
     }

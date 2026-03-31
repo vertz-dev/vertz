@@ -235,7 +235,6 @@ export function Simple() {
       expect(doneEntries[0]?.data).toBeDefined();
       expect(typeof doneEntries[0]?.data?.durationMs).toBe('number');
       expect(typeof doneEntries[0]?.data?.stages).toBe('string');
-      expect(doneEntries[0]?.data?.stages as string).toContain('hydration');
       expect(doneEntries[0]?.data?.stages as string).toContain('compile');
       expect(doneEntries[0]?.data?.stages as string).toContain('sourceMap');
     });
@@ -421,8 +420,9 @@ export function CSSComponent() {
 
       const result = await runPluginOnLoad(plugin, filePath);
 
-      // The output should start with the CSS import
-      expect(result.contents.trimStart().startsWith("import '")).toBe(true);
+      // The output should contain the CSS sidecar import
+      expect(result.contents).toContain("import '");
+      expect(result.contents).toContain('.css');
     });
   });
 
@@ -589,9 +589,7 @@ export function CSSComponent() {
   });
 
   describe('route splitting', () => {
-    it('transforms route file with diagnostics logging when routeSplitting is enabled', async () => {
-      const logger = createMockLogger(new Set(['plugin']));
-
+    it('compiles route file with routeSplitting enabled via native compiler', async () => {
       const filePath = project.write(
         'routes.tsx',
         `
@@ -617,21 +615,16 @@ export const routes = defineRoutes({
         hmr: false,
         fastRefresh: false,
         routeSplitting: true,
-        logger,
       });
 
-      await runPluginOnLoad(plugin, filePath);
+      const result = await runPluginOnLoad(plugin, filePath);
 
-      // Route split logging should appear
-      const routeSplitEntries = logger.entries.filter(
-        (e) => e.message === 'route-split' || e.message === 'route-split-skip',
-      );
-      expect(routeSplitEntries.length).toBeGreaterThan(0);
+      // Native compiler should have compiled the route file
+      expect(result.contents).toBeDefined();
+      expect(result.loader).toBe('tsx');
     });
 
-    it('registers .ts file handler when routeSplitting is enabled', async () => {
-      const logger = createMockLogger(new Set(['plugin']));
-
+    it('only registers one onLoad handler (native compiler handles .ts route splitting)', () => {
       project.write('app.tsx', 'export function App() { return <div />; }');
 
       const { plugin } = createVertzBunPlugin({
@@ -641,7 +634,6 @@ export const routes = defineRoutes({
         hmr: false,
         fastRefresh: false,
         routeSplitting: true,
-        logger,
       });
 
       // Capture all onLoad handlers
@@ -652,90 +644,9 @@ export const routes = defineRoutes({
         },
       });
 
-      // Should have two handlers: one for .tsx and one for .ts
-      expect(handlers.length).toBe(2);
-      const tsHandler = handlers.find((h) => h.opts.filter.test('file.ts'));
-      expect(tsHandler).toBeDefined();
-    });
-
-    it('processes .ts route files with defineRoutes and vertz import', async () => {
-      const logger = createMockLogger(new Set(['plugin']));
-
-      const filePath = project.write(
-        'routes.ts',
-        `
-import { defineRoutes, lazy } from '@vertz/ui';
-
-export const routes = defineRoutes({
-  '/': { component: lazy(() => import('./pages/home')) },
-});
-`,
-      );
-
-      project.write('pages/home.tsx', 'export function Home() { return <div>Home</div>; }');
-
-      const { plugin } = createVertzBunPlugin({
-        projectRoot: project.dir,
-        srcDir: project.srcDir,
-        cssOutDir: project.cssDir,
-        hmr: false,
-        fastRefresh: false,
-        routeSplitting: true,
-        logger,
-      });
-
-      // Capture .ts handler and invoke it
-      let tsHandler: ((args: { path: string }) => Promise<any>) | null = null;
-      plugin.setup({
-        onLoad(opts: { filter: RegExp }, cb: any) {
-          if (opts.filter.test('file.ts')) {
-            tsHandler = cb;
-          }
-        },
-      });
-
-      expect(tsHandler).not.toBeNull();
-      const result = await tsHandler!({ path: filePath });
-      expect(result.loader).toBe('ts');
-      expect(result.contents).toBeDefined();
-    });
-
-    it('skips .ts files without defineRoutes() or @vertz/ui import', async () => {
-      project.write('app.tsx', 'export function App() { return <div />; }');
-
-      const filePath = project.write(
-        'utils.ts',
-        `
-export function formatDate(date: Date): string {
-  return date.toISOString();
-}
-`,
-      );
-
-      const { plugin } = createVertzBunPlugin({
-        projectRoot: project.dir,
-        srcDir: project.srcDir,
-        cssOutDir: project.cssDir,
-        hmr: false,
-        fastRefresh: false,
-        routeSplitting: true,
-      });
-
-      // Capture .ts handler
-      let tsHandler: ((args: { path: string }) => Promise<any>) | null = null;
-      plugin.setup({
-        onLoad(opts: { filter: RegExp }, cb: any) {
-          if (opts.filter.test('file.ts')) {
-            tsHandler = cb;
-          }
-        },
-      });
-
-      expect(tsHandler).not.toBeNull();
-      const result = await tsHandler!({ path: filePath });
-      // Should return the source unchanged
-      expect(result.contents).toContain('formatDate');
-      expect(result.loader).toBe('ts');
+      // Native compiler handles route splitting — no separate .ts handler
+      expect(handlers.length).toBe(1);
+      expect(handlers[0].opts.filter).toEqual(/\.tsx$/);
     });
   });
 

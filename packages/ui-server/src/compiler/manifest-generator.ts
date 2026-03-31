@@ -545,13 +545,13 @@ const REACTIVITY_RANK: Record<string, number> = {
 };
 
 function mostReactiveShape(shapes: ReactivityShape[]): ReactivityShape {
-  let best = shapes[0];
+  let best = shapes[0]!;
   let bestRank = REACTIVITY_RANK[best.type] ?? 0;
 
   for (let i = 1; i < shapes.length; i++) {
-    const rank = REACTIVITY_RANK[shapes[i].type] ?? 0;
+    const rank = REACTIVITY_RANK[shapes[i]!.type] ?? 0;
     if (rank > bestRank) {
-      best = shapes[i];
+      best = shapes[i]!;
       bestRank = rank;
     }
   }

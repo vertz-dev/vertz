@@ -2,13 +2,13 @@
  * Image transform — detects <Image> from @vertz/ui with static src
  * and replaces with optimized <picture> + <source> + <img> markup.
  *
- * Uses ts-morph for AST-based detection and MagicString for replacement.
+ * Uses TypeScript's compiler API for AST-based detection and MagicString for replacement.
  * Runs pre-compilation (before the JSX compiler) so the output is
  * standard HTML elements the compiler already handles.
  */
 
 import MagicString from 'magic-string';
-import { Project, ts } from 'ts-morph';
+import ts from 'typescript';
 
 export interface ImageTransformOptions {
   projectRoot: string;
@@ -81,9 +81,14 @@ export function transformImages(
     return { code: source, map: null, transformed: false };
   }
 
-  // Parse with ts-morph for reliable AST analysis
-  const project = new Project({ useInMemoryFileSystem: true });
-  const sourceFile = project.createSourceFile(filePath, source, { overwrite: true });
+  // Parse with TypeScript compiler API for reliable AST analysis
+  const sourceFile = ts.createSourceFile(
+    filePath,
+    source,
+    ts.ScriptTarget.Latest,
+    true,
+    ts.ScriptKind.TSX,
+  );
 
   // Find all JSX elements matching the local Image binding
   const jsxElements = findImageJsxElements(sourceFile, localName);
@@ -95,7 +100,7 @@ export function transformImages(
   let transformed = false;
 
   // Process from last to first to avoid offset shifts
-  const sorted = [...jsxElements].sort((a, b) => b.getStart() - a.getStart());
+  const sorted = [...jsxElements].sort((a, b) => b.getStart(sourceFile) - a.getStart(sourceFile));
 
   for (const element of sorted) {
     const props = extractStaticProps(element, sourceFile);
@@ -142,7 +147,7 @@ export function transformImages(
       '</picture>',
     ].join('');
 
-    s.overwrite(element.getStart(), element.getEnd(), replacement);
+    s.overwrite(element.getStart(sourceFile), element.end, replacement);
     transformed = true;
   }
 
@@ -162,7 +167,7 @@ export function transformImages(
  * Handles aliased imports: `import { Image as Img } from '@vertz/ui'`
  */
 function findImageImportName(source: string): string | null {
-  // Quick regex pre-check for the import — avoids ts-morph for files without it
+  // Quick regex pre-check for the import — avoids AST parse for files without it
   const importMatch = source.match(
     /import\s*\{[^}]*\bImage\b(?:\s+as\s+(\w+))?[^}]*\}\s*from\s*['"]@vertz\/ui['"]/,
   );
@@ -174,14 +179,14 @@ function findImageImportName(source: string): string | null {
  * Find all JSX self-closing elements matching the given tag name.
  */
 function findImageJsxElements(
-  sourceFile: ReturnType<Project['createSourceFile']>,
+  sourceFile: ts.SourceFile,
   localName: string,
 ): ts.JsxSelfClosingElement[] {
   const results: ts.JsxSelfClosingElement[] = [];
 
   function visit(node: ts.Node) {
     if (ts.isJsxSelfClosingElement(node)) {
-      const tagName = node.tagName.getText(sourceFile.compilerNode);
+      const tagName = node.tagName.getText(sourceFile);
       if (tagName === localName) {
         results.push(node);
       }
@@ -189,7 +194,7 @@ function findImageJsxElements(
     ts.forEachChild(node, visit);
   }
 
-  visit(sourceFile.compilerNode);
+  visit(sourceFile);
   return results;
 }
 
@@ -199,7 +204,7 @@ function findImageJsxElements(
  */
 function extractStaticProps(
   element: ts.JsxSelfClosingElement,
-  sourceFile: ReturnType<Project['createSourceFile']>,
+  sourceFile: ts.SourceFile,
 ): StaticImageProps | null {
   const attrs = element.attributes;
 
@@ -242,7 +247,7 @@ function extractStaticProps(
   for (const attr of attrs.properties) {
     if (!ts.isJsxAttribute(attr)) continue;
 
-    const name = attr.name.getText(sourceFile.compilerNode);
+    const name = attr.name.getText(sourceFile);
     const value = attr.initializer;
 
     switch (name) {
@@ -345,7 +350,7 @@ function extractStaticProps(
  */
 function extractStaticString(
   value: ts.JsxAttributeValue | undefined,
-  _sourceFile: ReturnType<Project['createSourceFile']>,
+  _sourceFile: ts.SourceFile,
 ): string | null {
   if (!value) return null;
 
@@ -378,7 +383,7 @@ function extractStaticString(
  */
 function extractStaticNumber(
   value: ts.JsxAttributeValue | undefined,
-  _sourceFile: ReturnType<Project['createSourceFile']>,
+  _sourceFile: ts.SourceFile,
 ): number | null {
   if (!value) return null;
 
@@ -399,7 +404,7 @@ function extractStaticNumber(
  */
 function extractStaticBoolean(
   value: ts.JsxAttributeValue | undefined,
-  _sourceFile: ReturnType<Project['createSourceFile']>,
+  _sourceFile: ts.SourceFile,
 ): boolean | null {
   if (!value) return null;
 

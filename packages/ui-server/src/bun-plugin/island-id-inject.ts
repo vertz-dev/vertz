@@ -1,6 +1,5 @@
 import type MagicString from 'magic-string';
-import type { SourceFile } from 'ts-morph';
-import { ts } from 'ts-morph';
+import ts from 'typescript';
 
 /**
  * Inject stable IDs into <Island> JSX elements.
@@ -19,7 +18,7 @@ import { ts } from 'ts-morph';
  */
 export function injectIslandIds(
   source: MagicString,
-  sourceFile: SourceFile,
+  sourceFile: ts.SourceFile,
   relFilePath: string,
 ): void {
   const originalSource = source.original;
@@ -72,14 +71,14 @@ function findIslandImportName(source: string): string | null {
  * Find all JSX self-closing elements matching the given tag name.
  */
 function findIslandJsxElements(
-  sourceFile: SourceFile,
+  sourceFile: ts.SourceFile,
   localName: string,
 ): ts.JsxSelfClosingElement[] {
   const results: ts.JsxSelfClosingElement[] = [];
 
   function visit(node: ts.Node) {
     if (ts.isJsxSelfClosingElement(node)) {
-      const tagName = node.tagName.getText(sourceFile.compilerNode);
+      const tagName = node.tagName.getText(sourceFile);
       if (tagName === localName) {
         results.push(node);
       }
@@ -87,17 +86,17 @@ function findIslandJsxElements(
     ts.forEachChild(node, visit);
   }
 
-  visit(sourceFile.compilerNode);
+  visit(sourceFile);
   return results;
 }
 
 /**
  * Check if the JSX element already has an `id` prop.
  */
-function hasIdProp(element: ts.JsxSelfClosingElement, sourceFile: SourceFile): boolean {
+function hasIdProp(element: ts.JsxSelfClosingElement, sourceFile: ts.SourceFile): boolean {
   for (const attr of element.attributes.properties) {
     if (ts.isJsxAttribute(attr)) {
-      const name = attr.name.getText(sourceFile.compilerNode);
+      const name = attr.name.getText(sourceFile);
       if (name === 'id') return true;
     }
   }
@@ -112,12 +111,12 @@ function hasIdProp(element: ts.JsxSelfClosingElement, sourceFile: SourceFile): b
  */
 function extractComponentName(
   element: ts.JsxSelfClosingElement,
-  sourceFile: SourceFile,
+  sourceFile: ts.SourceFile,
 ): string | null {
   for (const attr of element.attributes.properties) {
     if (!ts.isJsxAttribute(attr)) continue;
 
-    const name = attr.name.getText(sourceFile.compilerNode);
+    const name = attr.name.getText(sourceFile);
     if (name !== 'component') continue;
 
     const value = attr.initializer;

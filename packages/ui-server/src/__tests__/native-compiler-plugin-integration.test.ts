@@ -1,28 +1,25 @@
 /**
  * Tests for native compiler integration with the Bun plugin.
  *
- * Verifies that the plugin correctly uses the native Rust compiler
- * when VERTZ_NATIVE_COMPILER=1 is set, and falls back to ts-morph otherwise.
+ * Verifies that the plugin correctly uses the native Rust compiler.
+ * The native compiler is the sole compilation path (no ts-morph fallback).
  */
 
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { tryLoadNativeCompiler } from '../bun-plugin/native-compiler-loader';
+import { loadNativeCompiler } from '../compiler/native-compiler';
 import { createVertzBunPlugin } from '../bun-plugin/plugin';
 
 // Check if the native binary is available on this platform
 function isNativeBinaryAvailable(): boolean {
-  const prev = process.env.VERTZ_NATIVE_COMPILER;
-  process.env.VERTZ_NATIVE_COMPILER = '1';
-  const compiler = tryLoadNativeCompiler();
-  if (prev === undefined) {
-    delete process.env.VERTZ_NATIVE_COMPILER;
-  } else {
-    process.env.VERTZ_NATIVE_COMPILER = prev;
+  try {
+    loadNativeCompiler();
+    return true;
+  } catch {
+    return false;
   }
-  return compiler !== null;
 }
 
 const HAS_NATIVE_BINARY = isNativeBinaryAvailable();
@@ -81,7 +78,6 @@ async function runPluginOnLoad(
 // ── Tests ────────────────────────────────────────────────────────
 
 describe('Feature: Native compiler plugin integration', () => {
-  const originalEnv = process.env.VERTZ_NATIVE_COMPILER;
   let project: ReturnType<typeof createTempProject>;
 
   beforeEach(() => {
@@ -90,23 +86,14 @@ describe('Feature: Native compiler plugin integration', () => {
 
   afterEach(() => {
     project.cleanup();
-    if (originalEnv === undefined) {
-      delete process.env.VERTZ_NATIVE_COMPILER;
-    } else {
-      process.env.VERTZ_NATIVE_COMPILER = originalEnv;
-    }
   });
 
   // Tests below require the native binary — skip on platforms where it's not built
   const describeWithBinary = HAS_NATIVE_BINARY ? describe : describe.skip;
 
-  describeWithBinary('Given VERTZ_NATIVE_COMPILER=1 and a simple component', () => {
-    beforeEach(() => {
-      process.env.VERTZ_NATIVE_COMPILER = '1';
-    });
-
+  describeWithBinary('Given a simple component', () => {
     describe('When the plugin processes the file', () => {
-      it('Then produces compiled output with native compiler marker', async () => {
+      it('Then produces compiled output with native compiler', async () => {
         const filePath = project.write('App.tsx', 'function App() { return <div>Hello</div>; }');
 
         const { plugin } = createVertzBunPlugin({
@@ -117,17 +104,12 @@ describe('Feature: Native compiler plugin integration', () => {
         });
 
         const result = await runPluginOnLoad(plugin, filePath);
-        expect(result.contents).toContain('// compiled by vertz-native');
         expect(result.contents).toContain('__element');
       });
     });
   });
 
-  describeWithBinary('Given VERTZ_NATIVE_COMPILER=1 and a component with signals', () => {
-    beforeEach(() => {
-      process.env.VERTZ_NATIVE_COMPILER = '1';
-    });
-
+  describeWithBinary('Given a component with signals', () => {
     describe('When the plugin processes the file', () => {
       it('Then produces reactive transforms (signal/computed)', async () => {
         const filePath = project.write(
@@ -153,13 +135,9 @@ describe('Feature: Native compiler plugin integration', () => {
     });
   });
 
-  describe('Given VERTZ_NATIVE_COMPILER is not set', () => {
-    beforeEach(() => {
-      delete process.env.VERTZ_NATIVE_COMPILER;
-    });
-
+  describeWithBinary('Given the native compiler is the sole compilation path', () => {
     describe('When the plugin processes the file', () => {
-      it('Then uses ts-morph compiler (no native marker)', async () => {
+      it('Then always uses the native compiler', async () => {
         const filePath = project.write('App.tsx', 'function App() { return <div>Hello</div>; }');
 
         const { plugin } = createVertzBunPlugin({
@@ -170,17 +148,12 @@ describe('Feature: Native compiler plugin integration', () => {
         });
 
         const result = await runPluginOnLoad(plugin, filePath);
-        expect(result.contents).not.toContain('// compiled by vertz-native');
         expect(result.contents).toContain('__element');
       });
     });
   });
 
-  describeWithBinary('Given VERTZ_NATIVE_COMPILER=1 and target=tui', () => {
-    beforeEach(() => {
-      process.env.VERTZ_NATIVE_COMPILER = '1';
-    });
-
+  describeWithBinary('Given target=tui', () => {
     describe('When the plugin processes the file', () => {
       it('Then uses tui internals import', async () => {
         const filePath = project.write(
@@ -205,11 +178,7 @@ describe('Feature: Native compiler plugin integration', () => {
     });
   });
 
-  describeWithBinary('Given VERTZ_NATIVE_COMPILER=1 and source map chaining', () => {
-    beforeEach(() => {
-      process.env.VERTZ_NATIVE_COMPILER = '1';
-    });
-
+  describeWithBinary('Given source map chaining', () => {
     describe('When the plugin processes the file', () => {
       it('Then produces output with inline source map', async () => {
         const filePath = project.write('App.tsx', 'function App() { return <div>Hello</div>; }');

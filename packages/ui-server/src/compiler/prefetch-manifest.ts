@@ -108,9 +108,9 @@ function findDefineRoutesArg(sf: ts.SourceFile): ts.ObjectLiteralExpression | un
       ts.isIdentifier(node.expression) &&
       node.expression.text === 'defineRoutes' &&
       node.arguments.length > 0 &&
-      ts.isObjectLiteralExpression(node.arguments[0])
+      ts.isObjectLiteralExpression(node.arguments[0]!)
     ) {
-      result = node.arguments[0];
+      result = node.arguments[0] as ts.ObjectLiteralExpression;
       return;
     }
     ts.forEachChild(node, visit);
@@ -193,8 +193,8 @@ function extractComponentNameFromExpr(expr: ts.Expression, sf: ts.SourceFile): s
   }
   // import('./pages/home') — dynamic import
   if (ts.isCallExpression(expr) && expr.expression.kind === ts.SyntaxKind.ImportKeyword) {
-    if (expr.arguments.length > 0 && ts.isStringLiteral(expr.arguments[0])) {
-      const name = componentNameFromPath(expr.arguments[0].text);
+    if (expr.arguments.length > 0 && ts.isStringLiteral(expr.arguments[0]!)) {
+      const name = componentNameFromPath((expr.arguments[0] as ts.StringLiteral).text);
       if (name) return name;
     }
   }
@@ -300,7 +300,7 @@ export function analyzeComponentQueries(sourceText: string, filePath: string): C
       node.expression.text === 'query' &&
       node.arguments.length > 0
     ) {
-      const queryInfo = extractQueryInfo(node.arguments[0], sf, params);
+      const queryInfo = extractQueryInfo(node.arguments[0]!, sf, params);
       if (queryInfo) {
         queries.push(queryInfo);
       }
@@ -332,18 +332,26 @@ function extractQueryInfo(
     // Extract argument bindings based on operation type
     if (operation === 'get' && arg.arguments.length > 0) {
       // get(id) or get(id, { select: {...} })
-      const idArg = arg.arguments[0];
+      const idArg = arg.arguments[0]!;
       if (ts.isIdentifier(idArg) && routeParams.includes(idArg.text)) {
         query.idParam = idArg.text;
       }
       // Second argument is options object: { select: {...} }
-      if (arg.arguments.length > 1 && ts.isObjectLiteralExpression(arg.arguments[1])) {
-        const bindings = extractObjectBindings(arg.arguments[1], sf, routeParams);
+      if (arg.arguments.length > 1 && ts.isObjectLiteralExpression(arg.arguments[1]!)) {
+        const bindings = extractObjectBindings(
+          arg.arguments[1] as ts.ObjectLiteralExpression,
+          sf,
+          routeParams,
+        );
         if (bindings) query.queryBindings = bindings;
       }
-    } else if (arg.arguments.length > 0 && ts.isObjectLiteralExpression(arg.arguments[0])) {
+    } else if (arg.arguments.length > 0 && ts.isObjectLiteralExpression(arg.arguments[0]!)) {
       // list({ where: {...}, select: {...}, ... })
-      const bindings = extractObjectBindings(arg.arguments[0], sf, routeParams);
+      const bindings = extractObjectBindings(
+        arg.arguments[0] as ts.ObjectLiteralExpression,
+        sf,
+        routeParams,
+      );
       if (bindings) query.queryBindings = bindings;
     }
 
