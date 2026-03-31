@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, test } from 'bun:test';
+import { createContext, useContext } from '../../component/context';
 import { onMount } from '../../component/lifecycle';
 import { __element, __enterChildren, __exitChildren } from '../../dom/element';
 import { endHydration, startHydration } from '../../hydrate/hydration-context';
@@ -1566,6 +1567,81 @@ describe('RouterView', () => {
     expect(view!.children.length).toBe(1);
     expect(view!.firstChild!.nodeName).toBe('SPAN');
     expect(view!.textContent).toBe('CSR Mismatch');
+    router.dispose();
+  });
+
+  test('propagates ancestor context to async/lazy route components (#2163)', async () => {
+    // Bug: when a route component is dynamically imported (code splitting),
+    // useContext() for contexts provided ABOVE RouterView returns undefined.
+    // The Provider._stack has already been popped by the time the Promise
+    // resolves, and the .then() handler only restores RouterContext.
+    const ThemeContext = createContext<string>();
+    let capturedTheme: string | undefined;
+
+    const routes = defineRoutes({
+      '/': {
+        component: () =>
+          Promise.resolve({
+            default: () => {
+              capturedTheme = useContext(ThemeContext);
+              const el = document.createElement('div');
+              el.textContent = capturedTheme ?? 'no-theme';
+              return el;
+            },
+          }),
+      },
+    });
+    const router = createRouter(routes, '/');
+    let view: HTMLElement;
+    ThemeContext.Provider('dark', () => {
+      RouterContext.Provider(router, () => {
+        view = RouterView({ router });
+      });
+    });
+    await new Promise((r) => setTimeout(r, 0));
+    expect(capturedTheme).toBe('dark');
+    expect(view!.textContent).toBe('dark');
+    router.dispose();
+  });
+
+  test('propagates ancestor context to async nested route via Outlet (#2163)', async () => {
+    // Same bug but through Outlet: a nested lazy child route should still
+    // see contexts provided above RouterView.
+    const AppContext = createContext<string>();
+    let capturedValue: string | undefined;
+
+    const routes = defineRoutes({
+      '/': {
+        component: () => {
+          const layout = document.createElement('div');
+          layout.setAttribute('data-testid', 'layout');
+          layout.appendChild(Outlet());
+          return layout;
+        },
+        children: {
+          '/child': {
+            component: () =>
+              Promise.resolve({
+                default: () => {
+                  capturedValue = useContext(AppContext);
+                  const el = document.createElement('div');
+                  el.textContent = capturedValue ?? 'no-context';
+                  return el;
+                },
+              }),
+          },
+        },
+      },
+    });
+    const router = createRouter(routes, '/child');
+    let view: HTMLElement;
+    AppContext.Provider('app-value', () => {
+      RouterContext.Provider(router, () => {
+        view = RouterView({ router });
+      });
+    });
+    await new Promise((r) => setTimeout(r, 0));
+    expect(capturedValue).toBe('app-value');
     router.dispose();
   });
 });

@@ -6,7 +6,13 @@
  * when rendering nested routes.
  */
 
-import { type Context, createContext, useContext } from '../component/context';
+import {
+  type Context,
+  createContext,
+  getContextScope,
+  setContextScope,
+  useContext,
+} from '../component/context';
 import {
   beginDeferringMounts,
   discardDeferredMounts,
@@ -79,6 +85,12 @@ export function Outlet(): HTMLElement {
       childCleanups = pushScope();
 
       if (factory) {
+        // Capture the full context scope while ancestor Providers are active.
+        // Dynamic imports resolve after the synchronous Provider stack unwinds,
+        // so we restore this scope in the async handler to propagate ancestor
+        // contexts (e.g., ThemeContext) to the lazy component. (#2163)
+        const capturedScope = getContextScope();
+
         const result = factory();
         if (result instanceof Promise) {
           // Capture the router for context restoration in the async callback.
@@ -91,6 +103,9 @@ export function Outlet(): HTMLElement {
             let node!: Node;
             childCleanups = pushScope();
 
+            // Restore ancestor context scope so RouterContext.Provider
+            // inherits all contexts that were active above the Outlet.
+            const prevScope = setContextScope(capturedScope);
             try {
               if (wasHydrating) {
                 // Re-enter hydration scoped to this container so the
@@ -134,6 +149,7 @@ export function Outlet(): HTMLElement {
                 });
               }
             } finally {
+              setContextScope(prevScope);
               popScope();
             }
           });

@@ -1,4 +1,5 @@
 import type { ErrorFallbackProps } from '../component/default-error-fallback';
+import { getContextScope, setContextScope } from '../component/context';
 import { ErrorBoundary } from '../component/error-boundary';
 import {
   beginDeferringMounts,
@@ -162,6 +163,12 @@ export function RouterView({ router, fallback, errorFallback }: RouterViewProps)
 
         let asyncRoute = false;
         RouterContext.Provider(router, () => {
+          // Capture the full context scope while ancestor Providers are active.
+          // Dynamic imports resolve after the synchronous Provider stack unwinds,
+          // so we restore this scope in the async handler to propagate ancestor
+          // contexts (e.g., ThemeContext) to the lazy component. (#2163)
+          const capturedScope = getContextScope();
+
           const result = rootFactory();
 
           if (result instanceof Promise) {
@@ -176,6 +183,9 @@ export function RouterView({ router, fallback, errorFallback }: RouterViewProps)
               let node!: Node;
               pageCleanups = pushScope();
 
+              // Restore ancestor context scope so RouterContext.Provider
+              // inherits all contexts that were active above RouterView.
+              const prevScope = setContextScope(capturedScope);
               try {
                 if (wasHydrating) {
                   // Re-enter hydration scoped to this container so the
@@ -244,6 +254,7 @@ export function RouterView({ router, fallback, errorFallback }: RouterViewProps)
                   throw thrown;
                 }
               } finally {
+                setContextScope(prevScope);
                 popScope();
               }
             });
