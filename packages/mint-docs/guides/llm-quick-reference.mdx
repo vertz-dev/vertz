@@ -162,6 +162,81 @@ const button = variants({
 });
 ```
 
+## Route Conventions (Critical)
+
+All API routes are prefixed with `/api/`. This is not optional.
+
+| Operation | HTTP Method | Route |
+|-----------|------------|-------|
+| List | GET | `/api/{entity}` |
+| Get | GET | `/api/{entity}/:id` |
+| Create | POST | `/api/{entity}` |
+| Update | **PATCH** | `/api/{entity}/:id` |
+| Delete | DELETE | `/api/{entity}/:id` |
+
+<Warning>
+**Vertz uses PATCH for updates, not PUT.** If you need PUT support, wrap the handler:
+
+```ts
+const apiHandler = async (req: Request) => {
+  if (req.method === 'PUT') {
+    return app.handler(new Request(req.url, { method: 'PATCH', headers: req.headers, body: req.body }));
+  }
+  return app.handler(req);
+};
+```
+</Warning>
+
+List responses return `{ items: T[], total, limit, nextCursor, hasNextPage }`, never a plain array.
+
+For service actions: `POST /api/{service}/{action}` (or GET with `method: 'GET'`).
+
+## Database Setup
+
+```ts
+import { createDb } from 'vertz/db';
+
+const db = createDb({
+  dialect: 'sqlite',
+  path: './data.db',
+  models: { tasks: tasksModel },
+  migrations: { autoApply: true },  // Auto-creates/updates tables on startup
+});
+```
+
+**Field types:** `d.uuid()`, `d.text()`, `d.boolean()`, `d.integer()`, `d.timestamp()`, `d.enum(['a','b'])`
+
+**Modifiers:** `.primary()`, `.default(value)`, `.readOnly()`, `.autoUpdate()`, `.unique()`, `.hidden()`, `.min(n)`, `.max(n)`
+
+<Warning>
+There is no `.optional()` modifier on `d` fields. Use `.default(value)` to make a field optional on create.
+</Warning>
+
+## Dev Server Setup
+
+For full-stack development (UI + API), the dev server is configured in `dev.ts`:
+
+```ts
+import { createBunDevServer } from '@vertz/ui-server/bun-dev-server';
+import { createServer } from 'vertz/server';
+import { createDb } from 'vertz/db';
+import { resolve } from 'path';
+
+const PORT = Number(process.env.PORT ?? 4200);
+
+const db = createDb({ dialect: 'sqlite', path: './data.db', models: { tasks: tasksModel }, migrations: { autoApply: true } });
+const app = createServer({ entities: [tasks], db });
+
+const server = createBunDevServer({
+  entry: resolve('./src/app.tsx'),
+  port: PORT,
+  apiHandler: app.handler,
+  projectRoot: process.cwd(),
+});
+
+await server.start();
+```
+
 ## Entities (Server)
 
 Define entities with `entity()` — each generates CRUD endpoints with access control:
@@ -176,6 +251,42 @@ const tasks = entity('tasks', {
 ```
 
 Access rules are required. Operations without access rules don't generate routes (deny-by-default).
+
+### Entity hooks (validation, side effects)
+
+```ts
+import { entity, BadRequestException } from 'vertz/server';
+
+const tasks = entity('tasks', {
+  model: tasksModel,
+  access: { list: () => true, get: () => true, create: () => true, update: () => true, delete: () => true },
+  before: {
+    create: (data) => {
+      if (!data.title?.trim()) throw new BadRequestException('title is required');
+      return data;
+    },
+  },
+});
+```
+
+### Services (custom endpoints)
+
+```ts
+import { service } from 'vertz/server';
+import { s } from 'vertz/schema';
+
+const health = service('health', {
+  access: { check: () => true },
+  actions: {
+    check: {
+      method: 'GET',
+      response: s.object({ status: s.string() }),
+      handler: async () => ({ status: 'ok' }),
+    },
+  },
+});
+// → GET /api/health/check
+```
 
 ## Domains (Server)
 

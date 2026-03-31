@@ -206,6 +206,9 @@
       "source": "/manifesto"
     }
   ],
+  "head": [
+    "<link rel=\"help\" type=\"text/plain\" href=\"/llms.txt\" title=\"LLM context\" />"
+  ],
   "theme": "mint",
   "llmsTxt": {
     "enabled": true
