@@ -31,6 +31,24 @@ The dev server automatically runs codegen and migrations when files change.
 - Refer to https://docs.vertz.dev for full framework documentation
 - Entity files use the \`.entity.ts\` suffix
 - The Vertz compiler handles all reactivity — never use \`.value\`, \`signal()\`, or \`computed()\` manually
+
+## Auto-Generated SDK
+
+Vertz auto-generates a fully typed SDK at \`.vertz/generated/\` from your entity and service definitions.
+The SDK is re-exported from \`src/client.ts\` as \`api\`. Use it for ALL data fetching and mutations.
+
+**NEVER use raw \`fetch()\` for API calls.** Always use the generated SDK methods with \`query()\` and \`form()\`:
+
+\`\`\`ts
+import { api } from './client';   // auto-generated typed SDK
+import { query, form } from 'vertz/ui';
+
+const tasks = query(api.tasks.list());          // entity CRUD
+const contactForm = form(api.support.send);     // service action
+\`\`\`
+
+Raw \`fetch()\` bypasses type safety, SSR integration, caching, and optimistic updates.
+The SDK runs codegen automatically during \`bun run dev\` and \`bun run build\`.
 `;
 }
 
@@ -119,6 +137,28 @@ Each entity automatically provides these operations:
 | \`update\`  | PATCH /api/<entity>/:id | Update existing record         |
 | \`delete\`  | DELETE /api/<entity>/:id| Delete record                  |
 
+## Auto-Generated SDK
+
+Entities and services automatically generate a typed SDK at \`.vertz/generated/\`.
+The SDK is consumed in the UI via \`src/client.ts\`:
+
+\`\`\`ts
+import { api } from '../client';
+
+// Entity CRUD — auto-generated from entity('posts', ...)
+api.posts.list();
+api.posts.get(id);
+api.posts.create({ title: 'Hello' });
+api.posts.update(id, { title: 'Updated' });
+api.posts.delete(id);
+
+// Service actions — auto-generated from service('notifications', ...)
+api.notifications.sendEmail({ to, subject, body });
+\`\`\`
+
+The SDK provides full type safety, SSR integration, caching, and optimistic updates.
+**NEVER use raw \`fetch()\` in UI code — always use the SDK.**
+
 ## Server Configuration
 
 Register all entities with \`createServer\`:
@@ -206,6 +246,26 @@ You write plain-looking code and the compiler makes it reactive automatically.
 \`\`\`ts
 import { css, query, globalCss, ThemeProvider, variants } from 'vertz/ui';
 import { api } from '../client';
+\`\`\`
+
+## IMPORTANT: Always Use the Generated SDK
+
+The \`api\` import from \`'../client'\` is a typed SDK auto-generated from your entity and service definitions.
+It provides typed methods for every entity CRUD operation and service action.
+
+**NEVER use raw \`fetch()\` for API calls.** Raw fetch bypasses:
+- Type safety (request/response types)
+- SSR data loading (causes loading flash)
+- Automatic cache invalidation
+- Optimistic updates
+
+\`\`\`tsx
+// WRONG — raw fetch
+const res = await fetch('/api/tasks');
+const tasks = await res.json();
+
+// RIGHT — use the auto-generated SDK
+const tasks = query(api.tasks.list());
 \`\`\`
 
 ## Components

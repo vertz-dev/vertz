@@ -27,17 +27,23 @@ bun run dev
 
 ## Data Fetching (UI)
 
+<Warning>
+**NEVER use raw `fetch()` to call your entity or service endpoints.** Vertz auto-generates a fully typed SDK from your entity and service definitions at `.vertz/generated/client.ts`. Raw `fetch()` bypasses type safety, SSR integration, caching, and optimistic updates. Always use the generated SDK with `query()` and `form()`. The only exception is truly custom non-SDK endpoints — wrap those in a `query()` thunk with a cache key.
+</Warning>
+
 Vertz automatically generates a typed SDK at `.vertz/generated/client.ts` during development (`vertz dev`) and builds. Create a client wrapper, then pass SDK method calls to `query()` for reactive data. **Never pass raw entity name strings.**
 
 ### Client setup
 
-Typically in `src/client.ts`:
+Typically in `src/client.ts` (scaffolded automatically):
 
 ```ts
-import { createClient } from '.vertz/generated/client';
+import { createClient } from '#generated';
 
-export const api = createClient({ baseURL: '/api' });
+export const api = createClient();
 ```
+
+The `#generated` import alias maps to `.vertz/generated/client.ts` (configured in `package.json`). The base URL defaults to `/api`.
 
 ### Fetching data in components
 
@@ -51,12 +57,17 @@ const filtered = query(api.tasks.list({ status: 'done', limit: 20 }));
 ```
 
 <Warning>
-Never pass raw strings to `query()`:
+Never pass raw strings to `query()`, and never use raw `fetch()`:
 
 ```ts
 // WRONG — will not work
 query('tasks');
 query('tasks', { limit: 5 });
+fetch('/api/tasks').then(r => r.json());
+
+// RIGHT — use the auto-generated SDK
+query(api.tasks.list());
+query(api.tasks.list({ limit: 5 }));
 ```
 
 </Warning>
@@ -176,6 +187,31 @@ const tasks = entity('tasks', {
 ```
 
 Access rules are required. Operations without access rules don't generate routes (deny-by-default).
+
+## Services (Server)
+
+Services generate SDK methods just like entities. Each service action becomes a typed method on the API client:
+
+```ts
+import { service } from 'vertz/server';
+import { s } from 'vertz/schema';
+
+const notifications = service('notifications', {
+  access: { sendEmail: () => true },
+  actions: {
+    sendEmail: {
+      body: s.object({ to: s.string().email(), subject: s.string(), body: s.string() }),
+      response: s.object({ id: s.string(), status: s.literal('sent') }),
+      handler: async (input) => {
+        await emailService.send(input);
+        return { id: crypto.randomUUID(), status: 'sent' as const };
+      },
+    },
+  },
+});
+```
+
+The generated SDK provides `api.notifications.sendEmail(...)` — use it with `form()` or call it directly. See [Services](/guides/server/services) for full documentation.
 
 ## Domains (Server)
 
