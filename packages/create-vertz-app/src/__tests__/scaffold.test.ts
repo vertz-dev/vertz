@@ -134,12 +134,12 @@ describe('scaffold', () => {
       expect(pkg.imports['#generated/types']).toBe('./.vertz/generated/types/index.ts');
     });
 
-    it('package.json includes vertz dev/build/codegen scripts', async () => {
+    it('package.json includes dev/build/codegen scripts', async () => {
       await scaffold(tempDir, defaultOptions);
 
       const content = await fs.readFile(projectPath('package.json'), 'utf-8');
       const pkg = JSON.parse(content);
-      expect(pkg.scripts.dev).toBe('vertz dev');
+      expect(pkg.scripts.dev).toBe('bun run dev.ts');
       expect(pkg.scripts.build).toBe('vertz build');
       expect(pkg.scripts.codegen).toBe('vertz codegen');
     });
