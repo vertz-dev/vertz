@@ -1,5 +1,5 @@
 import { Link } from '@vertz/ui/router';
-import { useTheme } from '../app';
+import { useTheme } from '../hooks/use-theme';
 import { ThemeCustomizer } from './theme-customizer';
 
 interface HeaderProps {
