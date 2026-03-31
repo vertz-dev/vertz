@@ -40,7 +40,11 @@ export const SIGNAL_API_REGISTRY: Record<string, SignalApiConfig> = {
  * reactive source APIs return objects where ALL property accesses
  * should be treated as reactive (e.g., useContext returns getter-wrapped objects).
  */
-export const REACTIVE_SOURCE_APIS = new Set(['useContext', 'useAuth', 'useSearchParams']);
+export const REACTIVE_SOURCE_APIS: Set<string> = new Set([
+  'useContext',
+  'useAuth',
+  'useSearchParams',
+]);
 
 /**
  * Check if a function name is a registered signal API.
