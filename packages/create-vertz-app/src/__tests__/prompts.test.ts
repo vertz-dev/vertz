@@ -81,6 +81,21 @@ describe('prompts', () => {
       expect(result.template).toBe('todo-app');
     });
 
+    it('accepts api template', async () => {
+      const result = await resolveOptions({ projectName: 'my-app', template: 'api' });
+      expect(result.template).toBe('api');
+    });
+
+    it('accepts ui template', async () => {
+      const result = await resolveOptions({ projectName: 'my-app', template: 'ui' });
+      expect(result.template).toBe('ui');
+    });
+
+    it('accepts full-stack template', async () => {
+      const result = await resolveOptions({ projectName: 'my-app', template: 'full-stack' });
+      expect(result.template).toBe('full-stack');
+    });
+
     it('throws InvalidTemplateError for unknown template', async () => {
       await expect(
         resolveOptions({ projectName: 'my-app', template: 'nonexistent' }),

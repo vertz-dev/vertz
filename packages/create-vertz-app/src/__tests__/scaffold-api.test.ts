@@ -270,3 +270,94 @@ describe('scaffold: --with custom composition', () => {
     expect(tsconfigExists).toBe(true);
   });
 });
+
+describe('scaffold: full-stack template', () => {
+  let tempDir: string;
+
+  beforeEach(async () => {
+    tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'vertz-scaffold-fs-'));
+  });
+
+  const fsOptions: ScaffoldOptions = { projectName: 'test-fs', template: 'full-stack' };
+
+  function projectPath(...segments: string[]): string {
+    return path.join(tempDir, 'test-fs', ...segments);
+  }
+
+  async function exists(filePath: string): Promise<boolean> {
+    try {
+      await fs.access(filePath);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  it('has both API and UI files', async () => {
+    await scaffold(tempDir, fsOptions);
+
+    expect(await exists(projectPath('src', 'api', 'server.ts'))).toBe(true);
+    expect(await exists(projectPath('src', 'app.tsx'))).toBe(true);
+    expect(await exists(projectPath('src', 'entry-client.ts'))).toBe(true);
+  });
+
+  it('has router (unlike todo-app)', async () => {
+    await scaffold(tempDir, fsOptions);
+
+    expect(await exists(projectPath('src', 'router.tsx'))).toBe(true);
+    expect(await exists(projectPath('src', 'pages', 'about.tsx'))).toBe(true);
+    expect(await exists(projectPath('src', 'components', 'nav-bar.tsx'))).toBe(true);
+  });
+
+  it('has client with #generated imports', async () => {
+    await scaffold(tempDir, fsOptions);
+
+    expect(await exists(projectPath('src', 'client.ts'))).toBe(true);
+
+    const pkg = JSON.parse(await fs.readFile(projectPath('package.json'), 'utf-8'));
+    expect(pkg.imports['#generated']).toBe('./.vertz/generated/client.ts');
+  });
+
+  it('has all scripts (dev, build, start, codegen)', async () => {
+    await scaffold(tempDir, fsOptions);
+
+    const pkg = JSON.parse(await fs.readFile(projectPath('package.json'), 'utf-8'));
+    expect(pkg.scripts.dev).toBe('vertz dev');
+    expect(pkg.scripts.build).toBe('vertz build');
+    expect(pkg.scripts.start).toBe('vertz start');
+    expect(pkg.scripts.codegen).toBe('vertz codegen');
+  });
+
+  it('has both theme and CLI deps', async () => {
+    await scaffold(tempDir, fsOptions);
+
+    const pkg = JSON.parse(await fs.readFile(projectPath('package.json'), 'utf-8'));
+    expect(pkg.dependencies['@vertz/theme-shadcn']).toBeDefined();
+    expect(pkg.devDependencies['@vertz/cli']).toBeDefined();
+    expect(pkg.devDependencies['@vertz/ui-compiler']).toBeDefined();
+  });
+
+  it('app.tsx has RouterContext.Provider and RouterView', async () => {
+    await scaffold(tempDir, fsOptions);
+
+    const content = await fs.readFile(projectPath('src', 'app.tsx'), 'utf-8');
+    expect(content).toContain('RouterContext.Provider');
+    expect(content).toContain('RouterView');
+    expect(content).toContain('appRouter');
+  });
+
+  it('CLAUDE.md describes full-stack project', async () => {
+    await scaffold(tempDir, fsOptions);
+
+    const content = await fs.readFile(projectPath('CLAUDE.md'), 'utf-8');
+    expect(content).toContain('full-stack');
+    expect(content).toContain('Routing');
+  });
+
+  it('has both api and ui development rules', async () => {
+    await scaffold(tempDir, fsOptions);
+
+    expect(await exists(projectPath('.claude', 'rules', 'api-development.md'))).toBe(true);
+    expect(await exists(projectPath('.claude', 'rules', 'ui-development.md'))).toBe(true);
+  });
+});
