@@ -2,8 +2,10 @@
  * Native compiler wrapper — loads the Rust-based Vertz compiler via NAPI
  * and exposes it with proper TypeScript types.
  *
- * This is the sole compilation path. The native compiler is required,
- * not optional. It replaces the ts-morph-based @vertz/ui-compiler.
+ * The native compiler is the primary compilation path. When the binary
+ * is not available (e.g. CI without a pre-built binary), compile() falls
+ * back to Bun's built-in JSX transpiler with a warning. compileForSsrAot()
+ * has no fallback and throws if the binary is missing.
  *
  * NAPI-RS auto-converts between Rust snake_case and JS camelCase
  * in both directions, so our TypeScript interfaces use camelCase
@@ -120,6 +122,8 @@ interface RawNativeCompiler {
 // ─── Loader ─────────────────────────────────────────────────────────
 
 let cachedCompiler: RawNativeCompiler | null = null;
+let nativeUnavailable = false;
+let warnedFallback = false;
 
 function resolveBinaryName(): string {
   const platform = process.platform === 'darwin' ? 'darwin' : 'linux';
@@ -129,8 +133,6 @@ function resolveBinaryName(): string {
 
 /**
  * Load the native Rust compiler. Throws if the binary is not available.
- *
- * The native compiler is required — there is no ts-morph fallback.
  */
 export function loadNativeCompiler(): NativeCompiler {
   if (cachedCompiler) {
@@ -151,6 +153,21 @@ export function loadNativeCompiler(): NativeCompiler {
   }
 }
 
+/**
+ * Try to load the native compiler. Returns null if the binary is not available.
+ */
+export function tryLoadNativeCompiler(): NativeCompiler | null {
+  if (cachedCompiler) return wrapCompiler(cachedCompiler);
+  if (nativeUnavailable) return null;
+
+  try {
+    return loadNativeCompiler();
+  } catch {
+    nativeUnavailable = true;
+    return null;
+  }
+}
+
 function wrapCompiler(raw: RawNativeCompiler): NativeCompiler {
   return {
     compile(source, options) {
@@ -164,17 +181,48 @@ function wrapCompiler(raw: RawNativeCompiler): NativeCompiler {
   };
 }
 
+/**
+ * Fall back to Bun's built-in JSX transpiler.
+ *
+ * This produces basic JSX output without signal transforms, reactivity,
+ * CSS extraction, or hydration markers. Used only when the native compiler
+ * binary is unavailable (e.g. CI without pre-built platform binaries).
+ */
+function compileFallback(source: string): NativeCompileResult {
+  if (!warnedFallback) {
+    warnedFallback = true;
+    console.warn(
+      '[vertz] Native compiler binary not available — falling back to Bun JSX transpiler. ' +
+        'Signal transforms, CSS extraction, and hydration markers will be missing.',
+    );
+  }
+
+  const transpiled = new Bun.Transpiler({
+    loader: 'tsx',
+    autoImportJSX: true,
+    tsconfig: JSON.stringify({
+      compilerOptions: { jsx: 'react-jsx', jsxImportSource: '@vertz/ui' },
+    }),
+  }).transformSync(source);
+
+  return { code: transpiled, diagnostics: [] };
+}
+
 // ─── Convenience functions ──────────────────────────────────────────
 
 /**
  * Compile a TypeScript/JSX source file using the native Rust compiler.
+ * Falls back to Bun's JSX transpiler if the native binary is unavailable.
  */
 export function compile(source: string, options?: NativeCompileOptions): NativeCompileResult {
-  return loadNativeCompiler().compile(source, options);
+  const compiler = tryLoadNativeCompiler();
+  if (compiler) return compiler.compile(source, options);
+  return compileFallback(source);
 }
 
 /**
  * Compile a source file for AOT SSR rendering.
+ * This requires the native compiler — there is no fallback.
  */
 export function compileForSsrAot(source: string, options?: AotCompileOptions): AotCompileResult {
   return loadNativeCompiler().compileForSsrAot(source, options);

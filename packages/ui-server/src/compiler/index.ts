@@ -1,4 +1,9 @@
-export { compile, compileForSsrAot, loadNativeCompiler } from './native-compiler';
+export {
+  compile,
+  compileForSsrAot,
+  loadNativeCompiler,
+  tryLoadNativeCompiler,
+} from './native-compiler';
 export type {
   AotCompileOptions,
   AotCompileResult,

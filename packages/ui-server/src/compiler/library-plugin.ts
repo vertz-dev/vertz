@@ -1,6 +1,6 @@
 import { readFile } from 'node:fs/promises';
 import type { BunPlugin } from 'bun';
-import { compile as nativeCompile } from './native-compiler';
+import { compile } from './native-compiler';
 
 export interface VertzLibraryPluginOptions {
   filter?: RegExp;
@@ -28,7 +28,7 @@ export function createVertzLibraryPlugin(options?: VertzLibraryPluginOptions): B
           return { contents: transpiled, loader: 'js' as const };
         }
 
-        const result = nativeCompile(source, {
+        const result = compile(source, {
           filename: args.path,
           target: options?.target,
           hydrationMarkers: true,
