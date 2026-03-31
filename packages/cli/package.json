@@ -53,7 +53,7 @@
     "typescript": "^5.9.3"
   },
   "optionalDependencies": {
-    "@vertz/runtime": "workspace:^",
+    "@vertz/runtime": "^0.2.41",
     "postgres": "^3.4.0"
   },
   "engines": {

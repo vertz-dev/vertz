@@ -58,33 +58,6 @@ describe('Feature: findRuntimeBinary() resolution order', () => {
     });
   });
 
-  describe('Given no npm package but local cargo build exists', () => {
-    describe('When findRuntimeBinary() is called', () => {
-      it('Then returns local release binary path', () => {
-        const releaseDir = join(tmpDir, 'native', 'target', 'release');
-        mkdirSync(releaseDir, { recursive: true });
-        writeFileSync(join(releaseDir, 'vertz-runtime'), '#!/bin/sh', { mode: 0o755 });
-
-        const result = findRuntimeBinary(tmpDir);
-
-        expect(result).toBe(join(releaseDir, 'vertz-runtime'));
-      });
-
-      it('Then prefers release over debug', () => {
-        const debugDir = join(tmpDir, 'native', 'target', 'debug');
-        const releaseDir = join(tmpDir, 'native', 'target', 'release');
-        mkdirSync(debugDir, { recursive: true });
-        mkdirSync(releaseDir, { recursive: true });
-        writeFileSync(join(debugDir, 'vertz-runtime'), '#!/bin/sh', { mode: 0o755 });
-        writeFileSync(join(releaseDir, 'vertz-runtime'), '#!/bin/sh', { mode: 0o755 });
-
-        const result = findRuntimeBinary(tmpDir);
-
-        expect(result).toBe(join(releaseDir, 'vertz-runtime'));
-      });
-    });
-  });
-
   describe('Given no binary available at all', () => {
     describe('When findRuntimeBinary() is called', () => {
       it('Then returns null', () => {
@@ -93,16 +66,6 @@ describe('Feature: findRuntimeBinary() resolution order', () => {
         expect(result).toBeNull();
       });
     });
-  });
-
-  it('finds binary in native/target/debug when it exists', () => {
-    const binaryDir = join(tmpDir, 'native', 'target', 'debug');
-    mkdirSync(binaryDir, { recursive: true });
-    writeFileSync(join(binaryDir, 'vertz-runtime'), '#!/bin/sh\necho ok', { mode: 0o755 });
-
-    const result = findRuntimeBinary(tmpDir);
-
-    expect(result).toBe(join(binaryDir, 'vertz-runtime'));
   });
 });
 

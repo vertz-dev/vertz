@@ -8,11 +8,6 @@
   "fixed": [[
     "@vertz/cli",
     "@vertz/cli-runtime",
-    "@vertz/runtime",
-    "@vertz/runtime-darwin-arm64",
-    "@vertz/runtime-darwin-x64",
-    "@vertz/runtime-linux-x64",
-    "@vertz/runtime-linux-arm64",
     "@vertz/cloudflare",
     "@vertz/codegen",
     "@vertz/compiler",
