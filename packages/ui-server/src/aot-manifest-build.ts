@@ -9,7 +9,7 @@
  */
 import { readdirSync, readFileSync } from 'node:fs';
 import { basename, join } from 'node:path';
-import type { AotComponentInfo } from '@vertz/ui-compiler';
+import type { AotComponentInfo } from './compiler/types';
 import { compileForSSRAot } from '@vertz/ui-compiler';
 
 export interface AotBuildComponentEntry {

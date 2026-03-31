@@ -12,8 +12,8 @@
  * - Incremental updates for HMR
  * - Conservative fallback for unresolvable imports
  */
-import type { ComponentPropFields, PropFieldAccess } from '@vertz/ui-compiler';
-import { analyzeComponentPropFields } from '@vertz/ui-compiler';
+import type { ComponentPropFields, PropFieldAccess } from '../compiler/component-prop-field-analyzer';
+import { analyzeComponentPropFields } from '../compiler/component-prop-field-analyzer';
 import { ts } from 'ts-morph';
 
 export interface ResolvedPropFields {

@@ -10,7 +10,7 @@ import {
   generatePrefetchManifest,
   type ManifestRoute,
   type PrefetchManifest,
-} from '@vertz/ui-compiler';
+} from './compiler/prefetch-manifest';
 import type { SSRPrefetchManifest } from './ssr-single-pass';
 
 export interface PrefetchManifestManagerOptions {

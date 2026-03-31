@@ -1,6 +1,6 @@
 export type { FallbackFontName, FontFallbackMetrics } from '@vertz/ui';
-export type { ExtractedRoute } from '@vertz/ui-compiler';
-export { extractRoutes } from '@vertz/ui-compiler';
+export type { ExtractedRoute } from './compiler/prefetch-manifest';
+export { extractRoutes } from './compiler/prefetch-manifest';
 export type {
   AotBarrelResult,
   AotBuildComponentEntry,

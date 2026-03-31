@@ -19,17 +19,19 @@ import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, relative, resolve } from 'node:path';
 import type { EncodedSourceMap } from '@ampproject/remapping';
 import remapping from '@ampproject/remapping';
-import type { LoadedReactivityManifest } from '@vertz/ui-compiler';
+import type { LoadedReactivityManifest } from '../compiler/types';
 import {
   ComponentAnalyzer,
   CSSExtractor,
   compile,
-  generateAllManifests,
   HydrationTransformer,
-  regenerateFileManifest,
-  resolveModuleSpecifier,
   transformRouteSplitting,
 } from '@vertz/ui-compiler';
+import {
+  generateAllManifests,
+  regenerateFileManifest,
+  resolveModuleSpecifier,
+} from '../compiler/manifest-resolver';
 import type { BunPlugin } from 'bun';
 import MagicString from 'magic-string';
 import { Project, ts } from 'ts-morph';

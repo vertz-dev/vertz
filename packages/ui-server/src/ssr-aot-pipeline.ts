@@ -11,7 +11,7 @@
 
 import type { FontFallbackMetrics } from '@vertz/ui';
 import type { SSRAuth } from '@vertz/ui/internals';
-import type { ExtractedQuery } from '@vertz/ui-compiler';
+import type { ExtractedQuery } from './compiler/prefetch-manifest';
 import { filterCSSByHTML } from './css-filter';
 import { installDomShim, toVNode } from './dom-shim';
 import { serializeToHtml } from './html-serializer';

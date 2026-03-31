@@ -14,8 +14,8 @@ import type {
   EntitySchemaManifestEntry,
   EntitySchemaRelation,
 } from '@vertz/codegen';
-import type { NestedFieldAccess, PropFlow } from '@vertz/ui-compiler';
-import { analyzeFieldSelection } from '@vertz/ui-compiler';
+import type { NestedFieldAccess, PropFlow } from '../compiler/field-selection-analyzer';
+import { analyzeFieldSelection } from '../compiler/field-selection-analyzer';
 import MagicString from 'magic-string';
 import type { FieldSelectionManifest } from './field-selection-manifest';
 
