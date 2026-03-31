@@ -1,0 +1,432 @@
+---
+title: Workflows
+description: 'Multi-step sequential pipelines with approval gates, agent coordination, and output accumulation'
+---
+
+Workflows coordinate multiple agents into a sequential pipeline. Each step runs an agent, validates the output, and passes it to the next step via `ctx.prev`. Approval gates suspend the workflow until a human approves.
+
+## Defining steps
+
+A step is the unit of workflow execution. Each step optionally invokes an agent and produces an output.
+
+```ts
+import { step } from '@vertz/agents';
+import { s } from '@vertz/schema';
+
+const analyzeStep = step('analyze', {
+  agent: analyzerAgent,
+  input: (ctx) => `Analyze this: ${ctx.workflow.input.topic}`,
+  output: s.object({
+    summary: s.string(),
+    score: s.number(),
+  }),
+});
+```
+
+### Step options
+
+| Option     | Type                                          | Description                                                  |
+| ---------- | --------------------------------------------- | ------------------------------------------------------------ |
+| `agent`    | `AgentDefinition`                             | The agent to execute. Omit for approval-only steps.          |
+| `input`    | `(ctx: StepContext) => string \| { message }` | Transform workflow context into the agent's message.         |
+| `output`   | Schema                                        | Schema for validating the agent's response (parsed as JSON). |
+| `approval` | `StepApprovalConfig`                          | Turns the step into a human approval gate.                   |
+
+### Input callbacks
+
+The `input` callback receives a `StepContext` with access to the workflow input and all previous step outputs:
+
+```ts
+step('review', {
+  agent: reviewerAgent,
+  input: (ctx) => {
+    const analysis = ctx.prev['analyze'] as { summary: string };
+    return `Review this analysis: ${analysis.summary}`;
+  },
+  output: s.object({ approved: s.boolean(), feedback: s.string() }),
+});
+```
+
+The callback can return a plain string or `{ message: string }`:
+
+```ts
+// String form
+input: (ctx) => `Analyze: ${ctx.workflow.input.topic}`,
+
+// Object form
+input: (ctx) => ({ message: `Analyze: ${ctx.workflow.input.topic}` }),
+```
+
+If no `input` callback is provided, the agent receives a default message: `"Execute step \"step-name\""`.
+
+## Defining workflows
+
+A workflow groups steps into an ordered pipeline with a validated input schema.
+
+```ts
+import { workflow, step } from '@vertz/agents';
+import { s } from '@vertz/schema';
+
+const pipeline = workflow('content-pipeline', {
+  input: s.object({
+    topic: s.string(),
+    tone: s.string(),
+  }),
+  steps: [
+    step('research', {
+      agent: researchAgent,
+      input: (ctx) => `Research the topic: ${ctx.workflow.input.topic}`,
+      output: s.object({ findings: s.string(), sources: s.array(s.string()) }),
+    }),
+
+    step('write', {
+      agent: writerAgent,
+      input: (ctx) => {
+        const research = ctx.prev['research'] as { findings: string };
+        return `Write about this using a ${ctx.workflow.input.tone} tone: ${research.findings}`;
+      },
+      output: s.object({ draft: s.string(), wordCount: s.number() }),
+    }),
+
+    step('edit', {
+      agent: editorAgent,
+      input: (ctx) => {
+        const draft = ctx.prev['write'] as { draft: string };
+        return `Edit this draft: ${draft.draft}`;
+      },
+      output: s.object({ final: s.string() }),
+    }),
+  ],
+});
+```
+
+### Workflow options
+
+| Option   | Type                   | Description                                            |
+| -------- | ---------------------- | ------------------------------------------------------ |
+| `input`  | Schema                 | Schema for validating workflow input.                  |
+| `steps`  | `StepDefinition[]`     | Ordered list of steps. Must have at least one.         |
+| `access` | `{ start?, approve? }` | Access control for starting or approving the workflow. |
+
+### Validation rules
+
+- Workflow names must match `/^[a-z][a-z0-9-]*$/`
+- Step names must match the same pattern
+- At least one step is required
+- Duplicate step names within a workflow throw an error
+- Both workflow and step definitions are deeply frozen after creation
+
+## Running workflows
+
+Use `runWorkflow()` to execute a workflow. It runs each step sequentially, passing outputs forward via `ctx.prev`.
+
+```ts
+import { runWorkflow, createAdapter } from '@vertz/agents';
+
+const llm = createAdapter({ provider: 'openai' });
+
+const result = await runWorkflow(pipeline, {
+  input: { topic: 'TypeScript generics', tone: 'conversational' },
+  llm,
+});
+
+if (result.status === 'complete') {
+  console.log('All steps finished');
+  console.log(result.stepResults);
+} else if (result.status === 'error') {
+  console.log(`Failed at step: ${result.failedStep}`);
+} else if (result.status === 'pending') {
+  console.log(`Waiting for approval at: ${result.pendingStep}`);
+  console.log(result.approvalMessage);
+}
+```
+
+### Result shape
+
+```ts
+interface WorkflowResult {
+  status: 'complete' | 'error' | 'pending';
+  stepResults: Record<string, StepResult>;
+  failedStep?: string; // Only set when status is 'error'
+  pendingStep?: string; // Only set when status is 'pending'
+  approvalMessage?: string; // Only set when status is 'pending'
+}
+
+interface StepResult {
+  status: 'complete' | 'max-iterations' | 'stuck' | 'error';
+  response: string;
+  iterations: number;
+}
+```
+
+### How output accumulation works
+
+Each step's output is stored in `ctx.prev` keyed by step name. If a step has an `output` schema, the agent's response is parsed as JSON and validated against it. Validated data is stored in `prev`. If parsing or validation fails, the raw response is stored as `{ response: string }`.
+
+```
+Step 1 "research" completes → ctx.prev = { research: { findings: "...", sources: [...] } }
+Step 2 "write" completes    → ctx.prev = { research: { ... }, write: { draft: "...", wordCount: 1200 } }
+Step 3 "edit" completes     → ctx.prev = { research: { ... }, write: { ... }, edit: { final: "..." } }
+```
+
+<Note>
+  In v1, `ctx.prev` is typed as `Record<string, unknown>`. You need to cast the values to the expected type. Strongly typed accumulation (where `prev['step-a']` is automatically typed based on step-a's output schema) is planned for v2.
+</Note>
+
+## Approval gates
+
+An approval gate suspends the workflow until a human approves. When `runWorkflow()` hits an approval step, it returns immediately with `status: 'pending'`.
+
+```ts
+const reviewPipeline = workflow('review-pipeline', {
+  input: s.object({ documentPath: s.string() }),
+  steps: [
+    step('auto-review', {
+      agent: reviewerAgent,
+      input: (ctx) => `Review document at: ${ctx.workflow.input.documentPath}`,
+      output: s.object({ approved: s.boolean(), findings: s.array(s.string()) }),
+    }),
+
+    // Approval gate — no agent, just a gate
+    step('human-approval', {
+      approval: {
+        message: (ctx) => {
+          const review = ctx.prev['auto-review'] as { findings: string[] };
+          return `Auto-review found ${review.findings.length} findings. Approve to proceed.`;
+        },
+        timeout: '7d',
+      },
+    }),
+
+    step('publish', {
+      agent: publisherAgent,
+      input: (ctx) => `Publish document at: ${ctx.workflow.input.documentPath}`,
+      output: s.object({ url: s.string() }),
+    }),
+  ],
+});
+```
+
+### Approval config
+
+| Option    | Type                                     | Description                          |
+| --------- | ---------------------------------------- | ------------------------------------ |
+| `message` | `string \| (ctx: StepContext) => string` | Message shown to the human approver. |
+| `timeout` | `string`                                 | How long to wait (e.g., `'7d'`).     |
+
+### Resuming after approval
+
+When the workflow returns `pending`, store the step results. After the human approves, call `runWorkflow()` again with `resumeAfter` pointing to the approval step:
+
+```ts
+// First run — hits approval gate
+const firstRun = await runWorkflow(reviewPipeline, {
+  input: { documentPath: '/docs/api.md' },
+  llm,
+});
+
+// firstRun.status === 'pending'
+// firstRun.pendingStep === 'human-approval'
+// firstRun.approvalMessage === 'Auto-review found 3 findings. Approve to proceed.'
+
+// Store the results somewhere (DB, KV, etc.)
+const savedResults = firstRun.stepResults;
+
+// ... human approves ...
+
+// Resume — skips all steps up to and including 'human-approval'
+const resumed = await runWorkflow(reviewPipeline, {
+  input: { documentPath: '/docs/api.md' },
+  llm,
+  resumeAfter: 'human-approval',
+  previousResults: savedResults,
+});
+
+// resumed.status === 'complete' (if publish step succeeded)
+```
+
+<Warning>
+  The `resumeAfter` step name must match an existing step in the workflow. An invalid name throws an
+  error.
+</Warning>
+
+### Building the approval UX
+
+The approval primitive is transport-agnostic — `runWorkflow()` doesn't dictate how approvals are delivered or collected. Common patterns:
+
+- **HTTP endpoint** — Store pending state in a database, expose `POST /workflows/:id/approve`, render an approval button in a dashboard
+- **Webhook** — Send the approval message to Slack/Discord, listen for a reaction or command
+- **Durable Object** — On Cloudflare, hold workflow state in a Durable Object that wakes when an approval event arrives
+- **CLI prompt** — For dev tooling, prompt in the terminal and resume immediately
+
+## Agent-to-agent invocation
+
+Tools can invoke other agents using `ctx.agents.invoke()`. This enables delegation patterns where a coordinator agent dispatches work to specialized agents.
+
+```ts
+const specialistAgent = agent('specialist', {
+  state: s.object({}),
+  initialState: {},
+  tools: {
+    /* specialist tools */
+  },
+  model: { provider: 'openai', model: 'gpt-4o' },
+});
+
+const delegateTool = tool({
+  description: 'Delegate a task to a specialist agent',
+  input: s.object({ task: s.string() }),
+  output: s.object({ result: s.string() }),
+  async handler(input, ctx) {
+    const result = await ctx.agents.invoke(specialistAgent, {
+      message: input.task,
+    });
+    return { result: result.response };
+  },
+});
+
+const coordinator = agent('coordinator', {
+  state: s.object({}),
+  initialState: {},
+  tools: { delegate: delegateTool },
+  model: { provider: 'openai', model: 'gpt-4o' },
+});
+```
+
+### Invoke options
+
+| Option       | Type     | Description                                           |
+| ------------ | -------- | ----------------------------------------------------- |
+| `message`    | `string` | The message to send to the target agent. **Required** |
+| `instanceId` | `string` | Optional instance ID for the invoked agent.           |
+
+The invoked agent runs a full ReAct loop with the same LLM adapter as the calling agent. It returns `{ response: string }`.
+
+## Session persistence
+
+Agents support persistent sessions via an `AgentStore`. Pass a store to `run()` to enable conversation history across multiple calls.
+
+```ts
+import { run, memoryStore } from '@vertz/agents';
+
+const store = memoryStore();
+
+// First message — creates a new session
+const first = await run(greeter, {
+  message: 'Hi, my name is Alice',
+  llm,
+  store,
+});
+
+console.log(first.sessionId); // 'sess_abc123...'
+
+// Second message — resumes the session
+const second = await run(greeter, {
+  message: 'What was my name?',
+  llm,
+  store,
+  sessionId: first.sessionId,
+});
+// Agent remembers the conversation
+```
+
+### Available stores
+
+| Store         | Import          | Description                     |
+| ------------- | --------------- | ------------------------------- |
+| `memoryStore` | `@vertz/agents` | In-memory, for testing and dev. |
+| `sqliteStore` | `@vertz/agents` | SQLite-backed via `bun:sqlite`. |
+
+### Session options
+
+| Option              | Type         | Description                                        |
+| ------------------- | ------------ | -------------------------------------------------- |
+| `store`             | `AgentStore` | The persistence backend. **Required for sessions** |
+| `sessionId`         | `string`     | Resume an existing session. Omit to create new.    |
+| `maxStoredMessages` | `number`     | Cap messages per session (default: 200).           |
+| `userId`            | `string`     | Session ownership — enforced on resume.            |
+| `tenantId`          | `string`     | Tenant scoping — enforced on resume.               |
+
+## LLM adapters
+
+Agents communicate with LLMs through adapters. Use `createAdapter()` to create one:
+
+```ts
+import { createAdapter } from '@vertz/agents';
+
+const llm = createAdapter({ provider: 'openai' });
+```
+
+### Available providers
+
+| Provider      | Value          | Env variable                                    |
+| ------------- | -------------- | ----------------------------------------------- |
+| OpenAI        | `'openai'`     | `OPENAI_API_KEY`                                |
+| Anthropic     | `'anthropic'`  | `ANTHROPIC_API_KEY`                             |
+| Cloudflare AI | `'cloudflare'` | `CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_API_TOKEN` |
+| MiniMax       | `'minimax'`    | `MINIMAX_API_KEY`                               |
+
+### Custom adapters
+
+You can provide a custom `LLMAdapter` directly — any object with a `chat()` method:
+
+```ts
+const customLlm: LLMAdapter = {
+  async chat(messages, tools) {
+    // Call your LLM and return the response
+    return { text: '...', toolCalls: [] };
+  },
+};
+
+const result = await run(myAgent, { message: 'Hello', llm: customLlm });
+```
+
+## Agent lifecycle
+
+Agents have three lifecycle hooks:
+
+```ts
+const myAgent = agent('monitored', {
+  state: s.object({ startedAt: s.string() }),
+  initialState: { startedAt: '' },
+  tools: {
+    /* ... */
+  },
+  model: { provider: 'openai', model: 'gpt-4o' },
+
+  onStart(ctx) {
+    ctx.state.startedAt = new Date().toISOString();
+    console.log(`Agent ${ctx.agent.name} started`);
+  },
+
+  onComplete(ctx) {
+    console.log(`Agent ${ctx.agent.name} completed`);
+  },
+
+  onStuck(ctx) {
+    console.log(`Agent ${ctx.agent.name} got stuck`);
+  },
+});
+```
+
+| Hook         | Called when                                            |
+| ------------ | ------------------------------------------------------ |
+| `onStart`    | Before the ReAct loop begins.                          |
+| `onComplete` | After the loop completes successfully.                 |
+| `onStuck`    | When the agent hits `max-iterations` or `stuck` state. |
+
+## Loop configuration
+
+Control the ReAct loop behavior:
+
+```ts
+agent('careful', {
+  // ...
+  loop: {
+    maxIterations: 50, // Max iterations before stopping (default: 20)
+    onStuck: 'retry', // 'stop' | 'retry' | 'escalate' (default: 'stop')
+    stuckThreshold: 3, // Iterations without progress before stuck (default: 3)
+    checkpointInterval: 5, // Save state every N iterations (default: 5)
+  },
+});
+```

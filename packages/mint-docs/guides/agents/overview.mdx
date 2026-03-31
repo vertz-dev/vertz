@@ -1,0 +1,95 @@
+---
+title: Overview
+description: 'vertz/agents — AI agent framework with typed tools, ReAct loops, and multi-step workflows'
+---
+
+`@vertz/agents` is the AI agent layer of the Vertz stack. You define agents with typed state, tools, and LLM configuration — the framework runs a ReAct loop, validates inputs/outputs, and manages agent lifecycle. Same config-object pattern as `entity()` and `service()`.
+
+## How it works
+
+<Steps>
+  <Step title="Define tools">
+    Each tool has a description, input/output schemas, and a handler. The LLM sees the description
+    and schema to decide when to call the tool.
+  </Step>
+  <Step title="Define an agent">
+    An agent combines state, tools, an LLM model, and lifecycle hooks into a single definition. The
+    framework manages the ReAct loop — observe, think, act, repeat.
+  </Step>
+  <Step title="Run the agent">
+    Call `run()` with a message and an LLM adapter. The agent iterates until it completes, gets
+    stuck, or hits the iteration limit.
+  </Step>
+</Steps>
+
+## What's included
+
+| Feature                  | Description                                                      |
+| ------------------------ | ---------------------------------------------------------------- |
+| **Tools**                | Typed units of capability with input/output schemas and handlers |
+| **Agents**               | Stateful ReAct agents with lifecycle hooks and stuck detection   |
+| **Workflows**            | Multi-step sequential pipelines coordinating multiple agents     |
+| **Approval gates**       | Human-in-the-loop steps that suspend and resume workflows        |
+| **Agent-to-agent calls** | Tools can invoke other agents via `ctx.agents.invoke()`          |
+| **Session persistence**  | Store and resume agent conversations across requests             |
+| **LLM adapters**         | Pluggable adapters for Cloudflare AI, OpenAI, Anthropic, MiniMax |
+
+## Quick example
+
+```ts
+import { agent, tool, run, createAdapter } from '@vertz/agents';
+import { s } from '@vertz/schema';
+
+const greetTool = tool({
+  description: 'Greet a user by name',
+  input: s.object({ name: s.string() }),
+  output: s.object({ greeting: s.string() }),
+  handler(input) {
+    return { greeting: `Hello, ${input.name}!` };
+  },
+});
+
+const greeter = agent('greeter', {
+  state: s.object({ greetCount: s.number() }),
+  initialState: { greetCount: 0 },
+  tools: { greet: greetTool },
+  model: { provider: 'openai', model: 'gpt-4o' },
+});
+
+const llm = createAdapter({ provider: 'openai' });
+const result = await run(greeter, { message: 'Say hi to Alice', llm });
+
+console.log(result.response); // Agent's final response
+console.log(result.status); // 'complete' | 'stuck' | 'max-iterations' | 'error'
+```
+
+## Core concepts
+
+### Config-object pattern
+
+Every factory — `tool()`, `agent()`, `workflow()`, `step()` — takes a name and a config object, returning a frozen definition. This matches the Vertz convention used by `entity()`, `service()`, and `createEnv()`.
+
+### ReAct loop
+
+Agents use a Reasoning + Acting loop. Each iteration:
+
+1. The LLM receives the conversation history and available tools
+2. It decides to call a tool or respond with text
+3. Tool results are added to the conversation
+4. The loop repeats until the LLM responds without tool calls
+
+### Stuck detection
+
+If the agent makes no meaningful progress for N consecutive iterations (repeating the same tool calls), it's considered "stuck." The `onStuck` behavior controls what happens: `'stop'` (default), `'retry'`, or `'escalate'`.
+
+### Frozen definitions
+
+All factories return deeply frozen objects. You can't mutate an agent or tool definition after creation — this prevents accidental state sharing between requests.
+
+## Guides
+
+<CardGroup cols={2}>
+  <Card title="Workflows" icon="diagram-project" href="/guides/agents/workflows">
+    Multi-step pipelines with approval gates and agent coordination.
+  </Card>
+</CardGroup>

@@ -98,6 +98,10 @@
             ]
           },
           {
+            "group": "vertz/agents",
+            "pages": ["guides/agents/overview", "guides/agents/workflows"]
+          },
+          {
             "group": "vertz/db",
             "pages": [
               "guides/db/overview",
