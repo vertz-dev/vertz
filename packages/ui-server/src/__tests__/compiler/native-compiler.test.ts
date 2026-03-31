@@ -41,10 +41,10 @@ describe('native-compiler wrapper', () => {
     });
 
     it('returns component metadata', () => {
-      const result = compile(
-        'function App() { let count = 0; return <div>{count}</div>; }',
-        { filename: 'test.tsx', target: 'dom' },
-      );
+      const result = compile('function App() { let count = 0; return <div>{count}</div>; }', {
+        filename: 'test.tsx',
+        target: 'dom',
+      });
       expect(result.components).toBeDefined();
       expect(result.components!.length).toBe(1);
       expect(result.components![0].name).toBe('App');
@@ -70,26 +70,28 @@ describe('native-compiler wrapper', () => {
     });
 
     it('supports hydration_markers option', () => {
-      const result = compile(
-        'function App() { return <div>Hello</div>; }',
-        { filename: 'test.tsx', target: 'dom', hydrationMarkers: true },
-      );
+      const result = compile('function App() { return <div>Hello</div>; }', {
+        filename: 'test.tsx',
+        target: 'dom',
+        hydrationMarkers: true,
+      });
       expect(result.code).toBeDefined();
     });
 
     it('supports fast_refresh option', () => {
-      const result = compile(
-        'function App() { return <div>Hello</div>; }',
-        { filename: 'test.tsx', target: 'dom', fastRefresh: true },
-      );
+      const result = compile('function App() { return <div>Hello</div>; }', {
+        filename: 'test.tsx',
+        target: 'dom',
+        fastRefresh: true,
+      });
       expect(result.code).toBeDefined();
     });
 
     it('returns source map when available', () => {
-      const result = compile(
-        'function App() { return <div>Hello</div>; }',
-        { filename: 'test.tsx', target: 'dom' },
-      );
+      const result = compile('function App() { return <div>Hello</div>; }', {
+        filename: 'test.tsx',
+        target: 'dom',
+      });
       // Source map may be a string or undefined
       if (result.map) {
         expect(typeof result.map).toBe('string');
@@ -99,19 +101,17 @@ describe('native-compiler wrapper', () => {
 
   describe('compileForSsrAot', () => {
     it('compiles a component for AOT SSR', () => {
-      const result = compileForSsrAot(
-        'function App() { return <div>Hello</div>; }',
-        { filename: 'test.tsx' },
-      );
+      const result = compileForSsrAot('function App() { return <div>Hello</div>; }', {
+        filename: 'test.tsx',
+      });
       expect(result.code).toBeDefined();
       expect(result.code.length).toBeGreaterThan(0);
     });
 
     it('returns AOT component info with tier classification', () => {
-      const result = compileForSsrAot(
-        'function App() { return <div>Hello</div>; }',
-        { filename: 'test.tsx' },
-      );
+      const result = compileForSsrAot('function App() { return <div>Hello</div>; }', {
+        filename: 'test.tsx',
+      });
       expect(result.components).toBeDefined();
       expect(result.components.length).toBe(1);
       expect(result.components[0].name).toBe('App');

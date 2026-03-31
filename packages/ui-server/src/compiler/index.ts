@@ -1,8 +1,4 @@
-export {
-  compile,
-  compileForSsrAot,
-  loadNativeCompiler,
-} from './native-compiler';
+export { compile, compileForSsrAot, loadNativeCompiler } from './native-compiler';
 export type {
   AotCompileOptions,
   AotCompileResult,
@@ -67,11 +63,7 @@ export {
   regenerateFileManifest,
   resolveModuleSpecifier,
 } from './manifest-resolver';
-export type {
-  GenerateManifestsOptions,
-  ManifestMap,
-  ManifestWarning,
-} from './manifest-resolver';
+export type { GenerateManifestsOptions, ManifestMap, ManifestWarning } from './manifest-resolver';
 
 // ─── Reactivity Manifest ───────────────────────────────────────
 export { loadFrameworkManifest, loadManifestFromJson } from './reactivity-manifest';

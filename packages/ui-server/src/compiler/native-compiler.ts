@@ -146,7 +146,7 @@ export function loadNativeCompiler(): NativeCompiler {
   } catch {
     throw new Error(
       `Failed to load native compiler binary: @vertz/native-compiler/${binaryName}. ` +
-      'Ensure @vertz/native-compiler is installed with the correct platform binary.',
+        'Ensure @vertz/native-compiler is installed with the correct platform binary.',
     );
   }
 }
