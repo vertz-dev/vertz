@@ -4,73 +4,199 @@ import type { Feature, FeatureContext } from './types.js';
 function claudeMdContent(ctx: FeatureContext): string {
   const isApiOnly = ctx.hasFeature('api') && !ctx.hasFeature('ui');
   const isUiOnly = ctx.hasFeature('ui') && !ctx.hasFeature('api');
+  const isFullStack = ctx.hasFeature('api') && ctx.hasFeature('ui');
 
   const stackType = isApiOnly ? 'API-only' : isUiOnly ? 'UI-only' : 'full-stack TypeScript';
 
-  const lines = [
-    `# ${ctx.projectName}`,
-    '',
-    `A ${stackType} application built with [Vertz](https://vertz.dev).`,
-    '',
-    '## Stack',
-    '',
-    '- Runtime: Bun',
-    `- Framework: Vertz (${stackType})`,
-    '- Language: TypeScript (strict mode)',
-    '- Docs: https://docs.vertz.dev',
-    '',
-    '## Development',
-    '',
-    '```bash',
-    'bun install          # Install dependencies',
-    'bun run dev          # Start dev server with HMR',
-    'bun run build        # Production build',
-    '```',
-    '',
-  ];
+  const sections: string[] = [];
 
+  // Header
+  sections.push(`# ${ctx.projectName}
+
+A ${stackType} application built with [Vertz](https://vertz.dev).
+
+- Runtime: Bun
+- Framework: Vertz
+- Language: TypeScript (strict mode)
+- Docs: https://docs.vertz.dev
+
+## Development
+
+\`\`\`bash
+bun install && bun run dev
+\`\`\``);
+
+  // Project structure
+  const structure: string[] = [];
   if (ctx.hasFeature('api')) {
-    lines.push(
-      'The dev server automatically runs codegen and migrations when files change.',
-      '',
+    structure.push(
+      'src/api/server.ts       # createServer({ entities, db })',
+      'src/api/schema.ts       # d.table() + d.model() definitions',
+      'src/api/db.ts           # createDb() with SQLite',
+      'src/api/env.ts          # createEnv() with validated schema',
+      'src/api/entities/*.ts   # entity() definitions (auto CRUD)',
+    );
+  }
+  if (ctx.hasFeature('ui')) {
+    structure.push(
+      'src/app.tsx             # App root with ThemeProvider',
+      'src/entry-client.ts     # mount() with HMR',
+      'src/styles/theme.ts     # configureTheme + registerTheme',
+    );
+  }
+  if (ctx.hasFeature('router')) {
+    structure.push(
+      'src/router.tsx          # defineRoutes() + createRouter()',
+      'src/pages/*.tsx         # Page components',
+    );
+  }
+  if (ctx.hasFeature('client')) {
+    structure.push(
+      'src/client.ts           # createClient() from codegen',
     );
   }
 
-  if (isUiOnly) {
-    lines.push(
-      '## Adding a Backend',
-      '',
-      'To add API and database support, see https://docs.vertz.dev/guides/server/overview',
-      '',
-    );
+  if (structure.length > 0) {
+    sections.push(`\n## Project Structure\n\n\`\`\`\n${structure.join('\n')}\n\`\`\``);
+  }
+
+  // API quick reference
+  if (ctx.hasFeature('api')) {
+    sections.push(`
+## API Quick Reference
+
+All routes are prefixed with \`/api/\`:
+- \`GET /api/{entity}\` — list (returns \`{ items, total, limit, hasNextPage }\`)
+- \`POST /api/{entity}\` — create
+- \`GET /api/{entity}/:id\` — get by ID
+- \`PATCH /api/{entity}/:id\` — update (NOT PUT)
+- \`DELETE /api/{entity}/:id\` — delete
+
+### Adding an entity
+
+\`\`\`ts
+// src/api/schema.ts
+import { d } from 'vertz/db';
+
+export const postsTable = d.table('posts', {
+  id: d.uuid().primary({ generate: 'uuid' }),
+  title: d.text(),
+  published: d.boolean().default(false),
+  createdAt: d.timestamp().default('now').readOnly(),
+});
+export const postsModel = d.model(postsTable);
+\`\`\`
+
+\`\`\`ts
+// src/api/entities/posts.entity.ts
+import { entity } from 'vertz/server';
+import { postsModel } from '../schema';
+
+export const posts = entity('posts', {
+  model: postsModel,
+  access: { list: () => true, get: () => true, create: () => true, update: () => true, delete: () => true },
+});
+\`\`\`
+
+Then register in \`src/api/server.ts\`:
+\`\`\`ts
+import { posts } from './entities/posts.entity';
+// Add to entities array: entities: [tasks, posts]
+\`\`\`
+
+### Services (custom endpoints)
+
+\`\`\`ts
+import { service } from 'vertz/server';
+import { s } from 'vertz/schema';
+
+const health = service('health', {
+  access: { check: () => true },
+  actions: {
+    check: {
+      method: 'GET',
+      response: s.object({ status: s.string() }),
+      handler: async () => ({ status: 'ok' }),
+    },
+  },
+});
+// Generates: GET /api/health/check
+\`\`\`
+
+### Field types
+
+\`d.uuid()\`, \`d.text()\`, \`d.boolean()\`, \`d.integer()\`, \`d.timestamp()\`
+
+Modifiers: \`.primary()\`, \`.default(value)\`, \`.readOnly()\`, \`.autoUpdate()\`, \`.unique()\`
+
+### DB setup uses \`migrations: { autoApply: true }\` — tables are created automatically.`);
+  }
+
+  // UI quick reference
+  if (ctx.hasFeature('ui')) {
+    sections.push(`
+## UI Quick Reference
+
+The Vertz compiler transforms your code to be reactive automatically.
+
+- \`let count = 0\` → signal (mutations trigger DOM updates)
+- \`const doubled = count * 2\` → computed (auto-derived)
+- Components run once — no re-renders, no hooks
+
+### Styling
+
+\`\`\`tsx
+import { css } from 'vertz/ui';
+const styles = css({
+  container: ['flex', 'flex-col', 'gap:4', 'p:6'],
+});
+<div className={styles.container}>...</div>
+\`\`\`
+
+### Data fetching
+
+\`\`\`tsx
+import { query } from 'vertz/ui';
+const tasks = query(api.tasks.list());
+// tasks.loading, tasks.error, tasks.data.items — all reactive
+\`\`\`
+
+### Theme components
+
+\`\`\`tsx
+import { Button, Input, Dialog } from '@vertz/ui/components';
+<Button intent="primary" size="md">Submit</Button>
+\`\`\``);
   }
 
   if (ctx.hasFeature('router')) {
-    lines.push(
-      '## Routing',
-      '',
-      'Routes are defined in `src/router.tsx` using `defineRoutes` and `createRouter`.',
-      'To add a new page, create a component in `src/pages/` and add a route entry in `src/router.tsx`.',
-      '',
-    );
+    sections.push(`
+## Routing
+
+Routes in \`src/router.tsx\`. Pages access router via hooks:
+
+\`\`\`tsx
+import { useRouter, useParams } from 'vertz/ui';
+const { navigate } = useRouter();
+const { id } = useParams<'/tasks/:id'>();
+\`\`\``);
   }
 
-  lines.push(
-    '## Conventions',
-    '',
-    '- See `.claude/rules/` for development conventions',
-    '- Refer to https://docs.vertz.dev for full framework documentation',
-  );
+  if (isUiOnly) {
+    sections.push(`
+## Adding a Backend
 
-  if (ctx.hasFeature('ui')) {
-    lines.push(
-      '- The Vertz compiler handles all reactivity — never use `.value`, `signal()`, or `computed()` manually',
-    );
+See https://docs.vertz.dev/guides/server/overview`);
   }
 
-  lines.push('');
+  // Conventions
+  sections.push(`
+## Conventions
 
-  return lines.join('\n');
+- See \`.claude/rules/\` for detailed conventions
+- Docs: https://docs.vertz.dev`);
+
+  return sections.join('\n') + '\n';
 }
 
 export const coreFeature: Feature = {
