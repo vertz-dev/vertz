@@ -37,7 +37,7 @@ One dependency. Tree-shakeable. No barrel file — every import is explicit.
 | `vertz/testing`     | `@vertz/testing`     |
 | `vertz/ui`          | `@vertz/ui`          |
 | `vertz/ui-server`   | `@vertz/ui-server`   |
-| `vertz/ui-compiler` | `@vertz/ui-compiler` |
+| `vertz/ui-compiler` | `@vertz/ui-server` (compiler utilities) |
 
 ## Documentation
 

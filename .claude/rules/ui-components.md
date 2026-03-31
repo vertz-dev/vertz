@@ -355,7 +355,7 @@ const view = RouterView({
 
 ### The Vertz compiler builds libraries too
 
-The `createVertzLibraryPlugin()` from `@vertz/ui-compiler` runs the full Vertz compiler on `.tsx` files during library builds. This means **library code gets the same reactive transforms as app code**:
+The `createVertzLibraryPlugin()` from `@vertz/ui-server` runs the full Vertz compiler on `.tsx` files during library builds. This means **library code gets the same reactive transforms as app code**:
 
 - `let` → `signal()` (reactive local state)
 - `const derived = x + y` → `computed()` (derived values)
@@ -421,7 +421,7 @@ function ComposedCheckboxRoot({ children, classes, ...opts }: ComposedCheckboxPr
 In `bunup.config.ts`, use `createVertzLibraryPlugin()` to compile `.tsx` files:
 
 ```ts
-import { createVertzLibraryPlugin } from '@vertz/ui-compiler';
+import { createVertzLibraryPlugin } from '@vertz/ui-server';
 import { defineConfig } from 'bunup';
 
 export default defineConfig({
@@ -434,10 +434,10 @@ export default defineConfig({
 
 ### Test configuration
 
-In `test-compiler-plugin.ts`, use `compile()` from `@vertz/ui-compiler` for `.tsx` files:
+In `test-compiler-plugin.ts`, use `compile()` from `@vertz/ui-server` for `.tsx` files:
 
 ```ts
-import { compile } from '@vertz/ui-compiler';
+import { compile } from '@vertz/ui-server';
 import { plugin } from 'bun';
 
 plugin({
