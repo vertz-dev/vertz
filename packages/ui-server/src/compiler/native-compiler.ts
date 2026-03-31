@@ -93,14 +93,16 @@ export interface AotCompileOptions {
 
 export interface AotComponentInfo {
   name: string;
-  tier: string;
+  tier: 'static' | 'data-driven' | 'conditional' | 'runtime-fallback';
   holes: string[];
   queryKeys: string[];
+  fallbackReason?: string;
 }
 
 export interface AotCompileResult {
   code: string;
   components: AotComponentInfo[];
+  css?: string[];
 }
 
 export interface NativeCompiler {
