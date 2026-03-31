@@ -178,6 +178,8 @@ export function createCrudHandlers<TModel extends ModelDef = ModelDef>(
   // @ts-expect-error — bunup inlines types for @vertz/db/schema-derive separately from @vertz/db,
   // creating duplicate `unique symbol` declarations for PhantomType. They are structurally identical.
   const derivedSchemas = tableToSchemas(table);
+  // `.omit()` creates a new ObjectSchema that defaults to `strip` mode,
+  // so `.strict()` must be re-applied after omitting the tenant column.
   const createSchema =
     isTenantScoped && tenantColumn in derivedSchemas.apiCreateBody.shape
       ? derivedSchemas.apiCreateBody.omit(tenantColumn as string).strict()
@@ -419,7 +421,8 @@ export function createCrudHandlers<TModel extends ModelDef = ModelDef>(
     },
 
     async create(ctx, data) {
-      // Validate input against the strict API schema
+      // Validate input before access check — fail fast on malformed data,
+      // and avoid leaking access-control timing to unauthenticated callers.
       const parseResult = createSchema.safeParse(data);
       if (!parseResult.ok) {
         return err(
@@ -442,6 +445,8 @@ export function createCrudHandlers<TModel extends ModelDef = ModelDef>(
       );
       if (!accessResult.ok) return err(accessResult.error);
 
+      // Defense-in-depth: validation already excludes readOnly fields, but strip again
+      // in case a before hook or future middleware re-introduces them.
       let input = stripReadOnlyFields(table, parseResult.data as Record<string, unknown>);
 
       // For indirectly scoped entities, verify the referenced parent belongs to the tenant
@@ -591,6 +596,8 @@ export function createCrudHandlers<TModel extends ModelDef = ModelDef>(
       });
       if (!accessResult.ok) return err(accessResult.error);
 
+      // Defense-in-depth: validation already excludes readOnly fields, but strip again
+      // in case a before hook or future middleware re-introduces them.
       let input = stripReadOnlyFields(table, parseResult.data as Record<string, unknown>);
 
       // Apply before.update hook

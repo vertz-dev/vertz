@@ -307,4 +307,66 @@ describe('Feature: CRUD schema validation', () => {
       });
     });
   });
+
+  // -------------------------------------------------------------------------
+  // Tenant column exclusion
+  // -------------------------------------------------------------------------
+
+  describe('Given a tenant-scoped entity', () => {
+    const projectsTable = d
+      .table('projects', {
+        id: d.uuid().primary(),
+        tenantId: d.uuid(),
+        name: d.text(),
+      })
+      .tenant();
+
+    const projectsModel = d.model(projectsTable);
+
+    const projectEntity = entity('project', {
+      model: projectsModel,
+      access: {
+        create: (ctx) => ctx.authenticated(),
+      },
+    });
+
+    describe('When POST includes tenantId in body', () => {
+      it('Then returns validation error — tenantId is auto-set by pipeline', async () => {
+        const db = createStubDb();
+        const handlers = createCrudHandlers(projectEntity, db);
+        const ctx = makeCtx();
+
+        const result = await handlers.create(ctx, {
+          name: 'My Project',
+          tenantId: '00000000-0000-4000-a000-000000000001',
+        });
+
+        expect(result.ok).toBe(false);
+        if (!result.ok) {
+          expect(result.error).toBeInstanceOf(EntityValidationError);
+          if (isEntityValidationError(result.error)) {
+            const codes = result.error.errors.map((e) => e.code);
+            expect(codes).toContain('unrecognized_keys');
+          }
+        }
+      });
+    });
+
+    describe('When POST without tenantId (correct usage)', () => {
+      it('Then succeeds — pipeline auto-sets tenantId from context', async () => {
+        const db = createStubDb();
+        const handlers = createCrudHandlers(projectEntity, db);
+        const ctx = makeCtx();
+
+        const result = await handlers.create(ctx, {
+          name: 'My Project',
+        });
+
+        expect(result.ok).toBe(true);
+        if (result.ok) {
+          expect(result.data.status).toBe(201);
+        }
+      });
+    });
+  });
 });
