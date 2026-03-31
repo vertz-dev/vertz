@@ -625,9 +625,7 @@ describe('Feature: Edge cases', () => {
     it('Then listing comments returns empty list, not an error', async () => {
       const store = createSharedStore();
       // Remove all tasks for org-a projects
-      store.tasks = store.tasks.filter(
-        (t) => t.projectId !== PROJ_A1 && t.projectId !== PROJ_A2,
-      );
+      store.tasks = store.tasks.filter((t) => t.projectId !== PROJ_A1 && t.projectId !== PROJ_A2);
       store.comments = store.comments.filter((c) => c.taskId === TASK_B1);
 
       const queryParentIds = async (
