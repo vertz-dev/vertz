@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'bun:test';
+import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 import {
   addHeaders,
   buildCacheKey,
@@ -7,6 +7,7 @@ import {
   isHTMLRoute,
   tryBrotli,
 } from '../worker';
+import workerModule from '../worker';
 
 // ── isHTMLRoute ─────────────────────────────────────────────────
 
@@ -220,5 +221,163 @@ describe('tryBrotli', () => {
     const req = makeRequest('https://example.com/app.js');
     const result = await tryBrotli(req, env as never, '/app.js');
     expect(result).toBeNull();
+  });
+});
+
+// ── fetch handler (default export) ──────────────────────────────
+
+describe('Worker fetch handler', () => {
+  // Mock cache store
+  let cacheStore: Map<string, Response>;
+
+  // Track ASSETS.fetch calls
+  let assetsFetchCalls: Request[];
+
+  function createMockCache() {
+    cacheStore = new Map();
+    return {
+      match: async (key: Request) => {
+        const cached = cacheStore.get(key.url);
+        return cached ? cached.clone() : undefined;
+      },
+      put: async (key: Request, response: Response) => {
+        cacheStore.set(key.url, response.clone());
+      },
+    };
+  }
+
+  function createMockEnv(responses: Record<string, { body: string; status: number }> = {}) {
+    assetsFetchCalls = [];
+    return {
+      ASSETS: {
+        fetch: async (req: Request) => {
+          assetsFetchCalls.push(req);
+          const url = new URL(req.url);
+          const entry = responses[url.pathname];
+          if (entry) {
+            return new Response(entry.body, { status: entry.status });
+          }
+          return new Response('not found', { status: 404 });
+        },
+      },
+    };
+  }
+
+  beforeEach(() => {
+    // @ts-expect-error — inject mock caches global for tests
+    globalThis.caches = { default: createMockCache() };
+  });
+
+  afterEach(() => {
+    // @ts-expect-error — clean up mock caches global
+    delete globalThis.caches;
+  });
+
+  it('returns asset from ASSETS on cache miss', async () => {
+    const env = createMockEnv({
+      '/components/button': { body: '<html>Button</html>', status: 200 },
+    });
+    const req = new Request('https://components.vertz.dev/components/button');
+    const res = await workerModule.fetch(req, env as never);
+    expect(res.status).toBe(200);
+    expect(await res.text()).toBe('<html>Button</html>');
+  });
+
+  it('returns cached response on cache hit', async () => {
+    const env = createMockEnv({
+      '/components/button': { body: '<html>Button</html>', status: 200 },
+    });
+    // First request — cache miss, populates cache
+    const req1 = new Request('https://components.vertz.dev/components/button');
+    await workerModule.fetch(req1, env as never);
+
+    // Second request — should hit cache
+    assetsFetchCalls = [];
+    const req2 = new Request('https://components.vertz.dev/components/button');
+    const res = await workerModule.fetch(req2, env as never);
+    expect(res.status).toBe(200);
+    expect(await res.text()).toBe('<html>Button</html>');
+    // ASSETS.fetch should NOT be called on cache hit
+    expect(assetsFetchCalls.length).toBe(0);
+  });
+
+  it('applies SPA fallback for unknown HTML routes (404)', async () => {
+    const env = createMockEnv({
+      '/': { body: '<html>SPA Shell</html>', status: 200 },
+    });
+    const req = new Request('https://components.vertz.dev/components/nonexistent');
+    const res = await workerModule.fetch(req, env as never);
+    expect(res.status).toBe(200);
+    expect(await res.text()).toBe('<html>SPA Shell</html>');
+  });
+
+  it('does NOT apply SPA fallback for non-HTML 404', async () => {
+    const env = createMockEnv({});
+    const req = new Request('https://components.vertz.dev/missing-file.js');
+    const res = await workerModule.fetch(req, env as never);
+    expect(res.status).toBe(404);
+  });
+
+  it('sets security headers on responses', async () => {
+    const env = createMockEnv({
+      '/overview': { body: '<html>Overview</html>', status: 200 },
+    });
+    const req = new Request('https://components.vertz.dev/overview');
+    const res = await workerModule.fetch(req, env as never);
+    expect(res.headers.get('X-Content-Type-Options')).toBe('nosniff');
+    expect(res.headers.get('X-Frame-Options')).toBe('DENY');
+    expect(res.headers.get('Referrer-Policy')).toBe('strict-origin-when-cross-origin');
+  });
+
+  it('sets HTML cache control for page routes', async () => {
+    const env = createMockEnv({
+      '/overview': { body: '<html>Overview</html>', status: 200 },
+    });
+    const req = new Request('https://components.vertz.dev/overview');
+    const res = await workerModule.fetch(req, env as never);
+    expect(res.headers.get('Cache-Control')).toBe(
+      'public, max-age=60, s-maxage=3600, stale-while-revalidate=86400',
+    );
+  });
+
+  it('sets immutable cache control for hashed assets', async () => {
+    const env = createMockEnv({
+      '/assets/chunk-abc.js': { body: 'console.log("hi")', status: 200 },
+    });
+    const req = new Request('https://components.vertz.dev/assets/chunk-abc.js');
+    const res = await workerModule.fetch(req, env as never);
+    expect(res.headers.get('Cache-Control')).toBe('public, max-age=31536000, immutable');
+  });
+
+  it('does NOT store non-200 responses in cache', async () => {
+    const env = createMockEnv({});
+    const req = new Request('https://components.vertz.dev/missing.js');
+    await workerModule.fetch(req, env as never);
+    // Cache should be empty (404 was not stored)
+    expect(cacheStore.size).toBe(0);
+  });
+
+  it('stores 200 responses in cache', async () => {
+    const env = createMockEnv({
+      '/assets/chunk-abc.js': { body: 'code', status: 200 },
+    });
+    const req = new Request('https://components.vertz.dev/assets/chunk-abc.js');
+    await workerModule.fetch(req, env as never);
+    // Cache should have one entry
+    expect(cacheStore.size).toBe(1);
+  });
+
+  it('serves Brotli when client accepts and .br file exists', async () => {
+    const env = createMockEnv({
+      '/assets/chunk-abc.js.br': { body: 'br-compressed', status: 200 },
+      '/assets/chunk-abc.js': { body: 'original', status: 200 },
+    });
+    const req = new Request('https://components.vertz.dev/assets/chunk-abc.js', {
+      headers: { 'Accept-Encoding': 'gzip, deflate, br' },
+    });
+    const res = await workerModule.fetch(req, env as never);
+    expect(res.status).toBe(200);
+    expect(res.headers.get('Content-Encoding')).toBe('br');
+    expect(res.headers.get('Content-Type')).toBe('application/javascript; charset=utf-8');
   });
 });

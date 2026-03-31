@@ -192,7 +192,7 @@ describe('Component docs Cloudflare deployment', () => {
 **Goal:** Add the Worker entry point and wrangler.toml for deployment.
 
 **Deliverables:**
-- `src/worker.ts` — Cloudflare Worker (following landing page pattern, minus Durable Objects, presence, Brotli pre-compression, and Early Hints — the build pipeline doesn't produce `.br` files and the component docs has different critical assets than the landing page)
+- `src/worker.ts` — Cloudflare Worker (following landing page pattern, minus Durable Objects, presence, and Early Hints — the component docs has different critical assets than the landing page). Includes Brotli content negotiation since the build pipeline produces `.br` pre-compressed files.
 - `wrangler.toml` — Worker config with SPA fallback, custom domain, `workers_dev = true`
 - `deploy` and `deploy:preview` scripts in package.json
 - Worker tests (cache key construction, SPA fallback logic, header injection)
