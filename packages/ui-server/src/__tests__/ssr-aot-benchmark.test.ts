@@ -5,8 +5,19 @@
  * then benchmarks them head-to-head.
  */
 import { describe, expect, it } from 'bun:test';
-import { compileForSsrAot } from '../compiler/native-compiler';
+import { compileForSsrAot, loadNativeCompiler } from '../compiler/native-compiler';
 import { __esc, __esc_attr, __ssr_style_object } from '../ssr-aot-runtime';
+
+function isNativeBinaryAvailable(): boolean {
+  try {
+    loadNativeCompiler();
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+const describeWithBinary = isNativeBinaryAvailable() ? describe : describe.skip;
 
 // ─── Benchmark Harness ─────────────────────────────────────────
 
@@ -220,7 +231,7 @@ export function ProductCard({ title, description, price, imageUrl, inStock, rati
 
 const ITERATIONS = 1000;
 
-describe('AOT SSR Benchmark', () => {
+describeWithBinary('AOT SSR Benchmark', () => {
   it('compares AOT string-builder vs DOM shim overhead', () => {
     const components: Array<{
       name: string;

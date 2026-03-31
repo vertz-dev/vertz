@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'bun:test';
 import { Avatar } from '../avatar';
+import { itWithNativeCompiler } from './native-compiler-test-utils.test';
 
 describe('Avatar', () => {
   it('renders an img element inside a container div when src is provided', () => {
@@ -63,7 +64,7 @@ describe('Avatar', () => {
     expect(el.getAttribute('class')).toBe('custom-class');
   });
 
-  it('switches to fallback when img fires onerror', () => {
+  itWithNativeCompiler('switches to fallback when img fires onerror', () => {
     const el = Avatar({ src: '/broken.jpg' }) as HTMLElement;
     const img = el.querySelector('img');
     expect(img).not.toBeNull();
@@ -75,7 +76,7 @@ describe('Avatar', () => {
     expect(el.innerHTML).toContain('<svg');
   });
 
-  it('switches to custom fallback when img fires onerror', () => {
+  itWithNativeCompiler('switches to custom fallback when img fires onerror', () => {
     const el = Avatar({ src: '/broken.jpg', fallback: () => 'FB' }) as HTMLElement;
     const img = el.querySelector('img');
 
