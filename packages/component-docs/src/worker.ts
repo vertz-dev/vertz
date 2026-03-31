@@ -3,9 +3,12 @@
  *
  * Full SSR Worker that:
  * 1. Serves static assets from ASSETS binding with cache headers
- * 2. Reads the `theme` cookie and sets it before SSR rendering
- * 3. Renders HTML via `createSSRHandler` (single-pass SSR)
- * 4. Adds security headers to all responses
+ * 2. Renders HTML via `createSSRHandler` (single-pass SSR)
+ * 3. Adds security headers to all responses
+ *
+ * Theme cookie handling: The SSR handler automatically reads the Cookie
+ * header from the request and populates `document.cookie` during SSR,
+ * so `useTheme()` reads the real cookie value — no Worker-level parsing needed.
  */
 
 import { createSSRHandler } from '@vertz/ui-server/ssr';
@@ -50,14 +53,6 @@ const SECURITY_HEADERS: Record<string, string> = {
   'Referrer-Policy': 'strict-origin-when-cross-origin',
 };
 
-// ── Theme cookie parsing ───────────────────────────────────────────
-
-function getThemeFromCookie(request: Request): 'dark' | 'light' {
-  const cookie = request.headers.get('Cookie') ?? '';
-  const match = cookie.match(/(?:^|; )theme=(light|dark)/);
-  return (match?.[1] as 'dark' | 'light') ?? 'dark';
-}
-
 // ── Route classification ───────────────────────────────────────────
 
 /** Check if a path is a static asset (not an HTML page route). */
@@ -87,8 +82,9 @@ async function getSSRHandler(env: Env): Promise<(request: Request) => Promise<Re
   // The template contains <div id="app">…pre-rendered…</div> — the SSR handler
   // replaces the content inside the div with the freshly rendered HTML.
   if (!templatePromise) {
-    templatePromise = env.ASSETS.fetch(new Request('https://dummy/index.html'))
-      .then((r) => r.text());
+    templatePromise = env.ASSETS.fetch(new Request('https://dummy/index.html')).then((r) =>
+      r.text(),
+    );
   }
 
   const template = await templatePromise;
@@ -128,14 +124,8 @@ export default {
     }
 
     // ── HTML routes: real SSR ──────────────────────────────────
-    const theme = getThemeFromCookie(request);
-
-    // Set theme on the SSR module before rendering so the component tree
-    // renders with the correct theme from the user's cookie.
-    if (typeof ssrModule.setSSRTheme === 'function') {
-      ssrModule.setSSRTheme(theme);
-    }
-
+    // The SSR handler reads the Cookie header automatically and sets
+    // document.cookie in the SSR context — no app-level workarounds needed.
     const handler = await getSSRHandler(env);
     const response = await handler(request);
 

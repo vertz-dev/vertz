@@ -454,7 +454,17 @@ describe('DOM Shim', () => {
       expect(document.getElementById('test')).toBeNull();
     });
 
-    it('should stub document.cookie as empty string', () => {
+    it('should stub document.cookie as empty string outside SSR context', () => {
+      expect(document.cookie).toBe('');
+    });
+
+    it('should read document.cookie from SSR context when inside a render', () => {
+      const ctx = testCtx('/');
+      ctx.cookies = 'theme=light; session=abc';
+      ssrStorage.run(ctx, () => {
+        expect(document.cookie).toBe('theme=light; session=abc');
+      });
+      // Outside the context, falls back to empty string
       expect(document.cookie).toBe('');
     });
   });

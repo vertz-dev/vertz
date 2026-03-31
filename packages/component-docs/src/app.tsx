@@ -17,7 +17,7 @@ import { docsTheme, themeGlobals } from './styles/theme';
 
 // ── SSR module exports ─────────────────────────────────────
 export { getInjectedCSS };
-export { getInitialTheme, setSSRTheme } from './hooks/use-theme';
+export { getInitialTheme } from './hooks/use-theme';
 export const theme = docsTheme;
 export const styles = [themeGlobals.css, appGlobals.css];
 

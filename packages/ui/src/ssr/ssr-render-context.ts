@@ -70,6 +70,13 @@ export interface SSRRenderContext {
    * response only includes CSS for components actually rendered.
    */
   cssTracker?: Set<string>;
+
+  /**
+   * Request cookies (from the `Cookie` header).
+   * Set by the SSR handler before rendering so that `document.cookie`
+   * reads the real request cookies during SSR — same as in a browser.
+   */
+  cookies?: string;
 }
 
 /** Auth state injected into SSRRenderContext by the server. */

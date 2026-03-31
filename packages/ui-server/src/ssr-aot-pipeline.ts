@@ -111,6 +111,8 @@ export interface SSRRenderAotOptions {
   diagnostics?: AotDiagnostics;
   /** Custom data resolver for non-entity AOT routes. */
   aotDataResolver?: AotDataResolver;
+  /** Raw Cookie header — passed through to single-pass fallback for `document.cookie`. */
+  cookies?: string;
 }
 
 // ─── createHoles ─────────────────────────────────────────────────
@@ -233,6 +235,7 @@ export async function ssrRenderAot(
     ssrAuth: options.ssrAuth,
     manifest,
     prefetchSession: options.prefetchSession,
+    cookies: options.cookies,
   };
 
   // 1. Match URL to route patterns in the AOT manifest (exact match — page routes, not layouts)

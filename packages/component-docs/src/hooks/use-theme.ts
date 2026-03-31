@@ -8,6 +8,9 @@
  *
  * Module-level state avoids this entirely: every import references the same
  * variable, regardless of when the importing module loads.
+ *
+ * During SSR, `document.cookie` is automatically populated from the request's
+ * Cookie header by the framework, so `getThemeCookie()` returns the real value.
  */
 
 import { signal } from '@vertz/ui';
@@ -31,22 +34,15 @@ export function getInitialTheme(): 'dark' | 'light' {
   return getThemeCookie() ?? 'dark';
 }
 
-/**
- * Set the theme for the current SSR render.
- * Called by the Worker before each SSR pass so the rendered HTML
- * matches the user's cookie preference.
- */
-export function setSSRTheme(value: 'dark' | 'light'): void {
-  themeSignal.value = value;
-}
-
-
 const themeSignal = signal<'dark' | 'light'>(getInitialTheme());
 
 export function useTheme(): { theme: 'dark' | 'light'; toggle: () => void } {
   return {
     get theme() {
-      return themeSignal.value;
+      // During SSR, read directly from the cookie (populated per-request by the
+      // framework) since the module-level signal was initialized at import time
+      // and doesn't reflect per-request cookie state.
+      return getThemeCookie() ?? themeSignal.value;
     },
     toggle,
   };
