@@ -69,7 +69,6 @@
     "@jridgewell/trace-mapping": "^0.3.31",
     "@vertz/core": "workspace:^",
     "@vertz/ui": "workspace:^",
-    "@vertz/ui-compiler": "workspace:^",
     "magic-string": "^0.30.0",
     "sharp": "^0.34.5",
     "ts-morph": "^27.0.2"

@@ -7,7 +7,7 @@
  *
  * Follows the same pattern as PrefetchManifestManager.
  */
-import { compileForSSRAot } from '@vertz/ui-compiler';
+import { compileForSsrAot } from './compiler/native-compiler';
 import { AotDiagnostics } from './ssr-aot-diagnostics';
 
 /** Per-component entry in the dev AOT manifest. */
@@ -70,7 +70,7 @@ export function createAotManifestManager(options: AotManifestManagerOptions): Ao
     source: string,
   ): Array<{ name: string; entry: AotDevComponentEntry }> {
     try {
-      const result = compileForSSRAot(source, { filename: filePath });
+      const result = compileForSsrAot(source, { filename: filePath });
       return result.components.map((comp) => ({
         name: comp.name,
         entry: {

@@ -91,7 +91,6 @@
     "@vertz/tui": "workspace:^",
     "@vertz/ui": "workspace:^",
     "@vertz/ui-auth": "workspace:^",
-    "@vertz/ui-compiler": "workspace:^",
     "@vertz/ui-primitives": "workspace:^",
     "@vertz/ui-server": "workspace:^"
   },

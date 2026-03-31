@@ -9,7 +9,7 @@
  * and conditionals. A second pass through Bun.Transpiler handles any
  * remaining JSX using the @vertz/ui jsx-runtime.
  */
-import { compile } from '@vertz/ui-compiler';
+import { compile } from '@vertz/ui-server';
 import { plugin } from 'bun';
 
 const jsxTranspiler = new Bun.Transpiler({
@@ -41,7 +41,7 @@ plugin({
   setup(build) {
     build.onLoad({ filter: /examples\/entity-todo\/src\/.*\.tsx$/ }, async (args) => {
       const source = await Bun.file(args.path).text();
-      const result = compile(source, args.path);
+      const result = compile(source, { filename: args.path, target: 'dom' });
 
       // Second pass: transform any remaining JSX the compiler didn't handle
       let code = jsxTranspiler.transformSync(result.code);

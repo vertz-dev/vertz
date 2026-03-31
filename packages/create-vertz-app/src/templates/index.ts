@@ -510,7 +510,6 @@ export function packageJsonTemplate(projectName: string): string {
     },
     devDependencies: {
       '@vertz/cli': '^0.2.0',
-      '@vertz/ui-compiler': '^0.2.0',
       'bun-types': '^1.0.0',
       typescript: '^5.8.0',
     },
@@ -1086,7 +1085,6 @@ export function helloWorldPackageJsonTemplate(projectName: string): string {
     },
     devDependencies: {
       '@vertz/cli': '^0.2.0',
-      '@vertz/ui-compiler': '^0.2.0',
       'bun-types': '^1.0.0',
       typescript: '^5.8.0',
     },

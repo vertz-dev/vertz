@@ -1,11 +1,11 @@
 /**
  * AOT SSR Benchmark — Compiler-generated AOT vs DOM shim rendering.
  *
- * Uses the real `compileForSSRAot()` and `compile()` to generate both paths,
+ * Uses the real `compileForSsrAot()` and `compile()` to generate both paths,
  * then benchmarks them head-to-head.
  */
 import { describe, expect, it } from 'bun:test';
-import { compileForSSRAot } from '@vertz/ui-compiler';
+import { compileForSsrAot } from '../compiler/native-compiler';
 import { __esc, __esc_attr, __ssr_style_object } from '../ssr-aot-runtime';
 
 // ─── Benchmark Harness ─────────────────────────────────────────
@@ -69,7 +69,7 @@ function makeMockDomRenderer(
 // ─── AOT Renderer ──────────────────────────────────────────────
 
 function makeAotRenderer(source: string): { render: (...args: unknown[]) => string; tier: string } {
-  const result = compileForSSRAot(source, { filename: 'bench.tsx' });
+  const result = compileForSsrAot(source, { filename: 'bench.tsx' });
   const comp = result.components[0];
   if (!comp) throw new TypeError('No component found in AOT output');
 

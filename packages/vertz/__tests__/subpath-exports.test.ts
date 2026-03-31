@@ -39,7 +39,7 @@ describe('vertz meta-package subpath exports', () => {
     expect(Object.keys(mod).length).toBeGreaterThan(0);
   });
 
-  it('vertz/ui-compiler re-exports @vertz/ui-compiler', async () => {
+  it('vertz/ui-compiler re-exports compiler utilities from @vertz/ui-server', async () => {
     const mod = await import('vertz/ui-compiler');
     expect(Object.keys(mod).length).toBeGreaterThan(0);
   });

@@ -18,6 +18,10 @@ export type {
   NativeVariableInfo,
 } from './native-compiler';
 
+// ─── Library Plugin ─────────────────────────────────────────────
+export { createVertzLibraryPlugin } from './library-plugin';
+export type { VertzLibraryPluginOptions } from './library-plugin';
+
 // ─── Types ──────────────────────────────────────────────────────
 export type {
   AotCompileOutput,

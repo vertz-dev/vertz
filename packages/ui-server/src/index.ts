@@ -1,4 +1,12 @@
 export type { FallbackFontName, FontFallbackMetrics } from '@vertz/ui';
+export { compile, compileForSsrAot, loadNativeCompiler } from './compiler/native-compiler';
+export type {
+  NativeCompileOptions,
+  NativeCompileResult,
+  NativeCompiler,
+} from './compiler/native-compiler';
+export { createVertzLibraryPlugin } from './compiler/library-plugin';
+export type { VertzLibraryPluginOptions } from './compiler/library-plugin';
 export type { ExtractedRoute } from './compiler/prefetch-manifest';
 export { extractRoutes } from './compiler/prefetch-manifest';
 export type {

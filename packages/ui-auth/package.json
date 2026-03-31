@@ -37,7 +37,7 @@
   },
   "devDependencies": {
     "@happy-dom/global-registrator": "^20.7.0",
-    "@vertz/ui-compiler": "workspace:^",
+    "@vertz/ui-server": "workspace:^",
     "bunup": "^0.16.31",
     "happy-dom": "^20.7.0",
     "typescript": "^5.7.0"
