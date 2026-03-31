@@ -63,8 +63,8 @@ export const components: ComponentEntry[] = [
   // ── Overlay ───────────────────────────────────────────────
   { name: 'context-menu', title: 'ContextMenu', category: 'Overlay' },
   { name: 'dropdown-menu', title: 'DropdownMenu', category: 'Overlay' },
-  { name: 'menu', title: 'Menu', category: 'Overlay' },
   { name: 'hover-card', title: 'HoverCard', category: 'Overlay' },
+  { name: 'menu', title: 'Menu', category: 'Overlay' },
   { name: 'popover', title: 'Popover', category: 'Overlay' },
   { name: 'tooltip', title: 'Tooltip', category: 'Overlay' },
 
