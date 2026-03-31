@@ -50,18 +50,18 @@ The returned instance has two kinds of properties: reserved form properties and 
 
 ### Form properties
 
-| Property          | Type                                                 | Description                                                                             |
-| ----------------- | ---------------------------------------------------- | --------------------------------------------------------------------------------------- |
-| `action`          | `string`                                             | URL for the form's `action` attribute (progressive enhancement)                         |
-| `method`          | `string`                                             | HTTP method for the form's `method` attribute                                           |
-| `onSubmit`        | `(e: Event) => Promise<void>`                        | Submit handler — validates, then calls the SDK method                                   |
-| `submitting`      | `boolean`                                            | `true` while the submission is in flight (auto-unwrapped `Signal<boolean>` in JSX)      |
-| `dirty`           | `boolean`                                            | `true` if any field has been modified (auto-unwrapped `ReadonlySignal<boolean>` in JSX) |
-| `valid`           | `boolean`                                            | `true` if all fields pass validation (auto-unwrapped `ReadonlySignal<boolean>` in JSX)  |
-| `fields`          | `FieldNames<TBody>`                                  | Object mapping each field name to itself — use for `name` attributes                    |
-| `reset()`         | `() => void`                                         | Reset all fields to initial values                                                      |
-| `submit()`        | `(formData?: FormData) => Promise<void>`             | Programmatic submit                                                                     |
-| `setFieldError()` | `(field: FieldPath<TBody>, message: string) => void` | Set a custom error on a field (supports dot-paths for nested fields)                    |
+| Property          | Type                                                 | Description                                                          |
+| ----------------- | ---------------------------------------------------- | -------------------------------------------------------------------- |
+| `action`          | `string`                                             | URL for the form's `action` attribute (progressive enhancement)      |
+| `method`          | `string`                                             | HTTP method for the form's `method` attribute                        |
+| `onSubmit`        | `(e: Event) => Promise<void>`                        | Submit handler — validates, then calls the SDK method                |
+| `submitting`      | `boolean`                                            | `true` while the submission is in flight                             |
+| `dirty`           | `boolean`                                            | `true` if any field has been modified                                |
+| `valid`           | `boolean`                                            | `true` if all fields pass validation                                 |
+| `fields`          | `FieldNames<TBody>`                                  | Object mapping each field name to itself — use for `name` attributes |
+| `reset()`         | `() => void`                                         | Reset all fields to initial values                                   |
+| `submit()`        | `(formData?: FormData) => Promise<void>`             | Programmatic submit                                                  |
+| `setFieldError()` | `(field: FieldPath<TBody>, message: string) => void` | Set a custom error on a field (supports dot-paths for nested fields) |
 
 ### Per-field accessors
 
@@ -115,9 +115,8 @@ interface FormOptions<TBody, TResult> {
   revalidateOn?: 'blur' | 'change' | 'submit';
 }
 
-// Signal types shown below are the actual runtime types.
-// In JSX, signals are auto-unwrapped — e.g., `submitting` reads as
-// `boolean` in templates without needing `.value`.
+// Types below show the developer-facing API — the compiler auto-unwraps
+// reactive properties, so you use them as plain values in JSX and templates.
 type FormInstance<TBody, TResult> = FormBaseProperties<TBody> & NestedFieldAccessors<TBody>;
 
 interface FormBaseProperties<TBody> {
@@ -127,17 +126,17 @@ interface FormBaseProperties<TBody> {
   reset: () => void;
   setFieldError: (field: FieldPath<TBody>, message: string) => void;
   submit: (formData?: FormData) => Promise<void>;
-  submitting: Signal<boolean>;
-  dirty: ReadonlySignal<boolean>;
-  valid: ReadonlySignal<boolean>;
+  submitting: boolean;
+  dirty: boolean;
+  valid: boolean;
   fields: FieldNames<TBody>;
 }
 
 interface FieldState<T = unknown> {
-  value: Signal<T>;
-  error: Signal<string | undefined>;
-  dirty: Signal<boolean>;
-  touched: Signal<boolean>;
+  value: T;
+  error: string | undefined;
+  dirty: boolean;
+  touched: boolean;
   setValue: (value: T) => void;
   reset: () => void;
 }
