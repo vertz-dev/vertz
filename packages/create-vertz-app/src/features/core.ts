@@ -20,11 +20,24 @@ A ${stackType} application built with [Vertz](https://vertz.dev).
 - Language: TypeScript (strict mode)
 - Docs: https://docs.vertz.dev
 
-## Development
+## This project is pre-configured
 
-\`\`\`bash
-bun install && bun run dev
-\`\`\``);
+Run \`bun install\` then \`bun run dev\` — it works out of the box.
+
+**Your job:** edit files in \`src/\` — the scaffold handles everything else.
+Do NOT create separate db.ts or server.ts files — all setup is in \`dev.ts\`.`);
+
+  if (ctx.hasFeature('api')) {
+    sections.push(`
+## How to add features
+
+### Adding a new entity
+
+1. Add table + model to \`src/api/schema.ts\`
+2. Create \`src/api/entities/your.entity.ts\`
+3. Import and add to entities array in \`dev.ts\`
+4. Run \`bun run dev\` (tables auto-created via \`migrations: { autoApply: true }\`)`);
+  }
 
   // Project structure
   const structure: string[] = [];
