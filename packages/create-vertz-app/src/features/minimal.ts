@@ -170,6 +170,29 @@ export const tasks = entity('tasks', {
 });
 \`\`\`
 
+## Validation (before hooks)
+
+\`\`\`ts
+import { entity, BadRequestException } from 'vertz/server';
+export const tasks = entity('tasks', {
+  model: tasksModel,
+  access: { list: () => true, get: () => true, create: () => true, update: () => true, delete: () => true },
+  before: {
+    create: (data) => {
+      if (!data.title?.trim()) throw new BadRequestException('title is required');
+      if (data.title.length > 100) throw new BadRequestException('title too long');
+      return data;
+    },
+    update: (data) => {
+      if (data.title !== undefined && !data.title.trim()) throw new BadRequestException('title is required');
+      return data;
+    },
+  },
+});
+\`\`\`
+
+\`BadRequestException\` returns HTTP 400. Import from \`vertz/server\`.
+
 ## UI — reactivity is automatic
 
 \`let count = 0\` → signal. \`count++\` updates DOM. Components run once, no re-renders.
