@@ -8,6 +8,7 @@ import {
   setModuleState,
 } from './hooks/use-customization';
 import { getInitialTheme, useTheme } from './hooks/use-theme';
+import { components } from './manifest';
 import { ComponentPage } from './pages/component-page';
 import { IndexRedirect } from './pages/index-redirect';
 import { OverviewPage } from './pages/overview-page';
@@ -21,7 +22,7 @@ export const theme = docsTheme;
 export const styles = [themeGlobals.css, appGlobals.css];
 
 // ── Routes ─────────────────────────────────────────────────
-const routes = defineRoutes({
+export const routes = defineRoutes({
   '/': {
     component: () => <IndexRedirect />,
   },
@@ -30,6 +31,7 @@ const routes = defineRoutes({
   },
   '/components/:name': {
     component: () => <ComponentPage />,
+    generateParams: () => components.map((c) => ({ name: c.name })),
   },
 });
 
