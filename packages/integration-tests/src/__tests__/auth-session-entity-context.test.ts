@@ -196,7 +196,7 @@ describe('Feature: Auth session auto-wiring into entity context', () => {
               'Content-Type': 'application/json',
               Cookie: `vertz.sid=${jwt}`,
             },
-            body: JSON.stringify({ title: 'My Task' }),
+            body: JSON.stringify({ title: 'My Task', createdBy: 'cookie-user' }),
           }),
         );
 
@@ -263,7 +263,7 @@ describe('Feature: Auth session auto-wiring into entity context', () => {
               'Content-Type': 'application/json',
               Authorization: `Bearer ${jwt}`,
             },
-            body: JSON.stringify({ title: 'Bearer Task' }),
+            body: JSON.stringify({ title: 'Bearer Task', createdBy: 'bearer-user' }),
           }),
         );
 

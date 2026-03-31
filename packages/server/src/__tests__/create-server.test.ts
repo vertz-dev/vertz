@@ -1039,7 +1039,7 @@ describe('createServer', () => {
       new Request('http://localhost/api/users', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: 'u1', name: 'Alice' }),
+        body: JSON.stringify({ name: 'Alice' }),
       }),
     );
     expect(res.status).toBe(201);

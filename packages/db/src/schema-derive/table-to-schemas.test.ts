@@ -40,6 +40,18 @@ const products = d.table('products', {
   secret: d.text().is('sensitive'),
 });
 
+// Table with all column annotation types for apiCreateBody/apiUpdateBody tests
+const accounts = d.table('accounts', {
+  id: d.uuid().primary(),
+  name: d.text(),
+  email: d.email().unique(),
+  passwordHash: d.varchar(255).is('hidden'),
+  apiSecret: d.text().is('sensitive'),
+  role: d.enum('account_role', ['admin', 'member']).default('member'),
+  createdAt: d.timestamp().default('now').readOnly(),
+  updatedAt: d.timestamp().autoUpdate(),
+});
+
 // ---------------------------------------------------------------------------
 // tableToSchemas — return shape
 // ---------------------------------------------------------------------------
@@ -565,6 +577,162 @@ describe('tableToSchemas', () => {
         },
       });
       expect(() => tableToSchemas(weirdTable)).toThrow(/unknown.*column.*type.*geometry/i);
+    });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// apiCreateBody / apiUpdateBody — strict input schemas for CRUD endpoints
+// ---------------------------------------------------------------------------
+
+describe('tableToSchemas — API input schemas', () => {
+  // -------------------------------------------------------------------------
+  // apiCreateBody
+  // -------------------------------------------------------------------------
+
+  describe('apiCreateBody', () => {
+    it('excludes primary key columns', () => {
+      const { apiCreateBody } = tableToSchemas(accounts);
+      expect(apiCreateBody.shape).not.toHaveProperty('id');
+    });
+
+    it('excludes readOnly columns', () => {
+      const { apiCreateBody } = tableToSchemas(accounts);
+      expect(apiCreateBody.shape).not.toHaveProperty('createdAt');
+    });
+
+    it('excludes autoUpdate columns (via isReadOnly)', () => {
+      const { apiCreateBody } = tableToSchemas(accounts);
+      expect(apiCreateBody.shape).not.toHaveProperty('updatedAt');
+    });
+
+    it('excludes hidden columns', () => {
+      const { apiCreateBody } = tableToSchemas(accounts);
+      expect(apiCreateBody.shape).not.toHaveProperty('passwordHash');
+    });
+
+    it('includes sensitive columns (writable, hidden from responses only)', () => {
+      const { apiCreateBody } = tableToSchemas(accounts);
+      expect(apiCreateBody.shape).toHaveProperty('apiSecret');
+    });
+
+    it('includes columns with defaults as optional', () => {
+      const { apiCreateBody } = tableToSchemas(accounts);
+      // role has default('member') — should be optional in create
+      const result = apiCreateBody.safeParse({
+        name: 'Alice',
+        email: 'alice@example.com',
+        apiSecret: 'sk-123',
+        // role omitted — should be valid
+      });
+      expect(result.ok).toBe(true);
+    });
+
+    it('accepts columns with defaults when provided', () => {
+      const { apiCreateBody } = tableToSchemas(accounts);
+      const result = apiCreateBody.safeParse({
+        name: 'Alice',
+        email: 'alice@example.com',
+        apiSecret: 'sk-123',
+        role: 'admin',
+      });
+      expect(result.ok).toBe(true);
+    });
+
+    it('includes required columns without defaults', () => {
+      const { apiCreateBody } = tableToSchemas(accounts);
+      expect(apiCreateBody.shape).toHaveProperty('name');
+      expect(apiCreateBody.shape).toHaveProperty('email');
+    });
+
+    it('rejects unknown keys in strict mode', () => {
+      const { apiCreateBody } = tableToSchemas(accounts);
+      const result = apiCreateBody.safeParse({
+        name: 'Alice',
+        email: 'alice@example.com',
+        apiSecret: 'sk-123',
+        unknown_field: 'value',
+      });
+      expect(result.ok).toBe(false);
+    });
+
+    it('rejects missing required fields', () => {
+      const { apiCreateBody } = tableToSchemas(accounts);
+      const result = apiCreateBody.safeParse({
+        name: 'Alice',
+        // email missing, apiSecret missing
+      });
+      expect(result.ok).toBe(false);
+    });
+
+    it('validates field types', () => {
+      const { apiCreateBody } = tableToSchemas(accounts);
+      const result = apiCreateBody.safeParse({
+        name: 123, // wrong type
+        email: 'alice@example.com',
+        apiSecret: 'sk-123',
+      });
+      expect(result.ok).toBe(false);
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // apiUpdateBody
+  // -------------------------------------------------------------------------
+
+  describe('apiUpdateBody', () => {
+    it('excludes primary key columns', () => {
+      const { apiUpdateBody } = tableToSchemas(accounts);
+      expect(apiUpdateBody.shape).not.toHaveProperty('id');
+    });
+
+    it('excludes readOnly columns', () => {
+      const { apiUpdateBody } = tableToSchemas(accounts);
+      expect(apiUpdateBody.shape).not.toHaveProperty('createdAt');
+    });
+
+    it('excludes autoUpdate columns (via isReadOnly)', () => {
+      const { apiUpdateBody } = tableToSchemas(accounts);
+      expect(apiUpdateBody.shape).not.toHaveProperty('updatedAt');
+    });
+
+    it('excludes hidden columns', () => {
+      const { apiUpdateBody } = tableToSchemas(accounts);
+      expect(apiUpdateBody.shape).not.toHaveProperty('passwordHash');
+    });
+
+    it('includes sensitive columns', () => {
+      const { apiUpdateBody } = tableToSchemas(accounts);
+      expect(apiUpdateBody.shape).toHaveProperty('apiSecret');
+    });
+
+    it('makes all remaining columns optional', () => {
+      const { apiUpdateBody } = tableToSchemas(accounts);
+      const result = apiUpdateBody.safeParse({});
+      expect(result.ok).toBe(true);
+    });
+
+    it('accepts partial updates', () => {
+      const { apiUpdateBody } = tableToSchemas(accounts);
+      const result = apiUpdateBody.safeParse({ name: 'Bob' });
+      expect(result.ok).toBe(true);
+    });
+
+    it('rejects unknown keys in strict mode', () => {
+      const { apiUpdateBody } = tableToSchemas(accounts);
+      const result = apiUpdateBody.safeParse({
+        name: 'Bob',
+        created_at: '2024-01-01',
+      });
+      expect(result.ok).toBe(false);
+    });
+
+    it('validates field types', () => {
+      const { apiUpdateBody } = tableToSchemas(accounts);
+      const result = apiUpdateBody.safeParse({
+        role: 'invalid-role',
+      });
+      expect(result.ok).toBe(false);
     });
   });
 });
