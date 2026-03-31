@@ -1,27 +1,9 @@
 import type { Feature, FeatureContext } from './types.js';
 
 /**
- * Minimal scaffold — 5 files, CLI-first workflow.
+ * Minimal scaffold — follows framework best practices (vertz dev, not dev.ts).
  * Optimized for AI agents: fewest files, CLI does the heavy lifting.
  */
-
-function minimalPackageJson(ctx: FeatureContext): string {
-  return JSON.stringify({
-    name: ctx.projectName,
-    version: '0.0.1',
-    scripts: {
-      dev: 'bun run dev.ts',
-    },
-    dependencies: {
-      vertz: 'latest',
-      '@vertz/ui-server': 'latest',
-      '@vertz/ui': 'latest',
-    },
-    devDependencies: {
-      '@vertz/cli': 'latest',
-    },
-  }, null, 2);
-}
 
 function minimalTsconfig(): string {
   return JSON.stringify({
@@ -36,46 +18,18 @@ function minimalTsconfig(): string {
   }, null, 2);
 }
 
-function minimalDevTs(): string {
-  return `/**
- * Vertz Dev Server — single entry point for development.
- *
- * This file handles DB, API, and UI dev server.
- * Do NOT create separate db.ts or server.ts files — everything goes here.
- *
- * To add features, uncomment sections below and update imports.
- */
+function minimalVertzConfig(): string {
+  return `/** @type {import('@vertz/compiler').VertzConfig} */
+export default {
+  compiler: {
+    entryFile: 'src/api/server.ts',
+  },
+};
 
-import { createBunDevServer } from '@vertz/ui-server/bun-dev-server';
-import { createServer } from 'vertz/server';
-import { createDb } from 'vertz/db';
-import { resolve } from 'path';
-
-const PORT = Number(process.env.PORT ?? 4200);
-
-// ── Step 1: Create src/api/schema.ts and src/api/entities/*.entity.ts ──
-// ── Step 2: Uncomment below and update imports to match your files ──
-
-// import { tasksModel } from './src/api/schema';
-// import { tasks } from './src/api/entities/tasks.entity';
-
-// const db = createDb({
-//   dialect: 'sqlite',
-//   path: './data.db',
-//   models: { tasks: tasksModel },
-//   migrations: { autoApply: true },
-// });
-
-// const app = createServer({ entities: [tasks], db });
-
-const server = createBunDevServer({
-  entry: resolve('./src/app.tsx'),
-  port: PORT,
-  // apiHandler: app.handler,  // uncomment when you have entities
-  projectRoot: process.cwd(),
-});
-
-await server.start();
+/** @type {import('@vertz/codegen').CodegenConfig} */
+export const codegen = {
+  generators: ['typescript'],
+};
 `;
 }
 
@@ -91,41 +45,61 @@ function minimalClaudeMd(ctx: FeatureContext): string {
 
 Vertz full-stack TypeScript app. Dependencies are pre-installed.
 
-## IMPORTANT: Use the Vertz CLI
-
-Do NOT create entity/schema files manually. Use the CLI — it handles all wiring automatically.
-
-### Step 1: Plan what you need
+## Quick start
 
 \`\`\`bash
-# Preview what will be created before applying:
+bun run dev    # starts on http://localhost:3000
+\`\`\`
+
+## IMPORTANT: Use the Vertz CLI to add features
+
+Do NOT create files manually for entities or pages. Use the CLI:
+
+\`\`\`bash
+# Preview what will be created:
 bunx vertz add entity tasks --fields "title:text, description:text, status:text" --dry-run
-\`\`\`
 
-### Step 2: Add entities via CLI
-
-\`\`\`bash
-# This creates schema.ts + entity file + updates dev.ts:
+# Apply — creates schema, entity, and registers in server:
 bunx vertz add entity tasks --fields "title:text, description:text, status:text"
-\`\`\`
 
-### Step 3: Inspect project state
-
-\`\`\`bash
+# See current project state:
 bunx vertz inspect --json
 \`\`\`
 
-### Step 4: Start dev server
+After the CLI creates the entity files, you only need to:
+1. Create \`src/api/server.ts\` (if it doesn't exist) — see Server section below
+2. Edit entity files to add validation hooks if needed
+3. Edit \`src/app.tsx\` for the UI
+4. Run \`bun run dev\`
 
-\`\`\`bash
-bun run dev    # starts on http://localhost:4200
+## Project structure
+
+\`\`\`
+vertz.config.ts             # points to src/api/server.ts
+src/api/server.ts           # createServer({ entities, db }) — YOU CREATE THIS
+src/api/schema.ts           # d.table() + d.model() — CLI creates this
+src/api/entities/*.entity.ts # entity() definitions — CLI creates these
+src/app.tsx                 # UI root
 \`\`\`
 
-## After CLI scaffolding — manual edits only for:
+## Server (src/api/server.ts)
 
-- \`dev.ts\` — verify server config is correct, uncomment apiHandler if needed
-- \`src/app.tsx\` — build the UI
-- Entity files — add validation hooks (\`before.create\`, \`before.update\`)
+\`\`\`ts
+import { createServer } from 'vertz/server';
+import { createDb } from 'vertz/db';
+import { tasksModel } from './schema';
+import { tasks } from './entities/tasks.entity';
+
+const db = createDb({
+  dialect: 'sqlite',
+  path: './data.db',
+  models: { tasks: tasksModel },
+  migrations: { autoApply: true },
+});
+
+const app = createServer({ basePath: '/api', entities: [tasks], db });
+export default app;
+\`\`\`
 
 ## Route conventions
 
@@ -138,7 +112,6 @@ All routes prefixed with \`/api/\`:
 
 ## Custom endpoints (services)
 
-For non-CRUD endpoints like health checks:
 \`\`\`ts
 import { service } from 'vertz/server';
 import { s } from 'vertz/schema';
@@ -148,6 +121,8 @@ const health = service('health', {
 });
 // → GET /api/health/check
 \`\`\`
+
+Register services in server.ts: \`createServer({ entities: [...], services: [health], db })\`
 
 ## Validation (before hooks)
 
@@ -162,15 +137,17 @@ export const tasks = entity('tasks', {
       if (data.title.length > 100) throw new BadRequestException('title too long');
       return data;
     },
-    update: (data) => {
-      if (data.title !== undefined && !data.title.trim()) throw new BadRequestException('title is required');
-      return data;
-    },
   },
 });
 \`\`\`
 
 \`BadRequestException\` returns HTTP 400. Import from \`vertz/server\`.
+
+## Schema reference
+
+Types: \`d.uuid()\` \`d.text()\` \`d.boolean()\` \`d.integer()\` \`d.timestamp()\`
+Modifiers: \`.primary()\` \`.default(v)\` \`.readOnly()\` \`.min(n)\` \`.max(n)\`
+No \`.optional()\` — use \`.default(value)\` instead.
 
 ## UI — reactivity is automatic
 
@@ -185,66 +162,55 @@ description: Add a new entity with schema, CRUD endpoints, and DB registration
 
 # Add Entity
 
-Follow these steps exactly to add a new entity to the project.
+## Step 1: Run the CLI
 
-## Step 1: Create schema
-
-Create \`src/api/schema.ts\` (or append to it if it exists):
-
-\`\`\`ts
-import { d } from 'vertz/db';
-
-export const {entityName}Table = d.table('{entityName}', {
-  id: d.uuid().primary({ generate: 'uuid' }),
-  // Add your fields here. Examples:
-  // title: d.text().min(1).max(100),
-  // status: d.text().default('todo'),
-  // completed: d.boolean().default(false),
-  // count: d.integer().default(0),
-  createdAt: d.timestamp().default('now').readOnly(),
-});
-
-export const {entityName}Model = d.model({entityName}Table);
+\`\`\`bash
+bunx vertz add entity {entityName} --fields "title:text, status:text" --dry-run
 \`\`\`
 
-Field types: \`d.uuid()\`, \`d.text()\`, \`d.boolean()\`, \`d.integer()\`, \`d.timestamp()\`
-Modifiers: \`.primary()\`, \`.default(v)\`, \`.readOnly()\`, \`.min(n)\`, \`.max(n)\`
-No \`.optional()\` — use \`.default(value)\` instead.
+Review the plan. If it looks good, run without --dry-run:
 
-## Step 2: Create entity
+\`\`\`bash
+bunx vertz add entity {entityName} --fields "title:text, status:text"
+\`\`\`
 
-Create \`src/api/entities/{entityName}.entity.ts\`:
+## Step 2: Create or update src/api/server.ts
+
+\`\`\`ts
+import { createServer } from 'vertz/server';
+import { createDb } from 'vertz/db';
+import { {entityName}Model } from './schema';
+import { {entityName} } from './entities/{entityName}.entity';
+
+const db = createDb({
+  dialect: 'sqlite',
+  path: './data.db',
+  models: { {entityName}: {entityName}Model },
+  migrations: { autoApply: true },
+});
+
+const app = createServer({ basePath: '/api', entities: [{entityName}], db });
+export default app;
+\`\`\`
+
+## Step 3: Add validation if needed
+
+Edit \`src/api/entities/{entityName}.entity.ts\` to add before hooks:
 
 \`\`\`ts
 import { entity, BadRequestException } from 'vertz/server';
-import { {entityName}Model } from '../schema';
-
-export const {entityName} = entity('{entityName}', {
-  model: {entityName}Model,
-  access: { list: () => true, get: () => true, create: () => true, update: () => true, delete: () => true },
-  // Add validation if needed:
-  // before: {
-  //   create: (data) => {
-  //     if (!data.title?.trim()) throw new BadRequestException('title is required');
-  //     return data;
-  //   },
-  // },
-});
+// Add before: { create: (data) => { ... } } for validation
 \`\`\`
 
-## Step 3: Update dev.ts
+## Step 4: Start the server
 
-In \`dev.ts\`, uncomment the DB and server sections and update imports:
-
-1. Add import at the top: \`import { {entityName}Model } from './src/api/schema';\`
-2. Add import: \`import { {entityName} } from './src/api/entities/{entityName}.entity';\`
-3. Uncomment \`const db = createDb({...})\` and set \`models: { {entityName}: {entityName}Model }\`
-4. Uncomment \`const app = createServer({...})\` and set \`entities: [{entityName}]\`
-5. Uncomment \`apiHandler: app.handler\` in createBunDevServer
+\`\`\`bash
+bun run dev
+\`\`\`
 
 ## Routes generated
 
-- \`GET /api/{entityName}\` → list (returns \`{ items, total, limit, hasNextPage }\`)
+- \`GET /api/{entityName}\` → list
 - \`POST /api/{entityName}\` → create
 - \`GET /api/{entityName}/:id\` → get
 - \`PATCH /api/{entityName}/:id\` → update (NOT PUT)
@@ -261,9 +227,10 @@ description: Add a custom API endpoint (non-CRUD) using Vertz services
 
 For custom endpoints that aren't entity CRUD, use a service.
 
-## Create the service
+## Create the service file
 
 \`\`\`ts
+// src/api/services/{serviceName}.service.ts
 import { service } from 'vertz/server';
 import { s } from 'vertz/schema';
 
@@ -271,7 +238,7 @@ export const {serviceName} = service('{serviceName}', {
   access: { {actionName}: () => true },
   actions: {
     {actionName}: {
-      method: 'GET',  // or 'POST'
+      method: 'GET',
       response: s.object({ status: s.string() }),
       handler: async () => {
         return { status: 'ok' };
@@ -281,12 +248,10 @@ export const {serviceName} = service('{serviceName}', {
 });
 \`\`\`
 
-## Register in dev.ts
-
-Add to the \`createServer\` call:
+## Register in server.ts
 
 \`\`\`ts
-import { {serviceName} } from './src/api/{serviceName}.service';
+import { {serviceName} } from './services/{serviceName}.service';
 
 const app = createServer({
   entities: [...],
@@ -308,7 +273,7 @@ export const minimalFeature: Feature = {
   files(ctx) {
     return [
       { path: 'tsconfig.json', content: minimalTsconfig() },
-      { path: 'dev.ts', content: minimalDevTs() },
+      { path: 'vertz.config.ts', content: minimalVertzConfig() },
       { path: 'src/app.tsx', content: minimalAppTsx() },
       { path: 'CLAUDE.md', content: minimalClaudeMd(ctx) },
       { path: '.claude/skills/add-entity.md', content: addEntitySkill() },
@@ -318,15 +283,20 @@ export const minimalFeature: Feature = {
 
   packages: {
     dependencies: {
-      vertz: 'latest',
-      '@vertz/ui-server': 'latest',
-      '@vertz/ui': 'latest',
+      vertz: '^0.2.0',
+      '@vertz/theme-shadcn': '^0.2.0',
     },
     devDependencies: {
-      '@vertz/cli': 'latest',
+      '@vertz/cli': '^0.2.0',
+      '@vertz/ui-compiler': '^0.2.0',
+      'bun-types': '^1.0.0',
+      typescript: '^5.8.0',
     },
     scripts: {
-      dev: 'bun run dev.ts',
+      dev: 'vertz dev',
+      build: 'vertz build',
+      start: 'vertz start',
+      codegen: 'vertz codegen',
     },
   },
 };
