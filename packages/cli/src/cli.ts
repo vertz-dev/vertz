@@ -25,6 +25,7 @@ import {
 } from './commands/docs';
 import { generateAction } from './commands/generate';
 import { loadDbContext, loadIntrospectContext } from './commands/load-db-context';
+import { addEntityAction } from './commands/add';
 import { inspectAction } from './commands/inspect';
 import { startAction } from './commands/start';
 import { syncContextAction } from './commands/sync-context';
@@ -238,6 +239,20 @@ export function createCLI(): Command {
     .option('--json', 'Output as JSON (for agent consumption)')
     .action(async (opts: { json?: boolean }) => {
       await inspectAction({ json: opts.json });
+    });
+
+  // Add entity — full-stack entity generation with plan/dry-run
+  const addCommand = program.command('add').description('Add features to the project');
+
+  addCommand
+    .command('entity <name>')
+    .description('Add a new entity with schema, CRUD access, and server registration')
+    .requiredOption('--fields <fields>', 'Field definitions (e.g., "title:text, body:text")')
+    .option('--belongs-to <entities>', 'Parent entities (comma-separated)')
+    .option('--dry-run', 'Preview changes without applying')
+    .option('--json', 'Output plan as JSON')
+    .action(async (name: string, opts: { fields: string; belongsTo?: string; dryRun?: boolean; json?: boolean }) => {
+      await addEntityAction(name, opts);
     });
 
   program
