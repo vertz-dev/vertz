@@ -9,7 +9,11 @@ set -euo pipefail
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 EXAMPLE_DIR="${1:-examples/entity-todo}"
 TEST_FILE="${2:-src/__tests__/api.test.ts}"
-RUNTIME="$REPO_ROOT/native/target/release/vertz-runtime"
+RUNTIME="${VERTZ_RUNTIME_BINARY:-$(which vtz 2>/dev/null || echo "")}"
+if [ -z "$RUNTIME" ] || [ ! -f "$RUNTIME" ]; then
+  echo "Error: vtz binary not found. Set VERTZ_RUNTIME_BINARY or install vtz globally."
+  exit 1
+fi
 RUNS=10
 
 cd "$REPO_ROOT/$EXAMPLE_DIR"
@@ -106,5 +110,5 @@ echo "| Max | ${VERTZ_MAX}ms | ${BUN_MAX}ms | |"
 echo "| Peak RSS | ${VERTZ_RSS:-?} bytes | ${BUN_RSS:-?} bytes | |"
 echo ""
 echo "Binary sizes:"
-echo "  vertz-runtime: $(ls -lh "$RUNTIME" | awk '{print $5}')"
+echo "  vtz: $(ls -lh "$RUNTIME" | awk '{print $5}')"
 echo "  bun: $(ls -lh "$(which bun)" | awk '{print $5}')"

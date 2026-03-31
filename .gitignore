@@ -74,10 +74,6 @@ data/
 **/:memory:
 .vertz/
 
-# Rust / Native compiler
-native/target/
-*.node
-
 # Claude Code
 .claude/worktrees/
 .mcp.json

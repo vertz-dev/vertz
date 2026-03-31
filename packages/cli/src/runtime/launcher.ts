@@ -1,7 +1,6 @@
 import { execFileSync, spawn, type ChildProcess } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { createRequire } from 'node:module';
-import { join } from 'node:path';
 
 const require = createRequire(import.meta.url);
 
@@ -16,13 +15,11 @@ export interface RuntimeLaunchOptions {
 }
 
 /**
- * Find the vertz-runtime binary. Search order:
+ * Find the vtz binary. Search order:
  * 1. VERTZ_RUNTIME_BINARY env var (fail-fast if set but missing)
  * 2. @vertz/runtime npm package (getBinaryPath — single source of truth)
- * 3. native/target/release/vertz-runtime (local cargo build, monorepo dev only)
- * 4. native/target/debug/vertz-runtime (local cargo build, monorepo dev only)
  */
-export function findRuntimeBinary(projectRoot: string): string | null {
+export function findRuntimeBinary(_projectRoot: string): string | null {
   // 1. Explicit env override — fail-fast if set but missing
   const envPath = process.env.VERTZ_RUNTIME_BINARY;
   if (envPath) {
@@ -42,15 +39,8 @@ export function findRuntimeBinary(projectRoot: string): string | null {
     };
     return getBinaryPath();
   } catch {
-    // Package not installed or platform not supported — fall through
+    // Package not installed or platform not supported
   }
-
-  // 3. Local cargo build (monorepo dev only)
-  const release = join(projectRoot, 'native', 'target', 'release', 'vertz-runtime');
-  if (existsSync(release)) return release;
-
-  const debug = join(projectRoot, 'native', 'target', 'debug', 'vertz-runtime');
-  if (existsSync(debug)) return debug;
 
   return null;
 }
@@ -66,7 +56,7 @@ export function checkVersionCompatibility(binaryPath: string, cliVersion: string
       encoding: 'utf-8',
       timeout: 5000,
     }).trim();
-    // Output may be "vertz-runtime X.Y.Z" — extract the version
+    // Output may be "vtz X.Y.Z" — extract the version
     const parts = runtimeVersion.split(/\s+/);
     runtimeVersion = parts[parts.length - 1] ?? runtimeVersion;
   } catch {
