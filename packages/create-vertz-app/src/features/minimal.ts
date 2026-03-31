@@ -89,51 +89,56 @@ function minimalAppTsx(): string {
 function minimalClaudeMd(ctx: FeatureContext): string {
   return `# ${ctx.projectName}
 
-Vertz full-stack TypeScript app. Docs: https://docs.vertz.dev
+Vertz full-stack TypeScript app. Dependencies are pre-installed.
 
-## Quick start
+## IMPORTANT: Use the Vertz CLI
 
-\`\`\`bash
-bun install && bun run dev    # starts on http://localhost:4200
-\`\`\`
+Do NOT create entity/schema files manually. Use the CLI — it handles all wiring automatically.
 
-## How to build features
-
-### Use the CLI for standard patterns:
+### Step 1: Plan what you need
 
 \`\`\`bash
-# Preview what will be created (dry-run):
-vertz add entity tasks --fields "title:text, status:text, completed:boolean" --dry-run
-
-# Apply:
-vertz add entity tasks --fields "title:text, status:text, completed:boolean"
-
-# Add a CRUD page:
-vertz add page tasks --crud --for tasks
-
-# See current project state:
-vertz inspect --json
+# Preview what will be created before applying:
+bunx vertz add entity tasks --fields "title:text, description:text, status:text" --dry-run
 \`\`\`
 
-The CLI creates schema, entity, and registers everything in dev.ts automatically.
+### Step 2: Add entities via CLI
 
-### Manual editing — for custom logic only:
+\`\`\`bash
+# This creates schema.ts + entity file + updates dev.ts:
+bunx vertz add entity tasks --fields "title:text, description:text, status:text"
+\`\`\`
 
-- \`dev.ts\` — server config (all DB + API setup lives here, nowhere else)
-- \`src/app.tsx\` — UI root
-- \`src/api/schema.ts\` — table definitions
-- \`src/api/entities/*.entity.ts\` — entity CRUD + access rules
+### Step 3: Inspect project state
+
+\`\`\`bash
+bunx vertz inspect --json
+\`\`\`
+
+### Step 4: Start dev server
+
+\`\`\`bash
+bun run dev    # starts on http://localhost:4200
+\`\`\`
+
+## After CLI scaffolding — manual edits only for:
+
+- \`dev.ts\` — verify server config is correct, uncomment apiHandler if needed
+- \`src/app.tsx\` — build the UI
+- Entity files — add validation hooks (\`before.create\`, \`before.update\`)
 
 ## Route conventions
 
-All API routes prefixed with \`/api/\`:
+All routes prefixed with \`/api/\`:
 - \`GET /api/{entity}\` → list (returns \`{ items, total, limit, hasNextPage }\`)
 - \`POST /api/{entity}\` → create
 - \`GET /api/{entity}/:id\` → get
 - \`PATCH /api/{entity}/:id\` → update (NOT PUT)
 - \`DELETE /api/{entity}/:id\` → delete
 
-For custom non-CRUD endpoints, use services:
+## Custom endpoints (services)
+
+For non-CRUD endpoints like health checks:
 \`\`\`ts
 import { service } from 'vertz/server';
 import { s } from 'vertz/schema';
@@ -142,34 +147,6 @@ const health = service('health', {
   actions: { check: { method: 'GET', response: s.object({ status: s.string() }), handler: async () => ({ status: 'ok' }) } },
 });
 // → GET /api/health/check
-\`\`\`
-
-## Schema reference
-
-\`\`\`ts
-import { d } from 'vertz/db';
-export const tasksTable = d.table('tasks', {
-  id: d.uuid().primary({ generate: 'uuid' }),
-  title: d.text().min(1).max(100),
-  status: d.text().default('todo'),
-  createdAt: d.timestamp().default('now').readOnly(),
-});
-export const tasksModel = d.model(tasksTable);
-\`\`\`
-
-Types: \`d.uuid()\` \`d.text()\` \`d.boolean()\` \`d.integer()\` \`d.timestamp()\`
-Modifiers: \`.primary()\` \`.default(v)\` \`.readOnly()\` \`.min(n)\` \`.max(n)\`
-No \`.optional()\` — use \`.default(value)\` instead.
-
-## Entity reference
-
-\`\`\`ts
-import { entity } from 'vertz/server';
-import { tasksModel } from '../schema';
-export const tasks = entity('tasks', {
-  model: tasksModel,
-  access: { list: () => true, get: () => true, create: () => true, update: () => true, delete: () => true },
-});
 \`\`\`
 
 ## Validation (before hooks)
