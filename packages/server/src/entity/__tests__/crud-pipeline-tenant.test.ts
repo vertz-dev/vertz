@@ -5,7 +5,7 @@
 
 import { describe, expect, it, mock } from 'bun:test';
 import { d } from '@vertz/db';
-import { EntityNotFoundError, unwrap } from '@vertz/errors';
+import { EntityNotFoundError, EntityValidationError, unwrap } from '@vertz/errors';
 import { rules } from '../../auth/rules';
 import { createEntityContext } from '../context';
 import { createCrudHandlers } from '../crud-pipeline';
@@ -176,7 +176,7 @@ describe('CRUD Pipeline Tenant Edge Cases', () => {
 
   describe('Given an indirectly scoped entity on create', () => {
     describe('When the parent FK is missing from input', () => {
-      it('Then returns EntityNotFoundError (lines 306-311)', async () => {
+      it('Then returns EntityValidationError (missing required field)', async () => {
         const tenantChain: TenantChain = {
           hops: [{ tableName: 'projects', foreignKey: 'projectId', targetColumn: 'id' }],
           tenantColumn: 'organizationId',
@@ -193,13 +193,12 @@ describe('CRUD Pipeline Tenant Edge Cases', () => {
         const handlers = createCrudHandlers(def, db, { tenantChain, queryParentIds });
         const ctx = makeCtx({ tenantId: 'org-1' });
 
-        // Create without projectId — should error
+        // Create without projectId — schema validation rejects missing required field
         const result = await handlers.create(ctx, { title: 'My Task' });
 
         expect(result.ok).toBe(false);
         if (!result.ok) {
-          expect(result.error).toBeInstanceOf(EntityNotFoundError);
-          expect(result.error.message).toContain('projectId is required');
+          expect(result.error).toBeInstanceOf(EntityValidationError);
         }
       });
     });
@@ -223,8 +222,11 @@ describe('CRUD Pipeline Tenant Edge Cases', () => {
         const handlers = createCrudHandlers(def, db, { tenantChain, queryParentIds });
         const ctx = makeCtx({ tenantId: 'org-1' });
 
-        // Create with a projectId that doesn't exist
-        const result = await handlers.create(ctx, { title: 'My Task', projectId: 'non-existent' });
+        // Create with a valid UUID projectId that doesn't exist
+        const result = await handlers.create(ctx, {
+          title: 'My Task',
+          projectId: '00000000-0000-4000-a000-000000000099',
+        });
 
         expect(result.ok).toBe(false);
         if (!result.ok) {

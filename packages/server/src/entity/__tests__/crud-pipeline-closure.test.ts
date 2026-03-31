@@ -134,7 +134,7 @@ describe('Feature: Closure table auto-population', () => {
         });
 
         const ctx = makeCtx({ tenantId: 'acct-1' });
-        unwrap(await handlers.create(ctx, { accountId: 'acct-1', name: 'My Project' }));
+        unwrap(await handlers.create(ctx, { name: 'My Project' }));
 
         const ancestors = await closureStore.getAncestors('project', 'proj-1');
         const selfRef = ancestors.find(
@@ -166,7 +166,7 @@ describe('Feature: Closure table auto-population', () => {
         });
 
         const ctx = makeCtx({ tenantId: 'acct-1' });
-        unwrap(await handlers.create(ctx, { accountId: 'acct-1', name: 'My Project' }));
+        unwrap(await handlers.create(ctx, { name: 'My Project' }));
 
         const ancestors = await closureStore.getAncestors('project', 'proj-1');
         const accountEntry = ancestors.find(
@@ -237,7 +237,7 @@ describe('Feature: Closure table auto-population', () => {
         });
 
         const ctx = makeCtx({ tenantId: 'proj-1' });
-        unwrap(await handlers.create(ctx, { projectId: 'proj-1', name: 'Customer Tenant' }));
+        unwrap(await handlers.create(ctx, { name: 'Customer Tenant' }));
 
         const ancestors = await closureStore.getAncestors('customer_tenant', 'ct-1');
         // Self (depth 0), project (depth 1), account (depth 2)
@@ -277,7 +277,7 @@ describe('Feature: Closure table auto-population', () => {
       });
 
       const ctx = makeCtx({ tenantId: 'proj-1' });
-      unwrap(await handlers.create(ctx, { projectId: 'proj-1', title: 'My Task' }));
+      unwrap(await handlers.create(ctx, { title: 'My Task' }));
 
       expect(addResourceSpy).not.toHaveBeenCalled();
     });
@@ -351,10 +351,7 @@ describe('Feature: Closure table auto-population', () => {
       });
 
       const ctx = makeCtx({ tenantId: 'acct-1' });
-      const result = await handlers.create(ctx, {
-        accountId: 'acct-1',
-        name: 'My Project',
-      });
+      const result = await handlers.create(ctx, { name: 'My Project' });
 
       // Entity creation should succeed despite closure store failure
       expect(result.ok).toBe(true);
@@ -388,7 +385,7 @@ describe('Feature: Closure table auto-population', () => {
       });
 
       const ctx = makeCtx({ tenantId: 'acct-1' });
-      await handlers.create(ctx, { accountId: 'acct-1', name: 'My Project' });
+      await handlers.create(ctx, { name: 'My Project' });
 
       expect(warnSpy).toHaveBeenCalled();
       const warnMsg = warnSpy.mock.calls[0]![0] as string;
@@ -452,10 +449,7 @@ describe('Feature: Closure table auto-population', () => {
       const handlers = createCrudHandlers(def, db, {});
 
       const ctx = makeCtx({ tenantId: 'acct-1' });
-      const result = await handlers.create(ctx, {
-        accountId: 'acct-1',
-        name: 'My Project',
-      });
+      const result = await handlers.create(ctx, { name: 'My Project' });
 
       expect(result.ok).toBe(true);
     });

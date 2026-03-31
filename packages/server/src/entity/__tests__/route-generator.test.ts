@@ -433,7 +433,7 @@ describe('generateEntityRoutes', () => {
       expect(body.email).toBe('a@b.com');
     });
 
-    it('create handler strips readOnly fields from input', async () => {
+    it('create handler rejects readOnly fields with validation error', async () => {
       const def = buildEntityDef();
       const createSpy = mock(async (data: Record<string, unknown>) => ({
         id: '1',
@@ -446,18 +446,17 @@ describe('generateEntityRoutes', () => {
       const routes = generateEntityRoutes(def, registry, db);
 
       const createRoute = routes.find((r) => r.method === 'POST' && r.path === '/api/users');
-      await createRoute!.handler({
+      const response = await createRoute!.handler({
         params: {},
         body: { email: 'a@b.com', name: 'Alice', createdAt: '2025-01-01' },
         query: {},
         headers: {},
       });
 
-      // createdAt is readOnly — should be stripped before reaching the DB
-      expect(createSpy).toHaveBeenCalledTimes(1);
-      const dbInput = createSpy.mock.calls[0]![0];
-      expect(dbInput.createdAt).toBeUndefined();
-      expect(dbInput.email).toBe('a@b.com');
+      // createdAt is readOnly — rejected by strict validation
+      expect(response.status).toBe(422);
+      // DB create should NOT be called — validation rejects before DB access
+      expect(createSpy).not.toHaveBeenCalled();
     });
 
     it('update handler returns 200 with updated record', async () => {

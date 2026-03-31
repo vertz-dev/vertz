@@ -7,10 +7,12 @@ import type {
   ModelDef,
   TableDef,
 } from '@vertz/db';
+import { tableToSchemas } from '@vertz/db/schema-derive';
 import {
   type EntityError,
   EntityForbiddenError,
   EntityNotFoundError,
+  EntityValidationError,
   err,
   ok,
   type Result,
@@ -167,8 +169,23 @@ export function createCrudHandlers<TModel extends ModelDef = ModelDef>(
         `Use direct database queries or define a surrogate single-column PK.`,
     );
   }
+
   const isTenantScoped = def.tenantScoped;
   const tenantColumn = def.tenantColumn ?? 'tenantId';
+
+  // Derive strict validation schemas for CRUD input (one-time, at setup).
+  // Tenant columns are auto-set by the pipeline, so exclude them from the schema.
+  // @ts-expect-error — bunup inlines types for @vertz/db/schema-derive separately from @vertz/db,
+  // creating duplicate `unique symbol` declarations for PhantomType. They are structurally identical.
+  const derivedSchemas = tableToSchemas(table);
+  const createSchema =
+    isTenantScoped && tenantColumn in derivedSchemas.apiCreateBody.shape
+      ? derivedSchemas.apiCreateBody.omit(tenantColumn as string).strict()
+      : derivedSchemas.apiCreateBody;
+  const updateSchema =
+    isTenantScoped && tenantColumn in derivedSchemas.apiUpdateBody.shape
+      ? derivedSchemas.apiUpdateBody.omit(tenantColumn as string).strict()
+      : derivedSchemas.apiUpdateBody;
   const tenantChain = options?.tenantChain ?? def.tenantChain ?? null;
   const isIndirectlyScoped = tenantChain !== null;
   const queryParentIds = options?.queryParentIds ?? null;
@@ -402,6 +419,20 @@ export function createCrudHandlers<TModel extends ModelDef = ModelDef>(
     },
 
     async create(ctx, data) {
+      // Validate input against the strict API schema
+      const parseResult = createSchema.safeParse(data);
+      if (!parseResult.ok) {
+        return err(
+          new EntityValidationError(
+            parseResult.error.issues.map((issue) => ({
+              path: issue.path,
+              message: issue.message,
+              code: issue.code,
+            })),
+          ),
+        );
+      }
+
       const accessResult = await enforceAccess(
         'create',
         def.access,
@@ -411,7 +442,7 @@ export function createCrudHandlers<TModel extends ModelDef = ModelDef>(
       );
       if (!accessResult.ok) return err(accessResult.error);
 
-      let input = stripReadOnlyFields(table, data);
+      let input = stripReadOnlyFields(table, parseResult.data as Record<string, unknown>);
 
       // For indirectly scoped entities, verify the referenced parent belongs to the tenant
       if (isIndirectlyScoped && tenantChain && queryParentIds && ctx.tenantId) {
@@ -528,6 +559,20 @@ export function createCrudHandlers<TModel extends ModelDef = ModelDef>(
     },
 
     async update(ctx, id, data) {
+      // Validate input against the strict API schema
+      const parseResult = updateSchema.safeParse(data);
+      if (!parseResult.ok) {
+        return err(
+          new EntityValidationError(
+            parseResult.error.issues.map((issue) => ({
+              path: issue.path,
+              message: issue.message,
+              code: issue.code,
+            })),
+          ),
+        );
+      }
+
       // Extract where conditions from access rules and push to DB query
       const accessWhere = extractWhereConditions('update', def.access, ctx);
       const tenantWhere = await withTenantFilter(ctx, accessWhere ?? undefined);
@@ -546,7 +591,7 @@ export function createCrudHandlers<TModel extends ModelDef = ModelDef>(
       });
       if (!accessResult.ok) return err(accessResult.error);
 
-      let input = stripReadOnlyFields(table, data);
+      let input = stripReadOnlyFields(table, parseResult.data as Record<string, unknown>);
 
       // Apply before.update hook
       if (def.before.update) {

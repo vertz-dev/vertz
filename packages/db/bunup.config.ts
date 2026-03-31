@@ -62,6 +62,7 @@ export default defineConfig({
     'src/internals.ts',
     'src/plugin/index.ts',
     'src/diagnostic/index.ts',
+    'src/schema-derive/index.ts',
     'src/postgres/index.ts',
   ],
   format: ['esm'],

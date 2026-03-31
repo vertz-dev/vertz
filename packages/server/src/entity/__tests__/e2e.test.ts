@@ -179,7 +179,7 @@ describe('EDA v0.1.0 E2E', () => {
           expect(body.passwordHash).toBeUndefined();
         });
 
-        it('Then readOnly fields (createdAt) are stripped from input', async () => {
+        it('Then readOnly fields (createdAt) are rejected with validation error', async () => {
           const db = createInMemoryDb();
           const app = createServer({
             entities: [openEntity],
@@ -189,12 +189,10 @@ describe('EDA v0.1.0 E2E', () => {
           const res = await request(app, 'POST', '/api/users', {
             email: 'alice@example.com',
             name: 'Alice',
-            createdAt: '1999-01-01', // should be stripped
+            createdAt: '1999-01-01', // readOnly — rejected by validation
           });
 
-          expect(res.status).toBe(201);
-          // The DB adapter receives the record without createdAt
-          // (the in-memory DB doesn't add it, so it won't be in response)
+          expect(res.status).toBe(422);
         });
 
         it('Then before.create hook applies transformation', async () => {

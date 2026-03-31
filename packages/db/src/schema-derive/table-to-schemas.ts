@@ -4,7 +4,7 @@ import type { ColumnRecord, TableDef } from '../schema/table';
 import { columnToSchema } from './column-mapper';
 
 /**
- * Result of `tableToSchemas()` — three object schemas derived from a table definition.
+ * Result of `tableToSchemas()` — five object schemas derived from a table definition.
  */
 export interface DerivedSchemas {
   /** Excludes primary keys and columns with defaults. For POST bodies. */
@@ -13,6 +13,16 @@ export interface DerivedSchemas {
   readonly updateBody: ObjectSchema;
   /** Excludes hidden and sensitive columns. For API responses. */
   readonly responseSchema: ObjectSchema;
+  /**
+   * Strict API create input schema. Excludes primary, readOnly, hidden columns.
+   * Columns with defaults are optional. Rejects unknown keys.
+   */
+  readonly apiCreateBody: ObjectSchema;
+  /**
+   * Strict API update input schema. Excludes primary, readOnly, hidden columns.
+   * All fields optional. Rejects unknown keys.
+   */
+  readonly apiUpdateBody: ObjectSchema;
 }
 
 /**
@@ -46,6 +56,8 @@ export function tableToSchemas<TColumns extends ColumnRecord>(
   const createBodyShape: Record<string, SchemaAny> = {};
   const updateBodyShape: Record<string, SchemaAny> = {};
   const responseShape: Record<string, SchemaAny> = {};
+  const apiCreateShape: Record<string, SchemaAny> = {};
+  const apiUpdateShape: Record<string, SchemaAny> = {};
 
   for (const [columnName, columnBuilder] of Object.entries(table._columns)) {
     const meta = columnBuilder._meta;
@@ -65,11 +77,24 @@ export function tableToSchemas<TColumns extends ColumnRecord>(
     if (!meta._annotations.hidden && !meta._annotations.sensitive) {
       responseShape[columnName] = baseSchema;
     }
+
+    // API input schemas: exclude primary, readOnly (subsumes autoUpdate), hidden
+    const excludeFromInput = meta.primary || meta.isReadOnly || meta._annotations.hidden;
+    if (!excludeFromInput) {
+      // Create: columns with defaults or nullable are optional
+      const isOptional = meta.hasDefault || meta.nullable;
+      apiCreateShape[columnName] = isOptional ? baseSchema.optional() : baseSchema;
+
+      // Update: all fields optional (PATCH semantics)
+      apiUpdateShape[columnName] = baseSchema.optional();
+    }
   }
 
   return {
     createBody: s.object(createBodyShape),
     updateBody: s.object(updateBodyShape),
     responseSchema: s.object(responseShape),
+    apiCreateBody: s.object(apiCreateShape).strict(),
+    apiUpdateBody: s.object(apiUpdateShape).strict(),
   };
 }

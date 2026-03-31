@@ -1,6 +1,11 @@
 import { describe, expect, it, mock } from 'bun:test';
 import { d } from '@vertz/db';
-import { EntityForbiddenError, EntityNotFoundError, unwrap } from '@vertz/errors';
+import {
+  EntityForbiddenError,
+  EntityNotFoundError,
+  EntityValidationError,
+  unwrap,
+} from '@vertz/errors';
 import { InMemoryClosureStore } from '../../auth/closure-store';
 import { defineAccess } from '../../auth/define-access';
 import { InMemoryRoleAssignmentStore } from '../../auth/role-assignment-store';
@@ -237,7 +242,7 @@ describe('Feature: CRUD pipeline', () => {
     });
 
     describe('When an admin creates a record', () => {
-      it('Then returns 201 with readOnly fields stripped from input and hidden fields stripped from response', async () => {
+      it('Then returns 201 with hidden fields stripped from response', async () => {
         const db = createStubDb();
         const handlers = createCrudHandlers(def, db);
         const ctx = makeCtx({ roles: ['admin'] });
@@ -246,18 +251,31 @@ describe('Feature: CRUD pipeline', () => {
           await handlers.create!(ctx, {
             email: 'new@example.com',
             name: 'New',
-            createdAt: 'should-be-stripped',
-            id: 'should-be-stripped',
           }),
         );
 
         expect(result.status).toBe(201);
         expect(result.body).not.toHaveProperty('passwordHash');
-        // readOnly fields stripped from DB call
         const createCall = db.create.mock.calls[0]![0];
-        expect(createCall).not.toHaveProperty('createdAt');
-        expect(createCall).not.toHaveProperty('id');
         expect(createCall).toHaveProperty('email', 'new@example.com');
+      });
+
+      it('Then rejects readOnly and PK fields with validation error', async () => {
+        const db = createStubDb();
+        const handlers = createCrudHandlers(def, db);
+        const ctx = makeCtx({ roles: ['admin'] });
+
+        const result = await handlers.create!(ctx, {
+          email: 'new@example.com',
+          name: 'New',
+          createdAt: 'should-be-rejected',
+          id: 'should-be-rejected',
+        });
+
+        expect(result.ok).toBe(false);
+        if (!result.ok) {
+          expect(result.error).toBeInstanceOf(EntityValidationError);
+        }
       });
     });
 
@@ -335,7 +353,7 @@ describe('Feature: CRUD pipeline', () => {
     });
 
     describe('When the owner updates the record', () => {
-      it('Then returns 200 with readOnly fields stripped', async () => {
+      it('Then returns 200 with valid data', async () => {
         const db = createStubDb();
         const handlers = createCrudHandlers(def, db);
         const ctx = makeCtx({ userId: 'user-1' });
@@ -343,15 +361,29 @@ describe('Feature: CRUD pipeline', () => {
         const result = unwrap(
           await handlers.update!(ctx, 'user-1', {
             name: 'Updated',
-            createdAt: 'should-be-stripped',
           }),
         );
 
         expect(result.status).toBe(200);
         expect(result.body).not.toHaveProperty('passwordHash');
         const updateCall = db.update.mock.calls[0]![1];
-        expect(updateCall).not.toHaveProperty('createdAt');
         expect(updateCall).toHaveProperty('name', 'Updated');
+      });
+
+      it('Then rejects readOnly fields with validation error', async () => {
+        const db = createStubDb();
+        const handlers = createCrudHandlers(def, db);
+        const ctx = makeCtx({ userId: 'user-1' });
+
+        const result = await handlers.update!(ctx, 'user-1', {
+          name: 'Updated',
+          createdAt: 'should-be-rejected',
+        });
+
+        expect(result.ok).toBe(false);
+        if (!result.ok) {
+          expect(result.error).toBeInstanceOf(EntityValidationError);
+        }
       });
     });
 
@@ -964,7 +996,8 @@ describe('Feature: CRUD pipeline', () => {
         for (const result of [
           await handlers.list!(ctx),
           await handlers.get!(ctx, 'user-1'),
-          await handlers.create!(ctx, {}),
+          // create needs valid data to reach the access check
+          await handlers.create!(ctx, { email: 'test@example.com', name: 'Test' }),
           await handlers.update!(ctx, 'user-1', {}),
           await handlers.delete!(ctx, 'user-1'),
         ]) {
@@ -1683,17 +1716,25 @@ describe('Feature: CRUD pipeline', () => {
       tenantColumn: 'organizationId',
     } as const;
 
-    // Seed data
-    const orgA = { id: 'org-a', name: 'Org A' };
-    const orgB = { id: 'org-b', name: 'Org B' };
-    const projectA = { id: 'proj-a', organizationId: 'org-a', name: 'Project A' };
-    const projectB = { id: 'proj-b', organizationId: 'org-b', name: 'Project B' };
+    // Seed data (valid UUIDs for schema validation)
+    const ORG_A = '00000000-0000-4000-a000-000000000001';
+    const ORG_B = '00000000-0000-4000-a000-000000000002';
+    const PROJ_A = '00000000-0000-4000-b000-000000000001';
+    const PROJ_B = '00000000-0000-4000-b000-000000000002';
+    const TASK_A1 = '00000000-0000-4000-c000-000000000001';
+    const TASK_A2 = '00000000-0000-4000-c000-000000000002';
+    const TASK_B1 = '00000000-0000-4000-c000-000000000003';
+
+    const orgA = { id: ORG_A, name: 'Org A' };
+    const orgB = { id: ORG_B, name: 'Org B' };
+    const projectA = { id: PROJ_A, organizationId: ORG_A, name: 'Project A' };
+    const projectB = { id: PROJ_B, organizationId: ORG_B, name: 'Project B' };
 
     function createTasksDb() {
       const rows: Record<string, unknown>[] = [
-        { id: 'task-a1', projectId: 'proj-a', title: 'Task A1' },
-        { id: 'task-a2', projectId: 'proj-a', title: 'Task A2' },
-        { id: 'task-b1', projectId: 'proj-b', title: 'Task B1' },
+        { id: TASK_A1, projectId: PROJ_A, title: 'Task A1' },
+        { id: TASK_A2, projectId: PROJ_A, title: 'Task A2' },
+        { id: TASK_B1, projectId: PROJ_B, title: 'Task B1' },
       ];
 
       function matchesWhere(
@@ -1780,12 +1821,12 @@ describe('Feature: CRUD pipeline', () => {
           tenantChain,
           queryParentIds,
         });
-        const ctx = makeCtx({ tenantId: 'org-a' });
+        const ctx = makeCtx({ tenantId: ORG_A });
 
         const result = unwrap(await handlers.list(ctx));
 
         expect(result.body.items).toHaveLength(2);
-        expect(result.body.items.map((i) => i.id)).toEqual(['task-a1', 'task-a2']);
+        expect(result.body.items.map((i) => i.id)).toEqual([TASK_A1, TASK_A2]);
       });
     });
 
@@ -1796,12 +1837,12 @@ describe('Feature: CRUD pipeline', () => {
           tenantChain,
           queryParentIds,
         });
-        const ctx = makeCtx({ tenantId: 'org-b' });
+        const ctx = makeCtx({ tenantId: ORG_B });
 
         const result = unwrap(await handlers.list(ctx));
 
         expect(result.body.items).toHaveLength(1);
-        expect(result.body.items[0]).toHaveProperty('id', 'task-b1');
+        expect(result.body.items[0]).toHaveProperty('id', TASK_B1);
       });
     });
 
@@ -1827,9 +1868,9 @@ describe('Feature: CRUD pipeline', () => {
           tenantChain,
           queryParentIds,
         });
-        const ctx = makeCtx({ tenantId: 'org-a' });
+        const ctx = makeCtx({ tenantId: ORG_A });
 
-        const result = await handlers.get(ctx, 'task-b1');
+        const result = await handlers.get(ctx, TASK_B1);
 
         expect(result.ok).toBe(false);
         if (!result.ok) {
@@ -1845,12 +1886,12 @@ describe('Feature: CRUD pipeline', () => {
           tenantChain,
           queryParentIds,
         });
-        const ctx = makeCtx({ tenantId: 'org-a' });
+        const ctx = makeCtx({ tenantId: ORG_A });
 
-        const result = unwrap(await handlers.get(ctx, 'task-a1'));
+        const result = unwrap(await handlers.get(ctx, TASK_A1));
 
         expect(result.status).toBe(200);
-        expect(result.body).toHaveProperty('id', 'task-a1');
+        expect(result.body).toHaveProperty('id', TASK_A1);
       });
     });
 
@@ -1869,9 +1910,9 @@ describe('Feature: CRUD pipeline', () => {
           tenantChain,
           queryParentIds,
         });
-        const ctx = makeCtx({ tenantId: 'org-a' });
+        const ctx = makeCtx({ tenantId: ORG_A });
 
-        const result = await handlers.update(ctx, 'task-b1', { title: 'Hacked' });
+        const result = await handlers.update(ctx, TASK_B1, { title: 'Hacked' });
 
         expect(result.ok).toBe(false);
         if (!result.ok) {
@@ -1895,9 +1936,9 @@ describe('Feature: CRUD pipeline', () => {
           tenantChain,
           queryParentIds,
         });
-        const ctx = makeCtx({ tenantId: 'org-a' });
+        const ctx = makeCtx({ tenantId: ORG_A });
 
-        const result = await handlers.delete(ctx, 'task-b1');
+        const result = await handlers.delete(ctx, TASK_B1);
 
         expect(result.ok).toBe(false);
         if (!result.ok) {
@@ -1920,9 +1961,9 @@ describe('Feature: CRUD pipeline', () => {
           tenantChain,
           queryParentIds,
         });
-        const ctx = makeCtx({ tenantId: 'org-a' });
+        const ctx = makeCtx({ tenantId: ORG_A });
 
-        const result = unwrap(await handlers.create(ctx, { projectId: 'proj-a', title: 'New' }));
+        const result = unwrap(await handlers.create(ctx, { projectId: PROJ_A, title: 'New' }));
 
         expect(result.status).toBe(201);
       });
@@ -1942,9 +1983,9 @@ describe('Feature: CRUD pipeline', () => {
           tenantChain,
           queryParentIds,
         });
-        const ctx = makeCtx({ tenantId: 'org-a' });
+        const ctx = makeCtx({ tenantId: ORG_A });
 
-        const result = await handlers.create(ctx, { projectId: 'proj-b', title: 'Hacked' });
+        const result = await handlers.create(ctx, { projectId: PROJ_B, title: 'Hacked' });
 
         expect(result.ok).toBe(false);
         if (!result.ok) {
@@ -1967,9 +2008,12 @@ describe('Feature: CRUD pipeline', () => {
           tenantChain,
           queryParentIds,
         });
-        const ctx = makeCtx({ tenantId: 'org-a' });
+        const ctx = makeCtx({ tenantId: ORG_A });
 
-        const result = await handlers.create(ctx, { projectId: 'nonexistent', title: 'Ghost' });
+        const result = await handlers.create(ctx, {
+          projectId: '00000000-0000-4000-b000-000000000099',
+          title: 'Ghost',
+        });
 
         expect(result.ok).toBe(false);
         if (!result.ok) {
