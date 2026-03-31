@@ -30,7 +30,11 @@ interface Env {
  * Old entries are evicted by LRU. Hashed assets (/assets/*) don't need this
  * because their URLs already change on content change.
  */
-declare const DEPLOY_VERSION: string;
+declare const DEPLOY_VERSION: string | undefined;
+
+/** Safe access — falls back to a timestamp if wrangler --define didn't inject it. */
+const deployVersion: string =
+  typeof DEPLOY_VERSION !== 'undefined' ? DEPLOY_VERSION : String(Date.now());
 
 // ── Cache policies ─────────────────────────────────────────────────
 
@@ -109,7 +113,7 @@ export default {
 export function buildCacheKey(url: URL, isHTML: boolean): Request {
   if (isHTML) {
     const versionedUrl = new URL(url.toString());
-    versionedUrl.searchParams.set('__v', DEPLOY_VERSION);
+    versionedUrl.searchParams.set('__v', deployVersion);
     return new Request(versionedUrl.toString(), { method: 'GET' });
   }
   return new Request(url.toString(), { method: 'GET' });
