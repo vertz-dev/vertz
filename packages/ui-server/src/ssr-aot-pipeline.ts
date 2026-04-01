@@ -24,7 +24,7 @@ import {
   createRequestContext,
   type SSRModule,
   type SSRRenderResult,
-} from './ssr-render';
+} from './ssr-shared';
 import { matchUrlToPatterns } from './ssr-route-matcher';
 import { type SSRPrefetchManifest, ssrRenderSinglePass } from './ssr-single-pass';
 

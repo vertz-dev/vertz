@@ -90,7 +90,7 @@ export default plugin;
 
 ```ts
 import { createVertzBunPlugin } from '@vertz/ui-server/bun-plugin';
-import { ssrRenderToString, ssrDiscoverQueries, safeSerialize } from 'vertz/ui-server';
+import { ssrRenderSinglePass, ssrStreamNavQueries, safeSerialize } from '@vertz/ui-server';
 import { resolve } from 'node:path';
 import { watch } from 'node:fs';
 
@@ -177,17 +177,11 @@ const server = Bun.serve({
 
     // Nav pre-fetch (SSE)
     if (request.headers.get('x-vertz-nav') === '1') {
-      const result = await ssrDiscoverQueries(ssrModule, pathname, { ssrTimeout: 300 });
-      let body = '';
-      for (const entry of result.resolved) body += `event: data\ndata: ${safeSerialize(entry)}\n\n`;
-      body += 'event: done\ndata: {}\n\n';
-      return new Response(body, {
-        headers: { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache' },
-      });
+      return ssrStreamNavQueries(ssrModule, pathname, { ssrTimeout: 300 });
     }
 
     // SSR render
-    const result = await ssrRenderToString(ssrModule, pathname, { ssrTimeout: 300 });
+    const result = await ssrRenderSinglePass(ssrModule, pathname, { ssrTimeout: 300 });
     let html = indexHtml
       .replace(/<script type="module" src="\.\/src\/index\.ts"><\/script>/,
         `<script type="module">\n${clientBundle}\n</script>`)
@@ -410,7 +404,7 @@ bun run dev
   → Bun.serve():
       /api/*  → entity handler (REST API)
       static  → public/ files
-      HTML    → ssrRenderToString() → inject into template
+      HTML    → ssrRenderSinglePass() → inject into template
 ```
 
 ---

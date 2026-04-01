@@ -51,14 +51,14 @@ export interface SSRRenderContext {
 
   /**
    * Auth state resolved by the server (e.g. from session cookie).
-   * Set by ssrRenderToString() before Pass 1 so AuthProvider can
+   * Set by the SSR pipeline before discovery so AuthProvider can
    * hydrate status/user synchronously during SSR.
    */
   ssrAuth?: SSRAuth;
 
   /**
-   * Written by ProtectedRoute during Pass 1 when the user is not
-   * authenticated. Signals ssrRenderToString() to skip Pass 2 and
+   * Written by ProtectedRoute during discovery when the user is not
+   * authenticated. Signals the SSR pipeline to skip rendering and
    * return a redirect response instead.
    */
   ssrRedirect?: { to: string };

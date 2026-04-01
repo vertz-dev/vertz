@@ -16,7 +16,7 @@ import {
   ssrRenderAot,
 } from '../ssr-aot-pipeline';
 import { __esc } from '../ssr-aot-runtime';
-import type { SSRModule } from '../ssr-render';
+import type { SSRModule } from '../ssr-shared';
 
 installDomShim();
 

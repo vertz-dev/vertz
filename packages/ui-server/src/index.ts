@@ -95,14 +95,13 @@ export type {
   PrefetchManifestSnapshot,
 } from './ssr-prefetch-dev';
 export { createPrefetchManifestManager } from './ssr-prefetch-dev';
-export type { SSRDiscoverResult, SSRModule, SSRRenderResult } from './ssr-render';
-export { ssrDiscoverQueries, ssrRenderToString } from './ssr-render';
+export type { SSRModule, SSRRenderResult } from './ssr-shared';
 export type { MatchedRoute, MatchOptions } from './ssr-route-matcher';
 export { matchUrlToPatterns } from './ssr-route-matcher';
 export type { SessionData, SessionResolver, SSRSessionInfo } from './ssr-session';
 export { createSessionScript } from './ssr-session';
 export type { EntityAccessMap, SSRPrefetchManifest, SSRSinglePassOptions } from './ssr-single-pass';
-export { ssrRenderSinglePass } from './ssr-single-pass';
+export { ssrRenderSinglePass, ssrStreamNavQueries } from './ssr-single-pass';
 export {
   createSSRDataChunk,
   getStreamingRuntimeScript,

@@ -67,7 +67,7 @@ If both fail, the error is logged and broadcast via the WebSocket error channel 
 
 2. **Module re-evaluation creates new `css()` instances:** If a component's `css()` call produces different hash keys after re-evaluation (e.g., class names changed), the old `<style>` tags from SSR no longer match. The `injectedCSS` Set deduplicates by content, so changed CSS gets new entries. But old entries are never removed from the DOM during HMR — they may conflict or accumulate.
 
-3. **SSR CSS collection mismatch:** The `collectCSS()` function in `ssr-render.ts` reads CSS from either `module.getInjectedCSS()` (the bundled `@vertz/ui` instance) or the DOM shim's `document.head`. If the SSR module is stale (see above), it returns old CSS. The `injectedCSS` Set is intentionally NOT cleared between renders (to preserve module-level CSS), so stale CSS persists.
+3. **SSR CSS collection mismatch:** The `collectCSS()` function in `ssr-single-pass.ts` reads CSS from either `module.getInjectedCSS()` (the bundled `@vertz/ui` instance) or the DOM shim's `document.head`. If the SSR module is stale (see above), it returns old CSS. The `injectedCSS` Set is intentionally NOT cleared between renders (to preserve module-level CSS), so stale CSS persists.
 
 **Fix:** Hard-refresh the browser (`Cmd+Shift+R` / `Ctrl+Shift+R`) to get fresh SSR output with current CSS. If the issue persists, delete `.vertz/css/` and restart the dev server.
 
@@ -134,7 +134,7 @@ Useful for automated debugging and verifying server state without reading termin
 | Fast Refresh runtime | `packages/ui-server/src/bun-plugin/fast-refresh-runtime.ts` |
 | Fast Refresh codegen | `packages/ui-server/src/bun-plugin/fast-refresh-codegen.ts` |
 | DOM state preservation | `packages/ui-server/src/bun-plugin/fast-refresh-dom-state.ts` |
-| SSR render (two-pass, production) | `packages/ui-server/src/ssr-render.ts` |
+| SSR shared types & utils | `packages/ui-server/src/ssr-shared.ts` |
 | SSR render (single-pass, dev) | `packages/ui-server/src/ssr-single-pass.ts` |
 | Context + Provider | `packages/ui/src/component/context.ts` |
 | Source map resolver | `packages/ui-server/src/source-map-resolver.ts` |

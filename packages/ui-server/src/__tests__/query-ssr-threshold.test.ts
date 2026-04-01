@@ -15,7 +15,7 @@ import { registerSSRResolver } from '../../../ui/src/ssr/ssr-render-context';
 import { installDomShim, removeDomShim } from '../dom-shim';
 import { renderPage } from '../render-page';
 import { getSSRQueries, ssrStorage } from '../ssr-context';
-import { createRequestContext } from '../ssr-render';
+import { createRequestContext } from '../ssr-shared';
 import type { VNode } from '../types';
 
 // Bridge dual-module gap: this test imports query() from @vertz/ui SOURCE,

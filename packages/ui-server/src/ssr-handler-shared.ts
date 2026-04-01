@@ -10,7 +10,7 @@ import type { SSRAuth } from '@vertz/ui/internals';
 import { escapeAttr } from './html-serializer';
 import { createAccessSetScript } from './ssr-access-set';
 import type { SSRHandlerOptions } from './ssr-handler';
-import { compileThemeCached } from './ssr-render';
+import { compileThemeCached } from './ssr-shared';
 import type { SessionResolver } from './ssr-session';
 import { createSessionScript } from './ssr-session';
 import { splitTemplate } from './template-split';
