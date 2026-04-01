@@ -7,7 +7,7 @@ import {
   setGlobalSSRTimeout,
   ssrStorage,
 } from './ssr-context';
-import { compileThemeCached, createRequestContext } from './ssr-render';
+import { compileThemeCached, createRequestContext } from './ssr-shared';
 import { createSSRDataChunk, getStreamingRuntimeScript } from './ssr-streaming-runtime';
 import { encodeChunk } from './streaming';
 import type { VNode } from './types';

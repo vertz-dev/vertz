@@ -13,7 +13,7 @@ import { getSSRContext } from '@vertz/ui/internals';
 import { ProtectedRoute } from '@vertz/ui-auth';
 import { installDomShim } from '../dom-shim';
 import { registerSSRQuery } from '../ssr-context';
-import { ssrDiscoverQueries, ssrRenderToString, ssrStreamNavQueries } from '../ssr-render';
+import { ssrDiscoverQueries, ssrRenderToString, ssrStreamNavQueries } from '../ssr-shared';
 
 /** Inline ok() helper to avoid @vertz/fetch dependency. */
 function ok<T>(data: T) {

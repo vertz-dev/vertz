@@ -18,6 +18,6 @@ export {
 export type { AotDataResolver, AotManifest } from '../ssr-aot-pipeline';
 export type { SSRHandlerOptions } from '../ssr-handler';
 export { createSSRHandler } from '../ssr-handler';
-export type { SSRDiscoverResult, SSRModule, SSRRenderResult } from '../ssr-render';
-export { ssrDiscoverQueries, ssrRenderToString } from '../ssr-render';
+export type { SSRDiscoverResult, SSRModule, SSRRenderResult } from '../ssr-shared';
+export { ssrDiscoverQueries, ssrRenderToString } from '../ssr-shared';
 export { injectIntoTemplate } from '../template-inject';

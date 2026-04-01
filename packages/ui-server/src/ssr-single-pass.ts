@@ -33,8 +33,9 @@ import {
   type SSRModule,
   type SSRRenderResult,
   ssrRenderToString,
-} from './ssr-render';
+} from './ssr-shared';
 import { matchUrlToPatterns } from './ssr-route-matcher';
+import { safeSerialize } from './ssr-streaming-runtime';
 import { streamToString } from './streaming';
 
 /** Serialized entity access rules from the prefetch manifest. */
@@ -321,12 +322,104 @@ export async function ssrRenderProgressive(
 
 // ── Shared Discovery Phase ──────────────────────────────────────
 
+/** Raw query handle from discovery — not yet resolved. */
+interface RawQueryHandle {
+  promise: Promise<unknown>;
+  timeout: number;
+  resolve: (data: unknown) => void;
+  key: string;
+}
+
+/** Result of running the app factory to discover queries. */
+type QueryDiscoveryResult =
+  | { redirect: { to: string }; queries: []; resolvedComponents?: undefined }
+  | {
+      queries: RawQueryHandle[];
+      resolvedComponents?: Map<object, () => Node>;
+    };
+
 type DiscoveryResult =
   | { redirect: { to: string } }
   | {
       resolvedQueries: Array<{ key: string; data: unknown }>;
       resolvedComponents?: Map<object, () => Node>;
     };
+
+/**
+ * Run the app factory to discover queries and resolve lazy routes.
+ * Returns raw query handles (not yet awaited).
+ *
+ * This is the lowest-level discovery function, shared by:
+ * - `runDiscoveryPhase()` (batch-resolves queries)
+ * - `ssrStreamNavQueries()` (streams per-query SSE events)
+ */
+async function runQueryDiscovery(
+  normalizedUrl: string,
+  ssrTimeout: number,
+  module: SSRModule,
+  options?: { ssrAuth?: SSRAuth; cookies?: string },
+): Promise<QueryDiscoveryResult> {
+  ensureDomShim();
+  const ctx = createRequestContext(normalizedUrl);
+  if (options?.ssrAuth) {
+    ctx.ssrAuth = options.ssrAuth;
+  }
+  if (options?.cookies) {
+    ctx.cookies = options.cookies;
+  }
+
+  return ssrStorage.run(ctx, async () => {
+    try {
+      setGlobalSSRTimeout(ssrTimeout);
+
+      const createApp = resolveAppFactory(module);
+      createApp();
+
+      if (ctx.ssrRedirect) {
+        return { redirect: ctx.ssrRedirect, queries: [] };
+      }
+
+      // Resolve lazy route components
+      if (ctx.pendingRouteComponents?.size) {
+        const entries = Array.from(ctx.pendingRouteComponents.entries());
+        const results = await Promise.allSettled(
+          entries.map(([route, promise]: [object, Promise<{ default: () => Node }>]) =>
+            Promise.race([
+              promise.then((mod) => ({ route, factory: mod.default })),
+              new Promise((_, reject) =>
+                setTimeout(() => reject(new Error('lazy route timeout')), ssrTimeout),
+              ),
+            ]),
+          ),
+        );
+        ctx.resolvedComponents = new Map();
+        for (const result of results) {
+          if (result.status === 'fulfilled') {
+            const { route, factory } = result.value as {
+              route: object;
+              factory: () => Node;
+            };
+            ctx.resolvedComponents.set(route, factory);
+          }
+        }
+        ctx.pendingRouteComponents = undefined;
+      }
+
+      const queries = getSSRQueries();
+      return {
+        queries: queries.map((q: { promise: Promise<unknown>; timeout?: number; resolve: (data: unknown) => void; key: string }) => ({
+          promise: q.promise,
+          timeout: q.timeout || ssrTimeout,
+          resolve: q.resolve,
+          key: q.key,
+        })),
+        resolvedComponents: ctx.resolvedComponents,
+      };
+    } finally {
+      clearGlobalSSRTimeout();
+    }
+  });
+}
 
 /**
  * Run the SSR discovery phase: execute app factory to capture query
@@ -340,83 +433,40 @@ async function runDiscoveryPhase(
   module: SSRModule,
   options?: SSRSinglePassOptions,
 ): Promise<DiscoveryResult> {
-  const discoveryCtx = createRequestContext(normalizedUrl);
-  if (options?.ssrAuth) {
-    discoveryCtx.ssrAuth = options.ssrAuth;
-  }
-  if (options?.cookies) {
-    discoveryCtx.cookies = options.cookies;
+  const discovery = await runQueryDiscovery(normalizedUrl, ssrTimeout, module, options);
+
+  if ('redirect' in discovery) {
+    return { redirect: discovery.redirect };
   }
 
-  return ssrStorage.run(discoveryCtx, async () => {
-    try {
-      setGlobalSSRTimeout(ssrTimeout);
+  // Filter by entity access rules
+  const eligibleQueries = filterByEntityAccess(
+    discovery.queries,
+    options?.manifest?.entityAccess,
+    options?.prefetchSession,
+  );
 
-      const createApp = resolveAppFactory(module);
-      createApp();
+  // Batch-resolve queries with timeouts
+  const resolvedQueries: Array<{ key: string; data: unknown }> = [];
+  if (eligibleQueries.length > 0) {
+    await Promise.allSettled(
+      eligibleQueries.map(({ promise, timeout, resolve, key }: RawQueryHandle) =>
+        Promise.race([
+          promise.then((data: unknown) => {
+            resolve(data);
+            resolvedQueries.push({ key, data });
+            return 'resolved';
+          }),
+          new Promise((r) => setTimeout(r, timeout)).then(() => 'timeout'),
+        ]),
+      ),
+    );
+  }
 
-      if (discoveryCtx.ssrRedirect) {
-        return { redirect: discoveryCtx.ssrRedirect };
-      }
-
-      // Resolve lazy route components
-      if (discoveryCtx.pendingRouteComponents?.size) {
-        const entries = Array.from(discoveryCtx.pendingRouteComponents.entries());
-        const results = await Promise.allSettled(
-          entries.map(([route, promise]) =>
-            Promise.race([
-              promise.then((mod) => ({ route, factory: mod.default })),
-              new Promise((_, reject) =>
-                setTimeout(() => reject(new Error('lazy route timeout')), ssrTimeout),
-              ),
-            ]),
-          ),
-        );
-        discoveryCtx.resolvedComponents = new Map();
-        for (const result of results) {
-          if (result.status === 'fulfilled') {
-            const { route, factory } = result.value as {
-              route: object;
-              factory: () => Node;
-            };
-            discoveryCtx.resolvedComponents.set(route, factory);
-          }
-        }
-        discoveryCtx.pendingRouteComponents = undefined;
-      }
-
-      // Prefetch queries with timeouts
-      const queries = getSSRQueries();
-      const eligibleQueries = filterByEntityAccess(
-        queries,
-        options?.manifest?.entityAccess,
-        options?.prefetchSession,
-      );
-      const resolvedQueries: Array<{ key: string; data: unknown }> = [];
-
-      if (eligibleQueries.length > 0) {
-        await Promise.allSettled(
-          eligibleQueries.map(({ promise, timeout, resolve, key }) =>
-            Promise.race([
-              promise.then((data) => {
-                resolve(data);
-                resolvedQueries.push({ key, data });
-                return 'resolved';
-              }),
-              new Promise((r) => setTimeout(r, timeout || ssrTimeout)).then(() => 'timeout'),
-            ]),
-          ),
-        );
-      }
-
-      return {
-        resolvedQueries,
-        resolvedComponents: discoveryCtx.resolvedComponents,
-      };
-    } finally {
-      clearGlobalSSRTimeout();
-    }
-  });
+  return {
+    resolvedQueries,
+    resolvedComponents: discovery.resolvedComponents,
+  };
 }
 
 // ── Zero-Discovery helpers ──────────────────────────────────────
@@ -599,6 +649,124 @@ async function renderWithPrefetchedData(
   });
 }
 
+// ── Nav Query Streaming ─────────────────────────────────────────
+
+/**
+ * Stream nav query results as individual SSE events.
+ *
+ * Returns a `ReadableStream` that emits each query result as it settles:
+ * - `event: data` for resolved queries (with key + data)
+ * - `event: done` when all queries have settled
+ *
+ * Timed-out or rejected queries are silently dropped (no event sent).
+ * The client's `doneHandler` detects missing data and falls back to
+ * client-side fetch.
+ *
+ * The render lock is released after query discovery, before
+ * streaming begins. This allows concurrent SSR renders while queries
+ * are still resolving.
+ */
+export async function ssrStreamNavQueries(
+  module: SSRModule,
+  url: string,
+  options?: { ssrTimeout?: number; navSsrTimeout?: number },
+): Promise<ReadableStream<Uint8Array>> {
+  const normalizedUrl = url.endsWith('/index.html')
+    ? url.slice(0, -'/index.html'.length) || '/'
+    : url;
+
+  const ssrTimeout = options?.ssrTimeout ?? 300;
+  const navTimeout = options?.navSsrTimeout ?? 5000;
+
+  const discovery = await runQueryDiscovery(normalizedUrl, ssrTimeout, module);
+
+  // Redirect or no queries → done event only
+  if ('redirect' in discovery || discovery.queries.length === 0) {
+    const encoder = new TextEncoder();
+    return new ReadableStream({
+      start(controller) {
+        controller.enqueue(encoder.encode('event: done\ndata: {}\n\n'));
+        controller.close();
+      },
+    });
+  }
+
+  const queries = discovery.queries;
+
+  // Stream individual SSE events as each query settles.
+  //
+  // The controller can be closed externally when the client aborts the request
+  // (e.g., navigating again before the stream completes). Our scheduled
+  // callbacks (.then, setTimeout) may still fire after the abort, so all
+  // controller operations are wrapped in try/catch to prevent crashes.
+  const encoder = new TextEncoder();
+  let remaining = queries.length;
+
+  return new ReadableStream({
+    start(controller) {
+      let closed = false;
+
+      function safeEnqueue(chunk: Uint8Array): void {
+        if (closed) return;
+        try {
+          controller.enqueue(chunk);
+        } catch {
+          closed = true;
+        }
+      }
+
+      function safeClose(): void {
+        if (closed) return;
+        closed = true;
+        try {
+          controller.close();
+        } catch {
+          /* already closed by abort */
+        }
+      }
+
+      function checkDone(): void {
+        if (remaining === 0) {
+          safeEnqueue(encoder.encode('event: done\ndata: {}\n\n'));
+          safeClose();
+        }
+      }
+
+      for (const { promise, resolve, key } of queries) {
+        let settled = false;
+
+        // Race: query promise vs navTimeout
+        promise.then(
+          (data: unknown) => {
+            if (settled) return;
+            settled = true;
+            resolve(data);
+            const entry = { key, data };
+            safeEnqueue(encoder.encode(`event: data\ndata: ${safeSerialize(entry)}\n\n`));
+            remaining--;
+            checkDone();
+          },
+          () => {
+            // Query rejected — silently drop (client doneHandler will fallback)
+            if (settled) return;
+            settled = true;
+            remaining--;
+            checkDone();
+          },
+        );
+
+        setTimeout(() => {
+          if (settled) return;
+          settled = true;
+          // Hard timeout — silently close without event
+          remaining--;
+          checkDone();
+        }, navTimeout);
+      }
+    },
+  });
+}
+
 // ── Internal helpers ────────────────────────────────────────────
 
 let domShimInstalled = false;
@@ -625,11 +793,11 @@ function resolveAppFactory(module: SSRModule): () => unknown {
  *
  * If no entityAccess map or session is provided, all queries pass through (no filtering).
  */
-function filterByEntityAccess(
-  queries: ReturnType<typeof getSSRQueries>,
+function filterByEntityAccess<T extends { key: string }>(
+  queries: T[],
   entityAccess: EntityAccessMap | undefined,
   session: PrefetchSession | undefined,
-): ReturnType<typeof getSSRQueries> {
+): T[] {
   if (!entityAccess || !session) return queries;
 
   return queries.filter(({ key }) => {

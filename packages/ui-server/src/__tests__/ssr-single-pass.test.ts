@@ -11,7 +11,7 @@ import { AuthProvider } from '@vertz/ui/auth';
 import { ProtectedRoute } from '@vertz/ui-auth';
 import { installDomShim } from '../dom-shim';
 import { ssrStorage } from '../ssr-context';
-import { type SSRModule, ssrRenderToString } from '../ssr-render';
+import { type SSRModule, ssrRenderToString } from '../ssr-shared';
 import { ssrRenderProgressive, ssrRenderSinglePass } from '../ssr-single-pass';
 
 installDomShim();

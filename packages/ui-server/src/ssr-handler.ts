@@ -19,9 +19,13 @@ import {
   resolveSession,
 } from './ssr-handler-shared';
 import { buildProgressiveResponse } from './ssr-progressive-response';
-import { type SSRModule, ssrStreamNavQueries } from './ssr-render';
+import type { SSRModule } from './ssr-shared';
 import type { SSRPrefetchManifest } from './ssr-single-pass';
-import { ssrRenderProgressive, ssrRenderSinglePass } from './ssr-single-pass';
+import {
+  ssrRenderProgressive,
+  ssrRenderSinglePass,
+  ssrStreamNavQueries,
+} from './ssr-single-pass';
 import { injectIntoTemplate } from './template-inject';
 
 export interface SSRHandlerOptions {

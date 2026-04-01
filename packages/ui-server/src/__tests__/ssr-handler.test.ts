@@ -5,7 +5,7 @@ import { AuthProvider } from '@vertz/ui/auth';
 import { ProtectedRoute } from '@vertz/ui-auth';
 import { registerSSRQuery } from '../ssr-context';
 import { createSSRHandler } from '../ssr-handler';
-import type { SSRModule } from '../ssr-render';
+import type { SSRModule } from '../ssr-shared';
 
 /** Inline ok() helper to avoid @vertz/fetch dependency. */
 function ok<T>(data: T) {

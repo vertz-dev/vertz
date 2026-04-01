@@ -9,7 +9,7 @@
 import { afterEach, describe, expect, it } from 'bun:test';
 import { injectCSS, resetInjectedStyles } from '@vertz/ui';
 import { installDomShim } from '../dom-shim';
-import { ssrRenderToString } from '../ssr-render';
+import { ssrRenderToString } from '../ssr-shared';
 
 // Install DOM shim for SSR rendering
 installDomShim();

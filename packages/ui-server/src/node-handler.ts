@@ -18,8 +18,11 @@ import {
   resolveRouteModulepreload,
   resolveSession,
 } from './ssr-handler-shared';
-import { ssrStreamNavQueries } from './ssr-render';
-import { ssrRenderProgressive, ssrRenderSinglePass } from './ssr-single-pass';
+import {
+  ssrRenderProgressive,
+  ssrRenderSinglePass,
+  ssrStreamNavQueries,
+} from './ssr-single-pass';
 import { safeSerialize } from './ssr-streaming-runtime';
 import { injectIntoTemplate } from './template-inject';
 

@@ -6,8 +6,8 @@
  */
 
 import type { CompiledRoute, FontFallbackMetrics } from '@vertz/ui';
-import type { SSRModule, SSRRenderResult } from './ssr-render';
-import { ssrRenderToString } from './ssr-render';
+import type { SSRModule, SSRRenderResult } from './ssr-shared';
+import { ssrRenderToString } from './ssr-shared';
 import { injectIntoTemplate } from './template-inject';
 
 export interface PrerenderResult {

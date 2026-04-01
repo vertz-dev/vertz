@@ -10,7 +10,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { installDomShim } from '../dom-shim';
-import type { SSRModule } from '../ssr-render';
+import type { SSRModule } from '../ssr-shared';
 
 installDomShim();
 
