@@ -94,10 +94,6 @@ flags:
     paths:
       - packages/ui/src/
     carryforward: true
-  ui-compiler:
-    paths:
-      - packages/ui-compiler/src/
-    carryforward: true
   ui-primitives:
     paths:
       - packages/ui-primitives/src/

@@ -270,7 +270,7 @@ jobs:
         run: |
           # On push to main or workflow_dispatch, mark all packages as changed so we get full coverage
           if [ "${{ github.event_name }}" = "push" ] || [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            for pkg in core schema compiler codegen cli cli-runtime fetch testing db cloudflare errors server tui ui ui-canvas ui-compiler ui-primitives ui-server; do
+            for pkg in core schema compiler codegen cli cli-runtime fetch testing db cloudflare errors server tui ui ui-canvas ui-primitives ui-server; do
               echo "${pkg//-/_}=true" >> "$GITHUB_OUTPUT"
             done
             exit 0
@@ -280,7 +280,7 @@ jobs:
           HEAD_SHA=${{ github.event.pull_request.head.sha }}
           CHANGED_FILES=$(git diff --name-only $BASE_SHA $HEAD_SHA)
 
-          for pkg in core schema compiler codegen cli cli-runtime fetch testing db cloudflare errors server tui ui ui-canvas ui-compiler ui-primitives ui-server; do
+          for pkg in core schema compiler codegen cli cli-runtime fetch testing db cloudflare errors server tui ui ui-canvas ui-primitives ui-server; do
             if echo "$CHANGED_FILES" | grep -q "^packages/$pkg/"; then
               echo "${pkg//-/_}=true" >> "$GITHUB_OUTPUT"
             else
@@ -329,7 +329,7 @@ jobs:
 
           # On push to main or workflow_dispatch, run coverage for all packages
           if [ "${{ github.event_name }}" = "push" ] || [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            for pkg in core schema compiler codegen cli cli-runtime fetch testing db cloudflare errors server tui ui ui-canvas ui-compiler ui-primitives ui-server; do
+            for pkg in core schema compiler codegen cli cli-runtime fetch testing db cloudflare errors server tui ui ui-canvas ui-primitives ui-server; do
               run_coverage "$pkg"
             done
             exit 0
@@ -339,7 +339,7 @@ jobs:
           HEAD_SHA=${{ github.event.pull_request.head.sha }}
           CHANGED_FILES=$(git diff --name-only $BASE_SHA $HEAD_SHA)
 
-          for pkg in core schema compiler codegen cli cli-runtime fetch testing db cloudflare errors server tui ui ui-canvas ui-compiler ui-primitives ui-server; do
+          for pkg in core schema compiler codegen cli cli-runtime fetch testing db cloudflare errors server tui ui ui-canvas ui-primitives ui-server; do
             if echo "$CHANGED_FILES" | grep -q "^packages/$pkg/"; then
               run_coverage "$pkg"
             else
@@ -349,7 +349,7 @@ jobs:
 
       - name: Verify coverage output
         run: |
-          for pkg in core schema compiler codegen cli cli-runtime fetch testing db cloudflare errors server tui ui ui-canvas ui-compiler ui-primitives ui-server; do
+          for pkg in core schema compiler codegen cli cli-runtime fetch testing db cloudflare errors server tui ui ui-canvas ui-primitives ui-server; do
             if [ -f "packages/$pkg/coverage/lcov.info" ]; then
               echo "OK: packages/$pkg/coverage/lcov.info (bun test)"
             elif [ -f "packages/$pkg/coverage/coverage-summary.json" ]; then
@@ -373,7 +373,7 @@ jobs:
 
           # Upload each package's coverage with its own flag
           # bun test produces lcov.info (relative paths), vitest produces coverage-final.json (absolute paths)
-          for pkg in core schema compiler codegen cli cli-runtime fetch testing db cloudflare errors server tui ui ui-canvas ui-compiler ui-primitives ui-server; do
+          for pkg in core schema compiler codegen cli cli-runtime fetch testing db cloudflare errors server tui ui ui-canvas ui-primitives ui-server; do
             if [ -f "packages/$pkg/coverage/lcov.info" ]; then
               echo "Uploading coverage for $pkg (lcov)"
               # bun test emits relative SF: paths (e.g. "src/foo.ts").
