@@ -1,5 +1,12 @@
 # @vertz/tui
 
+## 0.2.43
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @vertz/ui@0.2.43
+
 ## 0.2.42
 
 ### Patch Changes

@@ -1,5 +1,15 @@
 # @vertz/ui-server
 
+## 0.2.43
+
+### Patch Changes
+
+- [#2192](https://github.com/vertz-dev/vertz/pull/2192) [`d9380cc`](https://github.com/vertz-dev/vertz/commit/d9380cc4b09a98f83df1213b4c380f2984a53579) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - Remove legacy two-pass SSR (`ssrRenderToString`, `ssrDiscoverQueries`) in favor of single-pass SSR (`ssrRenderSinglePass`) and AOT SSR (`ssrRenderAot`). The `ssrStreamNavQueries` function now uses a shared `runQueryDiscovery()` helper instead of the old two-pass discovery pipeline. Renamed `ssr-render.ts` to `ssr-shared.ts` (shared types and utilities only).
+
+- Updated dependencies []:
+  - @vertz/core@0.2.43
+  - @vertz/ui@0.2.43
+
 ## 0.2.42
 
 ### Patch Changes
