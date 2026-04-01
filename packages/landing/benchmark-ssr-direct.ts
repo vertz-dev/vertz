@@ -2,12 +2,12 @@
  * Direct SSR benchmark — isolates rendering time from HTTP overhead.
  *
  * Loads the landing page SSR module via the Vertz compiler plugin,
- * then benchmarks two-pass vs discovery vs zero-discovery directly.
+ * then benchmarks discovery vs zero-discovery single-pass directly.
  *
  * Run: bun --preload ./benchmark-plugin.ts run ./benchmark-ssr-direct.ts
  * (from packages/landing/)
  */
-import { ssrRenderToString, ssrRenderSinglePass } from '@vertz/ui-server';
+import { ssrRenderSinglePass } from '@vertz/ui-server';
 import { installDomShim } from '@vertz/ui-server/dom-shim';
 
 installDomShim();
@@ -83,20 +83,12 @@ async function main() {
   console.log('');
 
   // Get HTML size for reference
-  const ref = await ssrRenderToString(ssrMod, '/');
+  const ref = await ssrRenderSinglePass(ssrMod, '/');
   console.log(`  HTML size: ${(ref.html.length / 1024).toFixed(1)} KB`);
   console.log(`  CSS size:  ${(ref.css.length / 1024).toFixed(1)} KB`);
   console.log('');
 
-  // 1. Two-pass (ssrRenderToString)
-  const twoPass = await benchmark(
-    'Two-pass (ssrRenderToString)',
-    () => ssrRenderToString(ssrMod, '/'),
-    ITERATIONS,
-  );
-  printResult(twoPass);
-
-  // 2. Discovery-based single-pass (no manifest)
+  // 1. Discovery-based single-pass (no manifest)
   const discovery = await benchmark(
     'Discovery single-pass (no manifest)',
     () => ssrRenderSinglePass(ssrMod, '/'),
@@ -104,7 +96,7 @@ async function main() {
   );
   printResult(discovery);
 
-  // 3. Zero-discovery single-pass (with manifest, empty queries for static page)
+  // 2. Zero-discovery single-pass (with manifest, empty queries for static page)
   const manifest = {
     routePatterns: ['/', '/manifesto'],
     routeEntries: {
@@ -122,16 +114,8 @@ async function main() {
   // Comparisons
   console.log('');
   console.log('─── Comparisons ───');
-  const discVsTp = ((1 - discovery.avgMs / twoPass.avgMs) * 100).toFixed(1);
-  const zdVsTp = ((1 - zeroDisc.avgMs / twoPass.avgMs) * 100).toFixed(1);
   const zdVsDisc = ((1 - zeroDisc.avgMs / discovery.avgMs) * 100).toFixed(1);
 
-  console.log(
-    `  Discovery vs Two-pass:       ${discVsTp}% (${(twoPass.avgMs / discovery.avgMs).toFixed(2)}x)`,
-  );
-  console.log(
-    `  Zero-disc vs Two-pass:       ${zdVsTp}% (${(twoPass.avgMs / zeroDisc.avgMs).toFixed(2)}x)`,
-  );
   console.log(
     `  Zero-disc vs Discovery:      ${zdVsDisc}% (${(discovery.avgMs / zeroDisc.avgMs).toFixed(2)}x)`,
   );
@@ -142,16 +126,13 @@ async function main() {
   console.log('  Summary');
   console.log('═══════════════════════════════════════════════════════════════════════');
   console.log('');
-  console.log('  Approach                          avg       p50       p95       vs Two-pass');
-  console.log('  ────────────────────────────────  ────────  ────────  ────────  ───────────');
+  console.log('  Approach                          avg       p50       p95       vs Discovery');
+  console.log('  ────────────────────────────────  ────────  ────────  ────────  ────────────');
   console.log(
-    `  Two-pass                          ${`${twoPass.avgMs}ms`.padEnd(10)}${`${twoPass.p50Ms}ms`.padEnd(10)}${`${twoPass.p95Ms}ms`.padEnd(10)}baseline`,
+    `  Discovery single-pass             ${`${discovery.avgMs}ms`.padEnd(10)}${`${discovery.p50Ms}ms`.padEnd(10)}${`${discovery.p95Ms}ms`.padEnd(10)}baseline`,
   );
   console.log(
-    `  Discovery single-pass             ${`${discovery.avgMs}ms`.padEnd(10)}${`${discovery.p50Ms}ms`.padEnd(10)}${`${discovery.p95Ms}ms`.padEnd(10)}${discVsTp}%`,
-  );
-  console.log(
-    `  Zero-discovery single-pass        ${`${zeroDisc.avgMs}ms`.padEnd(10)}${`${zeroDisc.p50Ms}ms`.padEnd(10)}${`${zeroDisc.p95Ms}ms`.padEnd(10)}${zdVsTp}%`,
+    `  Zero-discovery single-pass        ${`${zeroDisc.avgMs}ms`.padEnd(10)}${`${zeroDisc.p50Ms}ms`.padEnd(10)}${`${zeroDisc.p95Ms}ms`.padEnd(10)}${zdVsDisc}%`,
   );
   console.log('');
 }

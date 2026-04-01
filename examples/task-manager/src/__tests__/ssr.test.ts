@@ -2,7 +2,7 @@
  * Integration tests for zero-config SSR.
  *
  * These tests verify that the app can be rendered server-side using the
- * framework's built-in SSR pipeline (ssrRenderToString).
+ * framework's built-in SSR pipeline (ssrRenderSinglePass).
  *
  * The per-request SSR context automatically provides the URL to the router
  * via SSR-aware getters — no manual router.current.value assignment needed.
@@ -11,17 +11,17 @@
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test';
 import { GlobalWindow } from 'happy-dom';
 import { registerSSRResolver } from '@vertz/ui/internals';
-import { ssrRenderToString, ssrStorage } from '@vertz/ui-server';
+import { ssrRenderSinglePass, ssrStorage } from '@vertz/ui-server';
 import { removeDomShim } from '@vertz/ui-server/dom-shim';
 
 /**
  * Helper: render the app at a given URL using the framework's SSR pipeline.
- * ssrRenderToString handles DOM shim installation (once per process) and
+ * ssrRenderSinglePass handles DOM shim installation (once per process) and
  * per-request isolation via AsyncLocalStorage.
  */
 async function renderApp(url: string): Promise<string> {
   const appModule = await import('../app');
-  const result = await ssrRenderToString(appModule, url);
+  const result = await ssrRenderSinglePass(appModule, url);
   return result.html;
 }
 

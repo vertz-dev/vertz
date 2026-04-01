@@ -1,8 +1,7 @@
 /**
  * Tests for ssrRenderSinglePass — discovery-only + single render pass.
  *
- * Phase 1 of SSR single-pass prefetch: replaces the two-pass SSR pipeline
- * with discovery-only (captures queries) → prefetch → single render.
+ * Tests for ssrRenderSinglePass — discovery-only (captures queries) → prefetch → single render.
  */
 import { describe, expect, it, spyOn } from 'bun:test';
 import { createRouter, defineRoutes, query, RouterView } from '@vertz/ui';
@@ -11,7 +10,7 @@ import { AuthProvider } from '@vertz/ui/auth';
 import { ProtectedRoute } from '@vertz/ui-auth';
 import { installDomShim } from '../dom-shim';
 import { ssrStorage } from '../ssr-context';
-import { type SSRModule, ssrRenderToString } from '../ssr-shared';
+import type { SSRModule } from '../ssr-shared';
 import { ssrRenderProgressive, ssrRenderSinglePass } from '../ssr-single-pass';
 
 installDomShim();
@@ -93,15 +92,6 @@ describe('Feature: Discovery-only single-pass SSR', () => {
     }
 
     describe('When ssrRenderSinglePass() is called', () => {
-      it('Then HTML output matches two-pass output for same data', async () => {
-        const module = createTaskListModule();
-
-        const twoPass = await ssrRenderToString(module, '/');
-        const singlePass = await ssrRenderSinglePass(module, '/');
-
-        expect(singlePass.html).toBe(twoPass.html);
-      });
-
       it('Then the app factory is called exactly twice (discovery + render)', async () => {
         let callCount = 0;
         const module = {
@@ -122,7 +112,6 @@ describe('Feature: Discovery-only single-pass SSR', () => {
         await ssrRenderSinglePass(module, '/');
 
         // Discovery pass + render pass = 2 calls total
-        // (vs two-pass which also calls 2 times, but the architecture is cleaner)
         expect(callCount).toBe(2);
       });
 
@@ -204,14 +193,6 @@ describe('Feature: Discovery-only single-pass SSR', () => {
         expect(keys).toContain(statsDescriptor._key);
       });
 
-      it('Then HTML matches two-pass output', async () => {
-        const module = createMultiQueryModule();
-
-        const twoPass = await ssrRenderToString(module, '/');
-        const singlePass = await ssrRenderSinglePass(module, '/');
-
-        expect(singlePass.html).toBe(twoPass.html);
-      });
     });
   });
 
@@ -345,7 +326,7 @@ describe('Feature: Discovery-only single-pass SSR', () => {
 
   describe('Given prefetch: false option', () => {
     describe('When ssrRenderSinglePass() is called', () => {
-      it('Then it falls back to two-pass rendering', async () => {
+      it('Then it falls back to legacy rendering (discovery + render)', async () => {
         let callCount = 0;
         const data = { items: [{ id: '1', title: 'Fallback Test' }] };
         const descriptor = mockDescriptor('GET', '/tasks', data);
@@ -364,7 +345,7 @@ describe('Feature: Discovery-only single-pass SSR', () => {
         const result = await ssrRenderSinglePass(module, '/', { prefetch: false });
 
         expect(result.html).toContain('Fallback Test');
-        // Two-pass calls createApp twice (same as current behavior)
+        // Calls createApp twice (discovery + render)
         expect(callCount).toBe(2);
       });
     });

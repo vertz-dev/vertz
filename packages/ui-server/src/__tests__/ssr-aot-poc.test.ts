@@ -17,7 +17,7 @@ import { __styleStr as styleObjectToString } from '@vertz/ui/internals';
 import { installDomShim, toVNode } from '../dom-shim';
 import { escapeAttr, escapeHtml, serializeToHtml } from '../html-serializer';
 import { ssrStorage } from '../ssr-context';
-import { createRequestContext, type SSRModule, ssrRenderToString } from '../ssr-shared';
+import { createRequestContext, type SSRModule } from '../ssr-shared';
 import { ssrRenderSinglePass } from '../ssr-single-pass';
 import { streamToString } from '../streaming';
 import { renderToStream } from '../render-to-stream';

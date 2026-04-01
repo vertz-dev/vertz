@@ -9,7 +9,7 @@
 import { afterEach, describe, expect, it } from 'bun:test';
 import { injectCSS, resetInjectedStyles } from '@vertz/ui';
 import { installDomShim } from '../dom-shim';
-import { ssrRenderToString } from '../ssr-shared';
+import { ssrRenderSinglePass } from '../ssr-single-pass';
 
 // Install DOM shim for SSR rendering
 installDomShim();
@@ -34,7 +34,7 @@ describe('SSR CSS tree-shaking (#1912)', () => {
       },
     };
 
-    const result = await ssrRenderToString(module, '/button-page');
+    const result = await ssrRenderSinglePass(module, '/button-page');
 
     expect(result.html).toContain('Button Page');
     expect(result.css).toContain('.rendered-button { background: blue; }');
@@ -60,8 +60,8 @@ describe('SSR CSS tree-shaking (#1912)', () => {
       },
     };
 
-    const resultA = await ssrRenderToString(moduleA, '/input-page');
-    const resultB = await ssrRenderToString(moduleB, '/card-page');
+    const resultA = await ssrRenderSinglePass(moduleA, '/input-page');
+    const resultB = await ssrRenderSinglePass(moduleB, '/card-page');
 
     // Each result should contain only its own CSS
     expect(resultA.css).toContain('.input-styles');
@@ -92,8 +92,8 @@ describe('SSR CSS tree-shaking (#1912)', () => {
 
     // Run both renders concurrently — each has its own AsyncLocalStorage context
     const [resultButton, resultLabel] = await Promise.all([
-      ssrRenderToString(moduleButton, '/btn'),
-      ssrRenderToString(moduleLabel, '/lbl'),
+      ssrRenderSinglePass(moduleButton, '/btn'),
+      ssrRenderSinglePass(moduleLabel, '/lbl'),
     ]);
 
     // Button page should only have button CSS
@@ -120,7 +120,7 @@ describe('SSR CSS tree-shaking (#1912)', () => {
       },
     };
 
-    const result1 = await ssrRenderToString(module1, '/req1');
+    const result1 = await ssrRenderSinglePass(module1, '/req1');
     expect(result1.css).toContain(cachedCSS);
 
     // Second request — same CSS re-injected (like a lazy getter re-injecting cached CSS).
@@ -134,7 +134,7 @@ describe('SSR CSS tree-shaking (#1912)', () => {
       },
     };
 
-    const result2 = await ssrRenderToString(module2, '/req2');
+    const result2 = await ssrRenderSinglePass(module2, '/req2');
     // Must still appear despite global dedup — cssTracker is per-request
     expect(result2.css).toContain(cachedCSS);
   });
@@ -150,7 +150,7 @@ describe('SSR CSS tree-shaking (#1912)', () => {
       styles: ['body { margin: 0; }', '* { box-sizing: border-box; }'],
     };
 
-    const result = await ssrRenderToString(module, '/global');
+    const result = await ssrRenderSinglePass(module, '/global');
 
     // Both global styles and component CSS should be present
     expect(result.css).toContain('body { margin: 0; }');
@@ -168,7 +168,7 @@ describe('SSR CSS tree-shaking (#1912)', () => {
       },
     };
 
-    const result = await ssrRenderToString(module, '/bare');
+    const result = await ssrRenderSinglePass(module, '/bare');
 
     expect(result.html).toContain('Bare Page');
     // No component CSS was injected, so there should be no component <style> tag.
@@ -195,7 +195,7 @@ describe('SSR CSS tree-shaking (#1912)', () => {
       getInjectedCSS: () => [usedCss, unusedCss],
     };
 
-    const result = await ssrRenderToString(module, '/eager');
+    const result = await ssrRenderSinglePass(module, '/eager');
 
     // Used CSS is included (class appears in HTML)
     expect(result.css).toContain(usedCss);
@@ -216,7 +216,7 @@ describe('SSR CSS tree-shaking (#1912)', () => {
       getInjectedCSS: () => [globalResetCss],
     };
 
-    const result = await ssrRenderToString(module, '/page');
+    const result = await ssrRenderSinglePass(module, '/page');
 
     // Global CSS rules are always kept regardless of HTML classes
     expect(result.css).toContain(globalResetCss);

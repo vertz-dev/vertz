@@ -13,7 +13,7 @@ import { getSSRContext } from '@vertz/ui/internals';
 import { ProtectedRoute } from '@vertz/ui-auth';
 import { installDomShim } from '../dom-shim';
 import { registerSSRQuery } from '../ssr-context';
-import { ssrDiscoverQueries, ssrRenderToString, ssrStreamNavQueries } from '../ssr-shared';
+import { ssrRenderSinglePass, ssrStreamNavQueries } from '../ssr-single-pass';
 
 /** Inline ok() helper to avoid @vertz/fetch dependency. */
 function ok<T>(data: T) {
@@ -53,7 +53,7 @@ function createMockAuthSdk(): AuthSdk {
   };
 }
 
-describe('ssrRenderToString', () => {
+describe('ssrRenderSinglePass', () => {
   it('returns { html, css, ssrData } shape', async () => {
     const module = {
       default: () => {
@@ -64,7 +64,7 @@ describe('ssrRenderToString', () => {
       },
     };
 
-    const result = await ssrRenderToString(module, '/');
+    const result = await ssrRenderSinglePass(module, '/');
 
     expect(result).toHaveProperty('html');
     expect(result).toHaveProperty('css');
@@ -73,36 +73,6 @@ describe('ssrRenderToString', () => {
     expect(typeof result.css).toBe('string');
     expect(Array.isArray(result.ssrData)).toBe(true);
     expect(result.html).toContain('Hello SSR');
-  });
-
-  it('two-pass rendering resolves queries and includes data in ssrData', async () => {
-    let callCount = 0;
-    const module = {
-      default: () => {
-        callCount++;
-        if (callCount === 1) {
-          // Pass 1: register a query
-          const resolve = (_data: unknown) => {};
-          registerSSRQuery({
-            key: 'tasks',
-            promise: Promise.resolve({ items: ['task1', 'task2'] }),
-            timeout: 300,
-            resolve,
-          });
-        }
-        const el = document.createElement('div');
-        el.textContent = `Render pass ${callCount}`;
-        return el;
-      },
-    };
-
-    const result = await ssrRenderToString(module, '/');
-
-    expect(callCount).toBe(2); // Two passes
-    expect(result.ssrData).toHaveLength(1);
-    expect(result.ssrData[0].key).toBe('tasks');
-    expect(result.ssrData[0].data).toEqual({ items: ['task1', 'task2'] });
-    expect(result.html).toContain('Render pass 2');
   });
 
   it('includes compiled theme CSS when module exports theme', async () => {
@@ -122,62 +92,11 @@ describe('ssrRenderToString', () => {
       theme,
     };
 
-    const result = await ssrRenderToString(module, '/');
+    const result = await ssrRenderSinglePass(module, '/');
 
     expect(result.css).toContain('--color-primary');
     expect(result.css).toContain('--color-background');
     expect(result.css).toContain('data-vertz-css');
-  });
-
-  it('respects ssrTimeout — slow query not included in ssrData', async () => {
-    const module = {
-      default: () => {
-        // Register a query that takes too long
-        registerSSRQuery({
-          key: 'slow-query',
-          promise: new Promise((resolve) => setTimeout(() => resolve({ data: 'late' }), 5000)),
-          timeout: 50, // 50ms timeout
-          resolve: () => {},
-        });
-        const el = document.createElement('div');
-        el.textContent = 'App';
-        return el;
-      },
-    };
-
-    const result = await ssrRenderToString(module, '/', { ssrTimeout: 50 });
-
-    // Slow query should have timed out and not be included
-    expect(result.ssrData).toHaveLength(0);
-    expect(result.html).toContain('App');
-  });
-});
-
-describe('ssrDiscoverQueries', () => {
-  it('returns resolved query data without rendering HTML', async () => {
-    let callCount = 0;
-    const module = {
-      default: () => {
-        callCount++;
-        registerSSRQuery({
-          key: 'tasks',
-          promise: Promise.resolve({ items: ['a', 'b'] }),
-          timeout: 300,
-          resolve: () => {},
-        });
-        const el = document.createElement('div');
-        el.textContent = 'App';
-        return el;
-      },
-    };
-
-    const result = await ssrDiscoverQueries(module, '/tasks');
-
-    // Only Pass 1 — called once
-    expect(callCount).toBe(1);
-    expect(result.resolved).toHaveLength(1);
-    expect(result.resolved[0].key).toBe('tasks');
-    expect(result.resolved[0].data).toEqual({ items: ['a', 'b'] });
   });
 });
 
@@ -345,7 +264,7 @@ describe('ssrStreamNavQueries', () => {
 
     const [stream, renderResult] = await Promise.all([
       streamPromise,
-      ssrRenderToString(renderModule, '/concurrent'),
+      ssrRenderSinglePass(renderModule, '/concurrent'),
     ]);
 
     expect(renderResult.html).toContain('Concurrent');
@@ -420,7 +339,7 @@ describe('SSR lazy route resolution', () => {
     };
 
     // SSR render for /about — lazy component should be resolved
-    const result = await ssrRenderToString(module, '/about');
+    const result = await ssrRenderSinglePass(module, '/about');
     expect(result.html).toContain('About Page Content');
     expect(result.html).toContain('data-testid="about"');
   });
@@ -457,7 +376,7 @@ describe('SSR lazy route resolution', () => {
     };
 
     // Sync route should work as before
-    const result = await ssrRenderToString(module, '/');
+    const result = await ssrRenderSinglePass(module, '/');
     expect(result.html).toContain('Home');
   });
 
@@ -499,7 +418,7 @@ describe('SSR lazy route resolution', () => {
       },
     };
 
-    const result = await ssrRenderToString(module, '/docs/');
+    const result = await ssrRenderSinglePass(module, '/docs/');
     expect(result.html).toContain('Docs Layout');
     expect(result.html).toContain('Docs Index Content');
     expect(result.html).toContain('data-testid="docs-layout"');
@@ -526,7 +445,7 @@ describe('SSR lazy route resolution', () => {
     };
 
     // With a very short timeout, the lazy component should time out
-    const result = await ssrRenderToString(module, '/slow', { ssrTimeout: 10 });
+    const result = await ssrRenderSinglePass(module, '/slow', { ssrTimeout: 10 });
     // Should still produce valid HTML, just without the lazy content
     expect(result.html).toBeDefined();
     expect(result.html).not.toContain('Slow Content');
@@ -534,7 +453,7 @@ describe('SSR lazy route resolution', () => {
 });
 
 describe('per-request isolation', () => {
-  it('concurrent ssrRenderToString calls do not interfere', async () => {
+  it('concurrent ssrRenderSinglePass calls do not interfere', async () => {
     const makeModule = (label: string) => ({
       default: () => {
         registerSSRQuery({
@@ -550,8 +469,8 @@ describe('per-request isolation', () => {
     });
 
     const [result1, result2] = await Promise.all([
-      ssrRenderToString(makeModule('A'), '/a'),
-      ssrRenderToString(makeModule('B'), '/b'),
+      ssrRenderSinglePass(makeModule('A'), '/a'),
+      ssrRenderSinglePass(makeModule('B'), '/b'),
     ]);
 
     // Each result should only have its own query
@@ -584,7 +503,7 @@ describe('per-request isolation', () => {
 
     // Launch 10 concurrent renders — mirrors rapid browser refreshes
     const results = await Promise.all(
-      Array.from({ length: 10 }, (_, i) => ssrRenderToString(makeModule(`req-${i}`), `/page-${i}`)),
+      Array.from({ length: 10 }, (_, i) => ssrRenderSinglePass(makeModule(`req-${i}`), `/page-${i}`)),
     );
 
     // Every single render must succeed with correct HTML and query data
@@ -609,7 +528,7 @@ describe('per-request isolation', () => {
       },
     };
 
-    const result = await ssrRenderToString(module, '/');
+    const result = await ssrRenderSinglePass(module, '/');
 
     // CSS injected during render should be in output
     expect(result.css).toContain('.my-component { color: red; }');
@@ -630,7 +549,7 @@ describe('per-request isolation', () => {
       },
     };
 
-    const result = await ssrRenderToString(module, '/');
+    const result = await ssrRenderSinglePass(module, '/');
 
     // All CSS content should be present
     expect(result.css).toContain('.panel { background: white; }');
@@ -652,7 +571,7 @@ describe('per-request isolation', () => {
       styles: ['*, *::before { box-sizing: border-box; }', 'body { font-family: system-ui; }'],
     };
 
-    const result = await ssrRenderToString(module, '/');
+    const result = await ssrRenderSinglePass(module, '/');
 
     expect(result.css).toContain('box-sizing: border-box');
     expect(result.css).toContain('font-family: system-ui');
@@ -681,7 +600,7 @@ describe('per-request isolation', () => {
       styles: ['body { margin: 0; }', 'h1 { font-size: 2rem; }'],
     };
 
-    const result = await ssrRenderToString(module, '/');
+    const result = await ssrRenderSinglePass(module, '/');
 
     // Theme CSS, globals, and component CSS should each be at most 1 tag
     const styleTags = result.css.match(/<style data-vertz-css>/g);
@@ -739,17 +658,17 @@ describe('per-request isolation', () => {
     };
 
     // Render for '/' — should show home page
-    const homeResult = await ssrRenderToString(module, '/');
+    const homeResult = await ssrRenderSinglePass(module, '/');
     expect(homeResult.html).toContain('data-testid="home-page"');
     expect(homeResult.html).toContain('Home');
 
     // Render for '/about' — should show about page, NOT home
-    const aboutResult = await ssrRenderToString(module, '/about');
+    const aboutResult = await ssrRenderSinglePass(module, '/about');
     expect(aboutResult.html).toContain('data-testid="about-page"');
     expect(aboutResult.html).toContain('About');
 
     // Render for '/tasks/123' — should show task detail, NOT home
-    const taskResult = await ssrRenderToString(module, '/tasks/123');
+    const taskResult = await ssrRenderSinglePass(module, '/tasks/123');
     expect(taskResult.html).toContain('data-testid="task-detail-page"');
     expect(taskResult.html).toContain('Task Detail');
   });
@@ -768,18 +687,18 @@ describe('per-request isolation', () => {
     };
 
     // First render
-    const result1 = await ssrRenderToString(module, '/');
+    const result1 = await ssrRenderSinglePass(module, '/');
     expect(result1.css).toContain('box-sizing: border-box');
     expect(result1.css).toContain('font-family: system-ui');
 
     // Second render — styles must still be present (not cleared by resetInjectedStyles)
-    const result2 = await ssrRenderToString(module, '/page2');
+    const result2 = await ssrRenderSinglePass(module, '/page2');
     expect(result2.css).toContain('box-sizing: border-box');
     expect(result2.css).toContain('font-family: system-ui');
   });
 });
 
-describe('ssrRenderToString discoveredRoutes', () => {
+describe('ssrRenderSinglePass discoveredRoutes', () => {
   it('includes discoveredRoutes when app creates a router', async () => {
     const module = {
       default: () => {
@@ -797,7 +716,7 @@ describe('ssrRenderToString discoveredRoutes', () => {
       },
     };
 
-    const result = await ssrRenderToString(module, '/');
+    const result = await ssrRenderSinglePass(module, '/');
 
     expect(result.discoveredRoutes).toBeDefined();
     expect(result.discoveredRoutes).toContain('/');
@@ -814,7 +733,7 @@ describe('ssrRenderToString discoveredRoutes', () => {
       },
     };
 
-    const result = await ssrRenderToString(module, '/');
+    const result = await ssrRenderSinglePass(module, '/');
 
     // discoveredRoutes should be undefined or empty when no router is created
     expect(result.discoveredRoutes ?? []).toEqual([]);
@@ -841,7 +760,7 @@ describe('ssrRenderToString discoveredRoutes', () => {
       },
     };
 
-    const result = await ssrRenderToString(module, '/');
+    const result = await ssrRenderSinglePass(module, '/');
 
     expect(result.discoveredRoutes).toContain('/docs');
     expect(result.discoveredRoutes).toContain('/docs/:slug');
@@ -849,7 +768,7 @@ describe('ssrRenderToString discoveredRoutes', () => {
 });
 
 describe('SSR redirect plumbing', () => {
-  describe('Given ssrRenderToString called with ssrAuth option', () => {
+  describe('Given ssrRenderSinglePass called with ssrAuth option', () => {
     it('Then the SSRRenderContext has ssrAuth set (unauthenticated)', async () => {
       let capturedAuth: unknown;
       const module = {
@@ -862,7 +781,7 @@ describe('SSR redirect plumbing', () => {
         },
       };
 
-      await ssrRenderToString(module, '/admin', {
+      await ssrRenderSinglePass(module, '/admin', {
         ssrAuth: { status: 'unauthenticated' },
       });
 
@@ -882,7 +801,7 @@ describe('SSR redirect plumbing', () => {
       };
 
       const user = { id: '1', email: 'test@example.com', role: 'admin' };
-      await ssrRenderToString(module, '/admin', {
+      await ssrRenderSinglePass(module, '/admin', {
         ssrAuth: { status: 'authenticated', user, expiresAt: Date.now() + 3600_000 },
       });
 
@@ -901,24 +820,20 @@ describe('SSR redirect plumbing', () => {
         },
       };
 
-      await ssrRenderToString(module, '/admin');
+      await ssrRenderSinglePass(module, '/admin');
 
       expect(capturedAuth).toBeUndefined();
     });
   });
 
-  describe('Given ctx.ssrRedirect is set during Pass 1', () => {
-    it('Then Pass 2 is skipped and result.redirect is populated', async () => {
-      let callCount = 0;
+  describe('Given ctx.ssrRedirect is set during discovery', () => {
+    it('Then render is skipped and result.redirect is populated', async () => {
       const module = {
         default: () => {
-          callCount++;
-          // Simulate ProtectedRoute writing ssrRedirect during Pass 1
-          if (callCount === 1) {
-            const ctx = getSSRContext();
-            if (ctx) {
-              ctx.ssrRedirect = { to: '/login?returnTo=%2Fadmin' };
-            }
+          // Simulate ProtectedRoute writing ssrRedirect during discovery
+          const ctx = getSSRContext();
+          if (ctx) {
+            ctx.ssrRedirect = { to: '/login?returnTo=%2Fadmin' };
           }
           const el = document.createElement('div');
           el.textContent = 'Should not render';
@@ -926,9 +841,8 @@ describe('SSR redirect plumbing', () => {
         },
       };
 
-      const result = await ssrRenderToString(module, '/admin');
+      const result = await ssrRenderSinglePass(module, '/admin');
 
-      expect(callCount).toBe(1); // Only Pass 1 — Pass 2 skipped
       expect(result.redirect).toEqual({ to: '/login?returnTo=%2Fadmin' });
     });
 
@@ -945,7 +859,7 @@ describe('SSR redirect plumbing', () => {
         },
       };
 
-      const result = await ssrRenderToString(module, '/admin');
+      const result = await ssrRenderSinglePass(module, '/admin');
 
       expect(result.html).toBe('');
       expect(result.css).toBe('');
@@ -967,7 +881,7 @@ describe('SSR redirect plumbing', () => {
         },
       };
 
-      await ssrRenderToString(module, '/admin?tab=settings');
+      await ssrRenderSinglePass(module, '/admin?tab=settings');
 
       expect(capturedUrl).toBe('/admin?tab=settings');
     });
@@ -997,7 +911,7 @@ describe('AuthProvider SSR hydration', () => {
         },
       };
 
-      await ssrRenderToString(module, '/app', {
+      await ssrRenderSinglePass(module, '/app', {
         ssrAuth: { status: 'authenticated', user, expiresAt: Date.now() + 3600_000 },
       });
 
@@ -1027,7 +941,7 @@ describe('AuthProvider SSR hydration', () => {
         },
       };
 
-      await ssrRenderToString(module, '/app', {
+      await ssrRenderSinglePass(module, '/app', {
         ssrAuth: { status: 'unauthenticated' },
       });
 
@@ -1055,7 +969,7 @@ describe('AuthProvider SSR hydration', () => {
         },
       };
 
-      await ssrRenderToString(module, '/app');
+      await ssrRenderSinglePass(module, '/app');
 
       expect(capturedStatus).toBe('idle');
     });
@@ -1089,7 +1003,7 @@ describe('ProtectedRoute SSR redirect', () => {
         },
       };
 
-      const result = await ssrRenderToString(module, '/admin', {
+      const result = await ssrRenderSinglePass(module, '/admin', {
         ssrAuth: { status: 'unauthenticated' },
       });
 
@@ -1123,7 +1037,7 @@ describe('ProtectedRoute SSR redirect', () => {
         },
       };
 
-      const result = await ssrRenderToString(module, '/dashboard', {
+      const result = await ssrRenderSinglePass(module, '/dashboard', {
         ssrAuth: { status: 'authenticated', user, expiresAt: Date.now() + 3600_000 },
       });
 
@@ -1155,7 +1069,7 @@ describe('ProtectedRoute SSR redirect', () => {
         },
       };
 
-      const result = await ssrRenderToString(module, '/admin');
+      const result = await ssrRenderSinglePass(module, '/admin');
 
       expect(result.redirect).toBeUndefined();
     });
@@ -1187,7 +1101,7 @@ describe('ProtectedRoute SSR redirect', () => {
         },
       };
 
-      const result = await ssrRenderToString(module, '/admin', {
+      const result = await ssrRenderSinglePass(module, '/admin', {
         ssrAuth: { status: 'unauthenticated' },
       });
 
@@ -1221,7 +1135,7 @@ describe('ProtectedRoute SSR redirect', () => {
         },
       };
 
-      const result = await ssrRenderToString(module, '/admin', {
+      const result = await ssrRenderSinglePass(module, '/admin', {
         ssrAuth: { status: 'unauthenticated' },
       });
 
@@ -1255,7 +1169,7 @@ describe('ProtectedRoute SSR redirect', () => {
         },
       };
 
-      const result = await ssrRenderToString(module, '/admin?tab=settings', {
+      const result = await ssrRenderSinglePass(module, '/admin?tab=settings', {
         ssrAuth: { status: 'unauthenticated' },
       });
 
@@ -1282,7 +1196,7 @@ describe('ProtectedRoute SSR redirect', () => {
       };
 
       const user = { id: '1', email: 'test@example.com', role: 'user' };
-      const result = await ssrRenderToString(module, '/public', {
+      const result = await ssrRenderSinglePass(module, '/public', {
         ssrAuth: { status: 'authenticated', user, expiresAt: Date.now() + 3600_000 },
       });
 
@@ -1291,7 +1205,7 @@ describe('ProtectedRoute SSR redirect', () => {
     });
   });
 
-  describe('Given a redirect result from ssrRenderToString', () => {
+  describe('Given a redirect result from ssrRenderSinglePass', () => {
     it('Then result.ssrData is empty (no queries resolved)', async () => {
       const module = {
         default: () => {
@@ -1315,7 +1229,7 @@ describe('ProtectedRoute SSR redirect', () => {
         },
       };
 
-      const result = await ssrRenderToString(module, '/admin', {
+      const result = await ssrRenderSinglePass(module, '/admin', {
         ssrAuth: { status: 'unauthenticated' },
       });
 
@@ -1360,7 +1274,7 @@ describe('ProtectedRoute SSR redirect', () => {
         },
       };
 
-      const result = await ssrRenderToString(module, '/admin', {
+      const result = await ssrRenderSinglePass(module, '/admin', {
         ssrAuth: { status: 'unauthenticated' },
       });
 
@@ -1373,16 +1287,9 @@ describe('ProtectedRoute SSR redirect', () => {
 
 describe('SSR error paths', () => {
   describe('Given a module with no default or App export', () => {
-    it('Then ssrRenderToString throws with descriptive error', async () => {
+    it('Then ssrRenderSinglePass throws with descriptive error', async () => {
       const module = { styles: ['body { margin: 0 }'] };
-      await expect(ssrRenderToString(module, '/')).rejects.toThrow(
-        'App entry must export a default function or named App function',
-      );
-    });
-
-    it('Then ssrDiscoverQueries throws with descriptive error', async () => {
-      const module = {};
-      await expect(ssrDiscoverQueries(module, '/')).rejects.toThrow(
+      await expect(ssrRenderSinglePass(module, '/')).rejects.toThrow(
         'App entry must export a default function or named App function',
       );
     });
@@ -1406,34 +1313,13 @@ describe('SSR error paths', () => {
         },
         theme: { __invalid: true } as never,
       };
-      const result = await ssrRenderToString(module, '/');
+      const result = await ssrRenderSinglePass(module, '/');
       expect(result.html).toContain('Themed App');
       expect(spy).toHaveBeenCalledWith(
         expect.stringContaining('Failed to compile theme'),
         expect.anything(),
       );
       spy.mockRestore();
-    });
-  });
-
-  describe('Given a query that resolves after the timeout in ssrDiscoverQueries', () => {
-    it('Then the timed-out query appears in pending, not resolved', async () => {
-      const module = {
-        default: () => {
-          registerSSRQuery({
-            key: 'slow-query',
-            promise: new Promise((r) => setTimeout(() => r({ data: 'late' }), 500)),
-            timeout: 10,
-            resolve: () => {},
-          });
-          const el = document.createElement('div');
-          el.textContent = 'App';
-          return el;
-        },
-      };
-      const result = await ssrDiscoverQueries(module, '/');
-      expect(result.pending).toContain('slow-query');
-      expect(result.resolved.find((r) => r.key === 'slow-query')).toBeUndefined();
     });
   });
 
