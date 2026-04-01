@@ -4,7 +4,7 @@
  * transforms run during `bun test`, matching the build-time behavior.
  */
 
-import { compile } from '@vertz/ui-server';
+import { compile } from '../ui-server/src/index';
 import { plugin } from 'bun';
 
 plugin({

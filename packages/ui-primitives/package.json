@@ -31,7 +31,7 @@
   },
   "scripts": {
     "build": "bunup",
-    "test": "bun test",
+    "test": "bun run ./scripts/run-tests.ts",
     "test:watch": "bun test --watch",
     "typecheck": "tsc --noEmit"
   },
