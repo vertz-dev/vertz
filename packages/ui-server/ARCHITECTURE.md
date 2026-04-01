@@ -15,7 +15,7 @@ Bun uses its native JSX pipeline, which has fundamentally different semantics
  bun-dev-server.ts                               hydration (mount)
  ├── Bun.serve({ routes, fetch })                HMR client (Bun built-in)
  ├── Vertz Bun plugin (build.onLoad)             Error overlay WebSocket
- ├── SSR render (two-pass)                       Fast Refresh runtime
+ ├── SSR render (single-pass)                       Fast Refresh runtime
  ├── File watcher (src/)                         Build error loader
  ├── Error channel (WebSocket)                   Reload guard
  └── Source map resolver
@@ -71,8 +71,8 @@ HTTP Request
       │     Matches paths in skipSSRPaths (default: ['/api/']).
       │
       ├── X-Vertz-Nav: 1 ───────────── Nav pre-fetch (SSE stream)
-      │     Client-side navigation triggers query discovery (Pass 1 only).
-      │     Streams SSE events as queries resolve. No Pass 2 render.
+      │     Client-side navigation triggers query discovery.
+      │     Streams SSE events as queries resolve. No full render.
       │
       ├── static files ─────────────── public/ directory, then project root
       │     Only for non-root, non-HTML paths. Checks public/ first.
@@ -80,8 +80,9 @@ HTTP Request
       ├── non-HTML requests ─────────── 404 (skip SSR)
       │     Requests without Accept: text/html that don't match above.
       │
-      └── SSR render ────────────────── Full two-pass SSR
-            Patches globalThis.fetch for API interception during SSR.
+      └── SSR render ────────────────── Single-pass SSR
+            Runs discovery phase (query collection), prefetches data,
+            then renders once with pre-fetched data available.
             Returns HTML with inline CSS, SSR data, and script tags.
             On error: returns empty shell with client script (CSR fallback).
 ```
@@ -203,35 +204,32 @@ This is why SSR module reload uses a `.ts` wrapper file -- the wrapper's import
 of the actual `.tsx` entry goes through Bun's normal resolution (no query
 string), matching the plugin filter correctly.
 
-## 4. SSR Render Pipeline (Two-Pass)
+## 4. SSR Render Pipeline (Single-Pass)
 
-`ssrRenderToString()` performs server-side rendering with query pre-fetching.
-All renders are serialized through a mutex (`renderLock`) because the SSR
-pipeline depends on global mutable state.
+`ssrRenderSinglePass()` performs server-side rendering with query pre-fetching
+in a discovery-then-render flow. The discovery phase runs the app factory to
+collect query registrations, prefetches data, then a single render pass produces
+the final HTML with pre-fetched data available.
+
+For AOT-compiled routes, `ssrRenderAot()` bypasses the DOM shim entirely,
+using pre-compiled string-builder functions for maximum performance.
 
 ```
-ssrRenderToString(module, url)
+ssrRenderSinglePass(module, url)
   │
-  ├── withRenderLock()              Serialize concurrent renders
+  ├── runDiscoveryPhase()           Run app to discover queries
+  │   ├── runQueryDiscovery()       Execute app factory, collect query handles
+  │   │   ├── Setup globals         __SSR_URL__, DOM shim, etc.
+  │   │   ├── createApp()           Run app factory once
+  │   │   │   └── query() calls register SSR queries
+  │   │   └── Return raw handles    {promise, timeout, resolve, key}[]
+  │   │
+  │   └── Batch resolve             Promise.allSettled with per-query timeouts
+  │       ├── Resolved → resolve(data)
+  │       └── Timeout → skip (client will fetch)
   │
-  ├── ssrStorage.run(store)         AsyncLocalStorage for per-request state
-  │
-  ├── Setup globals
-  │   ├── __SSR_URL__ = url         Router reads this for initial route
-  │   ├── installDomShim()          Fake document/window for DOM operations
-  │   ├── __VERTZ_CLEAR_QUERY_CACHE__()   Prevent stale cache hits
-  │   └── __VERTZ_SSR_SYNC_ROUTER__(url)  Sync module-level routers
-  │
-  ├── Pass 1: Discovery
-  │   ├── createApp()               Run the app factory
-  │   │   └── query() calls register SSR queries in ssrStorage
-  │   ├── Await queries             Promise.allSettled with per-query timeouts
-  │   │   ├── Resolved → resolve(data), push to resolvedQueries
-  │   │   └── Timeout → skip (client will fetch)
-  │   └── Clear query store         Prevent double-registration in Pass 2
-  │
-  ├── Pass 2: Render
-  │   ├── createApp()               Run again with pre-fetched data available
+  ├── Render pass
+  │   ├── createApp()               Run with pre-fetched data available
   │   ├── toVNode(app)              Convert DOM tree to virtual nodes
   │   ├── renderToStream(vnode)     Stream-render to HTML string
   │   └── collectCSS(theme, module) Gather theme + global + component CSS
@@ -243,6 +241,22 @@ ssrRenderToString(module, url)
       ├── clearGlobalSSRTimeout()
       ├── removeDomShim()
       └── delete __SSR_URL__
+```
+
+### Nav Pre-Fetch (ssrStreamNavQueries)
+
+Client-side navigation uses `ssrStreamNavQueries()` for query pre-fetching
+via SSE streaming. This reuses `runQueryDiscovery()` to collect query handles,
+then streams each result as it resolves — no full render pass needed.
+
+```
+ssrStreamNavQueries(module, url)
+  │
+  ├── runQueryDiscovery()           Same discovery as single-pass
+  │
+  └── Stream SSE events
+      ├── Per-query: event: data\ndata: {key, data}\n\n
+      └── Final: event: done\ndata: {}\n\n
 ```
 
 ### Global State Dependencies
@@ -500,8 +514,8 @@ error is broadcast via WebSocket.
 with "Cannot read property of null".
 
 **Root cause:** The SSR pipeline depends on global mutable state (`document`,
-`window`, `__SSR_URL__`, injected CSS set). Two concurrent renders race on
-this state.
+`window`, `__SSR_URL__`, injected CSS set). Concurrent renders race on this
+state.
 
 **Fix:** All SSR renders go through `withRenderLock()`, a promise-based mutex
 that serializes execution. Only one render runs at a time.
