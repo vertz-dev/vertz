@@ -14,8 +14,6 @@
 
 // ─── Public types ───────────────────────────────────────────────────
 
-import ts from 'typescript';
-
 export interface NativeVariableInfo {
   name: string;
   kind: string;
@@ -183,114 +181,6 @@ function wrapCompiler(raw: RawNativeCompiler): NativeCompiler {
   };
 }
 
-function wrapJsxChildrenInThunks(source: string, filename = 'fallback.js'): string {
-  const sourceFile = ts.createSourceFile(
-    filename,
-    source,
-    ts.ScriptTarget.Latest,
-    true,
-    ts.ScriptKind.JS,
-  );
-  const jsxFactoryNames = new Set<string>();
-
-  for (const statement of sourceFile.statements) {
-    if (
-      ts.isImportDeclaration(statement) &&
-      ts.isStringLiteral(statement.moduleSpecifier) &&
-      ['@vertz/ui/jsx-runtime', '@vertz/ui/jsx-dev-runtime'].includes(
-        statement.moduleSpecifier.text,
-      ) &&
-      statement.importClause?.namedBindings &&
-      ts.isNamedImports(statement.importClause.namedBindings)
-    ) {
-      for (const element of statement.importClause.namedBindings.elements) {
-        const importedName = element.propertyName?.text ?? element.name.text;
-        if (['jsx', 'jsxs', 'jsxDEV'].includes(importedName)) {
-          jsxFactoryNames.add(element.name.text);
-        }
-      }
-    }
-  }
-
-  const transformer: ts.TransformerFactory<ts.SourceFile> = (context) => {
-    const visit: ts.Visitor = (node) => {
-      if (
-        ts.isCallExpression(node) &&
-        ts.isIdentifier(node.expression) &&
-        jsxFactoryNames.has(node.expression.text)
-      ) {
-        const [, props, ...rest] = node.arguments;
-
-        if (props && ts.isObjectLiteralExpression(props)) {
-          const transformedProps = ts.factory.updateObjectLiteralExpression(
-            props,
-            props.properties.map((property) => {
-              if (
-                ts.isPropertyAssignment(property) &&
-                ts.isIdentifier(property.name) &&
-                property.name.text === 'children'
-              ) {
-                if (
-                  ts.isArrowFunction(property.initializer) ||
-                  ts.isFunctionExpression(property.initializer)
-                ) {
-                  return property;
-                }
-
-                return ts.factory.updatePropertyAssignment(
-                  property,
-                  property.name,
-                  ts.factory.createArrowFunction(
-                    undefined,
-                    undefined,
-                    [],
-                    undefined,
-                    ts.factory.createToken(ts.SyntaxKind.EqualsGreaterThanToken),
-                    property.initializer,
-                  ),
-                );
-              }
-
-              if (ts.isShorthandPropertyAssignment(property) && property.name.text === 'children') {
-                return ts.factory.createPropertyAssignment(
-                  property.name,
-                  ts.factory.createArrowFunction(
-                    undefined,
-                    undefined,
-                    [],
-                    undefined,
-                    ts.factory.createToken(ts.SyntaxKind.EqualsGreaterThanToken),
-                    property.name,
-                  ),
-                );
-              }
-
-              return property;
-            }),
-          );
-
-          return ts.factory.updateCallExpression(node, node.expression, node.typeArguments, [
-            node.arguments[0]!,
-            transformedProps,
-            ...rest,
-          ]);
-        }
-      }
-
-      return ts.visitEachChild(node, visit, context);
-    };
-
-    return (node) => ts.visitNode(node, visit) as ts.SourceFile;
-  };
-
-  const result = ts.transform(sourceFile, [transformer]);
-  const transformed = result.transformed[0] ?? sourceFile;
-  const printer = ts.createPrinter();
-  const output = printer.printFile(transformed);
-  result.dispose();
-  return output;
-}
-
 /**
  * Fall back to Bun's built-in JSX transpiler.
  *
@@ -315,10 +205,7 @@ function compileFallback(source: string): NativeCompileResult {
     }),
   }).transformSync(source);
 
-  return {
-    code: wrapJsxChildrenInThunks(transpiled, 'fallback.js'),
-    diagnostics: [],
-  };
+  return { code: transpiled, diagnostics: [] };
 }
 
 // ─── Convenience functions ──────────────────────────────────────────

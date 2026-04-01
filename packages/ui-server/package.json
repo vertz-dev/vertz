@@ -58,7 +58,7 @@
   },
   "scripts": {
     "build": "bunup",
-    "test": "bun run ./scripts/run-tests.ts",
+    "test": "bun test --timeout 60000 src/",
     "test:integration": "bun test src/__tests__/bun-dev-server.integration.local.ts",
     "test:e2e": "bunx playwright test",
     "typecheck": "tsc --noEmit"
