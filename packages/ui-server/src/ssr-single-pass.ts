@@ -395,12 +395,19 @@ async function runQueryDiscovery(
 
       const queries = getSSRQueries();
       return {
-        queries: queries.map((q: { promise: Promise<unknown>; timeout?: number; resolve: (data: unknown) => void; key: string }) => ({
-          promise: q.promise,
-          timeout: q.timeout || ssrTimeout,
-          resolve: q.resolve,
-          key: q.key,
-        })),
+        queries: queries.map(
+          (q: {
+            promise: Promise<unknown>;
+            timeout?: number;
+            resolve: (data: unknown) => void;
+            key: string;
+          }) => ({
+            promise: q.promise,
+            timeout: q.timeout || ssrTimeout,
+            resolve: q.resolve,
+            key: q.key,
+          }),
+        ),
         resolvedComponents: ctx.resolvedComponents,
       };
     } finally {

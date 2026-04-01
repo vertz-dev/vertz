@@ -192,7 +192,6 @@ describe('Feature: Discovery-only single-pass SSR', () => {
         expect(keys).toContain(tasksDescriptor._key);
         expect(keys).toContain(statsDescriptor._key);
       });
-
     });
   });
 

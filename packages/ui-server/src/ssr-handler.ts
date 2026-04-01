@@ -21,11 +21,7 @@ import {
 import { buildProgressiveResponse } from './ssr-progressive-response';
 import type { SSRModule } from './ssr-shared';
 import type { SSRPrefetchManifest } from './ssr-single-pass';
-import {
-  ssrRenderProgressive,
-  ssrRenderSinglePass,
-  ssrStreamNavQueries,
-} from './ssr-single-pass';
+import { ssrRenderProgressive, ssrRenderSinglePass, ssrStreamNavQueries } from './ssr-single-pass';
 import { injectIntoTemplate } from './template-inject';
 
 export interface SSRHandlerOptions {

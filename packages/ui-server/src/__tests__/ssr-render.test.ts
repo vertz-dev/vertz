@@ -503,7 +503,9 @@ describe('per-request isolation', () => {
 
     // Launch 10 concurrent renders — mirrors rapid browser refreshes
     const results = await Promise.all(
-      Array.from({ length: 10 }, (_, i) => ssrRenderSinglePass(makeModule(`req-${i}`), `/page-${i}`)),
+      Array.from({ length: 10 }, (_, i) =>
+        ssrRenderSinglePass(makeModule(`req-${i}`), `/page-${i}`),
+      ),
     );
 
     // Every single render must succeed with correct HTML and query data
