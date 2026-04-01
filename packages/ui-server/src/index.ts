@@ -95,8 +95,7 @@ export type {
   PrefetchManifestSnapshot,
 } from './ssr-prefetch-dev';
 export { createPrefetchManifestManager } from './ssr-prefetch-dev';
-export type { SSRDiscoverResult, SSRModule, SSRRenderResult } from './ssr-shared';
-export { ssrDiscoverQueries, ssrRenderToString } from './ssr-shared';
+export type { SSRModule, SSRRenderResult } from './ssr-shared';
 export type { MatchedRoute, MatchOptions } from './ssr-route-matcher';
 export { matchUrlToPatterns } from './ssr-route-matcher';
 export type { SessionData, SessionResolver, SSRSessionInfo } from './ssr-session';

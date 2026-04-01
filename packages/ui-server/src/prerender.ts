@@ -7,7 +7,7 @@
 
 import type { CompiledRoute, FontFallbackMetrics } from '@vertz/ui';
 import type { SSRModule, SSRRenderResult } from './ssr-shared';
-import { ssrRenderToString } from './ssr-shared';
+import { ssrRenderSinglePass } from './ssr-single-pass';
 import { injectIntoTemplate } from './template-inject';
 
 export interface PrerenderResult {
@@ -33,7 +33,7 @@ export interface PrerenderOptions {
  * with the SSR context. Returns the discovered patterns (including dynamic).
  */
 export async function discoverRoutes(module: SSRModule): Promise<string[]> {
-  const result = await ssrRenderToString(module, '/');
+  const result = await ssrRenderSinglePass(module, '/');
   return result.discoveredRoutes ?? [];
 }
 
@@ -83,7 +83,7 @@ export async function prerenderRoutes(
   for (const routePath of options.routes) {
     let renderResult: SSRRenderResult;
     try {
-      renderResult = await ssrRenderToString(module, routePath, {
+      renderResult = await ssrRenderSinglePass(module, routePath, {
         fallbackMetrics: options.fallbackMetrics,
       });
     } catch (error) {

@@ -32,7 +32,6 @@ import {
   createRequestContext,
   type SSRModule,
   type SSRRenderResult,
-  ssrRenderToString,
 } from './ssr-shared';
 import { matchUrlToPatterns } from './ssr-route-matcher';
 import { safeSerialize } from './ssr-streaming-runtime';
@@ -56,8 +55,6 @@ export interface SSRSinglePassOptions {
   fallbackMetrics?: Record<string, FontFallbackMetrics>;
   /** Auth state resolved from session cookie. */
   ssrAuth?: SSRAuth;
-  /** Set to false to fall back to two-pass rendering. Default: true. */
-  prefetch?: boolean;
   /** Prefetch manifest for entity access filtering. */
   manifest?: SSRPrefetchManifest;
   /** Session data for access rule evaluation. */
@@ -76,21 +73,12 @@ export interface SSRSinglePassOptions {
  * 1. Discovery: Run the app factory to capture query registrations (no stream render)
  * 2. Prefetch: Await all discovered queries with timeout
  * 3. Render: Create a fresh context with pre-populated cache, render once
- *
- * Falls back to two-pass (`ssrRenderToString`) when:
- * - `prefetch: false` is set
- * - A redirect is detected during discovery
  */
 export async function ssrRenderSinglePass(
   module: SSRModule,
   url: string,
   options?: SSRSinglePassOptions,
 ): Promise<SSRRenderResult> {
-  // Toggle: fall back to two-pass when prefetch is disabled
-  if (options?.prefetch === false) {
-    return ssrRenderToString(module, url, options);
-  }
-
   const normalizedUrl = url.endsWith('/index.html')
     ? url.slice(0, -'/index.html'.length) || '/'
     : url;
