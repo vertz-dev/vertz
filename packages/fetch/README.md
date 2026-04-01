@@ -1,15 +1,16 @@
 # @vertz/fetch
 
-Type-safe HTTP client for Vertz with automatic retries, streaming support, and flexible authentication strategies.
+Type-safe HTTP client for Vertz with error-as-value semantics, automatic retries, streaming support, and flexible authentication strategies.
 
 ## Features
 
+- **Error-as-value** — Returns `Result<T, Error>` instead of throwing, for predictable error handling
 - **Type-safe requests** — Full TypeScript inference for request/response types
 - **Automatic retries** — Exponential/linear backoff with configurable retry logic
 - **Streaming support** — Server-Sent Events (SSE) and newline-delimited JSON (NDJSON)
 - **Flexible authentication** — Bearer tokens, Basic auth, API keys, or custom strategies
 - **Request/response hooks** — Intercept and transform at every stage
-- **Error handling** — Typed error classes for all HTTP status codes
+- **Typed error hierarchy** — Specific error classes for all HTTP status codes
 - **Timeout management** — Automatic timeout with AbortSignal support
 
 ## Installation
@@ -21,7 +22,7 @@ npm install @vertz/fetch
 ## Quick Start
 
 ```typescript
-import { FetchClient } from '@vertz/fetch';
+import { FetchClient, isOk, isErr, unwrap } from '@vertz/fetch';
 
 // Create a client with base configuration
 const client = new FetchClient({
@@ -32,17 +33,25 @@ const client = new FetchClient({
   timeoutMs: 5000,
 });
 
-// Make a typed GET request
-const response = await client.request<{ id: number; name: string }>('GET', '/users/1');
-console.log(response.data.name); // Fully typed!
+// Make a typed GET request — returns Result<T, FetchError>
+const result = await client.get<{ id: number; name: string }>('/users/1');
+
+if (isOk(result)) {
+  console.log(result.data.data.name); // Fully typed!
+}
+
+// Or unwrap directly (throws if error)
+const { data } = unwrap(await client.get<{ id: number; name: string }>('/users/1'));
+console.log(data.name);
 
 // POST with body
-const newUser = await client.request<{ id: number }>('POST', '/users', {
-  body: { name: 'Alice', email: 'alice@example.com' },
+const newUser = await client.post<{ id: number }>('/users', {
+  name: 'Alice',
+  email: 'alice@example.com',
 });
 
 // Query parameters
-const users = await client.request<{ users: Array<{ id: number }> }>('GET', '/users', {
+const users = await client.get<{ users: Array<{ id: number }> }>('/users', {
   query: { page: 1, limit: 10 },
 });
 ```
@@ -110,8 +119,21 @@ interface FetchClientConfig {
 Make a standard HTTP request with JSON response.
 
 ```typescript
-const response = await client.request<User>('GET', '/users/1');
-const { data, status, headers } = response;
+const result = await client.request<User>('GET', '/users/1');
+
+if (isOk(result)) {
+  const { data, status, headers } = result.data;
+}
+```
+
+##### Convenience methods
+
+```typescript
+client.get<T>(path, options?)              // GET request
+client.post<T>(path, body?, options?)      // POST request
+client.put<T>(path, body?, options?)       // PUT request
+client.patch<T>(path, body?, options?)     // PATCH request
+client.delete<T>(path, options?)           // DELETE request
 ```
 
 **Options:**
@@ -125,19 +147,13 @@ interface RequestOptions {
 }
 ```
 
-**Returns:**
+**Returns:** `Promise<Result<{ data: T; status: number; headers: Headers }, FetchError>>`
 
-```typescript
-interface FetchResponse<T> {
-  data: T;
-  status: number;
-  headers: Headers;
-}
-```
+On success, the result is `Ok` with `data`, `status`, and `headers`. On failure, the result is `Err` with a typed `FetchError`.
 
 ##### `requestStream<T>(options)`
 
-Stream responses using SSE or NDJSON format.
+Stream responses using SSE or NDJSON format. Unlike `request()`, streaming errors are thrown (not wrapped in `Result`) since you can't return a `Result` from an async generator mid-stream.
 
 ```typescript
 for await (const chunk of client.requestStream<LogEntry>({
@@ -240,43 +256,63 @@ const client = new FetchClient({
 
 ### Error Handling
 
-All non-2xx responses throw typed error classes:
+All requests return a `Result<T, FetchError>` — errors are values, not exceptions. Use `isOk()`/`isErr()` to check, or `unwrap()` to extract the value (throws on error).
 
 ```typescript
-import {
-  BadRequestError,
-  UnauthorizedError,
-  ForbiddenError,
-  NotFoundError,
-  ConflictError,
-  GoneError,
-  UnprocessableEntityError,
-  RateLimitError,
-  InternalServerError,
-  ServiceUnavailableError,
-  FetchError, // Base class
-} from '@vertz/fetch';
+import { FetchClient, isOk, isErr, unwrap, matchError } from '@vertz/fetch';
 
-try {
-  await client.request('GET', '/users/999');
-} catch (error) {
-  if (error instanceof NotFoundError) {
-    console.error('User not found:', error.statusText);
-    console.error('Response body:', error.body);
-  } else if (error instanceof RateLimitError) {
-    console.error('Rate limited, retry after:', error.statusText);
-  }
-  throw error;
+const result = await client.get<User>('/users/999');
+
+// Pattern 1: Check with isOk/isErr
+if (isErr(result)) {
+  console.error('Request failed:', result.error.message);
+  console.error('Status:', result.error.status);
+} else {
+  console.log('User:', result.data.data);
+}
+
+// Pattern 2: Unwrap (throws if error)
+const { data: user } = unwrap(await client.get<User>('/users/1'));
+
+// Pattern 3: Unwrap with default
+const { data: user } = unwrapOr(await client.get<User>('/users/1'), {
+  data: defaultUser,
+  status: 0,
+  headers: new Headers(),
+});
+
+// Pattern 4: matchError for specific error handling
+if (isErr(result)) {
+  matchError(result.error, {
+    NotFound: (err) => console.error('User not found'),
+    RateLimit: (err) => console.error('Rate limited, slow down'),
+    Unauthorized: (err) => console.error('Need to re-authenticate'),
+    _: (err) => console.error('Unexpected error:', err.message),
+  });
 }
 ```
 
-All error classes extend `FetchError` with these properties:
+**Available error classes:**
+
+| Class | Status | Description |
+|-------|--------|-------------|
+| `BadRequestError` | 400 | Invalid request |
+| `UnauthorizedError` | 401 | Authentication required |
+| `ForbiddenError` | 403 | Insufficient permissions |
+| `NotFoundError` | 404 | Resource not found |
+| `ConflictError` | 409 | Resource conflict |
+| `GoneError` | 410 | Resource no longer available |
+| `UnprocessableEntityError` | 422 | Validation failed |
+| `RateLimitError` | 429 | Too many requests |
+| `InternalServerError` | 500 | Server error |
+| `ServiceUnavailableError` | 503 | Service down |
+
+All error classes extend `FetchError`:
 
 ```typescript
 class FetchError extends Error {
-  status: number;
-  statusText: string;
-  body?: unknown; // Parsed response body (if available)
+  readonly status: number;
+  readonly body?: unknown; // Parsed response body (if available)
 }
 ```
 
@@ -372,7 +408,7 @@ for await (const event of client.requestStream({
 Use `@vertz/schema` for runtime validation of request/response data:
 
 ```typescript
-import { FetchClient } from '@vertz/fetch';
+import { FetchClient, isOk, unwrap } from '@vertz/fetch';
 import { s } from '@vertz/schema';
 
 // Define schemas
@@ -390,22 +426,26 @@ const client = new FetchClient({
       // Validate responses in development
       if (process.env.NODE_ENV === 'development') {
         const data = await response.clone().json();
-        try {
-          UserSchema.parse(data);
-        } catch (error) {
-          console.error('Response validation failed:', error);
+        const parsed = UserSchema.safeParse(data);
+        if (!parsed.success) {
+          console.error('Response validation failed:', parsed.error);
         }
       }
     },
   },
 });
 
-// Type-safe request with schema validation
-const response = await client.request<typeof UserSchema._output>('GET', '/users/1');
+// Type-safe request with Result handling
+const result = await client.get<typeof UserSchema._output>('/users/1');
 
-// Or validate explicitly
-const data = await client.request<unknown>('GET', '/users/1');
-const user = UserSchema.parse(data.data); // Throws if invalid
+if (isOk(result)) {
+  const user = result.data.data; // Typed as UserSchema output
+  console.log(user.name);
+}
+
+// Or unwrap and validate explicitly
+const { data } = unwrap(await client.get<unknown>('/users/1'));
+const user = UserSchema.parse(data); // Throws if invalid
 ```
 
 ## Advanced Examples
@@ -413,19 +453,23 @@ const user = UserSchema.parse(data.data); // Throws if invalid
 ### Timeout and Cancellation
 
 ```typescript
-const controller = new AbortController();
+// Built-in timeout via config
+const client = new FetchClient({
+  baseURL: 'https://api.example.com',
+  timeoutMs: 5000, // 5 second timeout for all requests
+});
 
-// Cancel after 3 seconds
+// Per-request cancellation with AbortController
+const controller = new AbortController();
 setTimeout(() => controller.abort(), 3000);
 
-try {
-  const response = await client.request('GET', '/slow-endpoint', {
-    signal: controller.signal,
-  });
-} catch (error) {
-  if (error.name === 'AbortError') {
-    console.error('Request cancelled');
-  }
+const result = await client.get('/slow-endpoint', {
+  signal: controller.signal,
+});
+
+if (isErr(result)) {
+  // FetchTimeoutError for timeouts, FetchNetworkError for aborts
+  console.error(result.error.message);
 }
 ```
 
@@ -464,11 +508,12 @@ const client = new FetchClient({
 
 1. **Reuse client instances** — Create one client per base URL, not per request
 2. **Use typed responses** — Always specify the response type for better IDE support
-3. **Handle errors explicitly** — Catch specific error classes for better error handling
-4. **Configure retries wisely** — Use exponential backoff for transient failures
-5. **Add request logging in development** — Use `beforeRequest` hook for debugging
-6. **Validate responses in development** — Use `@vertz/schema` + `afterResponse` hook
-7. **Use streaming for large responses** — `requestStream` is more memory-efficient
+3. **Handle results explicitly** — Check `isOk()`/`isErr()` instead of try/catch
+4. **Use `matchError` for branching** — Exhaustive error handling with pattern matching
+5. **Configure retries wisely** — Use exponential backoff for transient failures
+6. **Add request logging in development** — Use `beforeRequest` hook for debugging
+7. **Validate responses in development** — Use `@vertz/schema` + `afterResponse` hook
+8. **Use streaming for large responses** — `requestStream` is more memory-efficient
 
 ## License
 
