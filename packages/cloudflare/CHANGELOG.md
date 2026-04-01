@@ -1,5 +1,13 @@
 # @vertz/cloudflare
 
+## 0.2.42
+
+### Patch Changes
+
+- Updated dependencies [[`aca62b0`](https://github.com/vertz-dev/vertz/commit/aca62b09d42330cd81a106b65082b3e17fba7c91), [`1eeec6c`](https://github.com/vertz-dev/vertz/commit/1eeec6c95c0ced4d869995dbdce205c3bde92a25), [`6e3fb13`](https://github.com/vertz-dev/vertz/commit/6e3fb1346d6a0bf5ca2d4a5bb9d5680a85e9ead1)]:
+  - @vertz/ui-server@0.2.42
+  - @vertz/core@0.2.42
+
 ## 0.2.41
 
 ### Patch Changes
@@ -174,6 +182,7 @@
 - [#1423](https://github.com/vertz-dev/vertz/pull/1423) [`bfd3e9e`](https://github.com/vertz-dev/vertz/commit/bfd3e9e00eae4b1918e7d119fe8eaa245beb85ef) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - feat: traffic-aware pre-rendering (TPR) for Cloudflare Workers
 
   Adds ISR (Incremental Static Regeneration) and TPR support:
+
   - **ISR caching**: Cache SSR responses in Cloudflare KV with TTL-based revalidation and stale-while-revalidate via `ctx.waitUntil()`
   - **TPR analytics**: Query Cloudflare GraphQL Analytics API to identify hot pages by traffic
   - **Pre-rendering**: Render and store hot pages in KV at deploy time with concurrency control

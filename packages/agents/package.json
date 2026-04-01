@@ -1,6 +1,6 @@
 {
   "name": "@vertz/agents",
-  "version": "0.2.41",
+  "version": "0.2.42",
   "description": "Declarative AI agent framework for Vertz — agents, tools, and workflows on Cloudflare",
   "license": "MIT",
   "repository": {
