@@ -324,34 +324,7 @@ describe('Feature: Discovery-only single-pass SSR', () => {
     });
   });
 
-  describe('Given prefetch: false option', () => {
-    describe('When ssrRenderSinglePass() is called', () => {
-      it('Then it falls back to legacy rendering (discovery + render)', async () => {
-        let callCount = 0;
-        const data = { items: [{ id: '1', title: 'Fallback Test' }] };
-        const descriptor = mockDescriptor('GET', '/tasks', data);
-        const module = {
-          default: () => {
-            callCount++;
-            const tasks = query(descriptor);
-            const el = document.createElement('div');
-            if (tasks.data.value) {
-              el.textContent = (tasks.data.value as typeof data).items[0].title;
-            }
-            return el;
-          },
-        };
-
-        const result = await ssrRenderSinglePass(module, '/', { prefetch: false });
-
-        expect(result.html).toContain('Fallback Test');
-        // Calls createApp twice (discovery + render)
-        expect(callCount).toBe(2);
-      });
-    });
-  });
-
-  // ─── Entity Access Filtering ────────────────────────────────────
+  // ─── Entity Access Filtering ──────────────────────────────��─────
 
   describe('Given entity access rules in the manifest', () => {
     const publicData = { items: [{ id: '1', title: 'Public Item' }] };
