@@ -294,18 +294,18 @@ if (isErr(result)) {
 
 **Available error classes:**
 
-| Class | Status | Description |
-|-------|--------|-------------|
-| `BadRequestError` | 400 | Invalid request |
-| `UnauthorizedError` | 401 | Authentication required |
-| `ForbiddenError` | 403 | Insufficient permissions |
-| `NotFoundError` | 404 | Resource not found |
-| `ConflictError` | 409 | Resource conflict |
-| `GoneError` | 410 | Resource no longer available |
-| `UnprocessableEntityError` | 422 | Validation failed |
-| `RateLimitError` | 429 | Too many requests |
-| `InternalServerError` | 500 | Server error |
-| `ServiceUnavailableError` | 503 | Service down |
+| Class                      | Status | Description                  |
+| -------------------------- | ------ | ---------------------------- |
+| `BadRequestError`          | 400    | Invalid request              |
+| `UnauthorizedError`        | 401    | Authentication required      |
+| `ForbiddenError`           | 403    | Insufficient permissions     |
+| `NotFoundError`            | 404    | Resource not found           |
+| `ConflictError`            | 409    | Resource conflict            |
+| `GoneError`                | 410    | Resource no longer available |
+| `UnprocessableEntityError` | 422    | Validation failed            |
+| `RateLimitError`           | 429    | Too many requests            |
+| `InternalServerError`      | 500    | Server error                 |
+| `ServiceUnavailableError`  | 503    | Service down                 |
 
 All error classes extend `FetchError`:
 
