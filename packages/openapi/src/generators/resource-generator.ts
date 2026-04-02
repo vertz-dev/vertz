@@ -57,7 +57,7 @@ function generateMethod(op: ParsedOperation): string {
   const returnType = buildReturnType(op);
   const call = buildCall(op);
 
-  return `${op.methodName}(${params}): ${returnType} =>\n      ${call}`;
+  return `${op.methodName}: (${params}): ${returnType} =>\n      ${call}`;
 }
 
 function buildParams(op: ParsedOperation): string {

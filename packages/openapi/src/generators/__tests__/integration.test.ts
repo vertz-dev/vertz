@@ -249,11 +249,11 @@ describe('generateAll — integration', () => {
   it('resources file has all CRUD methods', () => {
     const files = parseAndGenerate();
     const resourceFile = files.find((f) => f.path === 'resources/tasks.ts');
-    expect(resourceFile!.content).toContain('list(');
-    expect(resourceFile!.content).toContain('get(');
-    expect(resourceFile!.content).toContain('create(');
-    expect(resourceFile!.content).toContain('update(');
-    expect(resourceFile!.content).toContain('delete(');
+    expect(resourceFile!.content).toContain('list: (');
+    expect(resourceFile!.content).toContain('get: (');
+    expect(resourceFile!.content).toContain('create: (');
+    expect(resourceFile!.content).toContain('update: (');
+    expect(resourceFile!.content).toContain('delete: (');
   });
 
   it('client file composes tasks resource', () => {

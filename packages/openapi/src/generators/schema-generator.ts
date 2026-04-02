@@ -52,7 +52,13 @@ function generateResourceSchemas(
       const varName = deriveResponseSchemaName(op);
       if (!emitted.has(varName)) {
         emitted.add(varName);
-        const zod = jsonSchemaToZod(op.response.jsonSchema, namedSchemas);
+        // For array responses, generate schema from items
+        const schema = op.response.jsonSchema;
+        const effectiveSchema =
+          schema.type === 'array' && schema.items && typeof schema.items === 'object'
+            ? (schema.items as Record<string, unknown>)
+            : schema;
+        const zod = jsonSchemaToZod(effectiveSchema, namedSchemas);
         lines.push(`export const ${varName} = ${zod};`);
         lines.push('');
       }

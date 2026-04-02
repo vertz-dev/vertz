@@ -101,6 +101,31 @@ describe('jsonSchemaToTS', () => {
     });
   });
 
+  describe('safety', () => {
+    it('escapes single quotes in enum values', () => {
+      expect(jsonSchemaToTS({ enum: ["it's", "won't"] }, empty)).toBe(
+        "'it\\'s' | 'won\\'t'",
+      );
+    });
+
+    it('handles numeric enum values without quotes', () => {
+      expect(jsonSchemaToTS({ enum: [1, 2, 3] }, empty)).toBe('1 | 2 | 3');
+    });
+
+    it('quotes property names with special characters', () => {
+      const schema = {
+        type: 'object',
+        properties: {
+          'x-custom': { type: 'string' },
+          normal: { type: 'string' },
+        },
+      };
+      const result = jsonSchemaToTS(schema, empty);
+      expect(result).toContain("'x-custom'?: string");
+      expect(result).toContain('normal?: string');
+    });
+  });
+
   describe('named schema references', () => {
     it('uses named type when schema matches a known name', () => {
       const named = new Map([['TaskSchema', 'Task']]);

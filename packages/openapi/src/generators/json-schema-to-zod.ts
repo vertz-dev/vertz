@@ -13,7 +13,9 @@ export function jsonSchemaToZod(
 
   // Enum
   if (Array.isArray(schema.enum)) {
-    const values = (schema.enum as unknown[]).map((v) => `'${v}'`).join(', ');
+    const values = (schema.enum as unknown[])
+      .map((v) => `'${String(v).replace(/'/g, "\\'")}'`)
+      .join(', ');
     return `z.enum([${values}])`;
   }
 
@@ -55,8 +57,13 @@ function zodString(schema: Record<string, unknown>): string {
 
   if (typeof schema.minLength === 'number') result += `.min(${schema.minLength})`;
   if (typeof schema.maxLength === 'number') result += `.max(${schema.maxLength})`;
-  if (typeof schema.pattern === 'string') result += `.regex(/${schema.pattern}/)`;
-  if (schema.default !== undefined) result += `.default('${schema.default}')`;
+  if (typeof schema.pattern === 'string') {
+    const escaped = schema.pattern.replace(/\//g, '\\/');
+    result += `.regex(/${escaped}/)`;
+  }
+  if (schema.default !== undefined) {
+    result += `.default('${String(schema.default).replace(/'/g, "\\'")}')`;
+  }
   return result;
 }
 

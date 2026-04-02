@@ -12,7 +12,11 @@ export function jsonSchemaToTS(
 
   // Enum → literal union
   if (Array.isArray(schema.enum)) {
-    return (schema.enum as unknown[]).map((v) => `'${v}'`).join(' | ');
+    return (schema.enum as unknown[])
+      .map((v) =>
+        typeof v === 'number' ? String(v) : `'${String(v).replace(/'/g, "\\'")}'`,
+      )
+      .join(' | ');
   }
 
   const type = schema.type;
@@ -53,7 +57,8 @@ export function jsonSchemaToTS(
     const entries = Object.entries(properties).map(([key, propSchema]) => {
       const tsType = jsonSchemaToTS(propSchema, namedSchemas);
       const optional = required.has(key) ? '' : '?';
-      return `${key}${optional}: ${tsType}`;
+      const safeKey = isValidIdentifier(key) ? key : `'${key.replace(/'/g, "\\'")}'`;
+      return `${safeKey}${optional}: ${tsType}`;
     });
 
     return `{ ${entries.join('; ')} }`;
@@ -82,7 +87,8 @@ export function generateInterface(
   const lines = Object.entries(properties).map(([key, propSchema]) => {
     const tsType = jsonSchemaToTS(propSchema, namedSchemas);
     const optional = required.has(key) ? '' : '?';
-    return `  ${key}${optional}: ${tsType};`;
+    const safeKey = isValidIdentifier(key) ? key : `'${key.replace(/'/g, "\\'")}'`;
+    return `  ${safeKey}${optional}: ${tsType};`;
   });
 
   return `export interface ${name} {\n${lines.join('\n')}\n}\n`;
@@ -93,4 +99,10 @@ function mapPrimitive(type: string): string {
   if (type === 'number' || type === 'integer') return 'number';
   if (type === 'boolean') return 'boolean';
   return 'unknown';
+}
+
+const VALID_IDENTIFIER = /^[a-zA-Z_$][a-zA-Z0-9_$]*$/;
+
+function isValidIdentifier(name: string): boolean {
+  return VALID_IDENTIFIER.test(name);
 }

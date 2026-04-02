@@ -81,7 +81,7 @@ describe('generateResources', () => {
 
     const files = generateResources(resources);
     const tasksFile = files.find((f) => f.path === 'resources/tasks.ts');
-    expect(tasksFile!.content).toContain('list(query?: ListTasksQuery): Promise<Task[]>');
+    expect(tasksFile!.content).toContain('list: (query?: ListTasksQuery): Promise<Task[]>');
     expect(tasksFile!.content).toContain("client.get('/tasks', { query })");
   });
 
@@ -111,7 +111,7 @@ describe('generateResources', () => {
 
     const files = generateResources(resources);
     const tasksFile = files.find((f) => f.path === 'resources/tasks.ts');
-    expect(tasksFile!.content).toContain('get(taskId: string): Promise<Task>');
+    expect(tasksFile!.content).toContain('get: (taskId: string): Promise<Task>');
     expect(tasksFile!.content).toContain(
       'client.get(`/tasks/${encodeURIComponent(taskId)}`)',
     );
@@ -149,7 +149,7 @@ describe('generateResources', () => {
     const files = generateResources(resources);
     const tasksFile = files.find((f) => f.path === 'resources/tasks.ts');
     expect(tasksFile!.content).toContain(
-      'create(body: CreateTaskInput): Promise<Task>',
+      'create: (body: CreateTaskInput): Promise<Task>',
     );
     expect(tasksFile!.content).toContain("client.post('/tasks', body)");
   });
@@ -188,7 +188,7 @@ describe('generateResources', () => {
     const files = generateResources(resources);
     const tasksFile = files.find((f) => f.path === 'resources/tasks.ts');
     expect(tasksFile!.content).toContain(
-      'update(taskId: string, body: UpdateTaskInput): Promise<Task>',
+      'update: (taskId: string, body: UpdateTaskInput): Promise<Task>',
     );
     expect(tasksFile!.content).toContain(
       'client.put(`/tasks/${encodeURIComponent(taskId)}`, body)',
@@ -217,7 +217,7 @@ describe('generateResources', () => {
 
     const files = generateResources(resources);
     const tasksFile = files.find((f) => f.path === 'resources/tasks.ts');
-    expect(tasksFile!.content).toContain('delete(taskId: string): Promise<void>');
+    expect(tasksFile!.content).toContain('delete: (taskId: string): Promise<void>');
     expect(tasksFile!.content).toContain(
       'client.delete(`/tasks/${encodeURIComponent(taskId)}`)',
     );
@@ -276,7 +276,7 @@ describe('generateResources', () => {
 
     const files = generateResources(resources);
     const tasksFile = files.find((f) => f.path === 'resources/tasks.ts');
-    expect(tasksFile!.content).toContain('archive(taskId: string): Promise<Task>');
+    expect(tasksFile!.content).toContain('archive: (taskId: string): Promise<Task>');
     expect(tasksFile!.content).toContain(
       'client.post(`/tasks/${encodeURIComponent(taskId)}/archive`)',
     );
@@ -316,7 +316,7 @@ describe('generateResources', () => {
     const files = generateResources(resources);
     const tasksFile = files.find((f) => f.path === 'resources/tasks.ts');
     expect(tasksFile!.content).toContain(
-      'patch(taskId: string, body: PatchTaskInput): Promise<Task>',
+      'patch: (taskId: string, body: PatchTaskInput): Promise<Task>',
     );
     expect(tasksFile!.content).toContain(
       'client.patch(`/tasks/${encodeURIComponent(taskId)}`, body)',
@@ -343,7 +343,7 @@ describe('generateResources', () => {
 
     const files = generateResources(resources);
     const tasksFile = files.find((f) => f.path === 'resources/tasks.ts');
-    expect(tasksFile!.content).toContain('ping(): Promise<void>');
+    expect(tasksFile!.content).toContain('ping: (): Promise<void>');
   });
 
   it('derives response name from operationId when schema has no name', () => {
@@ -372,7 +372,7 @@ describe('generateResources', () => {
 
     const files = generateResources(resources);
     const tasksFile = files.find((f) => f.path === 'resources/tasks.ts');
-    expect(tasksFile!.content).toContain('check(): Promise<CheckTaskResponse>');
+    expect(tasksFile!.content).toContain('check: (): Promise<CheckTaskResponse>');
   });
 
   it('handles unnamed array response', () => {
@@ -401,6 +401,6 @@ describe('generateResources', () => {
 
     const files = generateResources(resources);
     const tasksFile = files.find((f) => f.path === 'resources/tasks.ts');
-    expect(tasksFile!.content).toContain('search(): Promise<unknown[]>');
+    expect(tasksFile!.content).toContain('search: (): Promise<unknown[]>');
   });
 });
