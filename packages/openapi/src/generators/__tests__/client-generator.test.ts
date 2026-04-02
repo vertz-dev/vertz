@@ -149,6 +149,15 @@ describe('generateClient', () => {
     expect(file.content).not.toContain('authStrategies');
   });
 
+  it('normalizes acronym-prefixed scheme names to proper camelCase', () => {
+    const file = generateClient(makeResources(), {
+      securitySchemes: [{ type: 'bearer', name: 'HTTPBearer' }],
+    });
+    expect(file.content).toContain('httpBearer?: string | (() => string | Promise<string>);');
+    expect(file.content).toContain('options.auth?.httpBearer');
+    expect(file.content).not.toContain('hTTPBearer');
+  });
+
   it('generates multiple auth strategies for multiple schemes', () => {
     const file = generateClient(makeResources(), {
       securitySchemes: [

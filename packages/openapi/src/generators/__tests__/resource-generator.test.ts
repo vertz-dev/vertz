@@ -362,6 +362,44 @@ describe('generateResources', () => {
     expect(tasksFile!.content).toContain('ping: (): Promise<FetchResponse<void>>');
   });
 
+  it('PascalCases fallback response name from underscore-heavy operationId', () => {
+    const resources: ParsedResource[] = [
+      makeResource({
+        operations: [
+          {
+            operationId:
+              'archive_web_organizations__organization_id__brands__brand_id__archive_post',
+            methodName: 'archive',
+            method: 'POST',
+            path: '/web/organizations/{organization_id}/brands/{brand_id}/archive',
+            pathParams: [
+              { name: 'organization_id', required: true, schema: { type: 'string' } },
+              { name: 'brand_id', required: true, schema: { type: 'string' } },
+            ],
+            queryParams: [],
+            response: {
+              jsonSchema: {
+                type: 'object',
+                properties: { ok: { type: 'boolean' } },
+              },
+            },
+            responseStatus: 200,
+            tags: ['tasks'],
+          },
+        ],
+      }),
+    ];
+
+    const files = generateResources(resources);
+    const tasksFile = files.find((f) => f.path === 'resources/tasks.ts');
+    expect(tasksFile!.content).toContain(
+      'ArchiveWebOrganizationsOrganizationIdBrandsBrandIdArchivePostResponse',
+    );
+    expect(tasksFile!.content).not.toContain(
+      'Archive_web_organizations__organization_id__brands__brand_id__archive_postResponse',
+    );
+  });
+
   it('derives response name from operationId when schema has no name', () => {
     const resources: ParsedResource[] = [
       makeResource({

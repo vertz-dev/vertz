@@ -1,5 +1,5 @@
 #!/usr/bin/env bun
-import { runCLI } from '../src/cli';
+import { runCLI } from '../dist/cli.js';
 
 const result = await runCLI(process.argv.slice(2));
 

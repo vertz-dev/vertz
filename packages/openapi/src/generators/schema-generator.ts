@@ -1,5 +1,5 @@
 import type { ParsedOperation, ParsedResource, ParsedSchema } from '../parser/types';
-import { isValidIdentifier } from './json-schema-to-ts';
+import { isValidIdentifier, sanitizeTypeName, toPascalCase } from './json-schema-to-ts';
 import { jsonSchemaToZod } from './json-schema-to-zod';
 import type { GeneratedFile } from './types';
 
@@ -103,23 +103,25 @@ function buildQueryZodSchema(op: ParsedOperation, namedSchemas: Map<string, stri
 
 function deriveResponseSchemaName(op: ParsedOperation): string {
   if (op.response?.name) return toSchemaVarName(op.response.name);
-  return toSchemaVarName(op.operationId + 'Response');
+  return toSchemaVarName(toPascalCase(op.operationId) + 'Response');
 }
 
 function deriveInputSchemaName(op: ParsedOperation): string {
   if (op.requestBody?.name) return toSchemaVarName(op.requestBody.name);
-  return toSchemaVarName(op.operationId + 'Input');
+  return toSchemaVarName(toPascalCase(op.operationId) + 'Input');
 }
 
 function deriveQuerySchemaName(op: ParsedOperation): string {
-  return toSchemaVarName(op.operationId + 'Query');
+  return toSchemaVarName(toPascalCase(op.operationId) + 'Query');
 }
 
 /**
- * Convert PascalCase name to camelCase + "Schema" suffix.
- * e.g., "Task" → "taskSchema", "CreateTaskInput" → "createTaskInputSchema"
+ * Convert a schema name to a valid camelCase + "Schema" suffix variable name.
+ * Sanitizes invalid identifier characters (hyphens, etc.) first.
+ * e.g., "Task" → "taskSchema", "BrandModel-Output" → "brandModelOutputSchema"
  */
 function toSchemaVarName(name: string): string {
-  const camel = name.charAt(0).toLowerCase() + name.slice(1);
+  const sanitized = sanitizeTypeName(name);
+  const camel = sanitized.charAt(0).toLowerCase() + sanitized.slice(1);
   return camel + 'Schema';
 }
