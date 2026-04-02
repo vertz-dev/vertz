@@ -31,9 +31,7 @@ function generateResourceFile(resource: ParsedResource): string {
   lines.push("import type { HttpClient } from '../client';");
   if (typeImports.size > 0) {
     const sorted = [...typeImports].sort();
-    lines.push(
-      `import type { ${sorted.join(', ')} } from '../types/${resource.identifier}';`,
-    );
+    lines.push(`import type { ${sorted.join(', ')} } from '../types/${resource.identifier}';`);
   }
   lines.push('');
 

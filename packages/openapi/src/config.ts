@@ -47,9 +47,7 @@ export function resolveConfig(
 /**
  * Load config from openapi.config.ts if it exists.
  */
-export async function loadConfigFile(
-  cwd: string,
-): Promise<Partial<OpenAPIConfig> | undefined> {
+export async function loadConfigFile(cwd: string): Promise<Partial<OpenAPIConfig> | undefined> {
   const configPath = join(cwd, 'openapi.config.ts');
   if (!existsSync(configPath)) return undefined;
 

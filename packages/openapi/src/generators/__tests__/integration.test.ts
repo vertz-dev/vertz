@@ -70,9 +70,7 @@ const TASK_API_SPEC = {
       get: {
         operationId: 'getTask',
         tags: ['tasks'],
-        parameters: [
-          { name: 'taskId', in: 'path', required: true, schema: { type: 'string' } },
-        ],
+        parameters: [{ name: 'taskId', in: 'path', required: true, schema: { type: 'string' } }],
         responses: {
           '200': {
             description: 'A task',
@@ -87,9 +85,7 @@ const TASK_API_SPEC = {
       put: {
         operationId: 'updateTask',
         tags: ['tasks'],
-        parameters: [
-          { name: 'taskId', in: 'path', required: true, schema: { type: 'string' } },
-        ],
+        parameters: [{ name: 'taskId', in: 'path', required: true, schema: { type: 'string' } }],
         requestBody: {
           required: true,
           content: {
@@ -112,9 +108,7 @@ const TASK_API_SPEC = {
       delete: {
         operationId: 'deleteTask',
         tags: ['tasks'],
-        parameters: [
-          { name: 'taskId', in: 'path', required: true, schema: { type: 'string' } },
-        ],
+        parameters: [{ name: 'taskId', in: 'path', required: true, schema: { type: 'string' } }],
         responses: {
           '204': { description: 'Deleted' },
         },

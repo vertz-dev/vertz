@@ -32,9 +32,7 @@ describe('jsonSchemaToZod', () => {
     });
 
     it('maps format: uuid to z.string().uuid()', () => {
-      expect(jsonSchemaToZod({ type: 'string', format: 'uuid' }, empty)).toBe(
-        'z.string().uuid()',
-      );
+      expect(jsonSchemaToZod({ type: 'string', format: 'uuid' }, empty)).toBe('z.string().uuid()');
     });
 
     it('maps format: date-time to z.string().datetime()', () => {
@@ -44,17 +42,13 @@ describe('jsonSchemaToZod', () => {
     });
 
     it('maps format: uri to z.string().url()', () => {
-      expect(jsonSchemaToZod({ type: 'string', format: 'uri' }, empty)).toBe(
-        'z.string().url()',
-      );
+      expect(jsonSchemaToZod({ type: 'string', format: 'uri' }, empty)).toBe('z.string().url()');
     });
   });
 
   describe('string constraints', () => {
     it('maps minLength to .min()', () => {
-      expect(jsonSchemaToZod({ type: 'string', minLength: 1 }, empty)).toBe(
-        'z.string().min(1)',
-      );
+      expect(jsonSchemaToZod({ type: 'string', minLength: 1 }, empty)).toBe('z.string().min(1)');
     });
 
     it('maps maxLength to .max()', () => {
@@ -76,9 +70,7 @@ describe('jsonSchemaToZod', () => {
     });
 
     it('maps maximum to .max()', () => {
-      expect(jsonSchemaToZod({ type: 'number', maximum: 100 }, empty)).toBe(
-        'z.number().max(100)',
-      );
+      expect(jsonSchemaToZod({ type: 'number', maximum: 100 }, empty)).toBe('z.number().max(100)');
     });
   });
 
@@ -112,9 +104,7 @@ describe('jsonSchemaToZod', () => {
 
   describe('nullable', () => {
     it('maps nullable to .nullable()', () => {
-      expect(jsonSchemaToZod({ type: ['string', 'null'] }, empty)).toBe(
-        'z.string().nullable()',
-      );
+      expect(jsonSchemaToZod({ type: ['string', 'null'] }, empty)).toBe('z.string().nullable()');
     });
   });
 

@@ -103,9 +103,7 @@ describe('jsonSchemaToTS', () => {
 
   describe('safety', () => {
     it('escapes single quotes in enum values', () => {
-      expect(jsonSchemaToTS({ enum: ["it's", "won't"] }, empty)).toBe(
-        "'it\\'s' | 'won\\'t'",
-      );
+      expect(jsonSchemaToTS({ enum: ["it's", "won't"] }, empty)).toBe("'it\\'s' | 'won\\'t'");
     });
 
     it('handles numeric enum values without quotes', () => {

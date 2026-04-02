@@ -8,10 +8,7 @@ import { generateTypes } from './types-generator';
 /**
  * Generate all SDK files from a parsed spec.
  */
-export function generateAll(
-  spec: ParsedSpec,
-  options?: GenerateOptions,
-): GeneratedFile[] {
+export function generateAll(spec: ParsedSpec, options?: GenerateOptions): GeneratedFile[] {
   const { resources, schemas } = spec;
   const opts = { schemas: false, baseURL: '', ...options };
   const files: GeneratedFile[] = [];
@@ -48,7 +45,9 @@ function generateReadme(spec: ParsedSpec, options: GenerateOptions): GeneratedFi
   lines.push('```typescript');
   lines.push("import { createClient } from './client';");
   lines.push('');
-  lines.push(`const api = createClient(${options.baseURL ? `{ baseURL: '${options.baseURL}' }` : ''});`);
+  lines.push(
+    `const api = createClient(${options.baseURL ? `{ baseURL: '${options.baseURL}' }` : ''});`,
+  );
   lines.push('```');
   lines.push('');
 

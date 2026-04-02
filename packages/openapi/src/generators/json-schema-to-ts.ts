@@ -13,9 +13,7 @@ export function jsonSchemaToTS(
   // Enum → literal union
   if (Array.isArray(schema.enum)) {
     return (schema.enum as unknown[])
-      .map((v) =>
-        typeof v === 'number' ? String(v) : `'${String(v).replace(/'/g, "\\'")}'`,
-      )
+      .map((v) => (typeof v === 'number' ? String(v) : `'${String(v).replace(/'/g, "\\'")}'`))
       .join(' | ');
   }
 
@@ -50,9 +48,7 @@ export function jsonSchemaToTS(
     const properties = schema.properties as Record<string, Record<string, unknown>> | undefined;
     if (!properties) return 'Record<string, unknown>';
 
-    const required = new Set(
-      Array.isArray(schema.required) ? (schema.required as string[]) : [],
-    );
+    const required = new Set(Array.isArray(schema.required) ? (schema.required as string[]) : []);
 
     const entries = Object.entries(properties).map(([key, propSchema]) => {
       const tsType = jsonSchemaToTS(propSchema, namedSchemas);
@@ -80,9 +76,7 @@ export function generateInterface(
     return `export interface ${name} {}\n`;
   }
 
-  const required = new Set(
-    Array.isArray(schema.required) ? (schema.required as string[]) : [],
-  );
+  const required = new Set(Array.isArray(schema.required) ? (schema.required as string[]) : []);
 
   const lines = Object.entries(properties).map(([key, propSchema]) => {
     const tsType = jsonSchemaToTS(propSchema, namedSchemas);

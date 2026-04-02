@@ -85,14 +85,7 @@ describe('CLI', () => {
       const specPath = writeSpec('spec.json', minimalSpec);
       const outputDir = join(tmpDir, 'output');
 
-      await runCLI([
-        'generate',
-        '--from',
-        specPath,
-        '--output',
-        outputDir,
-        '--schemas',
-      ]);
+      await runCLI(['generate', '--from', specPath, '--output', outputDir, '--schemas']);
 
       expect(existsSync(join(outputDir, 'schemas/tasks.ts'))).toBe(true);
     });

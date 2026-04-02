@@ -22,9 +22,7 @@ describe('generateResources', () => {
             method: 'GET',
             path: '/tasks',
             pathParams: [],
-            queryParams: [
-              { name: 'status', required: false, schema: { type: 'string' } },
-            ],
+            queryParams: [{ name: 'status', required: false, schema: { type: 'string' } }],
             response: {
               name: 'Task',
               jsonSchema: { type: 'object', properties: { id: { type: 'string' } } },
@@ -62,9 +60,7 @@ describe('generateResources', () => {
             method: 'GET',
             path: '/tasks',
             pathParams: [],
-            queryParams: [
-              { name: 'status', required: false, schema: { type: 'string' } },
-            ],
+            queryParams: [{ name: 'status', required: false, schema: { type: 'string' } }],
             response: {
               name: 'Task',
               jsonSchema: {
@@ -94,9 +90,7 @@ describe('generateResources', () => {
             methodName: 'get',
             method: 'GET',
             path: '/tasks/{taskId}',
-            pathParams: [
-              { name: 'taskId', required: true, schema: { type: 'string' } },
-            ],
+            pathParams: [{ name: 'taskId', required: true, schema: { type: 'string' } }],
             queryParams: [],
             response: {
               name: 'Task',
@@ -112,9 +106,7 @@ describe('generateResources', () => {
     const files = generateResources(resources);
     const tasksFile = files.find((f) => f.path === 'resources/tasks.ts');
     expect(tasksFile!.content).toContain('get: (taskId: string): Promise<Task>');
-    expect(tasksFile!.content).toContain(
-      'client.get(`/tasks/${encodeURIComponent(taskId)}`)',
-    );
+    expect(tasksFile!.content).toContain('client.get(`/tasks/${encodeURIComponent(taskId)}`)');
   });
 
   it('generates POST method with typed body', () => {
@@ -148,9 +140,7 @@ describe('generateResources', () => {
 
     const files = generateResources(resources);
     const tasksFile = files.find((f) => f.path === 'resources/tasks.ts');
-    expect(tasksFile!.content).toContain(
-      'create: (body: CreateTaskInput): Promise<Task>',
-    );
+    expect(tasksFile!.content).toContain('create: (body: CreateTaskInput): Promise<Task>');
     expect(tasksFile!.content).toContain("client.post('/tasks', body)");
   });
 
@@ -163,9 +153,7 @@ describe('generateResources', () => {
             methodName: 'update',
             method: 'PUT',
             path: '/tasks/{taskId}',
-            pathParams: [
-              { name: 'taskId', required: true, schema: { type: 'string' } },
-            ],
+            pathParams: [{ name: 'taskId', required: true, schema: { type: 'string' } }],
             queryParams: [],
             requestBody: {
               name: 'UpdateTaskInput',
@@ -204,9 +192,7 @@ describe('generateResources', () => {
             methodName: 'delete',
             method: 'DELETE',
             path: '/tasks/{taskId}',
-            pathParams: [
-              { name: 'taskId', required: true, schema: { type: 'string' } },
-            ],
+            pathParams: [{ name: 'taskId', required: true, schema: { type: 'string' } }],
             queryParams: [],
             responseStatus: 204,
             tags: ['tasks'],
@@ -218,9 +204,7 @@ describe('generateResources', () => {
     const files = generateResources(resources);
     const tasksFile = files.find((f) => f.path === 'resources/tasks.ts');
     expect(tasksFile!.content).toContain('delete: (taskId: string): Promise<void>');
-    expect(tasksFile!.content).toContain(
-      'client.delete(`/tasks/${encodeURIComponent(taskId)}`)',
-    );
+    expect(tasksFile!.content).toContain('client.delete(`/tasks/${encodeURIComponent(taskId)}`)');
   });
 
   it('imports types from ../types/<resource>', () => {
@@ -259,9 +243,7 @@ describe('generateResources', () => {
             methodName: 'archive',
             method: 'POST',
             path: '/tasks/{taskId}/archive',
-            pathParams: [
-              { name: 'taskId', required: true, schema: { type: 'string' } },
-            ],
+            pathParams: [{ name: 'taskId', required: true, schema: { type: 'string' } }],
             queryParams: [],
             response: {
               name: 'Task',
@@ -291,9 +273,7 @@ describe('generateResources', () => {
             methodName: 'patch',
             method: 'PATCH',
             path: '/tasks/{taskId}',
-            pathParams: [
-              { name: 'taskId', required: true, schema: { type: 'string' } },
-            ],
+            pathParams: [{ name: 'taskId', required: true, schema: { type: 'string' } }],
             queryParams: [],
             requestBody: {
               name: 'PatchTaskInput',

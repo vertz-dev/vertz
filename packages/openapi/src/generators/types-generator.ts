@@ -18,9 +18,7 @@ export function generateTypes(
   }
 
   // Barrel index
-  const exports = resources
-    .map((r) => `export * from './${r.identifier}';`)
-    .join('\n');
+  const exports = resources.map((r) => `export * from './${r.identifier}';`).join('\n');
   files.push({ path: 'types/index.ts', content: exports + '\n' });
 
   return files;
@@ -103,7 +101,9 @@ function generateQueryInterface(
   const lines = op.queryParams.map((param) => {
     const tsType = jsonSchemaToTS(param.schema, namedSchemas);
     const optional = param.required ? '' : '?';
-    const safeKey = isValidIdentifier(param.name) ? param.name : `'${param.name.replace(/'/g, "\\'")}'`;
+    const safeKey = isValidIdentifier(param.name)
+      ? param.name
+      : `'${param.name.replace(/'/g, "\\'")}'`;
     return `  ${safeKey}${optional}: ${tsType};`;
   });
 

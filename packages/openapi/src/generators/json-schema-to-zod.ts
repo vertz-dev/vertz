@@ -18,9 +18,7 @@ export function jsonSchemaToZod(
     const values = schema.enum as unknown[];
     const allStrings = values.every((v) => typeof v === 'string');
     if (allStrings) {
-      const items = values
-        .map((v) => `'${String(v).replace(/'/g, "\\'")}'`)
-        .join(', ');
+      const items = values.map((v) => `'${String(v).replace(/'/g, "\\'")}'`).join(', ');
       return `z.enum([${items}])`;
     }
     // Non-string enums: use z.union of z.literal
@@ -104,16 +102,11 @@ function zodBoolean(schema: Record<string, unknown>): string {
   return result;
 }
 
-function zodObject(
-  schema: Record<string, unknown>,
-  namedSchemas: Map<string, string>,
-): string {
+function zodObject(schema: Record<string, unknown>, namedSchemas: Map<string, string>): string {
   const properties = schema.properties as Record<string, Record<string, unknown>> | undefined;
   if (!properties) return 'z.object({})';
 
-  const required = new Set(
-    Array.isArray(schema.required) ? (schema.required as string[]) : [],
-  );
+  const required = new Set(Array.isArray(schema.required) ? (schema.required as string[]) : []);
 
   const entries = Object.entries(properties).map(([key, propSchema]) => {
     let zod = jsonSchemaToZod(propSchema, namedSchemas);

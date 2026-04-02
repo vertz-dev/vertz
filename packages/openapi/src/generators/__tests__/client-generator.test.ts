@@ -82,12 +82,8 @@ describe('generateClient', () => {
 
   it('imports resource factories', () => {
     const file = generateClient(makeResources(), {});
-    expect(file.content).toContain(
-      "import { createTasksResource } from './resources/tasks';",
-    );
-    expect(file.content).toContain(
-      "import { createUsersResource } from './resources/users';",
-    );
+    expect(file.content).toContain("import { createTasksResource } from './resources/tasks';");
+    expect(file.content).toContain("import { createUsersResource } from './resources/users';");
   });
 
   it('uses string concatenation for URL building (no new URL())', () => {

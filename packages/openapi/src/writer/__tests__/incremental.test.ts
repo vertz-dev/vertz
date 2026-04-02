@@ -29,9 +29,7 @@ describe('writeIncremental', () => {
     mkdirSync(tmpDir, { recursive: true });
     writeFileSync(join(tmpDir, 'client.ts'), 'export const client = {};\n');
 
-    const files = [
-      { path: 'client.ts', content: 'export const client = {};\n' },
-    ];
+    const files = [{ path: 'client.ts', content: 'export const client = {};\n' }];
 
     const result = await writeIncremental(files, tmpDir);
     expect(result.written).toBe(0);
@@ -42,9 +40,7 @@ describe('writeIncremental', () => {
     mkdirSync(tmpDir, { recursive: true });
     writeFileSync(join(tmpDir, 'client.ts'), 'old content');
 
-    const files = [
-      { path: 'client.ts', content: 'new content' },
-    ];
+    const files = [{ path: 'client.ts', content: 'new content' }];
 
     const result = await writeIncremental(files, tmpDir);
     expect(result.written).toBe(1);
@@ -57,9 +53,7 @@ describe('writeIncremental', () => {
     writeFileSync(join(tmpDir, 'stale.ts'), 'old');
     writeFileSync(join(tmpDir, 'keep.ts'), 'keep');
 
-    const files = [
-      { path: 'keep.ts', content: 'keep' },
-    ];
+    const files = [{ path: 'keep.ts', content: 'keep' }];
 
     const result = await writeIncremental(files, tmpDir, { clean: true });
     expect(result.removed).toBe(1);
@@ -72,9 +66,7 @@ describe('writeIncremental', () => {
     writeFileSync(join(tmpDir, 'old-dir/stale.ts'), 'old');
     writeFileSync(join(tmpDir, 'keep.ts'), 'keep');
 
-    const files = [
-      { path: 'keep.ts', content: 'keep' },
-    ];
+    const files = [{ path: 'keep.ts', content: 'keep' }];
 
     await writeIncremental(files, tmpDir, { clean: true });
     expect(existsSync(join(tmpDir, 'old-dir'))).toBe(false);
@@ -85,9 +77,7 @@ describe('writeIncremental', () => {
     mkdirSync(tmpDir, { recursive: true });
     writeFileSync(join(tmpDir, 'stale.ts'), 'old');
 
-    const files = [
-      { path: 'new.ts', content: 'new' },
-    ];
+    const files = [{ path: 'new.ts', content: 'new' }];
 
     const result = await writeIncremental(files, tmpDir);
     expect(result.removed).toBe(0);
@@ -95,9 +85,7 @@ describe('writeIncremental', () => {
   });
 
   it('dryRun: true returns counts without writing', async () => {
-    const files = [
-      { path: 'client.ts', content: 'export const client = {};\n' },
-    ];
+    const files = [{ path: 'client.ts', content: 'export const client = {};\n' }];
 
     const result = await writeIncremental(files, tmpDir, { dryRun: true });
     expect(result.written).toBe(1);
@@ -105,9 +93,7 @@ describe('writeIncremental', () => {
   });
 
   it('creates nested directories as needed', async () => {
-    const files = [
-      { path: 'types/models/task.ts', content: 'export interface Task {}' },
-    ];
+    const files = [{ path: 'types/models/task.ts', content: 'export interface Task {}' }];
 
     const result = await writeIncremental(files, tmpDir);
     expect(result.written).toBe(1);

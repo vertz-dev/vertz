@@ -19,9 +19,7 @@ export function generateSchemas(
   }
 
   // Barrel index
-  const exports = resources
-    .map((r) => `export * from './${r.identifier}';`)
-    .join('\n');
+  const exports = resources.map((r) => `export * from './${r.identifier}';`).join('\n');
   files.push({ path: 'schemas/index.ts', content: exports + '\n' });
 
   return files;
@@ -90,14 +88,13 @@ function generateResourceSchemas(
   return lines.join('\n');
 }
 
-function buildQueryZodSchema(
-  op: ParsedOperation,
-  namedSchemas: Map<string, string>,
-): string {
+function buildQueryZodSchema(op: ParsedOperation, namedSchemas: Map<string, string>): string {
   const entries = op.queryParams.map((param) => {
     let zod = jsonSchemaToZod(param.schema, namedSchemas);
     if (!param.required) zod += '.optional()';
-    const safeKey = isValidIdentifier(param.name) ? param.name : `'${param.name.replace(/'/g, "\\'")}'`;
+    const safeKey = isValidIdentifier(param.name)
+      ? param.name
+      : `'${param.name.replace(/'/g, "\\'")}'`;
     return `  ${safeKey}: ${zod}`;
   });
 
