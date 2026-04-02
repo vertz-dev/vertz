@@ -191,4 +191,22 @@ describe('generateInterface', () => {
     const result = generateInterface('Task', schema, empty);
     expect(result).toContain('  deletedAt?: string | null');
   });
+
+  it('produces empty interface for schema without properties', () => {
+    const schema = { type: 'object' };
+    const result = generateInterface('Empty', schema, empty);
+    expect(result).toBe('export interface Empty {}\n');
+  });
+});
+
+describe('edge cases', () => {
+  const empty = new Map<string, string>();
+
+  it('handles nullable with non-primitive type', () => {
+    expect(jsonSchemaToTS({ type: ['integer', 'null'] }, empty)).toBe('number | null');
+  });
+
+  it('handles nullable with unknown type', () => {
+    expect(jsonSchemaToTS({ type: ['object', 'null'] }, empty)).toBe('unknown | null');
+  });
 });

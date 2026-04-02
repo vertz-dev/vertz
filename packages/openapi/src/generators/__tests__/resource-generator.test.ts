@@ -322,4 +322,85 @@ describe('generateResources', () => {
       'client.patch(`/tasks/${encodeURIComponent(taskId)}`, body)',
     );
   });
+
+  it('returns Promise<void> when no response schema', () => {
+    const resources: ParsedResource[] = [
+      makeResource({
+        operations: [
+          {
+            operationId: 'pingTasks',
+            methodName: 'ping',
+            method: 'POST',
+            path: '/tasks/ping',
+            pathParams: [],
+            queryParams: [],
+            responseStatus: 200,
+            tags: ['tasks'],
+          },
+        ],
+      }),
+    ];
+
+    const files = generateResources(resources);
+    const tasksFile = files.find((f) => f.path === 'resources/tasks.ts');
+    expect(tasksFile!.content).toContain('ping(): Promise<void>');
+  });
+
+  it('derives response name from operationId when schema has no name', () => {
+    const resources: ParsedResource[] = [
+      makeResource({
+        operations: [
+          {
+            operationId: 'checkTask',
+            methodName: 'check',
+            method: 'GET',
+            path: '/tasks/check',
+            pathParams: [],
+            queryParams: [],
+            response: {
+              jsonSchema: {
+                type: 'object',
+                properties: { ok: { type: 'boolean' } },
+              },
+            },
+            responseStatus: 200,
+            tags: ['tasks'],
+          },
+        ],
+      }),
+    ];
+
+    const files = generateResources(resources);
+    const tasksFile = files.find((f) => f.path === 'resources/tasks.ts');
+    expect(tasksFile!.content).toContain('check(): Promise<CheckTaskResponse>');
+  });
+
+  it('handles unnamed array response', () => {
+    const resources: ParsedResource[] = [
+      makeResource({
+        operations: [
+          {
+            operationId: 'searchTasks',
+            methodName: 'search',
+            method: 'GET',
+            path: '/tasks/search',
+            pathParams: [],
+            queryParams: [],
+            response: {
+              jsonSchema: {
+                type: 'array',
+                items: { type: 'object', properties: { id: { type: 'string' } } },
+              },
+            },
+            responseStatus: 200,
+            tags: ['tasks'],
+          },
+        ],
+      }),
+    ];
+
+    const files = generateResources(resources);
+    const tasksFile = files.find((f) => f.path === 'resources/tasks.ts');
+    expect(tasksFile!.content).toContain('search(): Promise<unknown[]>');
+  });
 });
