@@ -8,8 +8,12 @@
     "url": "https://github.com/vertz-dev/vertz.git",
     "directory": "packages/openapi"
   },
+  "bin": {
+    "@vertz/openapi": "bin/openapi.ts"
+  },
   "files": [
-    "dist"
+    "dist",
+    "bin"
   ],
   "type": "module",
   "sideEffects": false,

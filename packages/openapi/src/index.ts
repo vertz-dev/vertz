@@ -1,3 +1,4 @@
+export { generateFromOpenAPI } from './generate';
 export { groupOperations } from './adapter/resource-grouper';
 export { sanitizeIdentifier } from './adapter/identifier';
 export { generateAll } from './generators/index';
@@ -10,7 +11,12 @@ export { generateTypes } from './generators/types-generator';
 export { normalizeOperationId } from './parser/operation-id-normalizer';
 export { parseOpenAPI } from './parser/openapi-parser';
 export { resolveRef, resolveSchema } from './parser/ref-resolver';
+export { defineConfig, loadConfigFile, resolveConfig } from './config';
+export { loadSpec } from './loader';
+export { writeIncremental } from './writer/incremental';
+export type { OpenAPIConfig } from './config';
 export type { GroupByStrategy } from './adapter/resource-grouper';
+export type { WriteResult } from './writer/incremental';
 export type { GeneratedFile, GenerateOptions } from './generators/types';
 export type { NormalizerConfig } from './parser/operation-id-normalizer';
 export type { ResolveOptions } from './parser/ref-resolver';
