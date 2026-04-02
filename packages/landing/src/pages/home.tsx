@@ -1,5 +1,6 @@
 import { Benchmarks } from '../components/benchmarks';
 import { CommunityDiscord } from '../components/community-discord';
+import { Divider } from '../components/divider';
 import { FAQ } from '../components/faq';
 import { Features } from '../components/features';
 import { Footer } from '../components/footer';
@@ -9,20 +10,6 @@ import { Hero } from '../components/hero';
 import { Nav } from '../components/nav';
 import { TheStack } from '../components/the-stack';
 import { WhyVertz } from '../components/why-vertz';
-
-function Divider() {
-  return (
-    <div
-      style={{
-        height: '1px',
-        width: '100%',
-        maxWidth: '56rem',
-        margin: '3rem auto',
-        background: 'linear-gradient(to right, transparent, #2A2826, transparent)',
-      }}
-    />
-  );
-}
 
 function HeroGlow() {
   return (

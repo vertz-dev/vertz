@@ -1,4 +1,5 @@
 import { css } from '@vertz/ui';
+import { Link } from '@vertz/ui/router';
 
 const s = css({
   footer: ['py:12', 'px:6', 'border-t:1'],
@@ -53,6 +54,10 @@ export function Footer() {
           </a>
         </div>
         <div className={s.linkGroup}>
+          <Link href="/openapi" className={s.link}>
+            OpenAPI SDK Generator
+          </Link>
+          <span className={s.separator}>|</span>
           <span>MIT License</span>
           <span className={s.separator}>|</span>
           <span>Powered by Bun</span>
