@@ -84,6 +84,28 @@ const s = css({
       },
     },
   ],
+  ctaPrimary: [
+    'flex',
+    'items:center',
+    'justify:center',
+    'gap:2',
+    'py:3',
+    'px:6',
+    'font:sm',
+    'uppercase',
+    'tracking:wider',
+    'transition:colors',
+    {
+      '&': {
+        background: '#C8451B',
+        color: '#fff',
+        'border-radius': '2px',
+        'text-decoration': 'none',
+      },
+      '&:hover': { background: '#d65229' },
+      '@media (min-width: 640px)': { display: 'inline-flex' },
+    },
+  ],
   ctaLink: [
     'flex',
     'items:center',
@@ -124,10 +146,7 @@ function HeroTerminal() {
         $ npx @vertz/openapi generate --from ./openapi.json
       </div>
       <div style={{ marginTop: '1rem' }} />
-      <div style={{ color: '#C8451B' }}>✓ 12 files written to ./src/generated</div>
-      <div style={{ color: '#9C9690', marginTop: '0.25rem', fontSize: '0.8rem' }}>
-        client.ts &middot; types/ &middot; resources/ &middot; schemas/
-      </div>
+      <div style={{ color: '#C8451B' }}>Generated 12 files in ./src/generated, 12 written</div>
     </div>
   );
 }
@@ -211,13 +230,11 @@ function OpenAPIHero() {
 
           <div className={s.ctas}>
             <a
-              href="https://www.npmjs.com/package/@vertz/openapi"
-              target="_blank"
-              rel="noopener"
-              className={s.ctaLink}
-              style={{ fontFamily: 'var(--font-mono)', color: '#6B6560' }}
+              href="#get-started"
+              className={s.ctaPrimary}
+              style={{ fontFamily: 'var(--font-mono)' }}
             >
-              View on npm
+              Get Started
               <svg
                 width="14"
                 height="14"

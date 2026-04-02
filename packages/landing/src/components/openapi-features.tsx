@@ -267,7 +267,7 @@ const PAGES = [
         [F, 'list'],
         [T, '();'],
       ),
-      L([S, '// → Authorization: Bearer my-jwt-token']),
+      L([C, '// → Authorization: Bearer my-jwt-token']),
     ],
   },
   {
@@ -438,11 +438,14 @@ function OpenAPIFeatureShowcase() {
 
   return (
     <div className={s.layout}>
-      <nav className={s.nav}>
+      <nav className={s.nav} role="tablist" aria-label="Feature tabs">
         {PAGES.map((page, i) => (
           <button
             key={page.id}
             type="button"
+            role="tab"
+            aria-selected={activeIndex === i}
+            aria-controls={`tabpanel-${page.id}`}
             className={s.navBtn}
             style={{
               color: activeIndex === i ? '#E8E4DC' : '#9C9690',
@@ -471,6 +474,8 @@ function OpenAPIFeatureShowcase() {
         {PAGES.map((page, i) => (
           <div
             key={page.id}
+            id={`tabpanel-${page.id}`}
+            role="tabpanel"
             className={s.page}
             style={{
               gridArea: '1 / 1',

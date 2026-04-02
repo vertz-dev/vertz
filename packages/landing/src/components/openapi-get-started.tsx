@@ -33,6 +33,7 @@ const s = css({
 export function OpenAPIGetStarted() {
   return (
     <section
+      id="get-started"
       className={s.section}
       style={{
         background: '#0F0F0E',
@@ -68,7 +69,7 @@ export function OpenAPIGetStarted() {
               GitHub &rarr;
             </a>
             <a
-              href="https://docs.vertz.dev"
+              href="https://docs.vertz.dev/guides/server/codegen"
               className={s.link}
               style={{ fontFamily: 'var(--font-mono)', color: '#6B6560' }}
             >
@@ -84,10 +85,8 @@ export function OpenAPIGetStarted() {
             $ npx @vertz/openapi generate --from ./openapi.json
           </div>
           <div className={s.successLine} style={{ color: '#C8451B' }}>
-            ✓ 12 files written to ./src/generated
+            Generated 12 files in ./src/generated, 12 written
           </div>
-          <div style={{ color: '#C8451B' }}>✓ 47 TypeScript types generated</div>
-          <div style={{ color: '#C8451B' }}>✓ Full type coverage</div>
         </div>
       </div>
     </section>
