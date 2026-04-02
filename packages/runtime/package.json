@@ -33,9 +33,9 @@
     "@types/node": "^22.15.32"
   },
   "optionalDependencies": {
-    "@vertz/runtime-darwin-arm64": "0.0.3",
-    "@vertz/runtime-darwin-x64": "0.0.3",
-    "@vertz/runtime-linux-arm64": "0.0.3",
-    "@vertz/runtime-linux-x64": "0.0.3"
+    "@vertz/runtime-darwin-arm64": "0.2.45",
+    "@vertz/runtime-darwin-x64": "0.2.45",
+    "@vertz/runtime-linux-arm64": "0.2.45",
+    "@vertz/runtime-linux-x64": "0.2.45"
   }
 }
