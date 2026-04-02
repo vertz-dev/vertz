@@ -12,7 +12,7 @@ function makeResource(overrides: Partial<ParsedResource> = {}): ParsedResource {
 }
 
 describe('generateResources', () => {
-  it('generates resources/<resource>.ts with factory function', () => {
+  it('generates resources/<resource>.ts with factory function using FetchClient', () => {
     const resources: ParsedResource[] = [
       makeResource({
         operations: [
@@ -37,8 +37,40 @@ describe('generateResources', () => {
     const files = generateResources(resources);
     const tasksFile = files.find((f) => f.path === 'resources/tasks.ts');
     expect(tasksFile).toBeDefined();
-    expect(tasksFile!.content).toContain('export function createTasksResource(client: HttpClient)');
-    expect(tasksFile!.content).toContain("import type { HttpClient } from '../client';");
+    expect(tasksFile!.content).toContain(
+      'export function createTasksResource(client: FetchClient)',
+    );
+    expect(tasksFile!.content).toContain(
+      "import type { FetchClient, FetchResponse } from '@vertz/fetch';",
+    );
+  });
+
+  it('does not import HttpClient from ../client', () => {
+    const resources: ParsedResource[] = [
+      makeResource({
+        operations: [
+          {
+            operationId: 'listTasks',
+            methodName: 'list',
+            method: 'GET',
+            path: '/tasks',
+            pathParams: [],
+            queryParams: [],
+            response: {
+              name: 'Task',
+              jsonSchema: { type: 'object', properties: { id: { type: 'string' } } },
+            },
+            responseStatus: 200,
+            tags: ['tasks'],
+          },
+        ],
+      }),
+    ];
+
+    const files = generateResources(resources);
+    const tasksFile = files.find((f) => f.path === 'resources/tasks.ts');
+    expect(tasksFile!.content).not.toContain('HttpClient');
+    expect(tasksFile!.content).not.toContain("from '../client'");
   });
 
   it('generates resources/index.ts barrel export', () => {
@@ -50,7 +82,7 @@ describe('generateResources', () => {
     expect(indexFile!.content).toContain("export { createTasksResource } from './tasks';");
   });
 
-  it('generates GET list method with optional query param', () => {
+  it('generates GET list method with FetchResponse return type', () => {
     const resources: ParsedResource[] = [
       makeResource({
         operations: [
@@ -77,7 +109,9 @@ describe('generateResources', () => {
 
     const files = generateResources(resources);
     const tasksFile = files.find((f) => f.path === 'resources/tasks.ts');
-    expect(tasksFile!.content).toContain('list: (query?: ListTasksQuery): Promise<Task[]>');
+    expect(tasksFile!.content).toContain(
+      'list: (query?: ListTasksQuery): Promise<FetchResponse<Task[]>>',
+    );
     expect(tasksFile!.content).toContain("client.get('/tasks', { query })");
   });
 
@@ -105,7 +139,7 @@ describe('generateResources', () => {
 
     const files = generateResources(resources);
     const tasksFile = files.find((f) => f.path === 'resources/tasks.ts');
-    expect(tasksFile!.content).toContain('get: (taskId: string): Promise<Task>');
+    expect(tasksFile!.content).toContain('get: (taskId: string): Promise<FetchResponse<Task>>');
     expect(tasksFile!.content).toContain('client.get(`/tasks/${encodeURIComponent(taskId)}`)');
   });
 
@@ -140,7 +174,9 @@ describe('generateResources', () => {
 
     const files = generateResources(resources);
     const tasksFile = files.find((f) => f.path === 'resources/tasks.ts');
-    expect(tasksFile!.content).toContain('create: (body: CreateTaskInput): Promise<Task>');
+    expect(tasksFile!.content).toContain(
+      'create: (body: CreateTaskInput): Promise<FetchResponse<Task>>',
+    );
     expect(tasksFile!.content).toContain("client.post('/tasks', body)");
   });
 
@@ -176,14 +212,14 @@ describe('generateResources', () => {
     const files = generateResources(resources);
     const tasksFile = files.find((f) => f.path === 'resources/tasks.ts');
     expect(tasksFile!.content).toContain(
-      'update: (taskId: string, body: UpdateTaskInput): Promise<Task>',
+      'update: (taskId: string, body: UpdateTaskInput): Promise<FetchResponse<Task>>',
     );
     expect(tasksFile!.content).toContain(
       'client.put(`/tasks/${encodeURIComponent(taskId)}`, body)',
     );
   });
 
-  it('generates DELETE method returning Promise<void> for 204', () => {
+  it('generates DELETE method returning Promise<FetchResponse<void>> for 204', () => {
     const resources: ParsedResource[] = [
       makeResource({
         operations: [
@@ -203,7 +239,7 @@ describe('generateResources', () => {
 
     const files = generateResources(resources);
     const tasksFile = files.find((f) => f.path === 'resources/tasks.ts');
-    expect(tasksFile!.content).toContain('delete: (taskId: string): Promise<void>');
+    expect(tasksFile!.content).toContain('delete: (taskId: string): Promise<FetchResponse<void>>');
     expect(tasksFile!.content).toContain('client.delete(`/tasks/${encodeURIComponent(taskId)}`)');
   });
 
@@ -258,7 +294,7 @@ describe('generateResources', () => {
 
     const files = generateResources(resources);
     const tasksFile = files.find((f) => f.path === 'resources/tasks.ts');
-    expect(tasksFile!.content).toContain('archive: (taskId: string): Promise<Task>');
+    expect(tasksFile!.content).toContain('archive: (taskId: string): Promise<FetchResponse<Task>>');
     expect(tasksFile!.content).toContain(
       'client.post(`/tasks/${encodeURIComponent(taskId)}/archive`)',
     );
@@ -296,14 +332,14 @@ describe('generateResources', () => {
     const files = generateResources(resources);
     const tasksFile = files.find((f) => f.path === 'resources/tasks.ts');
     expect(tasksFile!.content).toContain(
-      'patch: (taskId: string, body: PatchTaskInput): Promise<Task>',
+      'patch: (taskId: string, body: PatchTaskInput): Promise<FetchResponse<Task>>',
     );
     expect(tasksFile!.content).toContain(
       'client.patch(`/tasks/${encodeURIComponent(taskId)}`, body)',
     );
   });
 
-  it('returns Promise<void> when no response schema', () => {
+  it('returns Promise<FetchResponse<void>> when no response schema', () => {
     const resources: ParsedResource[] = [
       makeResource({
         operations: [
@@ -323,7 +359,7 @@ describe('generateResources', () => {
 
     const files = generateResources(resources);
     const tasksFile = files.find((f) => f.path === 'resources/tasks.ts');
-    expect(tasksFile!.content).toContain('ping: (): Promise<void>');
+    expect(tasksFile!.content).toContain('ping: (): Promise<FetchResponse<void>>');
   });
 
   it('derives response name from operationId when schema has no name', () => {
@@ -352,7 +388,7 @@ describe('generateResources', () => {
 
     const files = generateResources(resources);
     const tasksFile = files.find((f) => f.path === 'resources/tasks.ts');
-    expect(tasksFile!.content).toContain('check: (): Promise<CheckTaskResponse>');
+    expect(tasksFile!.content).toContain('check: (): Promise<FetchResponse<CheckTaskResponse>>');
   });
 
   it('sanitizes hyphenated type names in imports and return types', () => {
@@ -518,6 +554,6 @@ describe('generateResources', () => {
 
     const files = generateResources(resources);
     const tasksFile = files.find((f) => f.path === 'resources/tasks.ts');
-    expect(tasksFile!.content).toContain('search: (): Promise<unknown[]>');
+    expect(tasksFile!.content).toContain('search: (): Promise<FetchResponse<unknown[]>>');
   });
 });

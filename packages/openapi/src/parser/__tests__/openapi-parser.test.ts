@@ -56,6 +56,7 @@ describe('parseOpenAPI', () => {
         },
       ],
       schemas: [],
+      securitySchemes: [],
     });
   });
 
@@ -317,6 +318,204 @@ describe('parseOpenAPI', () => {
         },
       },
     ]);
+  });
+
+  it('parses bearer security scheme from components.securitySchemes', () => {
+    const spec = {
+      openapi: '3.1.0',
+      info: { title: 'Test', version: '1.0.0' },
+      paths: {},
+      components: {
+        securitySchemes: {
+          BearerAuth: { type: 'http', scheme: 'bearer', bearerFormat: 'JWT' },
+        },
+      },
+    };
+
+    const result = parseOpenAPI(spec);
+    expect(result.securitySchemes).toEqual([
+      { type: 'bearer', name: 'BearerAuth', description: undefined },
+    ]);
+  });
+
+  it('parses apiKey security scheme', () => {
+    const spec = {
+      openapi: '3.1.0',
+      info: { title: 'Test', version: '1.0.0' },
+      paths: {},
+      components: {
+        securitySchemes: {
+          ApiKey: {
+            type: 'apiKey',
+            in: 'header',
+            name: 'X-API-Key',
+            description: 'API key for access',
+          },
+        },
+      },
+    };
+
+    const result = parseOpenAPI(spec);
+    expect(result.securitySchemes).toEqual([
+      {
+        type: 'apiKey',
+        name: 'ApiKey',
+        in: 'header',
+        paramName: 'X-API-Key',
+        description: 'API key for access',
+      },
+    ]);
+  });
+
+  it('parses basic auth security scheme', () => {
+    const spec = {
+      openapi: '3.1.0',
+      info: { title: 'Test', version: '1.0.0' },
+      paths: {},
+      components: {
+        securitySchemes: {
+          BasicAuth: { type: 'http', scheme: 'basic' },
+        },
+      },
+    };
+
+    const result = parseOpenAPI(spec);
+    expect(result.securitySchemes).toEqual([
+      { type: 'basic', name: 'BasicAuth', description: undefined },
+    ]);
+  });
+
+  it('parses oauth2 security scheme with flows', () => {
+    const spec = {
+      openapi: '3.1.0',
+      info: { title: 'Test', version: '1.0.0' },
+      paths: {},
+      components: {
+        securitySchemes: {
+          OAuth2: {
+            type: 'oauth2',
+            flows: {
+              authorizationCode: {
+                authorizationUrl: '/oauth/authorize',
+                tokenUrl: '/oauth/token',
+                scopes: { 'read:tasks': 'Read tasks', 'write:tasks': 'Write tasks' },
+              },
+            },
+          },
+        },
+      },
+    };
+
+    const result = parseOpenAPI(spec);
+    expect(result.securitySchemes).toEqual([
+      {
+        type: 'oauth2',
+        name: 'OAuth2',
+        flows: {
+          authorizationCode: {
+            authorizationUrl: '/oauth/authorize',
+            tokenUrl: '/oauth/token',
+            scopes: { 'read:tasks': 'Read tasks', 'write:tasks': 'Write tasks' },
+          },
+        },
+        description: undefined,
+      },
+    ]);
+  });
+
+  it('parses multiple security schemes', () => {
+    const spec = {
+      openapi: '3.1.0',
+      info: { title: 'Test', version: '1.0.0' },
+      paths: {},
+      components: {
+        securitySchemes: {
+          BearerAuth: { type: 'http', scheme: 'bearer' },
+          ApiKey: { type: 'apiKey', in: 'query', name: 'api_key' },
+        },
+      },
+    };
+
+    const result = parseOpenAPI(spec);
+    expect(result.securitySchemes).toHaveLength(2);
+    expect(result.securitySchemes[0]!.name).toBe('BearerAuth');
+    expect(result.securitySchemes[1]!.name).toBe('ApiKey');
+  });
+
+  it('returns empty securitySchemes when spec has none', () => {
+    const spec = {
+      openapi: '3.1.0',
+      info: { title: 'Test', version: '1.0.0' },
+      paths: {},
+    };
+
+    expect(parseOpenAPI(spec).securitySchemes).toEqual([]);
+  });
+
+  it('parses global security requirements', () => {
+    const spec = {
+      openapi: '3.1.0',
+      info: { title: 'Test', version: '1.0.0' },
+      paths: {
+        '/tasks': {
+          get: {
+            operationId: 'listTasks',
+            responses: {
+              '200': { content: { 'application/json': { schema: { type: 'object' } } } },
+            },
+          },
+        },
+      },
+      security: [{ BearerAuth: [] }],
+      components: {
+        securitySchemes: {
+          BearerAuth: { type: 'http', scheme: 'bearer' },
+        },
+      },
+    };
+
+    const result = parseOpenAPI(spec);
+    expect(result.operations[0]!.security).toEqual({ required: true, schemes: ['BearerAuth'] });
+  });
+
+  it('operation-level security overrides global security', () => {
+    const spec = {
+      openapi: '3.1.0',
+      info: { title: 'Test', version: '1.0.0' },
+      paths: {
+        '/public': {
+          get: {
+            operationId: 'getPublic',
+            security: [],
+            responses: {
+              '200': { content: { 'application/json': { schema: { type: 'object' } } } },
+            },
+          },
+        },
+        '/private': {
+          get: {
+            operationId: 'getPrivate',
+            security: [{ ApiKey: [] }],
+            responses: {
+              '200': { content: { 'application/json': { schema: { type: 'object' } } } },
+            },
+          },
+        },
+      },
+      security: [{ BearerAuth: [] }],
+      components: {
+        securitySchemes: {
+          BearerAuth: { type: 'http', scheme: 'bearer' },
+          ApiKey: { type: 'apiKey', in: 'header', name: 'X-API-Key' },
+        },
+      },
+    };
+
+    const result = parseOpenAPI(spec);
+    const publicOp = result.operations.find((op) => op.operationId === 'getPublic');
+    const privateOp = result.operations.find((op) => op.operationId === 'getPrivate');
+    expect(publicOp!.security).toEqual({ required: false, schemes: [] });
+    expect(privateOp!.security).toEqual({ required: true, schemes: ['ApiKey'] });
   });
 
   it('throws descriptive errors for missing required top-level fields and unsupported versions', () => {

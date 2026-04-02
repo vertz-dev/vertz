@@ -164,6 +164,7 @@ describe('generateAll — integration', () => {
       },
       resources,
       schemas: parsed.schemas,
+      securitySchemes: parsed.securitySchemes,
     };
     return generateAll(spec, options);
   }
@@ -203,15 +204,16 @@ describe('generateAll — integration', () => {
     expect(readme!.content).toContain('committing');
   });
 
-  it('has no @vertz/* imports in generated code', () => {
+  it('only imports from @vertz/fetch — no other @vertz/* imports in generated code', () => {
     const files = parseAndGenerate({ schemas: true });
     for (const file of files) {
-      // Check for @vertz/ in import statements, not in comments
       const importLines = file.content
         .split('\n')
         .filter((line) => line.trimStart().startsWith('import '));
       for (const line of importLines) {
-        expect(line).not.toContain('@vertz/');
+        if (line.includes('@vertz/')) {
+          expect(line).toContain('@vertz/fetch');
+        }
       }
     }
   });
@@ -259,6 +261,6 @@ describe('generateAll — integration', () => {
   it('passes baseURL config through to client generator', () => {
     const files = parseAndGenerate({ baseURL: '/api/v1' });
     const clientFile = files.find((f) => f.path === 'client.ts');
-    expect(clientFile!.content).toContain("options.baseURL ?? '/api/v1'");
+    expect(clientFile!.content).toContain("baseURL: '/api/v1'");
   });
 });

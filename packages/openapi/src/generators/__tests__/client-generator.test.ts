@@ -45,37 +45,33 @@ describe('generateClient', () => {
     expect(file.path).toBe('client.ts');
   });
 
-  it('defines HttpClient interface with all 5 HTTP methods including query support', () => {
+  it('imports FetchClient and FetchClientConfig from @vertz/fetch', () => {
     const file = generateClient(makeResources(), {});
-    expect(file.content).toContain('export interface HttpClient {');
-    expect(file.content).toContain(
-      'get<T>(path: string, options?: { query?: Record<string, unknown> }): Promise<T>;',
-    );
-    expect(file.content).toContain(
-      'post<T>(path: string, body?: unknown, options?: { query?: Record<string, unknown> }): Promise<T>;',
-    );
-    expect(file.content).toContain(
-      'put<T>(path: string, body?: unknown, options?: { query?: Record<string, unknown> }): Promise<T>;',
-    );
-    expect(file.content).toContain(
-      'patch<T>(path: string, body?: unknown, options?: { query?: Record<string, unknown> }): Promise<T>;',
-    );
-    expect(file.content).toContain(
-      'delete<T>(path: string, options?: { query?: Record<string, unknown> }): Promise<T>;',
-    );
+    expect(file.content).toContain("import { FetchClient } from '@vertz/fetch';");
+    expect(file.content).toContain("import type { FetchClientConfig } from '@vertz/fetch';");
   });
 
-  it('defines ClientOptions interface', () => {
+  it('does not define HttpClient interface or ApiError class', () => {
     const file = generateClient(makeResources(), {});
-    expect(file.content).toContain('export interface ClientOptions {');
-    expect(file.content).toContain('baseURL?: string;');
-    expect(file.content).toContain('headers?: Record<string, string>;');
-    expect(file.content).toContain('fetch?: typeof globalThis.fetch;');
+    expect(file.content).not.toContain('interface HttpClient');
+    expect(file.content).not.toContain('class ApiError');
+    expect(file.content).not.toContain('globalThis.fetch');
+    expect(file.content).not.toContain('URLSearchParams');
   });
 
-  it('generates createClient factory composing all resources', () => {
+  it('exports ClientOptions as FetchClientConfig', () => {
+    const file = generateClient(makeResources(), {});
+    expect(file.content).toContain('export type ClientOptions = FetchClientConfig;');
+  });
+
+  it('generates createClient factory that instantiates FetchClient', () => {
     const file = generateClient(makeResources(), {});
     expect(file.content).toContain('export function createClient(options: ClientOptions = {})');
+    expect(file.content).toContain('new FetchClient(');
+  });
+
+  it('composes all resources from FetchClient instance', () => {
+    const file = generateClient(makeResources(), {});
     expect(file.content).toContain('tasks: createTasksResource(client),');
     expect(file.content).toContain('users: createUsersResource(client),');
   });
@@ -86,24 +82,19 @@ describe('generateClient', () => {
     expect(file.content).toContain("import { createUsersResource } from './resources/users';");
   });
 
-  it('uses string concatenation for URL building (no new URL())', () => {
-    const file = generateClient(makeResources(), {});
-    expect(file.content).toContain('`${baseURL}${path}`');
-    expect(file.content).not.toContain('new URL(');
+  it('uses config baseURL as default in FetchClient constructor', () => {
+    const file = generateClient(makeResources(), { baseURL: 'https://api.example.com' });
+    expect(file.content).toContain("baseURL: 'https://api.example.com'");
   });
 
-  it('handles 204 No Content without calling res.json()', () => {
+  it('default baseURL is empty string when not configured', () => {
     const file = generateClient(makeResources(), {});
-    expect(file.content).toContain('if (res.status === 204) return undefined as T;');
+    expect(file.content).toContain("baseURL: ''");
   });
 
-  it('generates ApiError class with name, status, data, and static from()', () => {
+  it('spreads user options to allow overriding baseURL at runtime', () => {
     const file = generateClient(makeResources(), {});
-    expect(file.content).toContain('export class ApiError extends Error {');
-    expect(file.content).toContain("override name = 'ApiError';");
-    expect(file.content).toContain('public data: unknown;');
-    expect(file.content).toContain('constructor(public status: number, body: string)');
-    expect(file.content).toContain('static async from(res: Response): Promise<ApiError>');
+    expect(file.content).toContain('...options');
   });
 
   it('exports Client type as ReturnType<typeof createClient>', () => {
@@ -111,24 +102,63 @@ describe('generateClient', () => {
     expect(file.content).toContain('export type Client = ReturnType<typeof createClient>;');
   });
 
-  it('default baseURL is empty string', () => {
-    const file = generateClient(makeResources(), {});
-    expect(file.content).toContain("options.baseURL ?? ''");
+  it('generates ClientAuth interface from bearer security scheme', () => {
+    const file = generateClient(makeResources(), {
+      securitySchemes: [{ type: 'bearer', name: 'BearerAuth' }],
+    });
+    expect(file.content).toContain('export interface ClientAuth {');
+    expect(file.content).toContain('bearerAuth?: string | (() => string | Promise<string>);');
   });
 
-  it('supports custom fetch function', () => {
-    const file = generateClient(makeResources(), {});
-    expect(file.content).toContain('options.fetch ?? globalThis.fetch.bind(globalThis)');
+  it('generates ClientAuth with apiKey scheme including location and param name', () => {
+    const file = generateClient(makeResources(), {
+      securitySchemes: [{ type: 'apiKey', name: 'ApiKey', in: 'header', paramName: 'X-API-Key' }],
+    });
+    expect(file.content).toContain('export interface ClientAuth {');
+    expect(file.content).toContain('apiKey?: string | (() => string | Promise<string>);');
   });
 
-  it('serializes query params with URLSearchParams', () => {
-    const file = generateClient(makeResources(), {});
-    expect(file.content).toContain('new URLSearchParams()');
+  it('generates ClientAuth with basic auth scheme', () => {
+    const file = generateClient(makeResources(), {
+      securitySchemes: [{ type: 'basic', name: 'BasicAuth' }],
+    });
+    expect(file.content).toContain('basicAuth?: { username: string; password: string };');
   });
 
-  it('uses baseURL from config when provided', () => {
-    const file = generateClient(makeResources(), { baseURL: '/api' });
-    // Should still use options.baseURL at runtime, config baseURL is just the default
-    expect(file.content).toContain("options.baseURL ?? '/api'");
+  it('wires auth strategies into FetchClient constructor', () => {
+    const file = generateClient(makeResources(), {
+      securitySchemes: [{ type: 'bearer', name: 'BearerAuth' }],
+    });
+    expect(file.content).toContain('authStrategies');
+    expect(file.content).toContain("type: 'bearer'");
+    expect(file.content).toContain('options.auth?.bearerAuth');
+  });
+
+  it('extends ClientOptions with auth when security schemes exist', () => {
+    const file = generateClient(makeResources(), {
+      securitySchemes: [{ type: 'bearer', name: 'BearerAuth' }],
+    });
+    expect(file.content).toContain(
+      'export type ClientOptions = FetchClientConfig & { auth?: ClientAuth };',
+    );
+  });
+
+  it('does not generate ClientAuth when no security schemes', () => {
+    const file = generateClient(makeResources(), {});
+    expect(file.content).not.toContain('ClientAuth');
+    expect(file.content).not.toContain('authStrategies');
+  });
+
+  it('generates multiple auth strategies for multiple schemes', () => {
+    const file = generateClient(makeResources(), {
+      securitySchemes: [
+        { type: 'bearer', name: 'BearerAuth' },
+        { type: 'apiKey', name: 'ApiKey', in: 'header', paramName: 'X-API-Key' },
+      ],
+    });
+    expect(file.content).toContain('bearerAuth?:');
+    expect(file.content).toContain('apiKey?:');
+    expect(file.content).toContain("type: 'bearer'");
+    expect(file.content).toContain("type: 'apiKey'");
   });
 });

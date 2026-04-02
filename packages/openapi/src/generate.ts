@@ -55,6 +55,7 @@ export async function generateFromOpenAPI(
     },
     resources,
     schemas: parsed.schemas,
+    securitySchemes: parsed.securitySchemes,
   };
 
   // 6. Generate files
