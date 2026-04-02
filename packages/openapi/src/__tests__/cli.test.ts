@@ -124,6 +124,49 @@ describe('CLI', () => {
       expect(result.exitCode).toBe(0);
     });
 
+    it('accepts --exclude-tags flag with comma-separated tags', async () => {
+      const spec = {
+        openapi: '3.0.3',
+        info: { title: 'Test', version: '1.0.0' },
+        paths: {
+          '/tasks': {
+            get: {
+              operationId: 'listTasks',
+              tags: ['tasks'],
+              responses: {
+                '200': { content: { 'application/json': { schema: { type: 'object' } } } },
+              },
+            },
+          },
+          '/debug': {
+            get: {
+              operationId: 'getDebug',
+              tags: ['internal'],
+              responses: {
+                '200': { content: { 'application/json': { schema: { type: 'object' } } } },
+              },
+            },
+          },
+        },
+      };
+      const specPath = writeSpec('spec.json', spec);
+      const outputDir = join(tmpDir, 'output');
+
+      const result = await runCLI([
+        'generate',
+        '--from',
+        specPath,
+        '--output',
+        outputDir,
+        '--exclude-tags',
+        'internal,deprecated',
+      ]);
+
+      expect(result.exitCode).toBe(0);
+      expect(existsSync(join(outputDir, 'resources/tasks.ts'))).toBe(true);
+      expect(existsSync(join(outputDir, 'resources/internal.ts'))).toBe(false);
+    });
+
     it('prints summary with written/skipped counts', async () => {
       const specPath = writeSpec('spec.json', minimalSpec);
       const outputDir = join(tmpDir, 'output');

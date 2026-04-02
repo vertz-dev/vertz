@@ -20,7 +20,7 @@ export { defineConfig, loadConfigFile, resolveConfig } from './config';
 export { loadSpec } from './loader';
 export { writeIncremental } from './writer/incremental';
 export type { OpenAPIConfig } from './config';
-export type { GroupByStrategy } from './adapter/resource-grouper';
+export type { GroupByStrategy, GroupOptions } from './adapter/resource-grouper';
 export type { WriteResult } from './writer/incremental';
 export type { GeneratedFile, GenerateOptions } from './generators/types';
 export type { NormalizerConfig, OperationContext } from './parser/operation-id-normalizer';

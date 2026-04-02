@@ -40,13 +40,11 @@ function generateResourceFile(resource: ParsedResource): string {
   lines.push(`export function create${resource.name}Resource(client: HttpClient) {`);
   lines.push('  return {');
 
-  // Deduplicate method names — first occurrence keeps the name, subsequent get numeric suffix
-  const methodNameCounts = new Map<string, number>();
+  // Detect duplicate method names — error instead of silently losing methods
+  validateUniqueMethodNames(resource);
+
   for (const op of resource.operations) {
-    const count = methodNameCounts.get(op.methodName) ?? 0;
-    methodNameCounts.set(op.methodName, count + 1);
-    const dedupedName = count === 0 ? op.methodName : `${op.methodName}${count + 1}`;
-    lines.push(`    ${generateMethod(op, dedupedName)},`);
+    lines.push(`    ${generateMethod(op)},`);
   }
 
   lines.push('  };');
@@ -56,13 +54,38 @@ function generateResourceFile(resource: ParsedResource): string {
   return lines.join('\n');
 }
 
-function generateMethod(op: ParsedOperation, methodName?: string): string {
-  const name = methodName ?? op.methodName;
+function generateMethod(op: ParsedOperation): string {
   const params = buildParams(op);
   const returnType = buildReturnType(op);
   const call = buildCall(op);
 
-  return `${name}: (${params}): ${returnType} =>\n      ${call}`;
+  return `${op.methodName}: (${params}): ${returnType} =>\n      ${call}`;
+}
+
+function validateUniqueMethodNames(resource: ParsedResource): void {
+  const seen = new Map<string, string[]>();
+  for (const op of resource.operations) {
+    const existing = seen.get(op.methodName);
+    if (existing) {
+      existing.push(op.operationId);
+    } else {
+      seen.set(op.methodName, [op.operationId]);
+    }
+  }
+
+  const duplicates = [...seen.entries()].filter(([, ids]) => ids.length > 1);
+  if (duplicates.length === 0) return;
+
+  const details = duplicates
+    .map(([name, ids]) => `  - "${name}" used by: ${ids.join(', ')}`)
+    .join('\n');
+
+  throw new Error(
+    `Duplicate method name${duplicates.length > 1 ? 's' : ''} ${duplicates.map(([n]) => `"${n}"`).join(', ')} in resource "${resource.name}". ` +
+      `Each operation within a resource must have a unique method name.\n${details}\n\n` +
+      `Fix: use excludeTags to skip this tag, use a different groupBy strategy, ` +
+      `or provide operationIds.overrides to rename conflicting operations.`,
+  );
 }
 
 function buildParams(op: ParsedOperation): string {

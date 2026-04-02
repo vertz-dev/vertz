@@ -164,6 +164,77 @@ describe('groupOperations', () => {
     ]);
   });
 
+  it('excludes operations matching excludeTags', () => {
+    const resources = groupOperations(
+      [
+        createOperation({
+          operationId: 'list_tasks',
+          methodName: 'list',
+          method: 'GET',
+          path: '/tasks',
+          tags: ['Tasks'],
+        }),
+        createOperation({
+          operationId: 'internal_debug',
+          methodName: 'debug',
+          method: 'GET',
+          path: '/debug',
+          tags: ['internal'],
+        }),
+        createOperation({
+          operationId: 'list_deprecated',
+          methodName: 'list',
+          method: 'GET',
+          path: '/old',
+          tags: ['deprecated'],
+        }),
+      ],
+      'tag',
+      { excludeTags: ['internal', 'deprecated'] },
+    );
+
+    expect(resources).toHaveLength(1);
+    expect(resources[0]?.identifier).toBe('tasks');
+  });
+
+  it('excludeTags is case-sensitive', () => {
+    const resources = groupOperations(
+      [
+        createOperation({
+          operationId: 'list_tasks',
+          methodName: 'list',
+          method: 'GET',
+          path: '/tasks',
+          tags: ['Internal'],
+        }),
+      ],
+      'tag',
+      { excludeTags: ['internal'] },
+    );
+
+    // "Internal" !== "internal", so it should NOT be excluded
+    expect(resources).toHaveLength(1);
+  });
+
+  it('excludes operations where any tag matches excludeTags', () => {
+    const resources = groupOperations(
+      [
+        createOperation({
+          operationId: 'list_tasks',
+          methodName: 'list',
+          method: 'GET',
+          path: '/tasks',
+          tags: ['Tasks', 'internal'],
+        }),
+      ],
+      'tag',
+      { excludeTags: ['internal'] },
+    );
+
+    // The operation has "internal" as a tag, even though it's not the primary tag
+    expect(resources).toHaveLength(0);
+  });
+
   it('puts every operation in its own resource when grouping is disabled', () => {
     const resources = groupOperations(
       [

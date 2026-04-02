@@ -235,6 +235,50 @@ describe('generateFromOpenAPI', () => {
     expect(result.filesWritten.length).toBe(result.written);
   });
 
+  it('excludes tags from generation when excludeTags is set', async () => {
+    const spec = {
+      openapi: '3.0.3',
+      info: { title: 'Test API', version: '1.0.0' },
+      paths: {
+        '/tasks': {
+          get: {
+            operationId: 'listTasks',
+            tags: ['tasks'],
+            responses: {
+              '200': { content: { 'application/json': { schema: { type: 'object' } } } },
+            },
+          },
+        },
+        '/debug': {
+          get: {
+            operationId: 'getDebug',
+            tags: ['internal'],
+            responses: {
+              '200': { content: { 'application/json': { schema: { type: 'object' } } } },
+            },
+          },
+        },
+      },
+    };
+    const specPath = writeSpec('spec.json', spec);
+    const outputDir = join(tmpDir, 'output');
+
+    await generateFromOpenAPI({
+      source: specPath,
+      output: outputDir,
+      baseURL: '',
+      groupBy: 'tag',
+      schemas: false,
+      excludeTags: ['internal'],
+    });
+
+    expect(existsSync(join(outputDir, 'resources/tasks.ts'))).toBe(true);
+    expect(existsSync(join(outputDir, 'resources/internal.ts'))).toBe(false);
+    // Client should not reference the excluded resource
+    const client = readFileSync(join(outputDir, 'client.ts'), 'utf-8');
+    expect(client).not.toContain('internal');
+  });
+
   it('propagates errors from loader for missing spec', async () => {
     await expect(
       generateFromOpenAPI({

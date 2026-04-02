@@ -45,6 +45,9 @@ function flagsToPartialConfig(
     }
   }
   if (flags.schemas === true) result.schemas = true;
+  if (typeof flags['exclude-tags'] === 'string') {
+    result.excludeTags = flags['exclude-tags'].split(',').map((t) => t.trim());
+  }
   if (flags['dry-run'] === true) result.dryRun = true;
 
   return result;

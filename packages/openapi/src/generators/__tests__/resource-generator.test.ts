@@ -389,7 +389,7 @@ describe('generateResources', () => {
     expect(tasksFile!.content).not.toContain('Brand-Input');
   });
 
-  it('deduplicates method names by appending numeric suffix', () => {
+  it('throws on duplicate method names within a resource', () => {
     const resources: ParsedResource[] = [
       makeResource({
         operations: [
@@ -405,21 +405,7 @@ describe('generateResources', () => {
               jsonSchema: { type: 'object', properties: { items: { type: 'array' } } },
             },
             responseStatus: 200,
-            tags: ['tasks'],
-          },
-          {
-            operationId: 'listIndustryTopics',
-            methodName: 'list',
-            method: 'GET',
-            path: '/industry-topics',
-            pathParams: [],
-            queryParams: [],
-            response: {
-              name: 'TopicList',
-              jsonSchema: { type: 'object', properties: { items: { type: 'array' } } },
-            },
-            responseStatus: 200,
-            tags: ['tasks'],
+            tags: ['internal'],
           },
           {
             operationId: 'listUsers',
@@ -433,22 +419,77 @@ describe('generateResources', () => {
               jsonSchema: { type: 'object', properties: { items: { type: 'array' } } },
             },
             responseStatus: 200,
-            tags: ['tasks'],
+            tags: ['internal'],
           },
         ],
       }),
     ];
 
-    const files = generateResources(resources);
-    const tasksFile = files.find((f) => f.path === 'resources/tasks.ts');
-    const content = tasksFile!.content;
-    // First occurrence keeps original name, subsequent get suffix
-    expect(content).toContain('list:');
-    expect(content).toContain('list2:');
-    expect(content).toContain('list3:');
-    // Should not have duplicate plain 'list' keys
-    const listMatches = content.match(/\blist:/g);
-    expect(listMatches).toHaveLength(1);
+    expect(() => generateResources(resources)).toThrow(
+      /Duplicate method name "list" in resource "Tasks"/,
+    );
+  });
+
+  it('error message lists all duplicate method names and their operationIds', () => {
+    const resources: ParsedResource[] = [
+      makeResource({
+        operations: [
+          {
+            operationId: 'listIndustries',
+            methodName: 'list',
+            method: 'GET',
+            path: '/industries',
+            pathParams: [],
+            queryParams: [],
+            responseStatus: 200,
+            tags: ['internal'],
+          },
+          {
+            operationId: 'listUsers',
+            methodName: 'list',
+            method: 'GET',
+            path: '/users',
+            pathParams: [],
+            queryParams: [],
+            responseStatus: 200,
+            tags: ['internal'],
+          },
+          {
+            operationId: 'getIndustry',
+            methodName: 'get',
+            method: 'GET',
+            path: '/industries/{id}',
+            pathParams: [{ name: 'id', required: true, schema: { type: 'string' } }],
+            queryParams: [],
+            responseStatus: 200,
+            tags: ['internal'],
+          },
+          {
+            operationId: 'getBrand',
+            methodName: 'get',
+            method: 'GET',
+            path: '/brands/{id}',
+            pathParams: [{ name: 'id', required: true, schema: { type: 'string' } }],
+            queryParams: [],
+            responseStatus: 200,
+            tags: ['internal'],
+          },
+        ],
+      }),
+    ];
+
+    try {
+      generateResources(resources);
+      throw new Error('Expected to throw');
+    } catch (err) {
+      const message = (err as Error).message;
+      expect(message).toContain('"list"');
+      expect(message).toContain('"get"');
+      expect(message).toContain('listIndustries');
+      expect(message).toContain('listUsers');
+      expect(message).toContain('getIndustry');
+      expect(message).toContain('getBrand');
+    }
   });
 
   it('handles unnamed array response', () => {

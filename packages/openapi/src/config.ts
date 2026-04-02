@@ -8,6 +8,7 @@ export interface OpenAPIConfig {
   baseURL: string;
   groupBy: 'tag' | 'path' | 'none';
   schemas: boolean;
+  excludeTags?: string[];
   operationIds?: {
     overrides?: Record<string, string>;
     transform?: (cleaned: string, context: OperationContext) => string;
@@ -41,6 +42,7 @@ export function resolveConfig(
     baseURL: cliFlags.baseURL ?? configFile?.baseURL ?? DEFAULTS.baseURL,
     groupBy: cliFlags.groupBy ?? configFile?.groupBy ?? DEFAULTS.groupBy,
     schemas: cliFlags.schemas ?? configFile?.schemas ?? DEFAULTS.schemas,
+    excludeTags: cliFlags.excludeTags ?? configFile?.excludeTags,
     operationIds: cliFlags.operationIds ?? configFile?.operationIds,
   };
 }

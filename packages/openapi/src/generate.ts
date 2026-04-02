@@ -40,8 +40,10 @@ export async function generateFromOpenAPI(
     }
   }
 
-  // 4. Group into resources
-  const resources = groupOperations(parsed.operations, config.groupBy);
+  // 4. Group into resources (with optional tag exclusion)
+  const resources = groupOperations(parsed.operations, config.groupBy, {
+    excludeTags: config.excludeTags,
+  });
 
   // 5. Build ParsedSpec
   const info = raw.info as Record<string, unknown> | undefined;

@@ -40,6 +40,7 @@ npx @vertz/openapi generate [options]
 | `--base-url <url>`     | Default base URL for API calls           | `''`                          |
 | `--group-by <mode>`    | Grouping strategy: `tag`, `path`, `none` | `tag`                         |
 | `--schemas`            | Generate Zod validation schemas          | `false`                       |
+| `--exclude-tags <t>`   | Comma-separated tags to exclude          | none                          |
 | `--dry-run`            | Preview without writing files            | `false`                       |
 
 ### `validate` — Validate a spec without generating
@@ -65,6 +66,25 @@ export default defineConfig({
 ```
 
 CLI flags override config file values.
+
+## Excluding Tags
+
+Skip internal, deprecated, or catch-all tags that don't map cleanly to SDK resources:
+
+```ts
+export default defineConfig({
+  source: './openapi.json',
+  excludeTags: ['internal', 'deprecated'],
+});
+```
+
+Or via CLI:
+
+```bash
+npx @vertz/openapi generate --from ./openapi.json --exclude-tags internal,deprecated
+```
+
+Operations where **any** tag matches the exclude list are skipped entirely.
 
 ## Programmatic API
 

@@ -3,6 +3,10 @@ import type { ParsedOperation, ParsedResource } from '../parser/types';
 
 export type GroupByStrategy = 'tag' | 'path' | 'none';
 
+export interface GroupOptions {
+  excludeTags?: string[];
+}
+
 function getPathGroupKey(path: string): string {
   const meaningfulSegments = path
     .split('/')
@@ -23,10 +27,17 @@ function toResourceName(identifier: string): string {
 export function groupOperations(
   operations: ParsedOperation[],
   strategy: GroupByStrategy,
+  options?: GroupOptions,
 ): ParsedResource[] {
+  const excludeSet = options?.excludeTags ? new Set(options.excludeTags) : undefined;
   const resources = new Map<string, ParsedOperation[]>();
 
   for (const operation of operations) {
+    // Skip operations where any tag matches excludeTags
+    if (excludeSet && operation.tags.some((t) => excludeSet.has(t))) {
+      continue;
+    }
+
     const groupKey =
       strategy === 'tag'
         ? (operation.tags[0] ?? '_ungrouped')
