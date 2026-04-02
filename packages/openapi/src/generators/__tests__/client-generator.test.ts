@@ -101,4 +101,64 @@ describe('generateClient', () => {
     const file = generateClient(makeResources(), {});
     expect(file.content).toContain('export type Client = ReturnType<typeof createClient>;');
   });
+
+  it('generates ClientAuth interface from bearer security scheme', () => {
+    const file = generateClient(makeResources(), {
+      securitySchemes: [{ type: 'bearer', name: 'BearerAuth' }],
+    });
+    expect(file.content).toContain('export interface ClientAuth {');
+    expect(file.content).toContain('bearerAuth?: string | (() => string | Promise<string>);');
+  });
+
+  it('generates ClientAuth with apiKey scheme including location and param name', () => {
+    const file = generateClient(makeResources(), {
+      securitySchemes: [{ type: 'apiKey', name: 'ApiKey', in: 'header', paramName: 'X-API-Key' }],
+    });
+    expect(file.content).toContain('export interface ClientAuth {');
+    expect(file.content).toContain('apiKey?: string | (() => string | Promise<string>);');
+  });
+
+  it('generates ClientAuth with basic auth scheme', () => {
+    const file = generateClient(makeResources(), {
+      securitySchemes: [{ type: 'basic', name: 'BasicAuth' }],
+    });
+    expect(file.content).toContain('basicAuth?: { username: string; password: string };');
+  });
+
+  it('wires auth strategies into FetchClient constructor', () => {
+    const file = generateClient(makeResources(), {
+      securitySchemes: [{ type: 'bearer', name: 'BearerAuth' }],
+    });
+    expect(file.content).toContain('authStrategies');
+    expect(file.content).toContain("type: 'bearer'");
+    expect(file.content).toContain('options.auth?.bearerAuth');
+  });
+
+  it('extends ClientOptions with auth when security schemes exist', () => {
+    const file = generateClient(makeResources(), {
+      securitySchemes: [{ type: 'bearer', name: 'BearerAuth' }],
+    });
+    expect(file.content).toContain(
+      'export type ClientOptions = FetchClientConfig & { auth?: ClientAuth };',
+    );
+  });
+
+  it('does not generate ClientAuth when no security schemes', () => {
+    const file = generateClient(makeResources(), {});
+    expect(file.content).not.toContain('ClientAuth');
+    expect(file.content).not.toContain('authStrategies');
+  });
+
+  it('generates multiple auth strategies for multiple schemes', () => {
+    const file = generateClient(makeResources(), {
+      securitySchemes: [
+        { type: 'bearer', name: 'BearerAuth' },
+        { type: 'apiKey', name: 'ApiKey', in: 'header', paramName: 'X-API-Key' },
+      ],
+    });
+    expect(file.content).toContain('bearerAuth?:');
+    expect(file.content).toContain('apiKey?:');
+    expect(file.content).toContain("type: 'bearer'");
+    expect(file.content).toContain("type: 'apiKey'");
+  });
 });

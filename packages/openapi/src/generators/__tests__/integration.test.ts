@@ -164,6 +164,7 @@ describe('generateAll — integration', () => {
       },
       resources,
       schemas: parsed.schemas,
+      securitySchemes: parsed.securitySchemes,
     };
     return generateAll(spec, options);
   }

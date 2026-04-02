@@ -20,7 +20,12 @@ export function generateAll(spec: ParsedSpec, options?: GenerateOptions): Genera
   files.push(...generateResources(resources));
 
   // Client
-  files.push(generateClient(resources, { baseURL: opts.baseURL }));
+  files.push(
+    generateClient(resources, {
+      baseURL: opts.baseURL,
+      securitySchemes: spec.securitySchemes,
+    }),
+  );
 
   // Schemas (opt-in)
   if (opts.schemas) {

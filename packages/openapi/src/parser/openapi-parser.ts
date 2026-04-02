@@ -1,6 +1,14 @@
 import { normalizeOperationId } from './operation-id-normalizer';
 import { resolveSchema } from './ref-resolver';
-import type { HttpMethod, ParsedOperation, ParsedParameter, ParsedSchema } from './types';
+import type {
+  HttpMethod,
+  OperationSecurity,
+  ParsedOAuthFlows,
+  ParsedOperation,
+  ParsedParameter,
+  ParsedSchema,
+  ParsedSecurityScheme,
+} from './types';
 
 class OpenAPIParserError extends Error {
   override name = 'OpenAPIParserError';
@@ -267,9 +275,81 @@ function collectComponentSchemas(
     }));
 }
 
+function extractSecuritySchemes(spec: Record<string, unknown>): ParsedSecurityScheme[] {
+  const components = isRecord(spec.components) ? spec.components : undefined;
+  const schemes =
+    components && isRecord(components.securitySchemes) ? components.securitySchemes : undefined;
+
+  if (!schemes) return [];
+
+  const result: ParsedSecurityScheme[] = [];
+  for (const [name, scheme] of Object.entries(schemes)) {
+    if (!isRecord(scheme)) continue;
+
+    const description = typeof scheme.description === 'string' ? scheme.description : undefined;
+
+    if (scheme.type === 'http') {
+      if (scheme.scheme === 'bearer') {
+        result.push({ type: 'bearer', name, description });
+      } else if (scheme.scheme === 'basic') {
+        result.push({ type: 'basic', name, description });
+      }
+    } else if (scheme.type === 'apiKey') {
+      const location = scheme.in as 'header' | 'query' | 'cookie';
+      const paramName = typeof scheme.name === 'string' ? scheme.name : name;
+      result.push({ type: 'apiKey', name, in: location, paramName, description });
+    } else if (scheme.type === 'oauth2' && isRecord(scheme.flows)) {
+      const flows: ParsedOAuthFlows = {};
+      const rawFlows = scheme.flows;
+
+      if (isRecord(rawFlows.authorizationCode)) {
+        const ac = rawFlows.authorizationCode;
+        flows.authorizationCode = {
+          authorizationUrl: String(ac.authorizationUrl ?? ''),
+          tokenUrl: String(ac.tokenUrl ?? ''),
+          scopes: isRecord(ac.scopes) ? (ac.scopes as Record<string, string>) : {},
+        };
+      }
+      if (isRecord(rawFlows.clientCredentials)) {
+        const cc = rawFlows.clientCredentials;
+        flows.clientCredentials = {
+          tokenUrl: String(cc.tokenUrl ?? ''),
+          scopes: isRecord(cc.scopes) ? (cc.scopes as Record<string, string>) : {},
+        };
+      }
+
+      result.push({ type: 'oauth2', name, flows, description });
+    }
+  }
+
+  return result;
+}
+
+function extractOperationSecurity(
+  operation: Record<string, unknown>,
+  globalSecurity: unknown[],
+): OperationSecurity | undefined {
+  // Operation-level security overrides global
+  const security = Array.isArray(operation.security) ? operation.security : globalSecurity;
+  if (security.length === 0 && !Array.isArray(operation.security)) return undefined;
+
+  const schemes: string[] = [];
+  for (const requirement of security) {
+    if (isRecord(requirement)) {
+      schemes.push(...Object.keys(requirement));
+    }
+  }
+
+  return {
+    required: schemes.length > 0,
+    schemes,
+  };
+}
+
 export function parseOpenAPI(spec: Record<string, unknown>): {
   operations: ParsedOperation[];
   schemas: ParsedSchema[];
+  securitySchemes: ParsedSecurityScheme[];
   version: '3.0' | '3.1';
 } {
   const version = getVersion(spec);
@@ -282,6 +362,7 @@ export function parseOpenAPI(spec: Record<string, unknown>): {
     throw new OpenAPIParserError('OpenAPI spec is missing required field: paths');
   }
 
+  const globalSecurity = Array.isArray(spec.security) ? spec.security : [];
   const operations: ParsedOperation[] = [];
 
   for (const [path, pathItem] of Object.entries(spec.paths)) {
@@ -305,8 +386,9 @@ export function parseOpenAPI(spec: Record<string, unknown>): {
         version,
       );
       const successResponse = pickSuccessResponse(operation, spec);
+      const security = extractOperationSecurity(operation, globalSecurity);
 
-      operations.push({
+      const parsed: ParsedOperation = {
         operationId,
         methodName: normalizeOperationId(operationId, method.toUpperCase() as HttpMethod, path),
         method: method.toUpperCase() as HttpMethod,
@@ -321,9 +403,17 @@ export function parseOpenAPI(spec: Record<string, unknown>): {
         tags: Array.isArray(operation.tags)
           ? operation.tags.filter((tag): tag is string => typeof tag === 'string')
           : [],
-      });
+      };
+      if (security) parsed.security = security;
+
+      operations.push(parsed);
     }
   }
 
-  return { operations, schemas: collectComponentSchemas(spec, version), version };
+  return {
+    operations,
+    schemas: collectComponentSchemas(spec, version),
+    securitySchemes: extractSecuritySchemes(spec),
+    version,
+  };
 }

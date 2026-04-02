@@ -451,6 +451,106 @@ describe('ClientGenerator', () => {
     });
   });
 
+  describe('auth schemes', () => {
+    function createSchemesIR(
+      schemes: CodegenIR['auth']['schemes'],
+      entities: CodegenEntityModule[] = [
+        {
+          entityName: 'user',
+          operations: [
+            {
+              kind: 'list',
+              method: 'GET',
+              path: '/user',
+              operationId: 'listUser',
+              outputSchema: 'UserResponse',
+            },
+          ],
+          actions: [],
+        },
+      ],
+    ): CodegenIR {
+      return {
+        basePath: '/api',
+        modules: [],
+        schemas: [],
+        entities,
+        auth: { schemes, operations: [] },
+      };
+    }
+
+    it('generates ClientAuth interface for bearer scheme', () => {
+      const ir = createSchemesIR([{ type: 'bearer', name: 'BearerAuth' }]);
+      const files = generator.generate(ir, { outputDir: '.vertz', options: {} });
+      const clientFile = files.find((f) => f.path === 'client.ts');
+
+      expect(clientFile?.content).toContain('export interface ClientAuth {');
+      expect(clientFile?.content).toContain(
+        'bearerAuth?: string | (() => string | Promise<string>);',
+      );
+    });
+
+    it('generates ClientAuth with apiKey scheme', () => {
+      const ir = createSchemesIR([
+        { type: 'apiKey', name: 'ApiKey', in: 'header', paramName: 'X-API-Key' },
+      ]);
+      const files = generator.generate(ir, { outputDir: '.vertz', options: {} });
+      const clientFile = files.find((f) => f.path === 'client.ts');
+
+      expect(clientFile?.content).toContain('export interface ClientAuth {');
+      expect(clientFile?.content).toContain('apiKey?: string | (() => string | Promise<string>);');
+    });
+
+    it('generates ClientAuth with basic auth scheme', () => {
+      const ir = createSchemesIR([{ type: 'basic', name: 'BasicAuth' }]);
+      const files = generator.generate(ir, { outputDir: '.vertz', options: {} });
+      const clientFile = files.find((f) => f.path === 'client.ts');
+
+      expect(clientFile?.content).toContain('basicAuth?: { username: string; password: string };');
+    });
+
+    it('wires authStrategies into FetchClient constructor', () => {
+      const ir = createSchemesIR([{ type: 'bearer', name: 'BearerAuth' }]);
+      const files = generator.generate(ir, { outputDir: '.vertz', options: {} });
+      const clientFile = files.find((f) => f.path === 'client.ts');
+
+      expect(clientFile?.content).toContain('authStrategies');
+      expect(clientFile?.content).toContain("type: 'bearer'");
+      expect(clientFile?.content).toContain('options.auth?.bearerAuth');
+    });
+
+    it('adds auth to ClientOptions when schemes exist', () => {
+      const ir = createSchemesIR([{ type: 'bearer', name: 'BearerAuth' }]);
+      const files = generator.generate(ir, { outputDir: '.vertz', options: {} });
+      const clientFile = files.find((f) => f.path === 'client.ts');
+
+      expect(clientFile?.content).toContain('auth?: ClientAuth');
+    });
+
+    it('does not generate ClientAuth when no schemes', () => {
+      const ir = createSchemesIR([]);
+      const files = generator.generate(ir, { outputDir: '.vertz', options: {} });
+      const clientFile = files.find((f) => f.path === 'client.ts');
+
+      expect(clientFile?.content).not.toContain('ClientAuth');
+      expect(clientFile?.content).not.toContain('authStrategies');
+    });
+
+    it('generates multiple auth strategies for multiple schemes', () => {
+      const ir = createSchemesIR([
+        { type: 'bearer', name: 'BearerAuth' },
+        { type: 'apiKey', name: 'ApiKey', in: 'header', paramName: 'X-API-Key' },
+      ]);
+      const files = generator.generate(ir, { outputDir: '.vertz', options: {} });
+      const clientFile = files.find((f) => f.path === 'client.ts');
+
+      expect(clientFile?.content).toContain('bearerAuth?:');
+      expect(clientFile?.content).toContain('apiKey?:');
+      expect(clientFile?.content).toContain("type: 'bearer'");
+      expect(clientFile?.content).toContain("type: 'apiKey'");
+    });
+  });
+
   describe('auth integration', () => {
     function createAuthIR(
       entities: CodegenEntityModule[] = [],

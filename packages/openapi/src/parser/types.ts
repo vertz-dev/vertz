@@ -8,6 +8,7 @@ export interface ParsedSpec {
   };
   resources: ParsedResource[];
   schemas: ParsedSchema[];
+  securitySchemes: ParsedSecurityScheme[];
 }
 
 export interface ParsedResource {
@@ -27,6 +28,12 @@ export interface ParsedOperation {
   response?: ParsedSchema;
   responseStatus: number;
   tags: string[];
+  security?: OperationSecurity;
+}
+
+export interface OperationSecurity {
+  required: boolean;
+  schemes: string[];
 }
 
 export interface ParsedParameter {
@@ -38,4 +45,28 @@ export interface ParsedParameter {
 export interface ParsedSchema {
   name?: string;
   jsonSchema: Record<string, unknown>;
+}
+
+export type ParsedSecurityScheme =
+  | { type: 'bearer'; name: string; description?: string }
+  | { type: 'basic'; name: string; description?: string }
+  | {
+      type: 'apiKey';
+      name: string;
+      in: 'header' | 'query' | 'cookie';
+      paramName: string;
+      description?: string;
+    }
+  | { type: 'oauth2'; name: string; flows: ParsedOAuthFlows; description?: string };
+
+export interface ParsedOAuthFlows {
+  authorizationCode?: {
+    authorizationUrl: string;
+    tokenUrl: string;
+    scopes: Record<string, string>;
+  };
+  clientCredentials?: {
+    tokenUrl: string;
+    scopes: Record<string, string>;
+  };
 }
