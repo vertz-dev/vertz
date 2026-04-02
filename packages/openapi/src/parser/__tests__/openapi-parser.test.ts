@@ -217,6 +217,7 @@ describe('parseOpenAPI', () => {
         },
       ],
       requestBody: {
+        name: 'UpdateTaskInput',
         jsonSchema: {
           type: 'object',
           properties: {
@@ -225,6 +226,7 @@ describe('parseOpenAPI', () => {
         },
       },
       response: {
+        name: 'Task',
         jsonSchema: {
           type: 'object',
           properties: {

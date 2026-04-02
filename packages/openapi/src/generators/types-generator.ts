@@ -49,7 +49,13 @@ function generateResourceTypes(
       const name = deriveResponseName(op);
       if (!emitted.has(name)) {
         emitted.add(name);
-        interfaces.push(generateInterface(name, op.response.jsonSchema, namedSchemas));
+        // For array responses, generate interface from items schema
+        const schema = op.response.jsonSchema;
+        const effectiveSchema =
+          schema.type === 'array' && schema.items && typeof schema.items === 'object'
+            ? (schema.items as Record<string, unknown>)
+            : schema;
+        interfaces.push(generateInterface(name, effectiveSchema, namedSchemas));
       }
     }
 

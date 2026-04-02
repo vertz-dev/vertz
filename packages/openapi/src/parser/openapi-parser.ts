@@ -106,17 +106,33 @@ function getJsonContentSchema(value: unknown): Record<string, unknown> | undefin
   return mediaType.schema;
 }
 
+function extractRefName(schema: Record<string, unknown>): string | undefined {
+  if (typeof schema.$ref === 'string') {
+    const segments = schema.$ref.split('/');
+    return segments[segments.length - 1];
+  }
+  // For array schemas, extract the name from items.$ref
+  if (schema.type === 'array' && isRecord(schema.items) && typeof schema.items.$ref === 'string') {
+    const segments = schema.items.$ref.split('/');
+    return segments[segments.length - 1];
+  }
+  return undefined;
+}
+
 function resolveSchemaForOutput(
   schema: Record<string, unknown>,
   spec: Record<string, unknown>,
   version: '3.0' | '3.1',
 ): ParsedSchema {
-  return {
+  const name = extractRefName(schema);
+  const result: ParsedSchema = {
     jsonSchema: normalizeNullableSchema(
       resolveSchema(schema, spec, { specVersion: version }),
       version,
     ) as Record<string, unknown>,
   };
+  if (name) result.name = name;
+  return result;
 }
 
 function getOperationResponses(operation: Record<string, unknown>): Record<string, unknown> {
@@ -246,8 +262,8 @@ function collectComponentSchemas(
   return Object.entries(schemas)
     .filter((entry): entry is [string, Record<string, unknown>] => isRecord(entry[1]))
     .map(([name, schema]) => ({
-      name,
       ...resolveSchemaForOutput(schema, spec, version),
+      name,
     }));
 }
 
