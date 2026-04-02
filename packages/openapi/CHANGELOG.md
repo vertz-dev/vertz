@@ -1,5 +1,14 @@
 # @vertz/openapi
 
+## 0.1.1
+
+### Patch Changes
+
+- [#2202](https://github.com/vertz-dev/vertz/pull/2202) [`34206c6`](https://github.com/vertz-dev/vertz/commit/34206c669a68b45683f5637933d16b04d844e30a) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - feat(openapi): add code generators, CLI, and config for SDK generation
+
+  - Phase 2: TypeScript types, Zod schemas, resource SDK, and client generators from parsed OpenAPI specs
+  - Phase 3: Config file support, spec loader (JSON/YAML/URL), incremental file writer, main pipeline (`generateFromOpenAPI`), and CLI (`generate` + `validate` commands)
+
 ## 0.1.0
 
 ### Minor Changes
