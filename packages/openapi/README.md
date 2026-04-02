@@ -104,15 +104,31 @@ console.log(`${result.written} files written, ${result.skipped} unchanged`);
 
 ## Using the Generated SDK
 
+The generated SDK uses `@vertz/fetch` under the hood. Install it in the project that consumes the SDK:
+
+```bash
+bun add @vertz/fetch
+```
+
 ```ts
 import { createClient } from './generated/client';
+import { isOk } from '@vertz/fetch';
 
 const api = createClient({ baseURL: 'https://api.example.com' });
 
 // Fully typed — params, body, and response types are inferred
-const tasks = await api.tasks.list();
-const task = await api.tasks.get(taskId);
-const created = await api.tasks.create({ title: 'New task' });
+// Returns FetchResponse<T> (Result type) — use isOk/isErr to handle
+const result = await api.tasks.list();
+if (isOk(result)) {
+  console.log(result.data); // typed as Task[]
+}
+
+// All FetchClient features available: auth strategies, retries, hooks
+const api = createClient({
+  baseURL: 'https://api.example.com',
+  authStrategies: [{ type: 'bearer', token: 'my-token' }],
+  retry: { retries: 3 },
+});
 ```
 
 ## Custom Operation ID Normalization
