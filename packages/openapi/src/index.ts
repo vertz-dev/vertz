@@ -3,7 +3,7 @@ export { groupOperations } from './adapter/resource-grouper';
 export { sanitizeIdentifier } from './adapter/identifier';
 export { generateAll } from './generators/index';
 export { generateClient } from './generators/client-generator';
-export { generateInterface, jsonSchemaToTS } from './generators/json-schema-to-ts';
+export { generateInterface, isValidIdentifier, jsonSchemaToTS } from './generators/json-schema-to-ts';
 export { jsonSchemaToZod } from './generators/json-schema-to-zod';
 export { generateResources } from './generators/resource-generator';
 export { generateSchemas } from './generators/schema-generator';

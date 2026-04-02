@@ -1,5 +1,5 @@
 import type { ParsedOperation, ParsedResource, ParsedSchema } from '../parser/types';
-import { generateInterface, jsonSchemaToTS } from './json-schema-to-ts';
+import { generateInterface, isValidIdentifier, jsonSchemaToTS } from './json-schema-to-ts';
 import type { GeneratedFile } from './types';
 
 /**
@@ -103,7 +103,8 @@ function generateQueryInterface(
   const lines = op.queryParams.map((param) => {
     const tsType = jsonSchemaToTS(param.schema, namedSchemas);
     const optional = param.required ? '' : '?';
-    return `  ${param.name}${optional}: ${tsType};`;
+    const safeKey = isValidIdentifier(param.name) ? param.name : `'${param.name.replace(/'/g, "\\'")}'`;
+    return `  ${safeKey}${optional}: ${tsType};`;
   });
 
   return `export interface ${name} {\n${lines.join('\n')}\n}\n`;

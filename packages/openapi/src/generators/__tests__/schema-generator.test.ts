@@ -91,9 +91,21 @@ describe('jsonSchemaToZod', () => {
   });
 
   describe('enums', () => {
-    it('maps enum to z.enum()', () => {
+    it('maps string enum to z.enum()', () => {
       expect(jsonSchemaToZod({ enum: ['active', 'inactive'] }, empty)).toBe(
         "z.enum(['active', 'inactive'])",
+      );
+    });
+
+    it('maps numeric enum to z.union of z.literal()', () => {
+      expect(jsonSchemaToZod({ enum: [1, 2, 3] }, empty)).toBe(
+        'z.union([z.literal(1), z.literal(2), z.literal(3)])',
+      );
+    });
+
+    it('maps mixed enum to z.union of z.literal()', () => {
+      expect(jsonSchemaToZod({ enum: ['a', 1, true] }, empty)).toBe(
+        "z.union([z.literal('a'), z.literal(1), z.literal(true)])",
       );
     });
   });
@@ -149,6 +161,23 @@ describe('jsonSchemaToZod', () => {
       expect(result).toContain('z.object({');
       expect(result).toContain('id: z.string()');
       expect(result).toContain('count: z.number().optional()');
+    });
+  });
+
+  describe('objects with special-character keys', () => {
+    it('quotes property names with special characters', () => {
+      const schema = {
+        type: 'object',
+        properties: {
+          'x-custom': { type: 'string' },
+          '@type': { type: 'string' },
+          normalKey: { type: 'number' },
+        },
+      };
+      const result = jsonSchemaToZod(schema, empty);
+      expect(result).toContain("'x-custom': z.string()");
+      expect(result).toContain("'@type': z.string()");
+      expect(result).toContain('normalKey: z.number()');
     });
   });
 

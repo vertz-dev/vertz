@@ -103,6 +103,6 @@ function mapPrimitive(type: string): string {
 
 const VALID_IDENTIFIER = /^[a-zA-Z_$][a-zA-Z0-9_$]*$/;
 
-function isValidIdentifier(name: string): boolean {
+export function isValidIdentifier(name: string): boolean {
   return VALID_IDENTIFIER.test(name);
 }

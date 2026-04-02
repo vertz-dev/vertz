@@ -1,4 +1,5 @@
 import type { ParsedOperation, ParsedResource, ParsedSchema } from '../parser/types';
+import { isValidIdentifier } from './json-schema-to-ts';
 import { jsonSchemaToZod } from './json-schema-to-zod';
 import type { GeneratedFile } from './types';
 
@@ -96,7 +97,8 @@ function buildQueryZodSchema(
   const entries = op.queryParams.map((param) => {
     let zod = jsonSchemaToZod(param.schema, namedSchemas);
     if (!param.required) zod += '.optional()';
-    return `  ${param.name}: ${zod}`;
+    const safeKey = isValidIdentifier(param.name) ? param.name : `'${param.name.replace(/'/g, "\\'")}'`;
+    return `  ${safeKey}: ${zod}`;
   });
 
   return `z.object({\n${entries.join(',\n')},\n})`;

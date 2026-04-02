@@ -45,16 +45,24 @@ describe('generateClient', () => {
     expect(file.path).toBe('client.ts');
   });
 
-  it('defines HttpClient interface with all 5 HTTP methods', () => {
+  it('defines HttpClient interface with all 5 HTTP methods including query support', () => {
     const file = generateClient(makeResources(), {});
     expect(file.content).toContain('export interface HttpClient {');
     expect(file.content).toContain(
       'get<T>(path: string, options?: { query?: Record<string, unknown> }): Promise<T>;',
     );
-    expect(file.content).toContain('post<T>(path: string, body?: unknown): Promise<T>;');
-    expect(file.content).toContain('put<T>(path: string, body?: unknown): Promise<T>;');
-    expect(file.content).toContain('patch<T>(path: string, body?: unknown): Promise<T>;');
-    expect(file.content).toContain('delete<T>(path: string): Promise<T>;');
+    expect(file.content).toContain(
+      'post<T>(path: string, body?: unknown, options?: { query?: Record<string, unknown> }): Promise<T>;',
+    );
+    expect(file.content).toContain(
+      'put<T>(path: string, body?: unknown, options?: { query?: Record<string, unknown> }): Promise<T>;',
+    );
+    expect(file.content).toContain(
+      'patch<T>(path: string, body?: unknown, options?: { query?: Record<string, unknown> }): Promise<T>;',
+    );
+    expect(file.content).toContain(
+      'delete<T>(path: string, options?: { query?: Record<string, unknown> }): Promise<T>;',
+    );
   });
 
   it('defines ClientOptions interface', () => {

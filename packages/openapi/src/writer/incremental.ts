@@ -57,6 +57,10 @@ export async function writeIncremental(
         }
       }
     }
+    // Remove empty directories left behind
+    if (!dryRun) {
+      removeEmptyDirs(outputDir);
+    }
   }
 
   return result;
@@ -64,6 +68,21 @@ export async function writeIncremental(
 
 function sha256(content: string): string {
   return createHash('sha256').update(content).digest('hex');
+}
+
+function removeEmptyDirs(dir: string): void {
+  if (!existsSync(dir)) return;
+
+  for (const entry of readdirSync(dir)) {
+    const fullPath = join(dir, entry);
+    if (statSync(fullPath).isDirectory()) {
+      removeEmptyDirs(fullPath);
+      // After recursing, check if directory is now empty
+      if (readdirSync(fullPath).length === 0) {
+        rmSync(fullPath, { recursive: true });
+      }
+    }
+  }
 }
 
 function collectFiles(dir: string, baseDir: string): string[] {

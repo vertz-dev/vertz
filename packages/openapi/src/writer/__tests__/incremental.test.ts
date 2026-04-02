@@ -67,6 +67,20 @@ describe('writeIncremental', () => {
     expect(existsSync(join(tmpDir, 'keep.ts'))).toBe(true);
   });
 
+  it('removes empty directories after cleaning stale files', async () => {
+    mkdirSync(join(tmpDir, 'old-dir'), { recursive: true });
+    writeFileSync(join(tmpDir, 'old-dir/stale.ts'), 'old');
+    writeFileSync(join(tmpDir, 'keep.ts'), 'keep');
+
+    const files = [
+      { path: 'keep.ts', content: 'keep' },
+    ];
+
+    await writeIncremental(files, tmpDir, { clean: true });
+    expect(existsSync(join(tmpDir, 'old-dir'))).toBe(false);
+    expect(existsSync(join(tmpDir, 'keep.ts'))).toBe(true);
+  });
+
   it('does NOT remove stale files when clean: false (default)', async () => {
     mkdirSync(tmpDir, { recursive: true });
     writeFileSync(join(tmpDir, 'stale.ts'), 'old');

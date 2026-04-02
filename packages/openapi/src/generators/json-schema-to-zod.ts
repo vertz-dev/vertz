@@ -1,3 +1,5 @@
+import { isValidIdentifier } from './json-schema-to-ts';
+
 /**
  * Convert a JSON Schema object to a Zod expression string.
  */
@@ -13,10 +15,23 @@ export function jsonSchemaToZod(
 
   // Enum
   if (Array.isArray(schema.enum)) {
-    const values = (schema.enum as unknown[])
-      .map((v) => `'${String(v).replace(/'/g, "\\'")}'`)
+    const values = schema.enum as unknown[];
+    const allStrings = values.every((v) => typeof v === 'string');
+    if (allStrings) {
+      const items = values
+        .map((v) => `'${String(v).replace(/'/g, "\\'")}'`)
+        .join(', ');
+      return `z.enum([${items}])`;
+    }
+    // Non-string enums: use z.union of z.literal
+    const literals = values
+      .map((v) =>
+        typeof v === 'string'
+          ? `z.literal('${String(v).replace(/'/g, "\\'")}')`
+          : `z.literal(${String(v)})`,
+      )
       .join(', ');
-    return `z.enum([${values}])`;
+    return `z.union([${literals}])`;
   }
 
   const type = schema.type;
@@ -103,7 +118,8 @@ function zodObject(
   const entries = Object.entries(properties).map(([key, propSchema]) => {
     let zod = jsonSchemaToZod(propSchema, namedSchemas);
     if (!required.has(key)) zod += '.optional()';
-    return `  ${key}: ${zod}`;
+    const safeKey = isValidIdentifier(key) ? key : `'${key.replace(/'/g, "\\'")}'`;
+    return `  ${safeKey}: ${zod}`;
   });
 
   return `z.object({\n${entries.join(',\n')},\n})`;
