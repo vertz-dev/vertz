@@ -1,6 +1,7 @@
 import { execFileSync, spawn, type ChildProcess } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { createRequire } from 'node:module';
+import { resolve } from 'node:path';
 
 const require = createRequire(import.meta.url);
 
@@ -17,9 +18,10 @@ export interface RuntimeLaunchOptions {
 /**
  * Find the vtz binary. Search order:
  * 1. VERTZ_RUNTIME_BINARY env var (fail-fast if set but missing)
- * 2. @vertz/runtime npm package (getBinaryPath — single source of truth)
+ * 2. Monorepo local build (native/target/release/vtz)
+ * 3. @vertz/runtime npm package (getBinaryPath — single source of truth)
  */
-export function findRuntimeBinary(_projectRoot: string): string | null {
+export function findRuntimeBinary(projectRoot: string): string | null {
   // 1. Explicit env override — fail-fast if set but missing
   const envPath = process.env.VERTZ_RUNTIME_BINARY;
   if (envPath) {
@@ -32,7 +34,17 @@ export function findRuntimeBinary(_projectRoot: string): string | null {
     return envPath;
   }
 
-  // 2. npm-installed platform package (single source of truth)
+  // 2. Monorepo local build (for development within the vertz repo)
+  const monorepoRelease = resolve(projectRoot, 'native/target/release/vtz');
+  if (existsSync(monorepoRelease)) {
+    return monorepoRelease;
+  }
+  const monorepoDebug = resolve(projectRoot, 'native/target/debug/vtz');
+  if (existsSync(monorepoDebug)) {
+    return monorepoDebug;
+  }
+
+  // 3. npm-installed platform package (single source of truth)
   try {
     const { getBinaryPath } = require('@vertz/runtime') as {
       getBinaryPath: () => string;

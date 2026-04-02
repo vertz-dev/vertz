@@ -79,10 +79,18 @@ For each phase:
 ## Quality Gates (pre-push)
 
 Before pushing ANY code:
+
+### TypeScript (packages/)
 - `bun test` — tests pass
 - `bun run typecheck` — types clean
 - `bun run lint` — lint clean
 - Never push code that fails typecheck
+
+### Rust (native/)
+- `cargo test --all` — tests pass
+- `cargo clippy --all-targets --release -- -D warnings` — no warnings
+- `cargo fmt --all -- --check` — formatting clean
+- Never push code that fails clippy
 
 ## Parallel Work
 

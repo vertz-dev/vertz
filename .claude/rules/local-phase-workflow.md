@@ -42,6 +42,8 @@ Before a phase is considered "done" and the next phase starts, run the **full qu
 
 ```bash
 bun test && bun run typecheck && bun run lint
+# If native/ changed:
+cd native && cargo test --all && cargo clippy --all-targets --release -- -D warnings && cargo fmt --all -- --check
 ```
 
 This validates the **entire monorepo**, not just the changed package — because changes in one package can break dependents.
@@ -148,7 +150,7 @@ Standard post-merge process:
 |--------|-------|
 | GitHub PR per phase | Local commits + local review markdown |
 | `gh-as.sh` for every PR | Only for final PR to main |
-| GitHub CI per phase | Local quality gates (`bun test && bun run typecheck && bun run lint`) |
+| GitHub CI per phase | Local quality gates (TS: `bun test && bun run typecheck && bun run lint`, Rust: `cargo test --all && cargo clippy --all-targets --release -- -D warnings && cargo fmt --all -- --check`) |
 | Wait for GitHub API | Instant local operations |
 | Multiple branches per feature | One feature branch, phases as commit ranges |
 

@@ -1,0 +1,165 @@
+# vertz.lock v1 (custom format) — DO NOT EDIT
+# Run "vertz install" to regenerate
+
+@ampproject/remapping@^2.3.0:
+  version "2.3.0"
+  resolved "https://registry.npmjs.org/@ampproject/remapping/-/remapping-2.3.0.tgz"
+  integrity "sha512-30iZtAPgz+LTIYoeivqYo853f02jBYSd5uGnGpkFV0M3xOt9aN73erkgYAmZU43x4VfqcnLxW9Kpg3R5LC4YYw=="
+  dependencies:
+    "@jridgewell/gen-mapping" "^0.3.5"
+    "@jridgewell/trace-mapping" "^0.3.24"
+
+@capsizecss/unpack@^4.0.0:
+  version "4.0.0"
+  resolved "https://registry.npmjs.org/@capsizecss/unpack/-/unpack-4.0.0.tgz"
+  integrity "sha512-VERIM64vtTP1C4mxQ5thVT9fK0apjPFobqybMtA1UdUujWka24ERHbRHFGmpbbhp73MhV+KSsHQH9C6uOTdEQA=="
+  dependencies:
+    "fontkitten" "^1.0.0"
+
+@img/colour@^1.0.0:
+  version "1.1.0"
+  resolved "https://registry.npmjs.org/@img/colour/-/colour-1.1.0.tgz"
+  integrity "sha512-Td76q7j57o/tLVdgS746cYARfSyxk8iEfRxewL9h4OMzYhbW4TAcppl0mT4eyqXddh6L/jwoM75mo7ixa/pCeQ=="
+
+@jridgewell/gen-mapping@^0.3.5:
+  version "0.3.13"
+  resolved "https://registry.npmjs.org/@jridgewell/gen-mapping/-/gen-mapping-0.3.13.tgz"
+  integrity "sha512-2kkt/7niJ6MgEPxF0bYdQ6etZaA+fQvDcLKckhy1yIQOzaoKjBBjSj63/aLVjYE3qhRt5dvM+uUyfCg6UKCBbA=="
+  dependencies:
+    "@jridgewell/sourcemap-codec" "^1.5.0"
+    "@jridgewell/trace-mapping" "^0.3.24"
+
+@jridgewell/resolve-uri@^3.1.0:
+  version "3.1.2"
+  resolved "https://registry.npmjs.org/@jridgewell/resolve-uri/-/resolve-uri-3.1.2.tgz"
+  integrity "sha512-bRISgCIjP20/tbWSPWMEi54QVPRZExkuD9lJL+UIxUKtwVJA8wW1Trb1jMs1RFXo1CBTNZ/5hpC9QvmKWdopKw=="
+
+@jridgewell/sourcemap-codec@^1.4.14:
+  version "1.5.5"
+  resolved "https://registry.npmjs.org/@jridgewell/sourcemap-codec/-/sourcemap-codec-1.5.5.tgz"
+  integrity "sha512-cYQ9310grqxueWbl+WuIUIaiUaDcj7WOq5fVhEljNVgRfOUhY9fy2zTvfoqWsnebh8Sl70VScFbICvJnLKB0Og=="
+
+@jridgewell/sourcemap-codec@^1.5.0:
+  version "1.5.5"
+  resolved "https://registry.npmjs.org/@jridgewell/sourcemap-codec/-/sourcemap-codec-1.5.5.tgz"
+  integrity "sha512-cYQ9310grqxueWbl+WuIUIaiUaDcj7WOq5fVhEljNVgRfOUhY9fy2zTvfoqWsnebh8Sl70VScFbICvJnLKB0Og=="
+
+@jridgewell/sourcemap-codec@^1.5.5:
+  version "1.5.5"
+  resolved "https://registry.npmjs.org/@jridgewell/sourcemap-codec/-/sourcemap-codec-1.5.5.tgz"
+  integrity "sha512-cYQ9310grqxueWbl+WuIUIaiUaDcj7WOq5fVhEljNVgRfOUhY9fy2zTvfoqWsnebh8Sl70VScFbICvJnLKB0Og=="
+
+@jridgewell/trace-mapping@^0.3.24:
+  version "0.3.31"
+  resolved "https://registry.npmjs.org/@jridgewell/trace-mapping/-/trace-mapping-0.3.31.tgz"
+  integrity "sha512-zzNR+SdQSDJzc8joaeP8QQoCQr8NuYx2dIIytl1QeBEZHJ9uW6hebsrYgbz8hJwUQao3TWCMtmfV8Nu1twOLAw=="
+  dependencies:
+    "@jridgewell/resolve-uri" "^3.1.0"
+    "@jridgewell/sourcemap-codec" "^1.4.14"
+
+@jridgewell/trace-mapping@^0.3.31:
+  version "0.3.31"
+  resolved "https://registry.npmjs.org/@jridgewell/trace-mapping/-/trace-mapping-0.3.31.tgz"
+  integrity "sha512-zzNR+SdQSDJzc8joaeP8QQoCQr8NuYx2dIIytl1QeBEZHJ9uW6hebsrYgbz8hJwUQao3TWCMtmfV8Nu1twOLAw=="
+  dependencies:
+    "@jridgewell/resolve-uri" "^3.1.0"
+    "@jridgewell/sourcemap-codec" "^1.4.14"
+
+@vertz/core@^0.2.41:
+  version "0.2.44"
+  resolved "https://registry.npmjs.org/@vertz/core/-/core-0.2.44.tgz"
+  integrity "sha512-S9ttn8p46XGyK1UmL+zhHqb9a4bJPGxdmYb4twmz7YDoOUZHFez24D9L9EgqOWxWIRzU9nnEyfnSGAI7pSU1Aw=="
+  dependencies:
+    "@vertz/schema" "^0.2.43"
+
+@vertz/errors@^0.2.43:
+  version "0.2.44"
+  resolved "https://registry.npmjs.org/@vertz/errors/-/errors-0.2.44.tgz"
+  integrity "sha512-tNpp0VRy95mIsOdO5xzj0X2V7bUwjLcNv/+tLHRU3Zy0NQhJ3bcCC3qlRmwmt8nGDZcM+5kD56N7PQdZ8lsEgw=="
+
+@vertz/fetch@^0.2.41:
+  version "0.2.44"
+  resolved "https://registry.npmjs.org/@vertz/fetch/-/fetch-0.2.44.tgz"
+  integrity "sha512-AlO0br0T1gmnH74cX7GHcFnr/bmVVEAIq5QQDhwKXXKVS+vokiz7hq6DyXJwiUBo+QBjYJvHYyzDKOx8tQ8QcQ=="
+  dependencies:
+    "@vertz/errors" "^0.2.43"
+
+@vertz/fetch@^0.2.43:
+  version "0.2.44"
+  resolved "https://registry.npmjs.org/@vertz/fetch/-/fetch-0.2.44.tgz"
+  integrity "sha512-AlO0br0T1gmnH74cX7GHcFnr/bmVVEAIq5QQDhwKXXKVS+vokiz7hq6DyXJwiUBo+QBjYJvHYyzDKOx8tQ8QcQ=="
+  dependencies:
+    "@vertz/errors" "^0.2.43"
+
+@vertz/schema@^0.2.43:
+  version "0.2.44"
+  resolved "https://registry.npmjs.org/@vertz/schema/-/schema-0.2.44.tgz"
+  integrity "sha512-ftlRyhAIyyk1mUixq2kXGCMawpdz9goQDrFA+AZWXmjOxwBABnXcyf3DyJG6zQyp2Glh4zAAzBvmHifk8tODGg=="
+  dependencies:
+    "@vertz/errors" "^0.2.43"
+
+@vertz/ui-server@0.2.43:
+  version "0.2.43"
+  resolved "https://registry.npmjs.org/@vertz/ui-server/-/ui-server-0.2.43.tgz"
+  integrity "sha512-5UoOMVlH39HGXho7raGmQ/OrVl5bf+2eKeXI6ViP4N/DsOxo1wQh6/e5+njm/poV7oLqw9e9p4uSIQzF321KSQ=="
+  dependencies:
+    "@ampproject/remapping" "^2.3.0"
+    "@capsizecss/unpack" "^4.0.0"
+    "@jridgewell/trace-mapping" "^0.3.31"
+    "@vertz/core" "^0.2.41"
+    "@vertz/ui" "^0.2.41"
+    "magic-string" "^0.30.0"
+    "sharp" "^0.34.5"
+
+@vertz/ui@0.2.43:
+  version "0.2.44"
+  resolved "https://registry.npmjs.org/@vertz/ui/-/ui-0.2.44.tgz"
+  integrity "sha512-1cpMFHDpgxa0i+SEk1D+0aNzGszojnBOSveBv49WipxVvgro1F2qac/b4K7rdqBX0nqc17VkgvgduXlt9BlBmQ=="
+  dependencies:
+    "@vertz/fetch" "^0.2.43"
+
+@vertz/ui@^0.2.41:
+  version "0.2.43"
+  resolved "https://registry.npmjs.org/@vertz/ui/-/ui-0.2.43.tgz"
+  integrity "sha512-aOriJKpvMDL3H0M7UbwLzsxDgIRECftL2jSj4mBR4ysxQfRJT5h0QcU1Ulir1QZtGIK0FjjuI7TxUAfST4XNHg=="
+  dependencies:
+    "@vertz/fetch" "^0.2.41"
+
+detect-libc@^2.1.2:
+  version "2.1.2"
+  resolved "https://registry.npmjs.org/detect-libc/-/detect-libc-2.1.2.tgz"
+  integrity "sha512-Btj2BOOO83o3WyH59e8MgXsxEQVcarkUOpEYrubB0urwnN10yQ364rsiByU11nZlqWYZm05i/of7io4mzihBtQ=="
+
+fontkitten@^1.0.0:
+  version "1.0.3"
+  resolved "https://registry.npmjs.org/fontkitten/-/fontkitten-1.0.3.tgz"
+  integrity "sha512-Wp1zXWPVUPBmfoa3Cqc9ctaKuzKAV6uLstRqlR56kSjplf5uAce+qeyYym7F+PHbGTk+tCEdkCW6RD7DX/gBZw=="
+  dependencies:
+    "tiny-inflate" "^1.0.3"
+
+magic-string@^0.30.0:
+  version "0.30.21"
+  resolved "https://registry.npmjs.org/magic-string/-/magic-string-0.30.21.tgz"
+  integrity "sha512-vd2F4YUyEXKGcLHoq+TEyCjxueSeHnFxyyjNp80yg0XV4vUhnDer/lvvlqM/arB5bXQN5K2/3oinyCRyx8T2CQ=="
+  dependencies:
+    "@jridgewell/sourcemap-codec" "^1.5.5"
+
+semver@^7.7.3:
+  version "7.7.4"
+  resolved "https://registry.npmjs.org/semver/-/semver-7.7.4.tgz"
+  integrity "sha512-vFKC2IEtQnVhpT78h1Yp8wzwrf8CM+MzKMHGJZfBtzhZNycRFnXsHk6E5TxIkkMsgNS7mdX3AGB7x2QM2di4lA=="
+
+sharp@^0.34.5:
+  version "0.34.5"
+  resolved "https://registry.npmjs.org/sharp/-/sharp-0.34.5.tgz"
+  integrity "sha512-Ou9I5Ft9WNcCbXrU9cMgPBcCK8LiwLqcbywW3t4oDV37n1pzpuNLsYiAV8eODnjbtQlSDwZ2cUEeQz4E54Hltg=="
+  dependencies:
+    "@img/colour" "^1.0.0"
+    "detect-libc" "^2.1.2"
+    "semver" "^7.7.3"
+
+tiny-inflate@^1.0.3:
+  version "1.0.3"
+  resolved "https://registry.npmjs.org/tiny-inflate/-/tiny-inflate-1.0.3.tgz"
+  integrity "sha512-pkY1fj1cKHb2seWDy0B16HeWyczlJA9/WW3u3c4z/NiWDsO3DOU5D7nhTLE9CF0yXv/QZFY7sEJmj24dK+Rrqw=="
+

@@ -1,0 +1,13 @@
+[workspace]
+resolver = "2"
+members = ["vertz-compiler", "vertz-compiler-core", "vtz"]
+
+[profile.release]
+lto = true
+strip = true
+
+# codegen-units = 1 scoped to vtz only (not workspace-wide).
+# Workspace-wide would force single-threaded codegen for deno_core's
+# massive dependency tree, doubling CI build times for marginal gain.
+[profile.release.package.vtz]
+codegen-units = 1

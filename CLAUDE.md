@@ -4,6 +4,7 @@
 
 ## Stack
 
+### TypeScript (packages/)
 - Runtime: Bun
 - Language: TypeScript (strict mode)
 - Linter: oxlint
@@ -11,7 +12,19 @@
 - Test runner: `bun test`
 - Monorepo: Bun workspaces under `packages/`
 
+### Rust (native/)
+- Language: Rust (2021 edition)
+- Linter: clippy
+- Formatter: rustfmt
+- Test runner: `cargo test`
+- Async runtime: Tokio
+- JS engine: V8 via deno_core
+- HTTP server: axum
+- Cargo workspace under `native/`
+
 ## Development
+
+### TypeScript
 
 ```bash
 bun run build        # Build all packages
@@ -22,6 +35,23 @@ bun run lint:fix     # Auto-fix lint issues
 bun run format       # oxfmt format check
 bun run format:fix   # Auto-fix formatting
 ```
+
+### Rust
+
+```bash
+cd native
+cargo test --all           # Run all tests
+cargo clippy --all-targets --release -- -D warnings  # Lint
+cargo fmt --all -- --check # Format check
+cargo fmt --all            # Auto-format
+cargo build --release      # Release build
+```
+
+## Crate Structure
+
+- **vtz** (`native/vtz/`) — Full runtime: V8 dev server, test runner, package manager
+- **vertz-compiler-core** (`native/vertz-compiler-core/`) — Rust compilation library (transforms, JSX, CSS)
+- **vertz-compiler** (`native/vertz-compiler/`) — NAPI bindings for the framework's Bun plugin
 
 ## Git
 
@@ -35,4 +65,19 @@ bun run format:fix   # Auto-fix formatting
 - No `@ts-ignore` — use `@ts-expect-error` with a description.
 - No `as any` — maintain full type safety.
 - Single quotes, semicolons, trailing commas, 2-space indent, 100 char line width.
+- No `unsafe` without a `// SAFETY:` comment explaining the invariant.
+- No `#[allow(clippy::*)]` without a comment explaining why.
+- Prefer `thiserror` for Rust error types.
 - See `CONTRIBUTING.md` and `.claude/rules/` for detailed guidelines.
+
+## Quality Gates (must all pass before push)
+
+### TypeScript
+```bash
+bun test && bun run typecheck && bun run lint
+```
+
+### Rust
+```bash
+cd native && cargo test --all && cargo clippy --all-targets --release -- -D warnings && cargo fmt --all -- --check
+```

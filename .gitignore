@@ -74,6 +74,10 @@ data/
 **/:memory:
 .vertz/
 
+# Rust
+native/target/
+*.node
+
 # Claude Code
 .claude/worktrees/
 .mcp.json

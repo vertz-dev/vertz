@@ -10,8 +10,92 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  # ---------------------------------------------------------------------------
+  # Build native runtime binaries for all supported platforms.
+  # Artifacts are downloaded by the release job for npm publishing.
+  # ---------------------------------------------------------------------------
+  build-binaries:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: aarch64-apple-darwin
+            os: macos-14
+            pkg: runtime-darwin-arm64
+            expected_arch: arm64
+          - target: x86_64-apple-darwin
+            os: macos-14
+            pkg: runtime-darwin-x64
+            expected_arch: x86_64
+          - target: x86_64-unknown-linux-gnu
+            os: ubuntu-24.04
+            pkg: runtime-linux-x64
+            expected_arch: x86_64
+          - target: aarch64-unknown-linux-gnu
+            os: ubuntu-24.04-arm
+            pkg: runtime-linux-arm64
+            expected_arch: aarch64
+
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Determine version
+        id: version
+        run: |
+          if [ -f version.txt ]; then
+            echo "version=$(cat version.txt)" >> "$GITHUB_OUTPUT"
+          else
+            echo "version=0.0.1" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: native
+          key: v${{ steps.version.outputs.version }}
+
+      - name: Build runtime binary
+        working-directory: native
+        env:
+          VERTZ_VERSION: ${{ steps.version.outputs.version }}
+        run: cargo build --release --target ${{ matrix.target }}
+
+      - name: Copy binary to package directory
+        run: |
+          cp native/target/${{ matrix.target }}/release/vtz packages/${{ matrix.pkg }}/vtz
+          chmod +x packages/${{ matrix.pkg }}/vtz
+
+      - name: Verify binary version matches version.txt
+        run: |
+          EXPECTED="vtz ${{ steps.version.outputs.version }}"
+          if [ "$(uname -m)" = "${{ matrix.expected_arch }}" ]; then
+            ACTUAL=$(packages/${{ matrix.pkg }}/vtz --version 2>&1)
+            echo "Expected: $EXPECTED"
+            echo "Actual:   $ACTUAL"
+            if [ "$ACTUAL" != "$EXPECTED" ]; then
+              echo "::error::Binary version mismatch! Expected '$EXPECTED' but got '$ACTUAL'"
+              exit 1
+            fi
+          else
+            echo "Cross-compiled binary, skipping runtime version check"
+          fi
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.pkg }}
+          path: packages/${{ matrix.pkg }}/vtz
+          retention-days: 1
+
+  # ---------------------------------------------------------------------------
+  # Release — builds TS packages, downloads native binaries, publishes all.
+  # ---------------------------------------------------------------------------
   release:
     name: Release
+    needs: build-binaries
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -27,7 +111,48 @@ jobs:
       - name: Install dependencies
         run: bun install --frozen-lockfile
 
-      - name: Build
+      - name: Download darwin-arm64 binary
+        uses: actions/download-artifact@v4
+        with:
+          name: runtime-darwin-arm64
+          path: packages/runtime-darwin-arm64/
+        continue-on-error: true
+
+      - name: Download darwin-x64 binary
+        uses: actions/download-artifact@v4
+        with:
+          name: runtime-darwin-x64
+          path: packages/runtime-darwin-x64/
+        continue-on-error: true
+
+      - name: Download linux-x64 binary
+        uses: actions/download-artifact@v4
+        with:
+          name: runtime-linux-x64
+          path: packages/runtime-linux-x64/
+        continue-on-error: true
+
+      - name: Download linux-arm64 binary
+        uses: actions/download-artifact@v4
+        with:
+          name: runtime-linux-arm64
+          path: packages/runtime-linux-arm64/
+        continue-on-error: true
+
+      - name: Make binaries executable
+        run: |
+          for dir in packages/runtime-*/; do
+            if [ -f "${dir}vtz" ]; then
+              chmod +x "${dir}vtz"
+              echo "Binary found: ${dir}vtz"
+            fi
+          done
+
+      - name: Build runtime selector package
+        working-directory: packages/runtime
+        run: bun build index.ts --outdir . --target node
+
+      - name: Build TS packages
         run: bun run build --filter='!@vertz/landing' --filter='!@vertz/component-docs' --filter='!@vertz/site' --filter='!@vertz/og' --filter='!@vertz/mint-docs' --filter='!@vertz-benchmarks/*' --filter='!contacts-api-example' --filter='!create-vertz'
 
       - name: Create Release Pull Request or Publish
@@ -35,9 +160,45 @@ jobs:
         uses: changesets/action@v1
         with:
           publish: bash scripts/publish.sh
+          version: bash scripts/version.sh
+          title: "chore: version packages"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
           NPM_CONFIG_TOKEN: ${{ secrets.NPM_TOKEN }}
           NPM_CONFIG_PROVENANCE: true
           LEFTHOOK: '0'
+
+      - name: Upload binaries to GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          VERSION=$(cat version.txt)
+          TAG="v${VERSION}"
+          ASSETS=()
+          for dir in packages/runtime-*/; do
+            if [ -f "${dir}vtz" ]; then
+              pkg=$(basename "$dir")
+              platform="${pkg#runtime-}"
+              cp "${dir}vtz" "vtz-${platform}"
+              ASSETS+=("vtz-${platform}")
+            fi
+          done
+
+          if [ ${#ASSETS[@]} -eq 0 ]; then
+            echo "No binaries found, skipping release"
+            exit 0
+          fi
+
+          if gh release view "$TAG" &>/dev/null; then
+            echo "Release $TAG exists, replacing binary assets..."
+            for asset in "${ASSETS[@]}"; do
+              gh release delete-asset "$TAG" "$asset" --yes 2>/dev/null || true
+            done
+            gh release upload "$TAG" "${ASSETS[@]}"
+          else
+            gh release create "$TAG" \
+              --title "$TAG" \
+              --generate-notes \
+              "${ASSETS[@]}"
+          fi
