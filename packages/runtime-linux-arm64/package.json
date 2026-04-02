@@ -3,6 +3,10 @@
   "version": "0.0.3",
   "private": true,
   "description": "Vertz runtime binary for Linux arm64",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/vertz-dev/vertz"
+  },
   "files": [
     "vtz"
   ],
@@ -15,9 +19,5 @@
   "exports": {
     "./package.json": "./package.json"
   },
-  "preferUnplugged": true,
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/vertz-dev/vertz"
-  }
+  "preferUnplugged": true
 }
