@@ -1,8 +1,21 @@
 import type { HttpMethod } from './types';
 
+export interface OperationContext {
+  /** Raw operationId from the spec */
+  operationId: string;
+  /** HTTP method (GET, POST, etc.) */
+  method: HttpMethod;
+  /** Route path (e.g. /v1/tasks/{id}) */
+  path: string;
+  /** Tags from the operation */
+  tags: string[];
+  /** Whether the operation has a request body */
+  hasBody: boolean;
+}
+
 export interface NormalizerConfig {
   overrides?: Record<string, string>;
-  transform?: (cleaned: string, original: string) => string;
+  transform?: (cleaned: string, context: OperationContext) => string;
 }
 
 const HTTP_METHOD_WORDS = new Set(['get', 'post', 'put', 'delete', 'patch']);
@@ -113,6 +126,7 @@ export function normalizeOperationId(
   method: HttpMethod,
   path: string,
   config?: NormalizerConfig,
+  context?: OperationContext,
 ): string {
   if (config?.overrides?.[operationId]) {
     return config.overrides[operationId];
@@ -121,7 +135,14 @@ export function normalizeOperationId(
   const cleaned = autoCleanOperationId(operationId, path);
 
   if (config?.transform) {
-    return config.transform(cleaned, operationId);
+    const ctx: OperationContext = context ?? {
+      operationId,
+      method,
+      path,
+      tags: [],
+      hasBody: false,
+    };
+    return config.transform(cleaned, ctx);
   }
 
   return detectCrudMethod(method, path) ?? cleaned;

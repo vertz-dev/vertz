@@ -24,7 +24,19 @@ export async function generateFromOpenAPI(
   // 3. Apply operationIds normalization if configured
   if (config.operationIds) {
     for (const op of parsed.operations) {
-      op.methodName = normalizeOperationId(op.operationId, op.method, op.path, config.operationIds);
+      op.methodName = normalizeOperationId(
+        op.operationId,
+        op.method,
+        op.path,
+        config.operationIds,
+        {
+          operationId: op.operationId,
+          method: op.method,
+          path: op.path,
+          tags: op.tags,
+          hasBody: op.requestBody !== undefined,
+        },
+      );
     }
   }
 

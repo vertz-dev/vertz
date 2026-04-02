@@ -176,7 +176,7 @@ describe('generateFromOpenAPI', () => {
     expect(content).toContain('fetchAll');
   });
 
-  it('applies operationIds transform', async () => {
+  it('applies operationIds transform with cleaned name', async () => {
     const specPath = writeSpec('spec.json', minimalSpec);
     const outputDir = join(tmpDir, 'output');
 
@@ -193,6 +193,29 @@ describe('generateFromOpenAPI', () => {
 
     const content = readFileSync(join(outputDir, 'resources/tasks.ts'), 'utf-8');
     expect(content).toContain('myList');
+  });
+
+  it('transform receives full operation context (method, path, tags, hasBody)', async () => {
+    const specPath = writeSpec('spec.json', minimalSpec);
+    const outputDir = join(tmpDir, 'output');
+    const seen: Array<{ method: string; path: string; hasBody: boolean }> = [];
+
+    await generateFromOpenAPI({
+      source: specPath,
+      output: outputDir,
+      baseURL: '',
+      groupBy: 'tag',
+      schemas: false,
+      operationIds: {
+        transform: (cleaned, ctx) => {
+          seen.push({ method: ctx.method, path: ctx.path, hasBody: ctx.hasBody });
+          return cleaned;
+        },
+      },
+    });
+
+    expect(seen).toContainEqual({ method: 'GET', path: '/tasks', hasBody: false });
+    expect(seen).toContainEqual({ method: 'POST', path: '/tasks', hasBody: true });
   });
 
   it('returns WriteResult with correct counts', async () => {

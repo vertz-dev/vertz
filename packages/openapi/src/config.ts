@@ -1,5 +1,6 @@
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
+import type { OperationContext } from './parser/operation-id-normalizer';
 
 export interface OpenAPIConfig {
   source: string;
@@ -9,7 +10,7 @@ export interface OpenAPIConfig {
   schemas: boolean;
   operationIds?: {
     overrides?: Record<string, string>;
-    transform?: (cleaned: string, original: string) => string;
+    transform?: (cleaned: string, context: OperationContext) => string;
   };
 }
 

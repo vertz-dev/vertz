@@ -22,7 +22,7 @@ export type { OpenAPIConfig } from './config';
 export type { GroupByStrategy } from './adapter/resource-grouper';
 export type { WriteResult } from './writer/incremental';
 export type { GeneratedFile, GenerateOptions } from './generators/types';
-export type { NormalizerConfig } from './parser/operation-id-normalizer';
+export type { NormalizerConfig, OperationContext } from './parser/operation-id-normalizer';
 export type { ResolveOptions } from './parser/ref-resolver';
 export type {
   HttpMethod,
