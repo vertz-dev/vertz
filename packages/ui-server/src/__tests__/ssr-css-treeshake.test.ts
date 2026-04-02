@@ -236,6 +236,7 @@ describe('SSR CSS tree-shaking (#1912)', () => {
         // No injectCSS during render — CSS was already injected at import time
         // by the native compiler's preamble. Module does NOT export getInjectedCSS.
         const el = document.createElement('div');
+        el.className = 'native-compiled';
         el.textContent = 'Native Compiled Page';
         return el;
       },

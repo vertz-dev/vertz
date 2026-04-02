@@ -1211,6 +1211,7 @@ describe('Feature: Import-time CSS collection (#2196)', () => {
           // No injectCSS during render — CSS was already injected at import time.
           // Module does NOT export getInjectedCSS (the real-world case).
           const el = document.createElement('div');
+          el.className = 'single-pass-native';
           el.textContent = 'Native CSS Page';
           return el;
         },
