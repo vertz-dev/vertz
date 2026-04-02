@@ -8,8 +8,12 @@
     "url": "https://github.com/vertz-dev/vertz.git",
     "directory": "packages/openapi"
   },
+  "bin": {
+    "@vertz/openapi": "bin/openapi.ts"
+  },
   "files": [
-    "dist"
+    "dist",
+    "bin"
   ],
   "type": "module",
   "sideEffects": false,
@@ -19,6 +23,10 @@
     ".": {
       "import": "./dist/index.js",
       "types": "./dist/index.d.ts"
+    },
+    "./adapters": {
+      "import": "./dist/adapters/index.js",
+      "types": "./dist/adapters/index.d.ts"
     }
   },
   "publishConfig": {
@@ -30,6 +38,9 @@
     "test": "bun test",
     "test:watch": "bun test --watch",
     "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "yaml": "^2.8.3"
   },
   "devDependencies": {
     "bun-types": "^1.3.10",
