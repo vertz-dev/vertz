@@ -9,7 +9,7 @@
  * components that cannot be AOT-compiled.
  */
 
-import type { FontFallbackMetrics } from '@vertz/ui';
+import { type FontFallbackMetrics, getInjectedCSS } from '@vertz/ui';
 import type { SSRAuth } from '@vertz/ui/internals';
 import type { ExtractedQuery } from './compiler/prefetch-manifest';
 import { filterCSSByHTML } from './css-filter';
@@ -631,11 +631,15 @@ function collectCSSFromModule(
     // Use directly — zero runtime filtering overhead.
     componentCss = routeCss.filter((s) => !alreadyIncluded.has(s));
   } else {
-    // Fallback path: use render-scoped tracker or global getInjectedCSS()
+    // Fallback path: use render-scoped tracker or global getInjectedCSS().
+    // Fall back to module-exported getInjectedCSS (Vite SSR bundles), then to
+    // the direct @vertz/ui import (Bun dev server where module instances are shared).
     const ssrCtx = ssrStorage.getStore();
     const tracker = ssrCtx?.cssTracker;
     const useTracker = tracker && tracker.size > 0;
-    const rawComponentCss = useTracker ? Array.from(tracker) : (module.getInjectedCSS?.() ?? []);
+    const rawComponentCss = useTracker
+      ? Array.from(tracker)
+      : (module.getInjectedCSS?.() ?? getInjectedCSS());
     componentCss = rawComponentCss.filter((s) => !alreadyIncluded.has(s));
 
     // When falling back to global CSS (no per-request tracker), filter by HTML

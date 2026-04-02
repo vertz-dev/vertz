@@ -9,7 +9,7 @@
  * context's queryCache, and the app renders once with all available data.
  */
 
-import type { FontFallbackMetrics } from '@vertz/ui';
+import { type FontFallbackMetrics, getInjectedCSS } from '@vertz/ui';
 import type { SSRAuth } from '@vertz/ui/internals';
 import type { ExtractedQuery } from './compiler/prefetch-manifest';
 import { filterCSSByHTML } from './css-filter';
@@ -852,12 +852,16 @@ function collectCSS(themeCss: string, module: SSRModule, renderedHtml: string): 
   }
 
   // Prefer render-scoped CSS tracker when it captured CSS during this render;
-  // fall back to global getInjectedCSS() when the tracker is empty (e.g.,
-  // styles were eagerly created at import time via buildComponents()).
+  // fall back to module-exported getInjectedCSS (Vite SSR bundles), then to
+  // the direct @vertz/ui import (Bun dev server where module instances are shared).
   const ssrCtx = ssrStorage.getStore();
   const tracker = ssrCtx?.cssTracker;
   const useTracker = tracker && tracker.size > 0;
-  const rawComponentCss = useTracker ? Array.from(tracker) : (module.getInjectedCSS?.() ?? []);
+  // Fall back to module-exported getInjectedCSS (Vite SSR bundles), then to
+  // the direct @vertz/ui import (Bun dev server where module instances are shared).
+  const rawComponentCss = useTracker
+    ? Array.from(tracker)
+    : (module.getInjectedCSS?.() ?? getInjectedCSS());
   let componentCss = rawComponentCss.filter((s) => !alreadyIncluded.has(s));
 
   // When falling back to global CSS (no per-request tracker), filter by HTML

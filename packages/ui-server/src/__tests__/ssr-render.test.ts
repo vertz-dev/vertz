@@ -1,9 +1,10 @@
-import { describe, expect, it, spyOn } from 'bun:test';
+import { afterEach, describe, expect, it, spyOn } from 'bun:test';
 import {
   createRouter,
   defineRoutes,
   defineTheme,
   Outlet,
+  resetInjectedStyles,
   RouterContext,
   RouterView,
 } from '@vertz/ui';
@@ -23,6 +24,10 @@ function ok<T>(data: T) {
 // Install DOM shim for tests that create routers outside SSR context.
 // In production, ensureDomShim() runs at startup; tests need it too.
 installDomShim();
+
+afterEach(() => {
+  resetInjectedStyles();
+});
 
 function createMockAuthSdk(): AuthSdk {
   const noop = Object.assign(

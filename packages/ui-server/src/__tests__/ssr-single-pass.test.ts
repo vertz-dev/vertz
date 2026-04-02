@@ -3,8 +3,15 @@
  *
  * Tests for ssrRenderSinglePass — discovery-only (captures queries) → prefetch → single render.
  */
-import { describe, expect, it, spyOn } from 'bun:test';
-import { createRouter, defineRoutes, query, RouterView } from '@vertz/ui';
+import { afterEach, describe, expect, it, spyOn } from 'bun:test';
+import {
+  createRouter,
+  defineRoutes,
+  injectCSS,
+  query,
+  resetInjectedStyles,
+  RouterView,
+} from '@vertz/ui';
 import type { AuthSdk } from '@vertz/ui/auth';
 import { AuthProvider } from '@vertz/ui/auth';
 import { ProtectedRoute } from '@vertz/ui-auth';
@@ -14,6 +21,10 @@ import type { SSRModule } from '../ssr-shared';
 import { ssrRenderProgressive, ssrRenderSinglePass } from '../ssr-single-pass';
 
 installDomShim();
+
+afterEach(() => {
+  resetInjectedStyles();
+});
 
 // ─── Test Fixtures ──────────────────────────────────────────────
 
@@ -1182,6 +1193,34 @@ describe('Feature: Theme compile error handling', () => {
         expect.any(Error),
       );
       spy.mockRestore();
+    });
+  });
+});
+
+// ─── Import-time CSS without module.getInjectedCSS (#2196) ────────
+
+describe('Feature: Import-time CSS collection (#2196)', () => {
+  describe('Given CSS injected at import time by native compiler preamble', () => {
+    it('Then ssrRenderSinglePass collects it without module.getInjectedCSS', async () => {
+      // Simulate native compiler's __injectCSS() running at module top level
+      const importTimeCss = '.single-pass-native { display: flex; }';
+      injectCSS(importTimeCss);
+
+      const module: SSRModule = {
+        default: () => {
+          // No injectCSS during render — CSS was already injected at import time.
+          // Module does NOT export getInjectedCSS (the real-world case).
+          const el = document.createElement('div');
+          el.className = 'single-pass-native';
+          el.textContent = 'Native CSS Page';
+          return el;
+        },
+      };
+
+      const result = await ssrRenderSinglePass(module, '/native-css');
+
+      expect(result.html).toContain('Native CSS Page');
+      expect(result.css).toContain(importTimeCss);
     });
   });
 });
