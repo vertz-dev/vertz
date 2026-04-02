@@ -4,6 +4,7 @@ import { Footer } from '../components/footer';
 import { Nav } from '../components/nav';
 import { OpenAPIComparison } from '../components/openapi-comparison';
 import { OpenAPIFeatures } from '../components/openapi-features';
+import { OpenAPIGetStarted } from '../components/openapi-get-started';
 import { OpenAPIWhy } from '../components/openapi-why';
 
 // ── Hero styles ──────────────────────────────────────────
@@ -281,6 +282,7 @@ export function OpenAPIPage() {
         <OpenAPIWhy />
         <OpenAPIComparison />
         <Divider />
+        <OpenAPIGetStarted />
       </main>
       <Footer />
     </div>
