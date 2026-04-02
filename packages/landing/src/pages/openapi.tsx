@@ -2,6 +2,7 @@ import { css } from '@vertz/ui';
 import { Divider } from '../components/divider';
 import { Footer } from '../components/footer';
 import { Nav } from '../components/nav';
+import { OpenAPIFeatures } from '../components/openapi-features';
 
 // ── Hero styles ──────────────────────────────────────────
 
@@ -272,6 +273,8 @@ export function OpenAPIPage() {
       <OpenAPIGlow />
       <main style={{ position: 'relative', zIndex: '2', overflowX: 'hidden' }}>
         <OpenAPIHero />
+        <Divider />
+        <OpenAPIFeatures />
         <Divider />
       </main>
       <Footer />
