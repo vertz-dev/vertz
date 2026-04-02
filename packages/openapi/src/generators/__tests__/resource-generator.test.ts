@@ -355,6 +355,102 @@ describe('generateResources', () => {
     expect(tasksFile!.content).toContain('check: (): Promise<CheckTaskResponse>');
   });
 
+  it('sanitizes hyphenated type names in imports and return types', () => {
+    const resources: ParsedResource[] = [
+      makeResource({
+        operations: [
+          {
+            operationId: 'createBrand',
+            methodName: 'create',
+            method: 'POST',
+            path: '/brands',
+            pathParams: [],
+            queryParams: [],
+            requestBody: {
+              name: 'Brand-Input',
+              jsonSchema: { type: 'object', properties: { name: { type: 'string' } } },
+            },
+            response: {
+              name: 'BrandModel-Output',
+              jsonSchema: { type: 'object', properties: { id: { type: 'number' } } },
+            },
+            responseStatus: 200,
+            tags: ['tasks'],
+          },
+        ],
+      }),
+    ];
+
+    const files = generateResources(resources);
+    const tasksFile = files.find((f) => f.path === 'resources/tasks.ts');
+    expect(tasksFile!.content).toContain('BrandModelOutput');
+    expect(tasksFile!.content).toContain('BrandInput');
+    expect(tasksFile!.content).not.toContain('BrandModel-Output');
+    expect(tasksFile!.content).not.toContain('Brand-Input');
+  });
+
+  it('deduplicates method names by appending numeric suffix', () => {
+    const resources: ParsedResource[] = [
+      makeResource({
+        operations: [
+          {
+            operationId: 'listIndustries',
+            methodName: 'list',
+            method: 'GET',
+            path: '/industries',
+            pathParams: [],
+            queryParams: [],
+            response: {
+              name: 'IndustryList',
+              jsonSchema: { type: 'object', properties: { items: { type: 'array' } } },
+            },
+            responseStatus: 200,
+            tags: ['tasks'],
+          },
+          {
+            operationId: 'listIndustryTopics',
+            methodName: 'list',
+            method: 'GET',
+            path: '/industry-topics',
+            pathParams: [],
+            queryParams: [],
+            response: {
+              name: 'TopicList',
+              jsonSchema: { type: 'object', properties: { items: { type: 'array' } } },
+            },
+            responseStatus: 200,
+            tags: ['tasks'],
+          },
+          {
+            operationId: 'listUsers',
+            methodName: 'list',
+            method: 'GET',
+            path: '/users',
+            pathParams: [],
+            queryParams: [],
+            response: {
+              name: 'UserList',
+              jsonSchema: { type: 'object', properties: { items: { type: 'array' } } },
+            },
+            responseStatus: 200,
+            tags: ['tasks'],
+          },
+        ],
+      }),
+    ];
+
+    const files = generateResources(resources);
+    const tasksFile = files.find((f) => f.path === 'resources/tasks.ts');
+    const content = tasksFile!.content;
+    // First occurrence keeps original name, subsequent get suffix
+    expect(content).toContain('list:');
+    expect(content).toContain('list2:');
+    expect(content).toContain('list3:');
+    // Should not have duplicate plain 'list' keys
+    const listMatches = content.match(/\blist:/g);
+    expect(listMatches).toHaveLength(1);
+  });
+
   it('handles unnamed array response', () => {
     const resources: ParsedResource[] = [
       makeResource({

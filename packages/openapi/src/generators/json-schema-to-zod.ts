@@ -32,7 +32,34 @@ export function jsonSchemaToZod(
     return `z.union([${literals}])`;
   }
 
+  // anyOf: [{type: 'string'}, {type: 'null'}] → z.string().nullable() (OpenAPI 3.1)
+  if (Array.isArray(schema.anyOf)) {
+    const members = schema.anyOf as Record<string, unknown>[];
+    const nullMember = members.find((m) => m.type === 'null');
+    const nonNull = members.filter((m) => m.type !== 'null');
+    const isNullable = nullMember !== undefined;
+
+    if (nonNull.length === 1) {
+      const base = jsonSchemaToZod(nonNull[0]!, namedSchemas);
+      return isNullable ? `${base}.nullable()` : base;
+    }
+
+    const union = `z.union([${nonNull.map((m) => jsonSchemaToZod(m, namedSchemas)).join(', ')}])`;
+    return isNullable ? `${union}.nullable()` : union;
+  }
+
+  // oneOf → z.union()
+  if (Array.isArray(schema.oneOf)) {
+    const members = (schema.oneOf as Record<string, unknown>[]).map((m) =>
+      jsonSchemaToZod(m, namedSchemas),
+    );
+    return `z.union([${members.join(', ')}])`;
+  }
+
   const type = schema.type;
+
+  // 'null' literal type (used inside anyOf members)
+  if (type === 'null') return 'z.null()';
 
   // Nullable: ['string', 'null']
   if (Array.isArray(type)) {

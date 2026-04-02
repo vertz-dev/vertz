@@ -17,7 +17,27 @@ export function jsonSchemaToTS(
       .join(' | ');
   }
 
+  // anyOf: [{type: 'string'}, {type: 'null'}] → string | null (OpenAPI 3.1 nullable)
+  if (Array.isArray(schema.anyOf)) {
+    const members = (schema.anyOf as Record<string, unknown>[]).map((s) =>
+      jsonSchemaToTS(s, namedSchemas),
+    );
+    // Deduplicate (e.g. multiple resolve to 'unknown')
+    return [...new Set(members)].join(' | ');
+  }
+
+  // oneOf → union of types
+  if (Array.isArray(schema.oneOf)) {
+    const members = (schema.oneOf as Record<string, unknown>[]).map((s) =>
+      jsonSchemaToTS(s, namedSchemas),
+    );
+    return [...new Set(members)].join(' | ');
+  }
+
   const type = schema.type;
+
+  // 'null' literal type (used inside anyOf members)
+  if (type === 'null') return 'null';
 
   // Nullable type array: ['string', 'null']
   if (Array.isArray(type)) {
@@ -64,6 +84,20 @@ export function jsonSchemaToTS(
 }
 
 /**
+ * Sanitize a name to be a valid TypeScript identifier (PascalCase for types).
+ * Strips invalid chars, preserves casing of segments, prefixes with _ if starts with digit.
+ */
+export function sanitizeTypeName(name: string): string {
+  if (isValidIdentifier(name)) return name;
+  // Remove invalid chars, split on non-alphanumeric, capitalize each segment
+  const cleaned = name.replace(/[^A-Za-z0-9_$]+/g, ' ').trim();
+  if (!cleaned) return '_';
+  const segments = cleaned.split(/\s+/).filter(Boolean);
+  const result = segments.map((s) => s.charAt(0).toUpperCase() + s.slice(1)).join('');
+  return /^[0-9]/.test(result) ? `_${result}` : result;
+}
+
+/**
  * Generate a full TypeScript interface declaration from a named schema.
  */
 export function generateInterface(
@@ -71,9 +105,10 @@ export function generateInterface(
   schema: Record<string, unknown>,
   namedSchemas: Map<string, string>,
 ): string {
+  const safeName = sanitizeTypeName(name);
   const properties = schema.properties as Record<string, Record<string, unknown>> | undefined;
   if (!properties) {
-    return `export interface ${name} {}\n`;
+    return `export interface ${safeName} {}\n`;
   }
 
   const required = new Set(Array.isArray(schema.required) ? (schema.required as string[]) : []);
@@ -85,7 +120,7 @@ export function generateInterface(
     return `  ${safeKey}${optional}: ${tsType};`;
   });
 
-  return `export interface ${name} {\n${lines.join('\n')}\n}\n`;
+  return `export interface ${safeName} {\n${lines.join('\n')}\n}\n`;
 }
 
 function mapPrimitive(type: string): string {

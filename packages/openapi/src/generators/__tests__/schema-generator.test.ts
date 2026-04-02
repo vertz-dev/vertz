@@ -106,6 +106,33 @@ describe('jsonSchemaToZod', () => {
     it('maps nullable to .nullable()', () => {
       expect(jsonSchemaToZod({ type: ['string', 'null'] }, empty)).toBe('z.string().nullable()');
     });
+
+    it('maps anyOf with null to .nullable() (OpenAPI 3.1)', () => {
+      expect(jsonSchemaToZod({ anyOf: [{ type: 'string' }, { type: 'null' }] }, empty)).toBe(
+        'z.string().nullable()',
+      );
+    });
+
+    it('maps anyOf with integer and null to z.number().int().nullable()', () => {
+      expect(jsonSchemaToZod({ anyOf: [{ type: 'integer' }, { type: 'null' }] }, empty)).toBe(
+        'z.number().int().nullable()',
+      );
+    });
+
+    it('maps anyOf with multiple non-null types to z.union()', () => {
+      expect(jsonSchemaToZod({ anyOf: [{ type: 'string' }, { type: 'integer' }] }, empty)).toBe(
+        'z.union([z.string(), z.number().int()])',
+      );
+    });
+
+    it('maps anyOf with multiple types and null to z.union().nullable()', () => {
+      expect(
+        jsonSchemaToZod(
+          { anyOf: [{ type: 'string' }, { type: 'integer' }, { type: 'null' }] },
+          empty,
+        ),
+      ).toBe('z.union([z.string(), z.number().int()]).nullable()');
+    });
   });
 
   describe('default values', () => {

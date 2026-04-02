@@ -1,5 +1,10 @@
 import type { ParsedOperation, ParsedResource, ParsedSchema } from '../parser/types';
-import { generateInterface, isValidIdentifier, jsonSchemaToTS } from './json-schema-to-ts';
+import {
+  generateInterface,
+  isValidIdentifier,
+  jsonSchemaToTS,
+  sanitizeTypeName,
+} from './json-schema-to-ts';
 import type { GeneratedFile } from './types';
 
 /**
@@ -80,12 +85,12 @@ function generateResourceTypes(
 }
 
 function deriveResponseName(op: ParsedOperation): string {
-  if (op.response?.name) return op.response.name;
+  if (op.response?.name) return sanitizeTypeName(op.response.name);
   return capitalize(op.operationId) + 'Response';
 }
 
 function deriveInputName(op: ParsedOperation): string {
-  if (op.requestBody?.name) return op.requestBody.name;
+  if (op.requestBody?.name) return sanitizeTypeName(op.requestBody.name);
   return capitalize(op.operationId) + 'Input';
 }
 
@@ -107,7 +112,7 @@ function generateQueryInterface(
     return `  ${safeKey}${optional}: ${tsType};`;
   });
 
-  return `export interface ${name} {\n${lines.join('\n')}\n}\n`;
+  return `export interface ${sanitizeTypeName(name)} {\n${lines.join('\n')}\n}\n`;
 }
 
 function capitalize(s: string): string {

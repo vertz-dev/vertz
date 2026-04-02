@@ -7,6 +7,7 @@ export {
   generateInterface,
   isValidIdentifier,
   jsonSchemaToTS,
+  sanitizeTypeName,
 } from './generators/json-schema-to-ts';
 export { jsonSchemaToZod } from './generators/json-schema-to-zod';
 export { generateResources } from './generators/resource-generator';

@@ -75,6 +75,39 @@ describe('jsonSchemaToTS', () => {
     it('maps nullable type array to T | null', () => {
       expect(jsonSchemaToTS({ type: ['string', 'null'] }, empty)).toBe('string | null');
     });
+
+    it('maps anyOf with null to T | null (OpenAPI 3.1 nullable)', () => {
+      expect(jsonSchemaToTS({ anyOf: [{ type: 'string' }, { type: 'null' }] }, empty)).toBe(
+        'string | null',
+      );
+    });
+
+    it('maps anyOf with null and integer to number | null', () => {
+      expect(jsonSchemaToTS({ anyOf: [{ type: 'integer' }, { type: 'null' }] }, empty)).toBe(
+        'number | null',
+      );
+    });
+
+    it('maps anyOf with multiple non-null types to union', () => {
+      expect(jsonSchemaToTS({ anyOf: [{ type: 'string' }, { type: 'integer' }] }, empty)).toBe(
+        'string | number',
+      );
+    });
+
+    it('maps anyOf with multiple types and null', () => {
+      expect(
+        jsonSchemaToTS(
+          { anyOf: [{ type: 'string' }, { type: 'integer' }, { type: 'null' }] },
+          empty,
+        ),
+      ).toBe('string | number | null');
+    });
+
+    it('maps anyOf with object ref and null', () => {
+      expect(jsonSchemaToTS({ anyOf: [{ $circular: 'Task' }, { type: 'null' }] }, empty)).toBe(
+        'Task | null',
+      );
+    });
   });
 
   describe('circular references', () => {
@@ -219,6 +252,26 @@ describe('generateInterface', () => {
     const schema = { type: 'object' };
     const result = generateInterface('Empty', schema, empty);
     expect(result).toBe('export interface Empty {}\n');
+  });
+
+  it('sanitizes interface names with hyphens to valid TS identifiers', () => {
+    const schema = {
+      type: 'object',
+      properties: { id: { type: 'number' } },
+      required: ['id'],
+    };
+    const result = generateInterface('BrandModel-Output', schema, empty);
+    expect(result).toContain('export interface BrandModelOutput {');
+    expect(result).not.toContain('BrandModel-Output');
+  });
+
+  it('sanitizes interface names starting with numbers', () => {
+    const schema = {
+      type: 'object',
+      properties: { ok: { type: 'boolean' } },
+    };
+    const result = generateInterface('123Response', schema, empty);
+    expect(result).toContain('export interface _123Response {');
   });
 });
 

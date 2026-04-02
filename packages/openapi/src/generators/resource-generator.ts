@@ -1,4 +1,5 @@
 import type { ParsedOperation, ParsedResource } from '../parser/types';
+import { sanitizeTypeName } from './json-schema-to-ts';
 import type { GeneratedFile } from './types';
 
 /**
@@ -39,8 +40,13 @@ function generateResourceFile(resource: ParsedResource): string {
   lines.push(`export function create${resource.name}Resource(client: HttpClient) {`);
   lines.push('  return {');
 
+  // Deduplicate method names — first occurrence keeps the name, subsequent get numeric suffix
+  const methodNameCounts = new Map<string, number>();
   for (const op of resource.operations) {
-    lines.push(`    ${generateMethod(op)},`);
+    const count = methodNameCounts.get(op.methodName) ?? 0;
+    methodNameCounts.set(op.methodName, count + 1);
+    const dedupedName = count === 0 ? op.methodName : `${op.methodName}${count + 1}`;
+    lines.push(`    ${generateMethod(op, dedupedName)},`);
   }
 
   lines.push('  };');
@@ -50,12 +56,13 @@ function generateResourceFile(resource: ParsedResource): string {
   return lines.join('\n');
 }
 
-function generateMethod(op: ParsedOperation): string {
+function generateMethod(op: ParsedOperation, methodName?: string): string {
+  const name = methodName ?? op.methodName;
   const params = buildParams(op);
   const returnType = buildReturnType(op);
   const call = buildCall(op);
 
-  return `${op.methodName}: (${params}): ${returnType} =>\n      ${call}`;
+  return `${name}: (${params}): ${returnType} =>\n      ${call}`;
 }
 
 function buildParams(op: ParsedOperation): string {
@@ -85,12 +92,12 @@ function buildReturnType(op: ParsedOperation): string {
   if (op.responseStatus === 204) return 'Promise<void>';
 
   if (op.response?.name) {
+    const safeName = sanitizeTypeName(op.response.name);
     // Check if this is an array response
     if (op.response.jsonSchema.type === 'array') {
-      const itemName = op.response.name;
-      return `Promise<${itemName}[]>`;
+      return `Promise<${safeName}[]>`;
     }
-    return `Promise<${op.response.name}>`;
+    return `Promise<${safeName}>`;
   }
 
   // For list operations returning arrays, check the response schema
@@ -144,7 +151,7 @@ function collectTypeImports(resource: ParsedResource): Set<string> {
     // Response type
     if (op.responseStatus !== 204 && op.response) {
       if (op.response.name) {
-        types.add(op.response.name);
+        types.add(sanitizeTypeName(op.response.name));
       } else {
         types.add(capitalize(op.operationId) + 'Response');
       }
@@ -165,7 +172,7 @@ function collectTypeImports(resource: ParsedResource): Set<string> {
 }
 
 function deriveInputName(op: ParsedOperation): string {
-  if (op.requestBody?.name) return op.requestBody.name;
+  if (op.requestBody?.name) return sanitizeTypeName(op.requestBody.name);
   return capitalize(op.operationId) + 'Input';
 }
 
