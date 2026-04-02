@@ -202,4 +202,3 @@ function deriveInputName(op: ParsedOperation): string {
 function deriveQueryName(op: ParsedOperation): string {
   return toPascalCase(op.operationId) + 'Query';
 }
-

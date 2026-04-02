@@ -237,9 +237,7 @@ describe('generateTypes', () => {
             methodName: 'list',
             method: 'GET',
             path: '/web/organizations/{organization_id}/brands',
-            pathParams: [
-              { name: 'organization_id', required: true, schema: { type: 'string' } },
-            ],
+            pathParams: [{ name: 'organization_id', required: true, schema: { type: 'string' } }],
             queryParams: [],
             response: {
               jsonSchema: {

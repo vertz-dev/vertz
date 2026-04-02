@@ -115,4 +115,3 @@ function generateQueryInterface(
 
   return `export interface ${sanitizeTypeName(name)} {\n${lines.join('\n')}\n}\n`;
 }
-

@@ -281,9 +281,9 @@ describe('toPascalCase', () => {
   });
 
   it('converts double-underscore-separated FastAPI operationIds', () => {
-    expect(
-      toPascalCase('find_many_web_organizations__organization_id__brands__get'),
-    ).toBe('FindManyWebOrganizationsOrganizationIdBrandsGet');
+    expect(toPascalCase('find_many_web_organizations__organization_id__brands__get')).toBe(
+      'FindManyWebOrganizationsOrganizationIdBrandsGet',
+    );
   });
 
   it('preserves already-PascalCased input', () => {
