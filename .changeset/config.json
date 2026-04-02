@@ -27,7 +27,12 @@
     "@vertz/ui-canvas",
     "@vertz/ui-primitives",
     "@vertz/ui-server",
-    "vertz"
+    "vertz",
+    "@vertz/runtime",
+    "@vertz/runtime-darwin-arm64",
+    "@vertz/runtime-darwin-x64",
+    "@vertz/runtime-linux-arm64",
+    "@vertz/runtime-linux-x64"
   ]],
   "ignore": [],
   "linked": [],

@@ -1,0 +1,23 @@
+{
+  "name": "@vertz/runtime-darwin-x64",
+  "version": "0.0.3",
+  "private": true,
+  "description": "Vertz runtime binary for macOS x64",
+  "files": [
+    "vtz"
+  ],
+  "os": [
+    "darwin"
+  ],
+  "cpu": [
+    "x64"
+  ],
+  "exports": {
+    "./package.json": "./package.json"
+  },
+  "preferUnplugged": true,
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/vertz-dev/vertz"
+  }
+}

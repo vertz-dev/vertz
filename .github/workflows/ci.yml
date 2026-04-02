@@ -39,6 +39,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       src: ${{ steps.filter.outputs.src }}
+      native: ${{ steps.filter.outputs.native }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -50,6 +51,7 @@ jobs:
           # Pushes to main and workflow_dispatch (auto-rebase) always run the full pipeline
           if [ "${{ github.event_name }}" = "push" ] || [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             echo "src=true" >> "$GITHUB_OUTPUT"
+            echo "native=true" >> "$GITHUB_OUTPUT"
             echo "${{ github.event_name }} — running full pipeline"
             exit 0
           fi
@@ -94,6 +96,7 @@ jobs:
           HAS_CONFIG=false
           HAS_SOURCE_DIR=false
           HAS_CORE_PKG=false
+          HAS_NATIVE=false
 
           while IFS= read -r file; do
             # Check config patterns
@@ -113,6 +116,12 @@ jobs:
                 break
               fi
             done
+
+            # Check if file is in native/ (Rust workspace)
+            if [[ "$file" == native/* ]]; then
+              HAS_NATIVE=true
+              echo "Native changed: $file"
+            fi
 
             # Check if file is in packages/ but NOT a docs-only package
             if [[ "$file" == packages/* ]]; then
@@ -134,8 +143,17 @@ jobs:
             echo "src=true" >> "$GITHUB_OUTPUT"
           else
             echo "src=false" >> "$GITHUB_OUTPUT"
+          fi
+
+          if [ "$HAS_NATIVE" = "true" ]; then
+            echo "native=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "native=false" >> "$GITHUB_OUTPUT"
+          fi
+
+          if [ "$HAS_CONFIG" != "true" ] && [ "$HAS_SOURCE_DIR" != "true" ] && [ "$HAS_CORE_PKG" != "true" ] && [ "$HAS_NATIVE" != "true" ]; then
             echo ""
-            echo "No core source changes detected — heavy CI jobs will be skipped."
+            echo "No source changes detected — heavy CI jobs will be skipped."
             echo "Changed files (docs/config only):"
             echo "$CHANGED" | sed 's/^/  /'
           fi
@@ -403,3 +421,69 @@ jobs:
 
           # Signal that all uploads are complete — triggers report processing
           ./codecov send-notifications -t "$CODECOV_TOKEN" --git-service github
+
+  # ---------------------------------------------------------------------------
+  # Rust checks — runs in parallel with TS jobs.
+  # Validates the native/ Cargo workspace: formatting, clippy, tests.
+  # ---------------------------------------------------------------------------
+  rust-checks:
+    name: Rust Checks
+    runs-on: macos-14
+    timeout-minutes: 20
+    needs: changes
+    if: needs.changes.outputs.native == 'true'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: native
+
+      - name: Check formatting
+        working-directory: native
+        run: cargo fmt --all -- --check
+
+      - name: Clippy
+        working-directory: native
+        run: cargo clippy --all-targets --release -- -D warnings
+
+      - name: Run tests
+        working-directory: native
+        run: cargo test --all
+
+  # ---------------------------------------------------------------------------
+  # NAPI compiler build & test — validates the Rust→JS compiler bridge.
+  # ---------------------------------------------------------------------------
+  napi-build:
+    name: NAPI Compiler Build & Test
+    runs-on: macos-14
+    timeout-minutes: 15
+    needs: changes
+    if: needs.changes.outputs.native == 'true'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: native
+
+      - uses: oven-sh/setup-bun@v2
+
+      - name: Build native compiler
+        working-directory: native
+        run: cargo build --release -p vertz-compiler
+
+      - name: Copy dylib to .node
+        run: cp native/target/release/libvertz_compiler.dylib native/vertz-compiler/vertz-compiler.darwin-arm64.node
+
+      - name: Run NAPI binding tests
+        working-directory: native/vertz-compiler
+        run: bun test __tests__/*.test.ts
