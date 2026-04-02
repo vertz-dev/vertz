@@ -158,6 +158,25 @@ impl CompilationPipeline {
             env_replacer::replace_import_meta_env(&processed, &self.env)
         };
 
+        // Inject CSS at module load time (before import rewriting so the
+        // `@vertz/ui` specifier gets resolved to `/@deps/...` automatically).
+        // This is the browser pipeline — uses @vertz/ui's injectCSS for client-side
+        // CSS injection (DOM <style> tags or adoptedStyleSheets).
+        let css = output.css;
+        let processed = if let Some(ref css_content) = css {
+            self.store_css(file_path, css_content);
+            let escaped = css_content
+                .replace('\\', "\\\\")
+                .replace('`', "\\`")
+                .replace("${", "\\${");
+            format!(
+                "import {{ injectCSS as __injectCSS }} from '@vertz/ui';\n__injectCSS(`{}`);\n{}",
+                escaped, processed
+            )
+        } else {
+            processed
+        };
+
         // Rewrite import specifiers for browser consumption
         let code = import_rewriter::rewrite_imports(
             &processed,
@@ -166,12 +185,6 @@ impl CompilationPipeline {
             &self.root_dir,
             self.tsconfig_paths.as_ref(),
         );
-
-        // Handle extracted CSS
-        let css = output.css;
-        if let Some(ref css_content) = css {
-            self.store_css(file_path, css_content);
-        }
 
         // Add source map URL comment
         let code = if output.source_map.is_some() {

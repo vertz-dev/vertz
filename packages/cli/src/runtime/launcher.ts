@@ -1,7 +1,7 @@
 import { execFileSync, spawn, type ChildProcess } from 'node:child_process';
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
-import { resolve } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
 
 const require = createRequire(import.meta.url);
 
@@ -16,9 +16,35 @@ export interface RuntimeLaunchOptions {
 }
 
 /**
+ * Walk up from `startDir` looking for a directory whose package.json
+ * has a `"workspaces"` field (Bun/npm/yarn monorepo root).
+ */
+export function findMonorepoRoot(startDir: string): string | null {
+  let current = resolve(startDir);
+  while (true) {
+    const pkgPath = join(current, 'package.json');
+    if (existsSync(pkgPath)) {
+      try {
+        const pkg = JSON.parse(readFileSync(pkgPath, 'utf-8'));
+        if (Array.isArray(pkg.workspaces) || typeof pkg.workspaces === 'object') {
+          return current;
+        }
+      } catch {
+        // Malformed package.json — skip
+      }
+    }
+    const parent = dirname(current);
+    if (parent === current) break;
+    current = parent;
+  }
+  return null;
+}
+
+/**
  * Find the vtz binary. Search order:
  * 1. VERTZ_RUNTIME_BINARY env var (fail-fast if set but missing)
- * 2. Monorepo local build (native/target/release/vtz)
+ * 2. Monorepo local build — walk up from projectRoot to find the
+ *    monorepo root, then check native/target/{release,debug}/vtz
  * 3. @vertz/runtime npm package (getBinaryPath — single source of truth)
  */
 export function findRuntimeBinary(projectRoot: string): string | null {
@@ -34,14 +60,14 @@ export function findRuntimeBinary(projectRoot: string): string | null {
     return envPath;
   }
 
-  // 2. Monorepo local build (for development within the vertz repo)
-  const monorepoRelease = resolve(projectRoot, 'native/target/release/vtz');
-  if (existsSync(monorepoRelease)) {
-    return monorepoRelease;
-  }
-  const monorepoDebug = resolve(projectRoot, 'native/target/debug/vtz');
-  if (existsSync(monorepoDebug)) {
-    return monorepoDebug;
+  // 2. Monorepo local build (for development within the vertz repo).
+  //    First check projectRoot itself, then walk up to find the monorepo root.
+  for (const root of [projectRoot, findMonorepoRoot(projectRoot)]) {
+    if (!root) continue;
+    const release = resolve(root, 'native/target/release/vtz');
+    if (existsSync(release)) return release;
+    const debug = resolve(root, 'native/target/debug/vtz');
+    if (existsSync(debug)) return debug;
   }
 
   // 3. npm-installed platform package (single source of truth)

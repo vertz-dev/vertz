@@ -123,11 +123,22 @@ impl<'a> CssDiagnosticFinder<'a> {
                     });
                 }
 
-                // Validate color tokens for color properties
-                if (property == "bg" || property == "text" || property == "border")
-                    && value_type == "color"
-                {
-                    self.validate_color_token(value, property, line, column);
+                // Validate color tokens for color properties.
+                // `text` and `border` are multi-mode: they can be font-size/alignment
+                // or border-width respectively, not just colors. Skip color validation
+                // when the value matches a non-color mode.
+                if value_type == "color" {
+                    let is_non_color = match property {
+                        "text" => {
+                            css_token_tables::font_size_scale(value).is_some()
+                                || css_token_tables::is_text_align_keyword(value)
+                        }
+                        "border" => css_token_tables::is_border_width(value),
+                        _ => false,
+                    };
+                    if !is_non_color {
+                        self.validate_color_token(value, property, line, column);
+                    }
                 }
             }
         }
@@ -402,6 +413,76 @@ mod tests {
             "msg: {}",
             d[0].message
         );
+    }
+
+    // ── Multi-mode properties (text, border) ────────────────────
+
+    #[test]
+    fn text_font_size_no_diagnostic() {
+        for val in ["xs", "sm", "base", "lg", "xl", "2xl", "3xl", "4xl", "5xl"] {
+            let d = diagnose(&format!("css({{ root: ['text:{val}'] }});"));
+            assert!(
+                d.is_empty(),
+                "text:{val} should be valid font-size: {:?}",
+                d
+            );
+        }
+    }
+
+    #[test]
+    fn text_alignment_no_diagnostic() {
+        for val in ["center", "left", "right", "justify", "start", "end"] {
+            let d = diagnose(&format!("css({{ root: ['text:{val}'] }});"));
+            assert!(
+                d.is_empty(),
+                "text:{val} should be valid text-align: {:?}",
+                d
+            );
+        }
+    }
+
+    #[test]
+    fn border_width_no_diagnostic() {
+        for val in ["1", "2", "3", "0", "0.5"] {
+            let d = diagnose(&format!("css({{ root: ['border:{val}'] }});"));
+            assert!(
+                d.is_empty(),
+                "border:{val} should be valid border-width: {:?}",
+                d
+            );
+        }
+    }
+
+    #[test]
+    fn text_color_still_validated() {
+        let d = diagnose("css({ root: ['text:badcolor'] });");
+        assert_eq!(d.len(), 1);
+        assert!(d[0].message.contains("css-unknown-color-token"));
+    }
+
+    #[test]
+    fn border_color_still_validated() {
+        let d = diagnose("css({ root: ['border:badcolor'] });");
+        assert_eq!(d.len(), 1);
+        assert!(d[0].message.contains("css-unknown-color-token"));
+    }
+
+    #[test]
+    fn text_valid_color_still_works() {
+        let d = diagnose("css({ root: ['text:foreground'] });");
+        assert!(d.is_empty(), "text:foreground should be valid: {:?}", d);
+    }
+
+    #[test]
+    fn border_valid_color_still_works() {
+        let d = diagnose("css({ root: ['border:primary'] });");
+        assert!(d.is_empty(), "border:primary should be valid: {:?}", d);
+    }
+
+    #[test]
+    fn hover_text_font_size_no_diagnostic() {
+        let d = diagnose("css({ root: ['hover:text:sm'] });");
+        assert!(d.is_empty(), "hover:text:sm should be valid: {:?}", d);
     }
 
     // ── Multiple diagnostics in one call ─────────────────────────

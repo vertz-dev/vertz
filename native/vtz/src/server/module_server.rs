@@ -2572,11 +2572,11 @@ mod tests {
         let state = create_test_state(tmp.path());
 
         // Write a file with a css() call that triggers a CSS warning.
-        // 'text:sm' uses 'sm' which is not a valid color token — the compiler
-        // will emit a [css-unknown-color-token] diagnostic classified as a warning.
+        // 'text:purplez' uses a misspelled color that is not a valid token — the
+        // compiler will emit a [css-unknown-color-token] diagnostic.
         std::fs::write(
             tmp.path().join("src/sidebar.tsx"),
-            r#"const styles = css({ root: ['text:sm'] });
+            r#"const styles = css({ root: ['text:purplez'] });
 export default function Sidebar() { return <div class={styles.root}>Hi</div>; }
 "#,
         )
@@ -2608,7 +2608,7 @@ export default function Sidebar() { return <div class={styles.root}>Hi</div>; }
         // Step 1: Compile a file with CSS warning
         std::fs::write(
             tmp.path().join("src/sidebar.tsx"),
-            r#"const styles = css({ root: ['text:sm'] });
+            r#"const styles = css({ root: ['text:purplez'] });
 export default function Sidebar() { return <div class={styles.root}>Hi</div>; }
 "#,
         )

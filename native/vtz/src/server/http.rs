@@ -391,7 +391,11 @@ async fn ai_render_handler(
                         Some("ai"),
                     );
 
-                    let css_string = format_ssr_css(&ssr_resp.css_entries);
+                    let css_string = ssr_resp
+                        .inline_css_html
+                        .as_deref()
+                        .map(|s| s.to_string())
+                        .unwrap_or_else(|| format_ssr_css(&ssr_resp.css_entries));
                     let entry_url = crate::ssr::html_document::entry_path_to_url(
                         &state.entry_file,
                         &state.root_dir,
@@ -639,14 +643,17 @@ async fn dev_server_handler(
     }
 
     // SPA fallback: return HTML shell for page routes
-    // Only serve HTML shell when the client accepts text/html (browser navigation).
+    // Only serve HTML shell when the client accepts text/html (browser navigation)
+    // or sends X-Vertz-Nav (client-side router navigation prefetch).
     // API/asset requests that slip through should get 404, not HTML.
-    let accepts_html = req
-        .headers()
-        .get(header::ACCEPT)
-        .and_then(|v| v.to_str().ok())
-        .map(|v| v.contains("text/html"))
-        .unwrap_or(true); // Default to true for requests without Accept header
+    let has_vertz_nav = req.headers().contains_key("x-vertz-nav");
+    let accepts_html = has_vertz_nav
+        || req
+            .headers()
+            .get(header::ACCEPT)
+            .and_then(|v| v.to_str().ok())
+            .map(|v| v.contains("text/html"))
+            .unwrap_or(true); // Default to true for requests without Accept header
 
     if html_shell::is_page_route(&path) && accepts_html {
         // SSR: render the page server-side with pre-rendered HTML
@@ -703,8 +710,14 @@ async fn dev_server_handler(
                                     .unwrap();
                             }
 
-                            // Assemble the full HTML document from SSR response
-                            let css_string = format_ssr_css(&ssr_resp.css_entries);
+                            // Assemble the full HTML document from SSR response.
+                            // Framework path returns pre-formatted CSS HTML (with <style> tags);
+                            // legacy path returns raw CSS entries that need wrapping.
+                            let css_string = ssr_resp
+                                .inline_css_html
+                                .as_deref()
+                                .map(|s| s.to_string())
+                                .unwrap_or_else(|| format_ssr_css(&ssr_resp.css_entries));
                             let entry_url = crate::ssr::html_document::entry_path_to_url(
                                 &state.entry_file,
                                 &state.root_dir,
