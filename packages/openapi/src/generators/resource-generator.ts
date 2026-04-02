@@ -29,7 +29,7 @@ function generateResourceFile(resource: ParsedResource): string {
   const typeImports = collectTypeImports(resource);
 
   // Imports
-  lines.push("import type { HttpClient } from '../client';");
+  lines.push("import type { FetchClient, FetchResponse } from '@vertz/fetch';");
   if (typeImports.size > 0) {
     const sorted = [...typeImports].sort();
     lines.push(`import type { ${sorted.join(', ')} } from '../types/${resource.identifier}';`);
@@ -37,7 +37,7 @@ function generateResourceFile(resource: ParsedResource): string {
   lines.push('');
 
   // Factory function
-  lines.push(`export function create${resource.name}Resource(client: HttpClient) {`);
+  lines.push(`export function create${resource.name}Resource(client: FetchClient) {`);
   lines.push('  return {');
 
   // Detect duplicate method names — error instead of silently losing methods
@@ -112,28 +112,28 @@ function buildParams(op: ParsedOperation): string {
 }
 
 function buildReturnType(op: ParsedOperation): string {
-  if (op.responseStatus === 204) return 'Promise<void>';
+  if (op.responseStatus === 204) return 'Promise<FetchResponse<void>>';
 
   if (op.response?.name) {
     const safeName = sanitizeTypeName(op.response.name);
     // Check if this is an array response
     if (op.response.jsonSchema.type === 'array') {
-      return `Promise<${safeName}[]>`;
+      return `Promise<FetchResponse<${safeName}[]>>`;
     }
-    return `Promise<${safeName}>`;
+    return `Promise<FetchResponse<${safeName}>>`;
   }
 
   // For list operations returning arrays, check the response schema
   if (op.response?.jsonSchema.type === 'array') {
-    return 'Promise<unknown[]>';
+    return 'Promise<FetchResponse<unknown[]>>';
   }
 
   if (op.response) {
     const name = capitalize(op.operationId) + 'Response';
-    return `Promise<${name}>`;
+    return `Promise<FetchResponse<${name}>>`;
   }
 
-  return 'Promise<void>';
+  return 'Promise<FetchResponse<void>>';
 }
 
 function buildCall(op: ParsedOperation): string {

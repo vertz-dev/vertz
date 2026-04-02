@@ -40,10 +40,19 @@ function generateReadme(spec: ParsedSpec, options: GenerateOptions): GeneratedFi
   lines.push('');
   lines.push(`> Auto-generated from OpenAPI ${spec.version} spec (v${spec.info.version})`);
   lines.push('');
+  lines.push('## Prerequisites');
+  lines.push('');
+  lines.push('This SDK requires `@vertz/fetch` as a peer dependency:');
+  lines.push('');
+  lines.push('```bash');
+  lines.push('bun add @vertz/fetch');
+  lines.push('```');
+  lines.push('');
   lines.push('## Usage');
   lines.push('');
   lines.push('```typescript');
   lines.push("import { createClient } from './client';");
+  lines.push("import { isOk } from '@vertz/fetch';");
   lines.push('');
   lines.push(
     `const api = createClient(${options.baseURL ? `{ baseURL: '${options.baseURL}' }` : ''});`,
