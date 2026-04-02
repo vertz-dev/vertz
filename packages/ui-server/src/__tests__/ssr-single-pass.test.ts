@@ -3,8 +3,8 @@
  *
  * Tests for ssrRenderSinglePass — discovery-only (captures queries) → prefetch → single render.
  */
-import { describe, expect, it, spyOn } from 'bun:test';
-import { createRouter, defineRoutes, query, RouterView } from '@vertz/ui';
+import { afterEach, describe, expect, it, spyOn } from 'bun:test';
+import { createRouter, defineRoutes, query, resetInjectedStyles, RouterView } from '@vertz/ui';
 import type { AuthSdk } from '@vertz/ui/auth';
 import { AuthProvider } from '@vertz/ui/auth';
 import { ProtectedRoute } from '@vertz/ui-auth';
@@ -14,6 +14,10 @@ import type { SSRModule } from '../ssr-shared';
 import { ssrRenderProgressive, ssrRenderSinglePass } from '../ssr-single-pass';
 
 installDomShim();
+
+afterEach(() => {
+  resetInjectedStyles();
+});
 
 // ─── Test Fixtures ──────────────────────────────────────────────
 

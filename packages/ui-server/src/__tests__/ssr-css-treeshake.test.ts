@@ -221,4 +221,30 @@ describe('SSR CSS tree-shaking (#1912)', () => {
     // Global CSS rules are always kept regardless of HTML classes
     expect(result.css).toContain(globalResetCss);
   });
+
+  it('collects import-time CSS without module.getInjectedCSS export (#2196)', async () => {
+    // Bug #2196: When the native compiler replaces css() calls, it injects
+    // __injectCSS() at the module top level. This runs at import time (before
+    // SSR context), so CSS goes to the global injectedCSS Set. But collectCSS
+    // falls back to module.getInjectedCSS?.() which users don't export,
+    // resulting in ?? [] — no CSS in the SSR response.
+    const importTimeCss = '.native-compiled { display: flex; }';
+    injectCSS(importTimeCss);
+
+    const module = {
+      default: () => {
+        // No injectCSS during render — CSS was already injected at import time
+        // by the native compiler's preamble. Module does NOT export getInjectedCSS.
+        const el = document.createElement('div');
+        el.textContent = 'Native Compiled Page';
+        return el;
+      },
+      // Intentionally NO getInjectedCSS export — this is the real-world case
+    };
+
+    const result = await ssrRenderSinglePass(module, '/native');
+
+    // CSS must appear even without module.getInjectedCSS
+    expect(result.css).toContain(importTimeCss);
+  });
 });
