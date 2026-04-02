@@ -1,5 +1,15 @@
 # @vertz/ui-server
 
+## 0.2.45
+
+### Patch Changes
+
+- [#2201](https://github.com/vertz-dev/vertz/pull/2201) [`57c5b6f`](https://github.com/vertz-dev/vertz/commit/57c5b6ffe2f79fa374384567ad2e48897dbd5482) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - fix: collect import-time CSS from native compiler without requiring module.getInjectedCSS export
+
+- Updated dependencies []:
+  - @vertz/core@0.2.45
+  - @vertz/ui@0.2.45
+
 ## 0.2.44
 
 ### Patch Changes
