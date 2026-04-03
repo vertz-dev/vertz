@@ -952,14 +952,17 @@ fn parse_ssr_error_for_overlay(
                         // compilation if not already cached, producing source maps).
                         let full_path = root_dir.join(file);
                         let _ = pipeline.compile_for_browser(&full_path);
-                        let mapper = crate::errors::source_mapper::SourceMapper::new(pipeline.cache());
+                        let mapper =
+                            crate::errors::source_mapper::SourceMapper::new(pipeline.cache());
                         // Use resolve_nearest: if the exact line has no mapping (e.g.,
                         // compiler-injected boilerplate), scan nearby lines (±5) to find
                         // the source file and approximate original position.
                         let resolved = mapper.resolve_nearest(&full_path, line, col, 5);
                         if let Some(ref mapped) = resolved {
                             // Source map resolved — show original source with original line.
-                            error = error.with_file(&mapped.file).with_location(mapped.line, mapped.column);
+                            error = error
+                                .with_file(&mapped.file)
+                                .with_location(mapped.line, mapped.column);
                             let source_path = root_dir.join(&mapped.file);
                             if let Ok(source) = std::fs::read_to_string(&source_path) {
                                 // If the mapped line doesn't contain the error text (approximate
@@ -967,7 +970,8 @@ fn parse_ssr_error_for_overlay(
                                 // statement to get a precise line number.
                                 let precise_line = refine_error_line(&source, mapped.line, message);
                                 error = error.with_location(precise_line, mapped.column);
-                                error = error.with_snippet(extract_snippet(&source, precise_line, 3));
+                                error =
+                                    error.with_snippet(extract_snippet(&source, precise_line, 3));
                             }
                         } else {
                             // No source map at all — show file with compiled line,
