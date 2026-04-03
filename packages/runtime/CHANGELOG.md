@@ -1,5 +1,7 @@
 # @vertz/runtime
 
+## 0.2.46
+
 ## 0.0.3
 
 ### Patch Changes

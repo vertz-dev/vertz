@@ -1,6 +1,6 @@
 {
   "name": "@vertz/server",
-  "version": "0.2.45",
+  "version": "0.2.46",
   "description": "Vertz server runtime — modules, routing, and auth",
   "license": "MIT",
   "repository": {
