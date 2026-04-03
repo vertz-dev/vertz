@@ -158,6 +158,7 @@ pub fn is_page_route(path: &str) -> bool {
     if path.starts_with("/@deps/")
         || path.starts_with("/@css/")
         || path.starts_with("/src/")
+        || path.starts_with("/.vertz/")
         || path.starts_with("/node_modules/")
     {
         return false;

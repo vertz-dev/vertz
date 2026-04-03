@@ -312,6 +312,14 @@ fn rewrite_specifier_inner(
         return specifier.to_string();
     }
 
+    // Package imports (#foo): resolve via nearest package.json "imports" field
+    if specifier.starts_with('#') {
+        if let Some(resolved) = resolve_package_import(specifier, file_path, root_dir) {
+            return resolved;
+        }
+        // Fall through to bare specifier if not resolved
+    }
+
     // Relative specifiers: ./foo, ../bar
     if specifier.starts_with("./") || specifier.starts_with("../") {
         return resolve_relative_specifier(specifier, file_path, src_dir, root_dir);
@@ -414,6 +422,57 @@ pub fn is_asset_extension(ext: &str) -> bool {
         ext,
         "svg" | "png" | "jpg" | "jpeg" | "gif" | "webp" | "ico" | "woff" | "woff2" | "ttf" | "eot"
     )
+}
+
+/// Resolve a `#`-prefixed specifier via the nearest package.json `imports` field.
+///
+/// Walks up from the file's directory looking for a `package.json` with an `imports`
+/// field containing the specifier. Returns a URL path (e.g., `/.vertz/generated/client.ts`)
+/// or None if not found.
+fn resolve_package_import(specifier: &str, file_path: &Path, root_dir: &Path) -> Option<String> {
+    let mut search_dir = file_path.parent()?.to_path_buf();
+    loop {
+        let pkg_json_path = search_dir.join("package.json");
+        if pkg_json_path.is_file() {
+            if let Ok(content) = std::fs::read_to_string(&pkg_json_path) {
+                if let Ok(pkg) = serde_json::from_str::<serde_json::Value>(&content) {
+                    if let Some(imports) = pkg.get("imports").and_then(|v| v.as_object()) {
+                        if let Some(mapping) = imports.get(specifier) {
+                            let target = resolve_imports_condition(mapping)?;
+                            let abs_path = search_dir.join(&target);
+                            let resolved = resolve_extension(&abs_path, root_dir);
+                            if let Ok(rel) = resolved.strip_prefix(root_dir) {
+                                let rel_str = rel.to_string_lossy().replace('\\', "/");
+                                return Some(format!("/{}", rel_str));
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        if !search_dir.pop() {
+            break;
+        }
+    }
+    None
+}
+
+/// Resolve a condition value from a package.json "imports" mapping entry.
+/// Supports string values and condition maps (`{ "import": "...", "default": "..." }`).
+fn resolve_imports_condition(value: &serde_json::Value) -> Option<String> {
+    match value {
+        serde_json::Value::String(s) => Some(s.clone()),
+        serde_json::Value::Object(map) => {
+            for key in &["import", "module", "default", "require"] {
+                if let Some(entry) = map.get(*key) {
+                    return resolve_imports_condition(entry);
+                }
+            }
+            None
+        }
+        _ => None,
+    }
 }
 
 /// Normalize a path by resolving `.` and `..` components.
