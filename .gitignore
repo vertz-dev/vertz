@@ -13,6 +13,7 @@ coverage/
 .nyc_output/
 test-results/
 playwright-report/
+.playwright-mcp/
 
 # Logs
 logs/
