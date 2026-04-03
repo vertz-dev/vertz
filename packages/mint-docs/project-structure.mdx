@@ -9,17 +9,17 @@ Vertz uses **file conventions** to detect what kind of app you're building and h
 
 When you run `vertz dev`, the CLI inspects your `src/` directory and determines the app type:
 
-| Files present                       | App type       | What `vertz dev` does                         |
-| ----------------------------------- | -------------- | --------------------------------------------- |
-| `src/app.tsx` only                  | **UI-only**    | Dev server with SSR + HMR, no API             |
-| `src/server.ts` only               | **API-only**   | API server with watch mode, no UI compilation |
-| `src/app.tsx` + `src/server.ts`     | **Full-stack** | API server + UI dev server with SSR + HMR     |
-| Neither                             | **Error**      | Throws: "No app entry found in src/"          |
+| Files present                   | App type       | What `vertz dev` does                         |
+| ------------------------------- | -------------- | --------------------------------------------- |
+| `src/app.tsx` only              | **UI-only**    | Dev server with SSR + HMR, no API             |
+| `src/server.ts` only            | **API-only**   | API server with watch mode, no UI compilation |
+| `src/app.tsx` + `src/server.ts` | **Full-stack** | API server + UI dev server with SSR + HMR     |
+| Neither                         | **Error**      | Throws: "No app entry found in src/"          |
 
 <Note>
-  `src/entry-server.ts` also triggers UI detection. A project with only `src/entry-server.ts`
-  (no `src/app.tsx`) enters UI-only mode. This is a backward-compatibility path — new projects
-  should use `src/app.tsx`.
+  `src/entry-server.ts` also triggers UI detection. A project with only `src/entry-server.ts` (no
+  `src/app.tsx`) enters UI-only mode. This is a backward-compatibility path — new projects should
+  use `src/app.tsx`.
 </Note>
 
 This detection is automatic. You don't need to configure your app type anywhere.
@@ -76,11 +76,12 @@ When `src/server.ts` is present, `vertz dev` creates a persistent isolate that h
   The TypeScript CLI (`bunx vertz dev`) has additional fallback paths that the Rust runtime
   (`vtz dev`) does not support:
 
-  - **Alternative directory:** `src/api/server.ts` (checked if `src/server.ts` is not found)
-  - **Additional extension:** `.js` (in addition to `.ts` and `.tsx`)
+- **Alternative directory:** `src/api/server.ts` (checked if `src/server.ts` is not found)
+- **Additional extension:** `.js` (in addition to `.ts` and `.tsx`)
 
-  For portability across both runtimes, always use `src/server.ts` or `src/server.tsx` directly
-  in your `src/` directory.
+For portability across both runtimes, always use `src/server.ts` or `src/server.tsx` directly
+in your `src/` directory.
+
 </Note>
 
 ### What if `src/server.ts` is absent?
@@ -118,16 +119,16 @@ export default function App() {
 
 These are two independent concepts that are often confused:
 
-| Config | What it does | What it does NOT do |
-| --- | --- | --- |
-| `compiler.entryFile` in `vertz.config.ts` | Tells the **code generator** which file to analyze for entity and access definitions | Does NOT start the API server |
-| `src/server.ts` (file convention) | Auto-detected as the **runtime** API server entry | Does NOT affect codegen scanning |
+| Config                                    | What it does                                                                         | What it does NOT do              |
+| ----------------------------------------- | ------------------------------------------------------------------------------------ | -------------------------------- |
+| `compiler.entryFile` in `vertz.config.ts` | Tells the **code generator** which file to analyze for entity and access definitions | Does NOT start the API server    |
+| `src/server.ts` (file convention)         | Auto-detected as the **runtime** API server entry                                    | Does NOT affect codegen scanning |
 
 <Warning>
-  The default value for `compiler.entryFile` is `src/app.ts`. You only need to set it if your
-  entity definitions live in a different file than the default. The codegen docs show
-  `entryFile: 'src/api/server.ts'` as an example — that configures where codegen looks for entities,
-  not where the API server starts.
+  The default value for `compiler.entryFile` is `src/app.ts`. You only need to set it if your entity
+  definitions live in a different file than the default. The codegen docs show `entryFile:
+  'src/api/server.ts'` as an example — that configures where codegen looks for entities, not where
+  the API server starts.
 </Warning>
 
 **Can the same file be both?** Yes. If your `compiler.entryFile` points to `src/server.ts` and your server entry is also `src/server.ts`, that's fine — they are two independent discovery mechanisms that happen to reference the same file.
