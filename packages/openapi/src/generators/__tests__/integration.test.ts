@@ -264,3 +264,192 @@ describe('generateAll — integration', () => {
     expect(clientFile!.content).toContain("baseURL: '/api/v1'");
   });
 });
+
+/**
+ * Streaming endpoint integration tests.
+ */
+const STREAMING_API_SPEC = {
+  openapi: '3.1.0',
+  info: { title: 'Streaming API', version: '1.0.0' },
+  paths: {
+    '/tasks/{taskId}/events': {
+      get: {
+        operationId: 'streamTaskEvents',
+        tags: ['tasks'],
+        parameters: [{ name: 'taskId', in: 'path', required: true, schema: { type: 'string' } }],
+        responses: {
+          '200': {
+            description: 'Stream of task events',
+            content: {
+              'text/event-stream': {
+                schema: { $ref: '#/components/schemas/TaskEvent' },
+              },
+            },
+          },
+        },
+      },
+    },
+    '/logs/stream': {
+      get: {
+        operationId: 'streamLogs',
+        tags: ['logs'],
+        responses: {
+          '200': {
+            content: {
+              'application/x-ndjson': {
+                schema: { $ref: '#/components/schemas/LogEntry' },
+              },
+            },
+          },
+        },
+      },
+    },
+    '/logs/search': {
+      post: {
+        operationId: 'searchLogs',
+        tags: ['logs'],
+        requestBody: {
+          content: {
+            'application/json': {
+              schema: { $ref: '#/components/schemas/LogSearchInput' },
+            },
+          },
+        },
+        responses: {
+          '200': {
+            content: {
+              'text/event-stream': {
+                schema: { $ref: '#/components/schemas/LogEntry' },
+              },
+            },
+          },
+        },
+      },
+    },
+    '/events': {
+      get: {
+        operationId: 'streamEvents',
+        tags: ['events'],
+        responses: {
+          '200': {
+            content: {
+              'text/event-stream': {},
+            },
+          },
+        },
+      },
+    },
+    '/tasks': {
+      get: {
+        operationId: 'listTasks',
+        tags: ['tasks'],
+        responses: {
+          '200': {
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/TaskList' },
+              },
+              'text/event-stream': {
+                schema: { $ref: '#/components/schemas/TaskEvent' },
+              },
+            },
+          },
+        },
+      },
+    },
+  },
+  components: {
+    schemas: {
+      TaskEvent: {
+        type: 'object',
+        properties: { type: { type: 'string' }, payload: { type: 'object' } },
+      },
+      TaskList: {
+        type: 'object',
+        properties: { items: { type: 'array', items: { type: 'string' } } },
+      },
+      LogEntry: {
+        type: 'object',
+        properties: { message: { type: 'string' }, level: { type: 'string' } },
+      },
+      LogSearchInput: {
+        type: 'object',
+        properties: { query: { type: 'string' } },
+      },
+    },
+  },
+};
+
+describe('generateAll — streaming integration', () => {
+  function parseAndGenerate() {
+    const parsed = parseOpenAPI(STREAMING_API_SPEC as Record<string, unknown>);
+    const resources = groupOperations(parsed.operations, 'tag');
+    const spec: ParsedSpec = {
+      version: parsed.version,
+      info: { title: STREAMING_API_SPEC.info.title, version: STREAMING_API_SPEC.info.version },
+      resources,
+      schemas: parsed.schemas,
+      securitySchemes: parsed.securitySchemes,
+    };
+    return generateAll(spec);
+  }
+
+  it('SSE endpoint generates AsyncGenerator with requestStream call', () => {
+    const files = parseAndGenerate();
+    const tasksFile = files.find((f) => f.path === 'resources/tasks.ts');
+    expect(tasksFile!.content).toContain('AsyncGenerator<TaskEvent>');
+    expect(tasksFile!.content).toContain('client.requestStream<TaskEvent>');
+    expect(tasksFile!.content).toContain("format: 'sse'");
+    expect(tasksFile!.content).toContain('signal: options?.signal');
+  });
+
+  it('NDJSON endpoint generates AsyncGenerator with ndjson format', () => {
+    const files = parseAndGenerate();
+    const logsFile = files.find((f) => f.path === 'resources/logs.ts');
+    expect(logsFile!.content).toContain('AsyncGenerator<LogEntry>');
+    expect(logsFile!.content).toContain("format: 'ndjson'");
+  });
+
+  it('POST + body + SSE generates streaming method with body in options', () => {
+    const files = parseAndGenerate();
+    const logsFile = files.find((f) => f.path === 'resources/logs.ts');
+    expect(logsFile!.content).toContain('search: (body: LogSearchInput');
+    expect(logsFile!.content).toContain("method: 'POST'");
+    expect(logsFile!.content).toContain('body, signal');
+  });
+
+  it('SSE with no schema generates AsyncGenerator<unknown>', () => {
+    const files = parseAndGenerate();
+    const eventsFile = files.find((f) => f.path === 'resources/events.ts');
+    expect(eventsFile!.content).toContain('AsyncGenerator<unknown>');
+    expect(eventsFile!.content).toContain('client.requestStream<unknown>');
+  });
+
+  it('dual content type generates both JSON and streaming methods', () => {
+    const files = parseAndGenerate();
+    const tasksFile = files.find((f) => f.path === 'resources/tasks.ts');
+    // Standard JSON method
+    expect(tasksFile!.content).toContain('list: (): Promise<FetchResponse<TaskList>>');
+    expect(tasksFile!.content).toContain("client.get('/tasks')");
+    // Streaming method with Stream suffix
+    expect(tasksFile!.content).toContain(
+      'listStream: (options?: { signal?: AbortSignal }): AsyncGenerator<TaskEvent>',
+    );
+    expect(tasksFile!.content).toContain('client.requestStream<TaskEvent>');
+  });
+
+  it('streaming methods include @throws JSDoc', () => {
+    const files = parseAndGenerate();
+    const tasksFile = files.find((f) => f.path === 'resources/tasks.ts');
+    expect(tasksFile!.content).toContain('/** @throws {FetchError} on non-2xx response */');
+  });
+
+  it('mixed resource has both standard and streaming methods', () => {
+    const files = parseAndGenerate();
+    const tasksFile = files.find((f) => f.path === 'resources/tasks.ts');
+    // Standard method (dual content JSON variant)
+    expect(tasksFile!.content).toContain('Promise<FetchResponse<TaskList>>');
+    // Streaming method
+    expect(tasksFile!.content).toContain('AsyncGenerator<TaskEvent>');
+  });
+});

@@ -114,6 +114,26 @@ function getJsonContentSchema(value: unknown): Record<string, unknown> | undefin
   return mediaType.schema;
 }
 
+function getStreamingContentSchema(
+  value: unknown,
+): { schema?: Record<string, unknown>; format: 'sse' | 'ndjson' } | undefined {
+  if (!isRecord(value) || !isRecord(value.content)) {
+    return undefined;
+  }
+
+  const sse = value.content['text/event-stream'];
+  if (isRecord(sse)) {
+    return { schema: isRecord(sse.schema) ? sse.schema : undefined, format: 'sse' };
+  }
+
+  const ndjson = value.content['application/x-ndjson'];
+  if (isRecord(ndjson)) {
+    return { schema: isRecord(ndjson.schema) ? ndjson.schema : undefined, format: 'ndjson' };
+  }
+
+  return undefined;
+}
+
 function extractRefName(schema: Record<string, unknown>): string | undefined {
   if (typeof schema.$ref === 'string') {
     const segments = schema.$ref.split('/');
@@ -154,7 +174,12 @@ function getOperationResponses(operation: Record<string, unknown>): Record<strin
 function pickSuccessResponse(
   operation: Record<string, unknown>,
   spec: Record<string, unknown>,
-): { status: number; schema?: Record<string, unknown> } {
+): {
+  status: number;
+  schema?: Record<string, unknown>;
+  streamingFormat?: 'sse' | 'ndjson';
+  streamingSchema?: Record<string, unknown>;
+} {
   const entries = Object.entries(getOperationResponses(operation))
     .map(([status, response]) => ({ status: Number(status), response }))
     .filter(({ status }) => Number.isInteger(status) && status >= 200 && status < 300)
@@ -166,9 +191,31 @@ function pickSuccessResponse(
   }
 
   const resolvedResponse = resolveOpenAPIObject(first.response, spec);
+  const jsonSchema = getJsonContentSchema(resolvedResponse);
+  const streaming = getStreamingContentSchema(resolvedResponse);
+
+  if (streaming && jsonSchema) {
+    // Dual content type: JSON + streaming
+    return {
+      status: first.status,
+      schema: jsonSchema,
+      streamingFormat: streaming.format,
+      streamingSchema: streaming.schema,
+    };
+  }
+
+  if (streaming) {
+    // Streaming only — use streaming schema as the primary schema
+    return {
+      status: first.status,
+      schema: streaming.schema,
+      streamingFormat: streaming.format,
+    };
+  }
+
   return {
     status: first.status,
-    schema: getJsonContentSchema(resolvedResponse),
+    schema: jsonSchema,
   };
 }
 
@@ -405,6 +452,16 @@ export function parseOpenAPI(spec: Record<string, unknown>): {
           : [],
       };
       if (security) parsed.security = security;
+      if (successResponse.streamingFormat) {
+        parsed.streamingFormat = successResponse.streamingFormat;
+        // Dual content type: store JSON response separately for standard method generation
+        if (successResponse.streamingSchema) {
+          parsed.response = resolveSchemaForOutput(successResponse.streamingSchema, spec, version);
+          parsed.jsonResponse = successResponse.schema
+            ? resolveSchemaForOutput(successResponse.schema, spec, version)
+            : undefined;
+        }
+      }
 
       operations.push(parsed);
     }
