@@ -724,7 +724,7 @@ export function createServer(config: ServerConfig): ServerApp | ServerInstance {
     const cloudError = (method: string) =>
       new Error(
         `auth.api.${method}() is not available in cloud mode. ` +
-          'Auth operations are handled by the cloud proxy via /api/auth/* routes.',
+          `Auth operations are handled by the cloud proxy via ${apiPrefix}/auth/* routes.`,
       );
 
     const cloudAuth: AuthInstance = {

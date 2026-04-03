@@ -10,6 +10,7 @@ interface ServerModule {
   requestHandler?: (request: Request) => Promise<Response>;
   sessionResolver?: (request: Request) => Promise<unknown>;
   initialize?: () => Promise<void>;
+  apiPrefix?: string;
 }
 
 export type DevMode =
@@ -193,7 +194,7 @@ export async function startDevServer(options: StartDevServerOptions): Promise<vo
     const serverMod = await importServerModule(mode.serverEntry);
     apiHandler = serverMod.requestHandler ?? serverMod.handler;
     sessionResolver = serverMod.sessionResolver;
-    serverApiPrefix = (serverMod as Record<string, unknown>).apiPrefix as string | undefined;
+    serverApiPrefix = serverMod.apiPrefix;
 
     // Auto-call initialize() when available (e.g. auth table setup)
     if (serverMod.initialize) {

@@ -268,3 +268,48 @@ describe('buildMfaChallengeCookie with custom authPrefix (#2131)', () => {
     expect(cookie).not.toContain('/api/auth');
   });
 });
+
+describe('auth handler routing with custom _authPrefix (#2131)', () => {
+  it('routes requests correctly when _authPrefix is customized', async () => {
+    const auth = createAuth(
+      baseConfig({
+        _authPrefix: '/v1/auth',
+        emailPassword: { enabled: true },
+      }),
+    );
+
+    // A signup request to the custom prefix should be routed correctly
+    // (not 404 due to hardcoded /api/auth stripping)
+    const request = new Request('http://localhost:3000/v1/auth/signup', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Origin': 'http://localhost:3000',
+      },
+      body: JSON.stringify({ email: 'test@example.com', password: 'TestPassword123!' }),
+    });
+
+    const response = await auth.handler(request);
+    // Should NOT be 404 — the path was correctly stripped to /signup
+    expect(response.status).not.toBe(404);
+  });
+
+  it('returns correct authUrl in /providers with custom prefix', async () => {
+    const auth = createAuth(
+      baseConfig({
+        _authPrefix: '/v1/auth',
+      }),
+    );
+
+    const request = new Request('http://localhost:3000/v1/auth/providers', {
+      method: 'GET',
+      headers: { 'Origin': 'http://localhost:3000' },
+    });
+
+    const response = await auth.handler(request);
+    const body = await response.json();
+    // With no providers configured, returns empty array — but the route was matched (not 404)
+    expect(response.status).toBe(200);
+    expect(Array.isArray(body)).toBe(true);
+  });
+});

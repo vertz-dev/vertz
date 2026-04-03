@@ -1011,7 +1011,9 @@ export function createAuth(config: AuthConfig): AuthInstance {
 
   async function handleAuthRequest(request: Request): Promise<Response> {
     const url = new URL(request.url);
-    const path = url.pathname.replace('/api/auth', '') || '/';
+    const path = url.pathname.startsWith(authPrefix)
+      ? url.pathname.slice(authPrefix.length) || '/'
+      : url.pathname;
     const method = request.method;
 
     // CSRF check for state-changing methods
@@ -1402,7 +1404,7 @@ export function createAuth(config: AuthConfig): AuthInstance {
         const providerList = Array.from(providers.values()).map((p) => ({
           id: p.id,
           name: p.name,
-          authUrl: `/api/auth/oauth/${p.id}`,
+          authUrl: `${authPrefix}/oauth/${p.id}`,
         }));
 
         return new Response(JSON.stringify(providerList), {
