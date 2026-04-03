@@ -121,6 +121,81 @@ function detectCrudMethod(method: HttpMethod, path: string): string | undefined 
   return undefined;
 }
 
+/**
+ * Derive a short, readable PascalCase prefix for generated type names.
+ *
+ * Many spec generators (FastAPI, etc.) produce operationIds that embed the full
+ * URL path: `list_brand_competitors_web_brand_id_competitors_get`. This strips
+ * trailing HTTP method words and the path-derived suffix to produce a shorter
+ * name like `ListBrandCompetitors`.
+ */
+export function deriveTypePrefix(operationId: string, path: string): string {
+  const withoutController = operationId.replace(/^[A-Za-z0-9]+Controller[_.-]+/, '');
+  const words = splitWords(withoutController).map((w) => w.toLowerCase());
+
+  // Strip trailing HTTP method word
+  if (words.length > 1 && words.at(-1) && HTTP_METHOD_WORDS.has(words.at(-1) as string)) {
+    words.pop();
+  }
+
+  // Build ordered list of path-derived words
+  const pathWordList: string[] = [];
+  for (const segment of getPathSegments(path)) {
+    const name = isPathParam(segment) ? segment.slice(1, -1) : segment;
+    for (const w of splitWords(name)) {
+      pathWordList.push(w.toLowerCase());
+    }
+  }
+
+  // Find the longest suffix of `words` that matches a contiguous subsequence
+  // of path words (in order). This detects where the path embedding starts.
+  // Only strip if at least 2 meaningful words remain (avoid reducing to just a verb).
+  const cutIndex = findPathSuffixStart(words, pathWordList);
+  const meaningful = cutIndex >= 2 ? words.slice(0, cutIndex) : words;
+
+  return meaningful.map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join('');
+}
+
+/**
+ * Find the earliest index in `words` where a contiguous suffix matches
+ * a subsequence of `pathWords` in order. Returns that index, or words.length
+ * if no path suffix is found.
+ */
+function findPathSuffixStart(words: string[], pathWords: string[]): number {
+  if (pathWords.length === 0) return words.length;
+
+  // Try progressively earlier start positions for the suffix
+  for (let start = 1; start < words.length; start++) {
+    if (isSuffixMatchingPath(words, start, pathWords)) {
+      return start;
+    }
+  }
+
+  return words.length;
+}
+
+/**
+ * Check if words[start..] can be matched as a subsequence of pathWords.
+ * Each word in the suffix must appear in pathWords in order.
+ */
+function isSuffixMatchingPath(words: string[], start: number, pathWords: string[]): boolean {
+  let pathIdx = 0;
+  for (let i = start; i < words.length; i++) {
+    // Find this word in the remaining pathWords
+    let found = false;
+    while (pathIdx < pathWords.length) {
+      if (words[i] === pathWords[pathIdx]) {
+        pathIdx++;
+        found = true;
+        break;
+      }
+      pathIdx++;
+    }
+    if (!found) return false;
+  }
+  return true;
+}
+
 export function normalizeOperationId(
   operationId: string,
   method: HttpMethod,

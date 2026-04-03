@@ -39,6 +39,7 @@ describe('parseOpenAPI', () => {
         {
           operationId: 'list_tasks_tasks__get',
           methodName: 'list',
+          typePrefix: 'ListTasks',
           method: 'GET',
           path: '/tasks',
           pathParams: [],
@@ -201,6 +202,7 @@ describe('parseOpenAPI', () => {
     expect(parseOpenAPI(spec).operations[0]).toEqual({
       operationId: 'update_task',
       methodName: 'update',
+      typePrefix: 'UpdateTask',
       method: 'PATCH',
       path: '/tasks/{taskId}',
       pathParams: [

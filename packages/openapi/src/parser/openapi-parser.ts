@@ -1,4 +1,4 @@
-import { normalizeOperationId } from './operation-id-normalizer';
+import { deriveTypePrefix, normalizeOperationId } from './operation-id-normalizer';
 import { resolveSchema } from './ref-resolver';
 import type {
   HttpMethod,
@@ -438,6 +438,7 @@ export function parseOpenAPI(spec: Record<string, unknown>): {
       const parsed: ParsedOperation = {
         operationId,
         methodName: normalizeOperationId(operationId, method.toUpperCase() as HttpMethod, path),
+        typePrefix: deriveTypePrefix(operationId, path),
         method: method.toUpperCase() as HttpMethod,
         path,
         pathParams,

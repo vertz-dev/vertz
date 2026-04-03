@@ -161,18 +161,22 @@ function collectOperationCircularRefs(
   }
 }
 
+function getTypePrefix(op: ParsedOperation): string {
+  return op.typePrefix ?? toPascalCase(op.operationId);
+}
+
 function deriveResponseName(op: ParsedOperation): string {
   if (op.response?.name) return sanitizeTypeName(op.response.name);
-  return toPascalCase(op.operationId) + 'Response';
+  return getTypePrefix(op) + 'Response';
 }
 
 function deriveInputName(op: ParsedOperation): string {
   if (op.requestBody?.name) return sanitizeTypeName(op.requestBody.name);
-  return toPascalCase(op.operationId) + 'Input';
+  return getTypePrefix(op) + 'Input';
 }
 
 function deriveQueryName(op: ParsedOperation): string {
-  return toPascalCase(op.operationId) + 'Query';
+  return getTypePrefix(op) + 'Query';
 }
 
 function generateQueryInterface(

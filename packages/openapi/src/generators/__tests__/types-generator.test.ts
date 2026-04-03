@@ -606,4 +606,53 @@ describe('generateTypes', () => {
     const matches = tasksFile!.content.match(/export interface Task \{/g);
     expect(matches).toHaveLength(1);
   });
+
+  it('uses typePrefix for fallback type names instead of long operationId', () => {
+    const resources: ParsedResource[] = [
+      makeResource({
+        operations: [
+          {
+            operationId: 'list_brand_competitors_web_brand_id_competitors_get',
+            methodName: 'listBrandCompetitors',
+            typePrefix: 'ListBrandCompetitors',
+            method: 'GET',
+            path: '/web/brand/{brandId}/competitors',
+            pathParams: [{ name: 'brandId', required: true, schema: { type: 'string' } }],
+            queryParams: [{ name: 'limit', required: false, schema: { type: 'integer' } }],
+            response: {
+              jsonSchema: { type: 'object', properties: { items: { type: 'array' } } },
+            },
+            responseStatus: 200,
+            tags: ['tasks'],
+          },
+          {
+            operationId:
+              're_evaluate_observations_internal_brands_brand_id_re_evaluate_observations_post',
+            methodName: 'reEvaluateObservations',
+            typePrefix: 'ReEvaluateObservations',
+            method: 'POST',
+            path: '/internal/brands/{brandId}/re-evaluate-observations',
+            pathParams: [{ name: 'brandId', required: true, schema: { type: 'string' } }],
+            queryParams: [],
+            requestBody: {
+              jsonSchema: { type: 'object', properties: { force: { type: 'boolean' } } },
+            },
+            responseStatus: 200,
+            tags: ['tasks'],
+          },
+        ],
+      }),
+    ];
+    const schemas: ParsedSchema[] = [];
+
+    const files = generateTypes(resources, schemas);
+    const tasksFile = files.find((f) => f.path === 'types/tasks.ts');
+    // Short typePrefix-based names
+    expect(tasksFile!.content).toContain('export interface ListBrandCompetitorsResponse {');
+    expect(tasksFile!.content).toContain('export interface ListBrandCompetitorsQuery {');
+    expect(tasksFile!.content).toContain('export interface ReEvaluateObservationsInput {');
+    // Should NOT contain the long operationId-based names
+    expect(tasksFile!.content).not.toContain('WebBrandIdCompetitorsGet');
+    expect(tasksFile!.content).not.toContain('InternalBrandsBrandId');
+  });
 });

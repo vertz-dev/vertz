@@ -183,7 +183,7 @@ function buildReturnType(op: ParsedOperation): string {
   }
 
   if (op.response) {
-    const name = toPascalCase(op.operationId) + 'Response';
+    const name = getTypePrefix(op) + 'Response';
     return `Promise<FetchResponse<${name}>>`;
   }
 
@@ -275,7 +275,7 @@ function collectTypeImports(
       } else {
         const name = op.response.name
           ? sanitizeTypeName(op.response.name)
-          : toPascalCase(op.operationId) + 'Response';
+          : getTypePrefix(op) + 'Response';
         if (componentNames.has(name)) {
           componentImports.add(name);
         } else {
@@ -288,7 +288,7 @@ function collectTypeImports(
     if (op.jsonResponse) {
       const name = op.jsonResponse.name
         ? sanitizeTypeName(op.jsonResponse.name)
-        : toPascalCase(op.operationId) + 'Response';
+        : getTypePrefix(op) + 'Response';
       if (componentNames.has(name)) {
         componentImports.add(name);
       } else {
@@ -315,11 +315,15 @@ function collectTypeImports(
   return { resourceImports, componentImports };
 }
 
+function getTypePrefix(op: ParsedOperation): string {
+  return op.typePrefix ?? toPascalCase(op.operationId);
+}
+
 function deriveInputName(op: ParsedOperation): string {
   if (op.requestBody?.name) return sanitizeTypeName(op.requestBody.name);
-  return toPascalCase(op.operationId) + 'Input';
+  return getTypePrefix(op) + 'Input';
 }
 
 function deriveQueryName(op: ParsedOperation): string {
-  return toPascalCase(op.operationId) + 'Query';
+  return getTypePrefix(op) + 'Query';
 }

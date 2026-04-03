@@ -454,4 +454,34 @@ describe('generateSchemas', () => {
     expect(tasksFile!.content).toContain('status: z.string().optional()');
     expect(tasksFile!.content).toContain('limit: z.number().int().optional()');
   });
+
+  it('uses typePrefix for fallback schema names instead of long operationId', () => {
+    const resources: ParsedResource[] = [
+      makeResource({
+        operations: [
+          {
+            operationId: 'list_brand_competitors_web_brand_id_competitors_get',
+            methodName: 'listBrandCompetitors',
+            typePrefix: 'ListBrandCompetitors',
+            method: 'GET',
+            path: '/web/brand/{brandId}/competitors',
+            pathParams: [{ name: 'brandId', required: true, schema: { type: 'string' } }],
+            queryParams: [{ name: 'limit', required: false, schema: { type: 'integer' } }],
+            response: {
+              jsonSchema: { type: 'object', properties: { items: { type: 'array' } } },
+            },
+            responseStatus: 200,
+            tags: ['tasks'],
+          },
+        ],
+      }),
+    ];
+    const schemas: ParsedSchema[] = [];
+
+    const files = generateSchemas(resources, schemas);
+    const tasksFile = files.find((f) => f.path === 'schemas/tasks.ts');
+    expect(tasksFile!.content).toContain('listBrandCompetitorsResponseSchema');
+    expect(tasksFile!.content).toContain('listBrandCompetitorsQuerySchema');
+    expect(tasksFile!.content).not.toContain('WebBrandIdCompetitorsGet');
+  });
 });

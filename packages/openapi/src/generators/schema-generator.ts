@@ -181,18 +181,22 @@ function buildQueryZodSchema(op: ParsedOperation, namedSchemas: Map<string, stri
   return `z.object({\n${entries.join(',\n')},\n})`;
 }
 
+function getTypePrefix(op: ParsedOperation): string {
+  return op.typePrefix ?? toPascalCase(op.operationId);
+}
+
 function deriveResponseSchemaName(op: ParsedOperation): string {
   if (op.response?.name) return toSchemaVarName(op.response.name);
-  return toSchemaVarName(toPascalCase(op.operationId) + 'Response');
+  return toSchemaVarName(getTypePrefix(op) + 'Response');
 }
 
 function deriveInputSchemaName(op: ParsedOperation): string {
   if (op.requestBody?.name) return toSchemaVarName(op.requestBody.name);
-  return toSchemaVarName(toPascalCase(op.operationId) + 'Input');
+  return toSchemaVarName(getTypePrefix(op) + 'Input');
 }
 
 function deriveQuerySchemaName(op: ParsedOperation): string {
-  return toSchemaVarName(toPascalCase(op.operationId) + 'Query');
+  return toSchemaVarName(getTypePrefix(op) + 'Query');
 }
 
 /**
