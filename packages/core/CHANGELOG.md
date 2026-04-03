@@ -1,5 +1,21 @@
 # @vertz/core
 
+## 0.2.46
+
+### Patch Changes
+
+- [#2239](https://github.com/vertz-dev/vertz/pull/2239) [`d029bfc`](https://github.com/vertz-dev/vertz/commit/d029bfcef05d9226f6740b5854827904144dc7ba) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - feat(server): allow customizing or removing the `/api/` route prefix (#2131)
+
+  - `createServer({ apiPrefix: '/v1' })` changes all generated routes from `/api/*` to `/v1/*`
+  - API-only apps can use `apiPrefix: ''` to mount routes at the root
+  - Full-stack apps require a non-empty prefix (enforced at dev server and Cloudflare handler)
+  - Auth cookie paths (`Path=`) automatically follow the resolved prefix
+  - Cloudflare handler reads `app.apiPrefix` at runtime when not explicitly configured
+  - `basePath` option in `@vertz/cloudflare` renamed to `apiPrefix` for consistency
+
+- Updated dependencies []:
+  - @vertz/schema@0.2.46
+
 ## 0.2.45
 
 ### Patch Changes

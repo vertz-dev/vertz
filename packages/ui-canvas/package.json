@@ -1,6 +1,6 @@
 {
   "name": "@vertz/ui-canvas",
-  "version": "0.2.45",
+  "version": "0.2.46",
   "description": "Vertz Canvas renderer with PixiJS and signals",
   "license": "MIT",
   "repository": {
