@@ -6,7 +6,7 @@
     "moduleResolution": "bundler",
     "strict": true,
     "target": "ES2022",
-    "types": ["bun-types"]
+    "types": []
   },
   "include": ["src"]
 }

@@ -1,0 +1,10 @@
+{
+  "name": "hmr-e2e-fixture",
+  "private": true,
+  "dependencies": {
+    "@vertz/errors": "workspace:^",
+    "@vertz/fetch": "workspace:^",
+    "@vertz/ui": "workspace:^",
+    "@vertz/ui-server": "workspace:^"
+  }
+}
