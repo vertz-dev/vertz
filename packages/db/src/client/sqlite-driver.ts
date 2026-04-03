@@ -201,30 +201,43 @@ interface LocalSqliteDatabase {
 /**
  * Resolve a local SQLite database using bun:sqlite or better-sqlite3.
  *
- * Tries bun:sqlite first (Bun runtime), then falls back to better-sqlite3 (Node.js).
+ * Tries bun:sqlite first (Bun/Vertz runtime), then falls back to better-sqlite3 (Node.js).
  * If both fail, throws a descriptive error with both failure reasons.
  *
  * @param dbPath - Path to SQLite file, or ':memory:' for in-memory
- * @param requireFn - Optional require function for testing (defaults to global require)
+ * @param importFn - Optional import function for testing (defaults to dynamic import)
  * @returns A LocalSqliteDatabase instance
  */
-export function resolveLocalSqliteDatabase(
+export async function resolveLocalSqliteDatabase(
   dbPath: string,
-  requireFn: (mod: string) => unknown = require,
-): LocalSqliteDatabase {
+  importFn?: (mod: string) => unknown,
+): Promise<LocalSqliteDatabase> {
   let bunSqliteError: unknown;
 
+  // Use provided import function (for testing) or dynamic import
+  const loadModule = importFn ?? ((mod: string) => import(mod));
+
   try {
-    // Try bun:sqlite first (Bun runtime)
-    const mod = requireFn('bun:sqlite') as { Database: new (path: string) => LocalSqliteDatabase };
-    return new mod.Database(dbPath);
+    // Try bun:sqlite first (Bun/Vertz runtime)
+    const mod = (await loadModule('bun:sqlite')) as {
+      Database: new (path: string) => LocalSqliteDatabase;
+      default?: { Database: new (path: string) => LocalSqliteDatabase };
+    };
+    // Handle ESM interop: import() may return { default: { Database } } or { Database }
+    const Database = mod.Database ?? mod.default?.Database;
+    if (!Database) throw new Error('bun:sqlite module has no Database export');
+    return new Database(dbPath);
   } catch (e) {
     bunSqliteError = e;
   }
 
   try {
     // Fall back to better-sqlite3 (Node.js runtime)
-    const Database = requireFn('better-sqlite3') as new (path: string) => LocalSqliteDatabase;
+    const mod = (await loadModule('better-sqlite3')) as Record<string, unknown>;
+    // Handle ESM interop: import() may return { default: Constructor } or Constructor
+    const Database = (typeof mod === 'function' ? mod : mod.default) as new (
+      path: string,
+    ) => LocalSqliteDatabase;
     return new Database(dbPath);
   } catch (betterSqliteError) {
     const bunMsg =
@@ -237,7 +250,7 @@ export function resolveLocalSqliteDatabase(
         `  bun:sqlite error: ${bunMsg}\n` +
         `  better-sqlite3 error: ${betterMsg}\n\n` +
         'To fix this, either:\n' +
-        '  1. Use the Bun runtime (which includes bun:sqlite), or\n' +
+        '  1. Use the Bun or Vertz runtime (which includes bun:sqlite), or\n' +
         '  2. Install better-sqlite3: npm install better-sqlite3',
     );
   }
@@ -254,14 +267,14 @@ export function resolveLocalSqliteDatabase(
  * @param tableSchema - Optional table schema registry for value conversion
  * @returns A SqliteDriver with query, execute, close, and isHealthy methods
  */
-export function createLocalSqliteDriver(
+export async function createLocalSqliteDriver(
   dbPath: string,
   tableSchema?: TableSchemaRegistry,
-): SqliteDriver {
-  // Lazy-require node:fs and node:path to avoid crashing Cloudflare Workers
+): Promise<SqliteDriver> {
+  // Dynamic import to avoid crashing Cloudflare Workers
   // (this function is only called for local SQLite, never on Workers)
-  const fs = require('node:fs') as typeof import('node:fs');
-  const path = require('node:path') as typeof import('node:path');
+  const fs = await import('node:fs');
+  const path = await import('node:path');
 
   // Auto-create parent directories for file-based paths
   if (dbPath !== ':memory:') {
@@ -271,7 +284,7 @@ export function createLocalSqliteDriver(
     }
   }
 
-  const db = resolveLocalSqliteDatabase(dbPath);
+  const db = await resolveLocalSqliteDatabase(dbPath);
 
   // Enable WAL mode for file-based paths (not :memory:)
   if (dbPath !== ':memory:') {

@@ -728,7 +728,7 @@ async fn dev_server_handler(
         return module_server::handle_css_request(state, req).await;
     }
 
-    if path.starts_with("/src/") {
+    if path.starts_with("/src/") || path.starts_with("/.vertz/") {
         return module_server::handle_source_file(state, req).await;
     }
 
@@ -762,7 +762,7 @@ async fn dev_server_handler(
             .headers()
             .get(header::ACCEPT)
             .and_then(|v| v.to_str().ok())
-            .map(|v| v.contains("text/html"))
+            .map(|v| v.contains("text/html") || v.contains("*/*"))
             .unwrap_or(true); // Default to true for requests without Accept header
 
     if html_shell::is_page_route(&path) && accepts_html {

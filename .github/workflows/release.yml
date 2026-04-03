@@ -244,9 +244,12 @@ jobs:
               gh release delete-asset "$TAG" "$asset" --yes 2>/dev/null || true
             done
             gh release upload "$TAG" "${ASSETS[@]}"
+            # Mark as latest so install.sh can find binaries via releases/latest
+            gh release edit "$TAG" --latest
           else
             gh release create "$TAG" \
               --title "$TAG" \
               --generate-notes \
+              --latest \
               "${ASSETS[@]}"
           fi

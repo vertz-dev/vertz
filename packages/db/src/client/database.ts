@@ -966,7 +966,19 @@ export function createDb<TModels extends Record<string, ModelEntry>>(
     if (dialect === 'sqlite' && hasPath) {
       const sqlitePathOpts = options as CreateDbSqlitePathOptions<TModels>;
       const tableSchema = buildTableSchema(models);
-      sqliteDriver = createLocalSqliteDriver(sqlitePathOpts.path, tableSchema);
+
+      // Lazy driver init — created on first query (async import avoids Workers crash)
+      let driverPromise: Promise<SqliteDriver> | null = null;
+      const ensureDriver = async () => {
+        if (sqliteDriver) return sqliteDriver;
+        if (!driverPromise) {
+          driverPromise = createLocalSqliteDriver(sqlitePathOpts.path, tableSchema).then((d) => {
+            sqliteDriver = d;
+            return d;
+          });
+        }
+        return driverPromise;
+      };
 
       // Lazy migration init — runs CREATE TABLE IF NOT EXISTS before first query
       let migrationDone = !sqlitePathOpts.migrations?.autoApply;
@@ -1011,33 +1023,30 @@ export function createDb<TModels extends Record<string, ModelEntry>>(
       };
 
       return async <T>(sqlStr: string, params: readonly unknown[]) => {
+        const driver = await ensureDriver();
         await ensureMigrated();
-        if (!sqliteDriver) {
-          throw new Error('SQLite driver not initialized');
-        }
-        const rows = await sqliteDriver.query<T>(sqlStr, params as unknown[]);
+        const rows = await driver.query<T>(sqlStr, params as unknown[]);
         return { rows, rowCount: rows.length };
       };
     }
 
     // Otherwise, create a real postgres driver from the URL.
     // The driver is initialized lazily on the first query to avoid pulling
-    // CJS require() (used by the postgres package loader) into the main
-    // bundle at module load time — Cloudflare Workers crash on
-    // createRequire(import.meta.url) at load time.
+    // the postgres package into the main bundle at module load time —
+    // Cloudflare Workers would crash if it were imported eagerly.
     if (options.url) {
       let initialized = false;
 
       initPostgres = async () => {
         if (initialized) return;
         const { createPostgresDriver } = await import('./postgres-driver');
-        driver = createPostgresDriver(options.url!, options.pool);
+        driver = await createPostgresDriver(options.url!, options.pool);
 
         // Create replica drivers if configured
         const replicas = options.pool?.replicas;
         if (replicas && replicas.length > 0) {
-          replicaDrivers = replicas.map((replicaUrl) =>
-            createPostgresDriver(replicaUrl, options.pool),
+          replicaDrivers = await Promise.all(
+            replicas.map((replicaUrl) => createPostgresDriver(replicaUrl, options.pool)),
           );
         }
         initialized = true;

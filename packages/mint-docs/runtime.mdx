@@ -1,0 +1,111 @@
+---
+title: Runtime
+description: 'The Vertz native runtime — fast dev server, built-in test runner'
+---
+
+Vertz ships a native runtime (`vtz`) — a standalone binary that replaces Bun for development. It starts in ~5ms, includes a V8-based dev server with SSR, HMR, and a built-in test runner.
+
+## How it works
+
+When you run `vertz dev`, the CLI automatically uses the native runtime if it's available. No configuration needed — if the binary is installed, it's used. If not, the CLI falls back to Bun transparently.
+
+The native runtime handles:
+
+- `vertz dev` — Development server with SSR + HMR
+- `vertz test` — Built-in test runner
+
+Other commands (`vertz build`, `vertz start`, `vertz codegen`) continue to use Bun.
+
+## Installation
+
+### Automatic (recommended)
+
+The runtime is installed automatically when you add `@vertz/runtime` to your project:
+
+```bash
+bun add -d @vertz/runtime
+```
+
+The `vertz` meta-package and `@vertz/cli` include it as an optional dependency, so most projects already have it after `bun install`.
+
+### Standalone binary
+
+Install the `vtz` binary directly — works on macOS and Linux, both x64 and ARM:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/vertz-dev/vertz/main/install.sh | sh
+```
+
+This installs to `~/.vtz/bin/` and creates a `vertz` symlink. The script auto-detects your platform and architecture.
+
+To install a specific version:
+
+```bash
+VTZ_VERSION=0.2.46 curl -fsSL https://raw.githubusercontent.com/vertz-dev/vertz/main/install.sh | sh
+```
+
+### From source
+
+For contributors working on the Vertz monorepo:
+
+```bash
+cd native
+cargo build --release
+# Binary is at native/target/release/vtz
+```
+
+The CLI automatically detects local monorepo builds — no extra config needed.
+
+## Binary resolution
+
+The CLI resolves the runtime binary in this order:
+
+1. **`VERTZ_RUNTIME_BINARY` env var** — explicit path override (fail-fast if set but missing)
+2. **Monorepo local build** — `native/target/release/vtz` or `native/target/debug/vtz`
+3. **npm package** — `@vertz/runtime` resolves the platform-specific binary
+4. **Fallback** — if none found, uses Bun with an info message
+
+## Supported platforms
+
+| Platform | Architecture      | npm package                   |
+| -------- | ----------------- | ----------------------------- |
+| macOS    | ARM (M1/M2/M3/M4) | `@vertz/runtime-darwin-arm64` |
+| macOS    | Intel (x64)       | `@vertz/runtime-darwin-x64`   |
+| Linux    | x64               | `@vertz/runtime-linux-x64`    |
+| Linux    | ARM64             | `@vertz/runtime-linux-arm64`  |
+
+## CLI commands
+
+The `vtz` binary supports the following commands:
+
+```bash
+vtz dev              # Start development server
+vtz test             # Run tests
+vtz install          # Install dependencies
+vtz add <pkg>        # Add a package
+vtz remove <pkg>     # Remove a package
+vtz run <script>     # Run a package.json script
+vtz exec <cmd>       # Run a command from node_modules/.bin
+```
+
+### Dev server options
+
+```bash
+vtz dev --port 3000       # Set port (default: 3000)
+vtz dev --host 0.0.0.0   # Set host (default: localhost)
+vtz dev --open            # Open browser on start
+vtz dev --no-typecheck    # Skip TypeScript checking
+```
+
+## Verifying your installation
+
+```bash
+vtz --version
+# vtz 0.2.46
+```
+
+If you see a version mismatch warning when using the CLI, update the runtime:
+
+```bash
+bun update @vertz/runtime
+```

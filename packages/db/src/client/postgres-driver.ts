@@ -26,11 +26,11 @@ type PostgresSql = import('postgres').Sql<{}>;
 // Lazy-load postgres (optional peer dependency)
 // ---------------------------------------------------------------------------
 
-function loadPostgres(): (...args: unknown[]) => PostgresSql {
+async function loadPostgres(): Promise<(...args: unknown[]) => PostgresSql> {
   try {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any -- lazy-loaded optional dep
-    const mod = require('postgres') as any;
-    // Handle ESM interop: require() may return { default: fn } or fn directly
+    const mod = (await import('postgres')) as any;
+    // Handle ESM interop: import() may return { default: fn } or fn directly
     return typeof mod === 'function' ? mod : mod.default;
   } catch {
     throw new Error('The "postgres" package is required for PostgreSQL. Install: bun add postgres');
@@ -110,8 +110,11 @@ export interface PostgresDriver extends DbDriver {
  * @param pool - Optional pool configuration
  * @returns A PostgresDriver with queryFn, close(), and isHealthy()
  */
-export function createPostgresDriver(url: string, pool?: PoolConfig): PostgresDriver {
-  const sql: PostgresSql = loadPostgres()(url, {
+export async function createPostgresDriver(
+  url: string,
+  pool?: PoolConfig,
+): Promise<PostgresDriver> {
+  const sql: PostgresSql = (await loadPostgres())(url, {
     max: pool?.max ?? 10,
     idle_timeout: pool?.idleTimeout !== undefined ? pool.idleTimeout / 1000 : 30,
     connect_timeout: pool?.connectionTimeout !== undefined ? pool.connectionTimeout / 1000 : 10,

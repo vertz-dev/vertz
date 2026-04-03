@@ -29,11 +29,11 @@ afterEach(() => {
 describe('createLocalSqliteDriver', () => {
   describe('Given a file-based path with non-existent parent directory', () => {
     describe('When creating the driver', () => {
-      it('Then auto-creates parent directories', () => {
+      it('Then auto-creates parent directories', async () => {
         const dbPath = tmpDbPath('nested/deep');
         expect(existsSync(join(TMP_DIR, 'nested', 'deep'))).toBe(false);
 
-        const driver = createLocalSqliteDriver(dbPath);
+        const driver = await createLocalSqliteDriver(dbPath);
 
         // Parent directory was created
         expect(existsSync(join(TMP_DIR, 'nested', 'deep'))).toBe(true);
@@ -48,7 +48,7 @@ describe('createLocalSqliteDriver', () => {
     describe('When creating the driver', () => {
       it('Then enables WAL mode', async () => {
         const dbPath = tmpDbPath('wal-test');
-        const driver = createLocalSqliteDriver(dbPath);
+        const driver = await createLocalSqliteDriver(dbPath);
 
         // WAL mode should be enabled — query PRAGMA to verify
         const result = await driver.query<{ journal_mode: string }>('PRAGMA journal_mode');
@@ -62,7 +62,7 @@ describe('createLocalSqliteDriver', () => {
   describe('Given an in-memory database', () => {
     describe('When calling isHealthy', () => {
       it('Then returns true for a healthy connection', async () => {
-        const driver = createLocalSqliteDriver(':memory:');
+        const driver = await createLocalSqliteDriver(':memory:');
 
         const healthy = await driver.isHealthy();
         expect(healthy).toBe(true);
@@ -73,7 +73,7 @@ describe('createLocalSqliteDriver', () => {
 
     describe('When calling close and then isHealthy', () => {
       it('Then returns false after close', async () => {
-        const driver = createLocalSqliteDriver(':memory:');
+        const driver = await createLocalSqliteDriver(':memory:');
 
         await driver.close();
 
@@ -89,7 +89,7 @@ describe('createLocalSqliteDriver', () => {
         const tableSchema: TableSchemaRegistry = new Map([
           ['items', { id: 'integer', active: 'boolean' }],
         ]);
-        const driver = createLocalSqliteDriver(':memory:', tableSchema);
+        const driver = await createLocalSqliteDriver(':memory:', tableSchema);
 
         // Create table and insert test data
         await driver.execute(
@@ -116,7 +116,7 @@ describe('createLocalSqliteDriver', () => {
         const tableSchema: TableSchemaRegistry = new Map([
           ['items', { id: 'integer', active: 'boolean' }],
         ]);
-        const driver = createLocalSqliteDriver(':memory:', tableSchema);
+        const driver = await createLocalSqliteDriver(':memory:', tableSchema);
 
         await driver.execute(
           'CREATE TABLE items (id INTEGER PRIMARY KEY, active INTEGER NOT NULL)',
@@ -138,7 +138,7 @@ describe('createLocalSqliteDriver', () => {
   describe('Given a driver without table schema', () => {
     describe('When querying', () => {
       it('Then returns raw values without conversion', async () => {
-        const driver = createLocalSqliteDriver(':memory:');
+        const driver = await createLocalSqliteDriver(':memory:');
 
         await driver.execute(
           'CREATE TABLE items (id INTEGER PRIMARY KEY, active INTEGER NOT NULL)',
@@ -163,48 +163,50 @@ describe('createLocalSqliteDriver', () => {
 describe('resolveLocalSqliteDatabase', () => {
   describe('Given both bun:sqlite and better-sqlite3 are unavailable', () => {
     describe('When resolving the database', () => {
-      it('Then throws an error mentioning both backends and the db path', () => {
+      it('Then throws an error mentioning both backends and the db path', async () => {
         const bunError = new Error('bun:sqlite not available');
         const betterError = new Error('Could not locate the bindings file');
 
-        const failingRequire = (_mod: string) => {
+        const failingImport = (_mod: string) => {
           throw _mod === 'bun:sqlite' ? bunError : betterError;
         };
 
-        expect(() => resolveLocalSqliteDatabase(':memory:', failingRequire)).toThrow(
+        await expect(resolveLocalSqliteDatabase(':memory:', failingImport)).rejects.toThrow(
           /Failed to initialize SQLite/,
         );
-        expect(() => resolveLocalSqliteDatabase(':memory:', failingRequire)).toThrow(/bun:sqlite/);
-        expect(() => resolveLocalSqliteDatabase(':memory:', failingRequire)).toThrow(
+        await expect(resolveLocalSqliteDatabase(':memory:', failingImport)).rejects.toThrow(
+          /bun:sqlite/,
+        );
+        await expect(resolveLocalSqliteDatabase(':memory:', failingImport)).rejects.toThrow(
           /better-sqlite3/,
         );
       });
 
-      it('Then includes the database path in the error', () => {
-        const failingRequire = (_mod: string) => {
+      it('Then includes the database path in the error', async () => {
+        const failingImport = (_mod: string) => {
           throw new Error('not available');
         };
 
-        expect(() => resolveLocalSqliteDatabase('/app/data/notes.db', failingRequire)).toThrow(
-          '/app/data/notes.db',
-        );
+        await expect(
+          resolveLocalSqliteDatabase('/app/data/notes.db', failingImport),
+        ).rejects.toThrow('/app/data/notes.db');
       });
     });
   });
 
   describe('Given bun:sqlite succeeds', () => {
     describe('When resolving the database', () => {
-      it('Then returns the database from bun:sqlite', () => {
+      it('Then returns the database from bun:sqlite', async () => {
         const mockDb = { prepare: () => {}, exec: () => {}, close: () => {} };
         function MockDatabase() {
           return mockDb;
         }
-        const mockRequire = (mod: string) => {
+        const mockImport = (mod: string) => {
           if (mod === 'bun:sqlite') return { Database: MockDatabase };
           throw new Error('should not reach better-sqlite3');
         };
 
-        const db = resolveLocalSqliteDatabase(':memory:', mockRequire);
+        const db = await resolveLocalSqliteDatabase(':memory:', mockImport);
         expect(db).toBe(mockDb);
       });
     });
@@ -212,17 +214,17 @@ describe('resolveLocalSqliteDatabase', () => {
 
   describe('Given bun:sqlite fails but better-sqlite3 succeeds', () => {
     describe('When resolving the database', () => {
-      it('Then returns the database from better-sqlite3', () => {
+      it('Then returns the database from better-sqlite3', async () => {
         const mockDb = { prepare: () => {}, exec: () => {}, close: () => {} };
         function MockDatabase() {
           return mockDb;
         }
-        const mockRequire = (mod: string) => {
+        const mockImport = (mod: string) => {
           if (mod === 'bun:sqlite') throw new Error('not available');
-          return MockDatabase;
+          return { default: MockDatabase };
         };
 
-        const db = resolveLocalSqliteDatabase(':memory:', mockRequire);
+        const db = await resolveLocalSqliteDatabase(':memory:', mockImport);
         expect(db).toBe(mockDb);
       });
     });

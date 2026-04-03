@@ -222,7 +222,7 @@ describe('PostgreSQL Driver', () => {
       const { createPostgresDriver } = await import('../postgres-driver');
 
       // Create a driver with explicit healthCheckTimeout
-      const driver = createPostgresDriver('postgres://localhost:5432/test', {
+      const driver = await createPostgresDriver('postgres://localhost:5432/test', {
         max: 1,
         healthCheckTimeout: 3000,
       });
@@ -241,7 +241,7 @@ describe('PostgreSQL Driver', () => {
 
       // Create a driver pointing to non-existent DB
       // Use connectionTimeout to fail fast
-      const driver = createPostgresDriver('postgres://localhost:5432/nonexistent', {
+      const driver = await createPostgresDriver('postgres://localhost:5432/nonexistent', {
         max: 1,
         connectionTimeout: 100,
         healthCheckTimeout: 500,
@@ -270,7 +270,7 @@ describe('PostgreSQL Driver', () => {
       const { createPostgresDriver } = await import('../postgres-driver');
 
       // Creating with idleTimeout should work
-      const driver = createPostgresDriver('postgres://localhost:5432/test', {
+      const driver = await createPostgresDriver('postgres://localhost:5432/test', {
         max: 1,
         idleTimeout: 60000,
       });
@@ -293,7 +293,7 @@ describe('PostgreSQL Driver', () => {
     it('close() method exists and is callable', async () => {
       const { createPostgresDriver } = await import('../postgres-driver');
 
-      const driver = createPostgresDriver('postgres://localhost:5432/test', {
+      const driver = await createPostgresDriver('postgres://localhost:5432/test', {
         max: 1,
       });
 
@@ -306,7 +306,7 @@ describe('PostgreSQL Driver', () => {
     it('close() calls the underlying pool end', async () => {
       const { createPostgresDriver } = await import('../postgres-driver');
 
-      const driver = createPostgresDriver('postgres://localhost:5432/test', {
+      const driver = await createPostgresDriver('postgres://localhost:5432/test', {
         max: 1,
       });
 
@@ -393,7 +393,7 @@ describe('PostgreSQL Driver', () => {
       expect(typeof isReadQuery).toBe('function');
 
       // Create driver - the fallback logic is in the queryFn implementation
-      const driver = createPostgresDriver('postgres://localhost:5432/test', undefined, [
+      const driver = await createPostgresDriver('postgres://localhost:5432/test', undefined, [
         'postgres://localhost:5433/test',
       ]);
 
@@ -412,7 +412,7 @@ describe('PostgreSQL Driver', () => {
       // Note: We can't easily trigger actual fallback in unit tests without
       // mocking the postgres module more extensively, but we verify the
       // warning mechanism exists by checking the implementation uses console.warn
-      const driver = createPostgresDriver('postgres://localhost:5432/test', undefined, [
+      const driver = await createPostgresDriver('postgres://localhost:5432/test', undefined, [
         'postgres://localhost:5433/test',
       ]);
 
@@ -437,7 +437,7 @@ describe('PostgreSQL Driver', () => {
       const mockResult = Object.assign([...mockRows], { count: 1 });
       mockUnsafe.mockResolvedValue(mockResult);
 
-      const driver = createPostgresDriver('postgres://localhost:5432/test');
+      const driver = await createPostgresDriver('postgres://localhost:5432/test');
 
       const result = await driver.query<{ id: number; name: string }>('SELECT * FROM users');
 
@@ -453,7 +453,7 @@ describe('PostgreSQL Driver', () => {
       const mockResult = Object.assign(mockRows, { count: 0 });
       mockUnsafe.mockResolvedValue(mockResult);
 
-      const driver = createPostgresDriver('postgres://localhost:5432/test');
+      const driver = await createPostgresDriver('postgres://localhost:5432/test');
 
       await driver.query('SELECT * FROM users WHERE id = $1', [1]);
 
@@ -472,7 +472,7 @@ describe('PostgreSQL Driver', () => {
       const mockResult = Object.assign(mockRows, { count: 1 });
       mockUnsafe.mockResolvedValue(mockResult);
 
-      const driver = createPostgresDriver('postgres://localhost:5432/test');
+      const driver = await createPostgresDriver('postgres://localhost:5432/test');
 
       const result = await driver.query<{ id: number; created: Date }>('SELECT * FROM users');
 
@@ -488,7 +488,7 @@ describe('PostgreSQL Driver', () => {
       const mockResult = Object.assign(mockRows, { count: 5 });
       mockUnsafe.mockResolvedValue(mockResult);
 
-      const driver = createPostgresDriver('postgres://localhost:5432/test');
+      const driver = await createPostgresDriver('postgres://localhost:5432/test');
 
       const result = await driver.execute('DELETE FROM users WHERE id = $1', [1]);
 
@@ -515,7 +515,7 @@ describe('PostgreSQL Driver', () => {
 
       mockUnsafe.mockRejectedValue(pgError);
 
-      const driver = createPostgresDriver('postgres://localhost:5432/test');
+      const driver = await createPostgresDriver('postgres://localhost:5432/test');
 
       await expect(driver.query('INSERT INTO users (id) VALUES ($1)', [1])).rejects.toThrow();
     });
@@ -527,7 +527,7 @@ describe('PostgreSQL Driver', () => {
       const plainError = { notAnError: true };
       mockUnsafe.mockRejectedValue(plainError);
 
-      const driver = createPostgresDriver('postgres://localhost:5432/test');
+      const driver = await createPostgresDriver('postgres://localhost:5432/test');
 
       await expect(driver.query('SELECT * FROM users', [])).rejects.toEqual(plainError);
     });
@@ -562,7 +562,7 @@ describe('PostgreSQL Driver', () => {
       }));
 
       const { createPostgresDriver: createDriver } = await import('../postgres-driver');
-      const driver = createDriver('postgres://localhost:5432/test');
+      const driver = await createDriver('postgres://localhost:5432/test');
 
       const result = await driver.beginTransaction?.(async (txQueryFn) => {
         const queryResult = await txQueryFn<{ id: number; name: string }>(
@@ -593,7 +593,7 @@ describe('PostgreSQL Driver', () => {
       }));
 
       const { createPostgresDriver: createDriver } = await import('../postgres-driver');
-      const driver = createDriver('postgres://localhost:5432/test');
+      const driver = await createDriver('postgres://localhost:5432/test');
 
       const result = await driver.beginTransaction?.(async (txQueryFn) => {
         const queryResult = await txQueryFn<{ id: number; created: Date }>(
@@ -628,7 +628,7 @@ describe('PostgreSQL Driver', () => {
       }));
 
       const { createPostgresDriver: createDriver } = await import('../postgres-driver');
-      const driver = createDriver('postgres://localhost:5432/test');
+      const driver = await createDriver('postgres://localhost:5432/test');
 
       await expect(
         driver.beginTransaction?.(async (txQueryFn) => {
