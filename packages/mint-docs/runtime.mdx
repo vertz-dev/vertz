@@ -10,6 +10,7 @@ Vertz ships a native runtime (`vtz`) — a standalone binary that replaces Bun f
 When you run `vertz dev`, the CLI automatically uses the native runtime if it's available. No configuration needed — if the binary is installed, it's used. If not, the CLI falls back to Bun transparently.
 
 The native runtime handles:
+
 - `vertz dev` — Development server with SSR + HMR
 - `vertz test` — Built-in test runner
 
@@ -66,12 +67,12 @@ The CLI resolves the runtime binary in this order:
 
 ## Supported platforms
 
-| Platform | Architecture | npm package |
-|----------|-------------|-------------|
-| macOS | ARM (M1/M2/M3/M4) | `@vertz/runtime-darwin-arm64` |
-| macOS | Intel (x64) | `@vertz/runtime-darwin-x64` |
-| Linux | x64 | `@vertz/runtime-linux-x64` |
-| Linux | ARM64 | `@vertz/runtime-linux-arm64` |
+| Platform | Architecture      | npm package                   |
+| -------- | ----------------- | ----------------------------- |
+| macOS    | ARM (M1/M2/M3/M4) | `@vertz/runtime-darwin-arm64` |
+| macOS    | Intel (x64)       | `@vertz/runtime-darwin-x64`   |
+| Linux    | x64               | `@vertz/runtime-linux-x64`    |
+| Linux    | ARM64             | `@vertz/runtime-linux-arm64`  |
 
 ## CLI commands
 

@@ -110,7 +110,10 @@ export interface PostgresDriver extends DbDriver {
  * @param pool - Optional pool configuration
  * @returns A PostgresDriver with queryFn, close(), and isHealthy()
  */
-export async function createPostgresDriver(url: string, pool?: PoolConfig): Promise<PostgresDriver> {
+export async function createPostgresDriver(
+  url: string,
+  pool?: PoolConfig,
+): Promise<PostgresDriver> {
   const sql: PostgresSql = (await loadPostgres())(url, {
     max: pool?.max ?? 10,
     idle_timeout: pool?.idleTimeout !== undefined ? pool.idleTimeout / 1000 : 30,
