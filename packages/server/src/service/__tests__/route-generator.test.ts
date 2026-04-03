@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, spyOn } from 'bun:test';
+import { NotFoundException } from '@vertz/core';
 import { d } from '@vertz/db';
 import { content } from '../../content';
 import { entity } from '../../entity/entity';
@@ -851,6 +852,32 @@ describe('Feature: generateServiceRoutes', () => {
         expect(body.error.code).toBe('InternalError');
         expect(body.error.message).toBe('An unexpected error occurred');
         expect(body.error.stack).toBeUndefined();
+      });
+    });
+
+    describe('When handler throws a VertzException', () => {
+      it('Then returns the proper status code (not wrapped as 500)', async () => {
+        const notFoundService = service('missing', {
+          access: { find: () => true },
+          actions: {
+            find: {
+              response: responseSchema,
+              handler: async () => {
+                throw new NotFoundException('Resource not found');
+              },
+            },
+          },
+        });
+
+        const registry = new EntityRegistry();
+        const routes = generateServiceRoutes(notFoundService, registry, { devMode: false });
+        const route = routes.find((r) => r.path.includes('find'));
+        const response = await route!.handler({});
+
+        expect(response.status).toBe(404);
+        const body = await response.json();
+        expect(body.error.code).toBe('NotFound');
+        expect(body.error.message).toBe('Resource not found');
       });
     });
   });

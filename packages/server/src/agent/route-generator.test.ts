@@ -1,4 +1,5 @@
 import { describe, expect, it, mock } from 'bun:test';
+import { NotFoundException } from '@vertz/core';
 import { rules } from '../auth/rules';
 import { generateAgentRoutes } from './route-generator';
 import type { AgentLike, AgentRunnerFn } from './types';
@@ -265,6 +266,24 @@ describe('generateAgentRoutes()', () => {
         expect(response.status).toBe(404);
         const body = await response.json();
         expect(body.error.code).toBe('NotFound');
+      });
+    });
+
+    describe('When runner throws a VertzException', () => {
+      it('Then returns the proper status code (not wrapped as 500)', async () => {
+        const agent = makeAgent({ access: { invoke: rules.public } });
+        const failingRunner: AgentRunnerFn = async () => {
+          throw new NotFoundException('Resource not found');
+        };
+        const routes = generateAgentRoutes([agent], failingRunner);
+        const handler = routes[0].handler;
+
+        const response = (await handler(makeCtx())) as Response;
+
+        expect(response.status).toBe(404);
+        const body = await response.json();
+        expect(body.error.code).toBe('NotFound');
+        expect(body.error.message).toBe('Resource not found');
       });
     });
   });
