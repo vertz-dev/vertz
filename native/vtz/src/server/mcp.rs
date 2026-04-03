@@ -316,6 +316,7 @@ async fn execute_tool(
                                     enable_hmr: false,
                                     ssr_data: ssr_resp.ssr_data.as_deref(),
                                     head_tags: ssr_resp.head_tags.as_deref(),
+                                    root_dir: Some(&state.root_dir.to_string_lossy()),
                                 },
                             );
 

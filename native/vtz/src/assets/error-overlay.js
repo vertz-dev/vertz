@@ -31,21 +31,37 @@
     return 'vscode';
   }
 
+  function resolveFilePath(file) {
+    if (!file) return file;
+    // Already absolute
+    if (file.charAt(0) === '/') return file;
+    // Resolve relative paths using the project root injected by the HTML shell.
+    var rootMeta = document.querySelector('meta[name="vertz-root"]');
+    if (rootMeta) {
+      var root = rootMeta.getAttribute('content') || '';
+      // Ensure single separator between root and relative path.
+      if (root.charAt(root.length - 1) === '/') return root + file;
+      return root + '/' + file;
+    }
+    return file;
+  }
+
   function editorUri(file, line, column) {
     var scheme = getEditorScheme();
     var lineNum = line || 1;
     var colNum = column || 1;
+    var absFile = resolveFilePath(file);
 
     switch (scheme) {
       case 'cursor':
-        return 'cursor://file' + file + ':' + lineNum + ':' + colNum;
+        return 'cursor://file' + absFile + ':' + lineNum + ':' + colNum;
       case 'webstorm':
-        return 'webstorm://open?file=' + encodeURIComponent(file) + '&line=' + lineNum + '&column=' + colNum;
+        return 'webstorm://open?file=' + encodeURIComponent(absFile) + '&line=' + lineNum + '&column=' + colNum;
       case 'zed':
-        return 'zed://open?path=' + encodeURIComponent(file) + '&line=' + lineNum + '&column=' + colNum;
+        return 'zed://open?path=' + encodeURIComponent(absFile) + '&line=' + lineNum + '&column=' + colNum;
       case 'vscode':
       default:
-        return 'vscode://file' + file + ':' + lineNum + ':' + colNum;
+        return 'vscode://file' + absFile + ':' + lineNum + ':' + colNum;
     }
   }
 

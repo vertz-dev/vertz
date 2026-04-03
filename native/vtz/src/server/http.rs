@@ -3,7 +3,7 @@ use crate::compiler::pipeline::CompilationPipeline;
 use crate::config::ServerConfig;
 use crate::deps::linked::{discover_linked_packages, WatchTarget};
 use crate::errors::broadcaster::ErrorBroadcaster;
-use crate::errors::categories::{extract_snippet, DevError, ErrorCategory};
+use crate::errors::categories::{extract_snippet, refine_error_line, DevError, ErrorCategory};
 use crate::hmr::recovery::RestartTriggers;
 use crate::hmr::websocket::HmrHub;
 use crate::runtime::persistent_isolate::{
@@ -416,6 +416,7 @@ async fn ai_render_handler(
                             enable_hmr: false,
                             ssr_data: ssr_resp.ssr_data.as_deref(),
                             head_tags: ssr_resp.head_tags.as_deref(),
+                            root_dir: Some(&state.root_dir.to_string_lossy()),
                         },
                     );
 
@@ -836,6 +837,7 @@ async fn dev_server_handler(
                                     enable_hmr: true,
                                     ssr_data: ssr_resp.ssr_data.as_deref(),
                                     head_tags: ssr_resp.head_tags.as_deref(),
+                                    root_dir: Some(&state.root_dir.to_string_lossy()),
                                 },
                             );
 
@@ -951,17 +953,25 @@ fn parse_ssr_error_for_overlay(
                         let full_path = root_dir.join(file);
                         let _ = pipeline.compile_for_browser(&full_path);
                         let mapper = crate::errors::source_mapper::SourceMapper::new(pipeline.cache());
-                        let resolved = mapper.resolve(&full_path, line, col);
+                        // Use resolve_nearest: if the exact line has no mapping (e.g.,
+                        // compiler-injected boilerplate), scan nearby lines (±5) to find
+                        // the source file and approximate original position.
+                        let resolved = mapper.resolve_nearest(&full_path, line, col, 5);
                         if let Some(ref mapped) = resolved {
                             // Source map resolved — show original source with original line.
                             error = error.with_file(&mapped.file).with_location(mapped.line, mapped.column);
                             let source_path = root_dir.join(&mapped.file);
                             if let Ok(source) = std::fs::read_to_string(&source_path) {
-                                error = error.with_snippet(extract_snippet(&source, mapped.line, 3));
+                                // If the mapped line doesn't contain the error text (approximate
+                                // mapping from a nearby line), search the source for the actual
+                                // statement to get a precise line number.
+                                let precise_line = refine_error_line(&source, mapped.line, message);
+                                error = error.with_location(precise_line, mapped.column);
+                                error = error.with_snippet(extract_snippet(&source, precise_line, 3));
                             }
                         } else {
-                            // Source map didn't cover this line — show file with compiled line,
-                            // but use compiled code for the snippet (line numbers match V8 output).
+                            // No source map at all — show file with compiled line,
+                            // but use compiled code for the snippet.
                             error = error.with_file(file).with_location(line, col);
                             if let Some(cached) = pipeline.cache().get_unchecked(&full_path) {
                                 error = error.with_snippet(extract_snippet(&cached.code, line, 3));

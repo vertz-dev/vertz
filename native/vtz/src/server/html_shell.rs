@@ -61,6 +61,11 @@ pub fn generate_html_shell_with_hmr(
         "  <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\" />\n",
     );
     html.push_str(&format!("  <title>{}</title>\n", escape_html(title)));
+    // Project root path for editor link construction in the error overlay.
+    html.push_str(&format!(
+        "  <meta name=\"vertz-root\" content=\"{}\" />\n",
+        escape_html(&root_dir.to_string_lossy())
+    ));
 
     // Plugin-provided <head> content
     if let Some(extra_head) = plugin.head_html() {

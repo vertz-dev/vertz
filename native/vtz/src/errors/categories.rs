@@ -212,6 +212,46 @@ pub fn extract_snippet(source: &str, error_line: u32, context_lines: u32) -> Str
     snippet
 }
 
+/// Refine an approximate source line by searching for the error text.
+///
+/// When source map resolution returns a nearby line (not exact), this function
+/// searches the original source for a line containing a distinctive part of the
+/// error message (e.g., the string inside `throw new Error('...')`). It searches
+/// within ±`range` lines of the `approx_line` and returns the best match.
+/// Falls back to `approx_line` if no match is found.
+pub fn refine_error_line(source: &str, approx_line: u32, error_message: &str) -> u32 {
+    // Extract a distinctive substring from the error message.
+    // Error messages are often "Error: <text>" or just "<text>".
+    let search_text = error_message
+        .strip_prefix("Error: ")
+        .or_else(|| error_message.strip_prefix("Uncaught Error: "))
+        .unwrap_or(error_message)
+        .trim();
+
+    if search_text.is_empty() {
+        return approx_line;
+    }
+
+    let lines: Vec<&str> = source.lines().collect();
+    if lines.is_empty() || approx_line == 0 {
+        return approx_line;
+    }
+
+    let approx_idx = (approx_line - 1) as usize;
+    let range: usize = 10;
+    let start = approx_idx.saturating_sub(range);
+    let end = (approx_idx + range + 1).min(lines.len());
+
+    // Search for the error text in nearby lines.
+    for i in start..end {
+        if lines[i].contains(search_text) {
+            return (i + 1) as u32;
+        }
+    }
+
+    approx_line
+}
+
 /// Active error state tracker.
 ///
 /// Tracks errors by category with priority-based suppression.
