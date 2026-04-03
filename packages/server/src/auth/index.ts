@@ -2758,9 +2758,7 @@ export function createAuth(config: AuthConfig): AuthInstance {
     } catch (error) {
       if (!isProduction) {
         const message =
-          error instanceof Error
-            ? error.message
-            : 'Internal server error (non-Error value thrown)';
+          error instanceof Error ? error.message : 'Internal server error (non-Error value thrown)';
         const stack = error instanceof Error ? error.stack : undefined;
         return new Response(
           JSON.stringify({

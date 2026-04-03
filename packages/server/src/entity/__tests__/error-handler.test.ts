@@ -132,10 +132,7 @@ describe('entityErrorHandler', () => {
     });
 
     it('does not change VertzException behavior', () => {
-      const result = entityErrorHandler(
-        new NotFoundException('User not found'),
-        { devMode: true },
-      );
+      const result = entityErrorHandler(new NotFoundException('User not found'), { devMode: true });
 
       expect(result.status).toBe(404);
       expect(result.body.error.code).toBe('NotFound');

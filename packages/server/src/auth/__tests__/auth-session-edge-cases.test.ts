@@ -239,7 +239,7 @@ describe('Auth Session Edge Cases', () => {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
-              'Origin': 'http://localhost',
+              Origin: 'http://localhost',
               'X-VTZ-Request': '1',
             },
             body: JSON.stringify({ email: 'test@example.com', password: 'password123' }),
