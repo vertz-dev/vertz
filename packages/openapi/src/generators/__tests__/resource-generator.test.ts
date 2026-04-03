@@ -817,6 +817,84 @@ describe('generateResources', () => {
     expect(tasksFile!.content).toContain('client.requestStream<TaskEvent>');
   });
 
+  it('throws when dual-content Stream suffix collides with existing method name', () => {
+    const resources: ParsedResource[] = [
+      makeResource({
+        operations: [
+          {
+            operationId: 'listTasks',
+            methodName: 'list',
+            method: 'GET',
+            path: '/tasks',
+            pathParams: [],
+            queryParams: [],
+            response: {
+              name: 'TaskEvent',
+              jsonSchema: { type: 'object' },
+            },
+            responseStatus: 200,
+            tags: ['tasks'],
+            streamingFormat: 'sse',
+            jsonResponse: {
+              name: 'TaskList',
+              jsonSchema: { type: 'object' },
+            },
+          },
+          {
+            operationId: 'listTasksStream',
+            methodName: 'listStream',
+            method: 'GET',
+            path: '/tasks/stream',
+            pathParams: [],
+            queryParams: [],
+            response: {
+              name: 'TaskStreamEvent',
+              jsonSchema: { type: 'object' },
+            },
+            responseStatus: 200,
+            tags: ['tasks'],
+            streamingFormat: 'sse',
+          },
+        ],
+      }),
+    ];
+
+    expect(() => generateResources(resources)).toThrow(
+      /Method name collision.*dual-content.*"listTasks".*"listStream"/,
+    );
+  });
+
+  it('generates GET streaming method with query params', () => {
+    const resources: ParsedResource[] = [
+      makeResource({
+        operations: [
+          {
+            operationId: 'streamFilteredEvents',
+            methodName: 'streamFiltered',
+            method: 'GET',
+            path: '/events',
+            pathParams: [],
+            queryParams: [{ name: 'severity', required: false, schema: { type: 'string' } }],
+            response: {
+              name: 'Event',
+              jsonSchema: { type: 'object' },
+            },
+            responseStatus: 200,
+            tags: ['tasks'],
+            streamingFormat: 'sse',
+          },
+        ],
+      }),
+    ];
+
+    const files = generateResources(resources);
+    const tasksFile = files.find((f) => f.path === 'resources/tasks.ts');
+    expect(tasksFile!.content).toContain(
+      'streamFiltered: (query?: StreamFilteredEventsQuery, options?: { signal?: AbortSignal }): AsyncGenerator<Event>',
+    );
+    expect(tasksFile!.content).toContain('query, signal');
+  });
+
   it('imports both JSON and streaming response types for dual content', () => {
     const resources: ParsedResource[] = [
       makeResource({

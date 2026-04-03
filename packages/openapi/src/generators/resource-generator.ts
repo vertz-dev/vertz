@@ -93,18 +93,31 @@ function validateUniqueMethodNames(resource: ParsedResource): void {
   }
 
   const duplicates = [...seen.entries()].filter(([, ids]) => ids.length > 1);
-  if (duplicates.length === 0) return;
+  if (duplicates.length > 0) {
+    const details = duplicates
+      .map(([name, ids]) => `  - "${name}" used by: ${ids.join(', ')}`)
+      .join('\n');
 
-  const details = duplicates
-    .map(([name, ids]) => `  - "${name}" used by: ${ids.join(', ')}`)
-    .join('\n');
+    throw new Error(
+      `Duplicate method name${duplicates.length > 1 ? 's' : ''} ${duplicates.map(([n]) => `"${n}"`).join(', ')} in resource "${resource.name}". ` +
+        `Each operation within a resource must have a unique method name.\n${details}\n\n` +
+        `Fix: use excludeTags to skip this tag, use a different groupBy strategy, ` +
+        `or provide operationIds.overrides to rename conflicting operations.`,
+    );
+  }
 
-  throw new Error(
-    `Duplicate method name${duplicates.length > 1 ? 's' : ''} ${duplicates.map(([n]) => `"${n}"`).join(', ')} in resource "${resource.name}". ` +
-      `Each operation within a resource must have a unique method name.\n${details}\n\n` +
-      `Fix: use excludeTags to skip this tag, use a different groupBy strategy, ` +
-      `or provide operationIds.overrides to rename conflicting operations.`,
-  );
+  // Check that dual-content Stream suffix doesn't collide with existing method names
+  for (const op of resource.operations) {
+    if (op.streamingFormat && op.jsonResponse) {
+      const streamName = op.methodName + 'Stream';
+      if (seen.has(streamName)) {
+        throw new Error(
+          `Method name collision: dual-content operation "${op.operationId}" generates ` +
+            `"${streamName}" which conflicts with existing method "${streamName}" in resource "${resource.name}".`,
+        );
+      }
+    }
+  }
 }
 
 function buildParams(op: ParsedOperation): string {

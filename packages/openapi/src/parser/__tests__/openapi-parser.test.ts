@@ -672,6 +672,43 @@ describe('parseOpenAPI', () => {
     expect(result.operations[0]!.response).toBeUndefined();
   });
 
+  it('SSE takes precedence over NDJSON when both are present', () => {
+    const spec = {
+      openapi: '3.1.0',
+      info: { title: 'Test', version: '1.0.0' },
+      paths: {
+        '/events': {
+          get: {
+            operationId: 'streamEvents',
+            responses: {
+              '200': {
+                content: {
+                  'text/event-stream': {
+                    schema: { $ref: '#/components/schemas/SseEvent' },
+                  },
+                  'application/x-ndjson': {
+                    schema: { $ref: '#/components/schemas/NdjsonEvent' },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+      components: {
+        schemas: {
+          SseEvent: { type: 'object', properties: { type: { type: 'string' } } },
+          NdjsonEvent: { type: 'object', properties: { line: { type: 'string' } } },
+        },
+      },
+    };
+
+    const result = parseOpenAPI(spec);
+    const op = result.operations[0]!;
+    expect(op.streamingFormat).toBe('sse');
+    expect(op.response!.name).toBe('SseEvent');
+  });
+
   it('handles dual content type (JSON + SSE) with separate schemas', () => {
     const spec = {
       openapi: '3.1.0',
