@@ -8,9 +8,12 @@ use std::time::Instant;
 use deno_core::ModuleSpecifier;
 use tao::event_loop::EventLoopProxy;
 
+use std::sync::Arc;
+
+use crate::config::ServerConfig;
 use crate::runtime::js_runtime::{VertzJsRuntime, VertzRuntimeOptions};
 use crate::runtime::ops::e2e;
-use crate::server::http::{start_server_with_lifecycle, ServerConfig, ServerLifecycle};
+use crate::server::http::{start_server_with_lifecycle, ServerLifecycle};
 use crate::webview::bridge::WebviewBridge;
 use crate::webview::UserEvent;
 
@@ -58,24 +61,50 @@ pub async fn run_e2e_tests(
 
     let app_url = format!("http://localhost:{}", port);
 
-    // Navigate the webview to the app
-    if let Err(e) = bridge
-        .eval(
-            &format!(
-                "(() => {{ window.location.href = '{}'; return 'ok'; }})()",
-                app_url
-            ),
-            10_000,
-        )
-        .await
-    {
-        eprintln!("[e2e] failed to navigate to app: {}", e);
+    // Give the webview event loop time to warm up before sending events.
+    // The tao event loop must be processing before evaluate_script_with_callback works.
+    tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+
+    // Navigate the webview to the app (retry a few times — the webview may need
+    // a moment to be ready to evaluate scripts after creation).
+    let mut nav_ok = false;
+    for attempt in 0..5 {
+        match bridge
+            .eval(
+                &format!(
+                    "(() => {{ window.location.href = '{}'; return 'ok'; }})()",
+                    app_url
+                ),
+                10_000,
+            )
+            .await
+        {
+            Ok(_) => {
+                nav_ok = true;
+                break;
+            }
+            Err(e) => {
+                if attempt < 4 {
+                    eprintln!(
+                        "[e2e] navigate attempt {} failed ({}), retrying...",
+                        attempt + 1,
+                        e
+                    );
+                    tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+                } else {
+                    eprintln!("[e2e] failed to navigate to app after 5 attempts: {}", e);
+                }
+            }
+        }
+    }
+
+    if !nav_ok {
         let _ = shutdown_tx.send(());
         return (empty_result(), String::new());
     }
 
     // Give the page time to load
-    tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+    tokio::time::sleep(std::time::Duration::from_millis(1000)).await;
 
     // Discover e2e test files
     let files = discover_test_files(
@@ -198,6 +227,7 @@ async fn execute_e2e_inner(
         capture_output: true,
         enable_inspector: false,
         compile_cache: !config.no_cache,
+        plugin: Arc::new(crate::plugin::vertz::VertzPlugin),
     })?;
 
     // Put WebviewBridge in OpState so e2e ops can access it
@@ -265,8 +295,8 @@ async fn execute_e2e_inner(
 fn format_output(reporter: &ReporterFormat, result: &TestRunResult) -> String {
     match reporter {
         ReporterFormat::Terminal => format_results(&result.results),
-        ReporterFormat::Json => super::reporter::json::format_json(&result.results),
-        ReporterFormat::Junit => super::reporter::junit::format_junit(&result.results),
+        ReporterFormat::Json => super::reporter::json::format_json(result),
+        ReporterFormat::Junit => super::reporter::junit::format_junit(result),
     }
 }
 

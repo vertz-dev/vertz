@@ -77,7 +77,8 @@
 
     async query(selector) {
       const id = await Deno.core.ops.op_e2e_query(selector);
-      return id != null ? new ElementHandle(id) : null;
+      if (id === "null" || id == null) return null;
+      return new ElementHandle(Number(id));
     },
 
     async queryAll(selector) {
@@ -119,7 +120,12 @@
         js,
         opts.timeout ?? 5000
       );
-      return JSON.parse(result);
+      if (result === "" || result === "undefined" || result == null) return undefined;
+      try {
+        return JSON.parse(result);
+      } catch {
+        return result;
+      }
     },
 
     async waitForSelector(selector, opts = {}) {
@@ -128,7 +134,7 @@
       const start = Date.now();
       while (Date.now() - start < timeout) {
         const id = await Deno.core.ops.op_e2e_query(selector);
-        if (id != null) return new ElementHandle(id);
+        if (id !== "null" && id != null) return new ElementHandle(Number(id));
         await new Promise((r) => setTimeout(r, interval));
       }
       throw new Error(
@@ -146,7 +152,7 @@
           js,
           opts.timeout ?? 5000
         );
-        if (JSON.parse(result)) return;
+        if (result && result !== "" && result !== "undefined" && JSON.parse(result)) return;
         await new Promise((r) => setTimeout(r, interval));
       }
       throw new Error(

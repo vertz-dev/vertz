@@ -57,10 +57,19 @@ pub async fn try_bind(config: &ServerConfig) -> io::Result<BindResult> {
 
         match TcpListener::bind(&addr).await {
             Ok(listener) => {
+                // When port is 0, the OS assigns a random port — read the actual one
+                let actual_port = listener.local_addr().map(|a| a.port()).unwrap_or(port);
                 if offset > 0 {
-                    eprintln!("Port {} in use, using {}", config.port + offset - 1, port);
+                    eprintln!(
+                        "Port {} in use, using {}",
+                        config.port + offset - 1,
+                        actual_port
+                    );
                 }
-                return Ok(BindResult { listener, port });
+                return Ok(BindResult {
+                    listener,
+                    port: actual_port,
+                });
             }
             Err(e) if e.kind() == io::ErrorKind::AddrInUse => {
                 last_error = Some(e);
