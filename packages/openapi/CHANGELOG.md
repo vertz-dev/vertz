@@ -1,5 +1,16 @@
 # @vertz/openapi
 
+## 0.1.3
+
+### Patch Changes
+
+- [#2213](https://github.com/vertz-dev/vertz/pull/2213) [`f856b21`](https://github.com/vertz-dev/vertz/commit/f856b21979ab3f62ee20c8c11b2a0df7977c086e) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - Fix identifier sanitization, CLI bin path, auth field casing, and fallback type names
+
+  - Sanitize Zod schema variable names to produce valid JS identifiers (strip hyphens)
+  - Fix CLI bin entry to import from dist/ instead of src/ for published package
+  - Handle acronym-prefixed security scheme names (HTTPBearer → httpBearer)
+  - PascalCase fallback type/schema names derived from operationId
+
 ## 0.1.2
 
 ### Patch Changes
