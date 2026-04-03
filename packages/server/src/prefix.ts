@@ -17,6 +17,9 @@ export function normalizeApiPrefix(raw: string | undefined): string {
   // After stripping, if empty → was just slashes (e.g. '/')
   if (result === '') return '';
 
+  // Collapse repeated leading slashes (e.g. '//api' → '/api')
+  result = result.replace(/^\/+/, '/');
+
   // Add leading slash if missing
   if (!result.startsWith('/')) {
     result = `/${result}`;

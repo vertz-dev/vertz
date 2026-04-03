@@ -547,7 +547,7 @@ describe('createServer', () => {
       ] as never[],
     });
 
-    expect((app as { apiPrefix: string }).apiPrefix).toBe('/api');
+    expect(app.apiPrefix).toBe('/api');
   });
 
   it('exposes custom apiPrefix after normalization', () => {
@@ -567,7 +567,7 @@ describe('createServer', () => {
       ] as never[],
     });
 
-    expect((app as { apiPrefix: string }).apiPrefix).toBe('/v1');
+    expect(app.apiPrefix).toBe('/v1');
   });
 
   it('exposes empty apiPrefix when set to empty string', () => {
@@ -587,7 +587,7 @@ describe('createServer', () => {
       ] as never[],
     });
 
-    expect((app as { apiPrefix: string }).apiPrefix).toBe('');
+    expect(app.apiPrefix).toBe('');
   });
 
   it('normalizes / to empty string for apiPrefix', () => {
@@ -607,7 +607,7 @@ describe('createServer', () => {
       ] as never[],
     });
 
-    expect((app as { apiPrefix: string }).apiPrefix).toBe('');
+    expect(app.apiPrefix).toBe('');
   });
 
   it('routes entities under custom prefix /v1', async () => {
@@ -1130,25 +1130,23 @@ describe('createServer', () => {
   });
 
   it('accepts custom apiPrefix with cloud config', () => {
-    // Custom prefixes are now supported with cloud auth (#2131)
-    // This would previously throw; now it creates the server successfully.
-    // Note: createServer with cloud config calls validateProjectId + resolveCloudAuthContext
-    // which may fail in test env — we just verify it doesn't throw the prefix guard error.
-    let threw = false;
-    let errorMessage = '';
+    // Set up cloud token so createServer succeeds
+    const savedToken = process.env.VERTZ_CLOUD_TOKEN;
+    process.env.VERTZ_CLOUD_TOKEN = 'test-cloud-token';
     try {
-      createServer({
+      const app = createServer({
         basePath: '/',
         apiPrefix: '/custom',
         cloud: { projectId: 'proj_test123' },
       });
-    } catch (e) {
-      threw = true;
-      errorMessage = (e as Error).message;
-    }
-    // If it throws, it should NOT be the prefix guard error
-    if (threw) {
-      expect(errorMessage).not.toMatch(/requestHandler requires apiPrefix/);
+      expect(app).toBeDefined();
+      expect(app.apiPrefix).toBe('/custom');
+    } finally {
+      if (savedToken === undefined) {
+        delete process.env.VERTZ_CLOUD_TOKEN;
+      } else {
+        process.env.VERTZ_CLOUD_TOKEN = savedToken;
+      }
     }
   });
 

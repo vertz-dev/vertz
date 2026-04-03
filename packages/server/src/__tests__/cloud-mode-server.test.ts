@@ -201,24 +201,14 @@ describe('createServer (cloud mode)', () => {
   });
 
   it('accepts custom apiPrefix with cloud config (#2131)', () => {
-    // Custom prefixes are now supported with cloud auth.
-    // createServer may still throw for other reasons (env vars, etc.)
-    // but NOT for the prefix guard.
-    let threw = false;
-    let errorMessage = '';
-    try {
-      createServer({
-        basePath: '/',
-        apiPrefix: '/custom',
-        cloud: { projectId: 'proj_test123' },
-      });
-    } catch (e) {
-      threw = true;
-      errorMessage = (e as Error).message;
-    }
-    if (threw) {
-      expect(errorMessage).not.toMatch(/requestHandler requires apiPrefix/);
-    }
+    const app = createServer({
+      basePath: '/',
+      apiPrefix: '/custom',
+      cloud: { projectId: 'proj_test123' },
+    });
+
+    expect(app).toBeDefined();
+    expect(app.apiPrefix).toBe('/custom');
   });
 
   it('throws when cloud projectId has invalid format', () => {

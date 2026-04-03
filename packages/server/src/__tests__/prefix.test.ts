@@ -41,4 +41,12 @@ describe('normalizeApiPrefix', () => {
   it('handles nested prefix with trailing slash /api/v1/', () => {
     expect(normalizeApiPrefix('/api/v1/')).toBe('/api/v1');
   });
+
+  it('collapses repeated leading slashes //api to /api', () => {
+    expect(normalizeApiPrefix('//api')).toBe('/api');
+  });
+
+  it('collapses multiple leading slashes ///v1 to /v1', () => {
+    expect(normalizeApiPrefix('///v1')).toBe('/v1');
+  });
 });
