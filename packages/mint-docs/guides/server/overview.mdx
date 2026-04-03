@@ -38,7 +38,7 @@ description: 'vertz/server — entity-driven backend with auto-generated CRUD, a
 ## Quick example
 
 ```ts
-import { createServer, entity } from 'vertz/server';
+import { createServer, entity, rules } from 'vertz/server';
 import { createDb, d } from 'vertz/db';
 
 const tasksModel = d.model(
@@ -53,11 +53,11 @@ const tasksModel = d.model(
 const tasks = entity('tasks', {
   model: tasksModel,
   access: {
-    list: () => true,
-    get: () => true,
-    create: () => true,
-    update: () => true,
-    delete: () => true,
+    list: rules.public,
+    get: rules.public,
+    create: rules.public,
+    update: rules.public,
+    delete: rules.public,
   },
 });
 
@@ -80,6 +80,12 @@ DELETE /api/tasks/:id      → delete
 ```
 
 No route handlers to write. Validation, access checks, and error responses are handled automatically.
+
+<Note>
+  All generated routes are prefixed with `/api/` by default. Entity routes use `/api/{entityName}`,
+  service routes use `/api/{serviceName}/{actionName}`. The prefix is configurable via `apiPrefix`
+  in `createServer()`.
+</Note>
 
 ## Core principles
 

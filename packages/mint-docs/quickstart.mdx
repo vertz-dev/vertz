@@ -87,12 +87,12 @@ Every type in your API, client, and UI traces back to this definition. Change a 
 Open `src/api/entities/tasks.entity.ts`:
 
 ```typescript
-import { entity } from 'vertz/server';
+import { entity, rules } from 'vertz/server';
 import { tasksModel } from '../schema';
 
 export const tasks = entity('tasks', {
   model: tasksModel,
-  access: { list: () => true, get: () => true, create: () => true },
+  access: { list: rules.public, get: rules.public, create: rules.public },
 });
 ```
 

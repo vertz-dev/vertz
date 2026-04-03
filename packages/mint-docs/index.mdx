@@ -45,12 +45,12 @@ Vertz is a TypeScript stack that covers database, API, and UI. Define your schem
   </Tab>
   <Tab title="API">
     ```typescript
-    import { entity } from 'vertz/server';
+    import { entity, rules } from 'vertz/server';
     import { todosModel } from './schema';
 
     export const todos = entity('todos', {
       model: todosModel,
-      access: { list: () => true, get: () => true, create: () => true },
+      access: { list: rules.public, get: rules.public, create: rules.public },
     });
     ```
     One entity = full CRUD API. Access control is required, not optional.

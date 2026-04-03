@@ -1,5 +1,10 @@
 import type { ParsedOperation, ParsedResource, ParsedSchema } from '../parser/types';
-import { collectCircularRefs, getTypePrefix, sanitizeTypeName, toPascalCase } from './json-schema-to-ts';
+import {
+  collectCircularRefs,
+  getTypePrefix,
+  sanitizeTypeName,
+  toPascalCase,
+} from './json-schema-to-ts';
 import type { GeneratedFile } from './types';
 
 /**

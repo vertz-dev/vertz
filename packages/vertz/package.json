@@ -81,6 +81,7 @@
     "test": "bun test"
   },
   "dependencies": {
+    "@vertz/cli": "workspace:^",
     "@vertz/cloudflare": "workspace:^",
     "@vertz/db": "workspace:^",
     "@vertz/errors": "workspace:^",

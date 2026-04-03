@@ -57,19 +57,21 @@ For fine-grained control over which relation fields, filters, and sort options a
 Access rules define who can perform each operation. They're evaluated at request time, before any data access.
 
 ```ts
+import { rules } from 'vertz/server';
+
 const tasks = entity('tasks', {
   model: tasksModel,
   access: {
-    list: () => true,
-    get: () => true,
-    create: () => true,
-    update: () => true,
-    delete: () => true,
+    list: rules.public,
+    get: rules.public,
+    create: rules.public,
+    update: rules.public,
+    delete: rules.public,
   },
 });
 ```
 
-Access rules receive the request context and return a boolean. You can use any logic — check headers, query parameters, or custom middleware-injected values.
+Use `rules.*` descriptors from `vertz/server` to define access. `rules.public` allows unrestricted access. For authenticated-only access, use `rules.authenticated()`. For entitlement checks, use `rules.entitlement('task:update')`.
 
 ### Hiding operations
 
@@ -79,8 +81,8 @@ Only operations with an access rule get a route. If you don't define an access r
 const tasks = entity('tasks', {
   model: tasksModel,
   access: {
-    list: () => true,
-    get: () => true,
+    list: rules.public,
+    get: rules.public,
     // create, update, delete — not defined, routes don't exist
   },
 });
@@ -159,7 +161,7 @@ const tasks = entity('tasks', {
   model: tasksModel,
   access: {
     // ... CRUD access rules
-    archive: () => true,
+    archive: rules.public,
   },
   actions: {
     archive: {

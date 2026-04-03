@@ -5,10 +5,13 @@ description: 'Standalone operations and cross-entity workflows'
 
 Services are standalone operation groups that aren't tied to a single entity's CRUD lifecycle. Use them for domain services, cross-entity workflows, or any operation that doesn't fit the entity model.
 
+All service routes are prefixed with `/api/` by default: `POST /api/{serviceName}/{actionName}`. The prefix is configurable via `apiPrefix` in `createServer()`.
+
 ## Defining a service
 
 ```ts
 import { service } from 'vertz/server';
+import { rules } from 'vertz/server';
 import { s } from 'vertz/schema';
 
 const notifications = service('notifications', {
@@ -18,8 +21,8 @@ const notifications = service('notifications', {
   },
 
   access: {
-    sendEmail: () => true,
-    sendBulk: () => true,
+    sendEmail: rules.public,
+    sendBulk: rules.public,
   },
 
   actions: {
@@ -97,12 +100,21 @@ const reports = service('reports', {
 Services use the same access control as entities — deny-by-default, with the action name as the key:
 
 ```ts
+import { rules } from 'vertz/server';
+
 access: {
-  sendEmail: () => true,
-  sendBulk: () => true,
+  sendEmail: rules.public,
+  sendBulk: rules.public,
   // generate: undefined → route not created
 }
 ```
+
+<Warning>
+**The `access` block is required.** If you omit it or leave an action out of it, that action's route is silently not generated (deny-by-default). This is the most common DX trap with services — you define an action, call the endpoint, and get 404 because the access rule is missing.
+
+Always use `rules.*` descriptors from `vertz/server` — not raw callback functions like `() => true`.
+
+</Warning>
 
 ## Content descriptors
 
@@ -135,8 +147,8 @@ const saml = service('saml', {
   },
 
   access: {
-    metadata: () => true,
-    sso: () => true,
+    metadata: rules.public,
+    sso: rules.public,
   },
 });
 ```
@@ -176,7 +188,7 @@ const importer = service('import', {
       },
     },
   },
-  access: { spreadsheet: () => true },
+  access: { spreadsheet: rules.public },
 });
 ```
 
@@ -209,7 +221,7 @@ import { response, service } from 'vertz/server';
 import { s } from 'vertz/schema';
 
 const cloud = service('cloud', {
-  access: { jwks: () => true, createToken: () => true },
+  access: { jwks: rules.public, createToken: rules.public },
   actions: {
     jwks: {
       method: 'GET',
@@ -301,7 +313,7 @@ const transfers = service('transfers', {
       },
     },
   },
-  access: { transfer: () => true },
+  access: { transfer: rules.public },
 });
 ```
 

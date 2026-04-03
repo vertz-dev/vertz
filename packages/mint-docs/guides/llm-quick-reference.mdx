@@ -182,26 +182,28 @@ const button = variants({
 Define entities with `entity()` — each generates CRUD endpoints with access control:
 
 ```ts
-import { entity } from 'vertz/server';
+import { entity, rules } from 'vertz/server';
 
 const tasks = entity('tasks', {
   model: tasksModel,
-  access: { list: () => true, get: () => true, create: () => true },
+  access: { list: rules.public, get: rules.public, create: rules.public },
 });
 ```
 
 Access rules are required. Operations without access rules don't generate routes (deny-by-default).
+
+**Route prefix:** All entity routes are generated under `/api/` by default — e.g., `GET /api/tasks`, `POST /api/tasks`. Service routes follow the same pattern: `POST /api/{serviceName}/{actionName}`. The prefix is configurable via `apiPrefix` in `createServer()`.
 
 ## Services (Server)
 
 Services generate SDK methods just like entities. Each service action becomes a typed method on the API client:
 
 ```ts
-import { service } from 'vertz/server';
+import { service, rules } from 'vertz/server';
 import { s } from 'vertz/schema';
 
 const notifications = service('notifications', {
-  access: { sendEmail: () => true },
+  access: { sendEmail: rules.public },
   actions: {
     sendEmail: {
       body: s.object({ to: s.string().email(), subject: s.string(), body: s.string() }),
