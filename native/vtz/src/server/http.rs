@@ -9,6 +9,7 @@ use crate::hmr::websocket::HmrHub;
 use crate::runtime::persistent_isolate::{
     IsolateRequest, PersistentIsolate, PersistentIsolateOptions,
 };
+use crate::server::auto_installer::AutoInstaller;
 use crate::server::console_log::{ConsoleLog, LogLevel};
 use crate::server::diagnostics;
 use crate::server::html_shell;
@@ -157,6 +158,16 @@ pub fn build_router(
     let mcp_event_hub = McpEventHub::new();
     let module_graph = watcher::new_shared_module_graph();
 
+    // Build auto-installer (shared between browser-side and V8 isolate)
+    let auto_installer: Option<Arc<AutoInstaller>> = if config.auto_install {
+        Some(Arc::new(AutoInstaller::new(
+            config.root_dir.clone(),
+            error_broadcaster.clone(),
+        )))
+    } else {
+        None
+    };
+
     // Create persistent V8 isolate for API route delegation and SSR rendering.
     // The isolate is created when SSR is enabled or a server_entry exists.
     let api_isolate = if config.enable_ssr || config.server_entry.is_some() {
@@ -165,6 +176,7 @@ pub fn build_router(
             ssr_entry: config.ssr_entry.clone(),
             server_entry: config.server_entry.clone(),
             channel_capacity: 256,
+            auto_installer: auto_installer.clone(),
         };
         match PersistentIsolate::new(opts) {
             Ok(isolate) => {
@@ -224,6 +236,7 @@ pub fn build_router(
         theme_css,
         hmr_hub,
         module_graph,
+        auto_installer: auto_installer.clone(),
         error_broadcaster,
         console_log,
         mcp_sessions,
@@ -234,10 +247,6 @@ pub fn build_router(
         typecheck_enabled: config.enable_typecheck,
         api_isolate: Arc::new(std::sync::RwLock::new(api_isolate)),
         api_proxy,
-        auto_install: config.auto_install,
-        auto_install_lock: Arc::new(tokio::sync::Mutex::new(())),
-        auto_install_inflight: Arc::new(std::sync::Mutex::new(std::collections::HashMap::new())),
-        auto_install_failed: Arc::new(std::sync::Mutex::new(std::collections::HashSet::new())),
         last_file_change: Arc::new(std::sync::Mutex::new(None)),
     });
 
@@ -1329,7 +1338,9 @@ pub async fn start_server_with_lifecycle(
 
                                 // Clear auto-install failed blacklist on any file change.
                                 // Developer may have fixed a typo in an import.
-                                watcher_state.auto_install_failed.lock().unwrap().clear();
+                                if let Some(ref installer) = watcher_state.auto_installer {
+                                    installer.clear_failed();
+                                }
 
                                 // Restart the persistent isolate once per batch.
                                 // Any source file change can affect SSR (app.tsx

@@ -1,7 +1,6 @@
 use axum::body::Body;
 use axum::extract::State;
 use axum::http::{header, Request, Response, StatusCode};
-use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
@@ -14,6 +13,7 @@ use crate::errors::categories::{extract_snippet, DevError, ErrorCategory};
 use crate::errors::suggestions;
 use crate::hmr::websocket::HmrHub;
 use crate::runtime::persistent_isolate::PersistentIsolate;
+use crate::server::auto_installer::AutoInstaller;
 use crate::server::console_log::ConsoleLog;
 use crate::server::css_server;
 use crate::server::html_shell;
@@ -60,16 +60,8 @@ pub struct DevServerState {
     /// Per-path API proxy configuration (from `.vertzrc` `proxy` field).
     /// `None` when no proxy rules are configured.
     pub api_proxy: Option<Arc<crate::server::api_proxy::ProxyConfig>>,
-    /// Whether auto-install of missing packages is enabled.
-    pub auto_install: bool,
-    /// Serializes all pm::add() calls to prevent package.json write races.
-    pub auto_install_lock: Arc<tokio::sync::Mutex<()>>,
-    /// Per-package notification: concurrent requests for the same package
-    /// subscribe to a Notify and wait for the installing request to finish.
-    pub auto_install_inflight: Arc<std::sync::Mutex<HashMap<String, Arc<tokio::sync::Notify>>>>,
-    /// Packages that failed to install — prevents retry storms.
-    /// Cleared on file change (watcher event).
-    pub auto_install_failed: Arc<std::sync::Mutex<HashSet<String>>>,
+    /// Shared auto-installer for missing packages. `None` when auto-install is disabled.
+    pub auto_installer: Option<Arc<AutoInstaller>>,
     /// Timestamp of the last file change detected by the watcher.
     /// Used to debounce stale client-side error reports that arrive
     /// after a file fix (race condition: old client reports an error
@@ -457,66 +449,10 @@ pub async fn handle_deps_request(
     let specifier = path.strip_prefix("/@deps/").unwrap_or(path);
     let (pkg_name, _subpath) = resolve::split_package_specifier(specifier);
 
-    if state.auto_install {
-        // Check failed-install blacklist
-        let is_blacklisted = state.auto_install_failed.lock().unwrap().contains(pkg_name);
-
-        if !is_blacklisted {
-            // Per-package dedup: single lock scope to atomically check + insert.
-            // This prevents a TOCTOU race where two requests both see "not inflight"
-            // and both proceed to install.
-            //
-            // For waiters: we clone the Arc<Notify> while holding the lock, then
-            // call .notified().await after releasing. Tokio's Notify guarantees that
-            // if notify_waiters() is called between .notified() creation and .await,
-            // the notification is stored and the await returns immediately.
-            let is_installer = {
-                let mut inflight = state.auto_install_inflight.lock().unwrap();
-                if inflight.contains_key(pkg_name) {
-                    false
-                } else {
-                    let notify = Arc::new(tokio::sync::Notify::new());
-                    inflight.insert(pkg_name.to_string(), notify);
-                    true
-                }
-            };
-
-            if is_installer {
-                let install_result = auto_install_package(pkg_name, &state).await;
-
-                // Get the notify handle, remove from inflight, then notify waiters
-                let notify = state.auto_install_inflight.lock().unwrap().remove(pkg_name);
-                if let Some(notify) = notify {
-                    notify.notify_waiters();
-                }
-
-                if install_result.is_ok() {
-                    if let Some(resolved) = re_resolve_dep(specifier, &state) {
-                        return serve_js_file(&resolved, &state.root_dir);
-                    }
-                }
-            } else {
-                // Another request is installing this package — get notify handle and wait
-                let notify = state
-                    .auto_install_inflight
-                    .lock()
-                    .unwrap()
-                    .get(pkg_name)
-                    .cloned();
-
-                if let Some(notify) = notify {
-                    // Create the Notified future — even if notify_waiters() fires
-                    // between this line and .await, tokio stores the notification
-                    // and the await returns immediately. Add a timeout as safety net.
-                    let _ =
-                        tokio::time::timeout(std::time::Duration::from_secs(35), notify.notified())
-                            .await;
-                }
-
-                // Re-attempt resolution after install completes (or timeout)
-                if let Some(resolved) = re_resolve_dep(specifier, &state) {
-                    return serve_js_file(&resolved, &state.root_dir);
-                }
+    if let Some(ref installer) = state.auto_installer {
+        if installer.install(pkg_name).await.is_ok() {
+            if let Some(resolved) = re_resolve_dep(specifier, &state) {
+                return serve_js_file(&resolved, &state.root_dir);
             }
         }
     }
@@ -543,100 +479,6 @@ pub async fn handle_deps_request(
             specifier
         )))
         .unwrap()
-}
-
-/// Run `pm::add` for a single package, serialized via the global install lock.
-///
-/// Returns `Ok(())` on success, `Err(message)` on failure.
-/// On failure, adds the package to the failed-install blacklist.
-async fn auto_install_package(pkg_name: &str, state: &DevServerState) -> Result<(), String> {
-    // Acquire the global install lock first (serializes all pm::add calls).
-    // This ensures we only broadcast "Installing..." when it's actually our turn.
-    let _guard = state.auto_install_lock.lock().await;
-
-    eprintln!("[PM] Auto-installing {}...", pkg_name);
-
-    // Broadcast info to connected browser clients
-    state
-        .error_broadcaster
-        .broadcast_info(&format!("Installing {}...", pkg_name))
-        .await;
-
-    let root_dir = state.root_dir.clone();
-    let pkg = pkg_name.to_string();
-
-    // Run pm::add via spawn_blocking (it does blocking I/O)
-    // Convert the error to String inside the closure since Box<dyn Error> is not Send
-    let result = tokio::time::timeout(
-        std::time::Duration::from_secs(30),
-        tokio::task::spawn_blocking(move || {
-            let rt = tokio::runtime::Handle::current();
-            rt.block_on(crate::pm::add(
-                &root_dir,
-                &[pkg.as_str()],
-                false,                                       // not dev
-                false,                                       // not peer
-                false,                                       // not optional
-                false,                                       // not exact (caret range)
-                crate::pm::vertzrc::ScriptPolicy::IgnoreAll, // no postinstall during auto-install
-                None,                                        // no workspace target
-                Arc::new(crate::pm::output::DevPmOutput),
-            ))
-            .map_err(|e| e.to_string())
-        }),
-    )
-    .await;
-
-    match result {
-        Ok(Ok(Ok(()))) => {
-            // Success — clear resolve errors
-            state
-                .error_broadcaster
-                .clear_category(ErrorCategory::Resolve)
-                .await;
-            Ok(())
-        }
-        Ok(Ok(Err(e))) => {
-            // pm::add returned an error
-            let msg = format!("Auto-install failed for '{}': {}", pkg_name, e);
-            eprintln!("[PM] {}", msg);
-            state
-                .auto_install_failed
-                .lock()
-                .unwrap()
-                .insert(pkg_name.to_string());
-            let error = DevError::resolve(&msg);
-            state.error_broadcaster.report_error(error).await;
-            Err(msg)
-        }
-        Ok(Err(e)) => {
-            // spawn_blocking panicked
-            let msg = format!("Auto-install panicked for '{}': {}", pkg_name, e);
-            eprintln!("[PM] {}", msg);
-            state
-                .auto_install_failed
-                .lock()
-                .unwrap()
-                .insert(pkg_name.to_string());
-            Err(msg)
-        }
-        Err(_) => {
-            // Timeout
-            let msg = format!(
-                "Auto-install timed out for '{}'. Run `vertz add {}` manually.",
-                pkg_name, pkg_name
-            );
-            eprintln!("[PM] {}", msg);
-            state
-                .auto_install_failed
-                .lock()
-                .unwrap()
-                .insert(pkg_name.to_string());
-            let error = DevError::resolve(&msg);
-            state.error_broadcaster.report_error(error).await;
-            Err(msg)
-        }
-    }
 }
 
 /// Re-attempt dependency resolution after auto-install (steps 2-5 from handle_deps_request).
@@ -953,10 +795,7 @@ mod tests {
             typecheck_enabled: false,
             api_isolate: Arc::new(std::sync::RwLock::new(None)),
             api_proxy: None,
-            auto_install: false,
-            auto_install_lock: Arc::new(tokio::sync::Mutex::new(())),
-            auto_install_inflight: Arc::new(std::sync::Mutex::new(HashMap::new())),
-            auto_install_failed: Arc::new(std::sync::Mutex::new(HashSet::new())),
+            auto_installer: None,
             last_file_change: Arc::new(std::sync::Mutex::new(None)),
         })
     }
@@ -1123,7 +962,7 @@ mod tests {
     async fn test_auto_install_disabled_returns_404() {
         let tmp = tempfile::tempdir().unwrap();
         let state = create_test_state(tmp.path());
-        // auto_install defaults to false in test helper
+        // auto_installer defaults to None in test helper
 
         let req = Request::builder()
             .uri("/@deps/nonexistent-package")
@@ -1134,94 +973,11 @@ mod tests {
         assert_eq!(resp.status(), StatusCode::NOT_FOUND);
     }
 
-    #[tokio::test]
-    async fn test_auto_install_blacklisted_returns_404_immediately() {
-        let tmp = tempfile::tempdir().unwrap();
-        let state = create_test_state(tmp.path());
-
-        // Manually add to blacklist
-        state
-            .auto_install_failed
-            .lock()
-            .unwrap()
-            .insert("blacklisted-pkg".to_string());
-
-        // Enable auto_install by creating a new state with it on
-        let mut inner = (*state).clone();
-        inner.auto_install = true;
-        let state = Arc::new(inner);
-
-        let req = Request::builder()
-            .uri("/@deps/blacklisted-pkg")
-            .body(Body::empty())
-            .unwrap();
-
-        let resp = handle_deps_request(State(state), req).await;
-        assert_eq!(resp.status(), StatusCode::NOT_FOUND);
-    }
-
     #[test]
-    fn test_auto_install_failed_blacklist_cleared() {
+    fn test_auto_installer_defaults_to_none() {
         let tmp = tempfile::tempdir().unwrap();
         let state = create_test_state(tmp.path());
-
-        // Add to blacklist
-        state
-            .auto_install_failed
-            .lock()
-            .unwrap()
-            .insert("some-pkg".to_string());
-        assert!(state
-            .auto_install_failed
-            .lock()
-            .unwrap()
-            .contains("some-pkg"));
-
-        // Clear (simulates what the watcher does)
-        state.auto_install_failed.lock().unwrap().clear();
-        assert!(state.auto_install_failed.lock().unwrap().is_empty());
-    }
-
-    #[test]
-    fn test_auto_install_state_fields_initialized() {
-        let tmp = tempfile::tempdir().unwrap();
-        let state = create_test_state(tmp.path());
-
-        // Verify all auto-install state fields are properly initialized
-        assert!(!state.auto_install);
-        assert!(state.auto_install_inflight.lock().unwrap().is_empty());
-        assert!(state.auto_install_failed.lock().unwrap().is_empty());
-    }
-
-    #[tokio::test]
-    async fn test_auto_install_inflight_dedup() {
-        let tmp = tempfile::tempdir().unwrap();
-        let state = create_test_state(tmp.path());
-
-        // Simulate adding a package to inflight
-        let notify = Arc::new(tokio::sync::Notify::new());
-        state
-            .auto_install_inflight
-            .lock()
-            .unwrap()
-            .insert("zod".to_string(), notify.clone());
-
-        // Verify it's in the inflight map
-        assert!(state
-            .auto_install_inflight
-            .lock()
-            .unwrap()
-            .contains_key("zod"));
-
-        // Notify and remove (simulates install completion)
-        state.auto_install_inflight.lock().unwrap().remove("zod");
-        notify.notify_waiters();
-
-        assert!(!state
-            .auto_install_inflight
-            .lock()
-            .unwrap()
-            .contains_key("zod"));
+        assert!(state.auto_installer.is_none());
     }
 
     #[test]
@@ -1677,10 +1433,7 @@ mod tests {
             typecheck_enabled: false,
             api_isolate: Arc::new(std::sync::RwLock::new(None)),
             api_proxy: None,
-            auto_install: false,
-            auto_install_lock: Arc::new(tokio::sync::Mutex::new(())),
-            auto_install_inflight: Arc::new(std::sync::Mutex::new(HashMap::new())),
-            auto_install_failed: Arc::new(std::sync::Mutex::new(HashSet::new())),
+            auto_installer: None,
             last_file_change: Arc::new(std::sync::Mutex::new(None)),
         });
 
@@ -1835,10 +1588,7 @@ mod tests {
             typecheck_enabled: false,
             api_isolate: Arc::new(std::sync::RwLock::new(None)),
             api_proxy: None,
-            auto_install: false,
-            auto_install_lock: Arc::new(tokio::sync::Mutex::new(())),
-            auto_install_inflight: Arc::new(std::sync::Mutex::new(HashMap::new())),
-            auto_install_failed: Arc::new(std::sync::Mutex::new(HashSet::new())),
+            auto_installer: None,
             last_file_change: Arc::new(std::sync::Mutex::new(None)),
         });
 
@@ -1891,10 +1641,7 @@ mod tests {
             typecheck_enabled: false,
             api_isolate: Arc::new(std::sync::RwLock::new(None)),
             api_proxy: None,
-            auto_install: false,
-            auto_install_lock: Arc::new(tokio::sync::Mutex::new(())),
-            auto_install_inflight: Arc::new(std::sync::Mutex::new(HashMap::new())),
-            auto_install_failed: Arc::new(std::sync::Mutex::new(HashSet::new())),
+            auto_installer: None,
             last_file_change: Arc::new(std::sync::Mutex::new(None)),
         });
 
@@ -1976,10 +1723,7 @@ mod tests {
             typecheck_enabled: false,
             api_isolate: Arc::new(std::sync::RwLock::new(None)),
             api_proxy: None,
-            auto_install: false,
-            auto_install_lock: Arc::new(tokio::sync::Mutex::new(())),
-            auto_install_inflight: Arc::new(std::sync::Mutex::new(HashMap::new())),
-            auto_install_failed: Arc::new(std::sync::Mutex::new(HashSet::new())),
+            auto_installer: None,
             last_file_change: Arc::new(std::sync::Mutex::new(None)),
         };
 
@@ -2029,49 +1773,12 @@ mod tests {
             typecheck_enabled: false,
             api_isolate: Arc::new(std::sync::RwLock::new(None)),
             api_proxy: None,
-            auto_install: false,
-            auto_install_lock: Arc::new(tokio::sync::Mutex::new(())),
-            auto_install_inflight: Arc::new(std::sync::Mutex::new(HashMap::new())),
-            auto_install_failed: Arc::new(std::sync::Mutex::new(HashSet::new())),
+            auto_installer: None,
             last_file_change: Arc::new(std::sync::Mutex::new(None)),
         };
 
         let result = re_resolve_dep("some-dep/index.js", &state);
         assert!(result.is_some());
-    }
-
-    // ── auto-install: concurrent waiter path ────────────────────────
-
-    #[tokio::test]
-    async fn test_auto_install_concurrent_waiter_path() {
-        let tmp = tempfile::tempdir().unwrap();
-        let state = create_test_state(tmp.path());
-        let mut inner = (*state).clone();
-        inner.auto_install = true;
-        let state = Arc::new(inner);
-
-        // Pre-populate the inflight map to simulate another request already installing
-        let notify = Arc::new(tokio::sync::Notify::new());
-        state
-            .auto_install_inflight
-            .lock()
-            .unwrap()
-            .insert("concurrent-pkg".to_string(), notify.clone());
-
-        // Notify after a short delay so the handler's Notified future is ready
-        tokio::spawn(async move {
-            tokio::time::sleep(std::time::Duration::from_millis(50)).await;
-            notify.notify_waiters();
-        });
-
-        let req = Request::builder()
-            .uri("/@deps/concurrent-pkg")
-            .body(Body::empty())
-            .unwrap();
-
-        // This should hit the waiter path (is_installer = false), wait for notify, then 404
-        let resp = handle_deps_request(State(state), req).await;
-        assert_eq!(resp.status(), StatusCode::NOT_FOUND);
     }
 
     // ── handle_deps: package.json exports resolution path ───────────
@@ -2117,10 +1824,7 @@ mod tests {
             typecheck_enabled: false,
             api_isolate: Arc::new(std::sync::RwLock::new(None)),
             api_proxy: None,
-            auto_install: false,
-            auto_install_lock: Arc::new(tokio::sync::Mutex::new(())),
-            auto_install_inflight: Arc::new(std::sync::Mutex::new(HashMap::new())),
-            auto_install_failed: Arc::new(std::sync::Mutex::new(HashSet::new())),
+            auto_installer: None,
             last_file_change: Arc::new(std::sync::Mutex::new(None)),
         });
 
@@ -2281,10 +1985,7 @@ mod tests {
             typecheck_enabled: false,
             api_isolate: Arc::new(std::sync::RwLock::new(None)),
             api_proxy: None,
-            auto_install: false,
-            auto_install_lock: Arc::new(tokio::sync::Mutex::new(())),
-            auto_install_inflight: Arc::new(std::sync::Mutex::new(HashMap::new())),
-            auto_install_failed: Arc::new(std::sync::Mutex::new(HashSet::new())),
+            auto_installer: None,
             last_file_change: Arc::new(std::sync::Mutex::new(None)),
         });
 
@@ -2385,10 +2086,7 @@ mod tests {
             typecheck_enabled: false,
             api_isolate: Arc::new(std::sync::RwLock::new(None)),
             api_proxy: None,
-            auto_install: false,
-            auto_install_lock: Arc::new(tokio::sync::Mutex::new(())),
-            auto_install_inflight: Arc::new(std::sync::Mutex::new(HashMap::new())),
-            auto_install_failed: Arc::new(std::sync::Mutex::new(HashSet::new())),
+            auto_installer: None,
             last_file_change: Arc::new(std::sync::Mutex::new(None)),
         });
 

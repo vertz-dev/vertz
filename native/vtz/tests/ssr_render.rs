@@ -375,6 +375,7 @@ async fn test_ssr_render_fixture_app() {
         ssr_entry: root.join("src/app.js"),
         server_entry: None,
         channel_capacity: 16,
+        auto_installer: None,
     };
 
     let isolate = PersistentIsolate::new(opts).unwrap();
@@ -424,6 +425,7 @@ async fn test_ssr_render_fixture_app_with_session() {
         ssr_entry: root.join("src/app.js"),
         server_entry: None,
         channel_capacity: 16,
+        auto_installer: None,
     };
 
     let isolate = PersistentIsolate::new(opts).unwrap();
@@ -462,6 +464,7 @@ async fn test_ssr_render_performance() {
         ssr_entry: root.join("src/app.js"),
         server_entry: None,
         channel_capacity: 16,
+        auto_installer: None,
     };
 
     let isolate = PersistentIsolate::new(opts).unwrap();
@@ -509,6 +512,7 @@ async fn persistent_isolate_renders_via_framework_engine() {
         ssr_entry: root.join("src/app-ssr.js"),
         server_entry: None,
         channel_capacity: 16,
+        auto_installer: None,
     };
 
     let isolate = PersistentIsolate::new(opts).unwrap();
@@ -562,6 +566,7 @@ async fn isolate_stores_ssr_module_as_app_module_global() {
         ssr_entry: root.join("src/app.tsx"),
         server_entry: None,
         channel_capacity: 16,
+        auto_installer: None,
     };
 
     let isolate = PersistentIsolate::new(opts).unwrap();
@@ -790,6 +795,7 @@ async fn framework_app_without_ui_server_errors_instead_of_legacy_fallback() {
         ssr_entry: root.join("src/app.js"),
         server_entry: None,
         channel_capacity: 16,
+        auto_installer: None,
     };
 
     let isolate = PersistentIsolate::new(opts).unwrap();
@@ -828,6 +834,7 @@ async fn plain_js_app_uses_legacy_render_when_no_framework() {
         ssr_entry: root.join("src/app.js"),
         server_entry: None,
         channel_capacity: 16,
+        auto_installer: None,
     };
 
     let isolate = PersistentIsolate::new(opts).unwrap();
@@ -868,6 +875,7 @@ async fn framework_app_with_broken_ui_server_errors() {
         ssr_entry: root.join("src/app.js"),
         server_entry: None,
         channel_capacity: 16,
+        auto_installer: None,
     };
 
     let isolate = PersistentIsolate::new(opts).unwrap();

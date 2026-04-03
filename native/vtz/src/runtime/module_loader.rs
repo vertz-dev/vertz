@@ -18,6 +18,15 @@ use crate::runtime::compile_cache::{CachedCompilation, CompileCache};
 /// Source maps collected during module loading.
 pub type SourceMapStore = RefCell<HashMap<String, String>>;
 
+/// Prefix used in "missing module" error messages from `resolve_node_module`.
+///
+/// Shared with `persistent_isolate::parse_missing_package()` to detect
+/// auto-installable errors. If you change this format, update the parser too.
+pub const MISSING_MODULE_PREFIX: &str = "Cannot find module '";
+
+/// Suffix that follows the specifier in "missing module" error messages.
+pub const MISSING_MODULE_SUFFIX: &str = "' in node_modules";
+
 /// Custom module loader for the Vertz runtime.
 ///
 /// Handles:
@@ -204,8 +213,10 @@ impl VertzModuleLoader {
         }
 
         Err(deno_core::anyhow::anyhow!(
-            "Cannot find module '{}' in node_modules (searched from {})",
+            "{}{}{} (searched from {})",
+            MISSING_MODULE_PREFIX,
             specifier,
+            MISSING_MODULE_SUFFIX,
             start_dir.display()
         ))
     }
