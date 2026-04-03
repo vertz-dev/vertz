@@ -380,10 +380,43 @@ async fn isolate_event_loop(
                             );
                         }
                         Err(e) => {
-                            eprintln!(
-                                "[Server] @vertz/ui-server/ssr not available ({}), using legacy render",
-                                e
-                            );
+                            // Detect whether this is a framework app that needs
+                            // ssrRenderSinglePass or a plain JS app where legacy
+                            // DOM-scraping render is appropriate.
+                            let ui_server_dir = root_dir.join("node_modules/@vertz/ui-server");
+                            let ui_dir = root_dir.join("node_modules/@vertz/ui");
+
+                            let fallback_error = if ui_server_dir.exists() {
+                                Some(format!(
+                                    "@vertz/ui-server is installed but ssrRenderSinglePass could not be loaded ({}). \
+                                     Check that @vertz/ui-server is up-to-date and rebuilt.",
+                                    e
+                                ))
+                            } else if ui_dir.exists() {
+                                Some(
+                                    "@vertz/ui is installed but @vertz/ui-server is missing. \
+                                     Install it for SSR support: vertz add @vertz/ui-server"
+                                        .to_string(),
+                                )
+                            } else {
+                                None
+                            };
+
+                            if let Some(msg) = fallback_error {
+                                eprintln!("[Server] {}", msg);
+                                let safe = serde_json::to_string(&msg).unwrap_or_default();
+                                if let Err(e) = runtime.execute_script_void(
+                                    "<ssr-fallback-error>",
+                                    &format!("globalThis.__vertz_ssr_fallback_error = {};", safe),
+                                ) {
+                                    eprintln!("[Server] Failed to set SSR fallback error: {}", e);
+                                }
+                            } else {
+                                eprintln!(
+                                    "[Server] @vertz/ui-server/ssr not available ({}), using legacy render",
+                                    e
+                                );
+                            }
                         }
                     }
                 }
@@ -999,6 +1032,20 @@ async fn dispatch_ssr_request(
             redirect,
         })
     } else {
+        // Check if legacy fallback is inappropriate (framework app detected at init).
+        let fallback_error = runtime
+            .execute_script(
+                "<ssr-fallback-check>",
+                "globalThis.__vertz_ssr_fallback_error || ''",
+            )
+            .ok()
+            .and_then(|v| v.as_str().map(|s| s.to_string()))
+            .filter(|s| !s.is_empty());
+
+        if let Some(error_msg) = fallback_error {
+            return Err(error_msg);
+        }
+
         // Legacy path: DOM scraping (sync)
         let result = runtime
             .execute_script("<ssr-render-legacy>", SSR_RENDER_LEGACY_JS)

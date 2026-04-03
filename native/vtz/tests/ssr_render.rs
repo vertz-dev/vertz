@@ -716,3 +716,180 @@ fn test_async_local_storage_in_ssr_context() {
     assert_eq!(result["requestId"], serde_json::json!("req-123"));
     assert_eq!(result["url"], serde_json::json!("/tasks"));
 }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// SSR Fallback Detection Tests (#2229)
+// ═══════════════════════════════════════════════════════════════════════════
+
+/// Helper: create a temp project directory with optional framework packages.
+fn create_temp_project(has_ui: bool, has_ui_server: bool) -> tempfile::TempDir {
+    let dir = tempfile::tempdir().unwrap();
+    let root = dir.path();
+
+    std::fs::create_dir_all(root.join("src")).unwrap();
+    // Plain JS app that sets globalThis.__vertz_ssr_render for legacy rendering.
+    // The DOM resets between requests, so side-effect DOM mutations don't persist.
+    // Legacy render calls __vertz_ssr_render(pathname) on each request.
+    std::fs::write(
+        root.join("src/app.js"),
+        r#"
+globalThis.__vertz_ssr_render = function(pathname) {
+    const div = document.createElement('div');
+    const h1 = document.createElement('h1');
+    h1.appendChild(document.createTextNode('Plain JS App'));
+    div.appendChild(h1);
+    return div;
+};
+"#,
+    )
+    .unwrap();
+
+    if has_ui {
+        std::fs::create_dir_all(root.join("node_modules/@vertz/ui")).unwrap();
+        std::fs::write(
+            root.join("node_modules/@vertz/ui/package.json"),
+            r#"{"name": "@vertz/ui", "version": "0.2.0"}"#,
+        )
+        .unwrap();
+    }
+
+    if has_ui_server {
+        // Create the directory but WITHOUT a working ssr export — simulates
+        // a broken or outdated @vertz/ui-server installation.
+        std::fs::create_dir_all(root.join("node_modules/@vertz/ui-server")).unwrap();
+        std::fs::write(
+            root.join("node_modules/@vertz/ui-server/package.json"),
+            r#"{"name": "@vertz/ui-server", "version": "0.0.1"}"#,
+        )
+        .unwrap();
+    }
+
+    dir
+}
+
+/// Wait for isolate initialization (shared helper).
+async fn wait_for_init(isolate: &PersistentIsolate) {
+    for _ in 0..100 {
+        if isolate.is_initialized() {
+            return;
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+    }
+    panic!("Isolate did not initialize within 5 seconds");
+}
+
+#[tokio::test]
+async fn framework_app_without_ui_server_errors_instead_of_legacy_fallback() {
+    // @vertz/ui is present but @vertz/ui-server is missing.
+    // ssrRenderSinglePass cannot load → detection should error, not fall back.
+    let dir = create_temp_project(true, false);
+    let root = dir.path().to_path_buf();
+
+    let opts = PersistentIsolateOptions {
+        root_dir: root.clone(),
+        ssr_entry: root.join("src/app.js"),
+        server_entry: None,
+        channel_capacity: 16,
+    };
+
+    let isolate = PersistentIsolate::new(opts).unwrap();
+    wait_for_init(&isolate).await;
+
+    let result = isolate
+        .handle_ssr(SsrRequest {
+            url: "/".to_string(),
+            session_json: None,
+            cookies: None,
+        })
+        .await;
+
+    assert!(
+        result.is_err(),
+        "Framework app without @vertz/ui-server should error, not silently fall back. Got: {:?}",
+        result,
+    );
+    let err = result.unwrap_err().to_string();
+    assert!(
+        err.contains("@vertz/ui-server is missing"),
+        "Error should indicate @vertz/ui-server is missing. Got: {}",
+        err,
+    );
+}
+
+#[tokio::test]
+async fn plain_js_app_uses_legacy_render_when_no_framework() {
+    // No @vertz/ui, no @vertz/ui-server — plain JS app.
+    // Legacy DOM-scraping render should work as before.
+    let dir = create_temp_project(false, false);
+    let root = dir.path().to_path_buf();
+
+    let opts = PersistentIsolateOptions {
+        root_dir: root.clone(),
+        ssr_entry: root.join("src/app.js"),
+        server_entry: None,
+        channel_capacity: 16,
+    };
+
+    let isolate = PersistentIsolate::new(opts).unwrap();
+    wait_for_init(&isolate).await;
+
+    let result = isolate
+        .handle_ssr(SsrRequest {
+            url: "/".to_string(),
+            session_json: None,
+            cookies: None,
+        })
+        .await;
+
+    assert!(
+        result.is_ok(),
+        "Plain JS app should use legacy render successfully. Error: {:?}",
+        result.err(),
+    );
+    let response = result.unwrap();
+    assert!(
+        response.content.contains("Plain JS App"),
+        "Legacy render should produce content from the app. Got: {}",
+        response.content,
+    );
+    assert!(response.is_ssr, "Legacy render should mark response as SSR");
+}
+
+#[tokio::test]
+async fn framework_app_with_broken_ui_server_errors() {
+    // Both @vertz/ui and @vertz/ui-server directories exist,
+    // but @vertz/ui-server has no working ssr export.
+    // Should error with a message about the broken installation.
+    let dir = create_temp_project(true, true);
+    let root = dir.path().to_path_buf();
+
+    let opts = PersistentIsolateOptions {
+        root_dir: root.clone(),
+        ssr_entry: root.join("src/app.js"),
+        server_entry: None,
+        channel_capacity: 16,
+    };
+
+    let isolate = PersistentIsolate::new(opts).unwrap();
+    wait_for_init(&isolate).await;
+
+    let result = isolate
+        .handle_ssr(SsrRequest {
+            url: "/".to_string(),
+            session_json: None,
+            cookies: None,
+        })
+        .await;
+
+    assert!(
+        result.is_err(),
+        "Framework app with broken @vertz/ui-server should error. Got: {:?}",
+        result,
+    );
+    let err = result.unwrap_err().to_string();
+    assert!(
+        err.contains("could not be loaded"),
+        "Error should indicate @vertz/ui-server is installed but broken. Got: {}",
+        err,
+    );
+}

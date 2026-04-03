@@ -85,6 +85,30 @@ The build check has a fallback: if `Bun.build()` succeeds but the dev bundler fa
 
 **Check:** Terminal for `[vertz-bun-plugin] Failed to process <file>:` — the plugin logs transform failures with the relative file path and error message. These errors are thrown (crashing the module load), so Bun falls back to the reload stub, but the build check won't reproduce them.
 
+## SSR Falls Back to Legacy Render (Framework App)
+
+**Symptom:** SSR output is missing hydration data, query prefetching, head tags, or redirects. The `X-Vertz-SSR-Error` response header contains an error about `@vertz/ui-server`. Terminal shows one of:
+
+- `[Server] @vertz/ui-server is installed but ssrRenderSinglePass could not be loaded (...)`
+- `[Server] @vertz/ui is installed but @vertz/ui-server is missing.`
+
+**Root cause:** The runtime tried to import `ssrRenderSinglePass` from `@vertz/ui-server/ssr` at startup and failed. Since the app uses `@vertz/ui` (a framework app), the runtime errors instead of silently falling back to the degraded legacy DOM-scraping render.
+
+**Detection logic** (`persistent_isolate.rs` init path):
+
+1. `node_modules/@vertz/ui-server` exists → package installed but broken (version mismatch, missing build, corrupted install)
+2. `node_modules/@vertz/ui` exists but `@vertz/ui-server` doesn't → missing dependency
+3. Neither exists → plain JS app, legacy render is appropriate and used silently
+
+**Fix by case:**
+
+| Terminal message | Cause | Fix |
+|---|---|---|
+| `ssrRenderSinglePass could not be loaded` | `@vertz/ui-server` installed but export fails | `vertz add @vertz/ui-server` (reinstall), or rebuild: `bun run build` in `packages/ui-server` |
+| `@vertz/ui-server is missing` | Dependency not installed | `vertz add @vertz/ui-server` |
+
+**Plain JS apps** (no `@vertz/ui` in `node_modules`) are unaffected — they use the legacy DOM-scraping render silently, which is the correct behavior for apps that don't use the framework.
+
 ## Diagnostic Tools
 
 ### `VERTZ_DEBUG` — Opt-in diagnostic logging
@@ -155,6 +179,8 @@ Useful for automated debugging and verifying server state without reading termin
 | `[vertz-hmr] Signal count changed in <Name>` | Signal preservation skipped — component state was reset |
 | `[Server] Dev bundler serving reload stub after successful build — restarting` | Stale dev bundler detected — auto-restart triggered |
 | `[Server] Dev bundler stale but auto-restart cap reached` | Auto-restart skipped (3 restarts in 10s) — manual restart needed |
+| `[Server] @vertz/ui-server is installed but ssrRenderSinglePass could not be loaded` | Framework SSR broken — package needs rebuild or upgrade |
+| `[Server] @vertz/ui is installed but @vertz/ui-server is missing` | Framework app missing SSR dependency — `vertz add @vertz/ui-server` |
 
 ### Error Channel Categories
 
