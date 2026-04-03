@@ -202,31 +202,31 @@ describe('Feature: Unified request handler (requestHandler)', () => {
   });
 
   describe('Given a custom apiPrefix with auth', () => {
-    it('Then throws an error because auth handler hardcodes /api/auth', () => {
+    it('Then creates server successfully with custom prefix (#2131)', () => {
       const db = createMockDatabaseClient();
-      expect(() =>
-        createServer({
-          basePath: '/',
-          apiPrefix: '/v1',
-          db,
-          auth: authConfig,
-          entities: [
-            {
-              kind: 'entity',
-              name: 'users',
-              model: usersModel,
-              inject: {},
-              access: {
-                list: () => true,
-              },
-              before: {},
-              after: {},
-              actions: {},
-              relations: {},
+      const app = createServer({
+        basePath: '/',
+        apiPrefix: '/v1',
+        db,
+        auth: authConfig,
+        entities: [
+          {
+            kind: 'entity',
+            name: 'users',
+            model: usersModel,
+            inject: {},
+            access: {
+              list: () => true,
             },
-          ] as never[],
-        }),
-      ).toThrow(/requestHandler requires apiPrefix to be '\/api'/);
+            before: {},
+            after: {},
+            actions: {},
+            relations: {},
+          },
+        ] as never[],
+      });
+      expect(app).toBeDefined();
+      expect(app.requestHandler).toBeTypeOf('function');
     });
   });
 });

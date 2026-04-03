@@ -200,14 +200,15 @@ describe('createServer (cloud mode)', () => {
     }
   });
 
-  it('throws when cloud config uses custom apiPrefix', () => {
-    expect(() =>
-      createServer({
-        basePath: '/',
-        apiPrefix: '/custom',
-        cloud: { projectId: 'proj_test123' },
-      }),
-    ).toThrow(/requestHandler requires apiPrefix to be '\/api'/);
+  it('accepts custom apiPrefix with cloud config (#2131)', () => {
+    const app = createServer({
+      basePath: '/',
+      apiPrefix: '/custom',
+      cloud: { projectId: 'proj_test123' },
+    });
+
+    expect(app).toBeDefined();
+    expect(app.apiPrefix).toBe('/custom');
   });
 
   it('throws when cloud projectId has invalid format', () => {

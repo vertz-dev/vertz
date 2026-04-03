@@ -39,11 +39,12 @@ export function buildRefreshCookie(
   refreshName: string,
   refreshMaxAge: number,
   clear = false,
+  authPrefix = '/api/auth',
 ): string {
   const name = refreshName;
   const sameSite = cookieConfig.sameSite || 'lax';
   const secure = cookieConfig.secure ?? true;
-  const path = '/api/auth/refresh';
+  const path = `${authPrefix}/refresh`;
 
   if (clear) {
     return `${name}=; Path=${path}; HttpOnly${secure ? '; Secure' : ''}; SameSite=${sameSite}; Max-Age=0`;
@@ -56,9 +57,10 @@ export function buildMfaChallengeCookie(
   value: string,
   cookieConfig: CookieConfig,
   clear = false,
+  authPrefix = '/api/auth',
 ): string {
   const name = 'vertz.mfa';
-  const path = '/api/auth/mfa';
+  const path = `${authPrefix}/mfa`;
   const sameSite = cookieConfig.sameSite || 'lax';
   const secure = cookieConfig.secure ?? true;
 
@@ -73,9 +75,10 @@ export function buildOAuthStateCookie(
   value: string,
   cookieConfig: CookieConfig,
   clear = false,
+  authPrefix = '/api/auth',
 ): string {
   const name = 'vertz.oauth';
-  const path = '/api/auth/oauth';
+  const path = `${authPrefix}/oauth`;
   const sameSite = cookieConfig.sameSite || 'lax';
   const secure = cookieConfig.secure ?? true;
 

@@ -6,7 +6,7 @@
  * Bun.build() needed.
  *
  * Architecture:
- *   routes: { '/__vertz_hmr': hmrShell, '/api/*': apiHandler }
+ *   routes: { '/__vertz_hmr': hmrShell, '${apiPrefix}/*': apiHandler }
  *   fetch:  static files → nav pre-fetch → fetch interception → SSR render
  *   development: { hmr: true, console: true }
  *
@@ -68,7 +68,17 @@ export interface BunDevServerOptions {
   host?: string;
   /** API handler for full-stack mode */
   apiHandler?: (req: Request) => Promise<Response>;
-  /** Paths to skip SSR (delegate to apiHandler). @default ['/api/'] */
+  /**
+   * API route prefix for full-stack mode. Used to build route keys and
+   * skipSSRPaths when skipSSRPaths is not provided explicitly.
+   *
+   * Must be non-empty when `apiHandler` is provided — the dev server uses
+   * the prefix to distinguish API requests from SSR requests.
+   *
+   * @default '/api'
+   */
+  apiPrefix?: string;
+  /** Paths to skip SSR (delegate to apiHandler). @default [`${apiPrefix}/`] */
   skipSSRPaths?: string[];
   /** OpenAPI spec options */
   openapi?: { specPath: string };
@@ -884,7 +894,6 @@ export function createBunDevServer(options: BunDevServerOptions): BunDevServer {
     port = 3000,
     host = 'localhost',
     apiHandler,
-    skipSSRPaths = ['/api/'],
     openapi,
     clientEntry: clientEntryOption,
     title = 'Vertz App',
@@ -897,6 +906,16 @@ export function createBunDevServer(options: BunDevServerOptions): BunDevServer {
     themeFromRequest,
     onRestartNeeded,
   } = options;
+
+  const apiPrefix = options.apiPrefix ?? '/api';
+  if (apiHandler && apiPrefix === '') {
+    throw new Error(
+      'apiPrefix cannot be empty in full-stack mode. The dev server uses the ' +
+        'API prefix to distinguish API requests from SSR requests. Use a non-empty ' +
+        "prefix like '/api' or '/v1'. Note: '/' normalizes to empty string.",
+    );
+  }
+  const skipSSRPaths = options.skipSSRPaths ?? (apiPrefix ? [`${apiPrefix}/`] : []);
 
   const faviconTag = detectFaviconTag(projectRoot);
   const headTags = [faviconTag, headTagsOption].filter(Boolean).join('\n');
@@ -1582,12 +1601,12 @@ export function createBunDevServer(options: BunDevServerOptions): BunDevServer {
       '/__vertz_hmr': hmrShellModule,
     };
 
-    if (openapi) {
-      routes['/api/openapi.json'] = () => serveOpenAPISpec();
+    if (openapi && apiPrefix) {
+      routes[`${apiPrefix}/openapi.json`] = () => serveOpenAPISpec();
     }
 
-    if (apiHandler) {
-      routes['/api/*'] = (req: Request) => apiHandler(req);
+    if (apiHandler && apiPrefix) {
+      routes[`${apiPrefix}/*`] = (req: Request) => apiHandler(req);
     }
 
     // Kill any stale dev server left on this port (e.g., from a crashed
@@ -1738,7 +1757,12 @@ export function createBunDevServer(options: BunDevServerOptions): BunDevServer {
         }
 
         // OpenAPI spec (fallback for non-route match)
-        if (openapi && request.method === 'GET' && pathname === '/api/openapi.json') {
+        if (
+          openapi &&
+          apiPrefix &&
+          request.method === 'GET' &&
+          pathname === `${apiPrefix}/openapi.json`
+        ) {
           return serveOpenAPISpec();
         }
 
@@ -1809,7 +1833,7 @@ export function createBunDevServer(options: BunDevServerOptions): BunDevServer {
 
         try {
           // Scope fetch interception per-request via AsyncLocalStorage.
-          // API requests (e.g. query() calling fetch('/api/todos')) route
+          // API requests (e.g. query() calling fetch('${apiPrefix}/todos')) route
           // through the in-memory apiHandler. Concurrent SSR renders each
           // get their own scope — no globalThis.fetch mutation.
           const interceptor = apiHandler

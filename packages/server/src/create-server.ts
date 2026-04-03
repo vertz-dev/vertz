@@ -1,4 +1,5 @@
 import type { AppBuilder, AppConfig, EntityRouteEntry } from '@vertz/core';
+import { normalizeApiPrefix } from './prefix';
 import { createServer as coreCreateServer } from '@vertz/core';
 import { type ResolvedMiddleware, runMiddlewareChain } from '@vertz/core/internals';
 import {
@@ -91,6 +92,8 @@ export interface OpenAPIDocument {
 export interface ServerApp extends AppBuilder {
   /** Returns the OpenAPI 3.1 spec generated from registered entities and services. */
   getOpenAPISpec(options?: GetOpenAPISpecOptions): OpenAPIDocument;
+  /** The resolved API prefix (e.g. '/api', '/v1', ''). */
+  readonly apiPrefix: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -100,7 +103,7 @@ export interface ServerApp extends AppBuilder {
 export interface ServerInstance extends ServerApp {
   auth: AuthInstance;
   initialize(): Promise<void>;
-  /** Routes auth requests (/api/auth/*) to auth.handler, everything else to entity handler */
+  /** Routes auth requests ({apiPrefix}/auth/*) to auth.handler, everything else to entity handler */
   readonly requestHandler: (request: Request) => Promise<Response>;
 }
 
@@ -267,7 +270,7 @@ export function createServer(config: ServerConfig): ServerApp;
 export function createServer(config: ServerConfig): ServerApp | ServerInstance {
   const allRoutes: EntityRouteEntry[] = [];
   const registry = new EntityRegistry();
-  const apiPrefix = config.apiPrefix === undefined ? '/api' : config.apiPrefix;
+  const apiPrefix = normalizeApiPrefix(config.apiPrefix);
   const { db } = config;
   const hasDbClient = db && isDatabaseClient(db);
 
@@ -587,6 +590,14 @@ export function createServer(config: ServerConfig): ServerApp | ServerInstance {
     _entityRoutes: allRoutes.length > 0 ? allRoutes : undefined,
   } as AppConfig);
 
+  // Expose the resolved apiPrefix as a readonly property on the app
+  Object.defineProperty(app, 'apiPrefix', {
+    value: apiPrefix,
+    writable: false,
+    enumerable: true,
+    configurable: false,
+  });
+
   // ---------------------------------------------------------------------------
   // Attach getOpenAPISpec() — generates OpenAPI 3.1 spec from entities + services
   // ---------------------------------------------------------------------------
@@ -680,14 +691,6 @@ export function createServer(config: ServerConfig): ServerApp | ServerInstance {
       );
     }
 
-    // Guard: requestHandler requires /api prefix
-    if (apiPrefix !== '/api') {
-      throw new Error(
-        `requestHandler requires apiPrefix to be '/api' (got '${apiPrefix}'). ` +
-          'Custom API prefixes are not yet supported with cloud auth.',
-      );
-    }
-
     // 1. Validate project ID format
     validateProjectId(projectId);
 
@@ -708,18 +711,19 @@ export function createServer(config: ServerConfig): ServerApp | ServerInstance {
       audience: projectId,
     });
 
-    // 5. Create auth proxy
+    // 5. Create auth proxy — wire authPrefix from resolved apiPrefix (#2131)
     const cloudProxy = createAuthProxy({
       projectId,
       cloudBaseUrl,
       authToken: authContext.token,
+      authPrefix: `${apiPrefix}/auth`,
     });
 
     // 6. Build cloud auth instance — bypasses createAuth() entirely
     const cloudError = (method: string) =>
       new Error(
         `auth.api.${method}() is not available in cloud mode. ` +
-          'Auth operations are handled by the cloud proxy via /api/auth/* routes.',
+          `Auth operations are handled by the cloud proxy via ${apiPrefix}/auth/* routes.`,
       );
 
     const cloudAuth: AuthInstance = {
@@ -901,6 +905,8 @@ export function createServer(config: ServerConfig): ServerApp | ServerInstance {
       // Auto-wire tenant if detected (access + .tenant() table).
       // tenant: false explicitly disables. Convert to undefined for createAuth.
       tenant: config.auth.tenant === false ? undefined : (config.auth.tenant ?? autoTenant),
+      // Wire auth prefix from resolved apiPrefix for cookie paths (#2131)
+      _authPrefix: `${apiPrefix}/auth`,
     };
 
     const auth = createAuth(authConfig);
@@ -908,15 +914,6 @@ export function createServer(config: ServerConfig): ServerApp | ServerInstance {
     // Auto-wire auth session middleware so entity/service handlers
     // receive ctx.userId, ctx.tenantId, ctx.roles from the JWT.
     app.middlewares([createAuthSessionMiddleware(auth.api)]);
-
-    // Guard: requestHandler only works with default /api prefix because
-    // the auth handler hardcodes url.pathname.replace('/api/auth', '') internally.
-    if (apiPrefix !== '/api') {
-      throw new Error(
-        `requestHandler requires apiPrefix to be '/api' (got '${apiPrefix}'). ` +
-          'Custom API prefixes are not yet supported with auth.',
-      );
-    }
 
     const authPrefix = `${apiPrefix}/auth`;
     const authPrefixSlash = `${authPrefix}/`;

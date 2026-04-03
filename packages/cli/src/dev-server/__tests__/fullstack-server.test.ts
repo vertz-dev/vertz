@@ -342,6 +342,26 @@ describe('formatBanner', () => {
 
     expect(banner).not.toContain('/api');
   });
+
+  it('uses custom apiPrefix in banner (#2131)', () => {
+    const banner = formatBanner('full-stack', 3000, 'localhost', '/v1');
+
+    expect(banner).toContain('/v1');
+    expect(banner).not.toContain('/api');
+  });
+
+  it('omits API line when apiPrefix is empty string (#2131)', () => {
+    const banner = formatBanner('api-only', 3000, 'localhost', '');
+
+    expect(banner).toContain('http://localhost:3000');
+    expect(banner).not.toContain('API:');
+  });
+
+  it('defaults to /api when apiPrefix is undefined (#2131)', () => {
+    const banner = formatBanner('full-stack', 3000, 'localhost');
+
+    expect(banner).toContain('/api');
+  });
 });
 
 describe('importServerModule — initialize', () => {
@@ -531,7 +551,8 @@ describe('startDevServer', () => {
       handler: mockHandler as never,
       sessionResolver: mockSessionResolver as never,
       initialize: mockInitialize as never,
-    });
+      apiPrefix: '/v1',
+    } as never);
 
     const mockDevServer = {
       start: vi.fn().mockResolvedValue(undefined),
@@ -561,10 +582,11 @@ describe('startDevServer', () => {
     // Verify initialize was called
     expect(mockInitialize).toHaveBeenCalled();
 
-    // Verify createBunDevServer was called with api handler and session resolver
+    // Verify createBunDevServer was called with api handler, session resolver, and apiPrefix
     expect(createSpy).toHaveBeenCalledWith(
       expect.objectContaining({
         apiHandler: mockHandler,
+        apiPrefix: '/v1',
         ssrModule: true,
         projectRoot: '/project',
       }),

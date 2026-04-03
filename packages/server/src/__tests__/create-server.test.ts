@@ -531,6 +531,133 @@ describe('createServer', () => {
     expect(app).toBeDefined();
   });
 
+  it('exposes apiPrefix as a readonly property defaulting to /api', () => {
+    const app = createServer({
+      basePath: '/',
+      entities: [
+        {
+          name: 'users',
+          model: usersModel,
+          access: { list: () => true },
+          before: {},
+          after: {},
+          actions: {},
+          relations: {},
+        },
+      ] as never[],
+    });
+
+    expect(app.apiPrefix).toBe('/api');
+  });
+
+  it('exposes custom apiPrefix after normalization', () => {
+    const app = createServer({
+      basePath: '/',
+      apiPrefix: '/v1/',
+      entities: [
+        {
+          name: 'users',
+          model: usersModel,
+          access: { list: () => true },
+          before: {},
+          after: {},
+          actions: {},
+          relations: {},
+        },
+      ] as never[],
+    });
+
+    expect(app.apiPrefix).toBe('/v1');
+  });
+
+  it('exposes empty apiPrefix when set to empty string', () => {
+    const app = createServer({
+      basePath: '/',
+      apiPrefix: '',
+      entities: [
+        {
+          name: 'users',
+          model: usersModel,
+          access: { list: () => true },
+          before: {},
+          after: {},
+          actions: {},
+          relations: {},
+        },
+      ] as never[],
+    });
+
+    expect(app.apiPrefix).toBe('');
+  });
+
+  it('normalizes / to empty string for apiPrefix', () => {
+    const app = createServer({
+      basePath: '/',
+      apiPrefix: '/',
+      entities: [
+        {
+          name: 'users',
+          model: usersModel,
+          access: { list: () => true },
+          before: {},
+          after: {},
+          actions: {},
+          relations: {},
+        },
+      ] as never[],
+    });
+
+    expect(app.apiPrefix).toBe('');
+  });
+
+  it('routes entities under custom prefix /v1', async () => {
+    const app = createServer({
+      basePath: '/',
+      apiPrefix: '/v1',
+      entities: [
+        {
+          name: 'users',
+          model: usersModel,
+          access: { list: () => true },
+          before: {},
+          after: {},
+          actions: {},
+          relations: {},
+        },
+      ] as never[],
+    });
+
+    // Should respond at /v1/users
+    const res = await app.handler(new Request('http://localhost/v1/users'));
+    expect(res.status).toBe(200);
+
+    // Should NOT respond at /api/users (old prefix)
+    const oldRes = await app.handler(new Request('http://localhost/api/users'));
+    expect(oldRes.status).toBe(404);
+  });
+
+  it('routes entities at root when apiPrefix is empty', async () => {
+    const app = createServer({
+      basePath: '/',
+      apiPrefix: '',
+      entities: [
+        {
+          name: 'users',
+          model: usersModel,
+          access: { list: () => true },
+          before: {},
+          after: {},
+          actions: {},
+          relations: {},
+        },
+      ] as never[],
+    });
+
+    // Should respond at /users (no prefix)
+    const res = await app.handler(new Request('http://localhost/users'));
+    expect(res.status).toBe(200);
+  });
+
   it('merges _tenantChains into entity route generation', async () => {
     const orgsTable = d.table('organizations', { id: d.uuid().primary(), name: d.text() }).tenant();
     const projectsTable = d.table('projects', {
@@ -1002,14 +1129,25 @@ describe('createServer', () => {
     expect(body.items).toHaveLength(0);
   });
 
-  it('throws when cloud config uses custom apiPrefix', () => {
-    expect(() =>
-      createServer({
+  it('accepts custom apiPrefix with cloud config', () => {
+    // Set up cloud token so createServer succeeds
+    const savedToken = process.env.VERTZ_CLOUD_TOKEN;
+    process.env.VERTZ_CLOUD_TOKEN = 'test-cloud-token';
+    try {
+      const app = createServer({
         basePath: '/',
         apiPrefix: '/custom',
         cloud: { projectId: 'proj_test123' },
-      }),
-    ).toThrow(/requestHandler requires apiPrefix to be '\/api'/);
+      });
+      expect(app).toBeDefined();
+      expect(app.apiPrefix).toBe('/custom');
+    } finally {
+      if (savedToken === undefined) {
+        delete process.env.VERTZ_CLOUD_TOKEN;
+      } else {
+        process.env.VERTZ_CLOUD_TOKEN = savedToken;
+      }
+    }
   });
 
   it('noop DB adapter create returns the data', async () => {

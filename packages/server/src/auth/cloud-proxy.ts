@@ -42,6 +42,8 @@ export function createAuthProxy(options: {
   fetchTimeout?: number;
   maxBodySize?: number;
   lifecycle?: CloudProxyLifecycleCallbacks;
+  /** Auth prefix to strip from the request pathname before proxying. @default '/api/auth' */
+  authPrefix?: string;
 }): (request: Request) => Promise<Response> {
   const {
     projectId,
@@ -52,6 +54,7 @@ export function createAuthProxy(options: {
     fetchTimeout = 10_000,
     maxBodySize = 1_048_576,
     lifecycle,
+    authPrefix = '/api/auth',
   } = options;
 
   const isProduction = environment !== 'development';
@@ -86,9 +89,11 @@ export function createAuthProxy(options: {
       }
     }
 
-    // Build cloud URL
+    // Build cloud URL — strip the auth prefix and forward to cloud
     const url = new URL(request.url);
-    const authPath = url.pathname.replace(/^\/api\/auth/, '');
+    const authPath = url.pathname.startsWith(authPrefix)
+      ? url.pathname.slice(authPrefix.length)
+      : url.pathname;
     const cloudUrl = `${cloudBaseUrl}/auth${authPath}${url.search}`;
 
     // Build headers — whitelist + Vertz headers
@@ -185,7 +190,7 @@ export function createAuthProxy(options: {
       if (tokens.refreshToken) {
         responseHeaders.append(
           'Set-Cookie',
-          `vertz.ref=${tokens.refreshToken}; HttpOnly; SameSite=Lax; Path=/api/auth${securePart}`,
+          `vertz.ref=${tokens.refreshToken}; HttpOnly; SameSite=Lax; Path=${authPrefix}${securePart}`,
         );
       }
 

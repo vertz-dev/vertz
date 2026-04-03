@@ -411,6 +411,8 @@ export interface AuthConfig {
   onUserCreated?: (payload: OnUserCreatedPayload, ctx: AuthCallbackContext) => Promise<void>;
   /** @internal Entity proxy for onUserCreated callback. Set by createServer(). */
   _entityProxy?: Record<string, AuthEntityProxy>;
+  /** @internal Auth prefix for cookie paths. Set by createServer() from apiPrefix. @default '/api/auth' */
+  _authPrefix?: string;
 }
 
 /** Tenant info returned by listTenants callback. */

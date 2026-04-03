@@ -34,9 +34,9 @@ import {
 import { exportJWK } from 'jose';
 import { computeAccessSet, type EncodedAccessSet, encodeAccessSet } from './access-set';
 import {
-  buildMfaChallengeCookie,
-  buildOAuthStateCookie,
-  buildRefreshCookie,
+  buildMfaChallengeCookie as _buildMfaChallengeCookie,
+  buildOAuthStateCookie as _buildOAuthStateCookie,
+  buildRefreshCookie as _buildRefreshCookie,
   buildSessionCookie,
   DEFAULT_COOKIE_CONFIG,
 } from './cookies';
@@ -142,6 +142,27 @@ export function createAuth(config: AuthConfig): AuthInstance {
     publicKey: configPublicKey,
     claims,
   } = config;
+
+  const authPrefix = config._authPrefix ?? '/api/auth';
+
+  // Curried cookie builders that use the resolved auth prefix
+  const buildRefreshCookie: typeof _buildRefreshCookie = (
+    value,
+    cookieConfig,
+    refreshName,
+    refreshMaxAge,
+    clear = false,
+  ) => _buildRefreshCookie(value, cookieConfig, refreshName, refreshMaxAge, clear, authPrefix);
+  const buildMfaChallengeCookie: typeof _buildMfaChallengeCookie = (
+    value,
+    cookieConfig,
+    clear = false,
+  ) => _buildMfaChallengeCookie(value, cookieConfig, clear, authPrefix);
+  const buildOAuthStateCookie: typeof _buildOAuthStateCookie = (
+    value,
+    cookieConfig,
+    clear = false,
+  ) => _buildOAuthStateCookie(value, cookieConfig, clear, authPrefix);
 
   // Determine production mode: explicit config > process.env > secure default (true)
   const isProduction =
@@ -1001,7 +1022,9 @@ export function createAuth(config: AuthConfig): AuthInstance {
 
   async function handleAuthRequest(request: Request): Promise<Response> {
     const url = new URL(request.url);
-    const path = url.pathname.replace('/api/auth', '') || '/';
+    const path = url.pathname.startsWith(authPrefix)
+      ? url.pathname.slice(authPrefix.length) || '/'
+      : url.pathname;
     const method = request.method;
 
     // CSRF check for state-changing methods
@@ -1392,7 +1415,7 @@ export function createAuth(config: AuthConfig): AuthInstance {
         const providerList = Array.from(providers.values()).map((p) => ({
           id: p.id,
           name: p.name,
-          authUrl: `/api/auth/oauth/${p.id}`,
+          authUrl: `${authPrefix}/oauth/${p.id}`,
         }));
 
         return new Response(JSON.stringify(providerList), {

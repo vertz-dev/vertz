@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, spyOn } from 'bun:test';
 import { existsSync, rmSync } from 'node:fs';
-import { buildOAuthStateCookie } from '../cookies';
+import { buildMfaChallengeCookie, buildOAuthStateCookie, buildRefreshCookie } from '../cookies';
 import { createAuth } from '../index';
 import type { AuthConfig } from '../types';
 import { TEST_PRIVATE_KEY, TEST_PUBLIC_KEY } from './test-keys';
@@ -230,5 +230,89 @@ describe('buildOAuthStateCookie', () => {
   it('clear mode sets Max-Age=0', () => {
     const cookie = buildOAuthStateCookie('', { secure: true }, true);
     expect(cookie).toContain('Max-Age=0');
+  });
+
+  it('uses custom authPrefix in cookie Path (#2131)', () => {
+    const cookie = buildOAuthStateCookie('state', { secure: true }, false, '/v1/auth');
+    expect(cookie).toContain('Path=/v1/auth/oauth');
+    expect(cookie).not.toContain('/api/auth');
+  });
+});
+
+describe('buildRefreshCookie with custom authPrefix (#2131)', () => {
+  it('defaults to /api/auth/refresh path', () => {
+    const cookie = buildRefreshCookie('token', { secure: true }, 'vertz.ref', 3600);
+    expect(cookie).toContain('Path=/api/auth/refresh');
+  });
+
+  it('uses custom authPrefix in path', () => {
+    const cookie = buildRefreshCookie(
+      'token',
+      { secure: true },
+      'vertz.ref',
+      3600,
+      false,
+      '/v1/auth',
+    );
+    expect(cookie).toContain('Path=/v1/auth/refresh');
+    expect(cookie).not.toContain('/api/auth');
+  });
+});
+
+describe('buildMfaChallengeCookie with custom authPrefix (#2131)', () => {
+  it('defaults to /api/auth/mfa path', () => {
+    const cookie = buildMfaChallengeCookie('challenge', { secure: true });
+    expect(cookie).toContain('Path=/api/auth/mfa');
+  });
+
+  it('uses custom authPrefix in path', () => {
+    const cookie = buildMfaChallengeCookie('challenge', { secure: true }, false, '/v1/auth');
+    expect(cookie).toContain('Path=/v1/auth/mfa');
+    expect(cookie).not.toContain('/api/auth');
+  });
+});
+
+describe('auth handler routing with custom _authPrefix (#2131)', () => {
+  it('routes requests correctly when _authPrefix is customized', async () => {
+    const auth = createAuth(
+      baseConfig({
+        _authPrefix: '/v1/auth',
+        emailPassword: { enabled: true },
+      }),
+    );
+
+    // A signup request to the custom prefix should be routed correctly
+    // (not 404 due to hardcoded /api/auth stripping)
+    const request = new Request('http://localhost:3000/v1/auth/signup', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Origin: 'http://localhost:3000',
+      },
+      body: JSON.stringify({ email: 'test@example.com', password: 'TestPassword123!' }),
+    });
+
+    const response = await auth.handler(request);
+    // Should NOT be 404 — the path was correctly stripped to /signup
+    expect(response.status).not.toBe(404);
+  });
+
+  it('returns correct authUrl in /providers with custom prefix', async () => {
+    const auth = createAuth(
+      baseConfig({
+        _authPrefix: '/v1/auth',
+      }),
+    );
+
+    const request = new Request('http://localhost:3000/v1/auth/providers', {
+      method: 'GET',
+      headers: { Origin: 'http://localhost:3000' },
+    });
+
+    const response = await auth.handler(request);
+    const body = await response.json();
+    // With no providers configured, returns empty array — but the route was matched (not 404)
+    expect(response.status).toBe(200);
+    expect(Array.isArray(body)).toBe(true);
   });
 });
