@@ -1461,6 +1461,27 @@ mod tests {
         assert_eq!(args.command, "tsc");
     }
 
+    /// `vtzx tsc --version` should parse identically to `vtz exec tsc --version`.
+    #[test]
+    fn test_vtzx_rewrite() {
+        // Simulate the argv rewriting from main.rs: ["vtzx", "tsc", "--version"]
+        // becomes ["vtz", "exec", "tsc", "--version"]
+        let mut raw = vec!["vtzx", "tsc", "--version"]
+            .into_iter()
+            .map(String::from)
+            .collect::<Vec<_>>();
+        raw[0] = "vtz".to_string();
+        raw.insert(1, "exec".to_string());
+        let cli = Cli::parse_from(raw);
+        match cli.command {
+            Command::Exec(args) => {
+                assert_eq!(args.command, "tsc");
+                assert_eq!(args.args, vec!["--version"]);
+            }
+            other => panic!("Expected Exec, got {:?}", other),
+        }
+    }
+
     // --- -w / --workspace flag tests ---
 
     #[test]

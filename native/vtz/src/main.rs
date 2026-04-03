@@ -8,8 +8,25 @@ use vertz_runtime::config::{resolve_auto_install, ServerConfig};
 use vertz_runtime::pm;
 use vertz_runtime::pm::output::{error_code_from_message, JsonOutput, PmOutput, TextOutput};
 
+/// Returns `true` when the binary was invoked as `vtzx` (symlink shorthand for `vtz exec`).
+fn is_vtzx_invocation() -> bool {
+    std::env::args()
+        .next()
+        .and_then(|arg0| std::path::Path::new(&arg0).file_name().map(|n| n == "vtzx"))
+        .unwrap_or(false)
+}
+
 fn main() {
-    let cli = Cli::parse();
+    // `vtzx <cmd> [args...]` is shorthand for `vtz exec <cmd> [args...]`
+    let cli = if is_vtzx_invocation() {
+        let mut raw_args: Vec<String> = std::env::args().collect();
+        // Replace argv[0] with "vtz" and inject "exec" as the subcommand
+        raw_args[0] = "vtz".to_string();
+        raw_args.insert(1, "exec".to_string());
+        Cli::parse_from(raw_args)
+    } else {
+        Cli::parse()
+    };
 
     // Desktop mode: webview event loop on main thread, tokio on background
     #[cfg(feature = "desktop")]
