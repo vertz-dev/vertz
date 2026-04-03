@@ -183,7 +183,7 @@ describe('generateTypes', () => {
     expect(tasksFile!.content).toContain('  page: number;');
   });
 
-  it('query interfaces include index signature for Record<string, unknown> assignability (#2217)', () => {
+  it('query interfaces do not include index signature (#2217)', () => {
     const resources: ParsedResource[] = [
       makeResource({
         operations: [
@@ -205,7 +205,9 @@ describe('generateTypes', () => {
 
     const files = generateTypes(resources, schemas);
     const tasksFile = files.find((f) => f.path === 'types/tasks.ts');
-    expect(tasksFile!.content).toContain('[key: string]: unknown;');
+    // Index signature is no longer needed — @vertz/fetch accepts typed interfaces
+    // via the QueryParams type alias (object) instead of Record<string, unknown>
+    expect(tasksFile!.content).not.toContain('[key: string]: unknown;');
   });
 
   it('skips query interface when no query params', () => {

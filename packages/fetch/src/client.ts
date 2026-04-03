@@ -12,6 +12,7 @@ import type {
   AuthStrategy,
   FetchClientConfig,
   FetchResponse,
+  QueryParams,
   RequestOptions,
   RetryConfig,
   StreamingRequestOptions,
@@ -384,7 +385,7 @@ export class FetchClient {
     return new Promise((resolve) => setTimeout(resolve, ms));
   }
 
-  private buildURL(path: string, query?: Record<string, unknown>): string {
+  private buildURL(path: string, query?: QueryParams): string {
     const base = this.config.baseURL;
     const isAbsoluteBase = base && /^https?:\/\//.test(base);
 

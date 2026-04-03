@@ -1,6 +1,12 @@
 import type { FetchError, Result } from '@vertz/errors';
 import { ok } from '@vertz/errors';
-import type { EntityQueryMeta, FetchResponse, MutationMeta, OptimisticHandler } from './types';
+import type {
+  EntityQueryMeta,
+  FetchResponse,
+  MutationMeta,
+  OptimisticHandler,
+  QueryParams,
+} from './types';
 
 export interface QueryDescriptor<T, E = FetchError> extends PromiseLike<Result<T, E>> {
   readonly _tag: 'QueryDescriptor';
@@ -36,7 +42,7 @@ export function createDescriptor<T>(
   method: string,
   path: string,
   fetchFn: () => Promise<FetchResponse<T>>,
-  query?: Record<string, unknown>,
+  query?: QueryParams,
   entity?: EntityQueryMeta,
 ): QueryDescriptor<T> {
   const key = `${method}:${path}${serializeQuery(query)}`;
@@ -118,11 +124,10 @@ export function createMutationDescriptor<T>(
   };
 }
 
-function serializeQuery(query?: Record<string, unknown>): string {
+function serializeQuery(query?: QueryParams): string {
   if (!query) return '';
   const params = new URLSearchParams();
-  for (const key of Object.keys(query).sort()) {
-    const value = query[key];
+  for (const [key, value] of Object.entries(query).sort(([a], [b]) => a.localeCompare(b))) {
     if (value !== undefined && value !== null) {
       params.set(key, String(value));
     }

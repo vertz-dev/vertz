@@ -33,6 +33,7 @@ export type {
   ListResponse,
   MutationMeta,
   OptimisticHandler,
+  QueryParams,
   RequestOptions,
   RetryConfig,
   StreamingFormat,

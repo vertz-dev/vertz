@@ -28,7 +28,7 @@
   "scripts": {
     "build": "bunup",
     "test": "bun test",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit -p tsconfig.typecheck.json"
   },
   "dependencies": {
     "@vertz/errors": "workspace:^"

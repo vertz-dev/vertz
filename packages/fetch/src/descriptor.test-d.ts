@@ -16,7 +16,7 @@ declare const fetchFn: () => Promise<FetchResponse<string>>;
 const descriptor = createDescriptor('GET', '/test', fetchFn);
 
 // Await resolves to Result<string, FetchError>
-const _awaitResult: Promise<Result<string, FetchError>> = descriptor.then((v) => v);
+const _awaitResult: PromiseLike<Result<string, FetchError>> = descriptor.then((v) => v);
 void _awaitResult;
 
 // Error type defaults to FetchError (from @vertz/errors)

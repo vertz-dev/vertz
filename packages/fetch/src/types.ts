@@ -42,9 +42,17 @@ export interface FetchClientConfig {
   credentials?: RequestCredentials;
 }
 
+/**
+ * Query parameters for URL construction.
+ * Typed as `object` so that generated interfaces (e.g., from `@vertz/openapi`)
+ * are assignable without needing an explicit index signature.
+ * Values are serialized via `String(value)` — null and undefined are skipped.
+ */
+export type QueryParams = object;
+
 export interface RequestOptions {
   headers?: Record<string, string>;
-  query?: Record<string, unknown>;
+  query?: QueryParams;
   body?: unknown;
   signal?: AbortSignal;
 }
