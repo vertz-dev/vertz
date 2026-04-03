@@ -34,6 +34,12 @@ export const codegen = {
 };
 ```
 
+<Warning>
+  `compiler.entryFile` tells the code generator which file to analyze for entity and access
+  definitions. It is **not** the API server entry point. The API server is auto-detected from
+  `src/server.ts` by file convention — see [Project Structure](/project-structure) for details.
+</Warning>
+
 ### Running codegen
 
 There are three ways to run the code generator:
