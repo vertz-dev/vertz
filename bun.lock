@@ -671,6 +671,15 @@
         "typescript": "^5.7.0",
       },
     },
+    "packages/ui-server/e2e/fixture": {
+      "name": "hmr-e2e-fixture",
+      "dependencies": {
+        "@vertz/errors": "workspace:^",
+        "@vertz/fetch": "workspace:^",
+        "@vertz/ui": "workspace:^",
+        "@vertz/ui-server": "workspace:^",
+      },
+    },
     "packages/vertz": {
       "name": "vertz",
       "version": "0.2.46",
@@ -1823,6 +1832,8 @@
     "hast-util-whitespace": ["hast-util-whitespace@3.0.0", "", { "dependencies": { "@types/hast": "^3.0.0" } }, "sha512-88JUN06ipLwsnv+dVn+OIYOvAuvBMy/Qoi6O7mQHxdPXpjy+Cd6xRkWwux7DKO+4sYILtLBRIKgsdpS2gQc7qw=="],
 
     "hex-rgb": ["hex-rgb@4.3.0", "", {}, "sha512-Ox1pJVrDCyGHMG9CFg1tmrRUMRPRsAWYc/PinY0XzJU4K7y7vjNoLKIQ7BR5UJMCxNN8EM1MNDmHWA/B3aZUuw=="],
+
+    "hmr-e2e-fixture": ["hmr-e2e-fixture@workspace:packages/ui-server/e2e/fixture"],
 
     "html-void-elements": ["html-void-elements@3.0.0", "", {}, "sha512-bEqo66MRXsUGxWHV5IP0PUiAWwoEjba4VCzg0LjFJBpchPaTfyfCKTG6bc5F8ucKec3q5y6qOdGyYTSBEvhCrg=="],
 

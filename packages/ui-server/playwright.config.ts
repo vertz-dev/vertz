@@ -16,7 +16,7 @@ export default defineConfig({
   },
 
   webServer: {
-    command: `cd e2e/fixture && PORT=${PORT} bun run dev-server.ts`,
+    command: `cd e2e/fixture && ../../../../native/target/release/vtz dev --port ${PORT}`,
     url: `http://localhost:${PORT}`,
     reuseExistingServer: !process.env.CI,
     timeout: 20_000,

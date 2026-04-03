@@ -5,6 +5,7 @@
   "packageManager": "bun@1.3.9",
   "workspaces": [
     "packages/*",
+    "packages/ui-server/e2e/fixture",
     "examples/*",
     "sites/*",
     "benchmarks/vertz"
