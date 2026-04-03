@@ -17,7 +17,7 @@ export { createCrudHandlers } from './crud-pipeline';
 export { entity } from './entity';
 export type { EntityOperations } from './entity-operations';
 export { EntityRegistry } from './entity-registry';
-export type { EntityErrorResult } from './error-handler';
+export type { EntityErrorResult, ErrorHandlerOptions } from './error-handler';
 export { entityErrorHandler } from './error-handler';
 export {
   applySelect,

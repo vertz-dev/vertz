@@ -4,6 +4,7 @@ import { enforceAccess } from '../entity/access-enforcer';
 import type { RequestInfo } from '../entity/context';
 import type { EntityOperations } from '../entity/entity-operations';
 import type { EntityRegistry } from '../entity/entity-registry';
+import { entityErrorHandler } from '../entity/error-handler';
 import { filterProtectedHeaders, isResponseDescriptor } from '../response';
 import { createServiceContext } from './context';
 import type { ServiceDefinition } from './types';
@@ -14,6 +15,8 @@ import type { ServiceDefinition } from './types';
 
 export interface ServiceRouteOptions {
   apiPrefix?: string;
+  /** When true, unknown errors include real message and stack trace. @default false */
+  devMode?: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -197,8 +200,8 @@ export function generateServiceRoutes(
 
           return jsonResponse(result, customStatus ?? 200, filteredHeaders);
         } catch (error) {
-          const message = error instanceof Error ? error.message : 'Internal server error';
-          return jsonResponse({ error: { code: 'InternalServerError', message } }, 500);
+          const result = entityErrorHandler(error, { devMode: options?.devMode });
+          return jsonResponse(result.body, result.status);
         }
       },
     });

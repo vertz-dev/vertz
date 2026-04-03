@@ -40,8 +40,19 @@ export interface EntityErrorResult {
       code: string;
       message: string;
       details?: unknown;
+      /** Stack trace of the original error. Only populated when `devMode` is enabled. */
+      stack?: string;
     };
   };
+}
+
+// ---------------------------------------------------------------------------
+// Options
+// ---------------------------------------------------------------------------
+
+export interface ErrorHandlerOptions {
+  /** When true, include actual error message and stack trace for unknown errors. */
+  devMode?: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -54,7 +65,10 @@ export interface EntityErrorResult {
  * EntityErrors from @vertz/errors are mapped by their error code.
  * Unknown errors produce a generic 500 response that never leaks internals.
  */
-export function entityErrorHandler(error: unknown): EntityErrorResult {
+export function entityErrorHandler(
+  error: unknown,
+  options?: ErrorHandlerOptions,
+): EntityErrorResult {
   // Handle EntityError from @vertz/errors (returned by CRUD Result)
   if (error instanceof EntityError) {
     const status = ERROR_CODE_TO_STATUS[error.code] ?? 500;
@@ -90,6 +104,31 @@ export function entityErrorHandler(error: unknown): EntityErrorResult {
           code,
           message: error.message,
           ...(details !== undefined && { details }),
+        },
+      },
+    };
+  }
+
+  if (options?.devMode && error instanceof Error) {
+    return {
+      status: 500,
+      body: {
+        error: {
+          code: 'InternalError',
+          message: error.message,
+          ...(error.stack && { stack: error.stack }),
+        },
+      },
+    };
+  }
+
+  if (options?.devMode) {
+    return {
+      status: 500,
+      body: {
+        error: {
+          code: 'InternalError',
+          message: 'An unexpected error occurred (non-Error value thrown)',
         },
       },
     };

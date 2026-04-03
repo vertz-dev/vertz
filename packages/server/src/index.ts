@@ -271,6 +271,7 @@ export type {
   EntityDbAdapter,
   EntityDefinition,
   EntityErrorResult,
+  ErrorHandlerOptions,
   EntityOperations,
   EntityRelationsConfig,
   EntityRouteOptions,
