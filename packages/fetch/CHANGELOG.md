@@ -1,5 +1,14 @@
 # @vertz/fetch
 
+## 0.2.47
+
+### Patch Changes
+
+- [#2243](https://github.com/vertz-dev/vertz/pull/2243) [`ca0007f`](https://github.com/vertz-dev/vertz/commit/ca0007f83b5be683fa1dfe4532a4d9ee846630d5) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - Widen query param type from `Record<string, unknown>` to `QueryParams` (`object`) so typed interfaces from codegen are assignable without explicit index signatures.
+
+- Updated dependencies []:
+  - @vertz/errors@0.2.47
+
 ## 0.2.46
 
 ### Patch Changes
