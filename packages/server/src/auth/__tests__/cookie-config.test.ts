@@ -1,6 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, spyOn } from 'bun:test';
 import { existsSync, rmSync } from 'node:fs';
-import { buildOAuthStateCookie } from '../cookies';
+import {
+  buildMfaChallengeCookie,
+  buildOAuthStateCookie,
+  buildRefreshCookie,
+} from '../cookies';
 import { createAuth } from '../index';
 import type { AuthConfig } from '../types';
 import { TEST_PRIVATE_KEY, TEST_PUBLIC_KEY } from './test-keys';
@@ -230,5 +234,37 @@ describe('buildOAuthStateCookie', () => {
   it('clear mode sets Max-Age=0', () => {
     const cookie = buildOAuthStateCookie('', { secure: true }, true);
     expect(cookie).toContain('Max-Age=0');
+  });
+
+  it('uses custom authPrefix in cookie Path (#2131)', () => {
+    const cookie = buildOAuthStateCookie('state', { secure: true }, false, '/v1/auth');
+    expect(cookie).toContain('Path=/v1/auth/oauth');
+    expect(cookie).not.toContain('/api/auth');
+  });
+});
+
+describe('buildRefreshCookie with custom authPrefix (#2131)', () => {
+  it('defaults to /api/auth/refresh path', () => {
+    const cookie = buildRefreshCookie('token', { secure: true }, 'vertz.ref', 3600);
+    expect(cookie).toContain('Path=/api/auth/refresh');
+  });
+
+  it('uses custom authPrefix in path', () => {
+    const cookie = buildRefreshCookie('token', { secure: true }, 'vertz.ref', 3600, false, '/v1/auth');
+    expect(cookie).toContain('Path=/v1/auth/refresh');
+    expect(cookie).not.toContain('/api/auth');
+  });
+});
+
+describe('buildMfaChallengeCookie with custom authPrefix (#2131)', () => {
+  it('defaults to /api/auth/mfa path', () => {
+    const cookie = buildMfaChallengeCookie('challenge', { secure: true });
+    expect(cookie).toContain('Path=/api/auth/mfa');
+  });
+
+  it('uses custom authPrefix in path', () => {
+    const cookie = buildMfaChallengeCookie('challenge', { secure: true }, false, '/v1/auth');
+    expect(cookie).toContain('Path=/v1/auth/mfa');
+    expect(cookie).not.toContain('/api/auth');
   });
 });

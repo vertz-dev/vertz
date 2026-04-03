@@ -712,11 +712,12 @@ export function createServer(config: ServerConfig): ServerApp | ServerInstance {
       audience: projectId,
     });
 
-    // 5. Create auth proxy
+    // 5. Create auth proxy — wire authPrefix from resolved apiPrefix (#2131)
     const cloudProxy = createAuthProxy({
       projectId,
       cloudBaseUrl,
       authToken: authContext.token,
+      authPrefix: `${apiPrefix}/auth`,
     });
 
     // 6. Build cloud auth instance — bypasses createAuth() entirely
@@ -905,6 +906,8 @@ export function createServer(config: ServerConfig): ServerApp | ServerInstance {
       // Auto-wire tenant if detected (access + .tenant() table).
       // tenant: false explicitly disables. Convert to undefined for createAuth.
       tenant: config.auth.tenant === false ? undefined : (config.auth.tenant ?? autoTenant),
+      // Wire auth prefix from resolved apiPrefix for cookie paths (#2131)
+      _authPrefix: `${apiPrefix}/auth`,
     };
 
     const auth = createAuth(authConfig);

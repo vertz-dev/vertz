@@ -34,9 +34,9 @@ import {
 import { exportJWK } from 'jose';
 import { computeAccessSet, type EncodedAccessSet, encodeAccessSet } from './access-set';
 import {
-  buildMfaChallengeCookie,
-  buildOAuthStateCookie,
-  buildRefreshCookie,
+  buildMfaChallengeCookie as _buildMfaChallengeCookie,
+  buildOAuthStateCookie as _buildOAuthStateCookie,
+  buildRefreshCookie as _buildRefreshCookie,
   buildSessionCookie,
   DEFAULT_COOKIE_CONFIG,
 } from './cookies';
@@ -142,6 +142,16 @@ export function createAuth(config: AuthConfig): AuthInstance {
     publicKey: configPublicKey,
     claims,
   } = config;
+
+  const authPrefix = config._authPrefix ?? '/api/auth';
+
+  // Curried cookie builders that use the resolved auth prefix
+  const buildRefreshCookie: typeof _buildRefreshCookie = (value, cookieConfig, refreshName, refreshMaxAge, clear = false) =>
+    _buildRefreshCookie(value, cookieConfig, refreshName, refreshMaxAge, clear, authPrefix);
+  const buildMfaChallengeCookie: typeof _buildMfaChallengeCookie = (value, cookieConfig, clear = false) =>
+    _buildMfaChallengeCookie(value, cookieConfig, clear, authPrefix);
+  const buildOAuthStateCookie: typeof _buildOAuthStateCookie = (value, cookieConfig, clear = false) =>
+    _buildOAuthStateCookie(value, cookieConfig, clear, authPrefix);
 
   // Determine production mode: explicit config > process.env > secure default (true)
   const isProduction =
