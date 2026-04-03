@@ -622,10 +622,7 @@ describe('scaffold', () => {
     it('CLAUDE.md uses vtz commands and describes landing page project', async () => {
       await scaffold(tempDir, { projectName: 'my-landing', template: 'landing-page' });
 
-      const content = await fs.readFile(
-        path.join(tempDir, 'my-landing', 'CLAUDE.md'),
-        'utf-8',
-      );
+      const content = await fs.readFile(path.join(tempDir, 'my-landing', 'CLAUDE.md'), 'utf-8');
       expect(content).toContain('# my-landing');
       expect(content).toContain('vtz install');
       expect(content).toContain('vtz dev');
@@ -637,10 +634,7 @@ describe('scaffold', () => {
     it('package.json has project name and no backend deps', async () => {
       await scaffold(tempDir, { projectName: 'my-landing', template: 'landing-page' });
 
-      const content = await fs.readFile(
-        path.join(tempDir, 'my-landing', 'package.json'),
-        'utf-8',
-      );
+      const content = await fs.readFile(path.join(tempDir, 'my-landing', 'package.json'), 'utf-8');
       const pkg = JSON.parse(content);
       expect(pkg.name).toBe('my-landing');
       expect(pkg.dependencies.vertz).toBeDefined();
