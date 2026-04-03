@@ -1145,7 +1145,7 @@ describe('PostgreSQL lazy init and replica routing', () => {
     const driverQuerySpy = spyOn(primaryDriver, 'queryFn');
 
     mock.module('../postgres-driver', () => ({
-      createPostgresDriver: () => primaryDriver,
+      createPostgresDriver: async () => primaryDriver,
     }));
 
     const db = createDb({
@@ -1183,7 +1183,7 @@ describe('PostgreSQL lazy init and replica routing', () => {
 
     let callCount = 0;
     mock.module('../postgres-driver', () => ({
-      createPostgresDriver: () => {
+      createPostgresDriver: async () => {
         callCount++;
         // First call = primary, subsequent = replicas
         return callCount === 1 ? primaryDriver : replicaDriver;
@@ -1231,7 +1231,7 @@ describe('PostgreSQL lazy init and replica routing', () => {
 
     let callCount = 0;
     mock.module('../postgres-driver', () => ({
-      createPostgresDriver: () => {
+      createPostgresDriver: async () => {
         callCount++;
         return callCount === 1 ? primaryDriver : failingReplica;
       },
@@ -1276,7 +1276,7 @@ describe('PostgreSQL lazy init and replica routing', () => {
     });
 
     mock.module('../postgres-driver', () => ({
-      createPostgresDriver: () => primaryDriver,
+      createPostgresDriver: async () => primaryDriver,
     }));
 
     const db = createDb({
@@ -1308,7 +1308,7 @@ describe('PostgreSQL lazy init and replica routing', () => {
     });
 
     mock.module('../postgres-driver', () => ({
-      createPostgresDriver: () => primaryDriver,
+      createPostgresDriver: async () => primaryDriver,
     }));
 
     const db = createDb({

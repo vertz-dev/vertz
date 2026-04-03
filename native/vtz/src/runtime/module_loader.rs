@@ -102,6 +102,12 @@ impl VertzModuleLoader {
             return self.resolve_with_extensions(&resolved);
         }
 
+        // Package imports (#foo): resolve via nearest package.json "imports" field
+        if specifier.starts_with('#') {
+            let referrer_dir = referrer_path.parent().unwrap_or(&self.root_dir);
+            return self.resolve_package_imports(specifier, referrer_dir);
+        }
+
         // Bare specifiers: try node_modules resolution starting from referrer
         let referrer_dir = referrer_path.parent().unwrap_or(&self.root_dir);
         self.resolve_node_module(specifier, referrer_dir)
@@ -145,6 +151,47 @@ impl VertzModuleLoader {
         Err(deno_core::anyhow::anyhow!(
             "Cannot resolve module: {}",
             path.display()
+        ))
+    }
+
+    /// Resolve a `#`-prefixed specifier via the nearest package.json `imports` field.
+    ///
+    /// Walks up from `start_dir` looking for a `package.json` that has an `imports`
+    /// field containing the specifier. Supports:
+    /// - String values: `"#foo": "./src/foo.ts"`
+    /// - Condition maps: `"#foo": { "import": "./src/foo.ts", "default": "./src/foo.js" }`
+    fn resolve_package_imports(
+        &self,
+        specifier: &str,
+        start_dir: &Path,
+    ) -> Result<PathBuf, AnyError> {
+        let mut search_dir = start_dir.to_path_buf();
+        loop {
+            let pkg_json_path = search_dir.join("package.json");
+            if pkg_json_path.is_file() {
+                if let Ok(content) = std::fs::read_to_string(&pkg_json_path) {
+                    if let Ok(pkg) = serde_json::from_str::<serde_json::Value>(&content) {
+                        if let Some(imports) = pkg.get("imports").and_then(|v| v.as_object()) {
+                            if let Some(mapping) = imports.get(specifier) {
+                                let resolved = resolve_imports_mapping(mapping);
+                                if let Some(target) = resolved {
+                                    let abs_path = search_dir.join(target);
+                                    return self.resolve_with_extensions(&abs_path);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            if !search_dir.pop() {
+                break;
+            }
+        }
+
+        Err(deno_core::anyhow::anyhow!(
+            "Cannot resolve package import '{}' — no package.json with matching \"imports\" field found",
+            specifier
         ))
     }
 
@@ -440,6 +487,12 @@ fn resolve_condition_value(value: &serde_json::Value) -> Option<String> {
         }
         _ => None,
     }
+}
+
+/// Resolve a value from a package.json "imports" mapping entry.
+/// Supports string values and condition maps (same logic as exports).
+fn resolve_imports_mapping(value: &serde_json::Value) -> Option<String> {
+    resolve_condition_value(value)
 }
 
 /// Synthetic module source for `@vertz/test` and `bun:test` imports.
@@ -1759,5 +1812,139 @@ export function Hello() {
             ModuleLoadResponse::Sync(Err(e)) => panic!("Module load failed: {}", e),
             _ => panic!("Expected synchronous module load"),
         }
+    }
+
+    // --- Package imports (#specifier) resolution ---
+
+    #[test]
+    fn test_resolve_package_imports_string_value() {
+        let tmp = create_temp_dir();
+        let main_file = tmp.path().join("src").join("main.js");
+        let target_file = tmp
+            .path()
+            .join(".vertz")
+            .join("generated")
+            .join("client.ts");
+        std::fs::create_dir_all(tmp.path().join("src")).unwrap();
+        std::fs::create_dir_all(tmp.path().join(".vertz").join("generated")).unwrap();
+        std::fs::write(&main_file, "").unwrap();
+        std::fs::write(&target_file, "export const api = {};").unwrap();
+        std::fs::write(
+            tmp.path().join("package.json"),
+            r##"{ "imports": { "#generated": "./.vertz/generated/client.ts" } }"##,
+        )
+        .unwrap();
+
+        let loader = VertzModuleLoader::new(&tmp.path().to_string_lossy(), test_plugin());
+        let referrer = ModuleSpecifier::from_file_path(&main_file).unwrap();
+        let result = loader.resolve("#generated", referrer.as_str(), ResolutionKind::Import);
+        assert!(result.is_ok(), "Failed: {:?}", result.err());
+        assert_eq!(result.unwrap().to_file_path().unwrap(), canon(&target_file));
+    }
+
+    #[test]
+    fn test_resolve_package_imports_condition_map() {
+        let tmp = create_temp_dir();
+        let main_file = tmp.path().join("main.js");
+        let target_file = tmp.path().join("src").join("utils.js");
+        std::fs::create_dir_all(tmp.path().join("src")).unwrap();
+        std::fs::write(&main_file, "").unwrap();
+        std::fs::write(&target_file, "export const x = 1;").unwrap();
+        std::fs::write(
+            tmp.path().join("package.json"),
+            r##"{ "imports": { "#utils": { "import": "./src/utils.js", "default": "./src/utils.cjs" } } }"##,
+        )
+        .unwrap();
+
+        let loader = VertzModuleLoader::new(&tmp.path().to_string_lossy(), test_plugin());
+        let referrer = ModuleSpecifier::from_file_path(&main_file).unwrap();
+        let result = loader.resolve("#utils", referrer.as_str(), ResolutionKind::Import);
+        assert!(result.is_ok(), "Failed: {:?}", result.err());
+        assert_eq!(result.unwrap().to_file_path().unwrap(), canon(&target_file));
+    }
+
+    #[test]
+    fn test_resolve_package_imports_walks_up_directories() {
+        let tmp = create_temp_dir();
+        // File is in a subdirectory, package.json is at root
+        let sub_dir = tmp.path().join("src").join("api");
+        std::fs::create_dir_all(&sub_dir).unwrap();
+        let main_file = sub_dir.join("handler.js");
+        let target_file = tmp.path().join("generated").join("types.ts");
+        std::fs::create_dir_all(tmp.path().join("generated")).unwrap();
+        std::fs::write(&main_file, "").unwrap();
+        std::fs::write(&target_file, "export type Foo = {};").unwrap();
+        std::fs::write(
+            tmp.path().join("package.json"),
+            r##"{ "imports": { "#generated/types": "./generated/types.ts" } }"##,
+        )
+        .unwrap();
+
+        let loader = VertzModuleLoader::new(&tmp.path().to_string_lossy(), test_plugin());
+        let referrer = ModuleSpecifier::from_file_path(&main_file).unwrap();
+        let result = loader.resolve(
+            "#generated/types",
+            referrer.as_str(),
+            ResolutionKind::Import,
+        );
+        assert!(result.is_ok(), "Failed: {:?}", result.err());
+        assert_eq!(result.unwrap().to_file_path().unwrap(), canon(&target_file));
+    }
+
+    #[test]
+    fn test_resolve_package_imports_missing_specifier() {
+        let tmp = create_temp_dir();
+        let main_file = tmp.path().join("main.js");
+        std::fs::write(&main_file, "").unwrap();
+        std::fs::write(
+            tmp.path().join("package.json"),
+            r##"{ "imports": { "#foo": "./foo.ts" } }"##,
+        )
+        .unwrap();
+
+        let loader = VertzModuleLoader::new(&tmp.path().to_string_lossy(), test_plugin());
+        let referrer = ModuleSpecifier::from_file_path(&main_file).unwrap();
+        let result = loader.resolve("#bar", referrer.as_str(), ResolutionKind::Import);
+        assert!(result.is_err());
+        let err = result.unwrap_err().to_string();
+        assert!(
+            err.contains("Cannot resolve package import '#bar'"),
+            "Error: {}",
+            err
+        );
+    }
+
+    #[test]
+    fn test_resolve_package_imports_no_imports_field() {
+        let tmp = create_temp_dir();
+        let main_file = tmp.path().join("main.js");
+        std::fs::write(&main_file, "").unwrap();
+        std::fs::write(tmp.path().join("package.json"), r#"{ "name": "my-pkg" }"#).unwrap();
+
+        let loader = VertzModuleLoader::new(&tmp.path().to_string_lossy(), test_plugin());
+        let referrer = ModuleSpecifier::from_file_path(&main_file).unwrap();
+        let result = loader.resolve("#missing", referrer.as_str(), ResolutionKind::Import);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_resolve_imports_mapping_string() {
+        let value = serde_json::json!("./src/foo.ts");
+        assert_eq!(
+            resolve_imports_mapping(&value),
+            Some("./src/foo.ts".to_string())
+        );
+    }
+
+    #[test]
+    fn test_resolve_imports_mapping_conditions() {
+        let value = serde_json::json!({
+            "import": "./src/foo.mjs",
+            "default": "./src/foo.cjs"
+        });
+        assert_eq!(
+            resolve_imports_mapping(&value),
+            Some("./src/foo.mjs".to_string())
+        );
     }
 }

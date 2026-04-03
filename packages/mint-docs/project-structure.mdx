@@ -73,14 +73,13 @@ export default createServer({
 When `src/server.ts` is present, `vertz dev` creates a persistent isolate that handles `/api/*` requests through your server's handler.
 
 <Note>
-  The TypeScript CLI (`bunx vertz dev`) has additional fallback paths that the Rust runtime
-  (`vtz dev`) does not support:
+  The [native runtime](/runtime) (`vtz dev`) is the primary dev server. The Bun-based fallback
+  (`bunx vertz dev` without the runtime installed) supports additional legacy paths:
 
-- **Alternative directory:** `src/api/server.ts` (checked if `src/server.ts` is not found)
-- **Additional extension:** `.js` (in addition to `.ts` and `.tsx`)
+- **Alternative directory:** `src/api/server.ts`
+- **Additional extension:** `.js`
 
-For portability across both runtimes, always use `src/server.ts` or `src/server.tsx` directly
-in your `src/` directory.
+Use `src/server.ts` or `src/server.tsx` for compatibility with both.
 
 </Note>
 

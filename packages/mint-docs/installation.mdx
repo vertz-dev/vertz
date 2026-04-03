@@ -88,6 +88,12 @@ The dev server:
 - Hot-reloads with state preservation (HMR)
 - Extracts and injects scoped CSS
 
+<Note>
+  The Vertz CLI automatically uses the [native runtime](/runtime) when available — a standalone
+  binary that starts in ~5ms with built-in SSR, HMR, and test runner. No configuration needed.
+  If the runtime isn't installed, the CLI falls back to Bun transparently.
+</Note>
+
 ## Project structure
 
 See [Project Structure](/project-structure) for a complete guide to file conventions, including server entry points, app type detection, and how `vertz dev` decides what to run.
