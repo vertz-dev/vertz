@@ -199,11 +199,11 @@ export const appRouter = createRouter(routes, { serverNav: true });
 # Clone the repo and install dependencies
 git clone https://github.com/vertz-dev/vertz.git
 cd vertz
-bun install
+vtz install
 
 # Start the task manager dev server
 cd examples/task-manager
-bun run dev
+vtz dev
 ```
 
 The app starts at `http://localhost:3000` with full SSR and HMR.
@@ -211,10 +211,10 @@ The app starts at `http://localhost:3000` with full SSR and HMR.
 ### Available commands
 
 ```bash
-bun run dev          # Development server with SSR + HMR
-bun run build        # Production build
-bun run preview      # Build + start production server
-bun run typecheck    # TypeScript checking
-bun test             # Unit tests
-bun run e2e          # Playwright E2E tests
+vtz dev              # Development server with SSR + HMR
+vtz run build        # Production build
+vtz run preview      # Build + start production server
+vtz run typecheck    # TypeScript checking
+vtz test             # Unit tests
+vtz run e2e          # Playwright E2E tests
 ```

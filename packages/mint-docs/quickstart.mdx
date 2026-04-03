@@ -6,8 +6,8 @@ description: 'Get up and running with Vertz in under 5 minutes'
 Scaffold a full-stack task manager with a database, API, and UI — all typed end-to-end.
 
 <Tip>
-  Want a minimal starting point instead? Use `--template hello-world` for a UI-only counter app:
-  ```bash bunx @vertz/create-vertz-app@latest my-app --template hello-world ```
+  Want a minimal starting point instead? Use the `hello-world` template for a UI-only counter app:
+  ```bash vtz create hello-world my-app ```
 </Tip>
 
 ## Create a new project
@@ -15,9 +15,9 @@ Scaffold a full-stack task manager with a database, API, and UI — all typed en
 <Steps>
   <Step title="Scaffold the app">
     ```bash
-    bunx @vertz/create-vertz-app@latest my-app
+    vtz create vertz my-app
     cd my-app
-    bun install
+    vtz install
     ```
 
     This creates a complete project with a SQLite database, a REST API, and a styled UI with a shadcn-inspired theme — not empty boilerplate.
@@ -25,14 +25,10 @@ Scaffold a full-stack task manager with a database, API, and UI — all typed en
   </Step>
   <Step title="Start the dev server">
     ```bash
-    bun run dev
+    vtz dev
     ```
 
     Open [http://localhost:3000](http://localhost:3000). You should see a working task manager where you can create and complete tasks.
-
-    <Tip>
-      If the [native runtime](/runtime) is installed, the dev server starts in ~5ms with built-in SSR and HMR — no extra setup required.
-    </Tip>
 
   </Step>
 </Steps>
@@ -139,10 +135,10 @@ With the dev server running:
 ## Available commands
 
 ```bash
-bun run dev        # Start dev server (API + UI + SSR + HMR)
-bun run build      # Build for production
-bun run start      # Start production server (after build)
-bun run codegen    # Regenerate typed API client
+vtz dev            # Start dev server (API + UI + SSR + HMR)
+vtz run build      # Build for production
+vtz run start      # Start production server (after build)
+vtz run codegen    # Regenerate typed API client
 ```
 
 ## Next steps

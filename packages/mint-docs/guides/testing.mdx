@@ -10,8 +10,8 @@ End-to-end tests verify your entire Vertz app — server, database, auth, and UI
 Install Playwright and its browser binaries:
 
 ```bash
-bun add -d @playwright/test
-bunx playwright install chromium
+vtz add -d @playwright/test
+vtz exec playwright install chromium
 ```
 
 ## Playwright configuration
@@ -37,7 +37,7 @@ export default defineConfig({
 
   // Playwright starts your dev server automatically
   webServer: {
-    command: 'bun run dev',
+    command: 'vtz dev',
     url: 'http://localhost:3000',
     reuseExistingServer: !process.env.CI,
     timeout: 30_000,
@@ -55,7 +55,7 @@ For E2E tests, use a **file-based SQLite** database. Each dev server run creates
 
 ```ts
 // src/api/db.ts
-import { Database } from 'bun:sqlite';
+import { Database } from 'vertz:sqlite';
 import { createDb } from '@vertz/db';
 import { authModels } from '@vertz/server';
 
@@ -100,7 +100,7 @@ export async function seedDatabase() {
 To reset the database between test runs, delete the file and restart:
 
 ```bash
-rm -f ./data/app.db && bun run dev
+rm -f ./data/app.db && vtz dev
 ```
 
 ## Authenticating test users
@@ -326,9 +326,9 @@ Add scripts to your `package.json`:
 ```
 
 ```bash
-bun run e2e              # Run all E2E tests (headless)
-bun run e2e:headed       # Run with browser visible (for debugging)
-bun run e2e -- --ui      # Open Playwright's interactive UI
+vtz run e2e              # Run all E2E tests (headless)
+vtz run e2e:headed       # Run with browser visible (for debugging)
+vtz run e2e -- --ui      # Open Playwright's interactive UI
 ```
 
 In CI, tests run headless with a single worker for stability. The `webServer` config ensures the dev server starts fresh.

@@ -7,14 +7,14 @@ Vertz ships a native runtime (`vtz`) — a standalone binary that replaces Bun f
 
 ## How it works
 
-When you run `vertz dev`, the CLI automatically uses the native runtime if it's available. No configuration needed — if the binary is installed, it's used. If not, the CLI falls back to Bun transparently.
+`vtz` is the primary Vertz CLI. Run it directly — no extra configuration needed.
 
-The native runtime handles:
+The runtime handles:
 
-- `vertz dev` — Development server with SSR + HMR
-- `vertz test` — Built-in test runner
-
-Other commands (`vertz build`, `vertz start`, `vertz codegen`) continue to use Bun.
+- `vtz dev` — Development server with SSR + HMR
+- `vtz test` — Built-in test runner
+- `vtz run <script>` — Run any package.json script (build, start, codegen, etc.)
+- `vtz install` / `vtz add` / `vtz remove` — Package management
 
 ## Installation
 
@@ -23,10 +23,10 @@ Other commands (`vertz build`, `vertz start`, `vertz codegen`) continue to use B
 The runtime is installed automatically when you add `@vertz/runtime` to your project:
 
 ```bash
-bun add -d @vertz/runtime
+vtz add -d @vertz/runtime
 ```
 
-The `vertz` meta-package and `@vertz/cli` include it as an optional dependency, so most projects already have it after `bun install`.
+The `vertz` meta-package and `@vertz/cli` include it as an optional dependency, so most projects already have it after `vtz install`.
 
 ### Standalone binary
 
@@ -107,5 +107,5 @@ vtz --version
 If you see a version mismatch warning when using the CLI, update the runtime:
 
 ```bash
-bun update @vertz/runtime
+vtz update @vertz/runtime
 ```

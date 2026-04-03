@@ -36,16 +36,16 @@ The code generator automatically scans all files in `src/` for entity and access
 
 There are three ways to run the code generator:
 
-**1. Via `vertz dev` (recommended)** — codegen runs automatically on startup and re-runs when schema files change:
+**1. Via `vtz dev` (recommended)** — codegen runs automatically on startup and re-runs when schema files change:
 
 ```bash
-bunx vertz dev
+vtz dev
 ```
 
-**2. Via `vertz codegen`** — run codegen manually:
+**2. Via `vtz exec vertz codegen`** — run codegen manually:
 
 ```bash
-bunx vertz codegen
+vtz exec vertz codegen
 ```
 
 **3. As a build step** — chain codegen before your build or dev scripts:
@@ -53,17 +53,16 @@ bunx vertz codegen
 ```json
 {
   "scripts": {
-    "dev": "bun run codegen && bun run src/dev-server.ts",
-    "build": "bun run codegen",
-    "codegen": "bunx vertz codegen"
+    "dev": "vtz run codegen && vtz dev",
+    "build": "vtz run codegen",
+    "codegen": "vertz codegen"
   }
 }
 ```
 
 <Note>
-  If your app uses a custom dev server (calling `createBunDevServer` directly instead of `vertz
-  dev`), you must run codegen explicitly before starting the server. The `vertz dev` unified command
-  handles this automatically.
+  If your app uses a custom dev server instead of `vtz dev`, you must run codegen explicitly before
+  starting the server. The `vtz dev` unified command handles this automatically.
 </Note>
 
 ### Generated output
@@ -200,7 +199,7 @@ When the registry is populated, the `Entitlement` type narrows from `string` to 
     The access type generator runs as part of the standard Vertz codegen pipeline:
 
     ```bash
-    bunx vertz codegen
+    vtz exec vertz codegen
     ```
 
     This produces `.vertz/generated/access.d.ts`.
@@ -242,7 +241,7 @@ await ctx.authorize('project:create', resource); // OK
 
 ### Backward compatibility
 
-When no codegen output exists (e.g., before running `bunx vertz codegen` for the first time), the `Entitlement` type falls back to `string`. This means:
+When no codegen output exists (e.g., before running `vtz exec vertz codegen` for the first time), the `Entitlement` type falls back to `string`. This means:
 
 - Existing code works without codegen — no breakage
 - Type narrowing activates only when generated types are present
@@ -308,7 +307,7 @@ const access = defineAccess({
 });
 ```
 
-Running `bunx vertz codegen` produces:
+Running `vtz exec vertz codegen` produces:
 
 ```sql
 -- .vertz/generated/rls-policies.sql
