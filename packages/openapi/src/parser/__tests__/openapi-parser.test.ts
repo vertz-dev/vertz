@@ -554,7 +554,9 @@ describe('parseOpenAPI', () => {
         '/tasks/{taskId}/events': {
           get: {
             operationId: 'streamTaskEvents',
-            parameters: [{ name: 'taskId', in: 'path', required: true, schema: { type: 'string' } }],
+            parameters: [
+              { name: 'taskId', in: 'path', required: true, schema: { type: 'string' } },
+            ],
             responses: {
               '200': {
                 description: 'Stream of task events',

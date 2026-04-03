@@ -432,7 +432,9 @@ describe('generateAll — streaming integration', () => {
     expect(tasksFile!.content).toContain('list: (): Promise<FetchResponse<TaskList>>');
     expect(tasksFile!.content).toContain("client.get('/tasks')");
     // Streaming method with Stream suffix
-    expect(tasksFile!.content).toContain('listStream: (options?: { signal?: AbortSignal }): AsyncGenerator<TaskEvent>');
+    expect(tasksFile!.content).toContain(
+      'listStream: (options?: { signal?: AbortSignal }): AsyncGenerator<TaskEvent>',
+    );
     expect(tasksFile!.content).toContain('client.requestStream<TaskEvent>');
   });
 

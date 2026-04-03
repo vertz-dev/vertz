@@ -54,7 +54,11 @@ function generateResourceFile(resource: ParsedResource): string {
       };
       lines.push(`    ${generateMethod(jsonOp)},`);
       // Then generate streaming method with Stream suffix
-      const streamOp: ParsedOperation = { ...op, methodName: op.methodName + 'Stream', jsonResponse: undefined };
+      const streamOp: ParsedOperation = {
+        ...op,
+        methodName: op.methodName + 'Stream',
+        jsonResponse: undefined,
+      };
       lines.push(`    ${generateMethod(streamOp)},`);
     } else {
       lines.push(`    ${generateMethod(op)},`);
