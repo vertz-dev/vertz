@@ -11,10 +11,48 @@ concurrency:
 
 jobs:
   # ---------------------------------------------------------------------------
+  # Detect whether native/ files changed in this push.
+  # Binary builds are skipped when only TS packages changed.
+  # publish.sh already handles missing binaries gracefully (skips runtime-*).
+  # ---------------------------------------------------------------------------
+  changes:
+    name: Detect native changes
+    runs-on: ubuntu-latest
+    outputs:
+      native: ${{ steps.filter.outputs.native }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check for native changes
+        id: filter
+        run: |
+          BASE_SHA="${{ github.event.before }}"
+
+          # Initial push (null SHA) — build everything
+          if [ "$BASE_SHA" = "0000000000000000000000000000000000000000" ]; then
+            echo "native=true" >> "$GITHUB_OUTPUT"
+            echo "Initial push — building all binaries"
+            exit 0
+          fi
+
+          if git diff --name-only "$BASE_SHA" "${{ github.sha }}" | grep -q '^native/'; then
+            echo "native=true" >> "$GITHUB_OUTPUT"
+            echo "Native files changed — building binaries"
+          else
+            echo "native=false" >> "$GITHUB_OUTPUT"
+            echo "No native changes — skipping binary builds"
+          fi
+
+  # ---------------------------------------------------------------------------
   # Build native runtime binaries for all supported platforms.
   # Artifacts are downloaded by the release job for npm publishing.
+  # Skipped when native/ hasn't changed — publish.sh handles missing binaries.
   # ---------------------------------------------------------------------------
   build-binaries:
+    needs: changes
+    if: needs.changes.outputs.native == 'true'
     strategy:
       fail-fast: false
       matrix:
@@ -95,7 +133,10 @@ jobs:
   # ---------------------------------------------------------------------------
   release:
     name: Release
-    needs: build-binaries
+    needs: [changes, build-binaries]
+    # Run when build-binaries succeeded OR was skipped (no native changes).
+    # Do NOT run if build-binaries failed or the workflow was cancelled.
+    if: ${{ always() && needs.changes.result == 'success' && needs.build-binaries.result != 'failure' }}
     runs-on: ubuntu-latest
     permissions:
       contents: write

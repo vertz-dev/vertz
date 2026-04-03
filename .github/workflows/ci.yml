@@ -48,11 +48,35 @@ jobs:
       - name: Check for source changes
         id: filter
         run: |
-          # Pushes to main and workflow_dispatch (auto-rebase) always run the full pipeline
-          if [ "${{ github.event_name }}" = "push" ] || [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+          # workflow_dispatch (auto-rebase) always runs everything — no diff context
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             echo "src=true" >> "$GITHUB_OUTPUT"
             echo "native=true" >> "$GITHUB_OUTPUT"
-            echo "${{ github.event_name }} — running full pipeline"
+            echo "workflow_dispatch — running full pipeline"
+            exit 0
+          fi
+
+          # Push to main: always run TS pipeline, only run native if native/ changed
+          if [ "${{ github.event_name }}" = "push" ]; then
+            echo "src=true" >> "$GITHUB_OUTPUT"
+
+            BASE_SHA="${{ github.event.before }}"
+
+            # Initial push (null SHA) — run everything
+            if [ "$BASE_SHA" = "0000000000000000000000000000000000000000" ]; then
+              echo "native=true" >> "$GITHUB_OUTPUT"
+              echo "push (initial) — running full pipeline"
+              exit 0
+            fi
+
+            if git diff --name-only "$BASE_SHA" "${{ github.sha }}" | grep -q '^native/'; then
+              echo "native=true" >> "$GITHUB_OUTPUT"
+              echo "push — native files changed"
+            else
+              echo "native=false" >> "$GITHUB_OUTPUT"
+              echo "push — no native changes, skipping native pipeline"
+            fi
+
             exit 0
           fi
 
@@ -62,6 +86,7 @@ jobs:
 
           if [ -z "$CHANGED" ]; then
             echo "src=false" >> "$GITHUB_OUTPUT"
+            echo "native=false" >> "$GITHUB_OUTPUT"
             echo "No files changed"
             exit 0
           fi
