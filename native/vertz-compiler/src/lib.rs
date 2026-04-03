@@ -100,6 +100,7 @@ pub struct CompileOptions {
     pub route_splitting: Option<bool>,
     pub field_selection: Option<bool>,
     pub prefetch_manifest: Option<bool>,
+    pub skip_css_transform: Option<bool>,
 }
 
 #[napi(object)]
@@ -240,6 +241,7 @@ fn to_core_options(options: Option<CompileOptions>) -> core::CompileOptions {
             route_splitting: opts.route_splitting,
             field_selection: opts.field_selection,
             prefetch_manifest: opts.prefetch_manifest,
+            skip_css_transform: opts.skip_css_transform,
         },
     }
 }

@@ -12,3 +12,6 @@ pub mod runner;
 pub mod snapshot;
 pub mod typetests;
 pub mod watch;
+
+// Re-export shared test-file detection for use by other modules (e.g., plugin).
+pub use watch::is_test_file;

@@ -63,10 +63,22 @@ pub fn affected_test_files(
     result
 }
 
-/// Check if a path looks like a test file.
+/// Check if a path corresponds to a test file.
+///
+/// Matches patterns recognized by the test runner:
+/// - `*.test.{ts,tsx}`, `*.spec.{ts,tsx}`, `*.e2e.{ts,tsx}` — standard test suffixes
+/// - `*.local.{ts,tsx}` — integration tests (per integration-test-safety rules)
+/// - Files inside `__tests__/` directories
 pub fn is_test_file(path: &Path) -> bool {
-    let name = path.file_name().and_then(|n| n.to_str()).unwrap_or("");
-    name.ends_with(".test.ts") || name.ends_with(".test.tsx")
+    let stem = path.file_stem().and_then(|s| s.to_str()).unwrap_or("");
+    if stem.ends_with(".test")
+        || stem.ends_with(".spec")
+        || stem.ends_with(".e2e")
+        || stem.ends_with(".local")
+    {
+        return true;
+    }
+    path.components().any(|c| c.as_os_str() == "__tests__")
 }
 
 /// Run the test suite in watch mode.
@@ -258,9 +270,33 @@ mod tests {
     }
 
     #[test]
+    fn test_is_test_file_spec() {
+        assert!(is_test_file(Path::new("/src/utils.spec.ts")));
+        assert!(is_test_file(Path::new("/src/Card.spec.tsx")));
+    }
+
+    #[test]
+    fn test_is_test_file_e2e() {
+        assert!(is_test_file(Path::new("/src/login.e2e.ts")));
+        assert!(is_test_file(Path::new("/src/login.e2e.tsx")));
+    }
+
+    #[test]
+    fn test_is_test_file_local() {
+        assert!(is_test_file(Path::new("/src/server.local.ts")));
+    }
+
+    #[test]
+    fn test_is_test_file_dunder_tests() {
+        assert!(is_test_file(Path::new("/src/__tests__/utils.ts")));
+        assert!(is_test_file(Path::new("/src/__tests__/nested/deep.ts")));
+    }
+
+    #[test]
     fn test_is_not_test_file() {
         assert!(!is_test_file(Path::new("/src/utils.ts")));
         assert!(!is_test_file(Path::new("/src/Component.tsx")));
+        assert!(!is_test_file(Path::new("/src/testing/helpers.ts")));
     }
 
     #[test]
