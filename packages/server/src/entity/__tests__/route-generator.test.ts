@@ -260,9 +260,7 @@ describe('generateEntityRoutes', () => {
 
         const warnings = warnSpy.mock.calls.map((c) => c[0]);
         expect(
-          warnings.some(
-            (w: string) => w.includes('"resetPassword"') && w.includes('"users"'),
-          ),
+          warnings.some((w: string) => w.includes('"resetPassword"') && w.includes('"users"')),
         ).toBe(true);
       } finally {
         warnSpy.mockRestore();
