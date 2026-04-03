@@ -617,6 +617,239 @@ describe('scaffold', () => {
       expect(await exists(projectPath('src', 'client.ts'))).toBe(false);
     });
 
+    // ── Config files ──────────────────────────────────────
+
+    it('CLAUDE.md uses vtz commands and describes landing page project', async () => {
+      await scaffold(tempDir, { projectName: 'my-landing', template: 'landing-page' });
+
+      const content = await fs.readFile(
+        path.join(tempDir, 'my-landing', 'CLAUDE.md'),
+        'utf-8',
+      );
+      expect(content).toContain('# my-landing');
+      expect(content).toContain('vtz install');
+      expect(content).toContain('vtz dev');
+      expect(content).not.toContain('bun install');
+      expect(content).not.toContain('bun run dev');
+      expect(content).toContain('section');
+    });
+
+    it('package.json has project name and no backend deps', async () => {
+      await scaffold(tempDir, { projectName: 'my-landing', template: 'landing-page' });
+
+      const content = await fs.readFile(
+        path.join(tempDir, 'my-landing', 'package.json'),
+        'utf-8',
+      );
+      const pkg = JSON.parse(content);
+      expect(pkg.name).toBe('my-landing');
+      expect(pkg.dependencies.vertz).toBeDefined();
+      expect(pkg.dependencies['@vertz/theme-shadcn']).toBeDefined();
+      expect(pkg.imports).toBeUndefined();
+    });
+
+    it('package.json has no codegen or start scripts', async () => {
+      await scaffold(tempDir, landingOptions);
+
+      const content = await fs.readFile(projectPath('package.json'), 'utf-8');
+      const pkg = JSON.parse(content);
+      expect(pkg.scripts.dev).toBe('vertz dev');
+      expect(pkg.scripts.build).toBe('vertz build');
+      expect(pkg.scripts.codegen).toBeUndefined();
+      expect(pkg.scripts.start).toBeUndefined();
+    });
+
+    it('vertz.config.ts has no entryFile or codegen', async () => {
+      await scaffold(tempDir, landingOptions);
+
+      const content = await fs.readFile(projectPath('vertz.config.ts'), 'utf-8');
+      expect(content).not.toContain('entryFile');
+      expect(content).not.toContain('codegen');
+    });
+
+    // ── Layout & styling ─────────────────────────────────
+
+    it('app.tsx uses ThemeProvider with dark theme', async () => {
+      await scaffold(tempDir, landingOptions);
+
+      const content = await fs.readFile(projectPath('src', 'app.tsx'), 'utf-8');
+      expect(content).toContain('ThemeProvider');
+      expect(content).toContain('"dark"');
+    });
+
+    it('app.tsx has RouterContext.Provider and RouterView', async () => {
+      await scaffold(tempDir, landingOptions);
+
+      const content = await fs.readFile(projectPath('src', 'app.tsx'), 'utf-8');
+      expect(content).toContain('RouterContext.Provider');
+      expect(content).toContain('RouterView');
+    });
+
+    it('app.tsx renders Nav and Footer in the layout', async () => {
+      await scaffold(tempDir, landingOptions);
+
+      const content = await fs.readFile(projectPath('src', 'app.tsx'), 'utf-8');
+      expect(content).toContain('<Nav');
+      expect(content).toContain('<Footer');
+    });
+
+    it('globals.ts sets dark body background and smooth scrolling', async () => {
+      await scaffold(tempDir, landingOptions);
+
+      const content = await fs.readFile(projectPath('src', 'styles', 'globals.ts'), 'utf-8');
+      expect(content).toContain('globalCss');
+      expect(content).toContain('#111110');
+      expect(content).toContain('smooth');
+    });
+
+    it('router.tsx defines routes for /, /features, /pricing', async () => {
+      await scaffold(tempDir, landingOptions);
+
+      const content = await fs.readFile(projectPath('src', 'router.tsx'), 'utf-8');
+      expect(content).toContain("'/'");
+      expect(content).toContain("'/features'");
+      expect(content).toContain("'/pricing'");
+      expect(content).toContain('defineRoutes');
+      expect(content).toContain('createRouter');
+    });
+
+    it('reuses shared templates (tsconfig, bunfig, gitignore, theme, favicon)', async () => {
+      await scaffold(tempDir, landingOptions);
+
+      const tsconfig = JSON.parse(await fs.readFile(projectPath('tsconfig.json'), 'utf-8'));
+      expect(tsconfig.compilerOptions.jsx).toBe('react-jsx');
+
+      const bunfig = await fs.readFile(projectPath('bunfig.toml'), 'utf-8');
+      expect(bunfig).toContain('[serve.static]');
+
+      const gitignore = await fs.readFile(projectPath('.gitignore'), 'utf-8');
+      expect(gitignore).toContain('node_modules');
+
+      const theme = await fs.readFile(projectPath('src', 'styles', 'theme.ts'), 'utf-8');
+      expect(theme).toContain('configureTheme');
+
+      const favicon = await fs.readFile(projectPath('public', 'favicon.svg'), 'utf-8');
+      expect(favicon).toContain('viewBox');
+    });
+
+    // ── Component content ──────────────────────────────────
+
+    it('nav.tsx has fixed positioning and backdrop blur', async () => {
+      await scaffold(tempDir, landingOptions);
+
+      const content = await fs.readFile(projectPath('src', 'components', 'nav.tsx'), 'utf-8');
+      expect(content).toContain('fixed');
+      expect(content).toContain('backdropFilter');
+      expect(content).toContain('blur');
+    });
+
+    it('nav.tsx has links to /features and /pricing', async () => {
+      await scaffold(tempDir, landingOptions);
+
+      const content = await fs.readFile(projectPath('src', 'components', 'nav.tsx'), 'utf-8');
+      expect(content).toContain('Link');
+      expect(content).toContain('href="/features"');
+      expect(content).toContain('href="/pricing"');
+    });
+
+    it('footer.tsx has border-top and exports Footer', async () => {
+      await scaffold(tempDir, landingOptions);
+
+      const content = await fs.readFile(projectPath('src', 'components', 'footer.tsx'), 'utf-8');
+      expect(content).toContain('borderTop');
+      expect(content).toContain('export function Footer()');
+    });
+
+    it('hero.tsx has headline and CTA buttons using Button component', async () => {
+      await scaffold(tempDir, landingOptions);
+
+      const content = await fs.readFile(projectPath('src', 'components', 'hero.tsx'), 'utf-8');
+      expect(content).toContain('export function Hero()');
+      expect(content).toContain('<h1');
+      expect(content).toContain('Button');
+      expect(content).toContain("from '@vertz/ui/components'");
+    });
+
+    it('features-section.tsx has responsive grid and feature cards', async () => {
+      await scaffold(tempDir, landingOptions);
+
+      const content = await fs.readFile(
+        projectPath('src', 'components', 'features-section.tsx'),
+        'utf-8',
+      );
+      expect(content).toContain('export function FeaturesSection()');
+      expect(content).toContain('grid');
+      expect(content).toContain('repeat(3, 1fr)');
+      expect(content).toContain('FEATURES');
+    });
+
+    it('cta-section.tsx has heading and Button', async () => {
+      await scaffold(tempDir, landingOptions);
+
+      const content = await fs.readFile(
+        projectPath('src', 'components', 'cta-section.tsx'),
+        'utf-8',
+      );
+      expect(content).toContain('export function CtaSection()');
+      expect(content).toContain('Button');
+      expect(content).toContain('Ready to get started');
+    });
+
+    // ── Page content ──────────────────────────────────────
+
+    it('home.tsx composes Hero, FeaturesSection, and CtaSection', async () => {
+      await scaffold(tempDir, landingOptions);
+
+      const content = await fs.readFile(projectPath('src', 'pages', 'home.tsx'), 'utf-8');
+      expect(content).toContain('export function HomePage()');
+      expect(content).toContain('<Hero');
+      expect(content).toContain('<FeaturesSection');
+      expect(content).toContain('<CtaSection');
+      expect(content).toContain("from '../components/hero'");
+      expect(content).toContain("from '../components/features-section'");
+      expect(content).toContain("from '../components/cta-section'");
+    });
+
+    it('features.tsx is a standalone page with feature cards', async () => {
+      await scaffold(tempDir, landingOptions);
+
+      const content = await fs.readFile(projectPath('src', 'pages', 'features.tsx'), 'utf-8');
+      expect(content).toContain('export function FeaturesPage()');
+      expect(content).toContain('css');
+      expect(content).toContain('grid');
+    });
+
+    it('pricing.tsx has three tier cards (Free, Pro, Enterprise)', async () => {
+      await scaffold(tempDir, landingOptions);
+
+      const content = await fs.readFile(projectPath('src', 'pages', 'pricing.tsx'), 'utf-8');
+      expect(content).toContain('export function PricingPage()');
+      expect(content).toContain('Free');
+      expect(content).toContain('Pro');
+      expect(content).toContain('Enterprise');
+      expect(content).toContain('Button');
+    });
+
+    // ── UI rule template ──────────────────────────────────
+
+    it('ui-development.md has css and routing patterns but NO backend content', async () => {
+      await scaffold(tempDir, landingOptions);
+
+      const content = await fs.readFile(
+        projectPath('.claude', 'rules', 'ui-development.md'),
+        'utf-8',
+      );
+      expect(content).toContain('css(');
+      expect(content).toContain('defineRoutes');
+      expect(content).toContain('Link');
+      expect(content).not.toContain('api.');
+      expect(content).not.toContain('query(api.');
+      expect(content).not.toContain('createClient');
+      expect(content).not.toContain('entity(');
+    });
+
+    // ── Error cases ──────────────────────────────────────
+
     it('throws error if project directory already exists', async () => {
       await fs.mkdir(path.join(tempDir, 'test-app'));
 

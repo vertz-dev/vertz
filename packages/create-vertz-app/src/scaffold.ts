@@ -29,6 +29,20 @@ import {
   tasksEntityTemplate,
   themeTemplate,
   tsconfigTemplate,
+  landingPageAppTemplate,
+  landingPageClaudeMdTemplate,
+  landingPageCtaSectionTemplate,
+  landingPageFeaturesPageTemplate,
+  landingPageFeaturesSectionTemplate,
+  landingPageFooterTemplate,
+  landingPageGlobalsTemplate,
+  landingPageHeroTemplate,
+  landingPageHomeTemplate,
+  landingPageNavTemplate,
+  landingPagePackageJsonTemplate,
+  landingPagePricingPageTemplate,
+  landingPageRouterTemplate,
+  landingPageUiRuleTemplate,
   uiDevelopmentRuleTemplate,
   vertzConfigTemplate,
 } from './templates/index.js';
@@ -177,7 +191,7 @@ async function scaffoldTodoApp(projectDir: string, projectName: string): Promise
 /**
  * Scaffolds the landing-page template — static, section-driven marketing site
  */
-async function scaffoldLandingPage(projectDir: string, _projectName: string): Promise<void> {
+async function scaffoldLandingPage(projectDir: string, projectName: string): Promise<void> {
   const srcDir = path.join(projectDir, 'src');
   const pagesDir = path.join(srcDir, 'pages');
   const componentsDir = path.join(srcDir, 'components');
@@ -191,6 +205,38 @@ async function scaffoldLandingPage(projectDir: string, _projectName: string): Pr
     fs.mkdir(stylesDir, { recursive: true }),
     fs.mkdir(claudeRulesDir, { recursive: true }),
     fs.mkdir(publicDir, { recursive: true }),
+  ]);
+
+  await Promise.all([
+    // Config files
+    writeFile(projectDir, 'package.json', landingPagePackageJsonTemplate(projectName)),
+    writeFile(projectDir, 'tsconfig.json', tsconfigTemplate()),
+    writeFile(projectDir, 'vertz.config.ts', helloWorldVertzConfigTemplate()),
+    writeFile(projectDir, '.gitignore', gitignoreTemplate()),
+    writeFile(projectDir, 'bunfig.toml', bunfigTemplate()),
+    writeFile(projectDir, 'bun-plugin-shim.ts', bunPluginShimTemplate()),
+
+    // UI source files
+    writeFile(srcDir, 'app.tsx', landingPageAppTemplate()),
+    writeFile(srcDir, 'entry-client.ts', entryClientTemplate()),
+    writeFile(srcDir, 'router.tsx', landingPageRouterTemplate()),
+    writeFile(pagesDir, 'home.tsx', landingPageHomeTemplate()),
+    writeFile(pagesDir, 'features.tsx', landingPageFeaturesPageTemplate()),
+    writeFile(pagesDir, 'pricing.tsx', landingPagePricingPageTemplate()),
+    writeFile(componentsDir, 'nav.tsx', landingPageNavTemplate()),
+    writeFile(componentsDir, 'footer.tsx', landingPageFooterTemplate()),
+    writeFile(componentsDir, 'hero.tsx', landingPageHeroTemplate()),
+    writeFile(componentsDir, 'features-section.tsx', landingPageFeaturesSectionTemplate()),
+    writeFile(componentsDir, 'cta-section.tsx', landingPageCtaSectionTemplate()),
+    writeFile(stylesDir, 'theme.ts', themeTemplate()),
+    writeFile(stylesDir, 'globals.ts', landingPageGlobalsTemplate()),
+
+    // Static assets
+    writeFile(publicDir, 'favicon.svg', faviconTemplate()),
+
+    // LLM rules
+    writeFile(projectDir, 'CLAUDE.md', landingPageClaudeMdTemplate(projectName)),
+    writeFile(claudeRulesDir, 'ui-development.md', landingPageUiRuleTemplate()),
   ]);
 }
 
