@@ -110,8 +110,12 @@ function validateUniqueMethodNames(resource: ParsedResource): void {
       .map(([name, ids]) => `  - "${name}" used by: ${ids.join(', ')}`)
       .join('\n');
 
+    // Collect unique raw tags so the user knows the exact values for excludeTags
+    const rawTags = [...new Set(resource.operations.flatMap((op) => op.tags))];
+    const tagHint = rawTags.length > 0 ? ` (tags: ${rawTags.map((t) => `"${t}"`).join(', ')})` : '';
+
     throw new Error(
-      `Duplicate method name${duplicates.length > 1 ? 's' : ''} ${duplicates.map(([n]) => `"${n}"`).join(', ')} in resource "${resource.name}". ` +
+      `Duplicate method name${duplicates.length > 1 ? 's' : ''} ${duplicates.map(([n]) => `"${n}"`).join(', ')} in resource "${resource.name}"${tagHint}. ` +
         `Each operation within a resource must have a unique method name.\n${details}\n\n` +
         `Fix: use excludeTags to skip this tag, use a different groupBy strategy, ` +
         `or provide operationIds.overrides to rename conflicting operations.`,

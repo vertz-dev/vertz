@@ -183,6 +183,31 @@ describe('generateTypes', () => {
     expect(tasksFile!.content).toContain('  page: number;');
   });
 
+  it('query interfaces include index signature for Record<string, unknown> assignability (#2217)', () => {
+    const resources: ParsedResource[] = [
+      makeResource({
+        operations: [
+          {
+            operationId: 'listTasks',
+            methodName: 'list',
+            method: 'GET',
+            path: '/tasks',
+            pathParams: [],
+            queryParams: [{ name: 'status', required: false, schema: { type: 'string' } }],
+            response: undefined,
+            responseStatus: 200,
+            tags: ['tasks'],
+          },
+        ],
+      }),
+    ];
+    const schemas: ParsedSchema[] = [];
+
+    const files = generateTypes(resources, schemas);
+    const tasksFile = files.find((f) => f.path === 'types/tasks.ts');
+    expect(tasksFile!.content).toContain('[key: string]: unknown;');
+  });
+
   it('skips query interface when no query params', () => {
     const resources: ParsedResource[] = [
       makeResource({

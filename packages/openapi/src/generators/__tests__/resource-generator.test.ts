@@ -504,6 +504,46 @@ describe('generateResources', () => {
     );
   });
 
+  it('duplicate method error shows raw tag names for excludeTags (#2216)', () => {
+    const resources: ParsedResource[] = [
+      makeResource({
+        name: 'Internal',
+        identifier: 'internal',
+        operations: [
+          {
+            operationId: 'listIndustries',
+            methodName: 'list',
+            method: 'GET',
+            path: '/industries',
+            pathParams: [],
+            queryParams: [],
+            responseStatus: 200,
+            tags: ['internal'],
+          },
+          {
+            operationId: 'listUsers',
+            methodName: 'list',
+            method: 'GET',
+            path: '/users',
+            pathParams: [],
+            queryParams: [],
+            responseStatus: 200,
+            tags: ['internal'],
+          },
+        ],
+      }),
+    ];
+
+    try {
+      generateResources(resources);
+      throw new Error('Expected to throw');
+    } catch (err) {
+      const message = (err as Error).message;
+      // Error should show the raw tag name so users know what to use for excludeTags
+      expect(message).toContain('tags: "internal"');
+    }
+  });
+
   it('error message lists all duplicate method names and their operationIds', () => {
     const resources: ParsedResource[] = [
       makeResource({
