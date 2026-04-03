@@ -1,7 +1,7 @@
 /**
  * Available scaffold template types
  */
-export type TemplateType = 'hello-world' | 'todo-app';
+export type TemplateType = 'hello-world' | 'todo-app' | 'landing-page';
 
 /**
  * Options for the scaffold function

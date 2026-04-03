@@ -3,6 +3,7 @@ import { err, ok, type Result } from '@vertz/errors';
 
 export interface CreateOptions {
   projectName?: string;
+  template?: string;
   version: string;
 }
 
@@ -21,7 +22,7 @@ export async function createAction(options: CreateOptions): Promise<Result<void,
   }
 
   try {
-    const resolved = await resolveOptions({ projectName });
+    const resolved = await resolveOptions({ projectName, template: options.template });
 
     console.log(`Creating Vertz app: ${resolved.projectName} (v${version})`);
 
@@ -31,8 +32,8 @@ export async function createAction(options: CreateOptions): Promise<Result<void,
     console.log(`\n✓ Created ${resolved.projectName}`);
     console.log(`\nNext steps:`);
     console.log(`  cd ${resolved.projectName}`);
-    console.log(`  bun install`);
-    console.log(`  bun run dev`);
+    console.log(`  vtz install`);
+    console.log(`  vtz dev`);
     return ok(undefined);
   } catch (error) {
     if (error instanceof Error && error.message.includes('already exists')) {

@@ -13,7 +13,7 @@ program
   .description('Scaffold a new Vertz project')
   .version(pkg.version)
   .argument('[name]', 'Project name')
-  .option('--template <type>', 'Template to use (hello-world, todo-app)', 'todo-app')
+  .option('--template <type>', 'Template to use (hello-world, todo-app, landing-page)', 'todo-app')
   .action(async (name: string | undefined, opts: { template?: string }) => {
     const { resolveOptions, scaffold } = await import('../dist/index.js');
     try {

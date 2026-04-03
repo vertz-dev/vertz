@@ -66,6 +66,8 @@ export async function scaffold(parentDir: string, options: ScaffoldOptions): Pro
 
   if (template === 'hello-world') {
     await scaffoldHelloWorld(projectDir, projectName);
+  } else if (template === 'landing-page') {
+    await scaffoldLandingPage(projectDir, projectName);
   } else {
     await scaffoldTodoApp(projectDir, projectName);
   }
@@ -169,6 +171,26 @@ async function scaffoldTodoApp(projectDir: string, projectName: string): Promise
     writeFile(projectDir, 'CLAUDE.md', claudeMdTemplate(projectName)),
     writeFile(claudeRulesDir, 'api-development.md', apiDevelopmentRuleTemplate()),
     writeFile(claudeRulesDir, 'ui-development.md', uiDevelopmentRuleTemplate()),
+  ]);
+}
+
+/**
+ * Scaffolds the landing-page template — static, section-driven marketing site
+ */
+async function scaffoldLandingPage(projectDir: string, _projectName: string): Promise<void> {
+  const srcDir = path.join(projectDir, 'src');
+  const pagesDir = path.join(srcDir, 'pages');
+  const componentsDir = path.join(srcDir, 'components');
+  const stylesDir = path.join(srcDir, 'styles');
+  const claudeRulesDir = path.join(projectDir, '.claude', 'rules');
+  const publicDir = path.join(projectDir, 'public');
+
+  await Promise.all([
+    fs.mkdir(pagesDir, { recursive: true }),
+    fs.mkdir(componentsDir, { recursive: true }),
+    fs.mkdir(stylesDir, { recursive: true }),
+    fs.mkdir(claudeRulesDir, { recursive: true }),
+    fs.mkdir(publicDir, { recursive: true }),
   ]);
 }
 

@@ -41,8 +41,13 @@ export function createCLI(): Command {
   program
     .command('create <name>')
     .description('Scaffold a new Vertz project')
-    .action(async (name: string) => {
-      const result = await createAction({ projectName: name, version: pkg.version });
+    .option('--template <type>', 'Template type (hello-world, todo-app, landing-page)')
+    .action(async (name: string, opts: { template?: string }) => {
+      const result = await createAction({
+        projectName: name,
+        template: opts.template,
+        version: pkg.version,
+      });
       if (!result.ok) {
         console.error(result.error.message);
         process.exit(1);

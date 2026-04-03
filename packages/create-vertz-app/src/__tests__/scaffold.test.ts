@@ -551,4 +551,76 @@ describe('scaffold', () => {
       await expect(scaffold(tempDir, helloOptions)).rejects.toThrow('already exists');
     });
   });
+
+  // ── Landing Page template ────────────────────────────────
+
+  describe('landing-page template', () => {
+    const landingOptions: ScaffoldOptions = { projectName: 'test-app', template: 'landing-page' };
+
+    it('creates the project directory', async () => {
+      await scaffold(tempDir, landingOptions);
+
+      const stat = await fs.stat(projectPath());
+      expect(stat.isDirectory()).toBe(true);
+    });
+
+    it('creates src/pages/ subdirectory', async () => {
+      await scaffold(tempDir, landingOptions);
+
+      const stat = await fs.stat(projectPath('src', 'pages'));
+      expect(stat.isDirectory()).toBe(true);
+    });
+
+    it('creates src/components/ subdirectory', async () => {
+      await scaffold(tempDir, landingOptions);
+
+      const stat = await fs.stat(projectPath('src', 'components'));
+      expect(stat.isDirectory()).toBe(true);
+    });
+
+    it('creates src/styles/ subdirectory', async () => {
+      await scaffold(tempDir, landingOptions);
+
+      const stat = await fs.stat(projectPath('src', 'styles'));
+      expect(stat.isDirectory()).toBe(true);
+    });
+
+    it('creates .claude/rules/ subdirectory', async () => {
+      await scaffold(tempDir, landingOptions);
+
+      const stat = await fs.stat(projectPath('.claude', 'rules'));
+      expect(stat.isDirectory()).toBe(true);
+    });
+
+    it('creates public/ subdirectory', async () => {
+      await scaffold(tempDir, landingOptions);
+
+      const stat = await fs.stat(projectPath('public'));
+      expect(stat.isDirectory()).toBe(true);
+    });
+
+    it('does NOT create src/api/ directory', async () => {
+      await scaffold(tempDir, landingOptions);
+
+      expect(await exists(projectPath('src', 'api'))).toBe(false);
+    });
+
+    it('does NOT create .env file', async () => {
+      await scaffold(tempDir, landingOptions);
+
+      expect(await exists(projectPath('.env'))).toBe(false);
+    });
+
+    it('does NOT create src/client.ts', async () => {
+      await scaffold(tempDir, landingOptions);
+
+      expect(await exists(projectPath('src', 'client.ts'))).toBe(false);
+    });
+
+    it('throws error if project directory already exists', async () => {
+      await fs.mkdir(path.join(tempDir, 'test-app'));
+
+      await expect(scaffold(tempDir, landingOptions)).rejects.toThrow('already exists');
+    });
+  });
 });
