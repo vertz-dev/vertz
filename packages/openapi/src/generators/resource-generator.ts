@@ -44,7 +44,21 @@ function generateResourceFile(resource: ParsedResource): string {
   validateUniqueMethodNames(resource);
 
   for (const op of resource.operations) {
-    lines.push(`    ${generateMethod(op)},`);
+    if (op.streamingFormat && op.jsonResponse) {
+      // Dual content type: generate standard JSON method first
+      const jsonOp: ParsedOperation = {
+        ...op,
+        streamingFormat: undefined,
+        jsonResponse: undefined,
+        response: op.jsonResponse,
+      };
+      lines.push(`    ${generateMethod(jsonOp)},`);
+      // Then generate streaming method with Stream suffix
+      const streamOp: ParsedOperation = { ...op, methodName: op.methodName + 'Stream', jsonResponse: undefined };
+      lines.push(`    ${generateMethod(streamOp)},`);
+    } else {
+      lines.push(`    ${generateMethod(op)},`);
+    }
   }
 
   lines.push('  };');
@@ -57,8 +71,13 @@ function generateResourceFile(resource: ParsedResource): string {
 function generateMethod(op: ParsedOperation): string {
   const params = buildParams(op);
   const returnType = buildReturnType(op);
-  const call = buildCall(op);
 
+  if (op.streamingFormat) {
+    const call = buildStreamingCall(op);
+    return `/** @throws {FetchError} on non-2xx response */\n    ${op.methodName}: (${params}): ${returnType} =>\n      ${call}`;
+  }
+
+  const call = buildCall(op);
   return `${op.methodName}: (${params}): ${returnType} =>\n      ${call}`;
 }
 
@@ -108,10 +127,20 @@ function buildParams(op: ParsedOperation): string {
     parts.push(`query?: ${queryName}`);
   }
 
+  // Signal param for streaming operations
+  if (op.streamingFormat) {
+    parts.push('options?: { signal?: AbortSignal }');
+  }
+
   return parts.join(', ');
 }
 
 function buildReturnType(op: ParsedOperation): string {
+  if (op.streamingFormat) {
+    const typeName = deriveStreamingTypeName(op);
+    return `AsyncGenerator<${typeName}>`;
+  }
+
   if (op.responseStatus === 204) return 'Promise<FetchResponse<void>>';
 
   if (op.response?.name) {
@@ -154,6 +183,26 @@ function buildCall(op: ParsedOperation): string {
   return `client.${method}(${args.join(', ')})`;
 }
 
+function buildStreamingCall(op: ParsedOperation): string {
+  const typeName = deriveStreamingTypeName(op);
+  const path = buildPath(op);
+  const props: string[] = [
+    `method: '${op.method}'`,
+    `path: ${path}`,
+    `format: '${op.streamingFormat}'`,
+  ];
+  if (op.requestBody) props.push('body');
+  if (op.queryParams.length > 0) props.push('query');
+  props.push('signal: options?.signal');
+  return `client.requestStream<${typeName}>({ ${props.join(', ')} })`;
+}
+
+function deriveStreamingTypeName(op: ParsedOperation): string {
+  if (op.response?.name) return sanitizeTypeName(op.response.name);
+  if (op.response) return toPascalCase(op.operationId) + 'Event';
+  return 'unknown';
+}
+
 function buildPath(op: ParsedOperation): string {
   if (op.pathParams.length === 0) {
     return `'${op.path}'`;
@@ -171,10 +220,22 @@ function collectTypeImports(resource: ParsedResource): Set<string> {
   const types = new Set<string>();
 
   for (const op of resource.operations) {
-    // Response type
+    // Response type (streaming or standard)
     if (op.responseStatus !== 204 && op.response) {
-      if (op.response.name) {
+      if (op.streamingFormat) {
+        const streamTypeName = deriveStreamingTypeName(op);
+        if (streamTypeName !== 'unknown') types.add(streamTypeName);
+      } else if (op.response.name) {
         types.add(sanitizeTypeName(op.response.name));
+      } else {
+        types.add(toPascalCase(op.operationId) + 'Response');
+      }
+    }
+
+    // JSON response type for dual content
+    if (op.jsonResponse) {
+      if (op.jsonResponse.name) {
+        types.add(sanitizeTypeName(op.jsonResponse.name));
       } else {
         types.add(toPascalCase(op.operationId) + 'Response');
       }
