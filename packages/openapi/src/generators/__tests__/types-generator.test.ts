@@ -12,7 +12,7 @@ function makeResource(overrides: Partial<ParsedResource> = {}): ParsedResource {
 }
 
 describe('generateTypes', () => {
-  it('generates types/<resource>.ts with response interfaces from component schema names', () => {
+  it('generates component schema interfaces in types/components.ts', () => {
     const resources: ParsedResource[] = [
       makeResource({
         operations: [
@@ -55,11 +55,16 @@ describe('generateTypes', () => {
     ];
 
     const files = generateTypes(resources, schemas);
+    // Component schemas go to types/components.ts
+    const componentsFile = files.find((f) => f.path === 'types/components.ts');
+    expect(componentsFile).toBeDefined();
+    expect(componentsFile!.content).toContain('export interface Task {');
+    expect(componentsFile!.content).toContain('  id: string;');
+    expect(componentsFile!.content).toContain('  title: string;');
+    // Per-resource file imports instead of re-declaring
     const tasksFile = files.find((f) => f.path === 'types/tasks.ts');
     expect(tasksFile).toBeDefined();
-    expect(tasksFile!.content).toContain('export interface Task {');
-    expect(tasksFile!.content).toContain('  id: string;');
-    expect(tasksFile!.content).toContain('  title: string;');
+    expect(tasksFile!.content).not.toContain('export interface Task {');
   });
 
   it('generates barrel types/index.ts', () => {
@@ -359,6 +364,195 @@ describe('generateTypes', () => {
     const files = generateTypes(resources, schemas);
     const tasksFile = files.find((f) => f.path === 'types/tasks.ts');
     expect(tasksFile!.content).toContain('tags?: string[]');
+  });
+
+  it('generates types/components.ts with interfaces for all component schemas', () => {
+    const resources: ParsedResource[] = [makeResource()];
+    const schemas: ParsedSchema[] = [
+      {
+        name: 'TreeNode',
+        jsonSchema: {
+          type: 'object',
+          properties: {
+            value: { type: 'string' },
+            child: { $circular: 'TreeNode' },
+          },
+          required: ['value'],
+        },
+      },
+    ];
+
+    const files = generateTypes(resources, schemas);
+    const componentsFile = files.find((f) => f.path === 'types/components.ts');
+    expect(componentsFile).toBeDefined();
+    expect(componentsFile!.content).toContain('export interface TreeNode {');
+    expect(componentsFile!.content).toContain('  value: string;');
+    expect(componentsFile!.content).toContain('  child?: TreeNode;');
+  });
+
+  it('includes components in the barrel export', () => {
+    const resources: ParsedResource[] = [makeResource()];
+    const schemas: ParsedSchema[] = [
+      {
+        name: 'Category',
+        jsonSchema: { type: 'object', properties: { name: { type: 'string' } } },
+      },
+    ];
+
+    const files = generateTypes(resources, schemas);
+    const indexFile = files.find((f) => f.path === 'types/index.ts');
+    expect(indexFile!.content).toContain("export * from './components';");
+  });
+
+  it('does not re-declare component schema interfaces in per-resource files', () => {
+    const resources: ParsedResource[] = [
+      makeResource({
+        operations: [
+          {
+            operationId: 'getTask',
+            methodName: 'get',
+            method: 'GET',
+            path: '/tasks/{taskId}',
+            pathParams: [{ name: 'taskId', required: true, schema: { type: 'string' } }],
+            queryParams: [],
+            response: {
+              name: 'Task',
+              jsonSchema: {
+                type: 'object',
+                properties: { id: { type: 'string' } },
+                required: ['id'],
+              },
+            },
+            responseStatus: 200,
+            tags: ['tasks'],
+          },
+        ],
+      }),
+    ];
+    const schemas: ParsedSchema[] = [
+      {
+        name: 'Task',
+        jsonSchema: {
+          type: 'object',
+          properties: { id: { type: 'string' } },
+          required: ['id'],
+        },
+      },
+    ];
+
+    const files = generateTypes(resources, schemas);
+    const tasksFile = files.find((f) => f.path === 'types/tasks.ts');
+    // Task interface should NOT be in the per-resource file — it's in components.ts
+    expect(tasksFile!.content).not.toContain('export interface Task {');
+    // But it must exist in components.ts
+    const componentsFile = files.find((f) => f.path === 'types/components.ts');
+    expect(componentsFile!.content).toContain('export interface Task {');
+  });
+
+  it('imports component types referenced via $circular in per-resource files', () => {
+    const resources: ParsedResource[] = [
+      makeResource({
+        operations: [
+          {
+            operationId: 'loadMetrics',
+            methodName: 'loadMetrics',
+            method: 'POST',
+            path: '/metrics/load',
+            pathParams: [],
+            queryParams: [],
+            requestBody: {
+              jsonSchema: {
+                type: 'object',
+                properties: {
+                  filters: {
+                    type: 'array',
+                    items: {
+                      oneOf: [
+                        {
+                          type: 'object',
+                          properties: { member: { type: 'string' } },
+                        },
+                        { $circular: 'CubeLogicalAndFilter' },
+                      ],
+                    },
+                  },
+                },
+              },
+            },
+            responseStatus: 200,
+            tags: ['tasks'],
+          },
+        ],
+      }),
+    ];
+    const schemas: ParsedSchema[] = [
+      {
+        name: 'CubeLogicalAndFilter',
+        jsonSchema: {
+          type: 'object',
+          properties: {
+            and: {
+              type: 'array',
+              items: { $circular: 'CubeLogicalAndFilter' },
+            },
+          },
+        },
+      },
+    ];
+
+    const files = generateTypes(resources, schemas);
+    const tasksFile = files.find((f) => f.path === 'types/tasks.ts');
+    expect(tasksFile!.content).toContain(
+      "import type { CubeLogicalAndFilter } from './components';",
+    );
+  });
+
+  it('generates mutual-recursive component schemas', () => {
+    const resources: ParsedResource[] = [makeResource()];
+    const schemas: ParsedSchema[] = [
+      {
+        name: 'CubeLogicalAndFilter',
+        jsonSchema: {
+          type: 'object',
+          properties: {
+            and: {
+              type: 'array',
+              items: {
+                oneOf: [
+                  { $circular: 'CubeLogicalAndFilter' },
+                  { $circular: 'CubeLogicalOrFilter' },
+                ],
+              },
+            },
+          },
+        },
+      },
+      {
+        name: 'CubeLogicalOrFilter',
+        jsonSchema: {
+          type: 'object',
+          properties: {
+            or: {
+              type: 'array',
+              items: {
+                oneOf: [
+                  { $circular: 'CubeLogicalAndFilter' },
+                  { $circular: 'CubeLogicalOrFilter' },
+                ],
+              },
+            },
+          },
+        },
+      },
+    ];
+
+    const files = generateTypes(resources, schemas);
+    const componentsFile = files.find((f) => f.path === 'types/components.ts');
+    expect(componentsFile!.content).toContain('export interface CubeLogicalAndFilter {');
+    expect(componentsFile!.content).toContain('export interface CubeLogicalOrFilter {');
+    // Self and mutual references should appear as type names
+    expect(componentsFile!.content).toContain('CubeLogicalAndFilter');
+    expect(componentsFile!.content).toContain('CubeLogicalOrFilter');
   });
 
   it('deduplicates interfaces with the same name', () => {

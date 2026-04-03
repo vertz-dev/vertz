@@ -1,17 +1,21 @@
-import type { ParsedOperation, ParsedResource } from '../parser/types';
-import { sanitizeTypeName, toPascalCase } from './json-schema-to-ts';
+import type { ParsedOperation, ParsedResource, ParsedSchema } from '../parser/types';
+import { collectCircularRefs, sanitizeTypeName, toPascalCase } from './json-schema-to-ts';
 import type { GeneratedFile } from './types';
 
 /**
  * Generate resource SDK files for all resources + a barrel index.
  */
-export function generateResources(resources: ParsedResource[]): GeneratedFile[] {
+export function generateResources(
+  resources: ParsedResource[],
+  schemas: ParsedSchema[] = [],
+): GeneratedFile[] {
   const files: GeneratedFile[] = [];
+  const componentNames = new Set(schemas.filter((s) => s.name).map((s) => s.name!));
 
   for (const resource of resources) {
     files.push({
       path: `resources/${resource.identifier}.ts`,
-      content: generateResourceFile(resource),
+      content: generateResourceFile(resource, componentNames),
     });
   }
 
@@ -24,14 +28,18 @@ export function generateResources(resources: ParsedResource[]): GeneratedFile[] 
   return files;
 }
 
-function generateResourceFile(resource: ParsedResource): string {
+function generateResourceFile(resource: ParsedResource, componentNames: Set<string>): string {
   const lines: string[] = [];
-  const typeImports = collectTypeImports(resource);
+  const { resourceImports, componentImports } = collectTypeImports(resource, componentNames);
 
   // Imports
   lines.push("import type { FetchClient, FetchResponse } from '@vertz/fetch';");
-  if (typeImports.size > 0) {
-    const sorted = [...typeImports].sort();
+  if (componentImports.size > 0) {
+    const sorted = [...componentImports].sort();
+    lines.push(`import type { ${sorted.join(', ')} } from '../types/components';`);
+  }
+  if (resourceImports.size > 0) {
+    const sorted = [...resourceImports].sort();
     lines.push(`import type { ${sorted.join(', ')} } from '../types/${resource.identifier}';`);
   }
   lines.push('');
@@ -233,43 +241,78 @@ function buildPath(op: ParsedOperation): string {
   return `\`${path}\``;
 }
 
-function collectTypeImports(resource: ParsedResource): Set<string> {
-  const types = new Set<string>();
+function collectTypeImports(
+  resource: ParsedResource,
+  componentNames: Set<string>,
+): { resourceImports: Set<string>; componentImports: Set<string> } {
+  const resourceImports = new Set<string>();
+  const componentImports = new Set<string>();
 
   for (const op of resource.operations) {
+    // Collect $circular refs that reference component schemas
+    if (op.response) {
+      for (const ref of collectCircularRefs(op.response.jsonSchema)) {
+        if (componentNames.has(ref)) componentImports.add(ref);
+      }
+    }
+    if (op.requestBody) {
+      for (const ref of collectCircularRefs(op.requestBody.jsonSchema)) {
+        if (componentNames.has(ref)) componentImports.add(ref);
+      }
+    }
+
     // Response type (streaming or standard)
     if (op.responseStatus !== 204 && op.response) {
       if (op.streamingFormat) {
         const streamTypeName = deriveStreamingTypeName(op);
-        if (streamTypeName !== 'unknown') types.add(streamTypeName);
-      } else if (op.response.name) {
-        types.add(sanitizeTypeName(op.response.name));
+        if (streamTypeName !== 'unknown') {
+          if (componentNames.has(streamTypeName)) {
+            componentImports.add(streamTypeName);
+          } else {
+            resourceImports.add(streamTypeName);
+          }
+        }
       } else {
-        types.add(toPascalCase(op.operationId) + 'Response');
+        const name = op.response.name
+          ? sanitizeTypeName(op.response.name)
+          : toPascalCase(op.operationId) + 'Response';
+        if (componentNames.has(name)) {
+          componentImports.add(name);
+        } else {
+          resourceImports.add(name);
+        }
       }
     }
 
     // JSON response type for dual content
     if (op.jsonResponse) {
-      if (op.jsonResponse.name) {
-        types.add(sanitizeTypeName(op.jsonResponse.name));
+      const name = op.jsonResponse.name
+        ? sanitizeTypeName(op.jsonResponse.name)
+        : toPascalCase(op.operationId) + 'Response';
+      if (componentNames.has(name)) {
+        componentImports.add(name);
       } else {
-        types.add(toPascalCase(op.operationId) + 'Response');
+        resourceImports.add(name);
       }
     }
 
     // Input type
     if (op.requestBody) {
-      types.add(deriveInputName(op));
+      const name = deriveInputName(op);
+      if (componentNames.has(name)) {
+        componentImports.add(name);
+      } else {
+        resourceImports.add(name);
+      }
     }
 
     // Query type
     if (op.queryParams.length > 0) {
-      types.add(deriveQueryName(op));
+      resourceImports.add(deriveQueryName(op));
     }
   }
 
-  return types;
+  return { resourceImports, componentImports };
 }
 
 function deriveInputName(op: ParsedOperation): string {

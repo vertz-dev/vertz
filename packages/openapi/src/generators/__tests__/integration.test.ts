@@ -218,22 +218,25 @@ describe('generateAll — integration', () => {
     }
   });
 
-  it('types file contains correct Task interface', () => {
+  it('component schemas are in types/components.ts', () => {
     const files = parseAndGenerate();
-    const typesFile = files.find((f) => f.path === 'types/tasks.ts');
-    expect(typesFile!.content).toContain('export interface Task {');
-    expect(typesFile!.content).toContain('id: string;');
-    expect(typesFile!.content).toContain('title: string;');
-    expect(typesFile!.content).toContain("status: 'active' | 'completed';");
-    expect(typesFile!.content).toContain('tags?: string[];');
-    expect(typesFile!.content).toContain('deletedAt?: string | null;');
+    const componentsFile = files.find((f) => f.path === 'types/components.ts');
+    expect(componentsFile).toBeDefined();
+    expect(componentsFile!.content).toContain('export interface Task {');
+    expect(componentsFile!.content).toContain('id: string;');
+    expect(componentsFile!.content).toContain('title: string;');
+    expect(componentsFile!.content).toContain("status: 'active' | 'completed';");
+    expect(componentsFile!.content).toContain('tags?: string[];');
+    expect(componentsFile!.content).toContain('deletedAt?: string | null;');
+    expect(componentsFile!.content).toContain('export interface CreateTaskInput {');
+    expect(componentsFile!.content).toContain('export interface UpdateTaskInput {');
   });
 
-  it('types file contains input interfaces', () => {
+  it('per-resource file imports component types instead of re-declaring', () => {
     const files = parseAndGenerate();
-    const typesFile = files.find((f) => f.path === 'types/tasks.ts');
-    expect(typesFile!.content).toContain('export interface CreateTaskInput {');
-    expect(typesFile!.content).toContain('export interface UpdateTaskInput {');
+    const tasksFile = files.find((f) => f.path === 'types/tasks.ts');
+    expect(tasksFile!.content).toContain("from './components'");
+    expect(tasksFile!.content).not.toContain('export interface Task {');
   });
 
   it('types file contains query interface', () => {
@@ -451,5 +454,145 @@ describe('generateAll — streaming integration', () => {
     expect(tasksFile!.content).toContain('Promise<FetchResponse<TaskList>>');
     // Streaming method
     expect(tasksFile!.content).toContain('AsyncGenerator<TaskEvent>');
+  });
+});
+
+describe('generateAll — recursive schemas (#2218)', () => {
+  const RECURSIVE_SPEC = {
+    openapi: '3.1.0',
+    info: { title: 'Metrics API', version: '1.0.0' },
+    paths: {
+      '/metrics/load': {
+        post: {
+          operationId: 'loadMetrics',
+          tags: ['metrics'],
+          requestBody: {
+            required: true,
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    filters: {
+                      type: 'array',
+                      items: {
+                        oneOf: [
+                          { $ref: '#/components/schemas/CubeComparisonFilter' },
+                          { $ref: '#/components/schemas/CubeLogicalAndFilter' },
+                          { $ref: '#/components/schemas/CubeLogicalOrFilter' },
+                        ],
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+          responses: {
+            '200': {
+              description: 'Metrics result',
+              content: {
+                'application/json': {
+                  schema: {
+                    type: 'object',
+                    properties: { data: { type: 'array', items: { type: 'object' } } },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+    components: {
+      schemas: {
+        CubeComparisonFilter: {
+          type: 'object',
+          properties: {
+            member: { type: 'string' },
+            operator: { type: 'string' },
+            values: { type: 'array', items: { type: 'string' } },
+          },
+          required: ['member', 'operator'],
+        },
+        CubeLogicalAndFilter: {
+          type: 'object',
+          properties: {
+            and: {
+              type: 'array',
+              items: {
+                oneOf: [
+                  { $ref: '#/components/schemas/CubeComparisonFilter' },
+                  { $ref: '#/components/schemas/CubeLogicalAndFilter' },
+                  { $ref: '#/components/schemas/CubeLogicalOrFilter' },
+                ],
+              },
+            },
+          },
+          required: ['and'],
+        },
+        CubeLogicalOrFilter: {
+          type: 'object',
+          properties: {
+            or: {
+              type: 'array',
+              items: {
+                oneOf: [
+                  { $ref: '#/components/schemas/CubeComparisonFilter' },
+                  { $ref: '#/components/schemas/CubeLogicalAndFilter' },
+                  { $ref: '#/components/schemas/CubeLogicalOrFilter' },
+                ],
+              },
+            },
+          },
+          required: ['or'],
+        },
+      },
+    },
+  };
+
+  function parseRecursiveSpec() {
+    const parsed = parseOpenAPI(RECURSIVE_SPEC as Record<string, unknown>);
+    const resources = groupOperations(parsed.operations, 'tag');
+    const spec: ParsedSpec = {
+      version: parsed.version,
+      info: RECURSIVE_SPEC.info,
+      resources,
+      schemas: parsed.schemas,
+      securitySchemes: parsed.securitySchemes,
+    };
+    return generateAll(spec);
+  }
+
+  it('generates standalone interfaces for all recursive component schemas', () => {
+    const files = parseRecursiveSpec();
+    const componentsFile = files.find((f) => f.path === 'types/components.ts');
+    expect(componentsFile).toBeDefined();
+    expect(componentsFile!.content).toContain('export interface CubeComparisonFilter {');
+    expect(componentsFile!.content).toContain('export interface CubeLogicalAndFilter {');
+    expect(componentsFile!.content).toContain('export interface CubeLogicalOrFilter {');
+  });
+
+  it('recursive references resolve to declared types in components.ts', () => {
+    const files = parseRecursiveSpec();
+    const componentsFile = files.find((f) => f.path === 'types/components.ts');
+    // Self-reference and mutual-reference appear as type names
+    expect(componentsFile!.content).toContain('CubeLogicalAndFilter');
+    expect(componentsFile!.content).toContain('CubeLogicalOrFilter');
+  });
+
+  it('per-resource file imports recursive types from components', () => {
+    const files = parseRecursiveSpec();
+    const metricsFile = files.find((f) => f.path === 'types/metrics.ts');
+    expect(metricsFile).toBeDefined();
+    expect(metricsFile!.content).toContain("from './components'");
+    expect(metricsFile!.content).toContain('CubeLogicalAndFilter');
+    expect(metricsFile!.content).toContain('CubeLogicalOrFilter');
+  });
+
+  it('barrel exports include components', () => {
+    const files = parseRecursiveSpec();
+    const indexFile = files.find((f) => f.path === 'types/index.ts');
+    expect(indexFile!.content).toContain("export * from './components';");
   });
 });

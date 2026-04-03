@@ -123,6 +123,45 @@ export function generateInterface(
   return `export interface ${safeName} {\n${lines.join('\n')}\n}\n`;
 }
 
+/**
+ * Walk a JSON schema tree and collect all `$circular` reference names.
+ */
+export function collectCircularRefs(
+  schema: Record<string, unknown>,
+  refs: Set<string> = new Set(),
+): Set<string> {
+  if (typeof schema.$circular === 'string') {
+    refs.add(schema.$circular);
+    return refs;
+  }
+
+  if (Array.isArray(schema.anyOf)) {
+    for (const member of schema.anyOf as Record<string, unknown>[]) {
+      collectCircularRefs(member, refs);
+    }
+  }
+
+  if (Array.isArray(schema.oneOf)) {
+    for (const member of schema.oneOf as Record<string, unknown>[]) {
+      collectCircularRefs(member, refs);
+    }
+  }
+
+  if (schema.type === 'array' && schema.items && typeof schema.items === 'object') {
+    collectCircularRefs(schema.items as Record<string, unknown>, refs);
+  }
+
+  if (schema.properties && typeof schema.properties === 'object') {
+    for (const propSchema of Object.values(schema.properties as Record<string, unknown>)) {
+      if (propSchema && typeof propSchema === 'object') {
+        collectCircularRefs(propSchema as Record<string, unknown>, refs);
+      }
+    }
+  }
+
+  return refs;
+}
+
 function mapPrimitive(type: string): string {
   if (type === 'string') return 'string';
   if (type === 'number' || type === 'integer') return 'number';

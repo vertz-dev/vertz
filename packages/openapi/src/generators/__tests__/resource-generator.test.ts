@@ -566,6 +566,40 @@ describe('generateResources', () => {
     }
   });
 
+  it('imports component types from types/components when schemas are provided', () => {
+    const resources: ParsedResource[] = [
+      makeResource({
+        operations: [
+          {
+            operationId: 'listTasks',
+            methodName: 'list',
+            method: 'GET',
+            path: '/tasks',
+            pathParams: [],
+            queryParams: [{ name: 'status', required: false, schema: { type: 'string' } }],
+            response: {
+              name: 'Task',
+              jsonSchema: { type: 'object', properties: { id: { type: 'string' } } },
+            },
+            responseStatus: 200,
+            tags: ['tasks'],
+          },
+        ],
+      }),
+    ];
+    const schemas = [
+      {
+        name: 'Task',
+        jsonSchema: { type: 'object', properties: { id: { type: 'string' } } },
+      },
+    ];
+
+    const files = generateResources(resources, schemas);
+    const tasksFile = files.find((f) => f.path === 'resources/tasks.ts');
+    expect(tasksFile!.content).toContain("import type { Task } from '../types/components';");
+    expect(tasksFile!.content).toContain("import type { ListTasksQuery } from '../types/tasks';");
+  });
+
   it('handles unnamed array response', () => {
     const resources: ParsedResource[] = [
       makeResource({
