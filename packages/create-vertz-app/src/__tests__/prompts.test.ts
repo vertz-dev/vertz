@@ -81,10 +81,21 @@ describe('prompts', () => {
       expect(result.template).toBe('todo-app');
     });
 
+    it('accepts landing-page template', async () => {
+      const result = await resolveOptions({ projectName: 'my-app', template: 'landing-page' });
+      expect(result.template).toBe('landing-page');
+    });
+
     it('throws InvalidTemplateError for unknown template', async () => {
       await expect(
         resolveOptions({ projectName: 'my-app', template: 'nonexistent' }),
       ).rejects.toThrow('Invalid template "nonexistent"');
+    });
+
+    it('InvalidTemplateError lists landing-page as available', async () => {
+      await expect(
+        resolveOptions({ projectName: 'my-app', template: 'nonexistent' }),
+      ).rejects.toThrow('landing-page');
     });
   });
 });

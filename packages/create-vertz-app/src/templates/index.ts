@@ -1324,3 +1324,719 @@ export function NavBar() {
 }
 `;
 }
+
+// ── Landing Page template functions ────────────────────────
+
+/**
+ * CLAUDE.md for landing-page — UI-only static site with section composition
+ */
+export function landingPageClaudeMdTemplate(projectName: string): string {
+  return `# ${projectName}
+
+A static landing page built with [Vertz](https://vertz.dev).
+
+## Stack
+
+- Runtime: Vertz (vtz)
+- Framework: Vertz (UI)
+- Language: TypeScript (strict mode)
+- Docs: https://docs.vertz.dev
+
+## Development
+
+\`\`\`bash
+vtz install          # Install dependencies
+vtz dev              # Start dev server with HMR
+vtz build            # Production build
+\`\`\`
+
+## Project Structure
+
+- \`src/pages/\` — Page components (one per route)
+- \`src/components/\` — Reusable section components (hero, features, etc.)
+- \`src/styles/\` — Theme configuration and global styles
+- \`src/router.tsx\` — Route definitions
+- \`src/app.tsx\` — App layout with Nav, Footer, and RouterView
+
+## Adding a Section
+
+1. Create a component in \`src/components/\` (e.g., \`testimonials-section.tsx\`)
+2. Import and add it to \`src/pages/home.tsx\` in the desired position
+
+## Adding a Page
+
+1. Create a component in \`src/pages/\` (e.g., \`blog.tsx\`)
+2. Add a route entry in \`src/router.tsx\`
+3. Add a navigation link in \`src/components/nav.tsx\`
+
+## Conventions
+
+- See \`.claude/rules/\` for UI development conventions
+- Refer to https://docs.vertz.dev for full framework documentation
+- The Vertz compiler handles all reactivity — never use \`.value\`, \`signal()\`, or \`computed()\` manually
+- Use \`css()\` for scoped styles, \`globalCss()\` for page-level styles
+- Use section components to compose pages — each section is self-contained
+
+## Adding a Backend
+
+To add API and database support, see https://docs.vertz.dev/guides/server/overview
+`;
+}
+
+/**
+ * Package.json for landing-page — same deps as hello-world, no backend
+ */
+export function landingPagePackageJsonTemplate(projectName: string): string {
+  const pkg = {
+    name: projectName,
+    version: '0.1.0',
+    type: 'module',
+    license: 'MIT',
+    scripts: {
+      dev: 'vertz dev',
+      build: 'vertz build',
+    },
+    dependencies: {
+      vertz: '^0.2.0',
+      '@vertz/theme-shadcn': '^0.2.0',
+    },
+    devDependencies: {
+      '@vertz/cli': '^0.2.0',
+      'bun-types': '^1.0.0',
+      typescript: '^5.8.0',
+    },
+  };
+
+  return JSON.stringify(pkg, null, 2);
+}
+
+/**
+ * src/app.tsx for landing-page — dark theme, Nav + Footer in layout, RouterView
+ */
+export function landingPageAppTemplate(): string {
+  return `import { css, getInjectedCSS, RouterContext, RouterView, ThemeProvider } from 'vertz/ui';
+import { appRouter } from './router';
+import { Nav } from './components/nav';
+import { Footer } from './components/footer';
+import { appTheme, themeGlobals } from './styles/theme';
+import { appGlobals } from './styles/globals';
+
+const styles = css({
+  shell: ['min-h:screen'],
+  main: ['max-w:5xl', 'mx:auto', 'px:6'],
+});
+
+export { getInjectedCSS };
+export const theme = appTheme;
+export const globalStyles = [themeGlobals.css, appGlobals.css];
+
+export function App() {
+  return (
+    <RouterContext.Provider value={appRouter}>
+      <ThemeProvider theme="dark">
+        <div className={styles.shell}>
+          <Nav />
+          <main className={styles.main}>
+            <RouterView
+              router={appRouter}
+              fallback={() => <div>Page not found</div>}
+            />
+          </main>
+          <Footer />
+        </div>
+      </ThemeProvider>
+    </RouterContext.Provider>
+  );
+}
+`;
+}
+
+/**
+ * src/styles/globals.ts for landing-page — dark body, smooth scroll, link reset
+ */
+export function landingPageGlobalsTemplate(): string {
+  return `import { globalCss } from 'vertz/ui';
+
+export const appGlobals = globalCss({
+  html: {
+    scrollBehavior: 'smooth',
+  },
+  'html body': {
+    backgroundColor: '#111110',
+    fontFamily: 'var(--font-sans)',
+    color: '#E8E4DC',
+    WebkitFontSmoothing: 'antialiased',
+    MozOsxFontSmoothing: 'grayscale',
+  },
+  a: {
+    textDecoration: 'none',
+    color: 'inherit',
+  },
+});
+`;
+}
+
+/**
+ * src/router.tsx for landing-page — three routes: home, features, pricing
+ */
+export function landingPageRouterTemplate(): string {
+  return `import { createRouter, defineRoutes } from 'vertz/ui';
+import { HomePage } from './pages/home';
+import { FeaturesPage } from './pages/features';
+import { PricingPage } from './pages/pricing';
+
+export const routes = defineRoutes({
+  '/': {
+    component: () => <HomePage />,
+  },
+  '/features': {
+    component: () => <FeaturesPage />,
+  },
+  '/pricing': {
+    component: () => <PricingPage />,
+  },
+});
+
+export const appRouter = createRouter(routes);
+`;
+}
+
+/**
+ * src/components/nav.tsx for landing-page — fixed top nav with backdrop blur
+ */
+export function landingPageNavTemplate(): string {
+  return `import { css, Link } from 'vertz/ui';
+
+const styles = css({
+  nav: [
+    'fixed',
+    'z:50',
+    'flex',
+    'items:center',
+    'justify:between',
+    'px:6',
+    'py:4',
+    {
+      '&': {
+        top: '0',
+        left: '0',
+        right: '0',
+        background: 'rgba(17,17,16,0.85)',
+        backdropFilter: 'blur(12px)',
+        borderBottom: '1px solid #2A2826',
+      },
+    },
+  ],
+  brand: ['font:lg', 'font:bold'],
+  links: ['flex', 'items:center', 'gap:6'],
+  link: ['font:sm', 'transition:colors', { '&': { color: '#9C9690' }, '&:hover': { color: '#E8E4DC' } }],
+});
+
+export function Nav() {
+  return (
+    <nav className={styles.nav}>
+      <Link href="/" className={styles.brand}>My Site</Link>
+      <div className={styles.links}>
+        <Link href="/features" className={styles.link}>Features</Link>
+        <Link href="/pricing" className={styles.link}>Pricing</Link>
+      </div>
+    </nav>
+  );
+}
+`;
+}
+
+/**
+ * src/components/footer.tsx for landing-page — footer with links
+ */
+export function landingPageFooterTemplate(): string {
+  return `import { css } from 'vertz/ui';
+
+const styles = css({
+  footer: ['py:12', 'px:6', { '&': { borderTop: '1px solid #2A2826' } }],
+  container: [
+    'max-w:5xl',
+    'mx:auto',
+    'flex',
+    'items:center',
+    'justify:between',
+    'font:xs',
+    { '&': { color: '#6B6560' } },
+  ],
+  links: ['flex', 'items:center', 'gap:4'],
+  link: ['transition:colors', { '&:hover': { color: '#E8E4DC' } }],
+});
+
+export function Footer() {
+  return (
+    <footer className={styles.footer}>
+      <div className={styles.container}>
+        <span>Built with Vertz</span>
+        <div className={styles.links}>
+          <a href="https://vertz.dev" target="_blank" rel="noopener" className={styles.link}>Vertz</a>
+          <a href="https://docs.vertz.dev" target="_blank" rel="noopener" className={styles.link}>Docs</a>
+        </div>
+      </div>
+    </footer>
+  );
+}
+`;
+}
+
+/**
+ * src/components/hero.tsx for landing-page — hero section with headline and CTA
+ */
+export function landingPageHeroTemplate(): string {
+  return `import { css } from 'vertz/ui';
+import { Button } from '@vertz/ui/components';
+
+const styles = css({
+  section: [
+    'flex',
+    'flex-col',
+    'items:center',
+    'text:center',
+    'gap:6',
+    {
+      '&': { paddingTop: '10rem', paddingBottom: '6rem' },
+      '@media (min-width: 768px)': { paddingBottom: '8rem' },
+    },
+  ],
+  headline: [
+    'font:4xl',
+    'font:bold',
+    { '&': { color: '#E8E4DC', lineHeight: '1.1' }, '@media (min-width: 768px)': { fontSize: '3.5rem' } },
+  ],
+  subtitle: ['font:lg', 'max-w:2xl', { '&': { color: '#9C9690' } }],
+  actions: ['flex', 'gap:3', 'mt:4'],
+});
+
+export function Hero() {
+  return (
+    <section className={styles.section}>
+      <h1 className={styles.headline}>Build something amazing</h1>
+      <p className={styles.subtitle}>
+        A modern landing page built with Vertz. Edit the sections in src/components/ to make it yours.
+      </p>
+      <div className={styles.actions}>
+        <Button intent="primary" size="lg">Get Started</Button>
+        <Button intent="ghost" size="lg">Learn More</Button>
+      </div>
+    </section>
+  );
+}
+`;
+}
+
+/**
+ * src/components/features-section.tsx for landing-page — feature cards grid
+ */
+export function landingPageFeaturesSectionTemplate(): string {
+  return `import { css } from 'vertz/ui';
+
+const styles = css({
+  section: ['py:16'],
+  heading: ['font:2xl', 'font:bold', 'text:center', 'mb:12', { '&': { color: '#E8E4DC' } }],
+  grid: [
+    'grid',
+    'gap:8',
+    {
+      '@media (min-width: 768px)': { gridTemplateColumns: 'repeat(3, 1fr)' },
+    },
+  ],
+  card: [
+    'flex',
+    'flex-col',
+    'gap:3',
+    'p:6',
+    {
+      '&': {
+        borderRadius: '8px',
+        border: '1px solid #2A2826',
+        background: 'rgba(17,17,16,0.5)',
+      },
+    },
+  ],
+  icon: ['font:2xl'],
+  title: ['font:lg', 'font:semibold', { '&': { color: '#E8E4DC' } }],
+  desc: ['font:sm', { '&': { color: '#9C9690', lineHeight: '1.6' } }],
+});
+
+const FEATURES = [
+  { icon: '⚡', title: 'Lightning Fast', desc: 'Built for performance from the ground up. Zero overhead, maximum speed.' },
+  { icon: '🔒', title: 'Type Safe', desc: 'End-to-end type safety from database to UI. If it builds, it works.' },
+  { icon: '🤖', title: 'AI Native', desc: 'Designed for LLMs to use correctly on the first try. One pattern per task.' },
+];
+
+export function FeaturesSection() {
+  return (
+    <section className={styles.section}>
+      <h2 className={styles.heading}>Features</h2>
+      <div className={styles.grid}>
+        {FEATURES.map((f) => (
+          <div key={f.title} className={styles.card}>
+            <span className={styles.icon}>{f.icon}</span>
+            <h3 className={styles.title}>{f.title}</h3>
+            <p className={styles.desc}>{f.desc}</p>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+`;
+}
+
+/**
+ * src/components/cta-section.tsx for landing-page — call-to-action banner
+ */
+export function landingPageCtaSectionTemplate(): string {
+  return `import { css } from 'vertz/ui';
+import { Button } from '@vertz/ui/components';
+
+const styles = css({
+  section: [
+    'py:16',
+    'flex',
+    'flex-col',
+    'items:center',
+    'text:center',
+    'gap:6',
+    {
+      '&': {
+        borderRadius: '12px',
+        border: '1px solid #2A2826',
+        background: 'rgba(200,69,27,0.04)',
+        margin: '4rem 0',
+        padding: '4rem 2rem',
+      },
+    },
+  ],
+  heading: ['font:2xl', 'font:bold', { '&': { color: '#E8E4DC' } }],
+  desc: ['font:md', 'max-w:lg', { '&': { color: '#9C9690' } }],
+});
+
+export function CtaSection() {
+  return (
+    <section className={styles.section}>
+      <h2 className={styles.heading}>Ready to get started?</h2>
+      <p className={styles.desc}>
+        Start building your project today. Edit any section to match your brand.
+      </p>
+      <Button intent="primary" size="lg">Get Started</Button>
+    </section>
+  );
+}
+`;
+}
+
+/**
+ * src/pages/home.tsx for landing-page — composes Hero, FeaturesSection, CtaSection
+ */
+export function landingPageHomeTemplate(): string {
+  return `import { Hero } from '../components/hero';
+import { FeaturesSection } from '../components/features-section';
+import { CtaSection } from '../components/cta-section';
+
+export function HomePage() {
+  return (
+    <div>
+      <Hero />
+      <FeaturesSection />
+      <CtaSection />
+    </div>
+  );
+}
+`;
+}
+
+/**
+ * src/pages/features.tsx for landing-page — features detail page
+ */
+export function landingPageFeaturesPageTemplate(): string {
+  return `import { css } from 'vertz/ui';
+
+const styles = css({
+  container: ['py:32', 'flex', 'flex-col', 'gap:12'],
+  title: ['font:3xl', 'font:bold', 'text:center', { '&': { color: '#E8E4DC' } }],
+  subtitle: ['font:lg', 'text:center', 'max-w:2xl', 'mx:auto', { '&': { color: '#9C9690' } }],
+  grid: [
+    'grid',
+    'gap:8',
+    'mt:8',
+    { '@media (min-width: 768px)': { gridTemplateColumns: 'repeat(2, 1fr)' } },
+  ],
+  card: [
+    'flex',
+    'flex-col',
+    'gap:3',
+    'p:8',
+    {
+      '&': {
+        borderRadius: '8px',
+        border: '1px solid #2A2826',
+        background: 'rgba(17,17,16,0.5)',
+      },
+    },
+  ],
+  cardTitle: ['font:xl', 'font:semibold', { '&': { color: '#E8E4DC' } }],
+  cardDesc: ['font:sm', { '&': { color: '#9C9690', lineHeight: '1.6' } }],
+});
+
+export function FeaturesPage() {
+  return (
+    <div className={styles.container}>
+      <h1 className={styles.title}>Features</h1>
+      <p className={styles.subtitle}>
+        Everything you need to build modern web applications.
+      </p>
+      <div className={styles.grid}>
+        <div className={styles.card}>
+          <h2 className={styles.cardTitle}>Reactive UI</h2>
+          <p className={styles.cardDesc}>
+            Write plain JavaScript. The compiler transforms your code into fine-grained reactive updates — no virtual DOM, no diffing.
+          </p>
+        </div>
+        <div className={styles.card}>
+          <h2 className={styles.cardTitle}>Type-Safe Routing</h2>
+          <p className={styles.cardDesc}>
+            Define routes with full TypeScript support. Route params, query strings, and navigation are all typed.
+          </p>
+        </div>
+        <div className={styles.card}>
+          <h2 className={styles.cardTitle}>Scoped Styling</h2>
+          <p className={styles.cardDesc}>
+            Use css() for component-scoped styles with design tokens. No class name collisions, no CSS-in-JS runtime.
+          </p>
+        </div>
+        <div className={styles.card}>
+          <h2 className={styles.cardTitle}>Dark Theme</h2>
+          <p className={styles.cardDesc}>
+            Built-in theming with ThemeProvider. Switch between light and dark with a single prop change.
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}
+`;
+}
+
+/**
+ * src/pages/pricing.tsx for landing-page — pricing tiers with cards
+ */
+export function landingPagePricingPageTemplate(): string {
+  return `import { css } from 'vertz/ui';
+import { Button } from '@vertz/ui/components';
+
+const styles = css({
+  container: ['py:32', 'flex', 'flex-col', 'gap:12'],
+  title: ['font:3xl', 'font:bold', 'text:center', { '&': { color: '#E8E4DC' } }],
+  subtitle: ['font:lg', 'text:center', 'max-w:2xl', 'mx:auto', { '&': { color: '#9C9690' } }],
+  grid: [
+    'grid',
+    'gap:8',
+    'mt:8',
+    { '@media (min-width: 768px)': { gridTemplateColumns: 'repeat(3, 1fr)' } },
+  ],
+  card: [
+    'flex',
+    'flex-col',
+    'gap:4',
+    'p:8',
+    {
+      '&': {
+        borderRadius: '8px',
+        border: '1px solid #2A2826',
+        background: 'rgba(17,17,16,0.5)',
+      },
+    },
+  ],
+  featured: [
+    {
+      '&': {
+        border: '1px solid rgba(200,69,27,0.4)',
+        background: 'rgba(200,69,27,0.04)',
+      },
+    },
+  ],
+  tierName: ['font:sm', 'uppercase', 'tracking:wider', { '&': { color: '#6B6560' } }],
+  price: ['font:3xl', 'font:bold', { '&': { color: '#E8E4DC' } }],
+  desc: ['font:sm', { '&': { color: '#9C9690' } }],
+  features: ['flex', 'flex-col', 'gap:2', 'mt:4', 'flex:1'],
+  feature: ['font:sm', { '&': { color: '#9C9690' } }],
+});
+
+const TIERS = [
+  {
+    name: 'Free',
+    price: '$0',
+    desc: 'For side projects and experiments.',
+    features: ['Up to 3 projects', 'Community support', 'Basic analytics'],
+    featured: false,
+  },
+  {
+    name: 'Pro',
+    price: '$19',
+    desc: 'For professionals and small teams.',
+    features: ['Unlimited projects', 'Priority support', 'Advanced analytics', 'Custom domains'],
+    featured: true,
+  },
+  {
+    name: 'Enterprise',
+    price: 'Custom',
+    desc: 'For organizations at scale.',
+    features: ['Everything in Pro', 'SSO & SAML', 'SLA guarantee', 'Dedicated support'],
+    featured: false,
+  },
+];
+
+export function PricingPage() {
+  return (
+    <div className={styles.container}>
+      <h1 className={styles.title}>Pricing</h1>
+      <p className={styles.subtitle}>
+        Simple, transparent pricing. No hidden fees.
+      </p>
+      <div className={styles.grid}>
+        {TIERS.map((tier) => (
+          <div
+            key={tier.name}
+            className={[styles.card, tier.featured ? styles.featured : ''].join(' ')}
+          >
+            <span className={styles.tierName}>{tier.name}</span>
+            <span className={styles.price}>{tier.price}<span className={styles.desc}>/mo</span></span>
+            <p className={styles.desc}>{tier.desc}</p>
+            <div className={styles.features}>
+              {tier.features.map((f) => (
+                <span key={f} className={styles.feature}>✓ {f}</span>
+              ))}
+            </div>
+            <Button intent={tier.featured ? 'primary' : 'ghost'}>
+              {tier.name === 'Enterprise' ? 'Contact Sales' : 'Get Started'}
+            </Button>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+`;
+}
+
+/**
+ * .claude/rules/ui-development.md for landing-page — no backend/SDK content
+ */
+export function landingPageUiRuleTemplate(): string {
+  return `# UI Development
+
+## Imports
+
+All Vertz UI packages are available through the \`vertz\` meta-package:
+
+\`\`\`ts
+import { css, globalCss, ThemeProvider } from 'vertz/ui';
+import { Link, createRouter, defineRoutes } from 'vertz/ui';
+import { Button, Input, Card } from '@vertz/ui/components';
+\`\`\`
+
+## Styling
+
+### \`css()\` for scoped styles
+
+\`\`\`ts
+const styles = css({
+  container: ['flex', 'flex-col', 'gap:6', 'py:16'],
+  heading: ['font:2xl', 'font:bold', { '&': { color: '#E8E4DC' } }],
+});
+
+// Usage: className={styles.container}
+\`\`\`
+
+### \`globalCss()\` for page-level styles
+
+\`\`\`ts
+import { globalCss } from 'vertz/ui';
+
+export const appGlobals = globalCss({
+  html: { scrollBehavior: 'smooth' },
+  'html body': { backgroundColor: '#111110', color: '#E8E4DC' },
+});
+\`\`\`
+
+### Responsive design
+
+Use \`@media\` queries inside \`css()\` style objects:
+
+\`\`\`ts
+const styles = css({
+  grid: [
+    'grid', 'gap:8',
+    { '@media (min-width: 768px)': { gridTemplateColumns: 'repeat(3, 1fr)' } },
+  ],
+});
+\`\`\`
+
+## Routing
+
+### Defining routes
+
+\`\`\`ts
+import { createRouter, defineRoutes } from 'vertz/ui';
+
+const routes = defineRoutes({
+  '/': { component: () => <HomePage /> },
+  '/features': { component: () => <FeaturesPage /> },
+});
+
+export const appRouter = createRouter(routes);
+\`\`\`
+
+### Navigation
+
+Use \`Link\` for client-side navigation:
+
+\`\`\`tsx
+import { Link } from 'vertz/ui';
+
+<Link href="/features">Features</Link>
+\`\`\`
+
+## Section Composition
+
+Pages are composed from self-contained section components:
+
+\`\`\`tsx
+// src/pages/home.tsx
+import { Hero } from '../components/hero';
+import { FeaturesSection } from '../components/features-section';
+
+export function HomePage() {
+  return (
+    <div>
+      <Hero />
+      <FeaturesSection />
+    </div>
+  );
+}
+\`\`\`
+
+Each section component lives in \`src/components/\` and manages its own styles.
+
+## Theme
+
+Theme is configured in \`src/styles/theme.ts\` using \`configureTheme\` from \`@vertz/theme-shadcn\`.
+Global styles (body background, font smoothing) are in \`src/styles/globals.ts\`.
+The \`ThemeProvider\` in \`app.tsx\` sets the theme mode (\`"dark"\` or \`"light"\`).
+
+## Reactivity
+
+The Vertz compiler transforms your code at build time:
+
+- \`let count = 0\` → becomes a reactive signal
+- \`const double = count * 2\` → becomes a computed value
+- JSX attributes update automatically when signals change
+
+**Never** use \`.value\`, \`signal()\`, or \`computed()\` manually — the compiler handles it.
+`;
+}
