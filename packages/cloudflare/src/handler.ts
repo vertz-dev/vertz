@@ -8,7 +8,11 @@ import { injectNonce, lookupCache, storeCache, stripNonce } from './isr-cache.js
 // ---------------------------------------------------------------------------
 
 export interface CloudflareHandlerOptions {
-  basePath?: string;
+  /**
+   * API path prefix to strip from request pathname before forwarding.
+   * @default undefined (no stripping)
+   */
+  apiPrefix?: string;
 }
 
 /**
@@ -72,8 +76,16 @@ export interface CloudflareHandlerConfig {
    */
   app: (env: unknown) => AppBuilder;
 
-  /** API path prefix. Requests matching this prefix go to the app handler. Default: '/api' */
-  basePath?: string;
+  /**
+   * API path prefix. Requests matching this prefix go to the app handler.
+   * When omitted, reads `app.apiPrefix` at runtime, falling back to `'/api'`.
+   *
+   * Cannot be empty when `ssr` is configured — the handler uses the prefix
+   * to distinguish API requests from SSR requests.
+   *
+   * @default '/api'
+   */
+  apiPrefix?: string;
 
   /**
    * SSR configuration for non-API routes.
@@ -190,14 +202,14 @@ function getApiHandler(app: AppBuilder): (request: Request) => Promise<Response>
  *
  * Simple form — wraps an AppBuilder directly:
  * ```ts
- * export default createHandler(app, { basePath: '/api' });
+ * export default createHandler(app, { apiPrefix: '/api' });
  * ```
  *
  * Config form — full-stack with lazy init, SSR, and security headers:
  * ```ts
  * export default createHandler({
  *   app: (env) => createServer({ entities, db: createDb({ d1: env.DB }) }),
- *   basePath: '/api',
+ *   apiPrefix: '/api',
  *   ssr: (req) => renderToString(new URL(req.url).pathname),
  *   securityHeaders: true,
  * });
@@ -233,8 +245,8 @@ function createSimpleHandler(
 
   return {
     async fetch(request: Request, _env: unknown, _ctx: ExecutionContext): Promise<Response> {
-      if (options?.basePath) {
-        request = stripBasePath(request, options.basePath);
+      if (options?.apiPrefix) {
+        request = stripBasePath(request, options.apiPrefix);
       }
       try {
         return await handler(request);
@@ -278,19 +290,19 @@ function isSSRModuleConfig(
 
 function createFullStackHandler(config: CloudflareHandlerConfig): CloudflareWorkerModule {
   const {
-    basePath: configBasePath,
+    apiPrefix: configApiPrefix,
     ssr,
     imageOptimizer: imageOptimizerHandler,
     cache: cacheConfig,
     beforeRender,
   } = config;
-  const basePath = configBasePath ?? '/api';
   const securityHeaders = config.securityHeaders !== false;
   const cacheTtl = cacheConfig?.ttl ?? 3600;
   const swr = cacheConfig?.staleWhileRevalidate !== false;
   // Install per-request fetch proxy once (idempotent)
   installFetchProxy();
   let cachedApp: AppBuilder | null = null;
+  let resolvedApiPrefix: string | null = null;
   let cachedKV: KVNamespace | null = null;
   // SSR handler factory: when using SSRModuleConfig with nonce support, this
   // is called per-request with the current nonce. For custom callbacks it
@@ -298,6 +310,20 @@ function createFullStackHandler(config: CloudflareHandlerConfig): CloudflareWork
   let ssrHandlerFactory: ((nonce?: string) => (request: Request) => Promise<Response>) | null =
     null;
   let ssrResolved = false;
+
+  function getApiPrefix(app: AppBuilder): string {
+    if (resolvedApiPrefix !== null) return resolvedApiPrefix;
+    resolvedApiPrefix =
+      configApiPrefix ?? (app as { apiPrefix?: string }).apiPrefix ?? '/api';
+    if (resolvedApiPrefix === '' && ssr) {
+      throw new Error(
+        'apiPrefix cannot be empty when SSR is configured. The Cloudflare handler ' +
+          "uses the API prefix to route API requests vs SSR requests. Use a non-empty " +
+          "prefix like '/api' or '/v1'.",
+      );
+    }
+    return resolvedApiPrefix;
+  }
 
   function getApp(env: unknown): AppBuilder {
     if (!cachedApp) {
@@ -349,6 +375,7 @@ function createFullStackHandler(config: CloudflareHandlerConfig): CloudflareWork
   /** Execute SSR with fetch scoping and return the HTML string. */
   async function executeSSR(request: Request, nonce: string, env: unknown): Promise<Response> {
     const app = getApp(env);
+    const apiPrefix = getApiPrefix(app);
     const ssrHandler = ssrHandlerFactory!(nonce);
     const origin = new URL(request.url).origin;
     const interceptor: typeof fetch = (input, init) => {
@@ -358,7 +385,7 @@ function createFullStackHandler(config: CloudflareHandlerConfig): CloudflareWork
       const pathname = isRelative ? (rawUrl.split('?')[0] ?? '/') : new URL(rawUrl).pathname;
       const isLocal = isRelative || new URL(rawUrl).origin === origin;
 
-      if (isLocal && pathname.startsWith(basePath)) {
+      if (isLocal && pathname.startsWith(apiPrefix)) {
         const absoluteUrl = isRelative ? `${origin}${rawUrl}` : rawUrl;
         const req = new Request(absoluteUrl, init);
         return getApiHandler(app)(req);
@@ -391,11 +418,12 @@ function createFullStackHandler(config: CloudflareHandlerConfig): CloudflareWork
         return applyHeaders(response, nonce);
       }
 
-      // Route splitting: basePath/* → API handler (no URL rewriting — the
-      // app's own basePath/apiPrefix handles prefix matching internally)
-      if (url.pathname.startsWith(basePath)) {
+      // Route splitting: apiPrefix/* → API handler (no URL rewriting — the
+      // app's own apiPrefix handles prefix matching internally)
+      const app = getApp(env);
+      const apiPrefix = getApiPrefix(app);
+      if (apiPrefix !== '' && url.pathname.startsWith(apiPrefix)) {
         try {
-          const app = getApp(env);
           const response = await getApiHandler(app)(request);
           return applyHeaders(response, nonce);
         } catch (error) {

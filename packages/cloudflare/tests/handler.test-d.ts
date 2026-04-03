@@ -11,16 +11,16 @@ declare const ssrCallback: (request: Request) => Promise<Response>;
 
 // ─── Valid usage ─────────────────────────────────────────────
 
-// Minimal config — basePath defaults to '/api', securityHeaders defaults to true
+// Minimal config — apiPrefix defaults to '/api', securityHeaders defaults to true
 createHandler({
   app,
   ssr: ssrCallback,
 });
 
-// Config with explicit basePath
+// Config with explicit apiPrefix
 createHandler({
   app,
-  basePath: '/api',
+  apiPrefix: '/api',
   ssr: ssrCallback,
 });
 
@@ -41,7 +41,7 @@ createHandler({
 // ─── Invalid usage ───────────────────────────────────────────
 
 // @ts-expect-error — ssr is required
-createHandler({ app, basePath: '/api' });
+createHandler({ app, apiPrefix: '/api' });
 
 // @ts-expect-error — ssr is required (even with other options)
 createHandler({ app, securityHeaders: true });

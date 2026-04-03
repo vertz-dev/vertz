@@ -61,7 +61,7 @@ createHandler({
 
   // Optional — API path prefix. Default: '/api'
   // Matches createServer's apiPrefix default, so you rarely need this.
-  basePath: '/api',
+  apiPrefix: '/api',
 
   // Optional — add security headers to all responses. Default: true
   // Includes CSP with per-request nonce, HSTS, X-Frame-Options, etc.
@@ -126,19 +126,20 @@ The handler splits requests by URL path:
 
 Static assets (JS, CSS, images) are served by Cloudflare's `[assets]` directive in `wrangler.toml` **before** the Worker runs — they never reach `createHandler`.
 
-### Custom basePath
+### Custom apiPrefix
 
 If your server uses a non-default `apiPrefix`, match it in the handler:
 
 ```ts
-createServer({ apiPrefix: '/v1' });
-
 createHandler({
   app: (env) => createServer({ apiPrefix: '/v1' }),
-  basePath: '/v1',
+  apiPrefix: '/v1',
   ssr: { module: app },
 });
 ```
+
+When `apiPrefix` is omitted from `createHandler`, it reads `app.apiPrefix` at
+runtime — so if you set it on `createServer`, the handler picks it up automatically.
 
 ## Auth-aware routing
 

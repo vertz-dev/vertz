@@ -39,13 +39,13 @@ describe('createHandler', () => {
     expect(response).toBe(mockResponse);
   });
 
-  it('strips basePath prefix from pathname', async () => {
+  it('strips apiPrefix prefix from pathname', async () => {
     const mockHandler = mock().mockResolvedValue(new Response('OK'));
     const mockApp = {
       handler: mockHandler,
     } as unknown as AppBuilder;
 
-    const worker = createHandler(mockApp, { basePath: '/api' });
+    const worker = createHandler(mockApp, { apiPrefix: '/api' });
     const request = new Request('https://example.com/api/users');
     const mockEnv = {};
     const mockCtx = {} as ExecutionContext;
@@ -58,13 +58,13 @@ describe('createHandler', () => {
     expect(url.pathname).toBe('/users');
   });
 
-  it('strips basePath with trailing slash correctly', async () => {
+  it('strips apiPrefix with trailing slash correctly', async () => {
     const mockHandler = mock().mockResolvedValue(new Response('OK'));
     const mockApp = {
       handler: mockHandler,
     } as unknown as AppBuilder;
 
-    const worker = createHandler(mockApp, { basePath: '/api' });
+    const worker = createHandler(mockApp, { apiPrefix: '/api' });
     const request = new Request('https://example.com/api/');
     const mockEnv = {};
     const mockCtx = {} as ExecutionContext;
@@ -76,13 +76,13 @@ describe('createHandler', () => {
     expect(url.pathname).toBe('/');
   });
 
-  it('handles basePath when pathname does not start with basePath', async () => {
+  it('handles apiPrefix when pathname does not start with apiPrefix', async () => {
     const mockHandler = mock().mockResolvedValue(new Response('OK'));
     const mockApp = {
       handler: mockHandler,
     } as unknown as AppBuilder;
 
-    const worker = createHandler(mockApp, { basePath: '/api' });
+    const worker = createHandler(mockApp, { apiPrefix: '/api' });
     const request = new Request('https://example.com/other/path');
     const mockEnv = {};
     const mockCtx = {} as ExecutionContext;
@@ -94,13 +94,13 @@ describe('createHandler', () => {
     expect(url.pathname).toBe('/other/path');
   });
 
-  it('preserves query parameters when stripping basePath', async () => {
+  it('preserves query parameters when stripping apiPrefix', async () => {
     const mockHandler = mock().mockResolvedValue(new Response('OK'));
     const mockApp = {
       handler: mockHandler,
     } as unknown as AppBuilder;
 
-    const worker = createHandler(mockApp, { basePath: '/api' });
+    const worker = createHandler(mockApp, { apiPrefix: '/api' });
     const request = new Request('https://example.com/api/users?page=1&limit=10');
     const mockEnv = {};
     const mockCtx = {} as ExecutionContext;
@@ -120,7 +120,7 @@ describe('createHandler', () => {
       handler: mockHandler,
     } as unknown as AppBuilder;
 
-    const worker = createHandler(mockApp, { basePath: '/api' });
+    const worker = createHandler(mockApp, { apiPrefix: '/api' });
     const request = new Request('https://example.com/api/users', {
       method: 'POST',
       headers: {
@@ -139,8 +139,8 @@ describe('createHandler', () => {
     expect(calledRequest.headers.get('Authorization')).toBe('Bearer token123');
   });
 
-  it('works without basePath option', async () => {
-    const mockResponse = new Response('No basePath');
+  it('works without apiPrefix option', async () => {
+    const mockResponse = new Response('No apiPrefix');
     const mockHandler = mock().mockResolvedValue(mockResponse);
     const mockApp = {
       handler: mockHandler,
@@ -192,11 +192,11 @@ describe('createHandler (config object)', () => {
   const mockCtx = {} as ExecutionContext;
 
   // ---------------------------------------------------------------------------
-  // basePath defaults to '/api'
+  // apiPrefix defaults to '/api'
   // ---------------------------------------------------------------------------
 
-  describe('Feature: Optional basePath', () => {
-    describe('Given a config without basePath', () => {
+  describe('Feature: Optional apiPrefix', () => {
+    describe('Given a config without apiPrefix', () => {
       describe('When a request arrives at /api/todos', () => {
         it('Then routes to the app handler', async () => {
           const apiHandler = mock().mockResolvedValue(new Response('OK'));
@@ -242,7 +242,7 @@ describe('createHandler (config object)', () => {
       });
     });
 
-    describe('Given a config with explicit basePath "/v1"', () => {
+    describe('Given a config with explicit apiPrefix "/v1"', () => {
       describe('When a request arrives at /v1/todos', () => {
         it('Then routes to the app handler (backward compat)', async () => {
           const apiHandler = mock().mockResolvedValue(new Response('OK'));
@@ -250,7 +250,7 @@ describe('createHandler (config object)', () => {
 
           const worker = createHandler({
             app: () => mockApp(apiHandler),
-            basePath: '/v1',
+            apiPrefix: '/v1',
             ssr: ssrHandler,
           });
 
@@ -263,6 +263,44 @@ describe('createHandler (config object)', () => {
           expect(apiHandler).toHaveBeenCalled();
           expect(await response.text()).toBe('OK');
         });
+      });
+    });
+
+    describe('Given a config with empty apiPrefix and SSR (#2131)', () => {
+      it('Then throws because empty prefix breaks API/SSR routing', async () => {
+        const worker = createHandler({
+          app: () => mockApp(),
+          apiPrefix: '',
+          ssr: mock().mockResolvedValue(new Response('<html></html>')),
+        });
+
+        expect(
+          worker.fetch(new Request('https://example.com/test'), mockEnv, mockCtx),
+        ).rejects.toThrow('apiPrefix cannot be empty when SSR is configured');
+      });
+    });
+
+    describe('Given a config without apiPrefix (#2131)', () => {
+      it('Then reads apiPrefix from the app instance', async () => {
+        const apiHandler = mock().mockResolvedValue(new Response('OK'));
+        const appInstance = {
+          ...mockApp(apiHandler),
+          apiPrefix: '/v2',
+        };
+
+        const worker = createHandler({
+          app: () => appInstance as unknown as AppBuilder,
+          ssr: mock().mockResolvedValue(new Response('<html>SSR</html>')),
+        });
+
+        // /v2/todos should route to API handler
+        const apiResponse = await worker.fetch(
+          new Request('https://example.com/v2/todos'),
+          mockEnv,
+          mockCtx,
+        );
+        expect(apiHandler).toHaveBeenCalled();
+        expect(await apiResponse.text()).toBe('OK');
       });
     });
   });
@@ -332,7 +370,7 @@ describe('createHandler (config object)', () => {
 
     const worker = createHandler({
       app: () => mockApp(apiHandler),
-      basePath: '/api',
+      apiPrefix: '/api',
       ssr: ssrHandler,
     });
 
@@ -357,7 +395,7 @@ describe('createHandler (config object)', () => {
 
     const worker = createHandler({
       app: appFactory,
-      basePath: '/api',
+      apiPrefix: '/api',
       ssr: () => Promise.resolve(new Response('<html></html>')),
     });
 
@@ -374,7 +412,7 @@ describe('createHandler (config object)', () => {
   it('adds security headers when securityHeaders is true', async () => {
     const worker = createHandler({
       app: () => mockApp(mock().mockImplementation(() => new Response('OK'))),
-      basePath: '/api',
+      apiPrefix: '/api',
       ssr: () => Promise.resolve(new Response('<html></html>')),
       securityHeaders: true,
     });
@@ -393,7 +431,7 @@ describe('createHandler (config object)', () => {
   it('adds security headers to SSR responses too', async () => {
     const worker = createHandler({
       app: () => mockApp(),
-      basePath: '/api',
+      apiPrefix: '/api',
       ssr: () => Promise.resolve(new Response('<html></html>')),
       securityHeaders: true,
     });
@@ -404,12 +442,12 @@ describe('createHandler (config object)', () => {
     expect(response.headers.get('X-Frame-Options')).toBe('DENY');
   });
 
-  it('passes full URL to app handler (no basePath stripping)', async () => {
+  it('passes full URL to app handler (no apiPrefix stripping)', async () => {
     const apiHandler = mock().mockResolvedValue(new Response('OK'));
 
     const worker = createHandler({
       app: () => mockApp(apiHandler),
-      basePath: '/api',
+      apiPrefix: '/api',
       ssr: () => Promise.resolve(new Response('<html></html>')),
     });
 
@@ -425,7 +463,7 @@ describe('createHandler (config object)', () => {
 
     const worker = createHandler({
       app: () => mockApp(mock().mockRejectedValue(new Error('DB connection failed'))),
-      basePath: '/api',
+      apiPrefix: '/api',
       ssr: () => Promise.resolve(new Response('<html></html>')),
     });
 
@@ -445,7 +483,7 @@ describe('createHandler (config object)', () => {
 
     const worker = createHandler({
       app: () => mockApp(),
-      basePath: '/api',
+      apiPrefix: '/api',
       ssr: () => Promise.reject(new Error('SSR render failed')),
     });
 
@@ -472,7 +510,7 @@ describe('createHandler (config object)', () => {
 
         const worker = createHandler({
           app: () => appWithAuth,
-          basePath: '/api',
+          apiPrefix: '/api',
           ssr: () => Promise.resolve(new Response('<html></html>')),
         });
 
@@ -497,7 +535,7 @@ describe('createHandler (config object)', () => {
 
         const worker = createHandler({
           app: () => appWithAuth,
-          basePath: '/api',
+          apiPrefix: '/api',
           ssr: () => Promise.resolve(new Response('<html></html>')),
         });
 
@@ -520,7 +558,7 @@ describe('createHandler (config object)', () => {
 
         const worker = createHandler({
           app: () => plainApp,
-          basePath: '/api',
+          apiPrefix: '/api',
           ssr: () => Promise.resolve(new Response('<html></html>')),
         });
 
@@ -560,7 +598,7 @@ describe('createHandler (config object)', () => {
 
         const worker = createHandler({
           app: () => mockApp(apiHandler),
-          basePath: '/api',
+          apiPrefix: '/api',
           ssr: ssrCallback,
         });
 
@@ -589,7 +627,7 @@ describe('createHandler (config object)', () => {
 
         const worker = createHandler({
           app: () => mockApp(apiHandler),
-          basePath: '/api',
+          apiPrefix: '/api',
           ssr: ssrCallback,
         });
 
@@ -653,7 +691,7 @@ describe('createHandler (SSR module config)', () => {
     const ssrModule = { App: () => ({}) };
     const worker = freshCreateHandler({
       app: () => mockApp(),
-      basePath: '/api',
+      apiPrefix: '/api',
       ssr: { module: ssrModule },
     });
 
@@ -670,7 +708,7 @@ describe('createHandler (SSR module config)', () => {
     const ssrModule = { App: () => ({}) };
     const worker = freshCreateHandler({
       app: () => mockApp(),
-      basePath: '/api',
+      apiPrefix: '/api',
       ssr: { module: ssrModule },
     });
 
@@ -696,7 +734,7 @@ describe('createHandler (SSR module config)', () => {
     const ssrModule = { App: () => ({}) };
     const worker = freshCreateHandler({
       app: () => mockApp(),
-      basePath: '/api',
+      apiPrefix: '/api',
       ssr: {
         module: ssrModule,
         clientScript: '/custom/client.js',
@@ -731,7 +769,7 @@ describe('createHandler (SSR module config)', () => {
 
     const worker = freshCreateHandler({
       app: () => mockApp(),
-      basePath: '/api',
+      apiPrefix: '/api',
       ssr: ssrCallback,
     });
 
@@ -754,7 +792,7 @@ describe('createHandler (SSR module config)', () => {
 
     const worker = freshCreateHandler({
       app: () => mockApp(apiHandler),
-      basePath: '/api',
+      apiPrefix: '/api',
       ssr: { module: { App: () => ({}) } },
     });
 
@@ -801,7 +839,7 @@ describe('nonce-based CSP headers', () => {
   it('CSP header contains nonce (not unsafe-inline) for script-src', async () => {
     const worker = createHandler({
       app: () => mockApp(mock().mockImplementation(() => new Response('OK'))),
-      basePath: '/api',
+      apiPrefix: '/api',
       ssr: () => Promise.resolve(new Response('<html></html>')),
       securityHeaders: true,
     });
@@ -825,7 +863,7 @@ describe('nonce-based CSP headers', () => {
   it('CSP header keeps unsafe-inline for style-src', async () => {
     const worker = createHandler({
       app: () => mockApp(mock().mockImplementation(() => new Response('OK'))),
-      basePath: '/api',
+      apiPrefix: '/api',
       ssr: () => Promise.resolve(new Response('<html></html>')),
       securityHeaders: true,
     });
@@ -843,7 +881,7 @@ describe('nonce-based CSP headers', () => {
   it('each request gets a different nonce in the CSP header', async () => {
     const worker = createHandler({
       app: () => mockApp(mock().mockImplementation(() => new Response('OK'))),
-      basePath: '/api',
+      apiPrefix: '/api',
       ssr: () => Promise.resolve(new Response('<html></html>')),
       securityHeaders: true,
     });
@@ -868,7 +906,7 @@ describe('nonce-based CSP headers', () => {
   it('applies nonce-based CSP to SSR responses', async () => {
     const worker = createHandler({
       app: () => mockApp(),
-      basePath: '/api',
+      apiPrefix: '/api',
       ssr: () => Promise.resolve(new Response('<html></html>')),
       securityHeaders: true,
     });
@@ -885,7 +923,7 @@ describe('nonce-based CSP headers', () => {
 
     const worker = createHandler({
       app: () => mockApp(mock().mockRejectedValue(new Error('fail'))),
-      basePath: '/api',
+      apiPrefix: '/api',
       ssr: () => Promise.resolve(new Response('<html></html>')),
       securityHeaders: true,
     });
@@ -948,7 +986,7 @@ describe('createHandler (image optimizer integration)', () => {
 
     const worker = createHandler({
       app: () => mockApp(apiHandler),
-      basePath: '/api',
+      apiPrefix: '/api',
       ssr: () => Promise.resolve(new Response('<html></html>')),
       imageOptimizer: optimizerHandler,
     });
@@ -969,7 +1007,7 @@ describe('createHandler (image optimizer integration)', () => {
   it('applies security headers to optimizer responses', async () => {
     const worker = createHandler({
       app: () => mockApp(),
-      basePath: '/api',
+      apiPrefix: '/api',
       ssr: () => Promise.resolve(new Response('<html></html>')),
       imageOptimizer: fakeImageOptimizerHandler(),
       securityHeaders: true,
@@ -997,7 +1035,7 @@ describe('createHandler (image optimizer integration)', () => {
 
     const worker = createHandler({
       app: () => mockApp(apiHandler),
-      basePath: '/api',
+      apiPrefix: '/api',
       ssr: () => Promise.resolve(new Response('<html></html>')),
       imageOptimizer: optimizerHandler,
     });
@@ -1023,7 +1061,7 @@ describe('createHandler (image optimizer integration)', () => {
 
     const worker = createHandler({
       app: () => mockApp(),
-      basePath: '/api',
+      apiPrefix: '/api',
       ssr: ssrHandler,
       imageOptimizer: optimizerHandler,
     });
@@ -1040,7 +1078,7 @@ describe('createHandler (image optimizer integration)', () => {
 
     const worker = createHandler({
       app: () => mockApp(),
-      basePath: '/api',
+      apiPrefix: '/api',
       ssr: ssrHandler,
     });
 
@@ -1055,14 +1093,14 @@ describe('createHandler (image optimizer integration)', () => {
     expect(await response.text()).toBe('<html>SSR</html>');
   });
 
-  it('image optimizer route takes priority over basePath when both could match', async () => {
+  it('image optimizer route takes priority over apiPrefix when both could match', async () => {
     const apiHandler = mock().mockResolvedValue(new Response('API'));
     const optimizerHandler = mock(fakeImageOptimizerHandler());
 
-    // Edge case: basePath is /_vertz — optimizer route should still win
+    // Edge case: apiPrefix is /_vertz — optimizer route should still win
     const worker = createHandler({
       app: () => mockApp(apiHandler),
-      basePath: '/_vertz',
+      apiPrefix: '/_vertz',
       ssr: () => Promise.resolve(new Response('<html></html>')),
       imageOptimizer: optimizerHandler,
     });
@@ -1101,7 +1139,7 @@ describe('createHandler (beforeRender hook)', () => {
 
     const worker = createHandler({
       app: () => mockApp(),
-      basePath: '/api',
+      apiPrefix: '/api',
       ssr: ssrHandler,
       beforeRender: async () => redirectResponse,
     });
@@ -1122,7 +1160,7 @@ describe('createHandler (beforeRender hook)', () => {
 
     const worker = createHandler({
       app: () => mockApp(),
-      basePath: '/api',
+      apiPrefix: '/api',
       ssr: ssrHandler,
       beforeRender: async () => undefined,
     });
@@ -1142,7 +1180,7 @@ describe('createHandler (beforeRender hook)', () => {
 
     const worker = createHandler({
       app: () => mockApp(),
-      basePath: '/api',
+      apiPrefix: '/api',
       ssr: ssrHandler,
     });
 
@@ -1158,7 +1196,7 @@ describe('createHandler (beforeRender hook)', () => {
 
     const worker = createHandler({
       app: () => mockApp(),
-      basePath: '/api',
+      apiPrefix: '/api',
       ssr: () => Promise.resolve(new Response('<html></html>')),
       beforeRender,
     });
@@ -1178,7 +1216,7 @@ describe('createHandler (beforeRender hook)', () => {
 
     const worker = createHandler({
       app: () => mockApp(),
-      basePath: '/api',
+      apiPrefix: '/api',
       ssr: ssrHandler,
       beforeRender: async () => redirectResponse,
     });
@@ -1196,7 +1234,7 @@ describe('createHandler (beforeRender hook)', () => {
   it('applies security headers to the beforeRender response', async () => {
     const worker = createHandler({
       app: () => mockApp(),
-      basePath: '/api',
+      apiPrefix: '/api',
       ssr: () => Promise.resolve(new Response('<html></html>')),
       securityHeaders: true,
       beforeRender: async () => new Response('Redirecting', { status: 302 }),
@@ -1217,7 +1255,7 @@ describe('createHandler (beforeRender hook)', () => {
 
     const worker = createHandler({
       app: () => mockApp(apiHandler),
-      basePath: '/api',
+      apiPrefix: '/api',
       ssr: () => Promise.resolve(new Response('<html></html>')),
       beforeRender,
     });
@@ -1245,7 +1283,7 @@ describe('createHandler (beforeRender hook)', () => {
 
     const worker = createHandler({
       app: () => mockApp(),
-      basePath: '/api',
+      apiPrefix: '/api',
       ssr: () => Promise.resolve(new Response('<html></html>')),
       imageOptimizer: optimizerHandler,
       beforeRender,

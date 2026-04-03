@@ -67,7 +67,7 @@ describe('createHandler with ISR cache', () => {
     const { createHandler: freshCreateHandler } = await import('../src/handler.js');
     const worker = freshCreateHandler({
       app: () => mockApp(),
-      basePath: '/api',
+      apiPrefix: '/api',
       ssr: { module: { App: () => ({}) } },
       cache: {
         kv: () => kv as unknown as KVNamespace,
@@ -99,7 +99,7 @@ describe('createHandler with ISR cache', () => {
     const { createHandler: freshCreateHandler } = await import('../src/handler.js');
     const worker = freshCreateHandler({
       app: () => mockApp(),
-      basePath: '/api',
+      apiPrefix: '/api',
       ssr: { module: { App: () => ({}) } },
       cache: {
         kv: () => kv as unknown as KVNamespace,
@@ -129,7 +129,7 @@ describe('createHandler with ISR cache', () => {
     const { createHandler: freshCreateHandler } = await import('../src/handler.js');
     const worker = freshCreateHandler({
       app: () => mockApp(),
-      basePath: '/api',
+      apiPrefix: '/api',
       ssr: { module: { App: () => ({}) } },
       cache: {
         kv: () => kv as unknown as KVNamespace,
@@ -160,7 +160,7 @@ describe('createHandler with ISR cache', () => {
     const { createHandler: freshCreateHandler } = await import('../src/handler.js');
     const worker = freshCreateHandler({
       app: () => mockApp(apiHandler),
-      basePath: '/api',
+      apiPrefix: '/api',
       ssr: { module: { App: () => ({}) } },
       cache: {
         kv: () => kv as unknown as KVNamespace,
@@ -192,7 +192,7 @@ describe('createHandler with ISR cache', () => {
     const { createHandler: freshCreateHandler } = await import('../src/handler.js');
     const worker = freshCreateHandler({
       app: () => mockApp(),
-      basePath: '/api',
+      apiPrefix: '/api',
       ssr: { module: { App: () => ({}) } },
       cache: {
         kv: () => kv as unknown as KVNamespace,
@@ -216,7 +216,7 @@ describe('createHandler with ISR cache', () => {
     const { createHandler: freshCreateHandler } = await import('../src/handler.js');
     const worker = freshCreateHandler({
       app: () => mockApp(),
-      basePath: '/api',
+      apiPrefix: '/api',
       ssr: { module: { App: () => ({}) } },
       cache: {
         kv: () => kv as unknown as KVNamespace,

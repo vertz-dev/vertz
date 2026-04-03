@@ -67,7 +67,7 @@ export default createHandler({
       db: db as any as ServerConfig['db'],
     });
   },
-  basePath: '/api',
+  apiPrefix: '/api',
   ssr: {
     module: app,
     clientScript: '/assets/entry-client.js',
@@ -191,7 +191,7 @@ The SSR flow in a Cloudflare Worker:
 
 ### SSR Fetch Interception
 
-Workers cannot fetch from themselves (infinite loop). The `@vertz/cloudflare` handler patches `globalThis.fetch` during SSR to intercept requests matching the API `basePath`. These requests are routed directly through the in-memory `app.handler()`, bypassing the network entirely.
+Workers cannot fetch from themselves (infinite loop). The `@vertz/cloudflare` handler patches `globalThis.fetch` during SSR to intercept requests matching the API `apiPrefix`. These requests are routed directly through the in-memory `app.handler()`, bypassing the network entirely.
 
 The `@vertz/fetch` FetchClient uses a lazy fetch getter (not eagerly bound at construction time) so that SSR fetch patches take effect even for clients created at module load time.
 
