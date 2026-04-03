@@ -187,3 +187,11 @@ export function toPascalCase(name: string): string {
   const result = segments.map((s) => s.charAt(0).toUpperCase() + s.slice(1)).join('');
   return /^[0-9]/.test(result) ? `_${result}` : result;
 }
+
+/**
+ * Resolve the PascalCase type prefix for an operation.
+ * Uses the shortened `typePrefix` when available, falling back to the full operationId.
+ */
+export function getTypePrefix(op: { typePrefix?: string; operationId: string }): string {
+  return op.typePrefix ?? toPascalCase(op.operationId);
+}

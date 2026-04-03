@@ -1,4 +1,4 @@
-import { normalizeOperationId } from './operation-id-normalizer';
+import { deriveTypePrefix, normalizeOperationId } from './operation-id-normalizer';
 import { resolveSchema } from './ref-resolver';
 import type {
   HttpMethod,
@@ -438,6 +438,7 @@ export function parseOpenAPI(spec: Record<string, unknown>): {
       const parsed: ParsedOperation = {
         operationId,
         methodName: normalizeOperationId(operationId, method.toUpperCase() as HttpMethod, path),
+        typePrefix: deriveTypePrefix(operationId, path),
         method: method.toUpperCase() as HttpMethod,
         path,
         pathParams,
@@ -467,10 +468,33 @@ export function parseOpenAPI(spec: Record<string, unknown>): {
     }
   }
 
+  // Detect typePrefix collisions and fall back to full operationId for colliding operations
+  deduplicateTypePrefixes(operations);
+
   return {
     operations,
     schemas: collectComponentSchemas(spec, version),
     securitySchemes: extractSecuritySchemes(spec),
     version,
   };
+}
+
+function deduplicateTypePrefixes(operations: ParsedOperation[]): void {
+  const seen = new Map<string, ParsedOperation[]>();
+  for (const op of operations) {
+    if (!op.typePrefix) continue;
+    const existing = seen.get(op.typePrefix);
+    if (existing) {
+      existing.push(op);
+    } else {
+      seen.set(op.typePrefix, [op]);
+    }
+  }
+  for (const [, ops] of seen) {
+    if (ops.length > 1) {
+      for (const op of ops) {
+        op.typePrefix = undefined;
+      }
+    }
+  }
 }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'bun:test';
-import { normalizeOperationId } from '../operation-id-normalizer';
+import { deriveTypePrefix, normalizeOperationId } from '../operation-id-normalizer';
 
 describe('normalizeOperationId', () => {
   it('maps FastAPI list ids to CRUD list', () => {
@@ -100,5 +100,52 @@ describe('normalizeOperationId', () => {
     expect(normalizeOperationId('publish-blog_post-post', 'POST', '/blog-posts/publish')).toBe(
       'publishBlogPost',
     );
+  });
+});
+
+describe('deriveTypePrefix', () => {
+  it('strips trailing HTTP method and path segments from FastAPI-style operationId', () => {
+    expect(
+      deriveTypePrefix(
+        'list_brand_competitors_web_brand_id_competitors_get',
+        '/web/brand/{brandId}/competitors',
+      ),
+    ).toBe('ListBrandCompetitors');
+  });
+
+  it('strips path params and segments from long operationId', () => {
+    expect(
+      deriveTypePrefix(
+        'stream_site_indexing_progress_web_organizations_organization_id_brands_brand_id_site_indexing_mapped_site_id_progress_get',
+        '/web/organizations/{organizationId}/brands/{brandId}/site-indexing/{mappedSiteId}/progress',
+      ),
+    ).toBe('StreamSiteIndexingProgress');
+  });
+
+  it('strips path-derived words from POST operationId', () => {
+    expect(
+      deriveTypePrefix(
+        're_evaluate_observations_internal_brands_brand_id_re_evaluate_observations_post',
+        '/internal/brands/{brandId}/re-evaluate-observations',
+      ),
+    ).toBe('ReEvaluateObservations');
+  });
+
+  it('preserves short operationIds that have no path redundancy', () => {
+    expect(deriveTypePrefix('listTasks', '/tasks')).toBe('ListTasks');
+  });
+
+  it('preserves all words when result would be too short', () => {
+    expect(deriveTypePrefix('get_tasks', '/tasks')).toBe('GetTasks');
+  });
+
+  it('handles camelCase operationIds', () => {
+    expect(deriveTypePrefix('getBrandAnalytics', '/brands/{brandId}/analytics')).toBe(
+      'GetBrandAnalytics',
+    );
+  });
+
+  it('strips NestJS controller prefix', () => {
+    expect(deriveTypePrefix('TasksController_listTasks', '/tasks')).toBe('ListTasks');
   });
 });

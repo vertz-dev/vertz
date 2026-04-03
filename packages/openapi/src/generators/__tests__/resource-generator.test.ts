@@ -640,6 +640,37 @@ describe('generateResources', () => {
     expect(tasksFile!.content).toContain("import type { ListTasksQuery } from '../types/tasks';");
   });
 
+  it('uses typePrefix for fallback type names instead of long operationId', () => {
+    const resources: ParsedResource[] = [
+      makeResource({
+        operations: [
+          {
+            operationId: 'list_brand_competitors_web_brand_id_competitors_get',
+            methodName: 'listBrandCompetitors',
+            typePrefix: 'ListBrandCompetitors',
+            method: 'GET',
+            path: '/web/brand/{brandId}/competitors',
+            pathParams: [{ name: 'brandId', required: true, schema: { type: 'string' } }],
+            queryParams: [{ name: 'limit', required: false, schema: { type: 'integer' } }],
+            response: {
+              jsonSchema: { type: 'object', properties: { items: { type: 'array' } } },
+            },
+            responseStatus: 200,
+            tags: ['tasks'],
+          },
+        ],
+      }),
+    ];
+
+    const files = generateResources(resources);
+    const tasksFile = files.find((f) => f.path === 'resources/tasks.ts');
+    // Should use typePrefix-based names, not the long operationId
+    expect(tasksFile!.content).toContain('ListBrandCompetitorsQuery');
+    expect(tasksFile!.content).toContain('ListBrandCompetitorsResponse');
+    // Should NOT contain the long operationId-based names
+    expect(tasksFile!.content).not.toContain('ListBrandCompetitorsWebBrandIdCompetitorsGetQuery');
+  });
+
   it('handles unnamed array response', () => {
     const resources: ParsedResource[] = [
       makeResource({

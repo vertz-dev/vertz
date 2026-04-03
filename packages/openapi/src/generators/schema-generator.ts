@@ -1,9 +1,9 @@
 import type { ParsedOperation, ParsedResource, ParsedSchema } from '../parser/types';
 import {
   collectCircularRefs,
+  getTypePrefix,
   isValidIdentifier,
   sanitizeTypeName,
-  toPascalCase,
 } from './json-schema-to-ts';
 import { jsonSchemaToZod } from './json-schema-to-zod';
 import type { GeneratedFile } from './types';
@@ -183,16 +183,16 @@ function buildQueryZodSchema(op: ParsedOperation, namedSchemas: Map<string, stri
 
 function deriveResponseSchemaName(op: ParsedOperation): string {
   if (op.response?.name) return toSchemaVarName(op.response.name);
-  return toSchemaVarName(toPascalCase(op.operationId) + 'Response');
+  return toSchemaVarName(getTypePrefix(op) + 'Response');
 }
 
 function deriveInputSchemaName(op: ParsedOperation): string {
   if (op.requestBody?.name) return toSchemaVarName(op.requestBody.name);
-  return toSchemaVarName(toPascalCase(op.operationId) + 'Input');
+  return toSchemaVarName(getTypePrefix(op) + 'Input');
 }
 
 function deriveQuerySchemaName(op: ParsedOperation): string {
-  return toSchemaVarName(toPascalCase(op.operationId) + 'Query');
+  return toSchemaVarName(getTypePrefix(op) + 'Query');
 }
 
 /**

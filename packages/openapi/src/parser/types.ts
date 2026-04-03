@@ -20,6 +20,8 @@ export interface ParsedResource {
 export interface ParsedOperation {
   operationId: string;
   methodName: string;
+  /** PascalCase prefix for generated type names (shorter than operationId for path-heavy IDs). */
+  typePrefix?: string;
   method: HttpMethod;
   path: string;
   pathParams: ParsedParameter[];
