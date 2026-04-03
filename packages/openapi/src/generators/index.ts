@@ -17,7 +17,7 @@ export function generateAll(spec: ParsedSpec, options?: GenerateOptions): Genera
   files.push(...generateTypes(resources, schemas));
 
   // Resources
-  files.push(...generateResources(resources));
+  files.push(...generateResources(resources, schemas));
 
   // Client
   files.push(

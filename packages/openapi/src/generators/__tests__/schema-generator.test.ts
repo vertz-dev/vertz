@@ -345,6 +345,87 @@ describe('generateSchemas', () => {
     expect(brandsFile!.content).toContain('export const brandInputSchema');
   });
 
+  it('generates schemas/components.ts with Zod schemas for component schemas', () => {
+    const resources: ParsedResource[] = [makeResource()];
+    const schemas: ParsedSchema[] = [
+      {
+        name: 'TreeNode',
+        jsonSchema: {
+          type: 'object',
+          properties: {
+            value: { type: 'string' },
+            child: { $circular: 'TreeNode' },
+          },
+          required: ['value'],
+        },
+      },
+    ];
+
+    const files = generateSchemas(resources, schemas);
+    const componentsFile = files.find((f) => f.path === 'schemas/components.ts');
+    expect(componentsFile).toBeDefined();
+    expect(componentsFile!.content).toContain("import { z } from 'zod';");
+    expect(componentsFile!.content).toContain('export const treeNodeSchema = z.object({');
+    expect(componentsFile!.content).toContain('z.lazy(() => treeNodeSchema)');
+  });
+
+  it('includes components in the schemas barrel export', () => {
+    const resources: ParsedResource[] = [makeResource()];
+    const schemas: ParsedSchema[] = [
+      {
+        name: 'Category',
+        jsonSchema: { type: 'object', properties: { name: { type: 'string' } } },
+      },
+    ];
+
+    const files = generateSchemas(resources, schemas);
+    const indexFile = files.find((f) => f.path === 'schemas/index.ts');
+    expect(indexFile!.content).toContain("export * from './components';");
+  });
+
+  it('does not re-declare component Zod schemas in per-resource files', () => {
+    const resources: ParsedResource[] = [
+      makeResource({
+        operations: [
+          {
+            operationId: 'getTask',
+            methodName: 'get',
+            method: 'GET',
+            path: '/tasks/{taskId}',
+            pathParams: [{ name: 'taskId', required: true, schema: { type: 'string' } }],
+            queryParams: [],
+            response: {
+              name: 'Task',
+              jsonSchema: {
+                type: 'object',
+                properties: { id: { type: 'string' } },
+                required: ['id'],
+              },
+            },
+            responseStatus: 200,
+            tags: ['tasks'],
+          },
+        ],
+      }),
+    ];
+    const schemas: ParsedSchema[] = [
+      {
+        name: 'Task',
+        jsonSchema: {
+          type: 'object',
+          properties: { id: { type: 'string' } },
+          required: ['id'],
+        },
+      },
+    ];
+
+    const files = generateSchemas(resources, schemas);
+    const tasksFile = files.find((f) => f.path === 'schemas/tasks.ts');
+    expect(tasksFile!.content).not.toContain('export const taskSchema');
+    const componentsFile = files.find((f) => f.path === 'schemas/components.ts');
+    expect(componentsFile!.content).toContain('export const taskSchema');
+  });
+
   it('generates query schemas', () => {
     const resources: ParsedResource[] = [
       makeResource({
