@@ -95,4 +95,64 @@ describe('entityErrorHandler', () => {
     expect(result.status).toBe(500);
     expect(result.body.error.code).toBe('InternalError');
   });
+
+  // ---------------------------------------------------------------------------
+  // devMode: true — expose real error details for unknown errors
+  // ---------------------------------------------------------------------------
+
+  describe('devMode: true', () => {
+    it('includes real error message for unknown Error', () => {
+      const result = entityErrorHandler(new Error('pg: connection refused'), {
+        devMode: true,
+      });
+
+      expect(result.status).toBe(500);
+      expect(result.body.error.code).toBe('InternalError');
+      expect(result.body.error.message).toBe('pg: connection refused');
+    });
+
+    it('includes stack trace for unknown Error', () => {
+      const result = entityErrorHandler(new Error('pg: connection refused'), {
+        devMode: true,
+      });
+
+      expect(result.body.error.stack).toBeDefined();
+      expect(result.body.error.stack).toContain('Error: pg: connection refused');
+    });
+
+    it('returns descriptive message for non-Error thrown value', () => {
+      const result = entityErrorHandler('boom', { devMode: true });
+
+      expect(result.status).toBe(500);
+      expect(result.body.error.code).toBe('InternalError');
+      expect(result.body.error.message).toBe(
+        'An unexpected error occurred (non-Error value thrown)',
+      );
+      expect(result.body.error.stack).toBeUndefined();
+    });
+
+    it('does not change VertzException behavior', () => {
+      const result = entityErrorHandler(
+        new NotFoundException('User not found'),
+        { devMode: true },
+      );
+
+      expect(result.status).toBe(404);
+      expect(result.body.error.code).toBe('NotFound');
+      expect(result.body.error.message).toBe('User not found');
+      expect(result.body.error.stack).toBeUndefined();
+    });
+
+    it('does not change ValidationException behavior', () => {
+      const errors = [{ path: 'email', message: 'Invalid email' }];
+      const result = entityErrorHandler(new ValidationException(errors), {
+        devMode: true,
+      });
+
+      expect(result.status).toBe(422);
+      expect(result.body.error.code).toBe('ValidationError');
+      expect(result.body.error.details).toEqual(errors);
+      expect(result.body.error.stack).toBeUndefined();
+    });
+  });
 });
