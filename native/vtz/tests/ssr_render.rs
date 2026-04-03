@@ -810,8 +810,8 @@ async fn framework_app_without_ui_server_errors_instead_of_legacy_fallback() {
     );
     let err = result.unwrap_err().to_string();
     assert!(
-        err.contains("@vertz/ui"),
-        "Error should mention @vertz/ui. Got: {}",
+        err.contains("@vertz/ui-server is missing"),
+        "Error should indicate @vertz/ui-server is missing. Got: {}",
         err,
     );
 }
@@ -888,8 +888,8 @@ async fn framework_app_with_broken_ui_server_errors() {
     );
     let err = result.unwrap_err().to_string();
     assert!(
-        err.contains("@vertz/ui-server"),
-        "Error should mention @vertz/ui-server. Got: {}",
+        err.contains("could not be loaded"),
+        "Error should indicate @vertz/ui-server is installed but broken. Got: {}",
         err,
     );
 }

@@ -386,29 +386,31 @@ async fn isolate_event_loop(
                             let ui_server_dir = root_dir.join("node_modules/@vertz/ui-server");
                             let ui_dir = root_dir.join("node_modules/@vertz/ui");
 
-                            if ui_server_dir.exists() {
-                                let msg = format!(
+                            let fallback_error = if ui_server_dir.exists() {
+                                Some(format!(
                                     "@vertz/ui-server is installed but ssrRenderSinglePass could not be loaded ({}). \
                                      Check that @vertz/ui-server is up-to-date and rebuilt.",
                                     e
-                                );
-                                eprintln!("[Server] {}", msg);
-                                let safe = serde_json::to_string(&msg).unwrap_or_default();
-                                let _ = runtime.execute_script_void(
-                                    "<ssr-fallback-error>",
-                                    &format!("globalThis.__vertz_ssr_fallback_error = {};", safe),
-                                );
+                                ))
                             } else if ui_dir.exists() {
-                                let msg =
+                                Some(
                                     "@vertz/ui is installed but @vertz/ui-server is missing. \
-                                     Install it for SSR support: bun add @vertz/ui-server"
-                                        .to_string();
+                                     Install it for SSR support: vertz add @vertz/ui-server"
+                                        .to_string(),
+                                )
+                            } else {
+                                None
+                            };
+
+                            if let Some(msg) = fallback_error {
                                 eprintln!("[Server] {}", msg);
                                 let safe = serde_json::to_string(&msg).unwrap_or_default();
-                                let _ = runtime.execute_script_void(
+                                if let Err(e) = runtime.execute_script_void(
                                     "<ssr-fallback-error>",
                                     &format!("globalThis.__vertz_ssr_fallback_error = {};", safe),
-                                );
+                                ) {
+                                    eprintln!("[Server] Failed to set SSR fallback error: {}", e);
+                                }
                             } else {
                                 eprintln!(
                                     "[Server] @vertz/ui-server/ssr not available ({}), using legacy render",
