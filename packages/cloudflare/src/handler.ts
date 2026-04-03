@@ -170,10 +170,10 @@ function withSecurityHeaders(response: Response, nonce: string): Response {
 // Helpers
 // ---------------------------------------------------------------------------
 
-function stripBasePath(request: Request, basePath: string): Request {
+function stripApiPrefix(request: Request, apiPrefix: string): Request {
   const url = new URL(request.url);
-  if (url.pathname.startsWith(basePath)) {
-    url.pathname = url.pathname.slice(basePath.length) || '/';
+  if (url.pathname.startsWith(apiPrefix)) {
+    url.pathname = url.pathname.slice(apiPrefix.length) || '/';
     return new Request(url.toString(), request);
   }
   return request;
@@ -246,7 +246,7 @@ function createSimpleHandler(
   return {
     async fetch(request: Request, _env: unknown, _ctx: ExecutionContext): Promise<Response> {
       if (options?.apiPrefix) {
-        request = stripBasePath(request, options.apiPrefix);
+        request = stripApiPrefix(request, options.apiPrefix);
       }
       try {
         return await handler(request);
@@ -385,7 +385,7 @@ function createFullStackHandler(config: CloudflareHandlerConfig): CloudflareWork
       const pathname = isRelative ? (rawUrl.split('?')[0] ?? '/') : new URL(rawUrl).pathname;
       const isLocal = isRelative || new URL(rawUrl).origin === origin;
 
-      if (isLocal && pathname.startsWith(apiPrefix)) {
+      if (isLocal && apiPrefix !== '' && pathname.startsWith(apiPrefix)) {
         const absoluteUrl = isRelative ? `${origin}${rawUrl}` : rawUrl;
         const req = new Request(absoluteUrl, init);
         return getApiHandler(app)(req);
