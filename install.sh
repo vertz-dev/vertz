@@ -62,8 +62,9 @@ fi
 # Make executable
 chmod +x "$INSTALL_DIR/vtz"
 
-# Create vertz alias
+# Create aliases
 ln -sf "$INSTALL_DIR/vtz" "$INSTALL_DIR/vertz"
+ln -sf "$INSTALL_DIR/vtz" "$INSTALL_DIR/vtzx"
 
 # Verify
 "$INSTALL_DIR/vtz" --version 2>/dev/null || true
