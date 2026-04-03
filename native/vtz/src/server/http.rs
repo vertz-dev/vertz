@@ -1227,6 +1227,11 @@ pub async fn start_server_with_lifecycle(
                                     watcher_state.error_broadcaster
                                         .clear_file(ErrorCategory::Build, &file_str)
                                         .await;
+                                    // Also clear resolve errors — a changed import may
+                                    // now point to a valid module.
+                                    watcher_state.error_broadcaster
+                                        .clear_category(ErrorCategory::Resolve)
+                                        .await;
                                     // Also clear SSR errors — a fixed source file means SSR
                                     // will succeed on next render.
                                     watcher_state.error_broadcaster
