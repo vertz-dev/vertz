@@ -243,8 +243,8 @@ pub fn refine_error_line(source: &str, approx_line: u32, error_message: &str) ->
     let end = (approx_idx + range + 1).min(lines.len());
 
     // Search for the error text in nearby lines.
-    for i in start..end {
-        if lines[i].contains(search_text) {
+    for (i, line) in lines.iter().enumerate().take(end).skip(start) {
+        if line.contains(search_text) {
             return (i + 1) as u32;
         }
     }

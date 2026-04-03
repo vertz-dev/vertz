@@ -379,6 +379,7 @@ mod tests {
             enable_hmr: true,
             ssr_data: None,
             head_tags: None,
+            root_dir: None,
         };
         let html = assemble_ssr_document(&opts);
 

@@ -620,10 +620,7 @@ async fn client_error_handler(
     let clean_message = req
         .message
         .strip_prefix("Uncaught ")
-        .and_then(|rest| {
-            // "TypeError: foo" → "TypeError: foo", "foo" → "foo"
-            Some(rest.to_string())
-        })
+        .map(|rest| rest.to_string())
         .unwrap_or_else(|| req.message.clone());
     // Strip the origin prefix from file paths so they're relative to the project.
     let mut error = DevError::runtime(&clean_message);
