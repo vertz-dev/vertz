@@ -43,7 +43,14 @@ export interface AppConfig {
   cors?: CorsConfig;
   /** Entity definitions for auto-CRUD route generation */
   entities?: EntityDefinition[];
-  /** API prefix for entity routes (default: '/api/') */
+  /**
+   * API prefix for entity, service, and agent routes.
+   * @default '/api'
+   *
+   * In full-stack mode (when a UI entry is detected), an empty prefix is not
+   * allowed — the dev server and Cloudflare adapter will throw a startup error.
+   * For API-only apps, set to '' to serve routes at the root.
+   */
   apiPrefix?: string;
   /** Enable response schema validation in dev mode (logs warnings but doesn't break response) */
   validateResponses?: boolean;
