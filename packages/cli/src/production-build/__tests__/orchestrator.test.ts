@@ -35,7 +35,6 @@ vi.mock('@vertz/compiler', () => {
         compiler: {
           sourceDir: 'src',
           outputDir: '.vertz/generated',
-          entryFile: 'src/app.ts',
           schemas: {
             enforceNaming: true,
             enforcePlacement: true,

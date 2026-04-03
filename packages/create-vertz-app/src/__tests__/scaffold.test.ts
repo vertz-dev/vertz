@@ -154,11 +154,11 @@ describe('scaffold', () => {
       expect(tsconfig.compilerOptions.types).toContain('bun-types');
     });
 
-    it('vertz.config.ts includes compiler entry and codegen config', async () => {
+    it('vertz.config.ts includes codegen config', async () => {
       await scaffold(tempDir, defaultOptions);
 
       const content = await fs.readFile(projectPath('vertz.config.ts'), 'utf-8');
-      expect(content).toContain("entryFile: 'src/api/server.ts'");
+      expect(content).not.toContain('entryFile');
       expect(content).toContain('export const codegen');
       expect(content).toContain("generators: ['typescript']");
     });

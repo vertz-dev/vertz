@@ -136,9 +136,23 @@ describe('categorizeChanges', () => {
 
   it('flags app entry as full recompile', () => {
     const changes: FileChange[] = [{ path: 'src/app.ts', kind: 'modified' }];
-    const result = categorizeChanges(changes, { entryFile: 'src/app.ts' });
+    const result = categorizeChanges(changes);
 
     expect(result.requiresFullRecompile).toBe(true);
+  });
+
+  it('flags server entry as full recompile', () => {
+    const changes: FileChange[] = [{ path: 'src/server.ts', kind: 'modified' }];
+    const result = categorizeChanges(changes);
+
+    expect(result.requiresFullRecompile).toBe(true);
+  });
+
+  it('does not flag nested server.ts as full recompile', () => {
+    const changes: FileChange[] = [{ path: 'src/api/server.ts', kind: 'modified' }];
+    const result = categorizeChanges(changes);
+
+    expect(result.requiresFullRecompile).toBe(false);
   });
 
   it('flags .env as reboot', () => {
@@ -163,7 +177,7 @@ describe('categorizeChanges', () => {
       { path: 'src/app.ts', kind: 'modified' },
       { path: 'src/modules/user/user.schema.ts', kind: 'modified' },
     ];
-    const result = categorizeChanges(changes, { entryFile: 'src/app.ts' });
+    const result = categorizeChanges(changes);
 
     expect(result.requiresReboot).toBe(true);
     expect(result.requiresFullRecompile).toBe(true);

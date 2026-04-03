@@ -14,10 +14,6 @@ describe('defaultCLIConfig', () => {
     expect(defaultCLIConfig.compiler?.sourceDir).toBe('src');
   });
 
-  it('has compiler.entryFile set to src/app.ts', () => {
-    expect(defaultCLIConfig.compiler?.entryFile).toBe('src/app.ts');
-  });
-
   it('has compiler.outputDir set to .vertz/generated', () => {
     expect(defaultCLIConfig.compiler?.outputDir).toBe('.vertz/generated');
   });

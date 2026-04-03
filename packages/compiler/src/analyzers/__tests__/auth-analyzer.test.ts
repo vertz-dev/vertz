@@ -11,7 +11,6 @@ describe('AuthAnalyzer', () => {
     project = new Project({ useInMemoryFileSystem: true });
     config = {
       rootDir: '/',
-      entryFile: 'index.ts',
       compiler: {
         outputDir: '.vertz',
         exclude: [],

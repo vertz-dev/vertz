@@ -20,7 +20,6 @@ export interface ValidationConfig {
 export interface CompilerConfig {
   sourceDir: string;
   outputDir: string;
-  entryFile: string;
   schemas: SchemaConfig;
   openapi: OpenAPIConfig;
   validation: ValidationConfig;
@@ -60,7 +59,6 @@ export function resolveConfig(config?: VertzConfig): ResolvedConfig {
     compiler: {
       sourceDir: config?.compiler?.sourceDir ?? 'src',
       outputDir: config?.compiler?.outputDir ?? '.vertz/generated',
-      entryFile: config?.compiler?.entryFile ?? 'src/app.ts',
       schemas: {
         enforceNaming: config?.compiler?.schemas?.enforceNaming ?? true,
         enforcePlacement: config?.compiler?.schemas?.enforcePlacement ?? true,

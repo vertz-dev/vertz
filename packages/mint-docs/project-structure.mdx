@@ -115,30 +115,16 @@ export default function App() {
 }
 ```
 
-## `compiler.entryFile` vs server entry
-
-These are two independent concepts that are often confused:
-
-| Config                                    | What it does                                                                         | What it does NOT do              |
-| ----------------------------------------- | ------------------------------------------------------------------------------------ | -------------------------------- |
-| `compiler.entryFile` in `vertz.config.ts` | Tells the **code generator** which file to analyze for entity and access definitions | Does NOT start the API server    |
-| `src/server.ts` (file convention)         | Auto-detected as the **runtime** API server entry                                    | Does NOT affect codegen scanning |
-
-<Warning>
-  The default value for `compiler.entryFile` is `src/app.ts`. You only need to set it if your entity
-  definitions live in a different file than the default. The codegen docs show `entryFile:
-  'src/api/server.ts'` as an example — that configures where codegen looks for entities, not where
-  the API server starts.
-</Warning>
-
-**Can the same file be both?** Yes. If your `compiler.entryFile` points to `src/server.ts` and your server entry is also `src/server.ts`, that's fine — they are two independent discovery mechanisms that happen to reference the same file.
-
 ## Convention over configuration
 
-There is no `server.entryFile` config option. This is a deliberate choice:
+All entry points are discovered by file convention. There is no config option to set the server entry or the codegen scan target — both use `src/server.ts` automatically:
+
+- **Runtime** discovers `src/server.ts` and creates a persistent isolate for API requests
+- **Codegen** scans all files in `src/` for entity and access definitions — no entry file config needed
+
+This means `vertz.config.ts` has zero entry-point configuration. The compiler options (`sourceDir`, `outputDir`, etc.) control where to look and where to write, but the specific entry files are always convention-based.
 
 - **One canonical path.** `src/server.ts` is predictable for developers and LLMs alike. No config to read, no indirection to trace.
-- **No second source of truth.** Adding a config option alongside the file convention creates two places to check — especially confusing given that `compiler.entryFile` already exists with a similar-sounding name.
 - **Re-export for unusual layouts.** If your server logic lives at a non-standard path, create a `src/server.ts` that re-exports from that location:
 
 ```ts

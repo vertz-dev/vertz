@@ -140,7 +140,6 @@ export {
 // Incremental compiler
 export type {
   CategorizedChanges,
-  CategorizeOptions,
   FileCategory,
   FileChange,
   IncrementalResult,

@@ -104,7 +104,6 @@ export class PipelineOrchestrator {
       compiler: {
         sourceDir: this.config.sourceDir,
         outputDir: this.config.outputDir,
-        entryFile: 'src/app.ts',
         schemas: {
           enforceNaming: true,
           enforcePlacement: true,

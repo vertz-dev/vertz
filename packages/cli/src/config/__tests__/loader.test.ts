@@ -58,11 +58,6 @@ describe('loadConfig', () => {
     expect(config.compiler?.sourceDir).toBe('src');
   });
 
-  it('returns defaults with compiler entryFile', async () => {
-    const config = await loadConfig();
-    expect(config.compiler?.entryFile).toBe('src/app.ts');
-  });
-
   it('returns defaults with compiler outputDir', async () => {
     const config = await loadConfig();
     expect(config.compiler?.outputDir).toBe('.vertz/generated');
@@ -92,7 +87,6 @@ describe('loadConfig', () => {
       // Deep-merged: user's sourceDir wins
       expect(config.compiler?.sourceDir).toBe('lib');
       // Deep-merged: defaults preserved for un-overridden keys
-      expect(config.compiler?.entryFile).toBe('src/app.ts');
       expect(config.compiler?.outputDir).toBe('.vertz/generated');
       // Non-overridden top-level default
       expect(config.forceGenerate).toBe(false);
@@ -127,14 +121,13 @@ describe('loadConfig', () => {
     mkdirSync(dir, { recursive: true });
     writeFileSync(
       join(dir, 'vertz.config.ts'),
-      `export default { compiler: { entryFile: 'src/main.ts' } };`,
+      `export default { compiler: { sourceDir: 'app' } };`,
     );
 
     try {
       const config = await loadConfig(join(dir, 'vertz.config.ts'));
-      expect(config.compiler?.entryFile).toBe('src/main.ts');
+      expect(config.compiler?.sourceDir).toBe('app');
       // Other compiler keys should remain from defaults
-      expect(config.compiler?.sourceDir).toBe('src');
       expect(config.compiler?.outputDir).toBe('.vertz/generated');
     } finally {
       rmSync(dir, { recursive: true, force: true });

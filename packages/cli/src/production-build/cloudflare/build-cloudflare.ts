@@ -138,9 +138,6 @@ async function analyzeEntities(
       compiler: {
         sourceDir: 'src',
         outputDir: '.vertz/generated',
-        entryFile: detected.serverEntry
-          ? detected.serverEntry.replace(`${detected.projectRoot}/`, '')
-          : 'src/server.ts',
         schemas: { enforceNaming: true, enforcePlacement: true },
         openapi: {
           output: '.vertz/generated/openapi.json',
