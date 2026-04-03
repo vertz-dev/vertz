@@ -283,14 +283,54 @@ const MAX_AUTO_INSTALL_RETRIES: usize = 5;
 /// Returns `Some("pkg_name")` if the error matches the known format from
 /// `VertzModuleLoader::resolve_node_module()`, or `None` for other errors.
 fn parse_missing_package(error: &AnyError) -> Option<String> {
+    use crate::runtime::module_loader::{MISSING_MODULE_PREFIX, MISSING_MODULE_SUFFIX};
+
     let msg = error.to_string();
-    let prefix = "Cannot find module '";
-    let start = msg.find(prefix)? + prefix.len();
-    let end = msg[start..].find("' in node_modules")? + start;
+    let start = msg.find(MISSING_MODULE_PREFIX)? + MISSING_MODULE_PREFIX.len();
+    let end = msg[start..].find(MISSING_MODULE_SUFFIX)? + start;
     let specifier = &msg[start..end];
     // Extract just the package name (strip subpath)
     let (pkg_name, _) = crate::deps::resolve::split_package_specifier(specifier);
     Some(pkg_name.to_string())
+}
+
+/// Attempt auto-install for a missing package detected in a module load error.
+///
+/// Returns `true` if the caller should `continue 'init` (package was installed
+/// and a retry is warranted). Returns `false` if no retry should happen.
+async fn try_auto_install(
+    installer: &AutoInstaller,
+    error: &AnyError,
+    installed_packages: &mut HashSet<String>,
+    retry_count: &mut usize,
+    context: &str,
+) -> bool {
+    if let Some(pkg_name) = parse_missing_package(error) {
+        if installed_packages.contains(&pkg_name) {
+            eprintln!(
+                "[Server] Package '{}' already installed but module still fails — skipping re-install ({})",
+                pkg_name, context
+            );
+            return false;
+        }
+        if *retry_count >= MAX_AUTO_INSTALL_RETRIES {
+            eprintln!(
+                "[Server] Max auto-install retries ({}) reached — giving up ({})",
+                MAX_AUTO_INSTALL_RETRIES, context
+            );
+            return false;
+        }
+        eprintln!(
+            "[Server] Missing package '{}' during {} — auto-installing",
+            pkg_name, context
+        );
+        if installer.install(&pkg_name).await.is_ok() {
+            installed_packages.insert(pkg_name);
+            *retry_count += 1;
+            return true;
+        }
+    }
+    false
 }
 
 /// The main event loop running on the dedicated V8 thread.
@@ -362,22 +402,17 @@ async fn isolate_event_loop(
 
             match runtime.load_main_module(&entry_specifier).await {
                 Err(e) => {
-                    // Check if this is a missing package we can auto-install
                     if let Some(ref installer) = auto_installer {
-                        if let Some(pkg_name) = parse_missing_package(&e) {
-                            if !installed_packages.contains(&pkg_name)
-                                && retry_count < MAX_AUTO_INSTALL_RETRIES
-                            {
-                                eprintln!(
-                                    "[Server] Missing package '{}' during SSR init — auto-installing",
-                                    pkg_name
-                                );
-                                if installer.install(&pkg_name).await.is_ok() {
-                                    installed_packages.insert(pkg_name);
-                                    retry_count += 1;
-                                    continue 'init;
-                                }
-                            }
+                        if try_auto_install(
+                            installer,
+                            &e,
+                            &mut installed_packages,
+                            &mut retry_count,
+                            "SSR entry load",
+                        )
+                        .await
+                        {
+                            continue 'init;
                         }
                     }
                     eprintln!(
@@ -455,23 +490,18 @@ async fn isolate_event_loop(
                                     );
                                 }
                                 Err(e) => {
-                                    // Check if this is a missing package for SSR init
                                     if let Some(ref installer) = auto_installer {
-                                        if let Some(pkg_name) = parse_missing_package(&e) {
-                                            if !installed_packages.contains(&pkg_name)
-                                                && retry_count < MAX_AUTO_INSTALL_RETRIES
-                                            {
-                                                eprintln!(
-                                                    "[Server] Missing package '{}' during SSR init — auto-installing",
-                                                    pkg_name
-                                                );
-                                                let _ = std::fs::remove_file(&ssr_init_path);
-                                                if installer.install(&pkg_name).await.is_ok() {
-                                                    installed_packages.insert(pkg_name);
-                                                    retry_count += 1;
-                                                    continue 'init;
-                                                }
-                                            }
+                                        let _ = std::fs::remove_file(&ssr_init_path);
+                                        if try_auto_install(
+                                            installer,
+                                            &e,
+                                            &mut installed_packages,
+                                            &mut retry_count,
+                                            "SSR init (@vertz/ui-server/ssr)",
+                                        )
+                                        .await
+                                        {
+                                            continue 'init;
                                         }
                                     }
                                     eprintln!(
@@ -606,22 +636,17 @@ async fn isolate_event_loop(
                     }
                 }
                 Err(e) => {
-                    // Check if this is a missing package we can auto-install
                     if let Some(ref installer) = auto_installer {
-                        if let Some(pkg_name) = parse_missing_package(&e) {
-                            if !installed_packages.contains(&pkg_name)
-                                && retry_count < MAX_AUTO_INSTALL_RETRIES
-                            {
-                                eprintln!(
-                                    "[Server] Missing package '{}' during server init — auto-installing",
-                                    pkg_name
-                                );
-                                if installer.install(&pkg_name).await.is_ok() {
-                                    installed_packages.insert(pkg_name);
-                                    retry_count += 1;
-                                    continue 'init;
-                                }
-                            }
+                        if try_auto_install(
+                            installer,
+                            &e,
+                            &mut installed_packages,
+                            &mut retry_count,
+                            "server entry load",
+                        )
+                        .await
+                        {
+                            continue 'init;
                         }
                     }
                     eprintln!("[Server] Failed to load server module: {}", e);
@@ -1220,6 +1245,7 @@ async fn dispatch_ssr_request(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::errors::broadcaster::ErrorBroadcaster;
 
     #[test]
     fn test_default_options() {
@@ -2256,5 +2282,60 @@ mod tests {
     fn test_parse_missing_package_unrelated_error() {
         let err: AnyError = deno_core::anyhow::anyhow!("SyntaxError: unexpected token");
         assert_eq!(parse_missing_package(&err), None);
+    }
+
+    /// Verify that an error built from the shared constants is correctly parsed.
+    /// This guards against format drift between module_loader.rs and the parser.
+    #[test]
+    fn test_parse_missing_package_matches_shared_constants() {
+        use crate::runtime::module_loader::{MISSING_MODULE_PREFIX, MISSING_MODULE_SUFFIX};
+
+        let err: AnyError = deno_core::anyhow::anyhow!(
+            "{}{}{} (searched from /project)",
+            MISSING_MODULE_PREFIX,
+            "express",
+            MISSING_MODULE_SUFFIX,
+        );
+        assert_eq!(parse_missing_package(&err), Some("express".to_string()));
+    }
+
+    #[tokio::test]
+    async fn test_try_auto_install_no_match() {
+        let installer = AutoInstaller::new(PathBuf::from("/tmp/test"), ErrorBroadcaster::new());
+        let err: AnyError = deno_core::anyhow::anyhow!("SyntaxError: unexpected token");
+        let mut installed = HashSet::new();
+        let mut retries = 0usize;
+
+        let result = try_auto_install(&installer, &err, &mut installed, &mut retries, "test").await;
+        assert!(!result);
+        assert_eq!(retries, 0);
+    }
+
+    #[tokio::test]
+    async fn test_try_auto_install_skips_already_installed() {
+        let installer = AutoInstaller::new(PathBuf::from("/tmp/test"), ErrorBroadcaster::new());
+        let err: AnyError = deno_core::anyhow::anyhow!(
+            "Cannot find module 'zod' in node_modules (searched from /project)"
+        );
+        let mut installed = HashSet::from(["zod".to_string()]);
+        let mut retries = 0usize;
+
+        let result = try_auto_install(&installer, &err, &mut installed, &mut retries, "test").await;
+        assert!(!result, "Should not retry for already-installed package");
+        assert_eq!(retries, 0);
+    }
+
+    #[tokio::test]
+    async fn test_try_auto_install_respects_max_retries() {
+        let installer = AutoInstaller::new(PathBuf::from("/tmp/test"), ErrorBroadcaster::new());
+        let err: AnyError = deno_core::anyhow::anyhow!(
+            "Cannot find module 'zod' in node_modules (searched from /project)"
+        );
+        let mut installed = HashSet::new();
+        let mut retries = MAX_AUTO_INSTALL_RETRIES;
+
+        let result = try_auto_install(&installer, &err, &mut installed, &mut retries, "test").await;
+        assert!(!result, "Should not retry when max retries reached");
+        assert_eq!(retries, MAX_AUTO_INSTALL_RETRIES);
     }
 }
