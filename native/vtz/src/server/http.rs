@@ -449,6 +449,7 @@ async fn ai_render_handler(
                         &e.to_string(),
                         &state.root_dir,
                         &state.entry_file,
+                        &state.pipeline,
                     );
                     state.error_broadcaster.report_error(ssr_error).await;
                 }
@@ -856,6 +857,7 @@ async fn dev_server_handler(
                                 &e.to_string(),
                                 &state.root_dir,
                                 &state.entry_file,
+                                &state.pipeline,
                             );
                             state.error_broadcaster.report_error(ssr_error).await;
                             // Fall through to client-only shell
@@ -904,6 +906,7 @@ fn parse_ssr_error_for_overlay(
     raw: &str,
     root_dir: &std::path::Path,
     entry_file: &std::path::Path,
+    pipeline: &crate::compiler::pipeline::CompilationPipeline,
 ) -> DevError {
     // Strip the V8 wrapper prefix ("SSR event loop error: ", "SSR framework render error: ").
     let cleaned = raw
@@ -942,11 +945,27 @@ fn parse_ssr_error_for_overlay(
                     let col: u32 = parts[0].parse().unwrap_or(0);
                     // Skip framework internals — only use user-code frames.
                     if !file.contains("node_modules/") && !file.contains("@deps/") {
-                        error = error.with_file(file).with_location(line, col);
-                        // Read the source file for a code snippet.
+                        // Try source map resolution: compiled line → original line.
+                        // Ensure the file is in the browser pipeline cache (triggers
+                        // compilation if not already cached, producing source maps).
                         let full_path = root_dir.join(file);
-                        if let Ok(source) = std::fs::read_to_string(&full_path) {
-                            error = error.with_snippet(extract_snippet(&source, line, 3));
+                        let _ = pipeline.compile_for_browser(&full_path);
+                        let mapper = crate::errors::source_mapper::SourceMapper::new(pipeline.cache());
+                        let resolved = mapper.resolve(&full_path, line, col);
+                        if let Some(ref mapped) = resolved {
+                            // Source map resolved — show original source with original line.
+                            error = error.with_file(&mapped.file).with_location(mapped.line, mapped.column);
+                            let source_path = root_dir.join(&mapped.file);
+                            if let Ok(source) = std::fs::read_to_string(&source_path) {
+                                error = error.with_snippet(extract_snippet(&source, mapped.line, 3));
+                            }
+                        } else {
+                            // Source map didn't cover this line — show file with compiled line,
+                            // but use compiled code for the snippet (line numbers match V8 output).
+                            error = error.with_file(file).with_location(line, col);
+                            if let Some(cached) = pipeline.cache().get_unchecked(&full_path) {
+                                error = error.with_snippet(extract_snippet(&cached.code, line, 3));
+                            }
                         }
                         break;
                     }
