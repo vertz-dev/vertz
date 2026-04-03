@@ -238,6 +238,7 @@ pub fn build_router(
         auto_install_lock: Arc::new(tokio::sync::Mutex::new(())),
         auto_install_inflight: Arc::new(std::sync::Mutex::new(std::collections::HashMap::new())),
         auto_install_failed: Arc::new(std::sync::Mutex::new(std::collections::HashSet::new())),
+        last_file_change: Arc::new(std::sync::Mutex::new(None)),
     });
 
     // Routes: HMR WebSocket, error WebSocket, diagnostics, AI API, fallback
@@ -251,6 +252,10 @@ pub fn build_router(
         .route(
             "/__vertz_ai/navigate",
             axum::routing::post(ai_navigate_handler),
+        )
+        .route(
+            "/__vertz_api/report-error",
+            axum::routing::post(client_error_handler),
         )
         .route("/__vertz_mcp/sse", get(mcp::mcp_sse_handler))
         .route(
@@ -439,6 +444,13 @@ async fn ai_render_handler(
                     state
                         .console_log
                         .push(LogLevel::Error, error_msg, Some("ai"));
+                    // Report to error broadcaster so the overlay shows it.
+                    let ssr_error = parse_ssr_error_for_overlay(
+                        &e.to_string(),
+                        &state.root_dir,
+                        &state.entry_file,
+                    );
+                    state.error_broadcaster.report_error(ssr_error).await;
                 }
             }
         }
@@ -550,6 +562,96 @@ async fn ai_navigate_handler(
         .status(StatusCode::OK)
         .header(header::CONTENT_TYPE, "application/json; charset=utf-8")
         .body(Body::from(json.to_string()))
+        .unwrap()
+}
+
+/// Client error reporting endpoint: `POST /__vertz_api/report-error`
+///
+/// Receives runtime errors from the browser (window.onerror, unhandledrejection)
+/// and reports them through the error broadcaster so they appear in the overlay,
+/// terminal, and error log file.
+async fn client_error_handler(
+    State(state): State<Arc<DevServerState>>,
+    body: axum::body::Bytes,
+) -> axum::response::Response<Body> {
+    #[derive(serde::Deserialize)]
+    struct ClientError {
+        message: String,
+        file: Option<String>,
+        line: Option<u32>,
+        column: Option<u32>,
+        stack: Option<String>,
+    }
+
+    let req: ClientError = match serde_json::from_slice(&body) {
+        Ok(r) => r,
+        Err(e) => {
+            return axum::response::Response::builder()
+                .status(StatusCode::BAD_REQUEST)
+                .header(header::CONTENT_TYPE, "application/json; charset=utf-8")
+                .body(Body::from(
+                    serde_json::json!({ "error": format!("Invalid JSON: {}", e) }).to_string(),
+                ))
+                .unwrap();
+        }
+    };
+
+    // Reject stale error reports that arrive after a file change.
+    // When a file is saved, the watcher clears runtime errors. But a stale
+    // client tab might still POST an error for the old (broken) code. If
+    // this report arrives within a short grace window after the file change,
+    // ignore it — the file was just fixed and SSR will render the new code.
+    if let Ok(ts) = state.last_file_change.lock() {
+        if let Some(changed_at) = *ts {
+            if changed_at.elapsed() < std::time::Duration::from_secs(5) {
+                return axum::response::Response::builder()
+                    .status(StatusCode::OK)
+                    .header(header::CONTENT_TYPE, "application/json; charset=utf-8")
+                    .body(Body::from(r#"{"ok":true,"ignored":"stale"}"#))
+                    .unwrap();
+            }
+        }
+    }
+
+    // Build a DevError from the client report.
+    // Strip "Uncaught Error: " / "Uncaught TypeError: " etc. prefix from browser-reported messages.
+    let clean_message = req
+        .message
+        .strip_prefix("Uncaught ")
+        .and_then(|rest| {
+            // "TypeError: foo" → "TypeError: foo", "foo" → "foo"
+            Some(rest.to_string())
+        })
+        .unwrap_or_else(|| req.message.clone());
+    // Strip the origin prefix from file paths so they're relative to the project.
+    let mut error = DevError::runtime(&clean_message);
+    if let Some(ref file) = req.file {
+        // Client sends full URLs like "http://localhost:3000/src/pages/task-list.tsx"
+        // Strip the origin to get a relative path.
+        let relative = file
+            .strip_prefix(&format!("http://localhost:{}/", state.port))
+            .or_else(|| file.strip_prefix(&format!("https://localhost:{}/", state.port)))
+            .unwrap_or(file);
+        error = error.with_file(relative);
+    }
+    if let (Some(line), Some(col)) = (req.line, req.column) {
+        error = error.with_location(line, col);
+    }
+    // Use the stack trace as a code snippet for context.
+    if let Some(ref stack) = req.stack {
+        // Take the first few lines of the stack for the snippet.
+        let snippet: String = stack.lines().take(6).collect::<Vec<_>>().join("\n");
+        if !snippet.is_empty() {
+            error = error.with_snippet(snippet);
+        }
+    }
+
+    state.error_broadcaster.report_error(error).await;
+
+    axum::response::Response::builder()
+        .status(StatusCode::OK)
+        .header(header::CONTENT_TYPE, "application/json; charset=utf-8")
+        .body(Body::from(r#"{"ok":true}"#))
         .unwrap()
 }
 
@@ -749,6 +851,13 @@ async fn dev_server_handler(
                             state
                                 .console_log
                                 .push(LogLevel::Error, error_msg, Some("ssr"));
+                            // Report to error broadcaster so the overlay shows it.
+                            let ssr_error = parse_ssr_error_for_overlay(
+                                &e.to_string(),
+                                &state.root_dir,
+                                &state.entry_file,
+                            );
+                            state.error_broadcaster.report_error(ssr_error).await;
                             // Fall through to client-only shell
                         }
                     }
@@ -782,6 +891,76 @@ async fn dev_server_handler(
         .header(header::CONTENT_TYPE, "text/plain")
         .body(Body::from("Not Found"))
         .unwrap()
+}
+
+/// Parse an SSR error string into a structured DevError for the overlay.
+///
+/// V8 error strings look like:
+///   "SSR event loop error: Error: My message at Foo (file:///abs/path/src/app.tsx:42:9) at ..."
+///
+/// This extracts the user-facing message and the first user-code stack frame,
+/// converting absolute `file:///` paths to project-relative paths.
+fn parse_ssr_error_for_overlay(
+    raw: &str,
+    root_dir: &std::path::Path,
+    entry_file: &std::path::Path,
+) -> DevError {
+    // Strip the V8 wrapper prefix ("SSR event loop error: ", "SSR framework render error: ").
+    let cleaned = raw
+        .strip_prefix("SSR event loop error: ")
+        .or_else(|| raw.strip_prefix("SSR framework render error: "))
+        .unwrap_or(raw);
+
+    // Split into message and stack at the first " at " that follows an error message.
+    // Pattern: "Error: <message> at <frame>"
+    let (message, stack) = if let Some(idx) = cleaned.find(" at ") {
+        (&cleaned[..idx], Some(&cleaned[idx..]))
+    } else {
+        (cleaned, None)
+    };
+
+    let mut error = DevError::ssr(message);
+
+    // Extract the first user-code frame from the stack.
+    // Frames look like: " at Foo (file:///abs/path/src/pages/task-list.tsx:41:9)"
+    // or: " at file:///abs/path/src/pages/task-list.tsx:41:9"
+    if let Some(stack_str) = stack {
+        let root_str = root_dir.to_string_lossy();
+        for frame in stack_str.split(" at ").skip(1) {
+            // Extract file:line:col from the frame.
+            let file_prefix = format!("file:///{}", root_str.trim_start_matches('/'));
+            if let Some(file_start) = frame.find(&file_prefix) {
+                let rest = &frame[file_start + file_prefix.len()..];
+                // rest looks like "/src/pages/task-list.tsx:41:9)" or "/src/pages/task-list.tsx:41:9"
+                let rest = rest.trim_start_matches('/');
+                let rest = rest.trim_end_matches(')');
+                // Split into path:line:col
+                let parts: Vec<&str> = rest.rsplitn(3, ':').collect();
+                if parts.len() == 3 {
+                    let file = parts[2];
+                    let line: u32 = parts[1].parse().unwrap_or(0);
+                    let col: u32 = parts[0].parse().unwrap_or(0);
+                    // Skip framework internals — only use user-code frames.
+                    if !file.contains("node_modules/") && !file.contains("@deps/") {
+                        error = error.with_file(file).with_location(line, col);
+                        // Read the source file for a code snippet.
+                        let full_path = root_dir.join(file);
+                        if let Ok(source) = std::fs::read_to_string(&full_path) {
+                            error = error.with_snippet(extract_snippet(&source, line, 3));
+                        }
+                        break;
+                    }
+                }
+            }
+        }
+    }
+
+    // Fallback: if no user-code frame was found, use the entry file.
+    if error.file.is_none() {
+        error = error.with_file(entry_file.to_string_lossy());
+    }
+
+    error
 }
 
 /// Format CSS entries from persistent isolate SSR into inline style tags.
@@ -1222,6 +1401,12 @@ pub async fn start_server_with_lifecycle(
                                         continue;
                                     }
 
+                                    // Record the file change timestamp so the client
+                                    // error handler can reject stale reports.
+                                    if let Ok(mut ts) = watcher_state.last_file_change.lock() {
+                                        *ts = Some(std::time::Instant::now());
+                                    }
+
                                     // Clear any previous errors for this file
                                     let file_str = change.path.to_string_lossy().to_string();
                                     watcher_state.error_broadcaster
@@ -1236,6 +1421,11 @@ pub async fn start_server_with_lifecycle(
                                     // will succeed on next render.
                                     watcher_state.error_broadcaster
                                         .clear_category(ErrorCategory::Ssr)
+                                        .await;
+                                    // Also clear runtime errors — the previous client-side
+                                    // errors may no longer apply after a code change.
+                                    watcher_state.error_broadcaster
+                                        .clear_category(ErrorCategory::Runtime)
                                         .await;
 
                                     // Attempt recompilation for error recovery

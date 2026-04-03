@@ -895,6 +895,7 @@ mod tests {
             auto_install_failed: std::sync::Arc::new(std::sync::Mutex::new(
                 std::collections::HashSet::new(),
             )),
+            last_file_change: std::sync::Arc::new(std::sync::Mutex::new(None)),
         })
     }
 

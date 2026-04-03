@@ -356,6 +356,127 @@
     dismiss: removeBar,
   };
 
+  // ── Client-Side Error Capture ─────────────────────────────────
+  //
+  // Captures uncaught runtime errors and unhandled promise rejections,
+  // then reports them to the server so they appear in the overlay,
+  // terminal output, and error log file.
+
+  var lastReportedError = '';
+  var reportDebounceTimer = null;
+
+  function reportClientError(message, source, lineno, colno, stack) {
+    // Deduplicate rapid-fire reports of the same error.
+    // Strip "Uncaught Error: " / "Uncaught " prefix so that the same error
+    // reported via window.onerror (prefixed) and console.error (raw) deduplicates.
+    var normalizedMsg = String(message)
+      .replace(/^Uncaught\s+\w+:\s*/, '')
+      .replace(/^Uncaught\s+/, '');
+    var key = normalizedMsg + '|' + (source || '') + '|' + (lineno || 0);
+    if (key === lastReportedError) return;
+    lastReportedError = key;
+
+    // Clear dedup key after a short window so the same error can be
+    // reported again if it recurs after a code change.
+    clearTimeout(reportDebounceTimer);
+    reportDebounceTimer = setTimeout(function() { lastReportedError = ''; }, 2000);
+
+    var body = JSON.stringify({
+      message: String(message),
+      file: source || null,
+      line: lineno || null,
+      column: colno || null,
+      stack: stack || null,
+    });
+
+    // Fire-and-forget POST — do not await or retry.
+    try {
+      fetch('/__vertz_api/report-error', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: body,
+      }).catch(function() { /* network failure — silent */ });
+    } catch (_) {
+      // fetch not available or blocked — silent
+    }
+  }
+
+  // Intercept console.error to capture errors swallowed by the framework's
+  // reactive runtime (e.g., thrown errors inside effects/renders that are
+  // caught internally and only logged, never re-thrown to window.onerror).
+  var originalConsoleError = console.error;
+  console.error = function() {
+    // Call the original first so DevTools still shows the error.
+    originalConsoleError.apply(console, arguments);
+
+    // Check if any argument is an Error object or looks like an error.
+    for (var i = 0; i < arguments.length; i++) {
+      var arg = arguments[i];
+      if (arg instanceof Error) {
+        var stack = arg.stack || null;
+        var file = null;
+        var line = null;
+        var col = null;
+        if (stack) {
+          // Extract location from the FIRST user-code frame (skip framework internals).
+          var lines = stack.split('\n');
+          for (var j = 0; j < lines.length; j++) {
+            var match = lines[j].match(/(?:at\s+\S+\s+\()?(https?:\/\/[^)]+):(\d+):(\d+)\)?/);
+            if (match && match[1].indexOf('/@deps/') === -1 && match[1].indexOf('/node_modules/') === -1) {
+              file = match[1];
+              line = parseInt(match[2], 10);
+              col = parseInt(match[3], 10);
+              break;
+            }
+          }
+        }
+        reportClientError(arg.message, file, line, col, stack);
+        return; // Only report the first Error in the arguments.
+      }
+    }
+  };
+
+  // Capture uncaught synchronous errors (e.g., throw in component body,
+  // duplicate declarations, reference errors).
+  window.addEventListener('error', function(event) {
+    // Ignore errors from browser extensions or cross-origin scripts.
+    if (event.filename && event.filename.indexOf(location.origin) === -1) return;
+
+    var stack = event.error && event.error.stack ? event.error.stack : null;
+    reportClientError(
+      event.message || 'Unknown error',
+      event.filename || null,
+      event.lineno || null,
+      event.colno || null,
+      stack
+    );
+  });
+
+  // Capture unhandled promise rejections (e.g., async component errors,
+  // failed dynamic imports during initial load).
+  window.addEventListener('unhandledrejection', function(event) {
+    var reason = event.reason;
+    var message = reason instanceof Error ? reason.message : String(reason || 'Unhandled promise rejection');
+    var stack = reason instanceof Error ? reason.stack : null;
+
+    // Try to extract file/line from the stack trace.
+    var file = null;
+    var line = null;
+    var col = null;
+    if (stack) {
+      // Match patterns like "at Foo (http://localhost:3000/src/app.tsx:42:15)"
+      // or "http://localhost:3000/src/app.tsx:42:15"
+      var match = stack.match(/(?:at\s+\S+\s+\()?(\S+):(\d+):(\d+)\)?/);
+      if (match) {
+        file = match[1];
+        line = parseInt(match[2], 10);
+        col = parseInt(match[3], 10);
+      }
+    }
+
+    reportClientError(message, file, line, col, stack);
+  });
+
   // ── Initialize ─────────────────────────────────────────────────
 
   if (document.readyState === 'loading') {

@@ -70,6 +70,12 @@ pub struct DevServerState {
     /// Packages that failed to install — prevents retry storms.
     /// Cleared on file change (watcher event).
     pub auto_install_failed: Arc<std::sync::Mutex<HashSet<String>>>,
+    /// Timestamp of the last file change detected by the watcher.
+    /// Used to debounce stale client-side error reports that arrive
+    /// after a file fix (race condition: old client reports an error
+    /// after the watcher already cleared it).
+    /// `None` until the first file change is detected.
+    pub last_file_change: Arc<std::sync::Mutex<Option<std::time::Instant>>>,
 }
 
 /// Handle requests for source files: `GET /src/**/*.tsx` → compiled JavaScript.
@@ -951,6 +957,7 @@ mod tests {
             auto_install_lock: Arc::new(tokio::sync::Mutex::new(())),
             auto_install_inflight: Arc::new(std::sync::Mutex::new(HashMap::new())),
             auto_install_failed: Arc::new(std::sync::Mutex::new(HashSet::new())),
+            last_file_change: Arc::new(std::sync::Mutex::new(None)),
         })
     }
 
@@ -1674,6 +1681,7 @@ mod tests {
             auto_install_lock: Arc::new(tokio::sync::Mutex::new(())),
             auto_install_inflight: Arc::new(std::sync::Mutex::new(HashMap::new())),
             auto_install_failed: Arc::new(std::sync::Mutex::new(HashSet::new())),
+            last_file_change: Arc::new(std::sync::Mutex::new(None)),
         });
 
         let req = Request::builder()
@@ -1831,6 +1839,7 @@ mod tests {
             auto_install_lock: Arc::new(tokio::sync::Mutex::new(())),
             auto_install_inflight: Arc::new(std::sync::Mutex::new(HashMap::new())),
             auto_install_failed: Arc::new(std::sync::Mutex::new(HashSet::new())),
+            last_file_change: Arc::new(std::sync::Mutex::new(None)),
         });
 
         let req = Request::builder()
@@ -1886,6 +1895,7 @@ mod tests {
             auto_install_lock: Arc::new(tokio::sync::Mutex::new(())),
             auto_install_inflight: Arc::new(std::sync::Mutex::new(HashMap::new())),
             auto_install_failed: Arc::new(std::sync::Mutex::new(HashSet::new())),
+            last_file_change: Arc::new(std::sync::Mutex::new(None)),
         });
 
         let req = Request::builder()
@@ -1970,6 +1980,7 @@ mod tests {
             auto_install_lock: Arc::new(tokio::sync::Mutex::new(())),
             auto_install_inflight: Arc::new(std::sync::Mutex::new(HashMap::new())),
             auto_install_failed: Arc::new(std::sync::Mutex::new(HashSet::new())),
+            last_file_change: Arc::new(std::sync::Mutex::new(None)),
         };
 
         // helper-lib/index.js is not in root's node_modules directly,
@@ -2022,6 +2033,7 @@ mod tests {
             auto_install_lock: Arc::new(tokio::sync::Mutex::new(())),
             auto_install_inflight: Arc::new(std::sync::Mutex::new(HashMap::new())),
             auto_install_failed: Arc::new(std::sync::Mutex::new(HashSet::new())),
+            last_file_change: Arc::new(std::sync::Mutex::new(None)),
         };
 
         let result = re_resolve_dep("some-dep/index.js", &state);
@@ -2109,6 +2121,7 @@ mod tests {
             auto_install_lock: Arc::new(tokio::sync::Mutex::new(())),
             auto_install_inflight: Arc::new(std::sync::Mutex::new(HashMap::new())),
             auto_install_failed: Arc::new(std::sync::Mutex::new(HashSet::new())),
+            last_file_change: Arc::new(std::sync::Mutex::new(None)),
         });
 
         // Request the bare specifier (no subpath) which should resolve via package.json exports
@@ -2272,6 +2285,7 @@ mod tests {
             auto_install_lock: Arc::new(tokio::sync::Mutex::new(())),
             auto_install_inflight: Arc::new(std::sync::Mutex::new(HashMap::new())),
             auto_install_failed: Arc::new(std::sync::Mutex::new(HashSet::new())),
+            last_file_change: Arc::new(std::sync::Mutex::new(None)),
         });
 
         let req = Request::builder()
@@ -2375,6 +2389,7 @@ mod tests {
             auto_install_lock: Arc::new(tokio::sync::Mutex::new(())),
             auto_install_inflight: Arc::new(std::sync::Mutex::new(HashMap::new())),
             auto_install_failed: Arc::new(std::sync::Mutex::new(HashSet::new())),
+            last_file_change: Arc::new(std::sync::Mutex::new(None)),
         });
 
         let req = Request::builder()
