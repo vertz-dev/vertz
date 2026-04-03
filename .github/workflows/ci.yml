@@ -21,9 +21,10 @@ jobs:
   # ---------------------------------------------------------------------------
   # Detect whether source files changed.
   #
-  # For push-to-main events we always run the full pipeline.
-  # For workflow_dispatch events (triggered by auto-rebase) we also always
-  # run the full pipeline since there is no PR diff context available.
+  # For push-to-main events we always run the full TS pipeline.
+  # Native (Rust) jobs only run if files under native/ actually changed.
+  # For workflow_dispatch events (triggered by auto-rebase) we run the
+  # full pipeline since there is no PR diff context available.
   # For pull requests we compare the PR diff against source patterns.
   # If only non-source files changed (docs, plans, .claude rules, etc.) or
   # only docs-only packages changed (mint-docs, site, og, landing), the
@@ -48,11 +49,42 @@ jobs:
       - name: Check for source changes
         id: filter
         run: |
-          # Pushes to main and workflow_dispatch (auto-rebase) always run the full pipeline
-          if [ "${{ github.event_name }}" = "push" ] || [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+          # workflow_dispatch (auto-rebase) always runs everything — no diff context
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             echo "src=true" >> "$GITHUB_OUTPUT"
             echo "native=true" >> "$GITHUB_OUTPUT"
-            echo "${{ github.event_name }} — running full pipeline"
+            echo "workflow_dispatch — running full pipeline"
+            exit 0
+          fi
+
+          # Push to main: always run TS pipeline, only run native if native/ changed
+          if [ "${{ github.event_name }}" = "push" ]; then
+            echo "src=true" >> "$GITHUB_OUTPUT"
+
+            BASE_SHA="${{ github.event.before }}"
+
+            # Initial push (null SHA) — run everything
+            if [ "$BASE_SHA" = "0000000000000000000000000000000000000000" ]; then
+              echo "native=true" >> "$GITHUB_OUTPUT"
+              echo "push (initial) — running full pipeline"
+              exit 0
+            fi
+
+            # Diff may fail if BASE_SHA is unreachable (e.g. force push) — default to running native
+            if ! PUSH_DIFF=$(git diff --name-only "$BASE_SHA" "${{ github.sha }}" 2>&1); then
+              echo "native=true" >> "$GITHUB_OUTPUT"
+              echo "push — diff failed (force push?), running native pipeline"
+              exit 0
+            fi
+
+            if echo "$PUSH_DIFF" | grep -q '^native/'; then
+              echo "native=true" >> "$GITHUB_OUTPUT"
+              echo "push — native files changed"
+            else
+              echo "native=false" >> "$GITHUB_OUTPUT"
+              echo "push — no native changes, skipping native pipeline"
+            fi
+
             exit 0
           fi
 
@@ -62,6 +94,7 @@ jobs:
 
           if [ -z "$CHANGED" ]; then
             echo "src=false" >> "$GITHUB_OUTPUT"
+            echo "native=false" >> "$GITHUB_OUTPUT"
             echo "No files changed"
             exit 0
           fi
