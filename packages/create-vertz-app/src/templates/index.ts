@@ -604,15 +604,11 @@ export function tsconfigTemplate(): string {
 }
 
 /**
- * vertz.config.ts template — compiler entry + codegen config
+ * vertz.config.ts template — codegen config
  */
 export function vertzConfigTemplate(): string {
   return `/** @type {import('@vertz/compiler').VertzConfig} */
-export default {
-  compiler: {
-    entryFile: 'src/api/server.ts',
-  },
-};
+export default {};
 
 /** @type {import('@vertz/codegen').CodegenConfig} */
 export const codegen = {

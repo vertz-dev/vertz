@@ -51,7 +51,6 @@ export const defaultCLIConfig: CLIConfig = {
   forceGenerate: false,
   compiler: {
     sourceDir: 'src',
-    entryFile: 'src/app.ts',
     outputDir: '.vertz/generated',
   },
   dev: {

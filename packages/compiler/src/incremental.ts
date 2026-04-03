@@ -32,11 +32,10 @@ export interface CategorizedChanges {
   rebootReason?: string;
 }
 
-export interface CategorizeOptions {
-  entryFile?: string;
-}
+/** File names that trigger a full recompile when changed (convention-based entry points). */
+const ENTRY_FILE_NAMES = new Set(['server.ts', 'server.tsx', 'app.ts', 'app.tsx']);
 
-function categorize(path: string, options: CategorizeOptions): FileCategory | null {
+function categorize(path: string): FileCategory | null {
   const file = basename(path);
 
   if (file.endsWith('.schema.ts')) return 'schema';
@@ -44,17 +43,15 @@ function categorize(path: string, options: CategorizeOptions): FileCategory | nu
   if (file.endsWith('.service.ts')) return 'service';
   if (file.endsWith('.module.ts')) return 'module';
   if (path.includes('middleware/')) return 'middleware';
-  if (options.entryFile && path === options.entryFile) return 'app-entry';
+  // Exclude nested files like `src/api/server.ts` — only top-level `src/server.ts` is a convention entry
+  if (ENTRY_FILE_NAMES.has(file) && !path.includes('/api/')) return 'app-entry';
   if (file.startsWith('.env')) return 'env';
   if (file === 'vertz.config.ts') return 'config';
 
   return null;
 }
 
-export function categorizeChanges(
-  changes: FileChange[],
-  options: CategorizeOptions = {},
-): CategorizedChanges {
+export function categorizeChanges(changes: FileChange[]): CategorizedChanges {
   const result: CategorizedChanges = {
     schema: [],
     router: [],
@@ -66,7 +63,7 @@ export function categorizeChanges(
   };
 
   for (const change of changes) {
-    const category = categorize(change.path, options);
+    const category = categorize(change.path);
     switch (category) {
       case 'schema':
         result.schema.push(change);
@@ -161,9 +158,7 @@ export class IncrementalCompiler {
   }
 
   async handleChanges(changes: FileChange[]): Promise<IncrementalResult> {
-    const categorized = categorizeChanges(changes, {
-      entryFile: this.compiler.getConfig().compiler.entryFile,
-    });
+    const categorized = categorizeChanges(changes);
 
     if (categorized.requiresReboot) {
       return { kind: 'reboot', reason: categorized.rebootReason ?? 'unknown' };

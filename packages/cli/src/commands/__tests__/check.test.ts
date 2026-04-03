@@ -31,7 +31,6 @@ function createMockCompiler(diagnostics: Diagnostic[] = []): Compiler {
       compiler: {
         sourceDir: 'src',
         outputDir: '.vertz/generated',
-        entryFile: 'src/app.ts',
         schemas: { enforceNaming: true, enforcePlacement: true },
         openapi: {
           output: '.vertz/generated/openapi.json',

@@ -15,7 +15,6 @@ describe('resolveConfig', () => {
     expect(config.forceGenerate).toBe(false);
     expect(config.compiler.sourceDir).toBe('src');
     expect(config.compiler.outputDir).toBe('.vertz/generated');
-    expect(config.compiler.entryFile).toBe('src/app.ts');
     expect(config.compiler.schemas.enforceNaming).toBe(true);
     expect(config.compiler.schemas.enforcePlacement).toBe(true);
     expect(config.compiler.openapi.output).toBe('.vertz/generated/openapi.json');

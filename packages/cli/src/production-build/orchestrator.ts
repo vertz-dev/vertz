@@ -163,7 +163,6 @@ export class BuildOrchestrator {
           compiler: {
             sourceDir: this.config.sourceDir,
             outputDir: '.vertz/generated',
-            entryFile: this.config.entryPoint,
             schemas: {
               enforceNaming: true,
               enforcePlacement: true,

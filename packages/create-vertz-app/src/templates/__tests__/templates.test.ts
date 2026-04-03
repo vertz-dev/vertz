@@ -97,10 +97,10 @@ describe('templates', () => {
   });
 
   describe('vertzConfigTemplate', () => {
-    it('exports a default config with compiler entry', () => {
+    it('exports a default config without entryFile', () => {
       const result = vertzConfigTemplate();
       expect(result).toContain('export default');
-      expect(result).toContain("entryFile: 'src/api/server.ts'");
+      expect(result).not.toContain('entryFile');
     });
 
     it('exports codegen config', () => {

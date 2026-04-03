@@ -1,0 +1,150 @@
+---
+title: Project Structure
+description: 'How Vertz discovers entry points and organizes your project'
+---
+
+Vertz uses **file conventions** to detect what kind of app you're building and how to run it. No configuration needed — just place files in the right locations.
+
+## App type detection
+
+When you run `vertz dev`, the CLI inspects your `src/` directory and determines the app type:
+
+| Files present                   | App type       | What `vertz dev` does                         |
+| ------------------------------- | -------------- | --------------------------------------------- |
+| `src/app.tsx` only              | **UI-only**    | Dev server with SSR + HMR, no API             |
+| `src/server.ts` only            | **API-only**   | API server with watch mode, no UI compilation |
+| `src/app.tsx` + `src/server.ts` | **Full-stack** | API server + UI dev server with SSR + HMR     |
+| Neither                         | **Error**      | Throws: "No app entry found in src/"          |
+
+<Note>
+  `src/entry-server.ts` also triggers UI detection. A project with only `src/entry-server.ts` (no
+  `src/app.tsx`) enters UI-only mode. This is a backward-compatibility path — new projects should
+  use `src/app.tsx`.
+</Note>
+
+This detection is automatic. You don't need to configure your app type anywhere.
+
+## Full-stack project layout
+
+A full-stack Vertz project typically looks like this:
+
+```bash
+my-app/
+  src/
+    server.ts              # API server entry (auto-detected)
+    app.tsx                # UI application entry (auto-detected)
+    client.ts              # Typed API client
+    entry-client.ts        # Client-side mount + HMR (optional)
+    api/
+      schema.ts            # Table + model definitions
+      db.ts                # Database instance
+      entities/
+        tasks.entity.ts    # CRUD + access control
+    pages/
+      home.tsx
+    styles/
+      theme.ts
+  vertz.config.ts          # Compiler + codegen config
+  tsconfig.json
+  package.json
+```
+
+## Server entry (`src/server.ts`)
+
+The API server entry is auto-detected by file convention. The canonical path is:
+
+- **`src/server.ts`** (preferred)
+- **`src/server.tsx`** (also supported)
+
+This file should export the result of `createServer()`:
+
+```ts
+// src/server.ts
+import { createServer } from 'vertz/server';
+import { db } from './api/db';
+import { tasks } from './api/entities/tasks.entity';
+
+export default createServer({
+  entities: [tasks],
+  db,
+});
+```
+
+When `src/server.ts` is present, `vertz dev` creates a persistent isolate that handles `/api/*` requests through your server's handler.
+
+<Note>
+  The TypeScript CLI (`bunx vertz dev`) has additional fallback paths that the Rust runtime
+  (`vtz dev`) does not support:
+
+- **Alternative directory:** `src/api/server.ts` (checked if `src/server.ts` is not found)
+- **Additional extension:** `.js` (in addition to `.ts` and `.tsx`)
+
+For portability across both runtimes, always use `src/server.ts` or `src/server.tsx` directly
+in your `src/` directory.
+
+</Note>
+
+### What if `src/server.ts` is absent?
+
+If no server entry is found but `src/app.tsx` exists, the app runs in **UI-only** mode — the dev server handles SSR and HMR but doesn't mount any API routes.
+
+## UI entry (`src/app.tsx`)
+
+The UI application entry is auto-detected at:
+
+- **`src/app.tsx`** (preferred)
+- **`src/app.ts`** (also supported)
+
+This file defines your app shell — typically the router, theme setup, and top-level layout:
+
+```tsx
+// src/app.tsx
+import { RouterView, defineRoutes, registerTheme } from 'vertz/ui';
+import { configureTheme } from '@vertz/theme-shadcn';
+import { HomePage } from './pages/home';
+
+const routes = defineRoutes({
+  '/': { component: () => HomePage() },
+});
+
+const { theme, globals } = configureTheme({ palette: 'zinc', radius: 'md' });
+registerTheme({ theme, globals });
+
+export default function App() {
+  return RouterView({ router: routes });
+}
+```
+
+## Convention over configuration
+
+All entry points are discovered by file convention. There is no config option to set the server entry or the codegen scan target — both use `src/server.ts` automatically:
+
+- **Runtime** discovers `src/server.ts` and creates a persistent isolate for API requests
+- **Codegen** scans all files in `src/` for entity and access definitions — no entry file config needed
+
+This means `vertz.config.ts` has zero entry-point configuration. The compiler options (`sourceDir`, `outputDir`, etc.) control where to look and where to write, but the specific entry files are always convention-based.
+
+- **One canonical path.** `src/server.ts` is predictable for developers and LLMs alike. No config to read, no indirection to trace.
+- **Re-export for unusual layouts.** If your server logic lives at a non-standard path, create a `src/server.ts` that re-exports from that location:
+
+```ts
+// src/server.ts
+export { default } from './backend/api-server';
+```
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Server Overview" icon="server" href="/guides/server/overview">
+    Entity-driven backend with auto-generated CRUD and access control.
+  </Card>
+  <Card title="Code Generation" icon="wand-magic-sparkles" href="/guides/server/codegen">
+    Generate typed client SDKs from your server configuration.
+  </Card>
+  <Card title="Quickstart" icon="rocket" href="/quickstart">
+    Scaffold a full-stack app in under 5 minutes.
+  </Card>
+  <Card title="Installation" icon="download" href="/installation">
+    Add Vertz to an existing project manually.
+  </Card>
+</CardGroup>

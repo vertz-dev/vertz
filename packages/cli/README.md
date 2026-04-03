@@ -162,7 +162,6 @@ import type { CLIConfig } from '@vertz/cli';
 const config: CLIConfig = {
   compiler: {
     sourceDir: 'src',
-    entryFile: 'src/app.ts',
     outputDir: '.vertz/generated',
   },
   dev: {
@@ -186,7 +185,6 @@ export default config;
 | -------------------- | --------- | -------------------- | ------------------------ |
 | `strict`             | `boolean` | `false`              | Treat warnings as errors |
 | `compiler.sourceDir` | `string`  | `'src'`              | Source directory         |
-| `compiler.entryFile` | `string`  | `'src/app.ts'`       | Entry file               |
 | `compiler.outputDir` | `string`  | `'.vertz/generated'` | Generated code output    |
 | `dev.port`           | `number`  | `3000`               | Dev server port          |
 | `dev.host`           | `string`  | `'localhost'`        | Dev server host          |
