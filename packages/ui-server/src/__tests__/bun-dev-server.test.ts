@@ -254,6 +254,35 @@ describe('createBunDevServer', () => {
     await server.stop();
     // No error thrown
   });
+
+  it('throws when apiPrefix is empty and apiHandler is provided (#2131)', () => {
+    expect(() =>
+      createBunDevServer({
+        entry: './src/app.tsx',
+        apiHandler: async () => new Response('ok'),
+        apiPrefix: '',
+      }),
+    ).toThrow('apiPrefix cannot be empty in full-stack mode');
+  });
+
+  it('accepts custom apiPrefix with apiHandler (#2131)', () => {
+    const server = createBunDevServer({
+      entry: './src/app.tsx',
+      apiHandler: async () => new Response('ok'),
+      apiPrefix: '/v1',
+    });
+
+    expect(server).toBeDefined();
+  });
+
+  it('allows empty apiPrefix when no apiHandler (ui-only mode) (#2131)', () => {
+    const server = createBunDevServer({
+      entry: './src/app.tsx',
+      apiPrefix: '',
+    });
+
+    expect(server).toBeDefined();
+  });
 });
 
 describe('parseHMRAssets', () => {

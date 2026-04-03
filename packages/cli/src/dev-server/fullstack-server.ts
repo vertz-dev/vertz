@@ -146,12 +146,14 @@ export function formatBanner(
   appType: 'api-only' | 'full-stack' | 'ui-only',
   port: number,
   host: string,
+  apiPrefix?: string,
 ): string {
   const url = `http://${host}:${port}`;
+  const resolvedPrefix = apiPrefix ?? '/api';
   const lines = ['', `  Vertz Dev Server (${appType}, SSR+HMR)`, '', `  Local:  ${url}`];
 
-  if (appType !== 'ui-only') {
-    lines.push(`  API:    ${url}/api`);
+  if (appType !== 'ui-only' && resolvedPrefix !== '') {
+    lines.push(`  API:    ${url}${resolvedPrefix}`);
   }
 
   lines.push('');
@@ -174,9 +176,10 @@ export async function startDevServer(options: StartDevServerOptions): Promise<vo
   const { detected, port, host } = options;
   const mode = resolveDevMode(detected);
 
-  console.log(formatBanner(mode.kind, port, host));
-
+  // Banner is printed after server module import so we can show the resolved prefix.
+  // For api-only mode, print immediately since there's no server module to read.
   if (mode.kind === 'api-only') {
+    console.log(formatBanner(mode.kind, port, host));
     return startApiOnlyServer(mode.serverEntry, port);
   }
 
@@ -185,16 +188,20 @@ export async function startDevServer(options: StartDevServerOptions): Promise<vo
 
   let apiHandler: ((req: Request) => Promise<Response>) | undefined;
   let sessionResolver: ((req: Request) => Promise<unknown>) | undefined;
+  let serverApiPrefix: string | undefined;
   if (mode.kind === 'full-stack') {
     const serverMod = await importServerModule(mode.serverEntry);
     apiHandler = serverMod.requestHandler ?? serverMod.handler;
     sessionResolver = serverMod.sessionResolver;
+    serverApiPrefix = (serverMod as Record<string, unknown>).apiPrefix as string | undefined;
 
     // Auto-call initialize() when available (e.g. auth table setup)
     if (serverMod.initialize) {
       await serverMod.initialize();
     }
   }
+
+  console.log(formatBanner(mode.kind, port, host, serverApiPrefix));
 
   const uiEntry = `./${relative(detected.projectRoot, mode.uiEntry)}`;
   const clientEntry = mode.clientEntry
@@ -208,6 +215,7 @@ export async function startDevServer(options: StartDevServerOptions): Promise<vo
     port,
     host,
     apiHandler,
+    apiPrefix: serverApiPrefix,
     // Cast is safe: sessionResolver is created by createAuth().resolveSessionForSSR
     // which returns SSRSessionResult | null — structurally compatible with SessionResolver.
     // The duck-type check above only verifies it's a function; the runtime shape is
