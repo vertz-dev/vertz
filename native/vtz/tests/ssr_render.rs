@@ -275,6 +275,7 @@ fn test_full_ssr_document_structure() {
         enable_hmr: false,
         ssr_data: None,
         head_tags: None,
+        root_dir: None,
     });
 
     // Document is valid HTML5
