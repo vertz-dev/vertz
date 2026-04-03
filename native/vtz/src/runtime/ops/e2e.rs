@@ -6,6 +6,11 @@
 use deno_core::OpDecl;
 
 #[cfg(feature = "desktop")]
+use std::cell::RefCell;
+#[cfg(feature = "desktop")]
+use std::rc::Rc;
+
+#[cfg(feature = "desktop")]
 use crate::webview::bridge::WebviewBridge;
 #[cfg(feature = "desktop")]
 use deno_core::error::AnyError;
@@ -19,7 +24,7 @@ use deno_core::OpState;
 #[op2(async)]
 #[string]
 pub async fn op_e2e_navigate(
-    state: std::rc::Rc<std::cell::RefCell<OpState>>,
+    state: Rc<RefCell<OpState>>,
     #[string] url: String,
     #[bigint] timeout_ms: u64,
 ) -> Result<String, AnyError> {
@@ -66,9 +71,7 @@ pub async fn op_e2e_navigate(
 #[cfg(feature = "desktop")]
 #[op2(async)]
 #[string]
-pub async fn op_e2e_url(
-    state: std::rc::Rc<std::cell::RefCell<OpState>>,
-) -> Result<String, AnyError> {
+pub async fn op_e2e_url(state: Rc<RefCell<OpState>>) -> Result<String, AnyError> {
     let bridge = {
         let state = state.borrow();
         state.borrow::<WebviewBridge>().clone()
@@ -81,14 +84,14 @@ pub async fn op_e2e_url(
     Ok(strip_json_quotes(&result))
 }
 
-/// Query a single element by CSS selector. Returns an element handle ID or null.
+/// Query a single element by CSS selector. Returns element handle ID as string, or "null".
 #[cfg(feature = "desktop")]
 #[op2(async)]
-#[serde]
+#[string]
 pub async fn op_e2e_query(
-    state: std::rc::Rc<std::cell::RefCell<OpState>>,
+    state: Rc<RefCell<OpState>>,
     #[string] selector: String,
-) -> Result<Option<u32>, AnyError> {
+) -> Result<String, AnyError> {
     let bridge = {
         let state = state.borrow();
         state.borrow::<WebviewBridge>().clone()
@@ -109,14 +112,12 @@ pub async fn op_e2e_query(
         .await
         .map_err(|e| deno_core::anyhow::anyhow!("{}", e))?;
 
-    if result == "null" || result.is_empty() {
-        Ok(None)
+    // Return "null" for not found, or the numeric ID as string
+    let trimmed = result.trim();
+    if trimmed == "null" || trimmed.is_empty() {
+        Ok("null".to_string())
     } else {
-        let id: u32 = result
-            .trim()
-            .parse()
-            .map_err(|_| deno_core::anyhow::anyhow!("unexpected query result: {}", result))?;
-        Ok(Some(id))
+        Ok(trimmed.to_string())
     }
 }
 
@@ -125,7 +126,7 @@ pub async fn op_e2e_query(
 #[op2(async)]
 #[serde]
 pub async fn op_e2e_query_all(
-    state: std::rc::Rc<std::cell::RefCell<OpState>>,
+    state: Rc<RefCell<OpState>>,
     #[string] selector: String,
 ) -> Result<Vec<u32>, AnyError> {
     let bridge = {
@@ -161,7 +162,7 @@ pub async fn op_e2e_query_all(
 #[op2(async)]
 #[string]
 pub async fn op_e2e_text_content(
-    state: std::rc::Rc<std::cell::RefCell<OpState>>,
+    state: Rc<RefCell<OpState>>,
     #[string] selector_or_id: String,
     #[bigint] timeout_ms: u64,
 ) -> Result<Option<String>, AnyError> {
@@ -190,7 +191,7 @@ pub async fn op_e2e_text_content(
 #[op2(async)]
 #[string]
 pub async fn op_e2e_inner_html(
-    state: std::rc::Rc<std::cell::RefCell<OpState>>,
+    state: Rc<RefCell<OpState>>,
     #[string] selector: String,
     #[bigint] timeout_ms: u64,
 ) -> Result<String, AnyError> {
@@ -214,7 +215,7 @@ pub async fn op_e2e_inner_html(
 #[op2(async)]
 #[string]
 pub async fn op_e2e_get_attribute(
-    state: std::rc::Rc<std::cell::RefCell<OpState>>,
+    state: Rc<RefCell<OpState>>,
     #[string] selector: String,
     #[string] name: String,
     #[bigint] timeout_ms: u64,
@@ -244,7 +245,7 @@ pub async fn op_e2e_get_attribute(
 #[cfg(feature = "desktop")]
 #[op2(async)]
 pub async fn op_e2e_is_visible(
-    state: std::rc::Rc<std::cell::RefCell<OpState>>,
+    state: Rc<RefCell<OpState>>,
     #[string] selector: String,
     #[bigint] timeout_ms: u64,
 ) -> Result<bool, AnyError> {
@@ -272,7 +273,7 @@ pub async fn op_e2e_is_visible(
 #[cfg(feature = "desktop")]
 #[op2(async)]
 pub async fn op_e2e_is_checked(
-    state: std::rc::Rc<std::cell::RefCell<OpState>>,
+    state: Rc<RefCell<OpState>>,
     #[string] selector: String,
     #[bigint] timeout_ms: u64,
 ) -> Result<bool, AnyError> {
@@ -296,7 +297,7 @@ pub async fn op_e2e_is_checked(
 #[op2(async)]
 #[string]
 pub async fn op_e2e_evaluate(
-    state: std::rc::Rc<std::cell::RefCell<OpState>>,
+    state: Rc<RefCell<OpState>>,
     #[string] js: String,
     #[bigint] timeout_ms: u64,
 ) -> Result<String, AnyError> {
@@ -304,7 +305,8 @@ pub async fn op_e2e_evaluate(
         let state = state.borrow();
         state.borrow::<WebviewBridge>().clone()
     };
-    let wrapped = format!("JSON.stringify({})", js);
+    // Use nullish coalescing to handle undefined (JSON.stringify(undefined) → undefined, not a string)
+    let wrapped = format!("JSON.stringify({}) ?? \"null\"", js);
     let result = bridge
         .eval(&wrapped, timeout_ms)
         .await
@@ -319,7 +321,7 @@ pub async fn op_e2e_evaluate(
 #[op2(async)]
 #[string]
 pub async fn op_e2e_click(
-    state: std::rc::Rc<std::cell::RefCell<OpState>>,
+    state: Rc<RefCell<OpState>>,
     #[string] selector: String,
     #[bigint] timeout_ms: u64,
 ) -> Result<String, AnyError> {
@@ -352,7 +354,7 @@ pub async fn op_e2e_click(
 #[op2(async)]
 #[string]
 pub async fn op_e2e_fill(
-    state: std::rc::Rc<std::cell::RefCell<OpState>>,
+    state: Rc<RefCell<OpState>>,
     #[string] selector: String,
     #[string] value: String,
     #[bigint] timeout_ms: u64,
@@ -392,7 +394,7 @@ pub async fn op_e2e_fill(
 #[op2(async)]
 #[string]
 pub async fn op_e2e_type(
-    state: std::rc::Rc<std::cell::RefCell<OpState>>,
+    state: Rc<RefCell<OpState>>,
     #[string] selector: String,
     #[string] text: String,
     #[bigint] timeout_ms: u64,
@@ -433,7 +435,7 @@ pub async fn op_e2e_type(
 #[op2(async)]
 #[string]
 pub async fn op_e2e_press(
-    state: std::rc::Rc<std::cell::RefCell<OpState>>,
+    state: Rc<RefCell<OpState>>,
     #[string] key: String,
     #[bigint] timeout_ms: u64,
 ) -> Result<String, AnyError> {
@@ -466,7 +468,7 @@ pub async fn op_e2e_press(
 #[op2(async)]
 #[string]
 pub async fn op_e2e_check(
-    state: std::rc::Rc<std::cell::RefCell<OpState>>,
+    state: Rc<RefCell<OpState>>,
     #[string] selector: String,
     #[bigint] timeout_ms: u64,
 ) -> Result<String, AnyError> {
@@ -498,7 +500,7 @@ pub async fn op_e2e_check(
 #[op2(async)]
 #[string]
 pub async fn op_e2e_uncheck(
-    state: std::rc::Rc<std::cell::RefCell<OpState>>,
+    state: Rc<RefCell<OpState>>,
     #[string] selector: String,
     #[bigint] timeout_ms: u64,
 ) -> Result<String, AnyError> {
@@ -530,7 +532,7 @@ pub async fn op_e2e_uncheck(
 #[op2(async)]
 #[string]
 pub async fn op_e2e_select_option(
-    state: std::rc::Rc<std::cell::RefCell<OpState>>,
+    state: Rc<RefCell<OpState>>,
     #[string] selector: String,
     #[string] value: String,
     #[bigint] timeout_ms: u64,

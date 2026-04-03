@@ -183,7 +183,7 @@ fn run_e2e_test_mode(cli: Cli) {
     };
 
     // Build a server config for the e2e dev server (port 0 = OS-assigned)
-    let mut server_config = ServerConfig::new(0, "127.0.0.1".to_string(), None);
+    let mut server_config = ServerConfig::new(0, "127.0.0.1".to_string(), root_dir.join("public"));
     server_config.root_dir = root_dir;
 
     let proxy_for_quit = proxy.clone();
