@@ -15,19 +15,6 @@ const FAST_REFRESH_HELPERS_JS: &str = include_str!("../assets/fast-refresh-helpe
 /// Fast Refresh HMR, and MCP tools (API spec, route map).
 pub struct VertzPlugin;
 
-/// Check if a file path corresponds to a test file.
-///
-/// Test files have their css() calls preserved (not extracted at compile time)
-/// so the runtime implementation is exercised in tests.
-fn is_test_file(path: &std::path::Path) -> bool {
-    let filename = path.file_stem().and_then(|s| s.to_str()).unwrap_or("");
-    if filename.ends_with(".test") || filename.ends_with(".spec") {
-        return true;
-    }
-    // Files inside __tests__/ directories
-    path.components().any(|c| c.as_os_str() == "__tests__")
-}
-
 impl FrameworkPlugin for VertzPlugin {
     fn name(&self) -> &str {
         "vertz"
@@ -35,7 +22,7 @@ impl FrameworkPlugin for VertzPlugin {
 
     fn compile(&self, source: &str, ctx: &CompileContext) -> CompileOutput {
         let filename = ctx.file_path.to_string_lossy().to_string();
-        let skip_css = is_test_file(ctx.file_path);
+        let skip_css = crate::test::is_test_file(ctx.file_path);
 
         let compile_result = vertz_compiler_core::compile(
             source,
@@ -429,10 +416,14 @@ mod tests {
 
     #[test]
     fn is_test_file_detects_patterns() {
+        use crate::test::is_test_file;
         assert!(is_test_file(Path::new("src/css.test.ts")));
         assert!(is_test_file(Path::new("src/css.test.tsx")));
         assert!(is_test_file(Path::new("src/css.spec.ts")));
         assert!(is_test_file(Path::new("src/css.spec.tsx")));
+        assert!(is_test_file(Path::new("src/css.e2e.ts")));
+        assert!(is_test_file(Path::new("src/css.e2e.tsx")));
+        assert!(is_test_file(Path::new("src/integration.local.ts")));
         assert!(is_test_file(Path::new("src/__tests__/css.ts")));
         assert!(is_test_file(Path::new("src/__tests__/nested/deep.ts")));
         assert!(!is_test_file(Path::new("src/components/card.tsx")));
