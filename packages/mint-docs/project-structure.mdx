@@ -73,14 +73,8 @@ export default createServer({
 When `src/server.ts` is present, `vertz dev` creates a persistent isolate that handles `/api/*` requests through your server's handler.
 
 <Note>
-  The [native runtime](/runtime) (`vtz dev`) is the primary dev server. The Bun-based fallback
-  (`bunx vertz dev` without the runtime installed) supports additional legacy paths:
-
-- **Alternative directory:** `src/api/server.ts`
-- **Additional extension:** `.js`
-
-Use `src/server.ts` or `src/server.tsx` for compatibility with both.
-
+  Use `src/server.ts` or `src/server.tsx` for best compatibility. The runtime also scans
+  `src/api/server.ts` and `.js` extensions as alternative paths.
 </Note>
 
 ### What if `src/server.ts` is absent?

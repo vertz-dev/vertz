@@ -7,22 +7,25 @@ This page summarizes the patterns that matter most when generating Vertz code. R
 
 ## Getting Started
 
-Scaffold a new project with one command:
+Install the `vtz` runtime, then scaffold a project:
 
 ```bash
+# Install vtz (macOS / Linux)
+curl -fsSL https://raw.githubusercontent.com/vertz-dev/vertz/main/install.sh | sh
+
 # Full-stack app (database + API + UI)
-bunx @vertz/create-vertz-app@latest my-app
+vtz create vertz my-app
 
 # UI-only hello world (minimal starting point)
-bunx @vertz/create-vertz-app@latest my-app --template hello-world
+vtz create hello-world my-app
 ```
 
 Then install and run:
 
 ```bash
 cd my-app
-bun install
-bun run dev
+vtz install
+vtz dev
 ```
 
 ## Data Fetching (UI)

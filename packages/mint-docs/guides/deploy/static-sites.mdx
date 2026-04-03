@@ -266,9 +266,9 @@ The `not_found_handling = "single-page-application"` setting returns `index.html
 ```json
 {
   "scripts": {
-    "dev": "bun run src/dev-server.ts",
-    "build": "bun run scripts/build.ts",
-    "deploy": "bun run build && bunx wrangler deploy"
+    "dev": "vtz dev",
+    "build": "vtz run scripts/build.ts",
+    "deploy": "vtz run build && vtz exec wrangler deploy"
   }
 }
 ```
@@ -277,11 +277,11 @@ The `not_found_handling = "single-page-application"` setting returns `index.html
 
 ```bash
 # Build and deploy in one command
-bun run deploy
+vtz run deploy
 
 # Or step by step
-bun run build          # Produces dist/
-bunx wrangler deploy   # Uploads dist/ to Cloudflare
+vtz run build          # Produces dist/
+vtz exec wrangler deploy   # Uploads dist/ to Cloudflare
 ```
 
 The output is a clean `dist/` directory:
@@ -311,7 +311,7 @@ dist/
 | **Data**         | Build-time only              | Per-request (queries, auth)     |
 | **Build output** | `dist/` with HTML + JS + CSS | `dist/client/` + `dist/server/` |
 | **Use case**     | Landing pages, marketing     | Apps with dynamic data          |
-| **Command**      | `bun run build`              | `vertz build`                   |
+| **Command**      | `vtz run build`              | `vtz run build`                 |
 
 <CardGroup cols={2}>
   <Card title="SSG with generateParams" icon="bolt" href="/guides/deploy/ssg">

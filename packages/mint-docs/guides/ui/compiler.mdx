@@ -95,7 +95,7 @@ The compiler is **per-file, single-pass**. It does not:
 
 - Analyze across files — each file is compiled independently
 - Run type checking — that's still `tsc`
-- Bundle modules — that's the bundler (Bun)
+- Bundle modules — that's the bundler (esbuild/V8)
 - Optimize at runtime — all transforms happen at build time
 
 ## Reactive prop generation
@@ -159,8 +159,8 @@ This registry includes `query()`, `form()`, and other framework APIs.
 The compiler runs automatically when you use the Vertz dev server or build command:
 
 ```bash
-bun run dev     # Compiler runs via the Bun plugin
-bun run build   # Compiler runs during production build
+vtz dev            # Compiler runs automatically via the dev server
+vtz run build      # Compiler runs during production build
 ```
 
 For manual setup, add the compiler plugin to your Bun configuration:
