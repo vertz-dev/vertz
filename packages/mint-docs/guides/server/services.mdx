@@ -113,6 +113,7 @@ access: {
 **The `access` block is required.** If you omit it or leave an action out of it, that action's route is silently not generated (deny-by-default). This is the most common DX trap with services — you define an action, call the endpoint, and get 404 because the access rule is missing.
 
 Always use `rules.*` descriptors from `vertz/server` — not raw callback functions like `() => true`.
+
 </Warning>
 
 ## Content descriptors
