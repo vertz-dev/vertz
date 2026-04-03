@@ -213,8 +213,8 @@ describe('generateAgentRoutes()', () => {
   });
 
   describe('Given the runner throws a generic error', () => {
-    describe('When the route handler is called', () => {
-      it('Then returns 500 with the error message', async () => {
+    describe('When the route handler is called without devMode', () => {
+      it('Then returns 500 with a generic error message', async () => {
         const agent = makeAgent({ access: { invoke: rules.public } });
         const failingRunner: AgentRunnerFn = async () => {
           throw new Error('LLM provider failed');
@@ -226,7 +226,45 @@ describe('generateAgentRoutes()', () => {
 
         expect(response.status).toBe(500);
         const body = await response.json();
+        expect(body.error.code).toBe('InternalError');
+        expect(body.error.message).toBe('An unexpected error occurred');
+        expect(body.error.stack).toBeUndefined();
+      });
+    });
+
+    describe('When devMode is true', () => {
+      it('Then returns 500 with the real error message and stack', async () => {
+        const agent = makeAgent({ access: { invoke: rules.public } });
+        const failingRunner: AgentRunnerFn = async () => {
+          throw new Error('LLM provider failed');
+        };
+        const routes = generateAgentRoutes([agent], failingRunner, { devMode: true });
+        const handler = routes[0].handler;
+
+        const response = (await handler(makeCtx())) as Response;
+
+        expect(response.status).toBe(500);
+        const body = await response.json();
+        expect(body.error.code).toBe('InternalError');
         expect(body.error.message).toBe('LLM provider failed');
+        expect(body.error.stack).toBeDefined();
+      });
+    });
+
+    describe('When a SessionError is thrown with devMode true', () => {
+      it('Then still returns 404 regardless of devMode', async () => {
+        const agent = makeAgent({ access: { invoke: rules.public } });
+        const failingRunner: AgentRunnerFn = async () => {
+          throw new SessionNotFoundError('sess_missing');
+        };
+        const routes = generateAgentRoutes([agent], failingRunner, { devMode: true });
+        const handler = routes[0].handler;
+
+        const response = (await handler(makeCtx())) as Response;
+
+        expect(response.status).toBe(404);
+        const body = await response.json();
+        expect(body.error.code).toBe('NotFound');
       });
     });
   });

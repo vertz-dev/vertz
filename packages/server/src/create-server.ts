@@ -156,6 +156,8 @@ export interface ServerConfig extends Omit<AppConfig, '_entityDbFactory' | 'enti
   cloud?: CloudServerConfig;
   /** Set to false to disable the /api/openapi.json endpoint. @default true */
   openapi?: false;
+  /** Override dev-mode detection for error responses. Defaults to NODE_ENV heuristic. */
+  devMode?: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -271,6 +273,8 @@ export function createServer(config: ServerConfig): ServerApp | ServerInstance {
   const allRoutes: EntityRouteEntry[] = [];
   const registry = new EntityRegistry();
   const apiPrefix = normalizeApiPrefix(config.apiPrefix);
+  const devMode =
+    config.devMode ?? (process.env.NODE_ENV === 'development' || process.env.NODE_ENV === 'test');
   const { db } = config;
   const hasDbClient = db && isDatabaseClient(db);
 
@@ -510,6 +514,7 @@ export function createServer(config: ServerConfig): ServerApp | ServerInstance {
         tenantResourceType,
         closureStore: resolvedClosureStore ?? undefined,
         tenantLevels: resolvedTenantLevels,
+        devMode,
       });
       // Wrap handlers with domain middleware
       const domainMw = domainName ? domainMiddlewareMap.get(domainName) : undefined;
@@ -533,7 +538,10 @@ export function createServer(config: ServerConfig): ServerApp | ServerInstance {
     for (const serviceDef of config.services) {
       const domainName = serviceDomainMap.get(serviceDef.name);
       const serviceApiPrefix = domainName ? `${apiPrefix}/${domainName}` : apiPrefix;
-      const routes = generateServiceRoutes(serviceDef, registry, { apiPrefix: serviceApiPrefix });
+      const routes = generateServiceRoutes(serviceDef, registry, {
+        apiPrefix: serviceApiPrefix,
+        devMode,
+      });
       // Wrap handlers with domain middleware
       const domainMw = domainName ? domainMiddlewareMap.get(domainName) : undefined;
       if (domainMw) {
@@ -554,7 +562,10 @@ export function createServer(config: ServerConfig): ServerApp | ServerInstance {
   // Process agents
   if (config.agents && config.agents.length > 0) {
     if (config.agentRunner) {
-      const agentRoutes = generateAgentRoutes(config.agents, config.agentRunner, { apiPrefix });
+      const agentRoutes = generateAgentRoutes(config.agents, config.agentRunner, {
+        apiPrefix,
+        devMode,
+      });
       allRoutes.push(...agentRoutes);
     } else {
       console.warn(

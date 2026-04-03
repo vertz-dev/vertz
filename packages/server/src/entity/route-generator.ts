@@ -36,6 +36,8 @@ export interface EntityRouteOptions {
   closureStore?: import('../auth/closure-store').ClosureStore;
   /** Tenant levels — ordered chain of .tenant() levels from root to leaf. */
   tenantLevels?: readonly import('@vertz/db').TenantLevel[];
+  /** When true, unknown errors include real message and stack trace. @default false */
+  devMode?: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -133,6 +135,7 @@ export function generateEntityRoutes(
 ): EntityRouteEntry[] {
   const prefix = options?.apiPrefix ?? '/api';
   const basePath = `${prefix}/${def.name}`;
+  const devMode = options?.devMode;
   const tenantChain = options?.tenantChain ?? null;
   const exposeValidation: ExposeValidationConfig | undefined = def.expose
     ? {
@@ -233,7 +236,7 @@ export function generateEntityRoutes(
             };
             const result = await crudHandlers.list(entityCtx, options);
             if (!result.ok) {
-              const { status, body } = entityErrorHandler(result.error);
+              const { status, body } = entityErrorHandler(result.error, { devMode });
               return jsonResponse(body, status);
             }
 
@@ -253,7 +256,7 @@ export function generateEntityRoutes(
 
             return jsonResponse(result.data.body, result.data.status);
           } catch (error) {
-            const { status, body } = entityErrorHandler(error);
+            const { status, body } = entityErrorHandler(error, { devMode });
             return jsonResponse(body, status);
           }
         },
@@ -330,7 +333,7 @@ export function generateEntityRoutes(
             };
             const result = await crudHandlers.list(entityCtx, options);
             if (!result.ok) {
-              const { status, body: errBody } = entityErrorHandler(result.error);
+              const { status, body: errBody } = entityErrorHandler(result.error, { devMode });
               return jsonResponse(errBody, status);
             }
 
@@ -350,7 +353,7 @@ export function generateEntityRoutes(
 
             return jsonResponse(result.data.body, result.data.status);
           } catch (error) {
-            const { status, body: errBody } = entityErrorHandler(error);
+            const { status, body: errBody } = entityErrorHandler(error, { devMode });
             return jsonResponse(errBody, status);
           }
         },
@@ -417,7 +420,7 @@ export function generateEntityRoutes(
             const getOptions = parsed.include ? { include: parsed.include } : undefined;
             const result = await crudHandlers.get(entityCtx, id, getOptions);
             if (!result.ok) {
-              const { status, body } = entityErrorHandler(result.error);
+              const { status, body } = entityErrorHandler(result.error, { devMode });
               return jsonResponse(body, status);
             }
 
@@ -432,7 +435,7 @@ export function generateEntityRoutes(
 
             return jsonResponse(body, result.data.status);
           } catch (error) {
-            const { status, body } = entityErrorHandler(error);
+            const { status, body } = entityErrorHandler(error, { devMode });
             return jsonResponse(body, status);
           }
         },
@@ -472,7 +475,7 @@ export function generateEntityRoutes(
             const data = (ctx.body ?? {}) as Record<string, unknown>;
             const result = await crudHandlers.create(entityCtx, data);
             if (!result.ok) {
-              const { status, body } = entityErrorHandler(result.error);
+              const { status, body } = entityErrorHandler(result.error, { devMode });
               return jsonResponse(body, status);
             }
 
@@ -487,7 +490,7 @@ export function generateEntityRoutes(
 
             return jsonResponse(responseBody, result.data.status);
           } catch (error) {
-            const { status, body } = entityErrorHandler(error);
+            const { status, body } = entityErrorHandler(error, { devMode });
             return jsonResponse(body, status);
           }
         },
@@ -528,7 +531,7 @@ export function generateEntityRoutes(
             const data = (ctx.body ?? {}) as Record<string, unknown>;
             const result = await crudHandlers.update(entityCtx, id, data);
             if (!result.ok) {
-              const { status, body } = entityErrorHandler(result.error);
+              const { status, body } = entityErrorHandler(result.error, { devMode });
               return jsonResponse(body, status);
             }
 
@@ -543,7 +546,7 @@ export function generateEntityRoutes(
 
             return jsonResponse(responseBody, result.data.status);
           } catch (error) {
-            const { status, body } = entityErrorHandler(error);
+            const { status, body } = entityErrorHandler(error, { devMode });
             return jsonResponse(body, status);
           }
         },
@@ -583,7 +586,7 @@ export function generateEntityRoutes(
             const id = getParams(ctx).id as string;
             const result = await crudHandlers.delete(entityCtx, id);
             if (!result.ok) {
-              const { status, body } = entityErrorHandler(result.error);
+              const { status, body } = entityErrorHandler(result.error, { devMode });
               return jsonResponse(body, status);
             }
             if (result.data.status === 204) {
@@ -591,7 +594,7 @@ export function generateEntityRoutes(
             }
             return jsonResponse(result.data.body, result.data.status);
           } catch (error) {
-            const { status, body } = entityErrorHandler(error);
+            const { status, body } = entityErrorHandler(error, { devMode });
             return jsonResponse(body, status);
           }
         },
@@ -643,12 +646,12 @@ export function generateEntityRoutes(
             const input = method === 'GET' ? (ctx.query ?? {}) : ctx.body;
             const result = await actionHandler(entityCtx, id, input);
             if (!result.ok) {
-              const { status, body } = entityErrorHandler(result.error);
+              const { status, body } = entityErrorHandler(result.error, { devMode });
               return jsonResponse(body, status);
             }
             return jsonResponse(result.data.body, result.data.status, result.data.headers);
           } catch (error) {
-            const { status, body } = entityErrorHandler(error);
+            const { status, body } = entityErrorHandler(error, { devMode });
             return jsonResponse(body, status);
           }
         },

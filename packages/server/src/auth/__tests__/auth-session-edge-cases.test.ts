@@ -193,8 +193,8 @@ describe('Auth Session Edge Cases', () => {
   });
 
   describe('Given an unexpected internal error in the handler', () => {
-    describe('When the error is not caught by inner handlers', () => {
-      it('Then returns 500 Internal server error (lines 2473-2476)', async () => {
+    describe('When the error is not caught by inner handlers (dev mode)', () => {
+      it('Then returns 500 with real error message and stack', async () => {
         const userStore = new InMemoryUserStore();
         // Make findByEmail throw an unexpected error
         userStore.findByEmail = async () => {
@@ -211,8 +211,47 @@ describe('Auth Session Edge Cases', () => {
           }),
         );
         expect(res.status).toBe(500);
-        const body = (await res.json()) as { error: string };
-        expect(body.error).toBe('Internal server error');
+        const body = (await res.json()) as {
+          error: { code: string; message: string; stack?: string };
+        };
+        expect(body.error.code).toBe('InternalError');
+        expect(body.error.message).toBe('Unexpected database failure');
+        expect(body.error.stack).toBeDefined();
+      });
+    });
+
+    describe('When the error is not caught by inner handlers (production)', () => {
+      it('Then returns 500 with generic message only', async () => {
+        const userStore = new InMemoryUserStore();
+        userStore.findByEmail = async () => {
+          throw new Error('Unexpected database failure');
+        };
+
+        const auth = createTestAuth({
+          userStore,
+          isProduction: true,
+          issuer: 'https://test.example.com',
+          audience: 'test-app',
+        });
+
+        const res = await auth.handler(
+          new Request('http://localhost/api/auth/signup', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Origin': 'http://localhost',
+              'X-VTZ-Request': '1',
+            },
+            body: JSON.stringify({ email: 'test@example.com', password: 'password123' }),
+          }),
+        );
+        expect(res.status).toBe(500);
+        const body = (await res.json()) as {
+          error: { code: string; message: string; stack?: string };
+        };
+        expect(body.error.code).toBe('InternalError');
+        expect(body.error.message).toBe('Internal server error');
+        expect(body.error.stack).toBeUndefined();
       });
     });
   });

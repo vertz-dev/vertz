@@ -806,4 +806,52 @@ describe('Feature: generateServiceRoutes', () => {
       });
     });
   });
+
+  // ---------------------------------------------------------------------------
+  // devMode error handling
+  // ---------------------------------------------------------------------------
+
+  describe('Given a service handler that throws an unknown Error', () => {
+    const throwingService = service('failing', {
+      access: { crash: () => true },
+      actions: {
+        crash: {
+          response: responseSchema,
+          handler: async () => {
+            throw new Error('Redis timeout');
+          },
+        },
+      },
+    });
+
+    describe('When devMode is true', () => {
+      it('Then the 500 response includes the real error message and stack', async () => {
+        const registry = new EntityRegistry();
+        const routes = generateServiceRoutes(throwingService, registry, { devMode: true });
+        const route = routes.find((r) => r.path.includes('crash'));
+        const response = await route!.handler({});
+
+        expect(response.status).toBe(500);
+        const body = await response.json();
+        expect(body.error.code).toBe('InternalError');
+        expect(body.error.message).toBe('Redis timeout');
+        expect(body.error.stack).toBeDefined();
+      });
+    });
+
+    describe('When devMode is false', () => {
+      it('Then the 500 response returns generic message only', async () => {
+        const registry = new EntityRegistry();
+        const routes = generateServiceRoutes(throwingService, registry, { devMode: false });
+        const route = routes.find((r) => r.path.includes('crash'));
+        const response = await route!.handler({});
+
+        expect(response.status).toBe(500);
+        const body = await response.json();
+        expect(body.error.code).toBe('InternalError');
+        expect(body.error.message).toBe('An unexpected error occurred');
+        expect(body.error.stack).toBeUndefined();
+      });
+    });
+  });
 });

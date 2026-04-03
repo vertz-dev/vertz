@@ -2109,4 +2109,58 @@ describe('Feature: Expose descriptor runtime evaluation', () => {
       });
     });
   });
+
+  // ---------------------------------------------------------------------------
+  // devMode error handling
+  // ---------------------------------------------------------------------------
+
+  describe('devMode error handling', () => {
+    it('list handler exposes real error message when devMode is true', async () => {
+      const def = buildEntityDef();
+      const db = createMockDb();
+      db.list = async () => {
+        throw new Error('DB connection lost');
+      };
+      const registry = createTestRegistry();
+      const routes = generateEntityRoutes(def, registry, db, { devMode: true });
+
+      const listRoute = routes.find((r) => r.method === 'GET' && r.path === '/api/users');
+      const response = await listRoute!.handler({
+        params: {},
+        body: undefined,
+        query: {},
+        headers: {},
+      });
+
+      expect(response.status).toBe(500);
+      const body = await response.json();
+      expect(body.error.code).toBe('InternalError');
+      expect(body.error.message).toBe('DB connection lost');
+      expect(body.error.stack).toBeDefined();
+    });
+
+    it('list handler hides error message when devMode is false', async () => {
+      const def = buildEntityDef();
+      const db = createMockDb();
+      db.list = async () => {
+        throw new Error('DB connection lost');
+      };
+      const registry = createTestRegistry();
+      const routes = generateEntityRoutes(def, registry, db, { devMode: false });
+
+      const listRoute = routes.find((r) => r.method === 'GET' && r.path === '/api/users');
+      const response = await listRoute!.handler({
+        params: {},
+        body: undefined,
+        query: {},
+        headers: {},
+      });
+
+      expect(response.status).toBe(500);
+      const body = await response.json();
+      expect(body.error.code).toBe('InternalError');
+      expect(body.error.message).toBe('An unexpected error occurred');
+      expect(body.error.stack).toBeUndefined();
+    });
+  });
 });

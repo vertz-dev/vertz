@@ -1,5 +1,6 @@
 import type { EntityRouteEntry } from '@vertz/core';
 import { enforceAccess } from '../entity/access-enforcer';
+import { entityErrorHandler } from '../entity/error-handler';
 import type { AccessRule, BaseContext } from '../entity/types';
 import type { AgentLike, AgentRunnerFn } from './types';
 
@@ -9,6 +10,8 @@ import type { AgentLike, AgentRunnerFn } from './types';
 
 export interface AgentRouteOptions {
   apiPrefix?: string;
+  /** When true, unknown errors include real message and stack trace. @default false */
+  devMode?: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -161,11 +164,8 @@ export function generateAgentRoutes(
             );
           }
 
-          const errorMessage = error instanceof Error ? error.message : 'Internal server error';
-          return jsonResponse(
-            { error: { code: 'InternalServerError', message: errorMessage } },
-            500,
-          );
+          const result = entityErrorHandler(error, { devMode: options?.devMode });
+          return jsonResponse(result.body, result.status);
         }
       },
     });

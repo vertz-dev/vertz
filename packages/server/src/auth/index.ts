@@ -2755,11 +2755,25 @@ export function createAuth(config: AuthConfig): AuthInstance {
         status: 404,
         headers: { 'Content-Type': 'application/json' },
       });
-    } catch (_error) {
-      return new Response(JSON.stringify({ error: 'Internal server error' }), {
-        status: 500,
-        headers: { 'Content-Type': 'application/json' },
-      });
+    } catch (error) {
+      if (!isProduction && error instanceof Error) {
+        return new Response(
+          JSON.stringify({
+            error: {
+              code: 'InternalError',
+              message: error.message,
+              ...(error.stack && { stack: error.stack }),
+            },
+          }),
+          { status: 500, headers: { 'Content-Type': 'application/json' } },
+        );
+      }
+      return new Response(
+        JSON.stringify({
+          error: { code: 'InternalError', message: 'Internal server error' },
+        }),
+        { status: 500, headers: { 'Content-Type': 'application/json' } },
+      );
     }
   }
 
