@@ -1,5 +1,5 @@
 import type { ParsedOperation, ParsedResource, ParsedSchema } from '../parser/types';
-import { collectCircularRefs, sanitizeTypeName, toPascalCase } from './json-schema-to-ts';
+import { collectCircularRefs, getTypePrefix, sanitizeTypeName, toPascalCase } from './json-schema-to-ts';
 import type { GeneratedFile } from './types';
 
 /**
@@ -313,10 +313,6 @@ function collectTypeImports(
   }
 
   return { resourceImports, componentImports };
-}
-
-function getTypePrefix(op: ParsedOperation): string {
-  return op.typePrefix ?? toPascalCase(op.operationId);
 }
 
 function deriveInputName(op: ParsedOperation): string {

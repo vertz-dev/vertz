@@ -2,10 +2,10 @@ import type { ParsedOperation, ParsedResource, ParsedSchema } from '../parser/ty
 import {
   collectCircularRefs,
   generateInterface,
+  getTypePrefix,
   isValidIdentifier,
   jsonSchemaToTS,
   sanitizeTypeName,
-  toPascalCase,
 } from './json-schema-to-ts';
 import type { GeneratedFile } from './types';
 
@@ -159,10 +159,6 @@ function collectOperationCircularRefs(
       if (namedSchemas.has(ref)) imports.add(ref);
     }
   }
-}
-
-function getTypePrefix(op: ParsedOperation): string {
-  return op.typePrefix ?? toPascalCase(op.operationId);
 }
 
 function deriveResponseName(op: ParsedOperation): string {

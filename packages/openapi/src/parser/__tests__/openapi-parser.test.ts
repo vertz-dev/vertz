@@ -752,4 +752,36 @@ describe('parseOpenAPI', () => {
     // jsonResponse holds the JSON schema
     expect(op.jsonResponse!.name).toBe('TaskList');
   });
+
+  it('falls back to full operationId for typePrefix when two operations collide', () => {
+    const spec = {
+      openapi: '3.1.0',
+      info: { title: 'Test', version: '1.0.0' },
+      paths: {
+        '/v1/tasks': {
+          get: {
+            operationId: 'get_tasks_v1_tasks_get',
+            responses: {
+              '200': { content: { 'application/json': { schema: { type: 'string' } } } },
+            },
+          },
+        },
+        '/v2/tasks': {
+          get: {
+            operationId: 'get_tasks_v2_tasks_get',
+            responses: {
+              '200': { content: { 'application/json': { schema: { type: 'string' } } } },
+            },
+          },
+        },
+      },
+    };
+
+    const result = parseOpenAPI(spec);
+    const op1 = result.operations.find((o) => o.operationId === 'get_tasks_v1_tasks_get')!;
+    const op2 = result.operations.find((o) => o.operationId === 'get_tasks_v2_tasks_get')!;
+    // Both would produce "GetTasks" — collision detected, so typePrefix is cleared
+    expect(op1.typePrefix).toBeUndefined();
+    expect(op2.typePrefix).toBeUndefined();
+  });
 });

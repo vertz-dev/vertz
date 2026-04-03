@@ -144,4 +144,8 @@ describe('deriveTypePrefix', () => {
       'GetBrandAnalytics',
     );
   });
+
+  it('strips NestJS controller prefix', () => {
+    expect(deriveTypePrefix('TasksController_listTasks', '/tasks')).toBe('ListTasks');
+  });
 });
