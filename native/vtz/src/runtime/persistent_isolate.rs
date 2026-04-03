@@ -7,12 +7,15 @@
 //! This matches Cloudflare Workers' execution model: one isolate, modules loaded
 //! once, all requests go through the same runtime.
 
+use std::collections::HashSet;
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
 
 use deno_core::error::AnyError;
 use tokio::sync::{mpsc, oneshot};
+
+use crate::server::auto_installer::AutoInstaller;
 
 /// Maximum time to wait for a single API/SSR request before timing out.
 const REQUEST_TIMEOUT: Duration = Duration::from_secs(30);
@@ -39,6 +42,8 @@ pub struct PersistentIsolateOptions {
     pub server_entry: Option<PathBuf>,
     /// Bounded channel capacity for request queue.
     pub channel_capacity: usize,
+    /// Shared auto-installer for missing packages. `None` when disabled.
+    pub auto_installer: Option<Arc<AutoInstaller>>,
 }
 
 impl Default for PersistentIsolateOptions {
@@ -48,6 +53,7 @@ impl Default for PersistentIsolateOptions {
             ssr_entry: PathBuf::from("src/app.tsx"),
             server_entry: None,
             channel_capacity: 256,
+            auto_installer: None,
         }
     }
 }
@@ -144,6 +150,7 @@ impl PersistentIsolate {
         let root_dir = options.root_dir.clone();
         let ssr_entry = options.ssr_entry.clone();
         let server_entry = options.server_entry.clone();
+        let auto_installer = options.auto_installer.clone();
 
         let runtime_thread = std::thread::spawn(move || {
             let rt = tokio::runtime::Builder::new_current_thread()
@@ -159,6 +166,7 @@ impl PersistentIsolate {
                     message_rx,
                     initialized_clone,
                     has_api_clone,
+                    auto_installer,
                 )
                 .await;
             });
@@ -266,6 +274,25 @@ impl PersistentIsolate {
     }
 }
 
+/// Maximum number of auto-install retries during isolate initialization.
+/// Each retry installs one missing package, then starts fresh.
+const MAX_AUTO_INSTALL_RETRIES: usize = 5;
+
+/// Parse a package name from a "Cannot find module" error.
+///
+/// Returns `Some("pkg_name")` if the error matches the known format from
+/// `VertzModuleLoader::resolve_node_module()`, or `None` for other errors.
+fn parse_missing_package(error: &AnyError) -> Option<String> {
+    let msg = error.to_string();
+    let prefix = "Cannot find module '";
+    let start = msg.find(prefix)? + prefix.len();
+    let end = msg[start..].find("' in node_modules")? + start;
+    let specifier = &msg[start..end];
+    // Extract just the package name (strip subpath)
+    let (pkg_name, _) = crate::deps::resolve::split_package_specifier(specifier);
+    Some(pkg_name.to_string())
+}
+
 /// The main event loop running on the dedicated V8 thread.
 ///
 /// 1. Creates a VertzJsRuntime
@@ -273,6 +300,10 @@ impl PersistentIsolate {
 /// 3. Loads the app entry module (for SSR rendering)
 /// 4. Optionally loads the server module and extracts handler (for API routes)
 /// 5. Processes incoming messages (API or SSR)
+///
+/// When `auto_installer` is `Some`, module load failures matching "Cannot find
+/// module '<pkg>' in node_modules" trigger auto-install and a full retry from
+/// step 1 with a fresh V8 runtime.
 async fn isolate_event_loop(
     root_dir: PathBuf,
     ssr_entry: PathBuf,
@@ -280,104 +311,258 @@ async fn isolate_event_loop(
     mut message_rx: mpsc::Receiver<IsolateMessage>,
     initialized: Arc<std::sync::atomic::AtomicBool>,
     has_api_handler: Arc<std::sync::atomic::AtomicBool>,
+    auto_installer: Option<Arc<AutoInstaller>>,
 ) {
     use crate::runtime::js_runtime::{VertzJsRuntime, VertzRuntimeOptions};
 
-    // 1. Create V8 runtime
-    let mut runtime = match VertzJsRuntime::new(VertzRuntimeOptions {
-        root_dir: Some(root_dir.to_string_lossy().to_string()),
-        capture_output: false,
-        ..Default::default()
-    }) {
-        Ok(rt) => rt,
-        Err(e) => {
-            eprintln!("[Server] Failed to create persistent V8 runtime: {}", e);
-            return;
-        }
-    };
+    // Track packages installed during this init cycle to prevent loops.
+    let mut installed_packages: HashSet<String> = HashSet::new();
+    let mut retry_count: usize = 0;
 
-    // 2. Load async context polyfill (must be before DOM shim to capture all promises)
-    if let Err(e) = crate::runtime::async_context::load_async_context(&mut runtime) {
-        eprintln!("[Server] Failed to load async context polyfill: {}", e);
-        return;
-    }
-    if let Err(e) = crate::ssr::dom_shim::load_dom_shim(&mut runtime) {
-        eprintln!("[Server] Failed to load DOM shim: {}", e);
-        return;
-    }
+    // Runtime is created fresh on each retry (to clear stale module map).
+    // Declared here so it survives the init loop for use in process_messages.
+    let mut runtime;
 
-    // 3. Load SSR entry module (app.tsx) and store as globalThis.__vertz_app_module
-    if ssr_entry.exists() {
-        let entry_specifier = match deno_core::ModuleSpecifier::from_file_path(&ssr_entry) {
-            Ok(s) => s,
-            Err(_) => {
-                eprintln!("[Server] Invalid SSR entry path: {}", ssr_entry.display());
-                // Continue without SSR — API routes may still work
-                initialized.store(true, std::sync::atomic::Ordering::Release);
-                process_messages(&mut runtime, &mut message_rx, false).await;
+    'init: loop {
+        // 1. Create V8 runtime (fresh on each retry to clear stale module map)
+        runtime = match VertzJsRuntime::new(VertzRuntimeOptions {
+            root_dir: Some(root_dir.to_string_lossy().to_string()),
+            capture_output: false,
+            ..Default::default()
+        }) {
+            Ok(rt) => rt,
+            Err(e) => {
+                eprintln!("[Server] Failed to create persistent V8 runtime: {}", e);
                 return;
             }
         };
 
-        if let Err(e) = runtime.load_main_module(&entry_specifier).await {
-            eprintln!(
-                "[Server] Failed to load SSR entry module ({}): {}",
-                ssr_entry.display(),
-                e
-            );
-            // Continue anyway — SSR entry failing doesn't prevent API routes
-        } else {
-            // Capture module exports as globalThis.__vertz_app_module
-            let safe_url = serde_json::to_string(entry_specifier.as_str())
-                .unwrap_or_else(|_| format!("\"{}\"", entry_specifier.as_str()));
-            let capture_js = format!(
-                r#"(async function() {{
-                    const mod = await import({});
-                    globalThis.__vertz_app_module = mod;
-                }})()"#,
-                safe_url
-            );
-            if let Err(e) = runtime.execute_script_void("<capture-ssr-module>", &capture_js) {
-                eprintln!("[Server] Failed to capture SSR module exports: {}", e);
+        // 2. Load async context polyfill (must be before DOM shim to capture all promises)
+        if let Err(e) = crate::runtime::async_context::load_async_context(&mut runtime) {
+            eprintln!("[Server] Failed to load async context polyfill: {}", e);
+            return;
+        }
+        if let Err(e) = crate::ssr::dom_shim::load_dom_shim(&mut runtime) {
+            eprintln!("[Server] Failed to load DOM shim: {}", e);
+            return;
+        }
+
+        // 3. Load SSR entry module (app.tsx) and store as globalThis.__vertz_app_module
+        if ssr_entry.exists() {
+            let entry_specifier = match deno_core::ModuleSpecifier::from_file_path(&ssr_entry) {
+                Ok(s) => s,
+                Err(_) => {
+                    eprintln!("[Server] Invalid SSR entry path: {}", ssr_entry.display());
+                    // Continue without SSR — API routes may still work
+                    initialized.store(true, std::sync::atomic::Ordering::Release);
+                    process_messages(&mut runtime, &mut message_rx, false).await;
+                    return;
+                }
+            };
+
+            match runtime.load_main_module(&entry_specifier).await {
+                Err(e) => {
+                    // Check if this is a missing package we can auto-install
+                    if let Some(ref installer) = auto_installer {
+                        if let Some(pkg_name) = parse_missing_package(&e) {
+                            if !installed_packages.contains(&pkg_name)
+                                && retry_count < MAX_AUTO_INSTALL_RETRIES
+                            {
+                                eprintln!(
+                                    "[Server] Missing package '{}' during SSR init — auto-installing",
+                                    pkg_name
+                                );
+                                if installer.install(&pkg_name).await.is_ok() {
+                                    installed_packages.insert(pkg_name);
+                                    retry_count += 1;
+                                    continue 'init;
+                                }
+                            }
+                        }
+                    }
+                    eprintln!(
+                        "[Server] Failed to load SSR entry module ({}): {}",
+                        ssr_entry.display(),
+                        e
+                    );
+                    // Continue anyway — SSR entry failing doesn't prevent API routes
+                }
+                Ok(()) => {
+                    // Capture module exports as globalThis.__vertz_app_module
+                    let safe_url = serde_json::to_string(entry_specifier.as_str())
+                        .unwrap_or_else(|_| format!("\"{}\"", entry_specifier.as_str()));
+                    let capture_js = format!(
+                        r#"(async function() {{
+                            const mod = await import({});
+                            globalThis.__vertz_app_module = mod;
+                        }})()"#,
+                        safe_url
+                    );
+                    if let Err(e) = runtime.execute_script_void("<capture-ssr-module>", &capture_js)
+                    {
+                        eprintln!("[Server] Failed to capture SSR module exports: {}", e);
+                    }
+                    match tokio::time::timeout(INIT_EVENT_LOOP_TIMEOUT, runtime.run_event_loop())
+                        .await
+                    {
+                        Ok(Err(e)) => eprintln!(
+                            "[Server] Event loop error during SSR module capture: {}",
+                            e
+                        ),
+                        Err(_) => eprintln!("[Server] SSR module capture timed out after {}s — continuing with partial init", INIT_EVENT_LOOP_TIMEOUT.as_secs()),
+                        Ok(Ok(())) => {}
+                    }
+
+                    eprintln!(
+                        "[Server] SSR entry loaded: {} (stored as globalThis.__vertz_app_module)",
+                        ssr_entry.display()
+                    );
+
+                    // Import ssrRenderSinglePass from @vertz/ui-server/ssr and store as global.
+                    // We write a temp module file so bare specifiers resolve from node_modules.
+                    let ssr_init_path = ssr_entry
+                        .parent()
+                        .unwrap_or(root_dir.as_ref())
+                        .join("__vertz_ssr_init.mjs");
+                    let wrote_init = std::fs::write(
+                        &ssr_init_path,
+                        "import { ssrRenderSinglePass } from '@vertz/ui-server/ssr';\n\
+                         globalThis.__vertz_ssr_render_fn = ssrRenderSinglePass;\n",
+                    )
+                    .is_ok();
+
+                    if wrote_init {
+                        if let Ok(init_specifier) =
+                            deno_core::ModuleSpecifier::from_file_path(&ssr_init_path)
+                        {
+                            match runtime.load_side_module(&init_specifier).await {
+                                Ok(_) => {
+                                    match tokio::time::timeout(
+                                        INIT_EVENT_LOOP_TIMEOUT,
+                                        runtime.run_event_loop(),
+                                    )
+                                    .await
+                                    {
+                                        Ok(Err(e)) => eprintln!(
+                                            "[Server] Event loop error during SSR init: {}",
+                                            e
+                                        ),
+                                        Err(_) => eprintln!("[Server] SSR init timed out after {}s — continuing without ssrRenderSinglePass", INIT_EVENT_LOOP_TIMEOUT.as_secs()),
+                                        Ok(Ok(())) => {}
+                                    }
+                                    eprintln!(
+                                        "[Server] ssrRenderSinglePass loaded from @vertz/ui-server/ssr"
+                                    );
+                                }
+                                Err(e) => {
+                                    // Check if this is a missing package for SSR init
+                                    if let Some(ref installer) = auto_installer {
+                                        if let Some(pkg_name) = parse_missing_package(&e) {
+                                            if !installed_packages.contains(&pkg_name)
+                                                && retry_count < MAX_AUTO_INSTALL_RETRIES
+                                            {
+                                                eprintln!(
+                                                    "[Server] Missing package '{}' during SSR init — auto-installing",
+                                                    pkg_name
+                                                );
+                                                let _ = std::fs::remove_file(&ssr_init_path);
+                                                if installer.install(&pkg_name).await.is_ok() {
+                                                    installed_packages.insert(pkg_name);
+                                                    retry_count += 1;
+                                                    continue 'init;
+                                                }
+                                            }
+                                        }
+                                    }
+                                    eprintln!(
+                                        "[Server] @vertz/ui-server/ssr not available ({}), using legacy render",
+                                        e
+                                    );
+                                }
+                            }
+                        }
+                        let _ = std::fs::remove_file(&ssr_init_path);
+                    }
+                }
             }
-            match tokio::time::timeout(INIT_EVENT_LOOP_TIMEOUT, runtime.run_event_loop()).await {
-                Ok(Err(e)) => eprintln!("[Server] Event loop error during SSR module capture: {}", e),
-                Err(_) => eprintln!("[Server] SSR module capture timed out after {}s — continuing with partial init", INIT_EVENT_LOOP_TIMEOUT.as_secs()),
-                Ok(Ok(())) => {}
-            }
+        }
 
-            eprintln!(
-                "[Server] SSR entry loaded: {} (stored as globalThis.__vertz_app_module)",
-                ssr_entry.display()
-            );
+        // 4. Optionally load server module for API routes.
+        //
+        // Two-step process:
+        // a) Load the server module directly (file:// URL the loader can handle)
+        // b) If the module didn't set globalThis.__vertz_server_module directly
+        //    (test fixtures do this), capture its exports via dynamic import
+        //    (the module is already loaded, so import() returns the cached module)
+        if let Some(ref server_entry_path) = server_entry {
+            let entry_specifier =
+                match deno_core::ModuleSpecifier::from_file_path(server_entry_path) {
+                    Ok(s) => s,
+                    Err(_) => {
+                        eprintln!(
+                            "[Server] Invalid server entry path: {}",
+                            server_entry_path.display()
+                        );
+                        initialized.store(true, std::sync::atomic::Ordering::Release);
+                        process_messages(&mut runtime, &mut message_rx, true).await;
+                        return;
+                    }
+                };
 
-            // Import ssrRenderSinglePass from @vertz/ui-server/ssr and store as global.
-            // We write a temp module file so bare specifiers resolve from node_modules.
-            let ssr_init_path = ssr_entry
-                .parent()
-                .unwrap_or(root_dir.as_ref())
-                .join("__vertz_ssr_init.mjs");
-            let wrote_init = std::fs::write(
-                &ssr_init_path,
-                "import { ssrRenderSinglePass } from '@vertz/ui-server/ssr';\n\
-                 globalThis.__vertz_ssr_render_fn = ssrRenderSinglePass;\n",
-            )
-            .is_ok();
+            // Step a: Load the server module directly
+            let load_result = if ssr_entry.exists() {
+                runtime.load_side_module(&entry_specifier).await
+            } else {
+                runtime.load_main_module(&entry_specifier).await
+            };
 
-            if wrote_init {
-                if let Ok(init_specifier) =
-                    deno_core::ModuleSpecifier::from_file_path(&ssr_init_path)
-                {
-                    match runtime.load_side_module(&init_specifier).await {
-                        Ok(_) => {
-                            match tokio::time::timeout(INIT_EVENT_LOOP_TIMEOUT, runtime.run_event_loop()).await {
-                                Ok(Err(e)) => eprintln!("[Server] Event loop error during SSR init: {}", e),
-                                Err(_) => eprintln!("[Server] SSR init timed out after {}s — continuing without ssrRenderSinglePass", INIT_EVENT_LOOP_TIMEOUT.as_secs()),
-                                Ok(Ok(())) => {}
+            match load_result {
+                Ok(()) => {
+                    // Step b: Capture module exports if not set by the module itself.
+                    let safe_url = serde_json::to_string(entry_specifier.as_str())
+                        .unwrap_or_else(|_| format!("\"{}\"", entry_specifier.as_str()));
+                    let capture_js = format!(
+                        r#"(async function() {{
+                            if (!globalThis.__vertz_server_module) {{
+                                const mod = await import({});
+                                globalThis.__vertz_server_module = mod;
+                            }}
+                        }})()"#,
+                        safe_url
+                    );
+                    if let Err(e) =
+                        runtime.execute_script_void("<capture-server-exports>", &capture_js)
+                    {
+                        eprintln!("[Server] Failed to capture server exports: {}", e);
+                    }
+                    match tokio::time::timeout(INIT_EVENT_LOOP_TIMEOUT, runtime.run_event_loop())
+                        .await
+                    {
+                        Ok(Err(e)) => {
+                            eprintln!("[Server] Event loop error during export capture: {}", e)
+                        }
+                        Err(_) => eprintln!("[Server] Server module capture timed out after {}s — continuing without API handler", INIT_EVENT_LOOP_TIMEOUT.as_secs()),
+                        Ok(Ok(())) => {}
+                    }
+
+                    // Extract the handler function from the module
+                    match extract_api_handler(&mut runtime) {
+                        Ok(true) => {
+                            has_api_handler.store(true, std::sync::atomic::Ordering::Release);
+                            // Install fetch interceptor for SSR
+                            if let Err(e) = runtime
+                                .execute_script_void("<fetch-interceptor>", FETCH_INTERCEPTOR_JS)
+                            {
+                                eprintln!("[Server] Failed to install fetch interceptor: {}", e);
+                            } else {
+                                eprintln!("[Server] Fetch interceptor installed for /api/ paths");
                             }
                             eprintln!(
-                                "[Server] ssrRenderSinglePass loaded from @vertz/ui-server/ssr"
+                                "[Server] API handler loaded (persistent isolate -- module state persists across requests)"
                             );
+                        }
+                        Ok(false) => {
+                            eprintln!("[Server] Server module loaded but no handler found");
                         }
                         Err(e) => {
                             // Detect whether this is a framework app that needs
@@ -420,96 +605,33 @@ async fn isolate_event_loop(
                         }
                     }
                 }
-                let _ = std::fs::remove_file(&ssr_init_path);
-            }
-        }
-    }
-
-    // 4. Optionally load server module for API routes.
-    //
-    // Two-step process:
-    // a) Load the server module directly (file:// URL the loader can handle)
-    // b) If the module didn't set globalThis.__vertz_server_module directly
-    //    (test fixtures do this), capture its exports via dynamic import
-    //    (the module is already loaded, so import() returns the cached module)
-    if let Some(ref server_entry_path) = server_entry {
-        let entry_specifier = match deno_core::ModuleSpecifier::from_file_path(server_entry_path) {
-            Ok(s) => s,
-            Err(_) => {
-                eprintln!(
-                    "[Server] Invalid server entry path: {}",
-                    server_entry_path.display()
-                );
-                initialized.store(true, std::sync::atomic::Ordering::Release);
-                process_messages(&mut runtime, &mut message_rx, true).await;
-                return;
-            }
-        };
-
-        // Step a: Load the server module directly
-        let load_result = if ssr_entry.exists() {
-            runtime.load_side_module(&entry_specifier).await
-        } else {
-            runtime.load_main_module(&entry_specifier).await
-        };
-
-        match load_result {
-            Ok(()) => {
-                // Step b: Capture module exports if not set by the module itself.
-                // Real server.ts files use `export default createServer(...)` — the
-                // module doesn't set the global. We use dynamic import (cached, no
-                // re-evaluation) to capture the exports.
-                let safe_url = serde_json::to_string(entry_specifier.as_str())
-                    .unwrap_or_else(|_| format!("\"{}\"", entry_specifier.as_str()));
-                let capture_js = format!(
-                    r#"(async function() {{
-                        if (!globalThis.__vertz_server_module) {{
-                            const mod = await import({});
-                            globalThis.__vertz_server_module = mod;
-                        }}
-                    }})()"#,
-                    safe_url
-                );
-                if let Err(e) = runtime.execute_script_void("<capture-server-exports>", &capture_js)
-                {
-                    eprintln!("[Server] Failed to capture server exports: {}", e);
-                }
-                match tokio::time::timeout(INIT_EVENT_LOOP_TIMEOUT, runtime.run_event_loop()).await {
-                    Ok(Err(e)) => eprintln!("[Server] Event loop error during export capture: {}", e),
-                    Err(_) => eprintln!("[Server] Server module capture timed out after {}s — continuing without API handler", INIT_EVENT_LOOP_TIMEOUT.as_secs()),
-                    Ok(Ok(())) => {}
-                }
-
-                // Extract the handler function from the module
-                match extract_api_handler(&mut runtime) {
-                    Ok(true) => {
-                        has_api_handler.store(true, std::sync::atomic::Ordering::Release);
-                        // Install fetch interceptor for SSR
-                        if let Err(e) =
-                            runtime.execute_script_void("<fetch-interceptor>", FETCH_INTERCEPTOR_JS)
-                        {
-                            eprintln!("[Server] Failed to install fetch interceptor: {}", e);
-                        } else {
-                            eprintln!("[Server] Fetch interceptor installed for /api/ paths");
+                Err(e) => {
+                    // Check if this is a missing package we can auto-install
+                    if let Some(ref installer) = auto_installer {
+                        if let Some(pkg_name) = parse_missing_package(&e) {
+                            if !installed_packages.contains(&pkg_name)
+                                && retry_count < MAX_AUTO_INSTALL_RETRIES
+                            {
+                                eprintln!(
+                                    "[Server] Missing package '{}' during server init — auto-installing",
+                                    pkg_name
+                                );
+                                if installer.install(&pkg_name).await.is_ok() {
+                                    installed_packages.insert(pkg_name);
+                                    retry_count += 1;
+                                    continue 'init;
+                                }
+                            }
                         }
-                        eprintln!(
-                            "[Server] API handler loaded (persistent isolate -- module state persists across requests)"
-                        );
                     }
-                    Ok(false) => {
-                        eprintln!("[Server] Server module loaded but no handler found");
-                    }
-                    Err(e) => {
-                        eprintln!("[Server] Failed to extract API handler: {}", e);
-                    }
+                    eprintln!("[Server] Failed to load server module: {}", e);
+                    // Continue with SSR-only mode
                 }
             }
-            Err(e) => {
-                eprintln!("[Server] Failed to load server module: {}", e);
-                // Continue with SSR-only mode
-            }
         }
-    }
+
+        break 'init;
+    } // end 'init loop
 
     // Mark as initialized (even without API handler — SSR is still available)
     initialized.store(true, std::sync::atomic::Ordering::Release);
@@ -1164,6 +1286,7 @@ mod tests {
             ssr_entry: temp_dir.path().join("nonexistent-app.tsx"),
             server_entry: Some(server_path),
             channel_capacity: 16,
+            auto_installer: None,
         }
     }
 
@@ -1185,6 +1308,7 @@ mod tests {
             ssr_entry: PathBuf::from("/nonexistent/app.tsx"),
             server_entry: None,
             channel_capacity: 16,
+            auto_installer: None,
         };
 
         let isolate = PersistentIsolate::new(opts);
@@ -1204,6 +1328,7 @@ mod tests {
             ssr_entry: PathBuf::from("/nonexistent/app.tsx"),
             server_entry: None,
             channel_capacity: 16,
+            auto_installer: None,
         };
 
         let isolate = PersistentIsolate::new(opts).unwrap();
@@ -1400,6 +1525,7 @@ mod tests {
             ssr_entry: app_path,
             server_entry: None,
             channel_capacity: 16,
+            auto_installer: None,
         };
 
         let isolate = PersistentIsolate::new(opts).unwrap();
@@ -1448,6 +1574,7 @@ mod tests {
             ssr_entry: app_path,
             server_entry: None,
             channel_capacity: 16,
+            auto_installer: None,
         };
 
         let isolate = PersistentIsolate::new(opts).unwrap();
@@ -1501,6 +1628,7 @@ mod tests {
             ssr_entry: app_path,
             server_entry: None,
             channel_capacity: 16,
+            auto_installer: None,
         };
 
         let isolate = PersistentIsolate::new(opts).unwrap();
@@ -1555,6 +1683,7 @@ mod tests {
             ssr_entry: app_path,
             server_entry: None,
             channel_capacity: 16,
+            auto_installer: None,
         };
 
         let isolate = PersistentIsolate::new(opts).unwrap();
@@ -1623,6 +1752,7 @@ mod tests {
             ssr_entry: app_path,
             server_entry: Some(server_path),
             channel_capacity: 16,
+            auto_installer: None,
         };
 
         let isolate = PersistentIsolate::new(opts).unwrap();
@@ -1689,6 +1819,7 @@ mod tests {
             ssr_entry: app_path,
             server_entry: None,
             channel_capacity: 16,
+            auto_installer: None,
         };
 
         let isolate = PersistentIsolate::new(opts).unwrap();
@@ -1741,6 +1872,7 @@ mod tests {
             ssr_entry: app_path,
             server_entry: Some(server_path),
             channel_capacity: 16,
+            auto_installer: None,
         };
 
         let isolate = PersistentIsolate::new(opts).unwrap();
@@ -1812,6 +1944,7 @@ mod tests {
             ssr_entry: app_path,
             server_entry: Some(server_path),
             channel_capacity: 16,
+            auto_installer: None,
         };
 
         let isolate = PersistentIsolate::new(opts).unwrap();
@@ -1863,6 +1996,7 @@ mod tests {
             ssr_entry: app_path,
             server_entry: None,
             channel_capacity: 16,
+            auto_installer: None,
         };
 
         let isolate = PersistentIsolate::new(opts).unwrap();
@@ -1910,6 +2044,7 @@ mod tests {
             ssr_entry: app_path,
             server_entry: Some(server_path),
             channel_capacity: 16,
+            auto_installer: None,
         };
 
         let isolate = PersistentIsolate::new(opts).unwrap();
@@ -1959,6 +2094,7 @@ mod tests {
             ssr_entry: temp_dir.path().join("nonexistent-app.tsx"),
             server_entry: Some(server_path.clone()),
             channel_capacity: 16,
+            auto_installer: None,
         };
 
         let isolate = PersistentIsolate::new(opts).unwrap();
@@ -2054,6 +2190,7 @@ mod tests {
             ssr_entry: temp_dir.path().join("nonexistent-app.tsx"),
             server_entry: Some(server_path.clone()),
             channel_capacity: 16,
+            auto_installer: None,
         };
 
         let isolate = PersistentIsolate::new(opts).unwrap();
@@ -2071,5 +2208,53 @@ mod tests {
             !new_isolate.has_api_handler(),
             "Handler should not load with syntax error"
         );
+    }
+
+    #[test]
+    fn test_parse_missing_package_bare() {
+        let err: AnyError = deno_core::anyhow::anyhow!(
+            "Cannot find module 'zod' in node_modules (searched from /project)"
+        );
+        assert_eq!(parse_missing_package(&err), Some("zod".to_string()));
+    }
+
+    #[test]
+    fn test_parse_missing_package_scoped() {
+        let err: AnyError = deno_core::anyhow::anyhow!(
+            "Cannot find module '@hono/zod-openapi' in node_modules (searched from /project)"
+        );
+        assert_eq!(
+            parse_missing_package(&err),
+            Some("@hono/zod-openapi".to_string()),
+        );
+    }
+
+    #[test]
+    fn test_parse_missing_package_with_subpath() {
+        let err: AnyError = deno_core::anyhow::anyhow!(
+            "Cannot find module 'zod/lib/types' in node_modules (searched from /project)"
+        );
+        assert_eq!(parse_missing_package(&err), Some("zod".to_string()));
+    }
+
+    #[test]
+    fn test_parse_missing_package_scoped_with_subpath() {
+        let err: AnyError = deno_core::anyhow::anyhow!(
+            "Cannot find module '@scope/pkg/dist/index' in node_modules (searched from /project)"
+        );
+        assert_eq!(parse_missing_package(&err), Some("@scope/pkg".to_string()),);
+    }
+
+    #[test]
+    fn test_parse_missing_package_no_match() {
+        let err: AnyError =
+            deno_core::anyhow::anyhow!("Cannot resolve module: /path/to/local/file.ts");
+        assert_eq!(parse_missing_package(&err), None);
+    }
+
+    #[test]
+    fn test_parse_missing_package_unrelated_error() {
+        let err: AnyError = deno_core::anyhow::anyhow!("SyntaxError: unexpected token");
+        assert_eq!(parse_missing_package(&err), None);
     }
 }
