@@ -2,6 +2,7 @@ import { getInjectedCSS, ThemeProvider } from '@vertz/ui';
 import { createRouter, defineRoutes, RouterView } from '@vertz/ui/router';
 import { HomePage } from './pages/home';
 import ManifestoPage from './pages/manifesto';
+import { OpenAPIPage } from './pages/openapi';
 import { appGlobals } from './styles/globals';
 import { landingTheme, themeGlobals } from './styles/theme';
 
@@ -14,6 +15,7 @@ export const styles = [themeGlobals.css, appGlobals.css];
 const routes = defineRoutes({
   '/': { component: () => <HomePage /> },
   '/manifesto': { component: () => <ManifestoPage /> },
+  '/openapi': { component: () => <OpenAPIPage /> },
 });
 
 const router = createRouter(routes);
