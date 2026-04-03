@@ -6,7 +6,7 @@
  * Bun.build() needed.
  *
  * Architecture:
- *   routes: { '/__vertz_hmr': hmrShell, '/api/*': apiHandler }
+ *   routes: { '/__vertz_hmr': hmrShell, '${apiPrefix}/*': apiHandler }
  *   fetch:  static files → nav pre-fetch → fetch interception → SSR render
  *   development: { hmr: true, console: true }
  *
@@ -1828,7 +1828,7 @@ export function createBunDevServer(options: BunDevServerOptions): BunDevServer {
 
         try {
           // Scope fetch interception per-request via AsyncLocalStorage.
-          // API requests (e.g. query() calling fetch('/api/todos')) route
+          // API requests (e.g. query() calling fetch('${apiPrefix}/todos')) route
           // through the in-memory apiHandler. Concurrent SSR renders each
           // get their own scope — no globalThis.fetch mutation.
           const interceptor = apiHandler
