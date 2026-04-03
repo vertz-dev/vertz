@@ -1,5 +1,5 @@
 import type { ParsedOperation, ParsedResource } from '../parser/types';
-import { sanitizeTypeName } from './json-schema-to-ts';
+import { sanitizeTypeName, toPascalCase } from './json-schema-to-ts';
 import type { GeneratedFile } from './types';
 
 /**
@@ -129,7 +129,7 @@ function buildReturnType(op: ParsedOperation): string {
   }
 
   if (op.response) {
-    const name = capitalize(op.operationId) + 'Response';
+    const name = toPascalCase(op.operationId) + 'Response';
     return `Promise<FetchResponse<${name}>>`;
   }
 
@@ -176,7 +176,7 @@ function collectTypeImports(resource: ParsedResource): Set<string> {
       if (op.response.name) {
         types.add(sanitizeTypeName(op.response.name));
       } else {
-        types.add(capitalize(op.operationId) + 'Response');
+        types.add(toPascalCase(op.operationId) + 'Response');
       }
     }
 
@@ -196,13 +196,9 @@ function collectTypeImports(resource: ParsedResource): Set<string> {
 
 function deriveInputName(op: ParsedOperation): string {
   if (op.requestBody?.name) return sanitizeTypeName(op.requestBody.name);
-  return capitalize(op.operationId) + 'Input';
+  return toPascalCase(op.operationId) + 'Input';
 }
 
 function deriveQueryName(op: ParsedOperation): string {
-  return capitalize(op.operationId) + 'Query';
-}
-
-function capitalize(s: string): string {
-  return s.charAt(0).toUpperCase() + s.slice(1);
+  return toPascalCase(op.operationId) + 'Query';
 }

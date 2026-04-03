@@ -2,6 +2,17 @@ import type { ParsedResource, ParsedSecurityScheme } from '../parser/types';
 import type { GeneratedFile } from './types';
 
 function camelCase(name: string): string {
+  // Handle leading acronyms: "HTTPBearer" → "httpBearer", "APIKey" → "apiKey"
+  const leadingUpper = name.match(/^[A-Z]+/);
+  if (leadingUpper) {
+    const prefix = leadingUpper[0];
+    // If the entire string is uppercase or only one char, lowercase everything
+    if (prefix.length >= name.length) return name.toLowerCase();
+    // If the next char is lowercase, the acronym boundary is before the last uppercase char
+    if (prefix.length > 1) {
+      return prefix.slice(0, -1).toLowerCase() + name.slice(prefix.length - 1);
+    }
+  }
   return name.charAt(0).toLowerCase() + name.slice(1);
 }
 

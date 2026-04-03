@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'bun:test';
-import { generateInterface, jsonSchemaToTS } from '../json-schema-to-ts';
+import { generateInterface, jsonSchemaToTS, toPascalCase } from '../json-schema-to-ts';
 
 describe('jsonSchemaToTS', () => {
   const empty = new Map<string, string>();
@@ -272,6 +272,46 @@ describe('generateInterface', () => {
     };
     const result = generateInterface('123Response', schema, empty);
     expect(result).toContain('export interface _123Response {');
+  });
+});
+
+describe('toPascalCase', () => {
+  it('converts underscore-separated words', () => {
+    expect(toPascalCase('find_many_brands')).toBe('FindManyBrands');
+  });
+
+  it('converts double-underscore-separated FastAPI operationIds', () => {
+    expect(toPascalCase('find_many_web_organizations__organization_id__brands__get')).toBe(
+      'FindManyWebOrganizationsOrganizationIdBrandsGet',
+    );
+  });
+
+  it('preserves already-PascalCased input', () => {
+    expect(toPascalCase('CreateTask')).toBe('CreateTask');
+  });
+
+  it('preserves camelCase segments without lowercasing', () => {
+    expect(toPascalCase('createTask')).toBe('CreateTask');
+  });
+
+  it('handles single word', () => {
+    expect(toPascalCase('task')).toBe('Task');
+  });
+
+  it('handles empty string', () => {
+    expect(toPascalCase('')).toBe('_');
+  });
+
+  it('handles digit-prefixed result', () => {
+    expect(toPascalCase('123_response')).toBe('_123Response');
+  });
+
+  it('handles hyphen-separated names', () => {
+    expect(toPascalCase('brand-model-output')).toBe('BrandModelOutput');
+  });
+
+  it('handles consecutive separators', () => {
+    expect(toPascalCase('foo___bar')).toBe('FooBar');
   });
 });
 

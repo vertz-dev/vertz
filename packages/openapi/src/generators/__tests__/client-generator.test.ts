@@ -149,6 +149,37 @@ describe('generateClient', () => {
     expect(file.content).not.toContain('authStrategies');
   });
 
+  it('normalizes single-word all-uppercase scheme name', () => {
+    const file = generateClient(makeResources(), {
+      securitySchemes: [{ type: 'bearer', name: 'JWT' }],
+    });
+    expect(file.content).toContain('jwt?: string');
+    expect(file.content).toContain('options.auth?.jwt');
+  });
+
+  it('normalizes single-char scheme name', () => {
+    const file = generateClient(makeResources(), {
+      securitySchemes: [{ type: 'bearer', name: 'A' }],
+    });
+    expect(file.content).toContain('a?: string');
+  });
+
+  it('preserves non-acronym PascalCase scheme names', () => {
+    const file = generateClient(makeResources(), {
+      securitySchemes: [{ type: 'bearer', name: 'OAuth2Token' }],
+    });
+    expect(file.content).toContain('oAuth2Token?: string');
+  });
+
+  it('normalizes acronym-prefixed scheme names to proper camelCase', () => {
+    const file = generateClient(makeResources(), {
+      securitySchemes: [{ type: 'bearer', name: 'HTTPBearer' }],
+    });
+    expect(file.content).toContain('httpBearer?: string | (() => string | Promise<string>);');
+    expect(file.content).toContain('options.auth?.httpBearer');
+    expect(file.content).not.toContain('hTTPBearer');
+  });
+
   it('generates multiple auth strategies for multiple schemes', () => {
     const file = generateClient(makeResources(), {
       securitySchemes: [

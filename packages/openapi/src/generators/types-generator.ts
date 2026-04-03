@@ -4,6 +4,7 @@ import {
   isValidIdentifier,
   jsonSchemaToTS,
   sanitizeTypeName,
+  toPascalCase,
 } from './json-schema-to-ts';
 import type { GeneratedFile } from './types';
 
@@ -86,16 +87,16 @@ function generateResourceTypes(
 
 function deriveResponseName(op: ParsedOperation): string {
   if (op.response?.name) return sanitizeTypeName(op.response.name);
-  return capitalize(op.operationId) + 'Response';
+  return toPascalCase(op.operationId) + 'Response';
 }
 
 function deriveInputName(op: ParsedOperation): string {
   if (op.requestBody?.name) return sanitizeTypeName(op.requestBody.name);
-  return capitalize(op.operationId) + 'Input';
+  return toPascalCase(op.operationId) + 'Input';
 }
 
 function deriveQueryName(op: ParsedOperation): string {
-  return capitalize(op.operationId) + 'Query';
+  return toPascalCase(op.operationId) + 'Query';
 }
 
 function generateQueryInterface(
@@ -113,8 +114,4 @@ function generateQueryInterface(
   });
 
   return `export interface ${sanitizeTypeName(name)} {\n${lines.join('\n')}\n}\n`;
-}
-
-function capitalize(s: string): string {
-  return s.charAt(0).toUpperCase() + s.slice(1);
 }

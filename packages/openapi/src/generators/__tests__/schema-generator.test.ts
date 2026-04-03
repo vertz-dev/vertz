@@ -301,6 +301,50 @@ describe('generateSchemas', () => {
     expect(tasksFile!.content).toContain('title: z.string()');
   });
 
+  it('sanitizes hyphenated schema names to valid JS identifiers', () => {
+    const resources: ParsedResource[] = [
+      makeResource({
+        operations: [
+          {
+            operationId: 'createBrand',
+            methodName: 'create',
+            method: 'POST',
+            path: '/brands',
+            pathParams: [],
+            queryParams: [],
+            requestBody: {
+              name: 'Brand-Input',
+              jsonSchema: {
+                type: 'object',
+                properties: { name: { type: 'string' } },
+              },
+            },
+            response: {
+              name: 'BrandModel-Output',
+              jsonSchema: {
+                type: 'object',
+                properties: { id: { type: 'number' } },
+              },
+            },
+            responseStatus: 200,
+            tags: ['brands'],
+          },
+        ],
+      }),
+    ];
+    const schemas: ParsedSchema[] = [];
+
+    const files = generateSchemas(resources, schemas);
+    const brandsFile = files.find((f) => f.path === 'schemas/tasks.ts');
+    expect(brandsFile).toBeDefined();
+    // Must not contain hyphens in variable names
+    expect(brandsFile!.content).not.toContain('brandModel-Output');
+    expect(brandsFile!.content).not.toContain('brand-Input');
+    // Should produce valid camelCase identifiers
+    expect(brandsFile!.content).toContain('export const brandModelOutputSchema');
+    expect(brandsFile!.content).toContain('export const brandInputSchema');
+  });
+
   it('generates query schemas', () => {
     const resources: ParsedResource[] = [
       makeResource({

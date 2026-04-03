@@ -228,6 +228,42 @@ describe('generateTypes', () => {
     expect(tasksFile!.content).not.toContain('Input');
   });
 
+  it('PascalCases fallback response name from underscore-heavy operationId', () => {
+    const resources: ParsedResource[] = [
+      makeResource({
+        operations: [
+          {
+            operationId: 'find_many_web_organizations__organization_id__brands__get',
+            methodName: 'list',
+            method: 'GET',
+            path: '/web/organizations/{organization_id}/brands',
+            pathParams: [{ name: 'organization_id', required: true, schema: { type: 'string' } }],
+            queryParams: [],
+            response: {
+              jsonSchema: {
+                type: 'object',
+                properties: { id: { type: 'string' } },
+                required: ['id'],
+              },
+            },
+            responseStatus: 200,
+            tags: ['brands'],
+          },
+        ],
+      }),
+    ];
+    const schemas: ParsedSchema[] = [];
+
+    const files = generateTypes(resources, schemas);
+    const tasksFile = files.find((f) => f.path === 'types/tasks.ts');
+    expect(tasksFile!.content).toContain(
+      'export interface FindManyWebOrganizationsOrganizationIdBrandsGetResponse {',
+    );
+    expect(tasksFile!.content).not.toContain(
+      'Find_many_web_organizations__organization_id__brands__get',
+    );
+  });
+
   it('derives response name from operationId when schema has no name', () => {
     const resources: ParsedResource[] = [
       makeResource({

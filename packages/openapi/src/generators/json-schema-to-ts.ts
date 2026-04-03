@@ -135,3 +135,16 @@ const VALID_IDENTIFIER = /^[a-zA-Z_$][a-zA-Z0-9_$]*$/;
 export function isValidIdentifier(name: string): boolean {
   return VALID_IDENTIFIER.test(name);
 }
+
+/**
+ * Convert any string to PascalCase by splitting on non-alphanumeric characters.
+ * Unlike sanitizeTypeName, this always splits and re-joins even valid identifiers.
+ * e.g., "find_many_web_organizations__get" → "FindManyWebOrganizationsGet"
+ */
+export function toPascalCase(name: string): string {
+  const cleaned = name.replace(/[^A-Za-z0-9]+/g, ' ').trim();
+  if (!cleaned) return '_';
+  const segments = cleaned.split(/\s+/).filter(Boolean);
+  const result = segments.map((s) => s.charAt(0).toUpperCase() + s.slice(1)).join('');
+  return /^[0-9]/.test(result) ? `_${result}` : result;
+}
