@@ -47,6 +47,46 @@ impl<'a> SourceMapper<'a> {
         resolve_from_source_map(&sm, compiled_line, compiled_column)
     }
 
+    /// Like `resolve`, but if the exact line has no mapping, scan nearby lines
+    /// (up to `max_delta` lines in each direction) to find the closest mapping.
+    ///
+    /// This handles compiler-injected boilerplate lines (e.g., `try {`,
+    /// `__pushMountFrame()`) that have no source map entries. The nearby
+    /// mapped line gives us the correct source file and an approximate
+    /// original position.
+    pub fn resolve_nearest(
+        &self,
+        compiled_file: &Path,
+        compiled_line: u32,
+        compiled_column: u32,
+        max_delta: u32,
+    ) -> Option<MappedPosition> {
+        // Try exact match first.
+        if let Some(pos) = self.resolve(compiled_file, compiled_line, compiled_column) {
+            return Some(pos);
+        }
+
+        // Scan nearby lines — prefer backward (closer to the original statement).
+        let cached = self.cache.get_unchecked(compiled_file)?;
+        let source_map_json = cached.source_map.as_ref()?;
+        let sm: SourceMapV3 = serde_json::from_str(source_map_json).ok()?;
+
+        for delta in 1..=max_delta {
+            // Try lines after the target first (the throw is user code shifted down).
+            if let Some(pos) = resolve_from_source_map(&sm, compiled_line + delta, 1) {
+                return Some(pos);
+            }
+            // Then try lines before.
+            if compiled_line > delta {
+                if let Some(pos) = resolve_from_source_map(&sm, compiled_line - delta, 1) {
+                    return Some(pos);
+                }
+            }
+        }
+
+        None
+    }
+
     /// Map a stack trace line like "at functionName (file:line:col)" to original positions.
     ///
     /// Returns the stack trace with original file/line/col where possible.

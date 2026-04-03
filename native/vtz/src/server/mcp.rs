@@ -316,6 +316,7 @@ async fn execute_tool(
                                     enable_hmr: false,
                                     ssr_data: ssr_resp.ssr_data.as_deref(),
                                     head_tags: ssr_resp.head_tags.as_deref(),
+                                    root_dir: Some(&state.root_dir.to_string_lossy()),
                                 },
                             );
 
@@ -895,6 +896,7 @@ mod tests {
             auto_install_failed: std::sync::Arc::new(std::sync::Mutex::new(
                 std::collections::HashSet::new(),
             )),
+            last_file_change: std::sync::Arc::new(std::sync::Mutex::new(None)),
         })
     }
 

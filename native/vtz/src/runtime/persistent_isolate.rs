@@ -85,8 +85,11 @@ pub struct SsrRequest {
 pub struct SsrResponse {
     /// The rendered SSR content (inner HTML of #app).
     pub content: String,
-    /// CSS collected during rendering.
+    /// CSS collected during rendering (legacy path — raw CSS strings).
     pub css_entries: Vec<(String, Option<String>)>,
+    /// Pre-formatted CSS HTML from ssrRenderSinglePass (framework path).
+    /// Already contains `<style>` tags — should be inserted directly.
+    pub inline_css_html: Option<String>,
     /// Whether rendering succeeded.
     pub is_ssr: bool,
     /// Error message if SSR failed.
@@ -720,6 +723,16 @@ const FETCH_INTERCEPTOR_JS: &str = r#"
 /// each SSR render starts with a clean slate (no leaked state from previous renders).
 const SSR_RESET_JS: &str = r#"
 (function() {
+    // Snapshot baseline CSS from module load (first call only).
+    // Module-level css() calls inject via __vertz_inject_css() during import.
+    // We preserve these across SSR requests since modules only evaluate once.
+    if (!globalThis.__vertz_baseline_css) {
+        globalThis.__vertz_baseline_css =
+            typeof __vertz_get_collected_css === 'function'
+                ? __vertz_get_collected_css()
+                : [];
+    }
+
     // Reset document body — recreate empty #app container
     document.body.childNodes = [];
     const app = document.createElement('div');
@@ -729,9 +742,15 @@ const SSR_RESET_JS: &str = r#"
     // Reset document head
     document.head.childNodes = [];
 
-    // Clear collected CSS
+    // Clear collected CSS, then restore baseline entries
     if (typeof __vertz_clear_collected_css === 'function') {
         __vertz_clear_collected_css();
+    }
+    if (globalThis.__vertz_baseline_css.length > 0 && typeof __vertz_inject_css === 'function') {
+        for (var i = 0; i < globalThis.__vertz_baseline_css.length; i++) {
+            var entry = globalThis.__vertz_baseline_css[i];
+            __vertz_inject_css(entry.css, entry.id);
+        }
     }
 
     // Clear any previous render result
@@ -762,9 +781,32 @@ const SSR_RENDER_FRAMEWORK_JS: &str = r#"
         url,
         options
     );
+
+    // Merge CSS from two sources:
+    // 1. result.css from ssrRenderSinglePass — framework/theme CSS (already HTML-formatted
+    //    with <style data-vertz-css> tags), collected via @vertz/ui's getInjectedCSS()
+    // 2. __vertz_get_collected_css() — user component CSS injected by the vtz module
+    //    loader via __vertz_inject_css() into the DOM shim's collector
+    //
+    // These are separate because @vertz/ui's injectedCSS Set (read by ssrRenderSinglePass)
+    // and the DOM shim's __vertz_collected_css array (written by module loader) are
+    // independent collection points.
+    let css = result.css || '';
+    if (typeof __vertz_get_collected_css === 'function') {
+        const collected = __vertz_get_collected_css();
+        if (collected.length > 0) {
+            var userCss = collected.map(function(e) { return e.css; }).join('\n');
+            if (userCss) {
+                css = css
+                    ? css + '\n<style data-vertz-css>' + userCss + '</style>'
+                    : '<style data-vertz-css>' + userCss + '</style>';
+            }
+        }
+    }
+
     globalThis.__vertz_last_ssr_result = JSON.stringify({
         content: result.html || '',
-        css: result.css || '',
+        css: css,
         ssrData: result.ssrData || [],
         headTags: result.headTags || '',
         redirect: result.redirect ? result.redirect.to : null,
@@ -913,17 +955,13 @@ async fn dispatch_ssr_request(
             .unwrap_or("")
             .to_string();
 
+        // CSS from ssrRenderSinglePass is pre-formatted HTML (<style> tags).
+        // Pass it directly — don't wrap in format_ssr_css() which would nest tags.
         let css = parsed
             .get("css")
             .and_then(|c| c.as_str())
-            .unwrap_or("")
-            .to_string();
-
-        let css_entries = if css.is_empty() {
-            vec![]
-        } else {
-            vec![(css, None)]
-        };
+            .filter(|s| !s.is_empty())
+            .map(|s| s.to_string());
 
         let ssr_data = parsed.get("ssrData").and_then(|d| {
             if d.is_array() && !d.as_array().unwrap().is_empty() {
@@ -951,7 +989,8 @@ async fn dispatch_ssr_request(
 
         Ok(SsrResponse {
             content,
-            css_entries,
+            css_entries: vec![],
+            inline_css_html: css,
             is_ssr,
             error: None,
             render_time_ms: elapsed,
@@ -998,6 +1037,7 @@ async fn dispatch_ssr_request(
         Ok(SsrResponse {
             content,
             css_entries,
+            inline_css_html: None,
             is_ssr,
             error: None,
             render_time_ms: elapsed,
@@ -1049,6 +1089,7 @@ mod tests {
         let resp = SsrResponse {
             content: "<h1>Hello</h1>".to_string(),
             css_entries: vec![],
+            inline_css_html: None,
             is_ssr: true,
             error: None,
             render_time_ms: 1.5,

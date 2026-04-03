@@ -41,6 +41,8 @@ pub struct SsrHtmlOptions<'a> {
     pub ssr_data: Option<&'a str>,
     /// Additional HTML tags to inject into `<head>` (e.g., font preload links from SSR).
     pub head_tags: Option<&'a str>,
+    /// Absolute path to the project root directory (for editor link construction in the error overlay).
+    pub root_dir: Option<&'a str>,
 }
 
 /// Assemble a complete SSR HTML document.
@@ -79,6 +81,14 @@ pub fn assemble_ssr_document(options: &SsrHtmlOptions<'_>) -> String {
         "  <title>{}</title>\n",
         escape_html(options.title)
     ));
+
+    // Project root path for editor link construction in the error overlay.
+    if let Some(root) = options.root_dir {
+        html.push_str(&format!(
+            "  <meta name=\"vertz-root\" content=\"{}\" />\n",
+            escape_html(root)
+        ));
+    }
 
     // Module preload for the entry file
     html.push_str(&format!(
@@ -192,6 +202,7 @@ mod tests {
             enable_hmr: false,
             ssr_data: None,
             head_tags: None,
+            root_dir: None,
         }
     }
 

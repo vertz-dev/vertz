@@ -353,6 +353,19 @@ pub fn is_css_color_keyword(key: &str) -> bool {
     )
 }
 
+/// Text alignment keywords (multi-mode: `text:center` is alignment, not color).
+pub fn is_text_align_keyword(key: &str) -> bool {
+    matches!(
+        key,
+        "center" | "left" | "right" | "justify" | "start" | "end"
+    )
+}
+
+/// Border width values (multi-mode: `border:1` is width, not color).
+pub fn is_border_width(key: &str) -> bool {
+    key.parse::<f64>().is_ok()
+}
+
 /// Height-axis properties that use vh units.
 pub fn is_height_axis(property: &str) -> bool {
     matches!(property, "h" | "min-h" | "max-h")
