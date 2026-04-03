@@ -1,5 +1,18 @@
 # @vertz/cli
 
+## 0.2.47
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @vertz/codegen@0.2.47
+  - @vertz/compiler@0.2.47
+  - @vertz/create-vertz-app@0.2.47
+  - @vertz/db@0.2.47
+  - @vertz/errors@0.2.47
+  - @vertz/tui@0.2.47
+  - @vertz/ui-server@0.2.47
+
 ## 0.2.46
 
 ### Patch Changes

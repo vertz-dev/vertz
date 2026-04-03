@@ -1,6 +1,6 @@
 {
   "name": "@vertz/runtime",
-  "version": "0.2.46",
+  "version": "0.2.47",
   "description": "Vertz runtime binary (platform selector)",
   "repository": {
     "type": "git",
@@ -33,9 +33,9 @@
     "@types/node": "^22.15.32"
   },
   "optionalDependencies": {
-    "@vertz/runtime-darwin-arm64": "0.2.46",
-    "@vertz/runtime-darwin-x64": "0.2.46",
-    "@vertz/runtime-linux-arm64": "0.2.46",
-    "@vertz/runtime-linux-x64": "0.2.46"
+    "@vertz/runtime-darwin-arm64": "0.2.47",
+    "@vertz/runtime-darwin-x64": "0.2.47",
+    "@vertz/runtime-linux-arm64": "0.2.47",
+    "@vertz/runtime-linux-x64": "0.2.47"
   }
 }
