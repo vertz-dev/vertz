@@ -29,6 +29,8 @@ export interface ParsedOperation {
   responseStatus: number;
   tags: string[];
   security?: OperationSecurity;
+  streamingFormat?: 'sse' | 'ndjson';
+  jsonResponse?: ParsedSchema;
 }
 
 export interface OperationSecurity {

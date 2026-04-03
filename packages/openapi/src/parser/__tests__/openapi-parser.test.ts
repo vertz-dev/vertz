@@ -545,4 +545,170 @@ describe('parseOpenAPI', () => {
       }),
     ).toThrow('Unsupported OpenAPI version: 2.0');
   });
+
+  it('detects text/event-stream response and sets streamingFormat: sse', () => {
+    const spec = {
+      openapi: '3.1.0',
+      info: { title: 'Test', version: '1.0.0' },
+      paths: {
+        '/tasks/{taskId}/events': {
+          get: {
+            operationId: 'streamTaskEvents',
+            parameters: [{ name: 'taskId', in: 'path', required: true, schema: { type: 'string' } }],
+            responses: {
+              '200': {
+                description: 'Stream of task events',
+                content: {
+                  'text/event-stream': {
+                    schema: { $ref: '#/components/schemas/TaskEvent' },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+      components: {
+        schemas: {
+          TaskEvent: {
+            type: 'object',
+            properties: { type: { type: 'string' }, payload: { type: 'object' } },
+          },
+        },
+      },
+    };
+
+    const result = parseOpenAPI(spec);
+    expect(result.operations[0]!.streamingFormat).toBe('sse');
+    expect(result.operations[0]!.response).toEqual({
+      name: 'TaskEvent',
+      jsonSchema: {
+        type: 'object',
+        properties: { type: { type: 'string' }, payload: { type: 'object' } },
+      },
+    });
+  });
+
+  it('detects application/x-ndjson response and sets streamingFormat: ndjson', () => {
+    const spec = {
+      openapi: '3.1.0',
+      info: { title: 'Test', version: '1.0.0' },
+      paths: {
+        '/logs/stream': {
+          get: {
+            operationId: 'streamLogs',
+            responses: {
+              '200': {
+                content: {
+                  'application/x-ndjson': {
+                    schema: { $ref: '#/components/schemas/LogEntry' },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+      components: {
+        schemas: {
+          LogEntry: { type: 'object', properties: { message: { type: 'string' } } },
+        },
+      },
+    };
+
+    const result = parseOpenAPI(spec);
+    expect(result.operations[0]!.streamingFormat).toBe('ndjson');
+    expect(result.operations[0]!.response!.name).toBe('LogEntry');
+  });
+
+  it('does not set streamingFormat for application/json-only responses', () => {
+    const spec = {
+      openapi: '3.1.0',
+      info: { title: 'Test', version: '1.0.0' },
+      paths: {
+        '/tasks': {
+          get: {
+            operationId: 'listTasks',
+            responses: {
+              '200': {
+                content: {
+                  'application/json': {
+                    schema: { type: 'array', items: { type: 'string' } },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    };
+
+    const result = parseOpenAPI(spec);
+    expect(result.operations[0]!.streamingFormat).toBeUndefined();
+  });
+
+  it('handles text/event-stream with no schema', () => {
+    const spec = {
+      openapi: '3.1.0',
+      info: { title: 'Test', version: '1.0.0' },
+      paths: {
+        '/events': {
+          get: {
+            operationId: 'streamEvents',
+            responses: {
+              '200': {
+                content: {
+                  'text/event-stream': {},
+                },
+              },
+            },
+          },
+        },
+      },
+    };
+
+    const result = parseOpenAPI(spec);
+    expect(result.operations[0]!.streamingFormat).toBe('sse');
+    expect(result.operations[0]!.response).toBeUndefined();
+  });
+
+  it('handles dual content type (JSON + SSE) with separate schemas', () => {
+    const spec = {
+      openapi: '3.1.0',
+      info: { title: 'Test', version: '1.0.0' },
+      paths: {
+        '/tasks': {
+          get: {
+            operationId: 'listTasks',
+            responses: {
+              '200': {
+                content: {
+                  'application/json': {
+                    schema: { $ref: '#/components/schemas/TaskList' },
+                  },
+                  'text/event-stream': {
+                    schema: { $ref: '#/components/schemas/TaskEvent' },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+      components: {
+        schemas: {
+          TaskList: { type: 'object', properties: { items: { type: 'array' } } },
+          TaskEvent: { type: 'object', properties: { type: { type: 'string' } } },
+        },
+      },
+    };
+
+    const result = parseOpenAPI(spec);
+    const op = result.operations[0]!;
+    expect(op.streamingFormat).toBe('sse');
+    // response holds the streaming schema
+    expect(op.response!.name).toBe('TaskEvent');
+    // jsonResponse holds the JSON schema
+    expect(op.jsonResponse!.name).toBe('TaskList');
+  });
 });
