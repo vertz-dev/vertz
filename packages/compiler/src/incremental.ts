@@ -43,6 +43,7 @@ function categorize(path: string): FileCategory | null {
   if (file.endsWith('.service.ts')) return 'service';
   if (file.endsWith('.module.ts')) return 'module';
   if (path.includes('middleware/')) return 'middleware';
+  // Exclude nested files like `src/api/server.ts` — only top-level `src/server.ts` is a convention entry
   if (ENTRY_FILE_NAMES.has(file) && !path.includes('/api/')) return 'app-entry';
   if (file.startsWith('.env')) return 'env';
   if (file === 'vertz.config.ts') return 'config';

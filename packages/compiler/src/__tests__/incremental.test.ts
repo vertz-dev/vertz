@@ -148,6 +148,20 @@ describe('categorizeChanges', () => {
     expect(result.requiresFullRecompile).toBe(true);
   });
 
+  it('flags server.tsx entry as full recompile', () => {
+    const changes: FileChange[] = [{ path: 'src/server.tsx', kind: 'modified' }];
+    const result = categorizeChanges(changes);
+
+    expect(result.requiresFullRecompile).toBe(true);
+  });
+
+  it('flags app.tsx entry as full recompile', () => {
+    const changes: FileChange[] = [{ path: 'src/app.tsx', kind: 'modified' }];
+    const result = categorizeChanges(changes);
+
+    expect(result.requiresFullRecompile).toBe(true);
+  });
+
   it('does not flag nested server.ts as full recompile', () => {
     const changes: FileChange[] = [{ path: 'src/api/server.ts', kind: 'modified' }];
     const result = categorizeChanges(changes);
