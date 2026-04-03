@@ -1,10 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, spyOn } from 'bun:test';
 import { existsSync, rmSync } from 'node:fs';
-import {
-  buildMfaChallengeCookie,
-  buildOAuthStateCookie,
-  buildRefreshCookie,
-} from '../cookies';
+import { buildMfaChallengeCookie, buildOAuthStateCookie, buildRefreshCookie } from '../cookies';
 import { createAuth } from '../index';
 import type { AuthConfig } from '../types';
 import { TEST_PRIVATE_KEY, TEST_PUBLIC_KEY } from './test-keys';
@@ -250,7 +246,14 @@ describe('buildRefreshCookie with custom authPrefix (#2131)', () => {
   });
 
   it('uses custom authPrefix in path', () => {
-    const cookie = buildRefreshCookie('token', { secure: true }, 'vertz.ref', 3600, false, '/v1/auth');
+    const cookie = buildRefreshCookie(
+      'token',
+      { secure: true },
+      'vertz.ref',
+      3600,
+      false,
+      '/v1/auth',
+    );
     expect(cookie).toContain('Path=/v1/auth/refresh');
     expect(cookie).not.toContain('/api/auth');
   });
@@ -284,7 +287,7 @@ describe('auth handler routing with custom _authPrefix (#2131)', () => {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Origin': 'http://localhost:3000',
+        Origin: 'http://localhost:3000',
       },
       body: JSON.stringify({ email: 'test@example.com', password: 'TestPassword123!' }),
     });
@@ -303,7 +306,7 @@ describe('auth handler routing with custom _authPrefix (#2131)', () => {
 
     const request = new Request('http://localhost:3000/v1/auth/providers', {
       method: 'GET',
-      headers: { 'Origin': 'http://localhost:3000' },
+      headers: { Origin: 'http://localhost:3000' },
     });
 
     const response = await auth.handler(request);

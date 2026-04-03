@@ -146,12 +146,23 @@ export function createAuth(config: AuthConfig): AuthInstance {
   const authPrefix = config._authPrefix ?? '/api/auth';
 
   // Curried cookie builders that use the resolved auth prefix
-  const buildRefreshCookie: typeof _buildRefreshCookie = (value, cookieConfig, refreshName, refreshMaxAge, clear = false) =>
-    _buildRefreshCookie(value, cookieConfig, refreshName, refreshMaxAge, clear, authPrefix);
-  const buildMfaChallengeCookie: typeof _buildMfaChallengeCookie = (value, cookieConfig, clear = false) =>
-    _buildMfaChallengeCookie(value, cookieConfig, clear, authPrefix);
-  const buildOAuthStateCookie: typeof _buildOAuthStateCookie = (value, cookieConfig, clear = false) =>
-    _buildOAuthStateCookie(value, cookieConfig, clear, authPrefix);
+  const buildRefreshCookie: typeof _buildRefreshCookie = (
+    value,
+    cookieConfig,
+    refreshName,
+    refreshMaxAge,
+    clear = false,
+  ) => _buildRefreshCookie(value, cookieConfig, refreshName, refreshMaxAge, clear, authPrefix);
+  const buildMfaChallengeCookie: typeof _buildMfaChallengeCookie = (
+    value,
+    cookieConfig,
+    clear = false,
+  ) => _buildMfaChallengeCookie(value, cookieConfig, clear, authPrefix);
+  const buildOAuthStateCookie: typeof _buildOAuthStateCookie = (
+    value,
+    cookieConfig,
+    clear = false,
+  ) => _buildOAuthStateCookie(value, cookieConfig, clear, authPrefix);
 
   // Determine production mode: explicit config > process.env > secure default (true)
   const isProduction =

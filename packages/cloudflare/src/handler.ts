@@ -313,12 +313,11 @@ function createFullStackHandler(config: CloudflareHandlerConfig): CloudflareWork
 
   function getApiPrefix(app: AppBuilder): string {
     if (resolvedApiPrefix !== null) return resolvedApiPrefix;
-    resolvedApiPrefix =
-      configApiPrefix ?? (app as { apiPrefix?: string }).apiPrefix ?? '/api';
+    resolvedApiPrefix = configApiPrefix ?? (app as { apiPrefix?: string }).apiPrefix ?? '/api';
     if (resolvedApiPrefix === '' && ssr) {
       throw new Error(
         'apiPrefix cannot be empty when SSR is configured. The Cloudflare handler ' +
-          "uses the API prefix to route API requests vs SSR requests. Use a non-empty " +
+          'uses the API prefix to route API requests vs SSR requests. Use a non-empty ' +
           "prefix like '/api' or '/v1'.",
       );
     }

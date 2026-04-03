@@ -911,7 +911,7 @@ export function createBunDevServer(options: BunDevServerOptions): BunDevServer {
   if (apiHandler && apiPrefix === '') {
     throw new Error(
       'apiPrefix cannot be empty in full-stack mode. The dev server uses the ' +
-        "API prefix to distinguish API requests from SSR requests. Use a non-empty " +
+        'API prefix to distinguish API requests from SSR requests. Use a non-empty ' +
         "prefix like '/api' or '/v1'. Note: '/' normalizes to empty string.",
     );
   }
@@ -1757,7 +1757,12 @@ export function createBunDevServer(options: BunDevServerOptions): BunDevServer {
         }
 
         // OpenAPI spec (fallback for non-route match)
-        if (openapi && apiPrefix && request.method === 'GET' && pathname === `${apiPrefix}/openapi.json`) {
+        if (
+          openapi &&
+          apiPrefix &&
+          request.method === 'GET' &&
+          pathname === `${apiPrefix}/openapi.json`
+        ) {
           return serveOpenAPISpec();
         }
 

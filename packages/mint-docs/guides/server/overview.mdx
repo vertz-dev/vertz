@@ -104,12 +104,12 @@ GET    /v1/auth/signin    → sign-in page
 
 ### Defaults and normalization
 
-| Input              | Resolved prefix |
-| ------------------ | --------------- |
-| `undefined`        | `/api`          |
-| `'/v1'`            | `/v1`           |
-| `'/api/v2/'`       | `/api/v2`       |
-| `'/'`              | `''` (root)     |
+| Input        | Resolved prefix |
+| ------------ | --------------- |
+| `undefined`  | `/api`          |
+| `'/v1'`      | `/v1`           |
+| `'/api/v2/'` | `/api/v2`       |
+| `'/'`        | `''` (root)     |
 
 Trailing slashes are stripped automatically. A bare `'/'` is treated as an empty prefix (root mount).
 

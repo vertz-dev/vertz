@@ -100,7 +100,6 @@ export interface ServerApp extends AppBuilder {
 // ServerInstance — extended return type when db + auth are provided
 // ---------------------------------------------------------------------------
 
-
 export interface ServerInstance extends ServerApp {
   auth: AuthInstance;
   initialize(): Promise<void>;
