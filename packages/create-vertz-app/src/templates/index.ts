@@ -1347,7 +1347,7 @@ A static landing page built with [Vertz](https://vertz.dev).
 \`\`\`bash
 vtz install          # Install dependencies
 vtz dev              # Start dev server with HMR
-vtz run build        # Production build
+vtz build            # Production build
 \`\`\`
 
 ## Project Structure
