@@ -189,5 +189,9 @@ function generateQueryInterface(
     return `  ${safeKey}${optional}: ${tsType};`;
   });
 
+  // Index signature makes query interfaces assignable to Record<string, unknown>
+  // which FetchClient.get() expects for the query option (#2217)
+  lines.push('  [key: string]: unknown;');
+
   return `export interface ${sanitizeTypeName(name)} {\n${lines.join('\n')}\n}\n`;
 }
