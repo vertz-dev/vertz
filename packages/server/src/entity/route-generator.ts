@@ -174,6 +174,11 @@ export function generateEntityRoutes(
   }
 
   // --- LIST ---
+  if (def.access.list === undefined) {
+    console.warn(
+      `[vertz] Entity "${def.name}" operation "list" has no access rule — route not generated (deny-by-default). Add an access rule or use rules.public to enable this route.`,
+    );
+  }
   if (def.access.list !== undefined) {
     if (def.access.list === false) {
       const list405Handler = async () =>
@@ -354,6 +359,11 @@ export function generateEntityRoutes(
   }
 
   // --- GET ---
+  if (def.access.get === undefined) {
+    console.warn(
+      `[vertz] Entity "${def.name}" operation "get" has no access rule — route not generated (deny-by-default). Add an access rule or use rules.public to enable this route.`,
+    );
+  }
   if (def.access.get !== undefined) {
     if (def.access.get === false) {
       routes.push({
@@ -431,6 +441,11 @@ export function generateEntityRoutes(
   }
 
   // --- CREATE ---
+  if (def.access.create === undefined) {
+    console.warn(
+      `[vertz] Entity "${def.name}" operation "create" has no access rule — route not generated (deny-by-default). Add an access rule or use rules.public to enable this route.`,
+    );
+  }
   if (def.access.create !== undefined) {
     if (def.access.create === false) {
       routes.push({
@@ -481,6 +496,11 @@ export function generateEntityRoutes(
   }
 
   // --- UPDATE ---
+  if (def.access.update === undefined) {
+    console.warn(
+      `[vertz] Entity "${def.name}" operation "update" has no access rule — route not generated (deny-by-default). Add an access rule or use rules.public to enable this route.`,
+    );
+  }
   if (def.access.update !== undefined) {
     if (def.access.update === false) {
       routes.push({
@@ -532,6 +552,11 @@ export function generateEntityRoutes(
   }
 
   // --- DELETE ---
+  if (def.access.delete === undefined) {
+    console.warn(
+      `[vertz] Entity "${def.name}" operation "delete" has no access rule — route not generated (deny-by-default). Add an access rule or use rules.public to enable this route.`,
+    );
+  }
   if (def.access.delete !== undefined) {
     if (def.access.delete === false) {
       routes.push({
@@ -577,7 +602,12 @@ export function generateEntityRoutes(
   // --- CUSTOM ACTIONS ---
   for (const [actionName, actionDef] of Object.entries(def.actions)) {
     // Only register action route if it has an access rule
-    if (def.access[actionName] === undefined) continue;
+    if (def.access[actionName] === undefined) {
+      console.warn(
+        `[vertz] Entity "${def.name}" action "${actionName}" has no access rule — route not generated (deny-by-default). Add an access rule or use rules.public to enable this route.`,
+      );
+      continue;
+    }
 
     const method = (actionDef.method ?? 'POST').toUpperCase();
     const actionPath = actionDef.path

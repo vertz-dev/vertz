@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'bun:test';
+import { afterEach, beforeEach, describe, expect, it, spyOn } from 'bun:test';
 import { d } from '@vertz/db';
 import { content } from '../../content';
 import { entity } from '../../entity/entity';
@@ -66,6 +66,16 @@ describe('Feature: generateServiceRoutes', () => {
   });
 
   describe('Given a service handler with no access rule', () => {
+    let warnSpy: ReturnType<typeof spyOn>;
+
+    beforeEach(() => {
+      warnSpy = spyOn(console, 'warn').mockImplementation(() => {});
+    });
+
+    afterEach(() => {
+      warnSpy.mockRestore();
+    });
+
     describe('When generating routes', () => {
       it('Then skips the handler (deny by default)', () => {
         const authService = service('auth', {
@@ -90,6 +100,31 @@ describe('Feature: generateServiceRoutes', () => {
         // Only 'login' has access rule, 'secret' is skipped
         expect(routes).toHaveLength(1);
         expect(routes[0]?.path).toBe('/api/auth/login');
+      });
+
+      it('Then logs a warning for the skipped action', () => {
+        const authService = service('auth', {
+          access: { login: () => true },
+          actions: {
+            login: {
+              body: bodySchema,
+              response: responseSchema,
+              handler: async () => ({ token: 'tok' }),
+            },
+            secret: {
+              body: bodySchema,
+              response: responseSchema,
+              handler: async () => ({ token: 'secret' }),
+            },
+          },
+        });
+
+        const registry = new EntityRegistry();
+        generateServiceRoutes(authService, registry);
+
+        expect(warnSpy).toHaveBeenCalledWith(
+          expect.stringContaining('Service "auth" action "secret" has no access rule'),
+        );
       });
     });
   });

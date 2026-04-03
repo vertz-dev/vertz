@@ -1,4 +1,4 @@
-import { describe, expect, it, mock } from 'bun:test';
+import { afterEach, beforeEach, describe, expect, it, mock, spyOn } from 'bun:test';
 import { d } from '@vertz/db';
 import { rules } from '../../auth/rules';
 import { response } from '../../response';
@@ -181,24 +181,92 @@ describe('generateEntityRoutes', () => {
     });
 
     it('skips operations with no access rule (deny by default = no route)', () => {
-      const def = buildEntityDef({
-        access: {
-          list: () => true,
-          get: () => true,
-          // create, update, delete have no access rules — no routes generated
-        },
-      });
+      const warnSpy = spyOn(console, 'warn').mockImplementation(() => {});
+      try {
+        const def = buildEntityDef({
+          access: {
+            list: () => true,
+            get: () => true,
+            // create, update, delete have no access rules — no routes generated
+          },
+        });
 
-      const db = createMockDb();
-      const registry = createTestRegistry();
-      const routes = generateEntityRoutes(def, registry, db);
+        const db = createMockDb();
+        const registry = createTestRegistry();
+        const routes = generateEntityRoutes(def, registry, db);
 
-      const methods = routes.map((r) => `${r.method} ${r.path}`);
-      expect(methods).toContain('GET /api/users');
-      expect(methods).toContain('GET /api/users/:id');
-      expect(methods).not.toContain('POST /api/users');
-      expect(methods).not.toContain('PATCH /api/users/:id');
-      expect(methods).not.toContain('DELETE /api/users/:id');
+        const methods = routes.map((r) => `${r.method} ${r.path}`);
+        expect(methods).toContain('GET /api/users');
+        expect(methods).toContain('GET /api/users/:id');
+        expect(methods).not.toContain('POST /api/users');
+        expect(methods).not.toContain('PATCH /api/users/:id');
+        expect(methods).not.toContain('DELETE /api/users/:id');
+      } finally {
+        warnSpy.mockRestore();
+      }
+    });
+
+    it('logs warnings for skipped CRUD operations due to missing access rules', () => {
+      const warnSpy = spyOn(console, 'warn').mockImplementation(() => {});
+      try {
+        const def = buildEntityDef({
+          access: {
+            list: () => true,
+            get: () => true,
+            // create, update, delete have no access rules
+          },
+        });
+
+        const db = createMockDb();
+        const registry = createTestRegistry();
+        generateEntityRoutes(def, registry, db);
+
+        // Should warn for create, update, delete
+        const warnings = warnSpy.mock.calls.map((c) => c[0]);
+        expect(warnings.some((w: string) => w.includes('"create"') && w.includes('"users"'))).toBe(
+          true,
+        );
+        expect(warnings.some((w: string) => w.includes('"update"') && w.includes('"users"'))).toBe(
+          true,
+        );
+        expect(warnings.some((w: string) => w.includes('"delete"') && w.includes('"users"'))).toBe(
+          true,
+        );
+      } finally {
+        warnSpy.mockRestore();
+      }
+    });
+
+    it('logs warning for skipped custom action due to missing access rule', () => {
+      const warnSpy = spyOn(console, 'warn').mockImplementation(() => {});
+      try {
+        const def = buildEntityDef({
+          access: {
+            list: () => true,
+            // resetPassword has no access rule
+          },
+          actions: {
+            resetPassword: {
+              body: { parse: (v: unknown) => ({ ok: true as const, data: v }) },
+              response: { parse: (v: unknown) => ({ ok: true as const, data: v }) },
+              handler: async () => ({ success: true }),
+            },
+          },
+        } as unknown as Partial<EntityDefinition>);
+
+        const db = createMockDb();
+        const registry = createTestRegistry();
+        generateEntityRoutes(def, registry, db);
+
+        const warnings = warnSpy.mock.calls.map((c) => c[0]);
+        expect(
+          warnings.some(
+            (w: string) => w.includes('"resetPassword"') && w.includes('"users"'),
+          ),
+        ).toBe(true);
+      } finally {
+        warnSpy.mockRestore();
+      }
     });
 
     it('registers 405 handler for disabled operations (access: false)', () => {

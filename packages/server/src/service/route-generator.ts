@@ -71,7 +71,12 @@ export function generateServiceRoutes(
     const accessRule = def.access[handlerName];
 
     // No access rule → deny by default → skip (no route generated)
-    if (accessRule === undefined) continue;
+    if (accessRule === undefined) {
+      console.warn(
+        `[vertz] Service "${def.name}" action "${handlerName}" has no access rule — route not generated (deny-by-default). Add an access rule or use rules.public to enable this route.`,
+      );
+      continue;
+    }
 
     const method = (handlerDef.method ?? 'POST').toUpperCase();
     const handlerPath = handlerDef.path ?? `${prefix}/${def.name}/${handlerName}`;
