@@ -1,7 +1,10 @@
 import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
-declare const window: Window & { __HMR_TEST_MARKER?: boolean };
+declare const window: Window & {
+  __HMR_TEST_MARKER?: boolean;
+  __consoleErrors?: string[];
+};
 
 const APP_PATH = join(import.meta.dirname!, 'app.tsx');
 
@@ -72,6 +75,30 @@ describe('Feature: HMR text updates', () => {
       return window.__HMR_TEST_MARKER;
     });
     expect(marker).toBe(true);
+  });
+
+  it('no console errors emitted during HMR', async () => {
+    await waitForText('[data-testid="heading"]', 'Hello HMR');
+
+    // Capture console errors by injecting a listener
+    await page.evaluate(() => {
+      window.__consoleErrors = [];
+      const origError = console.error;
+      console.error = (...args: unknown[]) => {
+        window.__consoleErrors!.push(args.map(String).join(' '));
+        origError.apply(console, args);
+      };
+    });
+
+    const edited = originalContent.replace('Hello HMR', 'Hello NoErrors');
+    writeFileSync(APP_PATH, edited);
+
+    await waitForText('[data-testid="heading"]', 'Hello NoErrors');
+
+    const errors = await page.evaluate(() => {
+      return window.__consoleErrors;
+    });
+    expect(errors).toEqual([]);
   });
 });
 
@@ -144,6 +171,31 @@ describe('Feature: HMR DOM state preservation', () => {
       return input?.value ?? '';
     });
     expect(value).toBe('hello world');
+  });
+
+  it('focus state preserved after HMR', async () => {
+    await waitForText('[data-testid="heading"]', 'Hello HMR');
+
+    // Focus the input field
+    await page.click('[data-testid="text-input"]');
+
+    // Verify focus is on the input
+    const focusedBefore = await page.evaluate(() => {
+      return document.activeElement === document.querySelector('[data-testid="text-input"]');
+    });
+    expect(focusedBefore).toBe(true);
+
+    // Edit heading text
+    const edited = originalContent.replace('Hello HMR', 'Hello Focus Test');
+    writeFileSync(APP_PATH, edited);
+
+    await waitForText('[data-testid="heading"]', 'Hello Focus Test');
+
+    // Verify focus preserved
+    const focusedAfter = await page.evaluate(() => {
+      return document.activeElement === document.querySelector('[data-testid="text-input"]');
+    });
+    expect(focusedAfter).toBe(true);
   });
 
   it('scroll position preserved after HMR', async () => {
