@@ -15,6 +15,19 @@ const FAST_REFRESH_HELPERS_JS: &str = include_str!("../assets/fast-refresh-helpe
 /// Fast Refresh HMR, and MCP tools (API spec, route map).
 pub struct VertzPlugin;
 
+/// Check if a file path corresponds to a test file.
+///
+/// Test files have their css() calls preserved (not extracted at compile time)
+/// so the runtime implementation is exercised in tests.
+fn is_test_file(path: &std::path::Path) -> bool {
+    let filename = path.file_stem().and_then(|s| s.to_str()).unwrap_or("");
+    if filename.ends_with(".test") || filename.ends_with(".spec") {
+        return true;
+    }
+    // Files inside __tests__/ directories
+    path.components().any(|c| c.as_os_str() == "__tests__")
+}
+
 impl FrameworkPlugin for VertzPlugin {
     fn name(&self) -> &str {
         "vertz"
@@ -22,6 +35,7 @@ impl FrameworkPlugin for VertzPlugin {
 
     fn compile(&self, source: &str, ctx: &CompileContext) -> CompileOutput {
         let filename = ctx.file_path.to_string_lossy().to_string();
+        let skip_css = is_test_file(ctx.file_path);
 
         let compile_result = vertz_compiler_core::compile(
             source,
@@ -29,6 +43,7 @@ impl FrameworkPlugin for VertzPlugin {
                 filename: Some(filename.clone()),
                 target: Some(ctx.target.to_string()),
                 fast_refresh: Some(true),
+                skip_css_transform: Some(skip_css),
                 ..Default::default()
             },
         );
@@ -332,5 +347,115 @@ mod tests {
         let prefixes = plugin.env_public_prefixes();
         assert!(prefixes.contains(&"VERTZ_".to_string()));
         assert!(prefixes.contains(&"VITE_".to_string()));
+    }
+
+    // ── CSS transform skipped for test files ────────────────────
+
+    #[test]
+    fn test_file_preserves_css_call() {
+        let plugin = make_plugin();
+        let ctx = CompileContext {
+            file_path: Path::new("/project/src/css/__tests__/css.test.ts"),
+            root_dir: Path::new("/project"),
+            src_dir: Path::new("/project/src"),
+            target: "ssr",
+        };
+        let source = r#"const styles = css({ root: ['flex', 'p:4'] });"#;
+        let output = plugin.compile(source, &ctx);
+        assert!(
+            output.code.contains("css("),
+            "css() should be preserved in test files: {}",
+            output.code
+        );
+        assert!(
+            output.css.is_none(),
+            "No CSS should be extracted from test files"
+        );
+    }
+
+    #[test]
+    fn spec_file_preserves_css_call() {
+        let plugin = make_plugin();
+        let ctx = CompileContext {
+            file_path: Path::new("/project/src/css/css.spec.ts"),
+            root_dir: Path::new("/project"),
+            src_dir: Path::new("/project/src"),
+            target: "ssr",
+        };
+        let source = r#"const styles = css({ root: ['flex'] });"#;
+        let output = plugin.compile(source, &ctx);
+        assert!(
+            output.code.contains("css("),
+            "css() should be preserved in spec files: {}",
+            output.code
+        );
+    }
+
+    #[test]
+    fn test_tsx_file_preserves_css_call() {
+        let plugin = make_plugin();
+        let ctx = CompileContext {
+            file_path: Path::new("/project/src/component.test.tsx"),
+            root_dir: Path::new("/project"),
+            src_dir: Path::new("/project/src"),
+            target: "ssr",
+        };
+        let source = r#"const styles = css({ root: ['flex'] });"#;
+        let output = plugin.compile(source, &ctx);
+        assert!(
+            output.code.contains("css("),
+            "css() should be preserved in .test.tsx files: {}",
+            output.code
+        );
+    }
+
+    #[test]
+    fn dunder_tests_dir_preserves_css_call() {
+        let plugin = make_plugin();
+        let ctx = CompileContext {
+            file_path: Path::new("/project/src/__tests__/styles.ts"),
+            root_dir: Path::new("/project"),
+            src_dir: Path::new("/project/src"),
+            target: "ssr",
+        };
+        let source = r#"const styles = css({ root: ['flex'] });"#;
+        let output = plugin.compile(source, &ctx);
+        assert!(
+            output.code.contains("css("),
+            "css() should be preserved in __tests__/ files: {}",
+            output.code
+        );
+    }
+
+    #[test]
+    fn is_test_file_detects_patterns() {
+        assert!(is_test_file(Path::new("src/css.test.ts")));
+        assert!(is_test_file(Path::new("src/css.test.tsx")));
+        assert!(is_test_file(Path::new("src/css.spec.ts")));
+        assert!(is_test_file(Path::new("src/css.spec.tsx")));
+        assert!(is_test_file(Path::new("src/__tests__/css.ts")));
+        assert!(is_test_file(Path::new("src/__tests__/nested/deep.ts")));
+        assert!(!is_test_file(Path::new("src/components/card.tsx")));
+        assert!(!is_test_file(Path::new("src/css/css.ts")));
+        assert!(!is_test_file(Path::new("src/testing/helpers.ts")));
+    }
+
+    #[test]
+    fn non_test_file_still_extracts_css() {
+        let plugin = make_plugin();
+        let ctx = CompileContext {
+            file_path: Path::new("/project/src/components/card.tsx"),
+            root_dir: Path::new("/project"),
+            src_dir: Path::new("/project/src"),
+            target: "ssr",
+        };
+        let source = r#"const styles = css({ root: ['flex', 'p:4'] });"#;
+        let output = plugin.compile(source, &ctx);
+        assert!(
+            !output.code.contains("css("),
+            "css() should be extracted in non-test files: {}",
+            output.code
+        );
+        assert!(output.css.is_some(), "CSS should be extracted");
     }
 }

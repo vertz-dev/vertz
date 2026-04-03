@@ -141,6 +141,11 @@ pub struct CompileOptions {
     pub route_splitting: Option<bool>,
     pub field_selection: Option<bool>,
     pub prefetch_manifest: Option<bool>,
+    /// When true, the compiler skips the static CSS transform (css() call
+    /// extraction). This preserves css() calls for the runtime implementation,
+    /// which is needed in test files that assert on the runtime behavior of
+    /// css() (e.g., checking the `.css` property or `adoptedStyleSheets`).
+    pub skip_css_transform: Option<bool>,
 }
 
 /// Per-component AOT compilation result in the output.
@@ -180,6 +185,7 @@ pub fn compile(source: &str, options: CompileOptions) -> CompileResult {
     let enable_route_splitting = options.route_splitting.unwrap_or(false);
     let enable_field_selection = options.field_selection.unwrap_or(false);
     let enable_prefetch_manifest = options.prefetch_manifest.unwrap_or(false);
+    let skip_css = options.skip_css_transform.unwrap_or(false);
 
     let source_type = SourceType::from_path(filename).unwrap_or_default();
     let allocator = Allocator::default();
@@ -433,8 +439,13 @@ pub fn compile(source: &str, options: CompileOptions) -> CompileResult {
         context_stable_ids::inject_context_stable_ids(&mut ms, &parser_ret.program, filename);
     }
 
-    // CSS transform (module-level)
-    let extracted_css = css_transform::transform_css(&mut ms, &parser_ret.program, filename);
+    // CSS transform (module-level) — skipped for test files so the runtime
+    // css() implementation is exercised instead of the compile-time extraction.
+    let extracted_css = if skip_css {
+        String::new()
+    } else {
+        css_transform::transform_css(&mut ms, &parser_ret.program, filename)
+    };
 
     // Fast refresh codegen (module-level, only in dev/fastRefresh mode)
     if fast_refresh_enabled {
@@ -855,6 +866,65 @@ function App() {
             default_opts(),
         );
         assert!(result.hydration_ids.is_none());
+    }
+
+    // ── skip_css_transform option ─────────────────────────────────
+
+    #[test]
+    fn skip_css_transform_preserves_css_call() {
+        let source = r#"const styles = css({ root: ['flex', 'p:4'] });"#;
+        let result = compile(
+            source,
+            CompileOptions {
+                filename: Some("test.test.ts".to_string()),
+                skip_css_transform: Some(true),
+                ..Default::default()
+            },
+        );
+        // css() call should remain untouched (not replaced with class name map)
+        assert!(
+            result.code.contains("css("),
+            "css() call should be preserved when skip_css_transform is true: {}",
+            result.code
+        );
+        // No CSS should be extracted
+        assert!(
+            result.css.is_none(),
+            "No CSS should be extracted when skip_css_transform is true"
+        );
+    }
+
+    #[test]
+    fn skip_css_transform_false_still_extracts() {
+        let source = r#"const styles = css({ root: ['flex', 'p:4'] });"#;
+        let result = compile(
+            source,
+            CompileOptions {
+                filename: Some("component.tsx".to_string()),
+                skip_css_transform: Some(false),
+                ..Default::default()
+            },
+        );
+        // css() call should be replaced
+        assert!(
+            !result.code.contains("css("),
+            "css() call should be replaced when skip_css_transform is false: {}",
+            result.code
+        );
+        assert!(result.css.is_some());
+    }
+
+    #[test]
+    fn skip_css_transform_default_none_extracts() {
+        let source = r#"const styles = css({ root: ['flex', 'p:4'] });"#;
+        let result = compile(source, default_opts());
+        // Default behavior: CSS transform is active
+        assert!(
+            !result.code.contains("css("),
+            "css() call should be replaced by default: {}",
+            result.code
+        );
+        assert!(result.css.is_some());
     }
 
     // ── CSS extraction ─────────────────────────────────────────────
