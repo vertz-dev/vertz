@@ -3,7 +3,23 @@ title: Installation
 description: 'Install Vertz and configure the compiler'
 ---
 
-## Using create-vertz-app (recommended)
+## Install the runtime
+
+First, install the `vtz` CLI — a standalone binary that includes the dev server, test runner, and package manager:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/vertz-dev/vertz/main/install.sh | sh
+```
+
+This installs to `~/.vtz/bin/` and works on macOS and Linux (both x64 and ARM). See [Runtime](/runtime) for alternative installation methods and available commands.
+
+Verify it's installed:
+
+```bash
+vtz --version
+```
+
+## Create a new project (recommended)
 
 The fastest way to get started:
 

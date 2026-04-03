@@ -18,17 +18,7 @@ The runtime handles:
 
 ## Installation
 
-### Automatic (recommended)
-
-The runtime is installed automatically when you add `@vertz/runtime` to your project:
-
-```bash
-vtz add -d @vertz/runtime
-```
-
-The `vertz` meta-package and `@vertz/cli` include it as an optional dependency, so most projects already have it after `vtz install`.
-
-### Standalone binary
+### Install script (recommended)
 
 Install the `vtz` binary directly — works on macOS and Linux, both x64 and ARM:
 
@@ -41,7 +31,17 @@ This installs to `~/.vtz/bin/` and creates a `vertz` symlink. The script auto-de
 To install a specific version:
 
 ```bash
-VTZ_VERSION=0.2.46 curl -fsSL https://raw.githubusercontent.com/vertz-dev/vertz/main/install.sh | sh
+VTZ_VERSION=0.2.47 curl -fsSL https://raw.githubusercontent.com/vertz-dev/vertz/main/install.sh | sh
+```
+
+### Via npm (existing projects)
+
+If you already have a project with `package.json`, the `vertz` meta-package includes `@vertz/runtime` as an optional dependency. Running `vtz install` (or `npm install`) resolves the platform-specific binary automatically.
+
+To add the runtime explicitly:
+
+```bash
+vtz add -d @vertz/runtime
 ```
 
 ### From source
@@ -63,7 +63,7 @@ The CLI resolves the runtime binary in this order:
 1. **`VERTZ_RUNTIME_BINARY` env var** — explicit path override (fail-fast if set but missing)
 2. **Monorepo local build** — `native/target/release/vtz` or `native/target/debug/vtz`
 3. **npm package** — `@vertz/runtime` resolves the platform-specific binary
-4. **Fallback** — if none found, uses Bun with an info message
+4. **Error** — if none found, prints installation instructions and exits
 
 ## Supported platforms
 
