@@ -93,22 +93,18 @@ pub async fn execute(action: CiAction, root_dir: &Path) -> Result<(), String> {
         }
         CiAction::Affected { base, json } => run_affected(root_dir, &base, json).await,
         CiAction::CacheStatus => {
-            let backend = cache::create_cache_backend(root_dir, None);
-            // Downcast to LocalCache for status info
-            let cache_dir = root_dir.join(".pipe").join("cache");
+            let cache_dir = cache_dir(root_dir);
             let local = cache::LocalCache::new(cache_dir.clone(), None);
             let (total_bytes, count) = local.status();
             let total_mb = total_bytes as f64 / (1024.0 * 1024.0);
-            let max_mb = 2048.0;
+            let max_mb = local.max_size() as f64 / (1024.0 * 1024.0);
             eprintln!("Cache directory: {}", cache_dir.display());
             eprintln!("Total size: {total_mb:.0} MB / {max_mb:.0} MB");
             eprintln!("Entries: {count}");
-            let _ = backend; // ensure trait object is used
             Ok(())
         }
         CiAction::CacheClean => {
-            let cache_dir = root_dir.join(".pipe").join("cache");
-            let local = cache::LocalCache::new(cache_dir, None);
+            let local = cache::LocalCache::new(cache_dir(root_dir), None);
             match local.clean() {
                 Ok((count, bytes)) => {
                     let mb = bytes as f64 / (1024.0 * 1024.0);
@@ -384,6 +380,11 @@ async fn run_affected(root_dir: &Path, base: &str, json: bool) -> Result<(), Str
     }
 
     Ok(())
+}
+
+/// Get the cache directory path for a given root.
+fn cache_dir(root_dir: &Path) -> std::path::PathBuf {
+    root_dir.join(".pipe").join("cache")
 }
 
 /// Print a dry-run plan using the task graph's topological order.

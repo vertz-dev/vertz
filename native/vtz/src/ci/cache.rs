@@ -54,11 +54,7 @@ pub fn compute_cache_key(
     // 1. Command/steps
     let cmd_str = match task {
         TaskDef::Command(c) => c.command.clone(),
-        TaskDef::Steps(s) => {
-            let mut sorted = s.steps.clone();
-            sorted.sort();
-            sorted.join("\n")
-        }
+        TaskDef::Steps(s) => s.steps.join("\n"),
     };
     hasher.update(cmd_str.as_bytes());
 
@@ -103,17 +99,7 @@ pub fn compute_cache_key(
     hasher.update(lockfile_hash.as_bytes());
 
     let hash = hex::encode(hasher.finalize());
-    let short_hash = &hash[..16];
-
-    let task_name = match task {
-        TaskDef::Command(c) => &c.base.scope,
-        TaskDef::Steps(s) => &s.base.scope,
-    };
-    let _ = task_name; // scope not used in key, task name comes from caller
-
-    // Build key: we need the task name from the graph node, not the def
-    // The caller provides it via the format
-    Ok(short_hash.to_string())
+    Ok(hash[..16].to_string())
 }
 
 /// Build the full cache key string.
@@ -143,18 +129,27 @@ pub fn platform_string() -> String {
     format!("{}-{}", std::env::consts::OS, std::env::consts::ARCH)
 }
 
-/// Compute a hash of the lockfile (bun.lock or Cargo.lock).
+/// Compute a combined hash of all lockfiles found in the project root.
+/// Hashes all present lockfiles (not just the first) so that changes to
+/// any lockfile (e.g., Cargo.lock in a mixed TS/Rust monorepo) invalidate caches.
 pub fn lockfile_hash(root_dir: &Path) -> String {
+    let mut hasher = Sha256::new();
+    let mut found = false;
     for name in &["bun.lock", "Cargo.lock", "package-lock.json", "yarn.lock"] {
         let path = root_dir.join(name);
         if path.exists() {
             if let Ok(content) = std::fs::read(&path) {
-                let hash = Sha256::digest(&content);
-                return hex::encode(&hash[..8]);
+                hasher.update(name.as_bytes());
+                hasher.update(&content);
+                found = true;
             }
         }
     }
-    "no-lockfile".to_string()
+    if found {
+        hex::encode(&hasher.finalize()[..8])
+    } else {
+        "no-lockfile".to_string()
+    }
 }
 
 /// Hash input files matching glob patterns under a directory.
@@ -223,8 +218,8 @@ mod hex {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ManifestEntry {
     pub size: u64,
-    pub created_at: String,
-    pub last_accessed: String,
+    pub created_at: u64,
+    pub last_accessed: u64,
 }
 
 /// Cache manifest stored as JSON alongside cache entries.
@@ -234,9 +229,14 @@ pub struct CacheManifest {
 }
 
 /// Local file-system cache using tar+zstd compression.
+///
+/// Uses an internal Mutex to serialize manifest read/write operations,
+/// preventing race conditions when concurrent workers access the cache.
 pub struct LocalCache {
     cache_dir: PathBuf,
     max_size: u64,
+    /// Guards manifest file operations against concurrent access.
+    manifest_lock: std::sync::Mutex<()>,
 }
 
 impl LocalCache {
@@ -247,7 +247,13 @@ impl LocalCache {
         Self {
             cache_dir,
             max_size: max_size.unwrap_or(2 * 1024 * 1024 * 1024), // 2 GB
+            manifest_lock: std::sync::Mutex::new(()),
         }
+    }
+
+    /// Maximum cache size in bytes.
+    pub fn max_size(&self) -> u64 {
+        self.max_size
     }
 
     /// Path to the manifest file.
@@ -293,7 +299,7 @@ impl LocalCache {
             .iter()
             .map(|(k, v)| (k.clone(), v.clone()))
             .collect();
-        entries.sort_by(|a, b| a.1.last_accessed.cmp(&b.1.last_accessed));
+        entries.sort_by_key(|e| e.1.last_accessed);
 
         let mut current_size = total;
         for (key, entry) in entries {
@@ -310,13 +316,12 @@ impl LocalCache {
         Ok(())
     }
 
-    /// Get the current timestamp as ISO string.
-    fn now_iso() -> String {
-        // Use a simple timestamp format without chrono
-        let duration = std::time::SystemTime::now()
+    /// Get the current Unix timestamp in seconds.
+    fn now_unix_secs() -> u64 {
+        std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
-            .unwrap_or_default();
-        format!("{}s", duration.as_secs())
+            .unwrap_or_default()
+            .as_secs()
     }
 
     /// Get total cache size and entry count.
@@ -348,6 +353,11 @@ impl CacheBackend for LocalCache {
         key: &str,
         restore_keys: &[String],
     ) -> Result<Option<(String, Vec<u8>)>, String> {
+        let _lock = self
+            .manifest_lock
+            .lock()
+            .map_err(|e| format!("manifest lock poisoned: {e}"))?;
+
         let mut manifest = self.load_manifest();
 
         // Try exact key
@@ -358,7 +368,7 @@ impl CacheBackend for LocalCache {
 
             // Update last_accessed
             if let Some(entry) = manifest.entries.get_mut(key) {
-                entry.last_accessed = Self::now_iso();
+                entry.last_accessed = Self::now_unix_secs();
                 let _ = self.save_manifest(&manifest);
             }
 
@@ -368,14 +378,14 @@ impl CacheBackend for LocalCache {
         // Try restore keys (prefix match)
         for prefix in restore_keys {
             let mut best_key: Option<&str> = None;
-            let mut best_created = "";
+            let mut best_created: u64 = 0;
 
             for (k, entry) in &manifest.entries {
                 if k.starts_with(prefix.as_str())
-                    && (best_key.is_none() || entry.created_at.as_str() > best_created)
+                    && (best_key.is_none() || entry.created_at > best_created)
                 {
                     best_key = Some(k.as_str());
-                    best_created = &entry.created_at;
+                    best_created = entry.created_at;
                 }
             }
 
@@ -388,7 +398,7 @@ impl CacheBackend for LocalCache {
                     // Update last_accessed
                     let matched_key = matched_key.to_string();
                     if let Some(entry) = manifest.entries.get_mut(&matched_key) {
-                        entry.last_accessed = Self::now_iso();
+                        entry.last_accessed = Self::now_unix_secs();
                         let _ = self.save_manifest(&manifest);
                     }
 
@@ -409,14 +419,19 @@ impl CacheBackend for LocalCache {
         std::fs::write(&entry_path, data)
             .map_err(|e| format!("failed to write cache entry: {e}"))?;
 
+        let _lock = self
+            .manifest_lock
+            .lock()
+            .map_err(|e| format!("manifest lock poisoned: {e}"))?;
+
         // Update manifest
         let mut manifest = self.load_manifest();
-        let now = Self::now_iso();
+        let now = Self::now_unix_secs();
         manifest.entries.insert(
             key.to_string(),
             ManifestEntry {
                 size: data.len() as u64,
-                created_at: now.clone(),
+                created_at: now,
                 last_accessed: now,
             },
         );
@@ -458,6 +473,11 @@ pub fn pack_outputs(output_patterns: &[String], base_dir: &Path) -> Result<Vec<u
 
     files.sort();
     files.dedup();
+
+    // No files matched — return empty to skip caching
+    if files.is_empty() {
+        return Ok(Vec::new());
+    }
 
     // Create tar archive in memory
     let mut tar_data = Vec::new();
@@ -517,11 +537,13 @@ pub fn restore_outputs(data: &[u8], target_dir: &Path) -> Result<usize, String> 
             .to_path_buf();
 
         for component in path.components() {
-            if let std::path::Component::ParentDir = component {
-                return Err(format!(
-                    "path traversal in archive entry: {}",
-                    path.display()
-                ));
+            match component {
+                std::path::Component::ParentDir
+                | std::path::Component::RootDir
+                | std::path::Component::Prefix(_) => {
+                    return Err(format!("unsafe path in archive entry: {}", path.display()));
+                }
+                _ => {}
             }
         }
 
@@ -809,11 +831,11 @@ mod tests {
     }
 
     #[test]
-    fn pack_no_files() {
+    fn pack_no_files_returns_empty() {
         let dir = tempfile::tempdir().unwrap();
         let data = pack_outputs(&["*.nonexistent".to_string()], dir.path()).unwrap();
-        // Should produce a valid (but empty) archive
-        assert!(!data.is_empty());
+        // No files matched → empty vec (skips caching)
+        assert!(data.is_empty());
     }
 
     #[test]
@@ -856,7 +878,39 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let result = restore_outputs(&compressed, dir.path());
         assert!(result.is_err());
-        assert!(result.unwrap_err().contains("path traversal"));
+        assert!(result.unwrap_err().contains("unsafe path"));
+    }
+
+    #[test]
+    fn restore_absolute_path_rejected() {
+        // Construct a tar with an absolute path entry
+        let mut tar_data = Vec::new();
+        {
+            let mut header = [0u8; 512];
+            let path_bytes = b"/tmp/malicious";
+            header[..path_bytes.len()].copy_from_slice(path_bytes);
+            let size_str = format!("{:011o}\0", 5);
+            header[124..136].copy_from_slice(size_str.as_bytes());
+            header[100..107].copy_from_slice(b"0000644");
+            header[257..263].copy_from_slice(b"ustar\0");
+            header[263..265].copy_from_slice(b"00");
+            header[148..156].fill(b' ');
+            let cksum: u32 = header.iter().map(|&b| b as u32).sum();
+            let cksum_str = format!("{:06o}\0 ", cksum);
+            header[148..156].copy_from_slice(cksum_str.as_bytes());
+
+            tar_data.extend_from_slice(&header);
+            let mut data_block = [0u8; 512];
+            data_block[..5].copy_from_slice(b"hello");
+            tar_data.extend_from_slice(&data_block);
+            tar_data.extend_from_slice(&[0u8; 1024]);
+        }
+
+        let compressed = zstd::encode_all(tar_data.as_slice(), 3).unwrap();
+        let dir = tempfile::tempdir().unwrap();
+        let result = restore_outputs(&compressed, dir.path());
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("unsafe path"));
     }
 
     // -- LocalCache --
