@@ -10,7 +10,14 @@ use crate::typecheck::process::detect_checker;
 use super::executor::{TestError, TestFileResult, TestResult, TestStatus};
 
 /// Directories to skip entirely during type test file discovery.
-const EXCLUDE_DIRS: &[&str] = &["node_modules", "dist", ".vertz", ".git"];
+const EXCLUDE_DIRS: &[&str] = &[
+    "node_modules",
+    "dist",
+    ".vertz",
+    ".git",
+    "native",
+    "oxlint-plugins",
+];
 
 /// Discover `.test-d.ts` and `.test-d.tsx` files in the project.
 ///
@@ -76,6 +83,55 @@ fn is_excluded(path: &Path, default_dirs: &[&str], custom: &[String]) -> bool {
         }
     }
     false
+}
+
+/// Group type test files by their nearest `tsconfig.json`.
+///
+/// Walks up from each file looking for a `tsconfig.json`. Files sharing the
+/// same tsconfig are grouped together so tsc runs once per package/project with
+/// `--project`, giving it proper jsx, lib, and type resolution settings.
+///
+/// Files without a discoverable tsconfig are grouped under `None`.
+pub fn group_by_tsconfig(
+    root_dir: &Path,
+    files: &[PathBuf],
+) -> Vec<(Option<PathBuf>, Vec<PathBuf>)> {
+    let mut groups: HashMap<Option<PathBuf>, Vec<PathBuf>> = HashMap::new();
+
+    for file in files {
+        let tsconfig = find_nearest_tsconfig(file, root_dir);
+        groups.entry(tsconfig).or_default().push(file.clone());
+    }
+
+    // Sort groups by tsconfig path for deterministic ordering
+    let mut result: Vec<(Option<PathBuf>, Vec<PathBuf>)> = groups.into_iter().collect();
+    result.sort_by(|a, b| a.0.cmp(&b.0));
+    result
+}
+
+/// Walk up from a file to find the nearest `tsconfig.json`.
+///
+/// Uses `tsconfig.typecheck.json` if present (some packages override tsconfig
+/// for type-checking), otherwise falls back to `tsconfig.json`.
+fn find_nearest_tsconfig(file: &Path, root_dir: &Path) -> Option<PathBuf> {
+    let mut dir = file.parent()?;
+    loop {
+        // Prefer tsconfig.typecheck.json (used by some packages for stricter checks)
+        let typecheck_config = dir.join("tsconfig.typecheck.json");
+        if typecheck_config.is_file() {
+            return Some(typecheck_config);
+        }
+        let tsconfig = dir.join("tsconfig.json");
+        if tsconfig.is_file() {
+            return Some(tsconfig);
+        }
+        // Don't walk above the project root
+        if dir == root_dir || dir.parent().is_none() {
+            break;
+        }
+        dir = dir.parent()?;
+    }
+    None
 }
 
 /// Run type checking on `.test-d.ts` files and return results.

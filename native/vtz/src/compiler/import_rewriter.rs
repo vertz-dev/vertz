@@ -464,7 +464,8 @@ fn resolve_imports_condition(value: &serde_json::Value) -> Option<String> {
     match value {
         serde_json::Value::String(s) => Some(s.clone()),
         serde_json::Value::Object(map) => {
-            for key in &["import", "module", "default", "require"] {
+            // Priority: import > node > module > default > require
+            for key in &["import", "node", "module", "default", "require"] {
                 if let Some(entry) = map.get(*key) {
                     return resolve_imports_condition(entry);
                 }
