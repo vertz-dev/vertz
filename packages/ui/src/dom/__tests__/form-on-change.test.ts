@@ -262,6 +262,21 @@ describe('__formOnChange', () => {
 
       expect(spy).not.toHaveBeenCalled();
     });
+
+    it('does not fire handler when cleanup is called after scheduleFlush but before microtask runs', async () => {
+      const spy = mock(() => {});
+      const q = input('q', { value: 'hello' });
+      const { cleanup } = createForm([q], spy);
+
+      // Fire input → schedules a microtask flush
+      fireInput(q);
+      // Cleanup before the microtask runs
+      cleanup();
+      // Now let the microtask execute — handler should NOT fire
+      await flushMicrotasks();
+
+      expect(spy).not.toHaveBeenCalled();
+    });
   });
 
   // ── Edge cases ────────────────────────────────────────────────
