@@ -27,8 +27,6 @@ struct DestructuredPropsInfo {
     /// Span of the entire parameter pattern (from `{` to `)` or type annotation end).
     param_start: u32,
     param_end: u32,
-    /// Type annotation text, if present.
-    type_annotation: Option<String>,
 }
 
 /// Transform destructured props into __props access pattern.
@@ -61,12 +59,11 @@ pub fn transform_props(
         return;
     }
 
-    // Step 1: Rewrite parameter `{ title, ...rest }: CardProps` → `__props: CardProps`
-    let new_param = if let Some(ref type_ann) = info.type_annotation {
-        format!("__props: {type_ann}")
-    } else {
-        "__props".to_string()
-    };
+    // Step 1: Rewrite parameter `{ title, ...rest }: CardProps` → `__props`
+    // Note: type annotation is intentionally omitted — the output is JavaScript,
+    // and typescript_strip has already run. Re-emitting the type would produce
+    // invalid JS that V8 cannot parse.
+    let new_param = "__props".to_string();
     ms.overwrite(info.param_start, info.param_end, &new_param);
 
     // Step 2: Replace references in the component body
@@ -254,19 +251,12 @@ fn extract_from_params<'a>(
         let param_start = first_param.span.start;
         let param_end = first_param.span.end;
 
-        // Extract type annotation if present (on FormalParameter, not BindingPattern)
-        let type_annotation = first_param.type_annotation.as_ref().map(|ta| {
-            let ts_span = ta.type_annotation.span();
-            source[ts_span.start as usize..ts_span.end as usize].to_string()
-        });
-
         Some(DestructuredPropsInfo {
             bindings,
             has_rest,
             has_nested_destructuring: has_nested,
             param_start,
             param_end,
-            type_annotation,
         })
     } else {
         None

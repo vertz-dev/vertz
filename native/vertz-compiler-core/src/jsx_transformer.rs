@@ -332,11 +332,13 @@ fn transform_jsx_node(
     rx: &ReactivityContext,
     counter: &mut u32,
 ) -> String {
+    let source = ms.original();
     match kind {
         JsxNodeKind::Element => {
             let mut finder = ElementFinder {
                 target_start: start,
                 target_end: end,
+                source,
                 result: None,
             };
             for stmt in &program.body {
@@ -355,6 +357,7 @@ fn transform_jsx_node(
             let mut finder = FragmentFinder {
                 target_start: start,
                 target_end: end,
+                source,
                 result: None,
             };
             for stmt in &program.body {
@@ -458,16 +461,17 @@ struct FragmentInfo {
     children: Vec<ChildInfo>,
 }
 
-struct ElementFinder {
+struct ElementFinder<'s> {
     target_start: u32,
     target_end: u32,
+    source: &'s str,
     result: Option<ElementInfo>,
 }
 
-impl<'c> Visit<'c> for ElementFinder {
+impl<'c, 's> Visit<'c> for ElementFinder<'s> {
     fn visit_jsx_element(&mut self, elem: &JSXElement<'c>) {
         if elem.span.start == self.target_start && elem.span.end == self.target_end {
-            self.result = Some(extract_element_info(elem));
+            self.result = Some(extract_element_info(elem, self.source));
             return;
         }
         oxc_ast_visit::walk::walk_jsx_element(self, elem);
@@ -480,27 +484,28 @@ impl<'c> Visit<'c> for ElementFinder {
     }
 }
 
-struct FragmentFinder {
+struct FragmentFinder<'s> {
     target_start: u32,
     target_end: u32,
+    source: &'s str,
     result: Option<FragmentInfo>,
 }
 
-impl<'c> Visit<'c> for FragmentFinder {
+impl<'c, 's> Visit<'c> for FragmentFinder<'s> {
     fn visit_jsx_fragment(&mut self, frag: &JSXFragment<'c>) {
         if frag.span.start == self.target_start && frag.span.end == self.target_end {
-            self.result = Some(extract_fragment_info(frag));
+            self.result = Some(extract_fragment_info(frag, self.source));
             return;
         }
         oxc_ast_visit::walk::walk_jsx_fragment(self, frag);
     }
 }
 
-fn extract_element_info(elem: &JSXElement) -> ElementInfo {
+fn extract_element_info(elem: &JSXElement, source: &str) -> ElementInfo {
     let tag_name = extract_tag_name(&elem.opening_element);
     let is_component = tag_name.starts_with(|c: char| c.is_ascii_uppercase());
     let attrs = extract_attrs(&elem.opening_element);
-    let children = extract_children(&elem.children);
+    let children = extract_children(&elem.children, source);
 
     ElementInfo {
         tag_name,
@@ -510,8 +515,8 @@ fn extract_element_info(elem: &JSXElement) -> ElementInfo {
     }
 }
 
-fn extract_fragment_info(frag: &JSXFragment) -> FragmentInfo {
-    let children = extract_children(&frag.children);
+fn extract_fragment_info(frag: &JSXFragment, source: &str) -> FragmentInfo {
+    let children = extract_children(&frag.children, source);
     FragmentInfo { children }
 }
 
@@ -627,7 +632,7 @@ fn is_jsx_expr_literal(expr: &JSXExpression) -> bool {
     )
 }
 
-fn extract_children(children: &oxc_allocator::Vec<JSXChild>) -> Vec<ChildInfo> {
+fn extract_children(children: &oxc_allocator::Vec<JSXChild>, source: &str) -> Vec<ChildInfo> {
     let mut result = Vec::new();
     for child in children {
         match child {
@@ -642,7 +647,7 @@ fn extract_children(children: &oxc_allocator::Vec<JSXChild>) -> Vec<ChildInfo> {
                 _ => {
                     let (expr_start, expr_end) = jsx_expr_span(&expr_container.expression);
                     let is_literal = is_jsx_expr_literal(&expr_container.expression);
-                    let expr_kind = classify_expression(&expr_container.expression);
+                    let expr_kind = classify_expression(&expr_container.expression, source);
                     result.push(ChildInfo::Expression {
                         expr_start,
                         expr_end,
@@ -652,10 +657,10 @@ fn extract_children(children: &oxc_allocator::Vec<JSXChild>) -> Vec<ChildInfo> {
                 }
             },
             JSXChild::Element(elem) => {
-                result.push(ChildInfo::Element(extract_element_info(elem)));
+                result.push(ChildInfo::Element(extract_element_info(elem, source)));
             }
             JSXChild::Fragment(frag) => {
-                result.push(ChildInfo::Fragment(extract_fragment_info(frag)));
+                result.push(ChildInfo::Fragment(extract_fragment_info(frag, source)));
             }
             JSXChild::Spread(_) => {
                 // JSX spread children — not common
@@ -665,16 +670,16 @@ fn extract_children(children: &oxc_allocator::Vec<JSXChild>) -> Vec<ChildInfo> {
     result
 }
 
-fn classify_expression(expr: &JSXExpression) -> ExprKind {
+fn classify_expression(expr: &JSXExpression, source: &str) -> ExprKind {
     if let Some(e) = expr.as_expression() {
-        classify_inner_expression(e)
+        classify_inner_expression(e, source)
     } else {
         ExprKind::Normal
     }
 }
 
 /// Try to classify a CallExpression as a .map() list pattern.
-fn classify_map_call(call: &CallExpression) -> Option<ExprKind> {
+fn classify_map_call(call: &CallExpression, source: &str) -> Option<ExprKind> {
     // Check callee: could be StaticMemberExpression directly, or via as_member_expression()
     let member = if let Expression::StaticMemberExpression(m) = &call.callee {
         Some(m.as_ref())
@@ -715,7 +720,7 @@ fn classify_map_call(call: &CallExpression) -> Option<ExprKind> {
     let source_start = member.object.span().start;
     let source_end = member.object.span().end;
 
-    let key_expr = extract_key_from_arrow_body(&arrow.body, &item_param);
+    let key_expr = extract_key_from_arrow_body(&arrow.body, &item_param, source);
 
     let body_stmts = &arrow.body.statements;
     let (cb_start, cb_end) = if arrow.expression {
@@ -767,15 +772,11 @@ fn extract_callback_locals(stmts: &[Statement]) -> Vec<(String, u32, u32)> {
     locals
 }
 
-fn classify_inner_expression(expr: &Expression) -> ExprKind {
+fn classify_inner_expression<'a>(expr: &Expression<'a>, source: &str) -> ExprKind {
     match expr {
         Expression::ConditionalExpression(cond) => {
             let true_is_jsx = is_jsx_expression(&cond.consequent);
             let false_is_jsx = is_jsx_expression(&cond.alternate);
-            // Always classify ternaries as Conditional — even when both branches
-            // are non-JSX (e.g., string literals). The condition may reference
-            // reactive variables, and __conditional() handles both JSX and text branches.
-            // This matches ts-morph behavior which wraps ALL ternaries in JSX children.
             ExprKind::Conditional {
                 cond_start: cond.test.span().start,
                 cond_end: cond.test.span().end,
@@ -789,9 +790,6 @@ fn classify_inner_expression(expr: &Expression) -> ExprKind {
         }
         Expression::LogicalExpression(logical) if logical.operator == LogicalOperator::And => {
             let right_is_jsx = is_jsx_expression(&logical.right);
-            // Always classify logical AND as LogicalAnd — the left side (condition)
-            // may reference reactive variables, and __conditional() handles both
-            // JSX and non-JSX right-hand sides.
             ExprKind::LogicalAnd {
                 left_start: logical.left.span().start,
                 left_end: logical.left.span().end,
@@ -800,16 +798,20 @@ fn classify_inner_expression(expr: &Expression) -> ExprKind {
                 right_is_jsx,
             }
         }
-        Expression::CallExpression(call) => classify_map_call(call).unwrap_or(ExprKind::Normal),
+        Expression::CallExpression(call) => {
+            classify_map_call(call, source).unwrap_or(ExprKind::Normal)
+        }
         Expression::ChainExpression(chain) => {
             // Handle optional chaining: projects.data?.items.map(...)
             if let ChainElement::CallExpression(call) = &chain.expression {
-                classify_map_call(call).unwrap_or(ExprKind::Normal)
+                classify_map_call(call, source).unwrap_or(ExprKind::Normal)
             } else {
                 ExprKind::Normal
             }
         }
-        Expression::ParenthesizedExpression(paren) => classify_inner_expression(&paren.expression),
+        Expression::ParenthesizedExpression(paren) => {
+            classify_inner_expression(&paren.expression, source)
+        }
         _ => ExprKind::Normal,
     }
 }
@@ -819,17 +821,21 @@ fn is_jsx_expression(expr: &Expression) -> bool {
         || matches!(expr, Expression::ParenthesizedExpression(p) if is_jsx_expression(&p.expression))
 }
 
-fn extract_key_from_arrow_body(body: &FunctionBody, _item_param: &str) -> Option<String> {
+fn extract_key_from_arrow_body(
+    body: &FunctionBody,
+    _item_param: &str,
+    source: &str,
+) -> Option<String> {
     // Walk the body to find a JSX element with a key prop
     for stmt in &body.statements {
         if let Statement::ExpressionStatement(es) = stmt {
-            if let Some(key) = extract_key_from_expr(&es.expression) {
+            if let Some(key) = extract_key_from_expr(&es.expression, source) {
                 return Some(key);
             }
         }
         if let Statement::ReturnStatement(ret) = stmt {
             if let Some(ref arg) = ret.argument {
-                if let Some(key) = extract_key_from_expr(arg) {
+                if let Some(key) = extract_key_from_expr(arg, source) {
                     return Some(key);
                 }
             }
@@ -838,15 +844,15 @@ fn extract_key_from_arrow_body(body: &FunctionBody, _item_param: &str) -> Option
     None
 }
 
-fn extract_key_from_expr(expr: &Expression) -> Option<String> {
+fn extract_key_from_expr(expr: &Expression, source: &str) -> Option<String> {
     match expr {
-        Expression::JSXElement(elem) => extract_key_from_jsx_attrs(&elem.opening_element),
-        Expression::ParenthesizedExpression(p) => extract_key_from_expr(&p.expression),
+        Expression::JSXElement(elem) => extract_key_from_jsx_attrs(&elem.opening_element, source),
+        Expression::ParenthesizedExpression(p) => extract_key_from_expr(&p.expression, source),
         _ => None,
     }
 }
 
-fn extract_key_from_jsx_attrs(opening: &JSXOpeningElement) -> Option<String> {
+fn extract_key_from_jsx_attrs(opening: &JSXOpeningElement, source: &str) -> Option<String> {
     for attr in &opening.attributes {
         if let JSXAttributeItem::Attribute(jsx_attr) = attr {
             let name = match &jsx_attr.name {
@@ -858,8 +864,7 @@ fn extract_key_from_jsx_attrs(opening: &JSXOpeningElement) -> Option<String> {
             }
             if let Some(JSXAttributeValue::ExpressionContainer(expr_container)) = &jsx_attr.value {
                 if let Some(inner) = expr_container.expression.as_expression() {
-                    // Return the raw text — we'll need MagicString for transformed text
-                    return Some(format_expr_text(inner));
+                    return Some(format_expr_text(inner, source));
                 }
             }
         }
@@ -867,14 +872,13 @@ fn extract_key_from_jsx_attrs(opening: &JSXOpeningElement) -> Option<String> {
     None
 }
 
-fn format_expr_text(expr: &Expression) -> String {
-    match expr {
-        Expression::StaticMemberExpression(member) => {
-            let obj = format_expr_text(&member.object);
-            format!("{}.{}", obj, member.property.name)
-        }
-        Expression::Identifier(id) => id.name.to_string(),
-        _ => String::new(),
+fn format_expr_text(expr: &Expression, source: &str) -> String {
+    let start = expr.span().start as usize;
+    let end = expr.span().end as usize;
+    if start < end && end <= source.len() {
+        source[start..end].to_string()
+    } else {
+        String::new()
     }
 }
 
@@ -1115,7 +1119,12 @@ fn transform_child_as_value(
                     }
                 };
 
-                let render_fn = format!("({}) => {}", item_param, render_body);
+                let render_params = if let Some(idx) = index_param {
+                    format!("({}, {})", item_param, idx)
+                } else {
+                    format!("({})", item_param)
+                };
+                let render_fn = format!("{} => {}", render_params, render_body);
                 return Some(format!(
                     "__listValue(() => {}, {}, {})",
                     source_text, key_fn, render_fn
@@ -1399,7 +1408,12 @@ fn transform_child(
                     }
                 };
 
-                let render_fn = format!("({}) => {}", item_param, render_body);
+                let render_params = if let Some(idx) = index_param {
+                    format!("({}, {})", item_param, idx)
+                } else {
+                    format!("({})", item_param)
+                };
+                let render_fn = format!("{} => {}", render_params, render_body);
                 return Some(format!(
                     "__list({}, () => {}, {}, {})",
                     parent_var, source_text, key_fn, render_fn
