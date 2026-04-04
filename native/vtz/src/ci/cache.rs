@@ -665,6 +665,47 @@ mod tests {
         assert_eq!(h1, h2);
     }
 
+    #[test]
+    fn lockfile_hash_multiple_lockfiles_differ_from_single() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(dir.path().join("bun.lock"), "bun-content").unwrap();
+        let single = lockfile_hash(dir.path());
+
+        std::fs::write(dir.path().join("Cargo.lock"), "cargo-content").unwrap();
+        let combined = lockfile_hash(dir.path());
+
+        assert_ne!(
+            single, combined,
+            "adding a second lockfile must change the hash"
+        );
+    }
+
+    #[test]
+    fn lockfile_hash_changes_when_second_lockfile_changes() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(dir.path().join("bun.lock"), "bun-content").unwrap();
+        std::fs::write(dir.path().join("Cargo.lock"), "cargo-v1").unwrap();
+        let h1 = lockfile_hash(dir.path());
+
+        std::fs::write(dir.path().join("Cargo.lock"), "cargo-v2").unwrap();
+        let h2 = lockfile_hash(dir.path());
+
+        assert_ne!(h1, h2, "changing Cargo.lock must invalidate the cache key");
+    }
+
+    #[test]
+    fn lockfile_hash_all_four_lockfiles() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(dir.path().join("bun.lock"), "a").unwrap();
+        std::fs::write(dir.path().join("Cargo.lock"), "b").unwrap();
+        std::fs::write(dir.path().join("package-lock.json"), "c").unwrap();
+        std::fs::write(dir.path().join("yarn.lock"), "d").unwrap();
+        let hash = lockfile_hash(dir.path());
+
+        assert_ne!(hash, "no-lockfile");
+        assert_eq!(hash.len(), 16);
+    }
+
     // -- hash_input_files --
 
     #[test]
