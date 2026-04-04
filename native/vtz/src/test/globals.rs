@@ -300,6 +300,68 @@ if (typeof globalThis.HTMLElement === 'undefined') {
     try { return JSON.stringify(v); } catch { return String(v); }
   }
 
+  function strictDeepEqual(a, b, seen) {
+    if (b != null && typeof b === 'object' && b[ASYMMETRIC_BRAND]) return b.match(a);
+    if (a != null && typeof a === 'object' && a[ASYMMETRIC_BRAND]) return a.match(b);
+    if (Object.is(a, b)) return true;
+    if (a == null || b == null) return false;
+    if (typeof a !== typeof b) return false;
+    if (typeof a !== 'object') return false;
+
+    // Constructor identity check
+    if (a.constructor !== b.constructor) return false;
+
+    // Circular reference protection
+    if (!seen) seen = new WeakSet();
+    if (seen.has(a)) return false;
+    seen.add(a);
+
+    if (a instanceof Date && b instanceof Date) return a.getTime() === b.getTime();
+    if (a instanceof RegExp && b instanceof RegExp) return a.source === b.source && a.flags === b.flags;
+
+    if (a instanceof Map && b instanceof Map) {
+      if (a.size !== b.size) return false;
+      for (const [key, val] of a) {
+        if (!b.has(key) || !strictDeepEqual(val, b.get(key), seen)) return false;
+      }
+      return true;
+    }
+    if ((a instanceof Map) !== (b instanceof Map)) return false;
+
+    if (a instanceof Set && b instanceof Set) {
+      if (a.size !== b.size) return false;
+      for (const val of a) {
+        if (typeof val === 'object' && val !== null) {
+          let found = false;
+          for (const bVal of b) { if (strictDeepEqual(val, bVal, seen)) { found = true; break; } }
+          if (!found) return false;
+        } else {
+          if (!b.has(val)) return false;
+        }
+      }
+      return true;
+    }
+    if ((a instanceof Set) !== (b instanceof Set)) return false;
+
+    if (Array.isArray(a) !== Array.isArray(b)) return false;
+
+    if (Array.isArray(a)) {
+      if (a.length !== b.length) return false;
+      for (let i = 0; i < a.length; i++) {
+        const aHas = Object.hasOwn(a, i);
+        const bHas = Object.hasOwn(b, i);
+        if (aHas !== bHas) return false;
+        if (aHas && !strictDeepEqual(a[i], b[i], seen)) return false;
+      }
+      return true;
+    }
+
+    const keysA = Object.keys(a);
+    const keysB = Object.keys(b);
+    if (keysA.length !== keysB.length) return false;
+    return keysA.every(k => Object.hasOwn(b, k) && strictDeepEqual(a[k], b[k], seen));
+  }
+
   function createMatchers(actual, negated) {
     const matchers = {};
 
@@ -317,6 +379,11 @@ if (typeof globalThis.HTMLElement === 'undefined') {
     matchers.toEqual = (expected) => {
       assert(deepEqual(actual, expected), () =>
         `Expected ${formatValue(actual)} ${negated ? 'not ' : ''}to deep-equal ${formatValue(expected)}`
+      );
+    };
+    matchers.toStrictEqual = (expected) => {
+      assert(strictDeepEqual(actual, expected), () =>
+        `Expected ${formatValue(actual)} ${negated ? 'not ' : ''}to strictly equal ${formatValue(expected)}`
       );
     };
 
@@ -366,6 +433,11 @@ if (typeof globalThis.HTMLElement === 'undefined') {
     matchers.toBeLessThanOrEqual = (n) => {
       assert(actual <= n, () =>
         `Expected ${actual} ${negated ? 'not ' : ''}to be <= ${n}`
+      );
+    };
+    matchers.toBeNaN = () => {
+      assert(Number.isNaN(actual), () =>
+        `Expected ${formatValue(actual)} ${negated ? 'not ' : ''}to be NaN`
       );
     };
 
@@ -555,6 +627,21 @@ if (typeof globalThis.HTMLElement === 'undefined') {
         `Expected mock ${negated ? 'not ' : ''}to have been last called with ${formatValue(expectedArgs)}, got ${formatValue(last)}`
       );
     };
+    matchers.toSatisfy = (predicate) => {
+      if (typeof predicate !== 'function') throw new Error('toSatisfy: predicate must be a function');
+      assert(predicate(actual), () =>
+        `Expected ${formatValue(actual)} ${negated ? 'not ' : ''}to satisfy predicate`
+      );
+    };
+    matchers.toHaveBeenNthCalledWith = (n, ...expectedArgs) => {
+      if (!actual || !actual[MOCK_BRAND]) throw new Error('toHaveBeenNthCalledWith requires a mock function');
+      if (typeof n !== 'number' || n < 1 || !Number.isInteger(n)) throw new Error('toHaveBeenNthCalledWith: n must be a positive integer');
+      const nthCall = actual.mock.calls[n - 1];
+      assert(nthCall !== undefined && deepEqual(nthCall, expectedArgs), () =>
+        `Expected mock ${negated ? 'not ' : ''}to have been nth(${n}) called with ${formatValue(expectedArgs)}, ` +
+        (nthCall === undefined ? `but it was only called ${actual.mock.calls.length} times` : `got ${formatValue(nthCall)}`)
+      );
+    };
 
     // Apply custom matchers
     for (const [name, matcherFn] of Object.entries(customMatchers)) {
@@ -602,12 +689,13 @@ if (typeof globalThis.HTMLElement === 'undefined') {
 
     // Build all matcher methods as async wrappers (including custom matchers)
     const builtinNames = [
-      'toBe', 'toEqual', 'toBeTruthy', 'toBeFalsy', 'toBeNull', 'toBeUndefined',
+      'toBe', 'toEqual', 'toStrictEqual', 'toBeTruthy', 'toBeFalsy', 'toBeNull', 'toBeUndefined',
       'toBeDefined', 'toBeGreaterThan', 'toBeGreaterThanOrEqual', 'toBeLessThan',
-      'toBeLessThanOrEqual', 'toContain', 'toContainEqual', 'toHaveLength', 'toMatch',
+      'toBeLessThanOrEqual', 'toBeNaN', 'toContain', 'toContainEqual', 'toHaveLength', 'toMatch',
       'toBeCloseTo', 'toBeTypeOf', 'toBeFunction', 'toHaveProperty', 'toBeInstanceOf',
       'toMatchObject', 'toThrow', 'toThrowError', 'toHaveBeenCalled', 'toHaveBeenCalledOnce',
       'toHaveBeenCalledTimes', 'toHaveBeenCalledWith', 'toHaveBeenLastCalledWith',
+      'toHaveBeenNthCalledWith', 'toSatisfy',
     ];
     const matcherNames = [...builtinNames, ...Object.keys(customMatchers)];
 
@@ -2672,6 +2760,292 @@ mod tests {
                 item["status"], "pass",
                 "DOM stub test {} failed: {:?}",
                 i, item["error"]
+            );
+        }
+    }
+
+    #[test]
+    fn test_to_strict_equal_same_class() {
+        let mut rt = create_test_runtime();
+        let results = run_test_code(
+            &mut rt,
+            r#"
+            describe('toStrictEqual', () => {
+                it('same class same shape passes', () => {
+                    class Dog { constructor(name) { this.name = name; } }
+                    expect(new Dog('Rex')).toStrictEqual(new Dog('Rex'));
+                });
+            });
+            "#,
+        );
+
+        let arr = results.as_array().unwrap();
+        assert_eq!(arr.len(), 1);
+        assert_eq!(
+            arr[0]["status"], "pass",
+            "toStrictEqual same class failed: {:?}",
+            arr[0]["error"]
+        );
+    }
+
+    #[test]
+    fn test_to_strict_equal_different_class() {
+        let mut rt = create_test_runtime();
+        let results = run_test_code(
+            &mut rt,
+            r#"
+            describe('toStrictEqual different class', () => {
+                it('different constructors fail', () => {
+                    class Dog { constructor(name) { this.name = name; } }
+                    class Cat { constructor(name) { this.name = name; } }
+                    expect(new Dog('Rex')).not.toStrictEqual(new Cat('Rex'));
+                });
+            });
+            "#,
+        );
+
+        let arr = results.as_array().unwrap();
+        assert_eq!(arr.len(), 1);
+        assert_eq!(
+            arr[0]["status"], "pass",
+            "toStrictEqual different class failed: {:?}",
+            arr[0]["error"]
+        );
+    }
+
+    #[test]
+    fn test_to_strict_equal_undefined_vs_missing() {
+        let mut rt = create_test_runtime();
+        let results = run_test_code(
+            &mut rt,
+            r#"
+            describe('toStrictEqual undefined vs missing', () => {
+                it('undefined property is not equal to missing property', () => {
+                    expect({ a: 1, b: undefined }).not.toStrictEqual({ a: 1 });
+                });
+                it('missing property is not equal to undefined property', () => {
+                    expect({ a: 1 }).not.toStrictEqual({ a: 1, b: undefined });
+                });
+            });
+            "#,
+        );
+
+        let arr = results.as_array().unwrap();
+        assert_eq!(arr.len(), 2);
+        for (i, item) in arr.iter().enumerate() {
+            assert_eq!(
+                item["status"], "pass",
+                "toStrictEqual undefined vs missing test {} failed: {:?}",
+                i, item["error"]
+            );
+        }
+    }
+
+    #[test]
+    fn test_to_strict_equal_sparse_array() {
+        let mut rt = create_test_runtime();
+        let results = run_test_code(
+            &mut rt,
+            r#"
+            describe('toStrictEqual sparse arrays', () => {
+                it('sparse hole is not equal to undefined', () => {
+                    const sparse = [1, , 3];
+                    const withUndef = [1, undefined, 3];
+                    expect(sparse).not.toStrictEqual(withUndef);
+                });
+                it('same sparse arrays are equal', () => {
+                    const a = [1, , 3];
+                    const b = [1, , 3];
+                    expect(a).toStrictEqual(b);
+                });
+            });
+            "#,
+        );
+
+        let arr = results.as_array().unwrap();
+        assert_eq!(arr.len(), 2);
+        for (i, item) in arr.iter().enumerate() {
+            assert_eq!(
+                item["status"], "pass",
+                "toStrictEqual sparse array test {} failed: {:?}",
+                i, item["error"]
+            );
+        }
+    }
+
+    #[test]
+    fn test_to_strict_equal_plain_objects() {
+        let mut rt = create_test_runtime();
+        let results = run_test_code(
+            &mut rt,
+            r#"
+            describe('toStrictEqual plain objects', () => {
+                it('same shape passes', () => {
+                    expect({ a: { b: 1 } }).toStrictEqual({ a: { b: 1 } });
+                });
+                it('different shape fails', () => {
+                    expect({ a: 1 }).not.toStrictEqual({ a: 2 });
+                });
+                it('.not works', () => {
+                    expect({ a: 1 }).not.toStrictEqual({ a: 1, b: 2 });
+                });
+            });
+            "#,
+        );
+
+        let arr = results.as_array().unwrap();
+        assert_eq!(arr.len(), 3);
+        for (i, item) in arr.iter().enumerate() {
+            assert_eq!(
+                item["status"], "pass",
+                "toStrictEqual plain objects test {} failed: {:?}",
+                i, item["error"]
+            );
+        }
+    }
+
+    #[test]
+    fn test_to_satisfy() {
+        let mut rt = create_test_runtime();
+        let results = run_test_code(
+            &mut rt,
+            r#"
+            describe('toSatisfy', () => {
+                it('positive predicate passes', () => {
+                    expect(3).toSatisfy((n) => n > 0 && n < 10);
+                });
+                it('string predicate passes', () => {
+                    expect('hello').toSatisfy((s) => s.startsWith('h'));
+                });
+                it('.not works', () => {
+                    expect(42).not.toSatisfy((n) => n < 0);
+                });
+                it('non-function predicate throws even with .not', () => {
+                    let threw = false;
+                    try { expect(1).not.toSatisfy('not a function'); } catch (e) { threw = true; }
+                    expect(threw).toBe(true);
+                });
+                it('predicate errors propagate', () => {
+                    let threw = false;
+                    let errorType = '';
+                    try { expect(null).toSatisfy((n) => n.foo.bar); } catch (e) { threw = true; errorType = e.constructor.name; }
+                    expect(threw).toBe(true);
+                    expect(errorType).toBe('TypeError');
+                });
+            });
+            "#,
+        );
+
+        let arr = results.as_array().unwrap();
+        assert_eq!(arr.len(), 5);
+        for (i, item) in arr.iter().enumerate() {
+            assert_eq!(
+                item["status"], "pass",
+                "toSatisfy test {} ({}) failed: {:?}",
+                i, item["name"], item["error"]
+            );
+        }
+    }
+
+    #[test]
+    fn test_to_have_been_nth_called_with() {
+        let mut rt = create_test_runtime();
+        let results = run_test_code(
+            &mut rt,
+            r#"
+            describe('toHaveBeenNthCalledWith', () => {
+                it('checks 1st call', () => {
+                    const fn = mock();
+                    fn('first');
+                    fn('second', 42);
+                    fn('third');
+                    expect(fn).toHaveBeenNthCalledWith(1, 'first');
+                });
+                it('checks 2nd call', () => {
+                    const fn = mock();
+                    fn('first');
+                    fn('second', 42);
+                    expect(fn).toHaveBeenNthCalledWith(2, 'second', 42);
+                });
+                it('.not works', () => {
+                    const fn = mock();
+                    fn('first');
+                    fn('second');
+                    expect(fn).not.toHaveBeenNthCalledWith(1, 'second');
+                });
+                it('n=0 throws even with .not', () => {
+                    const fn = mock();
+                    fn('a');
+                    let threw = false;
+                    try { expect(fn).not.toHaveBeenNthCalledWith(0, 'a'); } catch (e) { threw = true; }
+                    expect(threw).toBe(true);
+                });
+                it('negative n throws', () => {
+                    const fn = mock();
+                    fn('a');
+                    let threw = false;
+                    try { expect(fn).toHaveBeenNthCalledWith(-1, 'a'); } catch (e) { threw = true; }
+                    expect(threw).toBe(true);
+                });
+                it('non-integer n throws', () => {
+                    const fn = mock();
+                    fn('a');
+                    let threw = false;
+                    try { expect(fn).toHaveBeenNthCalledWith(1.5, 'a'); } catch (e) { threw = true; }
+                    expect(threw).toBe(true);
+                });
+                it('n > call count fails', () => {
+                    const fn = mock();
+                    fn('a');
+                    let threw = false;
+                    try { expect(fn).toHaveBeenNthCalledWith(5, 'a'); } catch (e) { threw = true; }
+                    expect(threw).toBe(true);
+                });
+            });
+            "#,
+        );
+
+        let arr = results.as_array().unwrap();
+        assert_eq!(arr.len(), 7);
+        for (i, item) in arr.iter().enumerate() {
+            assert_eq!(
+                item["status"], "pass",
+                "toHaveBeenNthCalledWith test {} ({}) failed: {:?}",
+                i, item["name"], item["error"]
+            );
+        }
+    }
+
+    #[test]
+    fn test_to_be_nan() {
+        let mut rt = create_test_runtime();
+        let results = run_test_code(
+            &mut rt,
+            r#"
+            describe('toBeNaN', () => {
+                it('NaN passes', () => {
+                    expect(NaN).toBeNaN();
+                });
+                it('0/0 passes', () => {
+                    expect(0 / 0).toBeNaN();
+                });
+                it('number fails', () => {
+                    expect(42).not.toBeNaN();
+                });
+                it('string fails', () => {
+                    expect('hello').not.toBeNaN();
+                });
+            });
+            "#,
+        );
+
+        let arr = results.as_array().unwrap();
+        assert_eq!(arr.len(), 4);
+        for (i, item) in arr.iter().enumerate() {
+            assert_eq!(
+                item["status"], "pass",
+                "toBeNaN test {} ({}) failed: {:?}",
+                i, item["name"], item["error"]
             );
         }
     }
