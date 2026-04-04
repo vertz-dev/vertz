@@ -422,14 +422,16 @@ impl LocalCache {
         std::fs::create_dir_all(&self.cache_dir)
             .map_err(|e| format!("failed to create cache dir: {e}"))?;
 
-        let entry_path = self.entry_path(key);
-        std::fs::write(&entry_path, data)
-            .map_err(|e| format!("failed to write cache entry: {e}"))?;
-
+        // Lock before writing the file so concurrent puts for the same key
+        // cannot race on file data vs. manifest metadata.
         let _lock = self
             .manifest_lock
             .lock()
             .map_err(|e| format!("manifest lock poisoned: {e}"))?;
+
+        let entry_path = self.entry_path(key);
+        std::fs::write(&entry_path, data)
+            .map_err(|e| format!("failed to write cache entry: {e}"))?;
 
         // Update manifest
         let mut manifest = self.load_manifest();
@@ -1090,6 +1092,40 @@ mod tests {
         let (total, count) = cache.status();
         assert_eq!(count, 2);
         assert_eq!(total, 300);
+    }
+
+    #[tokio::test]
+    async fn local_cache_concurrent_put_get() {
+        let (_dir, cache_dir) = test_cache_dir();
+        let cache = std::sync::Arc::new(LocalCache::new(cache_dir, None));
+
+        // Spawn multiple concurrent puts
+        let mut handles = Vec::new();
+        for i in 0..10u8 {
+            let c = cache.clone();
+            let key = format!("concurrent-key-{i}");
+            let data = vec![i; 64];
+            handles.push(tokio::spawn(async move {
+                c.put(&key, &data).await.unwrap();
+            }));
+        }
+        for h in handles {
+            h.await.unwrap();
+        }
+
+        // All entries must be readable with correct data
+        for i in 0..10u8 {
+            let key = format!("concurrent-key-{i}");
+            let result = cache.get(&key, &[]).await.unwrap();
+            assert!(result.is_some(), "key {key} missing after concurrent puts");
+            let (matched, data) = result.unwrap();
+            assert_eq!(matched, key);
+            assert_eq!(data, vec![i; 64]);
+        }
+
+        // Manifest entry count must match
+        let (_, count) = cache.status();
+        assert_eq!(count, 10);
     }
 
     // -- compute_cache_key with secrets --
