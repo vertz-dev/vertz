@@ -123,6 +123,7 @@ pub async fn run_e2e_tests(
     }
 
     // Run test files sequentially
+    let wall_clock_start = Instant::now();
     let mut results = Vec::new();
     let mut bail_triggered = false;
 
@@ -174,7 +175,7 @@ pub async fn run_e2e_tests(
         file_errors,
         coverage_failed: false,
         coverage_report: None,
-        wall_clock_ms: 0.0,
+        wall_clock_ms: wall_clock_start.elapsed().as_secs_f64() * 1000.0,
     };
 
     let output = if bail_triggered {
@@ -233,6 +234,7 @@ async fn execute_e2e_inner(
         enable_inspector: false,
         compile_cache: !config.no_cache,
         plugin: Arc::new(crate::plugin::vertz::VertzPlugin),
+        ..Default::default()
     })?;
 
     // Put WebviewBridge in OpState so e2e ops can access it
