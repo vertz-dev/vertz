@@ -50,6 +50,25 @@ function renumberParams(sqlStr: string, offset: number): string {
 }
 
 /**
+ * Re-number parameter placeholders in a SQL fragment string using dialect-specific
+ * formatting. Replaces `$1, $2, ...` with `dialect.param(offset + 1)`, etc.
+ *
+ * Used by SQL builders to inline `SqlFragment` expressions from `DbExpr.build()`
+ * with correct parameter numbering for the target dialect.
+ */
+export function renumberParamsWithDialect(
+  sqlStr: string,
+  offset: number,
+  dialect: { param(index: number): string },
+): string {
+  let counter = 0;
+  return sqlStr.replace(/\$(\d+)/g, () => {
+    counter++;
+    return dialect.param(offset + counter);
+  });
+}
+
+/**
  * SQL tagged template literal.
  *
  * Interpolated values are automatically parameterized as $1, $2, etc.

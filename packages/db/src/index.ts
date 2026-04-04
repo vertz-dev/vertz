@@ -58,6 +58,12 @@ export { computeTenantGraph, createDb } from './client';
 export type { createPostgresDriver, PostgresDriver } from './client/postgres-driver';
 // Schema builder
 export { d } from './d';
+// Update expressions
+export type { DbExpr } from './sql/expr';
+export { isDbExpr } from './sql/expr';
+// SQL tagged template (re-exported for d.expr() convenience)
+export { sql } from './sql/tagged';
+export type { SqlFragment } from './sql/tagged';
 // Diagnostic
 export type { DiagnosticResult } from './diagnostic/index';
 export { diagnoseError, explainError, formatDiagnostic } from './diagnostic/index';

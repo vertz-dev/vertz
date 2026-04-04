@@ -209,6 +209,41 @@ const result = await db.users.update({
 });
 ```
 
+### Update expressions
+
+Use `d.increment()`, `d.decrement()`, or `d.expr()` to perform atomic column operations directly in the database — no read-modify-write cycle needed.
+
+```ts
+import { d, sql } from 'vertz/db';
+
+// Increment a counter atomically
+await db.urls.update({
+  where: { slug: 'my-link' },
+  data: { clickCount: d.increment(1) },
+});
+// SQL: UPDATE "urls" SET "click_count" = "click_count" + $1 WHERE ...
+
+// Decrement
+await db.inventory.update({
+  where: { sku: 'WIDGET-01' },
+  data: { stock: d.decrement(5) },
+});
+
+// Arbitrary SQL expression
+await db.urls.update({
+  where: { slug: 'My-Link' },
+  data: { slug: d.expr((col) => sql`LOWER(${col})`) },
+});
+// SQL: UPDATE "urls" SET "slug" = LOWER("slug") WHERE ...
+```
+
+Expressions work in `update`, `updateMany`, and the `update` path of `upsert`. They compose with the `sql` tagged template — the `col` parameter in `d.expr()` is the column reference, automatically converted to snake_case.
+
+<Note>
+  Expressions override `autoUpdate()` columns. If you pass `d.increment()` on an `autoUpdate()`
+  column like `updatedAt`, your expression is used instead of the automatic `NOW()`.
+</Note>
+
 ### Upsert
 
 Create if not found, update if exists:
@@ -329,7 +364,7 @@ if (!result.ok) {
 For queries that the builder can't express, use tagged template SQL:
 
 ```ts
-import { sql } from 'vertz/db/sql';
+import { sql } from 'vertz/db';
 
 const result = await db.query(sql`SELECT * FROM users WHERE email = ${email} AND active = ${true}`);
 ```

@@ -1,4 +1,6 @@
 export { camelToSnake, snakeToCamel } from './casing';
+export type { DbExpr } from './expr';
+export { isDbExpr } from './expr';
 export type { DeleteOptions, DeleteResult } from './delete';
 export { buildDelete } from './delete';
 export type { InsertOptions, InsertResult, OnConflictOptions } from './insert';

@@ -11,6 +11,9 @@
 
 import { type Dialect, defaultPostgresDialect } from '../dialect';
 import { camelToSnake } from './casing';
+import { isDbExpr } from './expr';
+import type { SqlFragment } from './tagged';
+import { renumberParamsWithDialect } from './tagged';
 
 export interface OnConflictOptions {
   readonly columns: readonly string[];
@@ -93,12 +96,24 @@ export function buildInsert(
       sql += ` ON CONFLICT (${conflictCols}) DO NOTHING`;
     } else if (options.onConflict.action === 'update' && options.onConflict.updateColumns) {
       if (options.onConflict.updateValues) {
-        // Explicit update values: parameterize each value
+        // Explicit update values: parameterize each value (or compose DbExpr)
         const updateVals = options.onConflict.updateValues;
         const setClauses = options.onConflict.updateColumns
           .map((c) => {
             const snakeCol = camelToSnake(c);
-            allParams.push(updateVals[c]);
+            const val = updateVals[c];
+            if (isDbExpr(val)) {
+              const colRef: SqlFragment = {
+                _tag: 'SqlFragment',
+                sql: `"${snakeCol}"`,
+                params: [],
+              };
+              const fragment = val.build(colRef);
+              const renumbered = renumberParamsWithDialect(fragment.sql, allParams.length, dialect);
+              allParams.push(...fragment.params);
+              return `"${snakeCol}" = ${renumbered}`;
+            }
+            allParams.push(val);
             return `"${snakeCol}" = ${dialect.param(allParams.length)}`;
           })
           .join(', ');

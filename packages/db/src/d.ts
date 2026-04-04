@@ -11,6 +11,9 @@ import type {
   VarcharMeta,
 } from './schema/column';
 import { createColumn, createSerialColumn } from './schema/column';
+import type { DbExpr } from './sql/expr';
+import type { SqlFragment } from './sql/tagged';
+import { sql } from './sql/tagged';
 import type { ModelDef, ValidateOneRelationFKs } from './schema/model';
 import { createModel } from './schema/model';
 import type { SchemaLike } from './schema/model-schemas';
@@ -88,6 +91,12 @@ export const d: {
     ): RelationDef<TTarget, 'many'>;
     many<TTarget extends TableDef<ColumnRecord>>(target: () => TTarget): ManyRelationDef<TTarget>;
   };
+  /** Column-relative SQL expression for update operations. */
+  expr(build: (col: SqlFragment) => SqlFragment): DbExpr;
+  /** Atomic increment: `SET col = col + value`. */
+  increment(value: number): DbExpr;
+  /** Atomic decrement: `SET col = col - value`. */
+  decrement(value: number): DbExpr;
   // eslint-disable-next-line @typescript-eslint/no-empty-object-type -- {} represents an empty relations record — the correct default for models without relations
   model<TTable extends TableDef<ColumnRecord>>(table: TTable): ModelDef<TTable, {}>;
   model<TTable extends TableDef<ColumnRecord>, TRelations extends Record<string, RelationDef>>(
@@ -162,6 +171,9 @@ export const d: {
       enumValues: values,
     });
   },
+  expr: (build) => ({ _tag: 'DbExpr' as const, build }),
+  increment: (n) => ({ _tag: 'DbExpr' as const, build: (col: SqlFragment) => sql`${col} + ${n}` }),
+  decrement: (n) => ({ _tag: 'DbExpr' as const, build: (col: SqlFragment) => sql`${col} - ${n}` }),
   table: createTable,
   index: (columns: string | string[], options?: IndexOptions) => createIndex(columns, options),
   ref: {

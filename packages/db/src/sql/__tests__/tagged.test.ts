@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'bun:test';
-import { sql } from '../tagged';
+import { renumberParamsWithDialect, sql } from '../tagged';
 
 describe('sql tagged template', () => {
   describe('basic parameterization', () => {
@@ -153,5 +153,40 @@ describe('sql tagged template', () => {
       const raw = sql.raw('test');
       expect(raw._tag).toBe('SqlFragment');
     });
+  });
+});
+
+describe('renumberParamsWithDialect', () => {
+  const postgresDialect = { param: (i: number) => `$${i}` };
+  const sqliteDialect = { param: () => '?' };
+
+  it('renumbers $1, $2 with postgres dialect and offset 0', () => {
+    const result = renumberParamsWithDialect('"col" + $1', 0, postgresDialect);
+    expect(result).toBe('"col" + $1');
+  });
+
+  it('renumbers $1 with postgres dialect and offset 3', () => {
+    const result = renumberParamsWithDialect('"col" + $1', 3, postgresDialect);
+    expect(result).toBe('"col" + $4');
+  });
+
+  it('renumbers multiple params with offset', () => {
+    const result = renumberParamsWithDialect('$1 + $2', 5, postgresDialect);
+    expect(result).toBe('$6 + $7');
+  });
+
+  it('converts to ? placeholders with sqlite dialect', () => {
+    const result = renumberParamsWithDialect('"col" + $1', 0, sqliteDialect);
+    expect(result).toBe('"col" + ?');
+  });
+
+  it('converts multiple params to ? with sqlite dialect', () => {
+    const result = renumberParamsWithDialect('$1 + $2', 0, sqliteDialect);
+    expect(result).toBe('? + ?');
+  });
+
+  it('returns unchanged string when no params present', () => {
+    const result = renumberParamsWithDialect('LOWER("slug")', 0, postgresDialect);
+    expect(result).toBe('LOWER("slug")');
   });
 });

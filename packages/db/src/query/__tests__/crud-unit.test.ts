@@ -25,6 +25,7 @@ import {
   getOrThrow,
   update,
   updateMany,
+  upsert,
 } from '../crud';
 import type { QueryFn } from '../executor';
 
@@ -160,6 +161,26 @@ describe('crud unit tests', () => {
 
       // updatedAt is autoUpdate — should appear in SET clause via NOW()
       expect(capturedSql).toContain('"updatedAt"');
+    });
+
+    it('does not overwrite user-provided DbExpr on autoUpdate column', async () => {
+      let capturedSql = '';
+      let capturedParams: readonly unknown[] = [];
+      const queryFn: QueryFn = async <T>(sql: string, params: readonly unknown[]) => {
+        capturedSql = sql;
+        capturedParams = params;
+        return { rows: [{ id: 'u1', name: 'X' }] as readonly T[], rowCount: 1 };
+      };
+
+      await update(queryFn, usersTable, {
+        where: { id: 'u1' },
+        data: { name: 'Updated', updatedAt: d.expr((col) => col) },
+      });
+
+      // updatedAt should use the user-provided DbExpr, not the autoUpdate 'now' sentinel
+      // The SQL should contain the expression, NOT NOW()
+      expect(capturedSql).not.toContain('NOW()');
+      expect(capturedSql).toContain('"updated_at"');
     });
   });
 
