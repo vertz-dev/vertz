@@ -985,7 +985,7 @@ describe('createHandler (image optimizer integration)', () => {
 
   it('routes /_vertz/image requests to the image optimizer handler', async () => {
     const apiHandler = vi.fn().mockResolvedValue(new Response('API'));
-    const optimizerHandler = mock(fakeImageOptimizerHandler());
+    const optimizerHandler = vi.fn(fakeImageOptimizerHandler());
 
     const worker = createHandler({
       app: () => mockApp(apiHandler),
@@ -1034,7 +1034,7 @@ describe('createHandler (image optimizer integration)', () => {
         headers: { 'Content-Type': 'application/json' },
       }),
     );
-    const optimizerHandler = mock(fakeImageOptimizerHandler());
+    const optimizerHandler = vi.fn(fakeImageOptimizerHandler());
 
     const worker = createHandler({
       app: () => mockApp(apiHandler),
@@ -1060,7 +1060,7 @@ describe('createHandler (image optimizer integration)', () => {
         headers: { 'Content-Type': 'text/html' },
       }),
     );
-    const optimizerHandler = mock(fakeImageOptimizerHandler());
+    const optimizerHandler = vi.fn(fakeImageOptimizerHandler());
 
     const worker = createHandler({
       app: () => mockApp(),
@@ -1098,7 +1098,7 @@ describe('createHandler (image optimizer integration)', () => {
 
   it('image optimizer route takes priority over apiPrefix when both could match', async () => {
     const apiHandler = vi.fn().mockResolvedValue(new Response('API'));
-    const optimizerHandler = mock(fakeImageOptimizerHandler());
+    const optimizerHandler = vi.fn(fakeImageOptimizerHandler());
 
     // Edge case: apiPrefix is /_vertz — optimizer route should still win
     const worker = createHandler({
