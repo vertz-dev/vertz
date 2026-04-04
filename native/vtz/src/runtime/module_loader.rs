@@ -142,8 +142,12 @@ impl VertzModuleLoader {
         specifier: &str,
         referrer_path: &Path,
     ) -> Result<PathBuf, AnyError> {
-        // Relative imports: ./foo, ../bar
-        if specifier.starts_with("./") || specifier.starts_with("../") {
+        // Relative imports: ./foo, ../bar, bare "." or ".."
+        if specifier.starts_with("./")
+            || specifier.starts_with("../")
+            || specifier == "."
+            || specifier == ".."
+        {
             let base_dir = referrer_path.parent().unwrap_or(&self.root_dir);
             let resolved = base_dir.join(specifier);
             return self.resolve_with_extensions(&resolved);
@@ -2444,6 +2448,100 @@ export function Hello() {
         assert_eq!(
             resolve_imports_mapping(&value),
             Some("./src/foo.mjs".to_string())
+        );
+    }
+
+    /// Bare ".." import should resolve to the parent directory's index file,
+    /// NOT fall through to node_modules resolution (which would find
+    /// package.json and resolve to dist/ instead of src/).
+    #[test]
+    fn test_resolve_bare_dotdot_as_relative() {
+        let tmp = create_temp_dir();
+        // Create: src/index.ts and src/__tests__/test.ts
+        let src_dir = tmp.path().join("src");
+        let tests_dir = src_dir.join("__tests__");
+        std::fs::create_dir_all(&tests_dir).unwrap();
+
+        let index_file = src_dir.join("index.ts");
+        let test_file = tests_dir.join("test.ts");
+
+        std::fs::write(&index_file, "export const x = 1;").unwrap();
+        std::fs::write(&test_file, "import { x } from '..';").unwrap();
+
+        let loader = VertzModuleLoader::new(&tmp.path().to_string_lossy(), test_plugin());
+        let referrer = ModuleSpecifier::from_file_path(&test_file).unwrap();
+        let result = loader.resolve("..", referrer.as_str(), ResolutionKind::Import);
+
+        assert!(result.is_ok(), "resolve('..') should succeed: {:?}", result);
+        let resolved = result.unwrap();
+        assert_eq!(
+            resolved.to_file_path().unwrap(),
+            canon(&index_file),
+            "bare '..' should resolve to parent directory's index.ts, not dist/"
+        );
+    }
+
+    /// Bare "." import should resolve to the current directory's index file.
+    #[test]
+    fn test_resolve_bare_dot_as_relative() {
+        let tmp = create_temp_dir();
+        let index_file = tmp.path().join("index.ts");
+        let main_file = tmp.path().join("main.ts");
+
+        std::fs::write(&index_file, "export const x = 1;").unwrap();
+        std::fs::write(&main_file, "import { x } from '.';").unwrap();
+
+        let loader = VertzModuleLoader::new(&tmp.path().to_string_lossy(), test_plugin());
+        let referrer = ModuleSpecifier::from_file_path(&main_file).unwrap();
+        let result = loader.resolve(".", referrer.as_str(), ResolutionKind::Import);
+
+        assert!(result.is_ok(), "resolve('.') should succeed: {:?}", result);
+        let resolved = result.unwrap();
+        assert_eq!(
+            resolved.to_file_path().unwrap(),
+            canon(&index_file),
+            "bare '.' should resolve to current directory's index.ts"
+        );
+    }
+
+    /// When a package has node_modules AND src/index.ts, bare ".."
+    /// from src/__tests__/ must resolve to src/index.ts (not dist/).
+    #[test]
+    fn test_resolve_bare_dotdot_prefers_source_over_dist() {
+        let tmp = create_temp_dir();
+
+        // Create package structure with both src/ and dist/
+        let src_dir = tmp.path().join("src");
+        let tests_dir = src_dir.join("__tests__");
+        let dist_dir = tmp.path().join("dist");
+        let nm_dir = tmp.path().join("node_modules");
+
+        std::fs::create_dir_all(&tests_dir).unwrap();
+        std::fs::create_dir_all(&dist_dir).unwrap();
+        std::fs::create_dir_all(&nm_dir).unwrap();
+
+        std::fs::write(src_dir.join("index.ts"), "export const x = 1;").unwrap();
+        std::fs::write(dist_dir.join("index.js"), "export const x = 1;").unwrap();
+        std::fs::write(
+            tmp.path().join("package.json"),
+            r#"{"name":"test-pkg","main":"dist/index.js","exports":{".":{"import":"./dist/index.js"}}}"#,
+        )
+        .unwrap();
+
+        let test_file = tests_dir.join("test.ts");
+        std::fs::write(&test_file, "import { x } from '..';").unwrap();
+
+        let loader = VertzModuleLoader::new(&tmp.path().to_string_lossy(), test_plugin());
+        let referrer = ModuleSpecifier::from_file_path(&test_file).unwrap();
+        let result = loader.resolve("..", referrer.as_str(), ResolutionKind::Import);
+
+        assert!(result.is_ok(), "resolve('..') should succeed: {:?}", result);
+        let resolved = result.unwrap();
+        // Must resolve to src/index.ts, not dist/index.js
+        assert_eq!(
+            resolved.to_file_path().unwrap(),
+            canon(&src_dir.join("index.ts")),
+            "bare '..' from __tests__ must resolve to src/index.ts, not package.json exports"
         );
     }
 }

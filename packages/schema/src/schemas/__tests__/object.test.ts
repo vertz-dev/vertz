@@ -45,7 +45,30 @@ describe('ObjectSchema', () => {
       nickname: new StringSchema().optional(),
     });
     const result = schema.parse({ name: 'Alice' }).data;
-    expect(result).toEqual({ name: 'Alice', nickname: undefined });
+    expect(result).toEqual({ name: 'Alice' });
+    expect(result).not.toHaveProperty('nickname');
+  });
+
+  it('preserves optional properties when explicitly set to undefined', () => {
+    const schema = new ObjectSchema({
+      name: new StringSchema(),
+      nickname: new StringSchema().optional(),
+    });
+    const result = schema.parse({ name: 'Alice', nickname: undefined }).data;
+    expect(result).toHaveProperty('nickname');
+    expect((result as Record<string, unknown>).nickname).toBeUndefined();
+  });
+
+  it('omits nested optional keys', () => {
+    const schema = new ObjectSchema({
+      user: new ObjectSchema({
+        name: new StringSchema(),
+        bio: new StringSchema().optional(),
+      }),
+    });
+    const result = schema.parse({ user: { name: 'Alice' } }).data;
+    expect((result as Record<string, unknown>).user).toEqual({ name: 'Alice' });
+    expect((result as Record<string, unknown>).user).not.toHaveProperty('bio');
   });
 
   it('fills in default properties when absent', () => {
@@ -153,8 +176,8 @@ describe('ObjectSchema', () => {
   it('.partial() makes all properties optional', () => {
     const schema = new ObjectSchema({ name: new StringSchema(), age: new NumberSchema() });
     const partial = schema.partial();
-    expect(partial.parse({}).data).toEqual({ name: undefined, age: undefined });
-    expect(partial.parse({ name: 'Alice' }).data).toEqual({ name: 'Alice', age: undefined });
+    expect(partial.parse({}).data).toEqual({});
+    expect(partial.parse({ name: 'Alice' }).data).toEqual({ name: 'Alice' });
   });
 
   it('.required() unwraps OptionalSchema wrappers', () => {
