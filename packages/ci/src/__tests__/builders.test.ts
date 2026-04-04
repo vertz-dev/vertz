@@ -109,6 +109,26 @@ describe('pipe()', () => {
     expect(config.tasks['test']!.deps).toEqual(['build', '^build']);
   });
 
+  it('passes rootAffectsAll through on workflows', () => {
+    const config = pipe({
+      tasks: { build: task('build') },
+      workflows: {
+        ci: { run: ['build'], filter: 'affected', rootAffectsAll: true },
+      },
+    });
+    expect(config.workflows!['ci']!.rootAffectsAll).toBe(true);
+  });
+
+  it('leaves rootAffectsAll undefined when not set', () => {
+    const config = pipe({
+      tasks: { build: task('build') },
+      workflows: {
+        ci: { run: ['build'], filter: 'affected' },
+      },
+    });
+    expect(config.workflows!['ci']!.rootAffectsAll).toBeUndefined();
+  });
+
   it('leaves string on: values unchanged', () => {
     const config = pipe({
       tasks: {

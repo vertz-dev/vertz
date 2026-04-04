@@ -395,6 +395,8 @@ pub struct WorkflowConfig {
     pub filter: WorkflowFilter,
     #[serde(default)]
     pub env: BTreeMap<String, String>,
+    #[serde(default, rename = "rootAffectsAll")]
+    pub root_affects_all: bool,
 }
 
 #[derive(Debug, Clone, Default, Serialize)]
@@ -693,6 +695,20 @@ mod tests {
     }
 
     #[test]
+    fn deserialize_workflow_root_affects_all_true() {
+        let json = r#"{"run": ["build"], "rootAffectsAll": true}"#;
+        let wf: WorkflowConfig = serde_json::from_str(json).unwrap();
+        assert!(wf.root_affects_all);
+    }
+
+    #[test]
+    fn deserialize_workflow_root_affects_all_defaults_to_false() {
+        let json = r#"{"run": ["build"]}"#;
+        let wf: WorkflowConfig = serde_json::from_str(json).unwrap();
+        assert!(!wf.root_affects_all);
+    }
+
+    #[test]
     fn deserialize_task_scope_defaults_to_package() {
         let json = r#"{"command": "bun test"}"#;
         let task: TaskDef = serde_json::from_str(json).unwrap();
@@ -781,8 +797,28 @@ mod tests {
             config.workflows["ci"].filter,
             WorkflowFilter::Affected
         ));
+        assert!(!config.workflows["ci"].root_affects_all);
         assert!(config.cache.is_some());
         assert_eq!(config.cache.as_ref().unwrap().max_size, Some(2048));
+    }
+
+    #[test]
+    fn deserialize_workflow_with_root_affects_all_in_full_config() {
+        let json = r#"{
+            "tasks": {
+                "build": {"command": "bun run build"}
+            },
+            "workflows": {
+                "ci": {
+                    "run": ["build"],
+                    "filter": "affected",
+                    "rootAffectsAll": true
+                }
+            }
+        }"#;
+
+        let config: PipeConfig = serde_json::from_str(json).unwrap();
+        assert!(config.workflows["ci"].root_affects_all);
     }
 
     #[test]

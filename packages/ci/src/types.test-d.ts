@@ -77,6 +77,29 @@ pipe({
   },
 });
 
+// Valid: workflow with rootAffectsAll
+pipe({
+  tasks: { build: task('build') },
+  workflows: {
+    ci: { run: ['build'], filter: 'affected', rootAffectsAll: true },
+    full: { run: ['build'], filter: 'all', rootAffectsAll: false },
+  },
+});
+
+// Valid: workflow without rootAffectsAll (defaults to false)
+pipe({
+  tasks: { build: task('build') },
+  workflows: {
+    ci: { run: ['build'], filter: 'affected' },
+  },
+});
+
+// @ts-expect-error — rootAffectsAll must be a boolean
+pipe({
+  tasks: { build: task('build') },
+  workflows: { ci: { run: ['build'], rootAffectsAll: 'yes' } },
+});
+
 // Valid: root-scoped task
 pipe({
   tasks: {

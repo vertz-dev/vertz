@@ -179,6 +179,7 @@ async fn run_task_or_workflow(root_dir: &Path, opts: RunOptions) -> Result<(), S
             run: vec![name],
             filter: types::WorkflowFilter::All,
             env: std::collections::BTreeMap::new(),
+            root_affects_all: false,
         }
     } else {
         let available: Vec<&str> = pipe_config
@@ -229,27 +230,46 @@ async fn run_task_or_workflow(root_dir: &Path, opts: RunOptions) -> Result<(), S
                     );
                 }
 
-                if affected.all_affected.is_empty() {
-                    if affected.root_changed {
-                        if !quiet {
-                            eprintln!(
-                                "[pipe] Root files changed but no packages affected — \
-                                 only root-scoped tasks will run"
-                            );
+                let filter_result = if affected.all_affected.is_empty() {
+                    match resolve_root_changed_action(
+                        affected.root_changed,
+                        workflow.root_affects_all,
+                    ) {
+                        RootChangedAction::AllPackages => {
+                            if !quiet {
+                                eprintln!(
+                                    "[pipe] Root files changed — rootAffectsAll enabled, \
+                                     treating all {} packages as affected",
+                                    resolved.packages.len(),
+                                );
+                            }
+                            None // All packages
                         }
-                    } else {
-                        if !quiet {
-                            eprintln!("[pipe] No affected packages — nothing to run");
+                        RootChangedAction::RootOnly => {
+                            if !quiet {
+                                eprintln!(
+                                    "[pipe] Root files changed but no packages affected — \
+                                     only root-scoped tasks will run"
+                                );
+                            }
+                            Some(affected.all_affected)
                         }
-                        let _ = bridge.shutdown().await;
-                        return Ok(());
+                        RootChangedAction::NothingToRun => {
+                            if !quiet {
+                                eprintln!("[pipe] No affected packages — nothing to run");
+                            }
+                            let _ = bridge.shutdown().await;
+                            return Ok(());
+                        }
                     }
-                }
+                } else {
+                    Some(affected.all_affected)
+                };
 
                 // Keep the ChangeSet so task-level conditions can reuse it.
                 reusable_change_set = Some(change_set);
 
-                Some(affected.all_affected)
+                filter_result
             }
         }
     };
@@ -485,6 +505,7 @@ async fn run_graph(root_dir: &Path, name: Option<String>, dot: bool) -> Result<(
             run: vec![workflow_name.clone()],
             filter: types::WorkflowFilter::All,
             env: std::collections::BTreeMap::new(),
+            root_affects_all: false,
         }
     } else {
         let _ = bridge.shutdown().await;
@@ -526,6 +547,31 @@ fn needs_changeset(cond: &types::Condition) -> bool {
 /// Get the cache directory path for a given root.
 fn cache_dir(root_dir: &Path) -> std::path::PathBuf {
     root_dir.join(".pipe").join("cache")
+}
+
+/// Result of resolving the affected filter when root files changed but no packages are affected.
+///
+/// Extracted for testability — the caller handles early-return and logging.
+enum RootChangedAction {
+    /// Treat all packages as affected (`filter_packages = None`).
+    AllPackages,
+    /// Keep the empty set — only root-scoped tasks will run.
+    RootOnly,
+    /// No changes at all — caller should early-return.
+    NothingToRun,
+}
+
+/// Decide what to do when the affected detection branch encounters an empty affected set.
+fn resolve_root_changed_action(root_changed: bool, root_affects_all: bool) -> RootChangedAction {
+    if root_changed {
+        if root_affects_all {
+            RootChangedAction::AllPackages
+        } else {
+            RootChangedAction::RootOnly
+        }
+    } else {
+        RootChangedAction::NothingToRun
+    }
 }
 
 /// Print a dry-run plan using the task graph's topological order.
@@ -583,10 +629,35 @@ mod tests {
             run: vec!["build".to_string()],
             filter: types::WorkflowFilter::All,
             env: std::collections::BTreeMap::new(),
+            root_affects_all: false,
         };
 
         let graph = graph::TaskGraph::build(&wf, &tasks, &workspace, None).unwrap();
         // Just verify it doesn't panic
         print_dry_run_graph(&graph, &tasks);
+    }
+
+    #[test]
+    fn root_changed_action_root_affects_all_true() {
+        let action = resolve_root_changed_action(true, true);
+        assert!(matches!(action, RootChangedAction::AllPackages));
+    }
+
+    #[test]
+    fn root_changed_action_root_affects_all_false() {
+        let action = resolve_root_changed_action(true, false);
+        assert!(matches!(action, RootChangedAction::RootOnly));
+    }
+
+    #[test]
+    fn root_changed_action_no_root_change() {
+        let action = resolve_root_changed_action(false, true);
+        assert!(matches!(action, RootChangedAction::NothingToRun));
+    }
+
+    #[test]
+    fn root_changed_action_no_root_change_no_flag() {
+        let action = resolve_root_changed_action(false, false);
+        assert!(matches!(action, RootChangedAction::NothingToRun));
     }
 }
