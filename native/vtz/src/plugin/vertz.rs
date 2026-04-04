@@ -31,6 +31,7 @@ impl FrameworkPlugin for VertzPlugin {
                 target: Some(ctx.target.to_string()),
                 fast_refresh: Some(!is_test),
                 skip_css_transform: Some(is_test),
+                mock_hoisting: Some(is_test),
                 ..Default::default()
             },
         );
@@ -38,7 +39,8 @@ impl FrameworkPlugin for VertzPlugin {
         let mut diagnostics = Vec::new();
         if let Some(ref diags) = compile_result.diagnostics {
             for d in diags {
-                let is_warning = d.message.starts_with("[css-");
+                let is_warning =
+                    d.message.starts_with("[css-") || d.message.contains("has no matching import");
                 diagnostics.push(CompileDiagnostic {
                     message: d.message.clone(),
                     line: d.line,

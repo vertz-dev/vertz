@@ -33,14 +33,19 @@ impl CompileCache {
         Self { cache_dir, enabled }
     }
 
-    /// Compute the SHA-256 cache key for a source + target pair.
-    fn cache_key(source: &str, target: &str) -> String {
+    /// Compute the SHA-256 cache key for a source + target + options combination.
+    ///
+    /// The `options_hash` parameter encodes compile option flags (e.g., `"css:0,mock:1"`)
+    /// so that the same source compiled with different options produces different cache keys.
+    fn cache_key(source: &str, target: &str, options_hash: &str) -> String {
         let mut hasher = Sha256::new();
         hasher.update(source.as_bytes());
         hasher.update(b"|");
         hasher.update(CACHE_VERSION.as_bytes());
         hasher.update(b"|");
         hasher.update(target.as_bytes());
+        hasher.update(b"|");
+        hasher.update(options_hash.as_bytes());
         format!("{:x}", hasher.finalize())
     }
 
@@ -51,11 +56,14 @@ impl CompileCache {
     }
 
     /// Look up a cached compilation. Returns `None` on miss or if disabled.
-    pub fn get(&self, source: &str, target: &str) -> Option<CachedCompilation> {
+    ///
+    /// `options_hash` encodes compile flags (e.g., `"css:0,mock:1"`) — must match
+    /// the value passed to `put()` for the same compilation.
+    pub fn get(&self, source: &str, target: &str, options_hash: &str) -> Option<CachedCompilation> {
         if !self.enabled {
             return None;
         }
-        let key = Self::cache_key(source, target);
+        let key = Self::cache_key(source, target, options_hash);
         let path = self.cache_path(&key);
         let content = std::fs::read_to_string(&path).ok()?;
         let parsed: serde_json::Value = serde_json::from_str(&content).ok()?;
@@ -68,11 +76,19 @@ impl CompileCache {
     }
 
     /// Store a compilation result in the cache. No-op if disabled.
-    pub fn put(&self, source: &str, target: &str, compilation: &CachedCompilation) {
+    ///
+    /// `options_hash` must match the value used in `get()` for the same source + target.
+    pub fn put(
+        &self,
+        source: &str,
+        target: &str,
+        options_hash: &str,
+        compilation: &CachedCompilation,
+    ) {
         if !self.enabled {
             return;
         }
-        let key = Self::cache_key(source, target);
+        let key = Self::cache_key(source, target, options_hash);
         let path = self.cache_path(&key);
         if let Some(parent) = path.parent() {
             let _ = std::fs::create_dir_all(parent);
@@ -94,7 +110,7 @@ mod tests {
     fn test_cache_miss_returns_none() {
         let tmp = tempfile::tempdir().unwrap();
         let cache = CompileCache::new(tmp.path(), true);
-        assert!(cache.get("const x = 1;", "ssr").is_none());
+        assert!(cache.get("const x = 1;", "ssr", "").is_none());
     }
 
     #[test]
@@ -107,6 +123,7 @@ mod tests {
         cache.put(
             source,
             target,
+            "",
             &CachedCompilation {
                 code: "const x = 1;".to_string(),
                 source_map: Some("{\"mappings\":\"AAAA\"}".to_string()),
@@ -114,7 +131,7 @@ mod tests {
             },
         );
 
-        let cached = cache.get(source, target).expect("Should hit cache");
+        let cached = cache.get(source, target, "").expect("Should hit cache");
         assert_eq!(cached.code, "const x = 1;");
         assert_eq!(
             cached.source_map.as_deref(),
@@ -131,6 +148,7 @@ mod tests {
         cache.put(
             "const x = css({});",
             "ssr",
+            "",
             &CachedCompilation {
                 code: "const x = { root: 'abc' };".to_string(),
                 source_map: None,
@@ -138,7 +156,7 @@ mod tests {
             },
         );
 
-        let cached = cache.get("const x = css({});", "ssr").unwrap();
+        let cached = cache.get("const x = css({});", "ssr", "").unwrap();
         assert_eq!(cached.css.as_deref(), Some(".abc { color: red; }"));
     }
 
@@ -150,6 +168,7 @@ mod tests {
         cache.put(
             "const x = 1;",
             "ssr",
+            "",
             &CachedCompilation {
                 code: "const x = 1;".to_string(),
                 source_map: None,
@@ -157,7 +176,7 @@ mod tests {
             },
         );
 
-        assert!(cache.get("const x = 1;", "ssr").is_none());
+        assert!(cache.get("const x = 1;", "ssr", "").is_none());
     }
 
     #[test]
@@ -168,6 +187,7 @@ mod tests {
         cache.put(
             "const x = 1;",
             "ssr",
+            "",
             &CachedCompilation {
                 code: "const x = 1;".to_string(),
                 source_map: None,
@@ -175,7 +195,7 @@ mod tests {
             },
         );
 
-        assert!(cache.get("const x = 2;", "ssr").is_none());
+        assert!(cache.get("const x = 2;", "ssr", "").is_none());
     }
 
     #[test]
@@ -186,6 +206,7 @@ mod tests {
         cache.put(
             "const x = 1;",
             "ssr",
+            "",
             &CachedCompilation {
                 code: "const x = 1;".to_string(),
                 source_map: None,
@@ -193,7 +214,30 @@ mod tests {
             },
         );
 
-        assert!(cache.get("const x = 1;", "dom").is_none());
+        assert!(cache.get("const x = 1;", "dom", "").is_none());
+    }
+
+    #[test]
+    fn test_cache_different_options_misses() {
+        let tmp = tempfile::tempdir().unwrap();
+        let cache = CompileCache::new(tmp.path(), true);
+
+        cache.put(
+            "const x = 1;",
+            "ssr",
+            "css:0,mock:0",
+            &CachedCompilation {
+                code: "const x = 1;".to_string(),
+                source_map: None,
+                css: None,
+            },
+        );
+
+        // Same source + target but different options should miss
+        assert!(cache.get("const x = 1;", "ssr", "css:1,mock:0").is_none());
+        assert!(cache.get("const x = 1;", "ssr", "css:0,mock:1").is_none());
+        // Same options should hit
+        assert!(cache.get("const x = 1;", "ssr", "css:0,mock:0").is_some());
     }
 
     #[test]
@@ -204,6 +248,7 @@ mod tests {
         cache.put(
             "test",
             "ssr",
+            "",
             &CachedCompilation {
                 code: "output".to_string(),
                 source_map: None,

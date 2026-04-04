@@ -366,9 +366,15 @@ impl VertzModuleLoader {
     /// compiles via the plugin, post-processes, caches the result, and returns.
     fn compile_source(&self, source: &str, filename: &str) -> Result<String, AnyError> {
         let target = "ssr";
+        let is_test = crate::test::is_test_file(Path::new(filename));
+        let options_hash = format!(
+            "css:{},mock:{}",
+            is_test as u8, // skip_css_transform
+            is_test as u8, // mock_hoisting
+        );
 
         // Check compilation cache first
-        if let Some(cached) = self.compile_cache.get(source, target) {
+        if let Some(cached) = self.compile_cache.get(source, target, &options_hash) {
             // Restore source map from cache
             if let Some(ref map) = cached.source_map {
                 self.source_maps
@@ -427,6 +433,7 @@ impl VertzModuleLoader {
         self.compile_cache.put(
             source,
             target,
+            &options_hash,
             &CachedCompilation {
                 code: code.clone(),
                 source_map: output.source_map.clone(),
