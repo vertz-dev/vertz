@@ -608,8 +608,20 @@ fn strip_leftover_typescript(code: &str) -> String {
     let chars: Vec<char> = code.chars().collect();
     let len = chars.len();
     let mut i = 0;
+    // Track nesting depth to distinguish function params `(...)` from object literals `{...}`.
+    let mut paren_depth: i32 = 0;
+    let mut brace_depth: i32 = 0;
 
     while i < len {
+        // Track paren/brace depth for context-awareness
+        match chars[i] {
+            '(' => paren_depth += 1,
+            ')' => paren_depth -= 1,
+            '{' => brace_depth += 1,
+            '}' => brace_depth -= 1,
+            _ => {}
+        }
+
         // Fix 1: Strip `?` before `)` or `,` in parameter lists.
         // Pattern: <identifier>?<whitespace*>) or <identifier>?<whitespace*>,
         if chars[i] == '?' && i > 0 && is_ident(chars[i - 1]) {
@@ -623,7 +635,10 @@ fn strip_leftover_typescript(code: &str) -> String {
 
         // Fix 2: Strip `: TypeName` or `: TypeName<Generic>` in function params.
         // Pattern: <identifier>: <UpperCaseName> immediately followed by ) or ,
-        if chars[i] == ':' && i > 0 && is_ident(chars[i - 1]) {
+        // Only apply when deeper in parens than braces — inside object literals
+        // `{ key: Value, }` the colon separates a property key from a value.
+        // In `fn(x: Type)` paren_depth > brace_depth; in `fn({ k: V })` it's not.
+        if chars[i] == ':' && i > 0 && is_ident(chars[i - 1]) && paren_depth > brace_depth {
             let after_colon = skip_ws(&chars, i + 1, len);
             if after_colon < len && chars[after_colon].is_uppercase() {
                 // Read the type name (including generics)
@@ -2210,6 +2225,47 @@ export function App() {
         assert!(!result.contains("import.meta.hot"));
         // signal deduped
         assert!(result.contains("signal"));
+    }
+
+    // ── strip_leftover_typescript: Fix 2 context-awareness ────────
+
+    #[test]
+    fn test_strip_leftover_preserves_uppercase_values_in_object_literals() {
+        // Object literal: `address: Address,` must NOT be stripped.
+        // Previously, Fix 2 would strip `: Address` because it matched
+        // the pattern `<ident>: <UpperCase>,` — but that's a property
+        // value, not a type annotation.
+        let code = "const User = {\n  address: Address,\n};";
+        let result = strip_leftover_typescript(code);
+        assert!(
+            result.contains("address: Address,"),
+            "Object property value should be preserved. Got: {}",
+            result
+        );
+    }
+
+    #[test]
+    fn test_strip_leftover_still_strips_type_annotations_in_params() {
+        // Function param: `(x: Foo)` should still have `: Foo` stripped.
+        let code = "function test(x: Foo) { return x; }";
+        let result = strip_leftover_typescript(code);
+        assert!(
+            !result.contains(": Foo"),
+            "Type annotation in params should be stripped. Got: {}",
+            result
+        );
+    }
+
+    #[test]
+    fn test_strip_leftover_strips_type_in_multi_param() {
+        // Multiple params: `(a: Bar, b: Baz)` — both should be stripped.
+        let code = "function test(a: Bar, b: Baz) { return a; }";
+        let result = strip_leftover_typescript(code);
+        assert!(
+            !result.contains(": Bar") && !result.contains(": Baz"),
+            "Type annotations in multi-param should be stripped. Got: {}",
+            result
+        );
     }
 
     // ── CompilationPipeline methods ─────────────────────────────────

@@ -52,12 +52,21 @@ export class ObjectSchema<S extends Shape = Shape> extends Schema<InferShape<S>>
 
     for (const key of shapeKeys) {
       const schema = this._shape[key];
-      if (!(key in obj) && schema && !this._isOptionalKey(schema)) {
-        ctx.addIssue({
-          code: ErrorCode.MissingProperty,
-          message: `Missing required property "${key}"`,
-          path: [key],
-        });
+      if (!(key in obj)) {
+        if (schema instanceof DefaultSchema) {
+          // DefaultSchema: run pipeline to produce the default value
+          ctx.pushPath(key);
+          result[key] = schema._runPipeline(undefined, ctx);
+          ctx.popPath();
+        } else if (schema instanceof OptionalSchema) {
+          // OptionalSchema: skip — don't add undefined-valued property
+        } else if (schema) {
+          ctx.addIssue({
+            code: ErrorCode.MissingProperty,
+            message: `Missing required property "${key}"`,
+            path: [key],
+          });
+        }
         continue;
       }
       ctx.pushPath(key);
