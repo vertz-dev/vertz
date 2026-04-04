@@ -843,10 +843,13 @@ function RotatingWord() {
   let activeIndex = 0;
   let prevIndex = -1;
 
-  setInterval(() => {
-    prevIndex = activeIndex;
-    activeIndex = (activeIndex + 1) % ROTATING_WORDS.length;
-  }, 2500);
+  onMount(() => {
+    const id = setInterval(() => {
+      prevIndex = activeIndex;
+      activeIndex = (activeIndex + 1) % ROTATING_WORDS.length;
+    }, 2500);
+    return () => clearInterval(id);
+  });
 
   return (
     <span className={s.rotatingWrap}>
