@@ -94,6 +94,12 @@ pipe({
   },
 });
 
+// @ts-expect-error — rootAffectsAll must be a boolean
+pipe({
+  tasks: { build: task('build') },
+  workflows: { ci: { run: ['build'], rootAffectsAll: 'yes' } },
+});
+
 // Valid: root-scoped task
 pipe({
   tasks: {
