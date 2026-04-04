@@ -443,6 +443,14 @@ mod tests {
         assert_eq!(result, "origin/main");
     }
 
+    #[test]
+    fn resolve_base_ref_explicit_overrides_ci_env() {
+        // --base flag takes precedence over GITHUB_BASE_REF even in CI
+        let result =
+            resolve_base_ref_from("origin/main", Some("custom-branch"), Some("develop"), true);
+        assert_eq!(result, "custom-branch");
+    }
+
     // -- map_files_to_packages --
 
     fn make_workspace() -> ResolvedWorkspace {
