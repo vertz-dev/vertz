@@ -6,6 +6,7 @@
   "workspaces": [
     "packages/*",
     "packages/ui-server/e2e/fixture",
+    "native/vertz-compiler",
     "examples/*",
     "sites/*",
     "benchmarks/vertz"

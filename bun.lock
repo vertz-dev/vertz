@@ -127,6 +127,10 @@
         "wrangler": "^4.65.0",
       },
     },
+    "native/vertz-compiler": {
+      "name": "@vertz/native-compiler",
+      "version": "0.1.0",
+    },
     "packages/agents": {
       "name": "@vertz/agents",
       "version": "0.2.42",
@@ -1460,6 +1464,8 @@
     "@vertz/mdx": ["@vertz/mdx@workspace:packages/mdx"],
 
     "@vertz/mint-docs": ["@vertz/mint-docs@workspace:packages/mint-docs"],
+
+    "@vertz/native-compiler": ["@vertz/native-compiler@workspace:native/vertz-compiler"],
 
     "@vertz/og": ["@vertz/og@workspace:packages/og"],
 
