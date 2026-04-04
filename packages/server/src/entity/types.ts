@@ -64,8 +64,8 @@ export interface MultiLevelTenantContext {
 // eslint-disable-next-line @typescript-eslint/no-empty-object-type -- {} is the correct identity element for intersection when a feature is disabled
 export type BaseContext<TFeatures extends ContextFeatures = FullFeatures> =
   (TFeatures['auth'] extends true ? AuthContext : {}) &
-  (TFeatures['tenant'] extends true ? TenantContext : {}) &
-  (TFeatures['multiLevelTenant'] extends true ? MultiLevelTenantContext : {});
+    (TFeatures['tenant'] extends true ? TenantContext : {}) &
+    (TFeatures['multiLevelTenant'] extends true ? MultiLevelTenantContext : {});
 
 // ---------------------------------------------------------------------------
 // EntityContext — the runtime context for access rules, hooks, and actions

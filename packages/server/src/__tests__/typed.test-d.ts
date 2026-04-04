@@ -55,8 +55,12 @@ const _mlML: true = {} as FAuthML['multiLevelTenant'];
 // ---------------------------------------------------------------------------
 
 // typed().entity and typed().service are functions
-const _entityFn: (...args: unknown[]) => unknown = tNoAuth.entity as unknown as (...args: unknown[]) => unknown;
-const _serviceFn: (...args: unknown[]) => unknown = tNoAuth.service as unknown as (...args: unknown[]) => unknown;
+const _entityFn: (...args: unknown[]) => unknown = tNoAuth.entity as unknown as (
+  ...args: unknown[]
+) => unknown;
+const _serviceFn: (...args: unknown[]) => unknown = tNoAuth.service as unknown as (
+  ...args: unknown[]
+) => unknown;
 
 // ---------------------------------------------------------------------------
 // Test 6: TypedFactories type exists and is properly parameterized

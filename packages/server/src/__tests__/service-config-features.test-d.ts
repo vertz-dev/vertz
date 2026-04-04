@@ -23,4 +23,6 @@ type _TestServiceConfigAcceptsFeatures = ServiceConfig<
 declare function testServiceCall<F extends ContextFeatures>(
   config: ServiceConfig<Record<string, never>, Record<string, never>, F>,
 ): void;
-testServiceCall<NoFeatures>({} as ServiceConfig<Record<string, never>, Record<string, never>, NoFeatures>);
+testServiceCall<NoFeatures>(
+  {} as ServiceConfig<Record<string, never>, Record<string, never>, NoFeatures>,
+);
