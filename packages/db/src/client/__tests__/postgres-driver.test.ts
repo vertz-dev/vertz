@@ -557,9 +557,9 @@ describe('PostgreSQL Driver', () => {
 
     it('executes a callback within a postgres transaction', async () => {
       // Mock sql.begin to call the callback with a transaction-scoped sql
-      const txUnsafe = vi.fn().mockResolvedValue(
-        Object.assign([{ id: 1, name: 'test' }], { count: 1 }),
-      );
+      const txUnsafe = vi
+        .fn()
+        .mockResolvedValue(Object.assign([{ id: 1, name: 'test' }], { count: 1 }));
 
       // Override postgres constructor to include begin
       mockPostgres.mockReturnValue({
@@ -590,9 +590,9 @@ describe('PostgreSQL Driver', () => {
 
     it('passes through values without coercion in transaction queries', async () => {
       const dateValue = new Date('2024-01-15T10:30:00.000Z');
-      const txUnsafe = vi.fn().mockResolvedValue(
-        Object.assign([{ id: 1, created: dateValue }], { count: 1 }),
-      );
+      const txUnsafe = vi
+        .fn()
+        .mockResolvedValue(Object.assign([{ id: 1, created: dateValue }], { count: 1 }));
 
       // Override postgres constructor to include begin
       mockPostgres.mockReturnValue({

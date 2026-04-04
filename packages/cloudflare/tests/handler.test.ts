@@ -1252,9 +1252,9 @@ describe('createHandler (beforeRender hook)', () => {
 
   it('does not run beforeRender for API routes', async () => {
     const apiHandler = vi.fn().mockResolvedValue(new Response('{"ok":true}'));
-    const beforeRender = vi.fn().mockResolvedValue(
-      new Response(null, { status: 302, headers: { Location: '/login' } }),
-    );
+    const beforeRender = vi
+      .fn()
+      .mockResolvedValue(new Response(null, { status: 302, headers: { Location: '/login' } }));
 
     const worker = createHandler({
       app: () => mockApp(apiHandler),
@@ -1275,9 +1275,9 @@ describe('createHandler (beforeRender hook)', () => {
   });
 
   it('does not run beforeRender for image optimizer routes', async () => {
-    const beforeRender = vi.fn().mockResolvedValue(
-      new Response(null, { status: 302, headers: { Location: '/login' } }),
-    );
+    const beforeRender = vi
+      .fn()
+      .mockResolvedValue(new Response(null, { status: 302, headers: { Location: '/login' } }));
     const optimizerHandler = vi.fn().mockResolvedValue(
       new Response('optimized-image', {
         headers: { 'Content-Type': 'image/webp' },
