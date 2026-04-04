@@ -53,6 +53,7 @@ export {
   __text,
 } from './dom/element';
 export { __on } from './dom/events';
+export { __formOnChange } from './dom/form-on-change';
 export { clearChildren, insertBefore, removeNode } from './dom/insert';
 export { __list } from './dom/list';
 export type { ListAnimationHooks } from './dom/list-animation-context';

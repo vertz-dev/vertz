@@ -1058,4 +1058,165 @@ describe('Feature: .map() callback with block body preserves pre-return code', (
       });
     });
   });
+
+  // ═══════════════════════════════════════════════════════════════════
+  // debounce prop transform — renames to data-vertz-debounce on form elements
+  // ═══════════════════════════════════════════════════════════════════
+
+  describe('Given an input with static debounce attribute', () => {
+    describe('When compiled', () => {
+      it('Then renames to data-vertz-debounce', () => {
+        const code = compileAndGetCode(
+          `function App() {\n  return <input debounce={300} />;\n}`,
+        );
+        expect(code).toContain('"data-vertz-debounce"');
+        expect(code).not.toContain('"debounce"');
+      });
+    });
+  });
+
+  describe('Given a textarea with static debounce attribute', () => {
+    describe('When compiled', () => {
+      it('Then renames to data-vertz-debounce', () => {
+        const code = compileAndGetCode(
+          `function App() {\n  return <textarea debounce={500} />;\n}`,
+        );
+        expect(code).toContain('"data-vertz-debounce"');
+        expect(code).not.toContain('"debounce"');
+      });
+    });
+  });
+
+  describe('Given a select with static debounce attribute', () => {
+    describe('When compiled', () => {
+      it('Then renames to data-vertz-debounce', () => {
+        const code = compileAndGetCode(
+          `function App() {\n  return <select debounce={200}></select>;\n}`,
+        );
+        expect(code).toContain('"data-vertz-debounce"');
+        expect(code).not.toContain('"debounce"');
+      });
+    });
+  });
+
+  describe('Given an input with reactive debounce expression', () => {
+    describe('When compiled', () => {
+      it('Then uses __attr with data-vertz-debounce', () => {
+        const code = compileAndGetCode(
+          `function App() {\n  let ms = 300;\n  return <input debounce={ms} />;\n}`,
+        );
+        expect(code).toContain('__attr(');
+        expect(code).toContain('"data-vertz-debounce"');
+        expect(code).not.toContain('"debounce"');
+      });
+    });
+  });
+
+  describe('Given a div with debounce attribute', () => {
+    describe('When compiled', () => {
+      it('Then passes through as regular attribute (no rename)', () => {
+        const code = compileAndGetCode(
+          `function App() {\n  return <div debounce={300}></div>;\n}`,
+        );
+        expect(code).toContain('"debounce"');
+        expect(code).not.toContain('"data-vertz-debounce"');
+      });
+    });
+  });
+
+  describe('Given an input with debounce alongside other attributes', () => {
+    describe('When compiled', () => {
+      it('Then renames debounce but preserves other attributes', () => {
+        const code = compileAndGetCode(
+          `function App() {\n  return <input name="q" debounce={300} placeholder="Search" />;\n}`,
+        );
+        expect(code).toContain('"name", "q"');
+        expect(code).toContain('"data-vertz-debounce"');
+        expect(code).toContain('"placeholder", "Search"');
+      });
+    });
+  });
+
+  // ═══════════════════════════════════════════════════════════════════
+  // form onChange transform — __formOnChange instead of __on
+  // ═══════════════════════════════════════════════════════════════════
+
+  describe('Given a form with onChange handler', () => {
+    describe('When compiled', () => {
+      it('Then uses __formOnChange instead of __on', () => {
+        const code = compileAndGetCode(
+          `function App() {\n  return <form onChange={handleChange}></form>;\n}`,
+        );
+        expect(code).toContain('__formOnChange(');
+        expect(code).toContain('handleChange');
+        expect(code).not.toContain('__on(');
+      });
+    });
+  });
+
+  describe('Given a div with onChange handler', () => {
+    describe('When compiled', () => {
+      it('Then uses __on (normal event handling)', () => {
+        const code = compileAndGetCode(
+          `function App() {\n  return <div onChange={handler}></div>;\n}`,
+        );
+        expect(code).toContain('__on(');
+        expect(code).toContain('"change"');
+        expect(code).not.toContain('__formOnChange(');
+      });
+    });
+  });
+
+  describe('Given a form with onSubmit handler', () => {
+    describe('When compiled', () => {
+      it('Then uses __on (normal event handling, not __formOnChange)', () => {
+        const code = compileAndGetCode(
+          `function App() {\n  return <form onSubmit={handler}></form>;\n}`,
+        );
+        expect(code).toContain('__on(');
+        expect(code).toContain('"submit"');
+        expect(code).not.toContain('__formOnChange(');
+      });
+    });
+  });
+
+  describe('Given a form with onChange alongside other attributes', () => {
+    describe('When compiled', () => {
+      it('Then uses __formOnChange and preserves other attributes', () => {
+        const code = compileAndGetCode(
+          `function App() {\n  return <form onChange={handler} action="/api" method="POST"></form>;\n}`,
+        );
+        expect(code).toContain('__formOnChange(');
+        expect(code).toContain('"action", "/api"');
+        expect(code).toContain('"method", "POST"');
+      });
+    });
+  });
+
+  // ═══════════════════════════════════════════════════════════════════
+  // Import injection — __formOnChange auto-import
+  // ═══════════════════════════════════════════════════════════════════
+
+  describe('Given compiled output that uses __formOnChange', () => {
+    describe('When import injection runs', () => {
+      it('Then injects __formOnChange import from @vertz/ui/internals', () => {
+        const code = compileAndGetCode(
+          `function App() {\n  return <form onChange={handleChange}></form>;\n}`,
+        );
+        expect(code).toContain('__formOnChange');
+        expect(code).toMatch(/import\s*\{[^}]*__formOnChange[^}]*\}\s*from\s*['"]@vertz\/ui\/internals['"]/);
+      });
+    });
+  });
+
+  describe('Given compiled output without __formOnChange', () => {
+    describe('When import injection runs', () => {
+      it('Then does NOT inject __formOnChange import', () => {
+        const code = compileAndGetCode(
+          `function App() {\n  return <div onClick={handler}>click</div>;\n}`,
+        );
+        expect(code).not.toContain('__formOnChange');
+      });
+    });
+  });
 });

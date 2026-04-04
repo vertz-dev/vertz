@@ -35,6 +35,20 @@ describe('Composed Textarea', () => {
     });
   });
 
+  describe('Given a ComposedTextarea with debounce prop', () => {
+    describe('When rendered', () => {
+      it('Then sets data-vertz-debounce attribute', () => {
+        const el = ComposedTextarea({ debounce: 500 });
+        expect(el.getAttribute('data-vertz-debounce')).toBe('500');
+      });
+
+      it('Then does NOT set data-vertz-debounce when debounce is not provided', () => {
+        const el = ComposedTextarea({ name: 'desc' });
+        expect(el.hasAttribute('data-vertz-debounce')).toBe(false);
+      });
+    });
+  });
+
   describe('Given a ComposedTextarea with HTML props', () => {
     describe('When rendered', () => {
       it('Then forwards name prop', () => {

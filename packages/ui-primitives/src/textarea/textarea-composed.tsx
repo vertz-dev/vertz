@@ -17,6 +17,8 @@ export interface ComposedTextareaProps {
   disabled?: boolean;
   value?: string;
   rows?: number;
+  /** Debounce delay in ms for form-level onChange. */
+  debounce?: number;
   [key: string]: unknown;
 }
 
@@ -25,9 +27,16 @@ function ComposedTextareaRoot({
   className,
   class: classProp,
   value,
+  debounce,
   ...props
 }: ComposedTextareaProps) {
-  const el = <textarea class={cn(classes?.base, className ?? classProp)} {...props} />;
+  const el = (
+    <textarea
+      class={cn(classes?.base, className ?? classProp)}
+      data-vertz-debounce={debounce}
+      {...props}
+    />
+  );
   if (value !== undefined) (el as HTMLTextAreaElement).value = value;
   return el;
 }
