@@ -13,9 +13,9 @@ export const styles = [themeGlobals.css, appGlobals.css];
 
 // ── Routes ─────────────────────────────────────────────────
 const routes = defineRoutes({
-  '/': { component: () => HomePage() },
-  '/manifesto': { component: () => ManifestoPage() },
-  '/openapi': { component: () => OpenAPIPage() },
+  '/': { component: () => <HomePage /> },
+  '/manifesto': { component: () => <ManifestoPage /> },
+  '/openapi': { component: () => <OpenAPIPage /> },
 });
 
 const router = createRouter(routes);

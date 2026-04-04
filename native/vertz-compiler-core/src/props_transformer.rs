@@ -605,4 +605,23 @@ mod tests {
         );
         assert!(code.contains("__props.title"), "code: {}", code);
     }
+
+    // ── Regression: no TypeScript type annotation in output ──────────
+
+    #[test]
+    fn props_rewrite_omits_type_annotation() {
+        // After typescript_strip runs, the output is JavaScript.
+        // The props transformer must NOT re-emit `: TypeName`.
+        let code = compile_tsx(
+            r#"function Card({ title, onClick }: CardProps) {
+    return <div onClick={onClick}>{title}</div>;
+}"#,
+        );
+        // Should rewrite to `__props` without type annotation
+        assert!(
+            !code.contains(": CardProps"),
+            "type annotation leaked into output: {code}"
+        );
+        assert!(code.contains("__props"), "expected __props rewrite: {code}");
+    }
 }

@@ -131,6 +131,131 @@ pub fn transform_jsx(
     }
 }
 
+/// Transform JSX that appears outside any component body (module-level JSX).
+///
+/// This handles patterns like `defineRoutes({ '/': { component: () => <Page /> } })`
+/// where the JSX is inside an anonymous arrow that the component analyzer doesn't detect.
+/// The JSX is transformed with an empty reactivity context (no signals/computeds).
+pub fn transform_module_level_jsx(
+    ms: &mut MagicString,
+    program: &Program,
+    components: &[ComponentInfo],
+) {
+    let mut collector = ModuleLevelJsxCollector {
+        component_ranges: components
+            .iter()
+            .map(|c| (c.body_start, c.body_end))
+            .collect(),
+        nodes: Vec::new(),
+        in_component: false,
+        in_jsx: false,
+    };
+    for stmt in &program.body {
+        collector.visit_statement(stmt);
+    }
+
+    if collector.nodes.is_empty() {
+        return;
+    }
+
+    let rx = ReactivityContext {
+        names: HashSet::new(),
+        signal_api_props: HashMap::new(),
+        field_signal_api_vars: HashSet::new(),
+        reactive_sources: HashSet::new(),
+        inline_locals: HashMap::new(),
+        props_param: None,
+    };
+    let mut counter = 0;
+
+    // Process in reverse order so inner JSX is transformed first
+    collector.nodes.reverse();
+    for jsx_info in &collector.nodes {
+        let transformed = transform_jsx_node(
+            ms,
+            program,
+            jsx_info.start,
+            jsx_info.end,
+            &jsx_info.kind,
+            &rx,
+            &mut counter,
+        );
+        ms.overwrite(jsx_info.start, jsx_info.end, &transformed);
+    }
+}
+
+struct ModuleLevelJsxCollector {
+    /// Body ranges of all detected components — JSX inside these is already handled.
+    component_ranges: Vec<(u32, u32)>,
+    nodes: Vec<JsxNodeInfo>,
+    /// True when the visitor is inside a known component body.
+    in_component: bool,
+    /// True when already inside a JSX tree (skip nested JSX).
+    in_jsx: bool,
+}
+
+impl ModuleLevelJsxCollector {
+    fn is_inside_component(&self, start: u32, end: u32) -> bool {
+        self.component_ranges
+            .iter()
+            .any(|&(cs, ce)| start >= cs && end <= ce)
+    }
+}
+
+impl<'c> Visit<'c> for ModuleLevelJsxCollector {
+    fn visit_function(&mut self, func: &Function<'c>, flags: oxc_syntax::scope::ScopeFlags) {
+        let span = func.span;
+        if self.is_inside_component(span.start, span.end) {
+            let was = self.in_component;
+            self.in_component = true;
+            oxc_ast_visit::walk::walk_function(self, func, flags);
+            self.in_component = was;
+            return;
+        }
+        oxc_ast_visit::walk::walk_function(self, func, flags);
+    }
+
+    fn visit_arrow_function_expression(&mut self, func: &ArrowFunctionExpression<'c>) {
+        let span = func.span;
+        if self.is_inside_component(span.start, span.end) {
+            let was = self.in_component;
+            self.in_component = true;
+            oxc_ast_visit::walk::walk_arrow_function_expression(self, func);
+            self.in_component = was;
+            return;
+        }
+        oxc_ast_visit::walk::walk_arrow_function_expression(self, func);
+    }
+
+    fn visit_jsx_element(&mut self, elem: &JSXElement<'c>) {
+        if self.in_component || self.in_jsx {
+            return;
+        }
+        self.nodes.push(JsxNodeInfo {
+            start: elem.span.start,
+            end: elem.span.end,
+            kind: JsxNodeKind::Element,
+        });
+        self.in_jsx = true;
+        oxc_ast_visit::walk::walk_jsx_element(self, elem);
+        self.in_jsx = false;
+    }
+
+    fn visit_jsx_fragment(&mut self, frag: &JSXFragment<'c>) {
+        if self.in_component || self.in_jsx {
+            return;
+        }
+        self.nodes.push(JsxNodeInfo {
+            start: frag.span.start,
+            end: frag.span.end,
+            kind: JsxNodeKind::Fragment,
+        });
+        self.in_jsx = true;
+        oxc_ast_visit::walk::walk_jsx_fragment(self, frag);
+        self.in_jsx = false;
+    }
+}
+
 /// Inject a `data-v-id` setAttribute call into the first __element() IIFE.
 fn inject_hydration_attr(code: &str, component_name: &str) -> Option<String> {
     // Find pattern: `const __elN = __element("tag")`
@@ -3321,6 +3446,38 @@ export function B() {
         assert!(result.contains("__list("), "result: {result}");
     }
 
+    // Regression: complex key expressions must use source span, not AST reconstruction
+    #[test]
+    fn list_map_complex_key_expression_preserved() {
+        let result = transform(
+            r#"export function App() {
+    const items = [{ id: 1 }];
+    return <div>{items.map((item) => <span key={item.id}>{item.name}</span>)}</div>;
+}"#,
+        );
+        // key function should contain the member expression `item.id`
+        assert!(
+            result.contains("item.id"),
+            "complex key expression lost: {result}"
+        );
+    }
+
+    // Regression: .map() index parameter must be included in render function
+    #[test]
+    fn list_map_index_param_preserved_in_render() {
+        let result = transform(
+            r#"export function App() {
+    const items = [1, 2, 3];
+    return <div>{items.map((item, i) => <span key={i}>{item}</span>)}</div>;
+}"#,
+        );
+        // The render function should include both item and index params
+        assert!(
+            result.contains("(item, i) =>"),
+            "index param 'i' missing from render function: {result}"
+        );
+    }
+
     #[test]
     fn list_map_with_block_body() {
         let result = transform(
@@ -4114,5 +4271,113 @@ export function App() {
 }"#,
         );
         assert!(!result.contains("key:"), "result: {result}");
+    }
+
+    // ========== Module-level JSX transform ==========
+
+    /// Helper: parse source, transform component-level JSX AND module-level JSX.
+    fn transform_full(source: &str) -> String {
+        let allocator = Allocator::default();
+        let parsed = Parser::new(&allocator, source, SourceType::tsx()).parse();
+        let mut ms = MagicString::new(source);
+        let components = analyze_components(&parsed.program);
+        let manifests: ManifestRegistry = HashMap::new();
+        let (aliases, dynamic_configs) = build_import_aliases(&parsed.program, &manifests);
+        let import_ctx = ImportContext {
+            aliases,
+            dynamic_configs,
+        };
+        for comp in &components {
+            let vars = analyze_reactivity(&parsed.program, comp, &import_ctx);
+            transform_jsx(&mut ms, &parsed.program, comp, &vars, None);
+        }
+        // Also run module-level JSX transform
+        transform_module_level_jsx(&mut ms, &parsed.program, &components);
+        ms.to_string()
+    }
+
+    #[test]
+    fn module_level_jsx_in_define_routes() {
+        let result = transform_full(
+            r#"import { HomePage } from './pages/home';
+import { AboutPage } from './pages/about';
+
+const routes = defineRoutes({
+  '/': { component: () => <HomePage /> },
+  '/about': { component: () => <AboutPage /> },
+});
+
+export function App() {
+    return <div>hello</div>;
+}"#,
+        );
+        // Module-level JSX should be transformed (not left as raw JSX)
+        assert!(
+            !result.contains("<HomePage />"),
+            "module-level JSX was NOT transformed: {result}"
+        );
+        assert!(
+            !result.contains("<AboutPage />"),
+            "module-level JSX was NOT transformed: {result}"
+        );
+        // Should contain component calls (ComponentName({}))
+        assert!(
+            result.contains("HomePage({})"),
+            "expected HomePage({{}})) component call in module-level JSX: {result}"
+        );
+        assert!(
+            result.contains("AboutPage({})"),
+            "expected AboutPage({{}})) component call in module-level JSX: {result}"
+        );
+    }
+
+    #[test]
+    fn module_level_jsx_does_not_double_transform_component_bodies() {
+        let result = transform_full(
+            r#"const routes = { '/': { component: () => <div>hello</div> } };
+
+export function App() {
+    return <span>world</span>;
+}"#,
+        );
+        // App's body should have been transformed by per-component pass
+        assert!(
+            result.contains("__element"),
+            "component JSX should be transformed: {result}"
+        );
+        // The module-level <div>hello</div> should also be transformed
+        assert!(
+            !result.contains("<div>hello</div>"),
+            "module-level JSX was NOT transformed: {result}"
+        );
+    }
+
+    #[test]
+    fn module_level_jsx_fragment() {
+        let result = transform_full(
+            r#"const content = () => <>text</>;
+
+export function App() {
+    return <div />;
+}"#,
+        );
+        assert!(
+            !result.contains("<>text</>"),
+            "module-level fragment was NOT transformed: {result}"
+        );
+    }
+
+    #[test]
+    fn module_level_jsx_leaves_component_jsx_intact() {
+        // Ensure module-level transform doesn't re-transform JSX inside components
+        let source = r#"export function App() {
+    return <div id="root">content</div>;
+}"#;
+        let result_component_only = transform(source);
+        let result_full = transform_full(source);
+        assert_eq!(
+            result_component_only, result_full,
+            "module-level pass should not alter component JSX"
+        );
     }
 }

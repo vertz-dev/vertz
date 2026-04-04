@@ -423,6 +423,10 @@ pub fn compile(source: &str, options: CompileOptions) -> CompileResult {
         })
         .collect();
 
+    // Module-level JSX transform — handles JSX outside detected component bodies
+    // (e.g., arrow callbacks in defineRoutes(), module-level expressions).
+    jsx_transformer::transform_module_level_jsx(&mut ms, &parser_ret.program, &components);
+
     // Module-level CSS diagnostics
     all_diagnostics.extend(
         css_diagnostics::analyze_css(&parser_ret.program, source)
