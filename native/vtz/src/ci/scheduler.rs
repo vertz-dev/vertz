@@ -1,4 +1,5 @@
 use crate::ci::cache::{self, CacheBackend};
+use crate::ci::changes::{evaluate_condition, ChangeSet};
 use crate::ci::config::{redact, ConfigBridge};
 use crate::ci::graph::{DepDecision, TaskGraph, TaskNode};
 use crate::ci::logs::{LogEntry, LogWriter};
@@ -38,6 +39,8 @@ pub struct Scheduler<'a> {
     cache_backend: Arc<dyn CacheBackend>,
     platform: String,
     lockfile_hash: String,
+    changes: Option<ChangeSet>,
+    current_branch: String,
 }
 
 /// Message sent from workers back to the coordinator
@@ -101,6 +104,8 @@ impl<'a> Scheduler<'a> {
         secret_values: &'a [String],
         quiet: bool,
         cache_backend: Arc<dyn CacheBackend>,
+        changes: Option<ChangeSet>,
+        current_branch: String,
     ) -> Self {
         let platform = cache::platform_string();
         let lockfile_hash = cache::lockfile_hash(root_dir);
@@ -115,6 +120,8 @@ impl<'a> Scheduler<'a> {
             cache_backend,
             platform,
             lockfile_hash,
+            changes,
+            current_branch,
         }
     }
 
@@ -192,15 +199,72 @@ impl<'a> Scheduler<'a> {
         // Channel for worker results → coordinator
         let (result_tx, mut result_rx) = mpsc::channel::<WorkerResult>(n);
 
-        // Seed the ready queue with zero-in-degree nodes
-        for (i, &deg) in in_degree.iter().enumerate() {
-            if deg == 0 {
-                let _ = ready_tx.send(i).await;
-            }
-        }
-
         // Track how many nodes are still pending
         let mut remaining = n;
+
+        // Seed the ready queue with zero-in-degree nodes, evaluating task-level
+        // conditions before sending to workers.  Condition-skipped nodes
+        // propagate immediately so their dependents can also be checked.
+        {
+            let mut seed_queue: std::collections::VecDeque<usize> =
+                std::collections::VecDeque::new();
+            for (i, &deg) in in_degree.iter().enumerate() {
+                if deg == 0 {
+                    seed_queue.push_back(i);
+                }
+            }
+
+            while let Some(idx) = seed_queue.pop_front() {
+                // Check both dependency-based skipping (for nodes freed by earlier
+                // skips in this loop) and task-level condition skipping.
+                let skip_dep = self.should_skip_node(idx, &node_results, &bridge).await;
+                let skip_cond = !skip_dep && self.should_skip_for_condition(idx);
+
+                if skip_dep || skip_cond {
+                    let skip_node = &self.graph.nodes[idx];
+                    let reason = if skip_dep {
+                        "dep failed"
+                    } else {
+                        "condition not met"
+                    };
+                    if !self.quiet {
+                        eprintln!(" \u{2298} {:<35} skipped ({reason})", skip_node.label());
+                    }
+
+                    logger.write(&LogEntry::task_end(
+                        run_id,
+                        &skip_node.task_name,
+                        skip_node.package.as_deref(),
+                        TaskStatus::Skipped,
+                        None,
+                        0,
+                        false,
+                    ));
+
+                    node_results[idx] = Some(TaskResult {
+                        status: TaskStatus::Skipped,
+                        exit_code: None,
+                        duration_ms: 0,
+                        package: skip_node.package.clone(),
+                        task: skip_node.task_name.clone(),
+                        cached: false,
+                    });
+                    skipped += 1;
+                    remaining -= 1;
+
+                    // Propagate: dependents whose in-degree drops to 0 enter the
+                    // seed queue so they can also be condition-checked / skip-propagated.
+                    for &(dep_idx, _) in &self.graph.adjacency[idx] {
+                        in_degree[dep_idx] -= 1;
+                        if in_degree[dep_idx] == 0 {
+                            seed_queue.push_back(dep_idx);
+                        }
+                    }
+                } else {
+                    let _ = ready_tx.send(idx).await;
+                }
+            }
+        }
 
         // Spawn worker tasks
         let max_workers = self.concurrency.min(n);
@@ -613,14 +677,20 @@ impl<'a> Scheduler<'a> {
 
             // Process all newly-ready nodes, including those freed by skips
             while let Some(ready_idx) = ready_queue.pop_front() {
-                let should_skip = self
+                let skip_dep = self
                     .should_skip_node(ready_idx, &node_results, &bridge)
                     .await;
+                let skip_cond = !skip_dep && self.should_skip_for_condition(ready_idx);
 
-                if should_skip {
+                if skip_dep || skip_cond {
                     let skip_node = &self.graph.nodes[ready_idx];
+                    let reason = if skip_dep {
+                        "dep failed"
+                    } else {
+                        "condition not met"
+                    };
                     if !self.quiet {
-                        eprintln!(" \u{2298} {:<35} skipped (dep failed)", skip_node.label());
+                        eprintln!(" \u{2298} {:<35} skipped ({reason})", skip_node.label());
                     }
 
                     logger.write(&LogEntry::task_end(
@@ -731,6 +801,28 @@ impl<'a> Scheduler<'a> {
             }
         }
         false
+    }
+
+    /// Check if a node should be skipped because its task-level `cond` evaluates
+    /// to `false`.  Returns `true` when the task should be skipped.
+    fn should_skip_for_condition(&self, node_idx: usize) -> bool {
+        let node = &self.graph.nodes[node_idx];
+        let task_def = match self.tasks.get(&node.task_name) {
+            Some(t) => t,
+            None => return false, // missing task will be caught by the worker
+        };
+
+        if let Some(cond) = &task_def.base().cond {
+            let empty = ChangeSet {
+                files: vec![],
+                base_ref: String::new(),
+                is_shallow: false,
+            };
+            let changes = self.changes.as_ref().unwrap_or(&empty);
+            !evaluate_condition(cond, changes, &self.current_branch)
+        } else {
+            false
+        }
     }
 
     /// Seed initial nodes that have zero in-degree with task_start log entries.
@@ -1091,6 +1183,324 @@ mod tests {
         assert_eq!(*gets, vec!["k1", "k3"]);
         let puts = cache.put_calls.lock().await;
         assert_eq!(*puts, vec!["k2"]);
+    }
+
+    /// Helper: build a scheduler, execute, and return the result.
+    async fn run_scheduler(
+        tasks: BTreeMap<String, TaskDef>,
+        workflow_run: Vec<String>,
+        changes: Option<crate::ci::changes::ChangeSet>,
+        current_branch: String,
+    ) -> SchedulerResult {
+        use crate::ci::config::ConfigBridge;
+        use crate::ci::graph::TaskGraph;
+        use crate::ci::logs::LogWriter;
+        use crate::ci::types::{ResolvedWorkspace, WorkflowConfig, WorkflowFilter};
+
+        let workspace = ResolvedWorkspace::default();
+        let workflow = WorkflowConfig {
+            run: workflow_run,
+            filter: WorkflowFilter::All,
+            env: BTreeMap::new(),
+        };
+        let graph = TaskGraph::build(&workflow, &tasks, &workspace, None).unwrap();
+
+        let tmp = std::env::temp_dir().join(format!("vtz-test-{}", uuid::Uuid::new_v4()));
+        std::fs::create_dir_all(&tmp).unwrap();
+
+        let cache_backend: Arc<dyn CacheBackend> = Arc::new(MockCache::new());
+        let secret_values: Vec<String> = vec![];
+
+        let sched = Scheduler::new(
+            &graph,
+            1,
+            &tasks,
+            &tmp,
+            &workspace,
+            &secret_values,
+            true, // quiet
+            cache_backend,
+            changes,
+            current_branch,
+        );
+
+        let bridge = Arc::new(Mutex::new(ConfigBridge::dummy()));
+        let mut logger = LogWriter::new(&tmp, vec![]);
+        let run_id = logger.run_id().to_string();
+
+        sched.log_initial_starts(&mut logger, &run_id);
+        let result = sched.execute(bridge, &mut logger, &run_id).await.unwrap();
+
+        let _ = std::fs::remove_dir_all(&tmp);
+        result
+    }
+
+    #[tokio::test]
+    async fn task_with_false_condition_is_skipped() {
+        use crate::ci::types::{CommandTask, Condition};
+
+        let mut tasks = BTreeMap::new();
+        tasks.insert(
+            "cond-task".to_string(),
+            TaskDef::Command(CommandTask {
+                command: "echo should-not-run".to_string(),
+                base: crate::ci::types::TaskBase {
+                    scope: TaskScope::Root,
+                    cond: Some(Condition::Env {
+                        name: "__VTZ_COND_TEST_NONEXISTENT_VAR__".to_string(),
+                        value: None,
+                    }),
+                    ..Default::default()
+                },
+            }),
+        );
+
+        let result = run_scheduler(
+            tasks,
+            vec!["cond-task".to_string()],
+            None,
+            "main".to_string(),
+        )
+        .await;
+
+        assert_eq!(
+            result.skipped_count, 1,
+            "task with false condition should be skipped"
+        );
+        assert_eq!(result.executed_count, 0, "no tasks should execute");
+        let task_result = result.results.get("cond-task").unwrap();
+        assert_eq!(task_result.status, TaskStatus::Skipped);
+    }
+
+    #[tokio::test]
+    async fn task_with_true_condition_runs_normally() {
+        use crate::ci::types::{CommandTask, Condition};
+
+        let mut tasks = BTreeMap::new();
+        tasks.insert(
+            "cond-task".to_string(),
+            TaskDef::Command(CommandTask {
+                command: "echo hello".to_string(),
+                base: crate::ci::types::TaskBase {
+                    scope: TaskScope::Root,
+                    cond: Some(Condition::Env {
+                        name: "HOME".to_string(),
+                        value: None,
+                    }),
+                    ..Default::default()
+                },
+            }),
+        );
+
+        let result = run_scheduler(
+            tasks,
+            vec!["cond-task".to_string()],
+            None,
+            "main".to_string(),
+        )
+        .await;
+
+        assert_eq!(
+            result.executed_count, 1,
+            "task with true condition should run"
+        );
+        assert_eq!(result.skipped_count, 0, "no tasks should be skipped");
+        let task_result = result.results.get("cond-task").unwrap();
+        assert_eq!(task_result.status, TaskStatus::Success);
+    }
+
+    #[tokio::test]
+    async fn task_without_condition_runs_normally() {
+        let mut tasks = BTreeMap::new();
+        tasks.insert(
+            "no-cond".to_string(),
+            TaskDef::Command(crate::ci::types::CommandTask {
+                command: "echo hello".to_string(),
+                base: crate::ci::types::TaskBase {
+                    scope: TaskScope::Root,
+                    ..Default::default()
+                },
+            }),
+        );
+
+        let result =
+            run_scheduler(tasks, vec!["no-cond".to_string()], None, "main".to_string()).await;
+
+        assert_eq!(result.executed_count, 1);
+        assert_eq!(result.skipped_count, 0);
+    }
+
+    #[tokio::test]
+    async fn condition_skip_propagates_via_success_edge() {
+        use crate::ci::types::{CommandTask, Condition, Dep, DepCondition, DepEdge};
+
+        let mut tasks = BTreeMap::new();
+
+        // Task A: false condition → will be Skipped
+        tasks.insert(
+            "task-a".to_string(),
+            TaskDef::Command(CommandTask {
+                command: "echo a".to_string(),
+                base: crate::ci::types::TaskBase {
+                    scope: TaskScope::Root,
+                    cond: Some(Condition::Env {
+                        name: "__VTZ_COND_PROP_NONEXISTENT__".to_string(),
+                        value: None,
+                    }),
+                    ..Default::default()
+                },
+            }),
+        );
+
+        // Task B: depends on A with Success edge → should also be Skipped
+        tasks.insert(
+            "task-b".to_string(),
+            TaskDef::Command(CommandTask {
+                command: "echo b".to_string(),
+                base: crate::ci::types::TaskBase {
+                    scope: TaskScope::Root,
+                    deps: vec![Dep::Edge(DepEdge {
+                        task: "task-a".to_string(),
+                        on: DepCondition::Success,
+                    })],
+                    ..Default::default()
+                },
+            }),
+        );
+
+        let result = run_scheduler(
+            tasks,
+            vec!["task-a".to_string(), "task-b".to_string()],
+            None,
+            "main".to_string(),
+        )
+        .await;
+
+        assert_eq!(result.skipped_count, 2, "both tasks should be skipped");
+        assert_eq!(result.executed_count, 0);
+        assert_eq!(
+            result.results.get("task-a").unwrap().status,
+            TaskStatus::Skipped
+        );
+        assert_eq!(
+            result.results.get("task-b").unwrap().status,
+            TaskStatus::Skipped
+        );
+    }
+
+    #[tokio::test]
+    async fn condition_skip_with_default_edge_continues() {
+        use crate::ci::types::{CommandTask, Condition, Dep};
+
+        let mut tasks = BTreeMap::new();
+
+        // Task A: false condition → will be Skipped
+        tasks.insert(
+            "task-a".to_string(),
+            TaskDef::Command(CommandTask {
+                command: "echo a".to_string(),
+                base: crate::ci::types::TaskBase {
+                    scope: TaskScope::Root,
+                    cond: Some(Condition::Env {
+                        name: "__VTZ_COND_DEFAULT_NONEXISTENT__".to_string(),
+                        value: None,
+                    }),
+                    ..Default::default()
+                },
+            }),
+        );
+
+        // Task B: depends on A with Default edge (simple string dep)
+        // Default edge: Skipped → Run (skip=continue)
+        tasks.insert(
+            "task-b".to_string(),
+            TaskDef::Command(CommandTask {
+                command: "echo b".to_string(),
+                base: crate::ci::types::TaskBase {
+                    scope: TaskScope::Root,
+                    deps: vec![Dep::Simple("task-a".to_string())],
+                    ..Default::default()
+                },
+            }),
+        );
+
+        let result = run_scheduler(
+            tasks,
+            vec!["task-a".to_string(), "task-b".to_string()],
+            None,
+            "main".to_string(),
+        )
+        .await;
+
+        // A is skipped (condition), B runs (default edge treats skip as continue)
+        assert_eq!(result.skipped_count, 1, "only task-a should be skipped");
+        assert_eq!(result.executed_count, 1, "task-b should execute");
+        assert_eq!(
+            result.results.get("task-a").unwrap().status,
+            TaskStatus::Skipped
+        );
+        assert_eq!(
+            result.results.get("task-b").unwrap().status,
+            TaskStatus::Success
+        );
+    }
+
+    #[tokio::test]
+    async fn condition_skip_with_always_edge_continues() {
+        use crate::ci::types::{CommandTask, Condition, Dep, DepCondition, DepEdge};
+
+        let mut tasks = BTreeMap::new();
+
+        // Task A: false condition → Skipped
+        tasks.insert(
+            "task-a".to_string(),
+            TaskDef::Command(CommandTask {
+                command: "echo a".to_string(),
+                base: crate::ci::types::TaskBase {
+                    scope: TaskScope::Root,
+                    cond: Some(Condition::Env {
+                        name: "__VTZ_COND_ALWAYS_NONEXISTENT__".to_string(),
+                        value: None,
+                    }),
+                    ..Default::default()
+                },
+            }),
+        );
+
+        // Task B: depends on A with Always edge → should still run
+        tasks.insert(
+            "task-b".to_string(),
+            TaskDef::Command(CommandTask {
+                command: "echo b".to_string(),
+                base: crate::ci::types::TaskBase {
+                    scope: TaskScope::Root,
+                    deps: vec![Dep::Edge(DepEdge {
+                        task: "task-a".to_string(),
+                        on: DepCondition::Always,
+                    })],
+                    ..Default::default()
+                },
+            }),
+        );
+
+        let result = run_scheduler(
+            tasks,
+            vec!["task-a".to_string(), "task-b".to_string()],
+            None,
+            "main".to_string(),
+        )
+        .await;
+
+        assert_eq!(result.skipped_count, 1, "only task-a should be skipped");
+        assert_eq!(result.executed_count, 1, "task-b should run (always edge)");
+        assert_eq!(
+            result.results.get("task-a").unwrap().status,
+            TaskStatus::Skipped
+        );
+        assert_eq!(
+            result.results.get("task-b").unwrap().status,
+            TaskStatus::Success
+        );
     }
 
     #[test]

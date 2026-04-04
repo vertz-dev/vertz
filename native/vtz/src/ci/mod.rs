@@ -278,6 +278,19 @@ async fn run_task_or_workflow(root_dir: &Path, opts: RunOptions) -> Result<(), S
     let cache_backend: Arc<dyn cache::CacheBackend> =
         Arc::from(cache::create_cache_backend(root_dir, max_cache_size));
 
+    // Compute change context for task-level condition evaluation.
+    // current_branch is cheap; ChangeSet needs a git diff so we only compute it
+    // when at least one task has a `cond` that may need it.
+    let current_branch = changes::current_branch(root_dir).await.unwrap_or_default();
+    let has_cond = pipe_config.tasks.values().any(|t| t.base().cond.is_some());
+    let change_set = if has_cond {
+        let base_ref = changes::ChangeDetector::resolve_base_ref(base.as_deref());
+        let detector = changes::ChangeDetector::new(root_dir.to_path_buf(), base_ref);
+        detector.detect().await.ok()
+    } else {
+        None
+    };
+
     let sched = scheduler::Scheduler::new(
         &task_graph,
         concurrency,
@@ -287,6 +300,8 @@ async fn run_task_or_workflow(root_dir: &Path, opts: RunOptions) -> Result<(), S
         &secret_values,
         quiet,
         cache_backend,
+        change_set,
+        current_branch,
     );
 
     // Log initial (zero-in-degree) nodes
