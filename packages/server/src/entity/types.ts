@@ -21,18 +21,51 @@ type InjectToOperations<TInject extends Record<string, EntityDefinition> = {}> =
 };
 
 // ---------------------------------------------------------------------------
-// BaseContext — shared by EntityContext and ServiceContext
+// Context feature flags — controls which fields BaseContext exposes
 // ---------------------------------------------------------------------------
 
-export interface BaseContext {
+export interface ContextFeatures {
+  auth: boolean;
+  tenant: boolean;
+  multiLevelTenant: boolean;
+}
+
+export type FullFeatures = { auth: true; tenant: true; multiLevelTenant: true };
+export type NoFeatures = { auth: false; tenant: false; multiLevelTenant: false };
+
+// ---------------------------------------------------------------------------
+// Mixin interfaces — composed by BaseContext based on feature flags
+// ---------------------------------------------------------------------------
+
+/** Auth fields — present when ContextFeatures.auth is true. */
+export interface AuthContext {
   readonly userId: string | null;
-  readonly tenantId: string | null;
-  /** Tenant level key (e.g., 'project'). Set when multi-level tenancy is active. */
-  readonly tenantLevel?: string | null;
   authenticated(): boolean;
-  tenant(): boolean;
   role(...roles: string[]): boolean;
 }
+
+/** Tenant fields — present when ContextFeatures.tenant is true. */
+export interface TenantContext {
+  readonly tenantId: string | null;
+  tenant(): boolean;
+}
+
+/** Multi-level tenant fields — present when ContextFeatures.multiLevelTenant is true. */
+export interface MultiLevelTenantContext {
+  readonly tenantLevel: string | null;
+}
+
+// ---------------------------------------------------------------------------
+// BaseContext — shared by EntityContext and ServiceContext
+// Conditional on ContextFeatures: only includes fields for enabled features.
+// Defaults to FullFeatures for backwards compatibility.
+// ---------------------------------------------------------------------------
+
+// eslint-disable-next-line @typescript-eslint/no-empty-object-type -- {} is the correct identity element for intersection when a feature is disabled
+export type BaseContext<TFeatures extends ContextFeatures = FullFeatures> =
+  (TFeatures['auth'] extends true ? AuthContext : {}) &
+  (TFeatures['tenant'] extends true ? TenantContext : {}) &
+  (TFeatures['multiLevelTenant'] extends true ? MultiLevelTenantContext : {});
 
 // ---------------------------------------------------------------------------
 // EntityContext — the runtime context for access rules, hooks, and actions
@@ -263,6 +296,7 @@ export interface EntityConfig<
   TActions extends Record<string, EntityActionDef<any, any, any, any>> = {},
   // eslint-disable-next-line @typescript-eslint/no-empty-object-type -- {} represents no injected entities — the correct default
   TInject extends Record<string, EntityDefinition> = {},
+  TFeatures extends ContextFeatures = FullFeatures,
 > {
   readonly model: TModel;
   readonly inject?: TInject;
@@ -279,26 +313,41 @@ export interface EntityConfig<
   readonly before?: {
     readonly create?: (
       data: TModel['table']['$create_input'],
-      ctx: EntityContext<TModel, TInject>,
+      ctx: BaseContext<TFeatures> & {
+        readonly entity: EntityOperations<TModel>;
+        readonly entities: InjectToOperations<TInject>;
+      },
     ) => TModel['table']['$create_input'] | Promise<TModel['table']['$create_input']>;
     readonly update?: (
       data: TModel['table']['$update_input'],
-      ctx: EntityContext<TModel, TInject>,
+      ctx: BaseContext<TFeatures> & {
+        readonly entity: EntityOperations<TModel>;
+        readonly entities: InjectToOperations<TInject>;
+      },
     ) => TModel['table']['$update_input'] | Promise<TModel['table']['$update_input']>;
   };
   readonly after?: {
     readonly create?: (
       result: TModel['table']['$response'],
-      ctx: EntityContext<TModel, TInject>,
+      ctx: BaseContext<TFeatures> & {
+        readonly entity: EntityOperations<TModel>;
+        readonly entities: InjectToOperations<TInject>;
+      },
     ) => void | Promise<void>;
     readonly update?: (
       prev: TModel['table']['$response'],
       next: TModel['table']['$response'],
-      ctx: EntityContext<TModel, TInject>,
+      ctx: BaseContext<TFeatures> & {
+        readonly entity: EntityOperations<TModel>;
+        readonly entities: InjectToOperations<TInject>;
+      },
     ) => void | Promise<void>;
     readonly delete?: (
       row: TModel['table']['$response'],
-      ctx: EntityContext<TModel, TInject>,
+      ctx: BaseContext<TFeatures> & {
+        readonly entity: EntityOperations<TModel>;
+        readonly entities: InjectToOperations<TInject>;
+      },
     ) => void | Promise<void>;
   };
   readonly actions?: { readonly [K in keyof TActions]: TActions[K] };

@@ -1,6 +1,6 @@
 import type { SchemaLike } from '@vertz/db';
 import type { EntityOperations } from '../entity/entity-operations';
-import type { AccessRule, BaseContext, EntityDefinition } from '../entity/types';
+import type { AccessRule, BaseContext, ContextFeatures, EntityDefinition, FullFeatures } from '../entity/types';
 import type { ResponseDescriptor } from '../response';
 
 // ---------------------------------------------------------------------------
@@ -71,10 +71,27 @@ export interface ServiceConfig<
   >,
   // eslint-disable-next-line @typescript-eslint/no-empty-object-type -- {} represents no injected entities — the correct default
   TInject extends Record<string, EntityDefinition> = {},
+  TFeatures extends ContextFeatures = FullFeatures,
 > {
   readonly inject?: TInject;
   readonly access?: Partial<Record<Extract<keyof NoInfer<TActions>, string>, AccessRule>>;
-  readonly actions: { readonly [K in keyof TActions]: TActions[K] };
+  readonly actions: {
+    readonly [K in keyof TActions]: TActions[K] extends ServiceActionDef<infer TIn, infer TOut, any>
+      ? {
+          readonly method?: string;
+          readonly path?: string;
+          readonly body?: SchemaLike<TIn>;
+          readonly response: SchemaLike<TOut>;
+          readonly handler: (
+            input: TIn,
+            ctx: BaseContext<TFeatures> & {
+              readonly entities: InjectToOperations<TInject>;
+              readonly request: ServiceRequestInfo;
+            },
+          ) => Promise<TOut | ResponseDescriptor<TOut>>;
+        }
+      : TActions[K];
+  };
 }
 
 // ---------------------------------------------------------------------------

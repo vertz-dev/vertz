@@ -14,10 +14,12 @@ export function createServiceContext(
   const userId = request.userId ?? null;
   const roles = request.roles ?? [];
   const tenantId = request.tenantId ?? null;
+  const tenantLevel = request.tenantLevel ?? null;
 
   return {
     userId,
     tenantId,
+    tenantLevel,
     authenticated() {
       return userId !== null;
     },

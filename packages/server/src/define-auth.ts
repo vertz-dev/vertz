@@ -18,6 +18,6 @@ import type { AuthConfig } from './auth/types';
  * createServer({ db, auth, entities: [...] });
  * ```
  */
-export function defineAuth(config: AuthConfig): AuthConfig {
+export function defineAuth<T extends AuthConfig>(config: T): T {
   return config;
 }
