@@ -10,6 +10,9 @@
 # With --build: also builds the binary from source (cargo build --release).
 # Without --build: copies the existing release binary if available, or uses the
 # platform package binary as-is.
+#
+# When the native binary isn't available (e.g. CI), creates lightweight shell
+# shims that delegate to bun so package scripts still work.
 
 set -e
 
@@ -48,17 +51,50 @@ if [ -f "$RELEASE_BIN" ]; then
   echo "✅ Copied release binary to $PLATFORM_PKG/vtz"
 fi
 
-# Symlink runtime/vtz → platform binary
-ln -sf "../runtime-${PLATFORM}-${ARCH}/vtz" "$RUNTIME_PKG/vtz"
-echo "✅ Linked runtime/vtz → runtime-${PLATFORM}-${ARCH}/vtz"
-
-# Symlink node_modules/.bin/{vtz,vertz,vtzx} → runtime/vtz
 mkdir -p "$BIN_DIR"
-for cmd in vtz vertz vtzx; do
-  ln -sf "../../packages/runtime/vtz" "$BIN_DIR/$cmd"
-done
-echo "✅ Linked node_modules/.bin/{vtz,vertz,vtzx}"
 
-VERSION="$("$BIN_DIR/vtz" --version 2>/dev/null || echo "unknown")"
-echo ""
-echo "Runtime ready: $VERSION"
+# Check if the platform binary exists (either built or pre-existing)
+if [ -f "$PLATFORM_PKG/vtz" ]; then
+  # Native binary available — symlink everything to it
+  ln -sf "../runtime-${PLATFORM}-${ARCH}/vtz" "$RUNTIME_PKG/vtz"
+  echo "✅ Linked runtime/vtz → runtime-${PLATFORM}-${ARCH}/vtz"
+
+  for cmd in vtz vertz vtzx; do
+    ln -sf "../../packages/runtime/vtz" "$BIN_DIR/$cmd"
+  done
+  echo "✅ Linked node_modules/.bin/{vtz,vertz,vtzx}"
+
+  VERSION="$("$BIN_DIR/vtz" --version 2>/dev/null || echo "unknown")"
+  echo ""
+  echo "Runtime ready: $VERSION"
+else
+  # No native binary — create shell shims for CI/dev-without-binary
+  # vtzx (vtz exec) → delegates to bunx
+  cat > "$BIN_DIR/vtzx" << 'SHIM'
+#!/usr/bin/env bash
+exec bunx "$@"
+SHIM
+  chmod +x "$BIN_DIR/vtzx"
+
+  # vtz → delegates to bun for "run" subcommand, warns for others
+  cat > "$BIN_DIR/vtz" << 'SHIM'
+#!/usr/bin/env bash
+if [ "$1" = "run" ]; then
+  shift
+  exec bun run "$@"
+elif [ "$1" = "exec" ]; then
+  shift
+  exec bunx "$@"
+else
+  echo "vtz shim: native binary not available, only 'run' and 'exec' are supported" >&2
+  exit 1
+fi
+SHIM
+  chmod +x "$BIN_DIR/vtz"
+
+  # vertz → same as vtz
+  cp "$BIN_DIR/vtz" "$BIN_DIR/vertz"
+
+  echo "⚠️  No native binary found — created bun-based shims for vtz/vtzx"
+  echo "   (Build with: ./scripts/link-runtime.sh --build)"
+fi
