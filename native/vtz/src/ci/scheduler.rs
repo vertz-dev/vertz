@@ -813,6 +813,13 @@ impl<'a> Scheduler<'a> {
         };
 
         if let Some(cond) = &task_def.base().cond {
+            if self.changes.is_none() && Self::needs_changeset(cond) && !self.quiet {
+                eprintln!(
+                    "[pipe] warning: change detection unavailable for task \"{}\"; \
+                     treating `changed` condition as false",
+                    node.task_name
+                );
+            }
             let empty = ChangeSet {
                 files: vec![],
                 base_ref: String::new(),
@@ -822,6 +829,19 @@ impl<'a> Scheduler<'a> {
             !evaluate_condition(cond, changes, &self.current_branch)
         } else {
             false
+        }
+    }
+
+    /// Returns `true` if the condition (or any nested sub-condition) uses
+    /// `Condition::Changed`, meaning it requires a `ChangeSet` to evaluate.
+    fn needs_changeset(cond: &crate::ci::types::Condition) -> bool {
+        use crate::ci::types::Condition;
+        match cond {
+            Condition::Changed { .. } => true,
+            Condition::All { conditions } | Condition::Any { conditions } => {
+                conditions.iter().any(Self::needs_changeset)
+            }
+            _ => false,
         }
     }
 
@@ -1501,6 +1521,186 @@ mod tests {
             result.results.get("task-b").unwrap().status,
             TaskStatus::Success
         );
+    }
+
+    #[tokio::test]
+    async fn condition_changed_with_matching_files_runs() {
+        use crate::ci::types::{CommandTask, Condition};
+
+        let mut tasks = BTreeMap::new();
+        tasks.insert(
+            "changed-task".to_string(),
+            TaskDef::Command(CommandTask {
+                command: "echo built".to_string(),
+                base: crate::ci::types::TaskBase {
+                    scope: TaskScope::Root,
+                    cond: Some(Condition::Changed {
+                        patterns: vec!["native/**".to_string()],
+                    }),
+                    ..Default::default()
+                },
+            }),
+        );
+
+        let change_set = Some(crate::ci::changes::ChangeSet {
+            files: vec![std::path::PathBuf::from("native/vtz/src/main.rs")],
+            base_ref: "origin/main".to_string(),
+            is_shallow: false,
+        });
+
+        let result = run_scheduler(
+            tasks,
+            vec!["changed-task".to_string()],
+            change_set,
+            "main".to_string(),
+        )
+        .await;
+
+        assert_eq!(
+            result.executed_count, 1,
+            "task should run — changed files match"
+        );
+        assert_eq!(result.skipped_count, 0);
+    }
+
+    #[tokio::test]
+    async fn condition_changed_with_no_matching_files_skips() {
+        use crate::ci::types::{CommandTask, Condition};
+
+        let mut tasks = BTreeMap::new();
+        tasks.insert(
+            "changed-task".to_string(),
+            TaskDef::Command(CommandTask {
+                command: "echo built".to_string(),
+                base: crate::ci::types::TaskBase {
+                    scope: TaskScope::Root,
+                    cond: Some(Condition::Changed {
+                        patterns: vec!["native/**".to_string()],
+                    }),
+                    ..Default::default()
+                },
+            }),
+        );
+
+        let change_set = Some(crate::ci::changes::ChangeSet {
+            files: vec![std::path::PathBuf::from("packages/ui/src/index.ts")],
+            base_ref: "origin/main".to_string(),
+            is_shallow: false,
+        });
+
+        let result = run_scheduler(
+            tasks,
+            vec!["changed-task".to_string()],
+            change_set,
+            "main".to_string(),
+        )
+        .await;
+
+        assert_eq!(
+            result.skipped_count, 1,
+            "task should be skipped — no matching files"
+        );
+        assert_eq!(result.executed_count, 0);
+    }
+
+    #[tokio::test]
+    async fn condition_branch_matching_runs() {
+        use crate::ci::types::{CommandTask, Condition};
+
+        let mut tasks = BTreeMap::new();
+        tasks.insert(
+            "branch-task".to_string(),
+            TaskDef::Command(CommandTask {
+                command: "echo deploy".to_string(),
+                base: crate::ci::types::TaskBase {
+                    scope: TaskScope::Root,
+                    cond: Some(Condition::Branch {
+                        names: vec!["main".to_string()],
+                    }),
+                    ..Default::default()
+                },
+            }),
+        );
+
+        let result = run_scheduler(
+            tasks,
+            vec!["branch-task".to_string()],
+            None,
+            "main".to_string(),
+        )
+        .await;
+
+        assert_eq!(result.executed_count, 1, "task should run — branch matches");
+        assert_eq!(result.skipped_count, 0);
+    }
+
+    #[tokio::test]
+    async fn condition_branch_not_matching_skips() {
+        use crate::ci::types::{CommandTask, Condition};
+
+        let mut tasks = BTreeMap::new();
+        tasks.insert(
+            "branch-task".to_string(),
+            TaskDef::Command(CommandTask {
+                command: "echo deploy".to_string(),
+                base: crate::ci::types::TaskBase {
+                    scope: TaskScope::Root,
+                    cond: Some(Condition::Branch {
+                        names: vec!["main".to_string()],
+                    }),
+                    ..Default::default()
+                },
+            }),
+        );
+
+        let result = run_scheduler(
+            tasks,
+            vec!["branch-task".to_string()],
+            None,
+            "feat/something".to_string(),
+        )
+        .await;
+
+        assert_eq!(
+            result.skipped_count, 1,
+            "task should be skipped — branch doesn't match"
+        );
+        assert_eq!(result.executed_count, 0);
+    }
+
+    #[tokio::test]
+    async fn condition_changed_without_changeset_skips() {
+        use crate::ci::types::{CommandTask, Condition};
+
+        // When ChangeSet is None (git failure), Changed condition evaluates to false
+        let mut tasks = BTreeMap::new();
+        tasks.insert(
+            "changed-task".to_string(),
+            TaskDef::Command(CommandTask {
+                command: "echo built".to_string(),
+                base: crate::ci::types::TaskBase {
+                    scope: TaskScope::Root,
+                    cond: Some(Condition::Changed {
+                        patterns: vec!["src/**".to_string()],
+                    }),
+                    ..Default::default()
+                },
+            }),
+        );
+
+        let result = run_scheduler(
+            tasks,
+            vec!["changed-task".to_string()],
+            None, // No ChangeSet — simulates git failure
+            "main".to_string(),
+        )
+        .await;
+
+        assert_eq!(
+            result.skipped_count, 1,
+            "task should be skipped — no ChangeSet available"
+        );
+        assert_eq!(result.executed_count, 0);
     }
 
     #[test]
