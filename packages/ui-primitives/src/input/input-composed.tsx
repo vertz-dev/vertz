@@ -17,11 +17,25 @@ export interface ComposedInputProps {
   type?: string;
   disabled?: boolean;
   value?: string;
+  /** Debounce delay in ms for form-level onChange. */
+  debounce?: number;
   [key: string]: unknown;
 }
 
-function ComposedInputRoot({ classes, className, class: classProp, ...props }: ComposedInputProps) {
-  return <input class={cn(classes?.base, className ?? classProp)} {...props} />;
+function ComposedInputRoot({
+  classes,
+  className,
+  class: classProp,
+  debounce,
+  ...props
+}: ComposedInputProps) {
+  return (
+    <input
+      class={cn(classes?.base, className ?? classProp)}
+      data-vertz-debounce={debounce}
+      {...props}
+    />
+  );
 }
 
 export const ComposedInput: ComposedPrimitive<InputClassKey, HTMLElement> =

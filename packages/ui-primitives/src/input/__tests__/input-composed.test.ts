@@ -81,6 +81,20 @@ describe('Composed Input', () => {
     });
   });
 
+  describe('Given a ComposedInput with debounce prop', () => {
+    describe('When rendered', () => {
+      it('Then sets data-vertz-debounce attribute', () => {
+        const el = ComposedInput({ debounce: 300 });
+        expect(el.getAttribute('data-vertz-debounce')).toBe('300');
+      });
+
+      it('Then does NOT set data-vertz-debounce when debounce is not provided', () => {
+        const el = ComposedInput({ name: 'q' });
+        expect(el.hasAttribute('data-vertz-debounce')).toBe(false);
+      });
+    });
+  });
+
   describe('Given a ComposedInput with deprecated class prop', () => {
     describe('When rendered', () => {
       it('Then uses class prop as fallback for className', () => {

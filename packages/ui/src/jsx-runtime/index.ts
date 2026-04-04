@@ -13,6 +13,7 @@
  */
 
 import type { Ref } from '../component/refs';
+import type { FormValues } from '../dom/form-on-change';
 import { styleObjectToString } from '../dom/style';
 import { isSVGTag, normalizeSVGAttr, SVG_NS } from '../dom/svg-tags';
 import type { CSSProperties } from './css-properties';
@@ -44,6 +45,37 @@ export namespace JSX {
   }
 
   /**
+   * Enhanced form-level change handler. Receives all current form values.
+   * Respects per-input `debounce` props for timing control.
+   * This is NOT the native DOM `change` event — the compiler transforms
+   * `<form onChange={handler}>` into `__formOnChange(el, handler)`.
+   */
+  export interface FormHTMLAttributes extends HTMLAttributes {
+    onChange?: (values: FormValues) => void;
+  }
+
+  /** Attributes for `<input>` elements with debounce support. */
+  export interface InputHTMLAttributes extends HTMLAttributes {
+    /** Debounce delay in ms for the form-level onChange callback.
+     * Only effective inside a `<form onChange={...}>`. */
+    debounce?: number;
+  }
+
+  /** Attributes for `<textarea>` elements with debounce support. */
+  export interface TextareaHTMLAttributes extends HTMLAttributes {
+    /** Debounce delay in ms for the form-level onChange callback.
+     * Only effective inside a `<form onChange={...}>`. */
+    debounce?: number;
+  }
+
+  /** Attributes for `<select>` elements with debounce support. */
+  export interface SelectHTMLAttributes extends HTMLAttributes {
+    /** Debounce delay in ms for the form-level onChange callback.
+     * Only effective inside a `<form onChange={...}>`. */
+    debounce?: number;
+  }
+
+  /**
    * Attributes available on ALL JSX elements (intrinsic and components).
    * `key` is used by the compiler's __list() transform for efficient list rendering.
    */
@@ -55,9 +87,14 @@ export namespace JSX {
   /**
    * Intrinsic elements - maps tag names to their element types.
    * For the jsx() function, we use HTMLElementTagNameMap directly in overloads.
-   * This provides a catch-all for any HTML element.
+   * Specific entries provide narrower types for form-related elements;
+   * the catch-all covers all other HTML elements.
    */
   export interface IntrinsicElements {
+    form: FormHTMLAttributes;
+    input: InputHTMLAttributes;
+    textarea: TextareaHTMLAttributes;
+    select: SelectHTMLAttributes;
     [key: string]: HTMLAttributes | undefined;
   }
 }
