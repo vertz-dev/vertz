@@ -26,8 +26,8 @@
     "provenance": true
   },
   "scripts": {
-    "build": "bunup",
-    "test": "bun test",
+    "build": "vtzx bunup",
+    "test": "vtz test",
     "typecheck": "tsc --noEmit -p tsconfig.typecheck.json"
   },
   "dependencies": {

@@ -36,7 +36,7 @@ PRE_PUSH_HOOK="$HOOKS_DIR/pre-push"
 
 # Check if lefthook is available
 if ! command -v lefthook &> /dev/null && [ ! -f "$REPO_ROOT/node_modules/.bin/lefthook" ]; then
-  echo "⚠️  lefthook not found. Make sure to run 'bun install' first."
+  echo "⚠️  lefthook not found. Make sure to run 'vtz install' first."
   exit 1
 fi
 

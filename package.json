@@ -12,7 +12,7 @@
     "benchmarks/vertz"
   ],
   "scripts": {
-    "test:watch": "bun run --filter '*' test:watch",
+    "test:watch": "vtz run --filter '*' test:watch",
     "lint": "oxlint packages/",
     "lint:fix": "oxlint --fix packages/",
     "format": "oxfmt --check packages/",
@@ -27,9 +27,9 @@
     "ci:test:affected": "turbo run test --filter=...[origin/main] --filter='!@vertz-examples/*' --filter='!entity-todo-example' --filter='!@vertz/landing-nextjs' --filter='!@vertz/landing-nextjs-vercel' --filter='!@vertz/landing' --filter='!@vertz/component-docs' --filter='!@vertz/site' --filter='!@vertz/og' --filter='!@vertz/mint-docs' --filter='!@vertz-benchmarks/*' --filter='!contacts-api-example' --filter='!create-vertz' --filter='!landing' --filter='!@vertz/ui-primitives'",
     "changeset": "changeset",
     "changeset:version": "changeset version",
-    "changeset:publish": "bun run build && bash scripts/publish.sh",
-    "postinstall": "if [ \"$(git rev-parse --git-dir 2>/dev/null)\" = \"$(git rev-parse --git-common-dir 2>/dev/null)\" ]; then lefthook install || true; fi",
-    "test:tree-shaking": "bun test tests/tree-shaking/tree-shaking.test.ts",
+    "changeset:publish": "vtz run build && bash scripts/publish.sh",
+    "postinstall": "if [ \"$(git rev-parse --git-dir 2>/dev/null)\" = \"$(git rev-parse --git-common-dir 2>/dev/null)\" ]; then lefthook install || true; fi && bash scripts/link-runtime.sh",
+    "test:tree-shaking": "vtz test tests/tree-shaking/tree-shaking.test.ts",
     "build": "turbo run build --filter='!@vertz-examples/*' --filter='!entity-todo-example' --filter='!@vertz/landing-nextjs' --filter='!@vertz/landing-nextjs-vercel' --filter='!@vertz-benchmarks/*'"
   },
   "devDependencies": {

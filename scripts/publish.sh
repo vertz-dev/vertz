@@ -4,7 +4,7 @@ set -euo pipefail
 # Publish all public packages. Three-tier publishing:
 # 1. Runtime binary packages (packages/runtime-*) — npm publish --provenance
 # 2. Runtime selector package (packages/runtime) — npm publish --provenance
-# 3. Source packages (all other public packages) — bun publish
+# 3. Source packages (all other public packages) — vtz publish
 
 FAILED=()
 MODIFIED_PKGS=()
@@ -108,7 +108,7 @@ for pkg_json in packages/*/package.json; do
   fi
 
   echo "Publishing $name@$version..."
-  if (cd "$dir" && bun publish --access public); then
+  if (cd "$dir" && vtz publish --access public); then
     echo "Published $name@$version"
   else
     echo "Failed to publish $name@$version"
@@ -129,4 +129,4 @@ echo ""
 echo "All packages published successfully"
 
 # Create git tags (changeset tag)
-bunx changeset tag 2>/dev/null || true
+vtzx changeset tag 2>/dev/null || true

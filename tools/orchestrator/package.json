@@ -4,8 +4,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "start": "bun run src/orchestrator.ts",
-    "dry-run": "bun run src/orchestrator.ts --dry-run",
-    "status": "bun run src/orchestrator.ts --status"
+    "start": "vtz run src/orchestrator.ts",
+    "dry-run": "vtz run src/orchestrator.ts --dry-run",
+    "status": "vtz run src/orchestrator.ts --status"
   }
 }

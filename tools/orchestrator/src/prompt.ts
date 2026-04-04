@@ -41,9 +41,9 @@ Follow the bug fix workflow from .claude/rules/:
 5. **Fix the bug** (GREEN) — minimal change to make the test pass
 6. **Refactor** — clean up if needed, keep tests green
 7. **Quality gates** — run ALL:
-   - \`bun test\` (at minimum the changed packages)
-   - \`bun run typecheck\`
-   - \`bunx oxlint --fix <changed-files> && bunx oxfmt <changed-files>\`
+   - \`vtz test\` (at minimum the changed packages)
+   - \`vtz run typecheck\`
+   - \`vtzx oxlint --fix <changed-files> && vtzx oxfmt <changed-files>\`
 8. **Commit** — \`<type>(<scope>): <description> (#ISSUE)\`
 9. **Rebase on latest main** — MANDATORY before pushing:
    \`\`\`bash
@@ -75,9 +75,9 @@ If the feature is a straightforward addition (wiring props, adding a missing exp
 1. **Create branch** — \`git checkout -b <branch-name> main\`
 2. **Implement with strict TDD** — one test at a time (red → green → refactor)
 3. **Quality gates after every green**:
-   - \`bun test\`
-   - \`bun run typecheck\`
-   - \`bunx oxlint --fix <changed-files> && bunx oxfmt <changed-files>\`
+   - \`vtz test\`
+   - \`vtz run typecheck\`
+   - \`vtzx oxlint --fix <changed-files> && vtzx oxfmt <changed-files>\`
 4. **Commit each phase**
 5. **Self-review** — adversarially review your own changes. Look for:
    - Does it deliver what the issue asks?
@@ -103,9 +103,9 @@ const TEST_WORKFLOW = `
 3. **Create branch** — \`git checkout -b <branch-name> main\`
 4. **Write the tests** — follow existing patterns in the repo
 5. **Quality gates**:
-   - \`bun test\`
-   - \`bun run typecheck\`
-   - \`bunx oxlint --fix <changed-files> && bunx oxfmt <changed-files>\`
+   - \`vtz test\`
+   - \`vtz run typecheck\`
+   - \`vtzx oxlint --fix <changed-files> && vtzx oxfmt <changed-files>\`
 6. **Commit**
 7. **Rebase on latest main** — MANDATORY before pushing:
    \`\`\`bash

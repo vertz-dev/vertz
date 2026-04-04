@@ -40,9 +40,9 @@
     "provenance": true
   },
   "scripts": {
-    "build": "bunup",
+    "build": "vtzx bunup",
     "typecheck": "tsc --noEmit",
-    "test": "bun test",
+    "test": "vtz test",
     "lint": "oxlint src/"
   },
   "dependencies": {

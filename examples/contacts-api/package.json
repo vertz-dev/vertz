@@ -3,9 +3,9 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "bun run --watch src/server.ts",
-    "start": "bun run src/server.ts",
-    "codegen": "bun node_modules/@vertz/cli/dist/vertz.js codegen",
+    "dev": "vtz run --watch src/server.ts",
+    "start": "vtz run src/server.ts",
+    "codegen": "vtz codegen",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

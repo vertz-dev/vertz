@@ -187,7 +187,7 @@ BDD scenarios become the first tests the agent writes (red phase in TDD):
 
 A feature is done when:
 - [ ] All BDD scenarios pass
-- [ ] Quality gates green (`bun test && bun run typecheck && bun run lint`)
+- [ ] Quality gates green (`vtz test && vtz run typecheck && vtz run lint`)
 - [ ] PR reviewed and merged
 - [ ] Developer Walkthrough passes
 

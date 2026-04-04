@@ -4,9 +4,9 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "bun node_modules/@vertz/cli/dist/vertz.js dev",
-    "e2e": "bunx playwright test",
-    "e2e:headed": "bunx playwright test --headed"
+    "dev": "vtz dev",
+    "e2e": "vtzx playwright test",
+    "e2e:headed": "vtzx playwright test --headed"
   },
   "dependencies": {
     "@vertz/theme-shadcn": "workspace:*",

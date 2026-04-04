@@ -41,7 +41,7 @@ feat/db-integration
 Before a phase is considered "done" and the next phase starts, run the **full quality gates**:
 
 ```bash
-bun test && bun run typecheck && bun run lint
+vtz test && vtz run typecheck && vtz run lint
 # If native/ changed:
 cd native && cargo test --all && cargo clippy --all-targets --release -- -D warnings && cargo fmt --all -- --check
 ```
@@ -126,7 +126,7 @@ When all phases are complete:
 
 ```bash
 git fetch origin main && git rebase origin/main
-bun test && bun run typecheck && bun run lint
+vtz test && vtz run typecheck && vtz run lint
 git push -u origin feat/<feature-name>
 gh pr create --title "feat: <Feature Name>" --body "..."
 # Monitor CI
@@ -150,7 +150,7 @@ Standard post-merge process:
 |--------|-------|
 | GitHub PR per phase | Local commits + local review markdown |
 | `gh-as.sh` for every PR | Only for final PR to main |
-| GitHub CI per phase | Local quality gates (TS: `bun test && bun run typecheck && bun run lint`, Rust: `cargo test --all && cargo clippy --all-targets --release -- -D warnings && cargo fmt --all -- --check`) |
+| GitHub CI per phase | Local quality gates (TS: `vtz test && vtz run typecheck && vtz run lint`, Rust: `cargo test --all && cargo clippy --all-targets --release -- -D warnings && cargo fmt --all -- --check`) |
 | Wait for GitHub API | Instant local operations |
 | Multiple branches per feature | One feature branch, phases as commit ranges |
 

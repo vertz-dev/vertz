@@ -27,7 +27,7 @@
     "./package.json": "./package.json"
   },
   "scripts": {
-    "build": "bun build index.ts --outdir . --target node",
+    "build": "vtzx bun build index.ts --outdir . --target node",
     "postinstall": "node postinstall.cjs"
   },
   "devDependencies": {

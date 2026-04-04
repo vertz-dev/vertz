@@ -26,9 +26,9 @@
     "provenance": true
   },
   "scripts": {
-    "build": "bunup",
-    "test": "bun test --timeout 120000",
-    "test:watch": "bun test --watch --timeout 120000",
+    "build": "vtzx bunup",
+    "test": "vtz test --timeout 120000",
+    "test:watch": "vtz test --watch --timeout 120000",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

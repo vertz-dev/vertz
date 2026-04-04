@@ -30,16 +30,16 @@ If you want to run the project locally:
 # Requires Bun (https://bun.sh)
 git clone https://github.com/vertz-dev/vertz.git
 cd vertz
-bun install
+vtz install
 
 # Run tests
-bun test
+vtz test
 
 # Type check
-bun run typecheck
+vtz run typecheck
 
 # Lint
-bun run lint
+vtz run lint
 ```
 
 ## Project Structure

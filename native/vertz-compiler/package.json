@@ -13,8 +13,8 @@
   "scripts": {
     "build": "which cargo > /dev/null 2>&1 && cargo build --release --manifest-path ../Cargo.toml && cp ../target/release/libvertz_compiler.dylib ./vertz-compiler.darwin-arm64.node || echo 'Skipping native build (cargo not found)'",
     "build:debug": "cargo build --manifest-path ../Cargo.toml && cp ../target/debug/libvertz_compiler.dylib ./vertz-compiler.darwin-arm64.node",
-    "test": "test -f vertz-compiler.darwin-arm64.node && bun test __tests__/*.test.ts || echo 'Skipping native tests (binary not found)'",
-    "test:parity": "test -f vertz-compiler.darwin-arm64.node && bun test __tests__/parity/ || echo 'Skipping parity tests'"
+    "test": "test -f vertz-compiler.darwin-arm64.node && vtz test __tests__/*.test.ts || echo 'Skipping native tests (binary not found)'",
+    "test:parity": "test -f vertz-compiler.darwin-arm64.node && vtz test __tests__/parity/ || echo 'Skipping parity tests'"
   },
   "devDependencies": {}
 }

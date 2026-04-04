@@ -14,9 +14,9 @@ When assigned a feature with an implementation plan:
 For each phase:
 1. **Implement** — strict TDD (see tdd.md). One failing test → minimal code → green → refactor
 2. **Quality gates** — ALL must pass before review:
-   - `bun test` (changed packages)
-   - `bun run typecheck` (changed packages)
-   - `bunx oxlint --fix <changed-files> && bunx oxfmt <changed-files>`
+   - `vtz test` (changed packages)
+   - `vtz run typecheck` (changed packages)
+   - `vtzx oxlint --fix <changed-files> && vtzx oxfmt <changed-files>`
 3. **Commit** — stage and commit all changes for the phase
 4. **Adversarial review** — spawn 1 review agent:
    - Reviews check: delivers what ticket asks, TDD compliance, no type gaps, no security issues, API matches design doc
@@ -69,7 +69,7 @@ For each phase:
 
 - Public API Changes summary (mandatory)
 - E2E acceptance test passing
-- Cross-package typecheck: `bun run typecheck`
+- Cross-package typecheck: `vtz run typecheck`
 - All issues marked done
 - **Docs updated** — if the PR introduces new APIs, changes existing behavior, or adds features, update `packages/mint-docs/` (Mintlify). New APIs get new pages or sections; changed behavior gets existing pages updated; gotchas get noted.
 - Changeset added
@@ -81,9 +81,9 @@ For each phase:
 Before pushing ANY code:
 
 ### TypeScript (packages/)
-- `bun test` — tests pass
-- `bun run typecheck` — types clean
-- `bun run lint` — lint clean
+- `vtz test` — tests pass
+- `vtz run typecheck` — types clean
+- `vtz run lint` — lint clean
 - Never push code that fails typecheck
 
 ### Rust (native/)

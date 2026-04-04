@@ -95,7 +95,7 @@ Tests that `Bun.serve()` on a real port, create WebSocket connections, or use fi
 Name these files `*.local.ts` (not `.test.ts`). Add a `test:integration` script in `package.json` for running them explicitly:
 
 ```json
-"test:integration": "bun test src/__tests__/my-integration.local.ts"
+"test:integration": "vtz test src/__tests__/my-integration.local.ts"
 ```
 
 ### 7. Environment variables must be cleaned up in `afterEach`
