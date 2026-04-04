@@ -90,6 +90,24 @@ impl ConfigBridge {
         let _ = self.child.wait().await;
         Ok(())
     }
+
+    /// Create a dummy ConfigBridge for testing. Spawns `cat` as a no-op process.
+    #[cfg(test)]
+    pub fn dummy() -> Self {
+        let mut child = Command::new("cat")
+            .stdin(std::process::Stdio::piped())
+            .stdout(std::process::Stdio::piped())
+            .spawn()
+            .expect("failed to spawn dummy bridge process");
+        let stdin = child.stdin.take().expect("dummy bridge: no stdin");
+        let stdout = child.stdout.take().expect("dummy bridge: no stdout");
+        Self {
+            child,
+            stdin,
+            reader: BufReader::new(stdout),
+            line_buf: String::new(),
+        }
+    }
 }
 
 /// The embedded loader script that Bun/Node will execute.

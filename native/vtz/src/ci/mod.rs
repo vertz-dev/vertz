@@ -196,6 +196,10 @@ async fn run_task_or_workflow(root_dir: &Path, opts: RunOptions) -> Result<(), S
     // 6. Resolve package filter
     //    --all overrides to All, --scope overrides to specific packages,
     //    otherwise use the workflow's declared filter.
+    //    When the Affected filter computes a ChangeSet we reuse it below for
+    //    task-level condition evaluation (avoids a redundant git diff).
+    let mut reusable_change_set: Option<changes::ChangeSet> = None;
+
     let filter_packages = if all {
         None // All packages
     } else if let Some(ref scope_pkg) = scope {
@@ -242,6 +246,9 @@ async fn run_task_or_workflow(root_dir: &Path, opts: RunOptions) -> Result<(), S
                     }
                 }
 
+                // Keep the ChangeSet so task-level conditions can reuse it.
+                reusable_change_set = Some(change_set);
+
                 Some(affected.all_affected)
             }
         }
@@ -278,6 +285,28 @@ async fn run_task_or_workflow(root_dir: &Path, opts: RunOptions) -> Result<(), S
     let cache_backend: Arc<dyn cache::CacheBackend> =
         Arc::from(cache::create_cache_backend(root_dir, max_cache_size));
 
+    // Compute change context for task-level condition evaluation.
+    // current_branch is cheap; ChangeSet needs a git diff so we only compute it
+    // when at least one task has a `Changed` condition that requires it.
+    // If the Affected filter already computed a ChangeSet, reuse it.
+    let current_branch = changes::current_branch(root_dir).await.unwrap_or_default();
+    let change_set = if reusable_change_set.is_some() {
+        reusable_change_set
+    } else {
+        let needs_changes = pipe_config
+            .tasks
+            .values()
+            .filter_map(|t| t.base().cond.as_ref())
+            .any(needs_changeset);
+        if needs_changes {
+            let base_ref = changes::ChangeDetector::resolve_base_ref(base.as_deref());
+            let detector = changes::ChangeDetector::new(root_dir.to_path_buf(), base_ref);
+            detector.detect().await.ok()
+        } else {
+            None
+        }
+    };
+
     let sched = scheduler::Scheduler::new(
         &task_graph,
         concurrency,
@@ -287,6 +316,8 @@ async fn run_task_or_workflow(root_dir: &Path, opts: RunOptions) -> Result<(), S
         &secret_values,
         quiet,
         cache_backend,
+        change_set,
+        current_branch,
     );
 
     // Log initial (zero-in-degree) nodes
@@ -478,6 +509,18 @@ async fn run_graph(root_dir: &Path, name: Option<String>, dot: bool) -> Result<(
 
     let _ = bridge.shutdown().await;
     Ok(())
+}
+
+/// Returns `true` if the condition (or any nested sub-condition) uses
+/// `Condition::Changed`, meaning it requires a `ChangeSet` to evaluate.
+fn needs_changeset(cond: &types::Condition) -> bool {
+    match cond {
+        types::Condition::Changed { .. } => true,
+        types::Condition::All { conditions } | types::Condition::Any { conditions } => {
+            conditions.iter().any(needs_changeset)
+        }
+        _ => false,
+    }
 }
 
 /// Get the cache directory path for a given root.
