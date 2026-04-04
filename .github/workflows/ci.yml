@@ -216,10 +216,10 @@ jobs:
           echo "$PWD/node_modules/.bin" >> "$GITHUB_PATH"
 
       - name: Lint
-        run: vtzx oxlint packages/
+        run: oxlint packages/
 
       - name: Format check
-        run: vtzx oxfmt --check packages/
+        run: oxfmt --check packages/
 
   # ---------------------------------------------------------------------------
   # Build, typecheck & test — the heavy job.
@@ -251,9 +251,9 @@ jobs:
           TURBO_CONCURRENCY: 2
         run: |
           if [ "${{ github.event_name }}" = "push" ]; then
-            vtz run ci:build-typecheck
+            bun run ci:build-typecheck
           else
-            vtz run ci:build-typecheck:affected
+            bun run ci:build-typecheck:affected
           fi
 
       - name: Test
@@ -261,9 +261,9 @@ jobs:
           TURBO_CONCURRENCY: 2
         run: |
           if [ "${{ github.event_name }}" = "push" ]; then
-            vtz run ci:test
+            bun run ci:test
           else
-            vtz run ci:test:affected
+            bun run ci:test:affected
           fi
 
   coverage:
@@ -328,7 +328,7 @@ jobs:
       - name: Build packages
         env:
           TURBO_CONCURRENCY: 2
-        run: vtzx turbo run build --filter='!@vertz-examples/*' --filter='!entity-todo-example' --filter='!@vertz/landing-nextjs' --filter='!@vertz/landing-nextjs-vercel' --filter='!@vertz/landing' --filter='!@vertz/component-docs' --filter='!@vertz/site' --filter='!@vertz/og' --filter='!@vertz/mint-docs' --filter='!@vertz-benchmarks/*' --filter='!contacts-api-example' --filter='!create-vertz'
+        run: turbo run build --filter='!@vertz-examples/*' --filter='!entity-todo-example' --filter='!@vertz/landing-nextjs' --filter='!@vertz/landing-nextjs-vercel' --filter='!@vertz/landing' --filter='!@vertz/component-docs' --filter='!@vertz/site' --filter='!@vertz/og' --filter='!@vertz/mint-docs' --filter='!@vertz-benchmarks/*' --filter='!contacts-api-example' --filter='!create-vertz'
 
       - name: Run tests with coverage
         env:
@@ -345,7 +345,7 @@ jobs:
             if echo "$TEST_SCRIPT" | grep -q "bun test"; then
               bun test --coverage || true
             else
-              vtzx vitest run \
+              vitest run \
                 --coverage \
                 --coverage.reporter=json-summary \
                 --coverage.reporter=json \
