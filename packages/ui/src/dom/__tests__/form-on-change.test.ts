@@ -16,7 +16,10 @@ function createForm(
   return { form, cleanup };
 }
 
-function input(name: string, opts?: { debounce?: number; value?: string; type?: string }): HTMLInputElement {
+function input(
+  name: string,
+  opts?: { debounce?: number; value?: string; type?: string },
+): HTMLInputElement {
   const el = document.createElement('input');
   el.name = name;
   if (opts?.type) el.type = opts.type;

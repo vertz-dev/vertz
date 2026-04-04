@@ -15,10 +15,7 @@ function createForm(): HTMLFormElement {
   return form;
 }
 
-function createInput(
-  name: string,
-  opts?: { debounce?: number; value?: string },
-): HTMLInputElement {
+function createInput(name: string, opts?: { debounce?: number; value?: string }): HTMLInputElement {
   const el = document.createElement('input');
   el.name = name;
   if (opts?.debounce) el.setAttribute('data-vertz-debounce', String(opts.debounce));
