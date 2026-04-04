@@ -907,7 +907,6 @@ if (typeof globalThis.HTMLElement === 'undefined') {
   const realSetInterval = globalThis.setInterval;
   const realClearInterval = globalThis.clearInterval;
   const RealDate = globalThis.Date;
-  const realDateNow = Date.now;
   let fakeNow = 0;
 
   function installFakeDate() {
@@ -1072,6 +1071,9 @@ if (typeof globalThis.HTMLElement === 'undefined') {
   }
 
   function setSystemTime(date) {
+    if (date == null) {
+      throw new Error('vi.setSystemTime() requires a Date, number, or string argument');
+    }
     const ts = typeof date === 'number' ? date
       : typeof date === 'string' ? new RealDate(date).getTime()
       : date.getTime();
@@ -2737,9 +2739,12 @@ mod tests {
                     vi.useRealTimers();
                 });
                 it('works without useFakeTimers (clock-only)', () => {
+                    const realST = globalThis.setTimeout;
                     vi.setSystemTime(new Date('2025-01-01T00:00:00.000Z'));
                     expect(Date.now()).toBe(1735689600000);
                     expect(new Date().toISOString()).toBe('2025-01-01T00:00:00.000Z');
+                    // setTimeout must NOT be replaced in clock-only mode
+                    expect(globalThis.setTimeout).toBe(realST);
                     vi.useRealTimers();
                 });
                 it('useRealTimers restores real Date', () => {
@@ -2891,11 +2896,13 @@ mod tests {
                 it('fires overdue timer without moving fakeNow backwards', () => {
                     vi.useFakeTimers();
                     vi.setSystemTime(1000);
-                    setTimeout(() => {}, 100);
+                    const log = [];
+                    setTimeout(() => log.push('fired'), 100);
                     vi.setSystemTime(5000);
                     const before = Date.now();
                     vi.advanceTimersToNextTimer();
                     expect(Date.now()).toBe(before);
+                    expect(log).toEqual(['fired']);
                     vi.useRealTimers();
                 });
                 it('is a no-op with no pending timers', () => {
