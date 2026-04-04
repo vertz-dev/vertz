@@ -111,4 +111,15 @@ describe('createSSRHandler — htmlAttributes', () => {
     );
     expect(callCount).toBe(0);
   });
+
+  it('returns 500 when htmlAttributes callback throws (invalid key)', async () => {
+    const handler = createSSRHandler({
+      module: simpleModule,
+      template: templateWithLang,
+      htmlAttributes: () => ({ 'bad key': 'value' }),
+    });
+
+    const response = await handler(new Request('http://localhost/'));
+    expect(response.status).toBe(500);
+  });
 });

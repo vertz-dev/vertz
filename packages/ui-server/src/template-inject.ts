@@ -49,8 +49,12 @@ export function injectHtmlAttributes(template: string, attrs: Record<string, str
     .map(([k, v]) => (v === '' && !(k in attrs) ? ` ${k}` : ` ${k}="${v}"`))
     .join('');
 
+  // Preserve original tag casing (e.g., <HTML> stays <HTML>)
+  const originalTag = htmlTagMatch[0].match(/^<([a-zA-Z]+)/i)![1]!;
   const tagEnd = htmlTagMatch.index + htmlTagMatch[0].length;
-  return template.slice(0, htmlTagMatch.index) + `<html${attrStr}>` + template.slice(tagEnd);
+  return (
+    template.slice(0, htmlTagMatch.index) + `<${originalTag}${attrStr}>` + template.slice(tagEnd)
+  );
 }
 
 /**

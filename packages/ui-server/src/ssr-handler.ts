@@ -176,12 +176,20 @@ export function createSSRHandler(
     let requestTemplate = template;
     let requestHeadTemplate = splitResult?.headTemplate;
     if (htmlAttributes) {
-      const attrs = htmlAttributes(request);
-      if (attrs && Object.keys(attrs).length > 0) {
-        requestTemplate = injectHtmlAttributes(template, attrs);
-        if (requestHeadTemplate) {
-          requestHeadTemplate = injectHtmlAttributes(requestHeadTemplate, attrs);
+      try {
+        const attrs = htmlAttributes(request);
+        if (attrs && Object.keys(attrs).length > 0) {
+          requestTemplate = injectHtmlAttributes(template, attrs);
+          if (requestHeadTemplate) {
+            requestHeadTemplate = injectHtmlAttributes(requestHeadTemplate, attrs);
+          }
         }
+      } catch (err) {
+        console.error('[SSR] htmlAttributes failed:', err instanceof Error ? err.message : err);
+        return new Response('Internal Server Error', {
+          status: 500,
+          headers: { 'Content-Type': 'text/plain' },
+        });
       }
     }
 

@@ -234,11 +234,14 @@ describe('injectHtmlAttributes', () => {
     expect(injectHtmlAttributes(tpl, { 'data-theme': 'dark' })).toBe(tpl);
   });
 
-  it('handles case-insensitive <HTML> tag', () => {
+  it('handles case-insensitive <HTML> tag and preserves casing', () => {
     const tpl = '<!doctype html><HTML lang="en"><head></head><body></body></HTML>';
     const result = injectHtmlAttributes(tpl, { 'data-theme': 'dark' });
     expect(result).toContain('data-theme="dark"');
     expect(result).toContain('lang="en"');
+    // Preserves original uppercase casing
+    expect(result).toContain('<HTML');
+    expect(result).not.toContain('<html');
   });
 
   it('handles <html> with no existing attributes', () => {
@@ -256,11 +259,20 @@ describe('injectHtmlAttributes', () => {
     expect(result).toContain('class="no-js"');
   });
 
-  it('preserves boolean attributes in template', () => {
+  it('preserves boolean attributes as bare attributes (no ="")', () => {
     const tpl = '<!doctype html><html lang="en" hidden><head></head><body></body></html>';
     const result = injectHtmlAttributes(tpl, { 'data-theme': 'dark' });
-    expect(result).toContain('hidden');
+    expect(result).toMatch(/ hidden[ >]/);
+    expect(result).not.toContain('hidden=""');
     expect(result).toContain('data-theme="dark"');
     expect(result).toContain('lang="en"');
+  });
+
+  it('handles single-quoted attributes in template', () => {
+    const tpl = "<!doctype html><html lang='en'><head></head><body></body></html>";
+    const result = injectHtmlAttributes(tpl, { 'data-theme': 'dark' });
+    // Single quotes normalized to double quotes on output
+    expect(result).toContain('lang="en"');
+    expect(result).toContain('data-theme="dark"');
   });
 });
