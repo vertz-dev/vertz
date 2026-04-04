@@ -417,14 +417,15 @@ mod tests {
     use oxc_ast::ast::{Expression, Statement};
     use oxc_parser::Parser;
     use oxc_span::SourceType;
-    use std::collections::HashMap;
+    use std::collections::{HashMap, HashSet};
 
     fn transform(source: &str) -> String {
         let allocator = Allocator::default();
         let parsed = Parser::new(&allocator, source, SourceType::tsx()).parse();
         let components = analyze_components(&parsed.program);
         let manifests: ManifestRegistry = HashMap::new();
-        let (aliases, dynamic_configs) = build_import_aliases(&parsed.program, &manifests);
+        let (aliases, dynamic_configs) =
+            build_import_aliases(&parsed.program, &manifests, &HashSet::new());
         let import_ctx = ImportContext {
             aliases,
             dynamic_configs,
