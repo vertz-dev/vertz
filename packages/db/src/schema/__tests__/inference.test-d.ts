@@ -9,11 +9,15 @@ import type {
   IncludeResolve,
   InsertInput,
   ModelEntry,
+  NumericColumnKeys,
   OrderByType,
   SelectNarrow,
   SelectOption,
   UpdateInput,
 } from '../inference';
+import type { TypedGroupByArgs } from '../../query/aggregate';
+import type { GroupByExpression } from '../../query/expression';
+import { fnDate, fnDateTrunc, fnExtract } from '../../query/expression';
 
 // ---------------------------------------------------------------------------
 // Fixture tables
@@ -580,5 +584,211 @@ describe('Include depth cap', () => {
     >;
 
     type _t1 = Expect<Equal<CappedResult, unknown>>;
+  });
+});
+
+// ---------------------------------------------------------------------------
+// NumericColumnKeys — filters to numeric columns only
+// ---------------------------------------------------------------------------
+
+describe('NumericColumnKeys', () => {
+  // users table has: id(uuid), email(text), passwordHash(text), name(text),
+  // role(enum), bio(text), active(boolean), createdAt(timestamp), age(integer), score(real)
+  type UserNumeric = NumericColumnKeys<typeof users._columns>;
+
+  it('includes integer columns', () => {
+    type _t1 = Expect<Extends<'age', UserNumeric>>;
+  });
+
+  it('includes real columns', () => {
+    type _t1 = Expect<Extends<'score', UserNumeric>>;
+  });
+
+  it('excludes text columns', () => {
+    type _t1 = Expect<Not<Extends<'name', UserNumeric>>>;
+    type _t2 = Expect<Not<Extends<'email', UserNumeric>>>;
+  });
+
+  it('excludes uuid columns', () => {
+    type _t1 = Expect<Not<Extends<'id', UserNumeric>>>;
+  });
+
+  it('excludes boolean columns', () => {
+    type _t1 = Expect<Not<Extends<'active', UserNumeric>>>;
+  });
+
+  it('excludes timestamp columns', () => {
+    type _t1 = Expect<Not<Extends<'createdAt', UserNumeric>>>;
+  });
+
+  it('resolves to never for tables with no numeric columns', () => {
+    const textOnly = d.table('text_only', {
+      id: d.uuid().primary(),
+      name: d.text(),
+    });
+    type Result = NumericColumnKeys<typeof textOnly._columns>;
+    type _t1 = Expect<Equal<Result, never>>;
+  });
+});
+
+// ---------------------------------------------------------------------------
+// TypedGroupByArgs — strongly typed groupBy options
+// ---------------------------------------------------------------------------
+
+// Fixture: ModelEntry for users table (used in groupBy tests)
+type UsersEntry = ModelEntry<typeof users>;
+
+describe('TypedGroupByArgs', () => {
+  // --- by: column names ---
+
+  it('accepts valid column names in by', () => {
+    const _opts: TypedGroupByArgs<UsersEntry> = {
+      by: ['name', 'role'],
+      _count: true,
+    };
+    void _opts;
+  });
+
+  it('rejects invalid column names in by', () => {
+    const _opts: TypedGroupByArgs<UsersEntry> = {
+      // @ts-expect-error — 'nonExistent' is not a column on users
+      by: ['nonExistent'],
+    };
+    void _opts;
+  });
+
+  // --- by: GroupByExpression with valid column ---
+
+  it('accepts GroupByExpression with valid column in by', () => {
+    const _opts: TypedGroupByArgs<UsersEntry> = {
+      by: [fnDate('createdAt')],
+      _count: true,
+    };
+    void _opts;
+  });
+
+  it('accepts mix of column names and expressions in by', () => {
+    const _opts: TypedGroupByArgs<UsersEntry> = {
+      by: ['role', fnDateTrunc('hour', 'createdAt')],
+      _count: true,
+    };
+    void _opts;
+  });
+
+  it('rejects GroupByExpression with non-existent column in by', () => {
+    const _opts: TypedGroupByArgs<UsersEntry> = {
+      // @ts-expect-error — 'nonExistent' is not a column on users
+      by: [fnDate('nonExistent')],
+    };
+    void _opts;
+  });
+
+  it('rejects GroupByExpression with wrong column via fnExtract', () => {
+    const _opts: TypedGroupByArgs<UsersEntry> = {
+      // @ts-expect-error — 'missing' is not a column on users
+      by: [fnExtract('month', 'missing')],
+    };
+    void _opts;
+  });
+
+  // --- _avg / _sum restricted to numeric columns ---
+
+  it('accepts numeric columns in _avg', () => {
+    const _opts: TypedGroupByArgs<UsersEntry> = {
+      by: ['role'],
+      _avg: { age: true, score: true },
+    };
+    void _opts;
+  });
+
+  it('rejects non-numeric columns in _avg', () => {
+    const _opts: TypedGroupByArgs<UsersEntry> = {
+      by: ['role'],
+      // @ts-expect-error — 'name' is a text column, not numeric
+      _avg: { name: true },
+    };
+    void _opts;
+  });
+
+  it('accepts numeric columns in _sum', () => {
+    const _opts: TypedGroupByArgs<UsersEntry> = {
+      by: ['role'],
+      _sum: { score: true },
+    };
+    void _opts;
+  });
+
+  it('rejects non-numeric columns in _sum', () => {
+    const _opts: TypedGroupByArgs<UsersEntry> = {
+      by: ['role'],
+      // @ts-expect-error — 'email' is a text column, not numeric
+      _sum: { email: true },
+    };
+    void _opts;
+  });
+
+  // --- _min / _max accept any column ---
+
+  it('accepts any column in _min', () => {
+    const _opts: TypedGroupByArgs<UsersEntry> = {
+      by: ['role'],
+      _min: { name: true, age: true, createdAt: true },
+    };
+    void _opts;
+  });
+
+  it('accepts any column in _max', () => {
+    const _opts: TypedGroupByArgs<UsersEntry> = {
+      by: ['role'],
+      _max: { score: true, email: true },
+    };
+    void _opts;
+  });
+
+  // --- _count ---
+
+  it('accepts _count: true for total count', () => {
+    const _opts: TypedGroupByArgs<UsersEntry> = {
+      by: ['role'],
+      _count: true,
+    };
+    void _opts;
+  });
+
+  it('accepts _count with column names', () => {
+    const _opts: TypedGroupByArgs<UsersEntry> = {
+      by: ['role'],
+      _count: { bio: true, age: true },
+    };
+    void _opts;
+  });
+
+  // --- where validates via FilterType ---
+
+  it('accepts valid where filter', () => {
+    const _opts: TypedGroupByArgs<UsersEntry> = {
+      by: ['role'],
+      where: { active: true, name: { contains: 'test' } },
+      _count: true,
+    };
+    void _opts;
+  });
+
+  it('rejects invalid column in where', () => {
+    const _opts: TypedGroupByArgs<UsersEntry> = {
+      by: ['role'],
+      // @ts-expect-error — 'nonExistent' is not a column on users
+      where: { nonExistent: 'value' },
+    };
+    void _opts;
+  });
+
+  it('rejects wrong type in where filter', () => {
+    const _opts: TypedGroupByArgs<UsersEntry> = {
+      by: ['role'],
+      // @ts-expect-error — age is number, not string
+      where: { age: 'not-a-number' },
+    };
+    void _opts;
   });
 });
