@@ -41,12 +41,6 @@ describe('PostgreSQL Driver', () => {
     });
   });
 
-  afterEach(() => {
-    mockEnd.mockClear();
-    mockUnsafe.mockClear();
-    mockPostgres.mockClear();
-  });
-
   // =========================================================================
   // #315: Query routing edge cases
   // =========================================================================

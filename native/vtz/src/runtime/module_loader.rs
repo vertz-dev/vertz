@@ -92,10 +92,15 @@ impl VertzModuleLoader {
                         .borrow_mut()
                         .insert(canonical, specifier.clone());
                 }
-                Err(_) => {
-                    // Specifier couldn't be resolved (e.g., bare specifier like 'postgres').
-                    // Try node_modules resolution from test file's directory.
-                    // If that also fails, skip — the mock won't affect transitive imports.
+                Err(e) => {
+                    // Resolution failed (including node_modules lookup).
+                    // The mock won't intercept transitive imports of this specifier.
+                    eprintln!(
+                        "[vtz:mock] Warning: could not resolve mocked specifier '{}' from {}: {}",
+                        specifier,
+                        test_file_path.display(),
+                        e
+                    );
                 }
             }
         }
@@ -611,8 +616,8 @@ fn extract_export_names(source: &str) -> Vec<String> {
 /// Generate a proxy ES module that re-exports from the mock registry.
 ///
 /// The proxy reads from `globalThis.__vertz_mocked_modules[specifier]` and
-/// re-exports each named export. Functions are wrapped so they delegate at
-/// call time (late binding — the mock can be swapped between tests).
+/// re-exports each named export as `const` bindings. Mock behavior changes
+/// via object mutation (e.g. `.mockImplementation()`), not reference replacement.
 fn generate_mock_proxy_module(specifier: &str, export_names: &[String]) -> String {
     let mut code = format!(
         "const __m = globalThis.__vertz_mocked_modules?.['{}'] ?? {{}};\n",
