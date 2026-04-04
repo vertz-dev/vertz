@@ -256,29 +256,24 @@ impl<'c> Visit<'c> for ModuleLevelJsxCollector {
     }
 }
 
-/// Inject a `data-v-id` setAttribute call into the first __element() IIFE.
+/// Inject a `data-v-id` setAttribute call into the first `__element()` IIFE.
+///
+/// Finds the pattern `const __elN = __element("tag")` and inserts
+/// `__elN.setAttribute("data-v-id", "Name");` right after that statement.
+/// Skips `document.createDocumentFragment()` declarations (fragments).
 fn inject_hydration_attr(code: &str, component_name: &str) -> Option<String> {
-    // Find pattern: `const __elN = __element("tag")`
-    // Insert after the semicolon: `__elN.setAttribute("data-v-id", "Name");`
-    let el_prefix = "const __el";
-    let pos = code.find(el_prefix)?;
-    let after = &code[pos..];
+    // Use a regex to find exactly `const __elN = __element("...")`
+    // This avoids the bug where `const __el0 = document.createDocumentFragment()`
+    // is matched and then the search for `= __element(` jumps to a different statement.
+    let re = regex::Regex::new(r#"const (__el\d+) = __element\("[^"]*"\)"#).ok()?;
+    let m = re.find(code)?;
+    let caps = re.captures(code)?;
+    let var_name = caps.get(1)?.as_str();
+    let insert_pos = m.end();
 
-    // Extract the variable name (e.g., "__el0")
-    let eq_pos = after.find(" = __element(")?;
-    let var_name = &after[6..eq_pos]; // skip "const "
-    let full_var = format!("__el{}", var_name);
-
-    // Find the end of this statement (the semicolon after __element(...))
-    let stmt_end = after.find("__element(")?;
-    let rest = &after[stmt_end..];
-    let paren_end = rest.find(')')?;
-    let insert_pos = pos + stmt_end + paren_end + 1;
-
-    // Check if there's already a semicolon
     let insert_text = format!(
         ";\n  {}.setAttribute(\"data-v-id\", \"{}\")",
-        full_var, component_name
+        var_name, component_name
     );
 
     let mut result = String::with_capacity(code.len() + insert_text.len());
