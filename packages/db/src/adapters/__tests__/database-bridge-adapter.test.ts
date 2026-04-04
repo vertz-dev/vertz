@@ -405,6 +405,96 @@ describe('createDatabaseBridgeAdapter', () => {
     expect((capturedOptions as { where: Record<string, unknown> }).where.id).toBe('u1');
   });
 
+  // -------------------------------------------------------------------------
+  // Composite ID (Record<string, string>) support
+  // -------------------------------------------------------------------------
+
+  it('get() with Record<string, string> spreads into where clause', async () => {
+    let capturedOptions: unknown;
+    const mockUser = { id: 'u1', name: 'Alice', email: 'alice@example.com' };
+    const db = createMockDb({
+      get: async (options?: unknown) => {
+        capturedOptions = options;
+        return ok(mockUser);
+      },
+    });
+
+    const adapter = createDatabaseBridgeAdapter(db, 'users');
+    await adapter.get({ projectId: 'p1', userId: 'u1' });
+
+    expect(capturedOptions).toEqual({ where: { projectId: 'p1', userId: 'u1' } });
+  });
+
+  it('update() with Record<string, string> spreads into where clause', async () => {
+    let capturedOptions: unknown;
+    const db = createMockDb({
+      update: async (options?: unknown) => {
+        capturedOptions = options;
+        return ok({} as never);
+      },
+    });
+
+    const adapter = createDatabaseBridgeAdapter(db, 'users');
+    await adapter.update({ projectId: 'p1', userId: 'u1' }, { name: 'Updated' });
+
+    expect(capturedOptions).toMatchObject({ where: { projectId: 'p1', userId: 'u1' } });
+  });
+
+  it('delete() with Record<string, string> spreads into where clause', async () => {
+    let capturedOptions: unknown;
+    const db = createMockDb({
+      delete: async (options?: unknown) => {
+        capturedOptions = options;
+        return ok({} as never);
+      },
+    });
+
+    const adapter = createDatabaseBridgeAdapter(db, 'users');
+    await adapter.delete({ projectId: 'p1', userId: 'u1' });
+
+    expect(capturedOptions).toEqual({ where: { projectId: 'p1', userId: 'u1' } });
+  });
+
+  it('get() with Record ID merges with options.where', async () => {
+    let capturedOptions: unknown;
+    const mockUser = { id: 'u1', name: 'Alice', email: 'alice@example.com' };
+    const db = createMockDb({
+      get: async (options?: unknown) => {
+        capturedOptions = options;
+        return ok(mockUser);
+      },
+    });
+
+    const adapter = createDatabaseBridgeAdapter(db, 'users');
+    await adapter.get(
+      { projectId: 'p1', userId: 'u1' },
+      { where: { active: true } as Record<string, unknown> },
+    );
+
+    expect(capturedOptions).toEqual({
+      where: { active: true, projectId: 'p1', userId: 'u1' },
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // Cursor forwarding
+  // -------------------------------------------------------------------------
+
+  it('list() forwards after cursor to delegate as cursor option', async () => {
+    let capturedOptions: unknown;
+    const db = createMockDb({
+      listAndCount: async (options?: unknown) => {
+        capturedOptions = options;
+        return ok({ data: [], total: 0 });
+      },
+    });
+
+    const adapter = createDatabaseBridgeAdapter(db, 'users');
+    await adapter.list({ after: 'cursor-123' });
+
+    expect(capturedOptions).toMatchObject({ cursor: { id: 'cursor-123' } });
+  });
+
   it('list() passes orderBy and include options to delegate.listAndCount', async () => {
     let capturedOptions: unknown;
     const db = createMockDb({

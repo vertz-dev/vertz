@@ -121,6 +121,32 @@ describe('delete() accepts optional DeleteOptions', () => {
   });
 });
 
+// ---------------------------------------------------------------------------
+// Composite ID — Record<string, string> accepted
+// ---------------------------------------------------------------------------
+
+describe('EntityDbAdapter accepts composite ID (Record<string, string>)', () => {
+  it('get() accepts Record<string, string>', () => {
+    const adapter = createDatabaseBridgeAdapter(db, 'users');
+    adapter.get({ projectId: 'p1', userId: 'u1' });
+  });
+
+  it('update() accepts Record<string, string>', () => {
+    const adapter = createDatabaseBridgeAdapter(db, 'users');
+    adapter.update({ projectId: 'p1', userId: 'u1' }, { name: 'Updated' });
+  });
+
+  it('delete() accepts Record<string, string>', () => {
+    const adapter = createDatabaseBridgeAdapter(db, 'users');
+    adapter.delete({ projectId: 'p1', userId: 'u1' });
+  });
+
+  it('get() still accepts string (backward compat)', () => {
+    const adapter = createDatabaseBridgeAdapter(db, 'users');
+    adapter.get('uuid-123');
+  });
+});
+
 describe('createDatabaseBridgeAdapter rejects invalid usage', () => {
   it('rejects a table name not in the models registry', () => {
     // @ts-expect-error — 'posts' is not a registered model
