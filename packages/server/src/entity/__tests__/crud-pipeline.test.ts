@@ -2687,22 +2687,228 @@ describe('Feature: CRUD pipeline', () => {
 });
 
 describe('composite primary key guard', () => {
-  it('throws when entity uses a composite-PK table', () => {
-    const membersTable = d.table(
-      'tenant_members',
+  // -------------------------------------------------------------------------
+  // Composite PK support
+  // -------------------------------------------------------------------------
+
+  describe('Given a composite-PK entity (projectMembers)', () => {
+    const projectMembersTable = d.table(
+      'project_members',
       {
-        tenantId: d.uuid(),
+        projectId: d.uuid(),
         userId: d.uuid(),
-        role: d.text(),
+        role: d.text().default('member'),
       },
-      { primaryKey: ['tenantId', 'userId'] },
+      { primaryKey: ['projectId', 'userId'] },
     );
 
-    const membersModel = d.model(membersTable);
-    const def = entity('tenant-member', { model: membersModel });
+    const projectMembersModel = d.model(projectMembersTable);
+    const compositeDef = entity('project-member', {
+      model: projectMembersModel,
+      access: {
+        list: (ctx) => ctx.authenticated(),
+        get: (ctx) => ctx.authenticated(),
+        create: (ctx) => ctx.authenticated(),
+        update: (ctx) => ctx.authenticated(),
+        delete: (ctx) => ctx.authenticated(),
+      },
+    });
 
-    const stubDb = createStubDb();
+    function createCompositeStubDb() {
+      const rows: Record<string, Record<string, unknown>> = {
+        'p1|u1': {
+          projectId: 'p1',
+          userId: 'u1',
+          role: 'admin',
+        },
+        'p1|u2': {
+          projectId: 'p1',
+          userId: 'u2',
+          role: 'member',
+        },
+      };
 
-    expect(() => createCrudHandlers(def, stubDb)).toThrow(/composite primary key/i);
+      function matchesWhere(
+        row: Record<string, unknown>,
+        where?: Record<string, unknown>,
+      ): boolean {
+        if (!where) return true;
+        return Object.entries(where).every(([key, value]) => {
+          if (typeof value === 'object' && value !== null && 'in' in value) {
+            return (value as { in: unknown[] }).in.includes(row[key]);
+          }
+          return row[key] === value;
+        });
+      }
+
+      function findRow(
+        id: string | Record<string, string>,
+        where?: Record<string, unknown>,
+      ): Record<string, unknown> | null {
+        let row: Record<string, unknown> | null = null;
+        if (typeof id === 'string') {
+          row = rows[id] ?? null;
+        } else {
+          // Composite ID: find by matching all PK columns
+          row =
+            Object.values(rows).find((r) =>
+              Object.entries(id).every(([k, v]) => r[k] === v),
+            ) ?? null;
+        }
+        if (row && where && !matchesWhere(row, where)) return null;
+        return row;
+      }
+
+      return {
+        get: mock(
+          async (
+            id: string | Record<string, string>,
+            options?: { where?: Record<string, unknown> },
+          ) => findRow(id, options?.where),
+        ),
+        list: mock(async (options?: { where?: Record<string, unknown>; limit?: number }) => {
+          let result = Object.values(rows);
+          if (options?.where) {
+            result = result.filter((r) => matchesWhere(r, options.where));
+          }
+          if (options?.limit !== undefined) {
+            result = result.slice(0, options.limit);
+          }
+          return { data: result, total: result.length };
+        }),
+        create: mock(async (data: Record<string, unknown>) => ({ ...data })),
+        update: mock(
+          async (
+            id: string | Record<string, string>,
+            data: Record<string, unknown>,
+            options?: { where?: Record<string, unknown> },
+          ) => {
+            const row = findRow(id, options?.where);
+            if (!row) throw new Error('Update matched 0 rows');
+            return { ...row, ...data };
+          },
+        ),
+        delete: mock(
+          async (
+            id: string | Record<string, string>,
+            options?: { where?: Record<string, unknown> },
+          ) => findRow(id, options?.where),
+        ),
+      };
+    }
+
+    describe('When createCrudHandlers is called', () => {
+      it('Then does NOT throw for composite-PK tables', () => {
+        const db = createCompositeStubDb();
+        expect(() => createCrudHandlers(compositeDef, db)).not.toThrow();
+      });
+    });
+
+    describe('When get() is called with a composite ID', () => {
+      it('Then returns the matching row', async () => {
+        const db = createCompositeStubDb();
+        const handlers = createCrudHandlers(compositeDef, db);
+        const ctx = makeCtx();
+
+        const result = unwrap(
+          await handlers.get(ctx, { projectId: 'p1', userId: 'u1' } as never),
+        );
+
+        expect(result.body).toMatchObject({ projectId: 'p1', userId: 'u1', role: 'admin' });
+      });
+
+      it('Then returns notFound with composite key in error message', async () => {
+        const db = createCompositeStubDb();
+        const handlers = createCrudHandlers(compositeDef, db);
+        const ctx = makeCtx();
+
+        const result = await handlers.get(ctx, { projectId: 'p99', userId: 'u99' } as never);
+
+        expect(result.ok).toBe(false);
+        if (!result.ok) {
+          expect(result.error).toBeInstanceOf(EntityNotFoundError);
+          expect(result.error.message).toContain('projectId: "p99"');
+          expect(result.error.message).toContain('userId: "u99"');
+        }
+      });
+    });
+
+    describe('When get() is called with a string ID on a composite entity', () => {
+      it('Then returns a validation error', async () => {
+        const db = createCompositeStubDb();
+        const handlers = createCrudHandlers(compositeDef, db);
+        const ctx = makeCtx();
+
+        const result = await handlers.get(ctx, 'single-string' as never);
+
+        expect(result.ok).toBe(false);
+        if (!result.ok) {
+          expect(result.error).toBeInstanceOf(EntityValidationError);
+          const valErr = result.error as EntityValidationError;
+          expect(valErr.errors[0]!.message).toContain('requires composite key');
+        }
+      });
+    });
+
+    describe('When get() is called with a composite ID missing a column', () => {
+      it('Then returns a validation error naming the missing column', async () => {
+        const db = createCompositeStubDb();
+        const handlers = createCrudHandlers(compositeDef, db);
+        const ctx = makeCtx();
+
+        const result = await handlers.get(ctx, { projectId: 'p1' } as never);
+
+        expect(result.ok).toBe(false);
+        if (!result.ok) {
+          expect(result.error).toBeInstanceOf(EntityValidationError);
+          const valErr = result.error as EntityValidationError;
+          expect(valErr.errors[0]!.message).toContain('Missing key column: "userId"');
+        }
+      });
+    });
+
+    describe('When update() is called with a composite ID', () => {
+      it('Then returns the updated record', async () => {
+        const db = createCompositeStubDb();
+        const handlers = createCrudHandlers(compositeDef, db);
+        const ctx = makeCtx();
+
+        const result = unwrap(
+          await handlers.update(ctx, { projectId: 'p1', userId: 'u1' } as never, { role: 'owner' }),
+        );
+
+        expect(result.body).toMatchObject({ projectId: 'p1', userId: 'u1', role: 'owner' });
+      });
+    });
+
+    describe('When delete() is called with a composite ID', () => {
+      it('Then returns 204', async () => {
+        const db = createCompositeStubDb();
+        const handlers = createCrudHandlers(compositeDef, db);
+        const ctx = makeCtx();
+
+        const result = unwrap(
+          await handlers.delete(ctx, { projectId: 'p1', userId: 'u1' } as never),
+        );
+
+        expect(result.status).toBe(204);
+      });
+    });
+
+    describe('When list() returns rows for a composite-PK entity', () => {
+      it('Then encodes composite cursor as JSON object', async () => {
+        const db = createCompositeStubDb();
+        const handlers = createCrudHandlers(compositeDef, db);
+        const ctx = makeCtx();
+
+        const result = unwrap(await handlers.list(ctx, { limit: 1 }));
+
+        const cursor = result.body.nextCursor;
+        expect(cursor).not.toBeNull();
+        const parsed = JSON.parse(cursor!);
+        expect(parsed).toHaveProperty('projectId');
+        expect(parsed).toHaveProperty('userId');
+      });
+    });
   });
 });
