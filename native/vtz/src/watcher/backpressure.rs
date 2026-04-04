@@ -40,17 +40,19 @@ impl<F: FnMut(&str)> BackpressureWarner<F> {
     /// - First drop after cooldown expires: logs summary with suppressed count
     pub fn on_drop(&mut self, detail: &str) {
         if let Some(last) = self.last_warn {
-            if last.elapsed() < self.cooldown {
-                self.suppressed_count += 1;
+            let elapsed = last.elapsed();
+            if elapsed < self.cooldown {
+                self.suppressed_count = self.suppressed_count.saturating_add(1);
                 return;
             }
             // Cooldown expired — log summary with suppressed count
-            let count = self.suppressed_count;
-            let elapsed = last.elapsed();
+            let total = self.suppressed_count + 1; // include this drop
+            let label = if total == 1 { "event" } else { "events" };
             let msg = format!(
-                "[Server] {} channel full — dropped {} events in the last {:.1}s",
+                "[Server] {} channel full — dropped {} {} in the last {:.1}s",
                 self.channel_name,
-                count + 1, // include this drop
+                total,
+                label,
                 elapsed.as_secs_f64(),
             );
             (self.warn_fn)(&msg);
@@ -199,5 +201,32 @@ mod tests {
 
         let msgs = messages.borrow();
         assert_eq!(msgs.len(), 3, "Should have 3 warnings: {:?}", *msgs);
+    }
+
+    #[test]
+    fn test_singular_event_label_when_one_drop_after_cooldown() {
+        let (mut warner, messages) = make_warner(10); // 10ms cooldown
+
+        // First drop (immediate with detail)
+        warner.on_drop("first.tsx (Modify)");
+
+        // Wait for cooldown
+        std::thread::sleep(Duration::from_millis(15));
+
+        // Second drop — no suppressed drops, so total = 1 (this drop only)
+        warner.on_drop("second.tsx (Modify)");
+
+        let msgs = messages.borrow();
+        assert_eq!(msgs.len(), 2, "Should have 2 warnings: {:?}", *msgs);
+        assert!(
+            msgs[1].contains("1 event "),
+            "Should use singular 'event' for count=1: {}",
+            msgs[1]
+        );
+        assert!(
+            !msgs[1].contains("1 events"),
+            "Should NOT use plural 'events' for count=1: {}",
+            msgs[1]
+        );
     }
 }
