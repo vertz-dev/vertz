@@ -18,6 +18,10 @@ use crate::Diagnostic;
 pub struct MockHoistingResult {
     /// Set of module specifiers that are mocked (for exclusion from signal API analysis).
     pub mocked_specifiers: HashSet<String>,
+    /// The mock preamble code block (hoisted calls, IIFE factories, registrations).
+    /// This can be evaluated as a V8 script before module loading to enable
+    /// transitive mocking (mocking a module imported by another module).
+    pub mock_preamble: Option<String>,
     /// Diagnostics emitted during the transform.
     pub diagnostics: Vec<Diagnostic>,
 }
@@ -124,6 +128,7 @@ pub fn transform_mock_hoisting(
 
         return MockHoistingResult {
             mocked_specifiers,
+            mock_preamble: None,
             diagnostics,
         };
     }
@@ -156,7 +161,7 @@ pub fn transform_mock_hoisting(
         let spec = import.source.value.as_str();
         imported_specifiers.insert(spec.to_string());
 
-        let Some(&mock_idx) = specifier_to_index.get(spec) else {
+        let Some(&_mock_idx) = specifier_to_index.get(spec) else {
             continue;
         };
 
@@ -165,8 +170,8 @@ pub fn transform_mock_hoisting(
             continue;
         }
 
-        let var_name = format!("__vertz_mock_{mock_idx}");
-        let rewrite = generate_import_rewrite(import, &var_name, source);
+        let mock_expr = format!("globalThis.__vertz_mocked_modules['{}']", spec);
+        let rewrite = generate_import_rewrite(import, &mock_expr, source);
 
         mocked_imports.push(MockedImportInfo {
             rewrite,
@@ -197,16 +202,30 @@ pub fn transform_mock_hoisting(
     diagnostics.extend(nested_diags);
 
     // ── Step 8: Apply MagicString edits ──────────────────────────────────
+    //
+    // The preamble uses `globalThis.*` for all variables so it can be
+    // pre-evaluated as a V8 script (for transitive mocking) and also
+    // safely skipped on re-evaluation via a guard flag.
 
-    // Build the prepended block: hoisted calls → mock factories → registrations
+    // Build the prepended block: guard → hoisted calls → mock factories → registrations
     let mut prepend_block = String::new();
+    prepend_block.push_str("if (!globalThis.__vertz_mock_preamble_executed) {\n");
+    prepend_block.push_str("globalThis.__vertz_mock_preamble_executed = true;\n");
 
-    // Hoisted calls
-    for hoisted in &hoisted_calls {
+    // Hoisted calls — stored on globalThis so they survive script→module boundary.
+    // After each hoisted IIFE, destructure with `var` so the names are available
+    // to mock factories that run later in the preamble (`var` has no TDZ).
+    for (i, hoisted) in hoisted_calls.iter().enumerate() {
+        prepend_block.push_str(&format!(
+            "globalThis.__vertz_hoisted_{i} = ({})();\n",
+            hoisted.factory_source
+        ));
+        // Make destructured names available in the preamble scope
         if let Some(ref lhs) = hoisted.lhs_source {
-            prepend_block.push_str(&format!("{lhs}({})();\n", hoisted.factory_source));
-        } else {
-            prepend_block.push_str(&format!("({})();\n", hoisted.factory_source));
+            let var_lhs = lhs
+                .replacen("const ", "var ", 1)
+                .replacen("let ", "var ", 1);
+            prepend_block.push_str(&format!("{var_lhs}globalThis.__vertz_hoisted_{i};\n"));
         }
     }
 
@@ -216,7 +235,7 @@ pub fn transform_mock_hoisting(
         if specifier_to_index.get(&mock_call.specifier) == Some(&i) {
             // Replace vi.importActual(...) with import(...) inside factory source
             let factory = replace_import_actual_in_string(&mock_call.factory_source);
-            prepend_block.push_str(&format!("const __vertz_mock_{i} = ({factory})();\n",));
+            prepend_block.push_str(&format!("globalThis.__vertz_mock_{i} = ({factory})();\n",));
         }
     }
 
@@ -228,19 +247,28 @@ pub fn transform_mock_hoisting(
         for (i, mock_call) in mock_calls.iter().enumerate() {
             if specifier_to_index.get(&mock_call.specifier) == Some(&i) {
                 prepend_block.push_str(&format!(
-                    "globalThis.__vertz_mocked_modules['{}'] = __vertz_mock_{i};\n",
+                    "globalThis.__vertz_mocked_modules['{}'] = globalThis.__vertz_mock_{i};\n",
                     mock_call.specifier
                 ));
             }
         }
     }
 
+    prepend_block.push_str("}\n");
+
+    // Capture preamble before prepending
+    let mock_preamble = if mock_calls.is_empty() && hoisted_calls.is_empty() {
+        None
+    } else {
+        Some(prepend_block.clone())
+    };
+
     // Prepend the hoisted block at position 0
     if !prepend_block.is_empty() {
         ms.prepend(&prepend_block);
     }
 
-    // Overwrite mocked imports with const destructuring
+    // Overwrite mocked imports with const destructuring from globalThis registry
     for mocked_import in &mocked_imports {
         ms.overwrite(
             mocked_import.start,
@@ -254,9 +282,21 @@ pub fn transform_mock_hoisting(
         ms.overwrite(mock_call.stmt_start, mock_call.stmt_end, "");
     }
 
-    // Remove original vi.hoisted() statements
-    for hoisted in &hoisted_calls {
-        ms.overwrite(hoisted.stmt_start, hoisted.stmt_end, "");
+    // Replace original vi.hoisted() statements with var destructuring from globalThis.
+    // Using `var` (not `const`) to match the preamble and avoid TDZ issues.
+    for (i, hoisted) in hoisted_calls.iter().enumerate() {
+        if let Some(ref lhs) = hoisted.lhs_source {
+            let var_lhs = lhs
+                .replacen("const ", "var ", 1)
+                .replacen("let ", "var ", 1);
+            ms.overwrite(
+                hoisted.stmt_start,
+                hoisted.stmt_end,
+                &format!("{var_lhs}globalThis.__vertz_hoisted_{i};"),
+            );
+        } else {
+            ms.overwrite(hoisted.stmt_start, hoisted.stmt_end, "");
+        }
     }
 
     // Replace vi.importActual() calls everywhere
@@ -264,6 +304,7 @@ pub fn transform_mock_hoisting(
 
     MockHoistingResult {
         mocked_specifiers,
+        mock_preamble,
         diagnostics,
     }
 }
@@ -392,18 +433,31 @@ fn extract_hoisted_call_info(stmt: &Statement, source: &str) -> Option<HoistedCa
 /// Apply hoisted transforms without mocks (just vi.hoisted() calls).
 fn apply_hoisted_transforms(ms: &mut MagicString, hoisted_calls: &[HoistedCallInfo]) {
     let mut prepend_block = String::new();
-    for hoisted in hoisted_calls {
-        if let Some(ref lhs) = hoisted.lhs_source {
-            prepend_block.push_str(&format!("{lhs}({})();\n", hoisted.factory_source));
-        } else {
-            prepend_block.push_str(&format!("({})();\n", hoisted.factory_source));
-        }
+    prepend_block.push_str("if (!globalThis.__vertz_mock_preamble_executed) {\n");
+    prepend_block.push_str("globalThis.__vertz_mock_preamble_executed = true;\n");
+    for (i, hoisted) in hoisted_calls.iter().enumerate() {
+        prepend_block.push_str(&format!(
+            "globalThis.__vertz_hoisted_{i} = ({})();\n",
+            hoisted.factory_source
+        ));
     }
+    prepend_block.push_str("}\n");
     if !prepend_block.is_empty() {
         ms.prepend(&prepend_block);
     }
-    for hoisted in hoisted_calls {
-        ms.overwrite(hoisted.stmt_start, hoisted.stmt_end, "");
+    for (i, hoisted) in hoisted_calls.iter().enumerate() {
+        if let Some(ref lhs) = hoisted.lhs_source {
+            let var_lhs = lhs
+                .replacen("const ", "var ", 1)
+                .replacen("let ", "var ", 1);
+            ms.overwrite(
+                hoisted.stmt_start,
+                hoisted.stmt_end,
+                &format!("{var_lhs}globalThis.__vertz_hoisted_{i};"),
+            );
+        } else {
+            ms.overwrite(hoisted.stmt_start, hoisted.stmt_end, "");
+        }
     }
 }
 
@@ -695,8 +749,9 @@ vi.mock('./math', () => ({ add: 1, multiply: 2 }));
 "#;
         let (output, result) = parse_and_transform(source);
         assert!(result.mocked_specifiers.contains("./math"));
-        assert!(output.contains("const __vertz_mock_0 = "));
-        assert!(output.contains("const { add, multiply } = __vertz_mock_0"));
+        assert!(output.contains("globalThis.__vertz_mock_0 = "));
+        assert!(output
+            .contains("const { add, multiply } = globalThis.__vertz_mocked_modules['./math']"));
         assert!(!output.contains("import { add, multiply }"));
     }
 
@@ -707,7 +762,7 @@ vi.mock('./client', () => ({ default: () => 'mocked' }));
 "#;
         let (output, _) = parse_and_transform(source);
         assert!(output.contains(
-            "const createClient = \"default\" in __vertz_mock_0 ? __vertz_mock_0.default : __vertz_mock_0"
+            "const createClient = \"default\" in globalThis.__vertz_mocked_modules['./client'] ? globalThis.__vertz_mocked_modules['./client'].default : globalThis.__vertz_mocked_modules['./client']"
         ));
         assert!(!output.contains("import createClient"));
     }
@@ -718,7 +773,7 @@ vi.mock('./client', () => ({ default: () => 'mocked' }));
 vi.mock('./utils', () => ({ foo: 1 }));
 "#;
         let (output, _) = parse_and_transform(source);
-        assert!(output.contains("const utils = __vertz_mock_0"));
+        assert!(output.contains("const utils = globalThis.__vertz_mocked_modules['./utils']"));
         assert!(!output.contains("import * as utils"));
     }
 
@@ -739,9 +794,9 @@ vi.mock('./mod', () => ({ default: 'x', named: 'y' }));
 "#;
         let (output, _) = parse_and_transform(source);
         assert!(output.contains(
-            "const def = \"default\" in __vertz_mock_0 ? __vertz_mock_0.default : __vertz_mock_0"
+            "const def = \"default\" in globalThis.__vertz_mocked_modules['./mod'] ? globalThis.__vertz_mocked_modules['./mod'].default : globalThis.__vertz_mocked_modules['./mod']"
         ));
-        assert!(output.contains("const { named } = __vertz_mock_0"));
+        assert!(output.contains("const { named } = globalThis.__vertz_mocked_modules['./mod']"));
     }
 
     #[test]
@@ -764,13 +819,15 @@ const { mockAdd } = vi.hoisted(() => ({ mockAdd: vi.fn() }));
 vi.mock('./math', () => ({ add: mockAdd }));
 "#;
         let (output, _) = parse_and_transform(source);
-        // Hoisted should appear before mock factory
-        let hoisted_pos = output.find("const { mockAdd } = ").unwrap();
-        let mock_pos = output.find("const __vertz_mock_0 = ").unwrap();
+        // Hoisted should appear before mock factory in the preamble
+        let hoisted_pos = output.find("globalThis.__vertz_hoisted_0 = ").unwrap();
+        let mock_pos = output.find("globalThis.__vertz_mock_0 = ").unwrap();
         assert!(
             hoisted_pos < mock_pos,
             "Hoisted should be before mock factory"
         );
+        // Original vi.hoisted() replaced with var destructuring from globalThis
+        assert!(output.contains("var { mockAdd } = globalThis.__vertz_hoisted_0;"));
     }
 
     // ── vi.importActual() ───────────────────────────────────────────────
@@ -872,9 +929,9 @@ vi.mock('./math', () => ({ add: 1 }));
 vi.mock('./math', () => ({ add: 2 }));
 "#;
         let (output, _) = parse_and_transform(source);
-        // Should only have one __vertz_mock_N (the last one)
+        // Should only have one globalThis.__vertz_mock_N (the last one)
         // The index for the winning mock should be 1 (second mock call)
-        assert!(output.contains("const __vertz_mock_1 = "));
+        assert!(output.contains("globalThis.__vertz_mock_1 = "));
         // Both vi.mock statements should be removed
         assert!(!output.contains("vi.mock('./math'"));
     }
@@ -888,7 +945,8 @@ vi.mock('./math', () => ({ add: 1 }));
 "#;
         let (output, _) = parse_and_transform(source);
         assert!(output.contains("globalThis.__vertz_mocked_modules"));
-        assert!(output.contains("globalThis.__vertz_mocked_modules['./math'] = __vertz_mock_0"));
+        assert!(output
+            .contains("globalThis.__vertz_mocked_modules['./math'] = globalThis.__vertz_mock_0"));
     }
 
     // ── Renamed imports ──────────────────────────────────────────────────
@@ -899,7 +957,9 @@ vi.mock('./math', () => ({ add: 1 }));
 vi.mock('./math', () => ({ add: 42 }));
 "#;
         let (output, _) = parse_and_transform(source);
-        assert!(output.contains("const { add: myAdd } = __vertz_mock_0"));
+        assert!(
+            output.contains("const { add: myAdd } = globalThis.__vertz_mocked_modules['./math']")
+        );
     }
 
     // ── Pipeline integration (via crate::compile()) ─────────────────────
@@ -919,10 +979,10 @@ const x = add(1, 2);
             },
         );
         let code = &result.code;
-        // Mock factory IIFE present
-        assert!(code.contains("const __vertz_mock_0 = "));
-        // Import rewritten to const destructuring
-        assert!(code.contains("const { add } = __vertz_mock_0"));
+        // Mock factory IIFE present in preamble
+        assert!(code.contains("globalThis.__vertz_mock_0 = "));
+        // Import rewritten to const destructuring from globalThis registry
+        assert!(code.contains("const { add } = globalThis.__vertz_mocked_modules['./math']"));
         // Original vi.mock() call removed
         assert!(!code.contains("vi.mock('./math'"));
         // Registration on globalThis

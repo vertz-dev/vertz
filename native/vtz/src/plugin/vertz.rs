@@ -74,6 +74,8 @@ impl FrameworkPlugin for VertzPlugin {
             css: compile_result.css,
             source_map: compile_result.map,
             diagnostics,
+            mocked_specifiers: compile_result.mocked_specifiers.unwrap_or_default(),
+            mock_preamble: compile_result.mock_preamble,
         }
     }
 

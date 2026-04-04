@@ -69,6 +69,7 @@ impl Default for VertzRuntimeOptions {
 pub struct VertzJsRuntime {
     runtime: JsRuntime,
     captured_output: Arc<Mutex<CapturedOutput>>,
+    module_loader: Rc<VertzModuleLoader>,
 }
 
 impl VertzJsRuntime {
@@ -157,7 +158,7 @@ impl VertzJsRuntime {
         let module_loader = Rc::new(VertzModuleLoader::new(&root_dir, options.plugin.clone()));
 
         let mut runtime = JsRuntime::new(RuntimeOptions {
-            module_loader: Some(module_loader),
+            module_loader: Some(module_loader.clone()),
             extensions: vec![ext],
             inspector: options.enable_inspector,
             ..Default::default()
@@ -176,6 +177,7 @@ impl VertzJsRuntime {
         Ok(Self {
             runtime,
             captured_output,
+            module_loader,
         })
     }
 
@@ -227,7 +229,7 @@ impl VertzJsRuntime {
 
         let mut runtime = JsRuntime::new(RuntimeOptions {
             startup_snapshot: Some(snapshot),
-            module_loader: Some(module_loader),
+            module_loader: Some(module_loader.clone()),
             extensions: vec![ext],
             inspector: options.enable_inspector,
             ..Default::default()
@@ -246,6 +248,7 @@ impl VertzJsRuntime {
         Ok(Self {
             runtime,
             captured_output,
+            module_loader,
         })
     }
 
@@ -330,6 +333,11 @@ impl VertzJsRuntime {
     /// Get a mutable reference to the inner JsRuntime.
     pub fn inner_mut(&mut self) -> &mut JsRuntime {
         &mut self.runtime
+    }
+
+    /// Access the module loader (for registering mocked specifiers).
+    pub fn loader(&self) -> &VertzModuleLoader {
+        &self.module_loader
     }
 }
 

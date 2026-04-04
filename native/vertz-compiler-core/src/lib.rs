@@ -118,6 +118,10 @@ pub struct CompileResult {
     pub extracted_routes: Option<Vec<ExtractedRouteOutput>>,
     pub extracted_queries: Option<Vec<ExtractedQueryOutput>>,
     pub route_params: Option<Vec<String>>,
+    /// Module specifiers mocked via `vi.mock()` in the source file.
+    pub mocked_specifiers: Option<std::collections::HashSet<String>>,
+    /// The mock preamble code block for pre-evaluation (enables transitive mocking).
+    pub mock_preamble: Option<String>,
 }
 
 /// A manifest entry describing cross-file reactivity metadata.
@@ -234,6 +238,8 @@ pub fn compile(source: &str, options: CompileOptions) -> CompileResult {
             extracted_routes: None,
             extracted_queries: None,
             route_params: None,
+            mocked_specifiers: None,
+            mock_preamble: None,
         };
     }
 
@@ -249,12 +255,12 @@ pub fn compile(source: &str, options: CompileOptions) -> CompileResult {
 
     // Mock hoisting — must run BEFORE TypeScript stripping and import alias building
     // so it can see original import declarations and rewrite them.
-    let mocked_specifiers = if enable_mock_hoisting {
+    let (mocked_specifiers, mock_preamble) = if enable_mock_hoisting {
         let result = mock_hoisting::transform_mock_hoisting(&mut ms, &parser_ret.program, source);
         all_diagnostics.extend(result.diagnostics);
-        result.mocked_specifiers
+        (result.mocked_specifiers, result.mock_preamble)
     } else {
-        std::collections::HashSet::new()
+        (std::collections::HashSet::new(), None)
     };
 
     // Build import aliases for signal API detection (includes manifest-derived entries)
@@ -580,6 +586,12 @@ pub fn compile(source: &str, options: CompileOptions) -> CompileResult {
                 Some(pa.route_params)
             }
         }),
+        mocked_specifiers: if mocked_specifiers.is_empty() {
+            None
+        } else {
+            Some(mocked_specifiers)
+        },
+        mock_preamble,
     }
 }
 

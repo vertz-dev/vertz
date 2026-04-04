@@ -1166,3 +1166,68 @@ fn e2e_mock_transform_no_regression() {
     );
     assert_eq!(result.total_passed, 1);
 }
+
+// ─── E2E: Transitive mocking — mock affects dependency imports ──────
+
+#[test]
+fn e2e_mock_transitive() {
+    let tmp = tempfile::tempdir().unwrap();
+    setup_project(tmp.path());
+
+    // The "low-level" module that will be mocked
+    write_file(
+        tmp.path(),
+        "src/db-driver.ts",
+        r#"
+        export function query(sql: string): string[] {
+            return ['real-row-1', 'real-row-2'];
+        }
+        export function connect(): string {
+            return 'real-connection';
+        }
+        "#,
+    );
+
+    // The "high-level" module that imports from db-driver
+    write_file(
+        tmp.path(),
+        "src/database.ts",
+        r#"
+        import { query, connect } from './db-driver';
+        export function getUsers(): string[] {
+            connect();
+            return query('SELECT * FROM users');
+        }
+        "#,
+    );
+
+    // Test file: mocks db-driver but imports database (transitive mock)
+    write_file(
+        tmp.path(),
+        "src/__tests__/transitive-mock.test.ts",
+        r#"
+        import { getUsers } from '../database';
+
+        vi.mock('../db-driver', () => ({
+            query: vi.fn().mockReturnValue(['mocked-user']),
+            connect: vi.fn().mockReturnValue('mock-conn'),
+        }));
+
+        describe('transitive mocking', () => {
+            it('mock affects dependency imports', () => {
+                const users = getUsers();
+                expect(users).toEqual(['mocked-user']);
+            });
+        });
+        "#,
+    );
+
+    let (result, output) = run_tests(make_config(tmp.path()));
+
+    assert!(
+        result.success(),
+        "Transitive mock should work: output={output}, results={:?}",
+        result.results
+    );
+    assert_eq!(result.total_passed, 1);
+}

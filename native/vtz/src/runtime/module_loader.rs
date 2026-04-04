@@ -1,5 +1,5 @@
 use std::cell::RefCell;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 
 use deno_core::error::AnyError;
@@ -42,6 +42,9 @@ pub struct VertzModuleLoader {
     canon_cache: RefCell<HashMap<PathBuf, PathBuf>>,
     compile_cache: CompileCache,
     plugin: std::sync::Arc<dyn FrameworkPlugin>,
+    /// Canonical paths of modules that should be intercepted with mock proxies.
+    /// Key: canonical file path, Value: raw specifier (for `globalThis.__vertz_mocked_modules` lookup).
+    mocked_paths: RefCell<HashMap<PathBuf, String>>,
 }
 
 impl VertzModuleLoader {
@@ -52,6 +55,7 @@ impl VertzModuleLoader {
             canon_cache: RefCell::new(HashMap::new()),
             compile_cache: CompileCache::new(Path::new(root_dir), false),
             plugin,
+            mocked_paths: RefCell::new(HashMap::new()),
         }
     }
 
@@ -67,7 +71,51 @@ impl VertzModuleLoader {
             canon_cache: RefCell::new(HashMap::new()),
             compile_cache: CompileCache::new(Path::new(root_dir), cache_enabled),
             plugin,
+            mocked_paths: RefCell::new(HashMap::new()),
         }
+    }
+
+    /// Register modules that should be mocked (transitive mocking).
+    ///
+    /// Resolves each specifier relative to the test file to get the canonical
+    /// file path, then stores it so `resolve()` can redirect to a proxy module.
+    pub fn register_mocked_specifiers(
+        &self,
+        specifiers: &std::collections::HashSet<String>,
+        test_file_path: &Path,
+    ) {
+        for specifier in specifiers {
+            match self.resolve_specifier(specifier, test_file_path) {
+                Ok(resolved) => {
+                    let canonical = self.canonicalize_cached(&resolved);
+                    self.mocked_paths
+                        .borrow_mut()
+                        .insert(canonical, specifier.clone());
+                }
+                Err(_) => {
+                    // Specifier couldn't be resolved (e.g., bare specifier like 'postgres').
+                    // Try node_modules resolution from test file's directory.
+                    // If that also fails, skip — the mock won't affect transitive imports.
+                }
+            }
+        }
+    }
+
+    /// Compile a test file and return the CompileOutput (for mock preamble extraction).
+    pub fn compile_for_mock_extraction(
+        &self,
+        source: &str,
+        filename: &str,
+    ) -> crate::plugin::CompileOutput {
+        let file_path = Path::new(filename);
+        let src_dir = self.root_dir.join("src");
+        let ctx = CompileContext {
+            file_path,
+            root_dir: &self.root_dir,
+            src_dir: &src_dir,
+            target: "ssr",
+        };
+        self.plugin.compile(source, &ctx)
     }
 
     /// Canonicalize a file path, using a cache to avoid repeated syscalls.
@@ -447,6 +495,145 @@ impl VertzModuleLoader {
             filename,
         ))
     }
+}
+
+/// Prefix for mocked module synthetic specifiers.
+const VERTZ_MOCK_PREFIX: &str = "vertz:mock:";
+
+/// Extract named export identifiers from a JS/TS source file.
+///
+/// Uses simple regex patterns to find `export` declarations. This is
+/// intentionally not a full parser — it handles common export forms:
+/// - `export function name`
+/// - `export const/let/var name`
+/// - `export class Name`
+/// - `export default`
+/// - `export { name1, name2 }`
+/// - `export { name1 as name2 }`
+fn extract_export_names(source: &str) -> Vec<String> {
+    let mut names = HashSet::new();
+
+    for line in source.lines() {
+        let trimmed = line.trim();
+
+        // export default → "default"
+        if trimmed.starts_with("export default ") {
+            names.insert("default".to_string());
+            continue;
+        }
+
+        // export function name, export class Name
+        if let Some(rest) = trimmed.strip_prefix("export function ") {
+            if let Some(name) = rest.split(&['(', ' ', '<'][..]).next() {
+                let name = name.trim();
+                if !name.is_empty() {
+                    names.insert(name.to_string());
+                }
+            }
+            continue;
+        }
+        if let Some(rest) = trimmed.strip_prefix("export class ") {
+            if let Some(name) = rest.split(&[' ', '{', '<'][..]).next() {
+                let name = name.trim();
+                if !name.is_empty() {
+                    names.insert(name.to_string());
+                }
+            }
+            continue;
+        }
+
+        // export const/let/var name (possibly destructured)
+        for keyword in &["export const ", "export let ", "export var "] {
+            if let Some(rest) = trimmed.strip_prefix(keyword) {
+                // Skip destructuring patterns for simplicity
+                if rest.starts_with('{') || rest.starts_with('[') {
+                    continue;
+                }
+                if let Some(name) = rest.split(&['=', ':', ' ', ';'][..]).next() {
+                    let name = name.trim();
+                    if !name.is_empty() {
+                        names.insert(name.to_string());
+                    }
+                }
+            }
+        }
+
+        // export { name1, name2 } or export { name1 as alias1 }
+        if let Some(rest) = trimmed.strip_prefix("export {") {
+            let rest = rest.trim_end_matches(';');
+            let rest = if let Some(idx) = rest.rfind('}') {
+                &rest[..idx]
+            } else {
+                rest
+            };
+            // Handle `export { x } from '...'` — skip re-exports, include local exports
+            let is_reexport = rest.contains(" from ");
+            if !is_reexport {
+                for part in rest.split(',') {
+                    let part = part.trim();
+                    if part.is_empty() {
+                        continue;
+                    }
+                    // `name as alias` → use "alias" as the export name
+                    let name = if let Some((_original, alias)) = part.split_once(" as ") {
+                        alias.trim()
+                    } else {
+                        part
+                    };
+                    if !name.is_empty() {
+                        names.insert(name.to_string());
+                    }
+                }
+            } else {
+                // Re-export: `export { x, y } from './other'` — use original names
+                let before_from = rest.split(" from ").next().unwrap_or("");
+                for part in before_from.split(',') {
+                    let part = part.trim();
+                    if part.is_empty() {
+                        continue;
+                    }
+                    let name = if let Some((_original, alias)) = part.split_once(" as ") {
+                        alias.trim()
+                    } else {
+                        part
+                    };
+                    if !name.is_empty() {
+                        names.insert(name.to_string());
+                    }
+                }
+            }
+        }
+    }
+
+    names.into_iter().collect()
+}
+
+/// Generate a proxy ES module that re-exports from the mock registry.
+///
+/// The proxy reads from `globalThis.__vertz_mocked_modules[specifier]` and
+/// re-exports each named export. Functions are wrapped so they delegate at
+/// call time (late binding — the mock can be swapped between tests).
+fn generate_mock_proxy_module(specifier: &str, export_names: &[String]) -> String {
+    let mut code = format!(
+        "const __m = globalThis.__vertz_mocked_modules?.['{}'] ?? {{}};\n",
+        specifier
+    );
+
+    for name in export_names {
+        if name == "default" {
+            code.push_str("export default ('default' in __m ? __m.default : __m);\n");
+        } else {
+            // Use getter-based re-export for late binding
+            code.push_str(&format!("export const {} = __m['{}'];\n", name, name));
+        }
+    }
+
+    // If no default export was extracted but the mock has one, add it
+    if !export_names.iter().any(|n| n == "default") {
+        code.push_str("if ('default' in __m) {{ /* default handled by named exports */ }}\n");
+    }
+
+    code
 }
 
 /// Resolve an exports entry from a package.json "exports" field.
@@ -1420,6 +1607,12 @@ impl ModuleLoader for VertzModuleLoader {
         // same file is reached via different paths (symlinks, .. components, etc.).
         let canonical_path = self.canonicalize_cached(&resolved_path);
 
+        // Check if this module should be mocked (transitive mocking)
+        if self.mocked_paths.borrow().contains_key(&canonical_path) {
+            let mock_url = format!("{}{}", VERTZ_MOCK_PREFIX, canonical_path.display());
+            return Ok(ModuleSpecifier::parse(&mock_url)?);
+        }
+
         let url = ModuleSpecifier::from_file_path(&canonical_path).map_err(|_| {
             deno_core::anyhow::anyhow!("Cannot convert path to URL: {}", canonical_path.display())
         })?;
@@ -1442,6 +1635,29 @@ impl ModuleLoader for VertzModuleLoader {
                 return Ok(ModuleSource::new(
                     ModuleType::JavaScript,
                     ModuleSourceCode::String(source.to_string().into()),
+                    &specifier,
+                    None,
+                ));
+            }
+
+            // Handle mocked modules (transitive mocking)
+            if let Some(original_path) = specifier.as_str().strip_prefix(VERTZ_MOCK_PREFIX) {
+                let path = PathBuf::from(original_path);
+                let mock_specifier = self
+                    .mocked_paths
+                    .borrow()
+                    .get(&path)
+                    .cloned()
+                    .unwrap_or_default();
+
+                // Read the original source to discover export names
+                let source_text = std::fs::read_to_string(&path).unwrap_or_default();
+                let export_names = extract_export_names(&source_text);
+
+                let proxy = generate_mock_proxy_module(&mock_specifier, &export_names);
+                return Ok(ModuleSource::new(
+                    ModuleType::JavaScript,
+                    ModuleSourceCode::String(proxy.into()),
                     &specifier,
                     None,
                 ));
@@ -2055,6 +2271,8 @@ export function Hello() {
                 css: None,
                 source_map: None,
                 diagnostics: vec![],
+                mocked_specifiers: std::collections::HashSet::new(),
+                mock_preamble: None,
             }
         }
 

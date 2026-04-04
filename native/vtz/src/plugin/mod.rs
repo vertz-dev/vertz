@@ -170,6 +170,10 @@ pub struct CompileOutput {
     pub source_map: Option<String>,
     /// Compilation diagnostics (errors and warnings).
     pub diagnostics: Vec<CompileDiagnostic>,
+    /// Module specifiers mocked via `vi.mock()` (for transitive mock interception).
+    pub mocked_specifiers: std::collections::HashSet<String>,
+    /// Mock preamble code for pre-evaluation (enables transitive mocking).
+    pub mock_preamble: Option<String>,
 }
 
 /// A diagnostic produced during compilation.
@@ -304,6 +308,8 @@ mod tests {
                 css: None,
                 source_map: None,
                 diagnostics: vec![],
+                mocked_specifiers: std::collections::HashSet::new(),
+                mock_preamble: None,
             }
         }
 
