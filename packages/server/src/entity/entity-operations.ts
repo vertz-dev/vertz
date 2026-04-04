@@ -11,6 +11,9 @@ export interface EntityOperations<TModel extends ModelDef = ModelDef> {
   get(id: EntityId): Promise<TModel['table']['$response']>;
   list(options?: ListOptions<TModel>): Promise<ListResult<TModel['table']['$response']>>;
   create(data: TModel['table']['$create_input']): Promise<TModel['table']['$response']>;
-  update(id: EntityId, data: TModel['table']['$update_input']): Promise<TModel['table']['$response']>;
+  update(
+    id: EntityId,
+    data: TModel['table']['$update_input'],
+  ): Promise<TModel['table']['$response']>;
   delete(id: EntityId): Promise<void>;
 }

@@ -2751,9 +2751,8 @@ describe('composite primary key guard', () => {
         } else {
           // Composite ID: find by matching all PK columns
           row =
-            Object.values(rows).find((r) =>
-              Object.entries(id).every(([k, v]) => r[k] === v),
-            ) ?? null;
+            Object.values(rows).find((r) => Object.entries(id).every(([k, v]) => r[k] === v)) ??
+            null;
         }
         if (row && where && !matchesWhere(row, where)) return null;
         return row;
@@ -2810,9 +2809,7 @@ describe('composite primary key guard', () => {
         const handlers = createCrudHandlers(compositeDef, db);
         const ctx = makeCtx();
 
-        const result = unwrap(
-          await handlers.get(ctx, { projectId: 'p1', userId: 'u1' } as never),
-        );
+        const result = unwrap(await handlers.get(ctx, { projectId: 'p1', userId: 'u1' } as never));
 
         expect(result.body).toMatchObject({ projectId: 'p1', userId: 'u1', role: 'admin' });
       });
