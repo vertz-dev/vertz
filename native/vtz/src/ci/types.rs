@@ -60,7 +60,7 @@ pub struct StepsTask {
     pub base: TaskBase,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct TaskBase {
     #[serde(default)]
     pub deps: Vec<Dep>,
@@ -321,9 +321,14 @@ impl<'de> Deserialize<'de> for Condition {
                     .and_then(|v| v.as_array())
                     .map(|arr| {
                         arr.iter()
-                            .filter_map(|v| v.as_str().map(String::from))
-                            .collect()
+                            .map(|v| {
+                                v.as_str()
+                                    .map(String::from)
+                                    .ok_or_else(|| de::Error::custom("pattern must be a string"))
+                            })
+                            .collect::<Result<Vec<_>, _>>()
                     })
+                    .transpose()?
                     .unwrap_or_default();
                 Ok(Condition::Changed { patterns })
             }
@@ -333,9 +338,14 @@ impl<'de> Deserialize<'de> for Condition {
                     .and_then(|v| v.as_array())
                     .map(|arr| {
                         arr.iter()
-                            .filter_map(|v| v.as_str().map(String::from))
-                            .collect()
+                            .map(|v| {
+                                v.as_str().map(String::from).ok_or_else(|| {
+                                    de::Error::custom("branch name must be a string")
+                                })
+                            })
+                            .collect::<Result<Vec<_>, _>>()
                     })
+                    .transpose()?
                     .unwrap_or_default();
                 Ok(Condition::Branch { names })
             }

@@ -44,10 +44,32 @@ pub async fn execute(action: CiAction, root_dir: &Path) -> Result<(), String> {
     match action {
         CiAction::Run {
             name,
+            all,
+            scope,
             dry_run,
+            concurrency,
+            verbose,
             quiet,
-            ..
-        } => run_task_or_workflow(root_dir, &name, dry_run, quiet).await,
+            json,
+        } => {
+            // Warn about flags not yet implemented
+            if all {
+                eprintln!("[pipe] warning: --all flag is not yet implemented, ignored");
+            }
+            if scope.is_some() {
+                eprintln!("[pipe] warning: --scope flag is not yet implemented, ignored");
+            }
+            if concurrency.is_some() {
+                eprintln!("[pipe] warning: --concurrency flag is not yet implemented, ignored");
+            }
+            if verbose {
+                eprintln!("[pipe] warning: --verbose flag is not yet implemented, ignored");
+            }
+            if json {
+                eprintln!("[pipe] warning: --json flag is not yet implemented, ignored");
+            }
+            run_task_or_workflow(root_dir, &name, dry_run, quiet).await
+        }
         CiAction::Affected { base, json } => {
             eprintln!("[pipe] affected: base={base}, json={json}");
             // Phase 3 will implement this
@@ -357,7 +379,7 @@ async fn run_command(
     cmd.stdout(std::process::Stdio::piped());
     cmd.stderr(std::process::Stdio::piped());
 
-    let child = match cmd.spawn() {
+    let mut child = match cmd.spawn() {
         Ok(c) => c,
         Err(e) => {
             if !quiet {
@@ -367,36 +389,55 @@ async fn run_command(
         }
     };
 
+    // Take stdout/stderr handles before waiting so we can kill on timeout
+    let stdout_handle = child.stdout.take();
+    let stderr_handle = child.stderr.take();
+
     // Apply timeout if configured
     let result = if let Some(timeout_ms) = timeout {
         let duration = std::time::Duration::from_millis(timeout_ms);
-        match tokio::time::timeout(duration, child.wait_with_output()).await {
-            Ok(Ok(output)) => Ok(output),
+        match tokio::time::timeout(duration, child.wait()).await {
+            Ok(Ok(status)) => Ok(status),
             Ok(Err(e)) => Err(e.to_string()),
-            Err(_) => Err(format!("timeout after {timeout_ms}ms")),
+            Err(_) => {
+                // Kill the child process on timeout to avoid orphan processes
+                let _ = child.kill().await;
+                let _ = child.wait().await; // reap zombie
+                Err(format!("timeout after {timeout_ms}ms"))
+            }
         }
     } else {
-        child.wait_with_output().await.map_err(|e| e.to_string())
+        child.wait().await.map_err(|e| e.to_string())
     };
 
     match result {
-        Ok(output) => {
-            let code = output.status.code();
-            let success = output.status.success();
+        Ok(exit_status) => {
+            let code = exit_status.code();
+            let success = exit_status.success();
 
-            // Print buffered output (redacted)
-            if !output.stdout.is_empty() {
-                let stdout = String::from_utf8_lossy(&output.stdout);
-                let redacted = redact(&stdout, secret_values);
-                if !quiet {
-                    eprint!("{redacted}");
+            // Read and print buffered output (redacted)
+            if let Some(mut stdout) = stdout_handle {
+                use tokio::io::AsyncReadExt;
+                let mut buf = Vec::new();
+                let _ = stdout.read_to_end(&mut buf).await;
+                if !buf.is_empty() {
+                    let text = String::from_utf8_lossy(&buf);
+                    let redacted = redact(&text, secret_values);
+                    if !quiet {
+                        eprint!("{redacted}");
+                    }
                 }
             }
-            if !output.stderr.is_empty() {
-                let stderr = String::from_utf8_lossy(&output.stderr);
-                let redacted = redact(&stderr, secret_values);
-                if !quiet {
-                    eprint!("{redacted}");
+            if let Some(mut stderr) = stderr_handle {
+                use tokio::io::AsyncReadExt;
+                let mut buf = Vec::new();
+                let _ = stderr.read_to_end(&mut buf).await;
+                if !buf.is_empty() {
+                    let text = String::from_utf8_lossy(&buf);
+                    let redacted = redact(&text, secret_values);
+                    if !quiet {
+                        eprint!("{redacted}");
+                    }
                 }
             }
 
@@ -439,5 +480,142 @@ fn print_dry_run(
                 }
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::collections::BTreeMap;
+
+    #[tokio::test]
+    async fn run_command_success() {
+        let (status, code) = run_command(
+            "echo hello",
+            Path::new("."),
+            &BTreeMap::new(),
+            None,
+            &[],
+            "test",
+            true,
+        )
+        .await;
+        assert_eq!(status, TaskStatus::Success);
+        assert_eq!(code, Some(0));
+    }
+
+    #[tokio::test]
+    async fn run_command_failure() {
+        let (status, code) = run_command(
+            "exit 42",
+            Path::new("."),
+            &BTreeMap::new(),
+            None,
+            &[],
+            "test",
+            true,
+        )
+        .await;
+        assert_eq!(status, TaskStatus::Failed);
+        assert_eq!(code, Some(42));
+    }
+
+    #[tokio::test]
+    async fn run_command_with_env() {
+        let mut env = BTreeMap::new();
+        env.insert("__VTZ_CI_TEST_VAR".to_string(), "hello_world".to_string());
+        let (status, _) = run_command(
+            "test \"$__VTZ_CI_TEST_VAR\" = \"hello_world\"",
+            Path::new("."),
+            &env,
+            None,
+            &[],
+            "test",
+            true,
+        )
+        .await;
+        assert_eq!(status, TaskStatus::Success);
+    }
+
+    #[tokio::test]
+    async fn run_command_timeout_kills_process() {
+        let (status, code) = run_command(
+            "sleep 60",
+            Path::new("."),
+            &BTreeMap::new(),
+            Some(100), // 100ms timeout
+            &[],
+            "test",
+            true,
+        )
+        .await;
+        assert_eq!(status, TaskStatus::Failed);
+        assert!(code.is_none()); // timeout returns None for exit code
+    }
+
+    #[tokio::test]
+    async fn run_command_completes_before_timeout() {
+        let (status, code) = run_command(
+            "echo fast",
+            Path::new("."),
+            &BTreeMap::new(),
+            Some(5000), // generous timeout
+            &[],
+            "test",
+            true,
+        )
+        .await;
+        assert_eq!(status, TaskStatus::Success);
+        assert_eq!(code, Some(0));
+    }
+
+    #[tokio::test]
+    async fn run_single_task_steps_stops_on_failure() {
+        let task_def = TaskDef::Steps(types::StepsTask {
+            base: types::TaskBase::default(),
+            steps: vec![
+                "echo step1".to_string(),
+                "exit 1".to_string(),
+                "echo step3_should_not_run".to_string(),
+            ],
+        });
+
+        let secret_values = vec![];
+        let dir = tempfile::tempdir().unwrap();
+        let mut logger = LogWriter::new(dir.path(), vec![]);
+        let run_id = logger.run_id().to_string();
+
+        let mut ctx = RunContext {
+            secret_values: &secret_values,
+            logger: &mut logger,
+            run_id: &run_id,
+            quiet: true,
+        };
+
+        let status = run_single_task(Path::new("."), "test_steps", None, &task_def, &mut ctx).await;
+        assert_eq!(status, TaskStatus::Failed);
+    }
+
+    #[tokio::test]
+    async fn run_single_task_command_success() {
+        let task_def = TaskDef::Command(types::CommandTask {
+            base: types::TaskBase::default(),
+            command: "echo ok".to_string(),
+        });
+
+        let secret_values = vec![];
+        let dir = tempfile::tempdir().unwrap();
+        let mut logger = LogWriter::new(dir.path(), vec![]);
+        let run_id = logger.run_id().to_string();
+
+        let mut ctx = RunContext {
+            secret_values: &secret_values,
+            logger: &mut logger,
+            run_id: &run_id,
+            quiet: true,
+        };
+
+        let status = run_single_task(Path::new("."), "test_cmd", None, &task_def, &mut ctx).await;
+        assert_eq!(status, TaskStatus::Success);
     }
 }

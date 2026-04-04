@@ -58,10 +58,15 @@ impl ConfigBridge {
             .map_err(|e| format!("write to config bridge: {e}"))?;
 
         self.line_buf.clear();
-        self.reader
-            .read_line(&mut self.line_buf)
-            .await
-            .map_err(|e| format!("read from config bridge: {e}"))?;
+        let read_timeout = std::time::Duration::from_secs(30);
+        match tokio::time::timeout(read_timeout, self.reader.read_line(&mut self.line_buf)).await {
+            Ok(Ok(_)) => {}
+            Ok(Err(e)) => return Err(format!("read from config bridge: {e}")),
+            Err(_) => {
+                let _ = self.child.kill().await;
+                return Err(format!("callback {id} timed out after 30s"));
+            }
+        }
 
         if self.line_buf.is_empty() {
             return Err("config bridge process exited unexpectedly".to_string());
@@ -135,7 +140,7 @@ for await (const line of rl) {
   if (msg.eval != null) {
     const fn = callbacks.get(msg.eval);
     try {
-      const value = fn ? fn(msg.result) : false;
+      const value = fn ? await fn(msg.result) : false;
       process.stdout.write(JSON.stringify({ eval: msg.eval, value: !!value }) + '\n');
     } catch (err) {
       process.stdout.write(JSON.stringify({ eval: msg.eval, error: String(err) }) + '\n');
@@ -155,7 +160,10 @@ pub fn find_config(root_dir: &Path) -> Result<PathBuf, String> {
     if js_path.exists() {
         return Ok(js_path);
     }
-    Err(format!("no ci.config.ts found in {}", root_dir.display()))
+    Err(format!(
+        "no ci.config.ts or ci.config.js found in {}",
+        root_dir.display()
+    ))
 }
 
 /// Find a JS runtime to execute the config file.
@@ -217,29 +225,49 @@ pub async fn load_config(root_dir: &Path) -> Result<(PipeConfig, ConfigBridge), 
     let mut reader = BufReader::new(stdout);
     let mut line_buf = String::new();
 
+    // Helper to kill the child on error paths to avoid zombie processes
+    let kill_child = |mut c: Child| {
+        tokio::spawn(async move {
+            let _ = c.kill().await;
+            let _ = c.wait().await;
+        });
+    };
+
     // Read the config message (Phase 1)
-    reader
-        .read_line(&mut line_buf)
-        .await
-        .map_err(|e| format!("failed to read config from {runtime}: {e}"))?;
+    if let Err(e) = reader.read_line(&mut line_buf).await {
+        kill_child(child);
+        return Err(format!("failed to read config from {runtime}: {e}"));
+    }
 
     if line_buf.is_empty() {
         // Process exited without writing config — stderr already shown
+        kill_child(child);
         return Err("config process exited without producing config".to_string());
     }
 
-    let msg: ConfigMessage =
-        serde_json::from_str(&line_buf).map_err(|e| format!("failed to parse config JSON: {e}"))?;
+    let msg: ConfigMessage = match serde_json::from_str(&line_buf) {
+        Ok(m) => m,
+        Err(e) => {
+            kill_child(child);
+            return Err(format!("failed to parse config JSON: {e}"));
+        }
+    };
 
     if msg.msg_type != "config" {
+        kill_child(child);
         return Err(format!(
             "unexpected message type from config loader: {}",
             msg.msg_type
         ));
     }
 
-    let config: PipeConfig =
-        serde_json::from_value(msg.data).map_err(|e| format!("invalid config: {e}"))?;
+    let config: PipeConfig = match serde_json::from_value(msg.data) {
+        Ok(c) => c,
+        Err(e) => {
+            kill_child(child);
+            return Err(format!("invalid config: {e}"));
+        }
+    };
 
     let bridge = ConfigBridge {
         child,
@@ -286,9 +314,14 @@ pub fn collect_secret_values(secrets: &[String]) -> Vec<String> {
 }
 
 /// Redact secret values from a string.
+/// Replaces longest secrets first to avoid partial matches when one secret
+/// is a substring of another.
 pub fn redact(text: &str, secret_values: &[String]) -> String {
+    let mut sorted: Vec<&str> = secret_values.iter().map(|s| s.as_str()).collect();
+    sorted.sort_by_key(|b| std::cmp::Reverse(b.len()));
+
     let mut result = text.to_string();
-    for secret in secret_values {
+    for secret in sorted {
         if !secret.is_empty() {
             result = result.replace(secret, "[REDACTED]");
         }
@@ -323,7 +356,9 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let result = find_config(dir.path());
         assert!(result.is_err());
-        assert!(result.unwrap_err().contains("no ci.config.ts found"));
+        assert!(result
+            .unwrap_err()
+            .contains("no ci.config.ts or ci.config.js found"));
     }
 
     #[test]
@@ -402,5 +437,18 @@ mod tests {
     fn collect_secret_values_missing() {
         let values = collect_secret_values(&["__VTZ_CI_TEST_NONEXISTENT_VAR".to_string()]);
         assert!(values.is_empty());
+    }
+
+    #[test]
+    fn redact_longest_first_avoids_partial_match() {
+        // "abc" is a substring of "xabcy". Without longest-first ordering,
+        // replacing "abc" first would break "xabcy" into fragments.
+        let text = "value is xabcy";
+        let result = redact(text, &["abc".to_string(), "xabcy".to_string()]);
+        assert_eq!(result, "value is [REDACTED]");
+
+        // Reversed order should also work
+        let result2 = redact(text, &["xabcy".to_string(), "abc".to_string()]);
+        assert_eq!(result2, "value is [REDACTED]");
     }
 }

@@ -1,4 +1,5 @@
 use crate::ci::types::{NativeCrate, ResolvedWorkspace, WorkspaceConfig, WorkspacePackage};
+use serde::Deserialize;
 use std::collections::{BTreeMap, HashSet};
 use std::path::Path;
 
@@ -275,10 +276,55 @@ fn resolve_native_via_cargo_metadata(
 struct MinimalPackageJson {
     name: Option<String>,
     version: Option<String>,
+    #[serde(default, deserialize_with = "deserialize_workspaces")]
     workspaces: Option<Vec<String>>,
     dependencies: Option<BTreeMap<String, serde_json::Value>>,
     #[serde(rename = "devDependencies")]
     dev_dependencies: Option<BTreeMap<String, serde_json::Value>>,
+}
+
+/// Deserialize `workspaces` field which can be either:
+/// - an array: `["packages/*"]`
+/// - an object with a `packages` key: `{ "packages": ["packages/*"], "nohoist": [...] }`
+fn deserialize_workspaces<'de, D>(deserializer: D) -> Result<Option<Vec<String>>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let value: Option<serde_json::Value> = Option::deserialize(deserializer)?;
+    match value {
+        None => Ok(None),
+        Some(serde_json::Value::Array(arr)) => {
+            let strs: Result<Vec<String>, _> = arr
+                .into_iter()
+                .map(|v| match v {
+                    serde_json::Value::String(s) => Ok(s),
+                    _ => Err(serde::de::Error::custom(
+                        "workspace pattern must be a string",
+                    )),
+                })
+                .collect();
+            Ok(Some(strs?))
+        }
+        Some(serde_json::Value::Object(obj)) => {
+            if let Some(serde_json::Value::Array(arr)) = obj.get("packages") {
+                let strs: Result<Vec<String>, _> = arr
+                    .iter()
+                    .map(|v| match v {
+                        serde_json::Value::String(s) => Ok(s.clone()),
+                        _ => Err(serde::de::Error::custom(
+                            "workspace pattern must be a string",
+                        )),
+                    })
+                    .collect();
+                Ok(Some(strs?))
+            } else {
+                Ok(Some(vec![]))
+            }
+        }
+        Some(_) => Err(serde::de::Error::custom(
+            "workspaces must be an array or object",
+        )),
+    }
 }
 
 fn read_package_json(path: &Path) -> Result<MinimalPackageJson, String> {
@@ -586,5 +632,30 @@ mod tests {
         let result = resolve(root, Some(&config));
         assert!(result.is_err());
         assert!(result.unwrap_err().contains("not found"));
+    }
+
+    #[test]
+    fn resolve_ts_packages_object_workspaces() {
+        // Test the Yarn-style object format: { "packages": [...] }
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path();
+
+        std::fs::write(
+            root.join("package.json"),
+            r#"{"workspaces": {"packages": ["packages/*"], "nohoist": ["**/react"]}}"#,
+        )
+        .unwrap();
+
+        let pkg_a = root.join("packages/a");
+        std::fs::create_dir_all(&pkg_a).unwrap();
+        std::fs::write(
+            pkg_a.join("package.json"),
+            r#"{"name": "@test/a", "version": "1.0.0"}"#,
+        )
+        .unwrap();
+
+        let result = resolve(root, None).unwrap();
+        assert_eq!(result.packages.len(), 1);
+        assert!(result.packages.contains_key("@test/a"));
     }
 }
