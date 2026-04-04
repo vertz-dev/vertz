@@ -1,4 +1,6 @@
 pre-push:
+  env:
+    PATH: "{root}/node_modules/.bin:$PATH"
   commands:
     trojan-source:
       run: bash scripts/check-unicode.sh
