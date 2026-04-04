@@ -56,13 +56,22 @@ pub struct TaskGraph {
 
 impl TaskGraph {
     /// Build a task graph from a workflow config, task definitions, and resolved workspace.
+    ///
+    /// `filter_packages` restricts package-scoped nodes to only the listed packages.
+    /// When `None`, all packages in the workspace are included.
     pub fn build(
         workflow: &WorkflowConfig,
         tasks: &BTreeMap<String, TaskDef>,
         workspace: &ResolvedWorkspace,
+        filter_packages: Option<&std::collections::BTreeSet<String>>,
     ) -> Result<Self, String> {
         let mut nodes = Vec::new();
         let mut node_index: HashMap<(String, Option<String>), usize> = HashMap::new();
+
+        // Determine which packages to include
+        let all_packages: std::collections::BTreeSet<String> =
+            workspace.packages.keys().cloned().collect();
+        let active_packages = filter_packages.unwrap_or(&all_packages);
 
         // 1. Create nodes for each task in the workflow's run list
         for task_name in &workflow.run {
@@ -84,7 +93,7 @@ impl TaskGraph {
                     node_index.insert((task_name.clone(), None), idx);
                 }
                 TaskScope::Package => {
-                    for pkg_name in workspace.packages.keys() {
+                    for pkg_name in active_packages {
                         let idx = nodes.len();
                         nodes.push(TaskNode {
                             task_name: task_name.clone(),
@@ -527,7 +536,7 @@ mod tests {
         let workspace = make_workspace(vec![("a", vec![]), ("b", vec![])]);
         let wf = workflow(vec!["lint"]);
 
-        let graph = TaskGraph::build(&wf, &tasks, &workspace).unwrap();
+        let graph = TaskGraph::build(&wf, &tasks, &workspace, None).unwrap();
         assert_eq!(graph.node_count(), 1);
         assert_eq!(graph.nodes[0].task_name, "lint");
         assert!(graph.nodes[0].package.is_none());
@@ -542,7 +551,7 @@ mod tests {
         let workspace = make_workspace(vec![("a", vec![]), ("b", vec![]), ("c", vec![])]);
         let wf = workflow(vec!["build"]);
 
-        let graph = TaskGraph::build(&wf, &tasks, &workspace).unwrap();
+        let graph = TaskGraph::build(&wf, &tasks, &workspace, None).unwrap();
         assert_eq!(graph.node_count(), 3);
         // One node per package
         assert!(graph.find_node("build", Some("a")).is_some());
@@ -569,7 +578,7 @@ mod tests {
         let workspace = make_workspace(vec![("a", vec![])]);
         let wf = workflow(vec!["build", "test"]);
 
-        let graph = TaskGraph::build(&wf, &tasks, &workspace).unwrap();
+        let graph = TaskGraph::build(&wf, &tasks, &workspace, None).unwrap();
         assert_eq!(graph.node_count(), 2);
 
         // test(a) depends on build(a)
@@ -592,7 +601,7 @@ mod tests {
         let workspace = make_workspace(vec![("a", vec!["b"]), ("b", vec![])]);
         let wf = workflow(vec!["build"]);
 
-        let graph = TaskGraph::build(&wf, &tasks, &workspace).unwrap();
+        let graph = TaskGraph::build(&wf, &tasks, &workspace, None).unwrap();
         assert_eq!(graph.node_count(), 2);
 
         let build_a = graph.find_node("build", Some("a")).unwrap();
@@ -630,7 +639,7 @@ mod tests {
         let workspace = make_workspace(vec![("a", vec![])]);
         let wf = workflow(vec!["build", "deploy"]);
 
-        let graph = TaskGraph::build(&wf, &tasks, &workspace).unwrap();
+        let graph = TaskGraph::build(&wf, &tasks, &workspace, None).unwrap();
         let build_a = graph.find_node("build", Some("a")).unwrap();
         let deploy_a = graph.find_node("deploy", Some("a")).unwrap();
 
@@ -660,7 +669,7 @@ mod tests {
         let workspace = make_workspace(vec![("a", vec![])]);
         let wf = workflow(vec!["lint"]);
 
-        let result = TaskGraph::build(&wf, &tasks, &workspace);
+        let result = TaskGraph::build(&wf, &tasks, &workspace, None);
         assert!(result.is_err());
         let err = result.unwrap_err();
         assert!(err.contains("root-scoped task"));
@@ -680,7 +689,7 @@ mod tests {
         let workspace = make_workspace(vec![("a", vec![])]);
         let wf = workflow(vec!["test"]);
 
-        let result = TaskGraph::build(&wf, &tasks, &workspace);
+        let result = TaskGraph::build(&wf, &tasks, &workspace, None);
         assert!(result.is_err());
         assert!(result.unwrap_err().contains("unknown task \"nonexistent\""));
     }
@@ -691,7 +700,7 @@ mod tests {
         let workspace = make_workspace(vec![]);
         let wf = workflow(vec!["nonexistent"]);
 
-        let result = TaskGraph::build(&wf, &tasks, &workspace);
+        let result = TaskGraph::build(&wf, &tasks, &workspace, None);
         assert!(result.is_err());
         assert!(result.unwrap_err().contains("unknown task \"nonexistent\""));
     }
@@ -728,7 +737,7 @@ mod tests {
         let workspace = make_workspace(vec![]);
         let wf = workflow(vec!["a", "b", "c"]);
 
-        let result = TaskGraph::build(&wf, &tasks, &workspace);
+        let result = TaskGraph::build(&wf, &tasks, &workspace, None);
         assert!(result.is_err());
         assert!(result.unwrap_err().contains("circular dependency"));
     }
@@ -758,7 +767,7 @@ mod tests {
         let workspace = make_workspace(vec![]);
         let wf = workflow(vec!["build", "test", "deploy"]);
 
-        let graph = TaskGraph::build(&wf, &tasks, &workspace).unwrap();
+        let graph = TaskGraph::build(&wf, &tasks, &workspace, None).unwrap();
         let order = graph.topological_order().unwrap();
         assert_eq!(order.len(), 3);
 
@@ -810,7 +819,7 @@ mod tests {
         let workspace = make_workspace(vec![]);
         let wf = workflow(vec!["build", "test", "lint", "deploy"]);
 
-        let graph = TaskGraph::build(&wf, &tasks, &workspace).unwrap();
+        let graph = TaskGraph::build(&wf, &tasks, &workspace, None).unwrap();
         let order = graph.topological_order().unwrap();
         assert_eq!(order.len(), 4);
 
@@ -841,7 +850,7 @@ mod tests {
         let workspace = make_workspace(vec![("a", vec![]), ("b", vec![])]);
         let wf = workflow(vec!["lint", "build"]);
 
-        let graph = TaskGraph::build(&wf, &tasks, &workspace).unwrap();
+        let graph = TaskGraph::build(&wf, &tasks, &workspace, None).unwrap();
         // 1 root node (lint) + 2 package nodes (build a, build b)
         assert_eq!(graph.node_count(), 3);
 
@@ -967,5 +976,68 @@ mod tests {
             TaskGraph::should_run_dependent(&result, &EdgeType::Callback(42)),
             DepDecision::EvalCallback(42)
         );
+    }
+
+    // --- filter_packages tests ---
+
+    #[test]
+    fn filter_packages_restricts_nodes() {
+        let tasks = make_config(vec![(
+            "build",
+            cmd_task("bun run build", TaskScope::Package, vec![]),
+        )]);
+        let workspace = make_workspace(vec![("a", vec![]), ("b", vec![]), ("c", vec![])]);
+        let wf = workflow(vec!["build"]);
+
+        let filter: std::collections::BTreeSet<String> =
+            ["a".to_string(), "c".to_string()].into_iter().collect();
+        let graph = TaskGraph::build(&wf, &tasks, &workspace, Some(&filter)).unwrap();
+
+        assert_eq!(graph.node_count(), 2);
+        assert!(graph.find_node("build", Some("a")).is_some());
+        assert!(graph.find_node("build", Some("b")).is_none());
+        assert!(graph.find_node("build", Some("c")).is_some());
+    }
+
+    #[test]
+    fn filter_packages_root_tasks_unaffected() {
+        let tasks = make_config(vec![
+            ("lint", cmd_task("oxlint", TaskScope::Root, vec![])),
+            (
+                "build",
+                cmd_task("bun run build", TaskScope::Package, vec![]),
+            ),
+        ]);
+        let workspace = make_workspace(vec![("a", vec![]), ("b", vec![])]);
+        let wf = workflow(vec!["lint", "build"]);
+
+        let filter: std::collections::BTreeSet<String> = ["a".to_string()].into_iter().collect();
+        let graph = TaskGraph::build(&wf, &tasks, &workspace, Some(&filter)).unwrap();
+
+        // 1 root node + 1 package node (a only)
+        assert_eq!(graph.node_count(), 2);
+        assert!(graph.find_node("lint", None).is_some());
+        assert!(graph.find_node("build", Some("a")).is_some());
+        assert!(graph.find_node("build", Some("b")).is_none());
+    }
+
+    #[test]
+    fn filter_packages_empty_produces_root_only() {
+        let tasks = make_config(vec![
+            ("lint", cmd_task("oxlint", TaskScope::Root, vec![])),
+            (
+                "build",
+                cmd_task("bun run build", TaskScope::Package, vec![]),
+            ),
+        ]);
+        let workspace = make_workspace(vec![("a", vec![]), ("b", vec![])]);
+        let wf = workflow(vec!["lint", "build"]);
+
+        let filter: std::collections::BTreeSet<String> = std::collections::BTreeSet::new();
+        let graph = TaskGraph::build(&wf, &tasks, &workspace, Some(&filter)).unwrap();
+
+        // Only root tasks should exist
+        assert_eq!(graph.node_count(), 1);
+        assert!(graph.find_node("lint", None).is_some());
     }
 }

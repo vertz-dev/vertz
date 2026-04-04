@@ -1,3 +1,4 @@
+pub mod changes;
 pub mod config;
 pub mod graph;
 pub mod logs;
@@ -56,26 +57,15 @@ pub async fn execute(action: CiAction, root_dir: &Path) -> Result<(), String> {
             quiet,
             json,
         } => {
-            // Warn about flags not yet implemented
-            if all {
-                eprintln!("[pipe] warning: --all flag is not yet implemented, ignored");
-            }
-            if scope.is_some() {
-                eprintln!("[pipe] warning: --scope flag is not yet implemented, ignored");
-            }
             if verbose {
                 eprintln!("[pipe] warning: --verbose flag is not yet implemented, ignored");
             }
             if json {
                 eprintln!("[pipe] warning: --json flag is not yet implemented, ignored");
             }
-            run_task_or_workflow(root_dir, &name, dry_run, quiet, concurrency).await
+            run_task_or_workflow(root_dir, &name, all, scope, dry_run, quiet, concurrency).await
         }
-        CiAction::Affected { base, json } => {
-            eprintln!("[pipe] affected: base={base}, json={json}");
-            // Phase 3 will implement this
-            Ok(())
-        }
+        CiAction::Affected { base, json } => run_affected(root_dir, &base, json).await,
         CiAction::CacheStatus => {
             eprintln!("[pipe] cache status — not yet implemented");
             Ok(())
@@ -99,6 +89,8 @@ pub async fn execute(action: CiAction, root_dir: &Path) -> Result<(), String> {
 async fn run_task_or_workflow(
     root_dir: &Path,
     name: &str,
+    all: bool,
+    scope: Option<String>,
     dry_run: bool,
     quiet: bool,
     concurrency: Option<usize>,
@@ -163,8 +155,58 @@ async fn run_task_or_workflow(
         ));
     };
 
-    // 6. Build task graph (DAG)
-    let task_graph = graph::TaskGraph::build(&workflow, &pipe_config.tasks, &resolved)?;
+    // 6. Resolve package filter
+    //    --all overrides to All, --scope overrides to specific packages,
+    //    otherwise use the workflow's declared filter.
+    let filter_packages = if all {
+        None // All packages
+    } else if let Some(ref scope_pkg) = scope {
+        Some(std::collections::BTreeSet::from([scope_pkg.clone()]))
+    } else {
+        match &workflow.filter {
+            types::WorkflowFilter::All => None,
+            types::WorkflowFilter::Packages(pkgs) => Some(
+                pkgs.iter()
+                    .cloned()
+                    .collect::<std::collections::BTreeSet<String>>(),
+            ),
+            types::WorkflowFilter::Affected => {
+                // Run change detection to determine affected packages
+                let base_ref = changes::ChangeDetector::resolve_base_ref(None);
+                let detector =
+                    changes::ChangeDetector::new(root_dir.to_path_buf(), base_ref.clone());
+                let change_set = detector.detect().await?;
+                let affected = detector.map_to_packages(&change_set, &resolved);
+
+                if !quiet {
+                    eprintln!(
+                        "[pipe] Affected: {} packages ({} direct, {} transitive)",
+                        affected.all_affected.len(),
+                        affected.directly_changed.len(),
+                        affected.transitively_affected.len(),
+                    );
+                }
+
+                if affected.all_affected.is_empty() && !affected.root_changed {
+                    if !quiet {
+                        eprintln!("[pipe] No affected packages — nothing to run");
+                    }
+                    let _ = bridge.shutdown().await;
+                    return Ok(());
+                }
+
+                Some(affected.all_affected)
+            }
+        }
+    };
+
+    // 7. Build task graph (DAG)
+    let task_graph = graph::TaskGraph::build(
+        &workflow,
+        &pipe_config.tasks,
+        &resolved,
+        filter_packages.as_ref(),
+    )?;
 
     if dry_run {
         eprintln!("[pipe] Dry run — no commands will be executed\n");
@@ -173,7 +215,7 @@ async fn run_task_or_workflow(
         return Ok(());
     }
 
-    // 7. Execute via parallel scheduler
+    // 8. Execute via parallel scheduler
     let concurrency = concurrency.unwrap_or_else(|| {
         std::thread::available_parallelism()
             .map(|n| n.get())
@@ -239,6 +281,50 @@ async fn run_task_or_workflow(
     }
 }
 
+/// Run the `vtz ci affected` command: list affected packages.
+async fn run_affected(root_dir: &Path, base: &str, json: bool) -> Result<(), String> {
+    // 1. Resolve workspace (lightweight — no config bridge needed)
+    let resolved = workspace::resolve(root_dir, None)?;
+
+    // 2. Detect changes
+    let detector = changes::ChangeDetector::new(root_dir.to_path_buf(), base.to_string());
+    let change_set = detector.detect().await?;
+    let affected = detector.map_to_packages(&change_set, &resolved);
+
+    if json {
+        // Structured JSON output
+        let output = serde_json::json!({
+            "directly_changed": affected.directly_changed.iter().collect::<Vec<_>>(),
+            "transitively_affected": affected.transitively_affected.iter().collect::<Vec<_>>(),
+            "files_changed": change_set.files.len(),
+            "root_changed": affected.root_changed,
+            "base_ref": change_set.base_ref,
+            "is_shallow": change_set.is_shallow,
+        });
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&output).unwrap_or_default()
+        );
+    } else {
+        if affected.all_affected.is_empty() && !affected.root_changed {
+            eprintln!("[pipe] No affected packages");
+            return Ok(());
+        }
+
+        for pkg in &affected.directly_changed {
+            println!("{pkg}");
+        }
+        for pkg in &affected.transitively_affected {
+            println!("{pkg} (transitive)");
+        }
+        if affected.root_changed {
+            println!("(root files changed)");
+        }
+    }
+
+    Ok(())
+}
+
 /// Print a dry-run plan using the task graph's topological order.
 fn print_dry_run_graph(
     task_graph: &graph::TaskGraph,
@@ -296,7 +382,7 @@ mod tests {
             env: std::collections::BTreeMap::new(),
         };
 
-        let graph = graph::TaskGraph::build(&wf, &tasks, &workspace).unwrap();
+        let graph = graph::TaskGraph::build(&wf, &tasks, &workspace, None).unwrap();
         // Just verify it doesn't panic
         print_dry_run_graph(&graph, &tasks);
     }
