@@ -113,6 +113,7 @@ export type { FormDataOptions } from './form/form-data';
 export { formDataToObject } from './form/form-data';
 export type { FormSchema, ValidationResult } from './form/validation';
 export { validate } from './form/validation';
+export type { FormValues } from './dom/form-on-change';
 // Formatting
 export type { DateInput, FormatRelativeTimeOptions, RelativeTimeProps } from './format';
 export { formatRelativeTime, RelativeTime } from './format';
