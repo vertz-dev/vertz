@@ -187,8 +187,8 @@ pub fn read_package_json(root_dir: &Path) -> Result<PackageJson, Box<dyn std::er
 }
 
 /// Write package.json back to disk using read-modify-write to preserve unmodeled fields.
-/// Updates `dependencies`, `devDependencies`, and `peerDependencies` — all other fields
-/// are preserved as-is.
+/// All fields on the `PackageJson` struct are written back; unmodeled fields in the
+/// existing file are preserved as-is.
 pub fn write_package_json(
     root_dir: &Path,
     pkg: &PackageJson,
@@ -202,41 +202,74 @@ pub fn write_package_json(
         .as_object_mut()
         .ok_or("package.json is not an object")?;
 
-    // Only update the dependency fields we manage
-    if pkg.dependencies.is_empty() {
-        obj.remove("dependencies");
+    // --- Scalar fields ---
+    if let Some(name) = &pkg.name {
+        obj.insert("name".into(), serde_json::Value::String(name.clone()));
+    }
+    if let Some(version) = &pkg.version {
+        obj.insert("version".into(), serde_json::Value::String(version.clone()));
+    }
+
+    // --- Map fields (remove when empty) ---
+    fn update_map(
+        obj: &mut serde_json::Map<String, serde_json::Value>,
+        key: &str,
+        map: &BTreeMap<String, String>,
+    ) -> Result<(), serde_json::Error> {
+        if map.is_empty() {
+            obj.remove(key);
+        } else {
+            obj.insert(key.into(), serde_json::to_value(map)?);
+        }
+        Ok(())
+    }
+
+    update_map(obj, "dependencies", &pkg.dependencies)?;
+    update_map(obj, "devDependencies", &pkg.dev_dependencies)?;
+    update_map(obj, "peerDependencies", &pkg.peer_dependencies)?;
+    update_map(obj, "optionalDependencies", &pkg.optional_dependencies)?;
+    update_map(obj, "scripts", &pkg.scripts)?;
+    update_map(obj, "overrides", &pkg.overrides)?;
+
+    // --- Vec/Option fields (remove when empty/None) ---
+    if pkg.bundled_dependencies.is_empty() {
+        obj.remove("bundledDependencies");
     } else {
         obj.insert(
-            "dependencies".into(),
-            serde_json::to_value(&pkg.dependencies)?,
+            "bundledDependencies".into(),
+            serde_json::to_value(&pkg.bundled_dependencies)?,
         );
     }
 
-    if pkg.dev_dependencies.is_empty() {
-        obj.remove("devDependencies");
-    } else {
-        obj.insert(
-            "devDependencies".into(),
-            serde_json::to_value(&pkg.dev_dependencies)?,
-        );
+    match &pkg.workspaces {
+        Some(ws) if !ws.is_empty() => {
+            obj.insert("workspaces".into(), serde_json::to_value(ws)?);
+        }
+        _ => {
+            obj.remove("workspaces");
+        }
     }
 
-    if pkg.peer_dependencies.is_empty() {
-        obj.remove("peerDependencies");
-    } else {
-        obj.insert(
-            "peerDependencies".into(),
-            serde_json::to_value(&pkg.peer_dependencies)?,
-        );
+    match &pkg.files {
+        Some(files) if !files.is_empty() => {
+            obj.insert("files".into(), serde_json::to_value(files)?);
+        }
+        _ => {
+            obj.remove("files");
+        }
     }
 
-    if pkg.optional_dependencies.is_empty() {
-        obj.remove("optionalDependencies");
-    } else {
-        obj.insert(
-            "optionalDependencies".into(),
-            serde_json::to_value(&pkg.optional_dependencies)?,
-        );
+    // --- bin field (remove when empty map, write otherwise) ---
+    match &pkg.bin {
+        BinField::Single(s) if !s.is_empty() => {
+            obj.insert("bin".into(), serde_json::to_value(&pkg.bin)?);
+        }
+        BinField::Map(m) if !m.is_empty() => {
+            obj.insert("bin".into(), serde_json::to_value(&pkg.bin)?);
+        }
+        _ => {
+            obj.remove("bin");
+        }
     }
 
     let content = serde_json::to_string_pretty(&value)? + "\n";
@@ -1008,6 +1041,80 @@ mod tests {
         let value: serde_json::Value = serde_json::from_str(&written).unwrap();
         let obj = value.as_object().unwrap();
         assert!(!obj.contains_key("optionalDependencies"));
+    }
+
+    #[test]
+    fn test_write_package_json_scripts() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(
+            dir.path().join("package.json"),
+            r#"{"name": "test", "version": "1.0.0"}"#,
+        )
+        .unwrap();
+
+        let mut pkg = read_package_json(dir.path()).unwrap();
+        pkg.scripts.insert("build".to_string(), "tsc".to_string());
+        write_package_json(dir.path(), &pkg).unwrap();
+
+        let written = std::fs::read_to_string(dir.path().join("package.json")).unwrap();
+        let value: serde_json::Value = serde_json::from_str(&written).unwrap();
+        let obj = value.as_object().unwrap();
+        assert!(obj.contains_key("scripts"));
+        assert_eq!(obj["scripts"]["build"], "tsc");
+    }
+
+    #[test]
+    fn test_write_package_json_all_struct_fields() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(
+            dir.path().join("package.json"),
+            r#"{"name": "old-name", "version": "0.0.1"}"#,
+        )
+        .unwrap();
+
+        let mut pkg = read_package_json(dir.path()).unwrap();
+        pkg.name = Some("new-name".to_string());
+        pkg.version = Some("2.0.0".to_string());
+        pkg.scripts.insert("test".to_string(), "vitest".to_string());
+        pkg.overrides
+            .insert("lodash".to_string(), "4.17.21".to_string());
+        pkg.workspaces = Some(vec!["packages/*".to_string()]);
+        pkg.files = Some(vec!["dist".to_string()]);
+        pkg.bundled_dependencies = vec!["bundled-pkg".to_string()];
+        pkg.bin = BinField::Single("./cli.js".to_string());
+        write_package_json(dir.path(), &pkg).unwrap();
+
+        let written = std::fs::read_to_string(dir.path().join("package.json")).unwrap();
+        let value: serde_json::Value = serde_json::from_str(&written).unwrap();
+        let obj = value.as_object().unwrap();
+
+        assert_eq!(obj["name"], "new-name");
+        assert_eq!(obj["version"], "2.0.0");
+        assert_eq!(obj["scripts"]["test"], "vitest");
+        assert_eq!(obj["overrides"]["lodash"], "4.17.21");
+        assert_eq!(obj["workspaces"][0], "packages/*");
+        assert_eq!(obj["files"][0], "dist");
+        assert_eq!(obj["bundledDependencies"][0], "bundled-pkg");
+        assert_eq!(obj["bin"], "./cli.js");
+    }
+
+    #[test]
+    fn test_write_package_json_removes_empty_scripts() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(
+            dir.path().join("package.json"),
+            r#"{"name": "test", "scripts": {"build": "tsc"}}"#,
+        )
+        .unwrap();
+
+        let mut pkg = read_package_json(dir.path()).unwrap();
+        pkg.scripts.clear();
+        write_package_json(dir.path(), &pkg).unwrap();
+
+        let written = std::fs::read_to_string(dir.path().join("package.json")).unwrap();
+        let value: serde_json::Value = serde_json::from_str(&written).unwrap();
+        let obj = value.as_object().unwrap();
+        assert!(!obj.contains_key("scripts"));
     }
 
     // --- Severity tests ---
