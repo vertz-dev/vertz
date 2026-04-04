@@ -1,4 +1,6 @@
 import { describe, expect, it } from 'bun:test';
+import { d } from '../../d';
+import { sql } from '../tagged';
 import { buildInsert } from '../insert';
 
 describe('buildInsert', () => {
@@ -199,6 +201,59 @@ describe('buildInsert', () => {
       expect(result.sql).toBe(
         'INSERT INTO "users" ("name", "email") VALUES ($1, $2) ON CONFLICT ("email") DO UPDATE SET "name" = EXCLUDED."name" RETURNING *',
       );
+    });
+  });
+
+  describe('ON CONFLICT with DbExpr updateValues', () => {
+    it('handles d.increment() in ON CONFLICT DO UPDATE SET', () => {
+      const result = buildInsert({
+        table: 'urls',
+        data: { slug: 'test', target: 'https://example.com', clickCount: 1 },
+        onConflict: {
+          columns: ['slug'],
+          action: 'update',
+          updateColumns: ['clickCount'],
+          updateValues: { clickCount: d.increment(1) },
+        },
+      });
+      expect(result.sql).toBe(
+        'INSERT INTO "urls" ("slug", "target", "click_count") VALUES ($1, $2, $3) ON CONFLICT ("slug") DO UPDATE SET "click_count" = "click_count" + $4',
+      );
+      expect(result.params).toEqual(['test', 'https://example.com', 1, 1]);
+    });
+
+    it('handles d.expr() in ON CONFLICT DO UPDATE SET', () => {
+      const result = buildInsert({
+        table: 'urls',
+        data: { slug: 'test', target: 'https://example.com' },
+        onConflict: {
+          columns: ['slug'],
+          action: 'update',
+          updateColumns: ['slug'],
+          updateValues: { slug: d.expr((col) => sql`LOWER(${col})`) },
+        },
+      });
+      expect(result.sql).toBe(
+        'INSERT INTO "urls" ("slug", "target") VALUES ($1, $2) ON CONFLICT ("slug") DO UPDATE SET "slug" = LOWER("slug")',
+      );
+      expect(result.params).toEqual(['test', 'https://example.com']);
+    });
+
+    it('mixes expressions with direct values in ON CONFLICT', () => {
+      const result = buildInsert({
+        table: 'urls',
+        data: { slug: 'test', target: 'https://example.com', clickCount: 0 },
+        onConflict: {
+          columns: ['slug'],
+          action: 'update',
+          updateColumns: ['clickCount', 'target'],
+          updateValues: { clickCount: d.increment(1), target: 'https://new.com' },
+        },
+      });
+      expect(result.sql).toBe(
+        'INSERT INTO "urls" ("slug", "target", "click_count") VALUES ($1, $2, $3) ON CONFLICT ("slug") DO UPDATE SET "click_count" = "click_count" + $4, "target" = $5',
+      );
+      expect(result.params).toEqual(['test', 'https://example.com', 0, 1, 'https://new.com']);
     });
   });
 

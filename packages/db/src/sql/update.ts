@@ -11,6 +11,9 @@
 
 import { type Dialect, defaultPostgresDialect } from '../dialect';
 import { camelToSnake } from './casing';
+import { isDbExpr } from './expr';
+import type { SqlFragment } from './tagged';
+import { renumberParamsWithDialect } from './tagged';
 import { buildWhere } from './where';
 
 export interface UpdateOptions {
@@ -56,7 +59,13 @@ export function buildUpdate(
   for (const key of keys) {
     const snakeCol = camelToSnake(key);
     const value = options.data[key];
-    if (nowSet.has(key) && value === 'now') {
+    if (isDbExpr(value)) {
+      const colRef: SqlFragment = { _tag: 'SqlFragment', sql: `"${snakeCol}"`, params: [] };
+      const fragment = value.build(colRef);
+      const renumbered = renumberParamsWithDialect(fragment.sql, allParams.length, dialect);
+      setClauses.push(`"${snakeCol}" = ${renumbered}`);
+      allParams.push(...fragment.params);
+    } else if (nowSet.has(key) && value === 'now') {
       setClauses.push(`"${snakeCol}" = ${dialect.now()}`);
     } else {
       allParams.push(value);

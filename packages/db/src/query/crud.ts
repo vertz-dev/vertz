@@ -374,12 +374,14 @@ export async function update<T>(
     Object.entries(options.data).filter(([key]) => !readOnlyCols.includes(key)),
   );
 
-  // Auto-set autoUpdate columns to NOW(). The 'now' sentinel value is consumed
-  // by buildUpdate: when a key appears in both `data` (with value 'now') and
-  // `nowColumns`, the SQL generator emits `SET col = NOW()` instead of a
-  // parameterized value. This matches the existing timestamp default convention.
+  // Auto-set autoUpdate columns to NOW() unless the user already provided a
+  // value (including DbExpr). The 'now' sentinel is consumed by buildUpdate:
+  // when a key appears in both `data` (with value 'now') and `nowColumns`, the
+  // SQL generator emits `SET col = NOW()`.
   for (const col of autoUpdateCols) {
-    filteredData[col] = 'now';
+    if (!(col in filteredData)) {
+      filteredData[col] = 'now';
+    }
   }
 
   const allNowColumns = [...new Set([...nowColumns, ...autoUpdateCols])];
@@ -426,9 +428,11 @@ export async function updateMany(
     Object.entries(options.data).filter(([key]) => !readOnlyCols.includes(key)),
   );
 
-  // Auto-set autoUpdate columns to NOW() (sentinel value consumed by buildUpdate)
+  // Auto-set autoUpdate columns to NOW() unless user provided a value
   for (const col of autoUpdateCols) {
-    filteredData[col] = 'now';
+    if (!(col in filteredData)) {
+      filteredData[col] = 'now';
+    }
   }
 
   const allNowColumns = [...new Set([...nowColumns, ...autoUpdateCols])];
@@ -494,7 +498,9 @@ export async function upsert<T>(
     Object.entries(options.update).filter(([key]) => !readOnlyCols.includes(key)),
   );
   for (const col of autoUpdateCols) {
-    filteredUpdate[col] = 'now';
+    if (!(col in filteredUpdate)) {
+      filteredUpdate[col] = 'now';
+    }
   }
 
   const allNowColumns = [...new Set([...nowColumns, ...autoUpdateCols])];
