@@ -109,6 +109,9 @@ pub struct ExecuteOptions {
     pub root_dir: Option<std::path::PathBuf>,
     /// Whether to skip the compilation cache (compile everything fresh).
     pub no_cache: bool,
+    /// Shared in-memory source cache for cross-isolate deduplication.
+    pub shared_source_cache:
+        Option<std::sync::Arc<crate::runtime::compile_cache::SharedSourceCache>>,
 }
 
 impl Default for ExecuteOptions {
@@ -120,6 +123,7 @@ impl Default for ExecuteOptions {
             preload: vec![],
             root_dir: None,
             no_cache: false,
+            shared_source_cache: None,
         }
     }
 }
@@ -200,6 +204,7 @@ fn execute_test_file_inner(
         enable_inspector: options.coverage,
         compile_cache: !options.no_cache,
         plugin: plugin.clone(),
+        shared_source_cache: options.shared_source_cache.clone(),
     })?;
 
     // NOTE: async context + test harness are pre-baked in the V8 snapshot,

@@ -105,6 +105,15 @@ pub async fn run_watch_mode(config: TestRunConfig) -> Result<(), String> {
         })
         .collect();
 
+    // Create shared in-memory source cache (disabled when --no-cache)
+    let shared_source_cache = if config.no_cache {
+        None
+    } else {
+        Some(Arc::new(
+            crate::runtime::compile_cache::SharedSourceCache::new(),
+        ))
+    };
+
     let exec_options = Arc::new(ExecuteOptions {
         filter: config.filter.clone(),
         timeout_ms: config.timeout_ms,
@@ -112,6 +121,7 @@ pub async fn run_watch_mode(config: TestRunConfig) -> Result<(), String> {
         preload: preload_paths,
         root_dir: Some(config.root_dir.clone()),
         no_cache: config.no_cache,
+        shared_source_cache,
     });
 
     // Initial run

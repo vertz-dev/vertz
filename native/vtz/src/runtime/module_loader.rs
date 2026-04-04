@@ -13,7 +13,7 @@ use deno_core::RequestedModuleType;
 use deno_core::ResolutionKind;
 
 use crate::plugin::{CompileContext, FrameworkPlugin};
-use crate::runtime::compile_cache::{CachedCompilation, CompileCache};
+use crate::runtime::compile_cache::{CachedCompilation, CompileCache, SharedSourceCache};
 
 /// Source maps collected during module loading.
 pub type SourceMapStore = RefCell<HashMap<String, String>>;
@@ -63,6 +63,7 @@ pub struct VertzModuleLoader {
     /// Canonical paths of modules that should be intercepted with mock proxies.
     /// Key: canonical file path, Value: raw specifier (for `globalThis.__vertz_mocked_modules` lookup).
     mocked_paths: RefCell<HashMap<PathBuf, String>>,
+    shared_source_cache: Option<std::sync::Arc<SharedSourceCache>>,
 }
 
 impl VertzModuleLoader {
@@ -75,6 +76,7 @@ impl VertzModuleLoader {
             compile_cache: CompileCache::new(Path::new(root_dir), false),
             plugin,
             mocked_paths: RefCell::new(HashMap::new()),
+            shared_source_cache: None,
         }
     }
 
@@ -92,6 +94,27 @@ impl VertzModuleLoader {
             compile_cache: CompileCache::new(Path::new(root_dir), cache_enabled),
             plugin,
             mocked_paths: RefCell::new(HashMap::new()),
+            shared_source_cache: None,
+        }
+    }
+
+    /// Create a new module loader with disk caching and shared in-memory source
+    /// cache for cross-isolate deduplication.
+    pub fn new_with_shared_cache(
+        root_dir: &str,
+        cache_enabled: bool,
+        plugin: std::sync::Arc<dyn FrameworkPlugin>,
+        shared_source_cache: Option<std::sync::Arc<SharedSourceCache>>,
+    ) -> Self {
+        Self {
+            root_dir: PathBuf::from(root_dir),
+            source_maps: RefCell::new(HashMap::new()),
+            canon_cache: RefCell::new(HashMap::new()),
+            compile_cache: CompileCache::new(Path::new(root_dir), cache_enabled),
+            plugin,
+            mocked_paths: RefCell::new(HashMap::new()),
+            newline_indices: RefCell::new(HashMap::new()),
+            shared_source_cache,
         }
     }
 
@@ -459,14 +482,46 @@ impl VertzModuleLoader {
             is_test as u8, // skip_css_transform
             is_test as u8, // mock_hoisting
         );
+        let file_path = PathBuf::from(filename);
 
-        // Check compilation cache first
+        // 1. Check in-memory shared cache first (fastest — no disk I/O)
+        if let Some(ref shared) = self.shared_source_cache {
+            if let Some(cached) = shared.get(&file_path) {
+                if let Some(ref map) = cached.source_map {
+                    self.source_maps
+                        .borrow_mut()
+                        .insert(filename.to_string(), map.clone());
+                }
+                let final_code = Self::prepend_css_injection(
+                    cached.code.clone(),
+                    cached.css.as_deref(),
+                    filename,
+                );
+                self.newline_indices
+                    .borrow_mut()
+                    .insert(filename.to_string(), build_newline_index(&final_code));
+                return Ok(final_code);
+            }
+        }
+
+        // 2. Check disk compilation cache
         if let Some(cached) = self.compile_cache.get(source, target, &options_hash) {
             // Restore source map from cache
             if let Some(ref map) = cached.source_map {
                 self.source_maps
                     .borrow_mut()
                     .insert(filename.to_string(), map.clone());
+            }
+            // Store in shared cache for subsequent isolates
+            if let Some(ref shared) = self.shared_source_cache {
+                shared.insert(
+                    file_path,
+                    std::sync::Arc::new(CachedCompilation {
+                        code: cached.code.clone(),
+                        source_map: cached.source_map.clone(),
+                        css: cached.css.clone(),
+                    }),
+                );
             }
             // Build the final code V8 will see (with CSS injection prepended)
             let final_code =
@@ -478,10 +533,10 @@ impl VertzModuleLoader {
             return Ok(final_code);
         }
 
-        let file_path = Path::new(filename);
+        // 3. Full compilation
         let src_dir = self.root_dir.join("src");
         let ctx = CompileContext {
-            file_path,
+            file_path: &file_path,
             root_dir: &self.root_dir,
             src_dir: &src_dir,
             target,
@@ -519,7 +574,7 @@ impl VertzModuleLoader {
         // Apply plugin post-processing (framework-specific fixups)
         let code = self.plugin.post_process(&output.code, &ctx);
 
-        // Cache the compilation result (code + source map + CSS, before CSS injection)
+        // Cache the compilation result on disk (code + source map + CSS)
         self.compile_cache.put(
             source,
             target,
@@ -530,6 +585,18 @@ impl VertzModuleLoader {
                 css: output.css.clone(),
             },
         );
+
+        // Store in shared cache for subsequent isolates
+        if let Some(ref shared) = self.shared_source_cache {
+            shared.insert(
+                file_path,
+                std::sync::Arc::new(CachedCompilation {
+                    code: code.clone(),
+                    source_map: output.source_map.clone(),
+                    css: output.css.clone(),
+                }),
+            );
+        }
 
         // Build the final code V8 will see (with CSS injection prepended)
         let final_code = Self::prepend_css_injection(code, output.css.as_deref(), filename);

@@ -1,12 +1,17 @@
-//! Disk-backed compilation cache for the module loader.
+//! Compilation cache for the module loader.
 //!
-//! Caches compiled TypeScript → JavaScript on disk, keyed by
-//! `SHA-256(source_content + CACHE_VERSION + compilation_target)`.
-//! Skips recompilation for unchanged files across test runs.
+//! Two layers:
+//! - **Disk cache** (`CompileCache`): persists compiled TS → JS across process
+//!   runs, keyed by `SHA-256(source + version + target)`.
+//! - **In-memory shared cache** (`SharedSourceCache`): thread-safe cache shared
+//!   across worker threads within a single process. Eliminates redundant disk
+//!   reads when multiple test-file isolates import the same module.
 //!
 //! Cache location: `<root_dir>/.vertz/compile-cache/<sha256-prefix>/<sha256>.json`
 
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
+use std::sync::{Arc, RwLock};
 
 use sha2::{Digest, Sha256};
 
@@ -99,6 +104,46 @@ impl CompileCache {
             "css": compilation.css,
         });
         let _ = std::fs::write(&path, serde_json::to_string(&json).unwrap_or_default());
+    }
+}
+
+/// Thread-safe in-memory cache for compiled module sources.
+///
+/// Shared across worker threads to avoid redundant disk I/O. Once a module
+/// is compiled and loaded by any isolate, subsequent isolates get the compiled
+/// source from memory (zero disk I/O).
+///
+/// Uses `RwLock<HashMap>` instead of `DashMap` to avoid a new dependency.
+/// The access pattern is low-contention: populated during the first few test
+/// files per thread, then read-mostly for the rest of the run.
+pub struct SharedSourceCache {
+    inner: RwLock<HashMap<PathBuf, Arc<CachedCompilation>>>,
+}
+
+impl Default for SharedSourceCache {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl SharedSourceCache {
+    pub fn new() -> Self {
+        Self {
+            inner: RwLock::new(HashMap::new()),
+        }
+    }
+
+    /// Look up a compiled module by its canonical filesystem path.
+    pub fn get(&self, path: &Path) -> Option<Arc<CachedCompilation>> {
+        self.inner.read().unwrap().get(path).cloned()
+    }
+
+    /// Store a compiled module. If the path already exists (race), the first
+    /// write wins — both compilations produce identical output for the same
+    /// source, so either value is correct.
+    pub fn insert(&self, path: PathBuf, compilation: Arc<CachedCompilation>) {
+        let mut map = self.inner.write().unwrap();
+        map.entry(path).or_insert(compilation);
     }
 }
 
@@ -271,5 +316,88 @@ mod tests {
             2,
             "Subdirectory should be 2-char prefix"
         );
+    }
+
+    // --- SharedSourceCache tests ---
+
+    #[test]
+    fn test_shared_cache_miss_returns_none() {
+        let cache = SharedSourceCache::new();
+        assert!(cache.get(Path::new("/foo/bar.ts")).is_none());
+    }
+
+    #[test]
+    fn test_shared_cache_insert_then_get() {
+        let cache = SharedSourceCache::new();
+        let path = PathBuf::from("/foo/bar.ts");
+        let compilation = Arc::new(CachedCompilation {
+            code: "const x = 1;".to_string(),
+            source_map: Some("{\"mappings\":\"AAAA\"}".to_string()),
+            css: Some(".a { color: red; }".to_string()),
+        });
+
+        cache.insert(path.clone(), compilation);
+
+        let cached = cache.get(&path).expect("Should hit cache");
+        assert_eq!(cached.code, "const x = 1;");
+        assert_eq!(
+            cached.source_map.as_deref(),
+            Some("{\"mappings\":\"AAAA\"}")
+        );
+        assert_eq!(cached.css.as_deref(), Some(".a { color: red; }"));
+    }
+
+    #[test]
+    fn test_shared_cache_first_insert_wins() {
+        let cache = SharedSourceCache::new();
+        let path = PathBuf::from("/foo/bar.ts");
+
+        cache.insert(
+            path.clone(),
+            Arc::new(CachedCompilation {
+                code: "first".to_string(),
+                source_map: None,
+                css: None,
+            }),
+        );
+
+        cache.insert(
+            path.clone(),
+            Arc::new(CachedCompilation {
+                code: "second".to_string(),
+                source_map: None,
+                css: None,
+            }),
+        );
+
+        let cached = cache.get(&path).unwrap();
+        assert_eq!(cached.code, "first", "First insert should win");
+    }
+
+    #[test]
+    fn test_shared_cache_concurrent_access() {
+        let cache = Arc::new(SharedSourceCache::new());
+        let mut handles = vec![];
+
+        for i in 0..10 {
+            let cache = cache.clone();
+            handles.push(std::thread::spawn(move || {
+                let path = PathBuf::from(format!("/module_{}.ts", i));
+                cache.insert(
+                    path.clone(),
+                    Arc::new(CachedCompilation {
+                        code: format!("code_{}", i),
+                        source_map: None,
+                        css: None,
+                    }),
+                );
+                let cached = cache.get(&path).unwrap();
+                assert_eq!(cached.code, format!("code_{}", i));
+            }));
+        }
+
+        for handle in handles {
+            handle.join().unwrap();
+        }
     }
 }

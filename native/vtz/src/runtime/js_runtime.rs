@@ -51,6 +51,10 @@ pub struct VertzRuntimeOptions {
     pub compile_cache: bool,
     /// Framework plugin for compilation. Defaults to VertzPlugin.
     pub plugin: Arc<dyn crate::plugin::FrameworkPlugin>,
+    /// Shared in-memory source cache for cross-isolate deduplication.
+    /// When set, compiled sources are cached in memory and shared across
+    /// worker threads, eliminating redundant disk I/O.
+    pub shared_source_cache: Option<Arc<crate::runtime::compile_cache::SharedSourceCache>>,
 }
 
 impl Default for VertzRuntimeOptions {
@@ -61,6 +65,7 @@ impl Default for VertzRuntimeOptions {
             enable_inspector: false,
             compile_cache: false,
             plugin: Arc::new(crate::plugin::vertz::VertzPlugin),
+            shared_source_cache: None,
         }
     }
 }
@@ -219,10 +224,11 @@ impl VertzJsRuntime {
                 .to_string_lossy()
                 .to_string()
         });
-        let module_loader = Rc::new(VertzModuleLoader::new_with_cache(
+        let module_loader = Rc::new(VertzModuleLoader::new_with_shared_cache(
             &root_dir,
             cache_enabled,
             options.plugin.clone(),
+            options.shared_source_cache.clone(),
         ));
         let snapshot = crate::test::snapshot::get_test_snapshot();
 

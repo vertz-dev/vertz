@@ -125,6 +125,15 @@ pub fn run_tests(config: TestRunConfig) -> (TestRunResult, String) {
         })
         .collect();
 
+    // Create shared in-memory source cache (disabled when --no-cache)
+    let shared_source_cache = if config.no_cache {
+        None
+    } else {
+        Some(std::sync::Arc::new(
+            crate::runtime::compile_cache::SharedSourceCache::new(),
+        ))
+    };
+
     let exec_options = std::sync::Arc::new(ExecuteOptions {
         filter: config.filter.clone(),
         timeout_ms: config.timeout_ms,
@@ -132,6 +141,7 @@ pub fn run_tests(config: TestRunConfig) -> (TestRunResult, String) {
         preload: preload_paths,
         root_dir: Some(config.root_dir.clone()),
         no_cache: config.no_cache,
+        shared_source_cache,
     });
 
     let mut results = execute_parallel(&files, concurrency, config.bail, exec_options);
