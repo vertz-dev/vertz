@@ -1,3 +1,4 @@
+import { AsyncLocalStorage } from 'node:async_hooks';
 import { afterEach, describe, expect, it } from 'bun:test';
 import { createContext, getContextScope, setContextScope } from '../component/context';
 import { getAdapter } from '../dom/adapter';
