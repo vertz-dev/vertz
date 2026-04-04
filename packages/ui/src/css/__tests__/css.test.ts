@@ -16,6 +16,11 @@ function cleanupStyles(): void {
     el.remove();
   }
   resetInjectedStyles();
+  // Clear ALL adopted stylesheets to prevent cross-file test leaks.
+  // resetInjectedStyles() only removes sheets tracked in its internal Set,
+  // which may have been cleared by a prior resetInjectedStyles() call in
+  // another test file, leaving orphaned sheets behind.
+  document.adoptedStyleSheets = [];
 }
 
 describe('css() runtime style injection', () => {
@@ -57,9 +62,16 @@ describe('css() runtime style injection', () => {
 });
 
 describe('injectCSS SSR behavior', () => {
+  beforeEach(() => {
+    resetInjectedStyles();
+    if (typeof document !== 'undefined') document.adoptedStyleSheets = [];
+  });
   afterEach(() => {
-    for (const el of document.head.querySelectorAll('style[data-vertz-css]')) {
-      el.remove();
+    if (typeof document !== 'undefined') {
+      for (const el of document.head.querySelectorAll('style[data-vertz-css]')) {
+        el.remove();
+      }
+      document.adoptedStyleSheets = [];
     }
     resetInjectedStyles();
     disableTestSSR();

@@ -16,6 +16,11 @@ function cleanupStyles(): void {
     el.remove();
   }
   resetInjectedStyles();
+  // Clear ALL adopted stylesheets to prevent cross-file test leaks.
+  // resetInjectedStyles() only removes sheets tracked in its internal Set,
+  // which may have been cleared by a prior resetInjectedStyles() call in
+  // another test file, leaving orphaned sheets behind.
+  document.adoptedStyleSheets = [];
 }
 
 describe('globalCss() runtime style injection', () => {
