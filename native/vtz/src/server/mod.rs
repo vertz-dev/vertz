@@ -5,6 +5,7 @@ pub mod css_server;
 pub mod diagnostics;
 pub mod html_shell;
 pub mod http;
+pub mod image_proxy;
 pub mod logging;
 pub mod mcp;
 pub mod mcp_events;

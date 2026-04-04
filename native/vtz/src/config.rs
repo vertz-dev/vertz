@@ -244,6 +244,11 @@ impl ServerConfig {
     pub fn css_dir(&self) -> PathBuf {
         self.dot_vertz_dir().join("css")
     }
+
+    /// Directory for cached optimized images (.vertz/images/).
+    pub fn images_dir(&self) -> PathBuf {
+        self.dot_vertz_dir().join("images")
+    }
 }
 
 /// Detect the client entry file by checking common names in order of priority.
@@ -371,6 +376,17 @@ mod tests {
         assert_eq!(
             config.css_dir(),
             PathBuf::from("/tmp/test-project/.vertz/css")
+        );
+    }
+
+    #[test]
+    fn test_images_dir() {
+        let root = PathBuf::from("/tmp/test-project");
+        let config =
+            ServerConfig::with_root(3000, "localhost".to_string(), PathBuf::from("public"), root);
+        assert_eq!(
+            config.images_dir(),
+            PathBuf::from("/tmp/test-project/.vertz/images")
         );
     }
 
