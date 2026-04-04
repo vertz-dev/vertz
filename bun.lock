@@ -14,14 +14,13 @@
         "magic-string": "^0.30.21",
         "oxfmt": "^0.42.0",
         "oxlint": "^1.57.0",
-        "ts-morph": "^27.0.2",
         "turbo": "^2.8.11",
         "vitest": "^4.0.18",
       },
     },
     "benchmarks/vertz": {
       "name": "@vertz-benchmarks/vertz-app",
-      "version": "0.0.44",
+      "version": "0.0.45",
       "dependencies": {
         "@vertz/theme-shadcn": "workspace:*",
         "@vertz/ui": "workspace:*",
@@ -107,7 +106,7 @@
     },
     "examples/task-manager": {
       "name": "@vertz-examples/task-manager",
-      "version": "0.2.46",
+      "version": "0.2.47",
       "dependencies": {
         "@vertz/errors": "workspace:*",
         "@vertz/fetch": "workspace:*",
@@ -127,6 +126,10 @@
         "typescript": "^5.8.0",
         "wrangler": "^4.65.0",
       },
+    },
+    "native/vertz-compiler": {
+      "name": "@vertz/native-compiler",
+      "version": "0.1.0",
     },
     "packages/agents": {
       "name": "@vertz/agents",
@@ -159,7 +162,7 @@
     },
     "packages/cli": {
       "name": "@vertz/cli",
-      "version": "0.2.46",
+      "version": "0.2.47",
       "bin": {
         "vertz": "./dist/vertz.js",
       },
@@ -189,7 +192,7 @@
     },
     "packages/cli-runtime": {
       "name": "@vertz/cli-runtime",
-      "version": "0.2.46",
+      "version": "0.2.47",
       "dependencies": {
         "@vertz/fetch": "workspace:^",
       },
@@ -201,7 +204,7 @@
     },
     "packages/cloudflare": {
       "name": "@vertz/cloudflare",
-      "version": "0.2.46",
+      "version": "0.2.47",
       "dependencies": {
         "@vertz/core": "workspace:^",
       },
@@ -219,7 +222,7 @@
     },
     "packages/codegen": {
       "name": "@vertz/codegen",
-      "version": "0.2.46",
+      "version": "0.2.47",
       "dependencies": {
         "@vertz/compiler": "workspace:^",
       },
@@ -231,7 +234,7 @@
     },
     "packages/compiler": {
       "name": "@vertz/compiler",
-      "version": "0.2.46",
+      "version": "0.2.47",
       "dependencies": {
         "ts-morph": "^27.0.2",
       },
@@ -261,7 +264,7 @@
     },
     "packages/core": {
       "name": "@vertz/core",
-      "version": "0.2.46",
+      "version": "0.2.47",
       "dependencies": {
         "@vertz/schema": "workspace:^",
       },
@@ -274,7 +277,7 @@
     },
     "packages/create-vertz": {
       "name": "create-vertz",
-      "version": "0.2.46",
+      "version": "0.2.47",
       "bin": {
         "create-vertz": "./bin/create-vertz.ts",
       },
@@ -284,7 +287,7 @@
     },
     "packages/create-vertz-app": {
       "name": "@vertz/create-vertz-app",
-      "version": "0.2.46",
+      "version": "0.2.47",
       "bin": {
         "create-vertz-app": "./bin/create-vertz-app.ts",
       },
@@ -298,7 +301,7 @@
     },
     "packages/db": {
       "name": "@vertz/db",
-      "version": "0.2.46",
+      "version": "0.2.47",
       "dependencies": {
         "@paralleldrive/cuid2": "^3.3.0",
         "@vertz/errors": "workspace:^",
@@ -353,7 +356,7 @@
     },
     "packages/errors": {
       "name": "@vertz/errors",
-      "version": "0.2.46",
+      "version": "0.2.47",
       "devDependencies": {
         "bun-types": "^1.3.10",
         "bunup": "^0.16.31",
@@ -362,7 +365,7 @@
     },
     "packages/fetch": {
       "name": "@vertz/fetch",
-      "version": "0.2.46",
+      "version": "0.2.47",
       "dependencies": {
         "@vertz/errors": "workspace:^",
       },
@@ -374,7 +377,7 @@
     },
     "packages/icons": {
       "name": "@vertz/icons",
-      "version": "0.2.46",
+      "version": "0.2.47",
       "devDependencies": {
         "@happy-dom/global-registrator": "^20.7.0",
         "bunup": "^0.16.31",
@@ -471,7 +474,7 @@
     },
     "packages/openapi": {
       "name": "@vertz/openapi",
-      "version": "0.1.4",
+      "version": "0.1.5",
       "dependencies": {
         "yaml": "^2.8.3",
       },
@@ -483,40 +486,41 @@
     },
     "packages/runtime": {
       "name": "@vertz/runtime",
-      "version": "0.2.46",
+      "version": "0.2.47",
       "bin": {
         "vertz": "./vtz",
         "vtz": "./vtz",
+        "vtzx": "./vtz",
       },
       "devDependencies": {
         "@types/node": "^22.15.32",
       },
       "optionalDependencies": {
-        "@vertz/runtime-darwin-arm64": "0.2.46",
-        "@vertz/runtime-darwin-x64": "0.2.46",
-        "@vertz/runtime-linux-arm64": "0.2.46",
-        "@vertz/runtime-linux-x64": "0.2.46",
+        "@vertz/runtime-darwin-arm64": "0.2.47",
+        "@vertz/runtime-darwin-x64": "0.2.47",
+        "@vertz/runtime-linux-arm64": "0.2.47",
+        "@vertz/runtime-linux-x64": "0.2.47",
       },
     },
     "packages/runtime-darwin-arm64": {
       "name": "@vertz/runtime-darwin-arm64",
-      "version": "0.2.46",
+      "version": "0.2.47",
     },
     "packages/runtime-darwin-x64": {
       "name": "@vertz/runtime-darwin-x64",
-      "version": "0.2.46",
+      "version": "0.2.47",
     },
     "packages/runtime-linux-arm64": {
       "name": "@vertz/runtime-linux-arm64",
-      "version": "0.2.46",
+      "version": "0.2.47",
     },
     "packages/runtime-linux-x64": {
       "name": "@vertz/runtime-linux-x64",
-      "version": "0.2.46",
+      "version": "0.2.47",
     },
     "packages/schema": {
       "name": "@vertz/schema",
-      "version": "0.2.46",
+      "version": "0.2.47",
       "dependencies": {
         "@vertz/errors": "workspace:^",
       },
@@ -528,7 +532,7 @@
     },
     "packages/server": {
       "name": "@vertz/server",
-      "version": "0.2.46",
+      "version": "0.2.47",
       "dependencies": {
         "@vertz/core": "workspace:^",
         "@vertz/db": "workspace:^",
@@ -554,7 +558,7 @@
     },
     "packages/testing": {
       "name": "@vertz/testing",
-      "version": "0.2.46",
+      "version": "0.2.47",
       "dependencies": {
         "@vertz/core": "workspace:^",
         "@vertz/db": "workspace:^",
@@ -569,7 +573,7 @@
     },
     "packages/theme-shadcn": {
       "name": "@vertz/theme-shadcn",
-      "version": "0.2.46",
+      "version": "0.2.47",
       "dependencies": {
         "@vertz/ui": "workspace:^",
         "@vertz/ui-primitives": "workspace:^",
@@ -584,7 +588,7 @@
     },
     "packages/tui": {
       "name": "@vertz/tui",
-      "version": "0.2.46",
+      "version": "0.2.47",
       "dependencies": {
         "@vertz/ui": "workspace:^",
       },
@@ -596,7 +600,7 @@
     },
     "packages/ui": {
       "name": "@vertz/ui",
-      "version": "0.2.46",
+      "version": "0.2.47",
       "dependencies": {
         "@vertz/fetch": "workspace:^",
       },
@@ -625,7 +629,7 @@
     },
     "packages/ui-canvas": {
       "name": "@vertz/ui-canvas",
-      "version": "0.2.46",
+      "version": "0.2.47",
       "dependencies": {
         "pixi.js": "^8.0.0",
       },
@@ -642,7 +646,7 @@
     },
     "packages/ui-primitives": {
       "name": "@vertz/ui-primitives",
-      "version": "0.2.46",
+      "version": "0.2.47",
       "dependencies": {
         "@floating-ui/dom": "^1.7.5",
         "@vertz/ui": "workspace:^",
@@ -657,7 +661,7 @@
     },
     "packages/ui-server": {
       "name": "@vertz/ui-server",
-      "version": "0.2.46",
+      "version": "0.2.47",
       "dependencies": {
         "@ampproject/remapping": "^2.3.0",
         "@capsizecss/unpack": "^4.0.0",
@@ -677,9 +681,18 @@
         "typescript": "^5.7.0",
       },
     },
+    "packages/ui-server/e2e/fixture": {
+      "name": "hmr-e2e-fixture",
+      "dependencies": {
+        "@vertz/errors": "workspace:^",
+        "@vertz/fetch": "workspace:^",
+        "@vertz/ui": "workspace:^",
+        "@vertz/ui-server": "workspace:^",
+      },
+    },
     "packages/vertz": {
       "name": "vertz",
-      "version": "0.2.46",
+      "version": "0.2.47",
       "dependencies": {
         "@vertz/cli": "workspace:^",
         "@vertz/cloudflare": "workspace:^",
@@ -1460,6 +1473,8 @@
 
     "@vertz/mint-docs": ["@vertz/mint-docs@workspace:packages/mint-docs"],
 
+    "@vertz/native-compiler": ["@vertz/native-compiler@workspace:native/vertz-compiler"],
+
     "@vertz/og": ["@vertz/og@workspace:packages/og"],
 
     "@vertz/openapi": ["@vertz/openapi@workspace:packages/openapi"],
@@ -1831,6 +1846,8 @@
     "hast-util-whitespace": ["hast-util-whitespace@3.0.0", "", { "dependencies": { "@types/hast": "^3.0.0" } }, "sha512-88JUN06ipLwsnv+dVn+OIYOvAuvBMy/Qoi6O7mQHxdPXpjy+Cd6xRkWwux7DKO+4sYILtLBRIKgsdpS2gQc7qw=="],
 
     "hex-rgb": ["hex-rgb@4.3.0", "", {}, "sha512-Ox1pJVrDCyGHMG9CFg1tmrRUMRPRsAWYc/PinY0XzJU4K7y7vjNoLKIQ7BR5UJMCxNN8EM1MNDmHWA/B3aZUuw=="],
+
+    "hmr-e2e-fixture": ["hmr-e2e-fixture@workspace:packages/ui-server/e2e/fixture"],
 
     "html-void-elements": ["html-void-elements@3.0.0", "", {}, "sha512-bEqo66MRXsUGxWHV5IP0PUiAWwoEjba4VCzg0LjFJBpchPaTfyfCKTG6bc5F8ucKec3q5y6qOdGyYTSBEvhCrg=="],
 
