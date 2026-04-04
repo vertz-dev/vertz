@@ -24,11 +24,11 @@ struct DestructuredPropsInfo {
     bindings: Vec<PropBinding>,
     has_rest: bool,
     has_nested_destructuring: bool,
-    /// Span of the entire parameter pattern (from `{` to `)` or type annotation end).
+    /// Span of the entire parameter (from `{` to end of type annotation).
     param_start: u32,
     param_end: u32,
-    /// Type annotation text, if present.
-    type_annotation: Option<String>,
+    /// End of just the destructuring pattern (before type annotation).
+    pattern_end: u32,
 }
 
 /// Transform destructured props into __props access pattern.
@@ -62,11 +62,13 @@ pub fn transform_props(
     }
 
     // Step 1: Rewrite parameter `{ title, ...rest }: CardProps` → `__props: CardProps`
-    let new_param = if let Some(ref type_ann) = info.type_annotation {
-        format!("__props: {type_ann}")
+    // Preserve the type annotation so downstream TS stripping (e.g., Bun) handles it.
+    let type_annotation = if info.pattern_end < info.param_end {
+        &source[info.pattern_end as usize..info.param_end as usize]
     } else {
-        "__props".to_string()
+        ""
     };
+    let new_param = format!("__props{type_annotation}");
     ms.overwrite(info.param_start, info.param_end, &new_param);
 
     // Step 2: Replace references in the component body
@@ -253,12 +255,7 @@ fn extract_from_params<'a>(
         // Determine param range: from pattern start to end of type annotation or closing paren
         let param_start = first_param.span.start;
         let param_end = first_param.span.end;
-
-        // Extract type annotation if present (on FormalParameter, not BindingPattern)
-        let type_annotation = first_param.type_annotation.as_ref().map(|ta| {
-            let ts_span = ta.type_annotation.span();
-            source[ts_span.start as usize..ts_span.end as usize].to_string()
-        });
+        let pattern_end = obj_pattern.span.end;
 
         Some(DestructuredPropsInfo {
             bindings,
@@ -266,7 +263,7 @@ fn extract_from_params<'a>(
             has_nested_destructuring: has_nested,
             param_start,
             param_end,
-            type_annotation,
+            pattern_end,
         })
     } else {
         None
@@ -614,5 +611,22 @@ mod tests {
 };"#,
         );
         assert!(code.contains("__props.title"), "code: {}", code);
+    }
+
+    // ── Type annotation preserved on __props ──────────────────────
+
+    #[test]
+    fn props_rewrite_preserves_type_annotation() {
+        // The props transformer preserves `: TypeName` on __props so that
+        // downstream TS stripping (Bun plugin) can handle it.
+        let code = compile_tsx(
+            r#"function Card({ title, onClick }: CardProps) {
+    return <div onClick={onClick}>{title}</div>;
+}"#,
+        );
+        assert!(
+            code.contains("__props: CardProps"),
+            "expected type annotation on __props: {code}"
+        );
     }
 }

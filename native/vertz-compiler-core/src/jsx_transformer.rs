@@ -131,29 +131,149 @@ pub fn transform_jsx(
     }
 }
 
-/// Inject a `data-v-id` setAttribute call into the first __element() IIFE.
+/// Transform JSX that appears outside any component body (module-level JSX).
+///
+/// This handles patterns like `defineRoutes({ '/': { component: () => <Page /> } })`
+/// where the JSX is inside an anonymous arrow that the component analyzer doesn't detect.
+/// The JSX is transformed with an empty reactivity context (no signals/computeds).
+pub fn transform_module_level_jsx(
+    ms: &mut MagicString,
+    program: &Program,
+    components: &[ComponentInfo],
+) {
+    let mut collector = ModuleLevelJsxCollector {
+        component_ranges: components
+            .iter()
+            .map(|c| (c.body_start, c.body_end))
+            .collect(),
+        nodes: Vec::new(),
+        in_component: false,
+        in_jsx: false,
+    };
+    for stmt in &program.body {
+        collector.visit_statement(stmt);
+    }
+
+    if collector.nodes.is_empty() {
+        return;
+    }
+
+    let rx = ReactivityContext {
+        names: HashSet::new(),
+        signal_api_props: HashMap::new(),
+        field_signal_api_vars: HashSet::new(),
+        reactive_sources: HashSet::new(),
+        inline_locals: HashMap::new(),
+        props_param: None,
+    };
+    let mut counter = 0;
+
+    // Process in reverse order so inner JSX is transformed first
+    collector.nodes.reverse();
+    for jsx_info in &collector.nodes {
+        let transformed = transform_jsx_node(
+            ms,
+            program,
+            jsx_info.start,
+            jsx_info.end,
+            &jsx_info.kind,
+            &rx,
+            &mut counter,
+        );
+        ms.overwrite(jsx_info.start, jsx_info.end, &transformed);
+    }
+}
+
+struct ModuleLevelJsxCollector {
+    /// Body ranges of all detected components — JSX inside these is already handled.
+    component_ranges: Vec<(u32, u32)>,
+    nodes: Vec<JsxNodeInfo>,
+    /// True when the visitor is inside a known component body.
+    in_component: bool,
+    /// True when already inside a JSX tree (skip nested JSX).
+    in_jsx: bool,
+}
+
+impl ModuleLevelJsxCollector {
+    fn is_inside_component(&self, start: u32, end: u32) -> bool {
+        self.component_ranges
+            .iter()
+            .any(|&(cs, ce)| start >= cs && end <= ce)
+    }
+}
+
+impl<'c> Visit<'c> for ModuleLevelJsxCollector {
+    fn visit_function(&mut self, func: &Function<'c>, flags: oxc_syntax::scope::ScopeFlags) {
+        let span = func.span;
+        if self.is_inside_component(span.start, span.end) {
+            let was = self.in_component;
+            self.in_component = true;
+            oxc_ast_visit::walk::walk_function(self, func, flags);
+            self.in_component = was;
+            return;
+        }
+        oxc_ast_visit::walk::walk_function(self, func, flags);
+    }
+
+    fn visit_arrow_function_expression(&mut self, func: &ArrowFunctionExpression<'c>) {
+        let span = func.span;
+        if self.is_inside_component(span.start, span.end) {
+            let was = self.in_component;
+            self.in_component = true;
+            oxc_ast_visit::walk::walk_arrow_function_expression(self, func);
+            self.in_component = was;
+            return;
+        }
+        oxc_ast_visit::walk::walk_arrow_function_expression(self, func);
+    }
+
+    fn visit_jsx_element(&mut self, elem: &JSXElement<'c>) {
+        if self.in_component || self.in_jsx {
+            return;
+        }
+        self.nodes.push(JsxNodeInfo {
+            start: elem.span.start,
+            end: elem.span.end,
+            kind: JsxNodeKind::Element,
+        });
+        self.in_jsx = true;
+        oxc_ast_visit::walk::walk_jsx_element(self, elem);
+        self.in_jsx = false;
+    }
+
+    fn visit_jsx_fragment(&mut self, frag: &JSXFragment<'c>) {
+        if self.in_component || self.in_jsx {
+            return;
+        }
+        self.nodes.push(JsxNodeInfo {
+            start: frag.span.start,
+            end: frag.span.end,
+            kind: JsxNodeKind::Fragment,
+        });
+        self.in_jsx = true;
+        oxc_ast_visit::walk::walk_jsx_fragment(self, frag);
+        self.in_jsx = false;
+    }
+}
+
+/// Inject a `data-v-id` setAttribute call into the first `__element()` IIFE.
+///
+/// Finds the pattern `const __elN = __element("tag")` and inserts
+/// `__elN.setAttribute("data-v-id", "Name");` right after that statement.
+/// Skips `document.createDocumentFragment()` declarations (fragments).
 fn inject_hydration_attr(code: &str, component_name: &str) -> Option<String> {
-    // Find pattern: `const __elN = __element("tag")`
-    // Insert after the semicolon: `__elN.setAttribute("data-v-id", "Name");`
-    let el_prefix = "const __el";
-    let pos = code.find(el_prefix)?;
-    let after = &code[pos..];
+    // Use a regex to find exactly `const __elN = __element("...")`
+    // This avoids the bug where `const __el0 = document.createDocumentFragment()`
+    // is matched and then the search for `= __element(` jumps to a different statement.
+    let re = regex::Regex::new(r#"const (__el\d+) = __element\("[^"]*"\)"#).ok()?;
+    let m = re.find(code)?;
+    let caps = re.captures(code)?;
+    let var_name = caps.get(1)?.as_str();
+    let insert_pos = m.end();
 
-    // Extract the variable name (e.g., "__el0")
-    let eq_pos = after.find(" = __element(")?;
-    let var_name = &after[6..eq_pos]; // skip "const "
-    let full_var = format!("__el{}", var_name);
-
-    // Find the end of this statement (the semicolon after __element(...))
-    let stmt_end = after.find("__element(")?;
-    let rest = &after[stmt_end..];
-    let paren_end = rest.find(')')?;
-    let insert_pos = pos + stmt_end + paren_end + 1;
-
-    // Check if there's already a semicolon
     let insert_text = format!(
         ";\n  {}.setAttribute(\"data-v-id\", \"{}\")",
-        full_var, component_name
+        var_name, component_name
     );
 
     let mut result = String::with_capacity(code.len() + insert_text.len());
@@ -332,11 +452,13 @@ fn transform_jsx_node(
     rx: &ReactivityContext,
     counter: &mut u32,
 ) -> String {
+    let source = ms.original();
     match kind {
         JsxNodeKind::Element => {
             let mut finder = ElementFinder {
                 target_start: start,
                 target_end: end,
+                source,
                 result: None,
             };
             for stmt in &program.body {
@@ -355,6 +477,7 @@ fn transform_jsx_node(
             let mut finder = FragmentFinder {
                 target_start: start,
                 target_end: end,
+                source,
                 result: None,
             };
             for stmt in &program.body {
@@ -447,6 +570,11 @@ enum ExprKind {
         item_param: String,
         index_param: Option<String>,
         key_expr: Option<String>,
+        /// Whether the index parameter is referenced in the callback body
+        /// (outside of JSX `key` attributes). Determined via AST analysis.
+        index_used_in_body: bool,
+        /// Whether the index parameter is referenced in a JSX `key` attribute.
+        index_used_in_key: bool,
         /// Const declarations inside block body callbacks: (name, init_start, init_end).
         /// Used to detect reactive callback-local variables that need inlining.
         callback_locals: Vec<(String, u32, u32)>,
@@ -458,16 +586,17 @@ struct FragmentInfo {
     children: Vec<ChildInfo>,
 }
 
-struct ElementFinder {
+struct ElementFinder<'s> {
     target_start: u32,
     target_end: u32,
+    source: &'s str,
     result: Option<ElementInfo>,
 }
 
-impl<'c> Visit<'c> for ElementFinder {
+impl<'c, 's> Visit<'c> for ElementFinder<'s> {
     fn visit_jsx_element(&mut self, elem: &JSXElement<'c>) {
         if elem.span.start == self.target_start && elem.span.end == self.target_end {
-            self.result = Some(extract_element_info(elem));
+            self.result = Some(extract_element_info(elem, self.source));
             return;
         }
         oxc_ast_visit::walk::walk_jsx_element(self, elem);
@@ -480,27 +609,28 @@ impl<'c> Visit<'c> for ElementFinder {
     }
 }
 
-struct FragmentFinder {
+struct FragmentFinder<'s> {
     target_start: u32,
     target_end: u32,
+    source: &'s str,
     result: Option<FragmentInfo>,
 }
 
-impl<'c> Visit<'c> for FragmentFinder {
+impl<'c, 's> Visit<'c> for FragmentFinder<'s> {
     fn visit_jsx_fragment(&mut self, frag: &JSXFragment<'c>) {
         if frag.span.start == self.target_start && frag.span.end == self.target_end {
-            self.result = Some(extract_fragment_info(frag));
+            self.result = Some(extract_fragment_info(frag, self.source));
             return;
         }
         oxc_ast_visit::walk::walk_jsx_fragment(self, frag);
     }
 }
 
-fn extract_element_info(elem: &JSXElement) -> ElementInfo {
+fn extract_element_info(elem: &JSXElement, source: &str) -> ElementInfo {
     let tag_name = extract_tag_name(&elem.opening_element);
     let is_component = tag_name.starts_with(|c: char| c.is_ascii_uppercase());
     let attrs = extract_attrs(&elem.opening_element);
-    let children = extract_children(&elem.children);
+    let children = extract_children(&elem.children, source);
 
     ElementInfo {
         tag_name,
@@ -510,8 +640,8 @@ fn extract_element_info(elem: &JSXElement) -> ElementInfo {
     }
 }
 
-fn extract_fragment_info(frag: &JSXFragment) -> FragmentInfo {
-    let children = extract_children(&frag.children);
+fn extract_fragment_info(frag: &JSXFragment, source: &str) -> FragmentInfo {
+    let children = extract_children(&frag.children, source);
     FragmentInfo { children }
 }
 
@@ -627,7 +757,7 @@ fn is_jsx_expr_literal(expr: &JSXExpression) -> bool {
     )
 }
 
-fn extract_children(children: &oxc_allocator::Vec<JSXChild>) -> Vec<ChildInfo> {
+fn extract_children(children: &oxc_allocator::Vec<JSXChild>, source: &str) -> Vec<ChildInfo> {
     let mut result = Vec::new();
     for child in children {
         match child {
@@ -642,7 +772,7 @@ fn extract_children(children: &oxc_allocator::Vec<JSXChild>) -> Vec<ChildInfo> {
                 _ => {
                     let (expr_start, expr_end) = jsx_expr_span(&expr_container.expression);
                     let is_literal = is_jsx_expr_literal(&expr_container.expression);
-                    let expr_kind = classify_expression(&expr_container.expression);
+                    let expr_kind = classify_expression(&expr_container.expression, source);
                     result.push(ChildInfo::Expression {
                         expr_start,
                         expr_end,
@@ -652,10 +782,10 @@ fn extract_children(children: &oxc_allocator::Vec<JSXChild>) -> Vec<ChildInfo> {
                 }
             },
             JSXChild::Element(elem) => {
-                result.push(ChildInfo::Element(extract_element_info(elem)));
+                result.push(ChildInfo::Element(extract_element_info(elem, source)));
             }
             JSXChild::Fragment(frag) => {
-                result.push(ChildInfo::Fragment(extract_fragment_info(frag)));
+                result.push(ChildInfo::Fragment(extract_fragment_info(frag, source)));
             }
             JSXChild::Spread(_) => {
                 // JSX spread children — not common
@@ -665,16 +795,16 @@ fn extract_children(children: &oxc_allocator::Vec<JSXChild>) -> Vec<ChildInfo> {
     result
 }
 
-fn classify_expression(expr: &JSXExpression) -> ExprKind {
+fn classify_expression(expr: &JSXExpression, source: &str) -> ExprKind {
     if let Some(e) = expr.as_expression() {
-        classify_inner_expression(e)
+        classify_inner_expression(e, source)
     } else {
         ExprKind::Normal
     }
 }
 
 /// Try to classify a CallExpression as a .map() list pattern.
-fn classify_map_call(call: &CallExpression) -> Option<ExprKind> {
+fn classify_map_call(call: &CallExpression, source: &str) -> Option<ExprKind> {
     // Check callee: could be StaticMemberExpression directly, or via as_member_expression()
     let member = if let Expression::StaticMemberExpression(m) = &call.callee {
         Some(m.as_ref())
@@ -715,7 +845,7 @@ fn classify_map_call(call: &CallExpression) -> Option<ExprKind> {
     let source_start = member.object.span().start;
     let source_end = member.object.span().end;
 
-    let key_expr = extract_key_from_arrow_body(&arrow.body, &item_param);
+    let key_expr = extract_key_from_arrow_body(&arrow.body, &item_param, source);
 
     let body_stmts = &arrow.body.statements;
     let (cb_start, cb_end) = if arrow.expression {
@@ -735,6 +865,15 @@ fn classify_map_call(call: &CallExpression) -> Option<ExprKind> {
         Vec::new()
     };
 
+    // AST-based check: where is the index param referenced?
+    let index_usage = index_param
+        .as_ref()
+        .map(|idx| analyze_index_usage(&arrow.body, idx))
+        .unwrap_or(IndexUsage {
+            in_body: false,
+            in_key: false,
+        });
+
     Some(ExprKind::List {
         source_start,
         source_end,
@@ -743,6 +882,8 @@ fn classify_map_call(call: &CallExpression) -> Option<ExprKind> {
         item_param,
         index_param,
         key_expr,
+        index_used_in_body: index_usage.in_body,
+        index_used_in_key: index_usage.in_key,
         callback_locals,
     })
 }
@@ -767,15 +908,68 @@ fn extract_callback_locals(stmts: &[Statement]) -> Vec<(String, u32, u32)> {
     locals
 }
 
-fn classify_inner_expression(expr: &Expression) -> ExprKind {
+/// Result of AST-based index parameter usage analysis.
+struct IndexUsage {
+    /// Index param is referenced outside JSX `key` attributes (in the render body).
+    in_body: bool,
+    /// Index param is referenced inside a JSX `key` attribute.
+    in_key: bool,
+}
+
+/// Walk the callback body AST and determine where the index parameter is
+/// referenced: inside JSX `key` attributes, in the rest of the body, or both.
+fn analyze_index_usage(body: &FunctionBody, index_param: &str) -> IndexUsage {
+    struct Checker<'a> {
+        target: &'a str,
+        in_body: bool,
+        in_key: bool,
+        inside_key: bool,
+    }
+
+    impl<'a, 'b> Visit<'b> for Checker<'a> {
+        fn visit_identifier_reference(&mut self, id: &IdentifierReference<'b>) {
+            if id.name == self.target {
+                if self.inside_key {
+                    self.in_key = true;
+                } else {
+                    self.in_body = true;
+                }
+            }
+        }
+
+        fn visit_jsx_attribute_item(&mut self, attr: &JSXAttributeItem<'b>) {
+            if let JSXAttributeItem::Attribute(jsx_attr) = attr {
+                if let JSXAttributeName::Identifier(id) = &jsx_attr.name {
+                    if id.name == "key" {
+                        self.inside_key = true;
+                        oxc_ast_visit::walk::walk_jsx_attribute_item(self, attr);
+                        self.inside_key = false;
+                        return;
+                    }
+                }
+            }
+            oxc_ast_visit::walk::walk_jsx_attribute_item(self, attr);
+        }
+    }
+
+    let mut checker = Checker {
+        target: index_param,
+        in_body: false,
+        in_key: false,
+        inside_key: false,
+    };
+    checker.visit_function_body(body);
+    IndexUsage {
+        in_body: checker.in_body,
+        in_key: checker.in_key,
+    }
+}
+
+fn classify_inner_expression<'a>(expr: &Expression<'a>, source: &str) -> ExprKind {
     match expr {
         Expression::ConditionalExpression(cond) => {
             let true_is_jsx = is_jsx_expression(&cond.consequent);
             let false_is_jsx = is_jsx_expression(&cond.alternate);
-            // Always classify ternaries as Conditional — even when both branches
-            // are non-JSX (e.g., string literals). The condition may reference
-            // reactive variables, and __conditional() handles both JSX and text branches.
-            // This matches ts-morph behavior which wraps ALL ternaries in JSX children.
             ExprKind::Conditional {
                 cond_start: cond.test.span().start,
                 cond_end: cond.test.span().end,
@@ -789,9 +983,6 @@ fn classify_inner_expression(expr: &Expression) -> ExprKind {
         }
         Expression::LogicalExpression(logical) if logical.operator == LogicalOperator::And => {
             let right_is_jsx = is_jsx_expression(&logical.right);
-            // Always classify logical AND as LogicalAnd — the left side (condition)
-            // may reference reactive variables, and __conditional() handles both
-            // JSX and non-JSX right-hand sides.
             ExprKind::LogicalAnd {
                 left_start: logical.left.span().start,
                 left_end: logical.left.span().end,
@@ -800,16 +991,20 @@ fn classify_inner_expression(expr: &Expression) -> ExprKind {
                 right_is_jsx,
             }
         }
-        Expression::CallExpression(call) => classify_map_call(call).unwrap_or(ExprKind::Normal),
+        Expression::CallExpression(call) => {
+            classify_map_call(call, source).unwrap_or(ExprKind::Normal)
+        }
         Expression::ChainExpression(chain) => {
             // Handle optional chaining: projects.data?.items.map(...)
             if let ChainElement::CallExpression(call) = &chain.expression {
-                classify_map_call(call).unwrap_or(ExprKind::Normal)
+                classify_map_call(call, source).unwrap_or(ExprKind::Normal)
             } else {
                 ExprKind::Normal
             }
         }
-        Expression::ParenthesizedExpression(paren) => classify_inner_expression(&paren.expression),
+        Expression::ParenthesizedExpression(paren) => {
+            classify_inner_expression(&paren.expression, source)
+        }
         _ => ExprKind::Normal,
     }
 }
@@ -819,17 +1014,21 @@ fn is_jsx_expression(expr: &Expression) -> bool {
         || matches!(expr, Expression::ParenthesizedExpression(p) if is_jsx_expression(&p.expression))
 }
 
-fn extract_key_from_arrow_body(body: &FunctionBody, _item_param: &str) -> Option<String> {
+fn extract_key_from_arrow_body(
+    body: &FunctionBody,
+    _item_param: &str,
+    source: &str,
+) -> Option<String> {
     // Walk the body to find a JSX element with a key prop
     for stmt in &body.statements {
         if let Statement::ExpressionStatement(es) = stmt {
-            if let Some(key) = extract_key_from_expr(&es.expression) {
+            if let Some(key) = extract_key_from_expr(&es.expression, source) {
                 return Some(key);
             }
         }
         if let Statement::ReturnStatement(ret) = stmt {
             if let Some(ref arg) = ret.argument {
-                if let Some(key) = extract_key_from_expr(arg) {
+                if let Some(key) = extract_key_from_expr(arg, source) {
                     return Some(key);
                 }
             }
@@ -838,15 +1037,15 @@ fn extract_key_from_arrow_body(body: &FunctionBody, _item_param: &str) -> Option
     None
 }
 
-fn extract_key_from_expr(expr: &Expression) -> Option<String> {
+fn extract_key_from_expr(expr: &Expression, source: &str) -> Option<String> {
     match expr {
-        Expression::JSXElement(elem) => extract_key_from_jsx_attrs(&elem.opening_element),
-        Expression::ParenthesizedExpression(p) => extract_key_from_expr(&p.expression),
+        Expression::JSXElement(elem) => extract_key_from_jsx_attrs(&elem.opening_element, source),
+        Expression::ParenthesizedExpression(p) => extract_key_from_expr(&p.expression, source),
         _ => None,
     }
 }
 
-fn extract_key_from_jsx_attrs(opening: &JSXOpeningElement) -> Option<String> {
+fn extract_key_from_jsx_attrs(opening: &JSXOpeningElement, source: &str) -> Option<String> {
     for attr in &opening.attributes {
         if let JSXAttributeItem::Attribute(jsx_attr) = attr {
             let name = match &jsx_attr.name {
@@ -858,8 +1057,7 @@ fn extract_key_from_jsx_attrs(opening: &JSXOpeningElement) -> Option<String> {
             }
             if let Some(JSXAttributeValue::ExpressionContainer(expr_container)) = &jsx_attr.value {
                 if let Some(inner) = expr_container.expression.as_expression() {
-                    // Return the raw text — we'll need MagicString for transformed text
-                    return Some(format_expr_text(inner));
+                    return Some(format_expr_text(inner, source));
                 }
             }
         }
@@ -867,14 +1065,13 @@ fn extract_key_from_jsx_attrs(opening: &JSXOpeningElement) -> Option<String> {
     None
 }
 
-fn format_expr_text(expr: &Expression) -> String {
-    match expr {
-        Expression::StaticMemberExpression(member) => {
-            let obj = format_expr_text(&member.object);
-            format!("{}.{}", obj, member.property.name)
-        }
-        Expression::Identifier(id) => id.name.to_string(),
-        _ => String::new(),
+fn format_expr_text(expr: &Expression, source: &str) -> String {
+    let start = expr.span().start as usize;
+    let end = expr.span().end as usize;
+    if start < end && end <= source.len() {
+        source[start..end].to_string()
+    } else {
+        String::new()
     }
 }
 
@@ -1080,11 +1277,18 @@ fn transform_child_as_value(
                 item_param,
                 index_param,
                 key_expr,
+                index_used_in_body,
+                index_used_in_key,
                 callback_locals,
             } = expr_kind
             {
                 let source_text = ms.get_transformed_slice(*source_start, *source_end);
-                let key_fn = build_key_fn(key_expr, item_param, index_param.as_deref());
+                let key_fn = build_key_fn(
+                    key_expr,
+                    item_param,
+                    index_param.as_deref(),
+                    *index_used_in_key,
+                );
 
                 // Build inline_locals for reactive callback-local variables
                 let extended_rx = build_extended_rx_for_list(ms, callback_locals, rx);
@@ -1115,7 +1319,16 @@ fn transform_child_as_value(
                     }
                 };
 
-                let render_fn = format!("({}) => {}", item_param, render_body);
+                let render_params = if let Some(idx) = index_param {
+                    if *index_used_in_body {
+                        format!("({}, {})", item_param, idx)
+                    } else {
+                        format!("({})", item_param)
+                    }
+                } else {
+                    format!("({})", item_param)
+                };
+                let render_fn = format!("{} => {}", render_params, render_body);
                 return Some(format!(
                     "__listValue(() => {}, {}, {})",
                     source_text, key_fn, render_fn
@@ -1362,11 +1575,18 @@ fn transform_child(
                 item_param,
                 index_param,
                 key_expr,
+                index_used_in_body,
+                index_used_in_key,
                 callback_locals,
             } = expr_kind
             {
                 let source_text = ms.get_transformed_slice(*source_start, *source_end);
-                let key_fn = build_key_fn(key_expr, item_param, index_param.as_deref());
+                let key_fn = build_key_fn(
+                    key_expr,
+                    item_param,
+                    index_param.as_deref(),
+                    *index_used_in_key,
+                );
 
                 // Build inline_locals for reactive callback-local variables
                 let extended_rx = build_extended_rx_for_list(ms, callback_locals, rx);
@@ -1399,7 +1619,16 @@ fn transform_child(
                     }
                 };
 
-                let render_fn = format!("({}) => {}", item_param, render_body);
+                let render_params = if let Some(idx) = index_param {
+                    if *index_used_in_body {
+                        format!("({}, {})", item_param, idx)
+                    } else {
+                        format!("({})", item_param)
+                    }
+                } else {
+                    format!("({})", item_param)
+                };
+                let render_fn = format!("{} => {}", render_params, render_body);
                 return Some(format!(
                     "__list({}, () => {}, {}, {})",
                     parent_var, source_text, key_fn, render_fn
@@ -1890,14 +2119,17 @@ fn word_boundary_replace(text: &str, pattern: &str, replacement: &str) -> String
 }
 
 /// Build a key function string for __list/__listValue.
-/// Includes index param when the key expression references it as a variable.
-fn build_key_fn(key_expr: &Option<String>, item_param: &str, index_param: Option<&str>) -> String {
+/// Includes index param when the AST analysis determined the key references it.
+fn build_key_fn(
+    key_expr: &Option<String>,
+    item_param: &str,
+    index_param: Option<&str>,
+    index_used_in_key: bool,
+) -> String {
     match key_expr {
         Some(k) => {
-            // Include index param when the key expression references it
-            // (not as part of a property access like item.index)
             if let Some(idx) = index_param {
-                if key_references_index(k, idx) {
+                if index_used_in_key {
                     return format!("({}, {}) => {}", item_param, idx, k);
                 }
             }
@@ -1905,37 +2137,6 @@ fn build_key_fn(key_expr: &Option<String>, item_param: &str, index_param: Option
         }
         None => "null".to_string(),
     }
-}
-
-/// Check if a key expression references the index parameter as a standalone variable.
-fn key_references_index(key_expr: &str, index_param: &str) -> bool {
-    let mut start = 0;
-    while let Some(pos) = key_expr[start..].find(index_param) {
-        let abs_pos = start + pos;
-        let after_pos = abs_pos + index_param.len();
-
-        // Check char before is not part of identifier or a dot (property access)
-        let ok_before = if abs_pos == 0 {
-            true
-        } else {
-            let prev = key_expr.as_bytes()[abs_pos - 1];
-            !prev.is_ascii_alphanumeric() && prev != b'_' && prev != b'$' && prev != b'.'
-        };
-
-        // Check char after is not part of identifier
-        let ok_after = if after_pos >= key_expr.len() {
-            true
-        } else {
-            let next = key_expr.as_bytes()[after_pos];
-            !next.is_ascii_alphanumeric() && next != b'_' && next != b'$'
-        };
-
-        if ok_before && ok_after {
-            return true;
-        }
-        start = abs_pos + 1;
-    }
-    false
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -2240,28 +2441,6 @@ mod tests {
     #[test]
     fn word_boundary_replace_multiple_occurrences() {
         assert_eq!(word_boundary_replace("x + x", "x", "z"), "z + z");
-    }
-
-    // ========== key_references_index ==========
-
-    #[test]
-    fn key_references_index_standalone() {
-        assert!(key_references_index("idx", "idx"));
-    }
-
-    #[test]
-    fn key_references_index_in_expression() {
-        assert!(key_references_index("item.id + idx", "idx"));
-    }
-
-    #[test]
-    fn key_references_index_not_present() {
-        assert!(!key_references_index("item.id", "idx"));
-    }
-
-    #[test]
-    fn key_references_index_inside_word() {
-        assert!(!key_references_index("index_of", "index"));
     }
 
     // ========== Basic element transformation ==========
@@ -2989,25 +3168,25 @@ export function B() {
 
     #[test]
     fn build_key_fn_simple_key() {
-        let key = build_key_fn(&Some("item.id".to_string()), "item", None);
+        let key = build_key_fn(&Some("item.id".to_string()), "item", None, false);
         assert_eq!(key, "(item) => item.id");
     }
 
     #[test]
     fn build_key_fn_with_index_in_key() {
-        let key = build_key_fn(&Some("idx".to_string()), "item", Some("idx"));
+        let key = build_key_fn(&Some("idx".to_string()), "item", Some("idx"), true);
         assert_eq!(key, "(item, idx) => idx");
     }
 
     #[test]
     fn build_key_fn_index_not_referenced() {
-        let key = build_key_fn(&Some("item.id".to_string()), "item", Some("idx"));
+        let key = build_key_fn(&Some("item.id".to_string()), "item", Some("idx"), false);
         assert_eq!(key, "(item) => item.id");
     }
 
     #[test]
     fn build_key_fn_no_key() {
-        let key = build_key_fn(&None, "item", None);
+        let key = build_key_fn(&None, "item", None, false);
         assert_eq!(key, "null");
     }
 
@@ -3305,6 +3484,40 @@ export function B() {
 }"#,
         );
         assert!(result.contains("__list("), "result: {result}");
+    }
+
+    // Regression: complex key expressions must use source span, not AST reconstruction
+    #[test]
+    fn list_map_complex_key_expression_preserved() {
+        let result = transform(
+            r#"export function App() {
+    const items = [{ id: 1 }];
+    return <div>{items.map((item) => <span key={item.id}>{item.name}</span>)}</div>;
+}"#,
+        );
+        // key function should contain the member expression `item.id`
+        assert!(
+            result.contains("item.id"),
+            "complex key expression lost: {result}"
+        );
+    }
+
+    // Regression: .map() index parameter must be included in key function when used
+    #[test]
+    fn list_map_index_param_preserved_in_key() {
+        let result = transform(
+            r#"export function App() {
+    const items = [1, 2, 3];
+    return <div>{items.map((item, i) => <span key={i}>{item}</span>)}</div>;
+}"#,
+        );
+        // The key function should include both item and index params
+        assert!(
+            result.contains("(item, i) => i"),
+            "index param 'i' missing from key function: {result}"
+        );
+        // The render function should NOT include unused index param
+        // Count occurrences: only the key function should have (item, i)
     }
 
     #[test]
@@ -3712,19 +3925,6 @@ export function App() {
         assert_eq!(apply_inline_subs("foo", &rx), "foo");
     }
 
-    // ========== key_references_index (additional) ==========
-
-    #[test]
-    fn key_references_index_embedded_in_expression() {
-        assert!(key_references_index("item.id + '-' + index", "index"));
-    }
-
-    #[test]
-    fn key_references_index_as_part_of_longer_name() {
-        // "indexValue" should NOT match "index"
-        assert!(!key_references_index("item.indexValue", "index"));
-    }
-
     // ========== clean_jsx_text ==========
 
     #[test]
@@ -4100,5 +4300,113 @@ export function App() {
 }"#,
         );
         assert!(!result.contains("key:"), "result: {result}");
+    }
+
+    // ========== Module-level JSX transform ==========
+
+    /// Helper: parse source, transform component-level JSX AND module-level JSX.
+    fn transform_full(source: &str) -> String {
+        let allocator = Allocator::default();
+        let parsed = Parser::new(&allocator, source, SourceType::tsx()).parse();
+        let mut ms = MagicString::new(source);
+        let components = analyze_components(&parsed.program);
+        let manifests: ManifestRegistry = HashMap::new();
+        let (aliases, dynamic_configs) = build_import_aliases(&parsed.program, &manifests);
+        let import_ctx = ImportContext {
+            aliases,
+            dynamic_configs,
+        };
+        for comp in &components {
+            let vars = analyze_reactivity(&parsed.program, comp, &import_ctx);
+            transform_jsx(&mut ms, &parsed.program, comp, &vars, None);
+        }
+        // Also run module-level JSX transform
+        transform_module_level_jsx(&mut ms, &parsed.program, &components);
+        ms.to_string()
+    }
+
+    #[test]
+    fn module_level_jsx_in_define_routes() {
+        let result = transform_full(
+            r#"import { HomePage } from './pages/home';
+import { AboutPage } from './pages/about';
+
+const routes = defineRoutes({
+  '/': { component: () => <HomePage /> },
+  '/about': { component: () => <AboutPage /> },
+});
+
+export function App() {
+    return <div>hello</div>;
+}"#,
+        );
+        // Module-level JSX should be transformed (not left as raw JSX)
+        assert!(
+            !result.contains("<HomePage />"),
+            "module-level JSX was NOT transformed: {result}"
+        );
+        assert!(
+            !result.contains("<AboutPage />"),
+            "module-level JSX was NOT transformed: {result}"
+        );
+        // Should contain component calls (ComponentName({}))
+        assert!(
+            result.contains("HomePage({})"),
+            "expected HomePage({{}})) component call in module-level JSX: {result}"
+        );
+        assert!(
+            result.contains("AboutPage({})"),
+            "expected AboutPage({{}})) component call in module-level JSX: {result}"
+        );
+    }
+
+    #[test]
+    fn module_level_jsx_does_not_double_transform_component_bodies() {
+        let result = transform_full(
+            r#"const routes = { '/': { component: () => <div>hello</div> } };
+
+export function App() {
+    return <span>world</span>;
+}"#,
+        );
+        // App's body should have been transformed by per-component pass
+        assert!(
+            result.contains("__element"),
+            "component JSX should be transformed: {result}"
+        );
+        // The module-level <div>hello</div> should also be transformed
+        assert!(
+            !result.contains("<div>hello</div>"),
+            "module-level JSX was NOT transformed: {result}"
+        );
+    }
+
+    #[test]
+    fn module_level_jsx_fragment() {
+        let result = transform_full(
+            r#"const content = () => <>text</>;
+
+export function App() {
+    return <div />;
+}"#,
+        );
+        assert!(
+            !result.contains("<>text</>"),
+            "module-level fragment was NOT transformed: {result}"
+        );
+    }
+
+    #[test]
+    fn module_level_jsx_leaves_component_jsx_intact() {
+        // Ensure module-level transform doesn't re-transform JSX inside components
+        let source = r#"export function App() {
+    return <div id="root">content</div>;
+}"#;
+        let result_component_only = transform(source);
+        let result_full = transform_full(source);
+        assert_eq!(
+            result_component_only, result_full,
+            "module-level pass should not alter component JSX"
+        );
     }
 }

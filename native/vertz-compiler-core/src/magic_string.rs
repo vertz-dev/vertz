@@ -79,6 +79,11 @@ impl MagicString {
         self.original.is_empty()
     }
 
+    /// Get the full original source string.
+    pub fn original(&self) -> &str {
+        &self.original
+    }
+
     /// Get a slice of the original source.
     pub fn slice(&self, start: u32, end: u32) -> &str {
         &self.original[start as usize..end as usize]

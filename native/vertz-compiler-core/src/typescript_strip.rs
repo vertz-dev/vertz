@@ -1530,4 +1530,47 @@ export const x = 1;"#,
             result
         );
     }
+
+    #[test]
+    fn test_strip_multiline_destructured_param_type() {
+        let result = strip(
+            r#"function BarRow({
+  name,
+  value,
+  unit,
+  percent,
+  isVertz,
+}: {
+  name: string;
+  value: string;
+  unit: string;
+  percent: number;
+  isVertz: boolean;
+}) {
+  return name + value;
+}"#,
+        );
+        eprintln!("RESULT:\n{}", result);
+        assert!(
+            !result.contains("string"),
+            "type annotation survived: {}",
+            result
+        );
+        assert!(
+            !result.contains("boolean"),
+            "type annotation survived: {}",
+            result
+        );
+        assert!(
+            !result.contains("number"),
+            "type annotation survived: {}",
+            result
+        );
+        assert!(result.contains("name"), "param name missing: {}", result);
+        assert!(
+            result.contains("isVertz"),
+            "param isVertz missing: {}",
+            result
+        );
+    }
 }
