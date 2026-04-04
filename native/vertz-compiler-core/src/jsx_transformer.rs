@@ -575,6 +575,9 @@ enum ExprKind {
         item_param: String,
         index_param: Option<String>,
         key_expr: Option<String>,
+        /// Whether the index parameter is referenced in the callback body
+        /// (outside of JSX `key` attributes). Determined via AST analysis.
+        index_used_in_body: bool,
         /// Const declarations inside block body callbacks: (name, init_start, init_end).
         /// Used to detect reactive callback-local variables that need inlining.
         callback_locals: Vec<(String, u32, u32)>,
@@ -865,6 +868,11 @@ fn classify_map_call(call: &CallExpression, source: &str) -> Option<ExprKind> {
         Vec::new()
     };
 
+    // AST-based check: is the index param used in the body outside of key attrs?
+    let index_used_in_body = index_param
+        .as_ref()
+        .is_some_and(|idx| index_used_in_callback_body(&arrow.body, idx));
+
     Some(ExprKind::List {
         source_start,
         source_end,
@@ -873,6 +881,7 @@ fn classify_map_call(call: &CallExpression, source: &str) -> Option<ExprKind> {
         item_param,
         index_param,
         key_expr,
+        index_used_in_body,
         callback_locals,
     })
 }
@@ -895,6 +904,46 @@ fn extract_callback_locals(stmts: &[Statement]) -> Vec<(String, u32, u32)> {
         }
     }
     locals
+}
+
+/// AST-based check: does the callback body reference the index parameter
+/// outside of JSX `key` attributes?
+fn index_used_in_callback_body(body: &FunctionBody, index_param: &str) -> bool {
+    struct Checker<'a> {
+        target: &'a str,
+        found: bool,
+        inside_key: bool,
+    }
+
+    impl<'a, 'b> Visit<'b> for Checker<'a> {
+        fn visit_identifier_reference(&mut self, id: &IdentifierReference<'b>) {
+            if !self.inside_key && id.name == self.target {
+                self.found = true;
+            }
+        }
+
+        fn visit_jsx_attribute_item(&mut self, attr: &JSXAttributeItem<'b>) {
+            if let JSXAttributeItem::Attribute(jsx_attr) = attr {
+                if let JSXAttributeName::Identifier(id) = &jsx_attr.name {
+                    if id.name == "key" {
+                        self.inside_key = true;
+                        oxc_ast_visit::walk::walk_jsx_attribute_item(self, attr);
+                        self.inside_key = false;
+                        return;
+                    }
+                }
+            }
+            oxc_ast_visit::walk::walk_jsx_attribute_item(self, attr);
+        }
+    }
+
+    let mut checker = Checker {
+        target: index_param,
+        found: false,
+        inside_key: false,
+    };
+    checker.visit_function_body(body);
+    checker.found
 }
 
 fn classify_inner_expression<'a>(expr: &Expression<'a>, source: &str) -> ExprKind {
@@ -1209,6 +1258,7 @@ fn transform_child_as_value(
                 item_param,
                 index_param,
                 key_expr,
+                index_used_in_body,
                 callback_locals,
             } = expr_kind
             {
@@ -1245,7 +1295,7 @@ fn transform_child_as_value(
                 };
 
                 let render_params = if let Some(idx) = index_param {
-                    if key_references_index(&render_body, idx) {
+                    if *index_used_in_body {
                         format!("({}, {})", item_param, idx)
                     } else {
                         format!("({})", item_param)
@@ -1500,6 +1550,7 @@ fn transform_child(
                 item_param,
                 index_param,
                 key_expr,
+                index_used_in_body,
                 callback_locals,
             } = expr_kind
             {
@@ -1538,7 +1589,7 @@ fn transform_child(
                 };
 
                 let render_params = if let Some(idx) = index_param {
-                    if key_references_index(&render_body, idx) {
+                    if *index_used_in_body {
                         format!("({}, {})", item_param, idx)
                     } else {
                         format!("({})", item_param)
