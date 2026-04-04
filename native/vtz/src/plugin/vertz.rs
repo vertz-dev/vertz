@@ -22,15 +22,15 @@ impl FrameworkPlugin for VertzPlugin {
 
     fn compile(&self, source: &str, ctx: &CompileContext) -> CompileOutput {
         let filename = ctx.file_path.to_string_lossy().to_string();
-        let skip_css = crate::test::is_test_file(ctx.file_path);
+        let is_test = crate::test::is_test_file(ctx.file_path);
 
         let compile_result = vertz_compiler_core::compile(
             source,
             vertz_compiler_core::CompileOptions {
                 filename: Some(filename.clone()),
                 target: Some(ctx.target.to_string()),
-                fast_refresh: Some(true),
-                skip_css_transform: Some(skip_css),
+                fast_refresh: Some(!is_test),
+                skip_css_transform: Some(is_test),
                 ..Default::default()
             },
         );
@@ -429,6 +429,133 @@ mod tests {
         assert!(!is_test_file(Path::new("src/components/card.tsx")));
         assert!(!is_test_file(Path::new("src/css/css.ts")));
         assert!(!is_test_file(Path::new("src/testing/helpers.ts")));
+    }
+
+    // ── Fast Refresh disabled for test files ──────────────────
+
+    #[test]
+    fn test_file_does_not_inject_fast_refresh() {
+        let plugin = make_plugin();
+        let ctx = CompileContext {
+            file_path: Path::new("/project/src/App.test.tsx"),
+            root_dir: Path::new("/project"),
+            src_dir: Path::new("/project/src"),
+            target: "dom",
+        };
+        let output = plugin.compile(
+            "export default function App() { return <div>Hello</div>; }",
+            &ctx,
+        );
+        assert!(
+            !output.code.contains("__$fr"),
+            "Fast Refresh preamble should not be injected in test files: {}",
+            output.code
+        );
+        assert!(
+            !output.code.contains("__$refreshReg"),
+            "Fast Refresh registration should not be injected in test files: {}",
+            output.code
+        );
+    }
+
+    #[test]
+    fn spec_file_does_not_inject_fast_refresh() {
+        let plugin = make_plugin();
+        let ctx = CompileContext {
+            file_path: Path::new("/project/src/App.spec.tsx"),
+            root_dir: Path::new("/project"),
+            src_dir: Path::new("/project/src"),
+            target: "dom",
+        };
+        let output = plugin.compile(
+            "export default function App() { return <div>Hello</div>; }",
+            &ctx,
+        );
+        assert!(
+            !output.code.contains("__$fr"),
+            "Fast Refresh preamble should not be injected in spec files: {}",
+            output.code
+        );
+    }
+
+    #[test]
+    fn dunder_tests_dir_does_not_inject_fast_refresh() {
+        let plugin = make_plugin();
+        let ctx = CompileContext {
+            file_path: Path::new("/project/src/__tests__/App.tsx"),
+            root_dir: Path::new("/project"),
+            src_dir: Path::new("/project/src"),
+            target: "dom",
+        };
+        let output = plugin.compile(
+            "export default function App() { return <div>Hello</div>; }",
+            &ctx,
+        );
+        assert!(
+            !output.code.contains("__$fr"),
+            "Fast Refresh preamble should not be injected in __tests__/ files: {}",
+            output.code
+        );
+    }
+
+    #[test]
+    fn e2e_file_does_not_inject_fast_refresh() {
+        let plugin = make_plugin();
+        let ctx = CompileContext {
+            file_path: Path::new("/project/src/App.e2e.tsx"),
+            root_dir: Path::new("/project"),
+            src_dir: Path::new("/project/src"),
+            target: "dom",
+        };
+        let output = plugin.compile(
+            "export default function App() { return <div>Hello</div>; }",
+            &ctx,
+        );
+        assert!(
+            !output.code.contains("__$fr"),
+            "Fast Refresh preamble should not be injected in e2e files: {}",
+            output.code
+        );
+    }
+
+    #[test]
+    fn local_file_does_not_inject_fast_refresh() {
+        let plugin = make_plugin();
+        let ctx = CompileContext {
+            file_path: Path::new("/project/src/integration.local.tsx"),
+            root_dir: Path::new("/project"),
+            src_dir: Path::new("/project/src"),
+            target: "dom",
+        };
+        let output = plugin.compile(
+            "export default function App() { return <div>Hello</div>; }",
+            &ctx,
+        );
+        assert!(
+            !output.code.contains("__$fr"),
+            "Fast Refresh preamble should not be injected in .local files: {}",
+            output.code
+        );
+    }
+
+    #[test]
+    fn non_test_file_still_injects_fast_refresh() {
+        let plugin = make_plugin();
+        let ctx = CompileContext {
+            file_path: Path::new("/project/src/App.tsx"),
+            root_dir: Path::new("/project"),
+            src_dir: Path::new("/project/src"),
+            target: "dom",
+        };
+        let output = plugin.compile(
+            "export default function App() { return <div>Hello</div>; }",
+            &ctx,
+        );
+        assert!(
+            output.code.contains("__$fr"),
+            "Fast Refresh preamble should be injected in non-test files: {}",
+            output.code
+        );
     }
 
     #[test]
