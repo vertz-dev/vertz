@@ -73,6 +73,19 @@ import { Input } from '@vertz/ui/components';
 <Input disabled placeholder="Disabled" />
 ```
 
+#### Per-input debounce
+
+Add `debounce={ms}` to delay the form-level `onChange` callback for this input. Useful for search fields where you don't want to fire on every keystroke:
+
+```tsx
+<form onChange={handleChange}>
+  <Input name="q" debounce={300} placeholder="Search..." />
+  <Select name="status">{/* fires immediately */}</Select>
+</form>
+```
+
+See [Form-level onChange](/guides/ui/forms#form-level-onchange) for full details.
+
 ### Textarea
 
 Multi-line text input.
@@ -81,6 +94,12 @@ Multi-line text input.
 import { Textarea } from '@vertz/ui/components';
 
 <Textarea placeholder="Write a message..." />;
+```
+
+Supports `debounce={ms}` for form-level onChange, same as [Input](#per-input-debounce):
+
+```tsx
+<Textarea name="notes" debounce={500} placeholder="Notes..." />
 ```
 
 ### Label

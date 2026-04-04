@@ -103,6 +103,14 @@ The `action` and `method` properties enable the form to work without JavaScript.
 
 ---
 
+## Form-level onChange
+
+For search/filter forms that need to react to every input change without submission, use `<form onChange>` instead of (or alongside) `form()`. The handler receives a `FormValues` snapshot of all current form values, and individual inputs can use `debounce={ms}` to delay the callback.
+
+See the [Forms guide — Form-level onChange](/guides/ui/forms#form-level-onchange) for usage, debounce, and examples.
+
+---
+
 ## Types
 
 ```ts
