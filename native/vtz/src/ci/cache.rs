@@ -4,6 +4,7 @@ use sha2::{Digest, Sha256};
 use std::collections::BTreeMap;
 use std::io::Read;
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 
 // ---------------------------------------------------------------------------
 // CacheBackend trait
@@ -232,11 +233,16 @@ pub struct CacheManifest {
 ///
 /// Uses an internal Mutex to serialize manifest read/write operations,
 /// preventing race conditions when concurrent workers access the cache.
+/// All file I/O is offloaded to `spawn_blocking` to avoid starving
+/// the tokio executor.
+#[derive(Clone)]
 pub struct LocalCache {
     cache_dir: PathBuf,
     max_size: u64,
     /// Guards manifest file operations against concurrent access.
-    manifest_lock: std::sync::Mutex<()>,
+    /// Wrapped in `Arc` so the struct can be cheaply cloned into
+    /// `spawn_blocking` closures while sharing the same lock.
+    manifest_lock: Arc<std::sync::Mutex<()>>,
 }
 
 impl LocalCache {
@@ -247,7 +253,7 @@ impl LocalCache {
         Self {
             cache_dir,
             max_size: max_size.unwrap_or(2 * 1024 * 1024 * 1024), // 2 GB
-            manifest_lock: std::sync::Mutex::new(()),
+            manifest_lock: Arc::new(std::sync::Mutex::new(())),
         }
     }
 
@@ -346,9 +352,10 @@ impl LocalCache {
     }
 }
 
-#[async_trait::async_trait]
-impl CacheBackend for LocalCache {
-    async fn get(
+/// Private synchronous implementations, called via `spawn_blocking`
+/// in the `CacheBackend` async trait methods.
+impl LocalCache {
+    fn get_sync(
         &self,
         key: &str,
         restore_keys: &[String],
@@ -410,7 +417,7 @@ impl CacheBackend for LocalCache {
         Ok(None)
     }
 
-    async fn put(&self, key: &str, data: &[u8]) -> Result<(), String> {
+    fn put_sync(&self, key: &str, data: &[u8]) -> Result<(), String> {
         // Ensure cache directory exists
         std::fs::create_dir_all(&self.cache_dir)
             .map_err(|e| format!("failed to create cache dir: {e}"))?;
@@ -443,8 +450,41 @@ impl CacheBackend for LocalCache {
         Ok(())
     }
 
-    async fn exists(&self, key: &str) -> Result<bool, String> {
+    fn exists_sync(&self, key: &str) -> Result<bool, String> {
         Ok(self.entry_path(key).exists())
+    }
+}
+
+#[async_trait::async_trait]
+impl CacheBackend for LocalCache {
+    async fn get(
+        &self,
+        key: &str,
+        restore_keys: &[String],
+    ) -> Result<Option<(String, Vec<u8>)>, String> {
+        let this = self.clone();
+        let key = key.to_string();
+        let restore_keys = restore_keys.to_vec();
+        tokio::task::spawn_blocking(move || this.get_sync(&key, &restore_keys))
+            .await
+            .map_err(|e| format!("cache get task failed: {e}"))?
+    }
+
+    async fn put(&self, key: &str, data: &[u8]) -> Result<(), String> {
+        let this = self.clone();
+        let key = key.to_string();
+        let data = data.to_vec();
+        tokio::task::spawn_blocking(move || this.put_sync(&key, &data))
+            .await
+            .map_err(|e| format!("cache put task failed: {e}"))?
+    }
+
+    async fn exists(&self, key: &str) -> Result<bool, String> {
+        let this = self.clone();
+        let key = key.to_string();
+        tokio::task::spawn_blocking(move || this.exists_sync(&key))
+            .await
+            .map_err(|e| format!("cache exists task failed: {e}"))?
     }
 }
 
