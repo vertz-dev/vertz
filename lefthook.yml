@@ -1,11 +1,9 @@
 pre-push:
-  env:
-    PATH: "{root}/node_modules/.bin:$PATH"
   commands:
     trojan-source:
       run: bash scripts/check-unicode.sh
     lint:
-      run: vtzx oxlint packages/ && vtzx oxfmt --check packages/
+      run: node_modules/.bin/vtzx oxlint packages/ && node_modules/.bin/vtzx oxfmt --check packages/
     quality-gates:
       run: turbo run build typecheck test --filter='!@vertz-examples/*' --filter='!entity-todo-example' --filter='!@vertz/landing-nextjs' --filter='!@vertz/landing-nextjs-vercel' --filter='!@vertz/landing' --filter='!@vertz/component-docs' --filter='!@vertz/site' --filter='!@vertz/og' --filter='!@vertz/mint-docs' --filter='!@vertz-benchmarks/*' --filter='!contacts-api-example' --filter='!create-vertz' --filter='!landing' --filter='!@vertz/ui-primitives' --filter='!@vertz/ui-server' --output-logs=errors-only
     rust-fmt:
