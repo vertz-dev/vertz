@@ -578,6 +578,8 @@ enum ExprKind {
         /// Whether the index parameter is referenced in the callback body
         /// (outside of JSX `key` attributes). Determined via AST analysis.
         index_used_in_body: bool,
+        /// Whether the index parameter is referenced in a JSX `key` attribute.
+        index_used_in_key: bool,
         /// Const declarations inside block body callbacks: (name, init_start, init_end).
         /// Used to detect reactive callback-local variables that need inlining.
         callback_locals: Vec<(String, u32, u32)>,
@@ -868,10 +870,14 @@ fn classify_map_call(call: &CallExpression, source: &str) -> Option<ExprKind> {
         Vec::new()
     };
 
-    // AST-based check: is the index param used in the body outside of key attrs?
-    let index_used_in_body = index_param
+    // AST-based check: where is the index param referenced?
+    let index_usage = index_param
         .as_ref()
-        .is_some_and(|idx| index_used_in_callback_body(&arrow.body, idx));
+        .map(|idx| analyze_index_usage(&arrow.body, idx))
+        .unwrap_or(IndexUsage {
+            in_body: false,
+            in_key: false,
+        });
 
     Some(ExprKind::List {
         source_start,
@@ -881,7 +887,8 @@ fn classify_map_call(call: &CallExpression, source: &str) -> Option<ExprKind> {
         item_param,
         index_param,
         key_expr,
-        index_used_in_body,
+        index_used_in_body: index_usage.in_body,
+        index_used_in_key: index_usage.in_key,
         callback_locals,
     })
 }
@@ -906,19 +913,32 @@ fn extract_callback_locals(stmts: &[Statement]) -> Vec<(String, u32, u32)> {
     locals
 }
 
-/// AST-based check: does the callback body reference the index parameter
-/// outside of JSX `key` attributes?
-fn index_used_in_callback_body(body: &FunctionBody, index_param: &str) -> bool {
+/// Result of AST-based index parameter usage analysis.
+struct IndexUsage {
+    /// Index param is referenced outside JSX `key` attributes (in the render body).
+    in_body: bool,
+    /// Index param is referenced inside a JSX `key` attribute.
+    in_key: bool,
+}
+
+/// Walk the callback body AST and determine where the index parameter is
+/// referenced: inside JSX `key` attributes, in the rest of the body, or both.
+fn analyze_index_usage(body: &FunctionBody, index_param: &str) -> IndexUsage {
     struct Checker<'a> {
         target: &'a str,
-        found: bool,
+        in_body: bool,
+        in_key: bool,
         inside_key: bool,
     }
 
     impl<'a, 'b> Visit<'b> for Checker<'a> {
         fn visit_identifier_reference(&mut self, id: &IdentifierReference<'b>) {
-            if !self.inside_key && id.name == self.target {
-                self.found = true;
+            if id.name == self.target {
+                if self.inside_key {
+                    self.in_key = true;
+                } else {
+                    self.in_body = true;
+                }
             }
         }
 
@@ -939,11 +959,15 @@ fn index_used_in_callback_body(body: &FunctionBody, index_param: &str) -> bool {
 
     let mut checker = Checker {
         target: index_param,
-        found: false,
+        in_body: false,
+        in_key: false,
         inside_key: false,
     };
     checker.visit_function_body(body);
-    checker.found
+    IndexUsage {
+        in_body: checker.in_body,
+        in_key: checker.in_key,
+    }
 }
 
 fn classify_inner_expression<'a>(expr: &Expression<'a>, source: &str) -> ExprKind {
@@ -1259,11 +1283,17 @@ fn transform_child_as_value(
                 index_param,
                 key_expr,
                 index_used_in_body,
+                index_used_in_key,
                 callback_locals,
             } = expr_kind
             {
                 let source_text = ms.get_transformed_slice(*source_start, *source_end);
-                let key_fn = build_key_fn(key_expr, item_param, index_param.as_deref());
+                let key_fn = build_key_fn(
+                    key_expr,
+                    item_param,
+                    index_param.as_deref(),
+                    *index_used_in_key,
+                );
 
                 // Build inline_locals for reactive callback-local variables
                 let extended_rx = build_extended_rx_for_list(ms, callback_locals, rx);
@@ -1551,11 +1581,17 @@ fn transform_child(
                 index_param,
                 key_expr,
                 index_used_in_body,
+                index_used_in_key,
                 callback_locals,
             } = expr_kind
             {
                 let source_text = ms.get_transformed_slice(*source_start, *source_end);
-                let key_fn = build_key_fn(key_expr, item_param, index_param.as_deref());
+                let key_fn = build_key_fn(
+                    key_expr,
+                    item_param,
+                    index_param.as_deref(),
+                    *index_used_in_key,
+                );
 
                 // Build inline_locals for reactive callback-local variables
                 let extended_rx = build_extended_rx_for_list(ms, callback_locals, rx);
@@ -2088,14 +2124,17 @@ fn word_boundary_replace(text: &str, pattern: &str, replacement: &str) -> String
 }
 
 /// Build a key function string for __list/__listValue.
-/// Includes index param when the key expression references it as a variable.
-fn build_key_fn(key_expr: &Option<String>, item_param: &str, index_param: Option<&str>) -> String {
+/// Includes index param when the AST analysis determined the key references it.
+fn build_key_fn(
+    key_expr: &Option<String>,
+    item_param: &str,
+    index_param: Option<&str>,
+    index_used_in_key: bool,
+) -> String {
     match key_expr {
         Some(k) => {
-            // Include index param when the key expression references it
-            // (not as part of a property access like item.index)
             if let Some(idx) = index_param {
-                if key_references_index(k, idx) {
+                if index_used_in_key {
                     return format!("({}, {}) => {}", item_param, idx, k);
                 }
             }
@@ -2103,37 +2142,6 @@ fn build_key_fn(key_expr: &Option<String>, item_param: &str, index_param: Option
         }
         None => "null".to_string(),
     }
-}
-
-/// Check if a key expression references the index parameter as a standalone variable.
-fn key_references_index(key_expr: &str, index_param: &str) -> bool {
-    let mut start = 0;
-    while let Some(pos) = key_expr[start..].find(index_param) {
-        let abs_pos = start + pos;
-        let after_pos = abs_pos + index_param.len();
-
-        // Check char before is not part of identifier or a dot (property access)
-        let ok_before = if abs_pos == 0 {
-            true
-        } else {
-            let prev = key_expr.as_bytes()[abs_pos - 1];
-            !prev.is_ascii_alphanumeric() && prev != b'_' && prev != b'$' && prev != b'.'
-        };
-
-        // Check char after is not part of identifier
-        let ok_after = if after_pos >= key_expr.len() {
-            true
-        } else {
-            let next = key_expr.as_bytes()[after_pos];
-            !next.is_ascii_alphanumeric() && next != b'_' && next != b'$'
-        };
-
-        if ok_before && ok_after {
-            return true;
-        }
-        start = abs_pos + 1;
-    }
-    false
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -2438,28 +2446,6 @@ mod tests {
     #[test]
     fn word_boundary_replace_multiple_occurrences() {
         assert_eq!(word_boundary_replace("x + x", "x", "z"), "z + z");
-    }
-
-    // ========== key_references_index ==========
-
-    #[test]
-    fn key_references_index_standalone() {
-        assert!(key_references_index("idx", "idx"));
-    }
-
-    #[test]
-    fn key_references_index_in_expression() {
-        assert!(key_references_index("item.id + idx", "idx"));
-    }
-
-    #[test]
-    fn key_references_index_not_present() {
-        assert!(!key_references_index("item.id", "idx"));
-    }
-
-    #[test]
-    fn key_references_index_inside_word() {
-        assert!(!key_references_index("index_of", "index"));
     }
 
     // ========== Basic element transformation ==========
@@ -3187,25 +3173,25 @@ export function B() {
 
     #[test]
     fn build_key_fn_simple_key() {
-        let key = build_key_fn(&Some("item.id".to_string()), "item", None);
+        let key = build_key_fn(&Some("item.id".to_string()), "item", None, false);
         assert_eq!(key, "(item) => item.id");
     }
 
     #[test]
     fn build_key_fn_with_index_in_key() {
-        let key = build_key_fn(&Some("idx".to_string()), "item", Some("idx"));
+        let key = build_key_fn(&Some("idx".to_string()), "item", Some("idx"), true);
         assert_eq!(key, "(item, idx) => idx");
     }
 
     #[test]
     fn build_key_fn_index_not_referenced() {
-        let key = build_key_fn(&Some("item.id".to_string()), "item", Some("idx"));
+        let key = build_key_fn(&Some("item.id".to_string()), "item", Some("idx"), false);
         assert_eq!(key, "(item) => item.id");
     }
 
     #[test]
     fn build_key_fn_no_key() {
-        let key = build_key_fn(&None, "item", None);
+        let key = build_key_fn(&None, "item", None, false);
         assert_eq!(key, "null");
     }
 
@@ -3942,19 +3928,6 @@ export function App() {
             props_param: None,
         };
         assert_eq!(apply_inline_subs("foo", &rx), "foo");
-    }
-
-    // ========== key_references_index (additional) ==========
-
-    #[test]
-    fn key_references_index_embedded_in_expression() {
-        assert!(key_references_index("item.id + '-' + index", "index"));
-    }
-
-    #[test]
-    fn key_references_index_as_part_of_longer_name() {
-        // "indexValue" should NOT match "index"
-        assert!(!key_references_index("item.indexValue", "index"));
     }
 
     // ========== clean_jsx_text ==========
