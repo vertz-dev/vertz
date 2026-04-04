@@ -1222,6 +1222,7 @@ mod tests {
             run: workflow_run,
             filter: WorkflowFilter::All,
             env: BTreeMap::new(),
+            root_affects_all: false,
         };
         let graph = TaskGraph::build(&workflow, &tasks, &workspace, None).unwrap();
 

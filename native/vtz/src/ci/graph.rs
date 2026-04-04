@@ -606,6 +606,7 @@ mod tests {
             run: run.into_iter().map(String::from).collect(),
             filter: WorkflowFilter::All,
             env: BTreeMap::new(),
+            root_affects_all: false,
         }
     }
 

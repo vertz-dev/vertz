@@ -81,6 +81,17 @@ export interface WorkflowConfig {
   run: string[];
   filter?: WorkflowFilter;
   env?: Record<string, string>;
+  /**
+   * When `filter: 'affected'` and only root-level files changed (files outside
+   * any workspace package directory, e.g. `bun.lock`, `tsconfig.base.json`),
+   * treat all workspace packages as affected instead of running only root-scoped
+   * tasks.
+   *
+   * Has no effect when `filter` is `'all'` or an explicit package list.
+   *
+   * @default false
+   */
+  rootAffectsAll?: boolean;
 }
 
 export type WorkflowFilter = 'affected' | 'all' | string[];

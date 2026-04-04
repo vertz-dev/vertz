@@ -77,6 +77,23 @@ pipe({
   },
 });
 
+// Valid: workflow with rootAffectsAll
+pipe({
+  tasks: { build: task('build') },
+  workflows: {
+    ci: { run: ['build'], filter: 'affected', rootAffectsAll: true },
+    full: { run: ['build'], filter: 'all', rootAffectsAll: false },
+  },
+});
+
+// Valid: workflow without rootAffectsAll (defaults to false)
+pipe({
+  tasks: { build: task('build') },
+  workflows: {
+    ci: { run: ['build'], filter: 'affected' },
+  },
+});
+
 // Valid: root-scoped task
 pipe({
   tasks: {
