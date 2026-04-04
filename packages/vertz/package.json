@@ -78,7 +78,7 @@
   "scripts": {
     "build": "tsc",
     "typecheck": "tsc --noEmit",
-    "test": "vtz test"
+    "test": "bun test"
   },
   "dependencies": {
     "@vertz/cli": "workspace:^",

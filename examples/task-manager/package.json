@@ -12,7 +12,7 @@
     "preview": "vtz run build && vtz run start",
     "deploy": "wrangler deploy",
     "typecheck": "tsc --noEmit",
-    "test": "vtz test",
+    "test": "bun test",
     "e2e": "npx playwright test",
     "e2e:headed": "npx playwright test --headed"
   },

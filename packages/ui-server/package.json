@@ -58,9 +58,9 @@
   },
   "scripts": {
     "build": "vtzx bunup",
-    "test": "vtz test --timeout 60000 src/",
-    "test:integration": "vtz test src/__tests__/bun-dev-server.integration.local.ts",
-    "test:e2e": "vtzx playwright test",
+    "test": "bun test --timeout 60000 src/",
+    "test:integration": "bun test src/__tests__/bun-dev-server.integration.local.ts",
+    "test:e2e": "bunx playwright test",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

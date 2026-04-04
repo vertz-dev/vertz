@@ -26,7 +26,7 @@
   },
   "scripts": {
     "build": "vtzx bunup",
-    "test": "vtz test",
+    "test": "bun test",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

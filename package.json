@@ -29,7 +29,7 @@
     "changeset:version": "changeset version",
     "changeset:publish": "vtz run build && bash scripts/publish.sh",
     "postinstall": "if [ \"$(git rev-parse --git-dir 2>/dev/null)\" = \"$(git rev-parse --git-common-dir 2>/dev/null)\" ]; then lefthook install || true; fi && bash scripts/link-runtime.sh",
-    "test:tree-shaking": "vtz test tests/tree-shaking/tree-shaking.test.ts",
+    "test:tree-shaking": "bun test tests/tree-shaking/tree-shaking.test.ts",
     "build": "turbo run build --filter='!@vertz-examples/*' --filter='!entity-todo-example' --filter='!@vertz/landing-nextjs' --filter='!@vertz/landing-nextjs-vercel' --filter='!@vertz-benchmarks/*'"
   },
   "devDependencies": {

@@ -8,7 +8,7 @@
     "build": "vtz build",
     "deploy": "bash scripts/deploy.sh",
     "codegen": "vtz codegen",
-    "test": "vtz run codegen && vtz test",
+    "test": "vtz run codegen && bun test",
     "typecheck": "vtz run codegen && tsc --noEmit",
     "e2e": "npx playwright test",
     "e2e:headed": "npx playwright test --headed"

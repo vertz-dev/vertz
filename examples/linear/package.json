@@ -6,7 +6,7 @@
     "dev": "vtz dev",
     "build": "vtz build",
     "codegen": "vtz codegen",
-    "test": "vtz test",
+    "test": "bun test",
     "typecheck": "vtz run codegen && tsc --noEmit",
     "e2e": "npx playwright test",
     "e2e:headed": "npx playwright test --headed"
