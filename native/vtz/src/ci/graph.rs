@@ -98,21 +98,19 @@ impl TaskGraph {
 
         // Also create nodes for tasks referenced in deps but not in workflow.run
         // (they need to exist so edges can point to them)
-        let mut dep_tasks_to_add: Vec<(String, bool)> = Vec::new(); // (task_name, is_topological)
+        let mut dep_tasks_to_add: Vec<String> = Vec::new();
         for task_name in &workflow.run {
             if let Some(task_def) = tasks.get(task_name.as_str()) {
                 for dep in &task_def.base().deps {
-                    let (dep_task, _is_topo) = parse_dep_name(dep);
+                    let (dep_task, _) = parse_dep_name(dep);
                     if !workflow.run.contains(&dep_task) {
-                        let is_topo = matches!(dep, Dep::Simple(s) if s.starts_with('^'))
-                            || matches!(dep, Dep::Edge(e) if e.task.starts_with('^'));
-                        dep_tasks_to_add.push((dep_task, is_topo));
+                        dep_tasks_to_add.push(dep_task);
                     }
                 }
             }
         }
 
-        for (dep_task, _) in &dep_tasks_to_add {
+        for dep_task in &dep_tasks_to_add {
             if tasks.get(dep_task.as_str()).is_none() {
                 continue; // will be caught during edge resolution
             }
@@ -287,13 +285,14 @@ impl TaskGraph {
             node_index,
         };
 
-        // 4. Validate no cycles
-        graph.validate_no_cycles()?;
+        // 4. Validate no cycles (reuses topological_order)
+        graph.topological_order()?;
 
         Ok(graph)
     }
 
     /// Return nodes in topological order (dependencies before dependents).
+    /// Also serves as cycle detection: if the sort fails, a cycle exists.
     pub fn topological_order(&self) -> Result<Vec<usize>, String> {
         let n = self.nodes.len();
         let mut in_degree = vec![0usize; n];
@@ -343,45 +342,6 @@ impl TaskGraph {
     /// Get the number of nodes.
     pub fn node_count(&self) -> usize {
         self.nodes.len()
-    }
-
-    fn validate_no_cycles(&self) -> Result<(), String> {
-        // Just attempt topological sort via Kahn's
-        let n = self.nodes.len();
-        let mut in_degree = vec![0usize; n];
-        for edges in &self.adjacency {
-            for &(to, _) in edges {
-                in_degree[to] += 1;
-            }
-        }
-
-        let mut queue: VecDeque<usize> = VecDeque::new();
-        for (i, &deg) in in_degree.iter().enumerate() {
-            if deg == 0 {
-                queue.push_back(i);
-            }
-        }
-
-        let mut count = 0usize;
-        while let Some(node) = queue.pop_front() {
-            count += 1;
-            for &(to, _) in &self.adjacency[node] {
-                in_degree[to] -= 1;
-                if in_degree[to] == 0 {
-                    queue.push_back(to);
-                }
-            }
-        }
-
-        if count != n {
-            let cycle = self.find_cycle_path(&in_degree);
-            return Err(format!(
-                "circular dependency detected\n  {}",
-                cycle.join(" → ")
-            ));
-        }
-
-        Ok(())
     }
 
     /// DFS to find an actual cycle path for error reporting.
@@ -893,9 +853,14 @@ mod tests {
     // --- Skip propagation tests ---
 
     fn make_result(status: TaskStatus) -> TaskResult {
+        let exit_code = match &status {
+            TaskStatus::Success => Some(0),
+            TaskStatus::Failed => Some(1),
+            TaskStatus::Skipped => None,
+        };
         TaskResult {
             status,
-            exit_code: Some(0),
+            exit_code,
             duration_ms: 100,
             package: None,
             task: "test".to_string(),

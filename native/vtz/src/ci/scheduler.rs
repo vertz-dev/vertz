@@ -54,11 +54,11 @@ struct ShutdownState {
 
 impl ShutdownState {
     fn is_cancelled(&self) -> bool {
-        self.cancelled.load(Ordering::Relaxed)
+        self.cancelled.load(Ordering::Acquire)
     }
 
     fn cancel(&self) {
-        self.cancelled.store(true, Ordering::Relaxed);
+        self.cancelled.store(true, Ordering::Release);
     }
 
     async fn register_pid(&self, pid: u32) {
@@ -73,10 +73,12 @@ impl ShutdownState {
     async fn signal_all(&self, signal: i32) {
         let pids = self.active_pids.lock().await;
         for &pid in pids.iter() {
-            // SAFETY: sending a signal to a process ID is safe; the process
-            // may already be dead (returns ESRCH), which we ignore.
-            unsafe {
-                libc::kill(pid as i32, signal);
+            if let Ok(pid_i32) = i32::try_from(pid) {
+                // SAFETY: sending a signal to a process ID is safe; the process
+                // may already be dead (returns ESRCH), which we ignore.
+                unsafe {
+                    libc::kill(pid_i32, signal);
+                }
             }
         }
     }
@@ -166,7 +168,7 @@ impl<'a> Scheduler<'a> {
         // Track results for each node
         let mut node_results: Vec<Option<TaskResult>> = vec![None; n];
         let mut executed = 0usize;
-        let cached = 0usize;
+        let cached = 0usize; // Phase 4 will populate this when caching is implemented
         let mut skipped = 0usize;
         let mut failed = 0usize;
 
@@ -429,73 +431,88 @@ impl<'a> Scheduler<'a> {
                         skipped += 1;
                     }
                 }
-                // Close the ready channel so workers exit
-                drop(ready_tx);
+                // ready_tx will be dropped after the loop exits, causing workers to stop
                 break;
             }
 
-            // Check dependents: decrement in-degree, evaluate skip propagation
+            // Process newly-ready dependents (using a queue to handle skip chains)
+            let mut ready_queue: std::collections::VecDeque<usize> =
+                std::collections::VecDeque::new();
+
+            // Collect initial ready nodes from completed task
             for &(dep_idx, ref _edge_type) in &self.graph.adjacency[node_idx] {
                 in_degree[dep_idx] -= 1;
-
                 if in_degree[dep_idx] == 0 {
-                    // All deps completed — check if this node should run or be skipped
-                    let should_skip = self.should_skip_node(dep_idx, &node_results, &bridge).await;
+                    ready_queue.push_back(dep_idx);
+                }
+            }
 
-                    if should_skip {
-                        // Skip this node without executing
-                        let skip_node = &self.graph.nodes[dep_idx];
-                        if !self.quiet {
-                            eprintln!(" \u{2298} {:<35} skipped (dep failed)", skip_node.label());
-                        }
+            // Process all newly-ready nodes, including those freed by skips
+            while let Some(ready_idx) = ready_queue.pop_front() {
+                let should_skip = self
+                    .should_skip_node(ready_idx, &node_results, &bridge)
+                    .await;
 
-                        logger.write(&LogEntry::task_end(
-                            run_id,
-                            &skip_node.task_name,
-                            skip_node.package.as_deref(),
-                            TaskStatus::Skipped,
-                            None,
-                            0,
-                            false,
-                        ));
-
-                        node_results[dep_idx] = Some(TaskResult {
-                            status: TaskStatus::Skipped,
-                            exit_code: None,
-                            duration_ms: 0,
-                            package: skip_node.package.clone(),
-                            task: skip_node.task_name.clone(),
-                            cached: false,
-                        });
-                        skipped += 1;
-                        remaining -= 1;
-
-                        // Propagate skip to this node's dependents
-                        self.propagate_completed(dep_idx, &mut in_degree).await;
-                    } else {
-                        // Log task start and enqueue
-                        let ready_node = &self.graph.nodes[dep_idx];
-                        let cmd_display = self
-                            .tasks
-                            .get(&ready_node.task_name)
-                            .map(|t| match t {
-                                TaskDef::Command(c) => c.command.clone(),
-                                TaskDef::Steps(s) => s.steps.join(" && "),
-                            })
-                            .unwrap_or_default();
-
-                        logger.write(&LogEntry::task_start(
-                            run_id,
-                            &ready_node.task_name,
-                            ready_node.package.as_deref(),
-                            &cmd_display,
-                        ));
-
-                        let _ = ready_tx.send(dep_idx).await;
+                if should_skip {
+                    let skip_node = &self.graph.nodes[ready_idx];
+                    if !self.quiet {
+                        eprintln!(" \u{2298} {:<35} skipped (dep failed)", skip_node.label());
                     }
+
+                    logger.write(&LogEntry::task_end(
+                        run_id,
+                        &skip_node.task_name,
+                        skip_node.package.as_deref(),
+                        TaskStatus::Skipped,
+                        None,
+                        0,
+                        false,
+                    ));
+
+                    node_results[ready_idx] = Some(TaskResult {
+                        status: TaskStatus::Skipped,
+                        exit_code: None,
+                        duration_ms: 0,
+                        package: skip_node.package.clone(),
+                        task: skip_node.task_name.clone(),
+                        cached: false,
+                    });
+                    skipped += 1;
+                    remaining -= 1;
+
+                    // Propagate: decrement in-degrees of this node's dependents
+                    for &(next_idx, _) in &self.graph.adjacency[ready_idx] {
+                        in_degree[next_idx] -= 1;
+                        if in_degree[next_idx] == 0 {
+                            ready_queue.push_back(next_idx);
+                        }
+                    }
+                } else {
+                    // Log task start and enqueue for execution
+                    let ready_node = &self.graph.nodes[ready_idx];
+                    let cmd_display = self
+                        .tasks
+                        .get(&ready_node.task_name)
+                        .map(|t| match t {
+                            TaskDef::Command(c) => c.command.clone(),
+                            TaskDef::Steps(s) => s.steps.join(" && "),
+                        })
+                        .unwrap_or_default();
+
+                    logger.write(&LogEntry::task_start(
+                        run_id,
+                        &ready_node.task_name,
+                        ready_node.package.as_deref(),
+                        &cmd_display,
+                    ));
+
+                    let _ = ready_tx.send(ready_idx).await;
                 }
             }
         }
+
+        // Close the ready channel so workers can exit cleanly
+        drop(ready_tx);
 
         // Cancel the signal handler (no longer needed)
         signal_handle.abort();
@@ -518,6 +535,10 @@ impl<'a> Scheduler<'a> {
     }
 
     /// Check if a node should be skipped based on its incoming edges' results.
+    ///
+    /// A node runs only if ALL incoming edges say "Run". If ANY edge says "Skip",
+    /// the node is skipped. This means an `Always` edge won't override a `Default`
+    /// edge that blocked — each edge is an independent gate.
     async fn should_skip_node(
         &self,
         node_idx: usize,
@@ -548,20 +569,10 @@ impl<'a> Scheduler<'a> {
         false
     }
 
-    /// After a node completes (or is skipped), propagate to its dependents.
-    async fn propagate_completed(&self, node_idx: usize, in_degree: &mut [usize]) {
-        for &(dep_idx, _) in &self.graph.adjacency[node_idx] {
-            if in_degree[dep_idx] > 0 {
-                in_degree[dep_idx] -= 1;
-            }
-        }
-    }
-
     /// Seed initial nodes that have zero in-degree with task_start log entries.
     pub fn log_initial_starts(&self, logger: &mut LogWriter, run_id: &str) {
         for (i, node) in self.graph.nodes.iter().enumerate() {
-            let has_deps = self.graph.reverse_adj[i].iter().any(|_| true);
-            if !has_deps {
+            if self.graph.reverse_adj[i].is_empty() {
                 let cmd_display = self
                     .tasks
                     .get(&node.task_name)
@@ -621,8 +632,9 @@ async fn execute_command(
         }
     };
 
-    // Register PID for signal handling
-    if let Some(pid) = child.id() {
+    // Capture PID before wait() — child.id() returns None after reap
+    let child_pid = child.id();
+    if let Some(pid) = child_pid {
         shutdown.register_pid(pid).await;
     }
 
@@ -644,8 +656,8 @@ async fn execute_command(
         child.wait().await.map_err(|e| e.to_string())
     };
 
-    // Unregister PID after process exits
-    if let Some(pid) = child.id() {
+    // Unregister PID using the value captured before wait()
+    if let Some(pid) = child_pid {
         shutdown.unregister_pid(pid).await;
     }
 
