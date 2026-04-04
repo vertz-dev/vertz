@@ -20,7 +20,6 @@ describe('SSRRenderContext', () => {
   });
 
   it('returns undefined outside AsyncLocalStorage.run() even with resolver', () => {
-    const { AsyncLocalStorage } = require('node:async_hooks');
     const als = new AsyncLocalStorage();
     registerSSRResolver(() => als.getStore());
     // Outside .run() — should return undefined
@@ -28,7 +27,6 @@ describe('SSRRenderContext', () => {
   });
 
   it('returns context inside AsyncLocalStorage.run()', () => {
-    const { AsyncLocalStorage } = require('node:async_hooks');
     const als = new AsyncLocalStorage<SSRRenderContext>();
     registerSSRResolver(() => als.getStore());
 
@@ -44,7 +42,6 @@ describe('SSRRenderContext', () => {
   });
 
   it('getAdapter() returns SSR adapter inside context, DOM adapter outside', () => {
-    const { AsyncLocalStorage } = require('node:async_hooks');
     const als = new AsyncLocalStorage<SSRRenderContext>();
     registerSSRResolver(() => als.getStore());
 
@@ -71,7 +68,6 @@ describe('SSRRenderContext', () => {
   });
 
   it('two concurrent SSR renders get different adapter instances', async () => {
-    const { AsyncLocalStorage } = require('node:async_hooks');
     const als = new AsyncLocalStorage<SSRRenderContext>();
     registerSSRResolver(() => als.getStore());
 
@@ -102,7 +98,6 @@ describe('SSRRenderContext', () => {
   });
 
   it('concurrent renders do not corrupt subscriber tracking', async () => {
-    const { AsyncLocalStorage } = require('node:async_hooks');
     const als = new AsyncLocalStorage<SSRRenderContext>();
     registerSSRResolver(() => als.getStore());
 
@@ -148,7 +143,6 @@ describe('SSRRenderContext', () => {
   });
 
   it('cleanup scopes are isolated per request', async () => {
-    const { AsyncLocalStorage } = require('node:async_hooks');
     const als = new AsyncLocalStorage<SSRRenderContext>();
     registerSSRResolver(() => als.getStore());
 
@@ -196,7 +190,6 @@ describe('SSRRenderContext', () => {
   });
 
   it('batch depth is isolated per request', async () => {
-    const { AsyncLocalStorage } = require('node:async_hooks');
     const als = new AsyncLocalStorage<SSRRenderContext>();
     registerSSRResolver(() => als.getStore());
 
@@ -245,7 +238,6 @@ describe('SSRRenderContext', () => {
   });
 
   it('context scope is isolated per request', async () => {
-    const { AsyncLocalStorage } = require('node:async_hooks');
     const als = new AsyncLocalStorage<SSRRenderContext>();
     registerSSRResolver(() => als.getStore());
 
@@ -291,7 +283,6 @@ describe('SSRRenderContext', () => {
   });
 
   it('entity store and query envelope store are isolated per request', async () => {
-    const { AsyncLocalStorage } = require('node:async_hooks');
     const als = new AsyncLocalStorage<SSRRenderContext>();
     registerSSRResolver(() => als.getStore());
 
