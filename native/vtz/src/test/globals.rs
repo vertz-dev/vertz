@@ -899,19 +899,40 @@ if (typeof globalThis.HTMLElement === 'undefined') {
 
   // --- Timer Mocking ---
   let fakeTimersActive = false;
+  let clockOnlyMode = false;
   let timerIdCounter = 1;
   const pendingTimers = new Map(); // id -> { fn, delay, due, repeat, interval }
   const realSetTimeout = globalThis.setTimeout;
   const realClearTimeout = globalThis.clearTimeout;
   const realSetInterval = globalThis.setInterval;
   const realClearInterval = globalThis.clearInterval;
-  const realDateNow = Date.now;
+  const RealDate = globalThis.Date;
   let fakeNow = 0;
+
+  function installFakeDate() {
+    globalThis.Date = function FakeDate(...args) {
+      if (!new.target) return new RealDate(fakeNow).toString();
+      if (args.length === 0) return new RealDate(fakeNow);
+      return new RealDate(...args);
+    };
+    Object.setPrototypeOf(globalThis.Date, RealDate);
+    globalThis.Date.prototype = RealDate.prototype;
+    globalThis.Date.now = () => fakeNow;
+    Object.defineProperty(globalThis.Date, 'name', { value: 'Date', configurable: true });
+    Object.defineProperty(globalThis.Date, 'length', { value: 7, configurable: true });
+  }
+
+  function uninstallFakeDate() {
+    globalThis.Date = RealDate;
+  }
 
   function installFakeTimers() {
     if (fakeTimersActive) return;
     fakeTimersActive = true;
-    fakeNow = Date.now();
+    if (!clockOnlyMode) {
+      fakeNow = RealDate.now();
+    }
+    clockOnlyMode = false;
     pendingTimers.clear();
     timerIdCounter = 1;
 
@@ -927,19 +948,21 @@ if (typeof globalThis.HTMLElement === 'undefined') {
       return id;
     };
     globalThis.clearInterval = (id) => { pendingTimers.delete(id); };
-    // Mock Date.now() to return fake time
-    Date.now = () => fakeNow;
+    installFakeDate();
   }
 
   function uninstallFakeTimers() {
-    if (!fakeTimersActive) return;
-    fakeTimersActive = false;
-    globalThis.setTimeout = realSetTimeout;
-    globalThis.clearTimeout = realClearTimeout;
-    globalThis.setInterval = realSetInterval;
-    globalThis.clearInterval = realClearInterval;
-    Date.now = realDateNow;
-    pendingTimers.clear();
+    if (!fakeTimersActive && !clockOnlyMode) return;
+    if (fakeTimersActive) {
+      fakeTimersActive = false;
+      globalThis.setTimeout = realSetTimeout;
+      globalThis.clearTimeout = realClearTimeout;
+      globalThis.setInterval = realSetInterval;
+      globalThis.clearInterval = realClearInterval;
+      pendingTimers.clear();
+    }
+    clockOnlyMode = false;
+    uninstallFakeDate();
   }
 
   function advanceTimersByTime(ms) {
@@ -1013,6 +1036,56 @@ if (typeof globalThis.HTMLElement === 'undefined') {
     }
   }
 
+  function getTimerCount() {
+    if (!fakeTimersActive) throw new Error('Fake timers are not installed. Call vi.useFakeTimers() first.');
+    return pendingTimers.size;
+  }
+
+  function isFakeTimers() {
+    return fakeTimersActive || clockOnlyMode;
+  }
+
+  function advanceTimersToNextTimer() {
+    if (!fakeTimersActive) throw new Error('Fake timers are not installed. Call vi.useFakeTimers() first.');
+    if (pendingTimers.size === 0) return;
+    let earliest = null;
+    let earliestId = null;
+    for (const [id, timer] of pendingTimers) {
+      if (!earliest || timer.due < earliest.due) {
+        earliest = timer;
+        earliestId = id;
+      }
+    }
+    const delta = Math.max(0, earliest.due - fakeNow);
+    if (delta === 0) {
+      // Overdue: fire just this one timer without moving fakeNow backwards
+      pendingTimers.delete(earliestId);
+      if (earliest.repeat) {
+        const nextId = timerIdCounter++;
+        pendingTimers.set(nextId, { ...earliest, due: fakeNow + earliest.interval });
+      }
+      earliest.fn(...(earliest.args || []));
+    } else {
+      advanceTimersByTime(delta);
+    }
+  }
+
+  function setSystemTime(date) {
+    if (date == null) {
+      throw new Error('vi.setSystemTime() requires a Date, number, or string argument');
+    }
+    const ts = typeof date === 'number' ? date
+      : typeof date === 'string' ? new RealDate(date).getTime()
+      : date.getTime();
+    if (!fakeTimersActive && !clockOnlyMode) {
+      clockOnlyMode = true;
+      fakeNow = ts;
+      installFakeDate();
+    } else {
+      fakeNow = ts;
+    }
+  }
+
   // vi namespace for vitest/bun:test compatibility
   const vi = {
     fn: (impl) => mock(impl),
@@ -1020,6 +1093,10 @@ if (typeof globalThis.HTMLElement === 'undefined') {
     useFakeTimers: () => { installFakeTimers(); return vi; },
     useRealTimers: () => { uninstallFakeTimers(); return vi; },
     advanceTimersByTime: (ms) => { advanceTimersByTime(ms); return vi; },
+    setSystemTime: (date) => { setSystemTime(date); return vi; },
+    getTimerCount: () => getTimerCount(),
+    advanceTimersToNextTimer: () => { advanceTimersToNextTimer(); return vi; },
+    isFakeTimers: () => isFakeTimers(),
     runAllTimers: () => { runAllTimers(); return vi; },
     runOnlyPendingTimers: () => { runOnlyPendingTimers(); return vi; },
     restoreAllMocks: () => { for (const m of allMocks) m.mockRestore(); },
@@ -2624,6 +2701,225 @@ mod tests {
             assert_eq!(
                 item["status"], "pass",
                 "timer mocking test {} failed: {:?}",
+                i, item["error"]
+            );
+        }
+    }
+
+    #[test]
+    fn test_set_system_time() {
+        let mut rt = create_test_runtime();
+        let results = run_test_code(
+            &mut rt,
+            r#"
+            describe('setSystemTime', () => {
+                it('Date.now returns specified time', () => {
+                    vi.useFakeTimers();
+                    vi.setSystemTime(new Date('2025-01-01T00:00:00.000Z'));
+                    expect(Date.now()).toBe(1735689600000);
+                    vi.useRealTimers();
+                });
+                it('new Date() returns specified time', () => {
+                    vi.useFakeTimers();
+                    vi.setSystemTime(new Date('2025-01-01T00:00:00.000Z'));
+                    expect(new Date().toISOString()).toBe('2025-01-01T00:00:00.000Z');
+                    vi.useRealTimers();
+                });
+                it('accepts numeric timestamp', () => {
+                    vi.useFakeTimers();
+                    vi.setSystemTime(0);
+                    expect(Date.now()).toBe(0);
+                    expect(new Date().toISOString()).toBe('1970-01-01T00:00:00.000Z');
+                    vi.useRealTimers();
+                });
+                it('accepts date string', () => {
+                    vi.useFakeTimers();
+                    vi.setSystemTime('2025-01-01T00:00:00.000Z');
+                    expect(Date.now()).toBe(1735689600000);
+                    vi.useRealTimers();
+                });
+                it('works without useFakeTimers (clock-only)', () => {
+                    const realST = globalThis.setTimeout;
+                    vi.setSystemTime(new Date('2025-01-01T00:00:00.000Z'));
+                    expect(Date.now()).toBe(1735689600000);
+                    expect(new Date().toISOString()).toBe('2025-01-01T00:00:00.000Z');
+                    // setTimeout must NOT be replaced in clock-only mode
+                    expect(globalThis.setTimeout).toBe(realST);
+                    vi.useRealTimers();
+                });
+                it('useRealTimers restores real Date', () => {
+                    vi.useFakeTimers();
+                    vi.setSystemTime(new Date('2000-06-15T12:00:00.000Z'));
+                    vi.useRealTimers();
+                    expect(new Date().getUTCFullYear()).toBeGreaterThan(2020);
+                });
+                it('advanceTimersByTime advances fake system time', () => {
+                    vi.useFakeTimers();
+                    vi.setSystemTime(new Date('2025-06-15T12:00:00.000Z'));
+                    const base = Date.now();
+                    vi.advanceTimersByTime(5000);
+                    expect(Date.now()).toBe(base + 5000);
+                    vi.useRealTimers();
+                });
+                it('multiple setSystemTime calls update the time', () => {
+                    vi.useFakeTimers();
+                    vi.setSystemTime(new Date('2025-06-15T12:00:00.000Z'));
+                    expect(new Date().getUTCFullYear()).toBe(2025);
+                    vi.setSystemTime(new Date('2030-06-15T12:00:00.000Z'));
+                    expect(new Date().getUTCFullYear()).toBe(2030);
+                    vi.useRealTimers();
+                });
+                it('Date() without new returns string', () => {
+                    vi.useFakeTimers();
+                    vi.setSystemTime(new Date('2025-06-15T12:00:00.000Z'));
+                    expect(typeof Date()).toBe('string');
+                    vi.useRealTimers();
+                });
+                it('instanceof Date works', () => {
+                    vi.useFakeTimers();
+                    vi.setSystemTime(new Date('2025-06-15T12:00:00.000Z'));
+                    expect(new Date() instanceof Date).toBe(true);
+                    vi.useRealTimers();
+                });
+                it('new Date(timestamp) passes through', () => {
+                    vi.useFakeTimers();
+                    vi.setSystemTime(new Date('2025-06-15T12:00:00.000Z'));
+                    expect(new Date(0).toISOString()).toBe('1970-01-01T00:00:00.000Z');
+                    vi.useRealTimers();
+                });
+                it('new Date(y,m,...) passes through', () => {
+                    vi.useFakeTimers();
+                    vi.setSystemTime(new Date('2025-06-15T12:00:00.000Z'));
+                    const d = new Date(2020, 5, 15);
+                    expect(d.getFullYear()).toBe(2020);
+                    expect(d.getMonth()).toBe(5);
+                    vi.useRealTimers();
+                });
+                it('useFakeTimers mocks new Date() too', () => {
+                    vi.useFakeTimers();
+                    const start = Date.now();
+                    vi.advanceTimersByTime(5000);
+                    expect(new Date().getTime()).toBe(start + 5000);
+                    vi.useRealTimers();
+                });
+                it('useRealTimers after clock-only restores Date', () => {
+                    vi.setSystemTime(new Date('2000-06-15T12:00:00.000Z'));
+                    vi.useRealTimers();
+                    expect(new Date().getUTCFullYear()).toBeGreaterThan(2020);
+                });
+            });
+            "#,
+        );
+
+        let arr = results.as_array().unwrap();
+        assert_eq!(arr.len(), 14);
+        for (i, item) in arr.iter().enumerate() {
+            assert_eq!(
+                item["status"], "pass",
+                "setSystemTime test {} failed: {:?}",
+                i, item["error"]
+            );
+        }
+    }
+
+    #[test]
+    fn test_timer_utility_methods() {
+        let mut rt = create_test_runtime();
+        let results = run_test_code(
+            &mut rt,
+            r#"
+            describe('vi.getTimerCount', () => {
+                it('returns 0 with no pending timers', () => {
+                    vi.useFakeTimers();
+                    expect(vi.getTimerCount()).toBe(0);
+                    vi.useRealTimers();
+                });
+                it('counts pending timers', () => {
+                    vi.useFakeTimers();
+                    setTimeout(() => {}, 100);
+                    setTimeout(() => {}, 200);
+                    expect(vi.getTimerCount()).toBe(2);
+                    vi.useRealTimers();
+                });
+                it('updates after advancing', () => {
+                    vi.useFakeTimers();
+                    setTimeout(() => {}, 100);
+                    setTimeout(() => {}, 200);
+                    vi.advanceTimersByTime(150);
+                    expect(vi.getTimerCount()).toBe(1);
+                    vi.useRealTimers();
+                });
+            });
+            describe('vi.isFakeTimers', () => {
+                it('returns false by default', () => {
+                    expect(vi.isFakeTimers()).toBe(false);
+                });
+                it('returns true with useFakeTimers', () => {
+                    vi.useFakeTimers();
+                    expect(vi.isFakeTimers()).toBe(true);
+                    vi.useRealTimers();
+                });
+                it('returns false after useRealTimers', () => {
+                    vi.useFakeTimers();
+                    vi.useRealTimers();
+                    expect(vi.isFakeTimers()).toBe(false);
+                });
+                it('returns true in clock-only mode', () => {
+                    vi.setSystemTime(new Date('2025-06-15T12:00:00.000Z'));
+                    expect(vi.isFakeTimers()).toBe(true);
+                    vi.useRealTimers();
+                });
+                it('returns false after useRealTimers from clock-only', () => {
+                    vi.setSystemTime(new Date('2025-06-15T12:00:00.000Z'));
+                    vi.useRealTimers();
+                    expect(vi.isFakeTimers()).toBe(false);
+                });
+            });
+            describe('vi.advanceTimersToNextTimer', () => {
+                it('fires only nearest timer', () => {
+                    vi.useFakeTimers();
+                    const log = [];
+                    setTimeout(() => log.push('a'), 100);
+                    setTimeout(() => log.push('b'), 500);
+                    vi.advanceTimersToNextTimer();
+                    expect(log).toEqual(['a']);
+                    vi.useRealTimers();
+                });
+                it('advances Date.now to timer due time', () => {
+                    vi.useFakeTimers();
+                    vi.setSystemTime(1000);
+                    setTimeout(() => {}, 500);
+                    vi.advanceTimersToNextTimer();
+                    expect(Date.now()).toBe(1500);
+                    vi.useRealTimers();
+                });
+                it('fires overdue timer without moving fakeNow backwards', () => {
+                    vi.useFakeTimers();
+                    vi.setSystemTime(1000);
+                    const log = [];
+                    setTimeout(() => log.push('fired'), 100);
+                    vi.setSystemTime(5000);
+                    const before = Date.now();
+                    vi.advanceTimersToNextTimer();
+                    expect(Date.now()).toBe(before);
+                    expect(log).toEqual(['fired']);
+                    vi.useRealTimers();
+                });
+                it('is a no-op with no pending timers', () => {
+                    vi.useFakeTimers();
+                    vi.advanceTimersToNextTimer();
+                    vi.useRealTimers();
+                });
+            });
+            "#,
+        );
+
+        let arr = results.as_array().unwrap();
+        assert_eq!(arr.len(), 12);
+        for (i, item) in arr.iter().enumerate() {
+            assert_eq!(
+                item["status"], "pass",
+                "timer utility test {} failed: {:?}",
                 i, item["error"]
             );
         }
