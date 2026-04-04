@@ -656,6 +656,53 @@ pub struct CiArgs {
     pub base: Option<String>,
 }
 
+#[derive(Subcommand, Debug)]
+pub enum CiCommand {
+    /// List affected packages
+    Affected(CiAffectedArgs),
+    /// Manage the CI cache
+    Cache(CiCacheArgs),
+    /// Print the task execution graph
+    Graph(CiGraphArgs),
+}
+
+#[derive(Parser, Debug)]
+pub struct CiAffectedArgs {
+    /// Base ref for change detection (default: origin/main)
+    #[arg(long, default_value = "origin/main")]
+    pub base: String,
+
+    /// Output as JSON
+    #[arg(long)]
+    pub json: bool,
+}
+
+#[derive(Parser, Debug)]
+pub struct CiCacheArgs {
+    #[command(subcommand)]
+    pub command: CiCacheCommand,
+}
+
+#[derive(Subcommand, Debug)]
+pub enum CiCacheCommand {
+    /// Show cache statistics
+    Status,
+    /// Clear all cached entries
+    Clean,
+    /// Push local cache to remote
+    Push,
+}
+
+#[derive(Parser, Debug)]
+pub struct CiGraphArgs {
+    /// Workflow or task name to graph
+    pub name: Option<String>,
+
+    /// Output as Graphviz DOT format
+    #[arg(long)]
+    pub dot: bool,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
