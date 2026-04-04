@@ -1,3 +1,4 @@
+pub mod cache;
 pub mod changes;
 pub mod config;
 pub mod graph;
@@ -27,6 +28,7 @@ pub enum CiAction {
         verbose: bool,
         quiet: bool,
         json: bool,
+        base: Option<String>,
     },
     /// List affected packages
     Affected {
@@ -44,6 +46,17 @@ pub enum CiAction {
     },
 }
 
+/// Options for running a task or workflow.
+struct RunOptions {
+    name: String,
+    all: bool,
+    scope: Option<String>,
+    base: Option<String>,
+    dry_run: bool,
+    quiet: bool,
+    concurrency: Option<usize>,
+}
+
 /// Entry point for `vtz ci` commands.
 pub async fn execute(action: CiAction, root_dir: &Path) -> Result<(), String> {
     match action {
@@ -56,6 +69,7 @@ pub async fn execute(action: CiAction, root_dir: &Path) -> Result<(), String> {
             verbose,
             quiet,
             json,
+            base,
         } => {
             if verbose {
                 eprintln!("[pipe] warning: --verbose flag is not yet implemented, ignored");
@@ -63,15 +77,45 @@ pub async fn execute(action: CiAction, root_dir: &Path) -> Result<(), String> {
             if json {
                 eprintln!("[pipe] warning: --json flag is not yet implemented, ignored");
             }
-            run_task_or_workflow(root_dir, &name, all, scope, dry_run, quiet, concurrency).await
+            run_task_or_workflow(
+                root_dir,
+                RunOptions {
+                    name,
+                    all,
+                    scope,
+                    base,
+                    dry_run,
+                    quiet,
+                    concurrency,
+                },
+            )
+            .await
         }
         CiAction::Affected { base, json } => run_affected(root_dir, &base, json).await,
         CiAction::CacheStatus => {
-            eprintln!("[pipe] cache status — not yet implemented");
+            let backend = cache::create_cache_backend(root_dir, None);
+            // Downcast to LocalCache for status info
+            let cache_dir = root_dir.join(".pipe").join("cache");
+            let local = cache::LocalCache::new(cache_dir.clone(), None);
+            let (total_bytes, count) = local.status();
+            let total_mb = total_bytes as f64 / (1024.0 * 1024.0);
+            let max_mb = 2048.0;
+            eprintln!("Cache directory: {}", cache_dir.display());
+            eprintln!("Total size: {total_mb:.0} MB / {max_mb:.0} MB");
+            eprintln!("Entries: {count}");
+            let _ = backend; // ensure trait object is used
             Ok(())
         }
         CiAction::CacheClean => {
-            eprintln!("[pipe] cache clean — not yet implemented");
+            let cache_dir = root_dir.join(".pipe").join("cache");
+            let local = cache::LocalCache::new(cache_dir, None);
+            match local.clean() {
+                Ok((count, bytes)) => {
+                    let mb = bytes as f64 / (1024.0 * 1024.0);
+                    eprintln!("Cleared {count} entries ({mb:.0} MB)");
+                }
+                Err(e) => return Err(e),
+            }
             Ok(())
         }
         CiAction::CachePush => {
@@ -86,15 +130,16 @@ pub async fn execute(action: CiAction, root_dir: &Path) -> Result<(), String> {
 }
 
 /// Run a task or workflow by name.
-async fn run_task_or_workflow(
-    root_dir: &Path,
-    name: &str,
-    all: bool,
-    scope: Option<String>,
-    dry_run: bool,
-    quiet: bool,
-    concurrency: Option<usize>,
-) -> Result<(), String> {
+async fn run_task_or_workflow(root_dir: &Path, opts: RunOptions) -> Result<(), String> {
+    let RunOptions {
+        name,
+        all,
+        scope,
+        base,
+        dry_run,
+        quiet,
+        concurrency,
+    } = opts;
     let run_start = Instant::now();
 
     if !quiet {
@@ -134,11 +179,11 @@ async fn run_task_or_workflow(
     ));
 
     // 5. Build workflow config (from named workflow or synthetic for single task)
-    let workflow = if let Some(wf) = pipe_config.workflows.get(name) {
+    let workflow = if let Some(wf) = pipe_config.workflows.get(&name) {
         wf.clone()
-    } else if pipe_config.tasks.contains_key(name) {
+    } else if pipe_config.tasks.contains_key(&name) {
         types::WorkflowConfig {
-            run: vec![name.to_string()],
+            run: vec![name],
             filter: types::WorkflowFilter::All,
             env: std::collections::BTreeMap::new(),
         }
@@ -172,7 +217,7 @@ async fn run_task_or_workflow(
             ),
             types::WorkflowFilter::Affected => {
                 // Run change detection to determine affected packages
-                let base_ref = changes::ChangeDetector::resolve_base_ref(None);
+                let base_ref = changes::ChangeDetector::resolve_base_ref(base.as_deref());
                 let detector =
                     changes::ChangeDetector::new(root_dir.to_path_buf(), base_ref.clone());
                 let change_set = detector.detect().await?;
@@ -187,12 +232,21 @@ async fn run_task_or_workflow(
                     );
                 }
 
-                if affected.all_affected.is_empty() && !affected.root_changed {
-                    if !quiet {
-                        eprintln!("[pipe] No affected packages — nothing to run");
+                if affected.all_affected.is_empty() {
+                    if affected.root_changed {
+                        if !quiet {
+                            eprintln!(
+                                "[pipe] Root files changed but no packages affected — \
+                                 only root-scoped tasks will run"
+                            );
+                        }
+                    } else {
+                        if !quiet {
+                            eprintln!("[pipe] No affected packages — nothing to run");
+                        }
+                        let _ = bridge.shutdown().await;
+                        return Ok(());
                     }
-                    let _ = bridge.shutdown().await;
-                    return Ok(());
                 }
 
                 Some(affected.all_affected)

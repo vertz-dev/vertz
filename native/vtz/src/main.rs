@@ -1494,6 +1494,7 @@ async fn async_main(cli: Cli) {
                         verbose: ci_args.verbose,
                         quiet: ci_args.quiet,
                         json: ci_args.json,
+                        base: ci_args.base,
                     }
                 }
             };

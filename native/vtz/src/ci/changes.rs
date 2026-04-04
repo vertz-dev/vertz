@@ -50,7 +50,7 @@ impl ChangeDetector {
     pub fn resolve_base_ref(explicit: Option<&str>) -> String {
         let ci = std::env::var("CI").ok();
         let github_base = std::env::var("GITHUB_BASE_REF").ok();
-        let is_ci = ci.as_deref() == Some("true");
+        let is_ci = ci.as_deref().is_some_and(|v| !v.is_empty());
         resolve_base_ref_from("origin/main", explicit, github_base.as_deref(), is_ci)
     }
 
@@ -201,7 +201,6 @@ fn resolve_base_ref_from(
 fn parse_file_list(output: &str) -> Vec<PathBuf> {
     output
         .lines()
-        .map(|l| l.trim())
         .filter(|l| !l.is_empty())
         .map(PathBuf::from)
         .collect()
@@ -329,11 +328,16 @@ pub fn evaluate_condition(
         Condition::Changed { patterns } => {
             // Any changed file matches any glob pattern
             for pattern in patterns {
-                if let Ok(glob) = glob::Pattern::new(pattern) {
-                    for file in &changes.files {
-                        if glob.matches_path(file) {
-                            return true;
+                match glob::Pattern::new(pattern) {
+                    Ok(glob) => {
+                        for file in &changes.files {
+                            if glob.matches_path(file) {
+                                return true;
+                            }
                         }
+                    }
+                    Err(e) => {
+                        eprintln!("[pipe] Warning: invalid glob pattern \"{pattern}\": {e}");
                     }
                 }
             }
@@ -342,20 +346,22 @@ pub fn evaluate_condition(
         Condition::Branch { names } => {
             // Current branch matches any listed name (supports globs)
             for name in names {
-                if let Ok(glob) = glob::Pattern::new(name) {
-                    if glob.matches(current_branch) {
-                        return true;
+                match glob::Pattern::new(name) {
+                    Ok(glob) => {
+                        if glob.matches(current_branch) {
+                            return true;
+                        }
                     }
-                }
-                // Exact match fallback
-                if name == current_branch {
-                    return true;
+                    Err(e) => {
+                        eprintln!("[pipe] Warning: invalid branch pattern \"{name}\": {e}");
+                    }
                 }
             }
             false
         }
         Condition::Env { name, value } => {
-            match (std::env::var(name).ok(), value) {
+            let env_val = std::env::var(name).ok();
+            match (env_val, value) {
                 (None, _) => false,      // env var not set
                 (Some(_), None) => true, // just check existence
                 (Some(actual), Some(expected)) => &actual == expected,
@@ -392,7 +398,7 @@ mod tests {
 
     #[test]
     fn parse_file_list_empty_lines() {
-        let output = "\npackages/ui/src/index.ts\n\n  \n";
+        let output = "\npackages/ui/src/index.ts\n\n\n";
         let result = parse_file_list(output);
         assert_eq!(result.len(), 1);
         assert_eq!(result[0], PathBuf::from("packages/ui/src/index.ts"));

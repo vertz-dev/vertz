@@ -137,7 +137,7 @@ impl TaskGraph {
                     }
                 }
                 TaskScope::Package => {
-                    for pkg_name in workspace.packages.keys() {
+                    for pkg_name in active_packages {
                         let key = (dep_task.clone(), Some(pkg_name.clone()));
                         if let std::collections::hash_map::Entry::Vacant(e) = node_index.entry(key)
                         {

@@ -12,6 +12,7 @@ name = "vtz"
 path = "src/main.rs"
 
 [dependencies]
+async-trait = "0.1"
 axum = { version = "0.7", features = ["ws"] }
 axum-server = { version = "0.8", features = ["tls-rustls"] }
 clap = { version = "4", features = ["derive"] }
@@ -53,6 +54,7 @@ vertz-compiler-core = { path = "../vertz-compiler-core" }
 wry = { version = "0.49", optional = true }
 tao = { version = "0.32", optional = true, features = ["rwh_06"] }
 which = "7"
+zstd = "0.13"
 oxc_transformer = "0.122.0"
 oxc_allocator = "0.122.0"
 oxc_parser = "0.122.0"

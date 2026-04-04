@@ -650,6 +650,10 @@ pub struct CiArgs {
     /// Machine-readable JSON output
     #[arg(long)]
     pub json: bool,
+
+    /// Base ref for change detection (used with filter: 'affected')
+    #[arg(long)]
+    pub base: Option<String>,
 }
 
 #[cfg(test)]
