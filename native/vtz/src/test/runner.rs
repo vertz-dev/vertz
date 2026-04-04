@@ -145,11 +145,8 @@ pub fn run_tests(config: TestRunConfig) -> (TestRunResult, String) {
             // proper jsx, lib, and type configuration for each package.
             let groups = typetests::group_by_tsconfig(&config.root_dir, &type_test_files);
             for (tsconfig, group_files) in &groups {
-                let type_results = typetests::run_type_tests(
-                    &config.root_dir,
-                    group_files,
-                    tsconfig.as_deref(),
-                );
+                let type_results =
+                    typetests::run_type_tests(&config.root_dir, group_files, tsconfig.as_deref());
                 results.extend(type_results);
             }
         }
