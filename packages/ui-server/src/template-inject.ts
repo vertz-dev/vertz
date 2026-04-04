@@ -4,7 +4,73 @@
  * Used by both the production SSR handler (runtime) and the pre-render pipeline (build-time).
  */
 
+import { escapeAttr } from './html-serializer';
 import { safeSerialize } from './ssr-streaming-runtime';
+
+const VALID_ATTR_KEY = /^[a-zA-Z][a-zA-Z0-9-]*$/;
+
+/**
+ * Inject or override attributes on the `<html>` tag in an HTML template.
+ *
+ * Parses existing attributes from the `<html>` tag, merges with the provided
+ * attrs (provided values win on conflict), escapes values, and reconstructs
+ * the tag. Returns the template unchanged if attrs is empty or no `<html>` tag
+ * is found.
+ *
+ * @throws If any attribute key is invalid (must match `/^[a-zA-Z][a-zA-Z0-9-]*$/`)
+ */
+export function injectHtmlAttributes(template: string, attrs: Record<string, string>): string {
+  const entries = Object.entries(attrs);
+  if (entries.length === 0) return template;
+
+  // Validate keys
+  for (const [key] of entries) {
+    if (!VALID_ATTR_KEY.test(key)) {
+      throw new Error(`Invalid HTML attribute key: "${key}"`);
+    }
+  }
+
+  // Match the <html ...> tag (case-insensitive, supports multiline)
+  const htmlTagMatch = template.match(/<html(\s[^>]*)?>|<html>/i);
+  if (!htmlTagMatch || htmlTagMatch.index == null) return template;
+
+  // Parse existing attributes from the tag
+  const existingAttrsStr = htmlTagMatch[1] ?? '';
+  const existingAttrs = parseHtmlTagAttrs(existingAttrsStr);
+
+  // Merge: callback values override existing (escaped)
+  const merged = { ...existingAttrs };
+  for (const [key, value] of entries) {
+    merged[key] = escapeAttr(value);
+  }
+
+  // Reconstruct the tag
+  const attrStr = Object.entries(merged)
+    .map(([k, v]) => (v === '' && !(k in attrs) ? ` ${k}` : ` ${k}="${v}"`))
+    .join('');
+
+  // Preserve original tag casing (e.g., <HTML> stays <HTML>)
+  const originalTag = htmlTagMatch[0].match(/^<([a-zA-Z]+)/i)![1]!;
+  const tagEnd = htmlTagMatch.index + htmlTagMatch[0].length;
+  return (
+    template.slice(0, htmlTagMatch.index) + `<${originalTag}${attrStr}>` + template.slice(tagEnd)
+  );
+}
+
+/**
+ * Parse attributes from an HTML tag's attribute string into a key-value record.
+ * Handles `key="value"`, `key='value'`, and bare boolean attributes (`key`).
+ * Values are returned as-is (already escaped in the template).
+ */
+function parseHtmlTagAttrs(attrStr: string): Record<string, string> {
+  const attrs: Record<string, string> = {};
+  const re = /([a-zA-Z][a-zA-Z0-9-]*)(?:\s*=\s*"([^"]*)"|(?:\s*=\s*'([^']*)'))?/g;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(attrStr)) !== null) {
+    attrs[m[1]!] = m[2] ?? m[3] ?? '';
+  }
+  return attrs;
+}
 
 export interface InjectIntoTemplateOptions {
   template: string;
