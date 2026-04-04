@@ -1460,5 +1460,48 @@ async fn async_main(cli: Cli) {
                 std::process::exit(1);
             }
         }
+        Command::Ci(ci_args) => {
+            use vertz_runtime::ci::{self, CiAction};
+
+            let root_dir =
+                std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from("."));
+
+            let action = match ci_args.command {
+                Some(cli::CiCommand::Affected(args)) => CiAction::Affected {
+                    base: args.base,
+                    json: args.json,
+                },
+                Some(cli::CiCommand::Cache(args)) => match args.command {
+                    cli::CiCacheCommand::Status => CiAction::CacheStatus,
+                    cli::CiCacheCommand::Clean => CiAction::CacheClean,
+                    cli::CiCacheCommand::Push => CiAction::CachePush,
+                },
+                Some(cli::CiCommand::Graph(args)) => CiAction::Graph {
+                    name: args.name,
+                    dot: args.dot,
+                },
+                None => {
+                    if ci_args.name.is_empty() {
+                        eprintln!("error: provide a task or workflow name\n\nUsage: vtz ci <NAME>\n\nRun `vtz ci --help` for details.");
+                        std::process::exit(1);
+                    }
+                    CiAction::Run {
+                        name: ci_args.name[0].clone(),
+                        all: ci_args.all,
+                        scope: ci_args.scope,
+                        dry_run: ci_args.dry_run,
+                        concurrency: ci_args.concurrency,
+                        verbose: ci_args.verbose,
+                        quiet: ci_args.quiet,
+                        json: ci_args.json,
+                    }
+                }
+            };
+
+            if let Err(e) = ci::execute(action, &root_dir).await {
+                eprintln!("error: {e}");
+                std::process::exit(1);
+            }
+        }
     }
 }

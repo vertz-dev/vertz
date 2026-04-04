@@ -58,6 +58,8 @@ pub enum Command {
     /// Update vtz itself to the latest version
     #[command(name = "self-update")]
     SelfUpdate(SelfUpdateArgs),
+    /// Monorepo CI task orchestration
+    Ci(CiArgs),
 }
 
 #[derive(Parser, Debug)]
@@ -607,6 +609,47 @@ pub struct SelfUpdateArgs {
     /// Update to a specific version (e.g. 0.3.0) instead of latest
     #[arg(long)]
     pub version: Option<String>,
+}
+
+// ---------------------------------------------------------------------------
+// CI task runner
+// ---------------------------------------------------------------------------
+
+#[derive(Parser, Debug)]
+pub struct CiArgs {
+    #[command(subcommand)]
+    pub command: Option<CiCommand>,
+
+    /// Task or workflow name to run (when no subcommand is given)
+    pub name: Vec<String>,
+
+    /// Run on all packages (override workflow filter)
+    #[arg(long)]
+    pub all: bool,
+
+    /// Restrict to a specific package
+    #[arg(long)]
+    pub scope: Option<String>,
+
+    /// Show what would run without executing
+    #[arg(long)]
+    pub dry_run: bool,
+
+    /// Max parallel tasks (default: CPU count)
+    #[arg(long)]
+    pub concurrency: Option<usize>,
+
+    /// Live-stream task output (no buffering)
+    #[arg(long)]
+    pub verbose: bool,
+
+    /// Only show failures and summary
+    #[arg(long)]
+    pub quiet: bool,
+
+    /// Machine-readable JSON output
+    #[arg(long)]
+    pub json: bool,
 }
 
 #[cfg(test)]
@@ -1816,5 +1859,139 @@ mod tests {
     fn test_proxy_sync_hosts() {
         let cmd = parse_proxy(&["vtz", "proxy", "sync-hosts"]);
         assert!(matches!(cmd, ProxyCommand::SyncHosts));
+    }
+
+    // ── CI tests ──────────────────────────────────────────────────────────
+
+    fn parse_ci(args: &[&str]) -> CiArgs {
+        let cli = Cli::parse_from(args);
+        match cli.command {
+            Command::Ci(args) => args,
+            other => panic!("Expected Ci, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_ci_run_workflow() {
+        let args = parse_ci(&["vtz", "ci", "ci"]);
+        assert!(args.command.is_none());
+        assert_eq!(args.name, vec!["ci"]);
+        assert!(!args.all);
+        assert!(!args.dry_run);
+    }
+
+    #[test]
+    fn test_ci_run_with_flags() {
+        let args = parse_ci(&[
+            "vtz",
+            "ci",
+            "ci",
+            "--all",
+            "--dry-run",
+            "--concurrency",
+            "4",
+        ]);
+        assert_eq!(args.name, vec!["ci"]);
+        assert!(args.all);
+        assert!(args.dry_run);
+        assert_eq!(args.concurrency, Some(4));
+    }
+
+    #[test]
+    fn test_ci_affected_defaults() {
+        let args = parse_ci(&["vtz", "ci", "affected"]);
+        match args.command {
+            Some(CiCommand::Affected(a)) => {
+                assert_eq!(a.base, "origin/main");
+                assert!(!a.json);
+            }
+            other => panic!("Expected Affected, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_ci_affected_custom_base_json() {
+        let args = parse_ci(&["vtz", "ci", "affected", "--base", "develop", "--json"]);
+        match args.command {
+            Some(CiCommand::Affected(a)) => {
+                assert_eq!(a.base, "develop");
+                assert!(a.json);
+            }
+            other => panic!("Expected Affected, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_ci_cache_status() {
+        let args = parse_ci(&["vtz", "ci", "cache", "status"]);
+        match args.command {
+            Some(CiCommand::Cache(c)) => {
+                assert!(matches!(c.command, CiCacheCommand::Status));
+            }
+            other => panic!("Expected Cache, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_ci_cache_clean() {
+        let args = parse_ci(&["vtz", "ci", "cache", "clean"]);
+        match args.command {
+            Some(CiCommand::Cache(c)) => {
+                assert!(matches!(c.command, CiCacheCommand::Clean));
+            }
+            other => panic!("Expected Cache, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_ci_cache_push() {
+        let args = parse_ci(&["vtz", "ci", "cache", "push"]);
+        match args.command {
+            Some(CiCommand::Cache(c)) => {
+                assert!(matches!(c.command, CiCacheCommand::Push));
+            }
+            other => panic!("Expected Cache, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_ci_graph_defaults() {
+        let args = parse_ci(&["vtz", "ci", "graph"]);
+        match args.command {
+            Some(CiCommand::Graph(g)) => {
+                assert!(g.name.is_none());
+                assert!(!g.dot);
+            }
+            other => panic!("Expected Graph, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_ci_graph_with_dot() {
+        let args = parse_ci(&["vtz", "ci", "graph", "--dot", "ci"]);
+        match args.command {
+            Some(CiCommand::Graph(g)) => {
+                assert_eq!(g.name, Some("ci".to_string()));
+                assert!(g.dot);
+            }
+            other => panic!("Expected Graph, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_ci_verbose_quiet_json() {
+        let args = parse_ci(&["vtz", "ci", "ci", "--verbose"]);
+        assert!(args.verbose);
+        assert!(!args.quiet);
+        assert!(!args.json);
+
+        let args = parse_ci(&["vtz", "ci", "ci", "--json"]);
+        assert!(args.json);
+    }
+
+    #[test]
+    fn test_ci_scope_flag() {
+        let args = parse_ci(&["vtz", "ci", "test", "--scope", "@vertz/ui"]);
+        assert_eq!(args.scope, Some("@vertz/ui".to_string()));
     }
 }
