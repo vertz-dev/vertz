@@ -2045,4 +2045,17 @@ mod tests {
         let args = parse_ci(&["vtz", "ci", "test", "--scope", "@vertz/ui"]);
         assert_eq!(args.scope, Some("@vertz/ui".to_string()));
     }
+
+    #[test]
+    fn test_ci_run_base_flag() {
+        let args = parse_ci(&["vtz", "ci", "ci", "--base", "origin/develop"]);
+        assert!(args.command.is_none());
+        assert_eq!(args.base, Some("origin/develop".to_string()));
+    }
+
+    #[test]
+    fn test_ci_run_base_flag_none_by_default() {
+        let args = parse_ci(&["vtz", "ci", "ci"]);
+        assert!(args.base.is_none());
+    }
 }
