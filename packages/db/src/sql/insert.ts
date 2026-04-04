@@ -109,11 +109,7 @@ export function buildInsert(
                 params: [],
               };
               const fragment = val.build(colRef);
-              const renumbered = renumberParamsWithDialect(
-                fragment.sql,
-                allParams.length,
-                dialect,
-              );
+              const renumbered = renumberParamsWithDialect(fragment.sql, allParams.length, dialect);
               allParams.push(...fragment.params);
               return `"${snakeCol}" = ${renumbered}`;
             }

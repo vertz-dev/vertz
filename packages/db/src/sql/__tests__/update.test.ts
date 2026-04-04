@@ -141,9 +141,7 @@ describe('buildUpdate', () => {
         data: { stock: d.decrement(3) },
         where: { id: 'p1' },
       });
-      expect(result.sql).toBe(
-        'UPDATE "products" SET "stock" = "stock" - $1 WHERE "id" = $2',
-      );
+      expect(result.sql).toBe('UPDATE "products" SET "stock" = "stock" - $1 WHERE "id" = $2');
       expect(result.params).toEqual([3, 'p1']);
     });
 

@@ -166,9 +166,9 @@ type ApiCreateInput<T extends ColumnRecord> = {
  * Excludes readOnly and primary key columns. All fields optional (partial update).
  */
 type ApiUpdateInput<T extends ColumnRecord> = {
-  [K in ColumnKeysWhereNot<T, 'isReadOnly'> &
-    ColumnKeysWhereNot<T, 'primary'> &
-    string]?: InferColumnType<T[K]> | DbExpr;
+  [K in ColumnKeysWhereNot<T, 'isReadOnly'> & ColumnKeysWhereNot<T, 'primary'> & string]?:
+    | InferColumnType<T[K]>
+    | DbExpr;
 };
 
 // ---------------------------------------------------------------------------

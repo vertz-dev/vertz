@@ -240,7 +240,8 @@ await db.urls.update({
 Expressions work in `update`, `updateMany`, and the `update` path of `upsert`. They compose with the `sql` tagged template — the `col` parameter in `d.expr()` is the column reference, automatically converted to snake_case.
 
 <Note>
-  Expressions override `autoUpdate()` columns. If you pass `d.increment()` on an `autoUpdate()` column like `updatedAt`, your expression is used instead of the automatic `NOW()`.
+  Expressions override `autoUpdate()` columns. If you pass `d.increment()` on an `autoUpdate()`
+  column like `updatedAt`, your expression is used instead of the automatic `NOW()`.
 </Note>
 
 ### Upsert
