@@ -49,6 +49,12 @@ fn is_boolean_idl_property(attr_name: &str) -> bool {
     attr_name == "checked"
 }
 
+/// Check if an element supports the `debounce` prop transform.
+/// The compiler transforms `debounce={N}` to `data-vertz-debounce="N"` on these elements.
+fn is_debounce_element(tag_name: &str) -> bool {
+    matches!(tag_name, "input" | "textarea" | "select")
+}
+
 /// Transform all JSX in a component body into DOM helper calls.
 pub fn transform_jsx(
     ms: &mut MagicString,
@@ -1396,6 +1402,8 @@ fn process_attr(
             }
             let attr_name = if name == "className" {
                 "class"
+            } else if name == "debounce" && is_debounce_element(tag_name) {
+                "data-vertz-debounce"
             } else {
                 name.as_str()
             };
@@ -1418,6 +1426,8 @@ fn process_attr(
             let raw_name = name.as_str();
             let attr_name = if raw_name == "className" {
                 "class"
+            } else if raw_name == "debounce" && is_debounce_element(tag_name) {
+                "data-vertz-debounce"
             } else {
                 raw_name
             };
@@ -1428,6 +1438,11 @@ fn process_attr(
             // Ref
             if attr_name == "ref" {
                 return Some(format!("{}.current = {}", expr_text, el_var));
+            }
+
+            // Form onChange → __formOnChange(el, handler) instead of __on(el, "change", handler)
+            if raw_name == "onChange" && tag_name == "form" {
+                return Some(format!("__formOnChange({}, {})", el_var, expr_text));
             }
 
             // Event handler: onClick → __on(el, "click", handler)
