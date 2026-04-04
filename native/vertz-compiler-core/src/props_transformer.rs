@@ -24,9 +24,11 @@ struct DestructuredPropsInfo {
     bindings: Vec<PropBinding>,
     has_rest: bool,
     has_nested_destructuring: bool,
-    /// Span of the entire parameter pattern (from `{` to `)` or type annotation end).
+    /// Span of the entire parameter (from `{` to end of type annotation).
     param_start: u32,
     param_end: u32,
+    /// End of just the destructuring pattern (before type annotation).
+    pattern_end: u32,
 }
 
 /// Transform destructured props into __props access pattern.
@@ -59,11 +61,14 @@ pub fn transform_props(
         return;
     }
 
-    // Step 1: Rewrite parameter `{ title, ...rest }: CardProps` → `__props`
-    // Note: type annotation is intentionally omitted — the output is JavaScript,
-    // and typescript_strip has already run. Re-emitting the type would produce
-    // invalid JS that V8 cannot parse.
-    let new_param = "__props".to_string();
+    // Step 1: Rewrite parameter `{ title, ...rest }: CardProps` → `__props: CardProps`
+    // Preserve the type annotation so downstream TS stripping (e.g., Bun) handles it.
+    let type_annotation = if info.pattern_end < info.param_end {
+        &source[info.pattern_end as usize..info.param_end as usize]
+    } else {
+        ""
+    };
+    let new_param = format!("__props{type_annotation}");
     ms.overwrite(info.param_start, info.param_end, &new_param);
 
     // Step 2: Replace references in the component body
@@ -250,6 +255,7 @@ fn extract_from_params<'a>(
         // Determine param range: from pattern start to end of type annotation or closing paren
         let param_start = first_param.span.start;
         let param_end = first_param.span.end;
+        let pattern_end = obj_pattern.span.end;
 
         Some(DestructuredPropsInfo {
             bindings,
@@ -257,6 +263,7 @@ fn extract_from_params<'a>(
             has_nested_destructuring: has_nested,
             param_start,
             param_end,
+            pattern_end,
         })
     } else {
         None
@@ -606,22 +613,20 @@ mod tests {
         assert!(code.contains("__props.title"), "code: {}", code);
     }
 
-    // ── Regression: no TypeScript type annotation in output ──────────
+    // ── Type annotation preserved on __props ──────────────────────
 
     #[test]
-    fn props_rewrite_omits_type_annotation() {
-        // After typescript_strip runs, the output is JavaScript.
-        // The props transformer must NOT re-emit `: TypeName`.
+    fn props_rewrite_preserves_type_annotation() {
+        // The props transformer preserves `: TypeName` on __props so that
+        // downstream TS stripping (Bun plugin) can handle it.
         let code = compile_tsx(
             r#"function Card({ title, onClick }: CardProps) {
     return <div onClick={onClick}>{title}</div>;
 }"#,
         );
-        // Should rewrite to `__props` without type annotation
         assert!(
-            !code.contains(": CardProps"),
-            "type annotation leaked into output: {code}"
+            code.contains("__props: CardProps"),
+            "expected type annotation on __props: {code}"
         );
-        assert!(code.contains("__props"), "expected __props rewrite: {code}");
     }
 }

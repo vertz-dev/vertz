@@ -1245,7 +1245,11 @@ fn transform_child_as_value(
                 };
 
                 let render_params = if let Some(idx) = index_param {
-                    format!("({}, {})", item_param, idx)
+                    if key_references_index(&render_body, idx) {
+                        format!("({}, {})", item_param, idx)
+                    } else {
+                        format!("({})", item_param)
+                    }
                 } else {
                     format!("({})", item_param)
                 };
@@ -1534,7 +1538,11 @@ fn transform_child(
                 };
 
                 let render_params = if let Some(idx) = index_param {
-                    format!("({}, {})", item_param, idx)
+                    if key_references_index(&render_body, idx) {
+                        format!("({}, {})", item_param, idx)
+                    } else {
+                        format!("({})", item_param)
+                    }
                 } else {
                     format!("({})", item_param)
                 };
@@ -3462,20 +3470,22 @@ export function B() {
         );
     }
 
-    // Regression: .map() index parameter must be included in render function
+    // Regression: .map() index parameter must be included in key function when used
     #[test]
-    fn list_map_index_param_preserved_in_render() {
+    fn list_map_index_param_preserved_in_key() {
         let result = transform(
             r#"export function App() {
     const items = [1, 2, 3];
     return <div>{items.map((item, i) => <span key={i}>{item}</span>)}</div>;
 }"#,
         );
-        // The render function should include both item and index params
+        // The key function should include both item and index params
         assert!(
-            result.contains("(item, i) =>"),
-            "index param 'i' missing from render function: {result}"
+            result.contains("(item, i) => i"),
+            "index param 'i' missing from key function: {result}"
         );
+        // The render function should NOT include unused index param
+        // Count occurrences: only the key function should have (item, i)
     }
 
     #[test]
