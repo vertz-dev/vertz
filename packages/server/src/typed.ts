@@ -11,11 +11,7 @@ import type {
   NoFeatures,
 } from './entity/types';
 import { entity } from './entity/entity';
-import type {
-  ServiceActionDef,
-  ServiceConfig,
-  ServiceDefinition,
-} from './service/types';
+import type { ServiceActionDef, ServiceConfig, ServiceDefinition } from './service/types';
 import { service } from './service/service';
 
 // ---------------------------------------------------------------------------
@@ -31,9 +27,9 @@ import { service } from './service/service';
  *
  * Uses structural checks to avoid matching `tenant: false`.
  */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any -- any[] in function signature is required for structural matching of verifyMembership
 export type InferFeatures<TAuth> = {
   auth: TAuth extends AuthConfig ? true : false;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- any[] in function signature is required for structural matching of verifyMembership
   tenant: TAuth extends { tenant: { verifyMembership: (...args: any[]) => any } } ? true : false;
   multiLevelTenant: TAuth extends { tenant: { multiLevel: true } } ? true : false;
 };
@@ -47,8 +43,7 @@ export interface TypedFactories<F extends ContextFeatures> {
     TModel extends ModelDef,
     // eslint-disable-next-line @typescript-eslint/no-empty-object-type -- {} represents no injected entities
     TInject extends Record<string, EntityDefinition> = {},
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- constraint uses any to accept all action type parameter combinations
-    // eslint-disable-next-line @typescript-eslint/no-empty-object-type -- {} represents an empty actions record
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-empty-object-type -- constraint uses any to accept all action type parameter combinations; {} represents an empty actions record
     TActions extends Record<string, EntityActionDef<any, any, any, any>> = {},
   >(
     name: string,
@@ -57,7 +52,10 @@ export interface TypedFactories<F extends ContextFeatures> {
 
   service: <
     // eslint-disable-next-line @typescript-eslint/no-explicit-any -- constraint uses any to accept all action type parameter combinations
-    TActions extends Record<string, ServiceActionDef<any, any, any>> = Record<string, ServiceActionDef>,
+    TActions extends Record<string, ServiceActionDef<any, any, any>> = Record<
+      string,
+      ServiceActionDef
+    >,
     // eslint-disable-next-line @typescript-eslint/no-empty-object-type -- {} represents no injected entities
     TInject extends Record<string, EntityDefinition> = {},
   >(
@@ -98,10 +96,11 @@ export function typed<TAuth extends AuthConfig | undefined>(
  * - Config with `cloud` → FullFeatures (cloud always has auth + tenant)
  * - Neither → NoFeatures
  */
-export type InferServerFeatures<TConfig> =
-  TConfig extends { auth: infer A } ? InferFeatures<A>
-  : TConfig extends { cloud: CloudServerConfig } ? FullFeatures
-  : NoFeatures;
+export type InferServerFeatures<TConfig> = TConfig extends { auth: infer A }
+  ? InferFeatures<A>
+  : TConfig extends { cloud: CloudServerConfig }
+    ? FullFeatures
+    : NoFeatures;
 
 /**
  * Derives the BaseContext type from a ServerConfig-like object.

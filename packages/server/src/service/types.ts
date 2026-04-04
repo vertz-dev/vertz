@@ -1,6 +1,12 @@
 import type { SchemaLike } from '@vertz/db';
 import type { EntityOperations } from '../entity/entity-operations';
-import type { AccessRule, BaseContext, ContextFeatures, EntityDefinition, FullFeatures } from '../entity/types';
+import type {
+  AccessRule,
+  BaseContext,
+  ContextFeatures,
+  EntityDefinition,
+  FullFeatures,
+} from '../entity/types';
 import type { ResponseDescriptor } from '../response';
 
 // ---------------------------------------------------------------------------
@@ -76,6 +82,7 @@ export interface ServiceConfig<
   readonly inject?: TInject;
   readonly access?: Partial<Record<Extract<keyof NoInfer<TActions>, string>, AccessRule>>;
   readonly actions: {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- type-erased ctx constraint in mapped type; concrete types flow through TIn/TOut
     readonly [K in keyof TActions]: TActions[K] extends ServiceActionDef<infer TIn, infer TOut, any>
       ? {
           readonly method?: string;
