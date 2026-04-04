@@ -9,7 +9,7 @@ use crate::watcher::module_graph::ModuleGraph;
 
 use super::collector::{discover_test_files, DiscoveryMode};
 use super::executor::{execute_test_file_with_options, ExecuteOptions};
-use super::reporter::terminal::format_results;
+use super::reporter::terminal::format_results_with_wall_clock;
 use super::runner::{TestRunConfig, TestRunResult};
 
 /// Determine which test files need to be re-run after a file change.
@@ -105,6 +105,29 @@ pub async fn run_watch_mode(config: TestRunConfig) -> Result<(), String> {
         })
         .collect();
 
+    // Create shared in-memory source cache (disabled when --no-cache)
+    let shared_source_cache = if config.no_cache {
+        None
+    } else {
+        Some(Arc::new(
+            crate::runtime::compile_cache::SharedSourceCache::new(),
+        ))
+    };
+
+    // Create shared V8 bytecode cache (disabled when --no-cache)
+    let v8_code_cache = if config.no_cache {
+        None
+    } else {
+        Some(Arc::new(crate::runtime::compile_cache::V8CodeCache::new(
+            true,
+        )))
+    };
+
+    // Create shared resolution cache (always active — resolution is deterministic)
+    let resolution_cache = Some(Arc::new(
+        crate::runtime::compile_cache::SharedResolutionCache::new(),
+    ));
+
     let exec_options = Arc::new(ExecuteOptions {
         filter: config.filter.clone(),
         timeout_ms: config.timeout_ms,
@@ -112,6 +135,9 @@ pub async fn run_watch_mode(config: TestRunConfig) -> Result<(), String> {
         preload: preload_paths,
         root_dir: Some(config.root_dir.clone()),
         no_cache: config.no_cache,
+        shared_source_cache,
+        v8_code_cache,
+        resolution_cache,
     });
 
     // Initial run
@@ -187,8 +213,22 @@ pub async fn run_watch_mode(config: TestRunConfig) -> Result<(), String> {
                         continue;
                     }
 
+                    // Clear shared caches to avoid serving stale compiled
+                    // output after source files change.
+                    if let Some(ref cache) = exec_options.shared_source_cache {
+                        cache.clear();
+                    }
+                    if let Some(ref cache) = exec_options.v8_code_cache {
+                        cache.clear();
+                    }
+                    if let Some(ref cache) = exec_options.resolution_cache {
+                        cache.clear();
+                    }
+
                     // Execute affected test files on blocking threads to avoid
                     // nesting Tokio runtimes (executor creates its own). (#2110)
+                    let wall_clock_start = std::time::Instant::now();
+
                     let mut handles = Vec::new();
                     for file in &files_to_run {
                         let file = file.clone();
@@ -201,6 +241,9 @@ pub async fn run_watch_mode(config: TestRunConfig) -> Result<(), String> {
                     for handle in handles {
                         results.push(handle.await.expect("test execution thread panicked"));
                     }
+
+                    let wall_clock_ms =
+                        wall_clock_start.elapsed().as_secs_f64() * 1000.0;
 
                     // Build summary
                     let total_passed: usize = results.iter().map(|r| r.passed()).sum();
@@ -219,10 +262,14 @@ pub async fn run_watch_mode(config: TestRunConfig) -> Result<(), String> {
                         results,
                         coverage_failed: false,
                         coverage_report: None,
+                        wall_clock_ms,
                     };
 
                     clear_screen();
-                    let output = format_results(&run_result.results);
+                    let output = format_results_with_wall_clock(
+                        &run_result.results,
+                        Some(run_result.wall_clock_ms),
+                    );
                     print!("{}", output);
                     print_watch_status(&run_result);
                     eprintln!("\nWatching for changes...\n");

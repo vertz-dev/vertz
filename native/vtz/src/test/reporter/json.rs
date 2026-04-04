@@ -16,6 +16,8 @@ pub struct JsonReport {
     pub num_skipped_tests: usize,
     pub num_todo_tests: usize,
     pub success: bool,
+    pub wall_clock_ms: f64,
+    pub aggregate_cpu_ms: f64,
     pub test_results: Vec<TestFileResult>,
 }
 
@@ -41,6 +43,8 @@ pub fn format_json(result: &TestRunResult) -> String {
         num_skipped_tests: result.total_skipped,
         num_todo_tests: result.total_todo,
         success: result.success(),
+        wall_clock_ms: result.wall_clock_ms,
+        aggregate_cpu_ms: result.results.iter().map(|r| r.duration_ms).sum(),
         test_results: result.results.clone(),
     };
 
@@ -100,6 +104,7 @@ mod tests {
             file_errors: 0,
             coverage_failed: false,
             coverage_report: None,
+            wall_clock_ms: 0.0,
         };
 
         let json = format_json(&run);
@@ -127,6 +132,7 @@ mod tests {
             file_errors: 0,
             coverage_failed: false,
             coverage_report: None,
+            wall_clock_ms: 0.0,
         };
 
         let json = format_json(&run);
@@ -149,6 +155,7 @@ mod tests {
             file_errors: 0,
             coverage_failed: false,
             coverage_report: None,
+            wall_clock_ms: 0.0,
         };
 
         let json = format_json(&run);
