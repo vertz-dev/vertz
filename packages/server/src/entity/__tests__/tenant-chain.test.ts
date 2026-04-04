@@ -238,7 +238,7 @@ describe('resolveTenantChain', () => {
     const compositePkGraph = computeTenantGraph(compositePkRegistry);
 
     expect(() => resolveTenantChain('assignments', compositePkGraph, compositePkRegistry)).toThrow(
-      /composite primary key.*memberships/i,
+      /composite primary key on table "memberships"/i,
     );
   });
 
@@ -408,6 +408,169 @@ describe('resolveTenantChain', () => {
       // projects is a .tenant() level — not in directlyScoped or indirectlyScoped
       const chain = resolveTenantChain('projects', mlGraph, mlRegistry);
       expect(chain).toBeNull();
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // Composite PK as chain origin (#1776)
+  // ---------------------------------------------------------------------------
+
+  describe('composite PK entity as chain origin', () => {
+    const cpkOrgs = d
+      .table('cpk_organizations', {
+        id: d.uuid().primary(),
+        name: d.text(),
+      })
+      .tenant();
+
+    const cpkProjects = d.table('cpk_projects', {
+      id: d.uuid().primary(),
+      organizationId: d.uuid(),
+      name: d.text(),
+    });
+
+    const cpkProjectMembers = d.table(
+      'cpk_project_members',
+      {
+        projectId: d.uuid(),
+        userId: d.uuid(),
+        role: d.text().default('member'),
+      },
+      { primaryKey: ['projectId', 'userId'] },
+    );
+
+    const cpkRegistry = {
+      organizations: d.model(cpkOrgs),
+      projects: d.model(cpkProjects, {
+        organization: d.ref.one(() => cpkOrgs, 'organizationId'),
+      }),
+      projectMembers: d.model(cpkProjectMembers, {
+        project: d.ref.one(() => cpkProjects, 'projectId'),
+      }),
+    };
+
+    const cpkGraph = computeTenantGraph(cpkRegistry);
+
+    it('resolves chain from composite-PK entity to root', () => {
+      const chain = resolveTenantChain('projectMembers', cpkGraph, cpkRegistry);
+
+      expect(chain).not.toBeNull();
+      expect(chain!.hops).toHaveLength(1);
+      expect(chain!.hops[0]).toEqual({
+        tableName: 'cpk_projects',
+        foreignKey: 'projectId',
+        targetColumn: 'id',
+      });
+      expect(chain!.tenantColumn).toBe('organizationId');
+    });
+
+    it('chain hops target single-PK tables only', () => {
+      const chain = resolveTenantChain('projectMembers', cpkGraph, cpkRegistry);
+
+      for (const hop of chain!.hops) {
+        expect(typeof hop.targetColumn).toBe('string');
+      }
+    });
+
+    it('resolves multi-hop chain from composite-PK entity through intermediates', () => {
+      // Add an extra hop: cpk_project_members → cpk_tasks → cpk_projects → cpk_organizations
+      const cpkTasks = d.table('cpk_tasks', {
+        id: d.uuid().primary(),
+        projectId: d.uuid(),
+        title: d.text(),
+      });
+
+      const cpkTaskAssignments = d.table(
+        'cpk_task_assignments',
+        {
+          taskId: d.uuid(),
+          userId: d.uuid(),
+          assignedAt: d.timestamp().default('now').readOnly(),
+        },
+        { primaryKey: ['taskId', 'userId'] },
+      );
+
+      const multiHopRegistry = {
+        organizations: d.model(cpkOrgs),
+        projects: d.model(cpkProjects, {
+          organization: d.ref.one(() => cpkOrgs, 'organizationId'),
+        }),
+        tasks: d.model(cpkTasks, {
+          project: d.ref.one(() => cpkProjects, 'projectId'),
+        }),
+        taskAssignments: d.model(cpkTaskAssignments, {
+          task: d.ref.one(() => cpkTasks, 'taskId'),
+        }),
+      };
+
+      const multiHopGraph = computeTenantGraph(multiHopRegistry);
+      const chain = resolveTenantChain('taskAssignments', multiHopGraph, multiHopRegistry);
+
+      expect(chain).not.toBeNull();
+      expect(chain!.hops).toHaveLength(2);
+      expect(chain!.hops[0]).toEqual({
+        tableName: 'cpk_tasks',
+        foreignKey: 'taskId',
+        targetColumn: 'id',
+      });
+      expect(chain!.hops[1]).toEqual({
+        tableName: 'cpk_projects',
+        foreignKey: 'projectId',
+        targetColumn: 'id',
+      });
+      expect(chain!.tenantColumn).toBe('organizationId');
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // Composite PK as intermediate hop — error messages (#1776)
+  // ---------------------------------------------------------------------------
+
+  describe('composite PK as intermediate hop — error messages', () => {
+    it('error message explains ref.one single-column FK limitation', () => {
+      const errOrgs = d
+        .table('err_orgs', {
+          id: d.uuid().primary(),
+          name: d.text(),
+        })
+        .tenant();
+
+      const errMemberships = d.table(
+        'err_memberships',
+        {
+          orgId: d.uuid(),
+          userId: d.uuid(),
+          role: d.text(),
+        },
+        { primaryKey: ['orgId', 'userId'] },
+      );
+
+      const errAssignments = d.table('err_assignments', {
+        id: d.uuid().primary(),
+        membershipOrgId: d.uuid(),
+        title: d.text(),
+      });
+
+      const errRegistry = {
+        orgs: d.model(errOrgs),
+        memberships: d.model(errMemberships, {
+          org: d.ref.one(() => errOrgs, 'orgId'),
+        }),
+        assignments: d.model(errAssignments, {
+          membership: d.ref.one(() => errMemberships, 'membershipOrgId'),
+        }),
+      };
+      const errGraph = computeTenantGraph(errRegistry);
+
+      try {
+        resolveTenantChain('assignments', errGraph, errRegistry);
+        expect.unreachable('should have thrown');
+      } catch (e) {
+        const msg = (e as Error).message;
+        expect(msg).toContain('ref.one() creates single-column foreign keys');
+        expect(msg).toContain('CAN be the chain origin');
+        expect(msg).toContain('use a surrogate single-column PK');
+      }
     });
   });
 });

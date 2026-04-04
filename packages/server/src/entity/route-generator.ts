@@ -1,7 +1,13 @@
 import type { EntityRouteEntry } from '@vertz/core';
 import { createActionHandler } from './action-pipeline';
 import { createEntityContext, type RequestInfo as EntityRequestInfo } from './context';
-import { createCrudHandlers, type EntityDbAdapter, type ListOptions } from './crud-pipeline';
+import type { ColumnBuilder, ColumnMetadata } from '@vertz/db';
+import {
+  createCrudHandlers,
+  type EntityDbAdapter,
+  type EntityId,
+  type ListOptions,
+} from './crud-pipeline';
 import type { EntityOperations } from './entity-operations';
 import type { EntityRegistry } from './entity-registry';
 import { entityErrorHandler } from './error-handler';
@@ -168,6 +174,37 @@ export function generateEntityRoutes(
       : ({} as Record<string, EntityOperations>);
 
   const routes: EntityRouteEntry[] = [];
+
+  // Resolve PK columns for path generation
+  const table = def.model.table;
+  const pkColumns: string[] = table._primaryKey?.length
+    ? [...table._primaryKey]
+    : (() => {
+        for (const [key, col] of Object.entries(table._columns)) {
+          if ((col as ColumnBuilder<unknown, ColumnMetadata> | undefined)?._meta?.primary)
+            return [key];
+        }
+        return ['id'];
+      })();
+  const isCompositePk = pkColumns.length > 1;
+  const idPath = isCompositePk ? '/' + pkColumns.map((col) => `:${col}`).join('/') : '/:id';
+
+  if (isCompositePk) {
+    console.log(`[vertz] Entity "${def.name}" routes: ${basePath}${idPath} (composite PK)`);
+  }
+
+  /** Extract entity ID from request params based on PK structure. */
+  function extractEntityId(ctx: Record<string, unknown>): EntityId {
+    const params = getParams(ctx);
+    if (isCompositePk) {
+      const compositeId: Record<string, string> = {};
+      for (const col of pkColumns) {
+        compositeId[col] = params[col] as string;
+      }
+      return compositeId;
+    }
+    return params.id as string;
+  }
 
   // Helper to build EntityContext from handler ctx
   function makeEntityCtx(ctx: Record<string, unknown>) {
@@ -371,7 +408,7 @@ export function generateEntityRoutes(
     if (def.access.get === false) {
       routes.push({
         method: 'GET',
-        path: `${basePath}/:id`,
+        path: `${basePath}${idPath}`,
         handler: async () =>
           jsonResponse(
             {
@@ -386,11 +423,11 @@ export function generateEntityRoutes(
     } else {
       routes.push({
         method: 'GET',
-        path: `${basePath}/:id`,
+        path: `${basePath}${idPath}`,
         handler: async (ctx) => {
           try {
             const entityCtx = makeEntityCtx(ctx);
-            const id = getParams(ctx).id as string;
+            const id = extractEntityId(ctx);
 
             // Parse q= param for select narrowing
             const query = (ctx.query ?? {}) as Record<string, string>;
@@ -508,7 +545,7 @@ export function generateEntityRoutes(
     if (def.access.update === false) {
       routes.push({
         method: 'PATCH',
-        path: `${basePath}/:id`,
+        path: `${basePath}${idPath}`,
         handler: async () =>
           jsonResponse(
             {
@@ -523,11 +560,11 @@ export function generateEntityRoutes(
     } else {
       routes.push({
         method: 'PATCH',
-        path: `${basePath}/:id`,
+        path: `${basePath}${idPath}`,
         handler: async (ctx) => {
           try {
             const entityCtx = makeEntityCtx(ctx);
-            const id = getParams(ctx).id as string;
+            const id = extractEntityId(ctx);
             const data = (ctx.body ?? {}) as Record<string, unknown>;
             const result = await crudHandlers.update(entityCtx, id, data);
             if (!result.ok) {
@@ -564,7 +601,7 @@ export function generateEntityRoutes(
     if (def.access.delete === false) {
       routes.push({
         method: 'DELETE',
-        path: `${basePath}/:id`,
+        path: `${basePath}${idPath}`,
         handler: async () =>
           jsonResponse(
             {
@@ -579,11 +616,11 @@ export function generateEntityRoutes(
     } else {
       routes.push({
         method: 'DELETE',
-        path: `${basePath}/:id`,
+        path: `${basePath}${idPath}`,
         handler: async (ctx) => {
           try {
             const entityCtx = makeEntityCtx(ctx);
-            const id = getParams(ctx).id as string;
+            const id = extractEntityId(ctx);
             const result = await crudHandlers.delete(entityCtx, id);
             if (!result.ok) {
               const { status, body } = entityErrorHandler(result.error, { devMode });
@@ -615,8 +652,10 @@ export function generateEntityRoutes(
     const method = (actionDef.method ?? 'POST').toUpperCase();
     const actionPath = actionDef.path
       ? `${basePath}/${actionDef.path}`
-      : `${basePath}/:id/${actionName}`;
-    const hasId = actionPath.includes(':id');
+      : `${basePath}${idPath}/${actionName}`;
+    const hasId = isCompositePk
+      ? pkColumns.some((col) => actionPath.includes(`:${col}`))
+      : actionPath.includes(':id');
 
     if (def.access[actionName] === false) {
       routes.push({
@@ -641,7 +680,7 @@ export function generateEntityRoutes(
         handler: async (ctx) => {
           try {
             const entityCtx = makeEntityCtx(ctx);
-            const id = hasId ? (getParams(ctx).id as string) : null;
+            const id = hasId ? extractEntityId(ctx) : null;
             // For GET actions, input comes from query; for POST/PATCH/etc., from body
             const input = method === 'GET' ? (ctx.query ?? {}) : ctx.body;
             const result = await actionHandler(entityCtx, id, input);

@@ -2164,3 +2164,288 @@ describe('Feature: Expose descriptor runtime evaluation', () => {
     });
   });
 });
+
+// ---------------------------------------------------------------------------
+// Composite PK route generation (#1776)
+// ---------------------------------------------------------------------------
+
+const projectMembersTable = d.table(
+  'project_members',
+  {
+    projectId: d.uuid(),
+    userId: d.uuid(),
+    role: d.text().default('member'),
+    joinedAt: d.timestamp().default('now').readOnly(),
+  },
+  { primaryKey: ['projectId', 'userId'] },
+);
+
+const projectMembersModel = d.model(projectMembersTable);
+
+function createCompositeMockDb(data: Record<string, unknown>[] = []): EntityDbAdapter {
+  const store = [...data];
+  return {
+    async get(id) {
+      if (typeof id === 'string') {
+        return store.find((r) => r.id === id) ?? null;
+      }
+      // Composite ID: match all key columns
+      return (
+        store.find((r) =>
+          Object.entries(id as Record<string, string>).every(([k, v]) => r[k] === v),
+        ) ?? null
+      );
+    },
+    async list(options?: { where?: Record<string, unknown>; limit?: number; after?: string }) {
+      let result = [...store];
+      const where = options?.where;
+      if (where) {
+        result = result.filter((row) =>
+          Object.entries(where).every(([key, value]) => row[key] === value),
+        );
+      }
+      const total = result.length;
+      if (options?.limit !== undefined) {
+        result = result.slice(0, options.limit);
+      }
+      return { data: result, total };
+    },
+    async create(input) {
+      const record = { ...input };
+      store.push(record);
+      return record;
+    },
+    async update(id, input) {
+      const record =
+        typeof id === 'string'
+          ? store.find((r) => r.id === id)
+          : store.find((r) =>
+              Object.entries(id as Record<string, string>).every(([k, v]) => r[k] === v),
+            );
+      if (!record) return { ...(typeof id === 'string' ? { id } : id), ...input };
+      Object.assign(record, input);
+      return record;
+    },
+    async delete(id) {
+      const idx =
+        typeof id === 'string'
+          ? store.findIndex((r) => r.id === id)
+          : store.findIndex((r) =>
+              Object.entries(id as Record<string, string>).every(([k, v]) => r[k] === v),
+            );
+      if (idx === -1) return null;
+      return store.splice(idx, 1)[0] ?? null;
+    },
+  };
+}
+
+function buildCompositeDef(overrides: Partial<EntityDefinition> = {}): EntityDefinition {
+  return {
+    name: 'project-members',
+    model: projectMembersModel,
+    access: {
+      list: () => true,
+      get: () => true,
+      create: () => true,
+      update: () => true,
+      delete: () => true,
+    },
+    before: {},
+    after: {},
+    actions: {},
+    ...overrides,
+  } as EntityDefinition;
+}
+
+function createCompositeTestRegistry(entityName = 'project-members'): EntityRegistry {
+  const registry = new EntityRegistry();
+  registry.register(entityName, stubEntityOps());
+  return registry;
+}
+
+describe('generateEntityRoutes — composite PK (#1776)', () => {
+  describe('route generation', () => {
+    it('generates multi-segment paths for GET, PATCH, DELETE', () => {
+      const def = buildCompositeDef();
+      const db = createCompositeMockDb();
+      const registry = createCompositeTestRegistry();
+      const routes = generateEntityRoutes(def, registry, db);
+
+      const paths = routes.map((r) => `${r.method} ${r.path}`);
+      expect(paths).toContain('GET /api/project-members/:projectId/:userId');
+      expect(paths).toContain('PATCH /api/project-members/:projectId/:userId');
+      expect(paths).toContain('DELETE /api/project-members/:projectId/:userId');
+    });
+
+    it('keeps single-segment path for single-PK entities', () => {
+      const def = buildEntityDef();
+      const db = createMockDb();
+      const registry = createTestRegistry();
+      const routes = generateEntityRoutes(def, registry, db);
+
+      const paths = routes.map((r) => `${r.method} ${r.path}`);
+      expect(paths).toContain('GET /api/users/:id');
+      expect(paths).toContain('PATCH /api/users/:id');
+      expect(paths).toContain('DELETE /api/users/:id');
+    });
+
+    it('LIST and CREATE routes unchanged for composite PK', () => {
+      const def = buildCompositeDef();
+      const db = createCompositeMockDb();
+      const registry = createCompositeTestRegistry();
+      const routes = generateEntityRoutes(def, registry, db);
+
+      const paths = routes.map((r) => `${r.method} ${r.path}`);
+      expect(paths).toContain('GET /api/project-members');
+      expect(paths).toContain('POST /api/project-members');
+    });
+  });
+
+  describe('handler execution', () => {
+    it('GET handler extracts composite ID from params', async () => {
+      const def = buildCompositeDef();
+      const db = createCompositeMockDb([
+        { projectId: 'p1', userId: 'u1', role: 'admin', joinedAt: '2024-01-01' },
+      ]);
+      const registry = createCompositeTestRegistry();
+      const routes = generateEntityRoutes(def, registry, db);
+
+      const getRoute = routes.find((r) => r.method === 'GET' && r.path.includes(':projectId'));
+      const response = await getRoute!.handler({
+        params: { projectId: 'p1', userId: 'u1' },
+        body: undefined,
+        query: {},
+        headers: {},
+      });
+
+      expect(response.status).toBe(200);
+      const body = await response.json();
+      expect(body.role).toBe('admin');
+    });
+
+    it('GET handler returns 404 for missing composite record', async () => {
+      const def = buildCompositeDef();
+      const db = createCompositeMockDb([]);
+      const registry = createCompositeTestRegistry();
+      const routes = generateEntityRoutes(def, registry, db);
+
+      const getRoute = routes.find((r) => r.method === 'GET' && r.path.includes(':projectId'));
+      const response = await getRoute!.handler({
+        params: { projectId: 'p1', userId: 'u1' },
+        body: undefined,
+        query: {},
+        headers: {},
+      });
+
+      expect(response.status).toBe(404);
+    });
+
+    it('PATCH handler updates with composite ID', async () => {
+      const def = buildCompositeDef();
+      const db = createCompositeMockDb([
+        { projectId: 'p1', userId: 'u1', role: 'member', joinedAt: '2024-01-01' },
+      ]);
+      const registry = createCompositeTestRegistry();
+      const routes = generateEntityRoutes(def, registry, db);
+
+      const patchRoute = routes.find((r) => r.method === 'PATCH');
+      const response = await patchRoute!.handler({
+        params: { projectId: 'p1', userId: 'u1' },
+        body: { role: 'admin' },
+        query: {},
+        headers: {},
+      });
+
+      expect(response.status).toBe(200);
+      const body = await response.json();
+      expect(body.role).toBe('admin');
+    });
+
+    it('DELETE handler deletes with composite ID', async () => {
+      const def = buildCompositeDef();
+      const db = createCompositeMockDb([
+        { projectId: 'p1', userId: 'u1', role: 'member', joinedAt: '2024-01-01' },
+      ]);
+      const registry = createCompositeTestRegistry();
+      const routes = generateEntityRoutes(def, registry, db);
+
+      const deleteRoute = routes.find((r) => r.method === 'DELETE');
+      const response = await deleteRoute!.handler({
+        params: { projectId: 'p1', userId: 'u1' },
+        body: undefined,
+        query: {},
+        headers: {},
+      });
+
+      expect(response.status).toBe(204);
+    });
+  });
+
+  describe('custom actions', () => {
+    it('generates composite-PK action path', () => {
+      const def = buildCompositeDef({
+        access: {
+          list: () => true,
+          get: () => true,
+          create: () => true,
+          update: () => true,
+          delete: () => true,
+          deactivate: () => true,
+        },
+        actions: {
+          deactivate: {
+            body: { parse: (v: unknown) => ({ ok: true as const, data: v }) },
+            response: { parse: (v: unknown) => ({ ok: true as const, data: v }) },
+            handler: async () => ({ deactivated: true }),
+          },
+        },
+      } as unknown as Partial<EntityDefinition>);
+
+      const db = createCompositeMockDb();
+      const registry = createCompositeTestRegistry();
+      const routes = generateEntityRoutes(def, registry, db);
+
+      const actionRoute = routes.find((r) => r.path.includes('deactivate'));
+      expect(actionRoute).toBeDefined();
+      expect(actionRoute?.path).toBe('/api/project-members/:projectId/:userId/deactivate');
+    });
+
+    it('action handler receives composite ID', async () => {
+      const handler = mock(async () => ({ deactivated: true }));
+      const def = buildCompositeDef({
+        access: {
+          list: () => true,
+          get: () => true,
+          create: () => true,
+          update: () => true,
+          delete: () => true,
+          deactivate: () => true,
+        },
+        actions: {
+          deactivate: {
+            body: { parse: (v: unknown) => ({ ok: true as const, data: v }) },
+            response: { parse: (v: unknown) => ({ ok: true as const, data: v }) },
+            handler,
+          },
+        },
+      } as unknown as Partial<EntityDefinition>);
+
+      const db = createCompositeMockDb([
+        { projectId: 'p1', userId: 'u1', role: 'admin', joinedAt: '2024-01-01' },
+      ]);
+      const registry = createCompositeTestRegistry();
+      const routes = generateEntityRoutes(def, registry, db);
+
+      const actionRoute = routes.find((r) => r.path.includes('deactivate'));
+      const response = await actionRoute!.handler({
+        params: { projectId: 'p1', userId: 'u1' },
+        body: {},
+        query: {},
+        headers: {},
+      });
+
+      expect(response.status).toBe(200);
+      expect(handler).toHaveBeenCalledTimes(1);
+    });
+  });
+});

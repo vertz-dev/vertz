@@ -9,7 +9,7 @@ import {
 } from '@vertz/errors';
 import { filterProtectedHeaders, isResponseDescriptor } from '../response';
 import { enforceAccess } from './access-enforcer';
-import type { CrudResult, EntityDbAdapter } from './crud-pipeline';
+import type { CrudResult, EntityDbAdapter, EntityId } from './crud-pipeline';
 import { stripHiddenFields } from './field-filter';
 import type { EntityActionDef, EntityContext, EntityDefinition } from './types';
 
@@ -27,7 +27,7 @@ export function createActionHandler<TModel extends ModelDef = ModelDef>(
   hasId: boolean,
 ): (
   ctx: EntityContext<TModel>,
-  id: string | null,
+  id: EntityId | null,
   rawInput: unknown,
 ) => Promise<Result<CrudResult, EntityError>> {
   return async (ctx, id, rawInput) => {
@@ -35,9 +35,12 @@ export function createActionHandler<TModel extends ModelDef = ModelDef>(
 
     if (hasId) {
       // Record-level: fetch the row
-      row = (await db.get(id as string)) as TModel['table']['$response'] | null;
+      row = (await db.get(id as string | Record<string, string>)) as
+        | TModel['table']['$response']
+        | null;
       if (!row) {
-        return err(new EntityNotFoundError(`${def.name} with id "${id}" not found`));
+        const idDisplay = typeof id === 'string' ? id : JSON.stringify(id);
+        return err(new EntityNotFoundError(`${def.name} with id "${idDisplay}" not found`));
       }
     }
 

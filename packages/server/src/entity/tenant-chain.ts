@@ -226,9 +226,12 @@ function resolvePrimaryKey(columns: Record<string, unknown>, tableName: string):
   }
   if (pkCols.length > 1) {
     throw new Error(
-      `Tenant chain resolution does not support composite primary keys. ` +
-        `Table "${tableName}" has composite PK: [${pkCols.join(', ')}]. ` +
-        `Use a surrogate single-column PK instead.`,
+      `Tenant chain resolution encountered composite primary key on table "${tableName}" ` +
+        `[${pkCols.join(', ')}]. A composite-PK table cannot be an intermediate hop in the ` +
+        `tenant chain because ref.one() creates single-column foreign keys, which cannot ` +
+        `reference a composite primary key. The composite-PK table itself CAN be the chain ` +
+        `origin (entity). To fix: use a surrogate single-column PK on "${tableName}", or ` +
+        `restructure the relation chain to avoid traversing through this table.`,
     );
   }
   return pkCols[0] ?? 'id';
