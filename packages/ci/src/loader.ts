@@ -38,9 +38,7 @@ const callbacks = getCallbacks();
 const rl = createInterface({ input: process.stdin });
 for await (const line of rl) {
   try {
-    const msg = JSON.parse(line) as
-      | { shutdown: true }
-      | { eval: number; result: TaskResult };
+    const msg = JSON.parse(line) as { shutdown: true } | { eval: number; result: TaskResult };
 
     if ('shutdown' in msg && msg.shutdown) break;
 
