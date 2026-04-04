@@ -353,6 +353,73 @@ impl TaskGraph {
         self.nodes.len()
     }
 
+    /// Render the task graph as a Graphviz DOT string.
+    pub fn to_dot(&self) -> String {
+        let mut out = String::new();
+        out.push_str("digraph tasks {\n");
+        out.push_str("  rankdir=LR;\n");
+        out.push_str("  node [shape=box, style=rounded];\n\n");
+
+        for (from_idx, to_idx, edge_type) in &self.edges {
+            let from_label = self.nodes[*from_idx].label();
+            let to_label = self.nodes[*to_idx].label();
+            let attrs = match edge_type {
+                EdgeType::Default => String::new(),
+                EdgeType::Success => " [label=\"success\"]".to_string(),
+                EdgeType::Always => " [label=\"always\"]".to_string(),
+                EdgeType::Failure => " [label=\"failure\"]".to_string(),
+                EdgeType::Callback(id) => format!(" [label=\"callback({id})\"]"),
+            };
+            out.push_str(&format!(
+                "  \"{}\" -> \"{}\"{attrs};\n",
+                from_label, to_label
+            ));
+        }
+
+        out.push_str("}\n");
+        out
+    }
+
+    /// Render the task graph as a human-readable text tree.
+    pub fn to_text_tree(&self) -> String {
+        let order = match self.topological_order() {
+            Ok(o) => o,
+            Err(e) => return format!("Error: {e}"),
+        };
+
+        // Find root nodes (no incoming edges)
+        let mut has_parent = vec![false; self.nodes.len()];
+        for (_, to, _) in &self.edges {
+            has_parent[*to] = true;
+        }
+
+        let mut out = String::new();
+        let visited = &mut vec![false; self.nodes.len()];
+
+        // Print from root nodes in topological order
+        for &idx in &order {
+            if !has_parent[idx] && !visited[idx] {
+                self.text_tree_dfs(idx, 0, visited, &mut out);
+            }
+        }
+
+        out
+    }
+
+    fn text_tree_dfs(&self, node: usize, depth: usize, visited: &mut Vec<bool>, out: &mut String) {
+        if visited[node] {
+            return;
+        }
+        visited[node] = true;
+
+        let indent = "  ".repeat(depth);
+        out.push_str(&format!("{}{}\n", indent, self.nodes[node].label()));
+
+        for &(child, _) in &self.adjacency[node] {
+            self.text_tree_dfs(child, depth + 1, visited, out);
+        }
+    }
+
     /// DFS to find an actual cycle path for error reporting.
     fn find_cycle_path(&self, in_degree: &[usize]) -> Vec<String> {
         // Start from any node still in the cycle (in_degree > 0)
@@ -1039,5 +1106,128 @@ mod tests {
         // Only root tasks should exist
         assert_eq!(graph.node_count(), 1);
         assert!(graph.find_node("lint", None).is_some());
+    }
+
+    // -- DOT output --
+
+    #[test]
+    fn to_dot_simple_graph() {
+        let tasks = make_config(vec![
+            ("build", cmd_task("bun run build", TaskScope::Root, vec![])),
+            (
+                "test",
+                cmd_task(
+                    "bun test",
+                    TaskScope::Root,
+                    vec![Dep::Simple("build".to_string())],
+                ),
+            ),
+        ]);
+        let workspace = ResolvedWorkspace::default();
+        let wf = workflow(vec!["build", "test"]);
+        let graph = TaskGraph::build(&wf, &tasks, &workspace, None).unwrap();
+
+        let dot = graph.to_dot();
+        assert!(dot.starts_with("digraph tasks {"));
+        assert!(dot.contains("rankdir=LR"));
+        assert!(dot.contains("\"build\" -> \"test\""));
+        assert!(dot.ends_with("}\n"));
+    }
+
+    #[test]
+    fn to_dot_with_edge_labels() {
+        let tasks = make_config(vec![
+            ("build", cmd_task("build", TaskScope::Root, vec![])),
+            (
+                "notify",
+                cmd_task(
+                    "notify",
+                    TaskScope::Root,
+                    vec![Dep::Edge(DepEdge {
+                        task: "build".to_string(),
+                        on: DepCondition::Always,
+                    })],
+                ),
+            ),
+        ]);
+        let workspace = ResolvedWorkspace::default();
+        let wf = workflow(vec!["build", "notify"]);
+        let graph = TaskGraph::build(&wf, &tasks, &workspace, None).unwrap();
+
+        let dot = graph.to_dot();
+        assert!(dot.contains("[label=\"always\"]"));
+    }
+
+    #[test]
+    fn to_dot_package_scoped() {
+        let tasks = make_config(vec![
+            (
+                "build",
+                cmd_task("bun run build", TaskScope::Package, vec![]),
+            ),
+            (
+                "test",
+                cmd_task(
+                    "bun test",
+                    TaskScope::Package,
+                    vec![Dep::Simple("^build".to_string())],
+                ),
+            ),
+        ]);
+        let workspace = make_workspace(vec![("core", vec![]), ("ui", vec!["core"])]);
+        let wf = workflow(vec!["build", "test"]);
+        let graph = TaskGraph::build(&wf, &tasks, &workspace, None).unwrap();
+
+        let dot = graph.to_dot();
+        assert!(dot.starts_with("digraph tasks {"));
+        // ^build topological dep: ui depends on core → build core must finish before test ui
+        assert!(dot.contains("\"build core\" -> \"test ui\""));
+        // All 4 nodes are present in the graph
+        assert_eq!(graph.node_count(), 4);
+    }
+
+    // -- Text tree output --
+
+    #[test]
+    fn to_text_tree_simple() {
+        let tasks = make_config(vec![
+            ("build", cmd_task("build", TaskScope::Root, vec![])),
+            (
+                "test",
+                cmd_task(
+                    "test",
+                    TaskScope::Root,
+                    vec![Dep::Simple("build".to_string())],
+                ),
+            ),
+        ]);
+        let workspace = ResolvedWorkspace::default();
+        let wf = workflow(vec!["build", "test"]);
+        let graph = TaskGraph::build(&wf, &tasks, &workspace, None).unwrap();
+
+        let tree = graph.to_text_tree();
+        assert!(tree.contains("build"));
+        assert!(tree.contains("test"));
+        // test should be indented under build
+        let lines: Vec<&str> = tree.lines().collect();
+        assert!(lines.iter().any(|l| l.starts_with("build")));
+        assert!(lines.iter().any(|l| l.starts_with("  test")));
+    }
+
+    #[test]
+    fn to_text_tree_independent_roots() {
+        let tasks = make_config(vec![
+            ("build", cmd_task("build", TaskScope::Root, vec![])),
+            ("lint", cmd_task("lint", TaskScope::Root, vec![])),
+        ]);
+        let workspace = ResolvedWorkspace::default();
+        let wf = workflow(vec!["build", "lint"]);
+        let graph = TaskGraph::build(&wf, &tasks, &workspace, None).unwrap();
+
+        let tree = graph.to_text_tree();
+        let lines: Vec<&str> = tree.lines().collect();
+        // Both should be at root level (no indent)
+        assert_eq!(lines.len(), 2);
+        assert!(lines.iter().all(|l| !l.starts_with(' ')));
     }
 }

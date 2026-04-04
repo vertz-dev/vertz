@@ -54,6 +54,7 @@ struct RunOptions {
     base: Option<String>,
     dry_run: bool,
     quiet: bool,
+    json: bool,
     concurrency: Option<usize>,
 }
 
@@ -74,9 +75,6 @@ pub async fn execute(action: CiAction, root_dir: &Path) -> Result<(), String> {
             if verbose {
                 eprintln!("[pipe] warning: --verbose flag is not yet implemented, ignored");
             }
-            if json {
-                eprintln!("[pipe] warning: --json flag is not yet implemented, ignored");
-            }
             run_task_or_workflow(
                 root_dir,
                 RunOptions {
@@ -85,7 +83,8 @@ pub async fn execute(action: CiAction, root_dir: &Path) -> Result<(), String> {
                     scope,
                     base,
                     dry_run,
-                    quiet,
+                    quiet: quiet || json, // JSON mode suppresses human output
+                    json,
                     concurrency,
                 },
             )
@@ -118,10 +117,7 @@ pub async fn execute(action: CiAction, root_dir: &Path) -> Result<(), String> {
             eprintln!("[pipe] cache push — not yet implemented");
             Ok(())
         }
-        CiAction::Graph { dot, .. } => {
-            eprintln!("[pipe] graph (dot={dot}) — not yet implemented");
-            Ok(())
-        }
+        CiAction::Graph { name, dot } => run_graph(root_dir, name, dot).await,
     }
 }
 
@@ -134,6 +130,7 @@ async fn run_task_or_workflow(root_dir: &Path, opts: RunOptions) -> Result<(), S
         base,
         dry_run,
         quiet,
+        json,
         concurrency,
     } = opts;
     let run_start = Instant::now();
@@ -309,7 +306,52 @@ async fn run_task_or_workflow(root_dir: &Path, opts: RunOptions) -> Result<(), S
         result.failed_count,
     ));
 
-    if !quiet {
+    if json {
+        // Build per-task result list from scheduler results
+        let task_results: Vec<serde_json::Value> = result
+            .results
+            .values()
+            .map(|r| {
+                serde_json::json!({
+                    "name": r.task,
+                    "package": r.package,
+                    "status": r.status,
+                    "cached": r.cached,
+                    "duration_ms": r.duration_ms,
+                    "exit_code": r.exit_code,
+                })
+            })
+            .collect();
+
+        let status = if result.failed_count > 0 {
+            "failed"
+        } else {
+            "success"
+        };
+
+        let output = serde_json::json!({
+            "run_id": run_id,
+            "duration_ms": total_ms,
+            "status": status,
+            "workspace": {
+                "packages": resolved.packages.len(),
+                "native_crates": resolved.native_crates.len(),
+            },
+            "tasks": task_results,
+            "summary": {
+                "total": result.executed_count + result.cached_count + result.skipped_count + result.failed_count,
+                "executed": result.executed_count,
+                "cached": result.cached_count,
+                "skipped": result.skipped_count,
+                "failed": result.failed_count,
+            },
+        });
+
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&output).unwrap_or_default()
+        );
+    } else if !quiet {
         eprintln!(
             "\n[pipe] Done in {:.1}s ({} executed, {} cached, {} skipped, {} failed)",
             total_ms as f64 / 1000.0,
@@ -379,6 +421,53 @@ async fn run_affected(root_dir: &Path, base: &str, json: bool) -> Result<(), Str
         }
     }
 
+    Ok(())
+}
+
+/// Run `vtz ci graph` — show the task execution graph.
+async fn run_graph(root_dir: &Path, name: Option<String>, dot: bool) -> Result<(), String> {
+    // 1. Load config
+    let (pipe_config, bridge) = config::load_config(root_dir).await?;
+
+    // 2. Resolve workspace
+    let resolved = workspace::resolve(root_dir, pipe_config.workspace.as_ref())?;
+
+    // 3. Determine which workflow/task to graph
+    let workflow_name = name.unwrap_or_else(|| {
+        // Default to the first workflow, or first task if no workflows
+        pipe_config
+            .workflows
+            .keys()
+            .next()
+            .or_else(|| pipe_config.tasks.keys().next())
+            .cloned()
+            .unwrap_or_default()
+    });
+
+    let workflow = if let Some(wf) = pipe_config.workflows.get(&workflow_name) {
+        wf.clone()
+    } else if pipe_config.tasks.contains_key(&workflow_name) {
+        types::WorkflowConfig {
+            run: vec![workflow_name.clone()],
+            filter: types::WorkflowFilter::All,
+            env: std::collections::BTreeMap::new(),
+        }
+    } else {
+        let _ = bridge.shutdown().await;
+        return Err(format!("unknown task or workflow \"{workflow_name}\"",));
+    };
+
+    // 4. Build graph (all packages, no filter)
+    let task_graph = graph::TaskGraph::build(&workflow, &pipe_config.tasks, &resolved, None)?;
+
+    // 5. Output
+    if dot {
+        print!("{}", task_graph.to_dot());
+    } else {
+        print!("{}", task_graph.to_text_tree());
+    }
+
+    let _ = bridge.shutdown().await;
     Ok(())
 }
 
