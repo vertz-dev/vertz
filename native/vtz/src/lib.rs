@@ -1,4 +1,5 @@
 pub mod banner;
+pub mod ci;
 pub mod compiler;
 pub mod config;
 pub mod deps;
