@@ -5,7 +5,7 @@ use crate::test::runner::TestRunResult;
 pub fn format_junit(result: &TestRunResult) -> String {
     let total_tests: usize =
         result.total_passed + result.total_failed + result.total_skipped + result.total_todo;
-    let total_time_s: f64 = result.results.iter().map(|r| r.duration_ms).sum::<f64>() / 1000.0;
+    let total_time_s = result.wall_clock_ms / 1000.0;
 
     let mut xml = String::new();
     xml.push_str("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n");
@@ -155,6 +155,7 @@ mod tests {
             file_errors: 0,
             coverage_failed: false,
             coverage_report: None,
+            wall_clock_ms: 0.0,
         };
 
         let xml = format_junit(&run);
@@ -186,6 +187,7 @@ mod tests {
             file_errors: 0,
             coverage_failed: false,
             coverage_report: None,
+            wall_clock_ms: 0.0,
         };
 
         let xml = format_junit(&run);
@@ -214,6 +216,7 @@ mod tests {
             file_errors: 0,
             coverage_failed: false,
             coverage_report: None,
+            wall_clock_ms: 0.0,
         };
 
         let xml = format_junit(&run);
@@ -246,6 +249,7 @@ mod tests {
             file_errors: 0,
             coverage_failed: false,
             coverage_report: None,
+            wall_clock_ms: 0.0,
         };
 
         let xml = format_junit(&run);
@@ -274,6 +278,7 @@ mod tests {
             file_errors: 1,
             coverage_failed: false,
             coverage_report: None,
+            wall_clock_ms: 0.0,
         };
 
         let xml = format_junit(&run);

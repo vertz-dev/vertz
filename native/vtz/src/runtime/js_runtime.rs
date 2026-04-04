@@ -55,6 +55,13 @@ pub struct VertzRuntimeOptions {
     /// When set, compiled sources are cached in memory and shared across
     /// worker threads, eliminating redundant disk I/O.
     pub shared_source_cache: Option<Arc<crate::runtime::compile_cache::SharedSourceCache>>,
+    /// Shared V8 bytecode cache for cross-isolate deduplication.
+    /// When set, V8-compiled bytecode is cached and reused by subsequent
+    /// isolates, skipping V8's parsing step.
+    pub v8_code_cache: Option<Arc<crate::runtime::compile_cache::V8CodeCache>>,
+    /// Shared module resolution cache for cross-isolate deduplication.
+    /// Always active (not affected by --no-cache) because resolution is deterministic.
+    pub resolution_cache: Option<Arc<crate::runtime::compile_cache::SharedResolutionCache>>,
 }
 
 impl Default for VertzRuntimeOptions {
@@ -66,6 +73,8 @@ impl Default for VertzRuntimeOptions {
             compile_cache: false,
             plugin: Arc::new(crate::plugin::vertz::VertzPlugin),
             shared_source_cache: None,
+            v8_code_cache: None,
+            resolution_cache: None,
         }
     }
 }
@@ -229,6 +238,8 @@ impl VertzJsRuntime {
             cache_enabled,
             options.plugin.clone(),
             options.shared_source_cache.clone(),
+            options.v8_code_cache.clone(),
+            options.resolution_cache.clone(),
         ));
         let snapshot = crate::test::snapshot::get_test_snapshot();
 

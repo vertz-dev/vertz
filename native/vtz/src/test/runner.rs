@@ -6,7 +6,7 @@ use super::collector::{discover_test_files, DiscoveryMode};
 use super::executor::{execute_test_file_with_options, ExecuteOptions, TestFileResult};
 use super::reporter::json::format_json;
 use super::reporter::junit::format_junit;
-use super::reporter::terminal::format_results;
+use super::reporter::terminal::format_results_with_wall_clock;
 use super::typetests;
 
 /// Reporter format.
@@ -60,6 +60,8 @@ pub struct TestRunResult {
     pub coverage_failed: bool,
     /// Parsed coverage report (present when coverage is enabled).
     pub coverage_report: Option<super::coverage::CoverageReport>,
+    /// Wall clock time for the entire test run (execution + type tests).
+    pub wall_clock_ms: f64,
 }
 
 impl TestRunResult {
@@ -101,6 +103,7 @@ pub fn run_tests(config: TestRunConfig) -> (TestRunResult, String) {
             file_errors: 0,
             coverage_failed: false,
             coverage_report: None,
+            wall_clock_ms: 0.0,
         };
         return (result, output);
     }
@@ -134,6 +137,20 @@ pub fn run_tests(config: TestRunConfig) -> (TestRunResult, String) {
         ))
     };
 
+    // Create shared V8 bytecode cache (disabled when --no-cache)
+    let v8_code_cache = if config.no_cache {
+        None
+    } else {
+        Some(std::sync::Arc::new(
+            crate::runtime::compile_cache::V8CodeCache::new(true),
+        ))
+    };
+
+    // Create shared resolution cache (always active — resolution is deterministic)
+    let resolution_cache = Some(std::sync::Arc::new(
+        crate::runtime::compile_cache::SharedResolutionCache::new(),
+    ));
+
     let exec_options = std::sync::Arc::new(ExecuteOptions {
         filter: config.filter.clone(),
         timeout_ms: config.timeout_ms,
@@ -142,7 +159,11 @@ pub fn run_tests(config: TestRunConfig) -> (TestRunResult, String) {
         root_dir: Some(config.root_dir.clone()),
         no_cache: config.no_cache,
         shared_source_cache,
+        v8_code_cache,
+        resolution_cache,
     });
+
+    let wall_clock_start = std::time::Instant::now();
 
     let mut results = execute_parallel(&files, concurrency, config.bail, exec_options);
 
@@ -162,6 +183,8 @@ pub fn run_tests(config: TestRunConfig) -> (TestRunResult, String) {
         }
     }
 
+    let wall_clock_ms = wall_clock_start.elapsed().as_secs_f64() * 1000.0;
+
     // 3. Build summary
     let total_passed: usize = results.iter().map(|r| r.passed()).sum();
     let total_failed: usize = results.iter().map(|r| r.failed()).sum();
@@ -179,6 +202,7 @@ pub fn run_tests(config: TestRunConfig) -> (TestRunResult, String) {
         results,
         coverage_failed: false,
         coverage_report: None,
+        wall_clock_ms,
     };
 
     // 4. If coverage is enabled, collect and build the report first
@@ -274,7 +298,9 @@ pub fn run_tests(config: TestRunConfig) -> (TestRunResult, String) {
 
     // 5. Format output based on reporter
     let mut output = match config.reporter {
-        ReporterFormat::Terminal => format_results(&run_result.results),
+        ReporterFormat::Terminal => {
+            format_results_with_wall_clock(&run_result.results, Some(run_result.wall_clock_ms))
+        }
         ReporterFormat::Json => format_json(&run_result),
         ReporterFormat::Junit => format_junit(&run_result),
     };

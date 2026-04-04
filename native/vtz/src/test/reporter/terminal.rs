@@ -1,7 +1,19 @@
 use crate::test::executor::{TestFileResult, TestStatus};
 
 /// Format test results for terminal output.
+///
+/// When `wall_clock_ms` is provided, it is used for the "Time:" line
+/// (actual wall clock duration). Otherwise falls back to the aggregate
+/// of per-file CPU times (legacy behavior for tests).
 pub fn format_results(results: &[TestFileResult]) -> String {
+    format_results_with_wall_clock(results, None)
+}
+
+/// Format test results with an explicit wall clock duration.
+pub fn format_results_with_wall_clock(
+    results: &[TestFileResult],
+    wall_clock_ms: Option<f64>,
+) -> String {
     let mut output = String::new();
 
     for file_result in results {
@@ -66,7 +78,8 @@ pub fn format_results(results: &[TestFileResult]) -> String {
     let total_skipped: usize = results.iter().map(|r| r.skipped()).sum();
     let total_todo: usize = results.iter().map(|r| r.todo()).sum();
     let total_files = results.len();
-    let total_duration_ms: f64 = results.iter().map(|r| r.duration_ms).sum();
+    let display_time_ms: f64 =
+        wall_clock_ms.unwrap_or_else(|| results.iter().map(|r| r.duration_ms).sum());
     let file_errors: usize = results.iter().filter(|r| r.file_error.is_some()).count();
 
     output.push('\n');
@@ -91,7 +104,7 @@ pub fn format_results(results: &[TestFileResult]) -> String {
     }
     let total_tests = total_passed + total_failed + total_skipped + total_todo;
     output.push_str(&format!("Tests:  {} ({})\n", parts.join(", "), total_tests));
-    output.push_str(&format!("Time:   {:.0}ms\n", total_duration_ms));
+    output.push_str(&format!("Time:   {:.0}ms\n", display_time_ms));
 
     output
 }

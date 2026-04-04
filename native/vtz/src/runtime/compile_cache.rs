@@ -147,6 +147,97 @@ impl SharedSourceCache {
     }
 }
 
+/// A single V8 bytecode cache entry.
+struct V8CodeCacheEntry {
+    hash: u64,
+    data: Vec<u8>,
+}
+
+/// Thread-safe in-memory cache for V8 compiled bytecode.
+///
+/// Shared across worker threads. When V8 compiles a module to bytecode in one
+/// isolate, the bytecode is stored here. Subsequent isolates skip V8's parsing
+/// step by providing the cached bytecode back via `SourceCodeCacheInfo`.
+///
+/// Zero benefit for single-file runs (only one isolate exists).
+pub struct V8CodeCache {
+    inner: RwLock<HashMap<String, V8CodeCacheEntry>>,
+    enabled: bool,
+}
+
+impl V8CodeCache {
+    pub fn new(enabled: bool) -> Self {
+        Self {
+            inner: RwLock::new(HashMap::new()),
+            enabled,
+        }
+    }
+
+    /// Store bytecode for a module specifier. No-op if disabled.
+    /// First write wins (same as `SharedSourceCache`).
+    pub fn store(&self, specifier: &str, hash: u64, data: &[u8]) {
+        if !self.enabled {
+            return;
+        }
+        let mut map = self.inner.write().unwrap();
+        map.entry(specifier.to_string())
+            .or_insert_with(|| V8CodeCacheEntry {
+                hash,
+                data: data.to_vec(),
+            });
+    }
+
+    /// Retrieve cached bytecode for a module specifier.
+    /// Returns `None` when disabled or on cache miss.
+    pub fn get(&self, specifier: &str) -> Option<deno_core::SourceCodeCacheInfo> {
+        if !self.enabled {
+            return None;
+        }
+        let map = self.inner.read().unwrap();
+        map.get(specifier)
+            .map(|entry| deno_core::SourceCodeCacheInfo {
+                hash: entry.hash,
+                data: Some(std::borrow::Cow::Owned(entry.data.clone())),
+            })
+    }
+}
+
+/// Thread-safe cache for module resolution results.
+///
+/// Maps `(specifier, referrer_directory)` → resolved canonical path.
+/// Always active (not affected by `--no-cache`) because resolution is
+/// deterministic: same specifier + same referrer directory = same result.
+pub struct SharedResolutionCache {
+    inner: RwLock<HashMap<(String, PathBuf), PathBuf>>,
+}
+
+impl Default for SharedResolutionCache {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl SharedResolutionCache {
+    pub fn new() -> Self {
+        Self {
+            inner: RwLock::new(HashMap::new()),
+        }
+    }
+
+    /// Look up a cached resolution result.
+    pub fn get(&self, specifier: &str, referrer_dir: &Path) -> Option<PathBuf> {
+        let key = (specifier.to_string(), referrer_dir.to_path_buf());
+        self.inner.read().unwrap().get(&key).cloned()
+    }
+
+    /// Store a resolution result. First insert wins (race-safe).
+    pub fn insert(&self, specifier: &str, referrer_dir: &Path, resolved: PathBuf) {
+        let key = (specifier.to_string(), referrer_dir.to_path_buf());
+        let mut map = self.inner.write().unwrap();
+        map.entry(key).or_insert(resolved);
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -393,6 +484,126 @@ mod tests {
                 );
                 let cached = cache.get(&path).unwrap();
                 assert_eq!(cached.code, format!("code_{}", i));
+            }));
+        }
+
+        for handle in handles {
+            handle.join().unwrap();
+        }
+    }
+
+    // --- V8CodeCache tests ---
+
+    #[test]
+    fn test_v8_cache_miss_returns_none() {
+        let cache = V8CodeCache::new(true);
+        assert!(cache.get("file:///foo/bar.ts").is_none());
+    }
+
+    #[test]
+    fn test_v8_cache_store_then_get() {
+        let cache = V8CodeCache::new(true);
+        let specifier = "file:///foo/bar.ts";
+        let hash = 12345u64;
+        let data = vec![1, 2, 3, 4, 5];
+
+        cache.store(specifier, hash, &data);
+
+        let cached = cache.get(specifier).expect("Should hit cache");
+        assert_eq!(cached.hash, hash);
+        assert_eq!(cached.data.as_deref(), Some(data.as_slice()));
+    }
+
+    #[test]
+    fn test_v8_cache_disabled_returns_none() {
+        let cache = V8CodeCache::new(false);
+        cache.store("file:///foo/bar.ts", 123, &[1, 2, 3]);
+        assert!(cache.get("file:///foo/bar.ts").is_none());
+    }
+
+    #[test]
+    fn test_v8_cache_first_store_wins() {
+        let cache = V8CodeCache::new(true);
+        let specifier = "file:///foo/bar.ts";
+
+        cache.store(specifier, 100, &[1, 2, 3]);
+        cache.store(specifier, 200, &[4, 5, 6]);
+
+        let cached = cache.get(specifier).unwrap();
+        assert_eq!(cached.hash, 100, "First store should win");
+        assert_eq!(cached.data.as_deref(), Some([1u8, 2, 3].as_slice()));
+    }
+
+    #[test]
+    fn test_v8_cache_concurrent_access() {
+        let cache = Arc::new(V8CodeCache::new(true));
+        let mut handles = vec![];
+
+        for i in 0..10 {
+            let cache = cache.clone();
+            handles.push(std::thread::spawn(move || {
+                let specifier = format!("file:///module_{}.ts", i);
+                let data = vec![i as u8; 4];
+                cache.store(&specifier, i as u64, &data);
+                let cached = cache.get(&specifier).unwrap();
+                assert_eq!(cached.hash, i as u64);
+            }));
+        }
+
+        for handle in handles {
+            handle.join().unwrap();
+        }
+    }
+
+    // --- SharedResolutionCache tests ---
+
+    #[test]
+    fn test_resolution_cache_miss_returns_none() {
+        let cache = SharedResolutionCache::new();
+        assert!(cache.get("@vertz/schema", Path::new("/app/src")).is_none());
+    }
+
+    #[test]
+    fn test_resolution_cache_insert_then_get() {
+        let cache = SharedResolutionCache::new();
+        let specifier = "@vertz/schema";
+        let referrer = Path::new("/app/src");
+        let resolved = PathBuf::from("/app/node_modules/@vertz/schema/src/index.ts");
+
+        cache.insert(specifier, referrer, resolved.clone());
+
+        let cached = cache.get(specifier, referrer).expect("Should hit cache");
+        assert_eq!(cached, resolved);
+    }
+
+    #[test]
+    fn test_resolution_cache_different_referrer_misses() {
+        let cache = SharedResolutionCache::new();
+        let specifier = "./utils";
+        let resolved = PathBuf::from("/app/src/utils.ts");
+
+        cache.insert(specifier, Path::new("/app/src"), resolved);
+
+        assert!(
+            cache.get(specifier, Path::new("/app/lib")).is_none(),
+            "Different referrer dir should miss"
+        );
+    }
+
+    #[test]
+    fn test_resolution_cache_concurrent_access() {
+        let cache = Arc::new(SharedResolutionCache::new());
+        let mut handles = vec![];
+
+        for i in 0..10 {
+            let cache = cache.clone();
+            handles.push(std::thread::spawn(move || {
+                let specifier = format!("./module_{}", i);
+                let referrer = PathBuf::from("/app/src");
+                let resolved = PathBuf::from(format!("/app/src/module_{}.ts", i));
+                cache.insert(&specifier, &referrer, resolved.clone());
+                let cached = cache.get(&specifier, &referrer).unwrap();
+                assert_eq!(cached, resolved);
             }));
         }
 

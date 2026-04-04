@@ -112,6 +112,11 @@ pub struct ExecuteOptions {
     /// Shared in-memory source cache for cross-isolate deduplication.
     pub shared_source_cache:
         Option<std::sync::Arc<crate::runtime::compile_cache::SharedSourceCache>>,
+    /// Shared V8 bytecode cache for cross-isolate deduplication.
+    pub v8_code_cache: Option<std::sync::Arc<crate::runtime::compile_cache::V8CodeCache>>,
+    /// Shared module resolution cache for cross-isolate deduplication.
+    pub resolution_cache:
+        Option<std::sync::Arc<crate::runtime::compile_cache::SharedResolutionCache>>,
 }
 
 impl Default for ExecuteOptions {
@@ -124,6 +129,8 @@ impl Default for ExecuteOptions {
             root_dir: None,
             no_cache: false,
             shared_source_cache: None,
+            v8_code_cache: None,
+            resolution_cache: None,
         }
     }
 }
@@ -205,6 +212,8 @@ fn execute_test_file_inner(
         compile_cache: !options.no_cache,
         plugin: plugin.clone(),
         shared_source_cache: options.shared_source_cache.clone(),
+        v8_code_cache: options.v8_code_cache.clone(),
+        resolution_cache: options.resolution_cache.clone(),
     })?;
 
     // NOTE: async context + test harness are pre-baked in the V8 snapshot,

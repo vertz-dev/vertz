@@ -19,7 +19,7 @@ use crate::webview::UserEvent;
 
 use super::collector::{discover_test_files, DiscoveryMode};
 use super::executor::{parse_test_results, TestFileResult, TestResult};
-use super::reporter::terminal::format_results;
+use super::reporter::terminal::format_results_with_wall_clock;
 use super::runner::{ReporterFormat, TestRunConfig, TestRunResult};
 
 /// Run the full e2e test suite. Async entry point for the background thread.
@@ -174,6 +174,7 @@ pub async fn run_e2e_tests(
         file_errors,
         coverage_failed: false,
         coverage_report: None,
+        wall_clock_ms: 0.0,
     };
 
     let output = if bail_triggered {
@@ -298,7 +299,9 @@ async fn execute_e2e_inner(
 
 fn format_output(reporter: &ReporterFormat, result: &TestRunResult) -> String {
     match reporter {
-        ReporterFormat::Terminal => format_results(&result.results),
+        ReporterFormat::Terminal => {
+            format_results_with_wall_clock(&result.results, Some(result.wall_clock_ms))
+        }
         ReporterFormat::Json => super::reporter::json::format_json(result),
         ReporterFormat::Junit => super::reporter::junit::format_junit(result),
     }
@@ -315,6 +318,7 @@ fn empty_result() -> TestRunResult {
         file_errors: 0,
         coverage_failed: false,
         coverage_report: None,
+        wall_clock_ms: 0.0,
     }
 }
 
