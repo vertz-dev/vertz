@@ -609,10 +609,36 @@ fn strip_leftover_typescript(code: &str) -> String {
     let len = chars.len();
     let mut i = 0;
     // Track nesting depth to distinguish function params `(...)` from object literals `{...}`.
+    // NOTE: This depth tracking does not skip string literals, template literals, or comments.
+    // An unbalanced `{` or `(` inside a string could throw off counts. In practice this runs
+    // on compiled output where most type annotations are already gone, so the risk is minimal.
     let mut paren_depth: i32 = 0;
     let mut brace_depth: i32 = 0;
 
     while i < len {
+        // Skip string literals so unbalanced braces/parens inside them don't affect depth.
+        if chars[i] == '\'' || chars[i] == '"' || chars[i] == '`' {
+            let quote = chars[i];
+            result.push(chars[i]);
+            i += 1;
+            while i < len {
+                if chars[i] == '\\' && i + 1 < len {
+                    result.push(chars[i]);
+                    result.push(chars[i + 1]);
+                    i += 2;
+                    continue;
+                }
+                if chars[i] == quote {
+                    result.push(chars[i]);
+                    i += 1;
+                    break;
+                }
+                result.push(chars[i]);
+                i += 1;
+            }
+            continue;
+        }
+
         // Track paren/brace depth for context-awareness
         match chars[i] {
             '(' => paren_depth += 1,
@@ -2264,6 +2290,36 @@ export function App() {
         assert!(
             !result.contains(": Bar") && !result.contains(": Baz"),
             "Type annotations in multi-param should be stripped. Got: {}",
+            result
+        );
+    }
+
+    #[test]
+    fn test_strip_leftover_preserves_destructured_object_param() {
+        // Destructured object param: `({ schema: Schema })` — `: Schema` is a
+        // value binding, not a type annotation. paren_depth == brace_depth here.
+        let code = "function test({ schema: Schema }) { return Schema; }";
+        let result = strip_leftover_typescript(code);
+        assert!(
+            result.contains("schema: Schema"),
+            "Destructured object param value should be preserved. Got: {}",
+            result
+        );
+    }
+
+    #[test]
+    fn test_strip_leftover_skips_string_literals_with_unbalanced_braces() {
+        // String literal contains unbalanced `{` — depth tracker must skip it.
+        let code = "function test(x: Foo) { const s = \"hello { world\"; return s; }";
+        let result = strip_leftover_typescript(code);
+        assert!(
+            !result.contains(": Foo"),
+            "Type annotation should still be stripped despite string with unbalanced brace. Got: {}",
+            result
+        );
+        assert!(
+            result.contains("\"hello { world\""),
+            "String literal should be preserved. Got: {}",
             result
         );
     }

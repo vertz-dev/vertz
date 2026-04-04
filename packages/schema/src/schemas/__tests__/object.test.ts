@@ -49,6 +49,28 @@ describe('ObjectSchema', () => {
     expect(result).not.toHaveProperty('nickname');
   });
 
+  it('preserves optional properties when explicitly set to undefined', () => {
+    const schema = new ObjectSchema({
+      name: new StringSchema(),
+      nickname: new StringSchema().optional(),
+    });
+    const result = schema.parse({ name: 'Alice', nickname: undefined }).data;
+    expect(result).toHaveProperty('nickname');
+    expect((result as Record<string, unknown>).nickname).toBeUndefined();
+  });
+
+  it('omits nested optional keys', () => {
+    const schema = new ObjectSchema({
+      user: new ObjectSchema({
+        name: new StringSchema(),
+        bio: new StringSchema().optional(),
+      }),
+    });
+    const result = schema.parse({ user: { name: 'Alice' } }).data;
+    expect((result as Record<string, unknown>).user).toEqual({ name: 'Alice' });
+    expect((result as Record<string, unknown>).user).not.toHaveProperty('bio');
+  });
+
   it('fills in default properties when absent', () => {
     const schema = new ObjectSchema({
       name: new StringSchema(),
