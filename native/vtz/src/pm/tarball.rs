@@ -37,9 +37,25 @@ impl TarballManager {
             .join(format!("{}@{}", name.replace('/', "+"), version))
     }
 
-    /// Check if a package is already extracted in the store
+    /// Check if a package is already extracted in the store and valid.
+    /// A corrupt store entry (e.g., from interrupted extraction) is treated
+    /// as uncached so it gets re-extracted on next install.
     pub fn is_cached(&self, name: &str, version: &str) -> bool {
-        self.store_path(name, version).exists()
+        Self::is_valid_store_entry(&self.store_path(name, version))
+    }
+
+    /// Validate that a store entry directory contains a non-empty `package.json`.
+    /// This catches corrupt cache entries where files are 0 bytes due to
+    /// interrupted extraction or disk errors.
+    fn is_valid_store_entry(path: &Path) -> bool {
+        if !path.is_dir() {
+            return false;
+        }
+        let pkg_json = path.join("package.json");
+        match std::fs::metadata(&pkg_json) {
+            Ok(meta) => meta.len() > 0,
+            Err(_) => false,
+        }
     }
 
     /// Download, verify, and extract a tarball
@@ -52,16 +68,24 @@ impl TarballManager {
     ) -> Result<PathBuf, Box<dyn std::error::Error + Send + Sync>> {
         let final_path = self.store_path(name, version);
 
-        // Skip if already extracted
-        if final_path.exists() {
+        // Skip if already extracted and valid
+        if Self::is_valid_store_entry(&final_path) {
             return Ok(final_path);
+        }
+
+        // Remove corrupt entry if it exists (e.g., empty files from interrupted extraction)
+        if final_path.exists() {
+            std::fs::remove_dir_all(&final_path).ok();
         }
 
         let _permit = self.semaphore.acquire().await?;
 
         // Double-check after acquiring permit (another task may have completed)
-        if final_path.exists() {
+        if Self::is_valid_store_entry(&final_path) {
             return Ok(final_path);
+        }
+        if final_path.exists() {
+            std::fs::remove_dir_all(&final_path).ok();
         }
 
         // Download tarball
@@ -823,7 +847,30 @@ mod tests {
     fn test_is_cached_true() {
         let dir = tempfile::tempdir().unwrap();
         let mgr = TarballManager::new(dir.path());
-        std::fs::create_dir_all(mgr.store_path("zod", "3.24.4")).unwrap();
+        let store = mgr.store_path("zod", "3.24.4");
+        std::fs::create_dir_all(&store).unwrap();
+        std::fs::write(store.join("package.json"), r#"{"name":"zod"}"#).unwrap();
         assert!(mgr.is_cached("zod", "3.24.4"));
+    }
+
+    #[test]
+    fn test_is_cached_false_when_corrupt() {
+        let dir = tempfile::tempdir().unwrap();
+        let mgr = TarballManager::new(dir.path());
+        let store = mgr.store_path("zod", "3.24.4");
+        std::fs::create_dir_all(&store).unwrap();
+        // Empty package.json — corrupt entry
+        std::fs::write(store.join("package.json"), "").unwrap();
+        assert!(!mgr.is_cached("zod", "3.24.4"));
+    }
+
+    #[test]
+    fn test_is_cached_false_when_no_package_json() {
+        let dir = tempfile::tempdir().unwrap();
+        let mgr = TarballManager::new(dir.path());
+        let store = mgr.store_path("zod", "3.24.4");
+        // Directory exists but no package.json
+        std::fs::create_dir_all(&store).unwrap();
+        assert!(!mgr.is_cached("zod", "3.24.4"));
     }
 }
