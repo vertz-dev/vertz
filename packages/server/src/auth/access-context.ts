@@ -134,6 +134,74 @@ export function createAccessContext(config: AccessContextConfig): AccessContext 
   } = config;
 
   // ==========================================================================
+  // resolveAncestorChain() — build [self, ...ancestors] sorted child→root
+  // ==========================================================================
+
+  async function resolveAncestorChain(org: {
+    type: string;
+    id: string;
+  }): Promise<AncestorChainEntry[] | null> {
+    if (!ancestorResolver || !tenantLevel) return null;
+    const ancestors = await ancestorResolver(tenantLevel, org.id);
+    return [
+      { type: org.type, id: org.id, depth: 0 },
+      ...ancestors.sort((a, b) => a.depth - b.depth),
+    ];
+  }
+
+  // ==========================================================================
+  // resolveMultiLevelFlag() — deepest wins flag resolution
+  // ==========================================================================
+
+  function resolveMultiLevelFlag(flag: string, chain: AncestorChainEntry[]): boolean {
+    // chain is sorted child→root; first match wins (deepest)
+    for (const entry of chain) {
+      const levelFlags = flagStore!.getFlags(entry.type, entry.id);
+      if (flag in levelFlags) return levelFlags[flag]!;
+    }
+    return false; // No level has the flag
+  }
+
+  // ==========================================================================
+  // resolveMultiLevelFeature() — inherit/local plan feature resolution
+  // ==========================================================================
+
+  async function resolveMultiLevelFeature(
+    entitlement: string,
+    chain: AncestorChainEntry[],
+  ): Promise<boolean> {
+    const entDef = accessDef.entitlements[entitlement];
+    const resolution = entDef?.featureResolution ?? 'inherit';
+
+    // Collect features per level
+    for (const entry of chain) {
+      if (resolution === 'local' && entry.depth !== 0) continue; // local: only deepest
+
+      const sub = await subscriptionStore!.get(entry.type, entry.id);
+      const levelDefault = accessDef.defaultPlans?.[entry.type] ?? accessDef.defaultPlan;
+      const planId = resolveEffectivePlan(sub, accessDef.plans, levelDefault);
+      if (!planId) continue;
+
+      const overridesForLevel = overrideStore
+        ? await overrideStore.get(entry.type, entry.id)
+        : null;
+
+      const hasFeature = await resolveEffectiveFeatures(
+        { type: entry.type, id: entry.id },
+        entitlement,
+        planId,
+        accessDef,
+        subscriptionStore!,
+        planVersionStore,
+        overridesForLevel,
+      );
+      if (hasFeature) return true;
+    }
+
+    return false;
+  }
+
+  // ==========================================================================
   // checkLayers1to3() — internal, checks Layers 1-4 with pre-resolved org
   // ==========================================================================
 
@@ -142,6 +210,7 @@ export function createAccessContext(config: AccessContextConfig): AccessContext 
     resource: ResourceRef | undefined,
     resolvedOrg: { type: string; id: string } | null,
     overrides?: TenantOverrides | null,
+    chain?: AncestorChainEntry[] | null,
   ): Promise<boolean> {
     // Unauthenticated user — deny immediately
     if (!userId) return false;
@@ -152,9 +221,17 @@ export function createAccessContext(config: AccessContextConfig): AccessContext 
     // Layer 1: Feature flags
     if (entDef.flags?.length && flagStore && orgResolver) {
       if (!resolvedOrg) return false;
-      for (const flag of entDef.flags) {
-        if (!flagStore.getFlag(resolvedOrg.type, resolvedOrg.id, flag)) {
-          return false;
+      if (chain) {
+        // Multi-level: deepest wins
+        for (const flag of entDef.flags) {
+          if (!resolveMultiLevelFlag(flag, chain)) return false;
+        }
+      } else {
+        // Single-level: existing behavior
+        for (const flag of entDef.flags) {
+          if (!flagStore.getFlag(resolvedOrg.type, resolvedOrg.id, flag)) {
+            return false;
+          }
         }
       }
     }
@@ -191,29 +268,36 @@ export function createAccessContext(config: AccessContextConfig): AccessContext 
 
     // Layer 3: Hierarchy check (implicit — already handled via closure table in getEffectiveRole)
 
-    // Layer 3: Plan features check (new in Phase 2)
+    // Layer 3: Plan features check
     if (accessDef._planGatedEntitlements.has(entitlement) && subscriptionStore && orgResolver) {
       if (!resolvedOrg) return false; // Cannot resolve org — deny
 
-      const subscription = await subscriptionStore.get(resolvedOrg.type, resolvedOrg.id);
-      const effectivePlanId = resolveEffectivePlan(
-        subscription,
-        accessDef.plans,
-        accessDef.defaultPlan,
-      );
-      if (!effectivePlanId) return false; // No plan — deny
+      if (chain) {
+        // Multi-level: check features across ancestor chain (inherit/local)
+        const hasFeature = await resolveMultiLevelFeature(entitlement, chain);
+        if (!hasFeature) return false;
+      } else {
+        // Single-level: existing behavior
+        const subscription = await subscriptionStore.get(resolvedOrg.type, resolvedOrg.id);
+        const effectivePlanId = resolveEffectivePlan(
+          subscription,
+          accessDef.plans,
+          accessDef.defaultPlan,
+        );
+        if (!effectivePlanId) return false; // No plan — deny
 
-      // Check if entitlement is in effective features (base plan + add-ons + overrides)
-      const hasFeature = await resolveEffectiveFeatures(
-        resolvedOrg,
-        entitlement,
-        effectivePlanId,
-        accessDef,
-        subscriptionStore,
-        planVersionStore,
-        overrides,
-      );
-      if (!hasFeature) return false;
+        // Check if entitlement is in effective features (base plan + add-ons + overrides)
+        const hasFeature = await resolveEffectiveFeatures(
+          resolvedOrg,
+          entitlement,
+          effectivePlanId,
+          accessDef,
+          subscriptionStore,
+          planVersionStore,
+          overrides,
+        );
+        if (!hasFeature) return false;
+      }
     }
 
     return true;
@@ -233,36 +317,31 @@ export function createAccessContext(config: AccessContextConfig): AccessContext 
         ? await overrideStore.get(resolvedOrg.type, resolvedOrg.id)
         : null;
 
-    if (!(await checkLayers1to3(entitlement, resource, resolvedOrg, overrides))) return false;
+    // Build ancestor chain once for multi-level resolution
+    const chain = resolvedOrg ? await resolveAncestorChain(resolvedOrg) : null;
+
+    if (!(await checkLayers1to3(entitlement, resource, resolvedOrg, overrides, chain)))
+      return false;
 
     // Layer 4: Limit check (read-only — for UI display, not atomic)
     const limitKeys = accessDef._entitlementToLimitKeys[entitlement];
     if (limitKeys?.length && walletStore && subscriptionStore && resolvedOrg) {
       try {
-        const walletStates = await resolveAllLimitStates(
-          entitlement,
-          resolvedOrg,
-          accessDef,
-          subscriptionStore,
-          walletStore,
-          planVersionStore,
-          overrides,
-        );
-        for (const ws of walletStates) {
-          if (ws.max === 0) return false; // disabled
-          if (ws.max === -1) continue; // unlimited
-          if (ws.consumed >= ws.max) {
-            if (ws.hasOverage) {
-              // Check overage cap
-              if (ws.overageCap !== undefined) {
-                const overageUnits = ws.consumed - ws.max;
-                const overageCost = (overageUnits * (ws.overageAmount ?? 0)) / (ws.overagePer ?? 1);
-                if (overageCost >= ws.overageCap) return false; // Cap hit — hard block
-              }
-              continue; // Overage allowed
-            }
-            return false;
-          }
+        if (chain) {
+          // Multi-level: check limits at all ancestor levels
+          if (!(await checkMultiLevelLimits(entitlement, chain))) return false;
+        } else {
+          // Single-level: existing behavior
+          const walletStates = await resolveAllLimitStates(
+            entitlement,
+            resolvedOrg,
+            accessDef,
+            subscriptionStore,
+            walletStore,
+            planVersionStore,
+            overrides,
+          );
+          if (!checkLimitStates(walletStates)) return false;
         }
       } catch (error) {
         if (!cloudFailMode) throw error;
@@ -272,6 +351,160 @@ export function createAccessContext(config: AccessContextConfig): AccessContext 
     }
 
     return true;
+  }
+
+  /**
+   * Check limit states for a single level. Returns false if any limit is exceeded.
+   */
+  function checkLimitStates(walletStates: LimitState[]): boolean {
+    for (const ws of walletStates) {
+      if (ws.max === 0) return false; // disabled
+      if (ws.max === -1) continue; // unlimited
+      if (ws.consumed >= ws.max) {
+        if (ws.hasOverage) {
+          if (ws.overageCap !== undefined) {
+            const overageUnits = ws.consumed - ws.max;
+            const overageCost = (overageUnits * (ws.overageAmount ?? 0)) / (ws.overagePer ?? 1);
+            if (overageCost >= ws.overageCap) return false;
+          }
+          continue;
+        }
+        return false;
+      }
+    }
+    return true;
+  }
+
+  /**
+   * Multi-level limit check: cascade through ancestor chain.
+   * If any level's limits are exceeded, deny.
+   */
+  async function checkMultiLevelLimits(
+    entitlement: string,
+    chain: AncestorChainEntry[],
+  ): Promise<boolean> {
+    for (const entry of chain) {
+      const sub = await subscriptionStore!.get(entry.type, entry.id);
+      if (!sub) continue;
+
+      const levelDefault = accessDef.defaultPlans?.[entry.type] ?? accessDef.defaultPlan;
+      const planId = resolveEffectivePlan(sub, accessDef.plans, levelDefault);
+      if (!planId) continue;
+
+      // Check if this plan has limits for the entitlement
+      const limitKeys = accessDef._entitlementToLimitKeys[entitlement];
+      const planDef = accessDef.plans?.[planId];
+      if (!planDef?.limits || !limitKeys?.some((k) => k in planDef.limits!)) continue;
+
+      const levelOverrides = overrideStore ? await overrideStore.get(entry.type, entry.id) : null;
+
+      const walletStates = await resolveAllLimitStates(
+        entitlement,
+        { type: entry.type, id: entry.id },
+        accessDef,
+        subscriptionStore!,
+        walletStore!,
+        planVersionStore,
+        levelOverrides,
+      );
+      if (!checkLimitStates(walletStates)) return false;
+    }
+    return true;
+  }
+
+  /**
+   * Single-level limit check for check() — populates reasons and meta.
+   */
+  function checkSingleLevelLimitsForCheck(
+    walletStates: LimitState[],
+    reasons: DenialReason[],
+    meta: DenialMeta,
+  ): void {
+    for (const ws of walletStates) {
+      const exceeded = ws.max === 0 || (ws.max !== -1 && ws.consumed >= ws.max);
+      if (exceeded) {
+        if (ws.hasOverage && ws.max !== 0) {
+          let capHit = false;
+          if (ws.overageCap !== undefined) {
+            const overageUnits = ws.consumed - ws.max;
+            const overageCost = (overageUnits * (ws.overageAmount ?? 0)) / (ws.overagePer ?? 1);
+            if (overageCost >= ws.overageCap) capHit = true;
+          }
+          if (capHit) {
+            reasons.push('limit_reached');
+            meta.limit = {
+              key: ws.key,
+              max: ws.max,
+              consumed: ws.consumed,
+              remaining: 0,
+              overage: true,
+            };
+            break;
+          }
+          meta.limit = {
+            key: ws.key,
+            max: ws.max,
+            consumed: ws.consumed,
+            remaining: 0,
+            overage: true,
+          };
+          continue;
+        }
+        reasons.push('limit_reached');
+        meta.limit = {
+          key: ws.key,
+          max: ws.max,
+          consumed: ws.consumed,
+          remaining: Math.max(0, ws.max === -1 ? Infinity : ws.max - ws.consumed),
+        };
+        break;
+      }
+      if (!meta.limit) {
+        meta.limit = {
+          key: ws.key,
+          max: ws.max,
+          consumed: ws.consumed,
+          remaining: ws.max === -1 ? Infinity : Math.max(0, ws.max - ws.consumed),
+        };
+      }
+    }
+  }
+
+  /**
+   * Multi-level limit check for check() — cascades through ancestor chain.
+   */
+  async function checkMultiLevelLimitsForCheck(
+    entitlement: string,
+    chain: AncestorChainEntry[],
+    reasons: DenialReason[],
+    meta: DenialMeta,
+  ): Promise<void> {
+    for (const entry of chain) {
+      const sub = await subscriptionStore!.get(entry.type, entry.id);
+      if (!sub) continue;
+
+      const levelDefault = accessDef.defaultPlans?.[entry.type] ?? accessDef.defaultPlan;
+      const planId = resolveEffectivePlan(sub, accessDef.plans, levelDefault);
+      if (!planId) continue;
+
+      const limitKeys = accessDef._entitlementToLimitKeys[entitlement];
+      const planDef = accessDef.plans?.[planId];
+      if (!planDef?.limits || !limitKeys?.some((k) => k in planDef.limits!)) continue;
+
+      const levelOverrides = overrideStore ? await overrideStore.get(entry.type, entry.id) : null;
+
+      const walletStates = await resolveAllLimitStates(
+        entitlement,
+        { type: entry.type, id: entry.id },
+        accessDef,
+        subscriptionStore!,
+        walletStore!,
+        planVersionStore,
+        levelOverrides,
+      );
+      checkSingleLevelLimitsForCheck(walletStates, reasons, meta);
+      if (reasons.includes('limit_reached')) return; // First blocking level stops check
+    }
   }
 
   // ==========================================================================
@@ -309,13 +542,24 @@ export function createAccessContext(config: AccessContextConfig): AccessContext 
         ? await overrideStore.get(resolvedOrg.type, resolvedOrg.id)
         : null;
 
+    // Build ancestor chain once for multi-level resolution
+    const chain = resolvedOrg ? await resolveAncestorChain(resolvedOrg) : null;
+
     // Layer 1: Feature flags
     if (entDef.flags?.length && flagStore && orgResolver) {
       if (resolvedOrg) {
         const disabledFlags: string[] = [];
-        for (const flag of entDef.flags) {
-          if (!flagStore.getFlag(resolvedOrg.type, resolvedOrg.id, flag)) {
-            disabledFlags.push(flag);
+        if (chain) {
+          // Multi-level: deepest wins
+          for (const flag of entDef.flags) {
+            if (!resolveMultiLevelFlag(flag, chain)) disabledFlags.push(flag);
+          }
+        } else {
+          // Single-level
+          for (const flag of entDef.flags) {
+            if (!flagStore.getFlag(resolvedOrg.type, resolvedOrg.id, flag)) {
+              disabledFlags.push(flag);
+            }
           }
         }
         if (disabledFlags.length > 0) {
@@ -367,6 +611,10 @@ export function createAccessContext(config: AccessContextConfig): AccessContext 
 
       if (!resolvedOrg) {
         planDenied = true;
+      } else if (chain) {
+        // Multi-level: check features across ancestor chain (inherit/local)
+        const hasFeature = await resolveMultiLevelFeature(entitlement, chain);
+        if (!hasFeature) planDenied = true;
       } else {
         const subscription = await subscriptionStore.get(resolvedOrg.type, resolvedOrg.id);
         const effectivePlanId = resolveEffectivePlan(
@@ -411,65 +659,24 @@ export function createAccessContext(config: AccessContextConfig): AccessContext 
     const checkLimitKeys = accessDef._entitlementToLimitKeys[entitlement];
     if (checkLimitKeys?.length && walletStore && subscriptionStore && resolvedOrg) {
       try {
-        const walletStates = await resolveAllLimitStates(
-          entitlement,
-          resolvedOrg,
-          accessDef,
-          subscriptionStore,
-          walletStore,
-          planVersionStore,
-          overrides,
-        );
-        for (const ws of walletStates) {
-          const exceeded = ws.max === 0 || (ws.max !== -1 && ws.consumed >= ws.max);
-          if (exceeded) {
-            if (ws.hasOverage && ws.max !== 0) {
-              // Check overage cap
-              let capHit = false;
-              if (ws.overageCap !== undefined) {
-                const overageUnits = ws.consumed - ws.max;
-                const overageCost = (overageUnits * (ws.overageAmount ?? 0)) / (ws.overagePer ?? 1);
-                if (overageCost >= ws.overageCap) capHit = true;
-              }
-              if (capHit) {
-                reasons.push('limit_reached');
-                meta.limit = {
-                  key: ws.key,
-                  max: ws.max,
-                  consumed: ws.consumed,
-                  remaining: 0,
-                  overage: true,
-                };
-                break;
-              }
-              // Overage allowed — attach meta with overage flag
-              meta.limit = {
-                key: ws.key,
-                max: ws.max,
-                consumed: ws.consumed,
-                remaining: 0,
-                overage: true,
-              };
-              continue;
-            }
-            reasons.push('limit_reached');
-            meta.limit = {
-              key: ws.key,
-              max: ws.max,
-              consumed: ws.consumed,
-              remaining: Math.max(0, ws.max === -1 ? Infinity : ws.max - ws.consumed),
-            };
-            break; // Report first blocking limit
-          }
-          // Attach limit meta even if passing (for UI display)
-          if (!meta.limit) {
-            meta.limit = {
-              key: ws.key,
-              max: ws.max,
-              consumed: ws.consumed,
-              remaining: ws.max === -1 ? Infinity : Math.max(0, ws.max - ws.consumed),
-            };
-          }
+        if (chain) {
+          // Multi-level: check limits at all ancestor levels
+          await checkMultiLevelLimitsForCheck(entitlement, chain, reasons, meta);
+        } else {
+          // Single-level: existing behavior
+          checkSingleLevelLimitsForCheck(
+            await resolveAllLimitStates(
+              entitlement,
+              resolvedOrg,
+              accessDef,
+              subscriptionStore,
+              walletStore,
+              planVersionStore,
+              overrides,
+            ),
+            reasons,
+            meta,
+          );
         }
       } catch (error) {
         if (!cloudFailMode) throw error;
@@ -577,8 +784,12 @@ export function createAccessContext(config: AccessContextConfig): AccessContext 
         ? await overrideStore.get(resolvedOrg.type, resolvedOrg.id)
         : null;
 
+    // Build ancestor chain once for multi-level resolution (Layers 1-3)
+    const ancestorChain = resolvedOrg ? await resolveAncestorChain(resolvedOrg) : null;
+
     // Run Layers 1-3 (auth, flags, roles, plan features — skips limit layer)
-    if (!(await checkLayers1to3(entitlement, resource, resolvedOrg, overrides))) return false;
+    if (!(await checkLayers1to3(entitlement, resource, resolvedOrg, overrides, ancestorChain)))
+      return false;
 
     // If no wallet/plan infrastructure, just return true (no limit to enforce)
     if (!walletStore || !subscriptionStore || !orgResolver) return true;
