@@ -22,7 +22,7 @@
     }
   },
   "scripts": {
-    "build": "bunup",
+    "build": "vtzx bunup",
     "test": "bun test",
     "typecheck": "tsc --noEmit -p tsconfig.typecheck.json"
   },

@@ -57,7 +57,7 @@
     "provenance": true
   },
   "scripts": {
-    "build": "bunup",
+    "build": "vtzx bunup",
     "test": "bun test --timeout 60000 src/",
     "test:integration": "bun test src/__tests__/bun-dev-server.integration.local.ts",
     "test:e2e": "bunx playwright test",

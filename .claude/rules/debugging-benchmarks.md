@@ -41,7 +41,7 @@ cp -r /Users/viniciusdacal/vertz-dev/vertz/packages/ui/dist/ /Users/viniciusdaca
 **Symptom:** `@vertz/cli dev` fails or the webServer in `playwright.config.ts` can't start.
 
 **Check:**
-1. Are all dependencies installed? Run `bun install` in the benchmarks root.
+1. Are all dependencies installed? Run `vtz install` in the benchmarks root.
 2. Is the port already in use? The default is 4201. Check with `lsof -i :4201`.
 3. Is the `@vertz/cli` dist present? The dev server runs from `node_modules/@vertz/cli/dist/vertz.js`.
 

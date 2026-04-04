@@ -4,8 +4,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "bun run index.ts",
-    "start": "bun run index.ts"
+    "dev": "vtz run index.ts",
+    "start": "vtz run index.ts"
   },
   "dependencies": {
     "@vertz/core": "workspace:*"

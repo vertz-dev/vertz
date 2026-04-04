@@ -15,7 +15,7 @@ Report: total tasks passed/total, any failures (note if pre-existing on main).
 
 Run from `packages/integration-tests`:
 ```
-bun test
+vtz test
 ```
 
 Report: tests passed/total.
@@ -41,7 +41,7 @@ cp -r packages/<pkg>/dist/ ~/vertz-dev/vertz-benchmarks/packages/<pkg>/dist/
 
 Then run from `~/vertz-dev/vertz-benchmarks/benchmarks/vertz`:
 ```
-bunx playwright test
+vtzx playwright test
 ```
 
 Report: passed/total.

@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "bun node_modules/@vertz/cli/dist/vertz.js dev",
+    "dev": "vtz dev",
     "e2e": "bunx playwright test",
     "e2e:headed": "bunx playwright test --headed"
   },

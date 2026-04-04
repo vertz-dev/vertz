@@ -55,6 +55,9 @@ pub enum Command {
     Patch(PatchArgs),
     /// Manage the local development proxy
     Proxy(ProxyArgs),
+    /// Update vtz itself to the latest version
+    #[command(name = "self-update")]
+    SelfUpdate(SelfUpdateArgs),
 }
 
 #[derive(Parser, Debug)]
@@ -597,6 +600,13 @@ pub struct ProxyStartArgs {
     /// Port for the proxy to listen on
     #[arg(long, default_value_t = 4000)]
     pub port: u16,
+}
+
+#[derive(Parser, Debug)]
+pub struct SelfUpdateArgs {
+    /// Update to a specific version (e.g. 0.3.0) instead of latest
+    #[arg(long)]
+    pub version: Option<String>,
 }
 
 #[cfg(test)]

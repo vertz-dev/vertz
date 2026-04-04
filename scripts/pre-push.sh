@@ -19,8 +19,8 @@ fi
 export DATABASE_TEST_URL=postgres://postgres:postgres@localhost:5432/vertz_test
 
 # Runs: turbo run lint build typecheck test (excludes examples)
-echo "▶ Running: bun run ci"
-bun run ci
+echo "▶ Running: vtz run ci"
+vtz run ci
 
 echo ""
 echo "✅ All quality gates passed. Safe to push."

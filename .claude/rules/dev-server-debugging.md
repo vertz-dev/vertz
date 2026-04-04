@@ -104,7 +104,7 @@ The build check has a fallback: if `Bun.build()` succeeds but the dev bundler fa
 
 | Terminal message | Cause | Fix |
 |---|---|---|
-| `ssrRenderSinglePass could not be loaded` | `@vertz/ui-server` installed but export fails | `vertz add @vertz/ui-server` (reinstall), or rebuild: `bun run build` in `packages/ui-server` |
+| `ssrRenderSinglePass could not be loaded` | `@vertz/ui-server` installed but export fails | `vertz add @vertz/ui-server` (reinstall), or rebuild: `vtz run build` in `packages/ui-server` |
 | `@vertz/ui-server is missing` | Dependency not installed | `vertz add @vertz/ui-server` |
 
 **Plain JS apps** (no `@vertz/ui` in `node_modules`) are unaffected — they use the legacy DOM-scraping render silently, which is the correct behavior for apps that don't use the framework.
@@ -142,7 +142,7 @@ Useful for automated debugging and verifying server state without reading termin
 
 **Diagnostic:** Terminal log: `[Server] Dev bundler serving reload stub after successful build — restarting`
 
-**If auto-restart cap reached:** After 3 auto-restarts within 10s, the server stops auto-restarting. Terminal shows: `[Server] Dev bundler stale but auto-restart cap reached`. At this point, manually restart the dev server (`Ctrl+C` and re-run `bun run dev`).
+**If auto-restart cap reached:** After 3 auto-restarts within 10s, the server stops auto-restarting. Terminal shows: `[Server] Dev bundler stale but auto-restart cap reached`. At this point, manually restart the dev server (`Ctrl+C` and re-run `vtz run dev`).
 
 **Client-side fallback:** If the server-side detection misses the stale bundler (e.g., user navigates to the page after the watcher cycle completed), the BUILD_ERROR_LOADER requests a server restart via WebSocket. The browser shows "Restarting dev server... Dev bundler appears stale after adding new files."
 

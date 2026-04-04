@@ -10,7 +10,7 @@ Get a working Vertz full-stack app running in under 5 minutes. Copy-paste friend
 ## Step 1: Create Your App
 
 ```bash
-bunx @vertz/create-vertz-app@latest my-app
+vtzx @vertz/create-vertz-app@latest my-app
 cd my-app
 ```
 
@@ -24,13 +24,13 @@ This creates a new Vertz project with:
 ## Step 2: Install Dependencies
 
 ```bash
-bun install
+vtz install
 ```
 
 ## Step 3: Generate Types
 
 ```bash
-bun run codegen
+vtz run codegen
 ```
 
 This generates the typed client at `.vertz/generated/` — used by the UI to call the API with full type safety.
@@ -38,7 +38,7 @@ This generates the typed client at `.vertz/generated/` — used by the UI to cal
 ## Step 4: Start the Dev Server
 
 ```bash
-bun run dev
+vtz run dev
 ```
 
 You should see:
@@ -157,8 +157,8 @@ export default app;
 Re-run codegen to update the typed client, then restart the dev server:
 
 ```bash
-bun run codegen
-bun run dev
+vtz run codegen
+vtz run dev
 ```
 
 Test it:

@@ -25,7 +25,7 @@
     "provenance": true
   },
   "scripts": {
-    "build": "bunup",
+    "build": "vtzx bunup",
     "test": "bun test",
     "typecheck": "tsc --noEmit"
   },

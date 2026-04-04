@@ -70,7 +70,7 @@
     "provenance": true
   },
   "scripts": {
-    "build": "bunup",
+    "build": "vtzx bunup",
     "test": "bun test",
     "test:benchmark": "bun test src/dom/__tests__/hydration-deferred-effects-bench.local.ts",
     "test:watch": "bun test --watch",

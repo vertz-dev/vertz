@@ -6,9 +6,9 @@ All framework development follows strict Test-Driven Development.
 
 1. **Red** — Write exactly ONE failing test (`it()` block) that describes a single behavior
 2. **Green** — Write the MINIMAL code to make that one test pass. **Green means ALL of:**
-   - Tests pass (`bun test`)
-   - Typecheck passes (`bun run typecheck` on changed packages)
-   - Lint/format passes (`bunx oxlint --fix <files> && bunx oxfmt <files>`)
+   - Tests pass (`vtz test`)
+   - Typecheck passes (`vtz run typecheck` on changed packages)
+   - Lint/format passes (`vtzx oxlint --fix <files> && vtzx oxfmt <files>`)
    - If any of these fail, you are NOT green. Fix before proceeding.
 3. **Refactor** — Clean up while keeping all checks green
 4. **Repeat** — Go back to step 1 with the next behavior
@@ -46,7 +46,7 @@ Every phase with generic type parameters MUST include:
 
 Positive type tests are NOT valid RED tests — loose signatures already accept them. Write negative tests first.
 
-After GREEN, run `bun run typecheck` — `@ts-expect-error` only verifies interface signatures, not implementation body types.
+After GREEN, run `vtz run typecheck` — `@ts-expect-error` only verifies interface signatures, not implementation body types.
 
 ## Compiler Transform Testing
 
@@ -56,7 +56,7 @@ After GREEN, run `bun run typecheck` — `@ts-expect-error` only verifies interf
 
 ## Code Coverage
 
-- **Target: 95%+ line coverage for every source file (aim for 100%).** Run `bun test --coverage` to verify.
+- **Target: 95%+ line coverage for every source file (aim for 100%).** Run `vtz test --coverage` to verify.
 - Before pushing, check that all changed source files meet the 95% threshold.
 - If a file drops below 95%, add tests for uncovered branches before merging.
 - Coverage is measured per-file, not per-package — no file gets a free pass because the aggregate is high.

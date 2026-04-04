@@ -3,7 +3,7 @@ pre-push:
     trojan-source:
       run: bash scripts/check-unicode.sh
     lint:
-      run: bunx oxlint packages/ && bunx oxfmt --check packages/
+      run: node_modules/.bin/vtzx oxlint packages/ && node_modules/.bin/vtzx oxfmt --check packages/
     quality-gates:
       run: turbo run build typecheck test --filter='!@vertz-examples/*' --filter='!entity-todo-example' --filter='!@vertz/landing-nextjs' --filter='!@vertz/landing-nextjs-vercel' --filter='!@vertz/landing' --filter='!@vertz/component-docs' --filter='!@vertz/site' --filter='!@vertz/og' --filter='!@vertz/mint-docs' --filter='!@vertz-benchmarks/*' --filter='!contacts-api-example' --filter='!create-vertz' --filter='!landing' --filter='!@vertz/ui-primitives' --filter='!@vertz/ui-server' --output-logs=errors-only
     rust-fmt:
@@ -11,4 +11,7 @@ pre-push:
       glob: "native/**/*.rs"
     rust-clippy:
       run: cd native && cargo clippy --all-targets --release -- -D warnings
+      glob: "native/**/*.rs"
+    rust-test:
+      run: cd native && cargo test --all
       glob: "native/**/*.rs"

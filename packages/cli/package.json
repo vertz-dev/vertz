@@ -28,7 +28,7 @@
     "provenance": true
   },
   "scripts": {
-    "build": "bunup && chmod +x dist/vertz.js",
+    "build": "vtzx bunup && chmod +x dist/vertz.js",
     "test": "bun test",
     "test:watch": "bun test --watch",
     "typecheck": "tsc --noEmit -p tsconfig.typecheck.json"

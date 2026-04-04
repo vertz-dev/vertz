@@ -9,7 +9,7 @@
 - Language: TypeScript (strict mode)
 - Linter: oxlint
 - Formatter: oxfmt
-- Test runner: `bun test`
+- Test runner: `vtz test`
 - Monorepo: Bun workspaces under `packages/`
 
 ### Rust (native/)
@@ -27,13 +27,13 @@
 ### TypeScript
 
 ```bash
-bun run build        # Build all packages
-bun test             # Run tests
-bun run typecheck    # TypeScript strict checking
-bun run lint         # oxlint check
-bun run lint:fix     # Auto-fix lint issues
-bun run format       # oxfmt format check
-bun run format:fix   # Auto-fix formatting
+vtz run build        # Build all packages
+vtz test             # Run tests
+vtz run typecheck    # TypeScript strict checking
+vtz run lint         # oxlint check
+vtz run lint:fix     # Auto-fix lint issues
+vtz run format       # oxfmt format check
+vtz run format:fix   # Auto-fix formatting
 ```
 
 ### Rust
@@ -74,7 +74,7 @@ cargo build --release      # Release build
 
 ### TypeScript
 ```bash
-bun test && bun run typecheck && bun run lint
+vtz test && vtz run typecheck && vtz run lint
 ```
 
 ### Rust

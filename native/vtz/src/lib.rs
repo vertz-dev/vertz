@@ -10,6 +10,7 @@ pub mod plugin;
 pub mod pm;
 pub mod proxy;
 pub mod runtime;
+pub mod self_update;
 pub mod server;
 pub mod ssr;
 pub mod test;

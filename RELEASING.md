@@ -11,7 +11,7 @@ All `@vertz/*` packages use **fixed versioning** — they always share the same 
 When your PR includes user-facing changes, add a changeset:
 
 ```bash
-bunx changeset
+vtzx changeset
 ```
 
 The interactive prompt will ask you to:
@@ -54,10 +54,10 @@ Bad:   Fix bug
 
 ```bash
 # Version packages (updates package.json and CHANGELOG.md)
-bun run changeset:version
+vtz run changeset:version
 
 # Build and publish to npm
-bun run changeset:publish
+vtz run changeset:publish
 ```
 
 ### Pre-releases
@@ -66,17 +66,17 @@ For alpha/beta/rc releases:
 
 ```bash
 # Enter pre-release mode
-bunx changeset pre enter alpha
+vtzx changeset pre enter alpha
 
 # Add changesets and version as normal
-bunx changeset
-bun run changeset:version
+vtzx changeset
+vtz run changeset:version
 
 # Publish pre-release versions (e.g., 0.2.0-alpha.0)
-bun run changeset:publish
+vtz run changeset:publish
 
 # Exit pre-release mode when ready for stable
-bunx changeset pre exit
+vtzx changeset pre exit
 ```
 
 ## npm Setup

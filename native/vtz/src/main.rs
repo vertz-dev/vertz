@@ -244,12 +244,18 @@ async fn async_main(cli: Cli) {
             }
         }
         Command::Dev(args) => {
+            // Check for updates in background (non-blocking)
+            let hint_handle = tokio::spawn(vertz_runtime::self_update::check_for_update_hint());
+
             let config = build_dev_config(&args);
 
             if let Err(e) = vertz_runtime::server::http::start_server(config).await {
                 eprintln!("Error: {}", e);
                 std::process::exit(1);
             }
+
+            // Show hint after dev server exits (if ready)
+            let _ = hint_handle.await;
         }
         Command::Test(args) => {
             let root_dir = args.root_dir.unwrap_or_else(|| {
@@ -318,11 +324,15 @@ async fn async_main(cli: Cli) {
             let root_dir =
                 std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from("."));
 
+            let is_json = args.json;
             let output: Arc<dyn PmOutput> = if args.json {
                 Arc::new(JsonOutput::new())
             } else {
                 Arc::new(TextOutput::new(std::io::stderr().is_terminal()))
             };
+
+            // Check for updates in background while install runs
+            let hint_handle = tokio::spawn(vertz_runtime::self_update::check_for_update_hint());
 
             let script_policy = if args.ignore_scripts {
                 pm::vertzrc::ScriptPolicy::IgnoreAll
@@ -348,6 +358,11 @@ async fn async_main(cli: Cli) {
                     eprintln!("{}", msg);
                 }
                 std::process::exit(1);
+            }
+
+            // Show update hint after successful install (not in JSON mode)
+            if !is_json {
+                let _ = hint_handle.await;
             }
         }
         Command::Add(args) => {
@@ -1437,6 +1452,12 @@ async fn async_main(cli: Cli) {
                         }
                     }
                 }
+            }
+        }
+        Command::SelfUpdate(args) => {
+            if let Err(e) = vertz_runtime::self_update::self_update(args.version.as_deref()).await {
+                eprintln!("Self-update failed: {}", e);
+                std::process::exit(1);
             }
         }
     }

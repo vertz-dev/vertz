@@ -104,10 +104,10 @@ Change `d.text()` to `d.integer()` on a column — `tsc` lights up red in your e
 ## Try It
 
 ```bash
-bunx @vertz/create-vertz-app@latest my-app
+vtzx @vertz/create-vertz-app@latest my-app
 cd my-app
-bun install
-bun run dev
+vtz install
+vtz run dev
 ```
 
 Or clone the [entity-todo example](./examples/entity-todo) for a full-stack app with SSR, dark mode, and a shadcn-style theme.
