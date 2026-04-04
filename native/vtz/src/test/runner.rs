@@ -194,8 +194,9 @@ pub fn run_tests(config: TestRunConfig) -> (TestRunResult, String) {
 
         // Build the source map resolver closure
         use std::cell::RefCell;
-        let decoded_cache: RefCell<
-            std::collections::HashMap<String, Vec<crate::errors::source_mapper::MappingSegment>>,
+        // Cache parsed source maps per file to avoid re-parsing JSON on every call
+        let parsed_sm_cache: RefCell<
+            std::collections::HashMap<String, crate::errors::source_mapper::SourceMapV3>,
         > = RefCell::new(std::collections::HashMap::new());
 
         let resolver = move |url: &str, byte_offset: u32| -> Option<(String, u32)> {
@@ -209,23 +210,19 @@ pub fn run_tests(config: TestRunConfig) -> (TestRunResult, String) {
             let (compiled_line, compiled_col) =
                 super::coverage::byte_offset_to_line_col(newline_index, byte_offset);
 
-            // Parse source map and resolve position
-            let sm: crate::errors::source_mapper::SourceMapV3 =
-                serde_json::from_str(source_map_json).ok()?;
-
-            // Cache decoded mappings per file to avoid re-decoding
-            {
-                let mut cache = decoded_cache.borrow_mut();
-                if !cache.contains_key(filename) {
-                    cache.insert(
-                        filename.to_string(),
-                        crate::errors::source_mapper::decode_mappings(&sm.mappings),
-                    );
+            // Get or parse the source map (cached per file)
+            let mut cache = parsed_sm_cache.borrow_mut();
+            if !cache.contains_key(filename) {
+                if let Ok(sm) = serde_json::from_str(source_map_json) {
+                    cache.insert(filename.to_string(), sm);
+                } else {
+                    return None;
                 }
             }
+            let sm = cache.get(filename)?;
 
             let pos = crate::errors::source_mapper::resolve_from_source_map(
-                &sm,
+                sm,
                 compiled_line,
                 compiled_col,
             )?;

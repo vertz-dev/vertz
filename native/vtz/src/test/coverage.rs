@@ -359,15 +359,21 @@ pub fn parse_v8_coverage(
                 let func_start = first_range["startOffset"].as_u64().unwrap_or(0) as u32;
                 let func_end = first_range["endOffset"].as_u64().unwrap_or(0) as u32;
 
-                // Skip the module-level wrapper (startOffset==0, covers entire script)
-                // V8 always includes a top-level wrapper function with empty name
-                let is_module_wrapper =
-                    func_name.is_empty() && func_start == 0 && ranges.len() == 1;
-                // Also skip if the range covers a very large chunk with empty name (likely module wrapper)
-                let is_likely_wrapper =
-                    func_name.is_empty() && func_start == 0 && func_end > 100 && !ranges.is_empty();
+                // Skip the module-level wrapper (startOffset==0, covers entire script).
+                // V8 always includes a top-level wrapper function with empty name that
+                // covers the entire module. It typically has a single range or may have
+                // sub-ranges for top-level branching. We detect it by: empty name,
+                // starts at byte 0, and end covers the majority of the script.
+                // Note: This can false-positive on IIFEs at byte 0, but that is rare
+                // in practice since compiled TS modules always start with imports/setup.
+                let is_module_wrapper = func_name.is_empty() && func_start == 0 && {
+                    // Single range = definitely the wrapper
+                    ranges.len() == 1
+                    // Or: very large range starting at 0 (>500 bytes suggests module-level)
+                    || func_end > 500
+                };
 
-                if !is_module_wrapper && !is_likely_wrapper {
+                if !is_module_wrapper {
                     let name = if func_name.is_empty() {
                         anon_counter += 1;
                         format!("(anonymous_{})", anon_counter)
@@ -425,7 +431,9 @@ pub fn parse_v8_coverage(
                             });
 
                             // The "not-taken" / else branch: parent_count - child_count
-                            let else_count = parent_count - r_count;
+                            // Use saturating_sub to guard against V8 edge cases where
+                            // sub-range count exceeds parent count
+                            let else_count = parent_count.saturating_sub(r_count);
                             branch_coverages.push(BranchCoverage {
                                 line: branch_line,
                                 block_number: current_block,
@@ -724,6 +732,12 @@ mod tests {
         assert_eq!(result[0].file, PathBuf::from("/src/math.ts"));
         // Without source map, uses rough line estimate
         assert!(result[0].total_lines > 0);
+        // Function "add" should be extracted
+        assert_eq!(result[0].functions.len(), 1);
+        assert_eq!(result[0].functions[0].name, "add");
+        assert_eq!(result[0].functions[0].count, 1);
+        // Branch: sub-range count=0 differs from parent count=1
+        assert_eq!(result[0].branches.len(), 2);
     }
 
     #[test]
@@ -1037,7 +1051,7 @@ mod tests {
                 "functions": [
                     {
                         "functionName": "",
-                        "ranges": [{ "startOffset": 0, "endOffset": 500, "count": 1 }]
+                        "ranges": [{ "startOffset": 0, "endOffset": 1000, "count": 1 }]
                     },
                     {
                         "functionName": "hello",

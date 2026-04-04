@@ -468,15 +468,14 @@ impl VertzModuleLoader {
                     .borrow_mut()
                     .insert(filename.to_string(), map.clone());
             }
-            // Store newline index for coverage byte-offset → line conversion
+            // Build the final code V8 will see (with CSS injection prepended)
+            let final_code =
+                Self::prepend_css_injection(cached.code, cached.css.as_deref(), filename);
+            // Store newline index from final code (what V8 sees) for coverage byte-offset → line
             self.newline_indices
                 .borrow_mut()
-                .insert(filename.to_string(), build_newline_index(&cached.code));
-            return Ok(Self::prepend_css_injection(
-                cached.code,
-                cached.css.as_deref(),
-                filename,
-            ));
+                .insert(filename.to_string(), build_newline_index(&final_code));
+            return Ok(final_code);
         }
 
         let file_path = Path::new(filename);
@@ -520,11 +519,6 @@ impl VertzModuleLoader {
         // Apply plugin post-processing (framework-specific fixups)
         let code = self.plugin.post_process(&output.code, &ctx);
 
-        // Store newline index for coverage byte-offset → line conversion
-        self.newline_indices
-            .borrow_mut()
-            .insert(filename.to_string(), build_newline_index(&code));
-
         // Cache the compilation result (code + source map + CSS, before CSS injection)
         self.compile_cache.put(
             source,
@@ -537,11 +531,15 @@ impl VertzModuleLoader {
             },
         );
 
-        Ok(Self::prepend_css_injection(
-            code,
-            output.css.as_deref(),
-            filename,
-        ))
+        // Build the final code V8 will see (with CSS injection prepended)
+        let final_code = Self::prepend_css_injection(code, output.css.as_deref(), filename);
+
+        // Store newline index from final code (what V8 sees) for coverage byte-offset → line
+        self.newline_indices
+            .borrow_mut()
+            .insert(filename.to_string(), build_newline_index(&final_code));
+
+        Ok(final_code)
     }
 }
 
