@@ -1,5 +1,6 @@
 import type { ColumnBuilder, ColumnMetadata, InferColumnType } from './column';
 import type { RelationDef } from './relation';
+import type { DbExpr } from '../sql/expr';
 
 // ---------------------------------------------------------------------------
 // Index Definition
@@ -119,7 +120,7 @@ type Insert<T extends ColumnRecord> = {
  * Primary key excluded (you don't update a PK).
  */
 type Update<T extends ColumnRecord> = {
-  [K in ColumnKeysWhereNot<T, 'primary'>]?: InferColumnType<T[K]>;
+  [K in ColumnKeysWhereNot<T, 'primary'>]?: InferColumnType<T[K]> | DbExpr;
 };
 
 /**
@@ -167,7 +168,7 @@ type ApiCreateInput<T extends ColumnRecord> = {
 type ApiUpdateInput<T extends ColumnRecord> = {
   [K in ColumnKeysWhereNot<T, 'isReadOnly'> &
     ColumnKeysWhereNot<T, 'primary'> &
-    string]?: InferColumnType<T[K]>;
+    string]?: InferColumnType<T[K]> | DbExpr;
 };
 
 // ---------------------------------------------------------------------------
