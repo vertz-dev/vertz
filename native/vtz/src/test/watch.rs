@@ -213,6 +213,18 @@ pub async fn run_watch_mode(config: TestRunConfig) -> Result<(), String> {
                         continue;
                     }
 
+                    // Clear shared caches to avoid serving stale compiled
+                    // output after source files change.
+                    if let Some(ref cache) = exec_options.shared_source_cache {
+                        cache.clear();
+                    }
+                    if let Some(ref cache) = exec_options.v8_code_cache {
+                        cache.clear();
+                    }
+                    if let Some(ref cache) = exec_options.resolution_cache {
+                        cache.clear();
+                    }
+
                     // Execute affected test files on blocking threads to avoid
                     // nesting Tokio runtimes (executor creates its own). (#2110)
                     let wall_clock_start = std::time::Instant::now();

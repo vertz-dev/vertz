@@ -145,6 +145,12 @@ impl SharedSourceCache {
         let mut map = self.inner.write().unwrap();
         map.entry(path).or_insert(compilation);
     }
+
+    /// Clear all cached entries. Used between watch-mode cycles when source
+    /// files change to prevent serving stale compiled output.
+    pub fn clear(&self) {
+        self.inner.write().unwrap().clear();
+    }
 }
 
 /// A single V8 bytecode cache entry.
@@ -185,6 +191,11 @@ impl V8CodeCache {
                 hash,
                 data: data.to_vec(),
             });
+    }
+
+    /// Clear all cached entries. Used between watch-mode cycles.
+    pub fn clear(&self) {
+        self.inner.write().unwrap().clear();
     }
 
     /// Retrieve cached bytecode for a module specifier.
@@ -235,6 +246,11 @@ impl SharedResolutionCache {
         let key = (specifier.to_string(), referrer_dir.to_path_buf());
         let mut map = self.inner.write().unwrap();
         map.entry(key).or_insert(resolved);
+    }
+
+    /// Clear all cached entries. Used between watch-mode cycles.
+    pub fn clear(&self) {
+        self.inner.write().unwrap().clear();
     }
 }
 
