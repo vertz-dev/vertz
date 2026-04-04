@@ -370,9 +370,9 @@ jobs:
             TEST_SCRIPT=$(node -e "console.log(require('./package.json').scripts?.test ?? '')")
 
             if echo "$TEST_SCRIPT" | grep -q "bun test"; then
-              bun test --coverage || true
+              timeout --kill-after=10 120 bun test --coverage || true
             else
-              vitest run \
+              timeout --kill-after=10 120 vitest run \
                 --coverage \
                 --coverage.reporter=json-summary \
                 --coverage.reporter=json \
