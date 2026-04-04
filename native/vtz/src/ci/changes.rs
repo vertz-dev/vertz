@@ -840,4 +840,36 @@ mod tests {
         // Empty Any = vacuously false
         assert!(!evaluate_condition(&cond, &changes, "main"));
     }
+
+    // -- invalid glob patterns --
+
+    #[test]
+    fn cond_changed_invalid_glob_returns_false() {
+        let changes = make_changes(&["packages/ui/src/index.ts"]);
+        let cond = Condition::Changed {
+            patterns: vec!["[unclosed".to_string()],
+        };
+        // Invalid pattern is skipped (with warning), no match → false
+        assert!(!evaluate_condition(&cond, &changes, "main"));
+    }
+
+    #[test]
+    fn cond_branch_invalid_glob_returns_false() {
+        let changes = make_changes(&[]);
+        let cond = Condition::Branch {
+            names: vec!["[unclosed".to_string()],
+        };
+        // Invalid pattern is skipped (with warning), no match → false
+        assert!(!evaluate_condition(&cond, &changes, "main"));
+    }
+
+    #[test]
+    fn cond_changed_mixed_valid_and_invalid_patterns() {
+        let changes = make_changes(&["packages/ui/src/index.ts"]);
+        let cond = Condition::Changed {
+            patterns: vec!["[unclosed".to_string(), "packages/**".to_string()],
+        };
+        // Invalid pattern skipped, valid pattern matches → true
+        assert!(evaluate_condition(&cond, &changes, "main"));
+    }
 }
