@@ -7,11 +7,6 @@ on:
     branches:
       - main
       - 'feat/**'
-  # Allow the auto-rebase workflow to re-trigger CI on rebased branches.
-  # Pushes made with GITHUB_TOKEN do not fire pull_request events, so the
-  # auto-rebase workflow dispatches this workflow explicitly after each
-  # successful rebase+push.
-  workflow_dispatch:
 
 concurrency:
   group: ci-${{ github.ref }}
@@ -23,8 +18,6 @@ jobs:
   #
   # For push-to-main events we always run the full TS pipeline.
   # Native (Rust) jobs only run if files under native/ actually changed.
-  # For workflow_dispatch events (triggered by auto-rebase) we run the
-  # full pipeline since there is no PR diff context available.
   # For pull requests we compare the PR diff against source patterns.
   # If only non-source files changed (docs, plans, .claude rules, etc.) or
   # only docs-only packages changed (mint-docs, site, og, landing), the
@@ -50,15 +43,6 @@ jobs:
       - name: Check for source changes
         id: filter
         run: |
-          # workflow_dispatch (auto-rebase) always runs everything — no diff context
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            echo "src=true" >> "$GITHUB_OUTPUT"
-            echo "native=true" >> "$GITHUB_OUTPUT"
-            echo "db=true" >> "$GITHUB_OUTPUT"
-            echo "workflow_dispatch — running full pipeline"
-            exit 0
-          fi
-
           # Push to main: always run TS pipeline, only run native if native/ changed
           if [ "${{ github.event_name }}" = "push" ]; then
             echo "src=true" >> "$GITHUB_OUTPUT"
@@ -357,8 +341,8 @@ jobs:
       - name: Detect changed packages
         id: changes
         run: |
-          # On push to main or workflow_dispatch, mark all packages as changed so we get full coverage
-          if [ "${{ github.event_name }}" = "push" ] || [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+          # On push to main, mark all packages as changed so we get full coverage
+          if [ "${{ github.event_name }}" = "push" ]; then
             for pkg in core schema compiler codegen cli cli-runtime fetch testing db cloudflare errors server tui ui ui-canvas ui-primitives ui-server; do
               echo "${pkg//-/_}=true" >> "$GITHUB_OUTPUT"
             done
@@ -418,8 +402,8 @@ jobs:
             echo "::endgroup::"
           }
 
-          # On push to main or workflow_dispatch, run coverage for all packages
-          if [ "${{ github.event_name }}" = "push" ] || [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+          # On push to main, run coverage for all packages
+          if [ "${{ github.event_name }}" = "push" ]; then
             for pkg in core schema compiler codegen cli cli-runtime fetch testing db cloudflare errors server tui ui ui-canvas ui-primitives ui-server; do
               run_coverage "$pkg"
             done
