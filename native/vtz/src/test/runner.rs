@@ -141,8 +141,17 @@ pub fn run_tests(config: TestRunConfig) -> (TestRunResult, String) {
         let type_test_files =
             typetests::discover_type_test_files(&config.root_dir, &config.exclude);
         if !type_test_files.is_empty() {
-            let type_results = typetests::run_type_tests(&config.root_dir, &type_test_files, None);
-            results.extend(type_results);
+            // Group type test files by their nearest tsconfig.json so tsc gets
+            // proper jsx, lib, and type configuration for each package.
+            let groups = typetests::group_by_tsconfig(&config.root_dir, &type_test_files);
+            for (tsconfig, group_files) in &groups {
+                let type_results = typetests::run_type_tests(
+                    &config.root_dir,
+                    group_files,
+                    tsconfig.as_deref(),
+                );
+                results.extend(type_results);
+            }
         }
     }
 

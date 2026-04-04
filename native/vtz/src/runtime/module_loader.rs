@@ -477,8 +477,8 @@ fn resolve_condition_value(value: &serde_json::Value) -> Option<String> {
     match value {
         serde_json::Value::String(s) => Some(s.clone()),
         serde_json::Value::Object(map) => {
-            // Priority: import > module > default > require
-            for key in &["import", "module", "default", "require"] {
+            // Priority: import > node > module > default > require
+            for key in &["import", "node", "module", "default", "require"] {
                 if let Some(entry) = map.get(*key) {
                     return resolve_condition_value(entry);
                 }
@@ -1001,8 +1001,34 @@ function generateKeyPairSync(type, options) {
   throw new Error('generateKeyPairSync is not supported in the Vertz runtime without the crypto op');
 }
 
-export { createHash, createHmac, timingSafeEqual, randomBytes, randomUUID, Hash, webcrypto, KeyObject, createPrivateKey, createPublicKey, generateKeyPairSync };
-export default { createHash, createHmac, timingSafeEqual, randomBytes, randomUUID, webcrypto, KeyObject, createPrivateKey, createPublicKey, generateKeyPairSync };
+function randomFillSync(buf, offset, size) {
+  const target = buf instanceof Uint8Array ? buf : new Uint8Array(buf.buffer || buf);
+  const off = offset || 0;
+  const len = size || (target.length - off);
+  const bytes = Deno.core.ops.op_crypto_random_bytes(len);
+  target.set(new Uint8Array(bytes), off);
+  return buf;
+}
+
+function randomInt(min, max) {
+  if (max === undefined) { max = min; min = 0; }
+  const range = max - min;
+  const arr = new Uint32Array(1);
+  globalThis.crypto.getRandomValues(arr);
+  return min + (arr[0] % range);
+}
+
+function getHashes() {
+  return ['sha1', 'sha256', 'sha384', 'sha512', 'md5'];
+}
+
+function getCiphers() { return []; }
+function getCurves() { return ['prime256v1', 'secp384r1', 'secp521r1']; }
+
+const constants = {};
+
+export { createHash, createHmac, timingSafeEqual, randomBytes, randomUUID, randomFillSync, randomInt, Hash, webcrypto, KeyObject, createPrivateKey, createPublicKey, generateKeyPairSync, getHashes, getCiphers, getCurves, constants };
+export default { createHash, createHmac, timingSafeEqual, randomBytes, randomUUID, randomFillSync, randomInt, webcrypto, KeyObject, createPrivateKey, createPublicKey, generateKeyPairSync, getHashes, getCiphers, getCurves, constants };
 "#;
 
 /// Synthetic module for `node:buffer` / `buffer`.
@@ -1038,6 +1064,235 @@ export { AsyncLocalStorage, AsyncResource };
 export default { AsyncLocalStorage, AsyncResource };
 "#;
 
+/// Synthetic module for `node:child_process`.
+/// Provides spawn, execFile, execSync stubs that delegate to Deno.Command.
+const NODE_CHILD_PROCESS_SPECIFIER: &str = "vertz:node_child_process";
+const NODE_CHILD_PROCESS_MODULE: &str = r#"
+function execSync(cmd, opts) {
+  const parts = cmd.split(' ');
+  const command = new Deno.Command(parts[0], {
+    args: parts.slice(1),
+    cwd: opts?.cwd,
+    env: opts?.env,
+    stdout: opts?.encoding ? 'piped' : 'piped',
+    stderr: 'piped',
+  });
+  const result = command.outputSync();
+  if (result.code !== 0) {
+    const err = new Error(`Command failed: ${cmd}`);
+    err.status = result.code;
+    err.stderr = new TextDecoder().decode(result.stderr);
+    throw err;
+  }
+  const out = new TextDecoder().decode(result.stdout);
+  return opts?.encoding ? out : new TextEncoder().encode(out);
+}
+
+function execFile(file, args, opts, cb) {
+  if (typeof opts === 'function') { cb = opts; opts = {}; }
+  try {
+    const command = new Deno.Command(file, {
+      args: args || [],
+      cwd: opts?.cwd,
+      env: opts?.env,
+      stdout: 'piped',
+      stderr: 'piped',
+    });
+    const result = command.outputSync();
+    const stdout = new TextDecoder().decode(result.stdout);
+    const stderr = new TextDecoder().decode(result.stderr);
+    if (result.code !== 0) {
+      const err = new Error(`Command failed: ${file}`);
+      err.code = result.code;
+      err.stderr = stderr;
+      if (cb) cb(err, stdout, stderr); else throw err;
+      return;
+    }
+    if (cb) cb(null, stdout, stderr);
+  } catch (e) {
+    if (cb) cb(e, '', '');
+    else throw e;
+  }
+}
+
+function execFileSync(file, args, opts) {
+  const command = new Deno.Command(file, {
+    args: args || [],
+    cwd: opts?.cwd,
+    env: opts?.env,
+    stdout: 'piped',
+    stderr: 'piped',
+  });
+  const result = command.outputSync();
+  if (result.code !== 0) {
+    const err = new Error(`Command failed: ${file}`);
+    err.status = result.code;
+    err.stderr = new TextDecoder().decode(result.stderr);
+    throw err;
+  }
+  const out = new TextDecoder().decode(result.stdout);
+  return opts?.encoding ? out : new TextEncoder().encode(out);
+}
+
+function spawn(_cmd, _args, _opts) {
+  throw new Error('node:child_process spawn() is not yet supported in the Vertz runtime.');
+}
+
+export { execSync, execFile, execFileSync, spawn };
+export default { execSync, execFile, execFileSync, spawn };
+"#;
+
+/// Synthetic module for `node:http`.
+/// Provides createServer stub backed by Deno.serve.
+const NODE_HTTP_SPECIFIER: &str = "vertz:node_http";
+const NODE_HTTP_MODULE: &str = r#"
+class IncomingMessage {
+  constructor(req) {
+    this.url = new URL(req.url).pathname + new URL(req.url).search;
+    this.method = req.method;
+    this.headers = Object.fromEntries(req.headers.entries());
+    this._body = req;
+  }
+  on(event, cb) {
+    if (event === 'data') {
+      this._body.text().then((text) => { cb(text); });
+    } else if (event === 'end') {
+      this._body.text().then(() => { cb(); });
+    }
+    return this;
+  }
+}
+
+class ServerResponse {
+  constructor() {
+    this.statusCode = 200;
+    this._headers = {};
+    this._body = '';
+    this._resolve = null;
+    this.promise = new Promise((resolve) => { this._resolve = resolve; });
+  }
+  setHeader(name, value) { this._headers[name.toLowerCase()] = value; return this; }
+  getHeader(name) { return this._headers[name.toLowerCase()]; }
+  writeHead(status, headers) {
+    this.statusCode = status;
+    if (headers) Object.entries(headers).forEach(([k, v]) => this.setHeader(k, v));
+    return this;
+  }
+  write(chunk) { this._body += chunk; return true; }
+  end(data) {
+    if (data) this._body += data;
+    this._resolve(new Response(this._body, {
+      status: this.statusCode,
+      headers: this._headers,
+    }));
+  }
+}
+
+function createServer(handler) {
+  let server = null;
+  return {
+    listen(port, host, cb) {
+      if (typeof host === 'function') { cb = host; host = '0.0.0.0'; }
+      server = Deno.serve({ port, hostname: host || '0.0.0.0' }, async (req) => {
+        const msg = new IncomingMessage(req);
+        const res = new ServerResponse();
+        handler(msg, res);
+        return res.promise;
+      });
+      if (cb) cb();
+      return this;
+    },
+    close(cb) { if (server) server.shutdown(); if (cb) cb(); },
+    address() { return { port: 0, address: '0.0.0.0' }; },
+  };
+}
+
+export { createServer, IncomingMessage, ServerResponse };
+export default { createServer, IncomingMessage, ServerResponse };
+"#;
+
+/// Synthetic module for `node:util`.
+/// Provides promisify and other common utilities.
+const NODE_UTIL_SPECIFIER: &str = "vertz:node_util";
+const NODE_UTIL_MODULE: &str = r#"
+function promisify(fn) {
+  return function (...args) {
+    return new Promise((resolve, reject) => {
+      fn(...args, (err, ...results) => {
+        if (err) reject(err);
+        else resolve(results.length <= 1 ? results[0] : results);
+      });
+    });
+  };
+}
+
+function format(fmt, ...args) {
+  if (typeof fmt !== 'string') return [fmt, ...args].map(String).join(' ');
+  let i = 0;
+  return fmt.replace(/%[sdjifoO%]/g, (match) => {
+    if (match === '%%') return '%';
+    if (i >= args.length) return match;
+    return String(args[i++]);
+  });
+}
+
+function inspect(obj) { return JSON.stringify(obj, null, 2) ?? String(obj); }
+function deprecate(fn, _msg) { return fn; }
+function types() { return {}; }
+function callbackify(fn) {
+  return function (...args) {
+    const cb = args.pop();
+    fn(...args).then((r) => cb(null, r), (e) => cb(e));
+  };
+}
+
+export { promisify, format, inspect, deprecate, types, callbackify };
+export default { promisify, format, inspect, deprecate, types, callbackify };
+"#;
+
+/// Synthetic module for `node:readline`.
+const NODE_READLINE_SPECIFIER: &str = "vertz:node_readline";
+const NODE_READLINE_MODULE: &str = r#"
+function createInterface(_opts) {
+  return {
+    question(_q, cb) { if (cb) cb(''); },
+    close() {},
+    on(_event, _cb) { return this; },
+    [Symbol.asyncIterator]() {
+      return { next() { return Promise.resolve({ done: true, value: undefined }); } };
+    },
+  };
+}
+export { createInterface };
+export default { createInterface };
+"#;
+
+/// Synthetic module for `node:zlib`.
+const NODE_ZLIB_SPECIFIER: &str = "vertz:node_zlib";
+const NODE_ZLIB_MODULE: &str = r#"
+function brotliCompressSync(buf, _opts) {
+  // Passthrough stub — real Brotli compression is not available in the test runtime.
+  return typeof buf === 'string' ? new TextEncoder().encode(buf) : buf;
+}
+const constants = {
+  BROTLI_PARAM_QUALITY: 11,
+  BROTLI_MAX_QUALITY: 11,
+  BROTLI_MIN_QUALITY: 0,
+  Z_BEST_COMPRESSION: 9,
+};
+export { brotliCompressSync, constants };
+export default { brotliCompressSync, constants };
+"#;
+
+/// Synthetic module for `stream/web` — re-exports Web Streams API from globals.
+const NODE_STREAM_WEB_SPECIFIER: &str = "vertz:node_stream_web";
+const NODE_STREAM_WEB_MODULE: &str = r#"
+export const ReadableStream = globalThis.ReadableStream;
+export const WritableStream = globalThis.WritableStream || class WritableStream {};
+export const TransformStream = globalThis.TransformStream || class TransformStream {};
+export default { ReadableStream, WritableStream, TransformStream };
+"#;
+
 /// Map a `node:*` specifier to a synthetic module specifier.
 fn node_specifier_to_synthetic(specifier: &str) -> Option<&'static str> {
     match specifier {
@@ -1052,6 +1307,14 @@ fn node_specifier_to_synthetic(specifier: &str) -> Option<&'static str> {
         "node:buffer" | "buffer" => Some(NODE_BUFFER_SPECIFIER),
         "node:module" | "module" => Some(NODE_MODULE_SPECIFIER),
         "node:async_hooks" | "async_hooks" => Some(NODE_ASYNC_HOOKS_SPECIFIER),
+        "node:child_process" | "child_process" => Some(NODE_CHILD_PROCESS_SPECIFIER),
+        "node:http" | "http" => Some(NODE_HTTP_SPECIFIER),
+        "node:util" | "util" => Some(NODE_UTIL_SPECIFIER),
+        "node:readline" | "readline" => Some(NODE_READLINE_SPECIFIER),
+        "node:zlib" | "zlib" => Some(NODE_ZLIB_SPECIFIER),
+        "stream" | "node:stream" | "stream/web" | "node:stream/web" => {
+            Some(NODE_STREAM_WEB_SPECIFIER)
+        }
         _ => None,
     }
 }
@@ -1072,6 +1335,12 @@ fn synthetic_module_source(specifier: &str) -> Option<&'static str> {
         NODE_BUFFER_SPECIFIER => Some(NODE_BUFFER_MODULE),
         NODE_MODULE_SPECIFIER => Some(NODE_MODULE_MODULE),
         NODE_ASYNC_HOOKS_SPECIFIER => Some(NODE_ASYNC_HOOKS_MODULE),
+        NODE_CHILD_PROCESS_SPECIFIER => Some(NODE_CHILD_PROCESS_MODULE),
+        NODE_HTTP_SPECIFIER => Some(NODE_HTTP_MODULE),
+        NODE_UTIL_SPECIFIER => Some(NODE_UTIL_MODULE),
+        NODE_READLINE_SPECIFIER => Some(NODE_READLINE_MODULE),
+        NODE_ZLIB_SPECIFIER => Some(NODE_ZLIB_MODULE),
+        NODE_STREAM_WEB_SPECIFIER => Some(NODE_STREAM_WEB_MODULE),
         VERTZ_SQLITE_SPECIFIER => Some(VERTZ_SQLITE_MODULE),
         _ => None,
     }

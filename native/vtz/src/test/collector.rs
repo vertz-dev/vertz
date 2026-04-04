@@ -6,7 +6,14 @@ use walkdir::WalkDir;
 const DEFAULT_INCLUDE: &[&str] = &["**/*.test.ts", "**/*.test.tsx"];
 /// Default e2e test file patterns.
 const DEFAULT_E2E_INCLUDE: &[&str] = &["**/*.e2e.ts", "**/*.e2e.tsx"];
-const DEFAULT_EXCLUDE_DIRS: &[&str] = &["node_modules", "dist", ".vertz", ".git"];
+const DEFAULT_EXCLUDE_DIRS: &[&str] = &[
+    "node_modules",
+    "dist",
+    ".vertz",
+    ".git",
+    "native",
+    "oxlint-plugins",
+];
 
 /// Controls which file patterns the test collector uses.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
