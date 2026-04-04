@@ -2925,12 +2925,19 @@ mod tests {
                     try { expect(1).not.toSatisfy('not a function'); } catch (e) { threw = true; }
                     expect(threw).toBe(true);
                 });
+                it('predicate errors propagate', () => {
+                    let threw = false;
+                    let errorType = '';
+                    try { expect(null).toSatisfy((n) => n.foo.bar); } catch (e) { threw = true; errorType = e.constructor.name; }
+                    expect(threw).toBe(true);
+                    expect(errorType).toBe('TypeError');
+                });
             });
             "#,
         );
 
         let arr = results.as_array().unwrap();
-        assert_eq!(arr.len(), 4);
+        assert_eq!(arr.len(), 5);
         for (i, item) in arr.iter().enumerate() {
             assert_eq!(
                 item["status"], "pass",
@@ -2973,6 +2980,20 @@ mod tests {
                     try { expect(fn).not.toHaveBeenNthCalledWith(0, 'a'); } catch (e) { threw = true; }
                     expect(threw).toBe(true);
                 });
+                it('negative n throws', () => {
+                    const fn = mock();
+                    fn('a');
+                    let threw = false;
+                    try { expect(fn).toHaveBeenNthCalledWith(-1, 'a'); } catch (e) { threw = true; }
+                    expect(threw).toBe(true);
+                });
+                it('non-integer n throws', () => {
+                    const fn = mock();
+                    fn('a');
+                    let threw = false;
+                    try { expect(fn).toHaveBeenNthCalledWith(1.5, 'a'); } catch (e) { threw = true; }
+                    expect(threw).toBe(true);
+                });
                 it('n > call count fails', () => {
                     const fn = mock();
                     fn('a');
@@ -2985,7 +3006,7 @@ mod tests {
         );
 
         let arr = results.as_array().unwrap();
-        assert_eq!(arr.len(), 5);
+        assert_eq!(arr.len(), 7);
         for (i, item) in arr.iter().enumerate() {
             assert_eq!(
                 item["status"], "pass",
