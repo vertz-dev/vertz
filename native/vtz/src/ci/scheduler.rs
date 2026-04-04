@@ -1,3 +1,4 @@
+use crate::ci::cache::{self, CacheBackend};
 use crate::ci::config::{redact, ConfigBridge};
 use crate::ci::graph::{DepDecision, TaskGraph, TaskNode};
 use crate::ci::logs::{LogEntry, LogWriter};
@@ -34,6 +35,9 @@ pub struct Scheduler<'a> {
     workspace: &'a crate::ci::types::ResolvedWorkspace,
     secret_values: &'a [String],
     quiet: bool,
+    cache_backend: Arc<dyn CacheBackend>,
+    platform: String,
+    lockfile_hash: String,
 }
 
 /// Message sent from workers back to the coordinator
@@ -85,6 +89,9 @@ impl ShutdownState {
 }
 
 impl<'a> Scheduler<'a> {
+    // Constructor mirrors struct fields 1:1 — an options struct would just
+    // duplicate the struct definition for a single call site.
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         graph: &'a TaskGraph,
         concurrency: usize,
@@ -93,7 +100,10 @@ impl<'a> Scheduler<'a> {
         workspace: &'a crate::ci::types::ResolvedWorkspace,
         secret_values: &'a [String],
         quiet: bool,
+        cache_backend: Arc<dyn CacheBackend>,
     ) -> Self {
+        let platform = cache::platform_string();
+        let lockfile_hash = cache::lockfile_hash(root_dir);
         Self {
             graph,
             concurrency,
@@ -102,6 +112,9 @@ impl<'a> Scheduler<'a> {
             workspace,
             secret_values,
             quiet,
+            cache_backend,
+            platform,
+            lockfile_hash,
         }
     }
 
@@ -168,7 +181,7 @@ impl<'a> Scheduler<'a> {
         // Track results for each node
         let mut node_results: Vec<Option<TaskResult>> = vec![None; n];
         let mut executed = 0usize;
-        let cached = 0usize; // Phase 4 will populate this when caching is implemented
+        let mut cached = 0usize;
         let mut skipped = 0usize;
         let mut failed = 0usize;
 
@@ -201,6 +214,9 @@ impl<'a> Scheduler<'a> {
             let graph_nodes: Vec<TaskNode> = self.graph.nodes.clone();
             let quiet = self.quiet;
             let shutdown_ref = Arc::clone(&shutdown);
+            let cache_ref = Arc::clone(&self.cache_backend);
+            let platform = self.platform.clone();
+            let lockfile_hash = self.lockfile_hash.clone();
 
             tokio::spawn(async move {
                 loop {
@@ -272,6 +288,120 @@ impl<'a> Scheduler<'a> {
                         _ => root_dir.clone(),
                     };
 
+                    // --- Cache lookup ---
+                    let cache_config = task_def.base().cache.clone();
+                    let pkg_obj = node
+                        .package
+                        .as_ref()
+                        .and_then(|name| workspace.packages.get(name));
+
+                    let cache_key_result = cache_config.as_ref().and_then(|cc| {
+                        match cache::compute_cache_key(
+                            task_def,
+                            cc,
+                            pkg_obj,
+                            &root_dir,
+                            &platform,
+                            &lockfile_hash,
+                            &secret_values,
+                        ) {
+                            Ok(hash) => {
+                                let key = cache::cache_key(
+                                    task_name,
+                                    node.package.as_deref(),
+                                    &platform,
+                                    &hash,
+                                );
+                                let rkeys = cache::restore_keys(
+                                    task_name,
+                                    node.package.as_deref(),
+                                    &platform,
+                                );
+                                Some((key, rkeys))
+                            }
+                            Err(e) => {
+                                if !quiet {
+                                    eprintln!(
+                                        "[pipe] warning: cache key computation failed for {}: {e}",
+                                        node.label()
+                                    );
+                                }
+                                None
+                            }
+                        }
+                    });
+
+                    // Try cache get
+                    let mut was_fallback_hit = false;
+
+                    if let Some((ref full_key, ref restore_keys)) = cache_key_result {
+                        match cache_ref.get(full_key, restore_keys).await {
+                            Ok(Some((matched_key, data))) => {
+                                if matched_key == *full_key {
+                                    // Exact hit — restore and skip execution
+                                    match cache::restore_outputs(&data, &working_dir) {
+                                        Ok(count) => {
+                                            if !quiet {
+                                                eprintln!(
+                                                    " \u{25cf} {:<35} cached ({count} files)",
+                                                    node.label()
+                                                );
+                                            }
+                                            let _ = tx
+                                                .send(WorkerResult {
+                                                    node_idx,
+                                                    result: TaskResult {
+                                                        status: TaskStatus::Success,
+                                                        exit_code: Some(0),
+                                                        duration_ms: 0,
+                                                        package: node.package.clone(),
+                                                        task: task_name.clone(),
+                                                        cached: true,
+                                                    },
+                                                })
+                                                .await;
+                                            continue;
+                                        }
+                                        Err(e) => {
+                                            if !quiet {
+                                                eprintln!(
+                                                    "[pipe] warning: cache restore failed for {}: {e}",
+                                                    node.label()
+                                                );
+                                            }
+                                            // Fall through to execution
+                                        }
+                                    }
+                                } else {
+                                    // Fallback hit — restore warm cache, still execute
+                                    was_fallback_hit = true;
+                                    if let Err(e) = cache::restore_outputs(&data, &working_dir) {
+                                        if !quiet {
+                                            eprintln!(
+                                                "[pipe] warning: warm cache restore failed for {}: {e}",
+                                                node.label()
+                                            );
+                                        }
+                                    } else if !quiet {
+                                        eprintln!(
+                                            "[pipe] Cache hit (stale) for {} — re-executing with warm cache",
+                                            node.label()
+                                        );
+                                    }
+                                }
+                            }
+                            Ok(None) => {} // Cache miss — proceed to execution
+                            Err(e) => {
+                                if !quiet {
+                                    eprintln!(
+                                        "[pipe] warning: cache lookup failed for {}: {e}",
+                                        node.label()
+                                    );
+                                }
+                            }
+                        }
+                    }
+
                     let start = Instant::now();
 
                     let (status, exit_code, stdout, stderr) = match task_def {
@@ -321,12 +451,42 @@ impl<'a> Scheduler<'a> {
 
                     let duration_ms = start.elapsed().as_millis() as u64;
 
+                    // --- Cache put on success ---
+                    if status == TaskStatus::Success {
+                        if let (Some((ref full_key, _)), Some(ref cc)) =
+                            (&cache_key_result, &cache_config)
+                        {
+                            match cache::pack_outputs(&cc.outputs, &working_dir) {
+                                Ok(data) if !data.is_empty() => {
+                                    if let Err(e) = cache_ref.put(full_key, &data).await {
+                                        if !quiet {
+                                            eprintln!(
+                                                "[pipe] warning: cache put failed for {}: {e}",
+                                                node.label()
+                                            );
+                                        }
+                                    }
+                                }
+                                Ok(_) => {} // No output files to cache
+                                Err(e) => {
+                                    if !quiet {
+                                        eprintln!(
+                                            "[pipe] warning: output packing failed for {}: {e}",
+                                            node.label()
+                                        );
+                                    }
+                                }
+                            }
+                        }
+                    }
+
                     if !quiet {
                         let label = node.label();
+                        let warm_suffix = if was_fallback_hit { " (warm)" } else { "" };
                         match &status {
                             TaskStatus::Success => {
                                 eprintln!(
-                                    " \u{2713} {:<35} {:.1}s",
+                                    " \u{2713} {:<35} {:.1}s{warm_suffix}",
                                     label,
                                     duration_ms as f64 / 1000.0
                                 );
@@ -394,13 +554,17 @@ impl<'a> Scheduler<'a> {
             ));
 
             // Track stats
-            match result.status {
-                TaskStatus::Success => executed += 1,
-                TaskStatus::Failed => {
-                    executed += 1;
-                    failed += 1;
+            if result.cached {
+                cached += 1;
+            } else {
+                match result.status {
+                    TaskStatus::Success => executed += 1,
+                    TaskStatus::Failed => {
+                        executed += 1;
+                        failed += 1;
+                    }
+                    TaskStatus::Skipped => skipped += 1,
                 }
-                TaskStatus::Skipped => skipped += 1,
             }
 
             node_results[node_idx] = Some(result);
@@ -717,6 +881,72 @@ async fn execute_command_no_signal(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::ci::types::TaskCacheConfig;
+
+    /// A mock cache backend for testing scheduler cache integration.
+    struct MockCache {
+        entries: Mutex<BTreeMap<String, Vec<u8>>>,
+        get_calls: Mutex<Vec<String>>,
+        put_calls: Mutex<Vec<String>>,
+    }
+
+    impl MockCache {
+        fn new() -> Self {
+            Self {
+                entries: Mutex::new(BTreeMap::new()),
+                get_calls: Mutex::new(Vec::new()),
+                put_calls: Mutex::new(Vec::new()),
+            }
+        }
+
+        fn with_entry(key: &str, data: Vec<u8>) -> Self {
+            let mut entries = BTreeMap::new();
+            entries.insert(key.to_string(), data);
+            Self {
+                entries: Mutex::new(entries),
+                get_calls: Mutex::new(Vec::new()),
+                put_calls: Mutex::new(Vec::new()),
+            }
+        }
+    }
+
+    #[async_trait::async_trait]
+    impl CacheBackend for MockCache {
+        async fn get(
+            &self,
+            key: &str,
+            restore_keys: &[String],
+        ) -> Result<Option<(String, Vec<u8>)>, String> {
+            self.get_calls.lock().await.push(key.to_string());
+            let entries = self.entries.lock().await;
+            // Exact match
+            if let Some(data) = entries.get(key) {
+                return Ok(Some((key.to_string(), data.clone())));
+            }
+            // Prefix match
+            for rk in restore_keys {
+                for (k, v) in entries.iter() {
+                    if k.starts_with(rk) {
+                        return Ok(Some((k.clone(), v.clone())));
+                    }
+                }
+            }
+            Ok(None)
+        }
+
+        async fn put(&self, key: &str, data: &[u8]) -> Result<(), String> {
+            self.put_calls.lock().await.push(key.to_string());
+            self.entries
+                .lock()
+                .await
+                .insert(key.to_string(), data.to_vec());
+            Ok(())
+        }
+
+        async fn exists(&self, key: &str) -> Result<bool, String> {
+            Ok(self.entries.lock().await.contains_key(key))
+        }
+    }
 
     #[tokio::test]
     async fn execute_command_success() {
@@ -810,5 +1040,79 @@ mod tests {
         state.unregister_pid(1234).await;
         assert_eq!(state.active_pids.lock().await.len(), 1);
         assert!(state.active_pids.lock().await.contains(&5678));
+    }
+
+    #[tokio::test]
+    async fn mock_cache_exact_hit() {
+        let cache = MockCache::with_entry("test-key", vec![1, 2, 3]);
+        let result = cache.get("test-key", &[]).await.unwrap();
+        assert_eq!(result, Some(("test-key".to_string(), vec![1, 2, 3])));
+    }
+
+    #[tokio::test]
+    async fn mock_cache_prefix_fallback() {
+        let cache = MockCache::with_entry("pipe-v1-linux-build-pkg-abc", vec![4, 5]);
+        let result = cache
+            .get(
+                "pipe-v1-linux-build-pkg-xyz",
+                &["pipe-v1-linux-build-pkg-".to_string()],
+            )
+            .await
+            .unwrap();
+        assert!(result.is_some());
+        let (matched, data) = result.unwrap();
+        assert_eq!(matched, "pipe-v1-linux-build-pkg-abc");
+        assert_eq!(data, vec![4, 5]);
+    }
+
+    #[tokio::test]
+    async fn mock_cache_miss() {
+        let cache = MockCache::new();
+        let result = cache.get("no-such-key", &[]).await.unwrap();
+        assert!(result.is_none());
+    }
+
+    #[tokio::test]
+    async fn mock_cache_put_then_get() {
+        let cache = MockCache::new();
+        cache.put("new-key", &[10, 20]).await.unwrap();
+        let result = cache.get("new-key", &[]).await.unwrap();
+        assert_eq!(result, Some(("new-key".to_string(), vec![10, 20])));
+    }
+
+    #[tokio::test]
+    async fn mock_cache_tracks_calls() {
+        let cache = MockCache::new();
+        cache.get("k1", &[]).await.unwrap();
+        cache.put("k2", &[1]).await.unwrap();
+        cache.get("k3", &[]).await.unwrap();
+
+        let gets = cache.get_calls.lock().await;
+        assert_eq!(*gets, vec!["k1", "k3"]);
+        let puts = cache.put_calls.lock().await;
+        assert_eq!(*puts, vec!["k2"]);
+    }
+
+    #[test]
+    fn task_cache_config_presence() {
+        // Task with cache config
+        let task_with = TaskDef::Command(crate::ci::types::CommandTask {
+            command: "echo hello".to_string(),
+            base: crate::ci::types::TaskBase {
+                cache: Some(TaskCacheConfig {
+                    inputs: vec!["src/**".to_string()],
+                    outputs: vec!["dist/**".to_string()],
+                }),
+                ..Default::default()
+            },
+        });
+        assert!(task_with.base().cache.is_some());
+
+        // Task without cache config
+        let task_without = TaskDef::Command(crate::ci::types::CommandTask {
+            command: "echo hello".to_string(),
+            base: crate::ci::types::TaskBase::default(),
+        });
+        assert!(task_without.base().cache.is_none());
     }
 }

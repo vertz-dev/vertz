@@ -280,6 +280,11 @@ async fn run_task_or_workflow(root_dir: &Path, opts: RunOptions) -> Result<(), S
         eprintln!("[pipe] Running with concurrency={concurrency}");
     }
 
+    // 8a. Create cache backend
+    let max_cache_size = pipe_config.cache.as_ref().and_then(|c| c.max_size);
+    let cache_backend: Arc<dyn cache::CacheBackend> =
+        Arc::from(cache::create_cache_backend(root_dir, max_cache_size));
+
     let sched = scheduler::Scheduler::new(
         &task_graph,
         concurrency,
@@ -288,6 +293,7 @@ async fn run_task_or_workflow(root_dir: &Path, opts: RunOptions) -> Result<(), S
         &resolved,
         &secret_values,
         quiet,
+        cache_backend,
     );
 
     // Log initial (zero-in-degree) nodes
@@ -309,9 +315,10 @@ async fn run_task_or_workflow(root_dir: &Path, opts: RunOptions) -> Result<(), S
 
     if !quiet {
         eprintln!(
-            "\n[pipe] Done in {:.1}s ({} executed, {} skipped, {} failed)",
+            "\n[pipe] Done in {:.1}s ({} executed, {} cached, {} skipped, {} failed)",
             total_ms as f64 / 1000.0,
             result.executed_count,
+            result.cached_count,
             result.skipped_count,
             result.failed_count,
         );
