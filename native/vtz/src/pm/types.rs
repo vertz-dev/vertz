@@ -202,12 +202,16 @@ pub fn write_package_json(
         .as_object_mut()
         .ok_or("package.json is not an object")?;
 
-    // --- Scalar fields ---
+    // --- Scalar fields (remove when None) ---
     if let Some(name) = &pkg.name {
         obj.insert("name".into(), serde_json::Value::String(name.clone()));
+    } else {
+        obj.remove("name");
     }
     if let Some(version) = &pkg.version {
         obj.insert("version".into(), serde_json::Value::String(version.clone()));
+    } else {
+        obj.remove("version");
     }
 
     // --- Map fields (remove when empty) ---
@@ -1115,6 +1119,64 @@ mod tests {
         let value: serde_json::Value = serde_json::from_str(&written).unwrap();
         let obj = value.as_object().unwrap();
         assert!(!obj.contains_key("scripts"));
+    }
+
+    #[test]
+    fn test_write_package_json_removes_none_scalars() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(
+            dir.path().join("package.json"),
+            r#"{"name": "test-pkg", "version": "1.0.0"}"#,
+        )
+        .unwrap();
+
+        let mut pkg = read_package_json(dir.path()).unwrap();
+        pkg.name = None;
+        pkg.version = None;
+        write_package_json(dir.path(), &pkg).unwrap();
+
+        let written = std::fs::read_to_string(dir.path().join("package.json")).unwrap();
+        let value: serde_json::Value = serde_json::from_str(&written).unwrap();
+        let obj = value.as_object().unwrap();
+        assert!(!obj.contains_key("name"));
+        assert!(!obj.contains_key("version"));
+    }
+
+    #[test]
+    fn test_write_package_json_removes_empty_fields_comprehensive() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(
+            dir.path().join("package.json"),
+            r#"{
+  "name": "test",
+  "scripts": {"build": "tsc"},
+  "overrides": {"lodash": "4.17.21"},
+  "workspaces": ["packages/*"],
+  "files": ["dist"],
+  "bundledDependencies": ["bundled-pkg"],
+  "bin": {"cli": "./cli.js"}
+}"#,
+        )
+        .unwrap();
+
+        let mut pkg = read_package_json(dir.path()).unwrap();
+        pkg.scripts.clear();
+        pkg.overrides.clear();
+        pkg.workspaces = None;
+        pkg.files = None;
+        pkg.bundled_dependencies.clear();
+        pkg.bin = BinField::default();
+        write_package_json(dir.path(), &pkg).unwrap();
+
+        let written = std::fs::read_to_string(dir.path().join("package.json")).unwrap();
+        let value: serde_json::Value = serde_json::from_str(&written).unwrap();
+        let obj = value.as_object().unwrap();
+        assert!(!obj.contains_key("scripts"));
+        assert!(!obj.contains_key("overrides"));
+        assert!(!obj.contains_key("workspaces"));
+        assert!(!obj.contains_key("files"));
+        assert!(!obj.contains_key("bundledDependencies"));
+        assert!(!obj.contains_key("bin"));
     }
 
     // --- Severity tests ---
