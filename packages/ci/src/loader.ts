@@ -10,22 +10,8 @@
  */
 
 import { createInterface } from 'node:readline';
+import { getCallbacks } from './builders';
 import type { TaskResult } from './types';
-
-const callbacks = new Map<number, (result: TaskResult) => boolean>();
-let nextId = 0;
-
-// Intercept callback registration from pipe()
-globalThis.__pipeRegisterCallback = (fn: (result: TaskResult) => boolean): number => {
-  const id = nextId++;
-  callbacks.set(id, fn);
-  return id;
-};
-
-declare global {
-  // eslint-disable-next-line no-var
-  var __pipeRegisterCallback: ((fn: (result: TaskResult) => boolean) => number) | undefined;
-}
 
 const configPath = process.argv[2];
 if (!configPath) {
@@ -45,6 +31,10 @@ if (!config || typeof config !== 'object') {
 process.stdout.write(JSON.stringify({ type: 'config', data: config }) + '\n');
 
 // Phase 2: listen for callback evaluations
+// Use the callback registry from builders.ts — pipe() stores callbacks there
+// when processing dep.on functions during config loading above.
+const callbacks = getCallbacks();
+
 const rl = createInterface({ input: process.stdin });
 for await (const line of rl) {
   try {

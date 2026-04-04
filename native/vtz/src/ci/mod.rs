@@ -433,16 +433,19 @@ async fn run_graph(root_dir: &Path, name: Option<String>, dot: bool) -> Result<(
     let resolved = workspace::resolve(root_dir, pipe_config.workspace.as_ref())?;
 
     // 3. Determine which workflow/task to graph
-    let workflow_name = name.unwrap_or_else(|| {
-        // Default to the first workflow, or first task if no workflows
-        pipe_config
-            .workflows
-            .keys()
-            .next()
-            .or_else(|| pipe_config.tasks.keys().next())
-            .cloned()
-            .unwrap_or_default()
-    });
+    let workflow_name = if let Some(n) = name {
+        n
+    } else if let Some(first) = pipe_config
+        .workflows
+        .keys()
+        .next()
+        .or_else(|| pipe_config.tasks.keys().next())
+    {
+        first.clone()
+    } else {
+        let _ = bridge.shutdown().await;
+        return Err("no tasks or workflows defined in ci.config.ts".to_string());
+    };
 
     let workflow = if let Some(wf) = pipe_config.workflows.get(&workflow_name) {
         wf.clone()
@@ -458,7 +461,13 @@ async fn run_graph(root_dir: &Path, name: Option<String>, dot: bool) -> Result<(
     };
 
     // 4. Build graph (all packages, no filter)
-    let task_graph = graph::TaskGraph::build(&workflow, &pipe_config.tasks, &resolved, None)?;
+    let task_graph = match graph::TaskGraph::build(&workflow, &pipe_config.tasks, &resolved, None) {
+        Ok(g) => g,
+        Err(e) => {
+            let _ = bridge.shutdown().await;
+            return Err(e);
+        }
+    };
 
     // 5. Output
     if dot {

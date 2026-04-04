@@ -360,9 +360,14 @@ impl TaskGraph {
         out.push_str("  rankdir=LR;\n");
         out.push_str("  node [shape=box, style=rounded];\n\n");
 
+        // Track which nodes appear in edges
+        let mut referenced = HashSet::new();
+
         for (from_idx, to_idx, edge_type) in &self.edges {
-            let from_label = self.nodes[*from_idx].label();
-            let to_label = self.nodes[*to_idx].label();
+            referenced.insert(*from_idx);
+            referenced.insert(*to_idx);
+            let from_label = dot_escape(&self.nodes[*from_idx].label());
+            let to_label = dot_escape(&self.nodes[*to_idx].label());
             let attrs = match edge_type {
                 EdgeType::Default => String::new(),
                 EdgeType::Success => " [label=\"success\"]".to_string(),
@@ -370,10 +375,14 @@ impl TaskGraph {
                 EdgeType::Failure => " [label=\"failure\"]".to_string(),
                 EdgeType::Callback(id) => format!(" [label=\"callback({id})\"]"),
             };
-            out.push_str(&format!(
-                "  \"{}\" -> \"{}\"{attrs};\n",
-                from_label, to_label
-            ));
+            out.push_str(&format!("  \"{from_label}\" -> \"{to_label}\"{attrs};\n",));
+        }
+
+        // Emit isolated nodes (no incoming or outgoing edges)
+        for (idx, node) in self.nodes.iter().enumerate() {
+            if !referenced.contains(&idx) {
+                out.push_str(&format!("  \"{}\";\n", dot_escape(&node.label())));
+            }
         }
 
         out.push_str("}\n");
@@ -510,6 +519,11 @@ impl TaskGraph {
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
+
+/// Escape double quotes for Graphviz DOT label strings.
+fn dot_escape(s: &str) -> String {
+    s.replace('"', "\\\"")
+}
 
 /// Parse a dep reference: "^build" → ("build", true), "build" → ("build", false)
 fn parse_dep_name(dep: &Dep) -> (String, bool) {
@@ -1229,5 +1243,28 @@ mod tests {
         // Both should be at root level (no indent)
         assert_eq!(lines.len(), 2);
         assert!(lines.iter().all(|l| !l.starts_with(' ')));
+    }
+
+    #[test]
+    fn to_dot_isolated_nodes_included() {
+        // Isolated nodes (no edges) should still appear in DOT output
+        let tasks = make_config(vec![
+            ("build", cmd_task("build", TaskScope::Root, vec![])),
+            ("lint", cmd_task("lint", TaskScope::Root, vec![])),
+        ]);
+        let workspace = ResolvedWorkspace::default();
+        let wf = workflow(vec!["build", "lint"]);
+        let graph = TaskGraph::build(&wf, &tasks, &workspace, None).unwrap();
+
+        let dot = graph.to_dot();
+        // No edges, but both nodes should appear as isolated declarations
+        assert!(dot.contains("\"build\";"));
+        assert!(dot.contains("\"lint\";"));
+    }
+
+    #[test]
+    fn dot_escape_handles_quotes() {
+        assert_eq!(super::dot_escape("hello"), "hello");
+        assert_eq!(super::dot_escape("say \"hi\""), "say \\\"hi\\\"");
     }
 }

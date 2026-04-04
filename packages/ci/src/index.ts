@@ -7,6 +7,7 @@ export type {
   ChangedCondition,
   CommandTask,
   Condition,
+  Dep,
   DepEdge,
   EnvCondition,
   PipeConfig,
