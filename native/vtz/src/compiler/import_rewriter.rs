@@ -24,6 +24,49 @@ pub fn rewrite_imports(
     let mut i = 0;
 
     while i < len {
+        // Skip string literals so we don't match 'import'/'export' inside strings
+        if chars[i] == '\'' || chars[i] == '"' {
+            let quote = chars[i];
+            result.push(chars[i]);
+            i += 1;
+            while i < len && chars[i] != quote {
+                if chars[i] == '\\' {
+                    result.push(chars[i]);
+                    i += 1;
+                }
+                if i < len {
+                    result.push(chars[i]);
+                    i += 1;
+                }
+            }
+            if i < len {
+                result.push(chars[i]);
+                i += 1;
+            }
+            continue;
+        }
+
+        // Skip template literals
+        if chars[i] == '`' {
+            result.push(chars[i]);
+            i += 1;
+            while i < len && chars[i] != '`' {
+                if chars[i] == '\\' {
+                    result.push(chars[i]);
+                    i += 1;
+                }
+                if i < len {
+                    result.push(chars[i]);
+                    i += 1;
+                }
+            }
+            if i < len {
+                result.push(chars[i]);
+                i += 1;
+            }
+            continue;
+        }
+
         // Look for import/export statements and dynamic import()
         if i + 6 < len && matches_word(&chars, i, "import") {
             // Could be: import ... from '...', import '...', import('...')
@@ -720,6 +763,25 @@ export default foo;"#;
         let result = rewrite_imports(code, &src_dir.join("app.tsx"), &src_dir, tmp.path(), None);
 
         assert_eq!(result, code);
+    }
+
+    #[test]
+    fn test_rewrite_imports_skips_import_inside_string_literals() {
+        let tmp = tempfile::tempdir().unwrap();
+        let src_dir = tmp.path().join("src");
+        std::fs::create_dir_all(&src_dir).unwrap();
+
+        // 'import' as a string value must NOT be treated as an import statement
+        let code = r#"const data = [K, 'import'];
+const obj = { type: "import", label: 'export' };
+const msg = `import something`;"#;
+
+        let result = rewrite_imports(code, &src_dir.join("app.tsx"), &src_dir, tmp.path(), None);
+
+        assert_eq!(
+            result, code,
+            "String literals containing 'import'/'export' must be preserved"
+        );
     }
 
     #[test]
