@@ -12,3 +12,6 @@ pre-push:
     rust-clippy:
       run: cd native && cargo clippy --all-targets --release -- -D warnings
       glob: "native/**/*.rs"
+    rust-test:
+      run: cd native && cargo test --all
+      glob: "native/**/*.rs"
