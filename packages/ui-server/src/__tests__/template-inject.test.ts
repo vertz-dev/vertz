@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'bun:test';
-import { injectIntoTemplate } from '../template-inject';
+import { injectHtmlAttributes, injectIntoTemplate } from '../template-inject';
 
 const template = `<!doctype html>
 <html>
@@ -170,5 +170,97 @@ describe('injectIntoTemplate', () => {
     expect(result).toContain('__VERTZ_SESSION__');
     expect(result).toContain('__VERTZ_ACCESS_SET__');
     expect(result).toContain('__VERTZ_SSR_DATA__');
+  });
+});
+
+describe('injectHtmlAttributes', () => {
+  it('returns template unchanged when attrs is empty', () => {
+    const tpl = '<!doctype html><html lang="en"><head></head><body></body></html>';
+    expect(injectHtmlAttributes(tpl, {})).toBe(tpl);
+  });
+
+  it('injects a single attribute onto <html>', () => {
+    const tpl = '<!doctype html><html lang="en"><head></head><body></body></html>';
+    const result = injectHtmlAttributes(tpl, { 'data-theme': 'dark' });
+    expect(result).toContain('lang="en"');
+    expect(result).toContain('data-theme="dark"');
+  });
+
+  it('injects multiple attributes', () => {
+    const tpl = '<!doctype html><html lang="en"><head></head><body></body></html>';
+    const result = injectHtmlAttributes(tpl, { 'data-theme': 'dark', dir: 'rtl' });
+    expect(result).toContain('data-theme="dark"');
+    expect(result).toContain('dir="rtl"');
+    expect(result).toContain('lang="en"');
+  });
+
+  it('overrides existing template attribute with callback value', () => {
+    const tpl = '<!doctype html><html lang="en"><head></head><body></body></html>';
+    const result = injectHtmlAttributes(tpl, { lang: 'pt-BR' });
+    expect(result).toContain('lang="pt-BR"');
+    expect(result).not.toContain('lang="en"');
+  });
+
+  it('merges: overrides some, adds new', () => {
+    const tpl = '<!doctype html><html lang="en" class="no-js"><head></head><body></body></html>';
+    const result = injectHtmlAttributes(tpl, { lang: 'pt-BR', 'data-theme': 'dark' });
+    expect(result).toContain('lang="pt-BR"');
+    expect(result).toContain('class="no-js"');
+    expect(result).toContain('data-theme="dark"');
+    expect(result).not.toContain('lang="en"');
+  });
+
+  it('escapes attribute values to prevent XSS', () => {
+    const tpl = '<!doctype html><html lang="en"><head></head><body></body></html>';
+    const result = injectHtmlAttributes(tpl, { 'data-theme': '"><script>alert(1)</script>' });
+    expect(result).toContain('data-theme="&quot;>');
+    expect(result).not.toContain('data-theme="">');
+  });
+
+  it('throws on invalid attribute key with spaces', () => {
+    const tpl = '<!doctype html><html lang="en"><head></head><body></body></html>';
+    expect(() => injectHtmlAttributes(tpl, { 'on load="alert(1)" x': 'y' })).toThrow(
+      'Invalid HTML attribute key',
+    );
+  });
+
+  it('throws on empty attribute key', () => {
+    const tpl = '<!doctype html><html lang="en"><head></head><body></body></html>';
+    expect(() => injectHtmlAttributes(tpl, { '': 'value' })).toThrow('Invalid HTML attribute key');
+  });
+
+  it('returns template unchanged when no <html tag found', () => {
+    const tpl = '<!doctype html><head></head><body></body>';
+    expect(injectHtmlAttributes(tpl, { 'data-theme': 'dark' })).toBe(tpl);
+  });
+
+  it('handles case-insensitive <HTML> tag', () => {
+    const tpl = '<!doctype html><HTML lang="en"><head></head><body></body></HTML>';
+    const result = injectHtmlAttributes(tpl, { 'data-theme': 'dark' });
+    expect(result).toContain('data-theme="dark"');
+    expect(result).toContain('lang="en"');
+  });
+
+  it('handles <html> with no existing attributes', () => {
+    const tpl = '<!doctype html><html><head></head><body></body></html>';
+    const result = injectHtmlAttributes(tpl, { 'data-theme': 'dark' });
+    expect(result).toContain('<html data-theme="dark">');
+  });
+
+  it('handles multiline <html> tag', () => {
+    const tpl =
+      '<!doctype html>\n<html\n  lang="en"\n  class="no-js"\n><head></head><body></body></html>';
+    const result = injectHtmlAttributes(tpl, { 'data-theme': 'dark' });
+    expect(result).toContain('data-theme="dark"');
+    expect(result).toContain('lang="en"');
+    expect(result).toContain('class="no-js"');
+  });
+
+  it('preserves boolean attributes in template', () => {
+    const tpl = '<!doctype html><html lang="en" hidden><head></head><body></body></html>';
+    const result = injectHtmlAttributes(tpl, { 'data-theme': 'dark' });
+    expect(result).toContain('hidden');
+    expect(result).toContain('data-theme="dark"');
+    expect(result).toContain('lang="en"');
   });
 });

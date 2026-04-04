@@ -22,7 +22,7 @@ import { buildProgressiveResponse } from './ssr-progressive-response';
 import type { SSRModule } from './ssr-shared';
 import type { SSRPrefetchManifest } from './ssr-single-pass';
 import { ssrRenderProgressive, ssrRenderSinglePass, ssrStreamNavQueries } from './ssr-single-pass';
-import { injectIntoTemplate } from './template-inject';
+import { injectHtmlAttributes, injectIntoTemplate } from './template-inject';
 
 export interface SSRHandlerOptions {
   /** The loaded SSR module (import('./dist/server/index.js')) */
@@ -105,6 +105,28 @@ export interface SSRHandlerOptions {
    * (JSON files, third-party APIs, custom DB clients).
    */
   aotDataResolver?: AotDataResolver;
+  /**
+   * Derive attributes to set on the `<html>` tag from the incoming request.
+   *
+   * Useful for setting `data-theme`, `dir`, `lang`, or other attributes that
+   * must be on `<html>` to avoid FOUC. The callback runs before SSR rendering
+   * so the attributes are available in the first byte of the response.
+   *
+   * If the template already has an attribute with the same name, the callback's
+   * value overrides it. Values are HTML-escaped automatically. Keys must be
+   * valid HTML attribute names (`/^[a-zA-Z][a-zA-Z0-9-]*$/`).
+   *
+   * Return `undefined`, `null`, or `{}` to skip injection.
+   *
+   * @example
+   * ```ts
+   * htmlAttributes: (request) => ({
+   *   'data-theme': getThemeCookie(request) ?? 'dark',
+   *   dir: getDirection(request),
+   * })
+   * ```
+   */
+  htmlAttributes?: (request: Request) => Record<string, string> | null | undefined;
 }
 
 import type { SessionResolver } from './ssr-session';
@@ -124,6 +146,7 @@ export function createSSRHandler(
     progressiveHTML,
     aotManifest,
     aotDataResolver,
+    htmlAttributes,
   } = options;
 
   const { template, linkHeader, modulepreloadTags, splitResult } = precomputeHandlerState(options);
@@ -149,6 +172,19 @@ export function createSSRHandler(
     // Extract request cookies so document.cookie works during SSR
     const cookies = request.headers.get('Cookie') ?? undefined;
 
+    // Resolve per-request html attributes
+    let requestTemplate = template;
+    let requestHeadTemplate = splitResult?.headTemplate;
+    if (htmlAttributes) {
+      const attrs = htmlAttributes(request);
+      if (attrs && Object.keys(attrs).length > 0) {
+        requestTemplate = injectHtmlAttributes(template, attrs);
+        if (requestHeadTemplate) {
+          requestHeadTemplate = injectHtmlAttributes(requestHeadTemplate, attrs);
+        }
+      }
+    }
+
     // Normal HTML request: SSR render
     // Progressive streaming: use streaming path when enabled and NOT zero-discovery.
     // Zero-discovery routes always use buffered rendering (redirect safety — see design doc).
@@ -160,7 +196,10 @@ export function createSSRHandler(
     if (useProgressive) {
       return handleProgressiveHTMLRequest(
         module,
-        splitResult,
+        {
+          headTemplate: requestHeadTemplate ?? splitResult!.headTemplate,
+          tailTemplate: splitResult!.tailTemplate,
+        },
         pathname + url.search,
         ssrTimeout,
         nonce,
@@ -178,7 +217,7 @@ export function createSSRHandler(
 
     return handleHTMLRequest(
       module,
-      template,
+      requestTemplate,
       pathname + url.search,
       ssrTimeout,
       nonce,

@@ -20,7 +20,7 @@ import {
 } from './ssr-handler-shared';
 import { ssrRenderProgressive, ssrRenderSinglePass, ssrStreamNavQueries } from './ssr-single-pass';
 import { safeSerialize } from './ssr-streaming-runtime';
-import { injectIntoTemplate } from './template-inject';
+import { injectHtmlAttributes, injectIntoTemplate } from './template-inject';
 
 export type NodeHandlerOptions = SSRHandlerOptions;
 
@@ -39,6 +39,7 @@ export function createNodeHandler(
     progressiveHTML,
     aotManifest,
     aotDataResolver,
+    htmlAttributes,
   } = options;
 
   const { template, linkHeader, modulepreloadTags, splitResult } = precomputeHandlerState(options);
@@ -62,18 +63,36 @@ export function createNodeHandler(
           return;
         }
 
-        // Resolve session (construct minimal Request for the resolver)
-        let sessionScript = '';
-        let ssrAuth: SSRAuth | undefined;
-        if (sessionResolver) {
+        // Construct web Request for session resolver and htmlAttributes callbacks
+        let webRequest: Request | undefined;
+        if (sessionResolver || htmlAttributes) {
           const fullUrl = `http://${req.headers.host ?? 'localhost'}${url}`;
-          const webRequest = new Request(fullUrl, {
+          webRequest = new Request(fullUrl, {
             method: req.method ?? 'GET',
             headers: req.headers as Record<string, string>,
           });
+        }
+
+        // Resolve session
+        let sessionScript = '';
+        let ssrAuth: SSRAuth | undefined;
+        if (sessionResolver && webRequest) {
           const result = await resolveSession(webRequest, sessionResolver, nonce);
           sessionScript = result.sessionScript;
           ssrAuth = result.ssrAuth;
+        }
+
+        // Resolve per-request html attributes
+        let requestTemplate = template;
+        let requestHeadTemplate = splitResult?.headTemplate;
+        if (htmlAttributes && webRequest) {
+          const attrs = htmlAttributes(webRequest);
+          if (attrs && Object.keys(attrs).length > 0) {
+            requestTemplate = injectHtmlAttributes(template, attrs);
+            if (requestHeadTemplate) {
+              requestHeadTemplate = injectHtmlAttributes(requestHeadTemplate, attrs);
+            }
+          }
         }
 
         if (useProgressive) {
@@ -81,7 +100,10 @@ export function createNodeHandler(
             req,
             res,
             module,
-            splitResult,
+            {
+              headTemplate: requestHeadTemplate ?? splitResult!.headTemplate,
+              tailTemplate: splitResult!.tailTemplate,
+            },
             url,
             ssrTimeout,
             nonce,
@@ -137,7 +159,7 @@ export function createNodeHandler(
 
         // Inject into template
         const html = injectIntoTemplate({
-          template,
+          template: requestTemplate,
           appHtml: result.html,
           appCss: result.css,
           ssrData: result.ssrData,
