@@ -224,7 +224,32 @@ fn execute_test_file_inner(
         runtime.execute_script_void("[vertz:preload]", &code)?;
     }
 
-    // 5. Load the test file as an ES module
+    // 5. Pre-compile test file for mock extraction (transitive mocking support)
+    //    If the test file has vi.mock() calls, we need to:
+    //    a) Extract the mock preamble and evaluate it as a V8 script
+    //    b) Register mocked specifiers with the module loader for interception
+    {
+        let test_source = std::fs::read_to_string(file_path).unwrap_or_default();
+        let filename = file_path.to_string_lossy().to_string();
+        let output = runtime
+            .loader()
+            .compile_for_mock_extraction(&test_source, &filename);
+
+        if !output.mocked_specifiers.is_empty() {
+            // Register mocked specifiers so the module loader intercepts transitive imports
+            runtime
+                .loader()
+                .register_mocked_specifiers(&output.mocked_specifiers, file_path);
+
+            // Evaluate mock preamble as a V8 script before module loading.
+            // This populates globalThis.__vertz_mocked_modules before any module evaluates.
+            if let Some(ref preamble) = output.mock_preamble {
+                runtime.execute_script_void("[vertz:mock-preamble]", preamble)?;
+            }
+        }
+    }
+
+    // 6. Load the test file as an ES module
     let specifier = ModuleSpecifier::from_file_path(file_path)
         .map_err(|_| deno_core::anyhow::anyhow!("Invalid file path: {}", file_path.display()))?;
 

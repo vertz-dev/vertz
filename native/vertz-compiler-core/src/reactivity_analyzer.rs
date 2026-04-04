@@ -88,9 +88,14 @@ pub fn analyze_reactivity<'a>(
 ///
 /// Returns (aliases, dynamic_configs) where dynamic_configs contains
 /// signal API configs derived from cross-file manifests.
+///
+/// Imports from specifiers in `mocked_specifiers` are skipped entirely —
+/// mock hoisting rewrites these imports to `const` destructuring, so they
+/// should not be analyzed for signal API reactivity.
 pub fn build_import_aliases<'a>(
     program: &Program<'a>,
     manifests: &ManifestRegistry,
+    mocked_specifiers: &HashSet<String>,
 ) -> (HashMap<String, String>, HashMap<String, DynamicApiConfig>) {
     let mut aliases = HashMap::new();
     let mut dynamic_configs: HashMap<String, DynamicApiConfig> = HashMap::new();
@@ -98,6 +103,12 @@ pub fn build_import_aliases<'a>(
     for stmt in &program.body {
         if let Statement::ImportDeclaration(import) = stmt {
             let module_specifier = import.source.value.as_str();
+
+            // Skip mocked imports — their declarations have been rewritten
+            // by the mock hoisting transform to const destructuring.
+            if mocked_specifiers.contains(module_specifier) {
+                continue;
+            }
 
             if let Some(ref specifiers) = import.specifiers {
                 for spec in specifiers {
@@ -914,7 +925,8 @@ mod tests {
         let parsed = Parser::new(&allocator, source, SourceType::tsx()).parse();
         let components = crate::component_analyzer::analyze_components(&parsed.program);
         let manifests: ManifestRegistry = HashMap::new();
-        let (aliases, dynamic_configs) = build_import_aliases(&parsed.program, &manifests);
+        let (aliases, dynamic_configs) =
+            build_import_aliases(&parsed.program, &manifests, &HashSet::new());
         let import_ctx = ImportContext {
             aliases,
             dynamic_configs,
@@ -1109,7 +1121,7 @@ mod tests {
         let allocator = Allocator::default();
         let parsed = Parser::new(&allocator, source, SourceType::tsx()).parse();
         let manifests: ManifestRegistry = HashMap::new();
-        let (aliases, _) = build_import_aliases(&parsed.program, &manifests);
+        let (aliases, _) = build_import_aliases(&parsed.program, &manifests, &HashSet::new());
         assert_eq!(aliases.get("q"), Some(&"query".to_string()));
     }
 
@@ -1119,7 +1131,7 @@ mod tests {
         let allocator = Allocator::default();
         let parsed = Parser::new(&allocator, source, SourceType::tsx()).parse();
         let manifests: ManifestRegistry = HashMap::new();
-        let (aliases, _) = build_import_aliases(&parsed.program, &manifests);
+        let (aliases, _) = build_import_aliases(&parsed.program, &manifests, &HashSet::new());
         assert_eq!(aliases.get("uc"), Some(&"useContext".to_string()));
     }
 
@@ -1129,7 +1141,7 @@ mod tests {
         let allocator = Allocator::default();
         let parsed = Parser::new(&allocator, source, SourceType::tsx()).parse();
         let manifests: ManifestRegistry = HashMap::new();
-        let (aliases, _) = build_import_aliases(&parsed.program, &manifests);
+        let (aliases, _) = build_import_aliases(&parsed.program, &manifests, &HashSet::new());
         assert!(!aliases.contains_key("foo"));
     }
 
@@ -1154,7 +1166,8 @@ mod tests {
         let mut manifests: ManifestRegistry = HashMap::new();
         manifests.insert("./api".to_string(), module_exports);
 
-        let (aliases, dynamic_configs) = build_import_aliases(&parsed.program, &manifests);
+        let (aliases, dynamic_configs) =
+            build_import_aliases(&parsed.program, &manifests, &HashSet::new());
         let key = aliases.get("myQuery").expect("myQuery alias");
         assert!(key.starts_with("__manifest__"));
         assert!(dynamic_configs.contains_key(key));
@@ -1181,7 +1194,8 @@ mod tests {
         let mut manifests: ManifestRegistry = HashMap::new();
         manifests.insert("./ctx".to_string(), module_exports);
 
-        let (aliases, dynamic_configs) = build_import_aliases(&parsed.program, &manifests);
+        let (aliases, dynamic_configs) =
+            build_import_aliases(&parsed.program, &manifests, &HashSet::new());
         let key = aliases.get("myCtx").expect("myCtx alias");
         assert!(key.starts_with("__manifest__"));
         assert!(dynamic_configs.contains_key(key));
@@ -1206,7 +1220,7 @@ mod tests {
         let mut manifests: ManifestRegistry = HashMap::new();
         manifests.insert("./stuff".to_string(), module_exports);
 
-        let (aliases, _) = build_import_aliases(&parsed.program, &manifests);
+        let (aliases, _) = build_import_aliases(&parsed.program, &manifests, &HashSet::new());
         assert!(!aliases.contains_key("myThing"));
     }
 
@@ -1573,7 +1587,7 @@ mod tests {
         let allocator = Allocator::default();
         let parsed = Parser::new(&allocator, source, SourceType::tsx()).parse();
         let manifests: ManifestRegistry = HashMap::new();
-        let (aliases, _) = build_import_aliases(&parsed.program, &manifests);
+        let (aliases, _) = build_import_aliases(&parsed.program, &manifests, &HashSet::new());
         assert!(aliases.is_empty());
     }
 

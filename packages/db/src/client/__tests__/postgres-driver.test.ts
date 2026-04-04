@@ -9,27 +9,36 @@
  * - #207: Connection cleanup
  */
 
-import { afterEach, beforeEach, describe, expect, it, mock, spyOn } from 'bun:test';
+import { afterEach, beforeEach, describe, expect, it, spyOn, vi } from 'bun:test';
 
-// Mock postgres module
-const mockEnd = mock().mockResolvedValue(undefined);
-const mockUnsafe = mock().mockResolvedValue({ count: 0, rows: [] });
-
-mock.module('postgres', () => ({
-  default: mock(() => ({
+// Hoist mock functions so they're available in the vi.mock factory
+const { mockEnd, mockUnsafe, mockPostgres } = vi.hoisted(() => {
+  const mockEnd = vi.fn().mockResolvedValue(undefined);
+  const mockUnsafe = vi.fn().mockResolvedValue({ count: 0, rows: [] });
+  const mockPostgres = vi.fn(() => ({
     end: mockEnd,
     unsafe: mockUnsafe,
-  })),
+  }));
+  return { mockEnd, mockUnsafe, mockPostgres };
+});
+
+// Mock the postgres module at top level (compiler hoists this)
+vi.mock('postgres', () => ({
+  default: mockPostgres,
 }));
 
 describe('PostgreSQL Driver', () => {
   beforeEach(() => {
-    mock.restore();
-  });
-
-  afterEach(() => {
-    // Reset module cache between tests
-    mock.restore();
+    mockEnd.mockReset();
+    mockUnsafe.mockReset();
+    mockPostgres.mockReset();
+    // Restore default implementations
+    mockEnd.mockResolvedValue(undefined);
+    mockUnsafe.mockResolvedValue({ count: 0, rows: [] });
+    mockPostgres.mockReturnValue({
+      end: mockEnd,
+      unsafe: mockUnsafe,
+    });
   });
 
   // =========================================================================
@@ -542,24 +551,19 @@ describe('PostgreSQL Driver', () => {
 
     it('executes a callback within a postgres transaction', async () => {
       // Mock sql.begin to call the callback with a transaction-scoped sql
-      const txUnsafe = mock().mockResolvedValue(
-        Object.assign([{ id: 1, name: 'test' }], { count: 1 }),
-      );
+      const txUnsafe = vi
+        .fn()
+        .mockResolvedValue(Object.assign([{ id: 1, name: 'test' }], { count: 1 }));
 
-      // Re-mock the postgres module to include begin
-      mock.module('postgres', () => ({
-        default: mock(() => {
-          const sqlObj = {
-            end: mockEnd,
-            unsafe: mockUnsafe,
-            begin: mock(async (fn: MockBeginFn) => {
-              const txSql = { unsafe: txUnsafe };
-              return fn(txSql as never);
-            }),
-          };
-          return sqlObj;
+      // Override postgres constructor to include begin
+      mockPostgres.mockReturnValue({
+        end: mockEnd,
+        unsafe: mockUnsafe,
+        begin: vi.fn(async (fn: MockBeginFn) => {
+          const txSql = { unsafe: txUnsafe };
+          return fn(txSql as never);
         }),
-      }));
+      });
 
       const { createPostgresDriver: createDriver } = await import('../postgres-driver');
       const driver = await createDriver('postgres://localhost:5432/test');
@@ -580,17 +584,16 @@ describe('PostgreSQL Driver', () => {
 
     it('passes through values without coercion in transaction queries', async () => {
       const dateValue = new Date('2024-01-15T10:30:00.000Z');
-      const txUnsafe = mock().mockResolvedValue(
-        Object.assign([{ id: 1, created: dateValue }], { count: 1 }),
-      );
+      const txUnsafe = vi
+        .fn()
+        .mockResolvedValue(Object.assign([{ id: 1, created: dateValue }], { count: 1 }));
 
-      mock.module('postgres', () => ({
-        default: mock(() => ({
-          end: mockEnd,
-          unsafe: mockUnsafe,
-          begin: mock(async (fn: MockBeginFn) => fn({ unsafe: txUnsafe } as never)),
-        })),
-      }));
+      // Override postgres constructor to include begin
+      mockPostgres.mockReturnValue({
+        end: mockEnd,
+        unsafe: mockUnsafe,
+        begin: vi.fn(async (fn: MockBeginFn) => fn({ unsafe: txUnsafe } as never)),
+      });
 
       const { createPostgresDriver: createDriver } = await import('../postgres-driver');
       const driver = await createDriver('postgres://localhost:5432/test');
@@ -617,15 +620,14 @@ describe('PostgreSQL Driver', () => {
         constraint_name: 'users_pkey',
       });
 
-      const txUnsafe = mock().mockRejectedValue(pgError);
+      const txUnsafe = vi.fn().mockRejectedValue(pgError);
 
-      mock.module('postgres', () => ({
-        default: mock(() => ({
-          end: mockEnd,
-          unsafe: mockUnsafe,
-          begin: mock(async (fn: MockBeginFn) => fn({ unsafe: txUnsafe } as never)),
-        })),
-      }));
+      // Override postgres constructor to include begin
+      mockPostgres.mockReturnValue({
+        end: mockEnd,
+        unsafe: mockUnsafe,
+        begin: vi.fn(async (fn: MockBeginFn) => fn({ unsafe: txUnsafe } as never)),
+      });
 
       const { createPostgresDriver: createDriver } = await import('../postgres-driver');
       const driver = await createDriver('postgres://localhost:5432/test');

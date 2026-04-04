@@ -1614,7 +1614,7 @@ mod tests {
     use oxc_allocator::Allocator;
     use oxc_parser::Parser;
     use oxc_span::SourceType;
-    use std::collections::HashMap;
+    use std::collections::{HashMap, HashSet};
 
     /// Helper: parse source, extract components and reactivity info, then compile.
     fn compile(source: &str) -> AotResult {
@@ -1623,7 +1623,8 @@ mod tests {
         let ms = MagicString::new(source);
         let components = analyze_components(&parser_ret.program);
         let manifests: ManifestRegistry = HashMap::new();
-        let (aliases, dynamic_configs) = build_import_aliases(&parser_ret.program, &manifests);
+        let (aliases, dynamic_configs) =
+            build_import_aliases(&parser_ret.program, &manifests, &HashSet::new());
         let import_ctx = ImportContext {
             aliases,
             dynamic_configs,

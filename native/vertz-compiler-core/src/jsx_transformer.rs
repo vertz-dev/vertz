@@ -2259,6 +2259,7 @@ mod tests {
     use oxc_allocator::Allocator;
     use oxc_parser::Parser;
     use oxc_span::SourceType;
+    use std::collections::HashSet;
 
     /// Helper: parse source, extract components & reactivity, transform JSX, return result.
     fn transform(source: &str) -> String {
@@ -2267,7 +2268,8 @@ mod tests {
         let mut ms = MagicString::new(source);
         let components = analyze_components(&parsed.program);
         let manifests: ManifestRegistry = HashMap::new();
-        let (aliases, dynamic_configs) = build_import_aliases(&parsed.program, &manifests);
+        let (aliases, dynamic_configs) =
+            build_import_aliases(&parsed.program, &manifests, &HashSet::new());
         let import_ctx = ImportContext {
             aliases,
             dynamic_configs,
@@ -2286,7 +2288,8 @@ mod tests {
         let mut ms = MagicString::new(source);
         let components = analyze_components(&parsed.program);
         let manifests: ManifestRegistry = HashMap::new();
-        let (aliases, dynamic_configs) = build_import_aliases(&parsed.program, &manifests);
+        let (aliases, dynamic_configs) =
+            build_import_aliases(&parsed.program, &manifests, &HashSet::new());
         let import_ctx = ImportContext {
             aliases,
             dynamic_configs,
@@ -4311,7 +4314,8 @@ export function App() {
         let mut ms = MagicString::new(source);
         let components = analyze_components(&parsed.program);
         let manifests: ManifestRegistry = HashMap::new();
-        let (aliases, dynamic_configs) = build_import_aliases(&parsed.program, &manifests);
+        let (aliases, dynamic_configs) =
+            build_import_aliases(&parsed.program, &manifests, &HashSet::new());
         let import_ctx = ImportContext {
             aliases,
             dynamic_configs,

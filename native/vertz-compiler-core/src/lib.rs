@@ -16,6 +16,7 @@ pub mod hydration_markers;
 pub mod import_injection;
 pub mod jsx_transformer;
 pub mod magic_string;
+pub mod mock_hoisting;
 pub mod mount_frame_transformer;
 pub mod mutation_analyzer;
 pub mod mutation_diagnostics;
@@ -117,6 +118,10 @@ pub struct CompileResult {
     pub extracted_routes: Option<Vec<ExtractedRouteOutput>>,
     pub extracted_queries: Option<Vec<ExtractedQueryOutput>>,
     pub route_params: Option<Vec<String>>,
+    /// Module specifiers mocked via `vi.mock()` in the source file.
+    pub mocked_specifiers: Option<std::collections::HashSet<String>>,
+    /// The mock preamble code block for pre-evaluation (enables transitive mocking).
+    pub mock_preamble: Option<String>,
 }
 
 /// A manifest entry describing cross-file reactivity metadata.
@@ -146,6 +151,11 @@ pub struct CompileOptions {
     /// which is needed in test files that assert on the runtime behavior of
     /// css() (e.g., checking the `.css` property or `adoptedStyleSheets`).
     pub skip_css_transform: Option<bool>,
+    /// When true, the compiler runs the mock hoisting transform, which detects
+    /// `vi.mock()` / `mock.module()` calls, hoists them above all other code,
+    /// and rewrites imports of mocked modules to `const` destructuring.
+    /// Used for test files compiled by the vtz test runner.
+    pub mock_hoisting: Option<bool>,
 }
 
 /// Per-component AOT compilation result in the output.
@@ -186,6 +196,7 @@ pub fn compile(source: &str, options: CompileOptions) -> CompileResult {
     let enable_field_selection = options.field_selection.unwrap_or(false);
     let enable_prefetch_manifest = options.prefetch_manifest.unwrap_or(false);
     let skip_css = options.skip_css_transform.unwrap_or(false);
+    let enable_mock_hoisting = options.mock_hoisting.unwrap_or(false);
 
     let source_type = SourceType::from_path(filename).unwrap_or_default();
     let allocator = Allocator::default();
@@ -227,6 +238,8 @@ pub fn compile(source: &str, options: CompileOptions) -> CompileResult {
             extracted_routes: None,
             extracted_queries: None,
             route_params: None,
+            mocked_specifiers: None,
+            mock_preamble: None,
         };
     }
 
@@ -236,9 +249,27 @@ pub fn compile(source: &str, options: CompileOptions) -> CompileResult {
     // Build manifest registry from options
     let manifest_registry = build_manifest_registry(&options);
 
+    // Run reactivity analysis and transforms per component
+    let mut ms = magic_string::MagicString::new(source);
+    let mut all_diagnostics: Vec<Diagnostic> = Vec::new();
+
+    // Mock hoisting — must run BEFORE TypeScript stripping and import alias building
+    // so it can see original import declarations and rewrite them.
+    let (mocked_specifiers, mock_preamble) = if enable_mock_hoisting {
+        let result = mock_hoisting::transform_mock_hoisting(&mut ms, &parser_ret.program, source);
+        all_diagnostics.extend(result.diagnostics);
+        (result.mocked_specifiers, result.mock_preamble)
+    } else {
+        (std::collections::HashSet::new(), None)
+    };
+
     // Build import aliases for signal API detection (includes manifest-derived entries)
-    let (import_aliases, dynamic_configs) =
-        reactivity_analyzer::build_import_aliases(&parser_ret.program, &manifest_registry);
+    // Mocked specifiers are excluded to prevent signal transforms on mock bindings.
+    let (import_aliases, dynamic_configs) = reactivity_analyzer::build_import_aliases(
+        &parser_ret.program,
+        &manifest_registry,
+        &mocked_specifiers,
+    );
 
     let import_ctx = reactivity_analyzer::ImportContext {
         aliases: import_aliases,
@@ -247,10 +278,6 @@ pub fn compile(source: &str, options: CompileOptions) -> CompileResult {
 
     // Build query aliases for auto-thunk transform
     let query_aliases = reactivity_analyzer::build_query_aliases(&parser_ret.program);
-
-    // Run reactivity analysis and transforms per component
-    let mut ms = magic_string::MagicString::new(source);
-    let mut all_diagnostics: Vec<Diagnostic> = Vec::new();
 
     // Strip TypeScript syntax first (interfaces, type aliases, as casts, type annotations, etc.)
     // Must run before JSX transform so that get_transformed_slice() returns clean JavaScript.
@@ -559,6 +586,12 @@ pub fn compile(source: &str, options: CompileOptions) -> CompileResult {
                 Some(pa.route_params)
             }
         }),
+        mocked_specifiers: if mocked_specifiers.is_empty() {
+            None
+        } else {
+            Some(mocked_specifiers)
+        },
+        mock_preamble,
     }
 }
 
@@ -590,8 +623,9 @@ pub fn compile_for_ssr_aot(source: &str, options: AotCompileOptions) -> AotCompi
 
     // Build import context for reactivity analysis
     let empty_registry = std::collections::HashMap::new();
+    let no_mocks = std::collections::HashSet::new();
     let (import_aliases, dynamic_configs) =
-        reactivity_analyzer::build_import_aliases(&parser_ret.program, &empty_registry);
+        reactivity_analyzer::build_import_aliases(&parser_ret.program, &empty_registry, &no_mocks);
     let import_ctx = reactivity_analyzer::ImportContext {
         aliases: import_aliases,
         dynamic_configs,

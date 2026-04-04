@@ -152,6 +152,8 @@ fn compile_react(
             css: None,
             source_map: None,
             diagnostics,
+            mocked_specifiers: std::collections::HashSet::new(),
+            mock_preamble: None,
         };
     }
 
@@ -212,6 +214,8 @@ fn compile_react(
         css: None,
         source_map: codegen_ret.map.map(|sm| sm.to_json_string()),
         diagnostics,
+        mocked_specifiers: std::collections::HashSet::new(),
+        mock_preamble: None,
     }
 }
 

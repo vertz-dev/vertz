@@ -830,3 +830,404 @@ fn e2e_phase4b_features() {
     assert_eq!(result.total_passed, 8);
     assert_eq!(result.total_skipped, 1);
 }
+
+// ─── E2E: Module mocking — vi.mock() named imports ─────────────────────
+
+#[test]
+fn e2e_mock_named_imports() {
+    let tmp = tempfile::tempdir().unwrap();
+    setup_project(tmp.path());
+
+    // Target module with real implementations
+    write_file(
+        tmp.path(),
+        "src/math.ts",
+        r#"
+        export function add(a: number, b: number): number { return a + b; }
+        export function multiply(a: number, b: number): number { return a * b; }
+        "#,
+    );
+
+    // Test file that mocks the module
+    write_file(
+        tmp.path(),
+        "src/__tests__/mock-named.test.ts",
+        r#"
+        import { add, multiply } from '../math';
+
+        vi.mock('../math', () => ({
+            add: vi.fn().mockReturnValue(42),
+            multiply: vi.fn().mockReturnValue(100),
+        }));
+
+        describe('named import mocking', () => {
+            it('returns mock value from add', () => {
+                expect(add(1, 2)).toBe(42);
+            });
+            it('returns mock value from multiply', () => {
+                expect(multiply(3, 4)).toBe(100);
+            });
+            it('mocks are vi.fn instances', () => {
+                add(1, 2);
+                expect(add).toHaveBeenCalledWith(1, 2);
+            });
+        });
+        "#,
+    );
+
+    let (result, output) = run_tests(make_config(tmp.path()));
+
+    assert!(
+        result.success(),
+        "Mock named imports should pass: output={output}, results={:?}",
+        result.results
+    );
+    assert_eq!(result.total_passed, 3);
+}
+
+// ─── E2E: Module mocking — vi.mock() default import ────────────────────
+
+#[test]
+fn e2e_mock_default_import() {
+    let tmp = tempfile::tempdir().unwrap();
+    setup_project(tmp.path());
+
+    write_file(
+        tmp.path(),
+        "src/client.ts",
+        r#"
+        export default function createClient() { return { connected: false }; }
+        "#,
+    );
+
+    write_file(
+        tmp.path(),
+        "src/__tests__/mock-default.test.ts",
+        r#"
+        import createClient from '../client';
+
+        vi.mock('../client', () => ({
+            default: vi.fn().mockReturnValue({ connected: true }),
+        }));
+
+        describe('default import mocking', () => {
+            it('returns mock default', () => {
+                const client = createClient();
+                expect(client.connected).toBe(true);
+            });
+        });
+        "#,
+    );
+
+    let (result, output) = run_tests(make_config(tmp.path()));
+
+    assert!(
+        result.success(),
+        "Mock default import should pass: output={output}, results={:?}",
+        result.results
+    );
+    assert_eq!(result.total_passed, 1);
+}
+
+// ─── E2E: Module mocking — vi.mock() namespace import ──────────────────
+
+#[test]
+fn e2e_mock_namespace_import() {
+    let tmp = tempfile::tempdir().unwrap();
+    setup_project(tmp.path());
+
+    write_file(
+        tmp.path(),
+        "src/math.ts",
+        r#"
+        export function add(a: number, b: number): number { return a + b; }
+        export function multiply(a: number, b: number): number { return a * b; }
+        "#,
+    );
+
+    write_file(
+        tmp.path(),
+        "src/__tests__/mock-namespace.test.ts",
+        r#"
+        import * as utils from '../math';
+
+        vi.mock('../math', () => ({
+            add: vi.fn().mockReturnValue(99),
+            multiply: vi.fn().mockReturnValue(200),
+        }));
+
+        describe('namespace import mocking', () => {
+            it('accesses mock via namespace', () => {
+                expect(utils.add(1, 2)).toBe(99);
+                expect(utils.multiply(3, 4)).toBe(200);
+            });
+        });
+        "#,
+    );
+
+    let (result, output) = run_tests(make_config(tmp.path()));
+
+    assert!(
+        result.success(),
+        "Mock namespace import should pass: output={output}, results={:?}",
+        result.results
+    );
+    assert_eq!(result.total_passed, 1);
+}
+
+// ─── E2E: Module mocking — vi.hoisted() ────────────────────────────────
+
+#[test]
+fn e2e_mock_hoisted() {
+    let tmp = tempfile::tempdir().unwrap();
+    setup_project(tmp.path());
+
+    write_file(
+        tmp.path(),
+        "src/math.ts",
+        r#"
+        export function add(a: number, b: number): number { return a + b; }
+        "#,
+    );
+
+    write_file(
+        tmp.path(),
+        "src/__tests__/mock-hoisted.test.ts",
+        r#"
+        import { add } from '../math';
+
+        const { mockAdd } = vi.hoisted(() => ({
+            mockAdd: vi.fn().mockReturnValue(999),
+        }));
+
+        vi.mock('../math', () => ({
+            add: mockAdd,
+        }));
+
+        describe('vi.hoisted()', () => {
+            it('factory references hoisted variable', () => {
+                expect(add(1, 2)).toBe(999);
+            });
+            it('hoisted mock is the same instance', () => {
+                expect(add).toBe(mockAdd);
+            });
+        });
+        "#,
+    );
+
+    let (result, output) = run_tests(make_config(tmp.path()));
+
+    assert!(
+        result.success(),
+        "Mock with vi.hoisted should pass: output={output}, results={:?}",
+        result.results
+    );
+    assert_eq!(result.total_passed, 2);
+}
+
+// ─── E2E: Module mocking — mock.module() (Bun-compatible) ──────────────
+
+#[test]
+fn e2e_mock_module_syntax() {
+    let tmp = tempfile::tempdir().unwrap();
+    setup_project(tmp.path());
+
+    write_file(
+        tmp.path(),
+        "src/math.ts",
+        r#"
+        export function add(a: number, b: number): number { return a + b; }
+        "#,
+    );
+
+    write_file(
+        tmp.path(),
+        "src/__tests__/mock-module.test.ts",
+        r#"
+        import { add } from '../math';
+
+        mock.module('../math', () => ({
+            add: vi.fn().mockReturnValue(777),
+        }));
+
+        describe('mock.module() syntax', () => {
+            it('works like vi.mock()', () => {
+                expect(add(1, 2)).toBe(777);
+            });
+        });
+        "#,
+    );
+
+    let (result, output) = run_tests(make_config(tmp.path()));
+
+    assert!(
+        result.success(),
+        "mock.module() should pass: output={output}, results={:?}",
+        result.results
+    );
+    assert_eq!(result.total_passed, 1);
+}
+
+// ─── E2E: Module mocking — isolation between files ─────────────────────
+
+#[test]
+fn e2e_mock_isolation_between_files() {
+    let tmp = tempfile::tempdir().unwrap();
+    setup_project(tmp.path());
+
+    write_file(
+        tmp.path(),
+        "src/math.ts",
+        r#"
+        export function add(a: number, b: number): number { return a + b; }
+        "#,
+    );
+
+    // File 1: mocks the module
+    write_file(
+        tmp.path(),
+        "src/__tests__/mock-file1.test.ts",
+        r#"
+        import { add } from '../math';
+
+        vi.mock('../math', () => ({
+            add: vi.fn().mockReturnValue(42),
+        }));
+
+        describe('file 1 (mocked)', () => {
+            it('gets mock value', () => {
+                expect(add(1, 2)).toBe(42);
+            });
+        });
+        "#,
+    );
+
+    // File 2: does NOT mock — should get the real implementation
+    write_file(
+        tmp.path(),
+        "src/__tests__/mock-file2.test.ts",
+        r#"
+        import { add } from '../math';
+
+        describe('file 2 (real)', () => {
+            it('gets the REAL add function', () => {
+                expect(add(2, 3)).toBe(5);
+            });
+        });
+        "#,
+    );
+
+    let (result, output) = run_tests(make_config(tmp.path()));
+
+    assert!(
+        result.success(),
+        "Mock isolation should work: output={output}, results={:?}",
+        result.results
+    );
+    assert_eq!(result.total_passed, 2);
+}
+
+// ─── E2E: No mocks — regression check ─────────────────────────────────
+
+#[test]
+fn e2e_mock_transform_no_regression() {
+    let tmp = tempfile::tempdir().unwrap();
+    setup_project(tmp.path());
+
+    write_file(
+        tmp.path(),
+        "src/math.ts",
+        r#"
+        export function add(a: number, b: number): number { return a + b; }
+        "#,
+    );
+
+    // Test that imports a module WITHOUT any mocks — should work normally
+    write_file(
+        tmp.path(),
+        "src/__tests__/no-mock.test.ts",
+        r#"
+        import { add } from '../math';
+
+        describe('no mocks', () => {
+            it('uses real implementation', () => {
+                expect(add(10, 20)).toBe(30);
+            });
+        });
+        "#,
+    );
+
+    let (result, output) = run_tests(make_config(tmp.path()));
+
+    assert!(
+        result.success(),
+        "Non-mock file should pass: output={output}, results={:?}",
+        result.results
+    );
+    assert_eq!(result.total_passed, 1);
+}
+
+// ─── E2E: Transitive mocking — mock affects dependency imports ──────
+
+#[test]
+fn e2e_mock_transitive() {
+    let tmp = tempfile::tempdir().unwrap();
+    setup_project(tmp.path());
+
+    // The "low-level" module that will be mocked
+    write_file(
+        tmp.path(),
+        "src/db-driver.ts",
+        r#"
+        export function query(sql: string): string[] {
+            return ['real-row-1', 'real-row-2'];
+        }
+        export function connect(): string {
+            return 'real-connection';
+        }
+        "#,
+    );
+
+    // The "high-level" module that imports from db-driver
+    write_file(
+        tmp.path(),
+        "src/database.ts",
+        r#"
+        import { query, connect } from './db-driver';
+        export function getUsers(): string[] {
+            connect();
+            return query('SELECT * FROM users');
+        }
+        "#,
+    );
+
+    // Test file: mocks db-driver but imports database (transitive mock)
+    write_file(
+        tmp.path(),
+        "src/__tests__/transitive-mock.test.ts",
+        r#"
+        import { getUsers } from '../database';
+
+        vi.mock('../db-driver', () => ({
+            query: vi.fn().mockReturnValue(['mocked-user']),
+            connect: vi.fn().mockReturnValue('mock-conn'),
+        }));
+
+        describe('transitive mocking', () => {
+            it('mock affects dependency imports', () => {
+                const users = getUsers();
+                expect(users).toEqual(['mocked-user']);
+            });
+        });
+        "#,
+    );
+
+    let (result, output) = run_tests(make_config(tmp.path()));
+
+    assert!(
+        result.success(),
+        "Transitive mock should work: output={output}, results={:?}",
+        result.results
+    );
+    assert_eq!(result.total_passed, 1);
+}

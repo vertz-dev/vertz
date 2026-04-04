@@ -1103,12 +1103,24 @@ if (typeof globalThis.HTMLElement === 'undefined') {
     clearAllMocks: () => { for (const m of allMocks) m.mockClear(); },
     resetAllMocks: () => { for (const m of allMocks) m.mockReset(); },
     mock: (modulePath, factory) => {
-      // Module mocking stub — stores factory for future module loader integration.
-      // The factory is NOT auto-invoked; the caller is responsible for calling it
-      // when module resolution is intercepted. Full support requires compiler-level
-      // hoisting and Rust module loader changes.
+      // Module mocking — stores the factory RESULT (not the factory itself).
+      // The compiler's mock hoisting transform rewrites vi.mock() calls to IIFEs
+      // that call the factory at compile time, but this runtime stub handles
+      // the case where vi.mock() appears in already-compiled code.
       if (!globalThis.__vertz_mocked_modules) globalThis.__vertz_mocked_modules = {};
-      globalThis.__vertz_mocked_modules[modulePath] = factory;
+      globalThis.__vertz_mocked_modules[modulePath] = typeof factory === 'function' ? factory() : factory;
+    },
+    hoisted: (factory) => {
+      // vi.hoisted() — calls factory immediately, returns result.
+      // The compiler hoists these calls to the top of the file as IIFEs,
+      // but this runtime stub ensures it works even without the compiler transform.
+      return typeof factory === 'function' ? factory() : factory;
+    },
+    importActual: (specifier) => {
+      // vi.importActual() — returns the real module via dynamic import.
+      // The compiler replaces vi.importActual('spec') with import('spec'),
+      // but this runtime stub serves as a fallback.
+      return import(specifier);
     },
   };
 
