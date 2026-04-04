@@ -1,9 +1,23 @@
 use std::collections::HashMap;
 use std::path::PathBuf;
 
-/// Source map lookup function: given a script URL, returns (original file, line mappings).
-/// Each line mapping is (line_number, byte_offset).
-pub type SourceMapLookup = dyn Fn(&str) -> Option<(String, Vec<(u32, u32)>)>;
+/// Source map resolver: given a script URL and byte offset, returns
+/// (original_file, original_line) or None if unmapped.
+pub type SourceMapResolver = dyn Fn(&str, u32) -> Option<(String, u32)>;
+
+/// Convert a byte offset to (line, column) using a precomputed newline index.
+///
+/// Returns 1-indexed (line, column). The newline index is a sorted list of byte
+/// offsets where newline characters occur in the source.
+pub fn byte_offset_to_line_col(newline_index: &[u32], offset: u32) -> (u32, u32) {
+    let line = newline_index.partition_point(|&nl| nl < offset);
+    let col = if line == 0 {
+        offset
+    } else {
+        offset - newline_index[line - 1] - 1
+    };
+    (line as u32 + 1, col + 1)
+}
 
 /// Coverage data for a single file.
 #[derive(Debug, Clone)]
@@ -172,7 +186,7 @@ pub fn format_terminal(report: &CoverageReport, threshold: f64) -> String {
 /// ```
 pub fn parse_v8_coverage(
     coverage_json: &serde_json::Value,
-    source_map_lookup: &SourceMapLookup,
+    source_map_resolver: &SourceMapResolver,
 ) -> Vec<FileCoverage> {
     let result = match coverage_json.get("result") {
         Some(r) => r,
@@ -211,6 +225,7 @@ pub fn parse_v8_coverage(
         };
 
         let mut line_hits: HashMap<u32, u32> = HashMap::new();
+        let mut resolved_file: Option<String> = None;
 
         for func in functions {
             let ranges = match func["ranges"].as_array() {
@@ -223,12 +238,26 @@ pub fn parse_v8_coverage(
                 let start_offset = range["startOffset"].as_u64().unwrap_or(0) as u32;
                 let end_offset = range["endOffset"].as_u64().unwrap_or(0) as u32;
 
-                // Use source map to convert byte offsets to line numbers
-                if let Some((_, line_mappings)) = source_map_lookup(url) {
-                    for (line, offset) in &line_mappings {
-                        if *offset >= start_offset && *offset < end_offset {
-                            let entry = line_hits.entry(*line).or_insert(0);
-                            *entry = (*entry).max(count);
+                // Try source map resolution for the start offset
+                if let Some((orig_file, orig_line)) = source_map_resolver(url, start_offset) {
+                    if resolved_file.is_none() {
+                        resolved_file = Some(orig_file);
+                    }
+                    let entry = line_hits.entry(orig_line).or_insert(0);
+                    *entry = (*entry).max(count);
+
+                    // Also resolve end offset to cover intermediate lines
+                    if end_offset > start_offset {
+                        if let Some((_, end_line)) =
+                            source_map_resolver(url, end_offset.saturating_sub(1))
+                        {
+                            // Fill in lines between start and end
+                            if end_line > orig_line {
+                                for line in (orig_line + 1)..=end_line {
+                                    let entry = line_hits.entry(line).or_insert(0);
+                                    *entry = (*entry).max(count);
+                                }
+                            }
                         }
                     }
                 } else {
@@ -243,11 +272,17 @@ pub fn parse_v8_coverage(
             }
         }
 
+        // Use resolved original file path if source map was available
+        let final_path = match resolved_file {
+            Some(ref orig) => PathBuf::from(orig),
+            None => file_path,
+        };
+
         let total_lines = line_hits.len();
         let covered_lines = line_hits.values().filter(|&&c| c > 0).count();
 
         coverages.push(FileCoverage {
-            file: file_path,
+            file: final_path,
             lines: line_hits,
             total_lines,
             covered_lines,
@@ -426,7 +461,7 @@ mod tests {
     #[test]
     fn test_parse_v8_coverage_empty() {
         let json = serde_json::json!({ "result": [] });
-        let result = parse_v8_coverage(&json, &|_| None);
+        let result = parse_v8_coverage(&json, &|_, _| None);
         assert!(result.is_empty());
     }
 
@@ -446,7 +481,7 @@ mod tests {
                 }
             ]
         });
-        let result = parse_v8_coverage(&json, &|_| None);
+        let result = parse_v8_coverage(&json, &|_, _| None);
         assert!(result.is_empty());
     }
 
@@ -470,7 +505,7 @@ mod tests {
             ]
         });
 
-        let result = parse_v8_coverage(&json, &|_| None);
+        let result = parse_v8_coverage(&json, &|_, _| None);
         assert_eq!(result.len(), 1);
         assert_eq!(result[0].file, PathBuf::from("/src/math.ts"));
         // Without source map, uses rough line estimate
@@ -480,7 +515,7 @@ mod tests {
     #[test]
     fn test_parse_v8_coverage_no_result_key() {
         let json = serde_json::json!({});
-        let result = parse_v8_coverage(&json, &|_| None);
+        let result = parse_v8_coverage(&json, &|_, _| None);
         assert!(result.is_empty());
     }
 
@@ -489,5 +524,110 @@ mod tests {
         let report = CoverageReport { files: vec![] };
         assert_eq!(report.total_percentage(), 100.0);
         assert!(report.all_meet_threshold(95.0));
+    }
+
+    // ── byte_offset_to_line_col tests ──
+
+    #[test]
+    fn test_byte_offset_to_line_col_first_char() {
+        // "abc\ndef\nghi" → newlines at [3, 7]
+        assert_eq!(byte_offset_to_line_col(&[3, 7], 0), (1, 1));
+    }
+
+    #[test]
+    fn test_byte_offset_to_line_col_second_line() {
+        // Byte 4 is 'd' on line 2 (after newline at 3)
+        assert_eq!(byte_offset_to_line_col(&[3, 7], 4), (2, 1));
+    }
+
+    #[test]
+    fn test_byte_offset_to_line_col_third_line() {
+        // Byte 8 is 'g' on line 3 (after newline at 7)
+        assert_eq!(byte_offset_to_line_col(&[3, 7], 8), (3, 1));
+    }
+
+    #[test]
+    fn test_byte_offset_to_line_col_single_line() {
+        // No newlines — everything is line 1
+        assert_eq!(byte_offset_to_line_col(&[], 5), (1, 6));
+    }
+
+    #[test]
+    fn test_byte_offset_to_line_col_mid_line() {
+        // Byte 5 in "abc\ndef\nghi" is 'e' on line 2, column 2
+        assert_eq!(byte_offset_to_line_col(&[3, 7], 5), (2, 2));
+    }
+
+    // ── Source map resolver integration test ──
+
+    #[test]
+    fn test_parse_v8_coverage_with_source_map_resolver() {
+        let json = serde_json::json!({
+            "result": [
+                {
+                    "scriptId": "1",
+                    "url": "file:///project/dist/math.js",
+                    "functions": [
+                        {
+                            "functionName": "add",
+                            "ranges": [
+                                { "startOffset": 0, "endOffset": 60, "count": 1 }
+                            ]
+                        }
+                    ]
+                }
+            ]
+        });
+
+        // Resolver maps compiled byte offsets to original source positions
+        let resolver = |url: &str, offset: u32| -> Option<(String, u32)> {
+            if url == "file:///project/dist/math.js" {
+                // Map byte offsets to original lines in src/math.ts
+                let line = match offset {
+                    0..=19 => 1,
+                    20..=39 => 2,
+                    40..=59 => 3,
+                    _ => return None,
+                };
+                Some(("src/math.ts".to_string(), line))
+            } else {
+                None
+            }
+        };
+
+        let result = parse_v8_coverage(&json, &resolver);
+        assert_eq!(result.len(), 1);
+        // File path should be the original source (from resolver)
+        assert_eq!(result[0].file, PathBuf::from("src/math.ts"));
+        // Lines should be original source lines, not byte-offset estimates
+        assert!(result[0].lines.contains_key(&1));
+        assert!(result[0].lines.contains_key(&3));
+    }
+
+    #[test]
+    fn test_parse_v8_coverage_resolver_none_falls_back() {
+        let json = serde_json::json!({
+            "result": [
+                {
+                    "scriptId": "1",
+                    "url": "file:///plain.js",
+                    "functions": [
+                        {
+                            "functionName": "",
+                            "ranges": [
+                                { "startOffset": 0, "endOffset": 80, "count": 1 }
+                            ]
+                        }
+                    ]
+                }
+            ]
+        });
+
+        // Resolver returns None → fallback to 40-char estimation
+        let result = parse_v8_coverage(&json, &|_, _| None);
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0].file, PathBuf::from("/plain.js"));
+        // 80 bytes / 40 chars per line = lines 1 and 2
+        assert!(result[0].total_lines > 0);
     }
 }

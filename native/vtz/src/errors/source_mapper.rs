@@ -166,28 +166,28 @@ fn parse_file_line_col(s: &str) -> Option<(String, u32, u32)> {
 
 /// Minimal Source Map V3 structure.
 #[derive(Debug, Deserialize)]
-struct SourceMapV3 {
+pub(crate) struct SourceMapV3 {
     /// Source file paths referenced by the mappings.
-    sources: Vec<String>,
+    pub(crate) sources: Vec<String>,
     /// VLQ-encoded mappings string.
-    mappings: String,
+    pub(crate) mappings: String,
 }
 
 /// A decoded mapping segment.
 #[derive(Debug, Clone)]
-struct MappingSegment {
+pub(crate) struct MappingSegment {
     /// Generated column (0-indexed).
-    gen_column: u32,
+    pub(crate) gen_column: u32,
     /// Source file index.
-    source_idx: u32,
+    pub(crate) source_idx: u32,
     /// Original line (0-indexed).
-    orig_line: u32,
+    pub(crate) orig_line: u32,
     /// Original column (0-indexed).
-    orig_column: u32,
+    pub(crate) orig_column: u32,
 }
 
 /// Decode VLQ mappings and find the original position for a given compiled position.
-fn resolve_from_source_map(
+pub(crate) fn resolve_from_source_map(
     sm: &SourceMapV3,
     compiled_line: u32,
     compiled_column: u32,
@@ -236,7 +236,7 @@ fn resolve_from_source_map(
 /// - `;` to separate generated lines
 /// - `,` to separate segments within a line
 /// - VLQ-encoded integers for each segment field
-fn decode_mappings(mappings: &str) -> Vec<MappingSegment> {
+pub(crate) fn decode_mappings(mappings: &str) -> Vec<MappingSegment> {
     let mut segments = Vec::new();
     let mut source_idx: i64 = 0;
     let mut orig_line: i64 = 0;

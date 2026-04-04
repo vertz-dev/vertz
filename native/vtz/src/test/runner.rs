@@ -174,10 +174,69 @@ pub fn run_tests(config: TestRunConfig) -> (TestRunResult, String) {
     // 4. If coverage is enabled, collect and build the report first
     //    (so coverage_failed is set before formatting JSON/JUnit)
     if config.coverage {
+        // Collect and deduplicate source maps and newline indices from all executors
+        let mut all_source_maps: std::collections::HashMap<String, String> =
+            std::collections::HashMap::new();
+        let mut all_newline_indices: std::collections::HashMap<String, Vec<u32>> =
+            std::collections::HashMap::new();
+        for result in &run_result.results {
+            for (k, v) in &result.source_maps {
+                all_source_maps
+                    .entry(k.clone())
+                    .or_insert_with(|| v.clone());
+            }
+            for (k, v) in &result.newline_indices {
+                all_newline_indices
+                    .entry(k.clone())
+                    .or_insert_with(|| v.clone());
+            }
+        }
+
+        // Build the source map resolver closure
+        use std::cell::RefCell;
+        let decoded_cache: RefCell<
+            std::collections::HashMap<String, Vec<crate::errors::source_mapper::MappingSegment>>,
+        > = RefCell::new(std::collections::HashMap::new());
+
+        let resolver = move |url: &str, byte_offset: u32| -> Option<(String, u32)> {
+            // Strip file:// prefix to get the filename key
+            let filename = url.strip_prefix("file://").unwrap_or(url);
+
+            let source_map_json = all_source_maps.get(filename)?;
+            let newline_index = all_newline_indices.get(filename)?;
+
+            // Convert byte offset to compiled (line, column)
+            let (compiled_line, compiled_col) =
+                super::coverage::byte_offset_to_line_col(newline_index, byte_offset);
+
+            // Parse source map and resolve position
+            let sm: crate::errors::source_mapper::SourceMapV3 =
+                serde_json::from_str(source_map_json).ok()?;
+
+            // Cache decoded mappings per file to avoid re-decoding
+            {
+                let mut cache = decoded_cache.borrow_mut();
+                if !cache.contains_key(filename) {
+                    cache.insert(
+                        filename.to_string(),
+                        crate::errors::source_mapper::decode_mappings(&sm.mappings),
+                    );
+                }
+            }
+
+            let pos = crate::errors::source_mapper::resolve_from_source_map(
+                &sm,
+                compiled_line,
+                compiled_col,
+            )?;
+
+            Some((pos.file, pos.line))
+        };
+
         let mut all_coverage = Vec::new();
         for result in &run_result.results {
             if let Some(ref cov_json) = result.coverage_data {
-                let file_coverages = super::coverage::parse_v8_coverage(cov_json, &|_| None);
+                let file_coverages = super::coverage::parse_v8_coverage(cov_json, &resolver);
                 // Exclude test files from coverage report
                 let source_coverages = file_coverages.into_iter().filter(|fc| {
                     let name = fc.file.to_string_lossy();

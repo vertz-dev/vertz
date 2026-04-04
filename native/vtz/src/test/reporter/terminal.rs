@@ -173,6 +173,8 @@ mod tests {
             duration_ms: 5.0,
             file_error: None,
             coverage_data: None,
+            source_maps: std::collections::HashMap::new(),
+            newline_indices: std::collections::HashMap::new(),
         }];
 
         let output = format_results(&results);
@@ -195,6 +197,8 @@ mod tests {
             duration_ms: 3.0,
             file_error: None,
             coverage_data: None,
+            source_maps: std::collections::HashMap::new(),
+            newline_indices: std::collections::HashMap::new(),
         }];
 
         let output = format_results(&results);
@@ -217,6 +221,8 @@ mod tests {
             duration_ms: 2.0,
             file_error: None,
             coverage_data: None,
+            source_maps: std::collections::HashMap::new(),
+            newline_indices: std::collections::HashMap::new(),
         }];
 
         let output = format_results(&results);
@@ -235,6 +241,8 @@ mod tests {
             duration_ms: 1.0,
             file_error: Some("Cannot resolve module './missing'".to_string()),
             coverage_data: None,
+            source_maps: std::collections::HashMap::new(),
+            newline_indices: std::collections::HashMap::new(),
         }];
 
         let output = format_results(&results);
@@ -253,6 +261,8 @@ mod tests {
                 duration_ms: 2.0,
                 file_error: None,
                 coverage_data: None,
+                source_maps: std::collections::HashMap::new(),
+                newline_indices: std::collections::HashMap::new(),
             },
             TestFileResult {
                 file: "/project/src/b.test.ts".to_string(),
@@ -260,6 +270,8 @@ mod tests {
                 duration_ms: 2.0,
                 file_error: None,
                 coverage_data: None,
+                source_maps: std::collections::HashMap::new(),
+                newline_indices: std::collections::HashMap::new(),
             },
         ];
 

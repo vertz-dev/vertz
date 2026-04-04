@@ -205,6 +205,8 @@ async fn execute_e2e_test_file(
             duration_ms: start.elapsed().as_secs_f64() * 1000.0,
             file_error: None,
             coverage_data: None,
+            source_maps: std::collections::HashMap::new(),
+            newline_indices: std::collections::HashMap::new(),
         },
         Err(err) => TestFileResult {
             file: file_str,
@@ -212,6 +214,8 @@ async fn execute_e2e_test_file(
             duration_ms: start.elapsed().as_secs_f64() * 1000.0,
             file_error: Some(err.to_string()),
             coverage_data: None,
+            source_maps: std::collections::HashMap::new(),
+            newline_indices: std::collections::HashMap::new(),
         },
     }
 }

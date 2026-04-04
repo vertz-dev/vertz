@@ -27,6 +27,14 @@ pub struct TestFileResult {
     /// Raw V8 coverage data (present when coverage is enabled).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub coverage_data: Option<serde_json::Value>,
+    /// Source maps collected during module loading (filename → source map JSON).
+    /// Used for coverage source map resolution.
+    #[serde(skip)]
+    pub source_maps: std::collections::HashMap<String, String>,
+    /// Newline byte-offset indices from compiled code (filename → newline offsets).
+    /// Used for coverage byte-offset → line conversion.
+    #[serde(skip)]
+    pub newline_indices: std::collections::HashMap<String, Vec<u32>>,
 }
 
 /// Result of a single test case.
@@ -150,12 +158,14 @@ pub fn execute_test_file_with_options(
     let duration_ms = start.elapsed().as_secs_f64() * 1000.0;
 
     match result {
-        Ok((tests, coverage_data)) => TestFileResult {
+        Ok(inner) => TestFileResult {
             file: file_str,
-            tests,
+            tests: inner.tests,
             duration_ms,
             file_error: None,
-            coverage_data,
+            coverage_data: inner.coverage_data,
+            source_maps: inner.source_maps,
+            newline_indices: inner.newline_indices,
         },
         Err(e) => TestFileResult {
             file: file_str,
@@ -163,15 +173,25 @@ pub fn execute_test_file_with_options(
             duration_ms,
             file_error: Some(e.to_string()),
             coverage_data: None,
+            source_maps: std::collections::HashMap::new(),
+            newline_indices: std::collections::HashMap::new(),
         },
     }
+}
+
+/// Internal result of executing a test file (before wrapping in TestFileResult).
+struct ExecuteInnerResult {
+    tests: Vec<TestResult>,
+    coverage_data: Option<serde_json::Value>,
+    source_maps: std::collections::HashMap<String, String>,
+    newline_indices: std::collections::HashMap<String, Vec<u32>>,
 }
 
 fn execute_test_file_inner(
     file_path: &Path,
     root_dir: &str,
     options: &ExecuteOptions,
-) -> Result<(Vec<TestResult>, Option<serde_json::Value>), AnyError> {
+) -> Result<ExecuteInnerResult, AnyError> {
     let plugin: std::sync::Arc<dyn crate::plugin::FrameworkPlugin> =
         std::sync::Arc::new(crate::plugin::vertz::VertzPlugin);
     let mut runtime = VertzJsRuntime::new_for_test(VertzRuntimeOptions {
@@ -340,7 +360,17 @@ fn execute_test_file_inner(
 
     // 9. Parse results from JSON
     let tests = parse_test_results(&results_json)?;
-    Ok((tests, coverage_data))
+
+    // 10. Extract source maps and newline indices for coverage resolution
+    let source_maps = runtime.source_maps();
+    let newline_indices = runtime.newline_indices();
+
+    Ok(ExecuteInnerResult {
+        tests,
+        coverage_data,
+        source_maps,
+        newline_indices,
+    })
 }
 
 /// Send a CDP message to the inspector session, driving the event loop manually.

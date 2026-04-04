@@ -165,6 +165,8 @@ pub fn run_type_tests(
                         "No TypeScript checker found (tsc/tsgo). Install typescript.".to_string(),
                     ),
                     coverage_data: None,
+                    source_maps: std::collections::HashMap::new(),
+                    newline_indices: std::collections::HashMap::new(),
                 })
                 .collect();
         }
@@ -198,6 +200,8 @@ pub fn run_type_tests(
                     duration_ms: 0.0,
                     file_error: Some(format!("Failed to run {}: {}", checker.name, e)),
                     coverage_data: None,
+                    source_maps: std::collections::HashMap::new(),
+                    newline_indices: std::collections::HashMap::new(),
                 })
                 .collect();
         }
@@ -238,6 +242,8 @@ pub fn run_type_tests(
                 duration_ms: per_file_duration,
                 file_error: None,
                 coverage_data: None,
+                source_maps: std::collections::HashMap::new(),
+                newline_indices: std::collections::HashMap::new(),
             });
         } else {
             // No diagnostics → passing
@@ -253,6 +259,8 @@ pub fn run_type_tests(
                 duration_ms: per_file_duration,
                 file_error: None,
                 coverage_data: None,
+                source_maps: std::collections::HashMap::new(),
+                newline_indices: std::collections::HashMap::new(),
             });
         }
     }
