@@ -65,6 +65,19 @@ function resolvePrimaryKeyColumn(table: TableDef): string {
   return 'id';
 }
 
+/**
+ * Resolves primary key columns from a table definition, supporting composite PKs.
+ * Returns an array of column names (length > 1 for composite PKs).
+ */
+export function resolvePkColumns(table: TableDef): string[] {
+  if (table._primaryKey?.length) return [...table._primaryKey];
+  for (const key of Object.keys(table._columns)) {
+    const col = table._columns[key] as ColumnBuilder<unknown, ColumnMetadata> | undefined;
+    if (col?._meta.primary) return [key];
+  }
+  return ['id'];
+}
+
 // ---------------------------------------------------------------------------
 // List options — pagination & filtering (imported from @vertz/db)
 // ---------------------------------------------------------------------------
@@ -160,15 +173,7 @@ export function createCrudHandlers<TModel extends ModelDef = ModelDef>(
   const table = def.model.table;
 
   // Resolve PK columns from table definition
-  const pkColumns: string[] = table._primaryKey?.length
-    ? [...table._primaryKey]
-    : (() => {
-        for (const key of Object.keys(table._columns)) {
-          const col = table._columns[key] as ColumnBuilder<unknown, ColumnMetadata> | undefined;
-          if (col?._meta.primary) return [key];
-        }
-        return ['id'];
-      })();
+  const pkColumns = resolvePkColumns(table);
   const isCompositePk = pkColumns.length > 1;
 
   const isTenantScoped = def.tenantScoped;
@@ -273,7 +278,9 @@ export function createCrudHandlers<TModel extends ModelDef = ModelDef>(
     const idStr =
       typeof id === 'string'
         ? `id "${id}"`
-        : `key { ${Object.entries(id).map(([k, v]) => `${k}: "${v}"`).join(', ')} }`;
+        : `key { ${Object.entries(id)
+            .map(([k, v]) => `${k}: "${v}"`)
+            .join(', ')} }`;
     return err(new EntityNotFoundError(`${def.name} with ${idStr} not found`));
   }
 

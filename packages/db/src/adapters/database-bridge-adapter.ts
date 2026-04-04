@@ -83,7 +83,11 @@ export function createDatabaseBridgeAdapter<
         ...(options?.orderBy && { orderBy: options.orderBy }),
         ...(options?.limit !== undefined && { limit: options.limit }),
         ...(options?.include && { include: options.include }),
-        ...(options?.after && { cursor: { id: options.after } }),
+        ...(options?.after && {
+          cursor: options.after.startsWith('{')
+            ? (JSON.parse(options.after) as Record<string, unknown>)
+            : { id: options.after },
+        }),
       });
       if (!result.ok) {
         throw result.error;

@@ -495,6 +495,23 @@ describe('createDatabaseBridgeAdapter', () => {
     expect(capturedOptions).toMatchObject({ cursor: { id: 'cursor-123' } });
   });
 
+  it('list() parses composite cursor JSON and forwards as cursor object', async () => {
+    let capturedOptions: unknown;
+    const db = createMockDb({
+      listAndCount: async (options?: unknown) => {
+        capturedOptions = options;
+        return ok({ data: [], total: 0 });
+      },
+    });
+
+    const adapter = createDatabaseBridgeAdapter(db, 'users');
+    await adapter.list({ after: '{"projectId":"p1","userId":"u1"}' });
+
+    expect(capturedOptions).toMatchObject({
+      cursor: { projectId: 'p1', userId: 'u1' },
+    });
+  });
+
   it('list() passes orderBy and include options to delegate.listAndCount', async () => {
     let capturedOptions: unknown;
     const db = createMockDb({

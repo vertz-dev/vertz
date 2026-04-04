@@ -1,12 +1,12 @@
 import type { EntityRouteEntry } from '@vertz/core';
 import { createActionHandler } from './action-pipeline';
 import { createEntityContext, type RequestInfo as EntityRequestInfo } from './context';
-import type { ColumnBuilder, ColumnMetadata } from '@vertz/db';
 import {
   createCrudHandlers,
   type EntityDbAdapter,
   type EntityId,
   type ListOptions,
+  resolvePkColumns,
 } from './crud-pipeline';
 import type { EntityOperations } from './entity-operations';
 import type { EntityRegistry } from './entity-registry';
@@ -177,15 +177,7 @@ export function generateEntityRoutes(
 
   // Resolve PK columns for path generation
   const table = def.model.table;
-  const pkColumns: string[] = table._primaryKey?.length
-    ? [...table._primaryKey]
-    : (() => {
-        for (const [key, col] of Object.entries(table._columns)) {
-          if ((col as ColumnBuilder<unknown, ColumnMetadata> | undefined)?._meta?.primary)
-            return [key];
-        }
-        return ['id'];
-      })();
+  const pkColumns = resolvePkColumns(table);
   const isCompositePk = pkColumns.length > 1;
   const idPath = isCompositePk ? '/' + pkColumns.map((col) => `:${col}`).join('/') : '/:id';
 
