@@ -18,6 +18,23 @@ use crate::runtime::compile_cache::{CachedCompilation, CompileCache};
 /// Source maps collected during module loading.
 pub type SourceMapStore = RefCell<HashMap<String, String>>;
 
+/// Newline byte-offset indices collected during module loading.
+/// Each entry maps a filename to the byte offsets of newline characters in the compiled code.
+/// Used by coverage to convert V8 byte offsets to (line, column) pairs.
+pub type NewlineIndexStore = RefCell<HashMap<String, Vec<u32>>>;
+
+/// Build a newline byte-offset index from source code.
+///
+/// Returns a `Vec<u32>` where each entry is the byte offset of a `\n` character.
+/// Used to convert V8 coverage byte offsets into (line, column) positions.
+pub fn build_newline_index(code: &str) -> Vec<u32> {
+    code.bytes()
+        .enumerate()
+        .filter(|(_, b)| *b == b'\n')
+        .map(|(i, _)| i as u32)
+        .collect()
+}
+
 /// Prefix used in "missing module" error messages from `resolve_node_module`.
 ///
 /// Shared with `persistent_isolate::parse_missing_package()` to detect
@@ -39,6 +56,7 @@ pub const MISSING_MODULE_SUFFIX: &str = "' in node_modules";
 pub struct VertzModuleLoader {
     root_dir: PathBuf,
     source_maps: SourceMapStore,
+    newline_indices: NewlineIndexStore,
     canon_cache: RefCell<HashMap<PathBuf, PathBuf>>,
     compile_cache: CompileCache,
     plugin: std::sync::Arc<dyn FrameworkPlugin>,
@@ -52,6 +70,7 @@ impl VertzModuleLoader {
         Self {
             root_dir: PathBuf::from(root_dir),
             source_maps: RefCell::new(HashMap::new()),
+            newline_indices: RefCell::new(HashMap::new()),
             canon_cache: RefCell::new(HashMap::new()),
             compile_cache: CompileCache::new(Path::new(root_dir), false),
             plugin,
@@ -68,6 +87,7 @@ impl VertzModuleLoader {
         Self {
             root_dir: PathBuf::from(root_dir),
             source_maps: RefCell::new(HashMap::new()),
+            newline_indices: RefCell::new(HashMap::new()),
             canon_cache: RefCell::new(HashMap::new()),
             compile_cache: CompileCache::new(Path::new(root_dir), cache_enabled),
             plugin,
@@ -121,6 +141,16 @@ impl VertzModuleLoader {
             target: "ssr",
         };
         self.plugin.compile(source, &ctx)
+    }
+
+    /// Return a clone of the collected source maps (filename → source map JSON).
+    pub fn source_maps_snapshot(&self) -> HashMap<String, String> {
+        self.source_maps.borrow().clone()
+    }
+
+    /// Return a clone of the collected newline indices (filename → newline byte offsets).
+    pub fn newline_indices_snapshot(&self) -> HashMap<String, Vec<u32>> {
+        self.newline_indices.borrow().clone()
     }
 
     /// Canonicalize a file path, using a cache to avoid repeated syscalls.
@@ -438,11 +468,14 @@ impl VertzModuleLoader {
                     .borrow_mut()
                     .insert(filename.to_string(), map.clone());
             }
-            return Ok(Self::prepend_css_injection(
-                cached.code,
-                cached.css.as_deref(),
-                filename,
-            ));
+            // Build the final code V8 will see (with CSS injection prepended)
+            let final_code =
+                Self::prepend_css_injection(cached.code, cached.css.as_deref(), filename);
+            // Store newline index from final code (what V8 sees) for coverage byte-offset → line
+            self.newline_indices
+                .borrow_mut()
+                .insert(filename.to_string(), build_newline_index(&final_code));
+            return Ok(final_code);
         }
 
         let file_path = Path::new(filename);
@@ -498,11 +531,15 @@ impl VertzModuleLoader {
             },
         );
 
-        Ok(Self::prepend_css_injection(
-            code,
-            output.css.as_deref(),
-            filename,
-        ))
+        // Build the final code V8 will see (with CSS injection prepended)
+        let final_code = Self::prepend_css_injection(code, output.css.as_deref(), filename);
+
+        // Store newline index from final code (what V8 sees) for coverage byte-offset → line
+        self.newline_indices
+            .borrow_mut()
+            .insert(filename.to_string(), build_newline_index(&final_code));
+
+        Ok(final_code)
     }
 }
 
@@ -2543,5 +2580,34 @@ export function Hello() {
             canon(&src_dir.join("index.ts")),
             "bare '..' from __tests__ must resolve to src/index.ts, not package.json exports"
         );
+    }
+
+    // ── build_newline_index tests ──
+
+    #[test]
+    fn test_build_newline_index_multiline() {
+        // "abc\ndef\nghi" has newlines at byte 3 and 7
+        assert_eq!(build_newline_index("abc\ndef\nghi"), vec![3, 7]);
+    }
+
+    #[test]
+    fn test_build_newline_index_empty() {
+        assert_eq!(build_newline_index(""), Vec::<u32>::new());
+    }
+
+    #[test]
+    fn test_build_newline_index_no_newlines() {
+        assert_eq!(build_newline_index("no newlines"), Vec::<u32>::new());
+    }
+
+    #[test]
+    fn test_build_newline_index_trailing_newline() {
+        // "abc\n" has one newline at byte 3
+        assert_eq!(build_newline_index("abc\n"), vec![3]);
+    }
+
+    #[test]
+    fn test_build_newline_index_only_newlines() {
+        assert_eq!(build_newline_index("\n\n\n"), vec![0, 1, 2]);
     }
 }

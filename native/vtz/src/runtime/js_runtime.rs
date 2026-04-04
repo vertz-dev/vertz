@@ -224,7 +224,6 @@ impl VertzJsRuntime {
             cache_enabled,
             options.plugin.clone(),
         ));
-
         let snapshot = crate::test::snapshot::get_test_snapshot();
 
         let mut runtime = JsRuntime::new(RuntimeOptions {
@@ -250,6 +249,16 @@ impl VertzJsRuntime {
             captured_output,
             module_loader,
         })
+    }
+
+    /// Return source maps collected during module loading (filename → source map JSON).
+    pub fn source_maps(&self) -> std::collections::HashMap<String, String> {
+        self.module_loader.source_maps_snapshot()
+    }
+
+    /// Return newline byte-offset indices collected during module loading.
+    pub fn newline_indices(&self) -> std::collections::HashMap<String, Vec<u32>> {
+        self.module_loader.newline_indices_snapshot()
     }
 
     /// Execute a JavaScript snippet and return the result as a serde_json::Value.

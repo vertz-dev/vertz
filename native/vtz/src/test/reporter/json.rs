@@ -60,6 +60,8 @@ mod tests {
             duration_ms,
             file_error: None,
             coverage_data: None,
+            source_maps: std::collections::HashMap::new(),
+            newline_indices: std::collections::HashMap::new(),
         }
     }
 
