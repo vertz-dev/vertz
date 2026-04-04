@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'bun:test';
+import { d } from '../../d';
 import { defaultPostgresDialect, SqliteDialect } from '../../dialect';
 import { buildDelete } from '../delete';
 import { buildInsert } from '../insert';
 import { buildSelect } from '../select';
+import { sql } from '../tagged';
 import { buildUpdate } from '../update';
 import { buildWhere } from '../where';
 
@@ -59,6 +61,27 @@ describe('buildInsert with SqliteDialect', () => {
       'INSERT INTO "users" ("id", "name") VALUES (?, ?) ON CONFLICT ("id") DO UPDATE SET "name" = EXCLUDED."name" RETURNING *',
     );
     expect(result.params).toEqual(['123', 'Alice']);
+  });
+
+  it('generates ? params for ON CONFLICT with DbExpr updateValues', () => {
+    const result = buildInsert(
+      {
+        table: 'urls',
+        data: { slug: 'test', clickCount: 1 },
+        onConflict: {
+          columns: ['slug'],
+          action: 'update',
+          updateColumns: ['clickCount'],
+          updateValues: { clickCount: d.increment(1) },
+        },
+      },
+      sqliteDialect,
+    );
+
+    expect(result.sql).toBe(
+      'INSERT INTO "urls" ("slug", "click_count") VALUES (?, ?) ON CONFLICT ("slug") DO UPDATE SET "click_count" = "click_count" + ?',
+    );
+    expect(result.params).toEqual(['test', 1, 1]);
   });
 });
 
@@ -127,6 +150,34 @@ describe('buildUpdate with SqliteDialect', () => {
       'UPDATE "users" SET "updated_at" = datetime(\'now\') WHERE "id" = ? RETURNING *',
     );
     expect(result.params).toEqual(['123']);
+  });
+
+  it('generates ? params for DbExpr d.increment()', () => {
+    const result = buildUpdate(
+      {
+        table: 'counters',
+        data: { count: d.increment(1) },
+        where: { id: { eq: 'c1' } },
+      },
+      sqliteDialect,
+    );
+
+    expect(result.sql).toBe('UPDATE "counters" SET "count" = "count" + ? WHERE "id" = ?');
+    expect(result.params).toEqual([1, 'c1']);
+  });
+
+  it('generates ? params for DbExpr d.expr()', () => {
+    const result = buildUpdate(
+      {
+        table: 'urls',
+        data: { slug: d.expr((col) => sql`LOWER(${col})`) },
+        where: { id: { eq: 'u1' } },
+      },
+      sqliteDialect,
+    );
+
+    expect(result.sql).toBe('UPDATE "urls" SET "slug" = LOWER("slug") WHERE "id" = ?');
+    expect(result.params).toEqual(['u1']);
   });
 });
 

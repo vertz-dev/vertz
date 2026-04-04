@@ -15,6 +15,7 @@ import { generateId } from '../id/generators';
 import type { ColumnBuilder, ColumnMetadata } from '../schema/column';
 import type { ColumnRecord, TableDef } from '../schema/table';
 import { buildDelete } from '../sql/delete';
+import { isDbExpr } from '../sql/expr';
 import { buildInsert } from '../sql/insert';
 import { buildSelect } from '../sql/select';
 import { buildUpdate } from '../sql/update';
@@ -370,8 +371,12 @@ export async function update<T>(
   const readOnlyCols = getReadOnlyColumns(table);
   const autoUpdateCols = getAutoUpdateColumns(table);
 
+  // Strip readOnly columns, but let autoUpdate columns through when user provides a DbExpr
+  const autoUpdateSet = new Set(autoUpdateCols);
   const filteredData = Object.fromEntries(
-    Object.entries(options.data).filter(([key]) => !readOnlyCols.includes(key)),
+    Object.entries(options.data).filter(
+      ([key, val]) => !readOnlyCols.includes(key) || (autoUpdateSet.has(key) && isDbExpr(val)),
+    ),
   );
 
   // Auto-set autoUpdate columns to NOW() unless the user already provided a
@@ -424,8 +429,12 @@ export async function updateMany(
   const readOnlyCols = getReadOnlyColumns(table);
   const autoUpdateCols = getAutoUpdateColumns(table);
 
+  // Strip readOnly columns, but let autoUpdate columns through when user provides a DbExpr
+  const autoUpdateSet = new Set(autoUpdateCols);
   const filteredData = Object.fromEntries(
-    Object.entries(options.data).filter(([key]) => !readOnlyCols.includes(key)),
+    Object.entries(options.data).filter(
+      ([key, val]) => !readOnlyCols.includes(key) || (autoUpdateSet.has(key) && isDbExpr(val)),
+    ),
   );
 
   // Auto-set autoUpdate columns to NOW() unless user provided a value
@@ -493,9 +502,12 @@ export async function upsert<T>(
     }),
   );
 
-  // Strip readOnly fields from the update path, inject autoUpdate columns
+  // Strip readOnly fields from the update path, but let autoUpdate columns through with DbExpr
+  const autoUpdateSet = new Set(autoUpdateCols);
   const filteredUpdate = Object.fromEntries(
-    Object.entries(options.update).filter(([key]) => !readOnlyCols.includes(key)),
+    Object.entries(options.update).filter(
+      ([key, val]) => !readOnlyCols.includes(key) || (autoUpdateSet.has(key) && isDbExpr(val)),
+    ),
   );
   for (const col of autoUpdateCols) {
     if (!(col in filteredUpdate)) {
