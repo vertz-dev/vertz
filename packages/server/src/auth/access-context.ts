@@ -137,9 +137,10 @@ export function createAccessContext(config: AccessContextConfig): AccessContext 
   // resolveAncestorChain() — build [self, ...ancestors] sorted child→root
   // ==========================================================================
 
-  async function resolveAncestorChain(
-    org: { type: string; id: string },
-  ): Promise<AncestorChainEntry[] | null> {
+  async function resolveAncestorChain(org: {
+    type: string;
+    id: string;
+  }): Promise<AncestorChainEntry[] | null> {
     if (!ancestorResolver || !tenantLevel) return null;
     const ancestors = await ancestorResolver(tenantLevel, org.id);
     return [
@@ -152,10 +153,7 @@ export function createAccessContext(config: AccessContextConfig): AccessContext 
   // resolveMultiLevelFlag() — deepest wins flag resolution
   // ==========================================================================
 
-  function resolveMultiLevelFlag(
-    flag: string,
-    chain: AncestorChainEntry[],
-  ): boolean {
+  function resolveMultiLevelFlag(flag: string, chain: AncestorChainEntry[]): boolean {
     // chain is sorted child→root; first match wins (deepest)
     for (const entry of chain) {
       const levelFlags = flagStore!.getFlags(entry.type, entry.id);
@@ -398,9 +396,7 @@ export function createAccessContext(config: AccessContextConfig): AccessContext 
       const planDef = accessDef.plans?.[planId];
       if (!planDef?.limits || !limitKeys?.some((k) => k in planDef.limits!)) continue;
 
-      const levelOverrides = overrideStore
-        ? await overrideStore.get(entry.type, entry.id)
-        : null;
+      const levelOverrides = overrideStore ? await overrideStore.get(entry.type, entry.id) : null;
 
       const walletStates = await resolveAllLimitStates(
         entitlement,
@@ -495,9 +491,7 @@ export function createAccessContext(config: AccessContextConfig): AccessContext 
       const planDef = accessDef.plans?.[planId];
       if (!planDef?.limits || !limitKeys?.some((k) => k in planDef.limits!)) continue;
 
-      const levelOverrides = overrideStore
-        ? await overrideStore.get(entry.type, entry.id)
-        : null;
+      const levelOverrides = overrideStore ? await overrideStore.get(entry.type, entry.id) : null;
 
       const walletStates = await resolveAllLimitStates(
         entitlement,

@@ -457,7 +457,15 @@ describe('Feature: Multi-level access context (#1829)', () => {
       it('Then ctx.can() returns false', async () => {
         const { periodStart, periodEnd } = getBillingPeriod();
         // Consume 100 at project level (hit limit of 100)
-        await walletStore.consume('project', 'proj-1', 'ai-credits', periodStart, periodEnd, 100, 100);
+        await walletStore.consume(
+          'project',
+          'proj-1',
+          'ai-credits',
+          periodStart,
+          periodEnd,
+          100,
+          100,
+        );
 
         const ctx = createAccessContext({
           userId: 'user-1',
