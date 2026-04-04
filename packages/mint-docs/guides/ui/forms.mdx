@@ -390,3 +390,105 @@ export function TaskFilter({ onFilterChange }: TaskFilterProps) {
 ```
 
 Use `form()` when you need **validation**, **per-field error tracking**, **dirty/submitting state**, or **progressive enhancement**. For pure client-side state without submission, `let` variables are enough.
+
+## Form-level onChange
+
+`<form onChange={handler}>` fires a callback with all current form values whenever any child input changes. The handler receives a `FormValues` object — a flat `{ [key: string]: string }` snapshot — instead of a DOM `Event`.
+
+```tsx
+import type { FormValues } from 'vertz/ui';
+
+export function SearchForm() {
+  function handleChange(values: FormValues) {
+    console.log(values.q, values.status);
+  }
+
+  return (
+    <form onChange={handleChange}>
+      <input name="q" debounce={300} placeholder="Search..." />
+      <select name="status">
+        <option value="all">All</option>
+        <option value="active">Active</option>
+      </select>
+    </form>
+  );
+}
+```
+
+This is the recommended pattern for search/filter forms where you want to react to every change without wiring individual `onInput` handlers.
+
+### Per-input debounce
+
+Add `debounce={ms}` to any `<input>`, `<textarea>`, or `<select>` to delay the onChange callback for that field:
+
+```tsx
+<input name="q" debounce={300} placeholder="Search..." />
+<textarea name="notes" debounce={500} />
+```
+
+- Text inputs with `debounce` wait for the user to stop typing before firing
+- Inputs without `debounce` fire immediately (coalesced via microtask batching)
+- When an immediate change occurs (e.g., select change), all pending debounce timers are canceled and flushed together
+
+### How it works
+
+1. The compiler transforms `<form onChange={handler}>` into `__formOnChange(form, handler)` — a delegated event listener on the form
+2. `debounce={N}` on inputs becomes `data-vertz-debounce="N"` — the runtime reads this attribute
+3. Non-debounced events are coalesced via microtask batching (multiple changes in the same tick = one callback)
+4. The callback receives `FormValues` from `new FormData(form)`, giving a point-in-time snapshot
+
+### Limitations
+
+- **String values only** — all values in `FormValues` are strings (from FormData serialization)
+- **Unchecked checkboxes absent** — unchecked checkboxes are not included in FormData (standard HTML behavior)
+- **No multi-value fields** — multiple values for the same name (e.g., multi-select) are not supported; only the last value is kept
+
+### Escape hatch: raw DOM events
+
+If you need the native DOM `change` event (e.g., for file inputs or custom behavior), use a `ref`:
+
+```tsx
+import { ref, onMount } from 'vertz/ui';
+
+export function FileForm() {
+  const formRef = ref<HTMLFormElement>();
+
+  onMount(() => {
+    formRef.current?.addEventListener('change', (e) => {
+      // Raw DOM Event — use for file inputs, etc.
+    });
+  });
+
+  return <form ref={formRef}>...</form>;
+}
+```
+
+### Interaction with `form()`
+
+`form()` and `<form onChange>` serve different purposes and can be used together:
+
+- **`form()`** — handles submission, validation, per-field errors, and server communication
+- **`<form onChange>`** — reacts to input changes in real time (search-as-you-type, live filtering)
+
+```tsx
+export function SearchWithValidation() {
+  const searchForm = form(api.search.execute, { schema: searchSchema });
+
+  function handleLiveFilter(values: FormValues) {
+    // Update live preview as the user types
+    updatePreview(values.q);
+  }
+
+  return (
+    <form
+      action={searchForm.action}
+      method={searchForm.method}
+      onSubmit={searchForm.onSubmit}
+      onChange={handleLiveFilter}
+    >
+      <input name="q" debounce={300} placeholder="Search..." />
+      <button type="submit">Search</button>
+    </form>
+  );
+}
+```
