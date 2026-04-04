@@ -1,25 +1,29 @@
-import { afterEach, beforeEach, describe, expect, it, mock } from 'bun:test';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'bun:test';
 import type { ComputePositionReturn } from '@floating-ui/dom';
 
-// Mock @floating-ui/dom — happy-dom doesn't implement real layout
-const mockComputePosition = mock<() => Promise<ComputePositionReturn>>(() =>
-  Promise.resolve({
-    x: 100,
-    y: 200,
-    placement: 'bottom-start',
-    strategy: 'fixed',
-    middlewareData: {},
-  } as ComputePositionReturn),
-);
+// Hoist mock functions so they're available in the vi.mock factory
+const { mockComputePosition, mockAutoUpdate } = vi.hoisted(() => {
+  const mockComputePosition = vi.fn<() => Promise<ComputePositionReturn>>(() =>
+    Promise.resolve({
+      x: 100,
+      y: 200,
+      placement: 'bottom-start',
+      strategy: 'fixed',
+      middlewareData: {},
+    } as ComputePositionReturn),
+  );
 
-const mockAutoUpdate = mock<() => () => void>(() => {
-  // Call the update function once to simulate initial position
-  const updateFn = mockAutoUpdate.mock.calls.at(-1)?.[2] as (() => void) | undefined;
-  if (updateFn) updateFn();
-  return () => {};
+  const mockAutoUpdate = vi.fn<() => () => void>(() => {
+    const updateFn = mockAutoUpdate.mock.calls.at(-1)?.[2] as (() => void) | undefined;
+    if (updateFn) updateFn();
+    return () => {};
+  });
+
+  return { mockComputePosition, mockAutoUpdate };
 });
 
-mock.module('@floating-ui/dom', () => ({
+// Mock @floating-ui/dom — happy-dom doesn't implement real layout
+vi.mock('@floating-ui/dom', () => ({
   computePosition: mockComputePosition,
   autoUpdate: mockAutoUpdate,
   offset: (n: number) => ({ name: 'offset', options: n }),

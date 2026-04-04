@@ -1,8 +1,19 @@
-import { afterEach, describe, expect, it, mock, spyOn } from 'bun:test';
+import { afterEach, describe, expect, it, spyOn, vi } from 'bun:test';
 import { d } from '../../d';
 import type { QueryFn } from '../../query/executor';
 import { createDb, isReadQuery } from '../database';
 import type { PostgresDriver } from '../postgres-driver';
+
+// Hoist mock function for postgres-driver (used in per-test mock configuration)
+const { mockCreatePostgresDriver } = vi.hoisted(() => {
+  const mockCreatePostgresDriver = vi.fn();
+  return { mockCreatePostgresDriver };
+});
+
+// Mock the postgres-driver module at top level (compiler hoists this)
+vi.mock('../postgres-driver', () => ({
+  createPostgresDriver: mockCreatePostgresDriver,
+}));
 
 // ---------------------------------------------------------------------------
 // Test schema
@@ -93,7 +104,7 @@ describe('createDb', () => {
   });
 
   it('logs a notice for tables without tenant path and not shared', () => {
-    const logFn = mock();
+    const logFn = vi.fn();
 
     createDb({
       url: 'postgres://localhost:5432/test',
@@ -111,7 +122,7 @@ describe('createDb', () => {
   });
 
   it('does not log unscoped warning for non-root tenant levels in multi-level hierarchy', () => {
-    const logFn = mock();
+    const logFn = vi.fn();
     const accounts = d.table('ml_accounts', { id: d.uuid().primary(), name: d.text() }).tenant();
     const mlProjects = d
       .table('ml_projects', { id: d.uuid().primary(), accountId: d.uuid(), name: d.text() })
@@ -133,7 +144,7 @@ describe('createDb', () => {
   });
 
   it('does not log for tables that are scoped or shared', () => {
-    const logFn = mock();
+    const logFn = vi.fn();
 
     createDb({
       url: 'postgres://localhost:5432/test',
@@ -512,12 +523,12 @@ describe('resolveModel for unregistered tables', () => {
 
 describe('createDb with SQLite dialect', () => {
   const mockPrepared = {
-    bind: mock().mockReturnThis(),
-    all: mock().mockResolvedValue({ results: [] }),
-    run: mock().mockResolvedValue({ meta: { changes: 0 } }),
+    bind: vi.fn().mockReturnThis(),
+    all: vi.fn().mockResolvedValue({ results: [] }),
+    run: vi.fn().mockResolvedValue({ meta: { changes: 0 } }),
   };
   const mockD1 = {
-    prepare: mock().mockReturnValue(mockPrepared),
+    prepare: vi.fn().mockReturnValue(mockPrepared),
   };
 
   it('close() resolves when using SQLite driver', async () => {
@@ -760,10 +771,10 @@ describe('createDb SQLite dialect validation', () => {
 
   it('throws when SQLite dialect is used with a connection URL', () => {
     const mockD1 = {
-      prepare: mock().mockReturnValue({
-        bind: mock().mockReturnThis(),
-        all: mock().mockResolvedValue({ results: [] }),
-        run: mock().mockResolvedValue({ meta: { changes: 0 } }),
+      prepare: vi.fn().mockReturnValue({
+        bind: vi.fn().mockReturnThis(),
+        all: vi.fn().mockResolvedValue({ results: [] }),
+        run: vi.fn().mockResolvedValue({ meta: { changes: 0 } }),
       }),
     };
 
@@ -1119,7 +1130,7 @@ describe('delegate include paths', () => {
 
 describe('PostgreSQL lazy init and replica routing', () => {
   afterEach(() => {
-    mock.restore();
+    mockCreatePostgresDriver.mockReset();
   });
 
   function createMockPgDriver(overrides?: Partial<PostgresDriver>): PostgresDriver {
@@ -1144,9 +1155,7 @@ describe('PostgreSQL lazy init and replica routing', () => {
     const primaryDriver = createMockPgDriver();
     const driverQuerySpy = spyOn(primaryDriver, 'queryFn');
 
-    mock.module('../postgres-driver', () => ({
-      createPostgresDriver: async () => primaryDriver,
-    }));
+    mockCreatePostgresDriver.mockImplementation(async () => primaryDriver);
 
     const db = createDb({
       url: 'postgres://localhost:5432/test',
@@ -1182,13 +1191,11 @@ describe('PostgreSQL lazy init and replica routing', () => {
     });
 
     let callCount = 0;
-    mock.module('../postgres-driver', () => ({
-      createPostgresDriver: async () => {
-        callCount++;
-        // First call = primary, subsequent = replicas
-        return callCount === 1 ? primaryDriver : replicaDriver;
-      },
-    }));
+    mockCreatePostgresDriver.mockImplementation(async () => {
+      callCount++;
+      // First call = primary, subsequent = replicas
+      return callCount === 1 ? primaryDriver : replicaDriver;
+    });
 
     const db = createDb({
       url: 'postgres://localhost:5432/test',
@@ -1230,12 +1237,10 @@ describe('PostgreSQL lazy init and replica routing', () => {
     });
 
     let callCount = 0;
-    mock.module('../postgres-driver', () => ({
-      createPostgresDriver: async () => {
-        callCount++;
-        return callCount === 1 ? primaryDriver : failingReplica;
-      },
-    }));
+    mockCreatePostgresDriver.mockImplementation(async () => {
+      callCount++;
+      return callCount === 1 ? primaryDriver : failingReplica;
+    });
 
     const warnSpy = spyOn(console, 'warn');
 
@@ -1275,9 +1280,7 @@ describe('PostgreSQL lazy init and replica routing', () => {
       },
     });
 
-    mock.module('../postgres-driver', () => ({
-      createPostgresDriver: async () => primaryDriver,
-    }));
+    mockCreatePostgresDriver.mockImplementation(async () => primaryDriver);
 
     const db = createDb({
       url: 'postgres://localhost:5432/test',
@@ -1307,9 +1310,7 @@ describe('PostgreSQL lazy init and replica routing', () => {
       },
     });
 
-    mock.module('../postgres-driver', () => ({
-      createPostgresDriver: async () => primaryDriver,
-    }));
+    mockCreatePostgresDriver.mockImplementation(async () => primaryDriver);
 
     const db = createDb({
       url: 'postgres://localhost:5432/test',

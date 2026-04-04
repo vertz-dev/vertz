@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, mock, spyOn } from 'bun:test';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'bun:test';
 import type { AppBuilder } from '@vertz/core';
 import { createHandler } from '../src/handler.js';
 import type { CacheEntry } from '../src/isr-cache.js';
@@ -9,32 +9,52 @@ import type { CacheEntry } from '../src/isr-cache.js';
 
 function mockApp(handler?: (...args: unknown[]) => Promise<Response>): AppBuilder {
   return {
-    handler: handler ?? mock().mockResolvedValue(new Response('OK')),
+    handler: handler ?? vi.fn().mockResolvedValue(new Response('OK')),
   } as unknown as AppBuilder;
 }
 
 interface MockKV {
-  get: ReturnType<typeof mock>;
-  put: ReturnType<typeof mock>;
+  get: ReturnType<typeof vi.fn>;
+  put: ReturnType<typeof vi.fn>;
 }
 
 function createMockKV(): MockKV {
   return {
-    get: mock().mockResolvedValue(null),
-    put: mock().mockResolvedValue(undefined),
+    get: vi.fn().mockResolvedValue(null),
+    put: vi.fn().mockResolvedValue(undefined),
   };
 }
 
 function createMockCtx(): ExecutionContext & { _waitUntilPromises: Promise<unknown>[] } {
   const promises: Promise<unknown>[] = [];
   return {
-    waitUntil: mock((p: Promise<unknown>) => {
+    waitUntil: vi.fn((p: Promise<unknown>) => {
       promises.push(p);
     }),
-    passThroughOnException: mock(),
+    passThroughOnException: vi.fn(),
     _waitUntilPromises: promises,
   } as unknown as ExecutionContext & { _waitUntilPromises: Promise<unknown>[] };
 }
+
+// ---------------------------------------------------------------------------
+// Hoist mock functions so they're available in the vi.mock factory
+// ---------------------------------------------------------------------------
+
+const { mockSSRRequestHandler, mockCreateSSRHandler } = vi.hoisted(() => {
+  const mockSSRRequestHandler = vi.fn().mockImplementation(
+    async () =>
+      new Response('<html>SSR rendered</html>', {
+        headers: { 'Content-Type': 'text/html' },
+      }),
+  );
+  const mockCreateSSRHandler = vi.fn().mockReturnValue(mockSSRRequestHandler);
+  return { mockSSRRequestHandler, mockCreateSSRHandler };
+});
+
+// Mock the SSR module at the top level (compiler hoists this)
+vi.mock('@vertz/ui-server/ssr', () => ({
+  createSSRHandler: mockCreateSSRHandler,
+}));
 
 // ---------------------------------------------------------------------------
 // ISR integration with createHandler
@@ -43,19 +63,7 @@ function createMockCtx(): ExecutionContext & { _waitUntilPromises: Promise<unkno
 describe('createHandler with ISR cache', () => {
   const mockEnv = { DB: {}, PAGE_CACHE: {} };
 
-  // Mock the SSR handler so we can verify when SSR runs and what it returns
-  const mockSSRRequestHandler = mock().mockImplementation(
-    async () =>
-      new Response('<html>SSR rendered</html>', {
-        headers: { 'Content-Type': 'text/html' },
-      }),
-  );
-  const mockCreateSSRHandler = mock().mockReturnValue(mockSSRRequestHandler);
-
   beforeEach(() => {
-    mock.module('@vertz/ui-server/ssr', () => ({
-      createSSRHandler: mockCreateSSRHandler,
-    }));
     mockSSRRequestHandler.mockClear();
     mockCreateSSRHandler.mockClear();
   });
@@ -154,7 +162,7 @@ describe('createHandler with ISR cache', () => {
 
   it('does not cache API routes', async () => {
     const kv = createMockKV();
-    const apiHandler = mock().mockResolvedValue(new Response('{"ok":true}'));
+    const apiHandler = vi.fn().mockResolvedValue(new Response('{"ok":true}'));
     const ctx = createMockCtx();
 
     const { createHandler: freshCreateHandler } = await import('../src/handler.js');

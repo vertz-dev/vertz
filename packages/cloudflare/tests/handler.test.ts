@@ -1,16 +1,34 @@
-import { beforeEach, describe, expect, it, mock, spyOn } from 'bun:test';
+import { beforeEach, describe, expect, it, spyOn, vi } from 'bun:test';
 import type { AppBuilder } from '@vertz/core';
 import { createHandler, generateHTMLTemplate, generateNonce } from '../src/handler.js';
 
+// Hoist mock functions so they're available in the vi.mock factory
+const { mockSSRRequestHandler, mockCreateSSRHandler } = vi.hoisted(() => {
+  const mockSSRRequestHandler = vi.fn().mockImplementation(() =>
+    Promise.resolve(
+      new Response('<html>SSR Module</html>', {
+        headers: { 'Content-Type': 'text/html' },
+      }),
+    ),
+  );
+  const mockCreateSSRHandler = vi.fn().mockReturnValue(mockSSRRequestHandler);
+  return { mockSSRRequestHandler, mockCreateSSRHandler };
+});
+
+// Mock the SSR module at top level (compiler hoists this)
+vi.mock('@vertz/ui-server/ssr', () => ({
+  createSSRHandler: mockCreateSSRHandler,
+}));
+
 function mockApp(handler?: (...args: unknown[]) => Promise<Response>): AppBuilder {
   return {
-    handler: handler ?? mock().mockResolvedValue(new Response('OK')),
+    handler: handler ?? vi.fn().mockResolvedValue(new Response('OK')),
   } as unknown as AppBuilder;
 }
 
 describe('createHandler', () => {
   it('returns proper Worker export with fetch method', () => {
-    const mockHandler = mock().mockResolvedValue(new Response('OK'));
+    const mockHandler = vi.fn().mockResolvedValue(new Response('OK'));
     const mockApp = {
       handler: mockHandler,
     } as unknown as AppBuilder;
@@ -23,7 +41,7 @@ describe('createHandler', () => {
 
   it('forwards requests to the vertz handler', async () => {
     const mockResponse = new Response('Hello from handler');
-    const mockHandler = mock().mockResolvedValue(mockResponse);
+    const mockHandler = vi.fn().mockResolvedValue(mockResponse);
     const mockApp = {
       handler: mockHandler,
     } as unknown as AppBuilder;
@@ -40,7 +58,7 @@ describe('createHandler', () => {
   });
 
   it('strips apiPrefix prefix from pathname', async () => {
-    const mockHandler = mock().mockResolvedValue(new Response('OK'));
+    const mockHandler = vi.fn().mockResolvedValue(new Response('OK'));
     const mockApp = {
       handler: mockHandler,
     } as unknown as AppBuilder;
@@ -59,7 +77,7 @@ describe('createHandler', () => {
   });
 
   it('strips apiPrefix with trailing slash correctly', async () => {
-    const mockHandler = mock().mockResolvedValue(new Response('OK'));
+    const mockHandler = vi.fn().mockResolvedValue(new Response('OK'));
     const mockApp = {
       handler: mockHandler,
     } as unknown as AppBuilder;
@@ -77,7 +95,7 @@ describe('createHandler', () => {
   });
 
   it('handles apiPrefix when pathname does not start with apiPrefix', async () => {
-    const mockHandler = mock().mockResolvedValue(new Response('OK'));
+    const mockHandler = vi.fn().mockResolvedValue(new Response('OK'));
     const mockApp = {
       handler: mockHandler,
     } as unknown as AppBuilder;
@@ -95,7 +113,7 @@ describe('createHandler', () => {
   });
 
   it('preserves query parameters when stripping apiPrefix', async () => {
-    const mockHandler = mock().mockResolvedValue(new Response('OK'));
+    const mockHandler = vi.fn().mockResolvedValue(new Response('OK'));
     const mockApp = {
       handler: mockHandler,
     } as unknown as AppBuilder;
@@ -115,7 +133,7 @@ describe('createHandler', () => {
   });
 
   it('preserves request headers and method', async () => {
-    const mockHandler = mock().mockResolvedValue(new Response('OK'));
+    const mockHandler = vi.fn().mockResolvedValue(new Response('OK'));
     const mockApp = {
       handler: mockHandler,
     } as unknown as AppBuilder;
@@ -141,7 +159,7 @@ describe('createHandler', () => {
 
   it('works without apiPrefix option', async () => {
     const mockResponse = new Response('No apiPrefix');
-    const mockHandler = mock().mockResolvedValue(mockResponse);
+    const mockHandler = vi.fn().mockResolvedValue(mockResponse);
     const mockApp = {
       handler: mockHandler,
     } as unknown as AppBuilder;
@@ -162,7 +180,7 @@ describe('createHandler', () => {
   it('returns 500 response when handler throws an error', async () => {
     const consoleErrorSpy = spyOn(console, 'error').mockImplementation(() => {});
     const testError = new Error('Test error');
-    const mockHandler = mock().mockRejectedValue(testError);
+    const mockHandler = vi.fn().mockRejectedValue(testError);
     const mockApp = {
       handler: mockHandler,
     } as unknown as AppBuilder;
@@ -199,8 +217,8 @@ describe('createHandler (config object)', () => {
     describe('Given a config without apiPrefix', () => {
       describe('When a request arrives at /api/todos', () => {
         it('Then routes to the app handler', async () => {
-          const apiHandler = mock().mockResolvedValue(new Response('OK'));
-          const ssrHandler = mock().mockResolvedValue(new Response('<html></html>'));
+          const apiHandler = vi.fn().mockResolvedValue(new Response('OK'));
+          const ssrHandler = vi.fn().mockResolvedValue(new Response('<html></html>'));
 
           const worker = createHandler({
             app: () => mockApp(apiHandler),
@@ -221,8 +239,8 @@ describe('createHandler (config object)', () => {
 
       describe('When a request arrives at /dashboard', () => {
         it('Then does not route to the app handler', async () => {
-          const apiHandler = mock().mockResolvedValue(new Response('API'));
-          const ssrHandler = mock().mockResolvedValue(new Response('<html>SSR</html>'));
+          const apiHandler = vi.fn().mockResolvedValue(new Response('API'));
+          const ssrHandler = vi.fn().mockResolvedValue(new Response('<html>SSR</html>'));
 
           const worker = createHandler({
             app: () => mockApp(apiHandler),
@@ -245,8 +263,8 @@ describe('createHandler (config object)', () => {
     describe('Given a config with explicit apiPrefix "/v1"', () => {
       describe('When a request arrives at /v1/todos', () => {
         it('Then routes to the app handler (backward compat)', async () => {
-          const apiHandler = mock().mockResolvedValue(new Response('OK'));
-          const ssrHandler = mock().mockResolvedValue(new Response('<html></html>'));
+          const apiHandler = vi.fn().mockResolvedValue(new Response('OK'));
+          const ssrHandler = vi.fn().mockResolvedValue(new Response('<html></html>'));
 
           const worker = createHandler({
             app: () => mockApp(apiHandler),
@@ -271,7 +289,7 @@ describe('createHandler (config object)', () => {
         const worker = createHandler({
           app: () => mockApp(),
           apiPrefix: '',
-          ssr: mock().mockResolvedValue(new Response('<html></html>')),
+          ssr: vi.fn().mockResolvedValue(new Response('<html></html>')),
         });
 
         expect(
@@ -282,7 +300,7 @@ describe('createHandler (config object)', () => {
 
     describe('Given a config without apiPrefix (#2131)', () => {
       it('Then reads apiPrefix from the app instance', async () => {
-        const apiHandler = mock().mockResolvedValue(new Response('OK'));
+        const apiHandler = vi.fn().mockResolvedValue(new Response('OK'));
         const appInstance = {
           ...mockApp(apiHandler),
           apiPrefix: '/v2',
@@ -290,7 +308,7 @@ describe('createHandler (config object)', () => {
 
         const worker = createHandler({
           app: () => appInstance as unknown as AppBuilder,
-          ssr: mock().mockResolvedValue(new Response('<html>SSR</html>')),
+          ssr: vi.fn().mockResolvedValue(new Response('<html>SSR</html>')),
         });
 
         // /v2/todos should route to API handler
@@ -313,7 +331,7 @@ describe('createHandler (config object)', () => {
     describe('Given a config without securityHeaders', () => {
       it('Then includes security headers on responses', async () => {
         const worker = createHandler({
-          app: () => mockApp(mock().mockResolvedValue(new Response('OK'))),
+          app: () => mockApp(vi.fn().mockResolvedValue(new Response('OK'))),
           ssr: () => Promise.resolve(new Response('<html></html>')),
         });
 
@@ -338,7 +356,7 @@ describe('createHandler (config object)', () => {
     describe('Given securityHeaders: false', () => {
       it('Then does not include security headers', async () => {
         const worker = createHandler({
-          app: () => mockApp(mock().mockResolvedValue(new Response('OK'))),
+          app: () => mockApp(vi.fn().mockResolvedValue(new Response('OK'))),
           ssr: () => Promise.resolve(new Response('<html></html>')),
           securityHeaders: false,
         });
@@ -357,12 +375,12 @@ describe('createHandler (config object)', () => {
   });
 
   it('routes API requests to app handler and SSR to ssr handler', async () => {
-    const apiHandler = mock().mockResolvedValue(
+    const apiHandler = vi.fn().mockResolvedValue(
       new Response('{"items":[]}', {
         headers: { 'Content-Type': 'application/json' },
       }),
     );
-    const ssrHandler = mock().mockResolvedValue(
+    const ssrHandler = vi.fn().mockResolvedValue(
       new Response('<html>SSR</html>', {
         headers: { 'Content-Type': 'text/html' },
       }),
@@ -390,8 +408,8 @@ describe('createHandler (config object)', () => {
   });
 
   it('passes env to the app factory and caches the result', async () => {
-    const apiHandler = mock().mockImplementation(() => Promise.resolve(new Response('OK')));
-    const appFactory = mock().mockReturnValue(mockApp(apiHandler));
+    const apiHandler = vi.fn().mockImplementation(() => Promise.resolve(new Response('OK')));
+    const appFactory = vi.fn().mockReturnValue(mockApp(apiHandler));
 
     const worker = createHandler({
       app: appFactory,
@@ -411,7 +429,7 @@ describe('createHandler (config object)', () => {
 
   it('adds security headers when securityHeaders is true', async () => {
     const worker = createHandler({
-      app: () => mockApp(mock().mockImplementation(() => new Response('OK'))),
+      app: () => mockApp(vi.fn().mockImplementation(() => new Response('OK'))),
       apiPrefix: '/api',
       ssr: () => Promise.resolve(new Response('<html></html>')),
       securityHeaders: true,
@@ -443,7 +461,7 @@ describe('createHandler (config object)', () => {
   });
 
   it('passes full URL to app handler (no apiPrefix stripping)', async () => {
-    const apiHandler = mock().mockResolvedValue(new Response('OK'));
+    const apiHandler = vi.fn().mockResolvedValue(new Response('OK'));
 
     const worker = createHandler({
       app: () => mockApp(apiHandler),
@@ -462,7 +480,7 @@ describe('createHandler (config object)', () => {
     const consoleErrorSpy = spyOn(console, 'error').mockImplementation(() => {});
 
     const worker = createHandler({
-      app: () => mockApp(mock().mockRejectedValue(new Error('DB connection failed'))),
+      app: () => mockApp(vi.fn().mockRejectedValue(new Error('DB connection failed'))),
       apiPrefix: '/api',
       ssr: () => Promise.resolve(new Response('<html></html>')),
     });
@@ -501,8 +519,8 @@ describe('createHandler (config object)', () => {
   describe('Feature: Auto-detect requestHandler', () => {
     describe('Given an app with requestHandler (ServerInstance with auth)', () => {
       it('Then routes API requests to requestHandler', async () => {
-        const handler = mock().mockResolvedValue(new Response('handler'));
-        const requestHandler = mock().mockResolvedValue(new Response('requestHandler'));
+        const handler = vi.fn().mockResolvedValue(new Response('handler'));
+        const requestHandler = vi.fn().mockResolvedValue(new Response('requestHandler'));
         const appWithAuth = {
           handler,
           requestHandler,
@@ -526,8 +544,8 @@ describe('createHandler (config object)', () => {
       });
 
       it('Then routes entity requests to requestHandler too', async () => {
-        const handler = mock().mockResolvedValue(new Response('handler'));
-        const requestHandler = mock().mockResolvedValue(new Response('requestHandler'));
+        const handler = vi.fn().mockResolvedValue(new Response('handler'));
+        const requestHandler = vi.fn().mockResolvedValue(new Response('requestHandler'));
         const appWithAuth = {
           handler,
           requestHandler,
@@ -553,7 +571,7 @@ describe('createHandler (config object)', () => {
 
     describe('Given an app without requestHandler (plain AppBuilder)', () => {
       it('Then routes to handler (backward compat)', async () => {
-        const handler = mock().mockResolvedValue(new Response('handler'));
+        const handler = vi.fn().mockResolvedValue(new Response('handler'));
         const plainApp = { handler } as unknown as AppBuilder;
 
         const worker = createHandler({
@@ -581,7 +599,7 @@ describe('createHandler (config object)', () => {
   describe('Feature: SSR fetch interceptor routes local API calls through app handler', () => {
     describe('Given an SSR callback that calls fetch() with a relative API URL', () => {
       it('Then intercepts the fetch and routes it to the app handler', async () => {
-        const apiHandler = mock().mockResolvedValue(
+        const apiHandler = vi.fn().mockResolvedValue(
           new Response('{"items":["a","b"]}', {
             headers: { 'Content-Type': 'application/json' },
           }),
@@ -614,7 +632,7 @@ describe('createHandler (config object)', () => {
 
     describe('Given an SSR callback that calls fetch() with an absolute same-origin API URL', () => {
       it('Then intercepts the fetch and routes it to the app handler', async () => {
-        const apiHandler = mock().mockResolvedValue(new Response('abs-ok'));
+        const apiHandler = vi.fn().mockResolvedValue(new Response('abs-ok'));
 
         const ssrCallback = async (request: Request) => {
           const origin = new URL(request.url).origin;
@@ -665,22 +683,7 @@ describe('createHandler (SSR module config)', () => {
   const mockEnv = { DB: {} };
   const mockCtx = {} as ExecutionContext;
 
-  // We mock @vertz/ui-server's createSSRHandler to isolate wiring logic.
-  // The mock returns a handler that echoes 'SSR Module' so we can verify routing.
-  // Must create a fresh Response per call — withSecurityHeaders consumes the body.
-  const mockSSRRequestHandler = mock().mockImplementation(() =>
-    Promise.resolve(
-      new Response('<html>SSR Module</html>', {
-        headers: { 'Content-Type': 'text/html' },
-      }),
-    ),
-  );
-  const mockCreateSSRHandler = mock().mockReturnValue(mockSSRRequestHandler);
-
   beforeEach(() => {
-    mock.module('@vertz/ui-server/ssr', () => ({
-      createSSRHandler: mockCreateSSRHandler,
-    }));
     mockSSRRequestHandler.mockClear();
     mockCreateSSRHandler.mockClear();
   });
@@ -761,7 +764,7 @@ describe('createHandler (SSR module config)', () => {
   it('still works with ssr callback (backward compat)', async () => {
     const { createHandler: freshCreateHandler } = await import('../src/handler.js');
 
-    const ssrCallback = mock().mockResolvedValue(
+    const ssrCallback = vi.fn().mockResolvedValue(
       new Response('<html>Callback SSR</html>', {
         headers: { 'Content-Type': 'text/html' },
       }),
@@ -784,7 +787,7 @@ describe('createHandler (SSR module config)', () => {
   it('routes API requests to app handler even with SSR module config', async () => {
     const { createHandler: freshCreateHandler } = await import('../src/handler.js');
 
-    const apiHandler = mock().mockResolvedValue(
+    const apiHandler = vi.fn().mockResolvedValue(
       new Response('{"items":[]}', {
         headers: { 'Content-Type': 'application/json' },
       }),
@@ -838,7 +841,7 @@ describe('nonce-based CSP headers', () => {
 
   it('CSP header contains nonce (not unsafe-inline) for script-src', async () => {
     const worker = createHandler({
-      app: () => mockApp(mock().mockImplementation(() => new Response('OK'))),
+      app: () => mockApp(vi.fn().mockImplementation(() => new Response('OK'))),
       apiPrefix: '/api',
       ssr: () => Promise.resolve(new Response('<html></html>')),
       securityHeaders: true,
@@ -862,7 +865,7 @@ describe('nonce-based CSP headers', () => {
 
   it('CSP header keeps unsafe-inline for style-src', async () => {
     const worker = createHandler({
-      app: () => mockApp(mock().mockImplementation(() => new Response('OK'))),
+      app: () => mockApp(vi.fn().mockImplementation(() => new Response('OK'))),
       apiPrefix: '/api',
       ssr: () => Promise.resolve(new Response('<html></html>')),
       securityHeaders: true,
@@ -880,7 +883,7 @@ describe('nonce-based CSP headers', () => {
 
   it('each request gets a different nonce in the CSP header', async () => {
     const worker = createHandler({
-      app: () => mockApp(mock().mockImplementation(() => new Response('OK'))),
+      app: () => mockApp(vi.fn().mockImplementation(() => new Response('OK'))),
       apiPrefix: '/api',
       ssr: () => Promise.resolve(new Response('<html></html>')),
       securityHeaders: true,
@@ -922,7 +925,7 @@ describe('nonce-based CSP headers', () => {
     const consoleErrorSpy = spyOn(console, 'error').mockImplementation(() => {});
 
     const worker = createHandler({
-      app: () => mockApp(mock().mockRejectedValue(new Error('fail'))),
+      app: () => mockApp(vi.fn().mockRejectedValue(new Error('fail'))),
       apiPrefix: '/api',
       ssr: () => Promise.resolve(new Response('<html></html>')),
       securityHeaders: true,
@@ -981,7 +984,7 @@ describe('createHandler (image optimizer integration)', () => {
   }
 
   it('routes /_vertz/image requests to the image optimizer handler', async () => {
-    const apiHandler = mock().mockResolvedValue(new Response('API'));
+    const apiHandler = vi.fn().mockResolvedValue(new Response('API'));
     const optimizerHandler = mock(fakeImageOptimizerHandler());
 
     const worker = createHandler({
@@ -1026,7 +1029,7 @@ describe('createHandler (image optimizer integration)', () => {
   });
 
   it('routes API requests to app handler (not optimizer)', async () => {
-    const apiHandler = mock().mockResolvedValue(
+    const apiHandler = vi.fn().mockResolvedValue(
       new Response('{"items":[]}', {
         headers: { 'Content-Type': 'application/json' },
       }),
@@ -1052,7 +1055,7 @@ describe('createHandler (image optimizer integration)', () => {
   });
 
   it('routes non-image non-API requests to SSR handler', async () => {
-    const ssrHandler = mock().mockResolvedValue(
+    const ssrHandler = vi.fn().mockResolvedValue(
       new Response('<html>SSR</html>', {
         headers: { 'Content-Type': 'text/html' },
       }),
@@ -1074,7 +1077,7 @@ describe('createHandler (image optimizer integration)', () => {
   });
 
   it('falls through to SSR when no imageOptimizer configured', async () => {
-    const ssrHandler = mock().mockResolvedValue(new Response('<html>SSR</html>'));
+    const ssrHandler = vi.fn().mockResolvedValue(new Response('<html>SSR</html>'));
 
     const worker = createHandler({
       app: () => mockApp(),
@@ -1094,7 +1097,7 @@ describe('createHandler (image optimizer integration)', () => {
   });
 
   it('image optimizer route takes priority over apiPrefix when both could match', async () => {
-    const apiHandler = mock().mockResolvedValue(new Response('API'));
+    const apiHandler = vi.fn().mockResolvedValue(new Response('API'));
     const optimizerHandler = mock(fakeImageOptimizerHandler());
 
     // Edge case: apiPrefix is /_vertz — optimizer route should still win
@@ -1127,7 +1130,7 @@ describe('createHandler (beforeRender hook)', () => {
   const mockCtx = {} as ExecutionContext;
 
   it('short-circuits SSR when beforeRender returns a Response', async () => {
-    const ssrHandler = mock().mockResolvedValue(
+    const ssrHandler = vi.fn().mockResolvedValue(
       new Response('<html>SSR</html>', {
         headers: { 'Content-Type': 'text/html' },
       }),
@@ -1152,7 +1155,7 @@ describe('createHandler (beforeRender hook)', () => {
   });
 
   it('proceeds with SSR when beforeRender returns undefined', async () => {
-    const ssrHandler = mock().mockResolvedValue(
+    const ssrHandler = vi.fn().mockResolvedValue(
       new Response('<html>SSR</html>', {
         headers: { 'Content-Type': 'text/html' },
       }),
@@ -1172,7 +1175,7 @@ describe('createHandler (beforeRender hook)', () => {
   });
 
   it('proceeds normally when no beforeRender hook is provided (backward compat)', async () => {
-    const ssrHandler = mock().mockResolvedValue(
+    const ssrHandler = vi.fn().mockResolvedValue(
       new Response('<html>SSR</html>', {
         headers: { 'Content-Type': 'text/html' },
       }),
@@ -1191,7 +1194,7 @@ describe('createHandler (beforeRender hook)', () => {
   });
 
   it('passes request and env to the beforeRender hook', async () => {
-    const beforeRender = mock().mockResolvedValue(undefined);
+    const beforeRender = vi.fn().mockResolvedValue(undefined);
     const env = { DB: {}, AUTH_SECRET: 'secret' };
 
     const worker = createHandler({
@@ -1212,7 +1215,7 @@ describe('createHandler (beforeRender hook)', () => {
       status: 302,
       headers: { Location: '/login' },
     });
-    const ssrHandler = mock().mockResolvedValue(new Response('<html></html>'));
+    const ssrHandler = vi.fn().mockResolvedValue(new Response('<html></html>'));
 
     const worker = createHandler({
       app: () => mockApp(),
@@ -1248,8 +1251,8 @@ describe('createHandler (beforeRender hook)', () => {
   });
 
   it('does not run beforeRender for API routes', async () => {
-    const apiHandler = mock().mockResolvedValue(new Response('{"ok":true}'));
-    const beforeRender = mock().mockResolvedValue(
+    const apiHandler = vi.fn().mockResolvedValue(new Response('{"ok":true}'));
+    const beforeRender = vi.fn().mockResolvedValue(
       new Response(null, { status: 302, headers: { Location: '/login' } }),
     );
 
@@ -1272,10 +1275,10 @@ describe('createHandler (beforeRender hook)', () => {
   });
 
   it('does not run beforeRender for image optimizer routes', async () => {
-    const beforeRender = mock().mockResolvedValue(
+    const beforeRender = vi.fn().mockResolvedValue(
       new Response(null, { status: 302, headers: { Location: '/login' } }),
     );
-    const optimizerHandler = mock().mockResolvedValue(
+    const optimizerHandler = vi.fn().mockResolvedValue(
       new Response('optimized-image', {
         headers: { 'Content-Type': 'image/webp' },
       }),
