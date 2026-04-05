@@ -1,5 +1,10 @@
 import { afterEach, describe, expect, it, mock } from 'bun:test';
-import { endHydration, getIsHydrating, startHydration } from '../../hydrate/hydration-context';
+import {
+  claimElement,
+  endHydration,
+  getIsHydrating,
+  startHydration,
+} from '../../hydrate/hydration-context';
 import { Island } from '../island';
 
 describe('Feature: Island component', () => {
@@ -193,8 +198,7 @@ describe('Feature: Island component', () => {
           component: () => {
             // During hydration, the cursor is inside the island wrapper,
             // past the script tag. The button is the next claimable element.
-            const { claimElement: claim } = require('../../hydrate/hydration-context');
-            const btn = claim('button');
+            const btn = claimElement('button');
             if (btn) {
               clickHandler = mock(() => {});
               btn.addEventListener('click', clickHandler);

@@ -867,4 +867,60 @@ mod tests {
         assert_eq!(result_with_root.tests.len(), 1);
         assert_eq!(result_with_root.tests[0].status, TestStatus::Pass);
     }
+
+    #[test]
+    fn test_scope_pseudo_class_in_queryselector() {
+        let tmp = tempfile::tempdir().unwrap();
+        let file = write_test_file(
+            tmp.path(),
+            "scope-selector.test.ts",
+            r#"
+            describe(':scope pseudo-class', () => {
+                it('querySelector with :scope > child finds direct children only', () => {
+                    document.body.innerHTML = `
+                        <div id="root">
+                            <script data-test type="application/json">{"a":1}</script>
+                            <div>
+                                <script data-test type="application/json">{"b":2}</script>
+                            </div>
+                        </div>
+                    `;
+                    const root = document.getElementById('root')!;
+                    const result = root.querySelector(':scope > script[data-test]');
+                    expect(result).not.toBeNull();
+                    expect(result!.textContent).toBe('{"a":1}');
+                });
+
+                it('querySelector with :scope > child returns null for non-direct descendants', () => {
+                    document.body.innerHTML = `
+                        <div id="root">
+                            <div><span class="deep">nested</span></div>
+                        </div>
+                    `;
+                    const root = document.getElementById('root')!;
+                    expect(root.querySelector(':scope > span.deep')).toBeNull();
+                });
+
+                it('querySelectorAll with :scope > child finds all direct children', () => {
+                    document.body.innerHTML = `
+                        <ul id="list"><li>one</li><li>two</li><li>three</li></ul>
+                    `;
+                    const list = document.getElementById('list')!;
+                    const items = list.querySelectorAll(':scope > li');
+                    expect(items.length).toBe(3);
+                });
+            });
+            "#,
+        );
+
+        let result = execute_test_file(&file);
+
+        assert!(
+            result.file_error.is_none(),
+            "File error: {:?}",
+            result.file_error
+        );
+        assert_eq!(result.passed(), 3, "Tests: {:?}", result.tests);
+        assert_eq!(result.failed(), 0);
+    }
 }

@@ -641,8 +641,8 @@ pub const TEST_DOM_SHIM_JS: &str = r#"
     }
 
     // Query methods (delegate to basic selector matching)
-    querySelector(sel) { return querySelect(this, sel); }
-    querySelectorAll(sel) { const r = []; querySelectAll(this, sel, r); return r; }
+    querySelector(sel) { const prev = __queryScope; __queryScope = this; const r = querySelect(this, sel); __queryScope = prev; return r; }
+    querySelectorAll(sel) { const prev = __queryScope; __queryScope = this; const r = []; querySelectAll(this, sel, r); __queryScope = prev; return r; }
     getElementById(id) { return findById(this, id); }
   }
 
@@ -785,8 +785,8 @@ pub const TEST_DOM_SHIM_JS: &str = r#"
     }
 
     // --- Query (basic for Phase 1, full selector engine in Phase 3) ---
-    querySelector(sel) { return querySelect(this, sel); }
-    querySelectorAll(sel) { const r = []; querySelectAll(this, sel, r); return r; }
+    querySelector(sel) { const prev = __queryScope; __queryScope = this; const r = querySelect(this, sel); __queryScope = prev; return r; }
+    querySelectorAll(sel) { const prev = __queryScope; __queryScope = this; const r = []; querySelectAll(this, sel, r); __queryScope = prev; return r; }
     getElementsByTagName(tag) {
       const results = [];
       const upper = tag.toUpperCase();
@@ -1255,6 +1255,11 @@ pub const TEST_DOM_SHIM_JS: &str = r#"
 
   // --- Basic selector matching (Phase 1: supports tag, .class, #id, [attr], [attr="val"]) ---
   // Phase 3 will replace this with a full selector engine.
+
+  // Tracks the element on which querySelector/querySelectorAll was called.
+  // Used to resolve the :scope pseudo-class.
+  let __queryScope = null;
+
   function matchesSimpleSelector(el, selector) {
     if (!selector || el.nodeType !== ELEMENT_NODE) return false;
     // Handle comma-separated selectors (respecting parentheses)
@@ -1496,6 +1501,9 @@ pub const TEST_DOM_SHIM_JS: &str = r#"
           pos += 8;
         } else if (sel.slice(pos, pos + 6) === ':focus') {
           if (!_document || _document.activeElement !== el) return false;
+          pos += 6;
+        } else if (sel.slice(pos, pos + 6) === ':scope') {
+          if (el !== __queryScope) return false;
           pos += 6;
         } else {
           return false; // Unsupported pseudo-class
@@ -1873,13 +1881,16 @@ pub const TEST_DOM_SHIM_JS: &str = r#"
     }
 
     querySelector(sel) {
-      return querySelect(this.documentElement, sel);
+      const prev = __queryScope; __queryScope = this.documentElement;
+      const r = querySelect(this.documentElement, sel);
+      __queryScope = prev; return r;
     }
 
     querySelectorAll(sel) {
+      const prev = __queryScope; __queryScope = this.documentElement;
       const results = [];
       querySelectAll(this.documentElement, sel, results);
-      return results;
+      __queryScope = prev; return results;
     }
 
     getElementsByTagName(tag) {
