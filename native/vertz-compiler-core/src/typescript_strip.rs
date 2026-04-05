@@ -908,6 +908,17 @@ export function TaskCard({ task }: { task: Task }) {
             "variable annotation survived full compile: {}",
             result.code
         );
+        // Verify destructured props type annotation is stripped (regression for #2051)
+        assert!(
+            !result.code.contains(": { task: Task }"),
+            "destructured props type survived full compile: {}",
+            result.code
+        );
+        assert!(
+            !result.code.contains("__props:"),
+            "props type annotation survived full compile: {}",
+            result.code
+        );
     }
 
     /// Test with the actual task-card.tsx content pattern
@@ -985,6 +996,49 @@ export function TaskCard({ task, onClick }: { task: Task; onClick?: (id: string)
         assert!(
             !result.code.contains("): string"),
             "return string type survived: {}",
+            result.code
+        );
+        // Verify inline object type annotation on destructured props is stripped (#2051)
+        assert!(
+            !result.code.contains(": { task: Task"),
+            "inline object type on props survived: {}",
+            result.code
+        );
+        assert!(
+            !result.code.contains("onClick?:"),
+            "optional callback type on props survived: {}",
+            result.code
+        );
+    }
+
+    /// Test the exact pattern from examples/linear/ that triggered the TS stripping bug (#2051)
+    #[test]
+    fn test_full_compile_strips_inline_object_type_on_props() {
+        let source = r#"export function ProjectCard({ project }: { project: Project }) {
+  return <div>{project.name}</div>;
+}"#;
+        let result = crate::compile(
+            source,
+            crate::CompileOptions {
+                filename: Some("project-card.tsx".to_string()),
+                target: Some("dom".to_string()),
+                fast_refresh: Some(true),
+                ..Default::default()
+            },
+        );
+        assert!(
+            !result.code.contains(": { project: Project }"),
+            "inline type annotation survived: {}",
+            result.code
+        );
+        assert!(
+            !result.code.contains("__props:"),
+            "props type annotation survived: {}",
+            result.code
+        );
+        assert!(
+            result.code.contains("__props"),
+            "props should be rewritten to __props: {}",
             result.code
         );
     }
@@ -1550,7 +1604,6 @@ export const x = 1;"#,
   return name + value;
 }"#,
         );
-        eprintln!("RESULT:\n{}", result);
         assert!(
             !result.contains("string"),
             "type annotation survived: {}",

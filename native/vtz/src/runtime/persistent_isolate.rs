@@ -960,10 +960,19 @@ const SSR_RENDER_FRAMEWORK_JS: &str = r#"
 (async function() {
     const url = (globalThis.location.pathname || '/') + (globalThis.location.search || '');
 
-    // Build options for ssrRenderSinglePass
+    // Build options for ssrRenderSinglePass.
+    // Always provide ssrAuth so AuthProvider knows it's in SSR mode.
+    // Without ssrAuth, AuthProvider falls through to the client SDK path
+    // where signIn/signOut methods don't exist in the V8 isolate.
     const options = {};
     if (globalThis.__vertz_session) {
-        options.ssrAuth = globalThis.__vertz_session;
+        options.ssrAuth = {
+            status: 'authenticated',
+            user: globalThis.__vertz_session.user,
+            expiresAt: globalThis.__vertz_session.expiresAt,
+        };
+    } else {
+        options.ssrAuth = { status: 'unauthenticated' };
     }
     if (globalThis.__vertz_cookies) {
         options.cookies = globalThis.__vertz_cookies;
