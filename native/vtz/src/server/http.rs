@@ -741,6 +741,11 @@ async fn dev_server_handler(
         return module_server::handle_source_file(state, req).await;
     }
 
+    // Image optimization proxy: /__vertz_image/* → resize, convert, cache
+    if path.starts_with("/__vertz_image/") {
+        return crate::server::image_proxy::handle_image_request(state, req).await;
+    }
+
     // API route delegation: /api/* → persistent V8 isolate
     if path.starts_with("/api/") || path == "/api" {
         return handle_api_request(state, req, &path).await;
