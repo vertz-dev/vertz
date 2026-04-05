@@ -1,3 +1,4 @@
+pub mod events;
 pub mod health;
 
 use axum::routing::get;
@@ -21,6 +22,7 @@ pub struct BridgeConfig {
 pub fn build_bridge_router(state: Arc<DevServerState>) -> Router {
     Router::new()
         .route("/health", get(health::health_handler))
+        .route("/events", get(events::events_handler))
         .with_state(state)
 }
 
@@ -63,7 +65,7 @@ pub async fn start_bridge(
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
     use crate::compiler::pipeline::CompilationPipeline;
     use crate::errors::broadcaster::ErrorBroadcaster;
@@ -77,7 +79,7 @@ mod tests {
     use tower::ServiceExt;
 
     /// Create a test bridge router with minimal state.
-    fn make_test_state() -> (Arc<DevServerState>, tempfile::TempDir) {
+    pub(crate) fn make_test_state() -> (Arc<DevServerState>, tempfile::TempDir) {
         let tmp = tempfile::tempdir().unwrap();
         std::fs::create_dir_all(tmp.path().join("src")).unwrap();
         std::fs::create_dir_all(tmp.path().join("public")).unwrap();

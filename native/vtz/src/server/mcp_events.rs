@@ -594,7 +594,7 @@ pub fn start_relay_tasks(
 
 /// Validate subscription filter event names.
 /// Returns (known_events, unknown_events).
-fn validate_subscription(requested: &[String]) -> (Vec<String>, Vec<String>) {
+pub(crate) fn validate_subscription(requested: &[String]) -> (Vec<String>, Vec<String>) {
     let mut known = Vec::new();
     let mut unknown = Vec::new();
 

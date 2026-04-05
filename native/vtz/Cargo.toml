@@ -12,6 +12,7 @@ name = "vtz"
 path = "src/main.rs"
 
 [dependencies]
+async-stream = "0.3"
 async-trait = "0.1"
 axum = { version = "0.7", features = ["ws"] }
 axum-server = { version = "0.8", features = ["tls-rustls"] }
@@ -21,6 +22,7 @@ deno_core = "0.311.0"
 flate2 = "1"
 fs2 = "0.4"
 futures-util = "0.3"
+http-body-util = "0.1"
 glob = "0.3"
 image = { version = "0.25", default-features = false, features = ["jpeg", "png", "webp"] }
 humantime = "2"
