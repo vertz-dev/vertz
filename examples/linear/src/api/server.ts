@@ -6,16 +6,54 @@
  * - Entity registry proxy for onUserCreated callback
  */
 
-import { createServer } from '@vertz/server';
-import { auth } from './auth';
+import { createServer, github } from '@vertz/server';
 import { db } from './db';
-import { entities } from './entities';
+import { comments } from './entities/comments.entity';
+import { issues } from './entities/issues.entity';
+import { projects } from './entities/projects.entity';
+import { users } from './entities/users.entity';
+
+const APP_URL = process.env.APP_URL ?? 'http://localhost:3001';
 
 export const app = createServer({
   basePath: '/api',
-  entities,
-  db,
-  auth,
-});
+  entities: [users, projects, issues, comments],
+  // biome-ignore lint/suspicious/noExplicitAny: DatabaseClient model variance
+  db: db as any,
+  auth: {
+    session: { strategy: 'jwt', ttl: '15m', refreshTtl: '7d', cookie: { secure: false } },
+    emailPassword: {},
+    jwtSecret: process.env.JWT_SECRET ?? 'linear-clone-dev-secret-at-least-32-chars!!',
+    providers: [
+      github({
+        clientId: process.env.GITHUB_CLIENT_ID ?? '',
+        clientSecret: process.env.GITHUB_CLIENT_SECRET ?? '',
+        redirectUrl: `${APP_URL}/api/auth/oauth/github/callback`,
+      }),
+    ],
+    oauthEncryptionKey: process.env.OAUTH_ENCRYPTION_KEY,
+    oauthSuccessRedirect: '/projects',
+    oauthErrorRedirect: '/login',
 
-export default app;
+    // Bridge auth → entity: populate the developer's users table from GitHub profile.
+    // Also handles email/password signups (for dev/E2E testing).
+    onUserCreated: async (payload, ctx) => {
+      if (payload.provider) {
+        const profile = payload.profile as Record<string, unknown>;
+        await ctx.entities.users.create({
+          id: payload.user.id,
+          email: payload.user.email,
+          name: (profile.name as string) ?? (profile.login as string),
+          avatarUrl: profile.avatar_url as string,
+        });
+      } else {
+        await ctx.entities.users.create({
+          id: payload.user.id,
+          email: payload.user.email,
+          name: payload.user.email.split('@')[0],
+          avatarUrl: null,
+        });
+      }
+    },
+  },
+});

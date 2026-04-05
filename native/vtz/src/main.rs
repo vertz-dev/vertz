@@ -71,6 +71,10 @@ fn build_dev_config(args: &cli::DevArgs) -> ServerConfig {
     config.extra_watch_paths = vertzrc.extra_watch_paths;
     config.proxy_name = args.name.clone();
     config.bridge_port = args.bridge_port;
+    config.inspect_brk = args.inspect_brk;
+    config.inspect_port = args.inspect_port.unwrap_or(9229);
+    // --inspect-brk implies --inspect; --inspect-port (any value) implies --inspect
+    config.inspect = args.inspect || args.inspect_brk || args.inspect_port.is_some();
     config
 }
 

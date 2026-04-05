@@ -785,7 +785,8 @@ mod http_integration {
         // Disable SSR for client-only rendering tests
         config.enable_ssr = false;
 
-        let (router, _state) = vertz_runtime::server::http::build_router(&config, test_plugin());
+        let (router, _state, _inspector_rx) =
+            vertz_runtime::server::http::build_router(&config, test_plugin());
 
         let listener = tokio::net::TcpListener::bind(&addr).await.unwrap();
 

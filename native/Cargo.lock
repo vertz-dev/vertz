@@ -5779,6 +5779,7 @@ dependencies = [
  "deno_core",
  "flate2",
  "fs2",
+ "futures",
  "futures-util",
  "glob",
  "http-body-util",

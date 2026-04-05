@@ -131,6 +131,10 @@
           {
             "group": "Testing",
             "pages": ["guides/testing", "guides/testing-server"]
+          },
+          {
+            "group": "Runtime",
+            "pages": ["guides/debugging"]
           }
         ],
         "tab": "Guides"

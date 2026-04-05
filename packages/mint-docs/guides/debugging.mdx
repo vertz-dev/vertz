@@ -1,0 +1,132 @@
+---
+title: Debugging with Chrome DevTools
+description: 'Debug your Vertz app with Chrome DevTools or VS Code using the V8 Inspector Protocol'
+---
+
+The Vertz runtime includes built-in V8 Inspector Protocol support. Use `--inspect` to debug your server-side code with Chrome DevTools or VS Code — set breakpoints, step through code, and inspect variables in your original `.tsx` source files.
+
+## Quick start
+
+```bash
+vtz dev --inspect
+```
+
+Open `chrome://inspect` in Chrome, then click **inspect** next to your Vertz target. You're now debugging your SSR code with full source map support.
+
+## VS Code setup
+
+Create `.vscode/launch.json` in your project:
+
+```json
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Attach to Vertz",
+      "type": "node",
+      "request": "attach",
+      "port": 9229,
+      "restart": true,
+      "skipFiles": ["<node_internals>/**"],
+      "sourceMapPathOverrides": {
+        "*": "${workspaceFolder}/*"
+      }
+    }
+  ]
+}
+```
+
+1. Start the dev server: `vtz dev --inspect`
+2. In VS Code, open the **Run and Debug** panel (`Cmd+Shift+D` / `Ctrl+Shift+D`)
+3. Select **Attach to Vertz** and press `F5`
+4. Set breakpoints in your `.tsx` files — they'll hit during SSR renders
+
+The `restart: true` option automatically reconnects the debugger when the isolate restarts (e.g., after a file change).
+
+## CLI flags
+
+| Flag                    | Description                                              |
+| ----------------------- | -------------------------------------------------------- |
+| `--inspect`             | Enable inspector on port 9229                            |
+| `--inspect-brk`         | Enable inspector and pause before the entry module loads |
+| `--inspect-port <port>` | Set a custom inspector port (implies `--inspect`)        |
+
+### Examples
+
+```bash
+vtz dev --inspect                  # Inspector on default port 9229
+vtz dev --inspect-brk              # Pause at startup, wait for debugger
+vtz dev --inspect-port 9230        # Inspector on custom port
+```
+
+## Breakpoint debugging
+
+Set breakpoints in your `.tsx` source files — the inspector serves source maps so DevTools maps compiled code back to your original source.
+
+Breakpoints work in:
+
+- SSR render functions (component bodies, data fetching)
+- Server entry files
+- Any module imported during server-side execution
+
+When a breakpoint hits during an SSR render, the HTTP response is paused until you resume execution in the debugger.
+
+## `--inspect-brk` workflow
+
+Use `--inspect-brk` when you need to debug code that runs during startup — before the dev server begins handling requests.
+
+```bash
+vtz dev --inspect-brk
+```
+
+The terminal shows:
+
+```
+[Server] Waiting for debugger to attach...
+```
+
+The runtime pauses before loading your entry module. Connect a debugger (Chrome DevTools or VS Code) — the runtime unblocks, then immediately pauses at the first statement of your entry module. From there you can step through your initialization code and press **Resume** when ready.
+
+This is useful for:
+
+- Debugging module initialization order
+- Inspecting SSR setup code
+- Diagnosing startup crashes
+
+`--inspect-brk` is **one-shot** — it only pauses on the initial startup. When the isolate restarts after a file change, it does not pause again.
+
+## Known limitations
+
+- **Breakpoints are lost on restart.** When a file changes, the V8 isolate restarts and all breakpoints are cleared. VS Code with `restart: true` reconnects automatically, but you need to re-set breakpoints (or use `debugger;` statements in source).
+- **Single debugger session.** Only one debugger can connect at a time.
+- **Local only.** The inspector binds to `127.0.0.1` — no remote debugging over the network.
+
+## Troubleshooting
+
+### Inspector port in use
+
+If you see an error about the inspector port being in use when starting the dev server, another process is already listening on port 9229. Use a custom port:
+
+```bash
+vtz dev --inspect-port 9230
+```
+
+Or find and stop the other process:
+
+```bash
+lsof -i :9229
+```
+
+### Source maps not loading
+
+If DevTools shows compiled code instead of your `.tsx` source:
+
+1. Check that the dev server is running (source maps are served over HTTP from the dev server port)
+2. In DevTools, open **Settings > Preferences** and ensure **Enable JavaScript source maps** is checked
+3. Try closing and reopening the DevTools panel
+
+### Breakpoints not hitting
+
+- Ensure the code runs server-side (SSR). Client-only code doesn't execute in the V8 isolate.
+- Check the **Sources** panel in DevTools — your file should appear under the source tree. If it's missing, the module hasn't been imported yet.
+- Try adding a `debugger;` statement in your source code as a fallback.

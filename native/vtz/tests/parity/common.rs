@@ -85,7 +85,7 @@ pub async fn start_dev_server_with(
         config.server_entry = Some(entry);
     }
 
-    let (router, state) = build_router(&config, test_plugin());
+    let (router, state, _inspector_rx) = build_router(&config, test_plugin());
     let listener = tokio::net::TcpListener::bind(&addr).await.unwrap();
     let (shutdown_tx, shutdown_rx) = tokio::sync::oneshot::channel::<()>();
 

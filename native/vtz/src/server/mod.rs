@@ -7,6 +7,7 @@ pub mod html_shell;
 pub mod http;
 pub mod image_cache;
 pub mod image_proxy;
+pub mod inspector;
 pub mod logging;
 pub mod mcp;
 pub mod mcp_events;
