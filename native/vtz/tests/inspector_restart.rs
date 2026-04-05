@@ -43,6 +43,7 @@ async fn test_restart_publishes_new_session_sender_to_same_channel() {
         server_entry: None,
         channel_capacity: 16,
         auto_installer: None,
+        init_timeout: None,
         enable_inspector: true,
         inspect_brk: false,
         inspector_session_tx: None,
@@ -119,6 +120,7 @@ async fn test_restart_preserves_inspector_session_tx_in_options() {
         server_entry: None,
         channel_capacity: 16,
         auto_installer: None,
+        init_timeout: None,
         enable_inspector: true,
         inspect_brk: false,
         inspector_session_tx: None,
@@ -147,6 +149,7 @@ async fn test_restart_with_inspect_brk_does_not_block_new_isolate() {
         server_entry: None,
         channel_capacity: 16,
         auto_installer: None,
+        init_timeout: None,
         enable_inspector: true,
         inspect_brk: true, // Initial creation blocks for debugger
         inspector_session_tx: None,
