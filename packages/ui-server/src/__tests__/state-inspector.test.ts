@@ -50,6 +50,19 @@ describe('safeSerialize', () => {
     expect(safeSerialize(undefined)).toBe(null);
   });
 
+  it('serializes bigint as string', () => {
+    expect(safeSerialize(BigInt(9007199254740991))).toBe('9007199254740991');
+  });
+
+  it('serializes NaN as placeholder', () => {
+    expect(safeSerialize(NaN)).toBe('[NaN]');
+  });
+
+  it('serializes Infinity as placeholder', () => {
+    expect(safeSerialize(Infinity)).toBe('[Infinity]');
+    expect(safeSerialize(-Infinity)).toBe('[-Infinity]');
+  });
+
   it('serializes functions with name', () => {
     function handleClick() {}
     expect(safeSerialize(handleClick)).toBe('[Function: handleClick]');
@@ -158,6 +171,11 @@ describe('collectStateSnapshot', () => {
     document.body.innerHTML = '';
   });
 
+  afterEach(() => {
+    clearRegistry();
+    document.body.innerHTML = '';
+  });
+
   it('returns empty snapshot when registry is empty', () => {
     const snapshot = collectStateSnapshot();
     expect(snapshot.components).toEqual([]);
@@ -221,21 +239,28 @@ describe('collectStateSnapshot', () => {
     expect(filtered.components[0].name).toBe('Alpha');
   });
 
-  it('groups query signals by _queryGroup', () => {
+  it('groups query signals by _queryGroup with _hmrKey names', () => {
+    // Simulates real query() behavior: signals have both _queryGroup and _hmrKey.
+    // query() in dev mode sets _hmrKey on each user-facing signal (data, loading, etc.)
+    // and _queryGroup for grouping.
     const factory = () => {
-      // Simulate query signals with _queryGroup
       const data = signal(undefined, 'data');
       (data as Record<string, unknown>)._queryGroup = 'tasks';
+      (data as Record<string, unknown>)._hmrKey = 'data';
       const loading = signal(true, 'loading');
       (loading as Record<string, unknown>)._queryGroup = 'tasks';
-      const error = signal(null, 'error');
-      (error as Record<string, unknown>)._queryGroup = 'tasks';
+      (loading as Record<string, unknown>)._hmrKey = 'loading';
       const revalidating = signal(false, 'revalidating');
       (revalidating as Record<string, unknown>)._queryGroup = 'tasks';
+      (revalidating as Record<string, unknown>)._hmrKey = 'revalidating';
+      const error = signal(null, 'error');
+      (error as Record<string, unknown>)._queryGroup = 'tasks';
+      (error as Record<string, unknown>)._hmrKey = 'error';
       const idle = signal(false, 'idle');
       (idle as Record<string, unknown>)._queryGroup = 'tasks';
+      (idle as Record<string, unknown>)._hmrKey = 'idle';
 
-      // A standalone signal
+      // A standalone signal (not part of any query)
       const count = signal(5, 'count');
 
       const el = document.createElement('div');
@@ -255,9 +280,14 @@ describe('collectStateSnapshot', () => {
     const comp = snapshot.components[0];
     const inst = comp.instances[0];
 
-    // Query signals grouped under 'tasks'
+    // Query signals grouped under 'tasks' with correct values
     expect(inst.queries.tasks).toBeDefined();
+    expect(inst.queries.tasks.data).toBe(null); // undefined serialized to null
     expect(inst.queries.tasks.loading).toBe(true);
+    expect(inst.queries.tasks.revalidating).toBe(false);
+    expect(inst.queries.tasks.error).toBe(null);
+    expect(inst.queries.tasks.idle).toBe(false);
+    expect(inst.queries.tasks.key).toBe('tasks');
 
     // Standalone signal not in queries
     expect(inst.signals.count).toBe(5);
@@ -326,5 +356,31 @@ describe('collectStateSnapshot', () => {
     const inst = snapshot.components[0].instances[0];
     expect(inst.signals.signal_0).toBe(10);
     expect(inst.signals.signal_1).toBe(20);
+  });
+
+  it('handles signals whose peek() throws (peekSafe)', () => {
+    const factory = () => {
+      // Create a signal, then manually make peek() throw to simulate
+      // a dirty computed that fails during recomputation
+      const s = signal(42, 'broken');
+      (s as Record<string, unknown>).peek = () => {
+        throw new Error('recomputation failed');
+      };
+      const el = document.createElement('div');
+      return el;
+    };
+
+    const wrapped = (...args: unknown[]) => {
+      startSignalCollection();
+      const el = factory();
+      const sigs = stopSignalCollection() as SignalRef[];
+      return __$refreshTrack('/src/Broken.tsx', 'Broken', el, args, [], null, sigs);
+    };
+    __$refreshReg('/src/Broken.tsx', 'Broken', wrapped);
+    mount(wrapped());
+
+    const snapshot = collectStateSnapshot();
+    const inst = snapshot.components[0].instances[0];
+    expect(inst.signals.broken).toBe('[Error: recomputation failed]');
   });
 });

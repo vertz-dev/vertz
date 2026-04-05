@@ -37,10 +37,10 @@ type Registry = Map<string, Map<string, ComponentRecord>>;
 
 export interface QuerySnapshot {
   data: SerializedValue;
-  loading: SerializedValue;
-  revalidating: SerializedValue;
+  loading: boolean;
+  revalidating: boolean;
   error: SerializedValue;
-  idle: SerializedValue;
+  idle: boolean;
   key?: string;
 }
 
@@ -94,7 +94,11 @@ export function safeSerialize(
   if (value === null) return null;
   if (value === undefined) return null;
   if (typeof value === 'boolean') return value;
-  if (typeof value === 'number') return value;
+  if (typeof value === 'number') {
+    if (Number.isNaN(value)) return '[NaN]';
+    if (!Number.isFinite(value)) return value > 0 ? '[Infinity]' : '[-Infinity]';
+    return value;
+  }
   if (typeof value === 'string') return value;
   if (typeof value === 'bigint') return value.toString();
 
@@ -330,16 +334,19 @@ function buildQuerySnapshot(signals: SignalRef[], groupKey: string): QuerySnapsh
   // Build snapshot preferring named, falling back to positional
   return {
     data: safeSerialize(named.get('data') ?? unnamed[0] ?? null),
-    loading: safeSerialize(named.get('loading') ?? unnamed[1] ?? null),
-    revalidating: safeSerialize(named.get('revalidating') ?? unnamed[2] ?? null),
+    loading: Boolean(named.get('loading') ?? unnamed[1] ?? false),
+    revalidating: Boolean(named.get('revalidating') ?? unnamed[2] ?? false),
     error: safeSerialize(named.get('error') ?? unnamed[3] ?? null),
-    idle: safeSerialize(named.get('idle') ?? unnamed[4] ?? null),
+    idle: Boolean(named.get('idle') ?? unnamed[4] ?? false),
     key: groupKey,
   };
 }
 
 function truncateSnapshot(snapshot: StateSnapshot): StateSnapshot {
-  // Keep first 3 instances per component
+  // Best-effort truncation: keep first 3 instances per component.
+  // This may not bring size below 2MB if individual instances are
+  // very large or there are many component types. The `truncated`
+  // flag signals the consumer to request a filtered snapshot.
   const truncated: StateSnapshot = {
     ...snapshot,
     truncated: true,

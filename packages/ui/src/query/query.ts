@@ -280,14 +280,25 @@ export function query<T, E = unknown>(
   // Uses a signal so the computed properly tracks the transition.
   const entityBacked: Signal<boolean> = signal<boolean>(false);
 
-  // Dev-only: mark signals for state inspection grouping (#2047).
+  // Dev-only: mark user-facing signals for state inspection grouping (#2047).
   // The state inspector uses _queryGroup to aggregate query signals
   // into named QuerySnapshot objects instead of listing them flat.
+  // Only the 5 user-facing signals are marked — internal signals
+  // (depHashSignal, entityBacked, refetchTrigger) are excluded.
   const __DEV__ = typeof process !== 'undefined' && process.env.NODE_ENV !== 'production';
   const _queryGroupKey = customKey ?? baseKey;
   if (__DEV__) {
-    for (const sig of [depHashSignal, rawData, loading, revalidating, error, idle, entityBacked]) {
-      (sig as unknown as Record<string, unknown>)._queryGroup = _queryGroupKey;
+    const userFacingSignals: [Signal<unknown>, string][] = [
+      [rawData as Signal<unknown>, 'data'],
+      [loading as Signal<unknown>, 'loading'],
+      [revalidating as Signal<unknown>, 'revalidating'],
+      [error, 'error'],
+      [idle as Signal<unknown>, 'idle'],
+    ];
+    for (const [sig, hmrKey] of userFacingSignals) {
+      const rec = sig as unknown as Record<string, unknown>;
+      rec._queryGroup = _queryGroupKey;
+      rec._hmrKey = hmrKey;
     }
   }
 
@@ -612,9 +623,6 @@ export function query<T, E = unknown>(
    * Trigger signal to force the effect to re-run on manual refetch.
    */
   const refetchTrigger: Signal<number> = signal(0);
-  if (__DEV__) {
-    (refetchTrigger as unknown as Record<string, unknown>)._queryGroup = _queryGroupKey;
-  }
 
   // -- Polling interval --
   let intervalPaused = false;

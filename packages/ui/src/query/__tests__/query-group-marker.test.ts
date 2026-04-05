@@ -5,9 +5,9 @@ import { query, resetDefaultQueryCache } from '../query';
 /**
  * Tests for _queryGroup marker on query signals.
  *
- * In dev mode, query() should mark each signal it creates with a
- * _queryGroup property equal to the query's cache key. This allows
- * the state inspector to group query signals together.
+ * In dev mode, query() marks the 5 user-facing signals (data, loading,
+ * revalidating, error, idle) with _queryGroup and _hmrKey. Internal
+ * signals (depHashSignal, entityBacked, refetchTrigger) are excluded.
  */
 describe('query() _queryGroup marker', () => {
   beforeEach(() => {
@@ -18,17 +18,30 @@ describe('query() _queryGroup marker', () => {
     resetDefaultQueryCache();
   });
 
-  test('signals created by query() have _queryGroup set', () => {
+  test('user-facing signals have _queryGroup and _hmrKey set', () => {
     startSignalCollection();
     const result = query(() => Promise.resolve({ id: '1' }), { key: 'tasks' });
     const collected = stopSignalCollection();
 
-    // query() creates multiple signals internally — all should have _queryGroup
-    expect(collected.length).toBeGreaterThan(0);
+    // query() creates multiple signals — only the 5 user-facing ones get _queryGroup
+    expect(collected.length).toBeGreaterThan(5);
 
-    for (const sig of collected) {
+    const grouped = collected.filter(
+      (sig) => (sig as Record<string, unknown>)._queryGroup !== undefined,
+    );
+    expect(grouped.length).toBe(5);
+
+    for (const sig of grouped) {
       expect((sig as Record<string, unknown>)._queryGroup).toBe('tasks');
     }
+
+    // Check _hmrKey is set on each grouped signal
+    const hmrKeys = grouped.map((sig) => (sig as Record<string, unknown>)._hmrKey);
+    expect(hmrKeys).toContain('data');
+    expect(hmrKeys).toContain('loading');
+    expect(hmrKeys).toContain('revalidating');
+    expect(hmrKeys).toContain('error');
+    expect(hmrKeys).toContain('idle');
 
     result.dispose();
   });
@@ -38,7 +51,10 @@ describe('query() _queryGroup marker', () => {
     const result = query(() => Promise.resolve([1, 2, 3]), { key: 'my-custom-key' });
     const collected = stopSignalCollection();
 
-    for (const sig of collected) {
+    const grouped = collected.filter(
+      (sig) => (sig as Record<string, unknown>)._queryGroup !== undefined,
+    );
+    for (const sig of grouped) {
       expect((sig as Record<string, unknown>)._queryGroup).toBe('my-custom-key');
     }
 
@@ -51,12 +67,30 @@ describe('query() _queryGroup marker', () => {
     const collected = stopSignalCollection();
 
     // Without a custom key, _queryGroup should be the derived base key (not empty)
-    for (const sig of collected) {
+    const grouped = collected.filter(
+      (sig) => (sig as Record<string, unknown>)._queryGroup !== undefined,
+    );
+    expect(grouped.length).toBe(5);
+
+    for (const sig of grouped) {
       const group = (sig as Record<string, unknown>)._queryGroup;
-      expect(group).toBeDefined();
       expect(typeof group).toBe('string');
       expect((group as string).length).toBeGreaterThan(0);
     }
+
+    result.dispose();
+  });
+
+  test('internal signals do not have _queryGroup', () => {
+    startSignalCollection();
+    const result = query(() => Promise.resolve('test'), { key: 'k' });
+    const collected = stopSignalCollection();
+
+    const ungrouped = collected.filter(
+      (sig) => (sig as Record<string, unknown>)._queryGroup === undefined,
+    );
+    // depHashSignal, entityBacked, refetchTrigger = 3 internal signals
+    expect(ungrouped.length).toBeGreaterThanOrEqual(3);
 
     result.dispose();
   });
