@@ -444,6 +444,18 @@ export function generateOpenAPISpec(
   const tags: { name: string }[] = [];
 
   for (const def of entities) {
+    // Skip composite-PK entities — OpenAPI generation hardcodes single {id} path param.
+    const table = def.model.table;
+    const compositePkLength =
+      (table as { _primaryKey?: readonly string[] })._primaryKey?.length ?? 0;
+    if (compositePkLength > 1) {
+      console.warn(
+        `[vertz] Entity "${def.name}" has composite PK — OpenAPI spec generation skipped. ` +
+          `Composite-PK OpenAPI support is a follow-up feature.`,
+      );
+      continue;
+    }
+
     const prefix = toPascalCase(def.name);
     const basePath = `${apiPrefix}/${def.name}`;
     const tag = def.name;

@@ -34,6 +34,7 @@ interface BridgeDelegate {
     readonly orderBy?: Record<string, unknown>;
     readonly limit?: number;
     readonly include?: Record<string, unknown>;
+    readonly cursor?: Record<string, unknown>;
   }): Promise<Result<unknown, ReadError>>;
 
   create(options: { readonly data: unknown }): Promise<Result<unknown, WriteError>>;
@@ -65,8 +66,9 @@ export function createDatabaseBridgeAdapter<
 
   return {
     async get(id, options?) {
+      const idWhere = typeof id === 'string' ? { id } : id;
       const result = await delegate.get({
-        where: { ...(options?.where ?? {}), id },
+        where: { ...(options?.where ?? {}), ...idWhere },
         ...(options?.include && { include: options.include }),
       });
       if (!result.ok) {
@@ -81,6 +83,11 @@ export function createDatabaseBridgeAdapter<
         ...(options?.orderBy && { orderBy: options.orderBy }),
         ...(options?.limit !== undefined && { limit: options.limit }),
         ...(options?.include && { include: options.include }),
+        ...(options?.after && {
+          cursor: options.after.startsWith('{')
+            ? (JSON.parse(options.after) as Record<string, unknown>)
+            : { id: options.after },
+        }),
       });
       if (!result.ok) {
         throw result.error;
@@ -97,8 +104,9 @@ export function createDatabaseBridgeAdapter<
     },
 
     async update(id, data, options?) {
+      const idWhere = typeof id === 'string' ? { id } : id;
       const result = await delegate.update({
-        where: { ...(options?.where ?? {}), id },
+        where: { ...(options?.where ?? {}), ...idWhere },
         data,
       });
       if (!result.ok) {
@@ -108,8 +116,9 @@ export function createDatabaseBridgeAdapter<
     },
 
     async delete(id, options?) {
+      const idWhere = typeof id === 'string' ? { id } : id;
       const result = await delegate.delete({
-        where: { ...(options?.where ?? {}), id },
+        where: { ...(options?.where ?? {}), ...idWhere },
       });
       if (!result.ok) {
         return null;

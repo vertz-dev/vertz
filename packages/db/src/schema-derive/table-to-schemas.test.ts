@@ -585,6 +585,114 @@ describe('tableToSchemas', () => {
 // apiCreateBody / apiUpdateBody — strict input schemas for CRUD endpoints
 // ---------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------
+// Composite primary key table
+// ---------------------------------------------------------------------------
+
+const teamMembers = d.table(
+  'team_members',
+  {
+    teamId: d.uuid(),
+    userId: d.uuid(),
+    role: d.text().default('member'),
+  },
+  { primaryKey: ['teamId', 'userId'] },
+);
+
+const events = d.table(
+  'events',
+  {
+    tenantId: d.uuid(),
+    eventDate: d.timestamp().default('now'),
+    name: d.text(),
+  },
+  { primaryKey: ['tenantId', 'eventDate'] },
+);
+
+// ---------------------------------------------------------------------------
+// tableToSchemas — composite primary keys
+// ---------------------------------------------------------------------------
+
+describe('tableToSchemas — composite primary keys', () => {
+  describe('createBody', () => {
+    it('includes composite PK columns without defaults as required', () => {
+      const { createBody } = tableToSchemas(teamMembers);
+      expect(createBody.shape).toHaveProperty('teamId');
+      expect(createBody.shape).toHaveProperty('userId');
+    });
+
+    it('excludes composite PK columns that have defaults', () => {
+      const { createBody } = tableToSchemas(events);
+      expect(createBody.shape).toHaveProperty('tenantId');
+      expect(createBody.shape).not.toHaveProperty('eventDate');
+    });
+  });
+
+  describe('updateBody', () => {
+    it('excludes ALL PK columns (single and composite)', () => {
+      const { updateBody } = tableToSchemas(teamMembers);
+      expect(updateBody.shape).not.toHaveProperty('teamId');
+      expect(updateBody.shape).not.toHaveProperty('userId');
+      expect(updateBody.shape).toHaveProperty('role');
+    });
+  });
+
+  describe('apiCreateBody', () => {
+    it('includes composite PK columns as required', () => {
+      const { apiCreateBody } = tableToSchemas(teamMembers);
+      expect(apiCreateBody.shape).toHaveProperty('teamId');
+      expect(apiCreateBody.shape).toHaveProperty('userId');
+    });
+
+    it('rejects input missing composite PK columns', () => {
+      const { apiCreateBody } = tableToSchemas(teamMembers);
+      const result = apiCreateBody.safeParse({ role: 'admin' });
+      expect(result.ok).toBe(false);
+    });
+
+    it('accepts input with all composite PK columns', () => {
+      const { apiCreateBody } = tableToSchemas(teamMembers);
+      const result = apiCreateBody.safeParse({
+        teamId: '550e8400-e29b-41d4-a716-446655440000',
+        userId: '6ba7b810-9dad-11d1-80b4-00c04fd430c8',
+      });
+      expect(result.ok).toBe(true);
+    });
+
+    it('composite PK column with default is optional in create', () => {
+      const { apiCreateBody } = tableToSchemas(events);
+      expect(apiCreateBody.shape).toHaveProperty('tenantId');
+      // eventDate has default — should be optional
+      const result = apiCreateBody.safeParse({
+        tenantId: '550e8400-e29b-41d4-a716-446655440000',
+        name: 'Launch',
+      });
+      expect(result.ok).toBe(true);
+    });
+  });
+
+  describe('apiUpdateBody', () => {
+    it('excludes composite PK columns', () => {
+      const { apiUpdateBody } = tableToSchemas(teamMembers);
+      expect(apiUpdateBody.shape).not.toHaveProperty('teamId');
+      expect(apiUpdateBody.shape).not.toHaveProperty('userId');
+      expect(apiUpdateBody.shape).toHaveProperty('role');
+    });
+  });
+
+  describe('single .primary() unchanged', () => {
+    it('still excludes auto-generated PK from createBody', () => {
+      const { createBody } = tableToSchemas(users);
+      expect(createBody.shape).not.toHaveProperty('id');
+    });
+
+    it('still excludes auto-generated PK from apiCreateBody', () => {
+      const { apiCreateBody } = tableToSchemas(accounts);
+      expect(apiCreateBody.shape).not.toHaveProperty('id');
+    });
+  });
+});
+
 describe('tableToSchemas — API input schemas', () => {
   // -------------------------------------------------------------------------
   // apiCreateBody

@@ -36,16 +36,19 @@ import { MAX_CURSOR_LENGTH } from './vertzql-parser';
 // Re-export types from @vertz/db for backward compatibility
 export type { EntityDbAdapter, GetOptions, ListOptions } from '@vertz/db';
 
+/** ID type for entity operations — single string or composite key record. */
+export type EntityId = string | Record<string, string>;
+
 // Widened method types for calling db.update/db.delete with options.
 // EntityDbAdapter's deferred conditional types (ResolveWhere) don't resolve
 // when TEntry is the default ModelEntry. These aliases bypass the issue.
 type WidenedUpdate = (
-  id: string,
+  id: EntityId,
   data: Record<string, unknown>,
   options?: { where: Record<string, unknown> },
 ) => Promise<Record<string, unknown>>;
 type WidenedDelete = (
-  id: string,
+  id: EntityId,
   options?: { where: Record<string, unknown> },
 ) => Promise<Record<string, unknown> | null>;
 
@@ -60,6 +63,19 @@ function resolvePrimaryKeyColumn(table: TableDef): string {
     if (col?._meta.primary) return key;
   }
   return 'id';
+}
+
+/**
+ * Resolves primary key columns from a table definition, supporting composite PKs.
+ * Returns an array of column names (length > 1 for composite PKs).
+ */
+export function resolvePkColumns(table: TableDef): string[] {
+  if (table._primaryKey?.length) return [...table._primaryKey];
+  for (const key of Object.keys(table._columns)) {
+    const col = table._columns[key] as ColumnBuilder<unknown, ColumnMetadata> | undefined;
+    if (col?._meta.primary) return [key];
+  }
+  return ['id'];
 }
 
 // ---------------------------------------------------------------------------
@@ -99,7 +115,7 @@ export interface CrudHandlers<TModel extends ModelDef = ModelDef> {
   ): Promise<Result<CrudResult<ListResult<TModel['table']['$response']>>, EntityError>>;
   get(
     ctx: EntityContext<TModel>,
-    id: string,
+    id: EntityId,
     options?: GetOptions,
   ): Promise<Result<CrudResult<TModel['table']['$response']>, EntityError>>;
   create(
@@ -108,10 +124,10 @@ export interface CrudHandlers<TModel extends ModelDef = ModelDef> {
   ): Promise<Result<CrudResult<TModel['table']['$response']>, EntityError>>;
   update(
     ctx: EntityContext<TModel>,
-    id: string,
+    id: EntityId,
     data: Record<string, unknown>,
   ): Promise<Result<CrudResult<TModel['table']['$response']>, EntityError>>;
-  delete(ctx: EntityContext<TModel>, id: string): Promise<Result<CrudResult<null>, EntityError>>;
+  delete(ctx: EntityContext<TModel>, id: EntityId): Promise<Result<CrudResult<null>, EntityError>>;
 }
 
 // ---------------------------------------------------------------------------
@@ -156,19 +172,9 @@ export function createCrudHandlers<TModel extends ModelDef = ModelDef>(
 ): CrudHandlers<TModel> {
   const table = def.model.table;
 
-  // Guard: entity CRUD does not support composite primary keys
-  const pkCols: string[] = [];
-  for (const key of Object.keys(table._columns)) {
-    const col = table._columns[key] as ColumnBuilder<unknown, ColumnMetadata> | undefined;
-    if (col?._meta.primary) pkCols.push(key);
-  }
-  if (pkCols.length > 1) {
-    throw new Error(
-      `Entity CRUD does not support composite primary keys. ` +
-        `Table "${table._name}" has composite PK: [${pkCols.join(', ')}]. ` +
-        `Use direct database queries or define a surrogate single-column PK.`,
-    );
-  }
+  // Resolve PK columns from table definition
+  const pkColumns = resolvePkColumns(table);
+  const isCompositePk = pkColumns.length > 1;
 
   const isTenantScoped = def.tenantScoped;
   const tenantColumn = def.tenantColumn ?? 'tenantId';
@@ -230,9 +236,52 @@ export function createCrudHandlers<TModel extends ModelDef = ModelDef>(
       }
     : undefined;
 
+  /** Validates an EntityId against the PK columns. Returns the id as a Record. */
+  function validateEntityId(id: EntityId): Result<Record<string, string>, EntityError> {
+    if (typeof id === 'string') {
+      if (isCompositePk) {
+        return err(
+          new EntityValidationError([
+            {
+              path: [],
+              message:
+                `Entity "${def.name}" requires composite key { ${pkColumns.join(', ')} }. ` +
+                `Got a single string ID. Use: { ${pkColumns.map((c) => `${c}: "..."`).join(', ')} }`,
+              code: 'invalid_type',
+            },
+          ]),
+        );
+      }
+      return ok({ [pkColumns[0]!]: id });
+    }
+    // Composite: validate all PK columns present
+    for (const col of pkColumns) {
+      if (!(col in id)) {
+        return err(
+          new EntityValidationError([
+            {
+              path: [col],
+              message:
+                `Entity "${def.name}" requires composite key { ${pkColumns.join(', ')} }. ` +
+                `Missing key column: "${col}".`,
+              code: 'invalid_type',
+            },
+          ]),
+        );
+      }
+    }
+    return ok(id);
+  }
+
   /** Returns 404 error for the entity */
-  function notFound(id: string) {
-    return err(new EntityNotFoundError(`${def.name} with id "${id}" not found`));
+  function notFound(id: EntityId) {
+    const idStr =
+      typeof id === 'string'
+        ? `id "${id}"`
+        : `key { ${Object.entries(id)
+            .map(([k, v]) => `${k}: "${v}"`)
+            .join(', ')} }`;
+    return err(new EntityNotFoundError(`${def.name} with ${idStr} not found`));
   }
 
   /**
@@ -369,18 +418,28 @@ export function createCrudHandlers<TModel extends ModelDef = ModelDef>(
       ) as TModel['table']['$response'][];
 
       // Compute nextCursor: if we got a full page, there may be more rows
-      const pkColumn = resolvePrimaryKeyColumn(table);
       const lastRow = rows[rows.length - 1] as Record<string, unknown> | undefined;
-      const nextCursor =
-        limit > 0 && rows.length === limit && lastRow
-          ? String(lastRow[pkColumn] as string | number)
-          : null;
+      let nextCursor: string | null = null;
+      if (limit > 0 && rows.length === limit && lastRow) {
+        if (isCompositePk) {
+          const cursorObj: Record<string, string> = {};
+          for (const col of pkColumns) {
+            cursorObj[col] = String(lastRow[col] as string | number);
+          }
+          nextCursor = JSON.stringify(cursorObj);
+        } else {
+          nextCursor = String(lastRow[pkColumns[0]!] as string | number);
+        }
+      }
       const hasNextPage = nextCursor !== null;
 
       return ok({ status: 200, body: { items: data, total, limit, nextCursor, hasNextPage } });
     },
 
     async get(ctx, id, options) {
+      const validated = validateEntityId(id);
+      if (!validated.ok) return validated;
+
       // Extract where conditions from access rules and push to DB query
       const accessWhere = extractWhereConditions('get', def.access, ctx);
       const tenantWhere = await withTenantFilter(ctx, accessWhere ?? undefined);
@@ -564,6 +623,9 @@ export function createCrudHandlers<TModel extends ModelDef = ModelDef>(
     },
 
     async update(ctx, id, data) {
+      const validated = validateEntityId(id);
+      if (!validated.ok) return validated;
+
       // Validate input against the strict API schema
       const parseResult = updateSchema.safeParse(data);
       if (!parseResult.ok) {
@@ -645,6 +707,9 @@ export function createCrudHandlers<TModel extends ModelDef = ModelDef>(
     },
 
     async delete(ctx, id) {
+      const validated = validateEntityId(id);
+      if (!validated.ok) return validated;
+
       // Extract where conditions from access rules and push to DB query
       const accessWhere = extractWhereConditions('delete', def.access, ctx);
       const tenantWhere = await withTenantFilter(ctx, accessWhere ?? undefined);

@@ -1242,3 +1242,73 @@ describe('Feature: Service routes in OpenAPI spec', () => {
     });
   });
 });
+
+// ---------------------------------------------------------------------------
+// Composite PK OpenAPI skip (#1776)
+// ---------------------------------------------------------------------------
+
+describe('Feature: Composite PK entities skipped in OpenAPI spec (#1776)', () => {
+  const compositePkTable = d.table(
+    'project_members',
+    {
+      projectId: d.uuid(),
+      userId: d.uuid(),
+      role: d.text().default('member'),
+    },
+    { primaryKey: ['projectId', 'userId'] },
+  );
+
+  const compositePkModel = d.model(compositePkTable);
+
+  const compositeDef = entity('project-members', {
+    model: compositePkModel,
+    access: {
+      list: rules.public,
+      get: rules.public,
+      create: rules.public,
+      update: rules.public,
+      delete: rules.public,
+    },
+  }) as unknown as import('../types').EntityDefinition;
+
+  const singlePkTable = d.table('tasks', {
+    id: d.uuid().primary(),
+    title: d.text(),
+  });
+  const singlePkModel = d.model(singlePkTable);
+  const singlePkDef = entity('tasks', {
+    model: singlePkModel,
+    access: {
+      list: rules.public,
+      get: rules.public,
+      create: rules.public,
+    },
+  }) as unknown as import('../types').EntityDefinition;
+
+  describe('Given a composite-PK entity and a single-PK entity', () => {
+    describe('When generateOpenAPISpec is called with both', () => {
+      it('Then the composite-PK entity is excluded from paths', () => {
+        const spec = generateOpenAPISpec([compositeDef, singlePkDef], {
+          info: { title: 'Test', version: '1.0' },
+        });
+
+        // Single PK entity included
+        expect(spec.paths['/api/tasks']).toBeDefined();
+        expect(spec.paths['/api/tasks/{id}']).toBeDefined();
+
+        // Composite PK entity excluded
+        expect(spec.paths['/api/project-members']).toBeUndefined();
+        expect(spec.paths['/api/project-members/{id}']).toBeUndefined();
+      });
+
+      it('Then the composite-PK entity is excluded from tags', () => {
+        const spec = generateOpenAPISpec([compositeDef, singlePkDef], {
+          info: { title: 'Test', version: '1.0' },
+        });
+
+        expect(spec.tags).toContainEqual({ name: 'tasks' });
+        expect(spec.tags).not.toContainEqual({ name: 'project-members' });
+      });
+    });
+  });
+});

@@ -104,7 +104,10 @@ export interface DeleteOptions<TEntry extends ModelEntry = ModelEntry> {
 // ---------------------------------------------------------------------------
 
 export interface EntityDbAdapter<TEntry extends ModelEntry = ModelEntry> {
-  get(id: string, options?: GetOptions<TEntry>): Promise<TEntry['table']['$response'] | null>;
+  get(
+    id: string | Record<string, string>,
+    options?: GetOptions<TEntry>,
+  ): Promise<TEntry['table']['$response'] | null>;
 
   list(
     options?: ListOptions<TEntry>,
@@ -113,10 +116,13 @@ export interface EntityDbAdapter<TEntry extends ModelEntry = ModelEntry> {
   create(data: TEntry['table']['$create_input']): Promise<TEntry['table']['$response']>;
 
   update(
-    id: string,
+    id: string | Record<string, string>,
     data: TEntry['table']['$update_input'],
     options?: UpdateOptions<TEntry>,
   ): Promise<TEntry['table']['$response']>;
 
-  delete(id: string, options?: DeleteOptions<TEntry>): Promise<TEntry['table']['$response'] | null>;
+  delete(
+    id: string | Record<string, string>,
+    options?: DeleteOptions<TEntry>,
+  ): Promise<TEntry['table']['$response'] | null>;
 }
