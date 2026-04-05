@@ -907,8 +907,12 @@ pub const TEST_DOM_SHIM_JS: &str = r#"
     }
     get value() { return this._value; }
     set value(v) { this._value = String(v); }
+    get defaultValue() { return this.getAttribute('value') || ''; }
+    set defaultValue(v) { this.setAttribute('value', v); }
     get checked() { return this._checked; }
     set checked(v) { this._checked = !!v; }
+    get defaultChecked() { return this.hasAttribute('checked'); }
+    set defaultChecked(v) { v ? this.setAttribute('checked', '') : this.removeAttribute('checked'); }
     get disabled() { return this.hasAttribute('disabled'); }
     set disabled(v) { v ? this.setAttribute('disabled', '') : this.removeAttribute('disabled'); }
     get type() { return this.getAttribute('type') || 'text'; }
@@ -930,6 +934,8 @@ pub const TEST_DOM_SHIM_JS: &str = r#"
     }
     get value() { return this._value; }
     set value(v) { this._value = String(v); }
+    get defaultValue() { return this.textContent || ''; }
+    set defaultValue(v) { this.textContent = v; }
     get disabled() { return this.hasAttribute('disabled'); }
     set disabled(v) { v ? this.setAttribute('disabled', '') : this.removeAttribute('disabled'); }
     get name() { return this.getAttribute('name') || ''; }
@@ -1011,7 +1017,21 @@ pub const TEST_DOM_SHIM_JS: &str = r#"
     constructor(tag, ns) { super(tag || 'form', ns); }
     get elements() { return this.querySelectorAll('input,select,textarea,button'); }
     submit() {}
-    reset() {}
+    reset() {
+      // Reset all form elements to their default values
+      for (const el of this.querySelectorAll('input')) {
+        el._value = el.getAttribute('value') || '';
+        el._checked = el.hasAttribute('checked');
+      }
+      for (const el of this.querySelectorAll('textarea')) {
+        el._value = el.textContent || '';
+      }
+      for (const el of this.querySelectorAll('select')) {
+        el._value = '';
+        el._valueSet = false;
+      }
+      this.dispatchEvent(new Event('reset', { bubbles: true }));
+    }
     get action() { return this.getAttribute('action') || ''; }
     set action(v) { this.setAttribute('action', v); }
     get method() { return this.getAttribute('method') || 'get'; }
