@@ -151,9 +151,7 @@ fn write_signal_callback(
         Ok((_changed, should_flush)) => {
             if should_flush {
                 flush_pending_effects(scope);
-                with_graph(|graph| {
-                    graph.batch_depth = graph.batch_depth.saturating_sub(1);
-                });
+                with_graph(|graph| graph.batch_end_no_flush());
             }
         }
         Err(e) => throw_signal_error(scope, &e.to_string()),
@@ -211,7 +209,7 @@ fn batch_end_callback(
     _rv: v8::ReturnValue,
 ) {
     let should_flush = with_graph(|graph| {
-        graph.batch_depth = graph.batch_depth.saturating_sub(1);
+        graph.batch_end_no_flush();
         graph.batch_depth == 0 && graph.has_pending_effects()
     })
     .unwrap_or(false);
@@ -1044,5 +1042,52 @@ mod tests {
             )
             .unwrap();
         assert_eq!(result, serde_json::json!([6, 14]));
+    }
+
+    #[test]
+    fn dispose_slot_reuse_does_not_corrupt_unrelated_node() {
+        let mut rt = create_runtime();
+        let result = rt
+            .execute_script(
+                "<test>",
+                r#"
+                __VERTZ_SIGNAL_OPS__.init();
+                globalThis.effectCount = 0;
+
+                // Create signal A (gets id=0) and a computed B depending on A
+                const a = __VERTZ_SIGNAL_OPS__.createSignal(10);
+                const b = __VERTZ_SIGNAL_OPS__.createComputed(() => {
+                    return __VERTZ_SIGNAL_OPS__.readSignal(a) * 2;
+                });
+                // Read b to establish dependency a -> b
+                __VERTZ_SIGNAL_OPS__.readSignal(b);
+
+                // Dispose A — slot 0 freed. B's sources should be cleaned.
+                __VERTZ_SIGNAL_OPS__.disposeNode(a);
+
+                // Create signal C — should reuse slot 0
+                const c = __VERTZ_SIGNAL_OPS__.createSignal(99);
+
+                // Create an effect depending on C
+                __VERTZ_SIGNAL_OPS__.createEffect(() => {
+                    __VERTZ_SIGNAL_OPS__.readSignal(c);
+                    globalThis.effectCount++;
+                });
+                // effectCount = 1
+
+                // Write C — effect should re-run
+                __VERTZ_SIGNAL_OPS__.writeSignal(c, 100);
+                const afterWrite = globalThis.effectCount;
+
+                // B's stale source should NOT have corrupted C's subscriber list
+                // The effect on C should still work correctly
+                __VERTZ_SIGNAL_OPS__.writeSignal(c, 200);
+                const afterSecondWrite = globalThis.effectCount;
+
+                [afterWrite, afterSecondWrite];
+                "#,
+            )
+            .unwrap();
+        assert_eq!(result, serde_json::json!([2, 3]));
     }
 }

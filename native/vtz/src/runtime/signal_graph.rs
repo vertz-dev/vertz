@@ -478,11 +478,26 @@ impl SignalGraph {
 
     /// End an explicit batch. If this is the outermost batch, flush pending effects.
     pub fn batch_end(&mut self, scope: &mut v8::HandleScope) -> Result<(), SignalGraphError> {
+        debug_assert!(
+            self.batch_depth > 0,
+            "batch_end called without matching batch_start"
+        );
         self.batch_depth = self.batch_depth.saturating_sub(1);
         if self.batch_depth == 0 {
             self.flush_effects(scope)?;
         }
         Ok(())
+    }
+
+    /// Decrement batch depth without flushing effects.
+    /// Used by the ops layer for auto-batch management where flushing
+    /// is handled separately via `flush_pending_effects`.
+    pub fn batch_end_no_flush(&mut self) {
+        debug_assert!(
+            self.batch_depth > 0,
+            "batch_end_no_flush called without matching batch_start"
+        );
+        self.batch_depth = self.batch_depth.saturating_sub(1);
     }
 
     /// Flush all pending effects. Iterative: effects may trigger new signal writes,
@@ -920,13 +935,32 @@ impl SignalGraph {
             _ => SmallVec::new(),
         };
 
-        // Remove self from all sources' subscriber lists
+        // Remove self from all sources' subscriber lists (upstream cleanup)
         for source_id in &old_sources {
             if let Some(
                 SignalNode::Signal { subscribers, .. } | SignalNode::Computed { subscribers, .. },
             ) = self.nodes.get_mut(*source_id as usize)
             {
                 subscribers.retain(|s| *s != id);
+            }
+        }
+
+        // Collect subscribers to clean up (for signal/computed nodes)
+        let old_subscribers: SmallVec<[u32; 2]> = match &self.nodes[id as usize] {
+            SignalNode::Signal { subscribers, .. } | SignalNode::Computed { subscribers, .. } => {
+                subscribers.clone()
+            }
+            _ => SmallVec::new(),
+        };
+
+        // Remove self from all subscribers' source lists (downstream cleanup).
+        // Without this, slot reuse could cause a subscriber's stale source ID
+        // to point to an unrelated node after the slot is reallocated.
+        for subscriber_id in &old_subscribers {
+            if let Some(SignalNode::Computed { sources, .. } | SignalNode::Effect { sources, .. }) =
+                self.nodes.get_mut(*subscriber_id as usize)
+            {
+                sources.retain(|s| *s != id);
             }
         }
 
