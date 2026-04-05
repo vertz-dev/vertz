@@ -1139,11 +1139,7 @@ describe('Typed nested include — output resolution', () => {
 
   describe('Given FindResult without TModels (backward compat)', () => {
     it('Then resolves first-level includes normally', () => {
-      type Result = FindResult<
-        typeof posts,
-        { include: { author: true } },
-        typeof postRelations
-      >;
+      type Result = FindResult<typeof posts, { include: { author: true } }, typeof postRelations>;
       type _t1 = Expect<HasKey<Result, 'author'>>;
       type _t2 = Expect<HasKey<Result['author'], 'name'>>;
     });

@@ -275,19 +275,20 @@ type ResolveOneInclude<
   TIncludeValue,
   TModels extends Record<string, ModelEntry> = Record<string, ModelEntry>,
   _Depth extends readonly unknown[] = [],
-> = RelationTarget<R> extends TableDef<infer TCols>
-  ? (TIncludeValue extends { select: infer TSubSelect }
-      ? SelectNarrow<TCols, TSubSelect>
-      : SelectNarrow<TCols, undefined>) &
-      (TIncludeValue extends { include: infer TNestedInclude }
-        ? IncludeResolve<
-            FindModelRelations<TModels, RelationTarget<R>>,
-            TNestedInclude,
-            TModels,
-            [..._Depth, unknown]
-          >
-        : unknown)
-  : never;
+> =
+  RelationTarget<R> extends TableDef<infer TCols>
+    ? (TIncludeValue extends { select: infer TSubSelect }
+        ? SelectNarrow<TCols, TSubSelect>
+        : SelectNarrow<TCols, undefined>) &
+        (TIncludeValue extends { include: infer TNestedInclude }
+          ? IncludeResolve<
+              FindModelRelations<TModels, RelationTarget<R>>,
+              TNestedInclude,
+              TModels,
+              [..._Depth, unknown]
+            >
+          : unknown)
+    : never;
 
 /**
  * IncludeResolve<TRelations, TInclude, TModels, Depth> — resolves all included relations.
