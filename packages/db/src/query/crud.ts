@@ -13,6 +13,13 @@ import { defaultPostgresDialect } from '../dialect';
 import { NotFoundError } from '../errors/db-error';
 import { generateId } from '../id/generators';
 import type { ColumnBuilder, ColumnMetadata } from '../schema/column';
+import type {
+  FilterType,
+  InsertInput,
+  OrderByType,
+  SelectOption,
+  UpdateInput,
+} from '../schema/inference';
 import type { ColumnRecord, TableDef } from '../schema/table';
 import { buildDelete } from '../sql/delete';
 import { isDbExpr } from '../sql/expr';
@@ -79,19 +86,19 @@ function assertNonEmptyWhere(where: Record<string, unknown>, operation: string):
 // Find queries
 // ---------------------------------------------------------------------------
 
-export interface GetArgs {
-  readonly where?: Record<string, unknown>;
-  readonly select?: Record<string, unknown>;
-  readonly orderBy?: Record<string, 'asc' | 'desc'>;
+export interface GetArgs<TColumns extends ColumnRecord = ColumnRecord> {
+  readonly where?: FilterType<TColumns>;
+  readonly select?: SelectOption<TColumns>;
+  readonly orderBy?: OrderByType<TColumns>;
 }
 
 /**
  * Get a single row matching the filter, or null if not found.
  */
-export async function get<T>(
+export async function get<TColumns extends ColumnRecord, T>(
   queryFn: QueryFn,
-  table: TableDef<ColumnRecord>,
-  options?: GetArgs,
+  table: TableDef<TColumns>,
+  options?: GetArgs<TColumns>,
   dialect: Dialect = defaultPostgresDialect,
 ): Promise<T | null> {
   const columns = resolveSelectColumns(table, options?.select);
@@ -99,7 +106,7 @@ export async function get<T>(
     table: table._name,
     columns,
     where: options?.where,
-    orderBy: options?.orderBy,
+    orderBy: options?.orderBy as Record<string, 'asc' | 'desc'> | undefined,
     limit: 1,
     dialect,
   });
@@ -114,23 +121,23 @@ export async function get<T>(
 /**
  * Get a single row matching the filter, or throw NotFoundError.
  */
-export async function getOrThrow<T>(
+export async function getOrThrow<TColumns extends ColumnRecord, T>(
   queryFn: QueryFn,
-  table: TableDef<ColumnRecord>,
-  options?: GetArgs,
+  table: TableDef<TColumns>,
+  options?: GetArgs<TColumns>,
   dialect: Dialect = defaultPostgresDialect,
 ): Promise<T> {
-  const row = await get<T>(queryFn, table, options, dialect);
+  const row = await get<TColumns, T>(queryFn, table, options, dialect);
   if (row === null) {
     throw new NotFoundError(table._name);
   }
   return row;
 }
 
-export interface ListArgs {
-  readonly where?: Record<string, unknown>;
-  readonly select?: Record<string, unknown>;
-  readonly orderBy?: Record<string, 'asc' | 'desc'>;
+export interface ListArgs<TColumns extends ColumnRecord = ColumnRecord> {
+  readonly where?: FilterType<TColumns>;
+  readonly select?: SelectOption<TColumns>;
+  readonly orderBy?: OrderByType<TColumns>;
   readonly limit?: number;
   readonly offset?: number;
   /** Cursor object: column-value pairs marking the position to paginate from. */
@@ -142,10 +149,10 @@ export interface ListArgs {
 /**
  * List multiple rows matching the filter.
  */
-export async function list<T>(
+export async function list<TColumns extends ColumnRecord, T>(
   queryFn: QueryFn,
-  table: TableDef<ColumnRecord>,
-  options?: ListArgs,
+  table: TableDef<TColumns>,
+  options?: ListArgs<TColumns>,
   dialect: Dialect = defaultPostgresDialect,
 ): Promise<T[]> {
   const columns = resolveSelectColumns(table, options?.select);
@@ -153,7 +160,7 @@ export async function list<T>(
     table: table._name,
     columns,
     where: options?.where,
-    orderBy: options?.orderBy,
+    orderBy: options?.orderBy as Record<string, 'asc' | 'desc'> | undefined,
     limit: options?.limit,
     offset: options?.offset,
     cursor: options?.cursor,
@@ -168,10 +175,10 @@ export async function list<T>(
 /**
  * List multiple rows with total count (using COUNT(*) OVER()).
  */
-export async function listAndCount<T>(
+export async function listAndCount<TColumns extends ColumnRecord, T>(
   queryFn: QueryFn,
-  table: TableDef<ColumnRecord>,
-  options?: ListArgs,
+  table: TableDef<TColumns>,
+  options?: ListArgs<TColumns>,
   dialect: Dialect = defaultPostgresDialect,
 ): Promise<{ data: T[]; total: number }> {
   const columns = resolveSelectColumns(table, options?.select);
@@ -179,7 +186,7 @@ export async function listAndCount<T>(
     table: table._name,
     columns,
     where: options?.where,
-    orderBy: options?.orderBy,
+    orderBy: options?.orderBy as Record<string, 'asc' | 'desc'> | undefined,
     limit: options?.limit,
     offset: options?.offset,
     cursor: options?.cursor,
@@ -212,18 +219,18 @@ export async function listAndCount<T>(
 // Create queries
 // ---------------------------------------------------------------------------
 
-export interface CreateArgs {
-  readonly data: Record<string, unknown>;
-  readonly select?: Record<string, unknown>;
+export interface CreateArgs<TColumns extends ColumnRecord = ColumnRecord> {
+  readonly data: InsertInput<TableDef<TColumns>>;
+  readonly select?: SelectOption<TColumns>;
 }
 
 /**
  * Insert a single row and return it.
  */
-export async function create<T>(
+export async function create<TColumns extends ColumnRecord, T>(
   queryFn: QueryFn,
-  table: TableDef<ColumnRecord>,
-  options: CreateArgs,
+  table: TableDef<TColumns>,
+  options: CreateArgs<TColumns>,
   dialect: Dialect = defaultPostgresDialect,
 ): Promise<T> {
   const returningColumns = resolveSelectColumns(table, options.select);
@@ -255,17 +262,17 @@ export async function create<T>(
   return mapRow<T>(res.rows[0] as Record<string, unknown>);
 }
 
-export interface CreateManyArgs {
-  readonly data: readonly Record<string, unknown>[];
+export interface CreateManyArgs<TColumns extends ColumnRecord = ColumnRecord> {
+  readonly data: readonly InsertInput<TableDef<TColumns>>[];
 }
 
 /**
  * Insert multiple rows and return the count.
  */
-export async function createMany(
+export async function createMany<TColumns extends ColumnRecord>(
   queryFn: QueryFn,
-  table: TableDef<ColumnRecord>,
-  options: CreateManyArgs,
+  table: TableDef<TColumns>,
+  options: CreateManyArgs<TColumns>,
   dialect: Dialect = defaultPostgresDialect,
 ): Promise<{ count: number }> {
   if (options.data.length === 0) {
@@ -299,18 +306,18 @@ export async function createMany(
   return { count: res.rowCount };
 }
 
-export interface CreateManyAndReturnArgs {
-  readonly data: readonly Record<string, unknown>[];
-  readonly select?: Record<string, unknown>;
+export interface CreateManyAndReturnArgs<TColumns extends ColumnRecord = ColumnRecord> {
+  readonly data: readonly InsertInput<TableDef<TColumns>>[];
+  readonly select?: SelectOption<TColumns>;
 }
 
 /**
  * Insert multiple rows and return them.
  */
-export async function createManyAndReturn<T>(
+export async function createManyAndReturn<TColumns extends ColumnRecord, T>(
   queryFn: QueryFn,
-  table: TableDef<ColumnRecord>,
-  options: CreateManyAndReturnArgs,
+  table: TableDef<TColumns>,
+  options: CreateManyAndReturnArgs<TColumns>,
   dialect: Dialect = defaultPostgresDialect,
 ): Promise<T[]> {
   if (options.data.length === 0) {
@@ -350,20 +357,20 @@ export async function createManyAndReturn<T>(
 // Update queries
 // ---------------------------------------------------------------------------
 
-export interface UpdateArgs {
-  readonly where: Record<string, unknown>;
-  readonly data: Record<string, unknown>;
-  readonly select?: Record<string, unknown>;
+export interface UpdateArgs<TColumns extends ColumnRecord = ColumnRecord> {
+  readonly where: FilterType<TColumns>;
+  readonly data: UpdateInput<TableDef<TColumns>>;
+  readonly select?: SelectOption<TColumns>;
 }
 
 /**
  * Update a single row matching the filter and return it.
  * Throws NotFoundError if no rows match.
  */
-export async function update<T>(
+export async function update<TColumns extends ColumnRecord, T>(
   queryFn: QueryFn,
-  table: TableDef<ColumnRecord>,
-  options: UpdateArgs,
+  table: TableDef<TColumns>,
+  options: UpdateArgs<TColumns>,
   dialect: Dialect = defaultPostgresDialect,
 ): Promise<T> {
   const returningColumns = resolveSelectColumns(table, options.select);
@@ -407,9 +414,9 @@ export async function update<T>(
   return mapRow<T>(res.rows[0] as Record<string, unknown>);
 }
 
-export interface UpdateManyArgs {
-  readonly where: Record<string, unknown>;
-  readonly data: Record<string, unknown>;
+export interface UpdateManyArgs<TColumns extends ColumnRecord = ColumnRecord> {
+  readonly where: FilterType<TColumns>;
+  readonly data: UpdateInput<TableDef<TColumns>>;
 }
 
 /**
@@ -417,10 +424,10 @@ export interface UpdateManyArgs {
  *
  * Throws if `where` is an empty object to prevent accidental mass updates.
  */
-export async function updateMany(
+export async function updateMany<TColumns extends ColumnRecord>(
   queryFn: QueryFn,
-  table: TableDef<ColumnRecord>,
-  options: UpdateManyArgs,
+  table: TableDef<TColumns>,
+  options: UpdateManyArgs<TColumns>,
   dialect: Dialect = defaultPostgresDialect,
 ): Promise<{ count: number }> {
   assertNonEmptyWhere(options.where, 'updateMany');
@@ -462,11 +469,11 @@ export async function updateMany(
 // Upsert
 // ---------------------------------------------------------------------------
 
-export interface UpsertArgs {
-  readonly where: Record<string, unknown>;
-  readonly create: Record<string, unknown>;
-  readonly update: Record<string, unknown>;
-  readonly select?: Record<string, unknown>;
+export interface UpsertArgs<TColumns extends ColumnRecord = ColumnRecord> {
+  readonly where: FilterType<TColumns>;
+  readonly create: InsertInput<TableDef<TColumns>>;
+  readonly update: UpdateInput<TableDef<TColumns>>;
+  readonly select?: SelectOption<TColumns>;
 }
 
 /**
@@ -476,10 +483,10 @@ export interface UpsertArgs {
  * If a row exists matching `where`, it is updated with `update` data.
  * Otherwise, `create` data is inserted.
  */
-export async function upsert<T>(
+export async function upsert<TColumns extends ColumnRecord, T>(
   queryFn: QueryFn,
-  table: TableDef<ColumnRecord>,
-  options: UpsertArgs,
+  table: TableDef<TColumns>,
+  options: UpsertArgs<TColumns>,
   dialect: Dialect = defaultPostgresDialect,
 ): Promise<T> {
   const returningColumns = resolveSelectColumns(table, options.select);
@@ -540,19 +547,19 @@ export async function upsert<T>(
 // Delete queries
 // ---------------------------------------------------------------------------
 
-export interface DeleteArgs {
-  readonly where: Record<string, unknown>;
-  readonly select?: Record<string, unknown>;
+export interface DeleteArgs<TColumns extends ColumnRecord = ColumnRecord> {
+  readonly where: FilterType<TColumns>;
+  readonly select?: SelectOption<TColumns>;
 }
 
 /**
  * Delete a single row matching the filter and return it.
  * Throws NotFoundError if no rows match.
  */
-export async function deleteOne<T>(
+export async function deleteOne<TColumns extends ColumnRecord, T>(
   queryFn: QueryFn,
-  table: TableDef<ColumnRecord>,
-  options: DeleteArgs,
+  table: TableDef<TColumns>,
+  options: DeleteArgs<TColumns>,
   dialect: Dialect = defaultPostgresDialect,
 ): Promise<T> {
   const returningColumns = resolveSelectColumns(table, options.select);
@@ -571,8 +578,8 @@ export async function deleteOne<T>(
   return mapRow<T>(res.rows[0] as Record<string, unknown>);
 }
 
-export interface DeleteManyArgs {
-  readonly where: Record<string, unknown>;
+export interface DeleteManyArgs<TColumns extends ColumnRecord = ColumnRecord> {
+  readonly where: FilterType<TColumns>;
 }
 
 /**
@@ -580,10 +587,10 @@ export interface DeleteManyArgs {
  *
  * Throws if `where` is an empty object to prevent accidental mass deletes.
  */
-export async function deleteMany(
+export async function deleteMany<TColumns extends ColumnRecord>(
   queryFn: QueryFn,
-  table: TableDef<ColumnRecord>,
-  options: DeleteManyArgs,
+  table: TableDef<TColumns>,
+  options: DeleteManyArgs<TColumns>,
   dialect: Dialect = defaultPostgresDialect,
 ): Promise<{ count: number }> {
   assertNonEmptyWhere(options.where, 'deleteMany');
