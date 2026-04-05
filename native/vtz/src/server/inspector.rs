@@ -110,7 +110,7 @@ pub async fn start_inspector_server(
 /// `GET /json/version` — CDP metadata about the runtime.
 async fn version_handler(State(state): State<InspectorState>) -> axum::response::Response<Body> {
     let json = serde_json::json!({
-        "Browser": format!("Vertz/0.1.0-dev (deno_core/0.311.0)"),
+        "Browser": "Vertz/0.1.0-dev (deno_core/0.311.0)",
         "Protocol-Version": "1.3",
         "webSocketDebuggerUrl": state.ws_url(),
     });
@@ -201,16 +201,15 @@ async fn handle_ws_connection(state: InspectorState, socket: WebSocket) {
     }
 
     let (mut ws_sender, mut ws_receiver) = socket.split();
-    let inbound_tx = Arc::new(tokio::sync::Mutex::new(inbound_tx));
 
     // Forward loop: WebSocket → V8
-    let inbound_tx_clone = inbound_tx.clone();
-    let forward_task = tokio::spawn(async move {
+    // Uses unbounded_send (non-async, takes &self) to avoid needing &mut / Mutex.
+    let forward_tx = inbound_tx.clone();
+    let mut forward_task = tokio::spawn(async move {
         while let Some(Ok(msg)) = ws_receiver.next().await {
             match msg {
                 Message::Text(text) => {
-                    let mut tx = inbound_tx_clone.lock().await;
-                    if tx.send(text.to_string()).await.is_err() {
+                    if forward_tx.unbounded_send(text).is_err() {
                         break;
                     }
                 }
@@ -221,7 +220,7 @@ async fn handle_ws_connection(state: InspectorState, socket: WebSocket) {
     });
 
     // Backward loop: V8 → WebSocket
-    let backward_task = tokio::spawn(async move {
+    let mut backward_task = tokio::spawn(async move {
         while let Some(msg) = outbound_rx.next().await {
             if ws_sender.send(Message::Text(msg.content)).await.is_err() {
                 break;
@@ -231,14 +230,18 @@ async fn handle_ws_connection(state: InspectorState, socket: WebSocket) {
 
     // Wait for either direction to close, or cancellation (new session replacing this one).
     tokio::select! {
-        _ = forward_task => {}
-        _ = backward_task => {}
+        _ = &mut forward_task => {}
+        _ = &mut backward_task => {}
         _ = &mut cancel_rx => {
             eprintln!("[Inspector] Session replaced by new connection");
         }
     }
 
-    // Clean up: drop the inbound sender so V8 sees the session close.
+    // Abort surviving tasks so their channels are dropped and V8 sees the session close.
+    forward_task.abort();
+    backward_task.abort();
+    // Drop our reference to inbound_tx — combined with forward_task abort (which drops
+    // forward_tx), this closes the channel so V8 sees the session disconnect.
     drop(inbound_tx);
 
     eprintln!("[Inspector] Debugger disconnected");

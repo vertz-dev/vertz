@@ -28,13 +28,18 @@ struct TestDevArgs {
     #[arg(long, conflicts_with = "inspect")]
     pub inspect_brk: bool,
 
-    #[arg(long, default_value_t = 9229)]
-    pub inspect_port: u16,
+    #[arg(long)]
+    pub inspect_port: Option<u16>,
 }
 
 /// Resolve whether inspector is enabled from the parsed args.
 fn resolve_inspect(args: &TestDevArgs) -> bool {
-    args.inspect || args.inspect_brk || args.inspect_port != 9229
+    args.inspect || args.inspect_brk || args.inspect_port.is_some()
+}
+
+/// Resolve the actual inspector port.
+fn resolve_inspect_port(args: &TestDevArgs) -> u16 {
+    args.inspect_port.unwrap_or(9229)
 }
 
 #[test]
@@ -43,7 +48,7 @@ fn test_inspect_flag_enables_inspector() {
     let TestCommand::Dev(args) = cli.command;
     assert!(args.inspect);
     assert!(!args.inspect_brk);
-    assert_eq!(args.inspect_port, 9229);
+    assert_eq!(resolve_inspect_port(&args), 9229);
     assert!(resolve_inspect(&args));
 }
 
@@ -62,7 +67,7 @@ fn test_inspect_port_implies_inspect() {
     let TestCommand::Dev(args) = cli.command;
     assert!(!args.inspect);
     assert!(!args.inspect_brk);
-    assert_eq!(args.inspect_port, 9230);
+    assert_eq!(resolve_inspect_port(&args), 9230);
     assert!(resolve_inspect(&args));
 }
 
@@ -72,7 +77,7 @@ fn test_no_inspect_flags_disables_inspector() {
     let TestCommand::Dev(args) = cli.command;
     assert!(!args.inspect);
     assert!(!args.inspect_brk);
-    assert_eq!(args.inspect_port, 9229);
+    assert!(args.inspect_port.is_none());
     assert!(!resolve_inspect(&args));
 }
 
@@ -81,7 +86,7 @@ fn test_inspect_with_custom_port() {
     let cli = TestCli::parse_from(["vtz", "dev", "--inspect", "--inspect-port", "9230"]);
     let TestCommand::Dev(args) = cli.command;
     assert!(args.inspect);
-    assert_eq!(args.inspect_port, 9230);
+    assert_eq!(resolve_inspect_port(&args), 9230);
     assert!(resolve_inspect(&args));
 }
 
@@ -95,12 +100,11 @@ fn test_inspect_and_inspect_brk_conflict() {
 }
 
 #[test]
-fn test_default_inspect_port_does_not_imply_inspect() {
-    // --inspect-port with default value (9229) should NOT imply --inspect
+fn test_inspect_port_default_value_implies_inspect() {
+    // --inspect-port 9229 explicitly passed SHOULD imply --inspect
     let cli = TestCli::parse_from(["vtz", "dev", "--inspect-port", "9229"]);
     let TestCommand::Dev(args) = cli.command;
-    // When user explicitly passes --inspect-port 9229, we can't distinguish from default.
-    // But resolve_inspect checks != 9229, so this is false. That's correct —
-    // the user would need --inspect or a non-default port.
-    assert!(!resolve_inspect(&args));
+    assert!(args.inspect_port.is_some());
+    assert_eq!(resolve_inspect_port(&args), 9229);
+    assert!(resolve_inspect(&args));
 }

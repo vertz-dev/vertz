@@ -134,9 +134,9 @@ pub struct DevArgs {
     #[arg(long, conflicts_with = "inspect")]
     pub inspect_brk: bool,
 
-    /// Inspector port (default: 9229, implies --inspect)
-    #[arg(long, default_value_t = 9229)]
-    pub inspect_port: u16,
+    /// Inspector port (implies --inspect). Default: 9229
+    #[arg(long)]
+    pub inspect_port: Option<u16>,
 
     /// Open the app in a native desktop window instead of a browser tab (requires desktop feature)
     #[cfg(feature = "desktop")]

@@ -109,6 +109,7 @@ pub fn print_banner_with_upstream(
             "Inspect:".dimmed(),
             format_inspector_line(info).cyan().underline()
         );
+        eprintln!("           {}", "Open chrome://inspect to attach".dimmed());
     }
 
     if let Some(line) = format_upstream_line(upstream_packages) {
