@@ -4,4 +4,6 @@ pub mod css_collector;
 pub mod dom_shim;
 pub mod font_fallback;
 pub mod html_document;
+pub mod pool;
+pub mod pool_metrics;
 pub mod session;
