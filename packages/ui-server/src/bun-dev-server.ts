@@ -324,6 +324,12 @@ export interface BunDevServer {
   clearErrorForFileChange(): void;
   /** Set the last changed file path (for testing). */
   setLastChangedFile(file: string): void;
+  /**
+   * Request a state inspection from connected browser clients.
+   * Broadcasts an `inspect-state` command and waits for the first
+   * `state-snapshot` response. Returns the snapshot JSON or an error.
+   */
+  inspectState(filter?: string): Promise<unknown>;
 }
 
 /**
@@ -947,6 +953,13 @@ export function createBunDevServer(options: BunDevServerOptions): BunDevServer {
   // ── WebSocket error channel state ────────────────────────────
   const wsClients = new Set<import('bun').ServerWebSocket<unknown>>();
   let currentError: { category: ErrorCategory; errors: ErrorDetail[] } | null = null;
+
+  // ── State inspection pending requests ────────────────────────
+  // Key: requestId, Value: { resolve, timer } for the pending promise
+  const pendingInspections = new Map<
+    string,
+    { resolve: (snapshot: unknown) => void; timer: ReturnType<typeof setTimeout> }
+  >();
   const sourceMapResolver = createSourceMapResolver(projectRoot);
   // Grace period after clearError — suppresses stale runtime/frontend errors
   // that Bun forwards from the browser console after the error source is fixed.
@@ -1562,12 +1575,21 @@ export function createBunDevServer(options: BunDevServerOptions): BunDevServer {
       `import '@vertz/ui-server/fast-refresh-runtime';\nif (import.meta.hot) import.meta.hot.accept();\n`,
     );
 
+    // State Inspector: same pattern as fast-refresh — thin .ts wrapper that
+    // imports the inspector and self-accepts HMR to prevent chain reloads.
+    const siInitPath = resolve(devDir, 'state-inspector-init.ts');
+    writeFileSync(
+      siInitPath,
+      `import '@vertz/ui-server/state-inspector';\nif (import.meta.hot) import.meta.hot.accept();\n`,
+    );
+
     const hmrShellHtml = `<!doctype html>
 <html lang="en"><head>
   <meta charset="UTF-8" />
   <title>HMR Shell</title>
 </head><body>
   <script type="module" src="./fast-refresh-init.ts"></script>
+  <script type="module" src="./state-inspector-init.ts"></script>
   <script type="module" src="${clientSrc}"></script>
 </body></html>`;
 
@@ -2015,6 +2037,14 @@ export function createBunDevServer(options: BunDevServerOptions): BunDevServer {
               devServer.restart();
             } else if (data.type === 'ping') {
               ws.sendText(JSON.stringify({ type: 'pong' }));
+            } else if (data.type === 'state-snapshot' && data.requestId) {
+              // Route state snapshot response to the pending inspection request
+              const pending = pendingInspections.get(data.requestId);
+              if (pending) {
+                clearTimeout(pending.timer);
+                pendingInspections.delete(data.requestId);
+                pending.resolve(data.snapshot);
+              }
             } else if (data.type === 'resolve-stack' && data.stack) {
               // Client sent an Error.stack for source map resolution
               const selfFetch = async (url: string) => {
@@ -2504,6 +2534,46 @@ export function createBunDevServer(options: BunDevServerOptions): BunDevServer {
     clearErrorForFileChange,
     setLastChangedFile(file: string) {
       lastChangedFile = file;
+    },
+
+    async inspectState(filter?: string): Promise<unknown> {
+      if (wsClients.size === 0) {
+        return {
+          components: [],
+          totalInstances: 0,
+          connectedClients: 0,
+          timestamp: new Date().toISOString(),
+          message: 'No browser clients connected. Open the app in a browser first.',
+        };
+      }
+
+      const requestId = crypto.randomUUID();
+      const TIMEOUT_MS = 5000;
+
+      return new Promise<unknown>((resolve) => {
+        const timer = setTimeout(() => {
+          pendingInspections.delete(requestId);
+          resolve({
+            components: [],
+            totalInstances: 0,
+            connectedClients: wsClients.size,
+            timestamp: new Date().toISOString(),
+            message: 'State inspection timed out after 5 seconds.',
+          });
+        }, TIMEOUT_MS);
+
+        pendingInspections.set(requestId, { resolve, timer });
+
+        // Broadcast inspect-state command to all connected browsers
+        const cmd = JSON.stringify({
+          type: 'inspect-state',
+          requestId,
+          ...(filter ? { filter } : {}),
+        });
+        for (const client of wsClients) {
+          client.sendText(cmd);
+        }
+      });
     },
 
     async stop() {

@@ -39,6 +39,10 @@
       "import": "./dist/bun-plugin/fast-refresh-runtime.js",
       "types": "./dist/bun-plugin/fast-refresh-runtime.d.ts"
     },
+    "./state-inspector": {
+      "import": "./dist/bun-plugin/state-inspector.js",
+      "types": "./dist/bun-plugin/state-inspector.d.ts"
+    },
     "./bun-dev-server": {
       "import": "./dist/bun-dev-server.js",
       "types": "./dist/bun-dev-server.d.ts"

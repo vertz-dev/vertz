@@ -342,6 +342,66 @@ function buildQuerySnapshot(signals: SignalRef[], groupKey: string): QuerySnapsh
   };
 }
 
+// ── WebSocket listener ────────────────────────────────────────────
+
+/**
+ * Listen for `inspect-state` commands on the error overlay's WebSocket.
+ * When received, collects a state snapshot and sends it back as a
+ * `state-snapshot` message with the matching `requestId`.
+ *
+ * The error overlay (`__vertz_overlay`) establishes a WebSocket connection
+ * to `/__vertz_errors` which is the bidirectional channel to the dev server.
+ * We hook into its `onmessage` to intercept inspect-state commands.
+ */
+export function setupStateInspector(): void {
+  if (typeof window === 'undefined') return;
+
+  const overlay = (window as Record<string, unknown>).__vertz_overlay as
+    | { _ws?: WebSocket }
+    | undefined;
+  if (!overlay?._ws) {
+    // Retry after a short delay — the overlay WebSocket may not be
+    // established yet when this script runs.
+    setTimeout(setupStateInspector, 500);
+    return;
+  }
+
+  const ws = overlay._ws;
+  const originalOnMessage = ws.onmessage;
+
+  ws.onmessage = (event: MessageEvent) => {
+    // Call original handler first (error overlay processing)
+    if (originalOnMessage) originalOnMessage.call(ws, event);
+
+    try {
+      const msg = JSON.parse(typeof event.data === 'string' ? event.data : '');
+      if (msg.type === 'inspect-state') {
+        const snapshot = collectStateSnapshot(msg.filter ?? undefined);
+        ws.send(
+          JSON.stringify({
+            type: 'state-snapshot',
+            requestId: msg.requestId,
+            snapshot,
+          }),
+        );
+      }
+    } catch {
+      // Ignore parse errors — not all messages are for us
+    }
+  };
+}
+
+// Initialize when DOM is ready (browser only)
+if (typeof document !== 'undefined') {
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', setupStateInspector);
+  } else {
+    setupStateInspector();
+  }
+}
+
+// ── Helpers ───────────────────────────────────────────────────────
+
 function truncateSnapshot(snapshot: StateSnapshot): StateSnapshot {
   // Best-effort truncation: keep first 3 instances per component.
   // This may not bring size below 2MB if individual instances are

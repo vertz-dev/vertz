@@ -17,6 +17,7 @@ export default defineConfig([
       'src/bun-plugin/index.ts',
       'src/bun-plugin/fast-refresh-runtime.ts',
       'src/bun-plugin/fast-refresh-dom-state.ts',
+      'src/bun-plugin/state-inspector.ts',
       'src/bun-dev-server.ts',
     ],
     dts: true,
