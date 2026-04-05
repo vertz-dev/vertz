@@ -81,10 +81,10 @@ vtz dev --inspect-brk
 The terminal shows:
 
 ```
-  Waiting for debugger to attach...
+[Server] Waiting for debugger to attach...
 ```
 
-The runtime pauses before loading your entry module. Connect a debugger (Chrome DevTools or VS Code), and execution resumes automatically. The first statement of your entry module is where the debugger breaks.
+The runtime pauses before loading your entry module. Connect a debugger (Chrome DevTools or VS Code) — the runtime unblocks, then immediately pauses at the first statement of your entry module. From there you can step through your initialization code and press **Resume** when ready.
 
 This is useful for:
 - Debugging module initialization order
@@ -103,11 +103,7 @@ This is useful for:
 
 ### Inspector port in use
 
-```
-Error: Inspector address already in use: 127.0.0.1:9229
-```
-
-Another process is using port 9229. Use a custom port:
+If you see an error about the inspector port being in use when starting the dev server, another process is already listening on port 9229. Use a custom port:
 
 ```bash
 vtz dev --inspect-port 9230
