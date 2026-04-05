@@ -355,6 +355,13 @@ fn rewrite_specifier_inner(
         return specifier.to_string();
     }
 
+    // Node.js / Bun runtime built-in modules — route to /@deps/ directly.
+    // The module server returns empty stubs for these (server-only).
+    // Short-circuits here to avoid unnecessary filesystem resolution attempts.
+    if specifier.starts_with("node:") || specifier.starts_with("bun:") {
+        return format!("/@deps/{}", specifier);
+    }
+
     // Package imports (#foo): resolve via nearest package.json "imports" field
     if specifier.starts_with('#') {
         if let Some(resolved) = resolve_package_import(specifier, file_path, root_dir) {
@@ -1124,5 +1131,121 @@ const x = 1;"#;
 
         let result = resolve_extension(&src_dir.join("icon.png"), tmp.path());
         assert_eq!(result, src_dir.join("icon.png"));
+    }
+
+    // ── Runtime built-in module tests ──
+
+    #[test]
+    fn test_rewrite_node_builtin_to_deps() {
+        let result = rewrite_specifier(
+            "node:fs",
+            Path::new("/project/src/app.tsx"),
+            Path::new("/project/src"),
+            Path::new("/project"),
+            None,
+        );
+        assert_eq!(result, "/@deps/node:fs");
+    }
+
+    #[test]
+    fn test_rewrite_node_builtin_subpath_to_deps() {
+        let result = rewrite_specifier(
+            "node:fs/promises",
+            Path::new("/project/src/app.tsx"),
+            Path::new("/project/src"),
+            Path::new("/project"),
+            None,
+        );
+        assert_eq!(result, "/@deps/node:fs/promises");
+    }
+
+    #[test]
+    fn test_rewrite_bun_builtin_to_deps() {
+        let result = rewrite_specifier(
+            "bun:sqlite",
+            Path::new("/project/src/app.tsx"),
+            Path::new("/project/src"),
+            Path::new("/project"),
+            None,
+        );
+        assert_eq!(result, "/@deps/bun:sqlite");
+    }
+
+    #[test]
+    fn test_rewrite_node_crypto_to_deps() {
+        let result = rewrite_specifier(
+            "node:crypto",
+            Path::new("/project/src/app.tsx"),
+            Path::new("/project/src"),
+            Path::new("/project"),
+            None,
+        );
+        assert_eq!(result, "/@deps/node:crypto");
+    }
+
+    #[test]
+    fn test_rewrite_node_path_to_deps() {
+        let result = rewrite_specifier(
+            "node:path",
+            Path::new("/project/src/app.tsx"),
+            Path::new("/project/src"),
+            Path::new("/project"),
+            None,
+        );
+        assert_eq!(result, "/@deps/node:path");
+    }
+
+    #[test]
+    fn test_rewrite_node_module_to_deps() {
+        let result = rewrite_specifier(
+            "node:module",
+            Path::new("/project/src/app.tsx"),
+            Path::new("/project/src"),
+            Path::new("/project"),
+            None,
+        );
+        assert_eq!(result, "/@deps/node:module");
+    }
+
+    #[test]
+    fn test_rewrite_bun_test_to_deps() {
+        let result = rewrite_specifier(
+            "bun:test",
+            Path::new("/project/src/app.tsx"),
+            Path::new("/project/src"),
+            Path::new("/project"),
+            None,
+        );
+        assert_eq!(result, "/@deps/bun:test");
+    }
+
+    #[test]
+    fn test_rewrite_imports_node_builtin_in_full_code() {
+        let tmp = tempfile::tempdir().unwrap();
+        let src_dir = tmp.path().join("src");
+        std::fs::create_dir_all(&src_dir).unwrap();
+
+        let code = r#"import { readFile } from 'node:fs/promises';
+import { dirname } from 'node:path';
+import { signal } from '@vertz/ui';
+const x = 1;"#;
+
+        let result = rewrite_imports(code, &src_dir.join("app.tsx"), &src_dir, tmp.path(), None);
+
+        assert!(
+            result.contains("from '/@deps/node:fs/promises'"),
+            "node:fs/promises should be rewritten to /@deps/. Result: {}",
+            result
+        );
+        assert!(
+            result.contains("from '/@deps/node:path'"),
+            "node:path should be rewritten to /@deps/. Result: {}",
+            result
+        );
+        assert!(
+            result.contains("from '/@deps/@vertz/ui'"),
+            "Regular packages should still work. Result: {}",
+            result
+        );
     }
 }

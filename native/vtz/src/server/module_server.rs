@@ -381,6 +381,26 @@ pub async fn handle_deps_request(
 ) -> Response<Body> {
     let path = req.uri().path();
 
+    // 0. Runtime built-in modules (node:*, bun:*) — return empty ES module stubs.
+    //    These are server-only; the browser gets a no-op module to prevent
+    //    auto-install attempts and error overlay noise (#2315).
+    if let Some(remainder) = path.strip_prefix("/@deps/") {
+        if is_runtime_builtin(remainder) {
+            return Response::builder()
+                .status(StatusCode::OK)
+                .header(
+                    header::CONTENT_TYPE,
+                    "application/javascript; charset=utf-8",
+                )
+                .header(header::CACHE_CONTROL, "no-cache")
+                .body(Body::from(format!(
+                    "/* vtz: server-only built-in '{}' — stubbed for browser */\nexport default {{}};",
+                    remainder
+                )))
+                .unwrap();
+        }
+    }
+
     // 1. Check pre-bundled deps first
     if let Some(file_path) = prebundle::resolve_deps_file(path, &state.deps_dir) {
         match std::fs::read_to_string(&file_path) {
@@ -479,6 +499,15 @@ pub async fn handle_deps_request(
             specifier
         )))
         .unwrap()
+}
+
+/// Check if a specifier is a Node.js or Bun runtime built-in module.
+///
+/// These modules are only available server-side (in the V8 runtime via synthetic
+/// modules). When the browser requests them via `/@deps/`, we return an empty
+/// ES module stub instead of trying to resolve or auto-install them.
+fn is_runtime_builtin(specifier: &str) -> bool {
+    specifier.starts_with("node:") || specifier.starts_with("bun:")
 }
 
 /// Re-attempt dependency resolution after auto-install (steps 2-5 from handle_deps_request).
@@ -2358,5 +2387,103 @@ export default function Sidebar() { return <div class={styles.root}>Hi</div>; }
             current.to_json().contains("css-unknown-color-token"),
             "warning for sidebar.tsx should still be present after compiling a different file"
         );
+    }
+
+    // ── handle_deps_request: runtime built-in modules ───────────────
+
+    #[tokio::test]
+    async fn test_handle_deps_request_node_builtin_returns_stub() {
+        let tmp = tempfile::tempdir().unwrap();
+        let state = create_test_state(tmp.path());
+
+        let req = Request::builder()
+            .uri("/@deps/node:fs")
+            .body(Body::empty())
+            .unwrap();
+
+        let resp = handle_deps_request(State(state), req).await;
+        assert_eq!(resp.status(), StatusCode::OK);
+        let ct = resp.headers().get(header::CONTENT_TYPE).unwrap();
+        assert!(ct.to_str().unwrap().contains("application/javascript"));
+    }
+
+    #[tokio::test]
+    async fn test_handle_deps_request_node_builtin_subpath_returns_stub() {
+        let tmp = tempfile::tempdir().unwrap();
+        let state = create_test_state(tmp.path());
+
+        let req = Request::builder()
+            .uri("/@deps/node:fs/promises")
+            .body(Body::empty())
+            .unwrap();
+
+        let resp = handle_deps_request(State(state), req).await;
+        assert_eq!(resp.status(), StatusCode::OK);
+    }
+
+    #[tokio::test]
+    async fn test_handle_deps_request_bun_builtin_returns_stub() {
+        let tmp = tempfile::tempdir().unwrap();
+        let state = create_test_state(tmp.path());
+
+        let req = Request::builder()
+            .uri("/@deps/bun:sqlite")
+            .body(Body::empty())
+            .unwrap();
+
+        let resp = handle_deps_request(State(state), req).await;
+        assert_eq!(resp.status(), StatusCode::OK);
+        let body = axum::body::to_bytes(resp.into_body(), usize::MAX)
+            .await
+            .unwrap();
+        let code = String::from_utf8(body.to_vec()).unwrap();
+        assert!(
+            code.contains("export default"),
+            "Stub should export something. Got: {}",
+            code
+        );
+    }
+
+    #[tokio::test]
+    async fn test_handle_deps_request_node_crypto_returns_stub() {
+        let tmp = tempfile::tempdir().unwrap();
+        let state = create_test_state(tmp.path());
+
+        let req = Request::builder()
+            .uri("/@deps/node:crypto")
+            .body(Body::empty())
+            .unwrap();
+
+        let resp = handle_deps_request(State(state), req).await;
+        assert_eq!(resp.status(), StatusCode::OK);
+    }
+
+    #[tokio::test]
+    async fn test_handle_deps_request_node_module_returns_stub() {
+        let tmp = tempfile::tempdir().unwrap();
+        let state = create_test_state(tmp.path());
+
+        let req = Request::builder()
+            .uri("/@deps/node:module")
+            .body(Body::empty())
+            .unwrap();
+
+        let resp = handle_deps_request(State(state), req).await;
+        assert_eq!(resp.status(), StatusCode::OK);
+    }
+
+    #[tokio::test]
+    async fn test_handle_deps_request_regular_package_still_404() {
+        // Ensure that regular (non-builtin) packages still 404 when not found
+        let tmp = tempfile::tempdir().unwrap();
+        let state = create_test_state(tmp.path());
+
+        let req = Request::builder()
+            .uri("/@deps/some-random-pkg")
+            .body(Body::empty())
+            .unwrap();
+
+        let resp = handle_deps_request(State(state), req).await;
+        assert_eq!(resp.status(), StatusCode::NOT_FOUND);
     }
 }
