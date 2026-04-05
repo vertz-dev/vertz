@@ -523,6 +523,10 @@ async fn execute_tool(
                 .ok_or("Missing required parameter 'file'")?
                 .to_string();
 
+            // Serialize props to a JSON string. This gets a second serialization pass
+            // in dispatch_component_render (via serde_json::to_string on the string)
+            // to safely embed it as a JS string literal. The JS side then JSON.parse()s
+            // it back. The double serialization is intentional for injection safety.
             let props_json = args
                 .get("props")
                 .map(|v| serde_json::to_string(v).unwrap_or_else(|_| "{}".to_string()))
@@ -610,9 +614,12 @@ async fn execute_tool(
                     }))
                 }
                 Err(e) => {
-                    // Parse structured errors from dispatch (format: "error_type:message")
+                    // Parse structured errors from dispatch.
+                    // JS-side errors use \0 (null byte) as separator: "error_type\0message"
+                    // Rust-side errors (timeouts, script failures) have no separator and
+                    // fall through to "render_error".
                     let err_str = e.to_string();
-                    let (error_type, message) = if let Some(idx) = err_str.find(':') {
+                    let (error_type, message) = if let Some(idx) = err_str.find('\0') {
                         let (t, m) = err_str.split_at(idx);
                         (t.to_string(), m[1..].to_string())
                     } else {

@@ -847,8 +847,15 @@ async fn process_messages(
                 }
             }
             IsolateMessage::ComponentRender(request, response_tx) => {
-                let result = dispatch_component_render(runtime, &request).await;
-                let _ = response_tx.send(result);
+                if ssr_enabled {
+                    let result = dispatch_component_render(runtime, &request).await;
+                    let _ = response_tx.send(result);
+                } else {
+                    let _ = response_tx.send(Err(
+                        "Component rendering not available: app entry module failed to load"
+                            .to_string(),
+                    ));
+                }
             }
         }
     }
@@ -1579,13 +1586,15 @@ async fn dispatch_component_render(
         serde_json::from_str(result_str).map_err(|e| format!("Parse component result: {}", e))?;
 
     // 6. Check for JS-side errors (encoded as { error: "type", message: "..." })
+    //    Uses \0 (null byte) as separator — cannot appear in JS error messages or Rust
+    //    format strings, so it won't collide with colons in error text.
     if let Some(error) = parsed.get("error").and_then(|e| e.as_str()) {
         let message = parsed
             .get("message")
             .and_then(|m| m.as_str())
             .unwrap_or("Unknown error")
             .to_string();
-        return Err(format!("{}:{}", error, message));
+        return Err(format!("{}\0{}", error, message));
     }
 
     // 7. Build success response
