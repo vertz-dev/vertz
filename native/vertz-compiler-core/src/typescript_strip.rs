@@ -550,6 +550,26 @@ impl<'a, 'b, 'c> Visit<'c> for InlineTsStripper<'a, 'b> {
         walk::walk_property_definition(self, prop);
     }
 
+    fn visit_formal_parameter(&mut self, param: &FormalParameter<'c>) {
+        if self.is_in_removed_span(param.span.start) {
+            return;
+        }
+
+        // Strip `?` optional marker from function parameters.
+        // `formData?: Record<string, unknown>` → `formData`
+        // (type annotation is stripped separately by visit_ts_type_annotation)
+        if param.optional {
+            let pat_end = param.pattern.span().end;
+            let after_pat = self.ms.slice(pat_end, param.span.end);
+            if after_pat.starts_with('?') {
+                self.ms.overwrite(pat_end, pat_end + 1, "");
+            }
+        }
+
+        // Continue the default walk (handles type annotations, binding patterns, etc.)
+        walk::walk_formal_parameter(self, param);
+    }
+
     fn visit_method_definition(&mut self, method: &MethodDefinition<'c>) {
         if self.is_in_removed_span(method.span.start) {
             return;
@@ -1623,6 +1643,50 @@ export const x = 1;"#,
         assert!(
             result.contains("isVertz"),
             "param isVertz missing: {}",
+            result
+        );
+    }
+
+    #[test]
+    fn test_strip_optional_function_param() {
+        let result = strip(
+            r#"export function validateField(
+  schema: any,
+  fieldName: string,
+  value: unknown,
+  formData?: Record<string, unknown>,
+) {
+  return true;
+}"#,
+        );
+        assert!(
+            !result.contains('?'),
+            "optional marker `?` not stripped: {}",
+            result
+        );
+        assert!(
+            result.contains("formData"),
+            "param name removed: {}",
+            result
+        );
+        assert!(
+            !result.contains("Record<string, unknown>"),
+            "type annotation survived: {}",
+            result
+        );
+    }
+
+    #[test]
+    fn test_strip_multiple_optional_params() {
+        let result = strip(r#"function foo(a: string, b?: number, c?: boolean) {}"#);
+        assert!(
+            !result.contains('?'),
+            "optional marker not stripped: {}",
+            result
+        );
+        assert!(
+            result.contains("function foo(a, b, c)"),
+            "params not cleaned: {}",
             result
         );
     }

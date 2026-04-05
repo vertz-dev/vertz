@@ -440,6 +440,11 @@ if (typeof globalThis.HTMLElement === 'undefined') {
         `Expected ${formatValue(actual)} ${negated ? 'not ' : ''}to be NaN`
       );
     };
+    matchers.toBeArray = () => {
+      assert(Array.isArray(actual), () =>
+        `Expected ${formatValue(actual)} ${negated ? 'not ' : ''}to be an array`
+      );
+    };
 
     // Strings & Arrays
     matchers.toContain = (item) => {
@@ -691,7 +696,7 @@ if (typeof globalThis.HTMLElement === 'undefined') {
     const builtinNames = [
       'toBe', 'toEqual', 'toStrictEqual', 'toBeTruthy', 'toBeFalsy', 'toBeNull', 'toBeUndefined',
       'toBeDefined', 'toBeGreaterThan', 'toBeGreaterThanOrEqual', 'toBeLessThan',
-      'toBeLessThanOrEqual', 'toBeNaN', 'toContain', 'toContainEqual', 'toHaveLength', 'toMatch',
+      'toBeLessThanOrEqual', 'toBeNaN', 'toBeArray', 'toContain', 'toContainEqual', 'toHaveLength', 'toMatch',
       'toBeCloseTo', 'toBeTypeOf', 'toBeFunction', 'toHaveProperty', 'toBeInstanceOf',
       'toMatchObject', 'toThrow', 'toThrowError', 'toHaveBeenCalled', 'toHaveBeenCalledOnce',
       'toHaveBeenCalledTimes', 'toHaveBeenCalledWith', 'toHaveBeenLastCalledWith',
