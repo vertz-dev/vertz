@@ -32,11 +32,15 @@ type ProductEntry = { table: typeof productsTable; relations: {} };
 
 describe('TypedAggregateArgs — where clause', () => {
   it('accepts valid column names in where', () => {
-    type _t1 = Expect<Extends<{ where: { price: { gte: 10 } }; _count: true }, TypedAggregateArgs<ProductEntry>>>;
+    type _t1 = Expect<
+      Extends<{ where: { price: { gte: 10 } }; _count: true }, TypedAggregateArgs<ProductEntry>>
+    >;
   });
 
   it('rejects invalid column names in where', () => {
-    type _t1 = Expect<Not<Extends<{ where: { invalidCol: 'value' } }, TypedAggregateArgs<ProductEntry>>>>;
+    type _t1 = Expect<
+      Not<Extends<{ where: { invalidCol: 'value' } }, TypedAggregateArgs<ProductEntry>>>
+    >;
   });
 });
 
@@ -62,7 +66,9 @@ describe('TypedAggregateArgs — _avg and _sum restricted to numeric', () => {
   });
 
   it('rejects timestamp columns in _avg', () => {
-    type _t1 = Expect<Not<Extends<{ _avg: { createdAt: true } }, TypedAggregateArgs<ProductEntry>>>>;
+    type _t1 = Expect<
+      Not<Extends<{ _avg: { createdAt: true } }, TypedAggregateArgs<ProductEntry>>>
+    >;
   });
 });
 
@@ -84,7 +90,9 @@ describe('TypedAggregateArgs — _min and _max accept any column', () => {
   });
 
   it('rejects non-existent columns in _min', () => {
-    type _t1 = Expect<Not<Extends<{ _min: { nonExistent: true } }, TypedAggregateArgs<ProductEntry>>>>;
+    type _t1 = Expect<
+      Not<Extends<{ _min: { nonExistent: true } }, TypedAggregateArgs<ProductEntry>>>
+    >;
   });
 
   it('rejects non-existent columns in _max', () => {
@@ -102,7 +110,9 @@ describe('TypedAggregateArgs — _count', () => {
   });
 
   it('accepts per-column _count with valid columns', () => {
-    type _t1 = Expect<Extends<{ _count: { name: true; price: true } }, TypedAggregateArgs<ProductEntry>>>;
+    type _t1 = Expect<
+      Extends<{ _count: { name: true; price: true } }, TypedAggregateArgs<ProductEntry>>
+    >;
   });
 
   it('rejects per-column _count with invalid columns', () => {
@@ -229,11 +239,14 @@ describe('AggregateResult — _min/_max column-aware types', () => {
 
 describe('AggregateResult — combined', () => {
   it('result has all requested aggregation fields', () => {
-    type R = AggregateResult<ProductCols, {
-      _avg: { price: true };
-      _sum: { stock: true };
-      _count: true;
-    }>;
+    type R = AggregateResult<
+      ProductCols,
+      {
+        _avg: { price: true };
+        _sum: { stock: true };
+        _count: true;
+      }
+    >;
     type _t1 = Expect<HasKey<R, '_avg'>>;
     type _t2 = Expect<HasKey<R, '_sum'>>;
     type _t3 = Expect<HasKey<R, '_count'>>;
@@ -289,11 +302,14 @@ describe('GroupByResult — string columns in by', () => {
 
 describe('GroupByResult — includes aggregation fields', () => {
   it('includes _avg and _count alongside group-by columns', () => {
-    type R = GroupByResult<ProductCols, {
-      by: readonly ['category'];
-      _avg: { price: true };
-      _count: true;
-    }>;
+    type R = GroupByResult<
+      ProductCols,
+      {
+        by: readonly ['category'];
+        _avg: { price: true };
+        _count: true;
+      }
+    >;
     type _t1 = Expect<HasKey<R, 'category'>>;
     type _t2 = Expect<HasKey<R, '_avg'>>;
     type _t3 = Expect<Equal<R['_avg'], { price: number | null }>>;
@@ -308,7 +324,16 @@ describe('GroupByResult — includes aggregation fields', () => {
 describe('GroupByResult — expression fallback', () => {
   it('non-string by entries add Record<string, unknown> index signature', () => {
     // GroupByExpression in the by array means the result has a string index fallback
-    type R = GroupByResult<ProductCols, { by: readonly ['name', { _tag: 'GroupByExpression'; _column: 'createdAt'; sql: string; alias: string }]; _count: true }>;
+    type R = GroupByResult<
+      ProductCols,
+      {
+        by: readonly [
+          'name',
+          { _tag: 'GroupByExpression'; _column: 'createdAt'; sql: string; alias: string },
+        ];
+        _count: true;
+      }
+    >;
     type _t1 = Expect<HasKey<R, 'name'>>;
     type _t2 = Expect<HasKey<R, '_count'>>;
     // Expression aliases accessible via string index

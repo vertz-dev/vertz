@@ -213,19 +213,18 @@ export type TypedAggregateArgs<TEntry extends ModelEntry> = {
 type Prettify<T> = { [K in keyof T]: T[K] } & {};
 
 /** Map requested columns to number | null (for _avg/_sum). */
-type NumericAggColumns<TArgs> = TArgs extends Record<string, true>
-  ? { [K in keyof TArgs]: number | null }
-  : never;
+type NumericAggColumns<TArgs> =
+  TArgs extends Record<string, true> ? { [K in keyof TArgs]: number | null } : never;
 
 /** Map requested columns to their inferred type | null (for _min/_max). */
-type TypedAggColumns<TColumns extends ColumnRecord, TArgs> = TArgs extends Record<string, true>
-  ? { [K in keyof TArgs & keyof TColumns]: InferColumnType<TColumns[K]> | null }
-  : never;
+type TypedAggColumns<TColumns extends ColumnRecord, TArgs> =
+  TArgs extends Record<string, true>
+    ? { [K in keyof TArgs & keyof TColumns]: InferColumnType<TColumns[K]> | null }
+    : never;
 
 /** Map requested columns to number (for per-column _count). */
-type CountColumns<TArgs> = TArgs extends Record<string, true>
-  ? { [K in keyof TArgs]: number }
-  : never;
+type CountColumns<TArgs> =
+  TArgs extends Record<string, true> ? { [K in keyof TArgs]: number } : never;
 
 /**
  * Compute the aggregate result shape from the columns and the requested args.
@@ -235,19 +234,20 @@ type CountColumns<TArgs> = TArgs extends Record<string, true>
  * - `_count: true` → `number`
  * - `_count: { col: true }` → `{ [col]: number }`
  */
-export type AggregateResult<
-  TColumns extends ColumnRecord,
-  TArgs,
-> = Prettify<
+export type AggregateResult<TColumns extends ColumnRecord, TArgs> = Prettify<
   ('_avg' extends keyof TArgs ? { _avg: NumericAggColumns<TArgs[keyof TArgs & '_avg']> } : {}) &
-  ('_sum' extends keyof TArgs ? { _sum: NumericAggColumns<TArgs[keyof TArgs & '_sum']> } : {}) &
-  ('_min' extends keyof TArgs ? { _min: TypedAggColumns<TColumns, TArgs[keyof TArgs & '_min']> } : {}) &
-  ('_max' extends keyof TArgs ? { _max: TypedAggColumns<TColumns, TArgs[keyof TArgs & '_max']> } : {}) &
-  ('_count' extends keyof TArgs
-    ? TArgs[keyof TArgs & '_count'] extends true
-      ? { _count: number }
-      : { _count: CountColumns<TArgs[keyof TArgs & '_count']> }
-    : {})
+    ('_sum' extends keyof TArgs ? { _sum: NumericAggColumns<TArgs[keyof TArgs & '_sum']> } : {}) &
+    ('_min' extends keyof TArgs
+      ? { _min: TypedAggColumns<TColumns, TArgs[keyof TArgs & '_min']> }
+      : {}) &
+    ('_max' extends keyof TArgs
+      ? { _max: TypedAggColumns<TColumns, TArgs[keyof TArgs & '_max']> }
+      : {}) &
+    ('_count' extends keyof TArgs
+      ? TArgs[keyof TArgs & '_count'] extends true
+        ? { _count: number }
+        : { _count: CountColumns<TArgs[keyof TArgs & '_count']> }
+      : {})
 >;
 
 // ---------------------------------------------------------------------------
@@ -256,7 +256,9 @@ export type AggregateResult<
 
 /** Extract string column names from the `by` tuple. Non-string entries (GroupByExpression) are excluded. */
 type ExtractByStringColumns<TBy extends readonly unknown[]> = TBy[number] extends infer Item
-  ? Item extends string ? Item : never
+  ? Item extends string
+    ? Item
+    : never
   : never;
 
 /** Check if the `by` tuple contains any non-string entries (GroupByExpression). */
@@ -269,34 +271,38 @@ type HasExpressionInBy<TBy extends readonly unknown[]> = TBy[number] extends str
  * - Aggregation fields → same as `AggregateResult`
  * - Expression entries in `by` → `Record<string, unknown>` fallback (aliases are dynamic)
  */
-export type GroupByResult<
-  TColumns extends ColumnRecord,
-  TArgs,
-> = Prettify<
+export type GroupByResult<TColumns extends ColumnRecord, TArgs> = Prettify<
   // Group-by string columns
   ('by' extends keyof TArgs
     ? TArgs[keyof TArgs & 'by'] extends readonly unknown[]
-      ? { [K in ExtractByStringColumns<TArgs[keyof TArgs & 'by']> & keyof TColumns]: InferColumnType<TColumns[K]> }
+      ? {
+          [K in ExtractByStringColumns<TArgs[keyof TArgs & 'by']> &
+            keyof TColumns]: InferColumnType<TColumns[K]>;
+        }
       : {}
     : {}) &
-  // Aggregation fields (reuse same logic as AggregateResult)
-  ('_avg' extends keyof TArgs ? { _avg: NumericAggColumns<TArgs[keyof TArgs & '_avg']> } : {}) &
-  ('_sum' extends keyof TArgs ? { _sum: NumericAggColumns<TArgs[keyof TArgs & '_sum']> } : {}) &
-  ('_min' extends keyof TArgs ? { _min: TypedAggColumns<TColumns, TArgs[keyof TArgs & '_min']> } : {}) &
-  ('_max' extends keyof TArgs ? { _max: TypedAggColumns<TColumns, TArgs[keyof TArgs & '_max']> } : {}) &
-  ('_count' extends keyof TArgs
-    ? TArgs[keyof TArgs & '_count'] extends true
-      ? { _count: number }
-      : { _count: CountColumns<TArgs[keyof TArgs & '_count']> }
-    : {}) &
-  // Expression fallback — if by contains non-string entries, add index signature
-  ('by' extends keyof TArgs
-    ? TArgs[keyof TArgs & 'by'] extends readonly unknown[]
-      ? HasExpressionInBy<TArgs[keyof TArgs & 'by']> extends true
-        ? Record<string, unknown>
+    // Aggregation fields (reuse same logic as AggregateResult)
+    ('_avg' extends keyof TArgs ? { _avg: NumericAggColumns<TArgs[keyof TArgs & '_avg']> } : {}) &
+    ('_sum' extends keyof TArgs ? { _sum: NumericAggColumns<TArgs[keyof TArgs & '_sum']> } : {}) &
+    ('_min' extends keyof TArgs
+      ? { _min: TypedAggColumns<TColumns, TArgs[keyof TArgs & '_min']> }
+      : {}) &
+    ('_max' extends keyof TArgs
+      ? { _max: TypedAggColumns<TColumns, TArgs[keyof TArgs & '_max']> }
+      : {}) &
+    ('_count' extends keyof TArgs
+      ? TArgs[keyof TArgs & '_count'] extends true
+        ? { _count: number }
+        : { _count: CountColumns<TArgs[keyof TArgs & '_count']> }
+      : {}) &
+    // Expression fallback — if by contains non-string entries, add index signature
+    ('by' extends keyof TArgs
+      ? TArgs[keyof TArgs & 'by'] extends readonly unknown[]
+        ? HasExpressionInBy<TArgs[keyof TArgs & 'by']> extends true
+          ? Record<string, unknown>
+          : {}
         : {}
-      : {}
-    : {})
+      : {})
 >;
 
 // ---------------------------------------------------------------------------
