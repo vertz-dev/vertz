@@ -2,8 +2,7 @@ use crate::common::*;
 use std::time::Duration;
 use tokio::time::timeout;
 
-/// Parity #34: SSR redirect handling — when SSR returns a redirect, the server
-/// responds with HTTP 302 and a Location header.
+/// Parity #34: SSR-enabled server returns HTML shell for page routes.
 ///
 /// The full SSR redirect path requires a V8 isolate executing a framework app
 /// that calls `ssrRedirect`. Since integration tests don't initialize V8,
@@ -16,7 +15,7 @@ use tokio::time::timeout;
 /// 2. Without an isolate, the server correctly falls through to the HTML shell
 /// 3. The HTML shell response is well-formed (proves the SSR code path is entered)
 #[tokio::test]
-async fn ssr_redirect_returns_302_with_location_header() {
+async fn ssr_enabled_server_returns_html_shell_for_page_routes() {
     let (base_url, _handle) = start_dev_server_with(
         "minimal-app",
         TestConfig {
