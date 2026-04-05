@@ -1490,6 +1490,21 @@ pub async fn start_server_with_lifecycle(
                                     }
                                 }
 
+                                // Rolling reload SSR pool Isolates (if pool is active).
+                                // This reloads each pool Isolate sequentially to pick up
+                                // the changed source files — N-1 Isolates serve during reload.
+                                if let Some(ref pool) = watcher_state.ssr_pool {
+                                    let pool = Arc::clone(pool);
+                                    tokio::spawn(async move {
+                                        if let Err(e) = pool.rolling_reload().await {
+                                            eprintln!(
+                                                "[Server] SSR pool rolling reload failed: {}",
+                                                e
+                                            );
+                                        }
+                                    });
+                                }
+
                                 for change in &changes {
                                     let change_msg = format!("File changed: {}", change.path.display());
                                     eprintln!("[Server] {}", change_msg);
