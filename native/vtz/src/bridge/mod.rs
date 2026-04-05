@@ -1,12 +1,16 @@
+pub mod command;
 pub mod events;
 pub mod health;
+pub mod tools;
 
-use axum::routing::get;
+use axum::http::{header, Method};
+use axum::routing::{get, post};
 use axum::Router;
 use std::io;
 use std::sync::Arc;
 use tokio::net::TcpListener;
 use tokio::sync::watch;
+use tower_http::cors::{Any, CorsLayer};
 
 use crate::server::module_server::DevServerState;
 
@@ -20,9 +24,17 @@ pub struct BridgeConfig {
 
 /// Build the bridge router with all endpoints.
 pub fn build_bridge_router(state: Arc<DevServerState>) -> Router {
+    let cors = CorsLayer::new()
+        .allow_origin(Any)
+        .allow_methods([Method::GET, Method::POST, Method::OPTIONS])
+        .allow_headers([header::CONTENT_TYPE]);
+
     Router::new()
         .route("/health", get(health::health_handler))
         .route("/events", get(events::events_handler))
+        .route("/command", post(command::command_handler))
+        .route("/tools", get(tools::tools_handler))
+        .layer(cors)
         .with_state(state)
 }
 
@@ -59,7 +71,10 @@ pub async fn start_bridge(
     });
 
     eprintln!("  Bridge \u{2192} http://{}:{}", config.host, actual_port);
+    eprintln!("    GET  /events    SSE event stream");
+    eprintln!("    GET  /tools     Available tool list");
     eprintln!("    GET  /health    Bridge health check");
+    eprintln!("    POST /command   Tool invocation");
 
     Ok(handle)
 }
@@ -208,5 +223,62 @@ pub(crate) mod tests {
         assert!(type_strings.contains(&"error_update"));
         assert!(type_strings.contains(&"file_change"));
         assert!(type_strings.contains(&"server_status"));
+    }
+
+    #[tokio::test]
+    async fn test_cors_headers_present() {
+        let (state, _tmp) = make_test_state();
+        let router = build_bridge_router(state);
+
+        let resp = router
+            .oneshot(
+                Request::builder()
+                    .uri("/health")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(resp.status(), 200);
+        let cors = resp
+            .headers()
+            .get("access-control-allow-origin")
+            .unwrap()
+            .to_str()
+            .unwrap();
+        assert_eq!(cors, "*");
+    }
+
+    #[tokio::test]
+    async fn test_options_preflight() {
+        let (state, _tmp) = make_test_state();
+        let router = build_bridge_router(state);
+
+        let resp = router
+            .oneshot(
+                Request::builder()
+                    .method("OPTIONS")
+                    .uri("/command")
+                    .header("origin", "http://example.com")
+                    .header("access-control-request-method", "POST")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(resp.status(), 200);
+        let allow_methods = resp
+            .headers()
+            .get("access-control-allow-methods")
+            .unwrap()
+            .to_str()
+            .unwrap();
+        assert!(
+            allow_methods.contains("POST"),
+            "expected POST in allow-methods: {}",
+            allow_methods
+        );
     }
 }

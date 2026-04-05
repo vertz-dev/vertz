@@ -54,7 +54,7 @@ thiserror = "2"
 tokio = { version = "1", features = ["full"] }
 tokio-tungstenite = "0.24"
 tower = "0.5"
-tower-http = { version = "0.6", features = ["fs", "compression-gzip"] }
+tower-http = { version = "0.6", features = ["fs", "compression-gzip", "cors"] }
 uuid = { version = "1", features = ["v4"] }
 vertz-compiler-core = { path = "../vertz-compiler-core" }
 wry = { version = "0.49", optional = true }
