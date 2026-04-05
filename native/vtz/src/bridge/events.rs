@@ -4,7 +4,6 @@ use futures_util::stream::Stream;
 use serde::Deserialize;
 use std::collections::HashSet;
 use std::convert::Infallible;
-use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::broadcast;
@@ -59,37 +58,38 @@ pub async fn events_handler(
     // Build server_status handshake
     let server_status = mcp_events::build_server_status(&state).await;
 
-    let event_id = Arc::new(AtomicU64::new(0));
-
     let stream = async_stream::stream! {
+        let mut next_id: u64 = 0;
+
         // 1. Always send server_status first
-        let id = event_id.fetch_add(1, Ordering::Relaxed);
         yield Ok(Event::default()
-            .id(id.to_string())
+            .id(next_id.to_string())
             .data(server_status.to_json()));
+        next_id += 1;
 
         // 2. Send subscription ack if filter was provided
         if let Some(ack) = subscribe_ack {
-            let id = event_id.fetch_add(1, Ordering::Relaxed);
             yield Ok(Event::default()
-                .id(id.to_string())
+                .id(next_id.to_string())
                 .data(ack.to_json()));
+            next_id += 1;
         }
 
         // 3. Stream broadcast events, applying filter
         loop {
             match broadcast_rx.recv().await {
                 Ok(event) => {
+                    let event_name = event.event_name();
                     let should_send = match &valid_filter {
                         None => true,
-                        Some(set) => set.contains(event.event_name()),
+                        Some(set) => set.contains(event_name),
                     };
 
                     if should_send {
-                        let id = event_id.fetch_add(1, Ordering::Relaxed);
                         yield Ok(Event::default()
-                            .id(id.to_string())
+                            .id(next_id.to_string())
                             .data(event.to_json()));
+                        next_id += 1;
                     }
                 }
                 Err(broadcast::error::RecvError::Lagged(n)) => {
@@ -297,6 +297,90 @@ mod tests {
         assert!(
             has_file_change,
             "expected file_change event in SSE stream, got: {:?}",
+            events
+        );
+    }
+
+    #[tokio::test]
+    async fn test_events_filter_drops_non_matching() {
+        let (state, _tmp) = make_test_state();
+        let hub = state.mcp_event_hub.clone();
+        let router = build_bridge_router(state);
+
+        use tower::Service;
+        let mut svc = router.into_service();
+
+        // Subscribe only to error_update
+        let req = Request::builder()
+            .uri("/events?subscribe=error_update")
+            .body(Body::empty())
+            .unwrap();
+
+        let resp = svc.call(req).await.unwrap();
+        assert_eq!(resp.status(), 200);
+
+        tokio::time::sleep(Duration::from_millis(10)).await;
+
+        // Broadcast a file_change event (should be filtered out)
+        hub.broadcast(McpEvent::FileChange {
+            timestamp: iso_timestamp(),
+            data: mcp_events::FileChangeData {
+                path: "src/filtered.tsx".to_string(),
+                kind: "modify".to_string(),
+            },
+        });
+
+        // Wait briefly, then read — should only have server_status + subscribed
+        tokio::time::sleep(Duration::from_millis(50)).await;
+        let events = read_sse_events(resp.into_body(), 2).await;
+
+        let has_file_change = events.iter().any(|e| {
+            if let Ok(json) = serde_json::from_str::<serde_json::Value>(e) {
+                json["event"] == "file_change"
+            } else {
+                false
+            }
+        });
+        assert!(
+            !has_file_change,
+            "file_change should have been filtered out, got: {:?}",
+            events
+        );
+    }
+
+    #[tokio::test]
+    async fn test_events_empty_subscribe_acts_as_no_filter() {
+        let (state, _tmp) = make_test_state();
+        let router = build_bridge_router(state);
+
+        let resp = router
+            .oneshot(
+                Request::builder()
+                    .uri("/events?subscribe=")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        // Should get server_status but NO subscribed ack (empty = no filter)
+        let events = read_sse_events(resp.into_body(), 1).await;
+        assert!(!events.is_empty());
+
+        let first: serde_json::Value = serde_json::from_str(&events[0]).unwrap();
+        assert_eq!(first["event"], "server_status");
+
+        // If there's a second event, it should NOT be a subscribed ack
+        let has_subscribed = events.iter().any(|e| {
+            if let Ok(json) = serde_json::from_str::<serde_json::Value>(e) {
+                json["event"] == "subscribed"
+            } else {
+                false
+            }
+        });
+        assert!(
+            !has_subscribed,
+            "empty subscribe should not produce subscribed ack, got: {:?}",
             events
         );
     }

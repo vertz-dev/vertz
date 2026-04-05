@@ -1719,14 +1719,14 @@ pub async fn start_server_with_lifecycle(
     // Start HTTP-to-WebSocket LLM bridge if --bridge-port is specified.
     // The bridge shares DevServerState — it's in-process, no network hop.
     // A watch channel coordinates graceful shutdown for both servers.
-    let (bridge_shutdown_tx, bridge_shutdown_rx) = tokio::sync::watch::channel(());
-    let _bridge_handle = if let Some(bridge_port) = config.bridge_port {
+    let bridge_shutdown_tx = if let Some(bridge_port) = config.bridge_port {
+        let (tx, rx) = tokio::sync::watch::channel(());
         let bridge_config = crate::bridge::BridgeConfig {
             port: bridge_port,
             host: config.host.clone(),
         };
-        match crate::bridge::start_bridge(bridge_config, state.clone(), bridge_shutdown_rx).await {
-            Ok(handle) => Some(handle),
+        match crate::bridge::start_bridge(bridge_config, state.clone(), rx).await {
+            Ok(_handle) => Some(tx),
             Err(e) => {
                 eprintln!("[Bridge] Failed to bind to port {}: {}", bridge_port, e);
                 None
@@ -1747,7 +1747,9 @@ pub async fn start_server_with_lifecycle(
             shutdown_signal().await;
         }
         // Notify bridge to shut down
-        let _ = bridge_shutdown_tx.send(());
+        if let Some(tx) = bridge_shutdown_tx {
+            let _ = tx.send(());
+        }
     };
 
     let result = axum::serve(bind.listener, router)
