@@ -615,14 +615,15 @@ pub(crate) async fn execute_tool(
 
             match isolate.handle_component_render(request).await {
                 Ok(resp) => {
-                    state.console_log.push(
-                        LogLevel::Info,
-                        format!(
-                            "MCP component render: {} ({:.1}ms)",
-                            file, resp.render_time_ms,
-                        ),
-                        Some("mcp"),
-                    );
+                    state
+                        .audit_log
+                        .record(crate::server::audit_log::AuditEvent::ssr_render(
+                            &format!("component:{}", file),
+                            200,
+                            0,
+                            true,
+                            resp.render_time_ms,
+                        ));
 
                     let html = crate::ssr::component_render::assemble_component_document(
                         &crate::ssr::component_render::ComponentHtmlOptions {
@@ -682,11 +683,16 @@ pub(crate) async fn execute_tool(
                         )
                     };
 
-                    state.console_log.push(
-                        LogLevel::Error,
-                        format!("MCP component render error: {} — {}", file, message),
-                        Some("mcp"),
-                    );
+                    state
+                        .audit_log
+                        .record(crate::server::audit_log::AuditEvent::error(
+                            "component_render",
+                            "error",
+                            &format!("{}: {}", file, message),
+                            Some(&file),
+                            None,
+                            None,
+                        ));
 
                     Ok(serde_json::json!({
                         "content": [{ "type": "text", "text": display_msg }],
@@ -1190,7 +1196,6 @@ mod tests {
             hmr_hub: HmrHub::new(),
             module_graph: watcher::new_shared_module_graph(),
             error_broadcaster: ErrorBroadcaster::new(),
-            console_log: ConsoleLog::new(),
             audit_log: crate::server::audit_log::AuditLog::default(),
             mcp_sessions: McpSessions::new(),
             mcp_event_hub: crate::server::mcp_events::McpEventHub::new(),
@@ -1286,7 +1291,7 @@ mod tests {
         let defs = tool_definitions();
         let tools = defs["tools"].as_array().unwrap();
 
-        assert_eq!(tools.len(), 8);
+        assert_eq!(tools.len(), 9);
 
         let names: Vec<&str> = tools.iter().map(|t| t["name"].as_str().unwrap()).collect();
         assert!(names.contains(&"vertz_get_errors"));
@@ -1391,7 +1396,7 @@ mod tests {
         let resp = handle_mcp_message(&state, req).await.unwrap();
         let result = resp.result.unwrap();
         let tools = result["tools"].as_array().unwrap();
-        assert_eq!(tools.len(), 8);
+        assert_eq!(tools.len(), 9);
     }
 
     #[tokio::test]
@@ -1899,7 +1904,6 @@ mod tests {
                 hmr_hub: HmrHub::new(),
                 module_graph: watcher::new_shared_module_graph(),
                 error_broadcaster: ErrorBroadcaster::new(),
-                console_log: ConsoleLog::new(),
                 audit_log: crate::server::audit_log::AuditLog::default(),
                 mcp_sessions: McpSessions::new(),
                 mcp_event_hub: crate::server::mcp_events::McpEventHub::new(),
