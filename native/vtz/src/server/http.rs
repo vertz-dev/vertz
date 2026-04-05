@@ -219,6 +219,46 @@ pub fn build_router(
         None
     };
 
+    // Create SSR Isolate pool when SSR is enabled.
+    // The pool uses separate Isolates from the API isolate — SSR requests go through
+    // the pool, API requests go through the single PersistentIsolate.
+    let ssr_pool = if config.enable_ssr {
+        let pool_config = config.ssr_pool_config();
+        let pool_opts = PersistentIsolateOptions {
+            root_dir: config.root_dir.clone(),
+            ssr_entry: config.ssr_entry.clone(),
+            server_entry: None, // Pool Isolates don't need server entry (SSR only)
+            channel_capacity: 256,
+            auto_installer: auto_installer.clone(),
+            init_timeout: None,
+        };
+        match crate::ssr::pool::SsrPool::new(pool_config, pool_opts) {
+            Ok(pool) => {
+                let pool = Arc::new(pool);
+                // Monitor pool init in background
+                if let Ok(handle) = tokio::runtime::Handle::try_current() {
+                    let init_pool = Arc::clone(&pool);
+                    handle.spawn(async move {
+                        if let Err(e) = init_pool.wait_for_init().await {
+                            eprintln!("[Server] SSR pool init warning: {}", e);
+                        }
+                        init_pool.warmup().await;
+                    });
+                }
+                Some(pool)
+            }
+            Err(e) => {
+                eprintln!(
+                    "[Server] Failed to create SSR pool: {} — falling back to single isolate",
+                    e
+                );
+                None
+            }
+        }
+    } else {
+        None
+    };
+
     // Load proxy configuration from .vertzrc
     let api_proxy = {
         let vertzrc = crate::pm::vertzrc::load_vertzrc(&config.root_dir).unwrap_or_default();
@@ -267,6 +307,7 @@ pub fn build_router(
         port: config.port,
         typecheck_enabled: config.enable_typecheck,
         api_isolate: Arc::new(std::sync::RwLock::new(api_isolate)),
+        ssr_pool,
         api_proxy,
         last_file_change: Arc::new(std::sync::Mutex::new(None)),
     });
@@ -790,108 +831,139 @@ async fn dev_server_handler(
             let session =
                 crate::ssr::session::extract_session_from_cookies(cookie_header.as_deref());
 
-            // Use persistent isolate for SSR (the only supported strategy)
-            let isolate = state
-                .api_isolate
-                .read()
-                .unwrap_or_else(|e| e.into_inner())
-                .clone();
-            if let Some(isolate) = isolate.as_ref() {
-                if isolate.is_initialized() {
-                    let session_json = serde_json::to_string(&session).ok();
-                    let ssr_req = crate::runtime::persistent_isolate::SsrRequest {
-                        url: path.clone(),
-                        session_json,
-                        cookies: cookie_header.clone(),
-                    };
+            // Build the SSR request
+            let session_json = serde_json::to_string(&session).ok();
+            let ssr_req = crate::runtime::persistent_isolate::SsrRequest {
+                url: path.clone(),
+                session_json,
+                cookies: cookie_header.clone(),
+            };
 
-                    match isolate.handle_ssr(ssr_req).await {
-                        Ok(ssr_resp) => {
-                            if ssr_resp.render_time_ms > 0.0 {
-                                let render_msg = format!(
-                                    "{} rendered in {:.1}ms ({})",
-                                    path,
-                                    ssr_resp.render_time_ms,
-                                    if ssr_resp.is_ssr {
-                                        "ssr-persistent"
-                                    } else {
-                                        "client-only"
-                                    }
-                                );
-                                eprintln!("[SSR] {}", render_msg);
-                                state.audit_log.record(
-                                    crate::server::audit_log::AuditEvent::ssr_render(
-                                        &path,
-                                        200,
-                                        0,
-                                        ssr_resp.is_ssr,
-                                        ssr_resp.render_time_ms,
-                                    ),
-                                );
-                            }
-
-                            // Handle redirect from ProtectedRoute during SSR
-                            if let Some(ref redirect_to) = ssr_resp.redirect {
-                                return axum::response::Response::builder()
-                                    .status(StatusCode::FOUND)
-                                    .header(header::LOCATION, redirect_to.as_str())
-                                    .body(Body::empty())
-                                    .unwrap();
-                            }
-
-                            // Assemble the full HTML document from SSR response.
-                            // Framework path returns pre-formatted CSS HTML (with <style> tags);
-                            // legacy path returns raw CSS entries that need wrapping.
-                            let css_string = ssr_resp
-                                .inline_css_html
-                                .as_deref()
-                                .map(|s| s.to_string())
-                                .unwrap_or_else(|| format_ssr_css(&ssr_resp.css_entries));
-                            let entry_url = crate::ssr::html_document::entry_path_to_url(
-                                &state.entry_file,
-                                &state.root_dir,
-                            );
-                            let html = crate::ssr::html_document::assemble_ssr_document(
-                                &crate::ssr::html_document::SsrHtmlOptions {
-                                    title: "Vertz App",
-                                    ssr_content: &ssr_resp.content,
-                                    inline_css: &css_string,
-                                    theme_css: state.theme_css.as_deref(),
-                                    entry_url: &entry_url,
-                                    preload_hints: &[],
-                                    enable_hmr: true,
-                                    ssr_data: ssr_resp.ssr_data.as_deref(),
-                                    head_tags: ssr_resp.head_tags.as_deref(),
-                                    root_dir: Some(&state.root_dir.to_string_lossy()),
-                                },
-                            );
-
+            // Dispatch SSR: prefer pool, fall back to single isolate
+            let ssr_result: Option<Result<_, deno_core::error::AnyError>> =
+                if let Some(ref pool) = state.ssr_pool {
+                    match pool.handle_ssr(ssr_req).await {
+                        Ok(resp) => Some(Ok(resp)),
+                        Err(crate::ssr::pool::SsrPoolError::QueueTimeout) => {
+                            let max = pool.config().max_concurrent_requests;
+                            let body = crate::ssr::pool::saturated_503_body(max, 2);
                             return axum::response::Response::builder()
-                                .status(StatusCode::OK)
-                                .header(header::CONTENT_TYPE, "text/html; charset=utf-8")
-                                .header(header::CACHE_CONTROL, "no-cache")
-                                .body(Body::from(html))
+                                .status(StatusCode::SERVICE_UNAVAILABLE)
+                                .header(header::CONTENT_TYPE, "application/json")
+                                .header("Retry-After", "2")
+                                .body(Body::from(body))
                                 .unwrap();
                         }
-                        Err(e) => {
-                            let error_msg = format!("Persistent SSR error: {}", e);
-                            eprintln!("[SSR] {} — serving client shell", error_msg);
-                            // Report to error broadcaster so the overlay shows it.
-                            // (ErrorBroadcaster also records to the audit log.)
-                            let ssr_error = parse_ssr_error_for_overlay(
-                                &e.to_string(),
-                                &state.root_dir,
-                                &state.entry_file,
-                                &state.pipeline,
-                            );
-                            state.error_broadcaster.report_error(ssr_error).await;
-                            // Fall through to client-only shell
+                        Err(e) => Some(Err(e.into())),
+                    }
+                } else {
+                    let isolate = state
+                        .api_isolate
+                        .read()
+                        .unwrap_or_else(|e| e.into_inner())
+                        .clone();
+                    if let Some(isolate) = isolate.as_ref() {
+                        if isolate.is_initialized() {
+                            Some(isolate.handle_ssr(ssr_req).await)
+                        } else {
+                            None
                         }
+                    } else {
+                        None
+                    }
+                };
+
+            if let Some(ssr_result) = ssr_result {
+                match ssr_result {
+                    Ok(ssr_resp) => {
+                        if ssr_resp.render_time_ms > 0.0 {
+                            let render_msg = format!(
+                                "{} rendered in {:.1}ms ({})",
+                                path,
+                                ssr_resp.render_time_ms,
+                                if ssr_resp.is_ssr {
+                                    if state.ssr_pool.is_some() {
+                                        "ssr-pool"
+                                    } else {
+                                        "ssr-persistent"
+                                    }
+                                } else {
+                                    "client-only"
+                                }
+                            );
+                            eprintln!("[SSR] {}", render_msg);
+                            state.audit_log.record(
+                                crate::server::audit_log::AuditEvent::ssr_render(
+                                    &path,
+                                    200,
+                                    0,
+                                    ssr_resp.is_ssr,
+                                    ssr_resp.render_time_ms,
+                                ),
+                            );
+                        }
+
+                        // Handle redirect from ProtectedRoute during SSR
+                        if let Some(ref redirect_to) = ssr_resp.redirect {
+                            return axum::response::Response::builder()
+                                .status(StatusCode::FOUND)
+                                .header(header::LOCATION, redirect_to.as_str())
+                                .body(Body::empty())
+                                .unwrap();
+                        }
+
+                        // Assemble the full HTML document from SSR response.
+                        // Framework path returns pre-formatted CSS HTML (with <style> tags);
+                        // legacy path returns raw CSS entries that need wrapping.
+                        let css_string = ssr_resp
+                            .inline_css_html
+                            .as_deref()
+                            .map(|s| s.to_string())
+                            .unwrap_or_else(|| format_ssr_css(&ssr_resp.css_entries));
+                        let entry_url = crate::ssr::html_document::entry_path_to_url(
+                            &state.entry_file,
+                            &state.root_dir,
+                        );
+                        let html = crate::ssr::html_document::assemble_ssr_document(
+                            &crate::ssr::html_document::SsrHtmlOptions {
+                                title: "Vertz App",
+                                ssr_content: &ssr_resp.content,
+                                inline_css: &css_string,
+                                theme_css: state.theme_css.as_deref(),
+                                entry_url: &entry_url,
+                                preload_hints: &[],
+                                enable_hmr: true,
+                                ssr_data: ssr_resp.ssr_data.as_deref(),
+                                head_tags: ssr_resp.head_tags.as_deref(),
+                                root_dir: Some(&state.root_dir.to_string_lossy()),
+                            },
+                        );
+
+                        return axum::response::Response::builder()
+                            .status(StatusCode::OK)
+                            .header(header::CONTENT_TYPE, "text/html; charset=utf-8")
+                            .header(header::CACHE_CONTROL, "no-cache")
+                            .body(Body::from(html))
+                            .unwrap();
+                    }
+                    Err(e) => {
+                        let error_msg = format!("Persistent SSR error: {}", e);
+                        eprintln!("[SSR] {} — serving client shell", error_msg);
+                        // Report to error broadcaster so the overlay shows it.
+                        // (ErrorBroadcaster also records to the audit log.)
+                        let ssr_error = parse_ssr_error_for_overlay(
+                            &e.to_string(),
+                            &state.root_dir,
+                            &state.entry_file,
+                            &state.pipeline,
+                        );
+                        state.error_broadcaster.report_error(ssr_error).await;
+                        // Fall through to client-only shell
                     }
                 }
             }
 
-            // Persistent isolate not ready or failed — serve client-only shell.
+            // SSR pool/isolate not ready or failed — serve client-only shell.
             // The client will hydrate and render in the browser.
         }
 

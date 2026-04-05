@@ -53,10 +53,13 @@ pub struct DevServerState {
     pub port: u16,
     /// Whether type checking is enabled.
     pub typecheck_enabled: bool,
-    /// Persistent V8 isolate for API route delegation (`/api/*`) and SSR.
+    /// Persistent V8 isolate for API route delegation (`/api/*`).
     /// Wrapped in `Arc<RwLock>` to allow hot-swap on server module changes.
     /// `None` when no `server_entry` is configured.
     pub api_isolate: Arc<std::sync::RwLock<Option<Arc<PersistentIsolate>>>>,
+    /// SSR Isolate pool for parallel SSR rendering.
+    /// `None` when SSR is disabled.
+    pub ssr_pool: Option<Arc<crate::ssr::pool::SsrPool>>,
     /// Per-path API proxy configuration (from `.vertzrc` `proxy` field).
     /// `None` when no proxy rules are configured.
     pub api_proxy: Option<Arc<crate::server::api_proxy::ProxyConfig>>,
@@ -868,6 +871,7 @@ mod tests {
             port: 3000,
             typecheck_enabled: false,
             api_isolate: Arc::new(std::sync::RwLock::new(None)),
+            ssr_pool: None,
             api_proxy: None,
             auto_installer: None,
             last_file_change: Arc::new(std::sync::Mutex::new(None)),
@@ -1507,6 +1511,7 @@ mod tests {
             port: 3000,
             typecheck_enabled: false,
             api_isolate: Arc::new(std::sync::RwLock::new(None)),
+            ssr_pool: None,
             api_proxy: None,
             auto_installer: None,
             last_file_change: Arc::new(std::sync::Mutex::new(None)),
@@ -1663,6 +1668,7 @@ mod tests {
             port: 3000,
             typecheck_enabled: false,
             api_isolate: Arc::new(std::sync::RwLock::new(None)),
+            ssr_pool: None,
             api_proxy: None,
             auto_installer: None,
             last_file_change: Arc::new(std::sync::Mutex::new(None)),
@@ -1717,6 +1723,7 @@ mod tests {
             port: 3000,
             typecheck_enabled: false,
             api_isolate: Arc::new(std::sync::RwLock::new(None)),
+            ssr_pool: None,
             api_proxy: None,
             auto_installer: None,
             last_file_change: Arc::new(std::sync::Mutex::new(None)),
@@ -1800,6 +1807,7 @@ mod tests {
             port: 3000,
             typecheck_enabled: false,
             api_isolate: Arc::new(std::sync::RwLock::new(None)),
+            ssr_pool: None,
             api_proxy: None,
             auto_installer: None,
             last_file_change: Arc::new(std::sync::Mutex::new(None)),
@@ -1851,6 +1859,7 @@ mod tests {
             port: 3000,
             typecheck_enabled: false,
             api_isolate: Arc::new(std::sync::RwLock::new(None)),
+            ssr_pool: None,
             api_proxy: None,
             auto_installer: None,
             last_file_change: Arc::new(std::sync::Mutex::new(None)),
@@ -1903,6 +1912,7 @@ mod tests {
             port: 3000,
             typecheck_enabled: false,
             api_isolate: Arc::new(std::sync::RwLock::new(None)),
+            ssr_pool: None,
             api_proxy: None,
             auto_installer: None,
             last_file_change: Arc::new(std::sync::Mutex::new(None)),
@@ -2065,6 +2075,7 @@ mod tests {
             port: 3000,
             typecheck_enabled: false,
             api_isolate: Arc::new(std::sync::RwLock::new(None)),
+            ssr_pool: None,
             api_proxy: None,
             auto_installer: None,
             last_file_change: Arc::new(std::sync::Mutex::new(None)),
@@ -2167,6 +2178,7 @@ mod tests {
             port: 3000,
             typecheck_enabled: false,
             api_isolate: Arc::new(std::sync::RwLock::new(None)),
+            ssr_pool: None,
             api_proxy: None,
             auto_installer: None,
             last_file_change: Arc::new(std::sync::Mutex::new(None)),

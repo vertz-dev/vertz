@@ -127,6 +127,7 @@ pub(crate) mod tests {
             port: 3000,
             typecheck_enabled: false,
             api_isolate: Arc::new(std::sync::RwLock::new(None)),
+            ssr_pool: None,
             api_proxy: None,
             auto_installer: None,
             last_file_change: Arc::new(std::sync::Mutex::new(None)),
