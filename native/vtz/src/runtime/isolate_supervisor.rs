@@ -8,6 +8,7 @@ use std::path::PathBuf;
 
 use crate::runtime::entity_graph::{compute_groups, EntityGraphResult, EntityNode};
 use crate::runtime::isolate_label::{format_entity_graph_summary, IsolateKind, IsolateLabel};
+use crate::runtime::message_bus::{MessageBus, MessageBusConfig, MessageBusHandles};
 
 /// Configuration for creating an IsolateSupervisor
 #[derive(Debug, Clone)]
@@ -115,6 +116,75 @@ impl IsolateSupervisor {
     /// Get all managed isolates
     pub fn isolates(&self) -> &[ManagedIsolate] {
         &self.isolates
+    }
+
+    /// Get the entity-to-isolate index mapping.
+    ///
+    /// Used by the message bus to set up routing tables.
+    pub fn entity_to_isolate_map(&self) -> &HashMap<String, usize> {
+        &self.entity_to_isolate
+    }
+
+    /// Create a message bus wired to this supervisor's entity routing.
+    ///
+    /// Returns the bus (for sending) and per-isolate receivers (for polling).
+    pub fn create_message_bus(&self, config: MessageBusConfig) -> MessageBusHandles {
+        MessageBus::create(self.entity_to_isolate.clone(), config)
+    }
+
+    /// Resolve an API request path to the target entity name and isolate index.
+    ///
+    /// Expects paths like `/api/tasks`, `/api/tasks/123`, `/api/task-comments`.
+    /// Extracts the entity segment, singularizes it, and looks up the isolate.
+    ///
+    /// Returns `None` if the entity is not registered.
+    pub fn resolve_api_route(&self, path: &str) -> Option<RouteResolution> {
+        let entity_name = extract_entity_from_path(path)?;
+        let isolate_idx = self.entity_to_isolate.get(&entity_name)?;
+        let isolate = self.isolates.get(*isolate_idx)?;
+        Some(RouteResolution {
+            entity_name,
+            isolate_index: *isolate_idx,
+            isolate_label: isolate.label.format(),
+        })
+    }
+}
+
+/// Result of resolving an API route to an entity and isolate
+#[derive(Debug, Clone, PartialEq)]
+pub struct RouteResolution {
+    /// The resolved entity name (singularized)
+    pub entity_name: String,
+    /// Index of the isolate that handles this entity
+    pub isolate_index: usize,
+    /// Human-readable isolate label for logging
+    pub isolate_label: String,
+}
+
+/// Extract entity name from an API path.
+///
+/// Handles:
+/// - `/api/tasks` → `"task"`
+/// - `/api/tasks/123` → `"task"`
+/// - `/api/task-comments` → `"task-comment"`
+/// - `/api/user` → `"user"`
+///
+/// Returns `None` for paths that don't start with `/api/` or have no entity segment.
+pub fn extract_entity_from_path(path: &str) -> Option<String> {
+    let rest = path.strip_prefix("/api/")?;
+    let segment = rest.split('/').next().filter(|s| !s.is_empty())?;
+    Some(singularize(segment))
+}
+
+/// Naive singularization: strip trailing 's' if present.
+///
+/// This handles the common REST convention where collection endpoints
+/// use plural names (e.g., `/api/tasks` for the `task` entity).
+fn singularize(word: &str) -> String {
+    if word.len() > 1 && word.ends_with('s') && !word.ends_with("ss") {
+        word[..word.len() - 1].to_string()
+    } else {
+        word.to_string()
     }
 }
 
@@ -303,6 +373,187 @@ mod tests {
     fn thread_assignment_zero_threads() {
         let assignments = compute_thread_assignments(4, 0);
         assert!(assignments.is_empty());
+    }
+
+    // --- Route resolution tests ---
+
+    #[test]
+    fn resolve_api_route_finds_entity_isolate() {
+        let config = SupervisorConfig {
+            root_dir: PathBuf::from("/tmp/test"),
+            entities: vec![
+                entity(
+                    "task",
+                    vec![("comment", RefKind::Many)],
+                    IsolationMode::Default,
+                ),
+                entity("comment", vec![], IsolationMode::Default),
+                entity("user", vec![], IsolationMode::Default),
+            ],
+        };
+        let supervisor = IsolateSupervisor::new(config);
+
+        // /api/tasks → task entity (plural → singular)
+        let result = supervisor.resolve_api_route("/api/tasks").unwrap();
+        assert_eq!(result.entity_name, "task");
+        assert!(result.isolate_label.contains("entity:"));
+
+        // /api/tasks/123 → still resolves to task
+        let result = supervisor.resolve_api_route("/api/tasks/123").unwrap();
+        assert_eq!(result.entity_name, "task");
+
+        // /api/users → user entity
+        let result = supervisor.resolve_api_route("/api/users").unwrap();
+        assert_eq!(result.entity_name, "user");
+
+        // task and comment should be in the same isolate
+        let task_res = supervisor.resolve_api_route("/api/tasks").unwrap();
+        let comment_res = supervisor.resolve_api_route("/api/comments").unwrap();
+        assert_eq!(task_res.isolate_index, comment_res.isolate_index);
+
+        // user should be in a different isolate
+        let user_res = supervisor.resolve_api_route("/api/users").unwrap();
+        assert_ne!(task_res.isolate_index, user_res.isolate_index);
+    }
+
+    #[test]
+    fn resolve_api_route_returns_none_for_unknown_entity() {
+        let config = SupervisorConfig {
+            root_dir: PathBuf::from("/tmp/test"),
+            entities: vec![entity("task", vec![], IsolationMode::Default)],
+        };
+        let supervisor = IsolateSupervisor::new(config);
+        assert!(supervisor.resolve_api_route("/api/nonexistent").is_none());
+    }
+
+    #[test]
+    fn resolve_api_route_returns_none_for_non_api_paths() {
+        let config = SupervisorConfig {
+            root_dir: PathBuf::from("/tmp/test"),
+            entities: vec![entity("task", vec![], IsolationMode::Default)],
+        };
+        let supervisor = IsolateSupervisor::new(config);
+        assert!(supervisor.resolve_api_route("/tasks").is_none());
+        assert!(supervisor.resolve_api_route("/api/").is_none());
+        assert!(supervisor.resolve_api_route("/api").is_none());
+        assert!(supervisor.resolve_api_route("").is_none());
+    }
+
+    // --- Entity extraction tests ---
+
+    #[test]
+    fn extract_entity_from_path_plurals() {
+        assert_eq!(
+            extract_entity_from_path("/api/tasks"),
+            Some("task".to_string())
+        );
+        assert_eq!(
+            extract_entity_from_path("/api/users"),
+            Some("user".to_string())
+        );
+        assert_eq!(
+            extract_entity_from_path("/api/comments"),
+            Some("comment".to_string())
+        );
+    }
+
+    #[test]
+    fn extract_entity_from_path_singular() {
+        // Already singular — don't strip
+        assert_eq!(
+            extract_entity_from_path("/api/user"),
+            Some("user".to_string())
+        );
+    }
+
+    #[test]
+    fn extract_entity_from_path_with_sub_path() {
+        assert_eq!(
+            extract_entity_from_path("/api/tasks/123"),
+            Some("task".to_string())
+        );
+        assert_eq!(
+            extract_entity_from_path("/api/tasks/123/comments"),
+            Some("task".to_string())
+        );
+    }
+
+    #[test]
+    fn extract_entity_from_path_hyphenated() {
+        assert_eq!(
+            extract_entity_from_path("/api/task-comments"),
+            Some("task-comment".to_string())
+        );
+    }
+
+    #[test]
+    fn extract_entity_from_path_invalid() {
+        assert!(extract_entity_from_path("/tasks").is_none());
+        assert!(extract_entity_from_path("/api/").is_none());
+        assert!(extract_entity_from_path("/api").is_none());
+        assert!(extract_entity_from_path("").is_none());
+    }
+
+    #[test]
+    fn singularize_handles_double_s() {
+        // "access" should not become "acces"
+        assert_eq!(singularize("access"), "access");
+        assert_eq!(singularize("class"), "class");
+    }
+
+    #[test]
+    fn create_message_bus_wires_to_supervisor() {
+        let config = SupervisorConfig {
+            root_dir: PathBuf::from("/tmp/test"),
+            entities: vec![
+                entity(
+                    "task",
+                    vec![("comment", RefKind::Many)],
+                    IsolationMode::Default,
+                ),
+                entity("comment", vec![], IsolationMode::Default),
+                entity("user", vec![], IsolationMode::Default),
+            ],
+        };
+        let supervisor = IsolateSupervisor::new(config);
+        let handles = supervisor.create_message_bus(MessageBusConfig::default());
+
+        // Bus should know about all entities
+        assert!(handles.bus.has_entity("task"));
+        assert!(handles.bus.has_entity("comment"));
+        assert!(handles.bus.has_entity("user"));
+
+        // Same-group detection should work
+        assert!(handles.bus.same_group("task", "comment"));
+        assert!(!handles.bus.same_group("task", "user"));
+
+        // One receiver per isolate group
+        assert_eq!(handles.receivers.len(), 2);
+    }
+
+    #[test]
+    fn entity_to_isolate_map_returns_full_mapping() {
+        let config = SupervisorConfig {
+            root_dir: PathBuf::from("/tmp/test"),
+            entities: vec![
+                entity(
+                    "task",
+                    vec![("comment", RefKind::Many)],
+                    IsolationMode::Default,
+                ),
+                entity("comment", vec![], IsolationMode::Default),
+                entity("user", vec![], IsolationMode::Default),
+            ],
+        };
+        let supervisor = IsolateSupervisor::new(config);
+        let map = supervisor.entity_to_isolate_map();
+        assert_eq!(map.len(), 3);
+        assert!(map.contains_key("task"));
+        assert!(map.contains_key("comment"));
+        assert!(map.contains_key("user"));
+        // task and comment in same group
+        assert_eq!(map["task"], map["comment"]);
+        assert_ne!(map["task"], map["user"]);
     }
 
     #[test]
