@@ -612,10 +612,17 @@ fn jsx_expression_to_string(
         }
     }
 
-    // .map() call
+    // .map() call — direct or through optional chaining (data?.map(...))
     if let Expression::CallExpression(call) = expr {
         if is_map_call(call) {
-            return map_call_to_string(call, reactive_names, ms, holes);
+            return map_call_to_string(call, false, reactive_names, ms, holes);
+        }
+    }
+    if let Expression::ChainExpression(chain) = expr {
+        if let ChainElement::CallExpression(call) = &chain.expression {
+            if is_map_call(call) {
+                return map_call_to_string(call, true, reactive_names, ms, holes);
+            }
         }
     }
 
@@ -664,6 +671,7 @@ fn logical_and_to_string(
 
 fn map_call_to_string(
     call: &CallExpression,
+    optional: bool,
     reactive_names: &HashSet<String>,
     ms: &MagicString,
     holes: &mut HashSet<String>,
@@ -682,6 +690,14 @@ fn map_call_to_string(
         let text = ms.get_transformed_slice(span.start, span.end);
         return format!("__esc({text})");
     }
+
+    // For optional chaining (data?.map(...)), coerce to empty array so .map()
+    // and .join('') never throw on null/undefined.
+    let map_caller = if optional {
+        format!("({caller_text} ?? [])")
+    } else {
+        caller_text.clone()
+    };
 
     let first_arg = &call.arguments[0];
     if let Argument::ArrowFunctionExpression(arrow) = first_arg {
@@ -706,7 +722,7 @@ fn map_call_to_string(
                         try_jsx_expr_to_string(&expr_stmt.expression, reactive_names, ms, holes)
                     {
                         return format!(
-                            "'<!--list-->' + {caller_text}.map({param_name} => {jsx_str}).join('') + '<!--/list-->'"
+                            "'<!--list-->' + {map_caller}.map({param_name} => {jsx_str}).join('') + '<!--/list-->'"
                         );
                     }
                 }
@@ -730,7 +746,7 @@ fn map_call_to_string(
                             try_jsx_expr_to_string(arg, reactive_names, ms, holes)
                         {
                             return format!(
-                                "'<!--list-->' + {caller_text}.map({param_name} => {jsx_str}).join('') + '<!--/list-->'"
+                                "'<!--list-->' + {map_caller}.map({param_name} => {jsx_str}).join('') + '<!--/list-->'"
                             );
                         }
                     }
@@ -955,6 +971,13 @@ fn classify_children_tier(
                         }
                         Expression::CallExpression(call) if is_map_call(call) => {
                             return AotTier::Conditional;
+                        }
+                        Expression::ChainExpression(chain) => {
+                            if let ChainElement::CallExpression(call) = &chain.expression {
+                                if is_map_call(call) {
+                                    return AotTier::Conditional;
+                                }
+                            }
                         }
                         _ => {}
                     }
@@ -2044,6 +2067,51 @@ export function Hello() {
 }"#;
         let result = compile(source);
         assert!(result.code.contains("<!--list-->"), "code: {}", result.code);
+    }
+
+    #[test]
+    fn map_call_with_optional_chaining() {
+        let source = r#"export function List(props) {
+    return <ul>{props.items?.map(item => <li>{item}</li>)}</ul>;
+}"#;
+        let result = compile(source);
+        assert_eq!(result.components[0].tier, AotTier::Conditional);
+        assert!(
+            result.code.contains("<!--list-->"),
+            "optional chaining .map() should produce list markers. code: {}",
+            result.code
+        );
+        assert!(
+            result.code.contains("?? []"),
+            "optional chaining should use nullish coalescing to empty array. code: {}",
+            result.code
+        );
+        // Should NOT wrap the entire .map() in __esc() fallback
+        assert!(
+            !result.code.contains("__esc(props.items"),
+            "optional chaining .map() should not fall back to __esc(whole_expr). code: {}",
+            result.code
+        );
+    }
+
+    #[test]
+    fn map_call_with_optional_chaining_and_dynamic_attrs() {
+        let source = r#"export function GamesPage() {
+    return <div>{games?.map(game => (
+        <a href={game.url} className={game.cls}>{game.name}</a>
+    ))}</div>;
+}"#;
+        let result = compile(source);
+        assert!(
+            result.code.contains("<!--list-->"),
+            "optional chaining .map() with dynamic attrs should produce list markers. code: {}",
+            result.code
+        );
+        assert!(
+            result.code.contains("__esc_attr("),
+            "dynamic attributes should use __esc_attr(). code: {}",
+            result.code
+        );
     }
 
     // ========== Component references ==========
