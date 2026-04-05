@@ -1,5 +1,6 @@
 import { describe, it } from 'bun:test';
 import { d } from '@vertz/db';
+import type { ModelEntry } from '@vertz/db';
 import { entity } from '../entity';
 import type {
   TypedIncludeOption,
@@ -35,6 +36,13 @@ const tagsTable = d.table('tags', {
   color: d.text(),
 });
 
+const commentsTable = d.table('comments', {
+  id: d.uuid().primary(),
+  text: d.text(),
+  postId: d.uuid(),
+  authorId: d.uuid(),
+});
+
 const usersModel = d.model(usersTable, {
   posts: d.ref.many(() => postsTable, 'authorId'),
 });
@@ -42,7 +50,21 @@ const usersModel = d.model(usersTable, {
 const postsModel = d.model(postsTable, {
   author: d.ref.one(() => usersTable, 'authorId'),
   tags: d.ref.many(() => tagsTable, 'postId'),
+  comments: d.ref.many(() => commentsTable, 'postId'),
 });
+
+const commentsModel = d.model(commentsTable, {
+  author: d.ref.one(() => usersTable, 'authorId'),
+  post: d.ref.one(() => postsTable, 'postId'),
+});
+
+// Model registry for TModels-threaded tests
+type TestModels = {
+  users: ModelEntry<typeof usersTable, (typeof usersModel)['relations']>;
+  posts: ModelEntry<typeof postsTable, (typeof postsModel)['relations']>;
+  tags: ModelEntry<typeof tagsTable, Record<string, never>>;
+  comments: ModelEntry<typeof commentsTable, (typeof commentsModel)['relations']>;
+};
 
 // ---------------------------------------------------------------------------
 // EntityRelationsConfig — field narrowing constrained to target table columns
@@ -257,5 +279,183 @@ describe('TypedQueryOptions full integration', () => {
       orderBy: { passwordHash: 'asc' },
     };
     void _opts;
+  });
+});
+
+// ---------------------------------------------------------------------------
+// TypedIncludeOption — TModels threading for typed nested includes (#2309)
+// ---------------------------------------------------------------------------
+
+describe('TypedIncludeOption with TModels threading', () => {
+  type PostRelConfig = {
+    author: { select: { id: true; name: true } };
+    comments: true;
+    tags: true;
+  };
+
+  type PostRelations = (typeof postsModel)['relations'];
+
+  describe('Given a true-config relation with TModels', () => {
+    it('Then accepts valid nested include keys', () => {
+      const _inc: TypedIncludeOption<PostRelConfig, PostRelations, TestModels> = {
+        comments: {
+          include: {
+            author: true,
+            post: true,
+          },
+        },
+      };
+      void _inc;
+    });
+
+    it('Then rejects invalid nested include keys', () => {
+      const _inc: TypedIncludeOption<PostRelConfig, PostRelations, TestModels> = {
+        comments: {
+          // @ts-expect-error — 'bogus' is not a relation on comments model
+          include: { bogus: true },
+        },
+      };
+      void _inc;
+    });
+
+    it('Then accepts structured form with where/orderBy/limit', () => {
+      const _inc: TypedIncludeOption<PostRelConfig, PostRelations, TestModels> = {
+        comments: {
+          where: { text: 'hello' },
+          orderBy: { text: 'asc' },
+          limit: 10,
+        },
+      };
+      void _inc;
+    });
+  });
+
+  describe('Given a RelationConfigObject relation with TModels', () => {
+    it('Then accepts select + nested include together', () => {
+      const _inc: TypedIncludeOption<PostRelConfig, PostRelations, TestModels> = {
+        author: {
+          select: { id: true },
+          include: { posts: true },
+        },
+      };
+      void _inc;
+    });
+
+    it('Then rejects invalid nested include keys on RelationConfigObject', () => {
+      const _inc: TypedIncludeOption<PostRelConfig, PostRelations, TestModels> = {
+        author: {
+          select: { id: true },
+          // @ts-expect-error — 'bogus' is not a relation on users model
+          include: { bogus: true },
+        },
+      };
+      void _inc;
+    });
+  });
+
+  describe('Given no TModels (backward compat)', () => {
+    it('Then nested include is untyped (accepts any key)', () => {
+      const _inc: TypedIncludeOption<PostRelConfig> = {
+        comments: {
+          include: { anything: true },
+        },
+      };
+      void _inc;
+    });
+  });
+
+  describe('Given TypedQueryOptions with TModels', () => {
+    it('Then TModels flows through to TypedIncludeOption', () => {
+      const _opts: TypedQueryOptions<typeof postsTable, PostRelConfig, PostRelations, TestModels> =
+        {
+          include: {
+            comments: {
+              include: { author: true },
+            },
+          },
+        };
+      void _opts;
+    });
+
+    it('Then rejects invalid nested keys through TypedQueryOptions', () => {
+      const _opts: TypedQueryOptions<typeof postsTable, PostRelConfig, PostRelations, TestModels> =
+        {
+          include: {
+            comments: {
+              // @ts-expect-error — 'bogus' is not a relation on comments
+              include: { bogus: true },
+            },
+          },
+        };
+      void _opts;
+    });
+  });
+
+  describe('Given top-level access filtering', () => {
+    it('Then false-config relations are still rejected', () => {
+      type RestrictedConfig = {
+        author: false;
+        comments: true;
+        tags: true;
+      };
+      const _inc: TypedIncludeOption<RestrictedConfig, PostRelations, TestModels> = {
+        // @ts-expect-error — author is set to false in config
+        author: true,
+      };
+      void _inc;
+    });
+  });
+
+  describe('Given deep nesting (depth cap)', () => {
+    it('Then allows 4 typed nesting levels (1 entity + 3 DB)', () => {
+      // Entity level 1: comments (true-config)
+      // DB depth 0: author
+      // DB depth 1: posts
+      // DB depth 2: comments (still typed — 3 DB levels)
+      const _inc: TypedIncludeOption<PostRelConfig, PostRelations, TestModels> = {
+        comments: {
+          include: {
+            author: {
+              include: {
+                posts: {
+                  include: {
+                    comments: true, // DB depth 2 — still typed
+                  },
+                },
+              },
+            },
+          },
+        },
+      };
+      void _inc;
+    });
+
+    it('Then falls back to untyped at depth 5 (1 entity + 3 DB + untyped)', () => {
+      // Entity level 1: comments
+      // DB depth 0: author
+      // DB depth 1: posts
+      // DB depth 2: comments
+      // DB depth 3: untyped fallback — 'anything' compiles
+      const _inc: TypedIncludeOption<PostRelConfig, PostRelations, TestModels> = {
+        comments: {
+          include: {
+            author: {
+              include: {
+                posts: {
+                  include: {
+                    comments: {
+                      include: {
+                        anything: true, // DB depth 3 → untyped fallback
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      };
+      void _inc;
+    });
   });
 });

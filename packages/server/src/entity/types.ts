@@ -1,4 +1,13 @@
-import type { ModelDef, RelationDef, SchemaLike, TableDef } from '@vertz/db';
+import type {
+  FindModelByTable,
+  FindModelRelations,
+  IncludeOption,
+  ModelDef,
+  ModelEntry,
+  RelationDef,
+  SchemaLike,
+  TableDef,
+} from '@vertz/db';
 import type { AccessRule as AuthAccessRule } from '../auth/rules';
 import type { ResponseDescriptor } from '../response';
 import type { EntityOperations } from './entity-operations';
@@ -248,13 +257,32 @@ export type TypedWhereOption<TTable extends TableDef> = {
 };
 
 /**
+ * Resolve nested include type for the entity layer.
+ * When the target model is found in the registry, produces a typed IncludeOption
+ * from @vertz/db. Otherwise falls back to Record<string, unknown>.
+ */
+type EntityNestedInclude<TModels extends Record<string, ModelEntry>, TTable extends TableDef> = [
+  FindModelByTable<TModels, TTable>,
+] extends [never]
+  ? Record<string, unknown>
+  : IncludeOption<FindModelRelations<TModels, TTable>, TModels, []>;
+
+/**
  * Typed `include` option — constrained by entity relations config.
  *
  * If the entity config has a structured config with `select`, the include
  * can request `true` (all allowed fields) or an object with `select`,
  * `where`, `orderBy`, `limit`, and nested `include`.
+ *
+ * When `TRelations` and `TModels` are provided, nested `include` validates
+ * keys against target model relations (depth-capped at 3 DB levels).
+ * Without them, nested include falls back to `Record<string, unknown>`.
  */
-export type TypedIncludeOption<TRelationsConfig extends EntityRelationsConfig> = {
+export type TypedIncludeOption<
+  TRelationsConfig extends EntityRelationsConfig,
+  TRelations extends Record<string, RelationDef> = Record<string, RelationDef>,
+  TModels extends Record<string, ModelEntry> = Record<string, ModelEntry>,
+> = {
   [K in keyof TRelationsConfig as TRelationsConfig[K] extends false
     ? never
     : K]?: TRelationsConfig[K] extends RelationConfigObject
@@ -265,8 +293,22 @@ export type TypedIncludeOption<TRelationsConfig extends EntityRelationsConfig> =
             where?: Record<string, unknown>;
             orderBy?: Record<string, 'asc' | 'desc'>;
             limit?: number;
+            include?: K extends keyof TRelations
+              ? EntityNestedInclude<TModels, RelationTargetTable<TRelations[K]>>
+              : Record<string, unknown>;
           }
-    : true;
+    :
+        | true
+        | (K extends keyof TRelations
+            ? RelationTargetTable<TRelations[K]> extends TableDef<infer TCols>
+              ? {
+                  where?: { [C in keyof TCols]?: unknown };
+                  orderBy?: { [C in keyof TCols]?: 'asc' | 'desc' };
+                  limit?: number;
+                  include?: EntityNestedInclude<TModels, RelationTargetTable<TRelations[K]>>;
+                }
+              : true
+            : true);
 };
 
 /**
@@ -276,13 +318,15 @@ export type TypedIncludeOption<TRelationsConfig extends EntityRelationsConfig> =
 export interface TypedQueryOptions<
   TTable extends TableDef = TableDef,
   TRelationsConfig extends EntityRelationsConfig = EntityRelationsConfig,
+  TRelations extends Record<string, RelationDef> = Record<string, RelationDef>,
+  TModels extends Record<string, ModelEntry> = Record<string, ModelEntry>,
 > {
   where?: TypedWhereOption<TTable>;
   orderBy?: { [K in PublicColumnKeys<TTable>]?: 'asc' | 'desc' };
   limit?: number;
   after?: string;
   select?: TypedSelectOption<TTable>;
-  include?: TypedIncludeOption<TRelationsConfig>;
+  include?: TypedIncludeOption<TRelationsConfig, TRelations, TModels>;
 }
 
 // ---------------------------------------------------------------------------
