@@ -219,10 +219,11 @@ pub fn build_router(
         None
     };
 
-    // Create SSR Isolate pool when SSR is enabled.
+    // Create SSR Isolate pool when SSR is enabled AND pool size is explicitly configured.
+    // When ssr_pool_size is None (default), the single PersistentIsolate handles SSR.
     // The pool uses separate Isolates from the API isolate — SSR requests go through
     // the pool, API requests go through the single PersistentIsolate.
-    let ssr_pool = if config.enable_ssr {
+    let ssr_pool = if config.enable_ssr && config.ssr_pool_size.is_some() {
         let pool_config = config.ssr_pool_config();
         let pool_opts = PersistentIsolateOptions {
             root_dir: config.root_dir.clone(),

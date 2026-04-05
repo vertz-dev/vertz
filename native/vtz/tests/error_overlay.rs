@@ -251,6 +251,7 @@ async fn test_diagnostics_returns_valid_json() {
         &hmr_hub,
         &error_broadcaster,
         &audit_log,
+        None,
     )
     .await;
 
@@ -292,6 +293,7 @@ async fn test_diagnostics_includes_active_errors() {
         &hmr_hub,
         &error_broadcaster,
         &audit_log,
+        None,
     )
     .await;
 

@@ -204,7 +204,7 @@ mod tests {
         }
         let p99 = m.p99_render_time_ms();
         // p99 of [1..100] should be 99 or 100
-        assert!(p99 >= 99.0 && p99 <= 100.5, "p99 was {}", p99);
+        assert!((99.0..=100.5).contains(&p99), "p99 was {}", p99);
     }
 
     #[test]
