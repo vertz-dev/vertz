@@ -1420,17 +1420,207 @@ async fn dispatch_ssr_request(
     }
 }
 
+/// DOM reset for component rendering — clears DOM and CSS collector WITHOUT
+/// restoring baseline CSS. This ensures only CSS from the component's own
+/// `css()` calls is collected, not app-level CSS from the initial module load.
+const COMPONENT_RESET_JS: &str = r#"
+(function() {
+  if (typeof document !== 'undefined') {
+    document.head.innerHTML = '';
+    document.body.innerHTML = '<div id="app"></div>';
+  }
+  if (typeof __vertz_clear_collected_css === 'function') {
+    __vertz_clear_collected_css();
+  } else if (typeof globalThis.__vertz_collected_css !== 'undefined') {
+    globalThis.__vertz_collected_css = [];
+  }
+})()
+"#;
+
+/// Async script that dynamically imports a component file, calls its default
+/// export with provided props, and collects the rendered HTML and CSS.
+///
+/// Uses `?t=timestamp` cache-busting to bypass V8's ES module cache and always
+/// load the latest file version. Stores the result (or error) in
+/// `globalThis.__vertz_component_result` as a JSON string.
+const COMPONENT_RENDER_JS: &str = r#"
+(async function() {
+  var filePath = globalThis.__vertz_component_file;
+  var propsJson = globalThis.__vertz_component_props || '{}';
+  var props = JSON.parse(propsJson);
+
+  var cacheBuster = '?t=' + Date.now();
+  var mod;
+  try {
+    mod = await import(filePath + cacheBuster);
+  } catch (e) {
+    globalThis.__vertz_component_result = JSON.stringify({
+      error: 'import_failed',
+      message: e.message || String(e),
+    });
+    return;
+  }
+
+  var Component = mod.default;
+  if (typeof Component !== 'function') {
+    globalThis.__vertz_component_result = JSON.stringify({
+      error: 'no_component_export',
+      message: 'No default function export found. The file must export a default function component.',
+    });
+    return;
+  }
+
+  var queryCountBefore = globalThis.__vertz_query_count || 0;
+
+  try {
+    Component(props);
+
+    var appEl = document.getElementById('app');
+    var html = appEl ? appEl.innerHTML : '';
+
+    var css = '';
+    if (typeof __vertz_get_collected_css === 'function') {
+      var collected = __vertz_get_collected_css();
+      if (collected.length > 0) {
+        css = collected.map(function(e) { return e.css; }).join('\n');
+      }
+    }
+
+    var warnings = [];
+    var queryCountAfter = globalThis.__vertz_query_count || 0;
+    if (queryCountAfter > queryCountBefore) {
+      warnings.push(
+        'Component uses query() — data renders as empty/undefined in isolated mode. ' +
+        'Use vertz_render_page for components with data dependencies.'
+      );
+    }
+
+    globalThis.__vertz_component_result = JSON.stringify({
+      html: html,
+      css: css,
+      exportUsed: 'default',
+      warnings: warnings,
+    });
+  } catch (e) {
+    var msg = e.message || String(e);
+    var isContext = msg.indexOf('must be called within') !== -1;
+    globalThis.__vertz_component_result = JSON.stringify({
+      error: isContext ? 'missing_context' : 'render_error',
+      message: msg,
+    });
+  }
+})()
+"#;
+
 /// Dispatch a single component render request in the V8 isolate.
 ///
 /// Renders a component in isolation: no router, no layout, no data fetching.
 /// Uses a component-specific DOM reset (no baseline CSS restoration) and
 /// cache-busted dynamic import to load the latest file version.
+///
+/// 1. Resets DOM state (clean slate, no baseline CSS)
+/// 2. Sets component file path and props as globals
+/// 3. Executes the async render script
+/// 4. Drains the V8 event loop (resolves the dynamic import)
+/// 5. Reads and parses the result
 async fn dispatch_component_render(
-    _runtime: &mut crate::runtime::js_runtime::VertzJsRuntime,
-    _request: &ComponentRenderRequest,
+    runtime: &mut crate::runtime::js_runtime::VertzJsRuntime,
+    request: &ComponentRenderRequest,
 ) -> Result<ComponentRenderResponse, String> {
-    // Stub — Phase 2 will implement the actual V8 execution.
-    Err("Component rendering not implemented yet".to_string())
+    let start = std::time::Instant::now();
+
+    // 1. Component-mode DOM reset (no baseline CSS restore)
+    runtime
+        .execute_script_void("<component-reset>", COMPONENT_RESET_JS)
+        .map_err(|e| format!("Component DOM reset error: {}", e))?;
+
+    // 2. Set component file path and props as globals.
+    // Defense-in-depth: serialize through serde_json to guarantee safe JS interpolation.
+    let safe_file =
+        serde_json::to_string(&request.file_path).map_err(|e| format!("File serialize: {}", e))?;
+    let safe_props = serde_json::to_string(&request.props_json)
+        .map_err(|e| format!("Props serialize: {}", e))?;
+    let setup_js = format!(
+        "globalThis.__vertz_component_file = {}; globalThis.__vertz_component_props = {};",
+        safe_file, safe_props
+    );
+    runtime
+        .execute_script_void("<component-setup>", &setup_js)
+        .map_err(|e| format!("Component setup error: {}", e))?;
+
+    // 3. Execute the async render script
+    runtime
+        .execute_script_void("<component-render>", COMPONENT_RENDER_JS)
+        .map_err(|e| format!("Component render script error: {}", e))?;
+
+    // 4. Run event loop to resolve the async import
+    match tokio::time::timeout(EVENT_LOOP_TIMEOUT, runtime.run_event_loop()).await {
+        Ok(Ok(())) => {}
+        Ok(Err(e)) => return Err(format!("Component render event loop error: {}", e)),
+        Err(_) => {
+            return Err(format!(
+                "Component render timed out after {}s",
+                EVENT_LOOP_TIMEOUT.as_secs()
+            ))
+        }
+    }
+
+    // 5. Read the result
+    let result = runtime
+        .execute_script(
+            "<component-read-result>",
+            "globalThis.__vertz_component_result || '{}'",
+        )
+        .map_err(|e| format!("Read component result error: {}", e))?;
+
+    let elapsed = start.elapsed().as_secs_f64() * 1000.0;
+    let result_str = result.as_str().unwrap_or("{}");
+    let parsed: serde_json::Value =
+        serde_json::from_str(result_str).map_err(|e| format!("Parse component result: {}", e))?;
+
+    // 6. Check for JS-side errors (encoded as { error: "type", message: "..." })
+    if let Some(error) = parsed.get("error").and_then(|e| e.as_str()) {
+        let message = parsed
+            .get("message")
+            .and_then(|m| m.as_str())
+            .unwrap_or("Unknown error")
+            .to_string();
+        return Err(format!("{}:{}", error, message));
+    }
+
+    // 7. Build success response
+    let html = parsed
+        .get("html")
+        .and_then(|h| h.as_str())
+        .unwrap_or("")
+        .to_string();
+    let css = parsed
+        .get("css")
+        .and_then(|c| c.as_str())
+        .unwrap_or("")
+        .to_string();
+    let export_used = parsed
+        .get("exportUsed")
+        .and_then(|e| e.as_str())
+        .unwrap_or("default")
+        .to_string();
+    let warnings: Vec<String> = parsed
+        .get("warnings")
+        .and_then(|w| w.as_array())
+        .map(|arr| {
+            arr.iter()
+                .filter_map(|v| v.as_str().map(|s| s.to_string()))
+                .collect()
+        })
+        .unwrap_or_default();
+
+    Ok(ComponentRenderResponse {
+        html,
+        css,
+        export_used,
+        warnings,
+        render_time_ms: elapsed,
+    })
 }
 
 #[cfg(test)]
