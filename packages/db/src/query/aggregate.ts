@@ -5,6 +5,7 @@
  * Generates parameterized SQL for aggregation functions.
  */
 
+import type { InferColumnType } from '../schema/column';
 import type { FilterType, ModelEntry, NumericColumnKeys } from '../schema/inference';
 import type { ColumnRecord, TableDef } from '../schema/table';
 import { camelToSnake } from '../sql/casing';
@@ -135,8 +136,6 @@ export async function aggregate(
   for (const [fn, aggOpt] of [
     ['avg', options._avg],
     ['sum', options._sum],
-    ['min', options._min],
-    ['max', options._max],
   ] as const) {
     if (!aggOpt) continue;
     const fnObj: Record<string, number | null> = {};
@@ -144,6 +143,21 @@ export async function aggregate(
       const snakeCol = camelToSnake(col);
       const val = row[`_${fn}_${snakeCol}`];
       fnObj[col] = val === null || val === undefined ? null : Number(val);
+    }
+    result[`_${fn}`] = fnObj;
+  }
+
+  // _min/_max preserve the original column type (string, Date, number, etc.)
+  for (const [fn, aggOpt] of [
+    ['min', options._min],
+    ['max', options._max],
+  ] as const) {
+    if (!aggOpt) continue;
+    const fnObj: Record<string, unknown> = {};
+    for (const col of Object.keys(aggOpt)) {
+      const snakeCol = camelToSnake(col);
+      const val = row[`_${fn}_${snakeCol}`];
+      fnObj[col] = val === null || val === undefined ? null : val;
     }
     result[`_${fn}`] = fnObj;
   }
@@ -169,11 +183,131 @@ export interface GroupByArgs {
 }
 
 // ---------------------------------------------------------------------------
-// TypedGroupByArgs — strongly typed version for ModelDelegate
+// TypedAggregateArgs — strongly typed version for ModelDelegate
 // ---------------------------------------------------------------------------
 
 /** Helper to extract columns from a ModelEntry. */
 type EntryColumns<TEntry extends ModelEntry> = TEntry['table']['_columns'];
+
+/**
+ * Strongly typed aggregate arguments, parameterized by the model's columns.
+ *
+ * - `where` uses FilterType for typed filter operators.
+ * - `_avg` and `_sum` are restricted to numeric columns.
+ * - `_min`, `_max`, `_count` accept any column.
+ */
+export type TypedAggregateArgs<TEntry extends ModelEntry> = {
+  readonly where?: FilterType<EntryColumns<TEntry>>;
+  readonly _avg?: { readonly [K in NumericColumnKeys<EntryColumns<TEntry>>]?: true };
+  readonly _sum?: { readonly [K in NumericColumnKeys<EntryColumns<TEntry>>]?: true };
+  readonly _min?: { readonly [K in keyof EntryColumns<TEntry>]?: true };
+  readonly _max?: { readonly [K in keyof EntryColumns<TEntry>]?: true };
+  readonly _count?: true | { readonly [K in keyof EntryColumns<TEntry>]?: true };
+};
+
+// ---------------------------------------------------------------------------
+// AggregateResult — compute return type from requested fields
+// ---------------------------------------------------------------------------
+
+/** Flatten intersections for clean IntelliSense tooltips. */
+type Prettify<T> = { [K in keyof T]: T[K] } & {};
+
+/** Map requested columns to number | null (for _avg/_sum). */
+type NumericAggColumns<TArgs> =
+  TArgs extends Record<string, true> ? { [K in keyof TArgs]: number | null } : never;
+
+/** Map requested columns to their inferred type | null (for _min/_max). */
+type TypedAggColumns<TColumns extends ColumnRecord, TArgs> =
+  TArgs extends Record<string, true>
+    ? { [K in keyof TArgs & keyof TColumns]: InferColumnType<TColumns[K]> | null }
+    : never;
+
+/** Map requested columns to number (for per-column _count). */
+type CountColumns<TArgs> =
+  TArgs extends Record<string, true> ? { [K in keyof TArgs]: number } : never;
+
+/**
+ * Compute the aggregate result shape from the columns and the requested args.
+ *
+ * - `_avg`/`_sum` → `{ [col]: number | null }` (always numeric)
+ * - `_min`/`_max` → `{ [col]: InferColumnType<col> | null }` (preserves column type)
+ * - `_count: true` → `number`
+ * - `_count: { col: true }` → `{ [col]: number }`
+ */
+export type AggregateResult<TColumns extends ColumnRecord, TArgs> = Prettify<
+  ('_avg' extends keyof TArgs ? { _avg: NumericAggColumns<TArgs[keyof TArgs & '_avg']> } : {}) &
+    ('_sum' extends keyof TArgs ? { _sum: NumericAggColumns<TArgs[keyof TArgs & '_sum']> } : {}) &
+    ('_min' extends keyof TArgs
+      ? { _min: TypedAggColumns<TColumns, TArgs[keyof TArgs & '_min']> }
+      : {}) &
+    ('_max' extends keyof TArgs
+      ? { _max: TypedAggColumns<TColumns, TArgs[keyof TArgs & '_max']> }
+      : {}) &
+    ('_count' extends keyof TArgs
+      ? TArgs[keyof TArgs & '_count'] extends true
+        ? { _count: number }
+        : { _count: CountColumns<TArgs[keyof TArgs & '_count']> }
+      : {})
+>;
+
+// ---------------------------------------------------------------------------
+// GroupByResult — compute per-row return type from requested fields
+// ---------------------------------------------------------------------------
+
+/** Extract string column names from the `by` tuple. Non-string entries (GroupByExpression) are excluded. */
+type ExtractByStringColumns<TBy extends readonly unknown[]> = TBy[number] extends infer Item
+  ? Item extends string
+    ? Item
+    : never
+  : never;
+
+/** Check if the `by` tuple contains any non-string entries (GroupByExpression). */
+type HasExpressionInBy<TBy extends readonly unknown[]> = TBy[number] extends string ? false : true;
+
+/**
+ * Compute the groupBy result row shape from the columns and the requested args.
+ *
+ * - String columns in `by` → typed with `InferColumnType<col>`
+ * - Aggregation fields → same as `AggregateResult`
+ * - Expression entries in `by` → `Record<string, unknown>` fallback (aliases are dynamic)
+ */
+export type GroupByResult<TColumns extends ColumnRecord, TArgs> = Prettify<
+  // Group-by string columns
+  ('by' extends keyof TArgs
+    ? TArgs[keyof TArgs & 'by'] extends readonly unknown[]
+      ? {
+          [K in ExtractByStringColumns<TArgs[keyof TArgs & 'by']> &
+            keyof TColumns]: InferColumnType<TColumns[K]>;
+        }
+      : {}
+    : {}) &
+    // Aggregation fields (reuse same logic as AggregateResult)
+    ('_avg' extends keyof TArgs ? { _avg: NumericAggColumns<TArgs[keyof TArgs & '_avg']> } : {}) &
+    ('_sum' extends keyof TArgs ? { _sum: NumericAggColumns<TArgs[keyof TArgs & '_sum']> } : {}) &
+    ('_min' extends keyof TArgs
+      ? { _min: TypedAggColumns<TColumns, TArgs[keyof TArgs & '_min']> }
+      : {}) &
+    ('_max' extends keyof TArgs
+      ? { _max: TypedAggColumns<TColumns, TArgs[keyof TArgs & '_max']> }
+      : {}) &
+    ('_count' extends keyof TArgs
+      ? TArgs[keyof TArgs & '_count'] extends true
+        ? { _count: number }
+        : { _count: CountColumns<TArgs[keyof TArgs & '_count']> }
+      : {}) &
+    // Expression fallback — if by contains non-string entries, add index signature
+    ('by' extends keyof TArgs
+      ? TArgs[keyof TArgs & 'by'] extends readonly unknown[]
+        ? HasExpressionInBy<TArgs[keyof TArgs & 'by']> extends true
+          ? Record<string, unknown>
+          : {}
+        : {}
+      : {})
+>;
+
+// ---------------------------------------------------------------------------
+// TypedGroupByArgs — strongly typed version for ModelDelegate
+// ---------------------------------------------------------------------------
 
 /**
  * Strongly typed groupBy arguments, parameterized by the model's columns.
@@ -394,12 +528,10 @@ export async function groupBy(
       }
     }
 
-    // Other aggregations
+    // Numeric aggregations (avg, sum) — always coerce to number
     for (const [fn, aggOpt] of [
       ['avg', options._avg],
       ['sum', options._sum],
-      ['min', options._min],
-      ['max', options._max],
     ] as const) {
       if (!aggOpt) continue;
       const fnObj: Record<string, number | null> = {};
@@ -407,6 +539,21 @@ export async function groupBy(
         const snakeCol = camelToSnake(col);
         const val = row[`_${fn}_${snakeCol}`];
         fnObj[col] = val === null || val === undefined ? null : Number(val);
+      }
+      result[`_${fn}`] = fnObj;
+    }
+
+    // Type-preserving aggregations (min, max) — keep original value
+    for (const [fn, aggOpt] of [
+      ['min', options._min],
+      ['max', options._max],
+    ] as const) {
+      if (!aggOpt) continue;
+      const fnObj: Record<string, unknown> = {};
+      for (const col of Object.keys(aggOpt)) {
+        const snakeCol = camelToSnake(col);
+        const val = row[`_${fn}_${snakeCol}`];
+        fnObj[col] = val === null || val === undefined ? null : val;
       }
       result[`_${fn}`] = fnObj;
     }

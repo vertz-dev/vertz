@@ -170,6 +170,16 @@ describe('Aggregation queries (DB-012)', () => {
       expect(countResult.name).toBe(5);
       expect(countResult.price).toBe(5);
     });
+
+    it('preserves string values for _min/_max on text columns', async () => {
+      const result = await db.products.aggregate({
+        _min: { name: true },
+        _max: { name: true },
+      });
+      // Alphabetically: 'Gadget A' < 'Gadget B' < 'Widget A' < 'Widget B' < 'Widget C'
+      expect((result.data._min as Record<string, unknown>).name).toBe('Gadget A');
+      expect((result.data._max as Record<string, unknown>).name).toBe('Widget C');
+    });
   });
 
   // -------------------------------------------------------------------------
