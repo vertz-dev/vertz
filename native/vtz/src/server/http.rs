@@ -846,13 +846,22 @@ async fn dev_server_handler(
                 if let Some(ref pool) = state.ssr_pool {
                     match pool.handle_ssr(ssr_req).await {
                         Ok(resp) => Some(Ok(resp)),
-                        Err(crate::ssr::pool::SsrPoolError::QueueTimeout) => {
+                        Err(crate::ssr::pool::SsrPoolError::QueueTimeout)
+                        | Err(crate::ssr::pool::SsrPoolError::PoolClosed) => {
                             let max = pool.config().max_concurrent_requests;
                             let body = crate::ssr::pool::saturated_503_body(max, 2);
                             return axum::response::Response::builder()
                                 .status(StatusCode::SERVICE_UNAVAILABLE)
                                 .header(header::CONTENT_TYPE, "application/json")
                                 .header("Retry-After", "2")
+                                .body(Body::from(body))
+                                .unwrap();
+                        }
+                        Err(crate::ssr::pool::SsrPoolError::RenderTimeout(timeout)) => {
+                            let body = crate::ssr::pool::timeout_504_body(&timeout);
+                            return axum::response::Response::builder()
+                                .status(StatusCode::GATEWAY_TIMEOUT)
+                                .header(header::CONTENT_TYPE, "application/json")
                                 .body(Body::from(body))
                                 .unwrap();
                         }

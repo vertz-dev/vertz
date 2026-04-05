@@ -39,7 +39,8 @@ pub struct SsrPoolDiagnostics {
     pub completed_requests: u64,
     pub avg_render_time_ms: f64,
     pub p99_render_time_ms: f64,
-    pub isolate_memory_mb: Vec<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub isolate_memory_mb: Option<Vec<f64>>,
 }
 
 /// Compilation cache statistics.
@@ -97,9 +98,13 @@ pub async fn collect_diagnostics(
     let pool_diag = ssr_pool.map(|pool| {
         use std::sync::atomic::Ordering;
         let metrics = pool.metrics();
+        let pool_size = pool.pool_size() as u64;
         let max_concurrent = pool.config().max_concurrent_requests as u64;
         SsrPoolDiagnostics {
-            status: metrics.status(max_concurrent).as_str().to_string(),
+            status: metrics
+                .status(pool_size, max_concurrent)
+                .as_str()
+                .to_string(),
             pool_size: pool.pool_size(),
             native_signals: false, // Phase 4.2 will set this to true
             active_requests: metrics.active_requests.load(Ordering::Relaxed),

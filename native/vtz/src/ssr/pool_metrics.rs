@@ -125,11 +125,15 @@ impl PoolMetrics {
     }
 
     /// Pool health status based on queue depth.
-    pub fn status(&self, max_concurrent: u64) -> PoolStatus {
+    ///
+    /// - `Healthy`: queued < pool_size (normal backpressure)
+    /// - `Degraded`: queued >= pool_size but < max_concurrent
+    /// - `Saturated`: queued >= max_concurrent (at capacity)
+    pub fn status(&self, pool_size: u64, max_concurrent: u64) -> PoolStatus {
         let queued = self.queued_requests.load(Ordering::Relaxed);
         if queued >= max_concurrent {
             PoolStatus::Saturated
-        } else if queued > 0 {
+        } else if queued >= pool_size {
             PoolStatus::Degraded
         } else {
             PoolStatus::Healthy
@@ -226,21 +230,32 @@ mod tests {
     #[test]
     fn status_healthy_when_no_queue() {
         let m = PoolMetrics::new();
-        assert_eq!(m.status(50), PoolStatus::Healthy);
+        // pool_size=4, max_concurrent=50
+        assert_eq!(m.status(4, 50), PoolStatus::Healthy);
     }
 
     #[test]
-    fn status_degraded_when_queued() {
+    fn status_healthy_when_queued_below_pool_size() {
         let m = PoolMetrics::new();
-        m.queued_requests.store(1, Ordering::Relaxed);
-        assert_eq!(m.status(50), PoolStatus::Degraded);
+        m.queued_requests.store(3, Ordering::Relaxed);
+        // 3 queued < pool_size 4 → still healthy (normal backpressure)
+        assert_eq!(m.status(4, 50), PoolStatus::Healthy);
+    }
+
+    #[test]
+    fn status_degraded_when_queued_at_pool_size() {
+        let m = PoolMetrics::new();
+        m.queued_requests.store(4, Ordering::Relaxed);
+        // 4 queued >= pool_size 4 but < max_concurrent 50 → degraded
+        assert_eq!(m.status(4, 50), PoolStatus::Degraded);
     }
 
     #[test]
     fn status_saturated_when_at_max() {
         let m = PoolMetrics::new();
         m.queued_requests.store(50, Ordering::Relaxed);
-        assert_eq!(m.status(50), PoolStatus::Saturated);
+        // 50 queued >= max_concurrent 50 → saturated
+        assert_eq!(m.status(4, 50), PoolStatus::Saturated);
     }
 
     #[test]

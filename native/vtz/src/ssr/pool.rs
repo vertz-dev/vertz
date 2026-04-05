@@ -5,8 +5,8 @@
 //! prevents overload. Two routing strategies are supported: least-loaded
 //! (default) and round-robin.
 
-use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
-use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::sync::{Arc, RwLock};
 use std::time::{Duration, Instant};
 
 use deno_core::error::AnyError;
@@ -17,6 +17,13 @@ use crate::runtime::persistent_isolate::{
     PersistentIsolate, PersistentIsolateOptions, SsrRequest, SsrResponse,
 };
 use crate::ssr::pool_metrics::PoolMetrics;
+
+// Compile-time assertion: SsrPool must be Send + Sync for Arc sharing.
+#[allow(dead_code)]
+const _: fn() = || {
+    fn assert_send_sync<T: Send + Sync>() {}
+    assert_send_sync::<SsrPool>();
+};
 
 // ──────────────────────────────────────────────────────────────────────
 // Configuration
@@ -104,6 +111,9 @@ pub enum SsrPoolError {
 
     #[error("Failed to create pool Isolate: {0}")]
     IsolateCreationFailed(AnyError),
+
+    #[error("SSR pool size must be >= 1, got {0}")]
+    InvalidPoolSize(usize),
 }
 
 // ──────────────────────────────────────────────────────────────────────
@@ -112,10 +122,10 @@ pub enum SsrPoolError {
 
 /// A single SSR Isolate within the pool.
 pub struct SsrIsolate {
-    /// The underlying persistent isolate.
-    inner: Arc<PersistentIsolate>,
+    /// The underlying persistent isolate (swappable for HMR reload).
+    inner: RwLock<Arc<PersistentIsolate>>,
     /// Number of active SSR requests on this Isolate.
-    active_requests: AtomicU32,
+    active_requests: AtomicU64,
     /// Whether this Isolate is currently being reloaded (skip for routing).
     reloading: AtomicBool,
     /// Index in the pool (for logging).
@@ -125,8 +135,8 @@ pub struct SsrIsolate {
 impl SsrIsolate {
     fn new(isolate: PersistentIsolate, index: usize) -> Self {
         Self {
-            inner: Arc::new(isolate),
-            active_requests: AtomicU32::new(0),
+            inner: RwLock::new(Arc::new(isolate)),
+            active_requests: AtomicU64::new(0),
             reloading: AtomicBool::new(false),
             index,
         }
@@ -136,8 +146,19 @@ impl SsrIsolate {
         !self.reloading.load(Ordering::Acquire)
     }
 
-    fn active_count(&self) -> u32 {
+    fn active_count(&self) -> u64 {
         self.active_requests.load(Ordering::Relaxed)
+    }
+
+    /// Get a clone of the current inner Arc (read-lock, fast path).
+    fn get_inner(&self) -> Arc<PersistentIsolate> {
+        self.inner.read().unwrap().clone()
+    }
+
+    /// Swap the inner isolate with a new one (write-lock, reload path).
+    fn swap_inner(&self, new_isolate: PersistentIsolate) {
+        let mut guard = self.inner.write().unwrap();
+        *guard = Arc::new(new_isolate);
     }
 }
 
@@ -152,7 +173,7 @@ pub struct SsrPool {
     admission: Arc<Semaphore>,
     metrics: Arc<PoolMetrics>,
     /// Round-robin counter (only used with RoundRobin strategy).
-    rr_counter: AtomicU32,
+    rr_counter: AtomicU64,
     /// Isolate creation options (kept for crash recovery / HMR reload).
     isolate_options: PersistentIsolateOptions,
 }
@@ -163,11 +184,17 @@ impl SsrPool {
     /// Each Isolate is created with `isolate_options` on a dedicated OS thread.
     /// Returns once all Isolates are created (but not necessarily initialized —
     /// call `wait_for_init()` to block until all Isolates are ready).
+    ///
+    /// Returns `Err(InvalidPoolSize)` if the resolved pool size is 0.
     pub fn new(
         config: SsrPoolConfig,
         isolate_options: PersistentIsolateOptions,
     ) -> Result<Self, SsrPoolError> {
         let pool_size = config.pool_size.resolve();
+        if pool_size == 0 {
+            return Err(SsrPoolError::InvalidPoolSize(0));
+        }
+
         let cpus = std::thread::available_parallelism()
             .map(|n| n.get())
             .unwrap_or(4);
@@ -206,7 +233,7 @@ impl SsrPool {
             config,
             admission,
             metrics,
-            rr_counter: AtomicU32::new(0),
+            rr_counter: AtomicU64::new(0),
             isolate_options,
         })
     }
@@ -214,7 +241,7 @@ impl SsrPool {
     /// Wait for all Isolates to complete initialization.
     pub async fn wait_for_init(&self) -> Result<(), AnyError> {
         for isolate in &self.isolates {
-            isolate.inner.wait_for_init().await?;
+            isolate.get_inner().wait_for_init().await?;
         }
         Ok(())
     }
@@ -270,17 +297,15 @@ impl SsrPool {
         // Track active
         self.metrics.active_requests.fetch_add(1, Ordering::Relaxed);
 
-        // Route to Isolate
+        // Route to Isolate and grab its inner Arc (fast read-lock)
         let isolate = self.pick_isolate();
         isolate.active_requests.fetch_add(1, Ordering::Relaxed);
+        let inner = isolate.get_inner();
 
         // Dispatch with render timeout
         let start = Instant::now();
-        let result = tokio::time::timeout(
-            self.config.max_render_time,
-            isolate.inner.handle_ssr(request),
-        )
-        .await;
+        let result =
+            tokio::time::timeout(self.config.max_render_time, inner.handle_ssr(request)).await;
 
         // Update metrics
         let elapsed = start.elapsed();
@@ -353,9 +378,11 @@ impl SsrPool {
     /// For each Isolate:
     /// 1. Mark as reloading (stop routing new requests)
     /// 2. Wait for active requests to drain (with 5s timeout)
-    /// 3. Restart the Isolate (fresh module cache)
-    /// 4. Wait for init
-    /// 5. Resume routing
+    /// 3. Create a new Isolate, wait for init, swap it in
+    /// 4. Resume routing
+    ///
+    /// N-1 Isolates remain available during reload. The old Isolate's V8
+    /// thread shuts down when its Arc refcount drops to zero.
     pub async fn rolling_reload(&self) -> Result<(), AnyError> {
         for isolate in &self.isolates {
             // 1. Stop routing new requests to this Isolate
@@ -376,32 +403,30 @@ impl SsrPool {
                 );
             }
 
-            // 3. Restart: create a new PersistentIsolate
+            // 3. Create a new Isolate, wait for init, and swap
             match PersistentIsolate::new(self.isolate_options.clone()) {
                 Ok(new_isolate) => {
                     let new_arc = Arc::new(new_isolate);
-                    // Wait for the new Isolate to initialize
+                    // Wait for the new Isolate to initialize before swapping
                     if let Err(e) = new_arc.wait_for_init().await {
                         eprintln!(
-                            "[Server] SSR pool: Isolate #{} reload init failed: {}",
+                            "[Server] SSR pool: Isolate #{} reload init failed: {} — keeping old isolate",
                             isolate.index, e,
                         );
+                        // Keep the old isolate; resume routing to it
+                    } else {
+                        // Unwrap the Arc to get the owned PersistentIsolate for swap.
+                        // This is safe because new_arc is the only reference.
+                        let owned = Arc::try_unwrap(new_arc).unwrap_or_else(|_| {
+                            unreachable!("new_arc should have exactly one reference")
+                        });
+                        isolate.swap_inner(owned);
+                        eprintln!("[Server] SSR pool: Isolate #{} reloaded", isolate.index);
                     }
-                    // Swap the inner isolate (this is safe because we're not routing to it)
-                    // SAFETY: We need interior mutability for the inner Arc. Since `reloading`
-                    // is true, no concurrent handle_ssr calls will access `inner`.
-                    // For now, we store the new isolate and resume.
-                    //
-                    // Note: In the current design, `inner` is an Arc<PersistentIsolate>.
-                    // To swap it, we'd need RwLock or similar. For the initial
-                    // implementation, we log and mark ready — the actual swap requires
-                    // the `inner` field to use RwLock<Arc<PersistentIsolate>>.
-                    // TODO(phase-4.1): Add RwLock to SsrIsolate.inner for hot-swap
-                    eprintln!("[Server] SSR pool: Isolate #{} reloaded", isolate.index,);
                 }
                 Err(e) => {
                     eprintln!(
-                        "[Server] SSR pool: Isolate #{} reload failed: {}",
+                        "[Server] SSR pool: Isolate #{} reload failed: {} — keeping old isolate",
                         isolate.index, e,
                     );
                 }
@@ -414,12 +439,14 @@ impl SsrPool {
     }
 
     /// Get per-Isolate memory usage in MB (reads V8 heap statistics).
-    pub fn isolate_memory_mb(&self) -> Vec<f64> {
+    ///
+    /// Returns `None` — V8 heap stats require a dedicated op on the V8 thread
+    /// which is not yet implemented. The diagnostics endpoint skips this field
+    /// when `None`.
+    pub fn isolate_memory_mb(&self) -> Option<Vec<f64>> {
         // V8 heap stats are only available from the V8 thread.
-        // For now, return placeholder values. The actual implementation
-        // requires adding a heap_stats query to PersistentIsolate.
-        // TODO(phase-4.1): Add heap stats query op to PersistentIsolate
-        self.isolates.iter().map(|_| 0.0).collect()
+        // TODO(phase-4.2): Add heap stats query op to PersistentIsolate
+        None
     }
 
     // ────────────────────────────────────────────────────────────────
@@ -456,7 +483,7 @@ impl SsrPool {
 }
 
 // ──────────────────────────────────────────────────────────────────────
-// Structured 503 response body
+// Structured error response bodies
 // ──────────────────────────────────────────────────────────────────────
 
 /// Build the structured JSON body for a 503 SSR pool saturated response.
@@ -468,6 +495,18 @@ pub fn saturated_503_body(max_concurrent: usize, retry_after_secs: u64) -> Strin
             max_concurrent, max_concurrent,
         ),
         "retryAfter": retry_after_secs,
+    })
+    .to_string()
+}
+
+/// Build the structured JSON body for a 504 SSR render timeout response.
+pub fn timeout_504_body(timeout: &Duration) -> String {
+    serde_json::json!({
+        "error": "ssr_render_timeout",
+        "message": format!(
+            "SSR render exceeded {}ms timeout. Consider increasing ssr.maxRenderTime or optimizing your SSR code.",
+            timeout.as_millis(),
+        ),
     })
     .to_string()
 }
@@ -486,6 +525,11 @@ mod tests {
     fn pool_size_fixed_returns_exact() {
         assert_eq!(PoolSize::Fixed(8).resolve(), 8);
         assert_eq!(PoolSize::Fixed(1).resolve(), 1);
+    }
+
+    #[test]
+    fn pool_size_fixed_zero_resolves_to_zero() {
+        assert_eq!(PoolSize::Fixed(0).resolve(), 0);
     }
 
     #[test]
@@ -508,8 +552,23 @@ mod tests {
     }
 
     #[test]
+    fn timeout_504_body_is_valid_json() {
+        let body = timeout_504_body(&Duration::from_millis(5000));
+        let parsed: serde_json::Value = serde_json::from_str(&body).unwrap();
+        assert_eq!(parsed["error"], "ssr_render_timeout");
+        assert!(parsed["message"].as_str().unwrap().contains("5000ms"));
+    }
+
+    #[test]
     fn routing_strategy_equality() {
         assert_eq!(RoutingStrategy::LeastLoaded, RoutingStrategy::LeastLoaded);
         assert_ne!(RoutingStrategy::LeastLoaded, RoutingStrategy::RoundRobin);
+    }
+
+    #[test]
+    fn invalid_pool_size_error_message() {
+        let err = SsrPoolError::InvalidPoolSize(0);
+        assert!(err.to_string().contains("must be >= 1"));
+        assert!(err.to_string().contains("0"));
     }
 }
