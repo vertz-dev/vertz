@@ -224,6 +224,24 @@ fn tool_definitions() -> serde_json::Value {
                     },
                     "required": []
                 }
+            },
+            {
+                "name": "vertz_render_component",
+                "description": "Render a single stateless/presentational component in isolation and return HTML output. Wraps the component in a minimal shell with theme CSS but no router, layout, auth, or data providers. Best for leaf components during iterative editing. For page-level components or components that require context providers (router, auth, settings) or data fetching, use vertz_render_page instead.",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "file": {
+                            "type": "string",
+                            "description": "Path to the component file relative to project root, e.g. 'src/components/TaskCard.tsx'. Must be within the project directory."
+                        },
+                        "props": {
+                            "type": "object",
+                            "description": "Props to pass to the component as a JSON object, e.g. { \"title\": \"Test\", \"count\": 5 }"
+                        }
+                    },
+                    "required": ["file"]
+                }
             }
         ]
     })
@@ -495,6 +513,176 @@ async fn execute_tool(
                     "isError": true
                 })),
                 Err(e) => Err(format!("Failed to fetch OpenAPI spec: {}", e)),
+            }
+        }
+
+        "vertz_render_component" => {
+            let file = args
+                .get("file")
+                .and_then(|v| v.as_str())
+                .ok_or("Missing required parameter 'file'")?
+                .to_string();
+
+            if !state.enable_ssr {
+                return Ok(serde_json::json!({
+                    "content": [{
+                        "type": "text",
+                        "text": "Component rendering is not available: SSR is not enabled on this dev server."
+                    }],
+                    "isError": true,
+                    "_meta": {
+                        "file": file,
+                        "error": "ssr_disabled",
+                    }
+                }));
+            }
+
+            // Serialize props to a JSON string. This gets a second serialization pass
+            // in dispatch_component_render (via serde_json::to_string on the string)
+            // to safely embed it as a JS string literal. The JS side then JSON.parse()s
+            // it back. The double serialization is intentional for injection safety.
+            let props_json = args
+                .get("props")
+                .map(|v| serde_json::to_string(v).unwrap_or_else(|_| "{}".to_string()))
+                .unwrap_or_else(|| "{}".to_string());
+
+            // 1. Validate path
+            let abs_path =
+                match crate::ssr::component_render::validate_component_path(&file, &state.root_dir)
+                {
+                    Ok(p) => p,
+                    Err(msg) => {
+                        let error_type = if msg.contains("must be within") {
+                            "invalid_path"
+                        } else {
+                            "import_failed"
+                        };
+                        return Ok(serde_json::json!({
+                            "content": [{ "type": "text", "text": msg }],
+                            "isError": true,
+                            "_meta": {
+                                "file": file,
+                                "error": error_type,
+                            }
+                        }));
+                    }
+                };
+
+            // 2. Check isolate availability
+            let isolate = state
+                .api_isolate
+                .read()
+                .unwrap_or_else(|e| e.into_inner())
+                .clone();
+
+            let isolate = match isolate {
+                Some(i) if i.is_initialized() => i,
+                _ => {
+                    return Ok(serde_json::json!({
+                        "content": [{
+                            "type": "text",
+                            "text": "Component rendering not available: persistent isolate is not initialized."
+                        }],
+                        "isError": true,
+                        "_meta": {
+                            "file": file,
+                            "error": "isolate_unavailable",
+                        }
+                    }));
+                }
+            };
+
+            // 3. Dispatch component render
+            let request = crate::runtime::persistent_isolate::ComponentRenderRequest {
+                file_path: abs_path.to_string_lossy().to_string(),
+                props_json,
+            };
+
+            match isolate.handle_component_render(request).await {
+                Ok(resp) => {
+                    state.console_log.push(
+                        LogLevel::Info,
+                        format!(
+                            "MCP component render: {} ({:.1}ms)",
+                            file, resp.render_time_ms,
+                        ),
+                        Some("mcp"),
+                    );
+
+                    let html = crate::ssr::component_render::assemble_component_document(
+                        &crate::ssr::component_render::ComponentHtmlOptions {
+                            theme_css: state.theme_css.as_deref(),
+                            component_css: &resp.css,
+                            rendered_html: &resp.html,
+                        },
+                    );
+
+                    Ok(serde_json::json!({
+                        "content": [{ "type": "text", "text": html }],
+                        "_meta": {
+                            "file": file,
+                            "renderTimeMs": resp.render_time_ms,
+                            "exportUsed": resp.export_used,
+                            "warnings": resp.warnings,
+                        }
+                    }))
+                }
+                Err(e) => {
+                    // Parse structured errors from dispatch.
+                    // JS-side errors use \0 (null byte) as separator: "error_type\0message"
+                    // Rust-side errors (timeouts, script failures) have no separator and
+                    // fall through to "render_error".
+                    let err_str = e.to_string();
+                    let (error_type, message) = if let Some(idx) = err_str.find('\0') {
+                        let (t, m) = err_str.split_at(idx);
+                        (t.to_string(), m[1..].to_string())
+                    } else {
+                        ("render_error".to_string(), err_str)
+                    };
+
+                    let display_msg = if error_type == "missing_context" {
+                        format!(
+                            "Component threw an error during rendering:\n\n{}\n\n\
+                            This component requires context providers that are not available \
+                            in isolated rendering. Use vertz_render_page to render this \
+                            component within its full page context.",
+                            message
+                        )
+                    } else if error_type == "no_component_export" {
+                        format!(
+                            "No component export found in {}. The file must have a default \
+                            export that is a function component. If the component is a named \
+                            export, add a default export.",
+                            file
+                        )
+                    } else if error_type == "import_failed" {
+                        format!("Failed to import component: {}", message)
+                    } else {
+                        format!(
+                            "Component threw an error during rendering:\n\n{}\n\n\
+                            This may indicate the component expects props that were not \
+                            provided, or depends on data that isn't available in isolated \
+                            rendering.",
+                            message
+                        )
+                    };
+
+                    state.console_log.push(
+                        LogLevel::Error,
+                        format!("MCP component render error: {} — {}", file, message),
+                        Some("mcp"),
+                    );
+
+                    Ok(serde_json::json!({
+                        "content": [{ "type": "text", "text": display_msg }],
+                        "isError": true,
+                        "_meta": {
+                            "file": file,
+                            "error": error_type,
+                            "rawError": message,
+                        }
+                    }))
+                }
             }
         }
 
@@ -893,6 +1081,39 @@ mod tests {
         })
     }
 
+    /// Create a test state with SSR enabled (for component render tests that
+    /// need to get past the enable_ssr check).
+    fn create_test_state_with_ssr() -> Arc<DevServerState> {
+        let tmp = tempfile::tempdir().unwrap();
+        let root = tmp.path().to_path_buf();
+        let src = root.join("src");
+        std::fs::create_dir_all(&src).unwrap();
+
+        Arc::new(DevServerState {
+            plugin: test_plugin(),
+            pipeline: CompilationPipeline::new(root.clone(), src.clone(), test_plugin()),
+            root_dir: root.clone(),
+            src_dir: src,
+            entry_file: root.join("src/main.tsx"),
+            deps_dir: root.join("node_modules/.vertz/deps"),
+            theme_css: None,
+            hmr_hub: HmrHub::new(),
+            module_graph: watcher::new_shared_module_graph(),
+            error_broadcaster: ErrorBroadcaster::new(),
+            console_log: ConsoleLog::new(),
+            mcp_sessions: McpSessions::new(),
+            mcp_event_hub: crate::server::mcp_events::McpEventHub::new(),
+            start_time: Instant::now(),
+            enable_ssr: true,
+            port: 3000,
+            typecheck_enabled: false,
+            api_isolate: std::sync::Arc::new(std::sync::RwLock::new(None)),
+            api_proxy: None,
+            auto_installer: None,
+            last_file_change: std::sync::Arc::new(std::sync::Mutex::new(None)),
+        })
+    }
+
     // ── McpSessions tests ───────────────────────────────────────────
 
     #[tokio::test]
@@ -974,7 +1195,7 @@ mod tests {
         let defs = tool_definitions();
         let tools = defs["tools"].as_array().unwrap();
 
-        assert_eq!(tools.len(), 7);
+        assert_eq!(tools.len(), 8);
 
         let names: Vec<&str> = tools.iter().map(|t| t["name"].as_str().unwrap()).collect();
         assert!(names.contains(&"vertz_get_errors"));
@@ -984,6 +1205,7 @@ mod tests {
         assert!(names.contains(&"vertz_get_diagnostics"));
         assert!(names.contains(&"vertz_get_events_url"));
         assert!(names.contains(&"vertz_get_api_spec"));
+        assert!(names.contains(&"vertz_render_component"));
     }
 
     #[test]
@@ -1077,7 +1299,7 @@ mod tests {
         let resp = handle_mcp_message(&state, req).await.unwrap();
         let result = resp.result.unwrap();
         let tools = result["tools"].as_array().unwrap();
-        assert_eq!(tools.len(), 7);
+        assert_eq!(tools.len(), 8);
     }
 
     #[tokio::test]
@@ -1491,5 +1713,152 @@ mod tests {
         assert!(schemas.contains_key("ErrorResponse"));
         // UsersResponse: not referenced
         assert!(!schemas.contains_key("UsersResponse"));
+    }
+
+    // ── vertz_render_component tests ────────────────────────────────
+
+    #[test]
+    fn test_render_component_tool_schema() {
+        let defs = tool_definitions();
+        let tools = defs["tools"].as_array().unwrap();
+        let tool = tools
+            .iter()
+            .find(|t| t["name"] == "vertz_render_component")
+            .unwrap();
+
+        let schema = &tool["inputSchema"];
+        assert_eq!(schema["type"], "object");
+
+        // file is required
+        let required = schema["required"].as_array().unwrap();
+        assert!(required.contains(&serde_json::json!("file")));
+
+        // props is optional (not in required)
+        assert!(!required.contains(&serde_json::json!("props")));
+
+        // Both properties exist with correct types
+        assert_eq!(schema["properties"]["file"]["type"], "string");
+        assert_eq!(schema["properties"]["props"]["type"], "object");
+    }
+
+    #[tokio::test]
+    async fn test_render_component_missing_file_param() {
+        let state = create_test_state();
+        let result = execute_tool(&state, "vertz_render_component", &serde_json::json!({})).await;
+
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("file"));
+    }
+
+    #[tokio::test]
+    async fn test_render_component_ssr_disabled() {
+        let state = create_test_state(); // enable_ssr: false
+        let result = execute_tool(
+            &state,
+            "vertz_render_component",
+            &serde_json::json!({ "file": "src/Button.tsx" }),
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(result["isError"], true);
+        assert_eq!(result["_meta"]["error"], "ssr_disabled");
+        let text = result["content"][0]["text"].as_str().unwrap();
+        assert!(text.contains("SSR is not enabled"));
+    }
+
+    #[tokio::test]
+    async fn test_render_component_file_not_found() {
+        let state = create_test_state_with_ssr();
+        let result = execute_tool(
+            &state,
+            "vertz_render_component",
+            &serde_json::json!({ "file": "src/components/DoesNotExist.tsx" }),
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(result["isError"], true);
+        assert_eq!(result["_meta"]["error"], "import_failed");
+        let text = result["content"][0]["text"].as_str().unwrap();
+        assert!(text.contains("not found"));
+    }
+
+    #[tokio::test]
+    async fn test_render_component_path_escape() {
+        // Use two temp dirs to simulate escape: root_dir and an "outside" dir
+        let root_tmp = tempfile::tempdir().unwrap();
+        let outside_tmp = tempfile::tempdir().unwrap();
+
+        // Create a file outside the project root
+        let outside_file = outside_tmp.path().join("secret.txt");
+        std::fs::write(&outside_file, "secret").unwrap();
+
+        let state = {
+            let root = root_tmp.path().to_path_buf();
+            let src = root.join("src");
+            std::fs::create_dir_all(&src).unwrap();
+            Arc::new(DevServerState {
+                plugin: test_plugin(),
+                pipeline: CompilationPipeline::new(root.clone(), src.clone(), test_plugin()),
+                root_dir: root.clone(),
+                src_dir: src,
+                entry_file: root.join("src/main.tsx"),
+                deps_dir: root.join("node_modules/.vertz/deps"),
+                theme_css: None,
+                hmr_hub: HmrHub::new(),
+                module_graph: watcher::new_shared_module_graph(),
+                error_broadcaster: ErrorBroadcaster::new(),
+                console_log: ConsoleLog::new(),
+                mcp_sessions: McpSessions::new(),
+                mcp_event_hub: crate::server::mcp_events::McpEventHub::new(),
+                start_time: Instant::now(),
+                enable_ssr: true,
+                port: 3000,
+                typecheck_enabled: false,
+                api_isolate: std::sync::Arc::new(std::sync::RwLock::new(None)),
+                api_proxy: None,
+                auto_installer: None,
+                last_file_change: std::sync::Arc::new(std::sync::Mutex::new(None)),
+            })
+        };
+
+        // Use an absolute path to the outside file
+        let result = execute_tool(
+            &state,
+            "vertz_render_component",
+            &serde_json::json!({ "file": outside_file.to_string_lossy() }),
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(result["isError"], true);
+        assert_eq!(result["_meta"]["error"], "invalid_path");
+        let text = result["content"][0]["text"].as_str().unwrap();
+        assert!(text.contains("must be within"));
+    }
+
+    #[tokio::test]
+    async fn test_render_component_no_isolate() {
+        let state = create_test_state_with_ssr();
+
+        // Create a real file so path validation passes
+        std::fs::create_dir_all(state.root_dir.join("src")).unwrap();
+        let comp = state.root_dir.join("src/Button.tsx");
+        std::fs::write(&comp, "export default function Button() {}").unwrap();
+
+        let result = execute_tool(
+            &state,
+            "vertz_render_component",
+            &serde_json::json!({ "file": "src/Button.tsx" }),
+        )
+        .await
+        .unwrap();
+
+        // api_isolate is None in test state, so we get isolate_unavailable
+        assert_eq!(result["isError"], true);
+        assert_eq!(result["_meta"]["error"], "isolate_unavailable");
+        let text = result["content"][0]["text"].as_str().unwrap();
+        assert!(text.contains("not initialized"));
     }
 }
