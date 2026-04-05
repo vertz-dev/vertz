@@ -754,8 +754,17 @@ One way to define entities (`entity()`), queues (`queue()`), durables (`durable(
 ### Principle 3: "AI agents are first-class users"
 An LLM generates entities and queues. The runtime handles deployment topology. The LLM never reasons about Isolates or serialization.
 
+### Principle 4: "Test what matters, nothing more"
+Multi-isolate introduces a serialization boundary that must be testable in isolation. `queue.test()` and `durable.test()` provide sync-mode testing that exercises real serialization without network overhead. Each behavior (entity CRUD, queue processing, durable state) has exactly one test surface — no mock isolation layers.
+
+### Principle 5: "If you can't test it, don't build it"
+Every inter-Isolate message path is testable locally. Queue timeout enforcement, durable state persistence, and serialization errors all surface in the test runner with deterministic behavior. The message bus is designed so that test mode replaces only the transport (sync vs async), not the serialization or validation logic.
+
+### Principle 6: "If you can't demo it, it's not done"
+Each Phase 2 deliverable has a concrete demo: entity groups communicating through the message bus, queue handlers processing messages with timeout enforcement, durable state surviving Isolate restarts. The developer sees `vertz dev` with structured log labels showing which Isolate handles each request.
+
 ### Principle 7: "Performance is not optional"
-Native compiler (20-50x faster). Native access rules (no JS overhead). Parallel SSR via Isolate pool.
+Native compiler (20-50x faster). Native access rules (no JS overhead). Parallel SSR via Isolate pool. Message bus targets ~5μs for scalars, ~20-40μs for typical entities — negligible overhead vs production network latency.
 
 ### Principle 8: "No ceilings"
 This IS principle 8.
@@ -1066,30 +1075,128 @@ describe('Feature: Durable state survives restart', () => {
 - If >30MB per Isolate, the per-entity model in Phase 2 needs redesign
 - Benchmark SSR throughput vs Bun — must be within 80% of Bun's performance
 
-### Phase 2: Multi-Isolate — Entity Workers + Message Bus (4-6 months)
+### Phase 2: Multi-Isolate — Entity Workers + Message Bus
 
-> **Precondition:** Phase 1 complete with DX parity vs Bun. Performance validation passed.
+> **Precondition:** Phase 1 complete with DX parity vs Bun. Performance validation passed (memory per Isolate <30MB, SSR throughput within 80% of Bun).
 
 **Goal:** The defining feature. Entity groups, queues, and durables run in separate Isolates. Serialization boundary enforcement. Local-production parity.
 
+Phase 2 is split into two sub-phases to allow a meaningful kill gate and incremental delivery:
+
+#### Phase 1 Readiness Checklist (must be verified before Phase 2 starts)
+
+- [ ] Module graph accuracy: no stale entries, no missing edges after HMR cycles
+- [ ] V8 snapshots: implemented and measured (target: reduce per-Isolate baseline from ~15MB to ~8-10MB)
+- [ ] Native compiler stability: full test suite passes with zero edge-case failures
+- [ ] Chrome DevTools Protocol: multi-target ready (each Isolate debuggable separately)
+- [ ] `queue()`, `durable()`, `schedule()` APIs: designed and implemented on Bun (separate design docs)
+
+#### Phase 2a: Multi-Isolate Core (3-4 months)
+
 **Deliverables:**
-- Isolate Supervisor with cooperative scheduling (N:M)
-- Message bus with serialization boundary
-- Entity grouping (related entities share Isolate by default)
-- Queue handler Isolates with timeout enforcement
-- Durable Isolates with SQLite state
-- Structured log stream with Isolate labels
-- Request tracing across Isolate boundaries
+- Structured log stream with Isolate labels (first visible value — ships before message passing)
+- Entity grouping algorithm (computes and displays groups, even before Isolates are separate)
+- Isolate Supervisor with 1-thread-per-JsRuntime scheduling
+- Message bus with serialization boundary (`op_vertz_send` / `op_vertz_recv`)
+- Always-serialize mode (`strictSerialization: true` in config, default in CI) — same-group calls also serialize to catch parity bugs early
 
 **Acceptance criteria:**
 - Cross-entity-group calls go through serialization boundary
-- Non-serializable data fails locally with clear error messages
-- Queue handlers timeout correctly (with dev multiplier)
-- Durable state persists across Isolate restarts
-- Memory overhead < 20MB per Isolate (with framework code + V8 snapshots)
-- 50 entities run comfortably on a developer laptop (< 400MB total)
+- Non-serializable data fails locally with clear error messages (SerializationError with path, value, hint)
+- `strictSerialization` mode catches same-group serialization issues in CI
+- Structured logs show `[entity:task]` Isolate labels from first startup
+- Entity grouping computed and logged at startup (developer sees their entity graph)
+- Memory overhead < 20MB per Isolate at rest with V8 snapshots (15-25MB under load acceptable)
+- 50 entities + associated queues/durables run in <25 total Isolates using <500MB RSS on a 16GB laptop (<400MB target, <600MB acceptable, >800MB triggers redesign)
 
-**Kill gate at 3-month mark:** Is message passing working with real entity code? If not, re-scope.
+**Kill gate at 3 months (concrete):** The linear-clone example app's task and comment entities run in separate Isolates, communicating through the message bus. Cross-entity reads (task fetches comment count) succeed with correct data. Non-serializable payloads produce a SerializationError. Memory per Isolate is under 30MB. Cold start with 5+ Isolates is under 3 seconds.
+
+#### Phase 2b: Queue + Durable Isolates (2-3 months)
+
+> **Precondition:** Phase 2a message bus stable and passing kill gate.
+
+**Deliverables:**
+- Queue handler Isolates with timeout enforcement (with dev multiplier, suspended when debugger attached)
+- Durable Isolates with SQLite state (WAL mode, per-type with instance partitioning)
+- Request tracing across Isolate boundaries
+- Queue testing: `queue.test()` with sync mode + failed message inspection, retry counts, dead-letter state
+
+**Acceptance criteria:**
+- Queue handlers timeout correctly (with dev multiplier, timeout suspended under `--inspect`)
+- Durable state persists across Isolate restarts
+- Request traces span Isolate boundaries with correlation IDs
+- `queue.test()` supports inspecting failed messages and retry state
+
+**Timeout error format:**
+```
+QueueTimeoutError: Queue handler 'notifications' exceeded timeout
+  Queue: notifications
+  Handler: processNotification
+  Timeout: 30s (production) × 3 (dev multiplier) = 90s
+  Hint: The handler did not complete within the timeout window.
+        Check for blocking operations or increase timeoutMultiplier in vertz.config.ts.
+```
+
+#### Phase 2 API Surface
+
+The developer-facing API is **unchanged** from Phase 1. Multi-isolate topology is inferred from the entity graph — developers never configure Isolates, threads, or message channels manually. The following APIs (defined in the API Surface section above) remain the same:
+
+- `entity()`, `queue()`, `durable()`, `schedule()` — definition APIs unchanged
+- `createServer({ entities, queues, durables })` — wiring unchanged
+- `queue.enqueue()`, `durable.get()` — inter-entity calls unchanged
+
+**What changes at runtime (transparent to developer):**
+- Entity groups run in separate V8 Isolates (was single Isolate in Phase 1)
+- Cross-group calls go through serialization boundary (was in-process in Phase 1)
+- Queue handlers run in dedicated Isolates with timeout enforcement
+- Durable objects get per-type SQLite-backed Isolates
+- Structured logs include Isolate labels: `[entity:task] Handling list request`
+
+**New developer-visible configuration (optional):**
+```ts
+// Entity-level isolation override
+entity('analytics-events', {
+  isolation: 'separate', // Force own Isolate, don't group with related entities
+  // ...
+});
+
+// Queue timeout configuration (vertz.config.ts)
+export default defineConfig({
+  runtime: {
+    timeoutMultiplier: 3, // Dev timeout = production timeout * 3 (default)
+    strictSerialization: true, // Always serialize, even same-group (default in CI)
+  },
+});
+```
+
+**New developer-visible errors:**
+```
+SerializationError: Cannot serialize value at path 'payload.connection'
+  Value: [Socket object]
+  Hint: Entity 'task' and queue 'notifications' run in separate Isolates.
+        Cross-Isolate messages must be serializable (structured clone).
+        Consider extracting the data you need from the Socket before sending.
+```
+
+> **Note:** Explicit entity grouping (`isolation: { group: 'billing' }`) is deferred to post-Phase-2. The automatic algorithm is the default — developers override with `isolation: 'separate'` only.
+
+#### Phase 2 Architecture Summary
+
+Consolidated from the Architecture section — the key subsystems for Phase 2:
+
+1. **Isolate Supervisor** — Owns V8 platform, creates/destroys Isolates based on entity graph, pins N Isolates to M worker threads with cooperative scheduling (`deno_core::JsRuntime` is `!Send` — each JsRuntime is pinned to its thread, but multiple JsRuntimes share a thread via cooperative yielding on I/O). Routes messages via bus, enforces resource limits, hot-swaps code during HMR.
+
+2. **Message Bus** — All inter-Isolate communication through Rust-native tokio channels (`mpsc` bounded, `oneshot` for sync calls, `broadcast` for config changes, `watch` for shared state). Enforces structured clone protocol locally. Cache invalidation uses epoch-based approach (not broadcast) to prevent dropped events for slow consumers.
+
+3. **Cross-Isolate Call Protocol** — JS calls `ctx.entities.task.list()` → `op_vertz_send` serializes payload via V8 `ValueSerializer` on sender's thread → tokio `mpsc` channel → receiver thread's event loop polls inbox → `op_vertz_recv` deserializes via `ValueDeserializer` → executes handler → response via `oneshot` channel back to sender. Circular synchronous cross-entity reads are detected and error with a clear message (deadlock prevention).
+
+4. **Entity Grouping** — Builds graph of direct `ref.one()`/`ref.many()` relationships (one-hop only). Merges entities sharing references into groups, caps at 5 per group. Hub entities (referenced by >5 others) are forced into their own Isolate, and the remaining entities re-group without the hub. `isolation: 'separate'` overrides grouping.
+
+5. **Threading Model** — N:M cooperative scheduling. Worker thread pool = CPU cores. Multiple JsRuntimes are pinned to each thread and cooperatively scheduled — when one Isolate yields on I/O (await), the thread switches to another Isolate's event loop. Tokio runtime per thread handles async I/O. Thread assignment balances Isolate count across cores.
+
+6. **HMR Consistency** — When a shared module changes, all affected Isolates are updated atomically: validate compilation for all targets before applying any. If validation fails for any Isolate, none are updated and the error is reported. Prevents version skew across Isolates.
+
+7. **V8 Snapshots** — Mandatory for Phase 2. Framework code + V8 builtins baked into snapshot at build time. Reduces per-Isolate cold start from ~15MB to ~8-10MB baseline. Without snapshots, the 50-entity target is not achievable.
 
 ### Phase 3: Production Deployment (3-5 months)
 
