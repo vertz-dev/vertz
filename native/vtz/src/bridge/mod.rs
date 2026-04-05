@@ -85,7 +85,7 @@ pub(crate) mod tests {
     use crate::compiler::pipeline::CompilationPipeline;
     use crate::errors::broadcaster::ErrorBroadcaster;
     use crate::hmr::websocket::HmrHub;
-    use crate::server::console_log::ConsoleLog;
+    use crate::server::audit_log::AuditLog;
     use crate::server::mcp::McpSessions;
     use crate::server::mcp_events::McpEventHub;
     use crate::watcher;
@@ -119,7 +119,7 @@ pub(crate) mod tests {
             hmr_hub: HmrHub::new(),
             module_graph: watcher::new_shared_module_graph(),
             error_broadcaster: ErrorBroadcaster::new(),
-            console_log: ConsoleLog::new(),
+            audit_log: AuditLog::default(),
             mcp_sessions: McpSessions::new(),
             mcp_event_hub: McpEventHub::new(),
             start_time: std::time::Instant::now(),
