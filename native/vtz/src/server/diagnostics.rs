@@ -205,5 +205,7 @@ mod tests {
         assert_eq!(parsed["module_graph"]["node_count"], 5);
         assert_eq!(parsed["websocket"]["hmr_clients"], 2);
         assert_eq!(parsed["version"], "0.1.0");
+        assert_eq!(parsed["audit_log"]["total_events"], 0);
+        assert_eq!(parsed["audit_log"]["capacity"], 1000);
     }
 }

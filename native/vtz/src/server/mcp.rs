@@ -768,11 +768,27 @@ pub(crate) async fn execute_tool(
                 None
             };
 
-            // Parse since filter.
-            let since = args
-                .get("since")
-                .and_then(|v| v.as_str())
-                .and_then(crate::server::audit_log::parse_timestamp);
+            // Parse since filter — return error for malformed timestamps.
+            let since = if let Some(since_val) = args.get("since") {
+                let since_str = since_val.as_str().unwrap_or("");
+                match crate::server::audit_log::parse_timestamp(since_str) {
+                    Some(ts) => Some(ts),
+                    None => {
+                        return Ok(serde_json::json!({
+                            "content": [{
+                                "type": "text",
+                                "text": format!(
+                                    "Invalid 'since' timestamp '{}'. Expected ISO 8601 format: YYYY-MM-DDTHH:MM:SS.NNNNNNNNNZ",
+                                    since_str
+                                )
+                            }],
+                            "isError": true
+                        }));
+                    }
+                }
+            } else {
+                None
+            };
 
             let filter = crate::server::audit_log::AuditFilter {
                 last,
@@ -1204,6 +1220,7 @@ mod tests {
             module_graph: watcher::new_shared_module_graph(),
             error_broadcaster: ErrorBroadcaster::new(),
             console_log: ConsoleLog::new(),
+            audit_log: crate::server::audit_log::AuditLog::default(),
             mcp_sessions: McpSessions::new(),
             mcp_event_hub: crate::server::mcp_events::McpEventHub::new(),
             start_time: Instant::now(),
@@ -1914,6 +1931,7 @@ mod tests {
                 module_graph: watcher::new_shared_module_graph(),
                 error_broadcaster: ErrorBroadcaster::new(),
                 console_log: ConsoleLog::new(),
+                audit_log: crate::server::audit_log::AuditLog::default(),
                 mcp_sessions: McpSessions::new(),
                 mcp_event_hub: crate::server::mcp_events::McpEventHub::new(),
                 start_time: Instant::now(),
@@ -1964,5 +1982,123 @@ mod tests {
         assert_eq!(result["_meta"]["error"], "isolate_unavailable");
         let text = result["content"][0]["text"].as_str().unwrap();
         assert!(text.contains("not initialized"));
+    }
+
+    // ── vertz_get_audit_log handler tests ────────────────────────────
+
+    #[tokio::test]
+    async fn test_execute_audit_log_empty() {
+        let state = create_test_state();
+        let result = execute_tool(&state, "vertz_get_audit_log", &serde_json::json!({}))
+            .await
+            .unwrap();
+
+        let content = result["content"].as_array().unwrap();
+        let text: serde_json::Value =
+            serde_json::from_str(content[0]["text"].as_str().unwrap()).unwrap();
+        assert_eq!(text["count"], 0);
+        assert_eq!(text["total"], 0);
+        assert_eq!(text["truncated"], false);
+        assert!(text["events"].as_array().unwrap().is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_execute_audit_log_with_events() {
+        let state = create_test_state();
+        state
+            .audit_log
+            .record(crate::server::audit_log::AuditEvent::api_request(
+                "GET",
+                "/api/tasks",
+                200,
+                5.0,
+            ));
+        state
+            .audit_log
+            .record(crate::server::audit_log::AuditEvent::file_change(
+                "src/App.tsx",
+                "modify",
+            ));
+
+        let result = execute_tool(
+            &state,
+            "vertz_get_audit_log",
+            &serde_json::json!({"last": 50}),
+        )
+        .await
+        .unwrap();
+
+        let content = result["content"].as_array().unwrap();
+        let text: serde_json::Value =
+            serde_json::from_str(content[0]["text"].as_str().unwrap()).unwrap();
+        assert_eq!(text["count"], 2);
+        assert_eq!(text["total"], 2);
+    }
+
+    #[tokio::test]
+    async fn test_execute_audit_log_type_filter() {
+        let state = create_test_state();
+        state
+            .audit_log
+            .record(crate::server::audit_log::AuditEvent::api_request(
+                "GET",
+                "/api/tasks",
+                200,
+                5.0,
+            ));
+        state
+            .audit_log
+            .record(crate::server::audit_log::AuditEvent::file_change(
+                "src/App.tsx",
+                "modify",
+            ));
+
+        let result = execute_tool(
+            &state,
+            "vertz_get_audit_log",
+            &serde_json::json!({"type": "file_change"}),
+        )
+        .await
+        .unwrap();
+
+        let content = result["content"].as_array().unwrap();
+        let text: serde_json::Value =
+            serde_json::from_str(content[0]["text"].as_str().unwrap()).unwrap();
+        assert_eq!(text["count"], 1);
+        let events = text["events"].as_array().unwrap();
+        assert_eq!(events[0]["type"], "file_change");
+    }
+
+    #[tokio::test]
+    async fn test_execute_audit_log_invalid_type() {
+        let state = create_test_state();
+        let result = execute_tool(
+            &state,
+            "vertz_get_audit_log",
+            &serde_json::json!({"type": "bogus"}),
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(result["isError"], true);
+        let text = result["content"][0]["text"].as_str().unwrap();
+        assert!(text.contains("Unknown event type 'bogus'"));
+        assert!(text.contains("api_request"));
+    }
+
+    #[tokio::test]
+    async fn test_execute_audit_log_invalid_since() {
+        let state = create_test_state();
+        let result = execute_tool(
+            &state,
+            "vertz_get_audit_log",
+            &serde_json::json!({"since": "not-a-date"}),
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(result["isError"], true);
+        let text = result["content"][0]["text"].as_str().unwrap();
+        assert!(text.contains("Invalid 'since' timestamp"));
     }
 }
