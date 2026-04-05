@@ -419,7 +419,9 @@ export interface ModelDelegate<
   count(options?: TypedCountOptions<TEntry>): Promise<Result<number, ReadError>>;
 
   /** Run aggregation functions on a table. */
-  aggregate(options: agg.TypedAggregateArgs<TEntry>): Promise<Result<Record<string, unknown>, ReadError>>;
+  aggregate<TArgs extends agg.TypedAggregateArgs<TEntry>>(
+    options: TArgs,
+  ): Promise<Result<agg.AggregateResult<EntryColumns<TEntry>, TArgs>, ReadError>>;
 
   /** Group rows by columns and apply aggregation functions. */
   groupBy(

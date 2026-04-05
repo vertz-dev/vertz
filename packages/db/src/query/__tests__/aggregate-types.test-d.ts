@@ -2,12 +2,13 @@
  * Type-level tests for typed aggregate args and results (#2283, #2284).
  *
  * Phase 1: TypedAggregateArgs validates columns, restricts _avg/_sum to numeric.
+ * Phase 2: AggregateResult computes return shape from requested fields.
  */
 import { describe, it } from 'bun:test';
 import type { ModelEntry } from '../../schema/inference';
-import type { TypedAggregateArgs } from '../aggregate';
+import type { AggregateResult, TypedAggregateArgs } from '../aggregate';
 import { d } from '../../d';
-import type { Expect, Extends, Not } from '../../__tests__/_type-helpers';
+import type { Equal, Expect, Extends, HasKey, Not } from '../../__tests__/_type-helpers';
 
 // ---------------------------------------------------------------------------
 // Fixture: model with numeric and non-numeric columns
@@ -127,5 +128,123 @@ describe('TypedAggregateArgs — combined fields', () => {
 
   it('accepts empty args', () => {
     type _t1 = Expect<Extends<{}, TypedAggregateArgs<ProductEntry>>>;
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Alias for product columns to use in AggregateResult tests
+// ---------------------------------------------------------------------------
+
+type ProductCols = (typeof productsTable)['_columns'];
+
+// ---------------------------------------------------------------------------
+// 6. AggregateResult — _count: true returns number
+// ---------------------------------------------------------------------------
+
+describe('AggregateResult — _count: true', () => {
+  it('result has _count as number', () => {
+    type R = AggregateResult<ProductCols, { _count: true }>;
+    type _t1 = Expect<Equal<R['_count'], number>>;
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 7. AggregateResult — per-column _count returns record of numbers
+// ---------------------------------------------------------------------------
+
+describe('AggregateResult — per-column _count', () => {
+  it('result._count has requested columns as number', () => {
+    type R = AggregateResult<ProductCols, { _count: { name: true; price: true } }>;
+    type _t1 = Expect<Equal<R['_count'], { name: number; price: number }>>;
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 8. AggregateResult — _avg returns number | null for each column
+// ---------------------------------------------------------------------------
+
+describe('AggregateResult — _avg', () => {
+  it('result._avg.price is number | null', () => {
+    type R = AggregateResult<ProductCols, { _avg: { price: true } }>;
+    type _t1 = Expect<Equal<R['_avg'], { price: number | null }>>;
+  });
+
+  it('result._avg with multiple columns', () => {
+    type R = AggregateResult<ProductCols, { _avg: { price: true; stock: true } }>;
+    type _t1 = Expect<Equal<R['_avg'], { price: number | null; stock: number | null }>>;
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 9. AggregateResult — _sum returns number | null
+// ---------------------------------------------------------------------------
+
+describe('AggregateResult — _sum', () => {
+  it('result._sum.stock is number | null', () => {
+    type R = AggregateResult<ProductCols, { _sum: { stock: true } }>;
+    type _t1 = Expect<Equal<R['_sum'], { stock: number | null }>>;
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 10. AggregateResult — _min/_max preserves column type
+// ---------------------------------------------------------------------------
+
+describe('AggregateResult — _min/_max column-aware types', () => {
+  it('_min on numeric column returns number | null', () => {
+    type R = AggregateResult<ProductCols, { _min: { price: true } }>;
+    type _t1 = Expect<Equal<R['_min'], { price: number | null }>>;
+  });
+
+  it('_min on text column returns string | null', () => {
+    type R = AggregateResult<ProductCols, { _min: { name: true } }>;
+    type _t1 = Expect<Equal<R['_min'], { name: string | null }>>;
+  });
+
+  it('_max on text column returns string | null', () => {
+    type R = AggregateResult<ProductCols, { _max: { category: true } }>;
+    type _t1 = Expect<Equal<R['_max'], { category: string | null }>>;
+  });
+
+  it('_min with mixed column types', () => {
+    type R = AggregateResult<ProductCols, { _min: { price: true; name: true } }>;
+    type _t1 = Expect<Equal<R['_min'], { price: number | null; name: string | null }>>;
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 11. AggregateResult — combined fields
+// ---------------------------------------------------------------------------
+
+describe('AggregateResult — combined', () => {
+  it('result has all requested aggregation fields', () => {
+    type R = AggregateResult<ProductCols, {
+      _avg: { price: true };
+      _sum: { stock: true };
+      _count: true;
+    }>;
+    type _t1 = Expect<HasKey<R, '_avg'>>;
+    type _t2 = Expect<HasKey<R, '_sum'>>;
+    type _t3 = Expect<HasKey<R, '_count'>>;
+  });
+
+  it('result does NOT have unrequested fields', () => {
+    type R = AggregateResult<ProductCols, { _count: true }>;
+    type _t1 = Expect<Not<HasKey<R, '_avg'>>>;
+    type _t2 = Expect<Not<HasKey<R, '_sum'>>>;
+    type _t3 = Expect<Not<HasKey<R, '_min'>>>;
+    type _t4 = Expect<Not<HasKey<R, '_max'>>>;
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 12. AggregateResult — empty args returns empty object
+// ---------------------------------------------------------------------------
+
+describe('AggregateResult — empty args', () => {
+  it('returns empty object type', () => {
+    type R = AggregateResult<ProductCols, {}>;
+    type Keys = keyof R;
+    type _t1 = Expect<Equal<Keys, never>>;
   });
 });
