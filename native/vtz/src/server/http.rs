@@ -1064,7 +1064,7 @@ async fn handle_api_request(
                 .status(StatusCode::NOT_FOUND)
                 .header(header::CONTENT_TYPE, "application/json; charset=utf-8")
                 .body(Body::from(
-                    r#"{"error":"No server entry configured. Create src/server.ts with a default export handler."}"#,
+                    r#"{"error":"No server entry configured. Create src/server.ts (or src/api/server.ts) and export a createServer() instance as default export."}"#,
                 ))
                 .unwrap();
         }
@@ -1076,6 +1076,16 @@ async fn handle_api_request(
             .header(header::CONTENT_TYPE, "application/json; charset=utf-8")
             .body(Body::from(
                 r#"{"error":"API isolate is still initializing. Try again shortly."}"#,
+            ))
+            .unwrap();
+    }
+
+    if !isolate.has_api_handler() {
+        return axum::response::Response::builder()
+            .status(StatusCode::NOT_FOUND)
+            .header(header::CONTENT_TYPE, "application/json; charset=utf-8")
+            .body(Body::from(
+                r#"{"error":"No API handler found. Ensure src/server.ts (or src/api/server.ts) exports a createServer() instance as default export (e.g., `export default createServer(...)`)."}"#,
             ))
             .unwrap();
     }

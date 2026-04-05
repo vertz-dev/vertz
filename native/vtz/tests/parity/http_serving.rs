@@ -21,10 +21,62 @@ async fn api_routes_delegated_to_api_handler() {
     assert_eq!(resp.status(), 404);
     let body = resp.text().await.unwrap();
     let json: serde_json::Value = serde_json::from_str(&body).unwrap();
-    assert!(json["error"]
-        .as_str()
-        .unwrap()
-        .contains("No server entry configured"));
+    let error_msg = json["error"].as_str().unwrap();
+    assert!(
+        error_msg.contains("No server entry configured"),
+        "Expected 'No server entry configured' in error, got: {error_msg}"
+    );
+    // Verify the error mentions both possible server entry paths
+    assert!(
+        error_msg.contains("src/api/server.ts"),
+        "Expected error to mention src/api/server.ts fallback path, got: {error_msg}"
+    );
+}
+
+/// Parity #5b: When isolate exists but has no API handler (SSR-only mode),
+/// the handler guard returns 404 with actionable guidance about exports.
+#[tokio::test]
+async fn api_request_returns_no_handler_when_isolate_has_no_server_entry() {
+    let (base_url, _handle) = start_dev_server_with(
+        "minimal-app",
+        TestConfig {
+            enable_ssr: true,
+            ..Default::default()
+        },
+    )
+    .await;
+    let client = http_client();
+
+    // Wait briefly for the isolate to initialize (it runs on a background thread)
+    tokio::time::sleep(Duration::from_millis(500)).await;
+
+    let resp = timeout(
+        Duration::from_secs(5),
+        client.get(format!("{}/api/health", base_url)).send(),
+    )
+    .await
+    .unwrap()
+    .unwrap();
+
+    // Isolate exists (enable_ssr=true) and is initialized, but has no server_entry,
+    // so has_api_handler() is false → should return 404 with handler guidance
+    let status = resp.status();
+    let body = resp.text().await.unwrap();
+
+    // The isolate may still be initializing (503) or initialized without handler (404)
+    assert!(
+        status == 404 || status == 503,
+        "Expected 404 (no handler) or 503 (still initializing), got {status}. Body: {body}"
+    );
+
+    if status == 404 {
+        let json: serde_json::Value = serde_json::from_str(&body).unwrap();
+        let error_msg = json["error"].as_str().unwrap();
+        assert!(
+            error_msg.contains("No API handler found"),
+            "Expected 'No API handler found' in error, got: {error_msg}"
+        );
+    }
 }
 
 /// Parity #6: API proxy forwards requests to upstream per .vertzrc rules.
