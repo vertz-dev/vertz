@@ -480,10 +480,7 @@ describe('handleInspectMessage', () => {
     const sentMessages: string[] = [];
     const mockWs = { send: (d: string) => sentMessages.push(d) } as unknown as WebSocket;
 
-    handleInspectMessage(
-      new MessageEvent('message', { data: 'not valid json{{{' }),
-      mockWs,
-    );
+    handleInspectMessage(new MessageEvent('message', { data: 'not valid json{{{' }), mockWs);
 
     expect(sentMessages.length).toBe(0);
   });
