@@ -1,175 +1,68 @@
 ---
 title: LLM Quick Reference
-description: 'Critical patterns for AI code generation — data fetching via typed SDK, forms, reactivity, entities, schema, and testing. Read this before generating any Vertz code.'
+description: 'Quick overview of Vertz patterns for AI code generation — just enough to know what exists, with links to full docs.'
 ---
 
-This page summarizes the patterns that matter most when generating Vertz code. Reading this first prevents the most common class of mistakes.
+Quick overview of Vertz patterns. Each section links to its full guide.
 
 ## Getting Started
 
-Install the `vtz` runtime, then scaffold a project:
+See [Installation](/installation) and [Quickstart](/quickstart).
 
 ```bash
-# Install vtz (macOS / Linux)
 curl -fsSL https://raw.githubusercontent.com/vertz-dev/vertz/main/install.sh | sh
-
-# Full-stack app (database + API + UI)
 vtz create vertz my-app
-
-# UI-only hello world (minimal starting point)
-vtz create hello-world my-app
-```
-
-Then install and run:
-
-```bash
-cd my-app
-vtz install
-vtz dev
+cd my-app && vtz install && vtz dev
 ```
 
 ## Data Fetching (UI)
 
+Vertz auto-generates a typed SDK at `.vertz/generated/client.ts`. Use `query()` with SDK methods for reactive data. See [Data Fetching](/guides/ui/data-fetching).
+
 <Warning>
-  **NEVER use raw `fetch()` to call your entity or service endpoints.** Vertz auto-generates a fully
-  typed SDK from your entity and service definitions at `.vertz/generated/client.ts`. Raw `fetch()`
-  bypasses type safety, SSR integration, caching, and optimistic updates. Always use the generated
-  SDK with `query()` and `form()`. The only exception is truly custom non-SDK endpoints — wrap those
-  in a `query()` thunk with a cache key.
+  **NEVER use raw `fetch()` for entity/service endpoints.** Always use the generated SDK with
+  `query()` and `form()`.
 </Warning>
-
-Vertz automatically generates a typed SDK at `.vertz/generated/client.ts` during development (`vertz dev`) and builds. Create a client wrapper, then pass SDK method calls to `query()` for reactive data. **Never pass raw entity name strings.**
-
-### Client setup
-
-Typically in `src/client.ts` (scaffolded automatically):
-
-```ts
-import { createClient } from '#generated';
-
-export const api = createClient();
-```
-
-The `#generated` import alias maps to `.vertz/generated/client.ts` (configured in `package.json`). The base URL defaults to `/api`.
-
-### Fetching data in components
 
 ```ts
 import { query } from 'vertz/ui';
-import { api } from '../client';
+import { api } from '../client'; // wraps createClient() from '#generated'
 
 const tasks = query(api.tasks.list());
 const task = query(api.tasks.get('task-123'));
-const filtered = query(api.tasks.list({ status: 'done', limit: 20 }));
 ```
 
-<Warning>
-Never pass raw strings to `query()`, and never use raw `fetch()`:
-
-```ts
-// WRONG — will not work
-query('tasks');
-query('tasks', { limit: 5 });
-fetch('/api/tasks').then((r) => r.json());
-
-// RIGHT — use the auto-generated SDK
-query(api.tasks.list());
-query(api.tasks.list({ limit: 5 }));
-```
-
-</Warning>
-
-For custom (non-SDK) endpoints, pass a thunk with a cache key:
-
-```ts
-const data = query(() => fetch('/custom/endpoint').then((r) => r.json()), {
-  key: 'my-custom-data',
-});
-```
-
-### List responses
-
-List responses use `ListResponse<T>` — access items via `tasks.data?.items`, total via `tasks.data?.total`, pagination via `tasks.data?.hasNextPage`.
-
-The shape is:
-
-```ts
-{
-  items: T[];
-  total: number;
-  limit: number;
-  nextCursor: string | null;
-  hasNextPage: boolean;
-}
-```
-
-### Query result properties
-
-Query results are reactive objects with `.data`, `.loading`, `.error`, `.revalidating`, `.idle` properties. Use them directly in JSX — the compiler handles reactivity.
+Query results are reactive objects with `.data`, `.loading`, `.error` properties. List responses have `.data.items`, `.data.total`, `.data.hasNextPage`.
 
 ## Forms (UI)
 
-`form()` works with **any `SdkMethod`** — entity CRUD, service actions, or custom endpoints. It is **not limited to entities**.
-
-Pass SDK methods to `form()` — **never raw strings or URLs**:
+`form()` works with any SDK method — entity CRUD, service actions, or custom endpoints. See [Forms](/guides/ui/forms).
 
 ```ts
 import { form } from 'vertz/ui';
 import { api } from '../client';
 
-// Entity CRUD
 const taskForm = form(api.tasks.create, { onSuccess });
-
-// Service action (non-entity)
-const contactForm = form(api.support.sendMessage, { onSuccess, resetOnSuccess: true });
 ```
 
-For custom (non-SDK) endpoints, create an `SdkMethod` manually and pass a `schema`:
-
-```ts
-import { s } from 'vertz/schema';
-
-const searchMethod = Object.assign(
-  async (body: { query: string; status: string }) => {
-    /* fetch logic returning { ok: true, data } */
-  },
-  { url: '/api/search', method: 'POST' },
-);
-
-const searchForm = form(searchMethod, {
-  schema: s.object({ query: s.string(), status: s.enum(['all', 'active', 'archived']) }),
-  initial: { query: '', status: 'all' },
-  onSuccess: (results) => {
-    /* handle results */
-  },
-});
-```
-
-Wire into JSX using `taskForm.action`, `taskForm.method`, `taskForm.onSubmit`. Input names: `<input name={taskForm.fields.title} />`. Per-field errors: `taskForm.title.error`. Per-field values: `taskForm.title.value`.
-
-Use `form()` when you need validation, field state, or progressive enhancement. For pure client-side state without submission (e.g., a filter toggle), `let` variables are simpler.
+Wire into JSX with `taskForm.action`, `taskForm.method`, `taskForm.onSubmit`. Per-field: `taskForm.fields.title` (name), `taskForm.title.error`, `taskForm.title.value`.
 
 ## Reactivity (UI)
 
-The Vertz compiler transforms plain TypeScript into fine-grained reactive updates:
+The compiler transforms plain TypeScript into fine-grained reactive updates. Components run once — no re-renders, no hooks. See [Reactivity](/guides/ui/reactivity).
 
-- `let count = 0` → signal. Assignments like `count++` trigger DOM updates.
-- `const doubled = count * 2` → computed. Auto-tracks signal dependencies.
-- JSX props with reactive expressions → getters. Parent changes propagate without re-running child components.
-
-Components run once to create the DOM. No re-renders, no hooks, no dependency arrays.
+- `let count = 0` → signal. Assignments trigger DOM updates.
+- `const doubled = count * 2` → computed. Auto-tracks dependencies.
+- JSX props with reactive expressions → getters. Changes propagate without re-running children.
 
 ## Styling (UI)
 
-Use `css()` for scoped styles with design tokens and `variants()` for parameterized styles:
+`css()` for scoped styles with design tokens, `variants()` for parameterized styles. See [Styling](/guides/ui/styling).
 
 ```ts
 import { css, variants } from 'vertz/ui';
 
-const styles = css({
-  card: ['bg:card', 'rounded:lg', 'p:4'],
-});
-
+const styles = css({ card: ['bg:card', 'rounded:lg', 'p:4'] });
 const button = variants({
   base: ['inline-flex', 'rounded:md'],
   variants: {
@@ -182,7 +75,7 @@ const button = variants({
 
 ## Entities (Server)
 
-Define entities with `entity()` — each generates CRUD endpoints with access control:
+`entity()` generates typed CRUD endpoints with access control. Routes are under `/api/` by default. See [Entities](/guides/server/entities).
 
 ```ts
 import { entity, rules } from 'vertz/server';
@@ -193,13 +86,11 @@ const tasks = entity('tasks', {
 });
 ```
 
-Access rules are required. Operations without access rules don't generate routes (deny-by-default).
-
-**Route prefix:** All entity routes are generated under `/api/` by default — e.g., `GET /api/tasks`, `POST /api/tasks`. Service routes follow the same pattern: `POST /api/{serviceName}/{actionName}`. The prefix is configurable via `apiPrefix` in `createServer()`.
+Access rules are required — operations without them don't generate routes (deny-by-default).
 
 ## Services (Server)
 
-Services generate SDK methods just like entities. Each service action becomes a typed method on the API client:
+`service()` generates typed SDK methods for non-CRUD actions. See [Services](/guides/server/services).
 
 ```ts
 import { service, rules } from 'vertz/server';
@@ -210,54 +101,26 @@ const notifications = service('notifications', {
   actions: {
     sendEmail: {
       body: s.object({ to: s.string().email(), subject: s.string(), body: s.string() }),
-      response: s.object({ id: s.string(), status: s.literal('sent') }),
       handler: async (input) => {
-        await emailService.send(input);
-        return { id: crypto.randomUUID(), status: 'sent' as const };
+        /* ... */
       },
     },
   },
 });
 ```
 
-The generated SDK provides `api.notifications.sendEmail(...)` — use it with `form()` or call it directly. See [Services](/guides/server/services) for full documentation.
-
 ## Domains (Server)
 
-Group related entities and services into bounded contexts with automatic route prefixing:
+`domain()` groups entities and services into bounded contexts with automatic route prefixing (e.g., `/api/billing/invoices`). See [Domains](/guides/server/domains).
 
 ```ts
-import { createServer, domain, entity } from 'vertz/server';
-
-const invoices = entity('invoices', {
-  model: invoicesModel,
-  access: { list: rules.authenticated() },
-});
-const payments = service('payments', {
-  /* ... */
-});
-
-const billing = domain('billing', {
-  entities: [invoices],
-  services: [payments],
-});
-
+const billing = domain('billing', { entities: [invoices], services: [payments] });
 const app = createServer({ domains: [billing], db });
 ```
 
-This generates routes prefixed with the domain name:
-
-```
-GET  /api/billing/invoices        → list
-GET  /api/billing/invoices/:id    → get
-POST /api/billing/payments/charge → action
-```
-
-Domains can have scoped middleware (runs only for routes in that domain), support cross-domain entity injection via `inject`, and validate against name collisions at startup. Tenant scoping works seamlessly inside domains.
-
 ## Schema (Database)
 
-Define tables with `d.table()` and models with `d.model()`:
+`d.table()` defines tables, `d.model()` creates the model for entities. See [Schema](/guides/db/schema).
 
 ```ts
 import { d } from 'vertz/db';
@@ -268,81 +131,28 @@ const tasksTable = d.table('tasks', {
   completed: d.boolean().default(false),
   createdAt: d.timestamp().default('now').readOnly(),
 });
-
 const tasksModel = d.model(tasksTable);
 ```
 
-Column annotations: `.hidden()` excludes from API responses, `.readOnly()` excludes from create/update inputs, `.default(value)` makes the field optional on create.
+Column annotations: `.hidden()` (exclude from API), `.readOnly()` (exclude from inputs), `.default()` (optional on create).
 
 ## Testing (Server)
 
-Use `createTestClient()` for type-safe server integration tests. Pass your server instance — get back a client with typed entity and service proxies:
+`createTestClient()` provides type-safe server integration tests. See [Testing](/guides/testing-server).
 
 ```ts
 import { createTestClient } from '@vertz/testing';
-import { createServer } from '@vertz/server';
 
-const server = createServer({ entities: [tasksEntity], services: [healthService], db });
 const client = createTestClient(server);
-```
-
-### Entity proxy
-
-```ts
 const tasks = client.entity(tasksEntity);
-
 const created = await tasks.create({ title: 'Buy milk' });
-const list = await tasks.list({ where: { completed: false }, limit: 10 });
-const item = await tasks.get(created.body.id);
-const updated = await tasks.update(created.body.id, { completed: true });
-await tasks.delete(created.body.id);
 ```
 
-### Service proxy
-
-```ts
-const health = client.service(healthService);
-const result = await health.check();
-```
-
-### Response handling
-
-Every method returns `TestResponse<T>` — a discriminated union on `ok`:
-
-```ts
-const result = await tasks.get('some-id');
-if (result.ok) {
-  result.body.title; // typed to $response
-} else {
-  result.body.message; // ErrorBody { error, message, statusCode, details? }
-}
-```
-
-### Auth headers
-
-```ts
-const authed = client.withHeaders({ authorization: 'Bearer token' });
-await authed.entity(tasksEntity).list();
-```
-
-<Warning>
-Don't use raw `server.handler(new Request(...))` with manual casts. Use `createTestClient()` for full type safety:
-
-```ts
-// WRONG — no type safety
-const res = await server.handler(new Request('http://localhost/api/tasks'));
-const body = (await res.json()) as Task[];
-
-// RIGHT — fully typed
-const res = await client.entity(tasksEntity).list();
-res.body.items; // typed array
-```
-
-</Warning>
+All methods return `TestResponse<T>` — discriminated union on `ok`. Use `client.withHeaders()` for auth.
 
 ## Agents
 
-Define AI agents with typed tools and run them via a ReAct loop:
+`agent()` defines AI agents with typed tools, `run()` executes via a ReAct loop. See [Agents](/guides/agents/overview).
 
 ```ts
 import { agent, tool, run, createAdapter } from '@vertz/agents';
@@ -358,57 +168,10 @@ const searchTool = tool({
 });
 
 const assistant = agent('assistant', {
-  state: s.object({}),
-  initialState: {},
   tools: { search: searchTool },
   model: { provider: 'openai', model: 'gpt-4o' },
 });
-
-const llm = createAdapter({ provider: 'openai' });
 const result = await run(assistant, { message: 'Find docs about auth', llm });
 ```
 
-### Workflows
-
-Coordinate multiple agents into sequential pipelines with approval gates:
-
-```ts
-import { workflow, step, runWorkflow } from '@vertz/agents';
-
-const pipeline = workflow('review-pipeline', {
-  input: s.object({ docPath: s.string() }),
-  steps: [
-    step('review', {
-      agent: reviewerAgent,
-      input: (ctx) => `Review: ${ctx.workflow.input.docPath}`,
-      output: s.object({ approved: s.boolean() }),
-    }),
-    step('human-approval', {
-      approval: { message: 'Review complete. Approve to publish.' },
-    }),
-    step('publish', {
-      agent: publisherAgent,
-      input: (ctx) => `Publish: ${ctx.workflow.input.docPath}`,
-    }),
-  ],
-});
-
-const result = await runWorkflow(pipeline, { input: { docPath: '/api.md' }, llm });
-// result.status: 'complete' | 'error' | 'pending'
-```
-
-### Agent-to-agent invocation
-
-Tools can invoke other agents via `ctx.agents.invoke()`:
-
-```ts
-const delegateTool = tool({
-  description: 'Delegate to specialist',
-  input: s.object({ task: s.string() }),
-  output: s.object({ result: s.string() }),
-  async handler(input, ctx) {
-    const r = await ctx.agents.invoke(specialistAgent, { message: input.task });
-    return { result: r.response };
-  },
-});
-```
+`workflow()` coordinates agents into pipelines with approval gates. `ctx.agents.invoke()` enables agent-to-agent delegation. See [Workflows](/guides/agents/workflows).
