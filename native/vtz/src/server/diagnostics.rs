@@ -23,6 +23,23 @@ pub struct DiagnosticsSnapshot {
     pub version: String,
     /// Audit log summary statistics.
     pub audit_log: AuditSummary,
+    /// SSR pool metrics (present when pool is active).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub ssr_pool: Option<SsrPoolDiagnostics>,
+}
+
+/// SSR pool diagnostics snapshot.
+#[derive(Debug, Clone, Serialize)]
+pub struct SsrPoolDiagnostics {
+    pub status: String,
+    pub pool_size: usize,
+    pub native_signals: bool,
+    pub active_requests: u64,
+    pub queued_requests: u64,
+    pub completed_requests: u64,
+    pub avg_render_time_ms: f64,
+    pub p99_render_time_ms: f64,
+    pub isolate_memory_mb: Vec<f64>,
 }
 
 /// Compilation cache statistics.
@@ -56,6 +73,7 @@ pub async fn collect_diagnostics(
     hmr_hub: &HmrHub,
     error_broadcaster: &ErrorBroadcaster,
     audit_log: &AuditLog,
+    ssr_pool: Option<&crate::ssr::pool::SsrPool>,
 ) -> DiagnosticsSnapshot {
     let uptime = start_time.elapsed().as_secs();
 
@@ -76,6 +94,23 @@ pub async fn collect_diagnostics(
         }
     };
 
+    let pool_diag = ssr_pool.map(|pool| {
+        use std::sync::atomic::Ordering;
+        let metrics = pool.metrics();
+        let max_concurrent = pool.config().max_concurrent_requests as u64;
+        SsrPoolDiagnostics {
+            status: metrics.status(max_concurrent).as_str().to_string(),
+            pool_size: pool.pool_size(),
+            native_signals: false, // Phase 4.2 will set this to true
+            active_requests: metrics.active_requests.load(Ordering::Relaxed),
+            queued_requests: metrics.queued_requests.load(Ordering::Relaxed),
+            completed_requests: metrics.completed_requests.load(Ordering::Relaxed),
+            avg_render_time_ms: metrics.avg_render_time_ms(),
+            p99_render_time_ms: metrics.p99_render_time_ms(),
+            isolate_memory_mb: pool.isolate_memory_mb(),
+        }
+    });
+
     DiagnosticsSnapshot {
         uptime_secs: uptime,
         cache: CacheStats {
@@ -91,6 +126,7 @@ pub async fn collect_diagnostics(
         errors,
         version: env!("CARGO_PKG_VERSION").to_string(),
         audit_log: audit_log.summary(),
+        ssr_pool: pool_diag,
     }
 }
 
@@ -115,6 +151,7 @@ mod tests {
             &hmr_hub,
             &error_broadcaster,
             &AuditLog::default(),
+            None,
         )
         .await;
 
@@ -150,6 +187,7 @@ mod tests {
             &hmr_hub,
             &error_broadcaster,
             &AuditLog::default(),
+            None,
         )
         .await;
 
@@ -175,6 +213,7 @@ mod tests {
             &hmr_hub,
             &error_broadcaster,
             &AuditLog::default(),
+            None,
         )
         .await;
 
@@ -195,6 +234,7 @@ mod tests {
             errors: vec![],
             version: "0.1.0".to_string(),
             audit_log: AuditLog::default().summary(),
+            ssr_pool: None,
         };
 
         let json = serde_json::to_string(&snap).unwrap();

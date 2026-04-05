@@ -441,6 +441,7 @@ pub(crate) async fn execute_tool(
                 &state.hmr_hub,
                 &state.error_broadcaster,
                 &state.audit_log,
+                state.ssr_pool.as_deref(),
             )
             .await;
 

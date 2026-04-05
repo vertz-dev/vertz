@@ -722,6 +722,7 @@ async fn diagnostics_handler(
         &state.hmr_hub,
         &state.error_broadcaster,
         &state.audit_log,
+        state.ssr_pool.as_deref(),
     )
     .await;
 
