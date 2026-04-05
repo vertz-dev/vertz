@@ -948,6 +948,9 @@ const SSR_RESET_JS: &str = r#"
 
     // Clear any previous render result
     delete globalThis.__vertz_last_ssr_result;
+
+    // Clear session from previous request to prevent cross-request leakage
+    delete globalThis.__vertz_session;
 })()
 "#;
 
@@ -1882,6 +1885,64 @@ mod tests {
             .await
             .unwrap();
         assert!(resp.content.contains("User: user-123"));
+    }
+
+    #[tokio::test]
+    async fn test_ssr_session_cleared_between_requests() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let app_path = temp_dir.path().join("app.js");
+        std::fs::write(
+            &app_path,
+            r#"
+            globalThis.__vertz_ssr_render = function(url) {
+                const session = globalThis.__vertz_session || {};
+                const user = session.userId || 'anonymous';
+                return '<div>User: ' + user + '</div>';
+            };
+            "#,
+        )
+        .unwrap();
+
+        let opts = PersistentIsolateOptions {
+            root_dir: temp_dir.path().to_path_buf(),
+            ssr_entry: app_path,
+            server_entry: None,
+            channel_capacity: 16,
+            auto_installer: None,
+        };
+
+        let isolate = PersistentIsolate::new(opts).unwrap();
+        wait_for_init(&isolate).await;
+
+        // Request A: authenticated — sets __vertz_session
+        let resp_a = isolate
+            .handle_ssr(SsrRequest {
+                cookies: None,
+                url: "/profile".to_string(),
+                session_json: Some(r#"{"userId":"user-123"}"#.to_string()),
+            })
+            .await
+            .unwrap();
+        assert!(
+            resp_a.content.contains("User: user-123"),
+            "Request A should see authenticated user: {}",
+            resp_a.content
+        );
+
+        // Request B: unauthenticated — no session_json
+        let resp_b = isolate
+            .handle_ssr(SsrRequest {
+                cookies: None,
+                url: "/home".to_string(),
+                session_json: None,
+            })
+            .await
+            .unwrap();
+        assert!(
+            resp_b.content.contains("User: anonymous"),
+            "Request B should NOT see session from request A: {}",
+            resp_b.content
+        );
     }
 
     // ── Phase 3: Fetch interception tests ──────────────────────────────
