@@ -417,93 +417,91 @@ ${modulepreloadLinks}
               // If all routes were removed, skip bundling
               const remainingRoutes = Object.keys(routeMap).length;
               if (remainingRoutes === 0 && !appEntry) {
-                console.log(
-                  '  No AOT-eligible routes remaining after JSX validation',
-                );
+                console.log('  No AOT-eligible routes remaining after JSX validation');
                 const manifestPath = resolve(distServer, 'aot-manifest.json');
                 writeFileSync(
                   manifestPath,
                   JSON.stringify({ components: aotManifest.components }, null, 2),
                 );
               } else {
-              const aotTmpDir = resolve(distServer, '.aot-tmp');
-              mkdirSync(aotTmpDir, { recursive: true });
+                const aotTmpDir = resolve(distServer, '.aot-tmp');
+                mkdirSync(aotTmpDir, { recursive: true });
 
-              // Write compiled files
-              for (const [fileName, code] of Object.entries(barrel.files)) {
-                writeFileSync(resolve(aotTmpDir, fileName), code);
-              }
-
-              // Write barrel entry
-              const barrelPath = resolve(aotTmpDir, 'aot-barrel.ts');
-              writeFileSync(barrelPath, barrel.barrelSource);
-
-              // Relative imports (../lib/db, ./utils) must be externalized
-              // because compiled files are copied to .aot-tmp/ where relative
-              // paths no longer resolve. The barrel's own ./imports to temp files
-              // are excluded so they still resolve within .aot-tmp/.
-              const externalizeRelativePlugin = {
-                name: 'externalize-relative',
-                setup(build: {
-                  onResolve(
-                    opts: { filter: RegExp },
-                    cb: (args: {
-                      path: string;
-                      importer: string;
-                    }) => { path: string; external: true } | undefined,
-                  ): void;
-                }) {
-                  build.onResolve({ filter: /^\.\.?\// }, (args) => {
-                    if (args.importer === barrelPath) return undefined;
-                    return { path: args.path, external: true };
-                  });
-                },
-              };
-
-              const bundleResult = await Bun.build({
-                entrypoints: [barrelPath],
-                plugins: [externalizeRelativePlugin, aotJsxStubPlugin],
-                target: 'bun',
-                format: 'esm',
-                outdir: distServer,
-                naming: 'aot-routes.[ext]',
-                external: ['@vertz/ui-server', '@vertz/ui', '@vertz/ui/internals'],
-              });
-
-              // Clean up temp dir
-              rmSync(aotTmpDir, { recursive: true, force: true });
-
-              if (bundleResult.success) {
-                const appLabel = appEntry ? ' + app shell' : '';
-                console.log(
-                  `  AOT routes: ${remainingRoutes} route(s)${appLabel} bundled → dist/server/aot-routes.js`,
-                );
-
-                // Write aot-manifest.json — per-route CSS is embedded in each route entry (#1988)
-                const manifestPath = resolve(distServer, 'aot-manifest.json');
-                const manifestData: Record<string, unknown> = { routes: routeMap };
-                if (appEntry) manifestData.app = appEntry;
-                writeFileSync(manifestPath, JSON.stringify(manifestData, null, 2));
-              } else {
-                const errors = bundleResult.logs
-                  .map((l: { message: string }) => l.message)
-                  .join('\n');
-                console.log(`  ⚠ AOT routes bundle failed:`);
-                if (errors) {
-                  for (const line of errors.split('\n')) {
-                    console.log(`    ${line}`);
-                  }
-                } else {
-                  console.log('    No detailed error info from Bun.build()');
-                  console.log(`    Entry: ${barrelPath}`);
+                // Write compiled files
+                for (const [fileName, code] of Object.entries(barrel.files)) {
+                  writeFileSync(resolve(aotTmpDir, fileName), code);
                 }
-                // Still write classification-only manifest
-                const manifestPath = resolve(distServer, 'aot-manifest.json');
-                writeFileSync(
-                  manifestPath,
-                  JSON.stringify({ components: aotManifest.components }, null, 2),
-                );
-              }
+
+                // Write barrel entry
+                const barrelPath = resolve(aotTmpDir, 'aot-barrel.ts');
+                writeFileSync(barrelPath, barrel.barrelSource);
+
+                // Relative imports (../lib/db, ./utils) must be externalized
+                // because compiled files are copied to .aot-tmp/ where relative
+                // paths no longer resolve. The barrel's own ./imports to temp files
+                // are excluded so they still resolve within .aot-tmp/.
+                const externalizeRelativePlugin = {
+                  name: 'externalize-relative',
+                  setup(build: {
+                    onResolve(
+                      opts: { filter: RegExp },
+                      cb: (args: {
+                        path: string;
+                        importer: string;
+                      }) => { path: string; external: true } | undefined,
+                    ): void;
+                  }) {
+                    build.onResolve({ filter: /^\.\.?\// }, (args) => {
+                      if (args.importer === barrelPath) return undefined;
+                      return { path: args.path, external: true };
+                    });
+                  },
+                };
+
+                const bundleResult = await Bun.build({
+                  entrypoints: [barrelPath],
+                  plugins: [externalizeRelativePlugin, aotJsxStubPlugin],
+                  target: 'bun',
+                  format: 'esm',
+                  outdir: distServer,
+                  naming: 'aot-routes.[ext]',
+                  external: ['@vertz/ui-server', '@vertz/ui', '@vertz/ui/internals'],
+                });
+
+                // Clean up temp dir
+                rmSync(aotTmpDir, { recursive: true, force: true });
+
+                if (bundleResult.success) {
+                  const appLabel = appEntry ? ' + app shell' : '';
+                  console.log(
+                    `  AOT routes: ${remainingRoutes} route(s)${appLabel} bundled → dist/server/aot-routes.js`,
+                  );
+
+                  // Write aot-manifest.json — per-route CSS is embedded in each route entry (#1988)
+                  const manifestPath = resolve(distServer, 'aot-manifest.json');
+                  const manifestData: Record<string, unknown> = { routes: routeMap };
+                  if (appEntry) manifestData.app = appEntry;
+                  writeFileSync(manifestPath, JSON.stringify(manifestData, null, 2));
+                } else {
+                  const errors = bundleResult.logs
+                    .map((l: { message: string }) => l.message)
+                    .join('\n');
+                  console.log(`  ⚠ AOT routes bundle failed:`);
+                  if (errors) {
+                    for (const line of errors.split('\n')) {
+                      console.log(`    ${line}`);
+                    }
+                  } else {
+                    console.log('    No detailed error info from Bun.build()');
+                    console.log(`    Entry: ${barrelPath}`);
+                  }
+                  // Still write classification-only manifest
+                  const manifestPath = resolve(distServer, 'aot-manifest.json');
+                  writeFileSync(
+                    manifestPath,
+                    JSON.stringify({ components: aotManifest.components }, null, 2),
+                  );
+                }
               } // end of else (remainingRoutes > 0 || appEntry)
             } else {
               console.log('  No AOT-eligible routes found (all runtime-fallback)');
