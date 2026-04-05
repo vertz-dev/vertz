@@ -834,10 +834,12 @@ describe('AuthProvider', () => {
         signIn: undefined,
         signUp: undefined,
         signOut: mock(async () => ok<unknown, Error>({ ok: true })),
-        refresh: mock(async () => ok<AuthResponse, Error>({
-          user: { id: '1', email: 'a@b.com', role: 'user' },
-          expiresAt: Date.now() + 60_000,
-        })),
+        refresh: mock(async () =>
+          ok<AuthResponse, Error>({
+            user: { id: '1', email: 'a@b.com', role: 'user' },
+            expiresAt: Date.now() + 60_000,
+          }),
+        ),
       } as unknown as AuthSdk;
 
       const auth = captureAuth({ auth: partialSdk });
@@ -854,10 +856,12 @@ describe('AuthProvider', () => {
         signIn: undefined,
         signUp: undefined,
         signOut: mock(async () => ok<unknown, Error>({ ok: true })),
-        refresh: mock(async () => ok<AuthResponse, Error>({
-          user: { id: '1', email: 'a@b.com', role: 'user' },
-          expiresAt: Date.now() + 60_000,
-        })),
+        refresh: mock(async () =>
+          ok<AuthResponse, Error>({
+            user: { id: '1', email: 'a@b.com', role: 'user' },
+            expiresAt: Date.now() + 60_000,
+          }),
+        ),
       } as unknown as AuthSdk;
 
       const auth = captureAuth({ auth: partialSdk });
