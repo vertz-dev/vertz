@@ -263,6 +263,7 @@ export { domain } from './domain';
 export type {
   AccessRule,
   BaseContext,
+  ContextFeatures,
   CrudHandlers,
   CrudResult,
   EntityActionDef,
@@ -277,13 +278,17 @@ export type {
   EntityRouteOptions,
   EntitySchemaObject,
   ExposeConfig,
+  FullFeatures,
   JSONSchemaObject,
   ListOptions,
   ListResult,
+  MultiLevelTenantContext,
+  NoFeatures,
   OpenAPISpecOptions,
   ServiceDefForOpenAPI,
   RelationExposeConfig,
   RequestInfo,
+  TenantContext,
   TenantChain,
   TenantChainHop,
 } from './entity';
@@ -319,3 +324,11 @@ export { service } from './service';
 // Action helper — typed action definitions
 export type { ActionDef, ActionDefNoBody } from './action';
 export { action } from './action';
+// typed() factory — narrowed entity/service with compile-time feature flags
+export { typed } from './typed';
+export type {
+  InferFeatures,
+  InferServerContext,
+  InferServerFeatures,
+  TypedFactories,
+} from './typed';

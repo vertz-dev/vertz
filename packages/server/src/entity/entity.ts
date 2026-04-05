@@ -1,6 +1,13 @@
 import { deepFreeze } from '@vertz/core';
 import type { ModelDef, RelationDef } from '@vertz/db';
-import type { EntityActionDef, EntityConfig, EntityContext, EntityDefinition } from './types';
+import type {
+  ContextFeatures,
+  EntityActionDef,
+  EntityConfig,
+  EntityContext,
+  EntityDefinition,
+  FullFeatures,
+} from './types';
 
 const ENTITY_NAME_PATTERN = /^[a-z][a-z0-9-]*$/;
 
@@ -25,9 +32,10 @@ export function entity<
     EntityActionDef<any, any, TModel['table']['$response'], EntityContext<TModel, TInject>>
     // eslint-disable-next-line @typescript-eslint/no-empty-object-type -- {} represents an empty actions record
   > = {},
+  TFeatures extends ContextFeatures = FullFeatures,
 >(
   name: string,
-  config: EntityConfig<TModel, TActions, TInject>,
+  config: EntityConfig<TModel, TActions, TInject, TFeatures>,
 ): EntityDefinition<TModel, TActions> {
   if (!name || !ENTITY_NAME_PATTERN.test(name)) {
     throw new Error(
