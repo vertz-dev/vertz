@@ -1,5 +1,5 @@
 use std::net::TcpListener as StdTcpListener;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -38,7 +38,6 @@ pub fn http_client() -> reqwest::Client {
 
 /// Shutdown handle — cleans up the dev server on drop.
 /// Exposes `state` for tests that need direct access (e.g., HMR broadcast).
-#[allow(dead_code)] // state is used by later phases (HMR, diagnostics)
 pub struct ShutdownHandle {
     shutdown_tx: Option<tokio::sync::oneshot::Sender<()>>,
     pub state: Arc<DevServerState>,
@@ -108,6 +107,28 @@ pub async fn start_dev_server_with(
             state,
         },
     )
+}
+
+/// Copy a fixture directory to a destination (e.g., tempdir).
+/// Used for tests that modify fixture files (e.g., FileWatcher tests).
+#[allow(dead_code)]
+pub fn copy_fixture(fixture: &str, dest: &Path) {
+    let src = fixture_path(fixture);
+    copy_dir_recursive(&src, dest);
+}
+
+fn copy_dir_recursive(src: &Path, dst: &Path) {
+    std::fs::create_dir_all(dst).unwrap();
+    for entry in std::fs::read_dir(src).unwrap() {
+        let entry = entry.unwrap();
+        let src_path = entry.path();
+        let dst_path = dst.join(entry.file_name());
+        if src_path.is_dir() {
+            copy_dir_recursive(&src_path, &dst_path);
+        } else {
+            std::fs::copy(&src_path, &dst_path).unwrap();
+        }
+    }
 }
 
 /// Poll `GET /` until the server responds, or panic after timeout.
