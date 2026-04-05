@@ -19,6 +19,9 @@ use crate::server::module_server::DevServerState;
 /// Maximum allowed dimension (width or height) in pixels.
 pub const MAX_DIMENSION: u32 = 8192;
 
+/// Maximum allowed source file size in bytes (50 MB).
+pub const MAX_SOURCE_FILE_SIZE: u64 = 50 * 1024 * 1024;
+
 // ---------------------------------------------------------------------------
 // Output format
 // ---------------------------------------------------------------------------
@@ -119,6 +122,9 @@ pub enum ImageProxyError {
     #[error("Failed to encode image: {0}")]
     Encode(String),
 
+    #[error("Source file too large ({0} bytes, max {MAX_SOURCE_FILE_SIZE})")]
+    FileTooLarge(u64),
+
     #[error("At least one of w, h, or format must be specified")]
     NothingToDo,
 }
@@ -128,6 +134,7 @@ impl ImageProxyError {
         match self {
             Self::NotFound(_) => StatusCode::NOT_FOUND,
             Self::Decode(_) | Self::Encode(_) => StatusCode::INTERNAL_SERVER_ERROR,
+            Self::FileTooLarge(_) => StatusCode::PAYLOAD_TOO_LARGE,
             _ => StatusCode::BAD_REQUEST,
         }
     }
@@ -246,22 +253,25 @@ fn parse_query(query: &str) -> QueryParams {
 }
 
 /// Simple percent-decoding for URL path segments.
+/// Accumulates decoded bytes and performs a final UTF-8 conversion,
+/// correctly handling multi-byte sequences like `%C3%A9` → `é`.
 fn percent_decode(input: &str) -> String {
-    let mut result = String::with_capacity(input.len());
+    let mut bytes_out = Vec::with_capacity(input.len());
     let bytes = input.as_bytes();
     let mut i = 0;
     while i < bytes.len() {
         if bytes[i] == b'%' && i + 2 < bytes.len() {
             if let Ok(byte) = u8::from_str_radix(&input[i + 1..i + 3], 16) {
-                result.push(byte as char);
+                bytes_out.push(byte);
                 i += 3;
                 continue;
             }
         }
-        result.push(bytes[i] as char);
+        bytes_out.push(bytes[i]);
         i += 1;
     }
-    result
+    String::from_utf8(bytes_out)
+        .unwrap_or_else(|_| String::from_utf8_lossy(input.as_bytes()).into_owned())
 }
 
 // ---------------------------------------------------------------------------
@@ -318,6 +328,9 @@ fn encode_image(
                 .map_err(|e| ImageProxyError::Encode(e.to_string()))?;
         }
         OutputFormat::WebP => {
+            // The `image` crate's built-in WebP encoder is lossless-only (no quality control).
+            // The `quality` param is accepted but not applied for WebP.
+            // Lossy WebP encoding would require the `webp` crate (libwebp bindings).
             img.write_to(&mut buf, ImageFormat::WebP)
                 .map_err(|e| ImageProxyError::Encode(e.to_string()))?;
         }
@@ -404,6 +417,10 @@ pub async fn handle_image_request(
             ))
         }
     };
+    let file_size = metadata.len();
+    if file_size > MAX_SOURCE_FILE_SIZE {
+        return json_error(&ImageProxyError::FileTooLarge(file_size));
+    }
     let source_mtime = metadata
         .modified()
         .unwrap_or(std::time::SystemTime::UNIX_EPOCH);
@@ -657,6 +674,14 @@ mod tests {
         );
     }
 
+    #[test]
+    fn error_status_code_payload_too_large() {
+        assert_eq!(
+            ImageProxyError::FileTooLarge(100_000_000).status_code(),
+            StatusCode::PAYLOAD_TOO_LARGE
+        );
+    }
+
     // --- ImageRequest::parse tests ---
 
     #[test]
@@ -669,6 +694,16 @@ mod tests {
         assert_eq!(req.format, Some(OutputFormat::WebP));
         assert_eq!(req.quality, 75);
         assert_eq!(req.fit, ResizeFit::Contain);
+    }
+
+    #[test]
+    fn parse_height_only() {
+        let req = ImageRequest::parse("hero.png", Some("h=300")).unwrap();
+        assert_eq!(req.width, None);
+        assert_eq!(req.height, Some(300));
+        assert_eq!(req.format, None);
+        assert_eq!(req.quality, 80);
+        assert_eq!(req.fit, ResizeFit::Cover);
     }
 
     #[test]
@@ -801,6 +836,12 @@ mod tests {
         );
     }
 
+    #[test]
+    fn percent_decode_multibyte_utf8() {
+        // %C3%A9 is the UTF-8 encoding of 'é' (U+00E9)
+        assert_eq!(percent_decode("caf%C3%A9.png"), "café.png");
+    }
+
     // --- parse_query tests ---
 
     #[test]
@@ -849,6 +890,23 @@ mod tests {
         let decoded = image::load_from_memory(&result).unwrap();
         assert_eq!(decoded.width(), 100);
         assert_eq!(decoded.height(), 50); // aspect ratio preserved
+    }
+
+    #[test]
+    fn process_image_resize_height_only() {
+        let png = create_test_png(200, 100);
+        let result = process_image(
+            &png,
+            None,
+            Some(50),
+            OutputFormat::Png,
+            80,
+            ResizeFit::Cover,
+        )
+        .unwrap();
+        let decoded = image::load_from_memory(&result).unwrap();
+        assert_eq!(decoded.height(), 50);
+        assert_eq!(decoded.width(), 100); // aspect ratio preserved
     }
 
     #[test]

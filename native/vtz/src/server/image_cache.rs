@@ -32,12 +32,16 @@ impl CacheKey {
 
         let mut hasher = Sha256::new();
         hasher.update(source_path.to_string_lossy().as_bytes());
+        hasher.update([0u8]); // delimiter between variable-length fields
         hasher.update(mtime_nanos.to_le_bytes());
-        hasher.update(width.unwrap_or(0).to_le_bytes());
-        hasher.update(height.unwrap_or(0).to_le_bytes());
+        // Use a sentinel value (u32::MAX) for None to distinguish from Some(0).
+        hasher.update(width.unwrap_or(u32::MAX).to_le_bytes());
+        hasher.update(height.unwrap_or(u32::MAX).to_le_bytes());
         hasher.update(format_ext.as_bytes());
+        hasher.update([0u8]); // delimiter
         hasher.update([quality]);
         hasher.update(fit.as_bytes());
+        hasher.update([0u8]); // delimiter
 
         let hash = format!("{:x}", hasher.finalize());
 
@@ -182,6 +186,30 @@ mod tests {
     }
 
     #[test]
+    fn cache_key_different_height_different_hash() {
+        let mtime = SystemTime::UNIX_EPOCH + Duration::from_secs(1000);
+        let k1 = CacheKey::compute(
+            Path::new("hero.png"),
+            mtime,
+            Some(800),
+            Some(600),
+            "webp",
+            80,
+            "cover",
+        );
+        let k2 = CacheKey::compute(
+            Path::new("hero.png"),
+            mtime,
+            Some(800),
+            Some(400),
+            "webp",
+            80,
+            "cover",
+        );
+        assert_ne!(k1.hash, k2.hash);
+    }
+
+    #[test]
     fn cache_key_different_quality_different_hash() {
         let mtime = SystemTime::UNIX_EPOCH + Duration::from_secs(1000);
         let k1 = CacheKey::compute(
@@ -292,6 +320,16 @@ mod tests {
         let filename = key.filename();
         assert!(filename.ends_with(".webp"));
         assert_eq!(filename.len(), 64 + 1 + 4); // hash.webp
+    }
+
+    #[test]
+    fn cache_key_no_collision_between_adjacent_variable_fields() {
+        // Ensure path="ab" + format="cde" differs from path="abc" + format="de"
+        // (null delimiters prevent concatenation collision).
+        let mtime = SystemTime::UNIX_EPOCH + Duration::from_secs(1000);
+        let k1 = CacheKey::compute(Path::new("ab"), mtime, Some(800), None, "cde", 80, "cover");
+        let k2 = CacheKey::compute(Path::new("abc"), mtime, Some(800), None, "de", 80, "cover");
+        assert_ne!(k1.hash, k2.hash);
     }
 
     // --- ImageCache tests ---
