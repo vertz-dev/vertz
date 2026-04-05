@@ -346,6 +346,13 @@ impl VertzModuleLoader {
             (parts[0].to_string(), parts.get(1).map(|s| s.to_string()))
         };
 
+        // Check for self-referencing import (e.g., @vertz/ui imported from within packages/ui/)
+        if let Some(resolved) =
+            self.try_resolve_self_reference(&package_name, subpath.as_deref(), start_dir)?
+        {
+            return Ok(resolved);
+        }
+
         // Walk up from referrer's directory looking for node_modules (Node.js-style)
         let mut search_dir = start_dir.to_path_buf();
         loop {
@@ -387,6 +394,103 @@ impl VertzModuleLoader {
             specifier,
             MISSING_MODULE_SUFFIX,
             start_dir.display()
+        ))
+    }
+
+    /// Detect and resolve self-referencing package imports.
+    ///
+    /// Walks up from `start_dir` looking for a `package.json` whose `name` matches
+    /// `package_name`. If found, resolves the entry point — preferring dist/ if it
+    /// exists, otherwise mapping the exports path to source files.
+    fn try_resolve_self_reference(
+        &self,
+        package_name: &str,
+        subpath: Option<&str>,
+        start_dir: &Path,
+    ) -> Result<Option<PathBuf>, AnyError> {
+        let mut search_dir = start_dir.to_path_buf();
+        loop {
+            let pkg_json_path = search_dir.join("package.json");
+            if pkg_json_path.is_file() {
+                if let Ok(content) = std::fs::read_to_string(&pkg_json_path) {
+                    if let Ok(pkg) = serde_json::from_str::<serde_json::Value>(&content) {
+                        if let Some(name) = pkg.get("name").and_then(|v| v.as_str()) {
+                            if name == package_name {
+                                // Self-reference detected — try dist first, then source
+                                if let Ok(resolved) =
+                                    self.resolve_package_entry(&search_dir, subpath)
+                                {
+                                    return Ok(Some(resolved));
+                                }
+                                return self
+                                    .resolve_self_reference_source(&search_dir, &pkg, subpath)
+                                    .map(Some);
+                            }
+                        }
+                    }
+                }
+            }
+            if !search_dir.pop() {
+                break;
+            }
+        }
+        Ok(None)
+    }
+
+    /// Resolve a self-referencing import to source files when dist/ doesn't exist.
+    ///
+    /// Uses the `exports` field to find the dist path, strips the `dist/` prefix,
+    /// and resolves the resulting source path with extension inference.
+    fn resolve_self_reference_source(
+        &self,
+        pkg_dir: &Path,
+        pkg: &serde_json::Value,
+        subpath: Option<&str>,
+    ) -> Result<PathBuf, AnyError> {
+        let export_key = match subpath {
+            Some(sub) => format!("./{}", sub),
+            None => ".".to_string(),
+        };
+
+        // Try to map the exports path to a source path
+        if let Some(exports) = pkg.get("exports") {
+            if let Some(entry) = resolve_exports_entry(exports, &export_key) {
+                let trimmed = entry.trim_start_matches("./");
+                // Strip dist/ prefix to get source-relative path
+                if let Some(source_rel) = trimmed.strip_prefix("dist/") {
+                    let source_candidate = pkg_dir.join(source_rel);
+                    if let Ok(resolved) = self.resolve_with_extensions(&source_candidate) {
+                        return Ok(resolved);
+                    }
+                }
+            }
+        }
+
+        // Last resort: resolve directly under src/
+        let src_target = match subpath {
+            Some(sub) => pkg_dir.join("src").join(sub),
+            None => pkg_dir.join("src").join("index"),
+        };
+        if let Ok(resolved) = self.resolve_with_extensions(&src_target) {
+            return Ok(resolved);
+        }
+
+        let display_specifier = match subpath {
+            Some(sub) => format!(
+                "{}/{}",
+                pkg.get("name").and_then(|v| v.as_str()).unwrap_or("?"),
+                sub
+            ),
+            None => pkg
+                .get("name")
+                .and_then(|v| v.as_str())
+                .unwrap_or("?")
+                .to_string(),
+        };
+        Err(deno_core::anyhow::anyhow!(
+            "Cannot resolve self-reference '{}' in package at {}",
+            display_specifier,
+            pkg_dir.display()
         ))
     }
 
@@ -2723,5 +2827,202 @@ export function Hello() {
     #[test]
     fn test_build_newline_index_only_newlines() {
         assert_eq!(build_newline_index("\n\n\n"), vec![0, 1, 2]);
+    }
+
+    // --- Self-referencing package imports (#2145) ---
+
+    #[test]
+    fn test_self_reference_main_entry_resolves_to_source() {
+        // Given a workspace package with exports pointing to dist/
+        // When a test file inside the package imports its own package name
+        // Then it resolves to the source entry point (not dist)
+        let tmp = create_temp_dir();
+
+        // Create the package structure (no dist/ built)
+        let pkg_dir = tmp.path().join("packages").join("my-lib");
+        let src_dir = pkg_dir.join("src");
+        std::fs::create_dir_all(&src_dir).unwrap();
+
+        let src_entry = src_dir.join("index.ts");
+        std::fs::write(&src_entry, "export const x = 1;").unwrap();
+
+        std::fs::write(
+            pkg_dir.join("package.json"),
+            r#"{ "name": "@scope/my-lib", "exports": { ".": { "import": "./dist/src/index.js" } } }"#,
+        )
+        .unwrap();
+
+        // Create a test file inside the package
+        let test_dir = src_dir.join("__tests__");
+        std::fs::create_dir_all(&test_dir).unwrap();
+        let test_file = test_dir.join("foo.test.ts");
+        std::fs::write(&test_file, "import '@scope/my-lib';").unwrap();
+
+        let loader = VertzModuleLoader::new(&tmp.path().to_string_lossy(), test_plugin());
+        let referrer = ModuleSpecifier::from_file_path(&test_file).unwrap();
+        let result = loader.resolve("@scope/my-lib", referrer.as_str(), ResolutionKind::Import);
+
+        assert!(
+            result.is_ok(),
+            "Self-reference should resolve: {:?}",
+            result
+        );
+        assert_eq!(result.unwrap().to_file_path().unwrap(), canon(&src_entry));
+    }
+
+    #[test]
+    fn test_self_reference_subpath_resolves_to_source() {
+        // Given a workspace package with subpath exports pointing to dist/
+        // When a test file inside the package imports a subpath of its own package
+        // Then it resolves to the source file for that subpath
+        let tmp = create_temp_dir();
+
+        let pkg_dir = tmp.path().join("packages").join("my-lib");
+        let src_dir = pkg_dir.join("src");
+        std::fs::create_dir_all(&src_dir).unwrap();
+
+        let internals_file = src_dir.join("internals.ts");
+        std::fs::write(&internals_file, "export const y = 2;").unwrap();
+
+        std::fs::write(
+            pkg_dir.join("package.json"),
+            r#"{ "name": "@scope/my-lib", "exports": { "./internals": { "import": "./dist/src/internals.js" } } }"#,
+        )
+        .unwrap();
+
+        let test_dir = src_dir.join("__tests__");
+        std::fs::create_dir_all(&test_dir).unwrap();
+        let test_file = test_dir.join("foo.test.ts");
+        std::fs::write(&test_file, "import '@scope/my-lib/internals';").unwrap();
+
+        let loader = VertzModuleLoader::new(&tmp.path().to_string_lossy(), test_plugin());
+        let referrer = ModuleSpecifier::from_file_path(&test_file).unwrap();
+        let result = loader.resolve(
+            "@scope/my-lib/internals",
+            referrer.as_str(),
+            ResolutionKind::Import,
+        );
+
+        assert!(
+            result.is_ok(),
+            "Self-reference subpath should resolve: {:?}",
+            result
+        );
+        assert_eq!(
+            result.unwrap().to_file_path().unwrap(),
+            canon(&internals_file)
+        );
+    }
+
+    #[test]
+    fn test_self_reference_with_dist_prefers_dist() {
+        // Given a workspace package with dist/ already built
+        // When a test file imports its own package
+        // Then it resolves to the dist entry (normal behavior)
+        let tmp = create_temp_dir();
+
+        let pkg_dir = tmp.path().join("packages").join("my-lib");
+        let src_dir = pkg_dir.join("src");
+        let dist_dir = pkg_dir.join("dist").join("src");
+        std::fs::create_dir_all(&src_dir).unwrap();
+        std::fs::create_dir_all(&dist_dir).unwrap();
+
+        std::fs::write(src_dir.join("index.ts"), "export const x = 1;").unwrap();
+        let dist_entry = dist_dir.join("index.js");
+        std::fs::write(&dist_entry, "export const x = 1;").unwrap();
+
+        std::fs::write(
+            pkg_dir.join("package.json"),
+            r#"{ "name": "@scope/my-lib", "exports": { ".": { "import": "./dist/src/index.js" } } }"#,
+        )
+        .unwrap();
+
+        let test_dir = src_dir.join("__tests__");
+        std::fs::create_dir_all(&test_dir).unwrap();
+        let test_file = test_dir.join("foo.test.ts");
+        std::fs::write(&test_file, "").unwrap();
+
+        let loader = VertzModuleLoader::new(&tmp.path().to_string_lossy(), test_plugin());
+        let referrer = ModuleSpecifier::from_file_path(&test_file).unwrap();
+        let result = loader.resolve("@scope/my-lib", referrer.as_str(), ResolutionKind::Import);
+
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap().to_file_path().unwrap(), canon(&dist_entry));
+    }
+
+    #[test]
+    fn test_cross_package_import_not_affected() {
+        // Given two workspace packages
+        // When one package imports the other (not a self-reference)
+        // Then normal node_modules resolution is used (not self-reference)
+        let tmp = create_temp_dir();
+
+        // Package A
+        let pkg_a = tmp.path().join("packages").join("pkg-a");
+        let pkg_a_src = pkg_a.join("src");
+        std::fs::create_dir_all(&pkg_a_src).unwrap();
+        std::fs::write(pkg_a_src.join("index.ts"), "").unwrap();
+        std::fs::write(pkg_a.join("package.json"), r#"{ "name": "@scope/pkg-a" }"#).unwrap();
+
+        // Package B (installed in node_modules)
+        let nm_pkg_b = tmp.path().join("node_modules").join("@scope").join("pkg-b");
+        std::fs::create_dir_all(&nm_pkg_b).unwrap();
+        let pkg_b_entry = nm_pkg_b.join("index.js");
+        std::fs::write(&pkg_b_entry, "export const b = 1;").unwrap();
+        std::fs::write(
+            nm_pkg_b.join("package.json"),
+            r#"{ "name": "@scope/pkg-b", "main": "index.js" }"#,
+        )
+        .unwrap();
+
+        let test_file = pkg_a_src.join("app.test.ts");
+        std::fs::write(&test_file, "import '@scope/pkg-b';").unwrap();
+
+        let loader = VertzModuleLoader::new(&tmp.path().to_string_lossy(), test_plugin());
+        let referrer = ModuleSpecifier::from_file_path(&test_file).unwrap();
+        let result = loader.resolve("@scope/pkg-b", referrer.as_str(), ResolutionKind::Import);
+
+        assert!(
+            result.is_ok(),
+            "Cross-package import should resolve via node_modules"
+        );
+        assert_eq!(result.unwrap().to_file_path().unwrap(), canon(&pkg_b_entry));
+    }
+
+    #[test]
+    fn test_self_reference_exports_without_src_in_dist_path() {
+        // Given a package with exports: "./dist/index.js" (no src/ in dist path)
+        // When the source is at src/index.ts
+        // Then self-reference resolves to source
+        let tmp = create_temp_dir();
+
+        let pkg_dir = tmp.path().join("packages").join("my-server");
+        let src_dir = pkg_dir.join("src");
+        std::fs::create_dir_all(&src_dir).unwrap();
+
+        let src_entry = src_dir.join("index.ts");
+        std::fs::write(&src_entry, "export const x = 1;").unwrap();
+
+        std::fs::write(
+            pkg_dir.join("package.json"),
+            r#"{ "name": "@scope/server", "exports": { ".": { "import": "./dist/index.js" } } }"#,
+        )
+        .unwrap();
+
+        let test_dir = src_dir.join("__tests__");
+        std::fs::create_dir_all(&test_dir).unwrap();
+        let test_file = test_dir.join("app.test.ts");
+        std::fs::write(&test_file, "import '@scope/server';").unwrap();
+
+        let loader = VertzModuleLoader::new(&tmp.path().to_string_lossy(), test_plugin());
+        let referrer = ModuleSpecifier::from_file_path(&test_file).unwrap();
+        let result = loader.resolve("@scope/server", referrer.as_str(), ResolutionKind::Import);
+
+        assert!(
+            result.is_ok(),
+            "Self-reference with ./dist/index.js exports should resolve: {:?}",
+            result
+        );
+        assert_eq!(result.unwrap().to_file_path().unwrap(), canon(&src_entry));
     }
 }
