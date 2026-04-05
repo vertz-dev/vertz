@@ -406,6 +406,7 @@ export function createAccessContext(config: AccessContextConfig): AccessContext 
         walletStore!,
         planVersionStore,
         levelOverrides,
+        levelDefault,
       );
       if (!checkLimitStates(walletStates)) return false;
     }
@@ -501,6 +502,7 @@ export function createAccessContext(config: AccessContextConfig): AccessContext 
         walletStore!,
         planVersionStore,
         levelOverrides,
+        levelDefault,
       );
       checkSingleLevelLimitsForCheck(walletStates, reasons, meta);
       if (reasons.includes('limit_reached')) return; // First blocking level stops check
@@ -1129,12 +1131,13 @@ async function resolveAllLimitStates(
   walletStore: WalletStore,
   planVersionStore?: PlanVersionStore,
   overrides?: TenantOverrides | null,
+  levelDefaultPlan?: string,
 ): Promise<LimitState[]> {
   const subscription = await subscriptionStore.get(org.type, org.id);
   const effectivePlanId = resolveEffectivePlan(
     subscription,
     accessDef.plans,
-    accessDef.defaultPlan,
+    levelDefaultPlan ?? accessDef.defaultPlan,
   );
   if (!effectivePlanId || !subscription) return [];
 

@@ -585,4 +585,168 @@ describe('Feature: Multi-level access context (#1829)', () => {
       });
     });
   });
+
+  // ==========================================================================
+  // Expired subscription with per-level defaults (#2287)
+  // ==========================================================================
+
+  describe('Given differing global vs per-level defaultPlans and an expired subscription', () => {
+    // Global defaultPlan = 'free' (low limits)
+    // Per-level defaultPlans.account = 'account-enterprise' (high limits)
+    // When account subscription expires, resolveAllLimitStates should use
+    // the per-level default (account-enterprise), not the global (free).
+    const accessDef = defineAccess({
+      entities: {
+        account: { roles: ['owner'] },
+        project: {
+          roles: ['admin', 'member'],
+          inherits: { 'account:owner': 'admin' },
+        },
+      },
+      entitlements: {
+        'project:ai-generate': { roles: ['admin', 'member'] },
+      },
+      plans: {
+        free: {
+          group: 'account-plans',
+          level: 'account',
+          features: ['project:ai-generate'],
+          limits: {
+            'ai-credits': { max: 5, gates: 'project:ai-generate', per: 'month' },
+          },
+        },
+        'account-enterprise': {
+          group: 'account-plans',
+          level: 'account',
+          features: ['project:ai-generate'],
+          limits: {
+            'ai-credits': { max: 1000, gates: 'project:ai-generate', per: 'month' },
+          },
+        },
+        'project-pro': {
+          group: 'project-plans',
+          level: 'project',
+          features: ['project:ai-generate'],
+          limits: {
+            'ai-credits': { max: 100, gates: 'project:ai-generate', per: 'month' },
+          },
+        },
+      },
+      defaultPlan: 'free',
+      defaultPlans: {
+        account: 'account-enterprise',
+        project: 'project-pro',
+      },
+    });
+
+    let closureStore: InMemoryClosureStore;
+    let roleStore: InMemoryRoleAssignmentStore;
+    let subscriptionStore: InMemorySubscriptionStore;
+    let walletStore: InMemoryWalletStore;
+
+    beforeEach(async () => {
+      closureStore = new InMemoryClosureStore();
+      roleStore = new InMemoryRoleAssignmentStore();
+      subscriptionStore = new InMemorySubscriptionStore();
+      walletStore = new InMemoryWalletStore();
+
+      await closureStore.addResource('account', 'acct-1');
+      await closureStore.addResource('project', 'proj-1', {
+        parentType: 'account',
+        parentId: 'acct-1',
+      });
+      await roleStore.assign('user-1', 'project', 'proj-1', 'admin');
+
+      // Account subscription is expired → should fall back to defaultPlans.account
+      await subscriptionStore.assign(
+        'account',
+        'acct-1',
+        'account-enterprise',
+        fixedStartedAt,
+        new Date('2026-02-01T00:00:00Z'), // expired
+      );
+      // Project subscription is active
+      await subscriptionStore.assign('project', 'proj-1', 'project-pro', fixedStartedAt);
+    });
+
+    function getBillingPeriod() {
+      return calculateBillingPeriod(fixedStartedAt, 'month');
+    }
+
+    describe('When account subscription is expired and consumption is under level-specific default limit', () => {
+      it('Then ctx.can() returns true (uses account-enterprise default, max=1000, not free max=5)', async () => {
+        const { periodStart, periodEnd } = getBillingPeriod();
+        // Consume 10 credits at account level — under enterprise limit (1000) but over free limit (5)
+        await walletStore.consume(
+          'account',
+          'acct-1',
+          'ai-credits',
+          periodStart,
+          periodEnd,
+          1000,
+          10,
+        );
+
+        const ctx = createAccessContext({
+          userId: 'user-1',
+          accessDef,
+          closureStore,
+          roleStore,
+          subscriptionStore,
+          walletStore,
+          orgResolver: () => Promise.resolve({ type: 'project', id: 'proj-1' }),
+          tenantLevel: 'project',
+          ancestorResolver: createMockAncestorResolver({
+            'proj-1': [{ type: 'account', id: 'acct-1', depth: 1 }],
+          }),
+        });
+
+        const result = await ctx.can('project:ai-generate', {
+          type: 'project',
+          id: 'proj-1',
+        });
+        // With the bug: resolveAllLimitStates uses global 'free' (max=5), so 10 > 5 → false
+        // After fix: resolveAllLimitStates uses level 'account-enterprise' (max=1000), so 10 < 1000 → true
+        expect(result).toBe(true);
+      });
+    });
+
+    describe('When account subscription is expired and ctx.check() is called', () => {
+      it('Then check() uses the level-specific default plan for limit resolution', async () => {
+        const { periodStart, periodEnd } = getBillingPeriod();
+        // Consume 10 credits — over free (5) but under enterprise (1000)
+        await walletStore.consume(
+          'account',
+          'acct-1',
+          'ai-credits',
+          periodStart,
+          periodEnd,
+          1000,
+          10,
+        );
+
+        const ctx = createAccessContext({
+          userId: 'user-1',
+          accessDef,
+          closureStore,
+          roleStore,
+          subscriptionStore,
+          walletStore,
+          orgResolver: () => Promise.resolve({ type: 'project', id: 'proj-1' }),
+          tenantLevel: 'project',
+          ancestorResolver: createMockAncestorResolver({
+            'proj-1': [{ type: 'account', id: 'acct-1', depth: 1 }],
+          }),
+        });
+
+        const result = await ctx.check('project:ai-generate', {
+          type: 'project',
+          id: 'proj-1',
+        });
+        // Should be allowed because level-specific default (account-enterprise, max=1000) is used
+        expect(result.allowed).toBe(true);
+        expect(result.reasons).not.toContain('limit_reached');
+      });
+    });
+  });
 });
