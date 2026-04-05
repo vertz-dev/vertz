@@ -195,6 +195,8 @@ pub fn build_router(
             // Uses default 10s timeout — not yet user-configurable via CLI/vertzrc
             init_timeout: None,
             enable_inspector: config.inspect,
+            inspect_brk: config.inspect_brk,
+            inspector_session_tx: None,
         };
         match PersistentIsolate::new(opts) {
             Ok(isolate) => {

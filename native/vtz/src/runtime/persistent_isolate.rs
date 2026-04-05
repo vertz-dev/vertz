@@ -57,6 +57,17 @@ pub struct PersistentIsolateOptions {
     pub init_timeout: Option<Duration>,
     /// Enable V8 inspector for Chrome DevTools / VS Code debugging.
     pub enable_inspector: bool,
+    /// Pause V8 at the first statement of the entry module (`--inspect-brk`).
+    /// Requires `enable_inspector: true`.
+    pub inspect_brk: bool,
+    /// Shared inspector session sender for surviving isolate restarts.
+    ///
+    /// When `Some`, the isolate reuses this sender instead of creating a new
+    /// watch channel. This is set automatically after the first `new()` call
+    /// and preserved across `options().clone()` for restart.
+    /// When `None` and `enable_inspector` is true, a new channel is created.
+    pub inspector_session_tx:
+        Option<Arc<watch::Sender<Option<UnboundedSender<InspectorSessionProxy>>>>>,
 }
 
 /// Default init timeout: 10 seconds.
@@ -72,6 +83,8 @@ impl Default for PersistentIsolateOptions {
             auto_installer: None,
             init_timeout: None,
             enable_inspector: false,
+            inspect_brk: false,
+            inspector_session_tx: None,
         }
     }
 }
@@ -203,15 +216,30 @@ impl PersistentIsolate {
         let server_entry = options.server_entry.clone();
         let auto_installer = options.auto_installer.clone();
         let enable_inspector = options.enable_inspector;
+        let inspect_brk = options.inspect_brk;
 
-        // Create a watch channel for the inspector session sender when inspector is enabled.
-        // The V8 thread sends the session sender after creating the runtime.
+        // Create or reuse the inspector watch channel.
+        // On first creation, a new channel is made. On restart (options cloned from
+        // a previous isolate), the existing Arc<Sender> is reused so the inspector
+        // server's receiver sees session senders from both the old and new isolates.
         let (inspector_session_tx, inspector_session_rx) = if enable_inspector {
-            let (tx, rx) = watch::channel::<Option<UnboundedSender<InspectorSessionProxy>>>(None);
-            (Some(tx), Some(rx))
+            if let Some(ref existing_tx) = options.inspector_session_tx {
+                // Restart path: reuse the shared sender, subscribe for a new receiver
+                let rx = existing_tx.subscribe();
+                (Some(Arc::clone(existing_tx)), Some(rx))
+            } else {
+                // First creation: new channel
+                let (tx, rx) =
+                    watch::channel::<Option<UnboundedSender<InspectorSessionProxy>>>(None);
+                (Some(Arc::new(tx)), Some(rx))
+            }
         } else {
             (None, None)
         };
+
+        // Store the tx back in options so restart() preserves the shared channel.
+        let mut options = options;
+        options.inspector_session_tx = inspector_session_tx.clone();
 
         let runtime_thread = std::thread::spawn(move || {
             let rt = tokio::runtime::Builder::new_current_thread()
@@ -229,6 +257,7 @@ impl PersistentIsolate {
                     has_api_clone,
                     auto_installer,
                     enable_inspector,
+                    inspect_brk,
                     inspector_session_tx,
                 )
                 .await;
@@ -487,7 +516,10 @@ async fn isolate_event_loop(
     has_api_handler: Arc<std::sync::atomic::AtomicBool>,
     auto_installer: Option<Arc<AutoInstaller>>,
     enable_inspector: bool,
-    inspector_session_tx: Option<watch::Sender<Option<UnboundedSender<InspectorSessionProxy>>>>,
+    inspect_brk: bool,
+    inspector_session_tx: Option<
+        Arc<watch::Sender<Option<UnboundedSender<InspectorSessionProxy>>>>,
+    >,
 ) {
     use crate::runtime::js_runtime::{VertzJsRuntime, VertzRuntimeOptions};
 
@@ -520,6 +552,16 @@ async fn isolate_event_loop(
                 let sender = runtime.get_inspector_session_sender();
                 let _ = tx.send(Some(sender));
             }
+        }
+
+        // --inspect-brk: park the V8 thread until a debugger connects.
+        // The inspector server (on the main tokio runtime) will send an
+        // InspectorSessionProxy when a Chrome/VS Code client connects via WebSocket.
+        // After the session is established, V8 schedules a pause at the first statement.
+        if inspect_brk && enable_inspector {
+            eprintln!("[Server] Waiting for debugger to attach...");
+            runtime.wait_for_session_and_break();
+            eprintln!("[Server] Debugger attached, continuing...");
         }
 
         // 2. Load async context polyfill (must be before DOM shim to capture all promises)
@@ -1787,6 +1829,8 @@ mod tests {
             auto_installer: None,
             init_timeout: None,
             enable_inspector: false,
+            inspect_brk: false,
+            inspector_session_tx: None,
         }
     }
 
@@ -1811,6 +1855,8 @@ mod tests {
             auto_installer: None,
             init_timeout: None,
             enable_inspector: false,
+            inspect_brk: false,
+            inspector_session_tx: None,
         };
 
         let isolate = PersistentIsolate::new(opts);
@@ -1833,6 +1879,8 @@ mod tests {
             auto_installer: None,
             init_timeout: None,
             enable_inspector: false,
+            inspect_brk: false,
+            inspector_session_tx: None,
         };
 
         let isolate = PersistentIsolate::new(opts).unwrap();
@@ -2032,6 +2080,8 @@ mod tests {
             auto_installer: None,
             init_timeout: None,
             enable_inspector: false,
+            inspect_brk: false,
+            inspector_session_tx: None,
         };
 
         let isolate = PersistentIsolate::new(opts).unwrap();
@@ -2083,6 +2133,8 @@ mod tests {
             auto_installer: None,
             init_timeout: None,
             enable_inspector: false,
+            inspect_brk: false,
+            inspector_session_tx: None,
         };
 
         let isolate = PersistentIsolate::new(opts).unwrap();
@@ -2139,6 +2191,8 @@ mod tests {
             auto_installer: None,
             init_timeout: None,
             enable_inspector: false,
+            inspect_brk: false,
+            inspector_session_tx: None,
         };
 
         let isolate = PersistentIsolate::new(opts).unwrap();
@@ -2196,6 +2250,8 @@ mod tests {
             auto_installer: None,
             init_timeout: None,
             enable_inspector: false,
+            inspect_brk: false,
+            inspector_session_tx: None,
         };
 
         let isolate = PersistentIsolate::new(opts).unwrap();
@@ -2267,6 +2323,8 @@ mod tests {
             auto_installer: None,
             init_timeout: None,
             enable_inspector: false,
+            inspect_brk: false,
+            inspector_session_tx: None,
         };
 
         let isolate = PersistentIsolate::new(opts).unwrap();
@@ -2336,6 +2394,8 @@ mod tests {
             auto_installer: None,
             init_timeout: None,
             enable_inspector: false,
+            inspect_brk: false,
+            inspector_session_tx: None,
         };
 
         let isolate = PersistentIsolate::new(opts).unwrap();
@@ -2376,6 +2436,8 @@ mod tests {
             auto_installer: None,
             init_timeout: None,
             enable_inspector: false,
+            inspect_brk: false,
+            inspector_session_tx: None,
         };
 
         let isolate = PersistentIsolate::new(opts).unwrap();
@@ -2451,6 +2513,8 @@ mod tests {
             auto_installer: None,
             init_timeout: None,
             enable_inspector: false,
+            inspect_brk: false,
+            inspector_session_tx: None,
         };
 
         let isolate = PersistentIsolate::new(opts).unwrap();
@@ -2525,6 +2589,8 @@ mod tests {
             auto_installer: None,
             init_timeout: None,
             enable_inspector: false,
+            inspect_brk: false,
+            inspector_session_tx: None,
         };
 
         let isolate = PersistentIsolate::new(opts).unwrap();
@@ -2579,6 +2645,8 @@ mod tests {
             auto_installer: None,
             init_timeout: None,
             enable_inspector: false,
+            inspect_brk: false,
+            inspector_session_tx: None,
         };
 
         let isolate = PersistentIsolate::new(opts).unwrap();
@@ -2629,6 +2697,8 @@ mod tests {
             auto_installer: None,
             init_timeout: None,
             enable_inspector: false,
+            inspect_brk: false,
+            inspector_session_tx: None,
         };
 
         let isolate = PersistentIsolate::new(opts).unwrap();
@@ -2681,6 +2751,8 @@ mod tests {
             auto_installer: None,
             init_timeout: None,
             enable_inspector: false,
+            inspect_brk: false,
+            inspector_session_tx: None,
         };
 
         let isolate = PersistentIsolate::new(opts).unwrap();
@@ -2779,6 +2851,8 @@ mod tests {
             auto_installer: None,
             init_timeout: None,
             enable_inspector: false,
+            inspect_brk: false,
+            inspector_session_tx: None,
         };
 
         let isolate = PersistentIsolate::new(opts).unwrap();

@@ -375,6 +375,23 @@ impl VertzJsRuntime {
         self.runtime.inspector().borrow().get_session_sender()
     }
 
+    /// Block the V8 thread until a debugger connects, then schedule a pause
+    /// at the first statement of the next evaluated script/module.
+    ///
+    /// This wraps `JsRuntimeInspector::wait_for_session_and_break_on_next_statement()`.
+    /// The inspector's internal waker ensures the thread parks efficiently
+    /// (no busy-loop) while waiting for an `InspectorSessionProxy` to arrive
+    /// via the session sender channel.
+    ///
+    /// # Panics
+    /// Panics if the inspector was not enabled at creation time.
+    pub fn wait_for_session_and_break(&mut self) {
+        self.runtime
+            .inspector()
+            .borrow_mut()
+            .wait_for_session_and_break_on_next_statement();
+    }
+
     /// Access the module loader (for registering mocked specifiers).
     pub fn loader(&self) -> &VertzModuleLoader {
         &self.module_loader
