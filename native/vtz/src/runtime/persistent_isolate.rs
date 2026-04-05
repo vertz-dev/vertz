@@ -562,6 +562,61 @@ async fn isolate_event_loop(
                         }
                         let _ = std::fs::remove_file(&ssr_init_path);
                     }
+
+                    // Extract font fallback metrics from theme.fonts and store
+                    // as globalThis.__vertz_font_fallback_metrics for SSR.
+                    match runtime
+                        .execute_script("<extract-font-descriptors>", EXTRACT_FONT_DESCRIPTORS_JS)
+                    {
+                        Ok(json_val) => {
+                            // execute_script returns serde_json::Value. The JS
+                            // returns a JSON string, so the Value is a String.
+                            let raw = match json_val {
+                                serde_json::Value::String(s) => s,
+                                other => other.to_string(),
+                            };
+                            match serde_json::from_str::<
+                                Vec<crate::ssr::font_fallback::FontDescriptorInfo>,
+                            >(&raw)
+                            {
+                                Ok(descriptors) if !descriptors.is_empty() => {
+                                    let metrics =
+                                        crate::ssr::font_fallback::extract_all_font_metrics(
+                                            &descriptors,
+                                            &root_dir,
+                                        );
+                                    if !metrics.is_empty() {
+                                        if let Ok(metrics_json) = serde_json::to_string(&metrics) {
+                                            let set_js = format!(
+                                                "globalThis.__vertz_font_fallback_metrics = {};",
+                                                metrics_json
+                                            );
+                                            if let Err(e) = runtime
+                                                .execute_script_void("<set-font-metrics>", &set_js)
+                                            {
+                                                eprintln!(
+                                                    "[vertz] Failed to set font fallback metrics: {}",
+                                                    e
+                                                );
+                                            } else {
+                                                eprintln!(
+                                                    "[vertz] Extracted font fallback metrics for {} font(s)",
+                                                    metrics.len()
+                                                );
+                                            }
+                                        }
+                                    }
+                                }
+                                Ok(_) => {} // empty descriptors — no fonts in theme
+                                Err(e) => {
+                                    eprintln!("[vertz] Failed to parse font descriptors: {}", e);
+                                }
+                            }
+                        }
+                        Err(e) => {
+                            eprintln!("[vertz] Failed to extract font descriptors: {}", e);
+                        }
+                    }
                 }
             }
         }
@@ -951,6 +1006,40 @@ const SSR_RESET_JS: &str = r#"
 })()
 "#;
 
+/// JavaScript to extract font descriptor metadata from the app module's theme.
+///
+/// Returns a JSON array of `{ key, family, srcPath, fallback, adjustFontFallback }`
+/// or `"[]"` if no fonts are defined.
+const EXTRACT_FONT_DESCRIPTORS_JS: &str = r#"
+(function() {
+    const mod = globalThis.__vertz_app_module;
+    if (!mod || !mod.theme || !mod.theme.fonts) {
+        return '[]';
+    }
+    const fonts = mod.theme.fonts;
+    const result = [];
+    for (const key of Object.keys(fonts)) {
+        const f = fonts[key];
+        if (!f) continue;
+        // src can be string | FontSrc[] — extract the primary path
+        let srcPath = '';
+        if (typeof f.src === 'string') {
+            srcPath = f.src;
+        } else if (Array.isArray(f.src) && f.src.length > 0) {
+            srcPath = f.src[0].path || '';
+        }
+        result.push({
+            key: key,
+            family: f.family || '',
+            srcPath: srcPath,
+            fallback: Array.isArray(f.fallback) ? f.fallback : [],
+            adjustFontFallback: f.adjustFontFallback !== undefined ? f.adjustFontFallback : true,
+        });
+    }
+    return JSON.stringify(result);
+})()
+"#;
+
 /// JavaScript to execute SSR render via the framework's ssrRenderSinglePass.
 ///
 /// Stores the result in `globalThis.__vertz_last_ssr_result` as a JSON string.
@@ -976,6 +1065,9 @@ const SSR_RENDER_FRAMEWORK_JS: &str = r#"
     }
     if (globalThis.__vertz_cookies) {
         options.cookies = globalThis.__vertz_cookies;
+    }
+    if (globalThis.__vertz_font_fallback_metrics) {
+        options.fallbackMetrics = globalThis.__vertz_font_fallback_metrics;
     }
 
     const result = await globalThis.__vertz_ssr_render_fn(
