@@ -211,6 +211,16 @@ describe('AggregateResult — _min/_max column-aware types', () => {
     type R = AggregateResult<ProductCols, { _min: { price: true; name: true } }>;
     type _t1 = Expect<Equal<R['_min'], { price: number | null; name: string | null }>>;
   });
+
+  it('_min on timestamp column returns Date | null', () => {
+    type R = AggregateResult<ProductCols, { _min: { createdAt: true } }>;
+    type _t1 = Expect<Equal<R['_min'], { createdAt: Date | null }>>;
+  });
+
+  it('_max on timestamp column returns Date | null', () => {
+    type R = AggregateResult<ProductCols, { _max: { createdAt: true } }>;
+    type _t1 = Expect<Equal<R['_max'], { createdAt: Date | null }>>;
+  });
 });
 
 // ---------------------------------------------------------------------------
