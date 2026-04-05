@@ -523,6 +523,20 @@ async fn execute_tool(
                 .ok_or("Missing required parameter 'file'")?
                 .to_string();
 
+            if !state.enable_ssr {
+                return Ok(serde_json::json!({
+                    "content": [{
+                        "type": "text",
+                        "text": "Component rendering is not available: SSR is not enabled on this dev server."
+                    }],
+                    "isError": true,
+                    "_meta": {
+                        "file": file,
+                        "error": "ssr_disabled",
+                    }
+                }));
+            }
+
             // Serialize props to a JSON string. This gets a second serialization pass
             // in dispatch_component_render (via serde_json::to_string on the string)
             // to safely embed it as a JS string literal. The JS side then JSON.parse()s
@@ -1058,6 +1072,39 @@ mod tests {
             mcp_event_hub: crate::server::mcp_events::McpEventHub::new(),
             start_time: Instant::now(),
             enable_ssr: false,
+            port: 3000,
+            typecheck_enabled: false,
+            api_isolate: std::sync::Arc::new(std::sync::RwLock::new(None)),
+            api_proxy: None,
+            auto_installer: None,
+            last_file_change: std::sync::Arc::new(std::sync::Mutex::new(None)),
+        })
+    }
+
+    /// Create a test state with SSR enabled (for component render tests that
+    /// need to get past the enable_ssr check).
+    fn create_test_state_with_ssr() -> Arc<DevServerState> {
+        let tmp = tempfile::tempdir().unwrap();
+        let root = tmp.path().to_path_buf();
+        let src = root.join("src");
+        std::fs::create_dir_all(&src).unwrap();
+
+        Arc::new(DevServerState {
+            plugin: test_plugin(),
+            pipeline: CompilationPipeline::new(root.clone(), src.clone(), test_plugin()),
+            root_dir: root.clone(),
+            src_dir: src,
+            entry_file: root.join("src/main.tsx"),
+            deps_dir: root.join("node_modules/.vertz/deps"),
+            theme_css: None,
+            hmr_hub: HmrHub::new(),
+            module_graph: watcher::new_shared_module_graph(),
+            error_broadcaster: ErrorBroadcaster::new(),
+            console_log: ConsoleLog::new(),
+            mcp_sessions: McpSessions::new(),
+            mcp_event_hub: crate::server::mcp_events::McpEventHub::new(),
+            start_time: Instant::now(),
+            enable_ssr: true,
             port: 3000,
             typecheck_enabled: false,
             api_isolate: std::sync::Arc::new(std::sync::RwLock::new(None)),
@@ -1704,8 +1751,25 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_render_component_ssr_disabled() {
+        let state = create_test_state(); // enable_ssr: false
+        let result = execute_tool(
+            &state,
+            "vertz_render_component",
+            &serde_json::json!({ "file": "src/Button.tsx" }),
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(result["isError"], true);
+        assert_eq!(result["_meta"]["error"], "ssr_disabled");
+        let text = result["content"][0]["text"].as_str().unwrap();
+        assert!(text.contains("SSR is not enabled"));
+    }
+
+    #[tokio::test]
     async fn test_render_component_file_not_found() {
-        let state = create_test_state();
+        let state = create_test_state_with_ssr();
         let result = execute_tool(
             &state,
             "vertz_render_component",
@@ -1749,7 +1813,7 @@ mod tests {
                 mcp_sessions: McpSessions::new(),
                 mcp_event_hub: crate::server::mcp_events::McpEventHub::new(),
                 start_time: Instant::now(),
-                enable_ssr: false,
+                enable_ssr: true,
                 port: 3000,
                 typecheck_enabled: false,
                 api_isolate: std::sync::Arc::new(std::sync::RwLock::new(None)),
@@ -1776,7 +1840,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_render_component_no_isolate() {
-        let state = create_test_state();
+        let state = create_test_state_with_ssr();
 
         // Create a real file so path validation passes
         std::fs::create_dir_all(state.root_dir.join("src")).unwrap();

@@ -62,10 +62,14 @@ pub fn assemble_component_document(options: &ComponentHtmlOptions<'_>) -> String
 /// (backslash is ignored in CSS string contexts) and prevents the HTML parser
 /// from closing the `<style>` tag early.
 fn sanitize_css_for_style_tag(css: &str) -> String {
-    // Case-insensitive search for </style (the > and whitespace variants are all
-    // dangerous). The HTML parser looks for `</` followed by the tag name.
-    let lower = css.to_lowercase();
-    if !lower.contains("</style") {
+    // Case-insensitive check: the `</style` sequence is all ASCII, so we can
+    // safely scan with `to_ascii_lowercase()` on individual bytes — no risk of
+    // multi-byte UTF-8 misalignment.
+    if !css
+        .as_bytes()
+        .windows(7)
+        .any(|w| w.eq_ignore_ascii_case(b"</style"))
+    {
         return css.to_string();
     }
 
@@ -73,15 +77,28 @@ fn sanitize_css_for_style_tag(css: &str) -> String {
     let bytes = css.as_bytes();
     let mut i = 0;
     while i < bytes.len() {
-        if i + 7 <= bytes.len() && lower[i..].starts_with("</style") {
+        if i + 7 <= bytes.len() && bytes[i..i + 7].eq_ignore_ascii_case(b"</style") {
             result.push_str("<\\/style");
-            i += 7; // skip the 7 input chars "</style"
+            i += 7; // skip the 7 input bytes "</style"
         } else {
-            result.push(bytes[i] as char);
-            i += 1;
+            // Advance by full UTF-8 character to preserve multi-byte sequences.
+            let ch_len = utf8_char_width(bytes[i]);
+            result.push_str(&css[i..i + ch_len]);
+            i += ch_len;
         }
     }
     result
+}
+
+/// Returns the byte width of a UTF-8 character from its leading byte.
+fn utf8_char_width(b: u8) -> usize {
+    match b {
+        0..=0x7F => 1,
+        0xC0..=0xDF => 2,
+        0xE0..=0xEF => 3,
+        0xF0..=0xFF => 4,
+        _ => 1, // invalid leading byte — advance 1 to avoid infinite loop
+    }
 }
 
 /// Validate that a component file path is within the project root.
