@@ -338,6 +338,15 @@ pub(crate) async fn execute_tool(
                                 ),
                                 Some("mcp"),
                             );
+                            state.audit_log.record(
+                                crate::server::audit_log::AuditEvent::ssr_render(
+                                    &url,
+                                    200,
+                                    0,
+                                    ssr_resp.is_ssr,
+                                    ssr_resp.render_time_ms,
+                                ),
+                            );
 
                             let css_string =
                                 crate::server::http::format_ssr_css(&ssr_resp.css_entries);
@@ -375,7 +384,12 @@ pub(crate) async fn execute_tool(
                             eprintln!("[SSR] MCP render: {}", error_msg);
                             state
                                 .console_log
-                                .push(LogLevel::Error, error_msg, Some("mcp"));
+                                .push(LogLevel::Error, error_msg.clone(), Some("mcp"));
+                            state
+                                .audit_log
+                                .record(crate::server::audit_log::AuditEvent::error(
+                                    "ssr", "error", &error_msg, None, None, None,
+                                ));
                         }
                     }
                 }
@@ -387,6 +401,11 @@ pub(crate) async fn execute_tool(
                 format!("MCP render: {} (client-only, no persistent isolate)", url),
                 Some("mcp"),
             );
+            state
+                .audit_log
+                .record(crate::server::audit_log::AuditEvent::ssr_render(
+                    &url, 200, 0, false, 0.0,
+                ));
 
             Ok(serde_json::json!({
                 "content": [{

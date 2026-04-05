@@ -161,7 +161,9 @@ pub fn build_router(
     let theme_css = theme_css::load_theme_css(&config.root_dir);
 
     let hmr_hub = HmrHub::new();
-    let error_broadcaster = ErrorBroadcaster::with_root_dir(config.root_dir.clone());
+    let audit_log = crate::server::audit_log::AuditLog::default();
+    let error_broadcaster =
+        ErrorBroadcaster::with_root_dir(config.root_dir.clone()).with_audit_log(audit_log.clone());
     let console_log = ConsoleLog::new();
     let mcp_sessions = McpSessions::new();
     let mcp_event_hub = McpEventHub::new();
@@ -248,7 +250,7 @@ pub fn build_router(
         auto_installer: auto_installer.clone(),
         error_broadcaster,
         console_log,
-        audit_log: crate::server::audit_log::AuditLog::default(),
+        audit_log,
         mcp_sessions,
         mcp_event_hub,
         start_time: Instant::now(),
@@ -414,6 +416,15 @@ async fn ai_render_handler(
                         ),
                         Some("ai"),
                     );
+                    state
+                        .audit_log
+                        .record(crate::server::audit_log::AuditEvent::ssr_render(
+                            &url,
+                            200,
+                            0,
+                            ssr_resp.is_ssr,
+                            ssr_resp.render_time_ms,
+                        ));
 
                     let css_string = ssr_resp
                         .inline_css_html
@@ -483,6 +494,11 @@ async fn ai_render_handler(
         format!("AI render: {} (client-only, no persistent isolate)", url),
         Some("ai"),
     );
+    state
+        .audit_log
+        .record(crate::server::audit_log::AuditEvent::ssr_render(
+            &url, 200, 0, false, 0.0,
+        ));
 
     let html = html_shell::generate_html_shell(
         &state.entry_file,
@@ -1122,6 +1138,7 @@ async fn handle_api_request(
         }
     };
 
+    let method_str = method.clone();
     let isolate_req = IsolateRequest {
         method,
         url,
@@ -1133,17 +1150,23 @@ async fn handle_api_request(
     match isolate.handle_request(isolate_req).await {
         Ok(response) => {
             let elapsed = start.elapsed();
+            let duration_ms = elapsed.as_secs_f64() * 1000.0;
             state.console_log.push(
                 LogLevel::Info,
                 format!(
                     "{} {} → {} ({:.1}ms)",
-                    "API",
-                    path,
-                    response.status,
-                    elapsed.as_secs_f64() * 1000.0
+                    "API", path, response.status, duration_ms
                 ),
                 Some("api"),
             );
+            state
+                .audit_log
+                .record(crate::server::audit_log::AuditEvent::api_request(
+                    &method_str,
+                    path,
+                    response.status,
+                    duration_ms,
+                ));
 
             let mut builder = axum::response::Response::builder().status(response.status);
             for (key, value) in &response.headers {
@@ -1154,11 +1177,21 @@ async fn handle_api_request(
             builder.body(Body::from(response.body)).unwrap()
         }
         Err(e) => {
+            let elapsed = start.elapsed();
+            let duration_ms = elapsed.as_secs_f64() * 1000.0;
             let error_msg = format!("API handler error: {}", e);
             eprintln!("[Server] {}", error_msg);
             state
                 .console_log
                 .push(LogLevel::Error, error_msg, Some("api"));
+            state
+                .audit_log
+                .record(crate::server::audit_log::AuditEvent::api_request(
+                    &method_str,
+                    path,
+                    500,
+                    duration_ms,
+                ));
 
             let body = serde_json::json!({ "error": e.to_string() }).to_string();
             axum::response::Response::builder()
@@ -1436,6 +1469,12 @@ pub async fn start_server_with_lifecycle(
                                         crate::watcher::file_watcher::FileChangeKind::Modify => "modify",
                                         crate::watcher::file_watcher::FileChangeKind::Remove => "delete",
                                     };
+                                    watcher_state.audit_log.record(
+                                        crate::server::audit_log::AuditEvent::file_change(
+                                            &relative_path,
+                                            kind_str,
+                                        ),
+                                    );
                                     watcher_state.mcp_event_hub.broadcast(
                                         mcp_events::McpEvent::FileChange {
                                             timestamp: mcp_events::iso_timestamp(),

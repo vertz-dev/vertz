@@ -119,9 +119,27 @@ pub async fn handle_source_file(
     }
 
     // Compile the file for browser consumption
+    let compile_start = std::time::Instant::now();
     let result = state.pipeline.compile_for_browser(&file_path);
+    let compile_elapsed = compile_start.elapsed();
 
     let file_str = file_path.to_string_lossy().to_string();
+
+    // Record compilation in audit log.
+    // Cache hits return in microseconds; real compilations take ≥1ms.
+    let compile_duration_ms = compile_elapsed.as_secs_f64() * 1000.0;
+    let relative_path = file_path
+        .strip_prefix(&state.root_dir)
+        .map(|p| p.to_string_lossy().to_string())
+        .unwrap_or_else(|_| file_str.clone());
+    state
+        .audit_log
+        .record(crate::server::audit_log::AuditEvent::compilation(
+            &relative_path,
+            compile_duration_ms < 0.5 && result.errors.is_empty(),
+            result.css.is_some(),
+            compile_duration_ms,
+        ));
 
     // Check if compilation produced errors
     if !result.errors.is_empty() {

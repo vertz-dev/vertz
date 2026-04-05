@@ -1,5 +1,6 @@
 use super::categories::{DevError, ErrorCategory, ErrorState};
 use super::terminal;
+use crate::server::audit_log::{AuditEvent, AuditLog};
 use axum::extract::ws::{Message, WebSocket};
 use futures_util::{SinkExt, StreamExt};
 use serde::Serialize;
@@ -47,6 +48,8 @@ pub struct ErrorBroadcaster {
     client_count: Arc<RwLock<usize>>,
     /// Project root directory for relative path display and log file writing.
     root_dir: Option<PathBuf>,
+    /// Optional audit log for recording error events.
+    audit_log: Option<AuditLog>,
 }
 
 impl ErrorBroadcaster {
@@ -57,6 +60,7 @@ impl ErrorBroadcaster {
             state: Arc::new(RwLock::new(ErrorState::new())),
             client_count: Arc::new(RwLock::new(0)),
             root_dir: None,
+            audit_log: None,
         }
     }
 
@@ -68,7 +72,14 @@ impl ErrorBroadcaster {
             state: Arc::new(RwLock::new(ErrorState::new())),
             client_count: Arc::new(RwLock::new(0)),
             root_dir: Some(root_dir),
+            audit_log: None,
         }
+    }
+
+    /// Attach an audit log for recording error events.
+    pub fn with_audit_log(mut self, audit_log: AuditLog) -> Self {
+        self.audit_log = Some(audit_log);
+        self
     }
 
     /// Report an error. Broadcasts to clients and prints to terminal.
@@ -78,6 +89,26 @@ impl ErrorBroadcaster {
             "{}",
             terminal::format_error(&error, self.root_dir.as_deref())
         );
+
+        // Record in audit log before the error is moved.
+        if let Some(ref audit_log) = self.audit_log {
+            let category = serde_json::to_value(error.category)
+                .ok()
+                .and_then(|v| v.as_str().map(String::from))
+                .unwrap_or_else(|| format!("{:?}", error.category));
+            let severity = serde_json::to_value(error.severity)
+                .ok()
+                .and_then(|v| v.as_str().map(String::from))
+                .unwrap_or_else(|| format!("{:?}", error.severity));
+            audit_log.record(AuditEvent::error(
+                &category,
+                &severity,
+                &error.message,
+                error.file.as_deref(),
+                error.line,
+                error.column,
+            ));
+        }
 
         let should_surface = {
             let mut state = self.state.write().await;
