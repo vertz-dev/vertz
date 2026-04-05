@@ -134,7 +134,7 @@ pub struct SubscribedData {
 }
 
 /// Known event names for subscription filter validation.
-const KNOWN_EVENTS: &[&str] = &[
+pub(crate) const KNOWN_EVENTS: &[&str] = &[
     "error_update",
     "file_change",
     "hmr_update",

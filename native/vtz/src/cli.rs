@@ -122,6 +122,10 @@ pub struct DevArgs {
     #[arg(long)]
     pub name: Option<String>,
 
+    /// Start an HTTP-to-WebSocket bridge for LLMs on this port
+    #[arg(long)]
+    pub bridge_port: Option<u16>,
+
     /// Open the app in a native desktop window instead of a browser tab (requires desktop feature)
     #[cfg(feature = "desktop")]
     #[arg(long)]
