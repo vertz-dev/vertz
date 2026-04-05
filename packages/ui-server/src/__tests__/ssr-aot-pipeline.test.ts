@@ -1201,6 +1201,35 @@ describe('Feature: Runtime holes and SSR integration', () => {
             expect(resolved).toEqual(['set-base-set-']);
           });
         });
+
+        describe('Given queryKeys with ${name} where name is a search param (not route param)', () => {
+          it('Then falls back to search params when route param is missing', () => {
+            const resolved = resolveParamQueryKeys(
+              ['set-${slug}-${page}'],
+              { slug: 'base-set' },
+              new URLSearchParams('page=3'),
+            );
+            expect(resolved).toEqual(['set-base-set-3']);
+          });
+
+          it('Then prefers route params over search params', () => {
+            const resolved = resolveParamQueryKeys(
+              ['item-${id}'],
+              { id: 'route-123' },
+              new URLSearchParams('id=sp-456'),
+            );
+            expect(resolved).toEqual(['item-route-123']);
+          });
+
+          it('Then resolves to empty string when neither source has the param', () => {
+            const resolved = resolveParamQueryKeys(
+              ['set-${slug}-${page}'],
+              { slug: 'base-set' },
+              new URLSearchParams(''),
+            );
+            expect(resolved).toEqual(['set-base-set-']);
+          });
+        });
       });
 
       describe('ssrRenderAot() with parameterized queryKeys', () => {
@@ -1367,6 +1396,70 @@ describe('Feature: Runtime holes and SSR integration', () => {
             expect(capturedSearchParams).toBeInstanceOf(URLSearchParams);
             expect(capturedSearchParams?.get('q')).toBe('pikachu');
             expect(capturedSearchParams?.get('page')).toBe('3');
+          });
+        });
+      });
+
+      describe('ssrRenderAot() ctx.getData resolves template literal patterns', () => {
+        describe('Given an AOT function that calls ctx.getData with a pattern key', () => {
+          it('Then resolves the pattern to match the cache entry', async () => {
+            // The AOT function uses the pattern key (as the Rust compiler emits it),
+            // not the resolved key. ctx.getData must resolve the pattern internally.
+            const aotFn: AotRenderFn = (_data, ctx) => {
+              const game = ctx.getData('game-${slug}') as { name: string };
+              return `<div>${__esc(game?.name ?? '')}</div>`;
+            };
+
+            const module = createMockModule();
+            const aotManifest: AotManifest = {
+              routes: {
+                '/games/:slug': {
+                  render: aotFn,
+                  holes: [],
+                  queryKeys: ['game-${slug}'],
+                },
+              },
+            };
+
+            const aotDataResolver: AotDataResolver = async () => {
+              return new Map([['game-pokemon-tcg', { name: 'Pokemon TCG' }]]);
+            };
+
+            const result = await ssrRenderAot(module, '/games/pokemon-tcg', {
+              aotManifest,
+              aotDataResolver,
+            });
+
+            expect(result.html).toContain('Pokemon TCG');
+          });
+
+          it('Then resolves search param fallback in getData pattern', async () => {
+            const aotFn: AotRenderFn = (_data, ctx) => {
+              const set = ctx.getData('set-${slug}-${page}') as { name: string };
+              return `<div>${__esc(set?.name ?? '')}</div>`;
+            };
+
+            const module = createMockModule();
+            const aotManifest: AotManifest = {
+              routes: {
+                '/sets/:slug': {
+                  render: aotFn,
+                  holes: [],
+                  queryKeys: ['set-${slug}-${page}'],
+                },
+              },
+            };
+
+            const aotDataResolver: AotDataResolver = async () => {
+              return new Map([['set-base-set-2', { name: 'Base Set' }]]);
+            };
+
+            const result = await ssrRenderAot(module, '/sets/base-set?page=2', {
+              aotManifest,
+              aotDataResolver,
+            });
+
+            expect(result.html).toContain('Base Set');
           });
         });
       });

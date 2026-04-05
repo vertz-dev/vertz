@@ -371,10 +371,32 @@ fn apply_query_replacements(mut expr: String, query_vars: &[QueryVarMeta]) -> St
         expr = expr.replace(&format!("{}.loading", qv.var_name), "false");
         expr = expr.replace(&format!("{}.error", qv.var_name), "undefined");
         for alias in &qv.derived_aliases {
-            // Replace standalone identifier (word boundary)
-            let pattern = format!(r"(?<!\.)(?<![a-zA-Z0-9_]){alias}(?![a-zA-Z0-9_])");
+            // Replace standalone identifier using word boundaries.
+            // `\b` matches between a word char and a non-word char, preventing
+            // partial matches like "gameQuery" when replacing "game".
+            let pattern = format!(r"\b{alias}\b");
             if let Ok(re) = regex::Regex::new(&pattern) {
-                expr = re.replace_all(&expr, local_var.as_str()).to_string();
+                // Avoid replacing inside property access like `.game` — check
+                // each match to ensure it's not preceded by a dot.
+                let mut result = String::new();
+                let mut last_end = 0;
+                for m in re.find_iter(&expr) {
+                    let preceding_char = if m.start() > 0 {
+                        expr.as_bytes()[m.start() - 1]
+                    } else {
+                        0
+                    };
+                    if preceding_char == b'.' {
+                        // Skip: this is a property access, not a standalone ref
+                        result.push_str(&expr[last_end..m.end()]);
+                    } else {
+                        result.push_str(&expr[last_end..m.start()]);
+                        result.push_str(&local_var);
+                    }
+                    last_end = m.end();
+                }
+                result.push_str(&expr[last_end..]);
+                expr = result;
             }
         }
     }
@@ -1425,6 +1447,9 @@ fn extract_cache_key(call: &CallExpression) -> Option<String> {
                             if let Expression::StringLiteral(s) = &p.value {
                                 return Some(s.value.to_string());
                             }
+                            if let Expression::TemplateLiteral(tpl) = &p.value {
+                                return template_literal_to_key_pattern(tpl);
+                            }
                         }
                     }
                 }
@@ -1433,6 +1458,33 @@ fn extract_cache_key(call: &CallExpression) -> Option<String> {
     }
 
     None
+}
+
+/// Convert a template literal like `` `set-${slug}-${page}` `` into a pattern string
+/// `"set-${slug}-${page}"`. Only supports simple identifier expressions; returns `None`
+/// for complex expressions (member access, calls, etc.).
+fn template_literal_to_key_pattern(tpl: &TemplateLiteral) -> Option<String> {
+    let mut result = String::new();
+    for (i, quasi) in tpl.quasis.iter().enumerate() {
+        let text = quasi
+            .value
+            .cooked
+            .as_deref()
+            .unwrap_or(quasi.value.raw.as_str());
+        result.push_str(text);
+        if i < tpl.expressions.len() {
+            match &tpl.expressions[i] {
+                Expression::Identifier(id) => {
+                    result.push_str(&format!("${{{}}}", id.name));
+                }
+                _ => {
+                    // Complex expression — can't statically extract
+                    return None;
+                }
+            }
+        }
+    }
+    Some(result)
 }
 
 fn extract_property_chain(expr: &Expression) -> Option<Vec<String>> {
@@ -2574,9 +2626,7 @@ export function UserProfile() {
     }
 
     #[test]
-    fn apply_query_replacements_with_derived_alias_regex_fails_gracefully() {
-        // The regex pattern uses lookbehinds which the `regex` crate doesn't support.
-        // The code silently skips the replacement via `if let Ok(re)`.
+    fn apply_query_replacements_with_derived_alias() {
         let query_vars = vec![QueryVarMeta {
             var_name: "user".to_string(),
             cache_key: "users-getById".to_string(),
@@ -2584,14 +2634,132 @@ export function UserProfile() {
             derived_aliases: vec!["userData".to_string()],
         }];
         let result = apply_query_replacements("userData".to_string(), &query_vars);
-        // The regex fails to compile, so the alias is NOT replaced
-        assert_eq!(result, "userData");
+        assert_eq!(result, "__q0");
+    }
+
+    #[test]
+    fn apply_query_replacements_derived_alias_skips_property_access() {
+        let query_vars = vec![QueryVarMeta {
+            var_name: "user".to_string(),
+            cache_key: "users-getById".to_string(),
+            index: 0,
+            derived_aliases: vec!["userData".to_string()],
+        }];
+        // .userData should NOT be replaced (property access)
+        let result = apply_query_replacements("obj.userData".to_string(), &query_vars);
+        assert_eq!(result, "obj.userData");
+    }
+
+    #[test]
+    fn apply_query_replacements_derived_alias_no_partial_match() {
+        let query_vars = vec![QueryVarMeta {
+            var_name: "tasks".to_string(),
+            cache_key: "tasks-list".to_string(),
+            index: 0,
+            derived_aliases: vec!["data".to_string()],
+        }];
+        // "metadata" should NOT be partially replaced
+        let result = apply_query_replacements("metadata".to_string(), &query_vars);
+        assert_eq!(result, "metadata");
+    }
+
+    #[test]
+    fn apply_query_replacements_derived_alias_in_guard_condition() {
+        let query_vars = vec![QueryVarMeta {
+            var_name: "gameQuery".to_string(),
+            cache_key: "game-slug".to_string(),
+            index: 0,
+            derived_aliases: vec!["game".to_string()],
+        }];
+        let result = apply_query_replacements(
+            "(!game ? '<div>Loading</div>' : __esc(game.name))".to_string(),
+            &query_vars,
+        );
+        assert_eq!(result, "(!__q0 ? '<div>Loading</div>' : __esc(__q0.name))");
     }
 
     #[test]
     fn apply_query_replacements_no_queries_unchanged() {
         let result = apply_query_replacements("hello.data".to_string(), &[]);
         assert_eq!(result, "hello.data");
+    }
+
+    // ========== Template literal cache keys ==========
+
+    #[test]
+    fn template_literal_cache_key_single_param() {
+        let source = r#"import { query, useParams } from 'vertz';
+export function GameDetail() {
+    const { slug } = useParams();
+    const game = query(async () => fetchGame(slug), { key: `game-${slug}` });
+    return <div>{game.data}</div>;
+}"#;
+        let result = compile(source);
+        assert_eq!(result.components[0].query_keys, vec!["game-${slug}"]);
+        assert_ne!(result.components[0].tier, AotTier::RuntimeFallback);
+    }
+
+    #[test]
+    fn template_literal_cache_key_multiple_params() {
+        let source = r#"import { query, useParams } from 'vertz';
+export function SetDetail() {
+    const { slug } = useParams();
+    const page = 1;
+    const items = query(async () => fetchSet(slug, page), { key: `set-${slug}-${page}` });
+    return <div>{items.data}</div>;
+}"#;
+        let result = compile(source);
+        assert_eq!(result.components[0].query_keys, vec!["set-${slug}-${page}"]);
+        assert_ne!(result.components[0].tier, AotTier::RuntimeFallback);
+    }
+
+    #[test]
+    fn template_literal_cache_key_no_expressions() {
+        let source = r#"import { query } from 'vertz';
+export function Games() {
+    const games = query(async () => fetchGames(), { key: `games` });
+    return <div>{games.data}</div>;
+}"#;
+        let result = compile(source);
+        assert_eq!(result.components[0].query_keys, vec!["games"]);
+    }
+
+    #[test]
+    fn template_literal_cache_key_with_guard_pattern() {
+        let source = r#"import { query, useParams } from 'vertz';
+export function GameDetail() {
+    const { slug } = useParams();
+    const gameQuery = query(async () => fetchGame(slug), { key: `game-${slug}` });
+    const game = gameQuery.data;
+    if (!game) return <div>Loading...</div>;
+    return <div>{game.name}</div>;
+}"#;
+        let result = compile(source);
+        assert_eq!(result.components[0].query_keys, vec!["game-${slug}"]);
+        assert_eq!(result.components[0].tier, AotTier::Conditional);
+        let ssr_fn = format!("__ssr_{}", result.components[0].name);
+        assert!(
+            result.code.contains(&ssr_fn),
+            "Expected AOT function {} in output",
+            ssr_fn
+        );
+        // Derived alias `game` must be replaced with `__q0` everywhere
+        let ssr_part = &result.code[source.len()..];
+        assert!(
+            !ssr_part.contains("(!game"),
+            "Guard condition should use __q0, not 'game': {}",
+            ssr_part
+        );
+        assert!(
+            ssr_part.contains("(!__q0"),
+            "Guard should reference __q0: {}",
+            ssr_part
+        );
+        assert!(
+            ssr_part.contains("__q0.name"),
+            "Property access should use __q0: {}",
+            ssr_part
+        );
     }
 
     // ========== Conditional return expressions ==========

@@ -325,9 +325,11 @@ export async function ssrRenderAot(
     const holes = createHoles(aotEntry.holes, module, normalizedUrl, queryCache, options.ssrAuth);
 
     // 4. Build AOT context
+    const resolveKey = (key: string) =>
+      key.includes('${') ? resolveParamQueryKeys([key], match.params, searchParams)[0]! : key;
     const ctx: SSRAotContext = {
       holes,
-      getData: (key) => queryCache.get(key),
+      getData: (key) => queryCache.get(resolveKey(key)),
       session: options.prefetchSession,
       params: match.params,
       searchParams,
@@ -373,7 +375,7 @@ export async function ssrRenderAot(
 
         const appCtx: SSRAotContext = {
           holes: appHoles,
-          getData: (key) => queryCache.get(key),
+          getData: (key) => queryCache.get(resolveKey(key)),
           session: options.prefetchSession,
           params: match.params,
           searchParams,
@@ -519,7 +521,10 @@ export function resolveParamQueryKeys(
         }
         return value ?? '';
       })
-      .replace(/\$\{(\w+)\}/g, (_, paramName) => params[paramName] ?? ''),
+      .replace(
+        /\$\{(\w+)\}/g,
+        (_, paramName) => params[paramName] ?? searchParams?.get(paramName) ?? '',
+      ),
   );
 }
 
