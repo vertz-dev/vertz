@@ -43,11 +43,11 @@ type PostsModel = (typeof models)['posts'];
 
 describe('Model delegates exist as typed properties', () => {
   it('db.users is a ModelDelegate typed for users', () => {
-    type _t1 = Expect<Extends<DB['users'], ModelDelegate<UsersModel>>>;
+    type _t1 = Expect<Extends<DB['users'], ModelDelegate<UsersModel, typeof models>>>;
   });
 
   it('db.posts is a ModelDelegate typed for posts', () => {
-    type _t1 = Expect<Extends<DB['posts'], ModelDelegate<PostsModel>>>;
+    type _t1 = Expect<Extends<DB['posts'], ModelDelegate<PostsModel, typeof models>>>;
   });
 
   it('non-existent model key is a compile error', () => {
