@@ -4,9 +4,14 @@
 //! The bus enforces serialization via structured clone protocol to ensure
 //! local-production parity.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
+use std::time::Duration;
 
+use thiserror::Error;
 use tokio::sync::{mpsc, oneshot};
+
+/// Default send timeout (30 seconds).
+const DEFAULT_SEND_TIMEOUT: Duration = Duration::from_secs(30);
 
 /// A message sent between Isolates via the message bus
 #[derive(Debug)]
@@ -20,111 +25,75 @@ pub struct BusMessage {
     /// Serialized payload (V8 ValueSerializer bytes)
     pub payload: Vec<u8>,
     /// Channel for the response
-    pub response_tx: oneshot::Sender<BusResponse>,
+    pub response_tx: oneshot::Sender<Result<Vec<u8>, BusError>>,
     /// Request trace ID for cross-Isolate tracing
     pub trace_id: String,
-    /// Call chain for deadlock detection (entities in the current call path)
+    /// Call chain for deadlock detection (entities in the current call path).
+    /// Callers MUST push `source_entity` onto the chain before sending.
     pub call_chain: Vec<String>,
 }
 
-/// Response from a cross-Isolate call
-#[derive(Debug)]
-pub struct BusResponse {
-    /// Serialized response payload (V8 ValueSerializer bytes)
-    pub payload: Vec<u8>,
-    /// Error, if any
-    pub error: Option<BusError>,
-}
-
 /// Errors that can occur during message bus operations
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Error)]
 pub enum BusError {
     /// Target entity not found in the message bus
+    #[error("EntityNotFound: entity '{entity}' not registered")]
     EntityNotFound { entity: String },
     /// Non-serializable data detected
+    #[error("SerializationError: cannot serialize value at '{path}' ({value_desc}): {hint}")]
     SerializationError {
         path: String,
         value_desc: String,
         hint: String,
     },
     /// Circular cross-entity call detected
+    #[error("DeadlockDetected: circular cross-entity read: {}", .cycle.join(" → "))]
     DeadlockDetected { cycle: Vec<String> },
-    /// Operation timed out
+    /// Operation timed out waiting for channel space
+    #[error("Timeout: entity '{entity}' operation '{operation}' exceeded {timeout_ms}ms")]
     Timeout {
         entity: String,
         operation: String,
         timeout_ms: u64,
     },
     /// Inbox channel full (backpressure)
+    #[error("ChannelFull: inbox for entity '{entity}' is full (backpressure)")]
     ChannelFull { entity: String },
+    /// Isolate receiver was dropped (isolate crashed or shut down)
+    #[error("IsolateClosed: isolate for entity '{entity}' is no longer running")]
+    IsolateClosed { entity: String },
 }
-
-impl std::fmt::Display for BusError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            BusError::EntityNotFound { entity } => {
-                write!(f, "EntityNotFound: entity '{}' not registered", entity)
-            }
-            BusError::SerializationError {
-                path,
-                value_desc,
-                hint,
-            } => {
-                write!(
-                    f,
-                    "SerializationError: Cannot serialize value at path '{}'\n  Value: {}\n  Hint: {}",
-                    path, value_desc, hint
-                )
-            }
-            BusError::DeadlockDetected { cycle } => {
-                let cycle_str = cycle.join(" → ");
-                write!(
-                    f,
-                    "DeadlockDetected: Circular cross-entity read detected\n  Cycle: {}\n  Hint: Break the cycle by making one of these calls asynchronous.",
-                    cycle_str
-                )
-            }
-            BusError::Timeout {
-                entity,
-                operation,
-                timeout_ms,
-            } => {
-                write!(
-                    f,
-                    "Timeout: entity '{}' operation '{}' exceeded {}ms",
-                    entity, operation, timeout_ms
-                )
-            }
-            BusError::ChannelFull { entity } => {
-                write!(
-                    f,
-                    "ChannelFull: inbox for entity '{}' is full (backpressure)",
-                    entity
-                )
-            }
-        }
-    }
-}
-
-impl std::error::Error for BusError {}
 
 /// Configuration for the message bus
 #[derive(Debug, Clone)]
 pub struct MessageBusConfig {
     /// Whether to serialize even same-group calls (default: false, true in CI)
     pub strict_serialization: bool,
-    /// Bounded channel capacity per Isolate inbox
+    /// Bounded channel capacity per Isolate inbox (must be > 0)
     pub channel_capacity: usize,
 }
 
-impl Default for MessageBusConfig {
-    fn default() -> Self {
+impl MessageBusConfig {
+    /// Create config from environment variables.
+    ///
+    /// - `CI=true` → strict_serialization enabled
+    /// - `VERTZ_STRICT_SERIALIZATION=1|true` → strict_serialization enabled
+    pub fn from_env() -> Self {
         let strict = std::env::var("CI").is_ok()
             || std::env::var("VERTZ_STRICT_SERIALIZATION")
                 .map(|v| v == "1" || v == "true")
                 .unwrap_or(false);
         Self {
             strict_serialization: strict,
+            channel_capacity: 256,
+        }
+    }
+}
+
+impl Default for MessageBusConfig {
+    fn default() -> Self {
+        Self {
+            strict_serialization: false,
             channel_capacity: 256,
         }
     }
@@ -152,10 +121,18 @@ impl MessageBus {
     /// Create a message bus from entity-to-isolate mapping.
     ///
     /// Returns the bus and a map of receivers (one per Isolate group).
+    ///
+    /// # Panics
+    /// Panics if `config.channel_capacity` is 0.
     pub fn create(
         entity_to_isolate: HashMap<String, usize>,
         config: MessageBusConfig,
     ) -> MessageBusHandles {
+        assert!(
+            config.channel_capacity > 0,
+            "MessageBusConfig::channel_capacity must be > 0"
+        );
+
         let isolate_indices: Vec<usize> = {
             let mut indices: Vec<usize> = entity_to_isolate.values().copied().collect();
             indices.sort();
@@ -182,48 +159,47 @@ impl MessageBus {
         }
     }
 
-    /// Check if a deadlock would occur by sending to `target_entity`
-    /// given the current `call_chain`.
-    pub fn check_deadlock(call_chain: &[String], target_entity: &str) -> Option<BusError> {
-        if call_chain.contains(&target_entity.to_string()) {
-            let mut cycle = call_chain.to_vec();
-            cycle.push(target_entity.to_string());
-            return Some(BusError::DeadlockDetected { cycle });
-        }
-        None
-    }
-
     /// Send a message to the target entity's Isolate.
     ///
-    /// Returns `Err(BusError)` if the entity is unknown or the channel is full.
+    /// Awaits channel availability with a timeout. Returns `Err(BusError)` if:
+    /// - The entity is unknown
+    /// - A deadlock cycle is detected in the call chain
+    /// - The channel send times out
+    /// - The receiver isolate has been dropped
     pub async fn send(&self, msg: BusMessage) -> Result<(), BusError> {
         // Check for deadlock
-        if let Some(err) = Self::check_deadlock(&msg.call_chain, &msg.target_entity) {
+        if let Some(err) = check_deadlock(&msg.call_chain, &msg.target_entity) {
             return Err(err);
         }
 
-        let isolate_idx = self
-            .entity_to_isolate
-            .get(&msg.target_entity)
-            .ok_or_else(|| BusError::EntityNotFound {
-                entity: msg.target_entity.clone(),
-            })?;
+        let target_entity = msg.target_entity.clone();
+        let operation = msg.operation.clone();
+
+        let isolate_idx =
+            self.entity_to_isolate
+                .get(&target_entity)
+                .ok_or_else(|| BusError::EntityNotFound {
+                    entity: target_entity.clone(),
+                })?;
 
         let sender =
             self.isolate_inboxes
                 .get(isolate_idx)
                 .ok_or_else(|| BusError::EntityNotFound {
-                    entity: msg.target_entity.clone(),
+                    entity: target_entity.clone(),
                 })?;
 
-        sender.try_send(msg).map_err(|e| match e {
-            mpsc::error::TrySendError::Full(_) => BusError::ChannelFull {
-                entity: "unknown".to_string(),
-            },
-            mpsc::error::TrySendError::Closed(_) => BusError::EntityNotFound {
-                entity: "closed".to_string(),
-            },
-        })
+        match tokio::time::timeout(DEFAULT_SEND_TIMEOUT, sender.send(msg)).await {
+            Ok(Ok(())) => Ok(()),
+            Ok(Err(_)) => Err(BusError::IsolateClosed {
+                entity: target_entity,
+            }),
+            Err(_) => Err(BusError::Timeout {
+                entity: target_entity,
+                operation,
+                timeout_ms: DEFAULT_SEND_TIMEOUT.as_millis() as u64,
+            }),
+        }
     }
 
     /// Check if an entity is registered in the bus
@@ -246,6 +222,21 @@ impl MessageBus {
     pub fn strict_serialization(&self) -> bool {
         self.config.strict_serialization
     }
+}
+
+/// Check if a deadlock would occur by sending to `target_entity`
+/// given the current `call_chain`.
+///
+/// Callers must ensure `source_entity` is already in the `call_chain`
+/// before calling this function.
+pub fn check_deadlock(call_chain: &[String], target_entity: &str) -> Option<BusError> {
+    let chain_set: HashSet<&str> = call_chain.iter().map(|s| s.as_str()).collect();
+    if chain_set.contains(target_entity) {
+        let mut cycle = call_chain.to_vec();
+        cycle.push(target_entity.to_string());
+        return Some(BusError::DeadlockDetected { cycle });
+    }
+    None
 }
 
 #[cfg(test)]
@@ -400,6 +391,33 @@ mod tests {
         assert!(handles.bus.send(msg).await.is_ok());
     }
 
+    #[tokio::test]
+    async fn closed_receiver_returns_isolate_closed() {
+        let mut handles = MessageBus::create(test_entity_map(), test_config());
+
+        // Drop the receiver for group 0 to simulate isolate crash
+        handles.receivers.remove(&0);
+
+        let (resp_tx, _) = oneshot::channel();
+        let msg = BusMessage {
+            source_entity: "user".to_string(),
+            target_entity: "task".to_string(),
+            operation: "list".to_string(),
+            payload: vec![],
+            response_tx: resp_tx,
+            trace_id: "trace-6".to_string(),
+            call_chain: vec!["user".to_string()],
+        };
+
+        let err = handles.bus.send(msg).await.unwrap_err();
+        assert_eq!(
+            err,
+            BusError::IsolateClosed {
+                entity: "task".to_string()
+            }
+        );
+    }
+
     #[test]
     fn has_entity_checks_registration() {
         let handles = MessageBus::create(test_entity_map(), test_config());
@@ -418,14 +436,7 @@ mod tests {
 
     #[test]
     fn strict_serialization_default_off() {
-        // Reset env vars for this test
-        let handles = MessageBus::create(
-            test_entity_map(),
-            MessageBusConfig {
-                strict_serialization: false,
-                channel_capacity: 16,
-            },
-        );
+        let handles = MessageBus::create(test_entity_map(), MessageBusConfig::default());
         assert!(!handles.bus.strict_serialization());
     }
 
@@ -439,6 +450,36 @@ mod tests {
             },
         );
         assert!(handles.bus.strict_serialization());
+    }
+
+    #[test]
+    #[should_panic(expected = "channel_capacity must be > 0")]
+    fn zero_channel_capacity_panics() {
+        MessageBus::create(
+            test_entity_map(),
+            MessageBusConfig {
+                strict_serialization: false,
+                channel_capacity: 0,
+            },
+        );
+    }
+
+    #[test]
+    fn check_deadlock_detects_self_loop() {
+        // Entity "task" is in its own call chain — calling itself
+        let result = check_deadlock(&["task".to_string()], "task");
+        assert!(result.is_some());
+        match result.unwrap() {
+            BusError::DeadlockDetected { cycle } => {
+                assert_eq!(cycle, vec!["task", "task"]);
+            }
+            _ => panic!("Expected DeadlockDetected"),
+        }
+    }
+
+    #[test]
+    fn check_deadlock_empty_chain_succeeds() {
+        assert!(check_deadlock(&[], "task").is_none());
     }
 
     #[test]
@@ -475,5 +516,37 @@ mod tests {
         let s = err.to_string();
         assert!(s.contains("task → comment → task"));
         assert!(s.contains("DeadlockDetected"));
+    }
+
+    #[test]
+    fn bus_error_display_isolate_closed() {
+        let err = BusError::IsolateClosed {
+            entity: "task".to_string(),
+        };
+        let s = err.to_string();
+        assert!(s.contains("task"));
+        assert!(s.contains("IsolateClosed"));
+    }
+
+    #[test]
+    fn bus_error_display_timeout() {
+        let err = BusError::Timeout {
+            entity: "task".to_string(),
+            operation: "list".to_string(),
+            timeout_ms: 30000,
+        };
+        let s = err.to_string();
+        assert!(s.contains("task"));
+        assert!(s.contains("30000ms"));
+    }
+
+    #[test]
+    fn default_config_is_deterministic() {
+        let a = MessageBusConfig::default();
+        let b = MessageBusConfig::default();
+        assert_eq!(a.strict_serialization, b.strict_serialization);
+        assert_eq!(a.channel_capacity, b.channel_capacity);
+        assert!(!a.strict_serialization);
+        assert_eq!(a.channel_capacity, 256);
     }
 }
