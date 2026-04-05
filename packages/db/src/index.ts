@@ -146,6 +146,8 @@ export { createEnumRegistry } from './schema/enum-registry';
 export type { FilterType, OrderByType } from './schema/filter';
 export type {
   Database,
+  FindModelByTable,
+  FindModelRelations,
   FindOptions,
   FindResult,
   IncludeOption,

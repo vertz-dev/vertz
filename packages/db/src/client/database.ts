@@ -238,15 +238,21 @@ type EntryColumns<TEntry extends ModelEntry> = EntryTable<TEntry>['_columns'];
 // ---------------------------------------------------------------------------
 
 /** Options for get / getOrThrow — typed per-table. */
-type TypedGetOptions<TEntry extends ModelEntry> = {
+type TypedGetOptions<
+  TEntry extends ModelEntry,
+  TModels extends Record<string, ModelEntry> = Record<string, ModelEntry>,
+> = {
   readonly where?: FilterType<EntryColumns<TEntry>>;
   readonly select?: SelectOption<EntryColumns<TEntry>>;
   readonly orderBy?: OrderByType<EntryColumns<TEntry>>;
-  readonly include?: IncludeOption<EntryRelations<TEntry>>;
+  readonly include?: IncludeOption<EntryRelations<TEntry>, TModels>;
 };
 
 /** Options for list / listAndCount — typed per-table. */
-type TypedListOptions<TEntry extends ModelEntry> = {
+type TypedListOptions<
+  TEntry extends ModelEntry,
+  TModels extends Record<string, ModelEntry> = Record<string, ModelEntry>,
+> = {
   readonly where?: FilterType<EntryColumns<TEntry>>;
   readonly select?: SelectOption<EntryColumns<TEntry>>;
   readonly orderBy?: OrderByType<EntryColumns<TEntry>>;
@@ -256,7 +262,7 @@ type TypedListOptions<TEntry extends ModelEntry> = {
   readonly cursor?: Record<string, unknown>;
   /** Number of rows to take (used with cursor). Aliases `limit` when cursor is present. */
   readonly take?: number;
-  readonly include?: IncludeOption<EntryRelations<TEntry>>;
+  readonly include?: IncludeOption<EntryRelations<TEntry>, TModels>;
 };
 
 /** Options for create — typed per-table. */
@@ -318,31 +324,41 @@ type TypedCountOptions<TEntry extends ModelEntry> = {
 // Carries all CRUD methods typed for a specific model entry.
 // ---------------------------------------------------------------------------
 
-export interface ModelDelegate<TEntry extends ModelEntry> {
+export interface ModelDelegate<
+  TEntry extends ModelEntry,
+  TModels extends Record<string, ModelEntry> = Record<string, ModelEntry>,
+> {
   /** Get a single row or null. */
-  get<TOptions extends TypedGetOptions<TEntry>>(
+  get<TOptions extends TypedGetOptions<TEntry, TModels>>(
     options?: TOptions,
   ): Promise<
-    Result<FindResult<EntryTable<TEntry>, TOptions, EntryRelations<TEntry>> | null, ReadError>
+    Result<
+      FindResult<EntryTable<TEntry>, TOptions, EntryRelations<TEntry>, TModels> | null,
+      ReadError
+    >
   >;
 
   /** Get a single row or return NotFoundError. */
-  getOrThrow<TOptions extends TypedGetOptions<TEntry>>(
+  getOrThrow<TOptions extends TypedGetOptions<TEntry, TModels>>(
     options?: TOptions,
-  ): Promise<Result<FindResult<EntryTable<TEntry>, TOptions, EntryRelations<TEntry>>, ReadError>>;
+  ): Promise<
+    Result<FindResult<EntryTable<TEntry>, TOptions, EntryRelations<TEntry>, TModels>, ReadError>
+  >;
 
   /** List multiple rows. */
-  list<TOptions extends TypedListOptions<TEntry>>(
+  list<TOptions extends TypedListOptions<TEntry, TModels>>(
     options?: TOptions,
-  ): Promise<Result<FindResult<EntryTable<TEntry>, TOptions, EntryRelations<TEntry>>[], ReadError>>;
+  ): Promise<
+    Result<FindResult<EntryTable<TEntry>, TOptions, EntryRelations<TEntry>, TModels>[], ReadError>
+  >;
 
   /** List multiple rows with total count. */
-  listAndCount<TOptions extends TypedListOptions<TEntry>>(
+  listAndCount<TOptions extends TypedListOptions<TEntry, TModels>>(
     options?: TOptions,
   ): Promise<
     Result<
       {
-        data: FindResult<EntryTable<TEntry>, TOptions, EntryRelations<TEntry>>[];
+        data: FindResult<EntryTable<TEntry>, TOptions, EntryRelations<TEntry>, TModels>[];
         total: number;
       },
       ReadError
@@ -352,7 +368,9 @@ export interface ModelDelegate<TEntry extends ModelEntry> {
   /** Insert a single row and return it. */
   create<TOptions extends TypedCreateOptions<TEntry>>(
     options: TOptions,
-  ): Promise<Result<FindResult<EntryTable<TEntry>, TOptions, EntryRelations<TEntry>>, WriteError>>;
+  ): Promise<
+    Result<FindResult<EntryTable<TEntry>, TOptions, EntryRelations<TEntry>, TModels>, WriteError>
+  >;
 
   /** Insert multiple rows and return the count. */
   createMany(
@@ -363,13 +381,15 @@ export interface ModelDelegate<TEntry extends ModelEntry> {
   createManyAndReturn<TOptions extends TypedCreateManyAndReturnOptions<TEntry>>(
     options: TOptions,
   ): Promise<
-    Result<FindResult<EntryTable<TEntry>, TOptions, EntryRelations<TEntry>>[], WriteError>
+    Result<FindResult<EntryTable<TEntry>, TOptions, EntryRelations<TEntry>, TModels>[], WriteError>
   >;
 
   /** Update matching rows and return the first. */
   update<TOptions extends TypedUpdateOptions<TEntry>>(
     options: TOptions,
-  ): Promise<Result<FindResult<EntryTable<TEntry>, TOptions, EntryRelations<TEntry>>, WriteError>>;
+  ): Promise<
+    Result<FindResult<EntryTable<TEntry>, TOptions, EntryRelations<TEntry>, TModels>, WriteError>
+  >;
 
   /** Update matching rows and return the count. */
   updateMany(
@@ -379,12 +399,16 @@ export interface ModelDelegate<TEntry extends ModelEntry> {
   /** Insert or update a row. */
   upsert<TOptions extends TypedUpsertOptions<TEntry>>(
     options: TOptions,
-  ): Promise<Result<FindResult<EntryTable<TEntry>, TOptions, EntryRelations<TEntry>>, WriteError>>;
+  ): Promise<
+    Result<FindResult<EntryTable<TEntry>, TOptions, EntryRelations<TEntry>, TModels>, WriteError>
+  >;
 
   /** Delete a matching row and return it. */
   delete<TOptions extends TypedDeleteOptions<TEntry>>(
     options: TOptions,
-  ): Promise<Result<FindResult<EntryTable<TEntry>, TOptions, EntryRelations<TEntry>>, WriteError>>;
+  ): Promise<
+    Result<FindResult<EntryTable<TEntry>, TOptions, EntryRelations<TEntry>, TModels>, WriteError>
+  >;
 
   /** Delete matching rows and return the count. */
   deleteMany(
@@ -430,7 +454,7 @@ export interface DatabaseInternals<TModels extends Record<string, ModelEntry>> {
  * Auto-commits on success, auto-rolls-back on error.
  */
 export type TransactionClient<TModels extends Record<string, ModelEntry>> = {
-  readonly [K in keyof TModels]: ModelDelegate<TModels[K]>;
+  readonly [K in keyof TModels]: ModelDelegate<TModels[K], TModels>;
 } & {
   /** Execute a raw SQL query within the transaction. */
   query<T = Record<string, unknown>>(
@@ -444,7 +468,7 @@ export type TransactionClient<TModels extends Record<string, ModelEntry>> = {
 // ---------------------------------------------------------------------------
 
 export type DatabaseClient<TModels extends Record<string, ModelEntry>> = {
-  readonly [K in keyof TModels]: ModelDelegate<TModels[K]>;
+  readonly [K in keyof TModels]: ModelDelegate<TModels[K], TModels>;
 } & {
   /** Execute a raw SQL query via the sql tagged template. */
   query<T = Record<string, unknown>>(

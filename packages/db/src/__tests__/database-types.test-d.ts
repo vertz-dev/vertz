@@ -398,3 +398,85 @@ describe('Cycle 8: DatabaseClient model delegate method signatures', () => {
     type _t1 = Expect<HasKey<DB['_internals'], 'models'>>;
   });
 });
+
+// ---------------------------------------------------------------------------
+// Typed nested include through DatabaseClient
+// ---------------------------------------------------------------------------
+
+describe('Typed nested include through DatabaseClient', () => {
+  it('db.posts.get() validates nested include keys', () => {
+    type GetOpts = Parameters<DB['posts']['get']>[0];
+    type IncludeField = NonNullable<NonNullable<GetOpts>['include']>;
+
+    const _valid: IncludeField = {
+      comments: {
+        include: {
+          author: true,
+        },
+      },
+    };
+    void _valid;
+  });
+
+  it('db.posts.get() rejects invalid nested include keys', () => {
+    type GetOpts = Parameters<DB['posts']['get']>[0];
+    type IncludeField = NonNullable<NonNullable<GetOpts>['include']>;
+
+    const _invalid: IncludeField = {
+      comments: {
+        // @ts-expect-error — 'bogus' is not a relation on comments
+        include: { bogus: true },
+      },
+    };
+    void _invalid;
+  });
+
+  it('db.posts.list() validates nested include keys', () => {
+    type ListOpts = Parameters<DB['posts']['list']>[0];
+    type IncludeField = NonNullable<NonNullable<ListOpts>['include']>;
+
+    const _valid: IncludeField = {
+      comments: {
+        include: {
+          post: true,
+        },
+      },
+    };
+    void _valid;
+  });
+
+  it('db.posts.list() rejects invalid nested include keys', () => {
+    type ListOpts = Parameters<DB['posts']['list']>[0];
+    type IncludeField = NonNullable<NonNullable<ListOpts>['include']>;
+
+    const _invalid: IncludeField = {
+      comments: {
+        // @ts-expect-error — 'bogus' is not a relation on comments
+        include: { bogus: true },
+      },
+    };
+    void _invalid;
+  });
+
+  it('TransactionClient has same nested include typing', () => {
+    type TxPostDelegate = DB extends { transaction: (fn: infer F) => unknown }
+      ? F extends (tx: infer TX) => unknown
+        ? TX extends { posts: infer P }
+          ? P
+          : never
+        : never
+      : never;
+
+    type TxGetOpts = TxPostDelegate extends { get: (opts?: infer O) => unknown } ? O : never;
+    type TxInclude = NonNullable<NonNullable<TxGetOpts>['include']>;
+
+    const _valid: TxInclude = {
+      comments: {
+        include: {
+          author: true,
+        },
+      },
+    };
+    void _valid;
+  });
+});
