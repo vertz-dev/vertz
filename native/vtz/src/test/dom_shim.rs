@@ -1766,6 +1766,36 @@ pub const TEST_DOM_SHIM_JS: &str = r#"
     }
   }
 
+  // --- Blob & File ---
+  class Blob {
+    constructor(parts, options) {
+      this._parts = parts || [];
+      this.type = (options && options.type) || '';
+      let size = 0;
+      for (const p of this._parts) {
+        if (typeof p === 'string') size += p.length;
+        else if (p instanceof ArrayBuffer) size += p.byteLength;
+        else if (p instanceof Blob) size += p.size;
+      }
+      this.size = size;
+    }
+    slice(start, end, contentType) {
+      return new Blob([], { type: contentType || '' });
+    }
+    async text() {
+      return this._parts.map(p => typeof p === 'string' ? p : '').join('');
+    }
+    async arrayBuffer() { return new ArrayBuffer(0); }
+  }
+
+  class File extends Blob {
+    constructor(parts, name, options) {
+      super(parts, options);
+      this.name = name || '';
+      this.lastModified = (options && options.lastModified) || Date.now();
+    }
+  }
+
   // --- FormData ---
   class FormData {
     constructor(formElement) {
@@ -1798,14 +1828,30 @@ pub const TEST_DOM_SHIM_JS: &str = r#"
       return this._data.filter(([k]) => k === name).map(([, v]) => v);
     }
 
-    set(name, value) {
+    set(name, value, filename) {
+      let stored;
+      if (value instanceof Blob) {
+        stored = (filename !== undefined)
+          ? new File([value], filename, { type: value.type })
+          : value;
+      } else {
+        stored = String(value);
+      }
       const idx = this._data.findIndex(([k]) => k === name);
-      if (idx >= 0) this._data[idx] = [name, String(value)];
-      else this._data.push([name, String(value)]);
+      if (idx >= 0) this._data[idx] = [name, stored];
+      else this._data.push([name, stored]);
     }
 
-    append(name, value) {
-      this._data.push([name, String(value)]);
+    append(name, value, filename) {
+      let stored;
+      if (value instanceof Blob) {
+        stored = (filename !== undefined)
+          ? new File([value], filename, { type: value.type })
+          : value;
+      } else {
+        stored = String(value);
+      }
+      this._data.push([name, stored]);
     }
 
     has(name) {
@@ -2110,7 +2156,7 @@ pub const TEST_DOM_SHIM_JS: &str = r#"
     HTMLHeadElement, HTMLBodyElement, HTMLHtmlElement,
     Text, Comment, DocumentFragment,
     Document, NodeFilter, TreeWalker,
-    FormData, CSSStyleSheet,
+    Blob, File, FormData, CSSStyleSheet,
     MutationObserver, ResizeObserver, IntersectionObserver,
   });
 
