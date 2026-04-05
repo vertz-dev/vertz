@@ -243,8 +243,16 @@ async fn test_diagnostics_returns_valid_json() {
     let hmr_hub = HmrHub::new();
     let error_broadcaster = ErrorBroadcaster::new();
 
-    let snap =
-        diagnostics::collect_diagnostics(start, 0, &graph, &hmr_hub, &error_broadcaster).await;
+    let audit_log = vertz_runtime::server::audit_log::AuditLog::default();
+    let snap = diagnostics::collect_diagnostics(
+        start,
+        0,
+        &graph,
+        &hmr_hub,
+        &error_broadcaster,
+        &audit_log,
+    )
+    .await;
 
     let json = serde_json::to_string(&snap).unwrap();
     let parsed: serde_json::Value = serde_json::from_str(&json).unwrap();
@@ -276,8 +284,16 @@ async fn test_diagnostics_includes_active_errors() {
         .report_error(DevError::build("test error").with_file("/src/app.tsx"))
         .await;
 
-    let snap =
-        diagnostics::collect_diagnostics(start, 3, &graph, &hmr_hub, &error_broadcaster).await;
+    let audit_log = vertz_runtime::server::audit_log::AuditLog::default();
+    let snap = diagnostics::collect_diagnostics(
+        start,
+        3,
+        &graph,
+        &hmr_hub,
+        &error_broadcaster,
+        &audit_log,
+    )
+    .await;
 
     assert_eq!(snap.errors.len(), 1);
     assert_eq!(snap.errors[0].message, "test error");

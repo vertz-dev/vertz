@@ -13,6 +13,7 @@ use crate::errors::categories::{extract_snippet, DevError, ErrorCategory};
 use crate::errors::suggestions;
 use crate::hmr::websocket::HmrHub;
 use crate::runtime::persistent_isolate::PersistentIsolate;
+use crate::server::audit_log::AuditLog;
 use crate::server::auto_installer::AutoInstaller;
 use crate::server::console_log::ConsoleLog;
 use crate::server::css_server;
@@ -41,6 +42,8 @@ pub struct DevServerState {
     pub error_broadcaster: ErrorBroadcaster,
     /// Console log capture for LLM consumption.
     pub console_log: ConsoleLog,
+    /// Unified audit log capturing all server-side events.
+    pub audit_log: AuditLog,
     /// MCP session store for SSE transport.
     pub mcp_sessions: McpSessions,
     /// MCP event hub for LLM WebSocket push notifications.
@@ -842,6 +845,7 @@ mod tests {
             module_graph: crate::watcher::new_shared_module_graph(),
             error_broadcaster: ErrorBroadcaster::new(),
             console_log: ConsoleLog::new(),
+            audit_log: AuditLog::default(),
             mcp_sessions: McpSessions::new(),
             mcp_event_hub: crate::server::mcp_events::McpEventHub::new(),
             start_time: std::time::Instant::now(),
@@ -1480,6 +1484,7 @@ mod tests {
             module_graph: crate::watcher::new_shared_module_graph(),
             error_broadcaster: ErrorBroadcaster::new(),
             console_log: ConsoleLog::new(),
+            audit_log: AuditLog::default(),
             mcp_sessions: McpSessions::new(),
             mcp_event_hub: McpEventHub::new(),
             start_time: std::time::Instant::now(),
@@ -1635,6 +1640,7 @@ mod tests {
             module_graph: crate::watcher::new_shared_module_graph(),
             error_broadcaster: ErrorBroadcaster::new(),
             console_log: ConsoleLog::new(),
+            audit_log: AuditLog::default(),
             mcp_sessions: McpSessions::new(),
             mcp_event_hub: McpEventHub::new(),
             start_time: std::time::Instant::now(),
@@ -1688,6 +1694,7 @@ mod tests {
             module_graph: crate::watcher::new_shared_module_graph(),
             error_broadcaster: ErrorBroadcaster::new(),
             console_log: ConsoleLog::new(),
+            audit_log: AuditLog::default(),
             mcp_sessions: McpSessions::new(),
             mcp_event_hub: McpEventHub::new(),
             start_time: std::time::Instant::now(),
@@ -1770,6 +1777,7 @@ mod tests {
             module_graph: crate::watcher::new_shared_module_graph(),
             error_broadcaster: ErrorBroadcaster::new(),
             console_log: ConsoleLog::new(),
+            audit_log: AuditLog::default(),
             mcp_sessions: McpSessions::new(),
             mcp_event_hub: McpEventHub::new(),
             start_time: std::time::Instant::now(),
@@ -1820,6 +1828,7 @@ mod tests {
             module_graph: crate::watcher::new_shared_module_graph(),
             error_broadcaster: ErrorBroadcaster::new(),
             console_log: ConsoleLog::new(),
+            audit_log: AuditLog::default(),
             mcp_sessions: McpSessions::new(),
             mcp_event_hub: McpEventHub::new(),
             start_time: std::time::Instant::now(),
@@ -1871,6 +1880,7 @@ mod tests {
             module_graph: crate::watcher::new_shared_module_graph(),
             error_broadcaster: ErrorBroadcaster::new(),
             console_log: ConsoleLog::new(),
+            audit_log: AuditLog::default(),
             mcp_sessions: McpSessions::new(),
             mcp_event_hub: McpEventHub::new(),
             start_time: std::time::Instant::now(),
@@ -2032,6 +2042,7 @@ mod tests {
             module_graph: crate::watcher::new_shared_module_graph(),
             error_broadcaster: ErrorBroadcaster::new(),
             console_log: ConsoleLog::new(),
+            audit_log: AuditLog::default(),
             mcp_sessions: McpSessions::new(),
             mcp_event_hub: crate::server::mcp_events::McpEventHub::new(),
             start_time: std::time::Instant::now(),
@@ -2133,6 +2144,7 @@ mod tests {
             module_graph: crate::watcher::new_shared_module_graph(),
             error_broadcaster: ErrorBroadcaster::new(),
             console_log: ConsoleLog::new(),
+            audit_log: AuditLog::default(),
             mcp_sessions: McpSessions::new(),
             mcp_event_hub: crate::server::mcp_events::McpEventHub::new(),
             start_time: std::time::Instant::now(),

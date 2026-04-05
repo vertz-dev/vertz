@@ -248,6 +248,7 @@ pub fn build_router(
         auto_installer: auto_installer.clone(),
         error_broadcaster,
         console_log,
+        audit_log: crate::server::audit_log::AuditLog::default(),
         mcp_sessions,
         mcp_event_hub,
         start_time: Instant::now(),
@@ -682,6 +683,7 @@ async fn diagnostics_handler(
         &state.module_graph,
         &state.hmr_hub,
         &state.error_broadcaster,
+        &state.audit_log,
     )
     .await;
 

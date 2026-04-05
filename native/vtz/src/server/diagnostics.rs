@@ -1,12 +1,13 @@
 use crate::errors::broadcaster::ErrorBroadcaster;
 use crate::errors::categories::DevError;
 use crate::hmr::websocket::HmrHub;
+use crate::server::audit_log::{AuditLog, AuditSummary};
 use crate::watcher::SharedModuleGraph;
 use serde::Serialize;
 use std::time::Instant;
 
 /// Diagnostic snapshot of the dev server state.
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Serialize)]
 pub struct DiagnosticsSnapshot {
     /// Server uptime in seconds.
     pub uptime_secs: u64,
@@ -20,6 +21,8 @@ pub struct DiagnosticsSnapshot {
     pub errors: Vec<DevError>,
     /// Server version.
     pub version: String,
+    /// Audit log summary statistics.
+    pub audit_log: AuditSummary,
 }
 
 /// Compilation cache statistics.
@@ -52,6 +55,7 @@ pub async fn collect_diagnostics(
     module_graph: &SharedModuleGraph,
     hmr_hub: &HmrHub,
     error_broadcaster: &ErrorBroadcaster,
+    audit_log: &AuditLog,
 ) -> DiagnosticsSnapshot {
     let uptime = start_time.elapsed().as_secs();
 
@@ -86,6 +90,7 @@ pub async fn collect_diagnostics(
         },
         errors,
         version: env!("CARGO_PKG_VERSION").to_string(),
+        audit_log: audit_log.summary(),
     }
 }
 
@@ -103,7 +108,15 @@ mod tests {
         let hmr_hub = HmrHub::new();
         let error_broadcaster = ErrorBroadcaster::new();
 
-        let snap = collect_diagnostics(start, 0, &graph, &hmr_hub, &error_broadcaster).await;
+        let snap = collect_diagnostics(
+            start,
+            0,
+            &graph,
+            &hmr_hub,
+            &error_broadcaster,
+            &AuditLog::default(),
+        )
+        .await;
 
         assert_eq!(snap.cache.entries, 0);
         assert_eq!(snap.module_graph.node_count, 0);
@@ -130,7 +143,15 @@ mod tests {
         let hmr_hub = HmrHub::new();
         let error_broadcaster = ErrorBroadcaster::new();
 
-        let snap = collect_diagnostics(start, 5, &graph, &hmr_hub, &error_broadcaster).await;
+        let snap = collect_diagnostics(
+            start,
+            5,
+            &graph,
+            &hmr_hub,
+            &error_broadcaster,
+            &AuditLog::default(),
+        )
+        .await;
 
         assert_eq!(snap.cache.entries, 5);
         assert_eq!(snap.module_graph.node_count, 2);
@@ -147,7 +168,15 @@ mod tests {
             .report_error(crate::errors::categories::DevError::build("test error"))
             .await;
 
-        let snap = collect_diagnostics(start, 0, &graph, &hmr_hub, &error_broadcaster).await;
+        let snap = collect_diagnostics(
+            start,
+            0,
+            &graph,
+            &hmr_hub,
+            &error_broadcaster,
+            &AuditLog::default(),
+        )
+        .await;
 
         assert_eq!(snap.errors.len(), 1);
         assert_eq!(snap.errors[0].message, "test error");
@@ -165,6 +194,7 @@ mod tests {
             },
             errors: vec![],
             version: "0.1.0".to_string(),
+            audit_log: AuditLog::default().summary(),
         };
 
         let json = serde_json::to_string(&snap).unwrap();

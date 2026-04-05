@@ -242,6 +242,28 @@ pub(crate) fn tool_definitions() -> serde_json::Value {
                     },
                     "required": ["file"]
                 }
+            },
+            {
+                "name": "vertz_get_audit_log",
+                "description": "Get the server audit log — a unified timeline of API requests, SSR renders, compilations, file changes, and errors. Events are chronological with nanosecond-precision timestamps. Filters (type, since) are applied first, then the last N events are returned from the filtered set. Event data fields by type: api_request has method/path/status; ssr_render has url/status/query_count/is_ssr; compilation has file/cached/css_extracted; file_change has path/kind; error has category/severity/message/file/line/column. duration_ms is present on api_request, ssr_render, and compilation events.",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "last": {
+                            "type": "number",
+                            "description": "Number of most recent events to return after applying type and since filters (default: 100, max: 1000)"
+                        },
+                        "type": {
+                            "type": "string",
+                            "description": "Filter by event type. Comma-separated for multiple. Values: api_request, ssr_render, compilation, file_change, error. Unknown types return an error listing valid values."
+                        },
+                        "since": {
+                            "type": "string",
+                            "description": "ISO 8601 timestamp. Only return events after this time."
+                        }
+                    },
+                    "required": []
+                }
             }
         ]
     })
@@ -426,6 +448,7 @@ pub(crate) async fn execute_tool(
                 &state.module_graph,
                 &state.hmr_hub,
                 &state.error_broadcaster,
+                &state.audit_log,
             )
             .await;
 
@@ -684,6 +707,66 @@ pub(crate) async fn execute_tool(
                     }))
                 }
             }
+        }
+
+        "vertz_get_audit_log" => {
+            let last = args
+                .get("last")
+                .and_then(|v| v.as_u64())
+                .map(|n| n.min(1000) as usize)
+                .unwrap_or(100);
+
+            // Parse type filter — validate each name.
+            let event_types = if let Some(type_str) = args.get("type").and_then(|v| v.as_str()) {
+                let mut types = Vec::new();
+                for name in type_str.split(',').map(|s| s.trim()) {
+                    if name.is_empty() {
+                        continue;
+                    }
+                    match crate::server::audit_log::AuditEventType::parse(name) {
+                        Some(t) => types.push(t),
+                        None => {
+                            return Ok(serde_json::json!({
+                                "content": [{
+                                    "type": "text",
+                                    "text": format!(
+                                        "Unknown event type '{}'. Valid types: {}",
+                                        name,
+                                        crate::server::audit_log::AuditEventType::ALL_NAMES.join(", ")
+                                    )
+                                }],
+                                "isError": true
+                            }));
+                        }
+                    }
+                }
+                if types.is_empty() {
+                    None
+                } else {
+                    Some(types)
+                }
+            } else {
+                None
+            };
+
+            // Parse since filter.
+            let since = args
+                .get("since")
+                .and_then(|v| v.as_str())
+                .and_then(crate::server::audit_log::parse_timestamp);
+
+            let filter = crate::server::audit_log::AuditFilter {
+                last,
+                event_types,
+                since,
+            };
+
+            let result = state.audit_log.query(filter);
+            let text = serde_json::to_string_pretty(&result).unwrap_or_default();
+
+            Ok(serde_json::json!({
+                "content": [{ "type": "text", "text": text }]
+            }))
         }
 
         _ => Err(format!("Unknown tool: {}", name)),
@@ -1068,6 +1151,7 @@ mod tests {
             module_graph: watcher::new_shared_module_graph(),
             error_broadcaster: ErrorBroadcaster::new(),
             console_log: ConsoleLog::new(),
+            audit_log: crate::server::audit_log::AuditLog::default(),
             mcp_sessions: McpSessions::new(),
             mcp_event_hub: crate::server::mcp_events::McpEventHub::new(),
             start_time: Instant::now(),
@@ -1206,6 +1290,7 @@ mod tests {
         assert!(names.contains(&"vertz_get_events_url"));
         assert!(names.contains(&"vertz_get_api_spec"));
         assert!(names.contains(&"vertz_render_component"));
+        assert!(names.contains(&"vertz_get_audit_log"));
     }
 
     #[test]
