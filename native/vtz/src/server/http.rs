@@ -186,6 +186,8 @@ pub fn build_router(
             server_entry: config.server_entry.clone(),
             channel_capacity: 256,
             auto_installer: auto_installer.clone(),
+            // Uses default 10s timeout — not yet user-configurable via CLI/vertzrc
+            init_timeout: None,
         };
         match PersistentIsolate::new(opts) {
             Ok(isolate) => {
@@ -196,7 +198,17 @@ pub fn build_router(
                     (None, false) => "idle".to_string(),
                 };
                 eprintln!("[Server] Persistent V8 isolate created (mode: {})", mode);
-                Some(Arc::new(isolate))
+                let arc = Arc::new(isolate);
+                // Monitor init in background — log warning if it takes too long
+                if let Ok(handle) = tokio::runtime::Handle::try_current() {
+                    let init_monitor = Arc::clone(&arc);
+                    handle.spawn(async move {
+                        if let Err(e) = init_monitor.wait_for_init().await {
+                            eprintln!("[Server] {}", e);
+                        }
+                    });
+                }
+                Some(arc)
             }
             Err(e) => {
                 eprintln!("[Server] Failed to create persistent isolate: {}", e);

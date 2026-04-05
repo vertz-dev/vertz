@@ -50,7 +50,13 @@ pub struct PersistentIsolateOptions {
     pub channel_capacity: usize,
     /// Shared auto-installer for missing packages. `None` when disabled.
     pub auto_installer: Option<Arc<AutoInstaller>>,
+    /// Maximum time to wait for the isolate to finish initialization.
+    /// If `None`, defaults to 10 seconds.
+    pub init_timeout: Option<Duration>,
 }
+
+/// Default init timeout: 10 seconds.
+const DEFAULT_INIT_TIMEOUT: Duration = Duration::from_secs(10);
 
 impl Default for PersistentIsolateOptions {
     fn default() -> Self {
@@ -60,6 +66,7 @@ impl Default for PersistentIsolateOptions {
             server_entry: None,
             channel_capacity: 256,
             auto_installer: None,
+            init_timeout: None,
         }
     }
 }
@@ -253,6 +260,32 @@ impl PersistentIsolate {
     pub fn has_api_handler(&self) -> bool {
         self.has_api_handler
             .load(std::sync::atomic::Ordering::Acquire)
+    }
+
+    /// Wait for the isolate to finish initialization, with a configurable timeout.
+    ///
+    /// Returns `Ok(())` if the isolate initializes within the timeout, or an error
+    /// with a clear message if the timeout is exceeded. The timeout is configured
+    /// via [`PersistentIsolateOptions::init_timeout`] (default: 10s).
+    pub async fn wait_for_init(&self) -> Result<(), AnyError> {
+        let timeout = self.options.init_timeout.unwrap_or(DEFAULT_INIT_TIMEOUT);
+        let poll_interval = Duration::from_millis(50);
+        let start = std::time::Instant::now();
+
+        while start.elapsed() < timeout {
+            if self.is_initialized() {
+                return Ok(());
+            }
+            tokio::time::sleep(poll_interval).await;
+        }
+
+        Err(deno_core::error::generic_error(format!(
+            "Isolate initialization timed out after {:.1}s — the module may contain \
+             a top-level infinite loop or deadlock. Check your entry files: {:?}, {:?}",
+            timeout.as_secs_f64(),
+            self.options.ssr_entry,
+            self.options.server_entry,
+        )))
     }
 
     /// Send an API request to the persistent isolate and await the response.
@@ -1703,6 +1736,7 @@ mod tests {
             server_entry: Some(server_path),
             channel_capacity: 16,
             auto_installer: None,
+            init_timeout: None,
         }
     }
 
@@ -1725,6 +1759,7 @@ mod tests {
             server_entry: None,
             channel_capacity: 16,
             auto_installer: None,
+            init_timeout: None,
         };
 
         let isolate = PersistentIsolate::new(opts);
@@ -1745,6 +1780,7 @@ mod tests {
             server_entry: None,
             channel_capacity: 16,
             auto_installer: None,
+            init_timeout: None,
         };
 
         let isolate = PersistentIsolate::new(opts).unwrap();
@@ -1942,6 +1978,7 @@ mod tests {
             server_entry: None,
             channel_capacity: 16,
             auto_installer: None,
+            init_timeout: None,
         };
 
         let isolate = PersistentIsolate::new(opts).unwrap();
@@ -1991,6 +2028,7 @@ mod tests {
             server_entry: None,
             channel_capacity: 16,
             auto_installer: None,
+            init_timeout: None,
         };
 
         let isolate = PersistentIsolate::new(opts).unwrap();
@@ -2045,6 +2083,7 @@ mod tests {
             server_entry: None,
             channel_capacity: 16,
             auto_installer: None,
+            init_timeout: None,
         };
 
         let isolate = PersistentIsolate::new(opts).unwrap();
@@ -2100,6 +2139,7 @@ mod tests {
             server_entry: None,
             channel_capacity: 16,
             auto_installer: None,
+            init_timeout: None,
         };
 
         let isolate = PersistentIsolate::new(opts).unwrap();
@@ -2169,6 +2209,7 @@ mod tests {
             server_entry: Some(server_path),
             channel_capacity: 16,
             auto_installer: None,
+            init_timeout: None,
         };
 
         let isolate = PersistentIsolate::new(opts).unwrap();
@@ -2236,6 +2277,7 @@ mod tests {
             server_entry: None,
             channel_capacity: 16,
             auto_installer: None,
+            init_timeout: None,
         };
 
         let isolate = PersistentIsolate::new(opts).unwrap();
@@ -2274,6 +2316,7 @@ mod tests {
             server_entry: None,
             channel_capacity: 16,
             auto_installer: None,
+            init_timeout: None,
         };
 
         let isolate = PersistentIsolate::new(opts).unwrap();
@@ -2347,6 +2390,7 @@ mod tests {
             server_entry: Some(server_path),
             channel_capacity: 16,
             auto_installer: None,
+            init_timeout: None,
         };
 
         let isolate = PersistentIsolate::new(opts).unwrap();
@@ -2419,6 +2463,7 @@ mod tests {
             server_entry: Some(server_path),
             channel_capacity: 16,
             auto_installer: None,
+            init_timeout: None,
         };
 
         let isolate = PersistentIsolate::new(opts).unwrap();
@@ -2471,6 +2516,7 @@ mod tests {
             server_entry: None,
             channel_capacity: 16,
             auto_installer: None,
+            init_timeout: None,
         };
 
         let isolate = PersistentIsolate::new(opts).unwrap();
@@ -2519,6 +2565,7 @@ mod tests {
             server_entry: Some(server_path),
             channel_capacity: 16,
             auto_installer: None,
+            init_timeout: None,
         };
 
         let isolate = PersistentIsolate::new(opts).unwrap();
@@ -2569,6 +2616,7 @@ mod tests {
             server_entry: Some(server_path.clone()),
             channel_capacity: 16,
             auto_installer: None,
+            init_timeout: None,
         };
 
         let isolate = PersistentIsolate::new(opts).unwrap();
@@ -2665,6 +2713,7 @@ mod tests {
             server_entry: Some(server_path.clone()),
             channel_capacity: 16,
             auto_installer: None,
+            init_timeout: None,
         };
 
         let isolate = PersistentIsolate::new(opts).unwrap();
@@ -2785,5 +2834,48 @@ mod tests {
         let result = try_auto_install(&installer, &err, &mut installed, &mut retries, "test").await;
         assert!(!result, "Should not retry when max retries reached");
         assert_eq!(retries, MAX_AUTO_INSTALL_RETRIES);
+    }
+
+    #[tokio::test]
+    async fn test_wait_for_init_succeeds_for_normal_module() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let opts = api_only_opts(
+            &temp_dir,
+            r#"
+            export default { handler: (req) => new Response('ok') };
+            "#,
+        );
+        let isolate = PersistentIsolate::new(opts).unwrap();
+        let result = isolate.wait_for_init().await;
+        assert!(result.is_ok(), "Normal module should init within timeout");
+        assert!(isolate.is_initialized());
+    }
+
+    #[tokio::test]
+    async fn test_wait_for_init_timeout_on_slow_module() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        // Module that busy-waits for 3 seconds — past the 1s timeout but
+        // short enough to not waste CI resources after the test completes
+        let opts = api_only_opts(
+            &temp_dir,
+            r#"
+            const start = Date.now();
+            while (Date.now() - start < 3000) {} // busy-wait 3s
+            export default { handler: (req) => new Response('ok') };
+            "#,
+        );
+        let opts = PersistentIsolateOptions {
+            init_timeout: Some(Duration::from_secs(1)),
+            ..opts
+        };
+        let isolate = PersistentIsolate::new(opts).unwrap();
+        let result = isolate.wait_for_init().await;
+        assert!(result.is_err(), "Should timeout waiting for slow init");
+        let err_msg = result.unwrap_err().to_string();
+        assert!(
+            err_msg.contains("timed out"),
+            "Error should mention timeout, got: {}",
+            err_msg
+        );
     }
 }
