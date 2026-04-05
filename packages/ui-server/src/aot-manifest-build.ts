@@ -174,6 +174,8 @@ export interface AotBarrelResult {
    * Write each entry as `<tempDir>/<filename>.ts` alongside the barrel.
    */
   files: Record<string, string>;
+  /** Function names skipped due to residual JSX in compiled output. */
+  skippedFns: string[];
 }
 
 /**
@@ -220,6 +222,7 @@ export function generateAotBarrel(
     "import { __esc, __esc_attr, __ssr_spread, __ssr_style_object } from '@vertz/ui-server';",
   ];
   const files: Record<string, string> = {};
+  const skippedFns: string[] = [];
   let fileIndex = 0;
   for (const [filePath, fns] of fileToFns) {
     // Use relative module name based on source file basename
@@ -240,7 +243,17 @@ export function generateAotBarrel(
         "import { __esc, __esc_attr, __ssr_spread, __ssr_style_object } from '@vertz/ui-server';\n" +
         "import type { SSRAotContext } from '@vertz/ui-server';\n";
       const extracted = extractSsrFunctions(compiled.code, fns);
-      files[`${tempFileName}.ts`] = helperImport + extracted;
+
+      // Validate: skip functions with residual JSX that wasn't compiled to
+      // string concatenation. The native compiler may leave JSX inside .map()
+      // callbacks untransformed — bundling these as .ts would fail (#1914).
+      if (hasResidualJsx(extracted)) {
+        // Remove these functions from the barrel — they fall back to runtime SSR
+        lines.pop(); // remove the export line we just added
+        skippedFns.push(...fns);
+      } else {
+        files[`${tempFileName}.ts`] = helperImport + extracted;
+      }
     }
 
     fileIndex++;
@@ -249,6 +262,7 @@ export function generateAotBarrel(
   return {
     barrelSource: lines.join('\n'),
     files,
+    skippedFns,
   };
 }
 
@@ -285,6 +299,20 @@ export function extractSsrFunctions(code: string, fnNames: string[]): string {
   }
 
   return extracted.join('\n');
+}
+
+/**
+ * Check if extracted code contains residual JSX that wasn't compiled to
+ * string concatenation. The native compiler may leave JSX inside .map()
+ * callbacks untransformed — these functions can't be bundled as .ts files.
+ *
+ * Detects JSX attribute expressions like `className={expr}` which only
+ * appear in raw JSX, not in string-concatenation AOT output.
+ */
+export function hasResidualJsx(code: string): boolean {
+  // Match JSX attribute expressions: name={...} that aren't inside string literals.
+  // AOT string-concat code uses __esc_attr() helpers, never raw className={}.
+  return /\bclassName=\{/.test(code);
 }
 
 /**

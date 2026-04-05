@@ -399,6 +399,33 @@ ${modulepreloadLinks}
 
               // Generate barrel + temp files and bundle with Bun.build()
               const barrel = generateAotBarrel(aotManifest.compiledFiles, routeMap, appEntry);
+
+              // Remove routes whose render functions were skipped due to residual JSX
+              if (barrel.skippedFns.length > 0) {
+                for (const fn of barrel.skippedFns) {
+                  for (const [pattern, entry] of Object.entries(routeMap)) {
+                    if (entry.renderFn === fn) {
+                      delete routeMap[pattern];
+                    }
+                  }
+                }
+                console.log(
+                  `  ⚠ ${barrel.skippedFns.length} function(s) skipped (residual JSX in .map()): ${barrel.skippedFns.join(', ')}`,
+                );
+              }
+
+              // If all routes were removed, skip bundling
+              const remainingRoutes = Object.keys(routeMap).length;
+              if (remainingRoutes === 0 && !appEntry) {
+                console.log(
+                  '  No AOT-eligible routes remaining after JSX validation',
+                );
+                const manifestPath = resolve(distServer, 'aot-manifest.json');
+                writeFileSync(
+                  manifestPath,
+                  JSON.stringify({ components: aotManifest.components }, null, 2),
+                );
+              } else {
               const aotTmpDir = resolve(distServer, '.aot-tmp');
               mkdirSync(aotTmpDir, { recursive: true });
 
@@ -449,7 +476,7 @@ ${modulepreloadLinks}
               if (bundleResult.success) {
                 const appLabel = appEntry ? ' + app shell' : '';
                 console.log(
-                  `  AOT routes: ${routeCount} route(s)${appLabel} bundled → dist/server/aot-routes.js`,
+                  `  AOT routes: ${remainingRoutes} route(s)${appLabel} bundled → dist/server/aot-routes.js`,
                 );
 
                 // Write aot-manifest.json — per-route CSS is embedded in each route entry (#1988)
@@ -477,6 +504,7 @@ ${modulepreloadLinks}
                   JSON.stringify({ components: aotManifest.components }, null, 2),
                 );
               }
+              } // end of else (remainingRoutes > 0 || appEntry)
             } else {
               console.log('  No AOT-eligible routes found (all runtime-fallback)');
               const manifestPath = resolve(distServer, 'aot-manifest.json');
@@ -501,10 +529,15 @@ ${modulepreloadLinks}
       }
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      const stack = error instanceof Error ? error.stack : undefined;
       console.log(`  ⚠ AOT manifest generation failed: ${message}`);
-      if (stack) {
-        console.log(`  ${stack}`);
+      if (error instanceof AggregateError) {
+        for (const sub of error.errors) {
+          const pos = sub?.position;
+          const loc = pos ? ` (${pos.file}:${pos.line}:${pos.column})` : '';
+          console.log(`    ${sub?.message ?? sub}${loc}`);
+        }
+      } else if (error instanceof Error && error.stack) {
+        console.log(`  ${error.stack}`);
       }
     }
 
