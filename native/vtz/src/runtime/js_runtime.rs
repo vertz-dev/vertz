@@ -361,6 +361,20 @@ impl VertzJsRuntime {
         &mut self.runtime
     }
 
+    /// Get the inspector session sender for CDP debugging.
+    ///
+    /// The returned sender is `Send` — it can be passed across thread boundaries
+    /// to a WebSocket bridge running on the main tokio runtime.
+    ///
+    /// # Panics
+    /// Panics if the inspector was not enabled at creation time
+    /// (`enable_inspector` must be `true`).
+    pub fn get_inspector_session_sender(
+        &mut self,
+    ) -> futures::channel::mpsc::UnboundedSender<deno_core::InspectorSessionProxy> {
+        self.runtime.inspector().borrow().get_session_sender()
+    }
+
     /// Access the module loader (for registering mocked specifiers).
     pub fn loader(&self) -> &VertzModuleLoader {
         &self.module_loader

@@ -1,4 +1,5 @@
 use crate::config::ServerConfig;
+use crate::server::inspector::InspectorInfo;
 use owo_colors::OwoColorize;
 use std::time::Duration;
 
@@ -42,19 +43,32 @@ pub fn format_upstream_line(package_names: &[String]) -> Option<String> {
     }
 }
 
+/// Format the inspector banner line.
+///
+/// Returns the WebSocket URL, with " (waiting for debugger)" appended if `--inspect-brk`.
+pub fn format_inspector_line(info: &InspectorInfo) -> String {
+    if info.inspect_brk {
+        format!("{} (waiting for debugger)", info.ws_url)
+    } else {
+        info.ws_url.clone()
+    }
+}
+
 /// Print the startup banner after the server has successfully bound.
 pub fn print_banner(config: &ServerConfig, startup_time: Duration) {
-    print_banner_with_upstream(config, startup_time, &[]);
+    print_banner_with_upstream(config, startup_time, &[], None);
 }
 
 /// Print the startup banner with optional upstream dependency info.
 ///
 /// When `upstream_packages` is non-empty, an additional `Upstream:` line
 /// is shown listing the watched workspace packages.
+/// When `inspector` is `Some`, an `Inspect:` line is shown with the WebSocket URL.
 pub fn print_banner_with_upstream(
     config: &ServerConfig,
     startup_time: Duration,
     upstream_packages: &[String],
+    inspector: Option<&InspectorInfo>,
 ) {
     let local_url = format!("http://{}:{}", config.host, config.port);
     let network_ip = detect_network_ip();
@@ -88,6 +102,14 @@ pub fn print_banner_with_upstream(
             .cyan()
             .underline()
     );
+
+    if let Some(info) = inspector {
+        eprintln!(
+            "  {}  {}",
+            "Inspect:".dimmed(),
+            format_inspector_line(info).cyan().underline()
+        );
+    }
 
     if let Some(line) = format_upstream_line(upstream_packages) {
         eprintln!("  {}  {}", "Upstream:".dimmed(), line.yellow());
@@ -182,5 +204,25 @@ mod tests {
             result,
             Some("pkg-1, pkg-2, pkg-3, pkg-4, pkg-5, +7 more".to_string())
         );
+    }
+
+    #[test]
+    fn test_format_inspector_line_inspect_mode() {
+        let info = InspectorInfo {
+            ws_url: "ws://127.0.0.1:9229/abc-123".to_string(),
+            inspect_brk: false,
+        };
+        let line = format_inspector_line(&info);
+        assert_eq!(line, "ws://127.0.0.1:9229/abc-123");
+    }
+
+    #[test]
+    fn test_format_inspector_line_inspect_brk_mode() {
+        let info = InspectorInfo {
+            ws_url: "ws://127.0.0.1:9229/abc-123".to_string(),
+            inspect_brk: true,
+        };
+        let line = format_inspector_line(&info);
+        assert_eq!(line, "ws://127.0.0.1:9229/abc-123 (waiting for debugger)");
     }
 }

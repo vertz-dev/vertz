@@ -126,6 +126,18 @@ pub struct DevArgs {
     #[arg(long)]
     pub bridge_port: Option<u16>,
 
+    /// Enable V8 inspector for Chrome DevTools / VS Code debugging (port 9229)
+    #[arg(long)]
+    pub inspect: bool,
+
+    /// Like --inspect, but pause before the entry module loads (waits for debugger)
+    #[arg(long, conflicts_with = "inspect")]
+    pub inspect_brk: bool,
+
+    /// Inspector port (default: 9229, implies --inspect)
+    #[arg(long, default_value_t = 9229)]
+    pub inspect_port: u16,
+
     /// Open the app in a native desktop window instead of a browser tab (requires desktop feature)
     #[cfg(feature = "desktop")]
     #[arg(long)]

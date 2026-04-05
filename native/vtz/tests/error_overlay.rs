@@ -489,7 +489,8 @@ mod http_integration {
             root,
         );
 
-        let (router, _state) = vertz_runtime::server::http::build_router(&config, test_plugin());
+        let (router, _state, _inspector_rx) =
+            vertz_runtime::server::http::build_router(&config, test_plugin());
 
         let listener = tokio::net::TcpListener::bind(&addr).await.unwrap();
 

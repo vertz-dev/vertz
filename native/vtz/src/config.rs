@@ -65,6 +65,12 @@ pub struct ServerConfig {
     pub ssr_strategy: String,
     /// Routes to pre-render on startup to warm V8 JIT.
     pub ssr_warmup_routes: Vec<String>,
+    /// Whether the V8 inspector is enabled (--inspect, --inspect-brk, or --inspect-port).
+    pub inspect: bool,
+    /// Whether to pause at first statement of the entry module (--inspect-brk).
+    pub inspect_brk: bool,
+    /// Inspector port (default 9229).
+    pub inspect_port: u16,
 }
 
 /// Resolve the `auto_install` setting from multiple sources.
@@ -222,6 +228,9 @@ impl ServerConfig {
             ssr_max_render_time_ms: 5000,
             ssr_strategy: "least-loaded".to_string(),
             ssr_warmup_routes: Vec::new(),
+            inspect: false,
+            inspect_brk: false,
+            inspect_port: 9229,
         }
     }
 
@@ -257,6 +266,9 @@ impl ServerConfig {
             ssr_max_render_time_ms: 5000,
             ssr_strategy: "least-loaded".to_string(),
             ssr_warmup_routes: Vec::new(),
+            inspect: false,
+            inspect_brk: false,
+            inspect_port: 9229,
         }
     }
 

@@ -29,12 +29,18 @@ use axum::http::{header, Request, StatusCode};
 use axum::response::IntoResponse;
 use axum::routing::get;
 use axum::Router;
+use deno_core::InspectorSessionProxy;
 use std::io;
 use std::sync::Arc;
 use std::time::Instant;
 use tokio::net::TcpListener;
+use tokio::sync::watch;
 
 const MAX_PORT_ATTEMPTS: u16 = 10;
+
+/// Inspector session receiver type alias.
+pub type InspectorSessionRx =
+    watch::Receiver<Option<futures::channel::mpsc::UnboundedSender<InspectorSessionProxy>>>;
 
 /// Bind result containing the listener and the actual port used.
 #[derive(Debug)]
@@ -104,7 +110,7 @@ pub async fn try_bind(config: &ServerConfig) -> io::Result<BindResult> {
 pub fn build_router(
     config: &ServerConfig,
     plugin: Arc<dyn crate::plugin::FrameworkPlugin>,
-) -> (Router, Arc<DevServerState>) {
+) -> (Router, Arc<DevServerState>, Option<InspectorSessionRx>) {
     // Parse tsconfig.json path aliases for import resolution
     let tsconfig_path = config
         .tsconfig_path
@@ -188,6 +194,7 @@ pub fn build_router(
             auto_installer: auto_installer.clone(),
             // Uses default 10s timeout — not yet user-configurable via CLI/vertzrc
             init_timeout: None,
+            enable_inspector: config.inspect,
         };
         match PersistentIsolate::new(opts) {
             Ok(isolate) => {
@@ -232,6 +239,7 @@ pub fn build_router(
             channel_capacity: 256,
             auto_installer: auto_installer.clone(),
             init_timeout: None,
+            enable_inspector: false,
         };
         match crate::ssr::pool::SsrPool::new(pool_config, pool_opts) {
             Ok(pool) => {
@@ -259,6 +267,11 @@ pub fn build_router(
     } else {
         None
     };
+
+    // Extract the inspector session receiver before the isolate is moved into state.
+    let inspector_session_rx: Option<InspectorSessionRx> = api_isolate
+        .as_ref()
+        .and_then(|iso| iso.inspector_session_rx());
 
     // Load proxy configuration from .vertzrc
     let api_proxy = {
@@ -341,9 +354,15 @@ pub fn build_router(
         .route("/__vertz_mcp/events", get(ws_mcp_events_handler))
         .fallback(dev_server_handler)
         .with_state(state.clone())
-        .layer(RequestLoggingLayer);
+        .layer(RequestLoggingLayer)
+        .layer(
+            tower_http::cors::CorsLayer::new()
+                .allow_origin(tower_http::cors::Any)
+                .allow_methods(tower_http::cors::Any)
+                .allow_headers(tower_http::cors::Any),
+        );
 
-    (router, state)
+    (router, state, inspector_session_rx)
 }
 
 /// WebSocket upgrade handler for the HMR endpoint.
@@ -1349,8 +1368,6 @@ pub async fn start_server_with_lifecycle(
         config.proxy_name.as_deref(),
     );
 
-    print_banner_with_upstream(&actual_config, start.elapsed(), &upstream_package_names);
-
     if let Some(ref sub) = proxy_subdomain {
         use owo_colors::OwoColorize;
         let proxy_dir = crate::proxy::routes::proxy_dir();
@@ -1376,7 +1393,41 @@ pub async fn start_server_with_lifecycle(
         crate::config::PluginChoice::Vertz => Arc::new(crate::plugin::vertz::VertzPlugin),
     };
 
-    let (router, state) = build_router(&config, plugin);
+    let (router, state, inspector_session_rx) = build_router(&config, plugin);
+
+    // Start the inspector server if --inspect or --inspect-brk was passed.
+    let inspector_info: Option<crate::server::inspector::InspectorInfo> = if config.inspect {
+        if let Some(session_rx) = inspector_session_rx {
+            match crate::server::inspector::start_inspector_server(
+                config.inspect_port,
+                actual_port,
+                session_rx,
+            )
+            .await
+            {
+                Ok(mut info) => {
+                    info.inspect_brk = config.inspect_brk;
+                    Some(info)
+                }
+                Err(e) => {
+                    eprintln!("[Server] Failed to start inspector server: {}", e);
+                    None
+                }
+            }
+        } else {
+            eprintln!("[Server] Inspector requires a persistent isolate (SSR or server entry)");
+            None
+        }
+    } else {
+        None
+    };
+
+    print_banner_with_upstream(
+        &actual_config,
+        start.elapsed(),
+        &upstream_package_names,
+        inspector_info.as_ref(),
+    );
 
     // Start type checker (tsc/tsgo) if enabled.
     // Kept alive until server shutdown — Drop kills the child process.
@@ -1919,7 +1970,7 @@ mod tests {
         config.enable_ssr = false;
         let plugin: Arc<dyn crate::plugin::FrameworkPlugin> =
             Arc::new(crate::plugin::vertz::VertzPlugin);
-        let (router, state) = build_router(&config, plugin);
+        let (router, state, _inspector_rx) = build_router(&config, plugin);
         (router, state, tmp)
     }
 
@@ -2008,7 +2059,7 @@ mod tests {
             PathBuf::from("public"),
             tmp.path().to_path_buf(),
         );
-        let (_router, state) = build_router(&config, test_plugin());
+        let (_router, state, _inspector_rx) = build_router(&config, test_plugin());
         assert_eq!(state.root_dir, tmp.path().to_path_buf());
     }
 
@@ -2022,7 +2073,7 @@ mod tests {
             tmp.path().to_path_buf(),
         );
         config.enable_ssr = false;
-        let (_router, state) = build_router(&config, test_plugin());
+        let (_router, state, _inspector_rx) = build_router(&config, test_plugin());
         assert!(!state.enable_ssr);
     }
 
@@ -2035,7 +2086,7 @@ mod tests {
             PathBuf::from("public"),
             tmp.path().to_path_buf(),
         );
-        let (_router, state) = build_router(&config, test_plugin());
+        let (_router, state, _inspector_rx) = build_router(&config, test_plugin());
         assert_eq!(state.port, 4000);
         assert_eq!(state.root_dir, tmp.path().to_path_buf());
         assert_eq!(state.src_dir, tmp.path().join("src"));
