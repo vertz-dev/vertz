@@ -75,12 +75,26 @@ const validList: ListArgs<UserColumns> = {
 };
 void validList;
 
-// ListArgs — negative: non-existent column
+// ListArgs — negative: non-existent column in where
 const badList: ListArgs<UserColumns> = {
   // @ts-expect-error — 'nonExistent' is not a column
   where: { nonExistent: 'value' },
 };
 void badList;
+
+// ListArgs — negative: non-existent column in select
+const badListSelect: ListArgs<UserColumns> = {
+  // @ts-expect-error — 'nonExistent' is not a column
+  select: { nonExistent: true },
+};
+void badListSelect;
+
+// ListArgs — negative: non-existent column in orderBy
+const badListOrder: ListArgs<UserColumns> = {
+  // @ts-expect-error — 'nonExistent' is not a column
+  orderBy: { nonExistent: 'asc' },
+};
+void badListOrder;
 
 // ---------------------------------------------------------------------------
 // CreateArgs — positive
@@ -127,6 +141,21 @@ const validCreateManyReturn: CreateManyAndReturnArgs<UserColumns> = {
   select: { id: true, name: true },
 };
 void validCreateManyReturn;
+
+// CreateManyAndReturnArgs — negative: missing required field
+const badCreateManyReturn: CreateManyAndReturnArgs<UserColumns> = {
+  // @ts-expect-error — 'email' is required
+  data: [{ name: 'Alice', age: null }],
+};
+void badCreateManyReturn;
+
+// CreateManyAndReturnArgs — negative: non-existent column in select
+const badCreateManyReturnSelect: CreateManyAndReturnArgs<UserColumns> = {
+  data: [{ name: 'Alice', email: 'alice@example.com', age: null }],
+  // @ts-expect-error — 'nonExistent' is not a column
+  select: { nonExistent: true },
+};
+void badCreateManyReturnSelect;
 
 // ---------------------------------------------------------------------------
 // UpdateArgs — positive
@@ -193,6 +222,15 @@ const badUpsertCreate: UpsertArgs<UserColumns> = {
   update: { name: 'Updated' },
 };
 void badUpsertCreate;
+
+// UpsertArgs — negative: primary key in update
+const badUpsertUpdate: UpsertArgs<UserColumns> = {
+  where: { email: 'a@b.com' },
+  create: { name: 'Alice', email: 'a@b.com', age: null },
+  // @ts-expect-error — 'id' is primary, cannot be updated
+  update: { id: 'new-id' },
+};
+void badUpsertUpdate;
 
 // ---------------------------------------------------------------------------
 // DeleteArgs — positive
