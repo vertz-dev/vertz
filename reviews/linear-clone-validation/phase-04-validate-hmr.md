@@ -1,7 +1,7 @@
 # Phase 4: Validate HMR + Error Overlay
 
 - **Author:** belo-horizonte
-- **Reviewer:** (pending adversarial review)
+- **Reviewer:** adversarial-reviewer
 - **Commits:** (no code changes — validation only)
 - **Date:** 2026-04-04
 

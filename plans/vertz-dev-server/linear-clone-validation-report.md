@@ -61,6 +61,7 @@ The Rust dev server successfully compiles the full linear-clone example, serves 
 | #2302 | AuthProvider crashes during SSR — auth SDK not available in V8 isolate | P1 | auth, runtime |
 | #2303 | Codegen doesn't generate auth SDK for linear-clone example | P2 | codegen, auth |
 | #2304 | API route delegation missing in Rust dev server | P2 | runtime |
+| #2306 | Persistent V8 isolate doesn't clear session between requests | P3 | runtime |
 
 ## Bugs Fixed
 

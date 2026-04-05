@@ -1,7 +1,7 @@
 # Phase 2: Validate SSR
 
 - **Author:** belo-horizonte
-- **Reviewer:** (pending adversarial review)
+- **Reviewer:** adversarial-reviewer
 - **Commits:** fde765ac2
 - **Date:** 2026-04-04
 
@@ -77,3 +77,19 @@ This is necessary but not sufficient — the AuthProvider crash is upstream of s
 SSR rendering is blocked by the AuthProvider SDK access pattern (#2302) and missing codegen (#2303). Both are pre-existing issues not introduced by this validation. The partial ssrAuth format fix (fde765ac2) is correct and will be needed once #2302 is resolved.
 
 Client-only fallback works correctly for all routes. Phase 3 (client-side validation) can proceed since the app renders fully on the client.
+
+## Adversarial Review
+
+**Reviewer:** adversarial-reviewer
+**Verdict:** APPROVED with one informational finding
+
+### Review Checklist
+- [x] ssrAuth format fix correct (matches Bun dev server pattern)
+- [x] No regressions introduced
+- [x] Issues #2302, #2303 accurately describe root causes
+- [x] Triage decisions sound (> 2h → file issue)
+- [x] No findings silently skipped
+- [x] Validation methodology sound
+
+### Informational Finding: Session Leakage in Persistent Isolate
+`SSR_RESET_JS` doesn't clear `globalThis.__vertz_session` between requests. Currently not triggered (session_json always None), but would cause session leakage once cookie-based session resolution is implemented. Filed as #2306.

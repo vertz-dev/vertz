@@ -1,7 +1,7 @@
 # Phase 3: Validate Client-Side Module Loading + API Delegation
 
 - **Author:** belo-horizonte
-- **Reviewer:** (pending adversarial review)
+- **Reviewer:** adversarial-reviewer
 - **Commits:** (no code changes — validation only)
 - **Date:** 2026-04-04
 
