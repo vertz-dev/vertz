@@ -242,6 +242,8 @@ pub fn build_router(
             auto_installer: auto_installer.clone(),
             init_timeout: None,
             enable_inspector: false,
+            inspect_brk: false,
+            inspector_session_tx: None,
         };
         match crate::ssr::pool::SsrPool::new(pool_config, pool_opts) {
             Ok(pool) => {
