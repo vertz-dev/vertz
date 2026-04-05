@@ -197,7 +197,11 @@ export type FindModelByTable<
 export type FindModelRelations<
   TModels extends Record<string, ModelEntry>,
   TTable extends TableDef<ColumnRecord>,
-> = FindModelByTable<TModels, TTable> extends ModelEntry<infer _T, infer TRels> ? TRels : {};
+> = [FindModelByTable<TModels, TTable>] extends [never]
+  ? {}
+  : FindModelByTable<TModels, TTable> extends ModelEntry<infer _T, infer TRels>
+    ? TRels
+    : {};
 
 /**
  * Resolve nested include type. When the target model is found in the registry,

@@ -445,6 +445,19 @@ describe('Typed nested include through DatabaseClient', () => {
     void _valid;
   });
 
+  it('db.posts.list() rejects invalid nested include keys', () => {
+    type ListOpts = Parameters<DB['posts']['list']>[0];
+    type IncludeField = NonNullable<NonNullable<ListOpts>['include']>;
+
+    const _invalid: IncludeField = {
+      comments: {
+        // @ts-expect-error — 'bogus' is not a relation on comments
+        include: { bogus: true },
+      },
+    };
+    void _invalid;
+  });
+
   it('TransactionClient has same nested include typing', () => {
     type TxPostDelegate = DB extends { transaction: (fn: infer F) => unknown }
       ? F extends (tx: infer TX) => unknown

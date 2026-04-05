@@ -4,6 +4,8 @@ import { d } from '../../d';
 import type {
   Database,
   FilterType,
+  FindModelByTable,
+  FindModelRelations,
   FindResult,
   IncludeOption,
   IncludeResolve,
@@ -862,6 +864,44 @@ type ModelsWithM2M = Models & {
 };
 
 // ---------------------------------------------------------------------------
+// FindModelByTable / FindModelRelations — standalone tests
+// ---------------------------------------------------------------------------
+
+describe('FindModelByTable', () => {
+  it('finds the correct ModelEntry by table type', () => {
+    type Found = FindModelByTable<Models, typeof posts>;
+    type _t1 = Expect<Equal<Found['table'], typeof posts>>;
+  });
+
+  it('returns never when no model matches', () => {
+    const orphan = d.table('orphan', { id: d.uuid().primary() });
+    type Found = FindModelByTable<Models, typeof orphan>;
+    type _t1 = Expect<Equal<Found, never>>;
+  });
+
+  it('returns never with default TModels (backward compat path)', () => {
+    type Found = FindModelByTable<Record<string, ModelEntry>, typeof posts>;
+    type _t1 = Expect<Equal<Found, never>>;
+  });
+});
+
+describe('FindModelRelations', () => {
+  it('extracts relations from matched model', () => {
+    type Rels = FindModelRelations<Models, typeof posts>;
+    type _t1 = Expect<HasKey<Rels, 'author'>>;
+    type _t2 = Expect<HasKey<Rels, 'comments'>>;
+  });
+
+  it('returns empty record when no model matches', () => {
+    const orphan = d.table('orphan', { id: d.uuid().primary() });
+    type Rels = FindModelRelations<Models, typeof orphan>;
+    // Falls back to {} which means IncludeOption<Rels> has no valid keys
+    type _t1 = Expect<Not<HasKey<Rels, 'author'>>>;
+    type _t2 = Expect<Not<HasKey<Rels, 'posts'>>>;
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Typed nested include — input validation
 // ---------------------------------------------------------------------------
 
@@ -1003,6 +1043,17 @@ describe('Typed nested include — input validation', () => {
       };
       void _inc;
     });
+
+    it('Then rejects invalid keys on self-referencing nested includes', () => {
+      type CatInclude = IncludeOption<typeof categoryRelations, ModelsWithSelfRef>;
+      const _inc: CatInclude = {
+        parent: {
+          // @ts-expect-error — 'bogus' is not a relation on categories
+          include: { bogus: true },
+        },
+      };
+      void _inc;
+    });
   });
 
   describe('Given many-to-many through-relations', () => {
@@ -1014,6 +1065,17 @@ describe('Typed nested include — input validation', () => {
             author: true,
             comments: true,
           },
+        },
+      };
+      void _inc;
+    });
+
+    it('Then rejects invalid keys on through-relation nested includes', () => {
+      type TagInclude = IncludeOption<typeof tagRelations, ModelsWithM2M>;
+      const _inc: TagInclude = {
+        posts: {
+          // @ts-expect-error — 'bogus' is not a relation on posts
+          include: { bogus: true },
         },
       };
       void _inc;
