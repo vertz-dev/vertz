@@ -424,9 +424,9 @@ export interface ModelDelegate<
   ): Promise<Result<agg.AggregateResult<EntryColumns<TEntry>, TArgs>, ReadError>>;
 
   /** Group rows by columns and apply aggregation functions. */
-  groupBy(
-    options: agg.TypedGroupByArgs<TEntry>,
-  ): Promise<Result<Record<string, unknown>[], ReadError>>;
+  groupBy<TArgs extends agg.TypedGroupByArgs<TEntry>>(
+    options: TArgs,
+  ): Promise<Result<agg.GroupByResult<EntryColumns<TEntry>, TArgs>[], ReadError>>;
 }
 
 // ---------------------------------------------------------------------------

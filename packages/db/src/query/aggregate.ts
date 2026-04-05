@@ -251,6 +251,55 @@ export type AggregateResult<
 >;
 
 // ---------------------------------------------------------------------------
+// GroupByResult — compute per-row return type from requested fields
+// ---------------------------------------------------------------------------
+
+/** Extract string column names from the `by` tuple. Non-string entries (GroupByExpression) are excluded. */
+type ExtractByStringColumns<TBy extends readonly unknown[]> = TBy[number] extends infer Item
+  ? Item extends string ? Item : never
+  : never;
+
+/** Check if the `by` tuple contains any non-string entries (GroupByExpression). */
+type HasExpressionInBy<TBy extends readonly unknown[]> = TBy[number] extends string ? false : true;
+
+/**
+ * Compute the groupBy result row shape from the columns and the requested args.
+ *
+ * - String columns in `by` → typed with `InferColumnType<col>`
+ * - Aggregation fields → same as `AggregateResult`
+ * - Expression entries in `by` → `Record<string, unknown>` fallback (aliases are dynamic)
+ */
+export type GroupByResult<
+  TColumns extends ColumnRecord,
+  TArgs,
+> = Prettify<
+  // Group-by string columns
+  ('by' extends keyof TArgs
+    ? TArgs[keyof TArgs & 'by'] extends readonly unknown[]
+      ? { [K in ExtractByStringColumns<TArgs[keyof TArgs & 'by']> & keyof TColumns]: InferColumnType<TColumns[K]> }
+      : {}
+    : {}) &
+  // Aggregation fields (reuse same logic as AggregateResult)
+  ('_avg' extends keyof TArgs ? { _avg: NumericAggColumns<TArgs[keyof TArgs & '_avg']> } : {}) &
+  ('_sum' extends keyof TArgs ? { _sum: NumericAggColumns<TArgs[keyof TArgs & '_sum']> } : {}) &
+  ('_min' extends keyof TArgs ? { _min: TypedAggColumns<TColumns, TArgs[keyof TArgs & '_min']> } : {}) &
+  ('_max' extends keyof TArgs ? { _max: TypedAggColumns<TColumns, TArgs[keyof TArgs & '_max']> } : {}) &
+  ('_count' extends keyof TArgs
+    ? TArgs[keyof TArgs & '_count'] extends true
+      ? { _count: number }
+      : { _count: CountColumns<TArgs[keyof TArgs & '_count']> }
+    : {}) &
+  // Expression fallback — if by contains non-string entries, add index signature
+  ('by' extends keyof TArgs
+    ? TArgs[keyof TArgs & 'by'] extends readonly unknown[]
+      ? HasExpressionInBy<TArgs[keyof TArgs & 'by']> extends true
+        ? Record<string, unknown>
+        : {}
+      : {}
+    : {})
+>;
+
+// ---------------------------------------------------------------------------
 // TypedGroupByArgs — strongly typed version for ModelDelegate
 // ---------------------------------------------------------------------------
 

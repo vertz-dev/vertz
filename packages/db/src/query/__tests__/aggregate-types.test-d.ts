@@ -5,8 +5,9 @@
  * Phase 2: AggregateResult computes return shape from requested fields.
  */
 import { describe, it } from 'bun:test';
+import type { InferColumnType } from '../../schema/column';
 import type { ModelEntry } from '../../schema/inference';
-import type { AggregateResult, TypedAggregateArgs } from '../aggregate';
+import type { AggregateResult, GroupByResult, TypedAggregateArgs } from '../aggregate';
 import { d } from '../../d';
 import type { Equal, Expect, Extends, HasKey, Not } from '../../__tests__/_type-helpers';
 
@@ -246,5 +247,73 @@ describe('AggregateResult — empty args', () => {
     type R = AggregateResult<ProductCols, {}>;
     type Keys = keyof R;
     type _t1 = Expect<Equal<Keys, never>>;
+  });
+});
+
+// ===========================================================================
+// Phase 3: GroupByResult — typed groupBy return values
+// ===========================================================================
+
+// ---------------------------------------------------------------------------
+// 13. GroupByResult — group-by string columns are typed
+// ---------------------------------------------------------------------------
+
+describe('GroupByResult — string columns in by', () => {
+  it('row has typed group-by column', () => {
+    type R = GroupByResult<ProductCols, { by: readonly ['name']; _count: true }>;
+    type _t1 = Expect<Equal<R['name'], InferColumnType<ProductCols['name']>>>;
+    type _t2 = Expect<Equal<R['_count'], number>>;
+  });
+
+  it('row has multiple typed group-by columns', () => {
+    type R = GroupByResult<ProductCols, { by: readonly ['name', 'category']; _count: true }>;
+    type _t1 = Expect<HasKey<R, 'name'>>;
+    type _t2 = Expect<HasKey<R, 'category'>>;
+    type _t3 = Expect<HasKey<R, '_count'>>;
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 14. GroupByResult — aggregation fields included
+// ---------------------------------------------------------------------------
+
+describe('GroupByResult — includes aggregation fields', () => {
+  it('includes _avg and _count alongside group-by columns', () => {
+    type R = GroupByResult<ProductCols, {
+      by: readonly ['category'];
+      _avg: { price: true };
+      _count: true;
+    }>;
+    type _t1 = Expect<HasKey<R, 'category'>>;
+    type _t2 = Expect<HasKey<R, '_avg'>>;
+    type _t3 = Expect<Equal<R['_avg'], { price: number | null }>>;
+    type _t4 = Expect<Equal<R['_count'], number>>;
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 15. GroupByResult — expression entries contribute Record<string, unknown>
+// ---------------------------------------------------------------------------
+
+describe('GroupByResult — expression fallback', () => {
+  it('non-string by entries add Record<string, unknown> index signature', () => {
+    // GroupByExpression in the by array means the result has a string index fallback
+    type R = GroupByResult<ProductCols, { by: readonly ['name', { _tag: 'GroupByExpression'; _column: 'createdAt'; sql: string; alias: string }]; _count: true }>;
+    type _t1 = Expect<HasKey<R, 'name'>>;
+    type _t2 = Expect<HasKey<R, '_count'>>;
+    // Expression aliases accessible via string index
+    type _t3 = Expect<Extends<string, R[string]>>;
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 16. GroupByResult — unrequested aggregation fields absent
+// ---------------------------------------------------------------------------
+
+describe('GroupByResult — unrequested fields absent', () => {
+  it('does not have _avg if not requested', () => {
+    type R = GroupByResult<ProductCols, { by: readonly ['name']; _count: true }>;
+    type _t1 = Expect<Not<HasKey<R, '_avg'>>>;
+    type _t2 = Expect<Not<HasKey<R, '_sum'>>>;
   });
 });
