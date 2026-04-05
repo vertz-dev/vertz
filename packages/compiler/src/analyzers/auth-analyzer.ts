@@ -1,4 +1,4 @@
-import { type Expression, type ObjectLiteralExpression, SyntaxKind } from 'ts-morph';
+import { type Expression, type ObjectLiteralExpression, type Project, SyntaxKind } from 'ts-morph';
 import type { AuthFeature, AuthIR } from '../ir/types';
 import { extractObjectLiteral, getPropertyValue } from '../utils/ast-helpers';
 import { BaseAnalyzer } from './base-analyzer';
@@ -56,6 +56,38 @@ function resolveToObjectLiteral(node: Expression): ObjectLiteralExpression | nul
   return null;
 }
 
+function extractFeaturesFromObject(authObj: ObjectLiteralExpression): AuthFeature[] {
+  const features: AuthFeature[] = [];
+  for (const key of AUTH_FEATURE_KEYS) {
+    if (getPropertyValue(authObj, key)) {
+      features.push(key);
+    }
+  }
+  return features;
+}
+
+/**
+ * Fallback: scan all project files for defineAuth() calls and extract features
+ * from the first one found. Used when the auth identifier in createServer()
+ * can't be resolved (e.g., unresolvable external imports).
+ */
+function scanForDefineAuth(project: Project): AuthFeature[] {
+  for (const file of project.getSourceFiles()) {
+    const calls = file.getDescendantsOfKind(SyntaxKind.CallExpression).filter((call) => {
+      const expr = call.getExpression();
+      return expr.isKind(SyntaxKind.Identifier) && expr.getText() === 'defineAuth';
+    });
+
+    for (const call of calls) {
+      const firstArg = call.getArguments()[0] as Expression | undefined;
+      if (!firstArg) continue;
+      const obj = resolveToObjectLiteral(firstArg);
+      if (obj) return extractFeaturesFromObject(obj);
+    }
+  }
+  return [];
+}
+
 export class AuthAnalyzer extends BaseAnalyzer<AuthAnalyzerResult> {
   async analyze(): Promise<AuthAnalyzerResult> {
     for (const file of this.project.getSourceFiles()) {
@@ -72,19 +104,16 @@ export class AuthAnalyzer extends BaseAnalyzer<AuthAnalyzerResult> {
         const authProp = getPropertyValue(configObj, 'auth');
         if (!authProp) continue;
 
-        // auth is configured — check which features are enabled
-        const features: AuthFeature[] = [];
-
+        // auth is configured — resolve the object literal to extract features
         const authObj = resolveToObjectLiteral(authProp);
         if (authObj) {
-          for (const key of AUTH_FEATURE_KEYS) {
-            if (getPropertyValue(authObj, key)) {
-              features.push(key);
-            }
-          }
+          return { auth: { features: extractFeaturesFromObject(authObj) } };
         }
 
-        return { auth: { features } };
+        // Fallback: identifier couldn't be resolved (e.g., unresolvable imports).
+        // Scan all files for defineAuth() calls.
+        const fallbackFeatures = scanForDefineAuth(this.project);
+        return { auth: { features: fallbackFeatures } };
       }
     }
 

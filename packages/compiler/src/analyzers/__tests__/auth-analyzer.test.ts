@@ -189,7 +189,34 @@ describe('AuthAnalyzer', () => {
     expect(result.auth?.features).toContain('providers');
   });
 
-  it('returns empty features when shorthand identifier cannot be resolved', async () => {
+  it('falls back to defineAuth() scan when auth identifier cannot be resolved', async () => {
+    // Simulates the real-project failure: createServer({ auth }) where auth
+    // can't be resolved via getDefinitionNodes() (e.g., due to tsconfig
+    // moduleResolution issues), but defineAuth() exists in another file.
+    createFile(
+      '/auth.ts',
+      `
+      export const auth = defineAuth({
+        emailPassword: {},
+        providers: [{ name: 'github' }],
+      });
+      `,
+    );
+    createFile(
+      '/server.ts',
+      `
+      declare const auth: any;
+      const server = createServer({ auth });
+      `,
+    );
+    const result = await analyze();
+
+    expect(result.auth).toBeDefined();
+    expect(result.auth?.features).toContain('emailPassword');
+    expect(result.auth?.features).toContain('providers');
+  });
+
+  it('returns empty features when no defineAuth() exists and identifier cannot be resolved', async () => {
     createFile(
       '/index.ts',
       `
@@ -215,6 +242,90 @@ describe('AuthAnalyzer', () => {
     const result = await analyze();
 
     expect(result.auth).toBeUndefined();
+  });
+
+  it('resolves cross-file auth via primary import path (not fallback)', async () => {
+    // ts-morph's in-memory FS resolves relative imports between project files,
+    // so this exercises the primary ImportSpecifier → aliasedSymbol path.
+    createFile(
+      '/api/auth.ts',
+      `
+      import { defineAuth, github } from '@vertz/server';
+      import { access } from './access';
+      import { SEED_WORKSPACE_ID } from './schema';
+
+      const APP_URL = process.env.APP_URL ?? 'http://localhost:3000';
+
+      export const auth = defineAuth({
+        session: { strategy: 'jwt', ttl: '15m', refreshTtl: '7d', cookie: { secure: false } },
+        emailPassword: {},
+        providers: [
+          github({
+            clientId: process.env.GITHUB_CLIENT_ID ?? '',
+            clientSecret: process.env.GITHUB_CLIENT_SECRET ?? '',
+            redirectUrl: \`\${APP_URL}/api/auth/oauth/github/callback\`,
+          }),
+        ],
+        oauthEncryptionKey: process.env.OAUTH_ENCRYPTION_KEY,
+        oauthSuccessRedirect: '/projects',
+        oauthErrorRedirect: '/login',
+        access: { definition: access },
+        onUserCreated: async (payload: any, ctx: any) => {
+          await ctx.entities.users.create({ id: payload.user.id });
+        },
+      });
+      `,
+    );
+    createFile(
+      '/api/server.ts',
+      `
+      import { createServer } from '@vertz/server';
+      import { auth } from './auth';
+      import { db } from './db';
+      import { entities } from './entities';
+
+      export const app = createServer({
+        basePath: '/api',
+        entities,
+        db,
+        auth,
+      });
+
+      export default app;
+      `,
+    );
+    const result = await analyze();
+
+    expect(result.auth).toBeDefined();
+    expect(result.auth?.features).toContain('emailPassword');
+    expect(result.auth?.features).toContain('providers');
+  });
+
+  it('fallback picks the first defineAuth() when multiple exist', async () => {
+    createFile(
+      '/auth-a.ts',
+      `
+      export const authA = defineAuth({ emailPassword: {} });
+      `,
+    );
+    createFile(
+      '/auth-b.ts',
+      `
+      export const authB = defineAuth({ tenant: true, mfa: true });
+      `,
+    );
+    createFile(
+      '/server.ts',
+      `
+      declare const auth: any;
+      const server = createServer({ auth });
+      `,
+    );
+    const result = await analyze();
+
+    expect(result.auth).toBeDefined();
+    // Should find features from at least one defineAuth call
+    expect(result.auth!.features.length).toBeGreaterThan(0);
   });
 
   it('detects auth in the first createServer call found', async () => {
