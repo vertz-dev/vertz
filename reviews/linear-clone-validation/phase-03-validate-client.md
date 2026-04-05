@@ -11,7 +11,7 @@ No code changes in this phase — purely validation.
 
 ## Validation Findings
 
-### Task 1: Client-Side Module Graph — PASS
+### Task 1: Client-Side Module Graph — PARTIAL
 
 **Module Compilation:**
 - All `.tsx` and `.ts` files compile to valid JavaScript
@@ -31,6 +31,8 @@ No code changes in this phase — purely validation.
 - Crashes at `AuthProvider` due to `api.auth` being `undefined` (known issue #2302/#2303)
 - Error overlay renders correctly with source location and code context
 - No other runtime errors besides the auth SDK issue
+
+**Methodology note:** Validation was performed via manual browser inspection (DevTools console, Network tab, curl) rather than Playwright automation. The AuthProvider crash prevents the app from rendering interactive content, making Playwright assertions impractical beyond basic load checks.
 
 **Console Errors (3 total):**
 1. `favicon.ico` 404 — trivial, expected
@@ -58,7 +60,7 @@ This is a known architectural limitation: the Rust dev server needs either:
 - [ ] `/login` renders with visible OAuth button — **BLOCKED by #2302**
 - [ ] Navigation between routes works — **BLOCKED by #2302**
 - [ ] `/api/*` requests return valid responses — **FAIL: 500 "No handler"**
-- [x] All blocking issues filed (#2302, #2303)
+- [x] All blocking issues filed (#2302, #2303, #2304)
 
 ## Positive Findings
 
@@ -75,4 +77,4 @@ This is a known architectural limitation: the Rust dev server needs either:
 | #2303 | Codegen doesn't generate auth SDK for linear-clone | P2 | codegen, auth |
 | #2304 | API route delegation missing in Rust dev server | P2 | runtime |
 
-Note: The API delegation issue needs to be filed as a GitHub issue.
+Note: API delegation issue filed as #2304.
