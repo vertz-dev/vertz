@@ -759,6 +759,88 @@ describe('AuthProvider', () => {
     });
   });
 
+  describe('SSR — partial/undefined auth SDK (#2302)', () => {
+    it('does not crash when auth.signIn is undefined (V8 isolate)', () => {
+      // In the Rust V8 isolate, auth SDK methods may be entirely undefined
+      const partialSdk = {
+        signIn: undefined,
+        signUp: undefined,
+        signOut: mock(async () => ok<unknown, Error>({ ok: true })),
+        refresh: mock(async () =>
+          ok<AuthResponse, Error>({
+            user: { id: '1', email: 'a@b.com', role: 'user' },
+            expiresAt: Date.now() + 60_000,
+          }),
+        ),
+      } as unknown as AuthSdk;
+
+      // This crashes before the fix: TypeError: Cannot read properties of undefined (reading 'url')
+      expect(() => captureAuth({ auth: partialSdk })).not.toThrow();
+    });
+
+    it('does not crash when auth SDK methods lack url/method metadata', () => {
+      const partialSdk: AuthSdk = {
+        signIn: Object.assign(
+          mock(async () =>
+            ok<AuthResponse, Error>({
+              user: { id: '1', email: 'a@b.com', role: 'user' },
+              expiresAt: Date.now() + 60_000,
+            }),
+          ),
+        ) as AuthSdk['signIn'],
+        signUp: Object.assign(
+          mock(async () =>
+            ok<AuthResponse, Error>({
+              user: { id: '1', email: 'a@b.com', role: 'user' },
+              expiresAt: Date.now() + 60_000,
+            }),
+          ),
+        ) as AuthSdk['signUp'],
+        signOut: mock(async () => ok<unknown, Error>({ ok: true })),
+        refresh: mock(async () =>
+          ok<AuthResponse, Error>({
+            user: { id: '1', email: 'a@b.com', role: 'user' },
+            expiresAt: Date.now() + 60_000,
+          }),
+        ),
+      };
+
+      expect(() => captureAuth({ auth: partialSdk })).not.toThrow();
+    });
+
+    it('defaults signIn/signUp url to empty string and method to POST when metadata missing', () => {
+      const partialSdk = {
+        signIn: undefined,
+        signUp: undefined,
+        signOut: mock(async () => ok<unknown, Error>({ ok: true })),
+        refresh: mock(async () =>
+          ok<AuthResponse, Error>({
+            user: { id: '1', email: 'a@b.com', role: 'user' },
+            expiresAt: Date.now() + 60_000,
+          }),
+        ),
+      } as unknown as AuthSdk;
+
+      const auth = captureAuth({ auth: partialSdk });
+
+      expect(auth.signIn.url).toBe('');
+      expect(auth.signIn.method).toBe('POST');
+      expect(auth.signUp.url).toBe('');
+      expect(auth.signUp.method).toBe('POST');
+    });
+
+    it('still delegates to SDK when url/method are present', () => {
+      const sdk = createMockAuthSdk();
+      const auth = captureAuth({ auth: sdk });
+
+      // Normal behavior preserved — SDK-provided metadata passes through
+      expect(auth.signIn.url).toBe('/api/auth/signin');
+      expect(auth.signIn.method).toBe('POST');
+      expect(auth.signUp.url).toBe('/api/auth/signup');
+      expect(auth.signUp.method).toBe('POST');
+    });
+  });
+
   describe('SSR hydration', () => {
     let origWindow: typeof globalThis.window;
 

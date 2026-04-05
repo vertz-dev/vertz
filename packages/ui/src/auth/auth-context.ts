@@ -245,8 +245,8 @@ export function AuthProvider({
       return result;
     },
     {
-      url: auth.signIn.url,
-      method: auth.signIn.method,
+      url: auth.signIn?.url ?? '',
+      method: auth.signIn?.method ?? 'POST',
       meta: { bodySchema: signInSchema },
     },
   ) as SdkMethodWithMeta<SignInInput, AuthResponse>;
@@ -268,8 +268,8 @@ export function AuthProvider({
       return result;
     },
     {
-      url: auth.signUp.url,
-      method: auth.signUp.method,
+      url: auth.signUp?.url ?? '',
+      method: auth.signUp?.method ?? 'POST',
       meta: { bodySchema: signUpSchema },
     },
   ) as SdkMethodWithMeta<SignUpInput, AuthResponse>;
