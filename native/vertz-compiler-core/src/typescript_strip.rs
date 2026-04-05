@@ -1604,7 +1604,6 @@ export const x = 1;"#,
   return name + value;
 }"#,
         );
-        eprintln!("RESULT:\n{}", result);
         assert!(
             !result.contains("string"),
             "type annotation survived: {}",

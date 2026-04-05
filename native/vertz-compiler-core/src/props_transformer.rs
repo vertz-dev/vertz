@@ -470,14 +470,22 @@ mod tests {
     // ── Props with type annotation ─────────────────────────────────
 
     #[test]
-    fn preserves_type_annotation_on_parameter() {
+    fn strips_named_type_annotation_from_parameter() {
         let code = compile_tsx(
             r#"function Card({ title }: CardProps) {
     return <div>{title}</div>;
 }"#,
         );
-        // The type annotation should be moved to __props
+        // Type annotation must NOT survive on __props
         assert!(code.contains("__props"), "code: {}", code);
+        assert!(
+            !code.contains("__props: CardProps"),
+            "type annotation should be stripped: {code}"
+        );
+        assert!(
+            !code.contains(": CardProps"),
+            "named type should not survive: {code}"
+        );
     }
 
     // ── Rest element ───────────────────────────────────────────────
