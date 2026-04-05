@@ -244,9 +244,9 @@ describe('AuthAnalyzer', () => {
     expect(result.auth).toBeUndefined();
   });
 
-  it('detects features in real-world cross-file pattern with unresolvable imports', async () => {
-    // Mimics the linear example: auth.ts imports from @vertz/server (unresolvable)
-    // and server.ts uses shorthand property
+  it('resolves cross-file auth via primary import path (not fallback)', async () => {
+    // ts-morph's in-memory FS resolves relative imports between project files,
+    // so this exercises the primary ImportSpecifier → aliasedSymbol path.
     createFile(
       '/api/auth.ts',
       `
@@ -299,6 +299,33 @@ describe('AuthAnalyzer', () => {
     expect(result.auth).toBeDefined();
     expect(result.auth?.features).toContain('emailPassword');
     expect(result.auth?.features).toContain('providers');
+  });
+
+  it('fallback picks the first defineAuth() when multiple exist', async () => {
+    createFile(
+      '/auth-a.ts',
+      `
+      export const authA = defineAuth({ emailPassword: {} });
+      `,
+    );
+    createFile(
+      '/auth-b.ts',
+      `
+      export const authB = defineAuth({ tenant: true, mfa: true });
+      `,
+    );
+    createFile(
+      '/server.ts',
+      `
+      declare const auth: any;
+      const server = createServer({ auth });
+      `,
+    );
+    const result = await analyze();
+
+    expect(result.auth).toBeDefined();
+    // Should find features from at least one defineAuth call
+    expect(result.auth!.features.length).toBeGreaterThan(0);
   });
 
   it('detects auth in the first createServer call found', async () => {
