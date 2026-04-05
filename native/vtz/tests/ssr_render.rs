@@ -376,6 +376,7 @@ async fn test_ssr_render_fixture_app() {
         server_entry: None,
         channel_capacity: 16,
         auto_installer: None,
+        init_timeout: None,
     };
 
     let isolate = PersistentIsolate::new(opts).unwrap();
@@ -426,6 +427,7 @@ async fn test_ssr_render_fixture_app_with_session() {
         server_entry: None,
         channel_capacity: 16,
         auto_installer: None,
+        init_timeout: None,
     };
 
     let isolate = PersistentIsolate::new(opts).unwrap();
@@ -465,6 +467,7 @@ async fn test_ssr_render_performance() {
         server_entry: None,
         channel_capacity: 16,
         auto_installer: None,
+        init_timeout: None,
     };
 
     let isolate = PersistentIsolate::new(opts).unwrap();
@@ -513,6 +516,7 @@ async fn persistent_isolate_renders_via_framework_engine() {
         server_entry: None,
         channel_capacity: 16,
         auto_installer: None,
+        init_timeout: None,
     };
 
     let isolate = PersistentIsolate::new(opts).unwrap();
@@ -567,6 +571,7 @@ async fn isolate_stores_ssr_module_as_app_module_global() {
         server_entry: None,
         channel_capacity: 16,
         auto_installer: None,
+        init_timeout: None,
     };
 
     let isolate = PersistentIsolate::new(opts).unwrap();
@@ -796,6 +801,7 @@ async fn framework_app_without_ui_server_errors_instead_of_legacy_fallback() {
         server_entry: None,
         channel_capacity: 16,
         auto_installer: None,
+        init_timeout: None,
     };
 
     let isolate = PersistentIsolate::new(opts).unwrap();
@@ -835,6 +841,7 @@ async fn plain_js_app_uses_legacy_render_when_no_framework() {
         server_entry: None,
         channel_capacity: 16,
         auto_installer: None,
+        init_timeout: None,
     };
 
     let isolate = PersistentIsolate::new(opts).unwrap();
@@ -876,6 +883,7 @@ async fn framework_app_with_broken_ui_server_errors() {
         server_entry: None,
         channel_capacity: 16,
         auto_installer: None,
+        init_timeout: None,
     };
 
     let isolate = PersistentIsolate::new(opts).unwrap();
