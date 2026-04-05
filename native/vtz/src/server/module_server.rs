@@ -381,6 +381,23 @@ pub async fn handle_deps_request(
 ) -> Response<Body> {
     let path = req.uri().path();
 
+    // 0. Runtime built-in modules (node:*, bun:*) — return empty ES module stubs.
+    //    These are server-only; the browser gets a no-op module to prevent
+    //    auto-install attempts and error overlay noise (#2315).
+    if let Some(remainder) = path.strip_prefix("/@deps/") {
+        if is_runtime_builtin(remainder) {
+            return Response::builder()
+                .status(StatusCode::OK)
+                .header(
+                    header::CONTENT_TYPE,
+                    "application/javascript; charset=utf-8",
+                )
+                .header(header::CACHE_CONTROL, "no-cache")
+                .body(Body::from(runtime_builtin_stub(remainder)))
+                .unwrap();
+        }
+    }
+
     // 1. Check pre-bundled deps first
     if let Some(file_path) = prebundle::resolve_deps_file(path, &state.deps_dir) {
         match std::fs::read_to_string(&file_path) {
@@ -479,6 +496,44 @@ pub async fn handle_deps_request(
             specifier
         )))
         .unwrap()
+}
+
+/// Check if a specifier is a Node.js or Bun runtime built-in module.
+///
+/// These modules are only available server-side (in the V8 runtime via synthetic
+/// modules). When the browser requests them via `/@deps/`, we return an empty
+/// ES module stub instead of trying to resolve or auto-install them.
+fn is_runtime_builtin(specifier: &str) -> bool {
+    specifier.starts_with("node:") || specifier.starts_with("bun:")
+}
+
+/// Generate a browser-safe ES module stub for a server-only runtime built-in.
+///
+/// Includes a `console.warn` so developers know the module was stubbed and named
+/// imports will be `undefined`. Uses `//` line comments (not `/* */` block
+/// comments) to prevent comment injection via crafted specifiers.
+fn runtime_builtin_stub(specifier: &str) -> String {
+    // Sanitize specifier for safe inclusion in a JS string literal.
+    // Strip control characters and escape quotes/backslashes.
+    let safe: String = specifier
+        .chars()
+        .filter(|c| !c.is_control())
+        .flat_map(|c| match c {
+            '\\' => vec!['\\', '\\'],
+            '"' => vec!['\\', '"'],
+            _ => vec![c],
+        })
+        .collect();
+
+    format!(
+        concat!(
+            "// vtz: server-only built-in stub for browser\n",
+            "console.warn(\"[vtz] Server-only module \\\"{}\\\" was imported in browser code. ",
+            "Named exports will be undefined.\");\n",
+            "export default {{}};\n",
+        ),
+        safe
+    )
 }
 
 /// Re-attempt dependency resolution after auto-install (steps 2-5 from handle_deps_request).
@@ -2358,5 +2413,173 @@ export default function Sidebar() { return <div class={styles.root}>Hi</div>; }
             current.to_json().contains("css-unknown-color-token"),
             "warning for sidebar.tsx should still be present after compiling a different file"
         );
+    }
+
+    // ── handle_deps_request: runtime built-in modules ───────────────
+
+    #[tokio::test]
+    async fn test_handle_deps_request_node_builtin_returns_stub() {
+        let tmp = tempfile::tempdir().unwrap();
+        let state = create_test_state(tmp.path());
+
+        let req = Request::builder()
+            .uri("/@deps/node:fs")
+            .body(Body::empty())
+            .unwrap();
+
+        let resp = handle_deps_request(State(state), req).await;
+        assert_eq!(resp.status(), StatusCode::OK);
+        let ct = resp.headers().get(header::CONTENT_TYPE).unwrap();
+        assert!(ct.to_str().unwrap().contains("application/javascript"));
+    }
+
+    #[tokio::test]
+    async fn test_handle_deps_request_node_builtin_subpath_returns_stub() {
+        let tmp = tempfile::tempdir().unwrap();
+        let state = create_test_state(tmp.path());
+
+        let req = Request::builder()
+            .uri("/@deps/node:fs/promises")
+            .body(Body::empty())
+            .unwrap();
+
+        let resp = handle_deps_request(State(state), req).await;
+        assert_eq!(resp.status(), StatusCode::OK);
+    }
+
+    #[tokio::test]
+    async fn test_handle_deps_request_bun_builtin_returns_stub() {
+        let tmp = tempfile::tempdir().unwrap();
+        let state = create_test_state(tmp.path());
+
+        let req = Request::builder()
+            .uri("/@deps/bun:sqlite")
+            .body(Body::empty())
+            .unwrap();
+
+        let resp = handle_deps_request(State(state), req).await;
+        assert_eq!(resp.status(), StatusCode::OK);
+        let body = axum::body::to_bytes(resp.into_body(), usize::MAX)
+            .await
+            .unwrap();
+        let code = String::from_utf8(body.to_vec()).unwrap();
+        assert!(
+            code.contains("export default"),
+            "Stub should export something. Got: {}",
+            code
+        );
+        assert!(
+            code.contains("console.warn"),
+            "Stub should warn developers. Got: {}",
+            code
+        );
+        assert!(
+            code.contains("bun:sqlite"),
+            "Warning should name the module. Got: {}",
+            code
+        );
+        // Must use // comments, not /* */ (prevents comment injection)
+        assert!(
+            !code.contains("/*"),
+            "Must not use block comments (injection risk). Got: {}",
+            code
+        );
+    }
+
+    #[tokio::test]
+    async fn test_handle_deps_request_node_crypto_returns_stub() {
+        let tmp = tempfile::tempdir().unwrap();
+        let state = create_test_state(tmp.path());
+
+        let req = Request::builder()
+            .uri("/@deps/node:crypto")
+            .body(Body::empty())
+            .unwrap();
+
+        let resp = handle_deps_request(State(state), req).await;
+        assert_eq!(resp.status(), StatusCode::OK);
+    }
+
+    #[tokio::test]
+    async fn test_handle_deps_request_node_module_returns_stub() {
+        let tmp = tempfile::tempdir().unwrap();
+        let state = create_test_state(tmp.path());
+
+        let req = Request::builder()
+            .uri("/@deps/node:module")
+            .body(Body::empty())
+            .unwrap();
+
+        let resp = handle_deps_request(State(state), req).await;
+        assert_eq!(resp.status(), StatusCode::OK);
+    }
+
+    #[tokio::test]
+    async fn test_handle_deps_request_regular_package_still_404() {
+        // Ensure that regular (non-builtin) packages still 404 when not found
+        let tmp = tempfile::tempdir().unwrap();
+        let state = create_test_state(tmp.path());
+
+        let req = Request::builder()
+            .uri("/@deps/some-random-pkg")
+            .body(Body::empty())
+            .unwrap();
+
+        let resp = handle_deps_request(State(state), req).await;
+        assert_eq!(resp.status(), StatusCode::NOT_FOUND);
+    }
+
+    #[tokio::test]
+    async fn test_handle_deps_request_builtin_stub_no_comment_injection() {
+        // Crafted specifier attempting to break out of a block comment.
+        // The stub must use // line comments, not /* */ block comments,
+        // and the specifier must be safely inside a JS string literal.
+        let tmp = tempfile::tempdir().unwrap();
+        let state = create_test_state(tmp.path());
+
+        let req = Request::builder()
+            .uri("/@deps/node:*/alert(1)//")
+            .body(Body::empty())
+            .unwrap();
+
+        let resp = handle_deps_request(State(state), req).await;
+        assert_eq!(resp.status(), StatusCode::OK);
+        let body = axum::body::to_bytes(resp.into_body(), usize::MAX)
+            .await
+            .unwrap();
+        let code = String::from_utf8(body.to_vec()).unwrap();
+        // No block comments that could be broken by */
+        assert!(
+            !code.contains("/*"),
+            "Must not use block comments (injection risk). Got: {}",
+            code
+        );
+        // alert(1) must not appear as a top-level statement
+        // (it's safely inside a console.warn string literal)
+        assert!(
+            !code.starts_with("alert") && !code.contains("\nalert"),
+            "Injected code must not be executable. Got: {}",
+            code
+        );
+    }
+
+    // ── is_runtime_builtin unit tests ──────────────────────────────
+
+    #[test]
+    fn test_is_runtime_builtin_positive() {
+        assert!(is_runtime_builtin("node:fs"));
+        assert!(is_runtime_builtin("node:fs/promises"));
+        assert!(is_runtime_builtin("node:crypto"));
+        assert!(is_runtime_builtin("bun:sqlite"));
+        assert!(is_runtime_builtin("bun:test"));
+    }
+
+    #[test]
+    fn test_is_runtime_builtin_negative() {
+        assert!(!is_runtime_builtin("react"));
+        assert!(!is_runtime_builtin("@vertz/ui"));
+        assert!(!is_runtime_builtin("zod"));
+        assert!(!is_runtime_builtin("fs")); // bare name — could be npm polyfill
+        assert!(!is_runtime_builtin("path"));
     }
 }
