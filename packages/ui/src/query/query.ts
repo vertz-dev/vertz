@@ -280,6 +280,28 @@ export function query<T, E = unknown>(
   // Uses a signal so the computed properly tracks the transition.
   const entityBacked: Signal<boolean> = signal<boolean>(false);
 
+  // Dev-only: mark user-facing signals for state inspection grouping (#2047).
+  // The state inspector uses _queryGroup to aggregate query signals
+  // into named QuerySnapshot objects instead of listing them flat.
+  // Only the 5 user-facing signals are marked — internal signals
+  // (depHashSignal, entityBacked, refetchTrigger) are excluded.
+  const __DEV__ = typeof process !== 'undefined' && process.env.NODE_ENV !== 'production';
+  const _queryGroupKey = customKey ?? baseKey;
+  if (__DEV__) {
+    const userFacingSignals: [Signal<unknown>, string][] = [
+      [rawData as Signal<unknown>, 'data'],
+      [loading as Signal<unknown>, 'loading'],
+      [revalidating as Signal<unknown>, 'revalidating'],
+      [error, 'error'],
+      [idle as Signal<unknown>, 'idle'],
+    ];
+    for (const [sig, hmrKey] of userFacingSignals) {
+      const rec = sig as unknown as Record<string, unknown>;
+      rec._queryGroup = _queryGroupKey;
+      rec._hmrKey = hmrKey;
+    }
+  }
+
   // Track the descriptor _key from the last effect run so that refetch()
   // and clearData() use the same cache key format as the effect path.
   // Without this, descriptor-in-thunk queries use getCacheKey() which
