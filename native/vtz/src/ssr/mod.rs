@@ -1,4 +1,5 @@
 pub mod async_local_storage;
+pub mod component_render;
 pub mod css_collector;
 pub mod dom_shim;
 pub mod font_fallback;

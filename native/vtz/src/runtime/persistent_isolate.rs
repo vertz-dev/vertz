@@ -116,6 +116,30 @@ pub struct SsrResponse {
     pub redirect: Option<String>,
 }
 
+/// A component render request for the persistent isolate.
+#[derive(Debug, Clone)]
+pub struct ComponentRenderRequest {
+    /// Absolute path to the component file (validated by caller).
+    pub file_path: String,
+    /// Serialized JSON props to pass to the component.
+    pub props_json: String,
+}
+
+/// A component render response from the V8 thread.
+#[derive(Debug, Clone)]
+pub struct ComponentRenderResponse {
+    /// The rendered HTML content (innerHTML of #app).
+    pub html: String,
+    /// CSS collected during rendering (component-only, no app baseline).
+    pub css: String,
+    /// Which export was used ("default").
+    pub export_used: String,
+    /// Warnings (e.g., "Component uses query()").
+    pub warnings: Vec<String>,
+    /// Render time in milliseconds.
+    pub render_time_ms: f64,
+}
+
 /// Messages dispatched to the persistent isolate's V8 thread.
 enum IsolateMessage {
     /// API request: dispatch to the server handler.
@@ -125,6 +149,11 @@ enum IsolateMessage {
     ),
     /// SSR render request: reset DOM, render app, collect CSS.
     Ssr(SsrRequest, oneshot::Sender<Result<SsrResponse, String>>),
+    /// Component render request: render a single component in isolation.
+    ComponentRender(
+        ComponentRenderRequest,
+        oneshot::Sender<Result<ComponentRenderResponse, String>>,
+    ),
 }
 
 /// A persistent V8 isolate that handles API requests and SSR renders on a
@@ -275,6 +304,34 @@ impl PersistentIsolate {
             )),
             Err(_) => Err(deno_core::error::generic_error(
                 "SSR request timed out (V8 event loop may be stuck — save a file to restart the isolate)",
+            )),
+        }
+    }
+
+    /// Send a component render request to the persistent isolate and await the response.
+    ///
+    /// Renders a single component in isolation (no router, no layout, no data fetching).
+    /// Times out after [`REQUEST_TIMEOUT`].
+    pub async fn handle_component_render(
+        &self,
+        request: ComponentRenderRequest,
+    ) -> Result<ComponentRenderResponse, AnyError> {
+        let (response_tx, response_rx) = oneshot::channel();
+
+        self.message_tx
+            .send(IsolateMessage::ComponentRender(request, response_tx))
+            .await
+            .map_err(|_| {
+                deno_core::error::generic_error("Persistent isolate thread has stopped")
+            })?;
+
+        match tokio::time::timeout(REQUEST_TIMEOUT, response_rx).await {
+            Ok(Ok(result)) => result.map_err(deno_core::error::generic_error),
+            Ok(Err(_)) => Err(deno_core::error::generic_error(
+                "Persistent isolate dropped response channel unexpectedly",
+            )),
+            Err(_) => Err(deno_core::error::generic_error(
+                "Component render timed out (V8 event loop may be stuck — save a file to restart the isolate)",
             )),
         }
     }
@@ -788,6 +845,10 @@ async fn process_messages(
                         "SSR not available: app entry module failed to load".to_string(),
                     ));
                 }
+            }
+            IsolateMessage::ComponentRender(request, response_tx) => {
+                let result = dispatch_component_render(runtime, &request).await;
+                let _ = response_tx.send(result);
             }
         }
     }
@@ -1357,6 +1418,19 @@ async fn dispatch_ssr_request(
             redirect: None,
         })
     }
+}
+
+/// Dispatch a single component render request in the V8 isolate.
+///
+/// Renders a component in isolation: no router, no layout, no data fetching.
+/// Uses a component-specific DOM reset (no baseline CSS restoration) and
+/// cache-busted dynamic import to load the latest file version.
+async fn dispatch_component_render(
+    _runtime: &mut crate::runtime::js_runtime::VertzJsRuntime,
+    _request: &ComponentRenderRequest,
+) -> Result<ComponentRenderResponse, String> {
+    // Stub — Phase 2 will implement the actual V8 execution.
+    Err("Component rendering not implemented yet".to_string())
 }
 
 #[cfg(test)]
