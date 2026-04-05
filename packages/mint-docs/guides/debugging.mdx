@@ -45,11 +45,11 @@ The `restart: true` option automatically reconnects the debugger when the isolat
 
 ## CLI flags
 
-| Flag | Description |
-| ---- | ----------- |
-| `--inspect` | Enable inspector on port 9229 |
-| `--inspect-brk` | Enable inspector and pause before the entry module loads |
-| `--inspect-port <port>` | Set a custom inspector port (implies `--inspect`) |
+| Flag                    | Description                                              |
+| ----------------------- | -------------------------------------------------------- |
+| `--inspect`             | Enable inspector on port 9229                            |
+| `--inspect-brk`         | Enable inspector and pause before the entry module loads |
+| `--inspect-port <port>` | Set a custom inspector port (implies `--inspect`)        |
 
 ### Examples
 
@@ -64,6 +64,7 @@ vtz dev --inspect-port 9230        # Inspector on custom port
 Set breakpoints in your `.tsx` source files — the inspector serves source maps so DevTools maps compiled code back to your original source.
 
 Breakpoints work in:
+
 - SSR render functions (component bodies, data fetching)
 - Server entry files
 - Any module imported during server-side execution
@@ -87,6 +88,7 @@ The terminal shows:
 The runtime pauses before loading your entry module. Connect a debugger (Chrome DevTools or VS Code) — the runtime unblocks, then immediately pauses at the first statement of your entry module. From there you can step through your initialization code and press **Resume** when ready.
 
 This is useful for:
+
 - Debugging module initialization order
 - Inspecting SSR setup code
 - Diagnosing startup crashes

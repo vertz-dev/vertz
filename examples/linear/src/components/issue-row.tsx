@@ -1,7 +1,6 @@
 import { css } from '@vertz/ui';
 import { PRIORITY_CONFIG, STATUS_COLORS, STATUS_LABELS } from '../lib/issue-config';
-import type { Issue, Label } from '../lib/types';
-import { LabelBadge } from './label-badge';
+import type { Issue } from '../lib/types';
 
 const styles = css({
   row: [
@@ -18,7 +17,6 @@ const styles = css({
   ],
   identifier: ['text:xs', 'text:muted-foreground', 'w:20', 'shrink-0'],
   title: ['text:sm', 'text:foreground', 'flex-1', 'overflow-hidden', 'whitespace-nowrap'],
-  labels: ['flex', 'gap:1', 'shrink-0'],
   status: ['text:xs', 'px:2', 'py:0.5', 'rounded:full', 'shrink-0'],
   priority: ['text:xs', 'shrink-0', 'font:medium'],
 });
@@ -26,10 +24,9 @@ const styles = css({
 interface IssueRowProps {
   issue: Issue;
   projectKey?: string;
-  labels?: Label[];
 }
 
-export function IssueRow({ issue, projectKey, labels }: IssueRowProps) {
+export function IssueRow({ issue, projectKey }: IssueRowProps) {
   const identifier = projectKey ? `${projectKey}-${issue.number}` : `#${issue.number}`;
 
   return (
@@ -38,18 +35,11 @@ export function IssueRow({ issue, projectKey, labels }: IssueRowProps) {
       <span className={styles.title} data-testid="issue-title">
         {issue.title}
       </span>
-      {labels && labels.length > 0 && (
-        <span className={styles.labels}>
-          {labels.map((label) => (
-            <LabelBadge key={label.id} name={label.name} color={label.color} />
-          ))}
-        </span>
-      )}
       <span className={`${styles.status} ${STATUS_COLORS[issue.status] ?? ''}`}>
         {STATUS_LABELS[issue.status] ?? issue.status}
       </span>
       {issue.priority !== 'none' && PRIORITY_CONFIG[issue.priority] && (
-        <span className={styles.priority} style={{ color: PRIORITY_CONFIG[issue.priority].color }}>
+        <span className={styles.priority} style={`color: ${PRIORITY_CONFIG[issue.priority].color}`}>
           {PRIORITY_CONFIG[issue.priority].label}
         </span>
       )}

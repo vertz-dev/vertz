@@ -1,10 +1,11 @@
 import { css, Link, query, useDialogStack } from '@vertz/ui';
-import { Button, EmptyState } from '@vertz/ui/components';
 import { api } from '../api/client';
+import { Button } from '../components/button';
 import { CreateProjectDialog } from '../components/create-project-dialog';
 import { ProjectGridSkeleton } from '../components/loading-skeleton';
 import { ProjectCard } from '../components/project-card';
 import type { Project } from '../lib/types';
+import { emptyStateStyles } from '../styles/components';
 
 const styles = css({
   container: ['p:6'],
@@ -18,7 +19,12 @@ export function ProjectsPage() {
   const stack = useDialogStack();
 
   const handleNewProject = async () => {
-    await stack.open(CreateProjectDialog, {});
+    try {
+      const created = await stack.open(CreateProjectDialog, {});
+      if (created) projects.refetch();
+    } catch {
+      // Dialog dismissed — no action needed
+    }
   };
 
   return (
@@ -33,13 +39,9 @@ export function ProjectsPage() {
       {projects.loading && <ProjectGridSkeleton />}
 
       {!projects.loading && projects.data?.items.length === 0 && (
-        <div data-testid="projects-empty">
-          <EmptyState>
-            <EmptyState.Title>No projects yet</EmptyState.Title>
-            <EmptyState.Description>
-              Create your first project to get started.
-            </EmptyState.Description>
-          </EmptyState>
+        <div className={emptyStateStyles.container} data-testid="projects-empty">
+          <h2 className={emptyStateStyles.title}>No projects yet</h2>
+          <p className={emptyStateStyles.description}>Create your first project to get started.</p>
         </div>
       )}
 

@@ -1,11 +1,10 @@
 import { css, query, useParams } from '@vertz/ui';
 import { api } from '../api/client';
 import { CommentSection } from '../components/comment-section';
-import { LabelPicker } from '../components/label-picker';
 import { IssueDetailSkeleton } from '../components/loading-skeleton';
 import { PrioritySelect } from '../components/priority-select';
 import { StatusSelect } from '../components/status-select';
-import type { Comment, IssueLabel, IssuePriority, IssueStatus, Label } from '../lib/types';
+import type { IssuePriority, IssueStatus } from '../lib/types';
 
 const styles = css({
   container: ['p:6'],
@@ -33,42 +32,24 @@ const styles = css({
 
 export function IssueDetailPage() {
   const { projectId, issueId } = useParams<'/projects/:projectId/issues/:issueId'>();
-  const issue = query(
-    api.issues.get(issueId, {
-      include: {
-        project: true,
-        comments: {
-          orderBy: { createdAt: 'asc' },
-          include: { author: true },
-        },
-        labels: true,
-      },
-    }),
-  );
-  const labelsQuery = query(
-    api.labels.list({ where: { projectId }, select: { id: true, name: true, color: true } }),
-  );
-  const issueLabelsQuery = query(
-    api.issueLabels.list({
-      where: { issueId },
-      select: { id: true, issueId: true, labelId: true },
-    }),
-  );
+  const issue = query(api.issues.get(issueId));
+  const project = query(api.projects.get(projectId));
+  const comments = query(api.comments.list({ issueId }));
+  const users = query(api.users.list());
 
   let updateError = '';
 
-  interface IncludedComment {
-    id: string;
-    body: string;
-    authorId: string;
-    createdAt: string;
-    author?: { id: string; name: string; avatarUrl: string | null };
-  }
-
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- issue.data includes nested relations from include
-  const issueData = issue.data as Record<string, any> | undefined;
-  const issueComments = (issueData?.comments ?? []) as IncludedComment[];
-  const projectData = issueData?.project as { key?: string } | undefined;
+  // Build user lookup map for author resolution.
+  // Must be a single declarative expression so the compiler wraps it in computed()
+  // and re-evaluates when users.data loads.
+  const userMap: Record<string, { name: string; avatarUrl: string | null }> = users.data?.items
+    ? Object.fromEntries(
+        users.data.items.map((u) => [
+          u.id,
+          { name: u.name, avatarUrl: u.avatarUrl as string | null },
+        ]),
+      )
+    : {};
 
   const handleStatusChange = async (status: IssueStatus) => {
     const res = await api.issues.update(issueId, { status });
@@ -77,6 +58,7 @@ export function IssueDetailPage() {
       return;
     }
     updateError = '';
+    issue.refetch();
   };
 
   const handlePriorityChange = async (priority: IssuePriority) => {
@@ -86,14 +68,7 @@ export function IssueDetailPage() {
       return;
     }
     updateError = '';
-  };
-
-  const handleAddLabel = async (labelId: string) => {
-    await api.issueLabels.create({ issueId, labelId });
-  };
-
-  const handleRemoveLabel = async (issueLabelId: string) => {
-    await api.issueLabels.delete(issueLabelId);
+    issue.refetch();
   };
 
   return (
@@ -108,7 +83,7 @@ export function IssueDetailPage() {
         <div className={styles.layout}>
           <div className={styles.main}>
             <div className={styles.identifier}>
-              {`${projectData?.key ?? '...'}-${issue.data.number}`}
+              {`${project.data?.key ?? '...'}-${issue.data.number}`}
             </div>
             <h2 className={styles.title}>{issue.data.title}</h2>
             {issue.data.description ? (
@@ -121,18 +96,11 @@ export function IssueDetailPage() {
             </div>
 
             <CommentSection
-              comments={issueComments as Comment[]}
-              loading={issue.loading}
+              comments={comments.data?.items ?? []}
+              loading={comments.loading}
               issueId={issueId}
-              userMap={Object.fromEntries(
-                issueComments
-                  .filter((c) => c.author)
-                  .map((c) => [
-                    c.authorId,
-                    { name: c.author!.name, avatarUrl: c.author!.avatarUrl ?? null },
-                  ]),
-              )}
-              onCommentAdded={() => {}}
+              userMap={userMap}
+              onCommentAdded={() => comments.refetch()}
             />
           </div>
 
@@ -141,12 +109,6 @@ export function IssueDetailPage() {
             <PrioritySelect
               value={issue.data.priority as IssuePriority}
               onChange={handlePriorityChange}
-            />
-            <LabelPicker
-              labels={(labelsQuery.data?.items ?? []) as Label[]}
-              issueLabels={(issueLabelsQuery.data?.items ?? []) as IssueLabel[]}
-              onAdd={handleAddLabel}
-              onRemove={handleRemoveLabel}
             />
           </aside>
         </div>

@@ -11,9 +11,10 @@
  * recovery with retry.
  */
 
-import { createRouter, defineRoutes, onMount, useRouter } from '@vertz/ui';
+import { createRouter, defineRoutes, ErrorBoundary, onMount, useRouter } from '@vertz/ui';
 import { ProtectedRoute } from '@vertz/ui-auth';
 import { WorkspaceShell } from './components/auth-guard';
+import { ErrorFallback } from './components/error-fallback';
 import { AuthLoadingSkeleton } from './components/loading-skeleton';
 import { ProjectLayout } from './components/project-layout';
 import { IssueDetailPage } from './pages/issue-detail-page';
@@ -52,19 +53,39 @@ export const routes = defineRoutes({
         component: () => <IndexRedirect />,
       },
       '/projects': {
-        component: () => <ProjectsPage />,
+        component: () => (
+          <ErrorBoundary
+            fallback={(error, retry) => <ErrorFallback error={error} retry={retry} />}
+            children={() => <ProjectsPage />}
+          />
+        ),
       },
       '/projects/:projectId': {
         component: () => <ProjectLayout />,
         children: {
           '/': {
-            component: () => <IssueListPage />,
+            component: () => (
+              <ErrorBoundary
+                fallback={(error, retry) => <ErrorFallback error={error} retry={retry} />}
+                children={() => <IssueListPage />}
+              />
+            ),
           },
           '/board': {
-            component: () => <ProjectBoardPage />,
+            component: () => (
+              <ErrorBoundary
+                fallback={(error, retry) => <ErrorFallback error={error} retry={retry} />}
+                children={() => <ProjectBoardPage />}
+              />
+            ),
           },
           '/issues/:issueId': {
-            component: () => <IssueDetailPage />,
+            component: () => (
+              <ErrorBoundary
+                fallback={(error, retry) => <ErrorFallback error={error} retry={retry} />}
+                children={() => <IssueDetailPage />}
+              />
+            ),
           },
         },
       },

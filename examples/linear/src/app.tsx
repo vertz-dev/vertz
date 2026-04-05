@@ -11,8 +11,8 @@
 import {
   ANIMATION_DURATION,
   ANIMATION_EASING,
-  DefaultErrorFallback,
-  DialogStackProvider,
+  createDialogStack,
+  DialogStackContext,
   fadeOut,
   getInjectedCSS,
   globalCss,
@@ -24,8 +24,7 @@ import {
   zoomIn,
   zoomOut,
 } from '@vertz/ui';
-import { AuthProvider, TenantProvider } from '@vertz/ui/auth';
-import { api } from './api/client';
+import { AuthProvider } from '@vertz/ui/auth';
 import { appRouter } from './router';
 import { linearTheme, themeGlobals } from './styles/theme';
 
@@ -37,7 +36,7 @@ const appGlobals = globalCss({
 });
 
 // ── Presence animation globals ─────────────────────────────
-// List and Presence set data-presence="enter"/"exit" on elements.
+// ListTransition and Presence set data-presence="enter"/"exit" on elements.
 // These rules drive the CSS animations for those states.
 
 void globalCss({
@@ -89,21 +88,25 @@ export function App() {
     document.documentElement.setAttribute('data-theme', 'dark');
   }
 
+  // Use document.createElement instead of JSX (<div />) because JSX compiles
+  // to __element('div') which claims SSR nodes during hydration. This container
+  // is created before the JSX tree, so it would steal ThemeProvider's <div>.
+  const dialogContainer = document.createElement('div');
+  const dialogStack = createDialogStack(dialogContainer);
+
   return (
-    <AuthProvider auth={api.auth}>
-      <TenantProvider listTenants={api.auth.listTenants} switchTenant={api.auth.switchTenant}>
-        <RouterContext.Provider value={appRouter}>
-          <ThemeProvider theme="dark">
-            <DialogStackProvider>
-              <RouterView
-                router={appRouter}
-                fallback={() => <div>Page not found</div>}
-                errorFallback={DefaultErrorFallback}
-              />
-            </DialogStackProvider>
-          </ThemeProvider>
-        </RouterContext.Provider>
-      </TenantProvider>
+    <AuthProvider basePath="/api/auth">
+      <RouterContext.Provider value={appRouter}>
+        <ThemeProvider theme="dark">
+          <DialogStackContext.Provider value={dialogStack}>
+            {/* biome-ignore lint/complexity/noUselessFragments: Provider requires single root */}
+            <>
+              <RouterView router={appRouter} fallback={() => <div>Page not found</div>} />
+              {dialogContainer}
+            </>
+          </DialogStackContext.Provider>
+        </ThemeProvider>
+      </RouterContext.Provider>
     </AuthProvider>
   );
 }
