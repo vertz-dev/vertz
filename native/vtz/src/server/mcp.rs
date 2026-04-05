@@ -23,7 +23,6 @@
 //! - `vertz_get_events_url` — WebSocket URL for real-time LLM event push
 
 use crate::runtime::persistent_isolate::IsolateRequest;
-use crate::server::console_log::LogLevel;
 use crate::server::module_server::DevServerState;
 use axum::body::{Body, Bytes};
 use axum::extract::{Query, State};
@@ -167,7 +166,7 @@ pub(crate) fn tool_definitions() -> serde_json::Value {
             },
             {
                 "name": "vertz_get_console",
-                "description": "Get recent console log entries from the dev server, including compilation events, SSR render times, file watcher events, and diagnostic messages.",
+                "description": "[Deprecated: use vertz_get_audit_log instead] Get recent console log entries from the dev server, including compilation events, SSR render times, file watcher events, and diagnostic messages.",
                 "inputSchema": {
                     "type": "object",
                     "properties": {
@@ -324,20 +323,6 @@ pub(crate) async fn execute_tool(
 
                     match isolate.handle_ssr(ssr_req).await {
                         Ok(ssr_resp) => {
-                            state.console_log.push(
-                                LogLevel::Info,
-                                format!(
-                                    "MCP render: {} ({:.1}ms, {})",
-                                    url,
-                                    ssr_resp.render_time_ms,
-                                    if ssr_resp.is_ssr {
-                                        "ssr"
-                                    } else {
-                                        "client-only"
-                                    }
-                                ),
-                                Some("mcp"),
-                            );
                             state.audit_log.record(
                                 crate::server::audit_log::AuditEvent::ssr_render(
                                     &url,
@@ -383,9 +368,6 @@ pub(crate) async fn execute_tool(
                             let error_msg = format!("Persistent SSR error: {}", e);
                             eprintln!("[SSR] MCP render: {}", error_msg);
                             state
-                                .console_log
-                                .push(LogLevel::Error, error_msg.clone(), Some("mcp"));
-                            state
                                 .audit_log
                                 .record(crate::server::audit_log::AuditEvent::error(
                                     "ssr", "error", &error_msg, None, None, None,
@@ -396,11 +378,6 @@ pub(crate) async fn execute_tool(
             }
 
             // Fallback: persistent isolate not available
-            state.console_log.push(
-                LogLevel::Info,
-                format!("MCP render: {} (client-only, no persistent isolate)", url),
-                Some("mcp"),
-            );
             state
                 .audit_log
                 .record(crate::server::audit_log::AuditEvent::ssr_render(
@@ -423,11 +400,11 @@ pub(crate) async fn execute_tool(
         "vertz_get_console" => {
             let last_n = args.get("last").and_then(|v| v.as_u64()).unwrap_or(50) as usize;
 
-            let entries = state.console_log.last_n(last_n);
+            let entries = state.audit_log.to_legacy_log_entries(last_n);
             let text = serde_json::to_string_pretty(&serde_json::json!({
                 "entries": entries,
                 "count": entries.len(),
-                "total": state.console_log.len(),
+                "total": entries.len(),
             }))
             .unwrap_or_default();
 
@@ -447,10 +424,6 @@ pub(crate) async fn execute_tool(
                 .hmr_hub
                 .broadcast(crate::hmr::protocol::HmrMessage::Navigate { to: to.clone() })
                 .await;
-
-            state
-                .console_log
-                .push(LogLevel::Info, format!("MCP navigate: {}", to), Some("mcp"));
 
             Ok(serde_json::json!({
                 "content": [{
@@ -1160,7 +1133,6 @@ mod tests {
     use crate::compiler::pipeline::CompilationPipeline;
     use crate::errors::broadcaster::ErrorBroadcaster;
     use crate::hmr::websocket::HmrHub;
-    use crate::server::console_log::ConsoleLog;
     use crate::watcher;
     use std::time::Instant;
 
@@ -1185,7 +1157,6 @@ mod tests {
             hmr_hub: HmrHub::new(),
             module_graph: watcher::new_shared_module_graph(),
             error_broadcaster: ErrorBroadcaster::new(),
-            console_log: ConsoleLog::new(),
             audit_log: crate::server::audit_log::AuditLog::default(),
             mcp_sessions: McpSessions::new(),
             mcp_event_hub: crate::server::mcp_events::McpEventHub::new(),
@@ -1540,8 +1511,11 @@ mod tests {
     async fn test_execute_get_console_with_entries() {
         let state = create_test_state();
         state
-            .console_log
-            .push(LogLevel::Info, "test message", Some("test"));
+            .audit_log
+            .record(crate::server::audit_log::AuditEvent::file_change(
+                "src/App.tsx",
+                "modify",
+            ));
 
         let result = execute_tool(
             &state,
@@ -1570,11 +1544,6 @@ mod tests {
 
         let content = result["content"].as_array().unwrap();
         assert!(content[0]["text"].as_str().unwrap().contains("/tasks"));
-
-        // Verify console log was created
-        let entries = state.console_log.all();
-        assert_eq!(entries.len(), 1);
-        assert!(entries[0].message.contains("/tasks"));
     }
 
     #[tokio::test]
