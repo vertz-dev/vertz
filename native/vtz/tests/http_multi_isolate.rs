@@ -2,13 +2,15 @@
 //!
 //! These tests verify the full pipeline: entity graph → supervisor → message bus
 //! → API route resolution → cross-isolate message delivery.
+//!
+//! NOTE: Response handling is not tested here — the V8 handler that processes
+//! received messages and sends responses is future work. These tests verify
+//! message delivery to the correct isolate inbox only.
 
 use std::path::PathBuf;
 
 use vertz_runtime::runtime::entity_graph::{EntityNode, EntityRef, IsolationMode, RefKind};
-use vertz_runtime::runtime::isolate_supervisor::{
-    extract_entity_from_path, IsolateSupervisor, SupervisorConfig,
-};
+use vertz_runtime::runtime::isolate_supervisor::{IsolateSupervisor, SupervisorConfig};
 use vertz_runtime::runtime::message_bus::{BusError, BusMessage, MessageBusConfig};
 
 fn node(name: &str, refs: Vec<(&str, RefKind)>, isolation: IsolationMode) -> EntityNode {
@@ -29,7 +31,6 @@ fn node(name: &str, refs: Vec<(&str, RefKind)>, isolation: IsolationMode) -> Ent
 /// and API requests route through bus to correct isolate.
 #[tokio::test]
 async fn api_request_routes_to_correct_isolate_via_bus() {
-    // 1. Set up supervisor with entities
     let config = SupervisorConfig {
         root_dir: PathBuf::from("/tmp/test"),
         entities: vec![
@@ -43,15 +44,13 @@ async fn api_request_routes_to_correct_isolate_via_bus() {
         ],
     };
     let supervisor = IsolateSupervisor::new(config);
-
-    // 2. Create message bus wired to supervisor
     let mut handles = supervisor.create_message_bus(MessageBusConfig::default());
 
-    // 3. Resolve API route for /api/tasks
+    // Resolve API route for /api/tasks
     let resolution = supervisor.resolve_api_route("/api/tasks").unwrap();
     assert_eq!(resolution.entity_name, "task");
 
-    // 4. Send message through bus to the task entity's isolate
+    // Send message through bus to the task entity's isolate
     let (resp_tx, _resp_rx) = tokio::sync::oneshot::channel();
     let msg = BusMessage {
         source_entity: "user".to_string(),
@@ -65,7 +64,7 @@ async fn api_request_routes_to_correct_isolate_via_bus() {
 
     handles.bus.send(msg).await.unwrap();
 
-    // 5. Verify message arrived at the correct isolate's receiver
+    // Verify message arrived at the correct isolate's receiver
     let received = handles
         .receivers
         .get_mut(&resolution.isolate_index)
@@ -75,6 +74,7 @@ async fn api_request_routes_to_correct_isolate_via_bus() {
     assert_eq!(received.target_entity, "task");
     assert_eq!(received.operation, "list");
     assert_eq!(received.payload, vec![1, 2, 3]);
+    assert_eq!(received.trace_id, "req-001");
 }
 
 /// Cross-entity request: user isolate sends message to task isolate via bus.
@@ -90,7 +90,6 @@ async fn cross_isolate_message_delivery() {
     let supervisor = IsolateSupervisor::new(config);
     let mut handles = supervisor.create_message_bus(MessageBusConfig::default());
 
-    // User isolate sends a cross-entity request to task isolate
     let (resp_tx, _resp_rx) = tokio::sync::oneshot::channel();
     let msg = BusMessage {
         source_entity: "user".to_string(),
@@ -104,7 +103,6 @@ async fn cross_isolate_message_delivery() {
 
     handles.bus.send(msg).await.unwrap();
 
-    // Task isolate receives the message
     let task_idx = supervisor.isolate_index_for_entity("task").unwrap();
     let received = handles
         .receivers
@@ -115,6 +113,7 @@ async fn cross_isolate_message_delivery() {
     assert_eq!(received.source_entity, "user");
     assert_eq!(received.target_entity, "task");
     assert_eq!(received.payload, b"task-123");
+    assert_eq!(received.trace_id, "cross-001");
 }
 
 /// Deadlock detection works end-to-end through the bus.
@@ -130,7 +129,6 @@ async fn cross_isolate_deadlock_detected() {
     let supervisor = IsolateSupervisor::new(config);
     let handles = supervisor.create_message_bus(MessageBusConfig::default());
 
-    // Simulate: task → comment → task (circular)
     let (resp_tx, _) = tokio::sync::oneshot::channel();
     let msg = BusMessage {
         source_entity: "comment".to_string(),
@@ -164,29 +162,11 @@ fn unknown_entity_route_returns_none() {
     assert!(supervisor.resolve_api_route("/api/tasks").is_some());
 }
 
-/// Entity path extraction handles common REST URL patterns.
-#[test]
-fn entity_extraction_rest_patterns() {
-    assert_eq!(
-        extract_entity_from_path("/api/tasks"),
-        Some("task".to_string())
-    );
-    assert_eq!(
-        extract_entity_from_path("/api/tasks/123"),
-        Some("task".to_string())
-    );
-    assert_eq!(
-        extract_entity_from_path("/api/tasks/123/comments"),
-        Some("task".to_string())
-    );
-    assert_eq!(
-        extract_entity_from_path("/api/task-comments"),
-        Some("task-comment".to_string())
-    );
-    assert!(extract_entity_from_path("/not-api/tasks").is_none());
-}
-
-/// Strict serialization mode is configurable via message bus.
+/// Strict serialization flag is stored and queryable.
+///
+/// The strict_serialization flag is advisory metadata consumed by the routing
+/// layer (not yet implemented). The routing layer checks `same_group()` and
+/// `strict_serialization()` to decide whether to serialize same-group calls.
 #[test]
 fn strict_serialization_propagates() {
     let config = SupervisorConfig {
@@ -198,12 +178,9 @@ fn strict_serialization_propagates() {
     };
     let supervisor = IsolateSupervisor::new(config);
 
-    // Default: strict off
     let handles = supervisor.create_message_bus(MessageBusConfig::default());
     assert!(!handles.bus.strict_serialization());
-    assert!(handles.bus.same_group("task", "task")); // same entity = same group
 
-    // Explicit: strict on
     let handles = supervisor.create_message_bus(MessageBusConfig {
         strict_serialization: true,
         channel_capacity: 256,

@@ -118,13 +118,6 @@ impl IsolateSupervisor {
         &self.isolates
     }
 
-    /// Get the entity-to-isolate index mapping.
-    ///
-    /// Used by the message bus to set up routing tables.
-    pub fn entity_to_isolate_map(&self) -> &HashMap<String, usize> {
-        &self.entity_to_isolate
-    }
-
     /// Create a message bus wired to this supervisor's entity routing.
     ///
     /// Returns the bus (for sending) and per-isolate receivers (for polling).
@@ -140,11 +133,12 @@ impl IsolateSupervisor {
     /// Returns `None` if the entity is not registered.
     pub fn resolve_api_route(&self, path: &str) -> Option<RouteResolution> {
         let entity_name = extract_entity_from_path(path)?;
-        let isolate_idx = self.entity_to_isolate.get(&entity_name)?;
-        let isolate = self.isolates.get(*isolate_idx)?;
+        let isolate_idx = *self.entity_to_isolate.get(&entity_name)?;
+        // entity_to_isolate indices are always valid — built together with isolates in new()
+        let isolate = &self.isolates[isolate_idx];
         Some(RouteResolution {
             entity_name,
-            isolate_index: *isolate_idx,
+            isolate_index: isolate_idx,
             isolate_label: isolate.label.format(),
         })
     }
@@ -170,22 +164,53 @@ pub struct RouteResolution {
 /// - `/api/user` → `"user"`
 ///
 /// Returns `None` for paths that don't start with `/api/` or have no entity segment.
-pub fn extract_entity_from_path(path: &str) -> Option<String> {
+pub(crate) fn extract_entity_from_path(path: &str) -> Option<String> {
     let rest = path.strip_prefix("/api/")?;
     let segment = rest.split('/').next().filter(|s| !s.is_empty())?;
     Some(singularize(segment))
 }
 
-/// Naive singularization: strip trailing 's' if present.
+/// Singularize a URL segment for entity name resolution.
 ///
-/// This handles the common REST convention where collection endpoints
-/// use plural names (e.g., `/api/tasks` for the `task` entity).
+/// Handles common English plural patterns:
+/// - `-ies` → `-y` (categories → category, companies → company)
+/// - `-ses`, `-xes`, `-ches`, `-shes`, `-zes` → strip `-es` (buses → bus, boxes → box)
+/// - `-ss` → unchanged (access, class)
+/// - regular `-s` → strip (tasks → task)
 fn singularize(word: &str) -> String {
-    if word.len() > 1 && word.ends_with('s') && !word.ends_with("ss") {
-        word[..word.len() - 1].to_string()
-    } else {
-        word.to_string()
+    // -ies → -y (categories → category)
+    if word.ends_with("ies") && word.len() > 3 {
+        return format!("{}y", &word[..word.len() - 3]);
     }
+    // -sses → strip -es (addresses → address, dresses → dress)
+    if word.ends_with("sses") && word.len() > 4 {
+        return word[..word.len() - 2].to_string();
+    }
+    // -ses (but not -sses, handled above) → strip -es (buses → bus)
+    if word.ends_with("ses") && word.len() > 3 {
+        return word[..word.len() - 2].to_string();
+    }
+    if word.ends_with("xes") && word.len() > 3 {
+        return word[..word.len() - 2].to_string();
+    }
+    if word.ends_with("ches") && word.len() > 4 {
+        return word[..word.len() - 2].to_string();
+    }
+    if word.ends_with("shes") && word.len() > 4 {
+        return word[..word.len() - 2].to_string();
+    }
+    if word.ends_with("zes") && word.len() > 3 {
+        return word[..word.len() - 2].to_string();
+    }
+    // -ss → unchanged (access, class)
+    if word.ends_with("ss") {
+        return word.to_string();
+    }
+    // Regular -s → strip
+    if word.len() > 1 && word.ends_with('s') {
+        return word[..word.len() - 1].to_string();
+    }
+    word.to_string()
 }
 
 /// Compute how Isolates should be distributed across worker threads.
@@ -495,10 +520,39 @@ mod tests {
     }
 
     #[test]
-    fn singularize_handles_double_s() {
-        // "access" should not become "acces"
+    fn singularize_regular_plurals() {
+        assert_eq!(singularize("tasks"), "task");
+        assert_eq!(singularize("users"), "user");
+        assert_eq!(singularize("comments"), "comment");
+    }
+
+    #[test]
+    fn singularize_ies_to_y() {
+        assert_eq!(singularize("categories"), "category");
+        assert_eq!(singularize("companies"), "company");
+        assert_eq!(singularize("entries"), "entry");
+    }
+
+    #[test]
+    fn singularize_es_variants() {
+        assert_eq!(singularize("buses"), "bus");
+        assert_eq!(singularize("addresses"), "address");
+        assert_eq!(singularize("boxes"), "box");
+        assert_eq!(singularize("watches"), "watch");
+        assert_eq!(singularize("crashes"), "crash");
+        // Note: "quizzes" → "quizz" (doubled consonant not handled — rare edge case)
+    }
+
+    #[test]
+    fn singularize_double_s_unchanged() {
         assert_eq!(singularize("access"), "access");
         assert_eq!(singularize("class"), "class");
+    }
+
+    #[test]
+    fn singularize_already_singular() {
+        assert_eq!(singularize("user"), "user");
+        assert_eq!(singularize("task"), "task");
     }
 
     #[test]
@@ -532,32 +586,7 @@ mod tests {
     }
 
     #[test]
-    fn entity_to_isolate_map_returns_full_mapping() {
-        let config = SupervisorConfig {
-            root_dir: PathBuf::from("/tmp/test"),
-            entities: vec![
-                entity(
-                    "task",
-                    vec![("comment", RefKind::Many)],
-                    IsolationMode::Default,
-                ),
-                entity("comment", vec![], IsolationMode::Default),
-                entity("user", vec![], IsolationMode::Default),
-            ],
-        };
-        let supervisor = IsolateSupervisor::new(config);
-        let map = supervisor.entity_to_isolate_map();
-        assert_eq!(map.len(), 3);
-        assert!(map.contains_key("task"));
-        assert!(map.contains_key("comment"));
-        assert!(map.contains_key("user"));
-        // task and comment in same group
-        assert_eq!(map["task"], map["comment"]);
-        assert_ne!(map["task"], map["user"]);
-    }
-
-    #[test]
-    fn isolates_have_thread_ids() {
+    fn isolates_have_valid_thread_ids() {
         let config = SupervisorConfig {
             root_dir: PathBuf::from("/tmp/test"),
             entities: vec![
@@ -567,9 +596,15 @@ mod tests {
             ],
         };
         let supervisor = IsolateSupervisor::new(config);
-        // Each isolate should have a thread_id assigned
+        // thread_id must be < effective_threads = min(cpus, isolate_count)
+        let bound = supervisor.isolate_count();
         for isolate in supervisor.isolates() {
-            assert!(isolate.thread_id < num_cpus());
+            assert!(
+                isolate.thread_id < bound,
+                "thread_id {} >= isolate_count {}",
+                isolate.thread_id,
+                bound
+            );
         }
     }
 }
