@@ -169,11 +169,31 @@ export interface GroupByArgs {
 }
 
 // ---------------------------------------------------------------------------
-// TypedGroupByArgs — strongly typed version for ModelDelegate
+// TypedAggregateArgs — strongly typed version for ModelDelegate
 // ---------------------------------------------------------------------------
 
 /** Helper to extract columns from a ModelEntry. */
 type EntryColumns<TEntry extends ModelEntry> = TEntry['table']['_columns'];
+
+/**
+ * Strongly typed aggregate arguments, parameterized by the model's columns.
+ *
+ * - `where` uses FilterType for typed filter operators.
+ * - `_avg` and `_sum` are restricted to numeric columns.
+ * - `_min`, `_max`, `_count` accept any column.
+ */
+export type TypedAggregateArgs<TEntry extends ModelEntry> = {
+  readonly where?: FilterType<EntryColumns<TEntry>>;
+  readonly _avg?: { readonly [K in NumericColumnKeys<EntryColumns<TEntry>>]?: true };
+  readonly _sum?: { readonly [K in NumericColumnKeys<EntryColumns<TEntry>>]?: true };
+  readonly _min?: { readonly [K in keyof EntryColumns<TEntry>]?: true };
+  readonly _max?: { readonly [K in keyof EntryColumns<TEntry>]?: true };
+  readonly _count?: true | { readonly [K in keyof EntryColumns<TEntry>]?: true };
+};
+
+// ---------------------------------------------------------------------------
+// TypedGroupByArgs — strongly typed version for ModelDelegate
+// ---------------------------------------------------------------------------
 
 /**
  * Strongly typed groupBy arguments, parameterized by the model's columns.

@@ -67,7 +67,7 @@ export type { SqlFragment } from './sql/tagged';
 // Expression types (for groupBy computed expressions)
 export type { DateTruncPrecision, ExtractField, GroupByExpression } from './query/expression';
 export { isGroupByExpression } from './query/expression';
-export type { TypedGroupByArgs } from './query/aggregate';
+export type { TypedAggregateArgs, TypedGroupByArgs } from './query/aggregate';
 export type { NumericColumnKeys } from './schema/inference';
 // Diagnostic
 export type { DiagnosticResult } from './diagnostic/index';
