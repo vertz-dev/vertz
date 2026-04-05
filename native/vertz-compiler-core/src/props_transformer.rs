@@ -27,8 +27,6 @@ struct DestructuredPropsInfo {
     /// Span of the entire parameter (from `{` to end of type annotation).
     param_start: u32,
     param_end: u32,
-    /// End of just the destructuring pattern (before type annotation).
-    pattern_end: u32,
 }
 
 /// Transform destructured props into __props access pattern.
@@ -61,15 +59,12 @@ pub fn transform_props(
         return;
     }
 
-    // Step 1: Rewrite parameter `{ title, ...rest }: CardProps` → `__props: CardProps`
-    // Preserve the type annotation so downstream TS stripping (e.g., Bun) handles it.
-    let type_annotation = if info.pattern_end < info.param_end {
-        &source[info.pattern_end as usize..info.param_end as usize]
-    } else {
-        ""
-    };
-    let new_param = format!("__props{type_annotation}");
-    ms.overwrite(info.param_start, info.param_end, &new_param);
+    // Step 1: Rewrite parameter `{ title, ...rest }: CardProps` → `__props`
+    // Type annotations are NOT preserved — the Rust dev server serves compiled
+    // output directly to V8 (SSR) and browsers (client ES modules) with no
+    // downstream transpiler. The Bun plugin pipeline also strips TS independently,
+    // so omitting the annotation here is safe for both paths.
+    ms.overwrite(info.param_start, info.param_end, "__props");
 
     // Step 2: Replace references in the component body
     let mut replacer = PropsRefReplacer {
@@ -255,7 +250,6 @@ fn extract_from_params<'a>(
         // Determine param range: from pattern start to end of type annotation or closing paren
         let param_start = first_param.span.start;
         let param_end = first_param.span.end;
-        let pattern_end = obj_pattern.span.end;
 
         Some(DestructuredPropsInfo {
             bindings,
@@ -263,7 +257,6 @@ fn extract_from_params<'a>(
             has_nested_destructuring: has_nested,
             param_start,
             param_end,
-            pattern_end,
         })
     } else {
         None
@@ -613,20 +606,48 @@ mod tests {
         assert!(code.contains("__props.title"), "code: {}", code);
     }
 
-    // ── Type annotation preserved on __props ──────────────────────
+    // ── Type annotation stripped from __props ──────────────────────
 
     #[test]
-    fn props_rewrite_preserves_type_annotation() {
-        // The props transformer preserves `: TypeName` on __props so that
-        // downstream TS stripping (Bun plugin) can handle it.
+    fn props_rewrite_strips_type_annotation() {
+        // The props transformer must NOT preserve type annotations on __props.
+        // The Rust dev server serves compiled output directly to V8 (SSR) and
+        // browsers (client ES modules) — there is no downstream transpiler.
         let code = compile_tsx(
             r#"function Card({ title, onClick }: CardProps) {
     return <div onClick={onClick}>{title}</div>;
 }"#,
         );
         assert!(
-            code.contains("__props: CardProps"),
-            "expected type annotation on __props: {code}"
+            !code.contains("__props: CardProps"),
+            "type annotation should be stripped from __props: {code}"
+        );
+        assert!(
+            code.contains("__props)") || code.contains("__props "),
+            "props should be rewritten to __props without type: {code}"
+        );
+    }
+
+    #[test]
+    fn props_rewrite_strips_inline_object_type() {
+        // Inline object type annotations must also be stripped.
+        // This is the pattern from examples/linear/ that caused the original bug.
+        let code = compile_tsx(
+            r#"function ProjectCard({ project }: { project: Project }) {
+    return <div>{project.name}</div>;
+}"#,
+        );
+        assert!(
+            !code.contains(": { project: Project }"),
+            "inline object type should be stripped: {code}"
+        );
+        assert!(
+            !code.contains("__props:"),
+            "no type annotation after __props: {code}"
+        );
+        assert!(
+            code.contains("__props"),
+            "props should be rewritten to __props: {code}"
         );
     }
 }
