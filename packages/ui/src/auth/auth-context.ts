@@ -228,8 +228,13 @@ export function AuthProvider({
 
   // --- SDK-delegated methods (signIn, signUp, signOut, refresh, providers) ---
 
+  // During SSR in the V8 isolate, auth SDK methods may be undefined.
+  // url/method default to '' / 'POST' — safe because SSR never submits forms.
   const signIn = Object.assign(
     async (body: SignInInput): Promise<Result<AuthResponse, Error>> => {
+      if (typeof auth.signIn !== 'function') {
+        return err(new Error('auth.signIn is not available (SSR context)'));
+      }
       if (deferredRefreshTimer) {
         clearTimeout(deferredRefreshTimer);
         deferredRefreshTimer = null;
@@ -253,6 +258,9 @@ export function AuthProvider({
 
   const signUp = Object.assign(
     async (body: SignUpInput): Promise<Result<AuthResponse, Error>> => {
+      if (typeof auth.signUp !== 'function') {
+        return err(new Error('auth.signUp is not available (SSR context)'));
+      }
       if (deferredRefreshTimer) {
         clearTimeout(deferredRefreshTimer);
         deferredRefreshTimer = null;

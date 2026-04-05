@@ -829,6 +829,46 @@ describe('AuthProvider', () => {
       expect(auth.signUp.method).toBe('POST');
     });
 
+    it('returns error result when signIn is called with undefined SDK method', async () => {
+      const partialSdk = {
+        signIn: undefined,
+        signUp: undefined,
+        signOut: mock(async () => ok<unknown, Error>({ ok: true })),
+        refresh: mock(async () => ok<AuthResponse, Error>({
+          user: { id: '1', email: 'a@b.com', role: 'user' },
+          expiresAt: Date.now() + 60_000,
+        })),
+      } as unknown as AuthSdk;
+
+      const auth = captureAuth({ auth: partialSdk });
+      const result = await auth.signIn({ email: 'a@b.com', password: 'pass' });
+
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.error.message).toContain('not available');
+      }
+    });
+
+    it('returns error result when signUp is called with undefined SDK method', async () => {
+      const partialSdk = {
+        signIn: undefined,
+        signUp: undefined,
+        signOut: mock(async () => ok<unknown, Error>({ ok: true })),
+        refresh: mock(async () => ok<AuthResponse, Error>({
+          user: { id: '1', email: 'a@b.com', role: 'user' },
+          expiresAt: Date.now() + 60_000,
+        })),
+      } as unknown as AuthSdk;
+
+      const auth = captureAuth({ auth: partialSdk });
+      const result = await auth.signUp({ email: 'a@b.com', password: 'pass1234' });
+
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.error.message).toContain('not available');
+      }
+    });
+
     it('still delegates to SDK when url/method are present', () => {
       const sdk = createMockAuthSdk();
       const auth = captureAuth({ auth: sdk });
