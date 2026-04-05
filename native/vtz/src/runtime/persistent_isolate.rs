@@ -571,8 +571,8 @@ async fn isolate_event_loop(
                         Ok(json_val) => {
                             // execute_script returns serde_json::Value. The JS
                             // returns a JSON string, so the Value is a String.
-                            let raw = match &json_val {
-                                serde_json::Value::String(s) => s.clone(),
+                            let raw = match json_val {
+                                serde_json::Value::String(s) => s,
                                 other => other.to_string(),
                             };
                             match serde_json::from_str::<
@@ -1021,10 +1021,17 @@ const EXTRACT_FONT_DESCRIPTORS_JS: &str = r#"
     for (const key of Object.keys(fonts)) {
         const f = fonts[key];
         if (!f) continue;
+        // src can be string | FontSrc[] — extract the primary path
+        let srcPath = '';
+        if (typeof f.src === 'string') {
+            srcPath = f.src;
+        } else if (Array.isArray(f.src) && f.src.length > 0) {
+            srcPath = f.src[0].path || '';
+        }
         result.push({
             key: key,
             family: f.family || '',
-            srcPath: f.src || '',
+            srcPath: srcPath,
             fallback: Array.isArray(f.fallback) ? f.fallback : [],
             adjustFontFallback: f.adjustFontFallback !== undefined ? f.adjustFontFallback : true,
         });

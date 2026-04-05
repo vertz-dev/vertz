@@ -253,6 +253,17 @@ fn format_percent(value: f64) -> String {
 pub fn compute_fallback_overrides(metrics: &FontMetrics, fallback_font: &str) -> FallbackOverrides {
     let system = get_system_font_metrics(fallback_font);
 
+    // Guard against degenerate fonts with zero UPM or zero width
+    if metrics.units_per_em == 0 || metrics.x_width_avg == 0 || system.x_width_avg == 0 {
+        return FallbackOverrides {
+            ascent_override: "100.00%".to_string(),
+            descent_override: "0.00%".to_string(),
+            line_gap_override: "0.00%".to_string(),
+            size_adjust: "100.00%".to_string(),
+            fallback_font: fallback_font.to_string(),
+        };
+    }
+
     let font_normalized_width = metrics.x_width_avg as f64 / metrics.units_per_em as f64;
     let system_normalized_width = system.x_width_avg as f64 / system.units_per_em as f64;
     let size_adjust = font_normalized_width / system_normalized_width;
@@ -378,6 +389,11 @@ fn compute_weighted_x_width_avg(
 /// 2. Try `{root_dir}/{stripped_path}`
 /// 3. Try `{root_dir}/public/{stripped_path}`
 pub fn resolve_font_path(url_path: &str, root_dir: &Path) -> Option<PathBuf> {
+    // Reject paths with traversal sequences
+    if url_path.contains("..") {
+        return None;
+    }
+
     // Absolute paths (e.g., from Google Fonts resolver cache)
     if Path::new(url_path).is_absolute() {
         let p = PathBuf::from(url_path);
@@ -659,10 +675,11 @@ mod tests {
     #[test]
     fn extract_dm_sans_metrics_match_typescript() {
         let path = fixtures_dir().join("dm-sans-latin.woff2");
-        if !path.exists() {
-            eprintln!("Skipping: fixture not found at {:?}", path);
-            return;
-        }
+        assert!(
+            path.exists(),
+            "Font fixture not found at {:?} — run from repo root",
+            path
+        );
         let metrics = extract_woff2_metrics(&path).unwrap();
         let overrides = compute_fallback_overrides(&metrics, "Arial");
 
@@ -676,10 +693,11 @@ mod tests {
     #[test]
     fn extract_dm_serif_metrics_match_typescript() {
         let path = fixtures_dir().join("dm-serif-display-latin.woff2");
-        if !path.exists() {
-            eprintln!("Skipping: fixture not found at {:?}", path);
-            return;
-        }
+        assert!(
+            path.exists(),
+            "Font fixture not found at {:?} — run from repo root",
+            path
+        );
         let metrics = extract_woff2_metrics(&path).unwrap();
         let overrides = compute_fallback_overrides(&metrics, "Times New Roman");
 
@@ -693,10 +711,11 @@ mod tests {
     #[test]
     fn extract_jetbrains_mono_metrics_match_typescript() {
         let path = fixtures_dir().join("jetbrains-mono-latin.woff2");
-        if !path.exists() {
-            eprintln!("Skipping: fixture not found at {:?}", path);
-            return;
-        }
+        assert!(
+            path.exists(),
+            "Font fixture not found at {:?} — run from repo root",
+            path
+        );
         let metrics = extract_woff2_metrics(&path).unwrap();
         let overrides = compute_fallback_overrides(&metrics, "Courier New");
 
@@ -764,6 +783,40 @@ mod tests {
 
         let result = resolve_font_path(font_file.to_str().unwrap(), tmp.path());
         assert!(result.is_some());
+    }
+
+    #[test]
+    fn resolve_font_path_rejects_traversal() {
+        let tmp = tempfile::tempdir().unwrap();
+        let result = resolve_font_path("/../../../etc/passwd", tmp.path());
+        assert!(result.is_none());
+    }
+
+    #[test]
+    fn compute_overrides_zero_upm_returns_safe_defaults() {
+        let metrics = FontMetrics {
+            ascent: 800,
+            descent: -200,
+            line_gap: 0,
+            units_per_em: 0,
+            x_width_avg: 500,
+        };
+        let overrides = compute_fallback_overrides(&metrics, "Arial");
+        assert_eq!(overrides.size_adjust, "100.00%");
+        assert_eq!(overrides.ascent_override, "100.00%");
+    }
+
+    #[test]
+    fn compute_overrides_zero_x_width_returns_safe_defaults() {
+        let metrics = FontMetrics {
+            ascent: 800,
+            descent: -200,
+            line_gap: 0,
+            units_per_em: 1000,
+            x_width_avg: 0,
+        };
+        let overrides = compute_fallback_overrides(&metrics, "Arial");
+        assert_eq!(overrides.size_adjust, "100.00%");
     }
 
     // ─── extract_all_font_metrics ────────────────────────────────
