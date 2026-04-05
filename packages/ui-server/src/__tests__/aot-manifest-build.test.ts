@@ -642,6 +642,24 @@ describe('hasResidualJsx', () => {
 }`;
       expect(hasResidualJsx(code)).toBe(true);
     });
+
+    it('Then returns true when href={} attribute is present', () => {
+      const code = `export function __ssr_LinksPage(data, ctx) {
+  return '<div>' + items.map((item) => (
+    <a href={item.url}>{item.label}</a>
+  )).join('') + '</div>';
+}`;
+      expect(hasResidualJsx(code)).toBe(true);
+    });
+
+    it('Then returns true when data-* attribute expression is present', () => {
+      const code = `export function __ssr_List(data, ctx) {
+  return '<ul>' + items.map((item) => (
+    <li data-id={item.id}>{item.name}</li>
+  )).join('') + '</ul>';
+}`;
+      expect(hasResidualJsx(code)).toBe(true);
+    });
   });
 
   describe('Given code with __esc_attr class references (properly compiled)', () => {
@@ -694,6 +712,46 @@ export function __ssr_CartPage(data, ctx) {
       expect(fileNames).toHaveLength(1);
       const cleanFile = Object.values(result.files)[0]!;
       expect(cleanFile).toContain('__ssr_CartPage');
+    });
+  });
+
+  describe('Given a source file with both clean and tainted functions', () => {
+    it('Then skips only the tainted function, keeps the clean one', () => {
+      const compiledFiles: Record<string, AotCompiledFile> = {
+        'src/pages/mixed.tsx': {
+          code: `function CleanComp() {}
+export function __ssr_CleanComp(data, ctx) {
+  return '<div>' + '<h1>' + 'Clean' + '</h1>' + '</div>';
+}
+function TaintedComp() {}
+export function __ssr_TaintedComp(data, ctx) {
+  return '<div>' + items.map((i) => (
+    <span data-id={i.id}>{i.name}</span>
+  )).join('') + '</div>';
+}`,
+          components: [
+            { name: 'CleanComp', tier: 'static', holes: [], queryKeys: [] },
+            { name: 'TaintedComp', tier: 'data-driven', holes: [], queryKeys: ['items'] },
+          ],
+        },
+      };
+      const routeMap: Record<string, AotRouteMapEntry> = {
+        '/clean': { renderFn: '__ssr_CleanComp', holes: [], queryKeys: [] },
+        '/tainted': { renderFn: '__ssr_TaintedComp', holes: [], queryKeys: ['items'] },
+      };
+
+      const result = generateAotBarrel(compiledFiles, routeMap);
+
+      expect(result.skippedFns).toEqual(['__ssr_TaintedComp']);
+      expect(result.barrelSource).toContain('__ssr_CleanComp');
+      expect(result.barrelSource).not.toContain('__ssr_TaintedComp');
+
+      // The file should exist with only the clean function
+      const fileNames = Object.keys(result.files);
+      expect(fileNames).toHaveLength(1);
+      const fileContent = Object.values(result.files)[0]!;
+      expect(fileContent).toContain('__ssr_CleanComp');
+      expect(fileContent).not.toContain('__ssr_TaintedComp');
     });
   });
 

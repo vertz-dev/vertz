@@ -231,7 +231,6 @@ export function generateAotBarrel(
     // Use .ts extension in re-exports — required for Node ESM which doesn't
     // resolve extensionless TypeScript imports. Bun handles .ts natively.
     const moduleRef = `./${tempFileName}.ts`;
-    lines.push(`export { ${fns.sort().join(', ')} } from '${moduleRef}';`);
 
     // Extract only the __ssr_* functions from compiled code — NOT the original source.
     // The original source has imports and side effects (createRouter, themeGlobals, etc.)
@@ -242,16 +241,22 @@ export function generateAotBarrel(
       const helperImport =
         "import { __esc, __esc_attr, __ssr_spread, __ssr_style_object } from '@vertz/ui-server';\n" +
         "import type { SSRAotContext } from '@vertz/ui-server';\n";
-      const extracted = extractSsrFunctions(compiled.code, fns);
 
-      // Validate: skip functions with residual JSX that wasn't compiled to
-      // string concatenation. The native compiler may leave JSX inside .map()
-      // callbacks untransformed — bundling these as .ts would fail (#1914).
-      if (hasResidualJsx(extracted)) {
-        // Remove these functions from the barrel — they fall back to runtime SSR
-        lines.pop(); // remove the export line we just added
-        skippedFns.push(...fns);
-      } else {
+      // Validate per-function: skip only functions with residual JSX,
+      // keep clean functions from the same file (#1914).
+      const cleanFns: string[] = [];
+      for (const fn of fns) {
+        const fnCode = extractSsrFunctions(compiled.code, [fn]);
+        if (hasResidualJsx(fnCode)) {
+          skippedFns.push(fn);
+        } else {
+          cleanFns.push(fn);
+        }
+      }
+
+      if (cleanFns.length > 0) {
+        const extracted = extractSsrFunctions(compiled.code, cleanFns);
+        lines.push(`export { ${cleanFns.sort().join(', ')} } from '${moduleRef}';`);
         files[`${tempFileName}.ts`] = helperImport + extracted;
       }
     }
@@ -306,13 +311,16 @@ export function extractSsrFunctions(code: string, fnNames: string[]): string {
  * string concatenation. The native compiler may leave JSX inside .map()
  * callbacks untransformed — these functions can't be bundled as .ts files.
  *
- * Detects JSX attribute expressions like `className={expr}` which only
- * appear in raw JSX, not in string-concatenation AOT output.
+ * Detects JSX element opening tags with attribute expressions (e.g.
+ * `<a href={url}>`, `<div className={cls}>`). In properly compiled AOT
+ * output, all JSX is converted to string concatenation with __esc_attr()
+ * helpers — no raw `<Tag attr={expr}>` patterns remain.
  */
 export function hasResidualJsx(code: string): boolean {
-  // Match JSX attribute expressions: name={...} that aren't inside string literals.
-  // AOT string-concat code uses __esc_attr() helpers, never raw className={}.
-  return /\bclassName=\{/.test(code);
+  // Match JSX opening tags with attribute expressions: <TagName attr={expr}
+  // This catches any JSX attribute — className, href, style, data-*, etc.
+  // AOT string-concat code never contains this pattern.
+  return /<[A-Za-z]\w*\s+[\w-]+=\{/.test(code);
 }
 
 /**
