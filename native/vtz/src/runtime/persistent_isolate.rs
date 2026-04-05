@@ -9,6 +9,7 @@
 
 use std::collections::HashSet;
 use std::path::PathBuf;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -16,6 +17,11 @@ use deno_core::error::AnyError;
 use tokio::sync::{mpsc, oneshot};
 
 use crate::server::auto_installer::AutoInstaller;
+
+/// Monotonic counter for generating unique SSR init module filenames.
+/// Prevents race conditions when multiple PersistentIsolate instances
+/// share the same source directory (e.g., parallel tests).
+static SSR_INIT_COUNTER: AtomicU64 = AtomicU64::new(0);
 
 /// Maximum time to wait for a single API/SSR request before timing out.
 const REQUEST_TIMEOUT: Duration = Duration::from_secs(30);
@@ -455,10 +461,13 @@ async fn isolate_event_loop(
 
                     // Import ssrRenderSinglePass from @vertz/ui-server/ssr and store as global.
                     // We write a temp module file so bare specifiers resolve from node_modules.
+                    // Use a unique filename to avoid race conditions when multiple isolates
+                    // share the same source directory (e.g., parallel test runs).
+                    let init_id = SSR_INIT_COUNTER.fetch_add(1, Ordering::Relaxed);
                     let ssr_init_path = ssr_entry
                         .parent()
                         .unwrap_or(root_dir.as_ref())
-                        .join("__vertz_ssr_init.mjs");
+                        .join(format!("__vertz_ssr_init_{}.mjs", init_id));
                     let wrote_init = std::fs::write(
                         &ssr_init_path,
                         "import { ssrRenderSinglePass } from '@vertz/ui-server/ssr';\n\

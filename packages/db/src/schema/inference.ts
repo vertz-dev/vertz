@@ -81,6 +81,24 @@ export type OrderByType<TColumns extends ColumnRecord> = {
 };
 
 // ---------------------------------------------------------------------------
+// NumericColumnKeys — column keys whose inferred type is number or bigint
+// ---------------------------------------------------------------------------
+
+/**
+ * Extract column keys whose inferred type extends `number | bigint`.
+ *
+ * Used to restrict _avg and _sum aggregation fields to numeric columns.
+ * Matches: d.integer(), d.real(), d.doublePrecision(), d.serial(), d.bigint()
+ * Excludes: d.text(), d.uuid(), d.boolean(), d.timestamp(), d.decimal() (string), d.jsonb(), etc.
+ */
+export type NumericColumnKeys<TColumns extends ColumnRecord> = {
+  [K in keyof TColumns]: NonNullable<InferColumnType<TColumns[K]>> extends number | bigint
+    ? K
+    : never;
+}[keyof TColumns] &
+  string;
+
+// ---------------------------------------------------------------------------
 // SelectOption — mutual exclusivity between `not` and explicit field selection
 // ---------------------------------------------------------------------------
 

@@ -398,7 +398,9 @@ export interface ModelDelegate<TEntry extends ModelEntry> {
   aggregate(options: agg.AggregateArgs): Promise<Result<Record<string, unknown>, ReadError>>;
 
   /** Group rows by columns and apply aggregation functions. */
-  groupBy(options: agg.GroupByArgs): Promise<Result<Record<string, unknown>[], ReadError>>;
+  groupBy(
+    options: agg.TypedGroupByArgs<TEntry>,
+  ): Promise<Result<Record<string, unknown>[], ReadError>>;
 }
 
 // ---------------------------------------------------------------------------
@@ -786,7 +788,7 @@ function buildDelegates<TModels extends Record<string, ModelEntry>>(
     return (async () => {
       try {
         const entry = resolveModel(models, name);
-        const result = await agg.groupBy(qfn, entry.table, opts);
+        const result = await agg.groupBy(qfn, entry.table, opts, dialectObj);
         return ok(result);
       } catch (e) {
         return err(toReadError(e));

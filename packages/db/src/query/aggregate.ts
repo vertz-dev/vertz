@@ -5,11 +5,14 @@
  * Generates parameterized SQL for aggregation functions.
  */
 
+import type { FilterType, ModelEntry, NumericColumnKeys } from '../schema/inference';
 import type { ColumnRecord, TableDef } from '../schema/table';
 import { camelToSnake } from '../sql/casing';
 import { buildWhere } from '../sql/where';
 import type { QueryFn } from './executor';
 import { executeQuery } from './executor';
+import type { GroupByExpression } from './expression';
+import { isGroupByExpression } from './expression';
 
 // ---------------------------------------------------------------------------
 // count
@@ -153,7 +156,7 @@ export async function aggregate(
 // ---------------------------------------------------------------------------
 
 export interface GroupByArgs {
-  readonly by: readonly string[];
+  readonly by: readonly (string | GroupByExpression)[];
   readonly where?: Record<string, unknown>;
   readonly _count?: true | Record<string, true>;
   readonly _avg?: Record<string, true>;
@@ -165,6 +168,37 @@ export interface GroupByArgs {
   readonly offset?: number;
 }
 
+// ---------------------------------------------------------------------------
+// TypedGroupByArgs — strongly typed version for ModelDelegate
+// ---------------------------------------------------------------------------
+
+/** Helper to extract columns from a ModelEntry. */
+type EntryColumns<TEntry extends ModelEntry> = TEntry['table']['_columns'];
+
+/**
+ * Strongly typed groupBy arguments, parameterized by the model's columns.
+ *
+ * - `by` validates column names and expression column params against the model.
+ * - `where` uses FilterType for typed filter operators.
+ * - `_avg` and `_sum` are restricted to numeric columns.
+ * - `_min`, `_max`, `_count` accept any column.
+ */
+export type TypedGroupByArgs<TEntry extends ModelEntry> = {
+  readonly by: readonly (
+    | (keyof EntryColumns<TEntry> & string)
+    | GroupByExpression<keyof EntryColumns<TEntry> & string>
+  )[];
+  readonly where?: FilterType<EntryColumns<TEntry>>;
+  readonly _count?: true | { readonly [K in keyof EntryColumns<TEntry>]?: true };
+  readonly _avg?: { readonly [K in NumericColumnKeys<EntryColumns<TEntry>>]?: true };
+  readonly _sum?: { readonly [K in NumericColumnKeys<EntryColumns<TEntry>>]?: true };
+  readonly _min?: { readonly [K in keyof EntryColumns<TEntry>]?: true };
+  readonly _max?: { readonly [K in keyof EntryColumns<TEntry>]?: true };
+  readonly orderBy?: Record<string, 'asc' | 'desc'>;
+  readonly limit?: number;
+  readonly offset?: number;
+};
+
 /**
  * Group rows by columns and apply aggregation functions.
  */
@@ -172,19 +206,54 @@ export async function groupBy(
   queryFn: QueryFn,
   table: TableDef<ColumnRecord>,
   options: GroupByArgs,
+  dialect?: { readonly name: string },
 ): Promise<Record<string, unknown>[]> {
   const selectParts: string[] = [];
   const groupCols: string[] = [];
 
-  // Add group-by columns
-  for (const col of options.by) {
-    const snakeCol = camelToSnake(col);
-    if (snakeCol === col) {
-      selectParts.push(`"${col}"`);
+  // Track aliases for collision detection and orderBy resolution
+  const allAliases = new Set<string>();
+  const exprAliasToSql = new Map<string, string>();
+
+  // Add group-by columns and expressions
+  for (const item of options.by) {
+    if (isGroupByExpression(item)) {
+      const expr = item as GroupByExpression;
+      // SQLite dialect guard: date_trunc and EXTRACT are PostgreSQL-only
+      if (dialect?.name === 'sqlite') {
+        const sqlLower = expr.sql.toLowerCase();
+        if (sqlLower.startsWith('date_trunc(')) {
+          throw new Error(
+            'date_trunc expressions are not supported on SQLite. Use db.query(sql`...`) for dialect-specific SQL.',
+          );
+        }
+        if (sqlLower.startsWith('extract(')) {
+          throw new Error(
+            'EXTRACT expressions are not supported on SQLite. Use db.query(sql`...`) for dialect-specific SQL.',
+          );
+        }
+      }
+      if (allAliases.has(expr.alias)) {
+        throw new Error(`Duplicate alias "${expr.alias}" in groupBy by array.`);
+      }
+      allAliases.add(expr.alias);
+      exprAliasToSql.set(expr.alias, expr.sql);
+      selectParts.push(`${expr.sql} AS "${expr.alias}"`);
+      groupCols.push(expr.sql);
     } else {
-      selectParts.push(`"${snakeCol}" AS "${col}"`);
+      const col = item as string;
+      const snakeCol = camelToSnake(col);
+      if (allAliases.has(col)) {
+        throw new Error(`Duplicate alias "${col}" in groupBy by array.`);
+      }
+      allAliases.add(col);
+      if (snakeCol === col) {
+        selectParts.push(`"${col}"`);
+      } else {
+        selectParts.push(`"${snakeCol}" AS "${col}"`);
+      }
+      groupCols.push(`"${snakeCol}"`);
     }
-    groupCols.push(`"${snakeCol}"`);
   }
 
   // Add aggregation columns
@@ -269,6 +338,9 @@ export async function groupBy(
           );
         }
         orderClauses.push(`"${col}" ${safeDir}`);
+      } else if (exprAliasToSql.has(col)) {
+        // Expression alias — use the SQL expression directly in ORDER BY
+        orderClauses.push(`${exprAliasToSql.get(col)} ${safeDir}`);
       } else {
         orderClauses.push(`"${camelToSnake(col)}" ${safeDir}`);
       }
@@ -296,10 +368,16 @@ export async function groupBy(
   return (res.rows as Record<string, unknown>[]).map((row) => {
     const result: Record<string, unknown> = {};
 
-    // Group-by columns
-    for (const col of options.by) {
-      const snakeCol = camelToSnake(col);
-      result[col] = row[col] ?? row[snakeCol];
+    // Group-by columns and expressions
+    for (const item of options.by) {
+      if (isGroupByExpression(item)) {
+        const expr = item as GroupByExpression;
+        result[expr.alias] = row[expr.alias];
+      } else {
+        const col = item as string;
+        const snakeCol = camelToSnake(col);
+        result[col] = row[col] ?? row[snakeCol];
+      }
     }
 
     // Count

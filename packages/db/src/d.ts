@@ -11,6 +11,8 @@ import type {
   VarcharMeta,
 } from './schema/column';
 import { createColumn, createSerialColumn } from './schema/column';
+import type { DateTruncPrecision, ExtractField, GroupByExpression } from './query/expression';
+import { fnDate, fnDateTrunc, fnExtract } from './query/expression';
 import type { DbExpr } from './sql/expr';
 import type { SqlFragment } from './sql/tagged';
 import { sql } from './sql/tagged';
@@ -103,6 +105,17 @@ export const d: {
     table: TTable,
     relations: TRelations & ValidateOneRelationFKs<TTable, TRelations>,
   ): ModelDef<TTable, TRelations>;
+  fn: {
+    /** DATE(column) — extract date part from a timestamp column. */
+    date<TCol extends string>(column: TCol): GroupByExpression<TCol>;
+    /** date_trunc(precision, column) — truncate timestamp to given precision. */
+    dateTrunc<TCol extends string>(
+      precision: DateTruncPrecision,
+      column: TCol,
+    ): GroupByExpression<TCol>;
+    /** EXTRACT(field FROM column) — extract a date/time field from a timestamp column. */
+    extract<TCol extends string>(field: ExtractField, column: TCol): GroupByExpression<TCol>;
+  };
 } = {
   uuid: () => createColumn<string, DefaultMeta<'uuid'>>('uuid'),
   text: () =>
@@ -188,4 +201,9 @@ export const d: {
   },
   model: (table: TableDef<ColumnRecord>, relations: Record<string, RelationDef> = {}) =>
     createModel(table, relations),
+  fn: {
+    date: fnDate,
+    dateTrunc: fnDateTrunc,
+    extract: fnExtract,
+  },
 };

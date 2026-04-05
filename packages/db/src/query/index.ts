@@ -1,5 +1,7 @@
-export type { AggregateArgs, CountArgs, GroupByArgs } from './aggregate';
+export type { AggregateArgs, CountArgs, GroupByArgs, TypedGroupByArgs } from './aggregate';
 export { aggregate, count, groupBy } from './aggregate';
+export type { DateTruncPrecision, ExtractField, GroupByExpression } from './expression';
+export { fnDate, fnDateTrunc, fnExtract, isGroupByExpression } from './expression';
 export type {
   CreateArgs,
   CreateManyAndReturnArgs,
