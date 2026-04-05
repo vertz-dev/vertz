@@ -3,9 +3,18 @@
 // Resizes, converts (WebP/PNG/JPEG), and caches local images from public/.
 // ---------------------------------------------------------------------------
 
-use axum::http::StatusCode;
-use std::path::PathBuf;
+use axum::body::Body;
+use axum::extract::State;
+use axum::http::{header, Request, StatusCode};
+use image::imageops::FilterType;
+use image::{DynamicImage, ImageFormat};
+use std::io::Cursor;
+use std::path::{Path, PathBuf};
+use std::sync::Arc;
 use thiserror::Error;
+
+use crate::server::image_cache::{CacheKey, ImageCache};
+use crate::server::module_server::DevServerState;
 
 /// Maximum allowed dimension (width or height) in pixels.
 pub const MAX_DIMENSION: u32 = 8192;
@@ -253,6 +262,227 @@ fn percent_decode(input: &str) -> String {
         i += 1;
     }
     result
+}
+
+// ---------------------------------------------------------------------------
+// Image processing
+// ---------------------------------------------------------------------------
+
+/// Process an image: decode → resize → encode.
+///
+/// Runs synchronously — caller wraps in `spawn_blocking`.
+pub fn process_image(
+    source_bytes: &[u8],
+    width: Option<u32>,
+    height: Option<u32>,
+    format: OutputFormat,
+    quality: u8,
+    fit: ResizeFit,
+) -> Result<Vec<u8>, ImageProxyError> {
+    let img = image::load_from_memory(source_bytes)
+        .map_err(|e| ImageProxyError::Decode(e.to_string()))?;
+
+    let resized = resize_image(img, width, height, fit);
+
+    encode_image(&resized, format, quality)
+}
+
+fn resize_image(
+    img: DynamicImage,
+    width: Option<u32>,
+    height: Option<u32>,
+    fit: ResizeFit,
+) -> DynamicImage {
+    match (width, height) {
+        (Some(w), Some(h)) => match fit {
+            ResizeFit::Cover => img.resize_to_fill(w, h, FilterType::Lanczos3),
+            ResizeFit::Contain => img.resize(w, h, FilterType::Lanczos3),
+            ResizeFit::Fill => img.resize_exact(w, h, FilterType::Lanczos3),
+        },
+        (Some(w), None) => img.resize(w, u32::MAX, FilterType::Lanczos3),
+        (None, Some(h)) => img.resize(u32::MAX, h, FilterType::Lanczos3),
+        (None, None) => img,
+    }
+}
+
+fn encode_image(
+    img: &DynamicImage,
+    format: OutputFormat,
+    quality: u8,
+) -> Result<Vec<u8>, ImageProxyError> {
+    let mut buf = Cursor::new(Vec::new());
+
+    match format {
+        OutputFormat::Png => {
+            img.write_to(&mut buf, ImageFormat::Png)
+                .map_err(|e| ImageProxyError::Encode(e.to_string()))?;
+        }
+        OutputFormat::WebP => {
+            img.write_to(&mut buf, ImageFormat::WebP)
+                .map_err(|e| ImageProxyError::Encode(e.to_string()))?;
+        }
+        OutputFormat::Jpeg => {
+            let encoder = image::codecs::jpeg::JpegEncoder::new_with_quality(&mut buf, quality);
+            img.write_with_encoder(encoder)
+                .map_err(|e| ImageProxyError::Encode(e.to_string()))?;
+        }
+    }
+
+    Ok(buf.into_inner())
+}
+
+// ---------------------------------------------------------------------------
+// Path traversal validation
+// ---------------------------------------------------------------------------
+
+/// Validate that the resolved path is within `public_dir` (prevent path traversal).
+pub fn validate_path(public_dir: &Path, source_path: &Path) -> Result<PathBuf, ImageProxyError> {
+    let resolved = public_dir
+        .join(source_path)
+        .canonicalize()
+        .map_err(|_| ImageProxyError::NotFound(source_path.display().to_string()))?;
+    let canonical_public = public_dir
+        .canonicalize()
+        .map_err(|_| ImageProxyError::NotFound("public directory".into()))?;
+    if !resolved.starts_with(&canonical_public) {
+        return Err(ImageProxyError::PathTraversal);
+    }
+    Ok(resolved)
+}
+
+// ---------------------------------------------------------------------------
+// HTTP handler
+// ---------------------------------------------------------------------------
+
+/// Build a JSON error response.
+fn json_error(error: &ImageProxyError) -> axum::response::Response<Body> {
+    let status = error.status_code();
+    let body = serde_json::json!({
+        "error": error.to_string(),
+        "status": status.as_u16(),
+    });
+    axum::response::Response::builder()
+        .status(status)
+        .header(header::CONTENT_TYPE, "application/json; charset=utf-8")
+        .body(Body::from(body.to_string()))
+        .unwrap()
+}
+
+/// Main axum handler for `/__vertz_image/*` requests.
+///
+/// Called from `dev_server_handler` — receives the already-extracted State and Request.
+pub async fn handle_image_request(
+    State(state): State<Arc<DevServerState>>,
+    req: Request<Body>,
+) -> axum::response::Response<Body> {
+    let path = req.uri().path().to_string();
+    let query = req.uri().query().map(|q| q.to_string());
+
+    let path_after_prefix = path
+        .strip_prefix("/__vertz_image/")
+        .unwrap_or(path.trim_start_matches('/'));
+
+    // 1. Parse request
+    let img_req = match ImageRequest::parse(path_after_prefix, query.as_deref()) {
+        Ok(r) => r,
+        Err(e) => return json_error(&e),
+    };
+
+    // 2. Validate path (traversal check)
+    let public_dir = state.root_dir.join("public");
+    let resolved_path = match validate_path(&public_dir, &img_req.source_path) {
+        Ok(p) => p,
+        Err(e) => return json_error(&e),
+    };
+
+    // 3. Read source file metadata and bytes
+    let metadata = match std::fs::metadata(&resolved_path) {
+        Ok(m) => m,
+        Err(_) => {
+            return json_error(&ImageProxyError::NotFound(
+                img_req.source_path.display().to_string(),
+            ))
+        }
+    };
+    let source_mtime = metadata
+        .modified()
+        .unwrap_or(std::time::SystemTime::UNIX_EPOCH);
+    let source_bytes = match std::fs::read(&resolved_path) {
+        Ok(b) => b,
+        Err(_) => {
+            return json_error(&ImageProxyError::NotFound(
+                img_req.source_path.display().to_string(),
+            ))
+        }
+    };
+
+    // 4. Determine output format
+    let output_format = img_req.format.unwrap_or_else(|| {
+        let ext = resolved_path
+            .extension()
+            .and_then(|e| e.to_str())
+            .unwrap_or("");
+        OutputFormat::from_extension(ext).unwrap_or(OutputFormat::Png)
+    });
+
+    // 5. Compute cache key
+    let images_dir = state.root_dir.join(".vertz").join("images");
+    let cache = ImageCache::new(images_dir);
+
+    let fit_str = match img_req.fit {
+        ResizeFit::Cover => "cover",
+        ResizeFit::Contain => "contain",
+        ResizeFit::Fill => "fill",
+    };
+
+    let cache_key = CacheKey::compute(
+        &img_req.source_path,
+        source_mtime,
+        img_req.width,
+        img_req.height,
+        output_format.extension(),
+        img_req.quality,
+        fit_str,
+    );
+
+    // 6. Check disk cache
+    if let Some(cached_bytes) = cache.get(&cache_key) {
+        return axum::response::Response::builder()
+            .status(StatusCode::OK)
+            .header(header::CONTENT_TYPE, output_format.content_type())
+            .header(header::CACHE_CONTROL, "no-cache")
+            .header("X-Vertz-Image-Cache", "hit")
+            .body(Body::from(cached_bytes))
+            .unwrap();
+    }
+
+    // 7. Process image (CPU-bound — spawn_blocking)
+    let width = img_req.width;
+    let height = img_req.height;
+    let quality = img_req.quality;
+    let fit = img_req.fit;
+
+    let processed_bytes = match tokio::task::spawn_blocking(move || {
+        process_image(&source_bytes, width, height, output_format, quality, fit)
+    })
+    .await
+    {
+        Ok(Ok(bytes)) => bytes,
+        Ok(Err(e)) => return json_error(&e),
+        Err(e) => return json_error(&ImageProxyError::Encode(e.to_string())),
+    };
+
+    // 8. Write to disk cache (best-effort)
+    let _ = cache.put(&cache_key, &processed_bytes);
+
+    // 9. Return response
+    axum::response::Response::builder()
+        .status(StatusCode::OK)
+        .header(header::CONTENT_TYPE, output_format.content_type())
+        .header(header::CACHE_CONTROL, "no-cache")
+        .header("X-Vertz-Image-Cache", "miss")
+        .body(Body::from(processed_bytes))
+        .unwrap()
 }
 
 // ---------------------------------------------------------------------------
@@ -591,5 +821,188 @@ mod tests {
         let params = parse_query("w=400");
         assert_eq!(params.get("w").unwrap(), "400");
         assert_eq!(params.len(), 1);
+    }
+
+    // --- Helper: create a test PNG image ---
+
+    fn create_test_png(width: u32, height: u32) -> Vec<u8> {
+        let img = DynamicImage::new_rgba8(width, height);
+        let mut buf = Cursor::new(Vec::new());
+        img.write_to(&mut buf, ImageFormat::Png).unwrap();
+        buf.into_inner()
+    }
+
+    // --- process_image tests ---
+
+    #[test]
+    fn process_image_resize_width_only() {
+        let png = create_test_png(200, 100);
+        let result = process_image(
+            &png,
+            Some(100),
+            None,
+            OutputFormat::Png,
+            80,
+            ResizeFit::Cover,
+        )
+        .unwrap();
+        let decoded = image::load_from_memory(&result).unwrap();
+        assert_eq!(decoded.width(), 100);
+        assert_eq!(decoded.height(), 50); // aspect ratio preserved
+    }
+
+    #[test]
+    fn process_image_resize_both_cover() {
+        let png = create_test_png(200, 100);
+        let result = process_image(
+            &png,
+            Some(80),
+            Some(80),
+            OutputFormat::Png,
+            80,
+            ResizeFit::Cover,
+        )
+        .unwrap();
+        let decoded = image::load_from_memory(&result).unwrap();
+        assert_eq!(decoded.width(), 80);
+        assert_eq!(decoded.height(), 80);
+    }
+
+    #[test]
+    fn process_image_resize_both_contain() {
+        let png = create_test_png(200, 100);
+        let result = process_image(
+            &png,
+            Some(80),
+            Some(80),
+            OutputFormat::Png,
+            80,
+            ResizeFit::Contain,
+        )
+        .unwrap();
+        let decoded = image::load_from_memory(&result).unwrap();
+        // Contain: fits within 80x80, so width=80, height=40
+        assert_eq!(decoded.width(), 80);
+        assert!(decoded.height() <= 80);
+    }
+
+    #[test]
+    fn process_image_resize_both_fill() {
+        let png = create_test_png(200, 100);
+        let result = process_image(
+            &png,
+            Some(80),
+            Some(60),
+            OutputFormat::Png,
+            80,
+            ResizeFit::Fill,
+        )
+        .unwrap();
+        let decoded = image::load_from_memory(&result).unwrap();
+        assert_eq!(decoded.width(), 80);
+        assert_eq!(decoded.height(), 60);
+    }
+
+    #[test]
+    fn process_image_format_only_no_resize() {
+        let png = create_test_png(100, 100);
+        let result =
+            process_image(&png, None, None, OutputFormat::WebP, 80, ResizeFit::Cover).unwrap();
+        let decoded = image::load_from_memory(&result).unwrap();
+        assert_eq!(decoded.width(), 100);
+        assert_eq!(decoded.height(), 100);
+    }
+
+    #[test]
+    fn process_image_to_webp() {
+        let png = create_test_png(100, 100);
+        let result = process_image(
+            &png,
+            Some(50),
+            None,
+            OutputFormat::WebP,
+            80,
+            ResizeFit::Cover,
+        )
+        .unwrap();
+        // Verify it's valid WebP by decoding
+        let decoded = image::load_from_memory(&result).unwrap();
+        assert_eq!(decoded.width(), 50);
+    }
+
+    #[test]
+    fn process_image_to_jpeg() {
+        let png = create_test_png(100, 100);
+        let result = process_image(
+            &png,
+            Some(50),
+            None,
+            OutputFormat::Jpeg,
+            60,
+            ResizeFit::Cover,
+        )
+        .unwrap();
+        let decoded = image::load_from_memory(&result).unwrap();
+        assert_eq!(decoded.width(), 50);
+    }
+
+    #[test]
+    fn process_image_invalid_bytes() {
+        let result = process_image(
+            b"not an image",
+            Some(100),
+            None,
+            OutputFormat::Png,
+            80,
+            ResizeFit::Cover,
+        );
+        assert!(matches!(result, Err(ImageProxyError::Decode(_))));
+    }
+
+    // --- validate_path tests ---
+
+    #[test]
+    fn validate_path_valid_file() {
+        let dir = tempfile::tempdir().unwrap();
+        let public_dir = dir.path().join("public");
+        std::fs::create_dir_all(&public_dir).unwrap();
+        std::fs::write(public_dir.join("hero.png"), b"fake").unwrap();
+
+        let result = validate_path(&public_dir, Path::new("hero.png"));
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn validate_path_traversal_parent() {
+        let dir = tempfile::tempdir().unwrap();
+        let public_dir = dir.path().join("public");
+        std::fs::create_dir_all(&public_dir).unwrap();
+        // Create a file outside public
+        std::fs::write(dir.path().join("secret.txt"), b"secret").unwrap();
+
+        let result = validate_path(&public_dir, Path::new("../secret.txt"));
+        assert!(matches!(result, Err(ImageProxyError::PathTraversal)));
+    }
+
+    #[test]
+    fn validate_path_not_found() {
+        let dir = tempfile::tempdir().unwrap();
+        let public_dir = dir.path().join("public");
+        std::fs::create_dir_all(&public_dir).unwrap();
+
+        let result = validate_path(&public_dir, Path::new("nonexistent.png"));
+        assert!(matches!(result, Err(ImageProxyError::NotFound(_))));
+    }
+
+    #[test]
+    fn validate_path_nested_file() {
+        let dir = tempfile::tempdir().unwrap();
+        let public_dir = dir.path().join("public");
+        let photos_dir = public_dir.join("photos");
+        std::fs::create_dir_all(&photos_dir).unwrap();
+        std::fs::write(photos_dir.join("team.jpg"), b"fake").unwrap();
+
+        let result = validate_path(&public_dir, Path::new("photos/team.jpg"));
+        assert!(result.is_ok());
     }
 }
