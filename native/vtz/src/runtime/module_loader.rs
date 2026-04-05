@@ -466,12 +466,13 @@ impl VertzModuleLoader {
             }
         }
 
-        // Last resort: resolve subpath directly under src/
-        if let Some(sub) = subpath {
-            let src_path = pkg_dir.join("src").join(sub);
-            if let Ok(resolved) = self.resolve_with_extensions(&src_path) {
-                return Ok(resolved);
-            }
+        // Last resort: resolve directly under src/
+        let src_target = match subpath {
+            Some(sub) => pkg_dir.join("src").join(sub),
+            None => pkg_dir.join("src").join("index"),
+        };
+        if let Ok(resolved) = self.resolve_with_extensions(&src_target) {
+            return Ok(resolved);
         }
 
         let display_specifier = match subpath {
@@ -2986,5 +2987,42 @@ export function Hello() {
             "Cross-package import should resolve via node_modules"
         );
         assert_eq!(result.unwrap().to_file_path().unwrap(), canon(&pkg_b_entry));
+    }
+
+    #[test]
+    fn test_self_reference_exports_without_src_in_dist_path() {
+        // Given a package with exports: "./dist/index.js" (no src/ in dist path)
+        // When the source is at src/index.ts
+        // Then self-reference resolves to source
+        let tmp = create_temp_dir();
+
+        let pkg_dir = tmp.path().join("packages").join("my-server");
+        let src_dir = pkg_dir.join("src");
+        std::fs::create_dir_all(&src_dir).unwrap();
+
+        let src_entry = src_dir.join("index.ts");
+        std::fs::write(&src_entry, "export const x = 1;").unwrap();
+
+        std::fs::write(
+            pkg_dir.join("package.json"),
+            r#"{ "name": "@scope/server", "exports": { ".": { "import": "./dist/index.js" } } }"#,
+        )
+        .unwrap();
+
+        let test_dir = src_dir.join("__tests__");
+        std::fs::create_dir_all(&test_dir).unwrap();
+        let test_file = test_dir.join("app.test.ts");
+        std::fs::write(&test_file, "import '@scope/server';").unwrap();
+
+        let loader = VertzModuleLoader::new(&tmp.path().to_string_lossy(), test_plugin());
+        let referrer = ModuleSpecifier::from_file_path(&test_file).unwrap();
+        let result = loader.resolve("@scope/server", referrer.as_str(), ResolutionKind::Import);
+
+        assert!(
+            result.is_ok(),
+            "Self-reference with ./dist/index.js exports should resolve: {:?}",
+            result
+        );
+        assert_eq!(result.unwrap().to_file_path().unwrap(), canon(&src_entry));
     }
 }
