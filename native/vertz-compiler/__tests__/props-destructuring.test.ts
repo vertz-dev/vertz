@@ -49,14 +49,19 @@ describe('Feature: Props destructuring transform', () => {
 
   describe('Given a component with type annotation on props', () => {
     describe('When compiled', () => {
-      it('Then preserves the type annotation on __props', () => {
+      it('Then strips the type annotation from __props', () => {
         const code = compileAndGetCode(`
           interface CardProps { title: string }
           function Card({ title }: CardProps) {
             return <div>{title}</div>;
           }
         `);
-        expect(code).toContain('__props: CardProps');
+        // Type annotation must be stripped — the Rust dev server serves
+        // compiled output directly to V8/browsers with no downstream transpiler.
+        expect(code).not.toContain('__props: CardProps');
+        expect(code).not.toContain(': CardProps');
+        expect(code).toContain('__props');
+        expect(code).toContain('__props.title');
       });
     });
   });
@@ -187,7 +192,9 @@ describe('Feature: Props destructuring transform', () => {
           }
         `);
         expect(code).toContain('__props.title');
-        expect(code).toContain('__props: CardProps');
+        // Type annotation must be stripped from __props
+        expect(code).not.toContain('__props: CardProps');
+        expect(code).not.toContain(': CardProps');
         expect(code).toContain('const { title: __$drop_0, ...rest } = __props');
       });
     });
