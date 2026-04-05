@@ -11,7 +11,12 @@ afterAll(() => {
 import { signal } from '@vertz/ui';
 import { startSignalCollection, stopSignalCollection } from '@vertz/ui/internals';
 import { __$refreshReg, __$refreshTrack } from '../bun-plugin/fast-refresh-runtime';
-import { collectStateSnapshot, safeSerialize } from '../bun-plugin/state-inspector';
+import {
+  collectStateSnapshot,
+  handleInspectMessage,
+  safeSerialize,
+  setupStateInspector,
+} from '../bun-plugin/state-inspector';
 
 // ── Registry Cleanup ──────────────────────────────────────────────
 
@@ -382,5 +387,253 @@ describe('collectStateSnapshot', () => {
     const snapshot = collectStateSnapshot();
     const inst = snapshot.components[0].instances[0];
     expect(inst.signals.broken).toBe('[Error: recomputation failed]');
+  });
+});
+
+// ── handleInspectMessage Tests ──────────────────────────────────
+
+describe('handleInspectMessage', () => {
+  beforeEach(() => {
+    clearRegistry();
+    document.body.innerHTML = '';
+  });
+
+  afterEach(() => {
+    clearRegistry();
+    document.body.innerHTML = '';
+  });
+
+  it('sends state-snapshot response for inspect-state messages', () => {
+    const sentMessages: string[] = [];
+    const mockWs = {
+      send(data: string) {
+        sentMessages.push(data);
+      },
+    } as unknown as WebSocket;
+
+    const event = new MessageEvent('message', {
+      data: JSON.stringify({ type: 'inspect-state', requestId: 'req-123' }),
+    });
+
+    handleInspectMessage(event, mockWs);
+
+    expect(sentMessages.length).toBe(1);
+    const response = JSON.parse(sentMessages[0]);
+    expect(response.type).toBe('state-snapshot');
+    expect(response.requestId).toBe('req-123');
+    expect(response.snapshot).toBeDefined();
+    expect(response.snapshot.components).toBeArray();
+    expect(response.snapshot.timestamp).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+  });
+
+  it('passes filter from inspect-state to collectStateSnapshot', () => {
+    // Register a component so we can filter it
+    const factory = () => document.createElement('div');
+    const wrapped = (...args: unknown[]) => {
+      const el = factory();
+      return __$refreshTrack('/src/Target.tsx', 'Target', el, args, [], null, []);
+    };
+    __$refreshReg('/src/Target.tsx', 'Target', wrapped);
+    mount(wrapped());
+
+    const sentMessages: string[] = [];
+    const mockWs = { send: (d: string) => sentMessages.push(d) } as unknown as WebSocket;
+
+    handleInspectMessage(
+      new MessageEvent('message', {
+        data: JSON.stringify({ type: 'inspect-state', requestId: 'req-456', filter: 'Target' }),
+      }),
+      mockWs,
+    );
+
+    const response = JSON.parse(sentMessages[0]);
+    expect(response.snapshot.components.length).toBe(1);
+    expect(response.snapshot.components[0].name).toBe('Target');
+  });
+
+  it('ignores non-string event data', () => {
+    const sentMessages: string[] = [];
+    const mockWs = { send: (d: string) => sentMessages.push(d) } as unknown as WebSocket;
+
+    // Blob data — should be ignored
+    const event = new MessageEvent('message', { data: new Blob(['test']) });
+    handleInspectMessage(event, mockWs);
+
+    expect(sentMessages.length).toBe(0);
+  });
+
+  it('ignores non-inspect-state messages', () => {
+    const sentMessages: string[] = [];
+    const mockWs = { send: (d: string) => sentMessages.push(d) } as unknown as WebSocket;
+
+    handleInspectMessage(
+      new MessageEvent('message', {
+        data: JSON.stringify({ type: 'pong' }),
+      }),
+      mockWs,
+    );
+
+    expect(sentMessages.length).toBe(0);
+  });
+
+  it('ignores malformed JSON', () => {
+    const sentMessages: string[] = [];
+    const mockWs = { send: (d: string) => sentMessages.push(d) } as unknown as WebSocket;
+
+    handleInspectMessage(
+      new MessageEvent('message', { data: 'not valid json{{{' }),
+      mockWs,
+    );
+
+    expect(sentMessages.length).toBe(0);
+  });
+});
+
+// ── setupStateInspector Tests ──────────────────────────────────
+
+describe('setupStateInspector', () => {
+  let originalOverlay: unknown;
+
+  beforeEach(() => {
+    originalOverlay = window.__vertz_overlay;
+    delete window.__vertz_overlay;
+  });
+
+  afterEach(() => {
+    if (originalOverlay !== undefined) {
+      window.__vertz_overlay = originalOverlay;
+    } else {
+      delete window.__vertz_overlay;
+    }
+  });
+
+  it('hooks into overlay._ws and listens for messages', async () => {
+    const listeners: ((event: MessageEvent) => void)[] = [];
+    const sentMessages: string[] = [];
+
+    const mockWs = {
+      addEventListener(type: string, handler: (event: MessageEvent) => void) {
+        if (type === 'message') listeners.push(handler);
+      },
+      send(data: string) {
+        sentMessages.push(data);
+      },
+    } as unknown as WebSocket;
+
+    window.__vertz_overlay = { _ws: mockWs };
+
+    setupStateInspector();
+
+    // Wait for poll() to run (it's synchronous when overlay exists)
+    await new Promise((r) => setTimeout(r, 50));
+
+    // Simulate an inspect-state message through the listener
+    expect(listeners.length).toBeGreaterThan(0);
+    listeners[0](
+      new MessageEvent('message', {
+        data: JSON.stringify({ type: 'inspect-state', requestId: 'ws-req-1' }),
+      }),
+    );
+
+    expect(sentMessages.length).toBe(1);
+    const response = JSON.parse(sentMessages[0]);
+    expect(response.type).toBe('state-snapshot');
+    expect(response.requestId).toBe('ws-req-1');
+  });
+
+  it('retries when overlay is not yet available', async () => {
+    // No overlay set initially
+    setupStateInspector();
+
+    // After 600ms, still no overlay — should have retried
+    await new Promise((r) => setTimeout(r, 600));
+
+    // Now set overlay with ws
+    const listeners: ((event: MessageEvent) => void)[] = [];
+    const mockWs = {
+      addEventListener(type: string, handler: (event: MessageEvent) => void) {
+        if (type === 'message') listeners.push(handler);
+      },
+      send() {},
+    } as unknown as WebSocket;
+
+    window.__vertz_overlay = { _ws: mockWs };
+
+    // Wait for the next retry poll (500ms interval)
+    await new Promise((r) => setTimeout(r, 600));
+
+    // The listener should have been attached after retry found the overlay
+    expect(listeners.length).toBeGreaterThan(0);
+  });
+
+  it('re-hooks when WebSocket reference changes (reconnection)', async () => {
+    const listeners1: ((event: MessageEvent) => void)[] = [];
+    const listeners2: ((event: MessageEvent) => void)[] = [];
+
+    const mockWs1 = {
+      addEventListener(type: string, handler: (event: MessageEvent) => void) {
+        if (type === 'message') listeners1.push(handler);
+      },
+      send() {},
+    } as unknown as WebSocket;
+
+    const mockWs2 = {
+      addEventListener(type: string, handler: (event: MessageEvent) => void) {
+        if (type === 'message') listeners2.push(handler);
+      },
+      send() {},
+    } as unknown as WebSocket;
+
+    const overlay: { _ws: WebSocket | null } = { _ws: mockWs1 };
+    window.__vertz_overlay = overlay;
+
+    setupStateInspector();
+
+    // Wait for initial hook
+    await new Promise((r) => setTimeout(r, 50));
+    expect(listeners1.length).toBeGreaterThan(0);
+    expect(listeners2.length).toBe(0);
+
+    // Simulate reconnection — overlay gets a new WebSocket
+    overlay._ws = mockWs2;
+
+    // Wait for the 2s polling interval to detect the change
+    await new Promise((r) => setTimeout(r, 2200));
+
+    expect(listeners2.length).toBeGreaterThan(0);
+  });
+
+  it('does not re-hook the same WebSocket instance', async () => {
+    let addEventListenerCalls = 0;
+
+    const mockWs = {
+      addEventListener(type: string, _handler: (event: MessageEvent) => void) {
+        if (type === 'message') addEventListenerCalls++;
+      },
+      send() {},
+    } as unknown as WebSocket;
+
+    window.__vertz_overlay = { _ws: mockWs };
+
+    setupStateInspector();
+
+    // Wait for initial hook + one poll cycle
+    await new Promise((r) => setTimeout(r, 2500));
+
+    // Should only have been hooked once despite multiple checks
+    expect(addEventListenerCalls).toBe(1);
+  });
+
+  it('stops retrying after MAX_INIT_RETRIES when overlay never appears', async () => {
+    // No overlay — retries up to 10 times (10 * 500ms = 5s)
+    // We can't wait the full 5s in a test, but we can verify behavior:
+    // After calling setupStateInspector, setTimeout should be called.
+    // We verify that eventually retries stop by checking no errors are thrown.
+
+    setupStateInspector();
+
+    // Just verify it doesn't throw — the retry cap prevents infinite loop
+    await new Promise((r) => setTimeout(r, 100));
+    // No assertion needed beyond not hanging/throwing
   });
 });

@@ -9,6 +9,12 @@
  * when it receives an "inspect-state" WebSocket message from the server.
  */
 
+declare global {
+  interface Window {
+    __vertz_overlay?: { _ws?: WebSocket };
+  }
+}
+
 // ── Types ─────────────────────────────────────────────────────────
 
 interface SignalRef {
@@ -345,50 +351,77 @@ function buildQuerySnapshot(signals: SignalRef[], groupKey: string): QuerySnapsh
 // ── WebSocket listener ────────────────────────────────────────────
 
 /**
- * Listen for `inspect-state` commands on the error overlay's WebSocket.
- * When received, collects a state snapshot and sends it back as a
- * `state-snapshot` message with the matching `requestId`.
+ * Handle incoming `inspect-state` WebSocket messages.
+ * Collects a state snapshot and sends it back with the matching requestId.
+ */
+export function handleInspectMessage(event: MessageEvent, ws: WebSocket): void {
+  if (typeof event.data !== 'string') return;
+
+  try {
+    const msg = JSON.parse(event.data);
+    if (msg.type === 'inspect-state') {
+      const snapshot = collectStateSnapshot(msg.filter ?? undefined);
+      ws.send(
+        JSON.stringify({
+          type: 'state-snapshot',
+          requestId: msg.requestId,
+          snapshot,
+        }),
+      );
+    }
+  } catch {
+    // Ignore parse errors — not all messages are for us
+  }
+}
+
+/**
+ * Set up the state inspector's WebSocket listener.
  *
- * The error overlay (`__vertz_overlay`) establishes a WebSocket connection
- * to `/__vertz_errors` which is the bidirectional channel to the dev server.
- * We hook into its `onmessage` to intercept inspect-state commands.
+ * Uses `addEventListener` instead of replacing `onmessage` to coexist with
+ * the error overlay handler. Polls for `__vertz_overlay._ws` reference changes
+ * so that reconnections (which create a new WebSocket instance) are re-hooked.
+ *
+ * NOTE: When multiple browser tabs are connected, the server broadcasts
+ * inspect-state to all. The first response wins — other tabs' responses are
+ * dropped. This is acceptable for v0.1.x; a future improvement could merge
+ * responses from multiple tabs.
  */
 export function setupStateInspector(): void {
   if (typeof window === 'undefined') return;
 
-  const overlay = (window as Record<string, unknown>).__vertz_overlay as
-    | { _ws?: WebSocket }
-    | undefined;
-  if (!overlay?._ws) {
-    // Retry after a short delay — the overlay WebSocket may not be
-    // established yet when this script runs.
-    setTimeout(setupStateInspector, 500);
-    return;
+  let currentWs: WebSocket | null = null;
+  const MAX_INIT_RETRIES = 10;
+  let initRetries = 0;
+
+  function hookWs(ws: WebSocket): void {
+    if (ws === currentWs) return;
+    currentWs = ws;
+    ws.addEventListener('message', (event: MessageEvent) => {
+      handleInspectMessage(event, ws);
+    });
   }
 
-  const ws = overlay._ws;
-  const originalOnMessage = ws.onmessage;
-
-  ws.onmessage = (event: MessageEvent) => {
-    // Call original handler first (error overlay processing)
-    if (originalOnMessage) originalOnMessage.call(ws, event);
-
-    try {
-      const msg = JSON.parse(typeof event.data === 'string' ? event.data : '');
-      if (msg.type === 'inspect-state') {
-        const snapshot = collectStateSnapshot(msg.filter ?? undefined);
-        ws.send(
-          JSON.stringify({
-            type: 'state-snapshot',
-            requestId: msg.requestId,
-            snapshot,
-          }),
-        );
+  function poll(): void {
+    const overlay = window.__vertz_overlay;
+    if (!overlay) {
+      if (initRetries++ < MAX_INIT_RETRIES) {
+        setTimeout(poll, 500);
       }
-    } catch {
-      // Ignore parse errors — not all messages are for us
+      return;
     }
-  };
+
+    // Successfully found overlay — now poll for ws changes (reconnections)
+    const checkWs = (): void => {
+      if (overlay._ws && overlay._ws !== currentWs) {
+        hookWs(overlay._ws);
+      }
+    };
+    checkWs();
+    // Check every 2s for reconnected WebSocket — lightweight poll
+    setInterval(checkWs, 2000);
+  }
+
+  poll();
 }
 
 // Initialize when DOM is ready (browser only)
@@ -399,8 +432,6 @@ if (typeof document !== 'undefined') {
     setupStateInspector();
   }
 }
-
-// ── Helpers ───────────────────────────────────────────────────────
 
 function truncateSnapshot(snapshot: StateSnapshot): StateSnapshot {
   // Best-effort truncation: keep first 3 instances per component.

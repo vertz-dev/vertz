@@ -42,6 +42,7 @@ import type { SSRModule } from './ssr-shared';
 import { createSessionScript } from './ssr-session';
 import { ssrRenderSinglePass, ssrStreamNavQueries } from './ssr-single-pass';
 import { safeSerialize } from './ssr-streaming-runtime';
+import type { StateSnapshot } from './bun-plugin/state-inspector';
 import type { UpstreamWatcher } from './upstream-watcher';
 import { createUpstreamWatcher } from './upstream-watcher';
 
@@ -329,7 +330,7 @@ export interface BunDevServer {
    * Broadcasts an `inspect-state` command and waits for the first
    * `state-snapshot` response. Returns the snapshot JSON or an error.
    */
-  inspectState(filter?: string): Promise<unknown>;
+  inspectState(filter?: string): Promise<StateSnapshot>;
 }
 
 /**
@@ -958,7 +959,7 @@ export function createBunDevServer(options: BunDevServerOptions): BunDevServer {
   // Key: requestId, Value: { resolve, timer } for the pending promise
   const pendingInspections = new Map<
     string,
-    { resolve: (snapshot: unknown) => void; timer: ReturnType<typeof setTimeout> }
+    { resolve: (snapshot: StateSnapshot) => void; timer: ReturnType<typeof setTimeout> }
   >();
   const sourceMapResolver = createSourceMapResolver(projectRoot);
   // Grace period after clearError — suppresses stale runtime/frontend errors
@@ -2536,7 +2537,7 @@ export function createBunDevServer(options: BunDevServerOptions): BunDevServer {
       lastChangedFile = file;
     },
 
-    async inspectState(filter?: string): Promise<unknown> {
+    async inspectState(filter?: string): Promise<StateSnapshot> {
       if (wsClients.size === 0) {
         return {
           components: [],
@@ -2550,7 +2551,7 @@ export function createBunDevServer(options: BunDevServerOptions): BunDevServer {
       const requestId = crypto.randomUUID();
       const TIMEOUT_MS = 5000;
 
-      return new Promise<unknown>((resolve) => {
+      return new Promise<StateSnapshot>((resolve) => {
         const timer = setTimeout(() => {
           pendingInspections.delete(requestId);
           resolve({
@@ -2578,6 +2579,19 @@ export function createBunDevServer(options: BunDevServerOptions): BunDevServer {
 
     async stop() {
       stopped = true;
+
+      // Clean up pending state inspections — resolve with error + clear timers
+      for (const [, { resolve: res, timer }] of pendingInspections) {
+        clearTimeout(timer);
+        res({
+          components: [],
+          totalInstances: 0,
+          connectedClients: 0,
+          timestamp: new Date().toISOString(),
+          message: 'Server stopped.',
+        });
+      }
+      pendingInspections.clear();
 
       if (refreshTimeout) {
         clearTimeout(refreshTimeout);
