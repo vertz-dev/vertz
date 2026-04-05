@@ -1425,6 +1425,9 @@ fn extract_cache_key(call: &CallExpression) -> Option<String> {
                             if let Expression::StringLiteral(s) = &p.value {
                                 return Some(s.value.to_string());
                             }
+                            if let Expression::TemplateLiteral(tpl) = &p.value {
+                                return template_literal_to_key_pattern(tpl);
+                            }
                         }
                     }
                 }
@@ -1433,6 +1436,33 @@ fn extract_cache_key(call: &CallExpression) -> Option<String> {
     }
 
     None
+}
+
+/// Convert a template literal like `` `set-${slug}-${page}` `` into a pattern string
+/// `"set-${slug}-${page}"`. Only supports simple identifier expressions; returns `None`
+/// for complex expressions (member access, calls, etc.).
+fn template_literal_to_key_pattern(tpl: &TemplateLiteral) -> Option<String> {
+    let mut result = String::new();
+    for (i, quasi) in tpl.quasis.iter().enumerate() {
+        let text = quasi
+            .value
+            .cooked
+            .as_deref()
+            .unwrap_or(quasi.value.raw.as_str());
+        result.push_str(text);
+        if i < tpl.expressions.len() {
+            match &tpl.expressions[i] {
+                Expression::Identifier(id) => {
+                    result.push_str(&format!("${{{}}}", id.name));
+                }
+                _ => {
+                    // Complex expression — can't statically extract
+                    return None;
+                }
+            }
+        }
+    }
+    Some(result)
 }
 
 fn extract_property_chain(expr: &Expression) -> Option<Vec<String>> {
@@ -2592,6 +2622,67 @@ export function UserProfile() {
     fn apply_query_replacements_no_queries_unchanged() {
         let result = apply_query_replacements("hello.data".to_string(), &[]);
         assert_eq!(result, "hello.data");
+    }
+
+    // ========== Template literal cache keys ==========
+
+    #[test]
+    fn template_literal_cache_key_single_param() {
+        let source = r#"import { query, useParams } from 'vertz';
+export function GameDetail() {
+    const { slug } = useParams();
+    const game = query(async () => fetchGame(slug), { key: `game-${slug}` });
+    return <div>{game.data}</div>;
+}"#;
+        let result = compile(source);
+        assert_eq!(result.components[0].query_keys, vec!["game-${slug}"]);
+        assert_ne!(result.components[0].tier, AotTier::RuntimeFallback);
+    }
+
+    #[test]
+    fn template_literal_cache_key_multiple_params() {
+        let source = r#"import { query, useParams } from 'vertz';
+export function SetDetail() {
+    const { slug } = useParams();
+    const page = 1;
+    const items = query(async () => fetchSet(slug, page), { key: `set-${slug}-${page}` });
+    return <div>{items.data}</div>;
+}"#;
+        let result = compile(source);
+        assert_eq!(result.components[0].query_keys, vec!["set-${slug}-${page}"]);
+        assert_ne!(result.components[0].tier, AotTier::RuntimeFallback);
+    }
+
+    #[test]
+    fn template_literal_cache_key_no_expressions() {
+        let source = r#"import { query } from 'vertz';
+export function Games() {
+    const games = query(async () => fetchGames(), { key: `games` });
+    return <div>{games.data}</div>;
+}"#;
+        let result = compile(source);
+        assert_eq!(result.components[0].query_keys, vec!["games"]);
+    }
+
+    #[test]
+    fn template_literal_cache_key_with_guard_pattern() {
+        let source = r#"import { query, useParams } from 'vertz';
+export function GameDetail() {
+    const { slug } = useParams();
+    const gameQuery = query(async () => fetchGame(slug), { key: `game-${slug}` });
+    const game = gameQuery.data;
+    if (!game) return <div>Loading...</div>;
+    return <div>{game.name}</div>;
+}"#;
+        let result = compile(source);
+        assert_eq!(result.components[0].query_keys, vec!["game-${slug}"]);
+        assert_eq!(result.components[0].tier, AotTier::Conditional);
+        let ssr_fn = format!("__ssr_{}", result.components[0].name);
+        assert!(
+            result.code.contains(&ssr_fn),
+            "Expected AOT function {} in output",
+            ssr_fn
+        );
     }
 
     // ========== Conditional return expressions ==========
