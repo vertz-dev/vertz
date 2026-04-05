@@ -15,6 +15,7 @@ import type {
   SelectOption,
   UpdateInput,
 } from '../inference';
+import { createRegistry } from '../registry';
 import type { TypedGroupByArgs } from '../../query/aggregate';
 import type { GroupByExpression } from '../../query/expression';
 import { fnDate, fnDateTrunc, fnExtract } from '../../query/expression';
@@ -573,13 +574,14 @@ describe('Include depth cap', () => {
     type _t1 = Expect<HasKey<Result, 'author'>>;
   });
 
-  // Depth cap at 2 means depth tuple of length 3 produces `unknown`.
+  // Depth cap at 3 means depth tuple of length 3 produces `unknown`.
   // We test this indirectly: the type system won't blow up with infinite recursion.
   it('depth-capped result collapses to unknown at cap', () => {
     // At depth [_, _, _] (length 3), IncludeResolve returns unknown
     type CappedResult = IncludeResolve<
       typeof postRelations,
       { author: true },
+      Record<string, ModelEntry>,
       [unknown, unknown, unknown]
     >;
 
@@ -790,5 +792,328 @@ describe('TypedGroupByArgs', () => {
       where: { age: 'not-a-number' },
     };
     void _opts;
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Nested include fixtures
+// ---------------------------------------------------------------------------
+
+// Relations for users (needed for bidirectional relations)
+const userRelations = {
+  posts: d.ref.many(() => posts, 'authorId'),
+};
+
+// Manual model registry
+type Models = {
+  users: ModelEntry<typeof users, typeof userRelations>;
+  posts: ModelEntry<typeof posts, typeof postRelations>;
+  comments: ModelEntry<typeof comments, typeof commentRelations>;
+};
+
+// createRegistry-based construction
+const registryModels = createRegistry({ users, posts, comments }, (ref) => ({
+  users: { posts: ref.users.many('posts', 'authorId') },
+  posts: {
+    author: ref.posts.one('users', 'authorId'),
+    comments: ref.posts.many('comments', 'postId'),
+  },
+  comments: {
+    post: ref.comments.one('posts', 'postId'),
+    author: ref.comments.one('users', 'authorId'),
+  },
+}));
+type RegistryModels = typeof registryModels;
+
+// Self-referencing relation fixture
+const categories = d.table('categories', {
+  id: d.uuid().primary(),
+  name: d.text(),
+  parentId: d.uuid().nullable(),
+});
+
+const categoryRelations = {
+  parent: d.ref.one(() => categories, 'parentId'),
+  children: d.ref.many(() => categories, 'parentId'),
+};
+
+type ModelsWithSelfRef = Models & {
+  categories: ModelEntry<typeof categories, typeof categoryRelations>;
+};
+
+// Many-to-many through-relation fixture
+const tags = d.table('tags', {
+  id: d.uuid().primary(),
+  label: d.text(),
+});
+
+const postTags = d.table('post_tags', {
+  postId: d.uuid(),
+  tagId: d.uuid(),
+});
+
+const tagRelations = {
+  posts: d.ref.many(() => posts).through(() => postTags, 'tagId', 'postId'),
+};
+
+type ModelsWithM2M = Models & {
+  tags: ModelEntry<typeof tags, typeof tagRelations>;
+  postTags: ModelEntry<typeof postTags, Record<string, never>>;
+};
+
+// ---------------------------------------------------------------------------
+// Typed nested include — input validation
+// ---------------------------------------------------------------------------
+
+describe('Typed nested include — input validation', () => {
+  describe('Given a model registry with users → posts → comments', () => {
+    describe('When writing a nested include on posts', () => {
+      it('Then accepts valid nested relation names', () => {
+        type PostInclude = IncludeOption<typeof postRelations, Models>;
+        const _inc: PostInclude = {
+          comments: {
+            include: {
+              author: true,
+              post: true,
+            },
+          },
+        };
+        void _inc;
+      });
+
+      it('Then rejects invalid nested relation names', () => {
+        type PostInclude = IncludeOption<typeof postRelations, Models>;
+        const _inc: PostInclude = {
+          comments: {
+            // @ts-expect-error — 'nonExistent' is not a relation on comments
+            include: { nonExistent: true },
+          },
+        };
+        void _inc;
+      });
+    });
+
+    describe('When writing a depth-2 nested include', () => {
+      it('Then accepts valid depth-2 nesting', () => {
+        type PostInclude = IncludeOption<typeof postRelations, Models>;
+        const _inc: PostInclude = {
+          comments: {
+            include: {
+              author: {
+                include: {
+                  posts: true,
+                },
+              },
+            },
+          },
+        };
+        void _inc;
+      });
+
+      it('Then rejects invalid depth-2 nested relation names', () => {
+        type PostInclude = IncludeOption<typeof postRelations, Models>;
+        const _inc: PostInclude = {
+          comments: {
+            include: {
+              author: {
+                // @ts-expect-error — 'bogus' is not a relation on users
+                include: { bogus: true },
+              },
+            },
+          },
+        };
+        void _inc;
+      });
+    });
+
+    describe('When exceeding the depth cap (3)', () => {
+      it('Then falls back to untyped include at depth 3', () => {
+        type PostInclude = IncludeOption<typeof postRelations, Models>;
+        const _inc: PostInclude = {
+          comments: {
+            include: {
+              author: {
+                include: {
+                  posts: {
+                    include: {
+                      anything: true, // depth 3 → untyped, compiles
+                    },
+                  },
+                },
+              },
+            },
+          },
+        };
+        void _inc;
+      });
+    });
+  });
+
+  describe('Given IncludeOption without TModels (backward compat)', () => {
+    it('Then nested include remains untyped', () => {
+      type PostInclude = IncludeOption<typeof postRelations>;
+      const _inc: PostInclude = {
+        author: {
+          include: { anything: true },
+        },
+      };
+      void _inc;
+    });
+  });
+
+  describe('Given a createRegistry-produced model set', () => {
+    it('Then nested include is typed through RegistryOutput', () => {
+      type PostInclude = IncludeOption<RegistryModels['posts']['relations'], RegistryModels>;
+      const _inc: PostInclude = {
+        comments: {
+          include: {
+            author: true,
+          },
+        },
+      };
+      void _inc;
+    });
+
+    it('Then rejects invalid keys through RegistryOutput', () => {
+      type PostInclude = IncludeOption<RegistryModels['posts']['relations'], RegistryModels>;
+      const _inc: PostInclude = {
+        comments: {
+          // @ts-expect-error — 'bogus' not a relation on comments
+          include: { bogus: true },
+        },
+      };
+      void _inc;
+    });
+  });
+
+  describe('Given self-referencing relations', () => {
+    it('Then accepts valid self-referencing nested includes', () => {
+      type CatInclude = IncludeOption<typeof categoryRelations, ModelsWithSelfRef>;
+      const _inc: CatInclude = {
+        parent: {
+          include: {
+            children: true,
+          },
+        },
+        children: {
+          include: {
+            parent: true,
+          },
+        },
+      };
+      void _inc;
+    });
+  });
+
+  describe('Given many-to-many through-relations', () => {
+    it('Then nested include targets the final target model, not the join table', () => {
+      type TagInclude = IncludeOption<typeof tagRelations, ModelsWithM2M>;
+      const _inc: TagInclude = {
+        posts: {
+          include: {
+            author: true,
+            comments: true,
+          },
+        },
+      };
+      void _inc;
+    });
+  });
+
+  describe('Given false/undefined in nested includes', () => {
+    it('Then false and undefined are excluded from the result', () => {
+      type Result = IncludeResolve<
+        typeof postRelations,
+        { author: false; comments: undefined },
+        Models
+      >;
+      type _t1 = Expect<Not<HasKey<Result, 'author'>>>;
+      type _t2 = Expect<Not<HasKey<Result, 'comments'>>>;
+    });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Typed nested include — output resolution
+// ---------------------------------------------------------------------------
+
+describe('Typed nested include — output resolution', () => {
+  describe('Given a query with nested include', () => {
+    describe('When resolving FindResult with nested include', () => {
+      it('Then result contains nested relation data', () => {
+        type Result = FindResult<
+          typeof posts,
+          { include: { comments: { include: { author: true } } } },
+          typeof postRelations,
+          Models
+        >;
+
+        type _t1 = Expect<HasKey<Result, 'id'>>;
+        type _t2 = Expect<HasKey<Result, 'title'>>;
+        type _t3 = Expect<Extends<Result['comments'], unknown[]>>;
+
+        type Comment = Result['comments'][0];
+        type _t4 = Expect<HasKey<Comment, 'author'>>;
+        type _t5 = Expect<HasKey<Comment['author'], 'name'>>;
+        type _t6 = Expect<HasKey<Comment['author'], 'id'>>;
+      });
+
+      it('Then nested select narrows nested result', () => {
+        type Result = FindResult<
+          typeof posts,
+          { include: { comments: { include: { author: { select: { name: true } } } } } },
+          typeof postRelations,
+          Models
+        >;
+
+        type Comment = Result['comments'][0];
+        type AuthorType = Comment['author'];
+        type _t1 = Expect<HasKey<AuthorType, 'name'>>;
+        type _t2 = Expect<Not<HasKey<AuthorType, 'id'>>>;
+        type _t3 = Expect<Not<HasKey<AuthorType, 'email'>>>;
+      });
+    });
+  });
+
+  describe('Given FindResult without TModels (backward compat)', () => {
+    it('Then resolves first-level includes normally', () => {
+      type Result = FindResult<
+        typeof posts,
+        { include: { author: true } },
+        typeof postRelations
+      >;
+      type _t1 = Expect<HasKey<Result, 'author'>>;
+      type _t2 = Expect<HasKey<Result['author'], 'name'>>;
+    });
+  });
+
+  describe('Given FindResult with RegistryModels', () => {
+    it('Then resolves nested includes from createRegistry models', () => {
+      type Result = FindResult<
+        RegistryModels['posts']['table'],
+        { include: { comments: { include: { author: true } } } },
+        RegistryModels['posts']['relations'],
+        RegistryModels
+      >;
+
+      type Comment = Result['comments'][0];
+      type _t1 = Expect<HasKey<Comment, 'author'>>;
+      type _t2 = Expect<HasKey<Comment['author'], 'name'>>;
+    });
+  });
+
+  describe('Given nullable FK one-relation', () => {
+    it('Then documents current behavior (non-nullable result type)', () => {
+      // NOTE: Nullable FK one-relations currently produce non-nullable result type.
+      // The runtime may return null, but fixing this is a separate concern.
+      type CatResult = FindResult<
+        typeof categories,
+        { include: { parent: { include: { children: true } } } },
+        typeof categoryRelations,
+        ModelsWithSelfRef
+      >;
+      type _t1 = Expect<HasKey<CatResult['parent'], 'name'>>;
+      type _t2 = Expect<HasKey<CatResult['parent'], 'children'>>;
+    });
   });
 });

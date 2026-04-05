@@ -172,25 +172,85 @@ export type SelectNarrow<TColumns extends ColumnRecord, TSelect> = TSelect exten
 type RelationsRecord = Record<string, RelationDef>;
 
 /**
+ * Find a ModelEntry in the registry by matching its table type.
+ * Returns `never` if no match is found.
+ *
+ * Uses bidirectional extends check to prevent false positives from
+ * structural subtyping. In practice, `TableDef<TColumns>` types are
+ * unique because each table has a distinct column record.
+ */
+export type FindModelByTable<
+  TModels extends Record<string, ModelEntry>,
+  TTable extends TableDef<ColumnRecord>,
+> = {
+  [K in keyof TModels]: TModels[K]['table'] extends TTable
+    ? TTable extends TModels[K]['table']
+      ? TModels[K]
+      : never
+    : never;
+}[keyof TModels];
+
+/**
+ * Extract the relations record from the ModelEntry matching a table.
+ * Returns empty record if no match found.
+ */
+export type FindModelRelations<
+  TModels extends Record<string, ModelEntry>,
+  TTable extends TableDef<ColumnRecord>,
+> = FindModelByTable<TModels, TTable> extends ModelEntry<infer _T, infer TRels> ? TRels : {};
+
+/**
+ * Resolve nested include type. When the target model is found in the registry,
+ * produces a typed IncludeOption. Otherwise falls back to Record<string, unknown>.
+ *
+ * Uses `[X] extends [never]` (tuple wrapper) to prevent distribution over `never`.
+ *
+ * The explicit `never` check falls back to `Record<string, unknown>` (permissive)
+ * rather than letting `FindModelRelations` return `{}` (which would produce an
+ * empty typed map that rejects all keys). The untyped fallback is intentional for
+ * the "model not found in registry" case.
+ */
+type NestedInclude<
+  TModels extends Record<string, ModelEntry>,
+  TTable extends TableDef<ColumnRecord>,
+  _Depth extends readonly unknown[],
+> = [FindModelByTable<TModels, TTable>] extends [never]
+  ? Record<string, unknown>
+  : IncludeOption<FindModelRelations<TModels, TTable>, TModels, [..._Depth, unknown]>;
+
+/**
  * The shape of include options for a given relations record.
  * Each relation can be:
  * - `true` — include with default fields
- * - An object with `select`, `where`, `orderBy`, `limit` constrained to target table columns
+ * - An object with `select`, `where`, `orderBy`, `limit` constrained to target columns,
+ *   and optionally `include` for nested relation includes (typed when TModels is provided)
+ *
+ * When `TModels` is not provided (default), nested `include` falls back to
+ * `Record<string, unknown>` for backward compatibility.
+ *
+ * Depth cap: 3 typed nesting levels (depth indices 0, 1, 2). A 4th nesting level
+ * (depth index 3, tuple length 3) falls back to untyped Record<string, unknown>.
+ * This matches the existing IncludeResolve cap.
  */
-export type IncludeOption<TRelations extends RelationsRecord> = {
-  [K in keyof TRelations]?:
-    | true
-    | (RelationTarget<TRelations[K]> extends TableDef<infer TCols>
-        ? {
-            select?: { [C in keyof TCols]?: true };
-            where?: FilterType<TCols>;
-            orderBy?: OrderByType<TCols>;
-            limit?: number;
-            /** Nested includes — untyped until full model registry is threaded through. */
-            include?: Record<string, unknown>;
-          }
-        : never);
-};
+export type IncludeOption<
+  TRelations extends RelationsRecord,
+  TModels extends Record<string, ModelEntry> = Record<string, ModelEntry>,
+  _Depth extends readonly unknown[] = [],
+> = _Depth['length'] extends 3
+  ? Record<string, unknown>
+  : {
+      [K in keyof TRelations]?:
+        | true
+        | (RelationTarget<TRelations[K]> extends TableDef<infer TCols>
+            ? {
+                select?: { [C in keyof TCols]?: true };
+                where?: FilterType<TCols>;
+                orderBy?: OrderByType<TCols>;
+                limit?: number;
+                include?: NestedInclude<TModels, RelationTarget<TRelations[K]>, _Depth>;
+              }
+            : never);
+    };
 
 /** Extract the target table from a RelationDef. */
 type RelationTarget<R> = R extends RelationDef<infer TTarget, 'one' | 'many'> ? TTarget : never;
@@ -203,27 +263,38 @@ type RelationType<R> = R extends RelationDef<TableDef<ColumnRecord>, infer TType
  * - 'one' relations return a single object
  * - 'many' relations return an array
  * - When a `select` sub-clause is provided, the result is narrowed
+ * - When a nested `include` is provided and TModels is available, the result
+ *   includes recursively resolved nested relation data
  */
 type ResolveOneInclude<
   R extends RelationDef,
   TIncludeValue,
+  TModels extends Record<string, ModelEntry> = Record<string, ModelEntry>,
   _Depth extends readonly unknown[] = [],
-> = TIncludeValue extends { select: infer TSubSelect }
-  ? RelationTarget<R> extends TableDef<infer TCols>
-    ? SelectNarrow<TCols, TSubSelect>
-    : never
-  : RelationTarget<R> extends TableDef<infer TCols>
-    ? SelectNarrow<TCols, undefined>
-    : never;
+> = RelationTarget<R> extends TableDef<infer TCols>
+  ? (TIncludeValue extends { select: infer TSubSelect }
+      ? SelectNarrow<TCols, TSubSelect>
+      : SelectNarrow<TCols, undefined>) &
+      (TIncludeValue extends { include: infer TNestedInclude }
+        ? IncludeResolve<
+            FindModelRelations<TModels, RelationTarget<R>>,
+            TNestedInclude,
+            TModels,
+            [..._Depth, unknown]
+          >
+        : unknown)
+  : never;
 
 /**
- * IncludeResolve<TRelations, TInclude, Depth> — resolves all included relations.
+ * IncludeResolve<TRelations, TInclude, TModels, Depth> — resolves all included relations.
  *
- * Depth is tracked using a tuple counter. Default cap = 2.
+ * Depth is tracked using a tuple counter. Cap at 3 (tuple lengths 0, 1, 2 are typed;
+ * length 3 falls back to unknown).
  */
 export type IncludeResolve<
   TRelations extends RelationsRecord,
   TInclude,
+  TModels extends Record<string, ModelEntry> = Record<string, ModelEntry>,
   _Depth extends readonly unknown[] = [],
 > = _Depth['length'] extends 3
   ? unknown
@@ -234,8 +305,8 @@ export type IncludeResolve<
           : K
         : never]: K extends keyof TRelations
         ? RelationType<TRelations[K]> extends 'many'
-          ? ResolveOneInclude<TRelations[K], TInclude[K], _Depth>[]
-          : ResolveOneInclude<TRelations[K], TInclude[K], _Depth>
+          ? ResolveOneInclude<TRelations[K], TInclude[K], TModels, _Depth>[]
+          : ResolveOneInclude<TRelations[K], TInclude[K], TModels, _Depth>
         : never;
     };
 
@@ -247,19 +318,20 @@ export type IncludeResolve<
 export interface FindOptions<
   TColumns extends ColumnRecord = ColumnRecord,
   TRelations extends RelationsRecord = RelationsRecord,
+  TModels extends Record<string, ModelEntry> = Record<string, ModelEntry>,
 > {
   select?: SelectOption<TColumns>;
-  include?: IncludeOption<TRelations>;
+  include?: IncludeOption<TRelations, TModels>;
   where?: FilterType<TColumns>;
   orderBy?: OrderByType<TColumns>;
 }
 
 /**
- * FindResult<TTable, TOptions> — the return type of a typed query.
+ * FindResult<TTable, TOptions, TRelations, TModels> — the return type of a typed query.
  *
  * Combines:
  * - SelectNarrow for column selection
- * - IncludeResolve for relation includes
+ * - IncludeResolve for relation includes (with nested resolution when TModels is provided)
  *
  * TOptions is structurally typed (not constrained to FindOptions) so that
  * literal option objects flow through without widening.
@@ -268,10 +340,11 @@ export type FindResult<
   TTable extends TableDef<ColumnRecord>,
   TOptions = unknown,
   TRelations extends RelationsRecord = RelationsRecord,
+  TModels extends Record<string, ModelEntry> = Record<string, ModelEntry>,
 > =
   TTable extends TableDef<infer TColumns>
     ? SelectNarrow<TColumns, TOptions extends { select: infer S } ? S : undefined> &
-        (TOptions extends { include: infer I } ? IncludeResolve<TRelations, I> : unknown)
+        (TOptions extends { include: infer I } ? IncludeResolve<TRelations, I, TModels> : unknown)
     : never;
 
 // ---------------------------------------------------------------------------
