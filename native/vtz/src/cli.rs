@@ -130,7 +130,7 @@ pub struct DevArgs {
     #[arg(long)]
     pub inspect: bool,
 
-    /// Like --inspect, but pause before the entry module loads (waits for debugger)
+    /// Pause before the entry module loads and wait for a debugger to attach (implies --inspect)
     #[arg(long, conflicts_with = "inspect")]
     pub inspect_brk: bool,
 
