@@ -147,7 +147,7 @@ async fn test_inspect_brk_unblocks_after_debugger_connects() {
     let _keep_alive = inbound_tx;
 
     // The isolate should now become initialized (modules load after debugger resumes)
-    let initialized = tokio::time::timeout(Duration::from_secs(15), async {
+    let initialized = tokio::time::timeout(Duration::from_secs(5), async {
         loop {
             if isolate.is_initialized() {
                 return true;

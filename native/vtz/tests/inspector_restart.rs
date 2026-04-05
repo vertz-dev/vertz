@@ -134,3 +134,79 @@ async fn test_restart_preserves_inspector_session_tx_in_options() {
         "Options should have inspector_session_tx after isolate creation"
     );
 }
+
+#[tokio::test]
+async fn test_restart_with_inspect_brk_does_not_block_new_isolate() {
+    let tmp = tempfile::tempdir().unwrap();
+    let root = tmp.path().to_path_buf();
+    create_test_project(&root);
+
+    let opts = PersistentIsolateOptions {
+        root_dir: root.clone(),
+        ssr_entry: root.join("src/app.js"),
+        server_entry: None,
+        channel_capacity: 16,
+        auto_installer: None,
+        enable_inspector: true,
+        inspect_brk: true, // Initial creation blocks for debugger
+        inspector_session_tx: None,
+    };
+
+    // Create isolate with --inspect-brk (it will block)
+    let isolate = PersistentIsolate::new(opts).unwrap();
+
+    // Connect a debugger to unblock it (same flow as inspector_brk test)
+    let rx = isolate
+        .inspector_session_rx()
+        .expect("inspector should be enabled");
+    let mut rx_clone = rx.clone();
+    let sender = tokio::time::timeout(Duration::from_secs(5), async {
+        loop {
+            {
+                let val = rx_clone.borrow_and_update();
+                if let Some(ref s) = *val {
+                    return s.clone();
+                }
+            }
+            rx_clone.changed().await.unwrap();
+        }
+    })
+    .await
+    .expect("Session sender should be published");
+
+    let (outbound_tx, _outbound_rx) =
+        futures::channel::mpsc::unbounded::<deno_core::InspectorMsg>();
+    let (inbound_tx, inbound_rx) = futures::channel::mpsc::unbounded::<String>();
+    inbound_tx
+        .unbounded_send(r#"{"id":1,"method":"Runtime.runIfWaitingForDebugger"}"#.to_string())
+        .unwrap();
+    let proxy = deno_core::InspectorSessionProxy {
+        tx: outbound_tx,
+        rx: inbound_rx,
+    };
+    sender.unbounded_send(proxy).unwrap();
+    let _keep = inbound_tx;
+
+    wait_initialized(&isolate).await;
+
+    // Now simulate restart — clone options and create a new isolate.
+    // The cloned options should have inspect_brk cleared (one-shot).
+    let opts_for_restart = isolate.options().clone();
+    assert!(
+        !opts_for_restart.inspect_brk,
+        "inspect_brk should be cleared after first creation (one-shot)"
+    );
+
+    drop(isolate);
+    tokio::time::sleep(Duration::from_millis(200)).await;
+
+    // New isolate should NOT block for a debugger
+    let new_isolate = PersistentIsolate::new(opts_for_restart).unwrap();
+    wait_initialized(&new_isolate).await;
+
+    // Verify the new isolate is initialized (not stuck waiting for debugger)
+    assert!(
+        new_isolate.is_initialized(),
+        "Restarted isolate should initialize without blocking for debugger"
+    );
+}

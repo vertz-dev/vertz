@@ -238,8 +238,12 @@ impl PersistentIsolate {
         };
 
         // Store the tx back in options so restart() preserves the shared channel.
+        // Clear inspect_brk — it's a one-shot that applies only to the first
+        // isolate creation. On restart (e.g., file watcher), the new isolate
+        // must NOT block waiting for a debugger again.
         let mut options = options;
         options.inspector_session_tx = inspector_session_tx.clone();
+        options.inspect_brk = false;
 
         let runtime_thread = std::thread::spawn(move || {
             let rt = tokio::runtime::Builder::new_current_thread()
