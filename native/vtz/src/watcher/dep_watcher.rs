@@ -1,3 +1,4 @@
+use super::backpressure::BackpressureWarner;
 use crate::deps::linked::WatchTarget;
 use crate::deps::prebundle::{prebundle_single, PrebundleResult};
 use notify::{Config, Event, EventKind, RecommendedWatcher, RecursiveMode, Watcher};
@@ -76,6 +77,10 @@ impl DepWatcher {
         let notify_config =
             Config::default().with_poll_interval(Duration::from_millis(config.debounce_ms));
 
+        let mut warner = BackpressureWarner::new("Dep watcher", Duration::from_secs(1), |msg| {
+            eprintln!("{}", msg)
+        });
+
         let mut watcher = RecommendedWatcher::new(
             move |res: Result<Event, notify::Error>| {
                 if let Ok(event) = res {
@@ -93,11 +98,17 @@ impl DepWatcher {
                                 &targets_for_closure,
                             ) {
                                 let package = map_path_to_package(path, &targets_for_closure);
+                                let detail = match &package {
+                                    Some(pkg) => format!("{} ({})", path.display(), pkg),
+                                    None => format!("{}", path.display()),
+                                };
                                 let change = DepChange {
                                     package,
                                     path: path.clone(),
                                 };
-                                let _ = tx.try_send(change);
+                                if tx.try_send(change).is_err() {
+                                    warner.on_drop(&detail);
+                                }
                             }
                         }
                     }

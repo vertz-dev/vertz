@@ -1,3 +1,4 @@
+use super::backpressure::BackpressureWarner;
 use notify::{Config, Event, EventKind, RecommendedWatcher, RecursiveMode, Watcher};
 use std::path::{Path, PathBuf};
 use std::time::Duration;
@@ -70,6 +71,10 @@ impl FileWatcher {
         let notify_config =
             Config::default().with_poll_interval(Duration::from_millis(config.debounce_ms));
 
+        let mut warner = BackpressureWarner::new("File watcher", Duration::from_secs(1), |msg| {
+            eprintln!("{}", msg)
+        });
+
         let mut watcher = RecommendedWatcher::new(
             move |res: Result<Event, notify::Error>| {
                 if let Ok(event) = res {
@@ -87,7 +92,9 @@ impl FileWatcher {
                                     kind,
                                     path: path.clone(),
                                 };
-                                let _ = tx.try_send(change);
+                                if tx.try_send(change).is_err() {
+                                    warner.on_drop(&format!("{} ({:?})", path.display(), kind));
+                                }
                             }
                         }
                     }

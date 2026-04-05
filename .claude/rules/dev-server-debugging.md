@@ -181,6 +181,9 @@ Useful for automated debugging and verifying server state without reading termin
 | `[Server] Dev bundler stale but auto-restart cap reached` | Auto-restart skipped (3 restarts in 10s) — manual restart needed |
 | `[Server] @vertz/ui-server is installed but ssrRenderSinglePass could not be loaded` | Framework SSR broken — package needs rebuild or upgrade |
 | `[Server] @vertz/ui is installed but @vertz/ui-server is missing` | Framework app missing SSR dependency — `vertz add @vertz/ui-server` |
+| `[Server] File watcher channel full — dropped event for...` | Event channel backpressure — file change was not processed. Save again or refresh. |
+| `[Server] Dep watcher channel full — dropped event for...` | Dependency watcher backpressure — dep change was not processed. Save again or refresh. |
+| `[Server] <watcher> channel full — dropped N events in the last...` | Rate-limited summary of suppressed backpressure drops |
 
 ### Error Channel Categories
 
