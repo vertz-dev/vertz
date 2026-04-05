@@ -14,11 +14,12 @@ pub enum IsolateKind {
 #[derive(Debug, Clone)]
 pub struct IsolateLabel {
     pub kind: IsolateKind,
-    pub name: String,
+    /// Name for the Isolate. None for singleton Isolates like SSR.
+    pub name: Option<String>,
 }
 
 impl IsolateLabel {
-    /// Format the label as a bracket-prefix: `[entity:task,comment]`
+    /// Format the label as a bracket-prefix: `[entity:task,comment]` or `[ssr]`
     pub fn format(&self) -> String {
         let prefix = match self.kind {
             IsolateKind::EntityGroup => "entity",
@@ -27,7 +28,10 @@ impl IsolateLabel {
             IsolateKind::Ssr => "ssr",
             IsolateKind::Schedule => "schedule",
         };
-        format!("[{}:{}]", prefix, self.name)
+        match &self.name {
+            Some(name) => format!("[{}:{}]", prefix, name),
+            None => format!("[{}]", prefix),
+        }
     }
 
     /// Format a log message with the label prefix
@@ -43,10 +47,13 @@ pub fn format_entity_graph_summary(result: &EntityGraphResult) -> String {
     let mut grouped_count = 0;
 
     for group in &result.groups {
-        if group.entities.len() == 1 {
-            // Check if any entity in this single-entity group was forced separate
-            // For now, we list single-entity groups under "Separate:" for clarity
+        if group.forced_separate {
             separate_entities.push(&group.entities[0]);
+        } else if group.entities.len() == 1 {
+            // Single-entity group that wasn't forced separate — just no refs
+            let entity_list = &group.entities[0];
+            lines.push(format!("  Group {}: {} (1 entity)", group.id, entity_list));
+            grouped_count += 1;
         } else {
             let entity_list = group.entities.join(", ");
             lines.push(format!(
@@ -84,7 +91,7 @@ mod tests {
     fn entity_group_label_format() {
         let label = IsolateLabel {
             kind: IsolateKind::EntityGroup,
-            name: "task,comment".to_string(),
+            name: Some("task,comment".to_string()),
         };
         assert_eq!(label.format(), "[entity:task,comment]");
     }
@@ -93,7 +100,7 @@ mod tests {
     fn queue_label_format() {
         let label = IsolateLabel {
             kind: IsolateKind::Queue,
-            name: "notifications".to_string(),
+            name: Some("notifications".to_string()),
         };
         assert_eq!(label.format(), "[queue:notifications]");
     }
@@ -102,25 +109,25 @@ mod tests {
     fn durable_label_format() {
         let label = IsolateLabel {
             kind: IsolateKind::Durable,
-            name: "counter".to_string(),
+            name: Some("counter".to_string()),
         };
         assert_eq!(label.format(), "[durable:counter]");
     }
 
     #[test]
-    fn ssr_label_format() {
+    fn ssr_label_format_no_name() {
         let label = IsolateLabel {
             kind: IsolateKind::Ssr,
-            name: "main".to_string(),
+            name: None,
         };
-        assert_eq!(label.format(), "[ssr:main]");
+        assert_eq!(label.format(), "[ssr]");
     }
 
     #[test]
     fn schedule_label_format() {
         let label = IsolateLabel {
             kind: IsolateKind::Schedule,
-            name: "daily-cleanup".to_string(),
+            name: Some("daily-cleanup".to_string()),
         };
         assert_eq!(label.format(), "[schedule:daily-cleanup]");
     }
@@ -129,12 +136,21 @@ mod tests {
     fn format_log_prefixes_message() {
         let label = IsolateLabel {
             kind: IsolateKind::EntityGroup,
-            name: "task".to_string(),
+            name: Some("task".to_string()),
         };
         assert_eq!(
             label.format_log("Handling list request"),
             "[entity:task] Handling list request"
         );
+    }
+
+    #[test]
+    fn format_log_without_name() {
+        let label = IsolateLabel {
+            kind: IsolateKind::Ssr,
+            name: None,
+        };
+        assert_eq!(label.format_log("Rendering page"), "[ssr] Rendering page");
     }
 
     #[test]
@@ -145,16 +161,19 @@ mod tests {
                     id: 0,
                     entities: vec!["comment".to_string(), "task".to_string()],
                     label: "group-0:comment,task".to_string(),
+                    forced_separate: false,
                 },
                 EntityGroup {
                     id: 1,
                     entities: vec!["team".to_string(), "user".to_string()],
                     label: "group-1:team,user".to_string(),
+                    forced_separate: false,
                 },
                 EntityGroup {
                     id: 2,
                     entities: vec!["analytics".to_string()],
                     label: "group-2:analytics".to_string(),
+                    forced_separate: true,
                 },
             ],
             entity_to_group: HashMap::from([
@@ -164,6 +183,7 @@ mod tests {
                 ("team".to_string(), 1),
                 ("analytics".to_string(), 2),
             ]),
+            warnings: Vec::new(),
         };
         let summary = format_entity_graph_summary(&result);
         assert!(summary.contains("Entity Groups:"));
@@ -174,6 +194,36 @@ mod tests {
     }
 
     #[test]
+    fn format_summary_single_entity_default_not_listed_as_separate() {
+        // A single-entity group with Default isolation should show as a group, not "Separate:"
+        let result = EntityGraphResult {
+            groups: vec![
+                EntityGroup {
+                    id: 0,
+                    entities: vec!["settings".to_string()],
+                    label: "group-0:settings".to_string(),
+                    forced_separate: false,
+                },
+                EntityGroup {
+                    id: 1,
+                    entities: vec!["analytics".to_string()],
+                    label: "group-1:analytics".to_string(),
+                    forced_separate: true,
+                },
+            ],
+            entity_to_group: HashMap::from([
+                ("settings".to_string(), 0),
+                ("analytics".to_string(), 1),
+            ]),
+            warnings: Vec::new(),
+        };
+        let summary = format_entity_graph_summary(&result);
+        assert!(summary.contains("Group 0: settings (1 entity)"));
+        assert!(summary.contains("Separate: analytics"));
+        assert!(!summary.contains("Separate: analytics, settings"));
+    }
+
+    #[test]
     fn format_summary_all_separate() {
         let result = EntityGraphResult {
             groups: vec![
@@ -181,14 +231,17 @@ mod tests {
                     id: 0,
                     entities: vec!["a".to_string()],
                     label: "group-0:a".to_string(),
+                    forced_separate: true,
                 },
                 EntityGroup {
                     id: 1,
                     entities: vec!["b".to_string()],
                     label: "group-1:b".to_string(),
+                    forced_separate: true,
                 },
             ],
             entity_to_group: HashMap::from([("a".to_string(), 0), ("b".to_string(), 1)]),
+            warnings: Vec::new(),
         };
         let summary = format_entity_graph_summary(&result);
         assert!(summary.contains("Separate: a, b"));
@@ -200,6 +253,7 @@ mod tests {
         let result = EntityGraphResult {
             groups: Vec::new(),
             entity_to_group: HashMap::new(),
+            warnings: Vec::new(),
         };
         let summary = format_entity_graph_summary(&result);
         assert!(summary.contains("Total: 0 entities in 0 Isolates"));

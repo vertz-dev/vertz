@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet, VecDeque};
 
 /// Describes a single entity's relationships
 #[derive(Debug, Clone)]
@@ -9,7 +9,7 @@ pub struct EntityNode {
 }
 
 /// A reference from one entity to another
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct EntityRef {
     pub target: String,
     pub kind: RefKind,
@@ -37,6 +37,15 @@ pub struct EntityGroup {
     pub id: usize,
     pub entities: Vec<String>,
     pub label: String,
+    /// Whether this group was created because of explicit `isolation: Separate`
+    /// or hub detection, vs being a natural grouping
+    pub forced_separate: bool,
+}
+
+/// A warning about the entity graph (e.g. dangling references)
+#[derive(Debug, Clone, PartialEq)]
+pub enum EntityGraphWarning {
+    DanglingRef { source: String, target: String },
 }
 
 /// Result of computing entity groups
@@ -44,6 +53,7 @@ pub struct EntityGroup {
 pub struct EntityGraphResult {
     pub groups: Vec<EntityGroup>,
     pub entity_to_group: HashMap<String, usize>,
+    pub warnings: Vec<EntityGraphWarning>,
 }
 
 /// Compute Isolate groups from entity definitions.
@@ -51,13 +61,18 @@ pub struct EntityGraphResult {
 /// Algorithm:
 /// 1. Entities with `isolation: Separate` get their own group
 /// 2. Hub entities (referenced by >5 others) get their own group
-/// 3. Remaining entities grouped by one-hop direct references (union-find)
-/// 4. Groups exceeding 5 entities are split by removing least-connected edges
+/// 3. Remaining entities grouped by connected components via union-find
+///    (entities sharing direct refs end up in the same group; transitivity
+///    through shared nodes is intentional — if A→B and B→C, all three share
+///    an Isolate because B connects them)
+/// 4. Groups exceeding 5 entities are split via BFS-based connectivity-aware
+///    partitioning to keep tightly-coupled entities together
 pub fn compute_groups(nodes: &[EntityNode]) -> EntityGraphResult {
     if nodes.is_empty() {
         return EntityGraphResult {
             groups: Vec::new(),
             entity_to_group: HashMap::new(),
+            warnings: Vec::new(),
         };
     }
 
@@ -67,13 +82,22 @@ pub fn compute_groups(nodes: &[EntityNode]) -> EntityGraphResult {
         .map(|(i, n)| (n.name.as_str(), i))
         .collect();
     let n = nodes.len();
+    let mut warnings = Vec::new();
 
-    // Step 1: Identify separate and hub entities
+    // Step 1: Identify separate entities + collect dangling ref warnings
     let mut forced_separate: Vec<bool> = vec![false; n];
 
     for (i, node) in nodes.iter().enumerate() {
         if node.isolation == IsolationMode::Separate {
             forced_separate[i] = true;
+        }
+        for r in &node.refs {
+            if !name_to_idx.contains_key(r.target.as_str()) {
+                warnings.push(EntityGraphWarning::DanglingRef {
+                    source: node.name.clone(),
+                    target: r.target.clone(),
+                });
+            }
         }
     }
 
@@ -94,15 +118,17 @@ pub fn compute_groups(nodes: &[EntityNode]) -> EntityGraphResult {
         }
     }
 
-    // Step 3: Union-find for remaining entities
+    // Step 3: Union-find for remaining entities (connected components)
     let mut parent: Vec<usize> = (0..n).collect();
     let mut rank: Vec<usize> = vec![0; n];
 
-    fn find(parent: &mut [usize], x: usize) -> usize {
-        if parent[x] != x {
-            parent[x] = find(parent, parent[x]);
+    // Iterative find with path compression (avoids stack overflow on long chains)
+    fn find(parent: &mut [usize], mut x: usize) -> usize {
+        while parent[x] != x {
+            parent[x] = parent[parent[x]]; // path halving
+            x = parent[x];
         }
-        parent[x]
+        x
     }
 
     fn union(parent: &mut [usize], rank: &mut [usize], x: usize, y: usize) {
@@ -121,6 +147,9 @@ pub fn compute_groups(nodes: &[EntityNode]) -> EntityGraphResult {
         }
     }
 
+    // Build adjacency list for BFS-based splitting later
+    let mut adjacency: Vec<HashSet<usize>> = vec![HashSet::new(); n];
+
     // Only union non-forced-separate entities with direct refs
     for (i, node) in nodes.iter().enumerate() {
         if forced_separate[i] {
@@ -130,6 +159,8 @@ pub fn compute_groups(nodes: &[EntityNode]) -> EntityGraphResult {
             if let Some(&target_idx) = name_to_idx.get(r.target.as_str()) {
                 if !forced_separate[target_idx] {
                     union(&mut parent, &mut rank, i, target_idx);
+                    adjacency[i].insert(target_idx);
+                    adjacency[target_idx].insert(i);
                 }
             }
         }
@@ -145,18 +176,18 @@ pub fn compute_groups(nodes: &[EntityNode]) -> EntityGraphResult {
         group_members.entry(root).or_default().push(i);
     }
 
-    // Step 5: Split oversized groups (>5 entities)
-    let mut final_groups: Vec<Vec<usize>> = Vec::new();
+    // Step 5: Split oversized groups (>5 entities) via BFS-based partitioning
+    let mut final_groups: Vec<(Vec<usize>, bool)> = Vec::new(); // (members, forced_separate)
 
     for members in group_members.values() {
         if members.len() <= 5 {
-            final_groups.push(members.clone());
+            final_groups.push((members.clone(), false));
         } else {
-            // Split by chunking — simple heuristic for oversized groups
-            // A more sophisticated approach would remove least-connected edges,
-            // but chunking is deterministic and sufficient for the cap.
-            for chunk in members.chunks(5) {
-                final_groups.push(chunk.to_vec());
+            // BFS-based connectivity-aware split: start from the most-connected
+            // node, grow a partition up to 5 via BFS, then repeat for remaining
+            let partitions = bfs_partition(members, &adjacency, 5);
+            for partition in partitions {
+                final_groups.push((partition, false));
             }
         }
     }
@@ -164,14 +195,14 @@ pub fn compute_groups(nodes: &[EntityNode]) -> EntityGraphResult {
     // Add forced-separate entities as individual groups
     for (i, &is_separate) in forced_separate.iter().enumerate() {
         if is_separate {
-            final_groups.push(vec![i]);
+            final_groups.push((vec![i], true));
         }
     }
 
-    // Sort groups for deterministic output (by first entity name)
+    // Sort groups for deterministic output (by first entity name alphabetically)
     final_groups.sort_by(|a, b| {
-        let a_name = &nodes[a[0]].name;
-        let b_name = &nodes[b[0]].name;
+        let a_name = &nodes[a.0[0]].name;
+        let b_name = &nodes[b.0[0]].name;
         a_name.cmp(b_name)
     });
 
@@ -179,7 +210,7 @@ pub fn compute_groups(nodes: &[EntityNode]) -> EntityGraphResult {
     let mut groups = Vec::new();
     let mut entity_to_group = HashMap::new();
 
-    for (id, members) in final_groups.iter().enumerate() {
+    for (id, (members, forced)) in final_groups.iter().enumerate() {
         let mut entities: Vec<String> = members.iter().map(|&i| nodes[i].name.clone()).collect();
         entities.sort();
         let label = format!("group-{}:{}", id, entities.join(","));
@@ -192,13 +223,96 @@ pub fn compute_groups(nodes: &[EntityNode]) -> EntityGraphResult {
             id,
             entities,
             label,
+            forced_separate: *forced,
         });
     }
 
     EntityGraphResult {
         groups,
         entity_to_group,
+        warnings,
     }
+}
+
+/// BFS-based partitioning: split a set of members into partitions of at most
+/// `max_size`, keeping tightly-connected nodes together.
+fn bfs_partition(
+    members: &[usize],
+    adjacency: &[HashSet<usize>],
+    max_size: usize,
+) -> Vec<Vec<usize>> {
+    let member_set: HashSet<usize> = members.iter().copied().collect();
+    let mut assigned: HashSet<usize> = HashSet::new();
+    let mut partitions: Vec<Vec<usize>> = Vec::new();
+
+    // Sort members by descending degree (most-connected first as seed)
+    let mut sorted_members: Vec<usize> = members.to_vec();
+    sorted_members.sort_by(|&a, &b| {
+        let deg_a = adjacency[a]
+            .iter()
+            .filter(|x| member_set.contains(x))
+            .count();
+        let deg_b = adjacency[b]
+            .iter()
+            .filter(|x| member_set.contains(x))
+            .count();
+        deg_b.cmp(&deg_a)
+    });
+
+    for &seed in &sorted_members {
+        if assigned.contains(&seed) {
+            continue;
+        }
+
+        let mut partition = Vec::new();
+        let mut queue = VecDeque::new();
+        queue.push_back(seed);
+
+        while let Some(node) = queue.pop_front() {
+            // Skip if already assigned to a partition (may be queued multiple times)
+            if assigned.contains(&node) {
+                continue;
+            }
+            // Stop growing this partition at max_size — node is NOT assigned,
+            // so it will be picked up as a seed for the next partition
+            if partition.len() >= max_size {
+                continue;
+            }
+
+            assigned.insert(node);
+            partition.push(node);
+
+            // Add unassigned neighbors that are in our member set
+            let mut neighbors: Vec<usize> = adjacency[node]
+                .iter()
+                .filter(|&&nb| member_set.contains(&nb) && !assigned.contains(&nb))
+                .copied()
+                .collect();
+            // Sort neighbors by degree descending for better grouping
+            neighbors.sort_by(|&a, &b| {
+                let deg_a = adjacency[a]
+                    .iter()
+                    .filter(|x| member_set.contains(x))
+                    .count();
+                let deg_b = adjacency[b]
+                    .iter()
+                    .filter(|x| member_set.contains(x))
+                    .count();
+                deg_b.cmp(&deg_a)
+            });
+            for nb in neighbors {
+                if !assigned.contains(&nb) {
+                    queue.push_back(nb);
+                }
+            }
+        }
+
+        if !partition.is_empty() {
+            partitions.push(partition);
+        }
+    }
+
+    partitions
 }
 
 #[cfg(test)]
@@ -224,6 +338,7 @@ mod tests {
         let result = compute_groups(&[]);
         assert!(result.groups.is_empty());
         assert!(result.entity_to_group.is_empty());
+        assert!(result.warnings.is_empty());
     }
 
     #[test]
@@ -232,6 +347,7 @@ mod tests {
         let result = compute_groups(&nodes);
         assert_eq!(result.groups.len(), 1);
         assert_eq!(result.groups[0].entities, vec!["task"]);
+        assert!(!result.groups[0].forced_separate);
         assert_eq!(result.entity_to_group["task"], 0);
     }
 
@@ -274,18 +390,32 @@ mod tests {
     }
 
     #[test]
-    fn transitive_refs_not_grouped() {
-        // A→B→C but no A→C: A and C should NOT be in the same group
+    fn connected_component_groups_through_shared_node() {
+        // A→B and B→C: all three share a group because B connects them.
+        // Union-find computes connected components — transitivity through
+        // shared nodes is intentional for Isolate grouping.
         let nodes = vec![
             node("a", vec![("b", RefKind::One)], IsolationMode::Default),
             node("b", vec![("c", RefKind::One)], IsolationMode::Default),
             node("c", vec![], IsolationMode::Default),
         ];
         let result = compute_groups(&nodes);
-        // a↔b grouped, b↔c grouped → all three in one group (b connects them)
-        // This is correct: one-hop means direct refs cause union, and b has direct refs to both
         assert_eq!(result.groups.len(), 1);
         assert_eq!(result.groups[0].entities, vec!["a", "b", "c"]);
+    }
+
+    #[test]
+    fn disconnected_entities_not_grouped() {
+        // A→B, C���D, no connection between pairs
+        let nodes = vec![
+            node("a", vec![("b", RefKind::One)], IsolationMode::Default),
+            node("b", vec![], IsolationMode::Default),
+            node("c", vec![("d", RefKind::One)], IsolationMode::Default),
+            node("d", vec![], IsolationMode::Default),
+        ];
+        let result = compute_groups(&nodes);
+        assert_eq!(result.groups.len(), 2);
+        assert_ne!(result.entity_to_group["a"], result.entity_to_group["c"]);
     }
 
     #[test]
@@ -318,6 +448,12 @@ mod tests {
             result.entity_to_group["task"],
             result.entity_to_group["analytics"]
         );
+        // analytics group should be marked forced_separate
+        let analytics_group_id = result.entity_to_group["analytics"];
+        assert!(result.groups[analytics_group_id].forced_separate);
+        // task group should NOT be marked forced_separate
+        let task_group_id = result.entity_to_group["task"];
+        assert!(!result.groups[task_group_id].forced_separate);
     }
 
     #[test]
@@ -332,18 +468,19 @@ mod tests {
             ));
         }
         let result = compute_groups(&nodes);
-        // hub should be in its own group
+        // hub should be in its own group, marked as forced_separate
         let hub_group = result.entity_to_group["hub"];
         assert_eq!(result.groups[hub_group].entities, vec!["hub"]);
+        assert!(result.groups[hub_group].forced_separate);
         // e0-e5 should NOT be in hub's group
         for i in 0..6 {
-            assert_ne!(result.entity_to_group[&format!("e{}", i)], hub_group,);
+            assert_ne!(result.entity_to_group[&format!("e{}", i)], hub_group);
         }
     }
 
     #[test]
     fn group_cap_at_five_entities() {
-        // 7 entities all referencing each other in a chain
+        // 7 entities in a chain: e0→e1→e2→e3→e4→e5→e6
         let mut nodes = Vec::new();
         for i in 0..7 {
             let refs = if i < 6 {
@@ -373,6 +510,31 @@ mod tests {
         // Total entities accounted for
         let total: usize = result.groups.iter().map(|g| g.entities.len()).sum();
         assert_eq!(total, 7);
+    }
+
+    #[test]
+    fn bfs_split_keeps_connected_entities_together() {
+        // 6 entities: a↔b↔c (tightly connected), d↔e↔f (tightly connected), a→d (bridge)
+        let nodes = vec![
+            node(
+                "a",
+                vec![("b", RefKind::One), ("d", RefKind::One)],
+                IsolationMode::Default,
+            ),
+            node("b", vec![("c", RefKind::One)], IsolationMode::Default),
+            node("c", vec![("a", RefKind::One)], IsolationMode::Default),
+            node("d", vec![("e", RefKind::One)], IsolationMode::Default),
+            node("e", vec![("f", RefKind::One)], IsolationMode::Default),
+            node("f", vec![("d", RefKind::One)], IsolationMode::Default),
+        ];
+        let result = compute_groups(&nodes);
+        // Should split into 2 groups, keeping clusters together
+        assert_eq!(result.groups.len(), 2);
+        for group in &result.groups {
+            assert!(group.entities.len() <= 5);
+        }
+        let total: usize = result.groups.iter().map(|g| g.entities.len()).sum();
+        assert_eq!(total, 6);
     }
 
     #[test]
@@ -409,6 +571,39 @@ mod tests {
         assert_eq!(result.groups.len(), 3);
         for group in &result.groups {
             assert_eq!(group.entities.len(), 1);
+            assert!(group.forced_separate);
         }
+    }
+
+    #[test]
+    fn dangling_ref_produces_warning() {
+        let nodes = vec![node(
+            "task",
+            vec![("nonexistent", RefKind::One)],
+            IsolationMode::Default,
+        )];
+        let result = compute_groups(&nodes);
+        assert_eq!(result.warnings.len(), 1);
+        assert_eq!(
+            result.warnings[0],
+            EntityGraphWarning::DanglingRef {
+                source: "task".to_string(),
+                target: "nonexistent".to_string(),
+            }
+        );
+    }
+
+    #[test]
+    fn valid_refs_produce_no_warnings() {
+        let nodes = vec![
+            node(
+                "task",
+                vec![("comment", RefKind::One)],
+                IsolationMode::Default,
+            ),
+            node("comment", vec![], IsolationMode::Default),
+        ];
+        let result = compute_groups(&nodes);
+        assert!(result.warnings.is_empty());
     }
 }
