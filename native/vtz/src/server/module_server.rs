@@ -13,8 +13,8 @@ use crate::errors::categories::{extract_snippet, DevError, ErrorCategory};
 use crate::errors::suggestions;
 use crate::hmr::websocket::HmrHub;
 use crate::runtime::persistent_isolate::PersistentIsolate;
+use crate::server::audit_log::AuditLog;
 use crate::server::auto_installer::AutoInstaller;
-use crate::server::console_log::ConsoleLog;
 use crate::server::css_server;
 use crate::server::html_shell;
 use crate::server::mcp::McpSessions;
@@ -39,8 +39,8 @@ pub struct DevServerState {
     pub module_graph: SharedModuleGraph,
     /// Error broadcast hub for error overlay clients.
     pub error_broadcaster: ErrorBroadcaster,
-    /// Console log capture for LLM consumption.
-    pub console_log: ConsoleLog,
+    /// Unified audit log capturing all server-side events.
+    pub audit_log: AuditLog,
     /// MCP session store for SSE transport.
     pub mcp_sessions: McpSessions,
     /// MCP event hub for LLM WebSocket push notifications.
@@ -116,9 +116,27 @@ pub async fn handle_source_file(
     }
 
     // Compile the file for browser consumption
+    let compile_start = std::time::Instant::now();
     let result = state.pipeline.compile_for_browser(&file_path);
+    let compile_elapsed = compile_start.elapsed();
 
     let file_str = file_path.to_string_lossy().to_string();
+
+    // Record compilation in audit log.
+    // Cache hits return in microseconds; real compilations take ≥1ms.
+    let compile_duration_ms = compile_elapsed.as_secs_f64() * 1000.0;
+    let relative_path = file_path
+        .strip_prefix(&state.root_dir)
+        .map(|p| p.to_string_lossy().to_string())
+        .unwrap_or_else(|_| file_str.clone());
+    state
+        .audit_log
+        .record(crate::server::audit_log::AuditEvent::compilation(
+            &relative_path,
+            compile_duration_ms < 0.5 && result.errors.is_empty(),
+            result.css.is_some(),
+            compile_duration_ms,
+        ));
 
     // Check if compilation produced errors
     if !result.errors.is_empty() {
@@ -841,7 +859,8 @@ mod tests {
             hmr_hub: HmrHub::new(),
             module_graph: crate::watcher::new_shared_module_graph(),
             error_broadcaster: ErrorBroadcaster::new(),
-            console_log: ConsoleLog::new(),
+
+            audit_log: AuditLog::default(),
             mcp_sessions: McpSessions::new(),
             mcp_event_hub: crate::server::mcp_events::McpEventHub::new(),
             start_time: std::time::Instant::now(),
@@ -1479,7 +1498,8 @@ mod tests {
             hmr_hub: HmrHub::new(),
             module_graph: crate::watcher::new_shared_module_graph(),
             error_broadcaster: ErrorBroadcaster::new(),
-            console_log: ConsoleLog::new(),
+
+            audit_log: AuditLog::default(),
             mcp_sessions: McpSessions::new(),
             mcp_event_hub: McpEventHub::new(),
             start_time: std::time::Instant::now(),
@@ -1634,7 +1654,8 @@ mod tests {
             hmr_hub: HmrHub::new(),
             module_graph: crate::watcher::new_shared_module_graph(),
             error_broadcaster: ErrorBroadcaster::new(),
-            console_log: ConsoleLog::new(),
+
+            audit_log: AuditLog::default(),
             mcp_sessions: McpSessions::new(),
             mcp_event_hub: McpEventHub::new(),
             start_time: std::time::Instant::now(),
@@ -1687,7 +1708,8 @@ mod tests {
             hmr_hub: HmrHub::new(),
             module_graph: crate::watcher::new_shared_module_graph(),
             error_broadcaster: ErrorBroadcaster::new(),
-            console_log: ConsoleLog::new(),
+
+            audit_log: AuditLog::default(),
             mcp_sessions: McpSessions::new(),
             mcp_event_hub: McpEventHub::new(),
             start_time: std::time::Instant::now(),
@@ -1769,7 +1791,8 @@ mod tests {
             hmr_hub: HmrHub::new(),
             module_graph: crate::watcher::new_shared_module_graph(),
             error_broadcaster: ErrorBroadcaster::new(),
-            console_log: ConsoleLog::new(),
+
+            audit_log: AuditLog::default(),
             mcp_sessions: McpSessions::new(),
             mcp_event_hub: McpEventHub::new(),
             start_time: std::time::Instant::now(),
@@ -1819,7 +1842,8 @@ mod tests {
             hmr_hub: HmrHub::new(),
             module_graph: crate::watcher::new_shared_module_graph(),
             error_broadcaster: ErrorBroadcaster::new(),
-            console_log: ConsoleLog::new(),
+
+            audit_log: AuditLog::default(),
             mcp_sessions: McpSessions::new(),
             mcp_event_hub: McpEventHub::new(),
             start_time: std::time::Instant::now(),
@@ -1870,7 +1894,8 @@ mod tests {
             hmr_hub: HmrHub::new(),
             module_graph: crate::watcher::new_shared_module_graph(),
             error_broadcaster: ErrorBroadcaster::new(),
-            console_log: ConsoleLog::new(),
+
+            audit_log: AuditLog::default(),
             mcp_sessions: McpSessions::new(),
             mcp_event_hub: McpEventHub::new(),
             start_time: std::time::Instant::now(),
@@ -2031,7 +2056,8 @@ mod tests {
             hmr_hub: HmrHub::new(),
             module_graph: crate::watcher::new_shared_module_graph(),
             error_broadcaster: ErrorBroadcaster::new(),
-            console_log: ConsoleLog::new(),
+
+            audit_log: AuditLog::default(),
             mcp_sessions: McpSessions::new(),
             mcp_event_hub: crate::server::mcp_events::McpEventHub::new(),
             start_time: std::time::Instant::now(),
@@ -2132,7 +2158,8 @@ mod tests {
             hmr_hub: HmrHub::new(),
             module_graph: crate::watcher::new_shared_module_graph(),
             error_broadcaster: ErrorBroadcaster::new(),
-            console_log: ConsoleLog::new(),
+
+            audit_log: AuditLog::default(),
             mcp_sessions: McpSessions::new(),
             mcp_event_hub: crate::server::mcp_events::McpEventHub::new(),
             start_time: std::time::Instant::now(),

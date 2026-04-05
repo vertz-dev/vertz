@@ -23,7 +23,6 @@
 //! - `vertz_get_events_url` — WebSocket URL for real-time LLM event push
 
 use crate::runtime::persistent_isolate::IsolateRequest;
-use crate::server::console_log::LogLevel;
 use crate::server::module_server::DevServerState;
 use axum::body::{Body, Bytes};
 use axum::extract::{Query, State};
@@ -167,7 +166,7 @@ pub(crate) fn tool_definitions() -> serde_json::Value {
             },
             {
                 "name": "vertz_get_console",
-                "description": "Get recent console log entries from the dev server, including compilation events, SSR render times, file watcher events, and diagnostic messages.",
+                "description": "[Deprecated: use vertz_get_audit_log instead] Get recent console log entries from the dev server, including compilation events, SSR render times, file watcher events, and diagnostic messages.",
                 "inputSchema": {
                     "type": "object",
                     "properties": {
@@ -242,6 +241,28 @@ pub(crate) fn tool_definitions() -> serde_json::Value {
                     },
                     "required": ["file"]
                 }
+            },
+            {
+                "name": "vertz_get_audit_log",
+                "description": "Get the server audit log — a unified timeline of API requests, SSR renders, compilations, file changes, and errors. Events are chronological with nanosecond-precision timestamps. Filters (type, since) are applied first, then the last N events are returned from the filtered set. Event data fields by type: api_request has method/path/status; ssr_render has url/status/query_count/is_ssr; compilation has file/cached/css_extracted; file_change has path/kind; error has category/severity/message/file/line/column. duration_ms is present on api_request, ssr_render, and compilation events.",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "last": {
+                            "type": "number",
+                            "description": "Number of most recent events to return after applying type and since filters (default: 100, max: 1000)"
+                        },
+                        "type": {
+                            "type": "string",
+                            "description": "Filter by event type. Comma-separated for multiple. Values: api_request, ssr_render, compilation, file_change, error. Unknown types return an error listing valid values."
+                        },
+                        "since": {
+                            "type": "string",
+                            "description": "ISO 8601 timestamp. Only return events after this time."
+                        }
+                    },
+                    "required": []
+                }
             }
         ]
     })
@@ -302,19 +323,14 @@ pub(crate) async fn execute_tool(
 
                     match isolate.handle_ssr(ssr_req).await {
                         Ok(ssr_resp) => {
-                            state.console_log.push(
-                                LogLevel::Info,
-                                format!(
-                                    "MCP render: {} ({:.1}ms, {})",
-                                    url,
+                            state.audit_log.record(
+                                crate::server::audit_log::AuditEvent::ssr_render(
+                                    &url,
+                                    200,
+                                    0,
+                                    ssr_resp.is_ssr,
                                     ssr_resp.render_time_ms,
-                                    if ssr_resp.is_ssr {
-                                        "ssr"
-                                    } else {
-                                        "client-only"
-                                    }
                                 ),
-                                Some("mcp"),
                             );
 
                             let css_string =
@@ -352,19 +368,21 @@ pub(crate) async fn execute_tool(
                             let error_msg = format!("Persistent SSR error: {}", e);
                             eprintln!("[SSR] MCP render: {}", error_msg);
                             state
-                                .console_log
-                                .push(LogLevel::Error, error_msg, Some("mcp"));
+                                .audit_log
+                                .record(crate::server::audit_log::AuditEvent::error(
+                                    "ssr", "error", &error_msg, None, None, None,
+                                ));
                         }
                     }
                 }
             }
 
             // Fallback: persistent isolate not available
-            state.console_log.push(
-                LogLevel::Info,
-                format!("MCP render: {} (client-only, no persistent isolate)", url),
-                Some("mcp"),
-            );
+            state
+                .audit_log
+                .record(crate::server::audit_log::AuditEvent::ssr_render(
+                    &url, 200, 0, false, 0.0,
+                ));
 
             Ok(serde_json::json!({
                 "content": [{
@@ -382,11 +400,11 @@ pub(crate) async fn execute_tool(
         "vertz_get_console" => {
             let last_n = args.get("last").and_then(|v| v.as_u64()).unwrap_or(50) as usize;
 
-            let entries = state.console_log.last_n(last_n);
+            let entries = state.audit_log.to_legacy_log_entries(last_n);
             let text = serde_json::to_string_pretty(&serde_json::json!({
                 "entries": entries,
                 "count": entries.len(),
-                "total": state.console_log.len(),
+                "total": entries.len(),
             }))
             .unwrap_or_default();
 
@@ -407,10 +425,6 @@ pub(crate) async fn execute_tool(
                 .broadcast(crate::hmr::protocol::HmrMessage::Navigate { to: to.clone() })
                 .await;
 
-            state
-                .console_log
-                .push(LogLevel::Info, format!("MCP navigate: {}", to), Some("mcp"));
-
             Ok(serde_json::json!({
                 "content": [{
                     "type": "text",
@@ -426,6 +440,7 @@ pub(crate) async fn execute_tool(
                 &state.module_graph,
                 &state.hmr_hub,
                 &state.error_broadcaster,
+                &state.audit_log,
             )
             .await;
 
@@ -600,14 +615,15 @@ pub(crate) async fn execute_tool(
 
             match isolate.handle_component_render(request).await {
                 Ok(resp) => {
-                    state.console_log.push(
-                        LogLevel::Info,
-                        format!(
-                            "MCP component render: {} ({:.1}ms)",
-                            file, resp.render_time_ms,
-                        ),
-                        Some("mcp"),
-                    );
+                    state
+                        .audit_log
+                        .record(crate::server::audit_log::AuditEvent::ssr_render(
+                            &format!("component:{}", file),
+                            200,
+                            0,
+                            true,
+                            resp.render_time_ms,
+                        ));
 
                     let html = crate::ssr::component_render::assemble_component_document(
                         &crate::ssr::component_render::ComponentHtmlOptions {
@@ -667,11 +683,16 @@ pub(crate) async fn execute_tool(
                         )
                     };
 
-                    state.console_log.push(
-                        LogLevel::Error,
-                        format!("MCP component render error: {} — {}", file, message),
-                        Some("mcp"),
-                    );
+                    state
+                        .audit_log
+                        .record(crate::server::audit_log::AuditEvent::error(
+                            "component_render",
+                            "error",
+                            &format!("{}: {}", file, message),
+                            Some(&file),
+                            None,
+                            None,
+                        ));
 
                     Ok(serde_json::json!({
                         "content": [{ "type": "text", "text": display_msg }],
@@ -684,6 +705,82 @@ pub(crate) async fn execute_tool(
                     }))
                 }
             }
+        }
+
+        "vertz_get_audit_log" => {
+            let last = args
+                .get("last")
+                .and_then(|v| v.as_u64())
+                .map(|n| n.min(1000) as usize)
+                .unwrap_or(100);
+
+            // Parse type filter — validate each name.
+            let event_types = if let Some(type_str) = args.get("type").and_then(|v| v.as_str()) {
+                let mut types = Vec::new();
+                for name in type_str.split(',').map(|s| s.trim()) {
+                    if name.is_empty() {
+                        continue;
+                    }
+                    match crate::server::audit_log::AuditEventType::parse(name) {
+                        Some(t) => types.push(t),
+                        None => {
+                            return Ok(serde_json::json!({
+                                "content": [{
+                                    "type": "text",
+                                    "text": format!(
+                                        "Unknown event type '{}'. Valid types: {}",
+                                        name,
+                                        crate::server::audit_log::AuditEventType::ALL_NAMES.join(", ")
+                                    )
+                                }],
+                                "isError": true
+                            }));
+                        }
+                    }
+                }
+                if types.is_empty() {
+                    None
+                } else {
+                    Some(types)
+                }
+            } else {
+                None
+            };
+
+            // Parse since filter — return error for malformed timestamps.
+            let since = if let Some(since_val) = args.get("since") {
+                let since_str = since_val.as_str().unwrap_or("");
+                match crate::server::audit_log::parse_timestamp(since_str) {
+                    Some(ts) => Some(ts),
+                    None => {
+                        return Ok(serde_json::json!({
+                            "content": [{
+                                "type": "text",
+                                "text": format!(
+                                    "Invalid 'since' timestamp '{}'. Expected ISO 8601 format: YYYY-MM-DDTHH:MM:SS.NNNNNNNNNZ",
+                                    since_str
+                                )
+                            }],
+                            "isError": true
+                        }));
+                    }
+                }
+            } else {
+                None
+            };
+
+            let filter = crate::server::audit_log::AuditFilter {
+                last,
+                event_types,
+                since,
+            };
+
+            let result = state.audit_log.query(filter);
+            let text = serde_json::to_string_pretty(&result).unwrap_or_default();
+
+            Ok(serde_json::json!({
+                "content": [{ "type": "text", "text": text }]
+            }))
         }
 
         _ => Err(format!("Unknown tool: {}", name)),
@@ -1042,7 +1139,6 @@ mod tests {
     use crate::compiler::pipeline::CompilationPipeline;
     use crate::errors::broadcaster::ErrorBroadcaster;
     use crate::hmr::websocket::HmrHub;
-    use crate::server::console_log::ConsoleLog;
     use crate::watcher;
     use std::time::Instant;
 
@@ -1067,7 +1163,7 @@ mod tests {
             hmr_hub: HmrHub::new(),
             module_graph: watcher::new_shared_module_graph(),
             error_broadcaster: ErrorBroadcaster::new(),
-            console_log: ConsoleLog::new(),
+            audit_log: crate::server::audit_log::AuditLog::default(),
             mcp_sessions: McpSessions::new(),
             mcp_event_hub: crate::server::mcp_events::McpEventHub::new(),
             start_time: Instant::now(),
@@ -1100,7 +1196,7 @@ mod tests {
             hmr_hub: HmrHub::new(),
             module_graph: watcher::new_shared_module_graph(),
             error_broadcaster: ErrorBroadcaster::new(),
-            console_log: ConsoleLog::new(),
+            audit_log: crate::server::audit_log::AuditLog::default(),
             mcp_sessions: McpSessions::new(),
             mcp_event_hub: crate::server::mcp_events::McpEventHub::new(),
             start_time: Instant::now(),
@@ -1195,7 +1291,7 @@ mod tests {
         let defs = tool_definitions();
         let tools = defs["tools"].as_array().unwrap();
 
-        assert_eq!(tools.len(), 8);
+        assert_eq!(tools.len(), 9);
 
         let names: Vec<&str> = tools.iter().map(|t| t["name"].as_str().unwrap()).collect();
         assert!(names.contains(&"vertz_get_errors"));
@@ -1206,6 +1302,7 @@ mod tests {
         assert!(names.contains(&"vertz_get_events_url"));
         assert!(names.contains(&"vertz_get_api_spec"));
         assert!(names.contains(&"vertz_render_component"));
+        assert!(names.contains(&"vertz_get_audit_log"));
     }
 
     #[test]
@@ -1299,7 +1396,7 @@ mod tests {
         let resp = handle_mcp_message(&state, req).await.unwrap();
         let result = resp.result.unwrap();
         let tools = result["tools"].as_array().unwrap();
-        assert_eq!(tools.len(), 8);
+        assert_eq!(tools.len(), 9);
     }
 
     #[tokio::test]
@@ -1419,8 +1516,11 @@ mod tests {
     async fn test_execute_get_console_with_entries() {
         let state = create_test_state();
         state
-            .console_log
-            .push(LogLevel::Info, "test message", Some("test"));
+            .audit_log
+            .record(crate::server::audit_log::AuditEvent::file_change(
+                "src/App.tsx",
+                "modify",
+            ));
 
         let result = execute_tool(
             &state,
@@ -1449,11 +1549,6 @@ mod tests {
 
         let content = result["content"].as_array().unwrap();
         assert!(content[0]["text"].as_str().unwrap().contains("/tasks"));
-
-        // Verify console log was created
-        let entries = state.console_log.all();
-        assert_eq!(entries.len(), 1);
-        assert!(entries[0].message.contains("/tasks"));
     }
 
     #[tokio::test]
@@ -1809,7 +1904,7 @@ mod tests {
                 hmr_hub: HmrHub::new(),
                 module_graph: watcher::new_shared_module_graph(),
                 error_broadcaster: ErrorBroadcaster::new(),
-                console_log: ConsoleLog::new(),
+                audit_log: crate::server::audit_log::AuditLog::default(),
                 mcp_sessions: McpSessions::new(),
                 mcp_event_hub: crate::server::mcp_events::McpEventHub::new(),
                 start_time: Instant::now(),
@@ -1860,5 +1955,123 @@ mod tests {
         assert_eq!(result["_meta"]["error"], "isolate_unavailable");
         let text = result["content"][0]["text"].as_str().unwrap();
         assert!(text.contains("not initialized"));
+    }
+
+    // ── vertz_get_audit_log handler tests ────────────────────────────
+
+    #[tokio::test]
+    async fn test_execute_audit_log_empty() {
+        let state = create_test_state();
+        let result = execute_tool(&state, "vertz_get_audit_log", &serde_json::json!({}))
+            .await
+            .unwrap();
+
+        let content = result["content"].as_array().unwrap();
+        let text: serde_json::Value =
+            serde_json::from_str(content[0]["text"].as_str().unwrap()).unwrap();
+        assert_eq!(text["count"], 0);
+        assert_eq!(text["total"], 0);
+        assert_eq!(text["truncated"], false);
+        assert!(text["events"].as_array().unwrap().is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_execute_audit_log_with_events() {
+        let state = create_test_state();
+        state
+            .audit_log
+            .record(crate::server::audit_log::AuditEvent::api_request(
+                "GET",
+                "/api/tasks",
+                200,
+                5.0,
+            ));
+        state
+            .audit_log
+            .record(crate::server::audit_log::AuditEvent::file_change(
+                "src/App.tsx",
+                "modify",
+            ));
+
+        let result = execute_tool(
+            &state,
+            "vertz_get_audit_log",
+            &serde_json::json!({"last": 50}),
+        )
+        .await
+        .unwrap();
+
+        let content = result["content"].as_array().unwrap();
+        let text: serde_json::Value =
+            serde_json::from_str(content[0]["text"].as_str().unwrap()).unwrap();
+        assert_eq!(text["count"], 2);
+        assert_eq!(text["total"], 2);
+    }
+
+    #[tokio::test]
+    async fn test_execute_audit_log_type_filter() {
+        let state = create_test_state();
+        state
+            .audit_log
+            .record(crate::server::audit_log::AuditEvent::api_request(
+                "GET",
+                "/api/tasks",
+                200,
+                5.0,
+            ));
+        state
+            .audit_log
+            .record(crate::server::audit_log::AuditEvent::file_change(
+                "src/App.tsx",
+                "modify",
+            ));
+
+        let result = execute_tool(
+            &state,
+            "vertz_get_audit_log",
+            &serde_json::json!({"type": "file_change"}),
+        )
+        .await
+        .unwrap();
+
+        let content = result["content"].as_array().unwrap();
+        let text: serde_json::Value =
+            serde_json::from_str(content[0]["text"].as_str().unwrap()).unwrap();
+        assert_eq!(text["count"], 1);
+        let events = text["events"].as_array().unwrap();
+        assert_eq!(events[0]["type"], "file_change");
+    }
+
+    #[tokio::test]
+    async fn test_execute_audit_log_invalid_type() {
+        let state = create_test_state();
+        let result = execute_tool(
+            &state,
+            "vertz_get_audit_log",
+            &serde_json::json!({"type": "bogus"}),
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(result["isError"], true);
+        let text = result["content"][0]["text"].as_str().unwrap();
+        assert!(text.contains("Unknown event type 'bogus'"));
+        assert!(text.contains("api_request"));
+    }
+
+    #[tokio::test]
+    async fn test_execute_audit_log_invalid_since() {
+        let state = create_test_state();
+        let result = execute_tool(
+            &state,
+            "vertz_get_audit_log",
+            &serde_json::json!({"since": "not-a-date"}),
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(result["isError"], true);
+        let text = result["content"][0]["text"].as_str().unwrap();
+        assert!(text.contains("Invalid 'since' timestamp"));
     }
 }

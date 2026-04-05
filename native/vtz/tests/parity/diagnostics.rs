@@ -2,21 +2,24 @@ use crate::common::*;
 use futures_util::StreamExt;
 use std::time::Duration;
 use tokio::time::timeout;
-use vertz_runtime::server::console_log::LogLevel;
 
 /// Parity #50: Console log ring buffer endpoint returns stored entries.
+/// (Now backed by AuditLog with legacy adapter.)
 #[tokio::test]
 async fn console_log_endpoint_returns_log_entries() {
     let (base_url, handle) = start_dev_server("minimal-app").await;
     let client = http_client();
 
-    // Push a log entry via the ConsoleLog on state
+    // Record an audit event (replaces the old ConsoleLog push)
     handle
         .state
-        .console_log
-        .push(LogLevel::Log, "parity test log entry", None);
+        .audit_log
+        .record(vertz_runtime::server::audit_log::AuditEvent::file_change(
+            "parity-test.tsx",
+            "modify",
+        ));
 
-    // Fetch console log
+    // Fetch console log (now backed by audit log legacy adapter)
     let resp = timeout(
         Duration::from_secs(5),
         client
@@ -41,7 +44,7 @@ async fn console_log_endpoint_returns_log_entries() {
         e["message"]
             .as_str()
             .unwrap_or("")
-            .contains("parity test log entry")
+            .contains("parity-test.tsx")
     });
     assert!(
         has_test_entry,

@@ -10,7 +10,6 @@ use crate::runtime::persistent_isolate::{
     IsolateRequest, PersistentIsolate, PersistentIsolateOptions,
 };
 use crate::server::auto_installer::AutoInstaller;
-use crate::server::console_log::{ConsoleLog, LogLevel};
 use crate::server::diagnostics;
 use crate::server::html_shell;
 use crate::server::logging::RequestLoggingLayer;
@@ -161,8 +160,9 @@ pub fn build_router(
     let theme_css = theme_css::load_theme_css(&config.root_dir);
 
     let hmr_hub = HmrHub::new();
-    let error_broadcaster = ErrorBroadcaster::with_root_dir(config.root_dir.clone());
-    let console_log = ConsoleLog::new();
+    let audit_log = crate::server::audit_log::AuditLog::default();
+    let error_broadcaster =
+        ErrorBroadcaster::with_root_dir(config.root_dir.clone()).with_audit_log(audit_log.clone());
     let mcp_sessions = McpSessions::new();
     let mcp_event_hub = McpEventHub::new();
     let module_graph = watcher::new_shared_module_graph();
@@ -247,7 +247,7 @@ pub fn build_router(
         module_graph,
         auto_installer: auto_installer.clone(),
         error_broadcaster,
-        console_log,
+        audit_log,
         mcp_sessions,
         mcp_event_hub,
         start_time: Instant::now(),
@@ -399,20 +399,15 @@ async fn ai_render_handler(
 
             match isolate.handle_ssr(ssr_req).await {
                 Ok(ssr_resp) => {
-                    state.console_log.push(
-                        LogLevel::Info,
-                        format!(
-                            "AI render: {} ({:.1}ms, {})",
-                            url,
+                    state
+                        .audit_log
+                        .record(crate::server::audit_log::AuditEvent::ssr_render(
+                            &url,
+                            200,
+                            0,
+                            ssr_resp.is_ssr,
                             ssr_resp.render_time_ms,
-                            if ssr_resp.is_ssr {
-                                "ssr"
-                            } else {
-                                "client-only"
-                            }
-                        ),
-                        Some("ai"),
-                    );
+                        ));
 
                     let css_string = ssr_resp
                         .inline_css_html
@@ -460,10 +455,7 @@ async fn ai_render_handler(
                 Err(e) => {
                     let error_msg = format!("Persistent SSR error: {}", e);
                     eprintln!("[SSR] AI render: {}", error_msg);
-                    state
-                        .console_log
-                        .push(LogLevel::Error, error_msg, Some("ai"));
-                    // Report to error broadcaster so the overlay shows it.
+                    // Report to error broadcaster (also records to audit log).
                     let ssr_error = parse_ssr_error_for_overlay(
                         &e.to_string(),
                         &state.root_dir,
@@ -477,11 +469,11 @@ async fn ai_render_handler(
     }
 
     // Fallback: client-only HTML shell
-    state.console_log.push(
-        LogLevel::Info,
-        format!("AI render: {} (client-only, no persistent isolate)", url),
-        Some("ai"),
-    );
+    state
+        .audit_log
+        .record(crate::server::audit_log::AuditEvent::ssr_render(
+            &url, 200, 0, false, 0.0,
+        ));
 
     let html = html_shell::generate_html_shell(
         &state.entry_file,
@@ -516,12 +508,12 @@ async fn ai_console_handler(
         .and_then(|v| v.parse().ok())
         .unwrap_or(50);
 
-    let entries = state.console_log.last_n(last_n);
+    let entries = state.audit_log.to_legacy_log_entries(last_n);
 
     let json = serde_json::json!({
         "entries": entries,
         "count": entries.len(),
-        "total": state.console_log.len(),
+        "total": entries.len(),
     });
 
     let body = serde_json::to_string_pretty(&json).unwrap_or_else(|_| "{}".to_string());
@@ -566,12 +558,6 @@ async fn ai_navigate_handler(
         .hmr_hub
         .broadcast(crate::hmr::protocol::HmrMessage::Navigate { to: req.to.clone() })
         .await;
-
-    state.console_log.push(
-        LogLevel::Info,
-        format!("AI navigate: {}", navigate_to),
-        Some("ai"),
-    );
 
     let json = serde_json::json!({
         "ok": true,
@@ -682,6 +668,7 @@ async fn diagnostics_handler(
         &state.module_graph,
         &state.hmr_hub,
         &state.error_broadcaster,
+        &state.audit_log,
     )
     .await;
 
@@ -820,9 +807,15 @@ async fn dev_server_handler(
                                     }
                                 );
                                 eprintln!("[SSR] {}", render_msg);
-                                state
-                                    .console_log
-                                    .push(LogLevel::Info, render_msg, Some("ssr"));
+                                state.audit_log.record(
+                                    crate::server::audit_log::AuditEvent::ssr_render(
+                                        &path,
+                                        200,
+                                        0,
+                                        ssr_resp.is_ssr,
+                                        ssr_resp.render_time_ms,
+                                    ),
+                                );
                             }
 
                             // Handle redirect from ProtectedRoute during SSR
@@ -871,10 +864,8 @@ async fn dev_server_handler(
                         Err(e) => {
                             let error_msg = format!("Persistent SSR error: {}", e);
                             eprintln!("[SSR] {} — serving client shell", error_msg);
-                            state
-                                .console_log
-                                .push(LogLevel::Error, error_msg, Some("ssr"));
                             // Report to error broadcaster so the overlay shows it.
+                            // (ErrorBroadcaster also records to the audit log.)
                             let ssr_error = parse_ssr_error_for_overlay(
                                 &e.to_string(),
                                 &state.root_dir,
@@ -1120,6 +1111,7 @@ async fn handle_api_request(
         }
     };
 
+    let method_str = method.clone();
     let isolate_req = IsolateRequest {
         method,
         url,
@@ -1131,17 +1123,15 @@ async fn handle_api_request(
     match isolate.handle_request(isolate_req).await {
         Ok(response) => {
             let elapsed = start.elapsed();
-            state.console_log.push(
-                LogLevel::Info,
-                format!(
-                    "{} {} → {} ({:.1}ms)",
-                    "API",
+            let duration_ms = elapsed.as_secs_f64() * 1000.0;
+            state
+                .audit_log
+                .record(crate::server::audit_log::AuditEvent::api_request(
+                    &method_str,
                     path,
                     response.status,
-                    elapsed.as_secs_f64() * 1000.0
-                ),
-                Some("api"),
-            );
+                    duration_ms,
+                ));
 
             let mut builder = axum::response::Response::builder().status(response.status);
             for (key, value) in &response.headers {
@@ -1152,11 +1142,17 @@ async fn handle_api_request(
             builder.body(Body::from(response.body)).unwrap()
         }
         Err(e) => {
-            let error_msg = format!("API handler error: {}", e);
-            eprintln!("[Server] {}", error_msg);
+            let elapsed = start.elapsed();
+            let duration_ms = elapsed.as_secs_f64() * 1000.0;
+            eprintln!("[Server] API handler error: {}", e);
             state
-                .console_log
-                .push(LogLevel::Error, error_msg, Some("api"));
+                .audit_log
+                .record(crate::server::audit_log::AuditEvent::api_request(
+                    &method_str,
+                    path,
+                    500,
+                    duration_ms,
+                ));
 
             let body = serde_json::json!({ "error": e.to_string() }).to_string();
             axum::response::Response::builder()
@@ -1413,12 +1409,6 @@ pub async fn start_server_with_lifecycle(
                                 for change in &changes {
                                     let change_msg = format!("File changed: {}", change.path.display());
                                     eprintln!("[Server] {}", change_msg);
-                                    watcher_state.console_log.push(
-                                        crate::server::console_log::LogLevel::Info,
-                                        change_msg,
-                                        Some("watcher"),
-                                    );
-
                                     // Emit file_change event to MCP LLM clients
                                     // Never leak absolute paths — use file_name() as last resort
                                     let relative_path = change.path
@@ -1434,6 +1424,12 @@ pub async fn start_server_with_lifecycle(
                                         crate::watcher::file_watcher::FileChangeKind::Modify => "modify",
                                         crate::watcher::file_watcher::FileChangeKind::Remove => "delete",
                                     };
+                                    watcher_state.audit_log.record(
+                                        crate::server::audit_log::AuditEvent::file_change(
+                                            &relative_path,
+                                            kind_str,
+                                        ),
+                                    );
                                     watcher_state.mcp_event_hub.broadcast(
                                         mcp_events::McpEvent::FileChange {
                                             timestamp: mcp_events::iso_timestamp(),
@@ -1796,7 +1792,6 @@ async fn shutdown_signal() {
 mod tests {
     use super::*;
     use crate::errors::categories::DevError;
-    use crate::server::console_log::LogLevel;
     use std::path::PathBuf;
     use tower::ServiceExt;
 
@@ -1934,7 +1929,15 @@ mod tests {
         assert_eq!(state.port, 4000);
         assert_eq!(state.root_dir, tmp.path().to_path_buf());
         assert_eq!(state.src_dir, tmp.path().join("src"));
-        assert!(state.console_log.is_empty());
+        // Audit log starts empty.
+        let result = state
+            .audit_log
+            .query(crate::server::audit_log::AuditFilter {
+                last: 10,
+                event_types: None,
+                since: None,
+            });
+        assert_eq!(result.count, 0);
     }
 
     // ─── mime_type_for_path ──────────────────────────────────────────
@@ -2110,8 +2113,11 @@ mod tests {
         let (router, state, _tmp) = make_test_router();
 
         state
-            .console_log
-            .push(LogLevel::Info, "hello world", Some("test"));
+            .audit_log
+            .record(crate::server::audit_log::AuditEvent::file_change(
+                "src/App.tsx",
+                "modify",
+            ));
 
         let req = Request::builder()
             .uri("/__vertz_ai/console")
@@ -2123,7 +2129,10 @@ mod tests {
         assert_eq!(json["count"], 1);
         assert_eq!(json["total"], 1);
         let entries = json["entries"].as_array().unwrap();
-        assert_eq!(entries[0]["message"], "hello world");
+        assert!(entries[0]["message"]
+            .as_str()
+            .unwrap()
+            .contains("src/App.tsx"));
     }
 
     #[tokio::test]
@@ -2132,8 +2141,11 @@ mod tests {
 
         for i in 0..5 {
             state
-                .console_log
-                .push(LogLevel::Info, format!("msg-{}", i), None);
+                .audit_log
+                .record(crate::server::audit_log::AuditEvent::file_change(
+                    &format!("{}.tsx", i),
+                    "modify",
+                ));
         }
 
         let req = Request::builder()
@@ -2144,7 +2156,7 @@ mod tests {
 
         let json = body_json(resp).await;
         assert_eq!(json["count"], 2);
-        assert_eq!(json["total"], 5);
+        assert_eq!(json["total"], 2);
     }
 
     // ─── ai_navigate_handler ─────────────────────────────────────────
@@ -2183,23 +2195,7 @@ mod tests {
         assert!(error.contains("Invalid JSON"));
     }
 
-    #[tokio::test]
-    async fn test_ai_navigate_logs_to_console() {
-        let (router, state, _tmp) = make_test_router();
-        let req = Request::builder()
-            .method("POST")
-            .uri("/__vertz_ai/navigate")
-            .header(header::CONTENT_TYPE, "application/json")
-            .body(Body::from(r#"{"to": "/settings"}"#))
-            .unwrap();
-        let _resp = router.oneshot(req).await.unwrap();
-
-        // Navigation should have been logged
-        let entries = state.console_log.last_n(10);
-        assert!(entries.iter().any(|e| e.message.contains("/settings")));
-    }
-
-    // ─── ai_render_handler ───────────────────────────────────────────
+    // ─���─ ai_render_handler ───────────────────────────────────────────
 
     #[tokio::test]
     async fn test_ai_render_ssr_disabled() {
