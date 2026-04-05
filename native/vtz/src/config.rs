@@ -52,6 +52,19 @@ pub struct ServerConfig {
     /// Port for the HTTP-to-WebSocket LLM bridge server.
     /// When `Some`, a second HTTP server is started on this port.
     pub bridge_port: Option<u16>,
+    // ── SSR Pool configuration ──────────────────────────────────────
+    /// SSR pool size. `None` = auto (`max(2, num_cpus / 2)`).
+    pub ssr_pool_size: Option<usize>,
+    /// Maximum concurrent + queued SSR requests before 503 (default: 50).
+    pub ssr_max_concurrent_requests: usize,
+    /// Queue timeout in milliseconds — how long a request waits before 503 (default: 2000).
+    pub ssr_queue_timeout_ms: u64,
+    /// Max render time in milliseconds — kills render if exceeded (default: 5000).
+    pub ssr_max_render_time_ms: u64,
+    /// Routing strategy: "least-loaded" (default) or "round-robin".
+    pub ssr_strategy: String,
+    /// Routes to pre-render on startup to warm V8 JIT.
+    pub ssr_warmup_routes: Vec<String>,
 }
 
 /// Resolve the `auto_install` setting from multiple sources.
@@ -203,6 +216,12 @@ impl ServerConfig {
             plugin: PluginChoice::default(),
             proxy_name: None,
             bridge_port: None,
+            ssr_pool_size: None,
+            ssr_max_concurrent_requests: 50,
+            ssr_queue_timeout_ms: 2000,
+            ssr_max_render_time_ms: 5000,
+            ssr_strategy: "least-loaded".to_string(),
+            ssr_warmup_routes: Vec::new(),
         }
     }
 
@@ -232,6 +251,31 @@ impl ServerConfig {
             plugin: PluginChoice::default(),
             proxy_name: None,
             bridge_port: None,
+            ssr_pool_size: None,
+            ssr_max_concurrent_requests: 50,
+            ssr_queue_timeout_ms: 2000,
+            ssr_max_render_time_ms: 5000,
+            ssr_strategy: "least-loaded".to_string(),
+            ssr_warmup_routes: Vec::new(),
+        }
+    }
+
+    /// Build an `SsrPoolConfig` from this server config's SSR fields.
+    pub fn ssr_pool_config(&self) -> crate::ssr::pool::SsrPoolConfig {
+        use crate::ssr::pool::{PoolSize, RoutingStrategy, SsrPoolConfig};
+        SsrPoolConfig {
+            pool_size: match self.ssr_pool_size {
+                Some(n) => PoolSize::Fixed(n),
+                None => PoolSize::Auto,
+            },
+            max_concurrent_requests: self.ssr_max_concurrent_requests,
+            queue_timeout: std::time::Duration::from_millis(self.ssr_queue_timeout_ms),
+            max_render_time: std::time::Duration::from_millis(self.ssr_max_render_time_ms),
+            strategy: match self.ssr_strategy.as_str() {
+                "round-robin" => RoutingStrategy::RoundRobin,
+                _ => RoutingStrategy::LeastLoaded,
+            },
+            warmup_routes: self.ssr_warmup_routes.clone(),
         }
     }
 

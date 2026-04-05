@@ -441,6 +441,7 @@ pub(crate) async fn execute_tool(
                 &state.hmr_hub,
                 &state.error_broadcaster,
                 &state.audit_log,
+                state.ssr_pool.as_deref(),
             )
             .await;
 
@@ -1171,6 +1172,7 @@ mod tests {
             port: 3000,
             typecheck_enabled: false,
             api_isolate: std::sync::Arc::new(std::sync::RwLock::new(None)),
+            ssr_pool: None,
             api_proxy: None,
             auto_installer: None,
             last_file_change: std::sync::Arc::new(std::sync::Mutex::new(None)),
@@ -1204,6 +1206,7 @@ mod tests {
             port: 3000,
             typecheck_enabled: false,
             api_isolate: std::sync::Arc::new(std::sync::RwLock::new(None)),
+            ssr_pool: None,
             api_proxy: None,
             auto_installer: None,
             last_file_change: std::sync::Arc::new(std::sync::Mutex::new(None)),
@@ -1912,6 +1915,7 @@ mod tests {
                 port: 3000,
                 typecheck_enabled: false,
                 api_isolate: std::sync::Arc::new(std::sync::RwLock::new(None)),
+                ssr_pool: None,
                 api_proxy: None,
                 auto_installer: None,
                 last_file_change: std::sync::Arc::new(std::sync::Mutex::new(None)),
