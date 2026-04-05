@@ -70,6 +70,7 @@ fn build_dev_config(args: &cli::DevArgs) -> ServerConfig {
     );
     config.extra_watch_paths = vertzrc.extra_watch_paths;
     config.proxy_name = args.name.clone();
+    config.bridge_port = args.bridge_port;
     config
 }
 

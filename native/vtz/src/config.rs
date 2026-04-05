@@ -49,6 +49,9 @@ pub struct ServerConfig {
     pub plugin: PluginChoice,
     /// Custom proxy subdomain name override (from `--name` flag).
     pub proxy_name: Option<String>,
+    /// Port for the HTTP-to-WebSocket LLM bridge server.
+    /// When `Some`, a second HTTP server is started on this port.
+    pub bridge_port: Option<u16>,
 }
 
 /// Resolve the `auto_install` setting from multiple sources.
@@ -199,6 +202,7 @@ impl ServerConfig {
             extra_watch_paths: Vec::new(),
             plugin: PluginChoice::default(),
             proxy_name: None,
+            bridge_port: None,
         }
     }
 
@@ -227,6 +231,7 @@ impl ServerConfig {
             extra_watch_paths: Vec::new(),
             plugin: PluginChoice::default(),
             proxy_name: None,
+            bridge_port: None,
         }
     }
 

@@ -134,7 +134,7 @@ pub struct SubscribedData {
 }
 
 /// Known event names for subscription filter validation.
-const KNOWN_EVENTS: &[&str] = &[
+pub(crate) const KNOWN_EVENTS: &[&str] = &[
     "error_update",
     "file_change",
     "hmr_update",
@@ -594,7 +594,7 @@ pub fn start_relay_tasks(
 
 /// Validate subscription filter event names.
 /// Returns (known_events, unknown_events).
-fn validate_subscription(requested: &[String]) -> (Vec<String>, Vec<String>) {
+pub(crate) fn validate_subscription(requested: &[String]) -> (Vec<String>, Vec<String>) {
     let mut known = Vec::new();
     let mut unknown = Vec::new();
 

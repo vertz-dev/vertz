@@ -139,7 +139,7 @@ impl JsonRpcResponse {
 
 // ── Tool Definitions ────────────────────────────────────────────────
 
-fn tool_definitions() -> serde_json::Value {
+pub(crate) fn tool_definitions() -> serde_json::Value {
     serde_json::json!({
         "tools": [
             {
@@ -249,7 +249,7 @@ fn tool_definitions() -> serde_json::Value {
 
 // ── Tool Execution ──────────────────────────────────────────────────
 
-async fn execute_tool(
+pub(crate) async fn execute_tool(
     state: &Arc<DevServerState>,
     name: &str,
     args: &serde_json::Value,
