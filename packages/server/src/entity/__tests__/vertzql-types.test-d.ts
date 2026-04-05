@@ -407,11 +407,11 @@ describe('TypedIncludeOption with TModels threading', () => {
   });
 
   describe('Given deep nesting (depth cap)', () => {
-    it('Then falls back to untyped at depth 4 (1 entity + 3 DB)', () => {
+    it('Then allows 4 typed nesting levels (1 entity + 3 DB)', () => {
       // Entity level 1: comments (true-config)
       // DB depth 0: author
       // DB depth 1: posts
-      // DB depth 2: untyped fallback — 'anything' compiles
+      // DB depth 2: comments (still typed — 3 DB levels)
       const _inc: TypedIncludeOption<PostRelConfig, PostRelations, TestModels> = {
         comments: {
           include: {
@@ -419,7 +419,35 @@ describe('TypedIncludeOption with TModels threading', () => {
               include: {
                 posts: {
                   include: {
-                    anything: true,
+                    comments: true, // DB depth 2 — still typed
+                  },
+                },
+              },
+            },
+          },
+        },
+      };
+      void _inc;
+    });
+
+    it('Then falls back to untyped at depth 5 (1 entity + 3 DB + untyped)', () => {
+      // Entity level 1: comments
+      // DB depth 0: author
+      // DB depth 1: posts
+      // DB depth 2: comments
+      // DB depth 3: untyped fallback — 'anything' compiles
+      const _inc: TypedIncludeOption<PostRelConfig, PostRelations, TestModels> = {
+        comments: {
+          include: {
+            author: {
+              include: {
+                posts: {
+                  include: {
+                    comments: {
+                      include: {
+                        anything: true, // DB depth 3 → untyped fallback
+                      },
+                    },
                   },
                 },
               },

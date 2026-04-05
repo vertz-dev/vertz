@@ -265,7 +265,7 @@ type EntityNestedInclude<TModels extends Record<string, ModelEntry>, TTable exte
   FindModelByTable<TModels, TTable>,
 ] extends [never]
   ? Record<string, unknown>
-  : IncludeOption<FindModelRelations<TModels, TTable>, TModels, [unknown]>;
+  : IncludeOption<FindModelRelations<TModels, TTable>, TModels, []>;
 
 /**
  * Typed `include` option — constrained by entity relations config.
