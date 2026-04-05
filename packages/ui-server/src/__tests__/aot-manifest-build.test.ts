@@ -12,6 +12,7 @@ import {
   findAppComponent,
   generateAotBarrel,
   generateAotBuildManifest,
+  hasResidualJsx,
 } from '../aot-manifest-build';
 
 describe('generateAotBuildManifest', () => {
@@ -618,6 +619,161 @@ describe('generateAotBarrel', () => {
       // Original source excluded
       expect(pagesFile).not.toContain('import { query }');
       expect(pagesFile).not.toContain('function HomePage()');
+    });
+  });
+});
+
+describe('hasResidualJsx', () => {
+  describe('Given code with only string concatenation (clean AOT output)', () => {
+    it('Then returns false', () => {
+      const code = `export function __ssr_App(__props) {
+  return '<div class="' + __esc_attr(s.root) + '">' + '<a href="/games">' + 'Games' + '</a>' + '</div>';
+}`;
+      expect(hasResidualJsx(code)).toBe(false);
+    });
+  });
+
+  describe('Given code with residual JSX from .map() callbacks', () => {
+    it('Then returns true when className={} attribute is present', () => {
+      const code = `export function __ssr_GamesPage(data, ctx) {
+  return '<div>' + __esc(__q0?.map((game) => (
+    <a key={game.id} className={s.card}>{game.name}</a>
+  ))) + '</div>';
+}`;
+      expect(hasResidualJsx(code)).toBe(true);
+    });
+
+    it('Then returns true when href={} attribute is present', () => {
+      const code = `export function __ssr_LinksPage(data, ctx) {
+  return '<div>' + items.map((item) => (
+    <a href={item.url}>{item.label}</a>
+  )).join('') + '</div>';
+}`;
+      expect(hasResidualJsx(code)).toBe(true);
+    });
+
+    it('Then returns true when data-* attribute expression is present', () => {
+      const code = `export function __ssr_List(data, ctx) {
+  return '<ul>' + items.map((item) => (
+    <li data-id={item.id}>{item.name}</li>
+  )).join('') + '</ul>';
+}`;
+      expect(hasResidualJsx(code)).toBe(true);
+    });
+  });
+
+  describe('Given code with __esc_attr class references (properly compiled)', () => {
+    it('Then returns false', () => {
+      const code = `export function __ssr_Page(data, ctx) {
+  return '<div class="' + __esc_attr(styles.root) + '">content</div>';
+}`;
+      expect(hasResidualJsx(code)).toBe(false);
+    });
+  });
+});
+
+describe('generateAotBarrel — residual JSX skipping', () => {
+  describe('Given compiled files where some have residual JSX in .map() callbacks', () => {
+    it('Then skips functions with residual JSX and reports them in skippedFns', () => {
+      const compiledFiles: Record<string, AotCompiledFile> = {
+        'src/pages/home.tsx': {
+          code: `function HomePage() {}
+export function __ssr_HomePage(data, ctx) {
+  return '<div>' + __esc(games?.map((g) => (
+    <a key={g.id} className={s.card}>{g.name}</a>
+  ))) + '</div>';
+}`,
+          components: [{ name: 'HomePage', tier: 'data-driven', holes: [], queryKeys: ['games'] }],
+        },
+        'src/pages/cart.tsx': {
+          code: `function CartPage() {}
+export function __ssr_CartPage(data, ctx) {
+  return '<div>' + '<h1>' + 'Cart' + '</h1>' + '</div>';
+}`,
+          components: [{ name: 'CartPage', tier: 'data-driven', holes: [], queryKeys: [] }],
+        },
+      };
+      const routeMap: Record<string, AotRouteMapEntry> = {
+        '/': { renderFn: '__ssr_HomePage', holes: [], queryKeys: ['games'] },
+        '/cart': { renderFn: '__ssr_CartPage', holes: [], queryKeys: [] },
+      };
+
+      const result = generateAotBarrel(compiledFiles, routeMap);
+
+      expect(result.skippedFns).toContain('__ssr_HomePage');
+      expect(result.skippedFns).not.toContain('__ssr_CartPage');
+
+      // Barrel should only export the clean function
+      expect(result.barrelSource).toContain('__ssr_CartPage');
+      expect(result.barrelSource).not.toContain('__ssr_HomePage');
+
+      // Only the clean file should be in files
+      const fileNames = Object.keys(result.files);
+      expect(fileNames).toHaveLength(1);
+      const cleanFile = Object.values(result.files)[0]!;
+      expect(cleanFile).toContain('__ssr_CartPage');
+    });
+  });
+
+  describe('Given a source file with both clean and tainted functions', () => {
+    it('Then skips only the tainted function, keeps the clean one', () => {
+      const compiledFiles: Record<string, AotCompiledFile> = {
+        'src/pages/mixed.tsx': {
+          code: `function CleanComp() {}
+export function __ssr_CleanComp(data, ctx) {
+  return '<div>' + '<h1>' + 'Clean' + '</h1>' + '</div>';
+}
+function TaintedComp() {}
+export function __ssr_TaintedComp(data, ctx) {
+  return '<div>' + items.map((i) => (
+    <span data-id={i.id}>{i.name}</span>
+  )).join('') + '</div>';
+}`,
+          components: [
+            { name: 'CleanComp', tier: 'static', holes: [], queryKeys: [] },
+            { name: 'TaintedComp', tier: 'data-driven', holes: [], queryKeys: ['items'] },
+          ],
+        },
+      };
+      const routeMap: Record<string, AotRouteMapEntry> = {
+        '/clean': { renderFn: '__ssr_CleanComp', holes: [], queryKeys: [] },
+        '/tainted': { renderFn: '__ssr_TaintedComp', holes: [], queryKeys: ['items'] },
+      };
+
+      const result = generateAotBarrel(compiledFiles, routeMap);
+
+      expect(result.skippedFns).toEqual(['__ssr_TaintedComp']);
+      expect(result.barrelSource).toContain('__ssr_CleanComp');
+      expect(result.barrelSource).not.toContain('__ssr_TaintedComp');
+
+      // The file should exist with only the clean function
+      const fileNames = Object.keys(result.files);
+      expect(fileNames).toHaveLength(1);
+      const fileContent = Object.values(result.files)[0]!;
+      expect(fileContent).toContain('__ssr_CleanComp');
+      expect(fileContent).not.toContain('__ssr_TaintedComp');
+    });
+  });
+
+  describe('Given compiled files where all are clean', () => {
+    it('Then skippedFns is empty', () => {
+      const compiledFiles: Record<string, AotCompiledFile> = {
+        'src/app.tsx': {
+          code: `function App() {}
+export function __ssr_App(__props) {
+  return '<div>' + '<h1>' + 'App' + '</h1>' + '</div>';
+}`,
+          components: [{ name: 'App', tier: 'data-driven', holes: [], queryKeys: [] }],
+        },
+      };
+      const routeMap: Record<string, AotRouteMapEntry> = {
+        '/': { renderFn: '__ssr_App', holes: [], queryKeys: [] },
+      };
+
+      const result = generateAotBarrel(compiledFiles, routeMap);
+
+      expect(result.skippedFns).toEqual([]);
+      expect(result.barrelSource).toContain('__ssr_App');
     });
   });
 });
