@@ -21,10 +21,16 @@ async fn api_routes_delegated_to_api_handler() {
     assert_eq!(resp.status(), 404);
     let body = resp.text().await.unwrap();
     let json: serde_json::Value = serde_json::from_str(&body).unwrap();
-    assert!(json["error"]
-        .as_str()
-        .unwrap()
-        .contains("No server entry configured"));
+    let error_msg = json["error"].as_str().unwrap();
+    assert!(
+        error_msg.contains("No server entry configured"),
+        "Expected 'No server entry configured' in error, got: {error_msg}"
+    );
+    // Verify the error mentions both possible server entry paths
+    assert!(
+        error_msg.contains("src/api/server.ts"),
+        "Expected error to mention src/api/server.ts fallback path, got: {error_msg}"
+    );
 }
 
 /// Parity #6: API proxy forwards requests to upstream per .vertzrc rules.

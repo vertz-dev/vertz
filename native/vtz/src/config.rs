@@ -293,10 +293,23 @@ pub fn detect_ssr_entry(src_dir: &Path) -> PathBuf {
 }
 
 /// Detect the server entry file (e.g., server.ts) for API route delegation.
+///
+/// Checks `src/server.{ts,tsx,js}` first (preferred), then falls back to
+/// `src/api/server.{ts,tsx,js}` — matching the TypeScript `detectAppType()` in
+/// `app-detector.ts`.
 fn detect_server_entry(src_dir: &Path) -> Option<PathBuf> {
-    let candidates = ["server.ts", "server.tsx"];
+    let candidates = ["server.ts", "server.tsx", "server.js"];
+    // 1. Check src/server.{ts,tsx,js} (preferred)
     for candidate in &candidates {
         let path = src_dir.join(candidate);
+        if path.exists() {
+            return Some(path);
+        }
+    }
+    // 2. Check src/api/server.{ts,tsx,js} (fallback — matches Bun detector)
+    let api_dir = src_dir.join("api");
+    for candidate in &candidates {
+        let path = api_dir.join(candidate);
         if path.exists() {
             return Some(path);
         }
@@ -420,6 +433,60 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let result = detect_server_entry(dir.path());
         assert_eq!(result, None);
+    }
+
+    #[test]
+    fn test_detect_server_entry_js() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(dir.path().join("server.js"), "").unwrap();
+        let result = detect_server_entry(dir.path());
+        assert_eq!(result, Some(dir.path().join("server.js")));
+    }
+
+    #[test]
+    fn test_detect_server_entry_ts_preferred_over_js() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(dir.path().join("server.ts"), "").unwrap();
+        std::fs::write(dir.path().join("server.js"), "").unwrap();
+        let result = detect_server_entry(dir.path());
+        assert_eq!(result, Some(dir.path().join("server.ts")));
+    }
+
+    #[test]
+    fn test_detect_server_entry_api_subdir_ts() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::create_dir(dir.path().join("api")).unwrap();
+        std::fs::write(dir.path().join("api/server.ts"), "").unwrap();
+        let result = detect_server_entry(dir.path());
+        assert_eq!(result, Some(dir.path().join("api/server.ts")));
+    }
+
+    #[test]
+    fn test_detect_server_entry_api_subdir_tsx() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::create_dir(dir.path().join("api")).unwrap();
+        std::fs::write(dir.path().join("api/server.tsx"), "").unwrap();
+        let result = detect_server_entry(dir.path());
+        assert_eq!(result, Some(dir.path().join("api/server.tsx")));
+    }
+
+    #[test]
+    fn test_detect_server_entry_api_subdir_js() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::create_dir(dir.path().join("api")).unwrap();
+        std::fs::write(dir.path().join("api/server.js"), "").unwrap();
+        let result = detect_server_entry(dir.path());
+        assert_eq!(result, Some(dir.path().join("api/server.js")));
+    }
+
+    #[test]
+    fn test_detect_server_entry_top_level_preferred_over_api_subdir() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(dir.path().join("server.ts"), "").unwrap();
+        std::fs::create_dir(dir.path().join("api")).unwrap();
+        std::fs::write(dir.path().join("api/server.ts"), "").unwrap();
+        let result = detect_server_entry(dir.path());
+        assert_eq!(result, Some(dir.path().join("server.ts")));
     }
 
     // --- resolve_auto_install tests ---
