@@ -97,10 +97,10 @@ it.skipIf(process.env.CI)('only runs locally', () => {
 
 ```ts
 it.each([
-  { input: 1, expected: 1 },
-  { input: 2, expected: 4 },
-  { input: 3, expected: 9 },
-])('square($input) = $expected', ({ input, expected }) => {
+  [1, 1],
+  [2, 4],
+  [3, 9],
+])('square(%s) = %s', (input, expected) => {
   expect(input * input).toBe(expected);
 });
 ```
@@ -334,7 +334,6 @@ The `vtz migrate-tests` command rewrites imports from `bun:test` to `@vertz/test
 ```bash
 vtz migrate-tests              # migrate all test files
 vtz migrate-tests --dry-run    # preview changes without writing
-vtz migrate-tests --verbose    # show detailed changes per file
 ```
 
 ## Troubleshooting
