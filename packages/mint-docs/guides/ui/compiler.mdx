@@ -163,17 +163,7 @@ vtz dev            # Compiler runs automatically via the dev server
 vtz run build      # Compiler runs during production build
 ```
 
-For manual setup, add the compiler plugin to your Bun configuration:
-
-```tsx
-import { vertzPlugin } from 'vertz/ui-compiler';
-
-Bun.plugin(
-  vertzPlugin({
-    // Options
-  }),
-);
-```
+The compiler is integrated into the `vtz` runtime and runs automatically during `vtz dev` and `vtz build`. No manual plugin setup is required.
 
 ## TypeScript configuration
 

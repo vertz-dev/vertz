@@ -10,7 +10,7 @@ A full-stack TypeScript application built with [Vertz](https://vertz.dev).
 
 ## Stack
 
-- Runtime: Bun
+- Runtime: Vertz (vtz)
 - Framework: Vertz (full-stack TypeScript)
 - Language: TypeScript (strict mode)
 - Docs: https://docs.vertz.dev
@@ -18,9 +18,9 @@ A full-stack TypeScript application built with [Vertz](https://vertz.dev).
 ## Development
 
 \`\`\`bash
-bun install          # Install dependencies
-bun run dev          # Start dev server with HMR
-bun run build        # Production build
+vtz install          # Install dependencies
+vtz dev              # Start dev server with HMR
+vtz build            # Production build
 \`\`\`
 
 The dev server automatically runs codegen and migrations when files change.
@@ -48,7 +48,7 @@ const contactForm = form(api.support.send);     // service action
 \`\`\`
 
 Raw \`fetch()\` bypasses type safety, SSR integration, caching, and optimistic updates.
-The SDK runs codegen automatically during \`bun run dev\` and \`bun run build\`.
+The SDK runs codegen automatically during \`vtz dev\` and \`vtz build\`.
 `;
 }
 
@@ -570,7 +570,6 @@ export function packageJsonTemplate(projectName: string): string {
     },
     devDependencies: {
       '@vertz/cli': '^0.2.0',
-      'bun-types': '^1.0.0',
       typescript: '^5.8.0',
     },
   };
@@ -595,7 +594,7 @@ export function tsconfigTemplate(): string {
       skipLibCheck: true,
       strict: true,
       target: 'ES2022',
-      types: ['bun-types'],
+      types: [],
     },
     include: ['src', '.vertz/generated'],
   };
@@ -632,34 +631,6 @@ DATABASE_URL=local.db
 export function envExampleTemplate(): string {
   return `PORT=3000
 DATABASE_URL=local.db
-`;
-}
-
-/**
- * bunfig.toml template — registers Vertz compiler plugin for Bun's dev server
- */
-export function bunfigTemplate(): string {
-  return `[serve.static]
-plugins = ["./bun-plugin-shim.ts"]
-`;
-}
-
-/**
- * bun-plugin-shim.ts — bridges bunfig.toml plugin format with createVertzBunPlugin
- */
-export function bunPluginShimTemplate(): string {
-  return `/**
- * Thin shim that wraps @vertz/ui-server/bun-plugin for bunfig.toml consumption.
- *
- * bunfig.toml \`[serve.static] plugins\` requires a default export of type BunPlugin.
- * The @vertz/ui-server/bun-plugin package exports a factory function (createVertzBunPlugin)
- * as a named export — this shim bridges the two.
- */
-import { createVertzBunPlugin } from 'vertz/ui-server/bun-plugin';
-
-const { plugin } = createVertzBunPlugin();
-
-export default plugin;
 `;
 }
 
@@ -1092,7 +1063,7 @@ A UI-only TypeScript application built with [Vertz](https://vertz.dev).
 
 ## Stack
 
-- Runtime: Bun
+- Runtime: Vertz (vtz)
 - Framework: Vertz (UI)
 - Language: TypeScript (strict mode)
 - Docs: https://docs.vertz.dev
@@ -1100,9 +1071,9 @@ A UI-only TypeScript application built with [Vertz](https://vertz.dev).
 ## Development
 
 \`\`\`bash
-bun install          # Install dependencies
-bun run dev          # Start dev server with HMR
-bun run build        # Production build
+vtz install          # Install dependencies
+vtz dev              # Start dev server with HMR
+vtz build            # Production build
 \`\`\`
 
 ## Adding a Backend
@@ -1141,7 +1112,6 @@ export function helloWorldPackageJsonTemplate(projectName: string): string {
     },
     devDependencies: {
       '@vertz/cli': '^0.2.0',
-      'bun-types': '^1.0.0',
       typescript: '^5.8.0',
     },
   };
@@ -1402,7 +1372,6 @@ export function landingPagePackageJsonTemplate(projectName: string): string {
     },
     devDependencies: {
       '@vertz/cli': '^0.2.0',
-      'bun-types': '^1.0.0',
       typescript: '^5.8.0',
     },
   };

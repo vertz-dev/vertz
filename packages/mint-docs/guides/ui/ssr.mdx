@@ -286,10 +286,11 @@ This gives SPA navigation the data freshness of server rendering.
 For production deployments, `createSSRHandler()` creates a web-standard `(Request) => Promise<Response>` handler:
 
 ```ts
+import { readFileSync } from 'node:fs';
 import { createSSRHandler } from '@vertz/ui-server';
 
 const module = await import('./dist/server/index.js');
-const template = await Bun.file('./dist/client/index.html').text();
+const template = readFileSync('./dist/client/index.html', 'utf-8');
 
 const handler = createSSRHandler({
   module,
@@ -297,12 +298,7 @@ const handler = createSSRHandler({
   ssrTimeout: 300,
 });
 
-Bun.serve({
-  fetch(request) {
-    // Serve static files first, then SSR
-    return handler(request);
-  },
-});
+// Use any web-standard server — the handler accepts (Request) => Promise<Response>
 ```
 
 The handler uses single-pass rendering: a lightweight discovery pass captures queries without producing HTML, data is prefetched, then a single render pass produces the final output.
@@ -362,10 +358,11 @@ To disable AOT rendering (e.g., for benchmarking the DOM shim path), omit the `a
 When writing a custom production server, load the manifest explicitly:
 
 ```ts
+import { readFileSync } from 'node:fs';
 import { createSSRHandler, loadAotManifest } from '@vertz/ui-server';
 
 const module = await import('./dist/server/index.js');
-const template = await Bun.file('./dist/client/index.html').text();
+const template = readFileSync('./dist/client/index.html', 'utf-8');
 
 const aotManifest = await loadAotManifest('./dist/server');
 

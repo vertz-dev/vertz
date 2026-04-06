@@ -3,8 +3,6 @@ import path from 'node:path';
 import {
   apiDevelopmentRuleTemplate,
   appComponentTemplate,
-  bunfigTemplate,
-  bunPluginShimTemplate,
   claudeMdTemplate,
   clientTemplate,
   dbTemplate,
@@ -112,9 +110,6 @@ async function scaffoldHelloWorld(projectDir: string, projectName: string): Prom
     writeFile(projectDir, 'tsconfig.json', tsconfigTemplate()),
     writeFile(projectDir, 'vertz.config.ts', helloWorldVertzConfigTemplate()),
     writeFile(projectDir, '.gitignore', gitignoreTemplate()),
-    writeFile(projectDir, 'bunfig.toml', bunfigTemplate()),
-    writeFile(projectDir, 'bun-plugin-shim.ts', bunPluginShimTemplate()),
-
     // UI source files
     writeFile(srcDir, 'app.tsx', helloWorldAppTemplate()),
     writeFile(srcDir, 'entry-client.ts', entryClientTemplate()),
@@ -161,8 +156,6 @@ async function scaffoldTodoApp(projectDir: string, projectName: string): Promise
     writeFile(projectDir, '.env', envTemplate()),
     writeFile(projectDir, '.env.example', envExampleTemplate()),
     writeFile(projectDir, '.gitignore', gitignoreTemplate()),
-    writeFile(projectDir, 'bunfig.toml', bunfigTemplate()),
-    writeFile(projectDir, 'bun-plugin-shim.ts', bunPluginShimTemplate()),
 
     // API source files
     writeFile(apiDir, 'env.ts', envModuleTemplate()),
@@ -213,9 +206,6 @@ async function scaffoldLandingPage(projectDir: string, projectName: string): Pro
     writeFile(projectDir, 'tsconfig.json', tsconfigTemplate()),
     writeFile(projectDir, 'vertz.config.ts', helloWorldVertzConfigTemplate()),
     writeFile(projectDir, '.gitignore', gitignoreTemplate()),
-    writeFile(projectDir, 'bunfig.toml', bunfigTemplate()),
-    writeFile(projectDir, 'bun-plugin-shim.ts', bunPluginShimTemplate()),
-
     // UI source files
     writeFile(srcDir, 'app.tsx', landingPageAppTemplate()),
     writeFile(srcDir, 'entry-client.ts', entryClientTemplate()),
