@@ -346,4 +346,70 @@ describe('createDb with local SQLite (path option)', () => {
       });
     });
   });
+
+  // ---------------------------------------------------------------------------
+  // Composite primary key (#2375)
+  // ---------------------------------------------------------------------------
+
+  describe('Given a schema with composite primary key', () => {
+    const projectUsersTable = d.table(
+      'project_users',
+      {
+        projectId: d.uuid(),
+        userId: d.uuid(),
+        role: d.text().default('member'),
+      },
+      { primaryKey: ['projectId', 'userId'] },
+    );
+    const projectUsersModel = d.model(projectUsersTable);
+
+    describe('When creating a record via autoApply', () => {
+      it('Then generates valid DDL with table-level PRIMARY KEY constraint', async () => {
+        const db = createDb({
+          models: { projectUsers: projectUsersModel },
+          dialect: 'sqlite',
+          path: ':memory:',
+          migrations: { autoApply: true },
+        });
+
+        // If DDL is invalid (per-column PRIMARY KEY on both columns), this will throw
+        const created = await db.projectUsers.create({
+          data: { projectId: 'p1', userId: 'u1', role: 'admin' },
+        });
+        expect(created.ok).toBe(true);
+        if (!created.ok) throw new Error('create failed');
+        expect(created.data.projectId).toBe('p1');
+        expect(created.data.userId).toBe('u1');
+        expect(created.data.role).toBe('admin');
+      });
+    });
+
+    describe('When querying records with composite PK', () => {
+      it('Then correctly enforces uniqueness on the composite key', async () => {
+        const db = createDb({
+          models: { projectUsers: projectUsersModel },
+          dialect: 'sqlite',
+          path: ':memory:',
+          migrations: { autoApply: true },
+        });
+
+        const first = await db.projectUsers.create({
+          data: { projectId: 'p1', userId: 'u1' },
+        });
+        expect(first.ok).toBe(true);
+
+        // Inserting the same composite key should fail
+        const duplicate = await db.projectUsers.create({
+          data: { projectId: 'p1', userId: 'u1' },
+        });
+        expect(duplicate.ok).toBe(false);
+
+        // Different composite key should succeed
+        const second = await db.projectUsers.create({
+          data: { projectId: 'p1', userId: 'u2' },
+        });
+        expect(second.ok).toBe(true);
+      });
+    });
+  });
 });
