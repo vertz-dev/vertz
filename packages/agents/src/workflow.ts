@@ -48,6 +48,7 @@ export interface StepDefinition<
   /* eslint-disable @typescript-eslint/no-explicit-any -- agent definitions have varying types */
   readonly agent?: AgentDefinition<any, any, any>;
   /* eslint-enable @typescript-eslint/no-explicit-any */
+  /** Generics are erased here — type safety is enforced at builder call site. */
   readonly input?: (ctx: StepContext) => string | { message: string };
   readonly output?: TOutputSchema;
   readonly approval?: StepApprovalConfig;
@@ -107,7 +108,6 @@ export interface WorkflowBuilder<TInput, TPrev = {}> {
       /* eslint-enable @typescript-eslint/no-explicit-any */
       readonly input?: (ctx: StepContext<TInput, TPrev>) => string | { message: string };
       readonly output?: TOutputSchema;
-      readonly approval?: StepApprovalConfig<TInput, TPrev>;
     },
   ): WorkflowBuilder<
     TInput,
@@ -177,7 +177,7 @@ class WorkflowBuilderImpl<TInput, TPrev = {}>
       name,
       agent: config.agent,
       input: config.input as StepDefinition['input'],
-      output: config.output ?? undefined,
+      output: config.output,
       approval: config.approval as StepDefinition['approval'],
     };
 
@@ -185,7 +185,8 @@ class WorkflowBuilderImpl<TInput, TPrev = {}>
     const newNames = new Set(this._stepNames);
     newNames.add(name);
 
-    // The runtime type is the same builder class — the generics only exist at compile time
+    // Safe: type safety is enforced by the interface overloads on WorkflowBuilder.
+    // The runtime class doesn't track generics — they exist only at compile time.
     /* eslint-disable @typescript-eslint/no-explicit-any -- generic erasure at runtime */
     return new WorkflowBuilderImpl(
       this._name,

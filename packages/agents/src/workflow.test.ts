@@ -486,6 +486,49 @@ describe('runWorkflow()', () => {
     expect(result.stepResults).not.toHaveProperty('never-reached');
   });
 
+  it('stores validated output in prev when agent returns valid JSON matching schema', async () => {
+    const noopAgent = agent('noop', {
+      state: s.object({}),
+      initialState: {},
+      tools: {},
+      model: { provider: 'cloudflare', model: 'test' },
+    });
+
+    let callCount = 0;
+    const llm: LLMAdapter = {
+      async chat() {
+        callCount++;
+        if (callCount === 1) {
+          // First step returns valid JSON matching its output schema
+          return { text: '{"greeting":"Hello!"}', toolCalls: [] };
+        }
+        return { text: 'done', toolCalls: [] };
+      },
+    };
+
+    let capturedGreeting: unknown;
+
+    const pipeline = workflow('validated-output', { input: s.object({}) })
+      .step('greet', {
+        agent: noopAgent,
+        output: s.object({ greeting: s.string() }),
+      })
+      .step('consumer', {
+        agent: noopAgent,
+        input: (ctx) => {
+          capturedGreeting = ctx.prev.greet;
+          return 'consume';
+        },
+        output: s.object({}),
+      })
+      .build();
+
+    await runWorkflow(pipeline, { input: {}, llm });
+
+    // prev should contain the validated, parsed output — not { response: '...' }
+    expect(capturedGreeting).toEqual({ greeting: 'Hello!' });
+  });
+
   it('passes message from { message: string } form of step input callback', async () => {
     const noopAgent = agent('noop', {
       state: s.object({}),
