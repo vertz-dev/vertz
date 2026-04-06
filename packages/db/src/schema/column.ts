@@ -22,6 +22,8 @@ export interface ColumnMetadata {
   readonly validator?: JsonbValidator<unknown>;
   readonly generate?: 'cuid' | 'uuid' | 'nanoid';
 
+  readonly dimensions?: number;
+
   // Application-level validation constraints (not stored in migration snapshots)
   readonly _minLength?: number;
   readonly _maxLength?: number;
@@ -243,6 +245,11 @@ export type EnumMeta<
 > = DefaultMeta<'enum'> & {
   readonly enumName: TName;
   readonly enumValues: TValues;
+};
+
+/** Metadata for vector columns — carries the dimension count. */
+export type VectorMeta<TDimensions extends number> = DefaultMeta<'vector'> & {
+  readonly dimensions: TDimensions;
 };
 
 /** Metadata for columns with a format constraint (e.g., email). */

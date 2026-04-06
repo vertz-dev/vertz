@@ -9,6 +9,7 @@ import type {
   SerialMeta,
   StringColumnBuilder,
   VarcharMeta,
+  VectorMeta,
 } from './schema/column';
 import { createColumn, createSerialColumn } from './schema/column';
 import type { DateTruncPrecision, ExtractField, GroupByExpression } from './query/expression';
@@ -63,6 +64,9 @@ export const d: {
   ): ColumnBuilder<T, DefaultMeta<'jsonb'>>;
   textArray(): ColumnBuilder<string[], DefaultMeta<'text[]'>>;
   integerArray(): ColumnBuilder<number[], DefaultMeta<'integer[]'>>;
+  vector<TDimensions extends number>(
+    dimensions: TDimensions,
+  ): ColumnBuilder<number[], VectorMeta<TDimensions>>;
   enum<TName extends string, const TValues extends readonly string[]>(
     name: TName,
     values: TValues,
@@ -168,6 +172,8 @@ export const d: {
       opts?.validator ? { validator: opts.validator } : {},
     );
   },
+  vector: <TDimensions extends number>(dimensions: TDimensions) =>
+    createColumn<number[], VectorMeta<TDimensions>>('vector', { dimensions }),
   textArray: () => createColumn<string[], DefaultMeta<'text[]'>>('text[]'),
   integerArray: () => createColumn<number[], DefaultMeta<'integer[]'>>('integer[]'),
   enum: <TName extends string, const TValues extends readonly string[]>(

@@ -17,6 +17,8 @@ export interface ColumnSnapshot {
   precision?: number;
   /** numeric_scale for decimal/numeric columns. */
   scale?: number;
+  /** Vector dimension count for pgvector columns. */
+  dimensions?: number;
 }
 
 export interface IndexSnapshot {
@@ -141,6 +143,10 @@ export function createSnapshot(entries: (TableDef<ColumnRecord> | ModelDef)[]): 
       const annotationNames = meta._annotations ? Object.keys(meta._annotations) : [];
       if (annotationNames.length > 0) {
         colSnap.annotations = annotationNames;
+      }
+
+      if (meta.dimensions != null) {
+        colSnap.dimensions = meta.dimensions;
       }
 
       columns[colName] = colSnap;
