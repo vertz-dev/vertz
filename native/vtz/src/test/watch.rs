@@ -275,6 +275,8 @@ pub async fn run_watch_mode(config: TestRunConfig) -> Result<(), String> {
                     eprintln!("\nWatching for changes...\n");
                 }
             }
+            // Channel closed (shutdown) — exit the watch loop.
+            else => break Ok(()),
         }
     }
 }
