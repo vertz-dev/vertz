@@ -151,7 +151,6 @@ describe('runWorkflow()', () => {
       .step('greet', {
         agent: greetAgent,
         input: (ctx) => `Greet ${ctx.workflow.input.target}`,
-        output: s.object({ response: s.string() }),
       })
       .build();
 
@@ -196,7 +195,6 @@ describe('runWorkflow()', () => {
       .step('first', {
         agent: noopAgent,
         input: () => 'Step 1: do something',
-        output: s.object({}),
       })
       .step('second', {
         agent: noopAgent,
@@ -204,7 +202,6 @@ describe('runWorkflow()', () => {
           capturedPrev.push({ ...ctx.prev });
           return 'Step 2: continue';
         },
-        output: s.object({}),
       })
       .build();
 
@@ -307,7 +304,7 @@ describe('runWorkflow()', () => {
     };
 
     const pipeline = workflow('default-msg', { input: s.object({}) })
-      .step('auto', { agent: noopAgent, output: s.object({}) })
+      .step('auto', { agent: noopAgent })
       .build();
 
     await runWorkflow(pipeline, { input: {}, llm });
@@ -335,7 +332,6 @@ describe('runWorkflow()', () => {
       .step('write-doc', {
         agent: noopAgent,
         input: () => 'Write the doc',
-        output: s.object({}),
       })
       .step('human-review', {
         approval: {
@@ -346,7 +342,6 @@ describe('runWorkflow()', () => {
       .step('implement', {
         agent: noopAgent,
         input: () => 'Start implementation',
-        output: s.object({}),
       })
       .build();
 
@@ -381,7 +376,6 @@ describe('runWorkflow()', () => {
       .step('first', {
         agent: noopAgent,
         input: () => 'Step 1',
-        output: s.object({}),
       })
       .step('approve', {
         approval: { message: 'Approve?' },
@@ -389,7 +383,6 @@ describe('runWorkflow()', () => {
       .step('last', {
         agent: noopAgent,
         input: () => 'Step 3',
-        output: s.object({}),
       })
       .build();
 
@@ -519,7 +512,6 @@ describe('runWorkflow()', () => {
           capturedGreeting = ctx.prev.greet;
           return 'consume';
         },
-        output: s.object({}),
       })
       .build();
 
@@ -527,6 +519,61 @@ describe('runWorkflow()', () => {
 
     // prev should contain the validated, parsed output — not { response: '...' }
     expect(capturedGreeting).toEqual({ greeting: 'Hello!' });
+  });
+
+  it('returns error when agent output is valid JSON but fails schema validation', async () => {
+    const noopAgent = agent('noop', {
+      state: s.object({}),
+      initialState: {},
+      tools: {},
+      model: { provider: 'cloudflare', model: 'test' },
+    });
+
+    const llm: LLMAdapter = {
+      async chat() {
+        // Valid JSON but wrong shape — greeting should be string, not number
+        return { text: '{"greeting":42}', toolCalls: [] };
+      },
+    };
+
+    const pipeline = workflow('schema-fail', { input: s.object({}) })
+      .step('greet', {
+        agent: noopAgent,
+        output: s.object({ greeting: s.string() }),
+      })
+      .build();
+
+    const result = await runWorkflow(pipeline, { input: {}, llm });
+
+    expect(result.status).toBe('error');
+    expect(result.failedStep).toBe('greet');
+  });
+
+  it('returns error when agent output is not valid JSON and step has output schema', async () => {
+    const noopAgent = agent('noop', {
+      state: s.object({}),
+      initialState: {},
+      tools: {},
+      model: { provider: 'cloudflare', model: 'test' },
+    });
+
+    const llm: LLMAdapter = {
+      async chat() {
+        return { text: 'not json at all', toolCalls: [] };
+      },
+    };
+
+    const pipeline = workflow('json-fail', { input: s.object({}) })
+      .step('greet', {
+        agent: noopAgent,
+        output: s.object({ greeting: s.string() }),
+      })
+      .build();
+
+    const result = await runWorkflow(pipeline, { input: {}, llm });
+
+    expect(result.status).toBe('error');
+    expect(result.failedStep).toBe('greet');
   });
 
   it('passes message from { message: string } form of step input callback', async () => {
@@ -549,7 +596,6 @@ describe('runWorkflow()', () => {
       .step('work', {
         agent: noopAgent,
         input: () => ({ message: 'Hello from object form' }),
-        output: s.object({}),
       })
       .build();
 
