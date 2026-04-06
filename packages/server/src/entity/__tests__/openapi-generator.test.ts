@@ -1153,7 +1153,7 @@ describe('Feature: Service routes in OpenAPI spec', () => {
       actions: {
         receive: {
           method: 'POST',
-          path: '/webhooks/stripe',
+          path: 'webhooks/stripe',
           body: bodySchema,
           response: responseSchemaNoBody,
           handler: async () => ({ status: 'ok' }),
@@ -1162,15 +1162,32 @@ describe('Feature: Service routes in OpenAPI spec', () => {
     };
 
     describe('When generateOpenAPISpec is called', () => {
-      it('Then uses the custom path as-is in the spec', () => {
+      it('Then the custom path is prefixed with the API prefix', () => {
         const spec = generateOpenAPISpec([], {
           info: { title: 'Test', version: '1.0' },
           services: [svcDef],
         });
-        expect(spec.paths['/webhooks/stripe']).toBeDefined();
-        expect(spec.paths['/webhooks/stripe']!.post).toBeDefined();
+        expect(spec.paths['/api/webhooks/stripe']).toBeDefined();
+        expect(spec.paths['/api/webhooks/stripe']!.post).toBeDefined();
         // Standard path should not exist
         expect(spec.paths['/api/webhook/receive']).toBeUndefined();
+      });
+
+      it('Then normalizes leading slash in custom path', () => {
+        const svcWithSlash = {
+          ...svcDef,
+          actions: {
+            receive: {
+              ...svcDef.actions.receive,
+              path: '/webhooks/stripe',
+            },
+          },
+        };
+        const spec = generateOpenAPISpec([], {
+          info: { title: 'Test', version: '1.0' },
+          services: [svcWithSlash],
+        });
+        expect(spec.paths['/api/webhooks/stripe']).toBeDefined();
       });
     });
   });

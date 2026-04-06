@@ -67,6 +67,14 @@ const notifications = service('notifications', {
 
 Use entity custom actions when the operation targets a specific record (archive a task, mark as complete). Use services when the operation spans multiple entities or doesn't belong to any single entity.
 
+<Note>
+  Service actions support an optional `path` property to override the generated URL segment. When
+  provided, the path replaces `/{serviceName}/{actionName}` but still respects the API prefix (e.g.,
+  `path: 'webhooks/stripe'` produces `POST /api/webhooks/stripe`). Prefer the default generated
+  paths — they keep your routes consistent and discoverable. Use `path` only when you need a
+  different URL structure, such as matching an external webhook callback URL.
+</Note>
+
 ## Dependency injection
 
 Services access entities through `inject`, just like entity hooks:

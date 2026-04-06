@@ -52,7 +52,8 @@ function extractRequestInfo(ctx: Record<string, unknown>): RequestInfo {
 /**
  * Generates HTTP route entries for a standalone service definition.
  *
- * Each action handler produces one route: `{method} /{prefix}/{serviceName}/{handlerName}`.
+ * Each action handler produces one route: `{method} {prefix}/{serviceName}/{handlerName}`.
+ * When a custom `path` is provided, the route becomes `{method} {prefix}/{customPath}`.
  * Handlers with no access rule are skipped (deny by default = no route).
  * Handlers with `access: false` get a 405 handler.
  */
@@ -82,8 +83,9 @@ export function generateServiceRoutes(
     }
 
     const method = (handlerDef.method ?? 'POST').toUpperCase();
-    const handlerPath = handlerDef.path ?? `${prefix}/${def.name}/${handlerName}`;
-    const routePath = handlerDef.path ? handlerPath : `${prefix}/${def.name}/${handlerName}`;
+    const routePath = handlerDef.path
+      ? `${prefix}/${handlerDef.path.replace(/^\/+/, '')}`
+      : `${prefix}/${def.name}/${handlerName}`;
 
     if (accessRule === false) {
       // Explicitly disabled → 405
