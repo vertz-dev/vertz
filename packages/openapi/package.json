@@ -47,6 +47,9 @@
     "bunup": "^0.16.31",
     "typescript": "^5.7.0"
   },
+  "peerDependencies": {
+    "@vertz/fetch": ">=0.2.47"
+  },
   "engines": {
     "node": ">=22"
   }
