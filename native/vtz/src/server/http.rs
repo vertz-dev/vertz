@@ -1749,6 +1749,8 @@ pub async fn start_server_with_lifecycle(
                                     }
                                 }
                             }
+                            // Channel closed (shutdown) and no pending changes — exit.
+                            else => break,
                         }
                     }
                 });
@@ -1891,6 +1893,8 @@ pub async fn start_server_with_lifecycle(
                                         }
                                     }
                                 }
+                                // Channel closed (shutdown) and no pending changes — exit.
+                                else => break,
                             }
                         }
                     });
@@ -2698,6 +2702,99 @@ mod tests {
         assert_eq!(
             mime_type_for_path("/fonts/legacy.eot"),
             "application/vnd.ms-fontobject"
+        );
+    }
+
+    // ─── watcher shutdown ─────────────────────────────────────────────
+
+    /// Regression test for #2372: `vtz dev` panics on shutdown.
+    ///
+    /// The file watcher and dep watcher loops use `tokio::select!` with:
+    ///   - `Some(change) = rx.recv()` — disabled when channel closes (None)
+    ///   - `_ = sleep(..), if debouncer.has_pending()` — disabled when no pending
+    ///
+    /// Without an `else` branch, this panics with "all branches are disabled
+    /// and there is no else branch" when the sender is dropped during shutdown.
+    #[tokio::test]
+    async fn test_watcher_loop_exits_cleanly_on_channel_close() {
+        use crate::watcher::file_watcher::{FileChange, SmartDebouncer};
+        use tokio::sync::mpsc;
+
+        let (tx, mut rx) = mpsc::channel::<FileChange>(16);
+        let mut debouncer = SmartDebouncer::new();
+
+        // Drop the sender to simulate shutdown closing the channel.
+        drop(tx);
+
+        // This reproduces the exact pattern from the watcher spawned tasks.
+        // Before the fix, this panics with "all branches are disabled".
+        let exited = tokio::time::timeout(std::time::Duration::from_secs(2), async {
+            loop {
+                tokio::select! {
+                    Some(change) = rx.recv() => {
+                        debouncer.add(change);
+                    }
+                    _ = tokio::time::sleep(std::time::Duration::from_millis(6)),
+                      if debouncer.has_pending() => {
+                        // Would process batch here
+                    }
+                    else => break,
+                }
+            }
+        })
+        .await;
+
+        assert!(
+            exited.is_ok(),
+            "watcher loop should exit, not hang or panic"
+        );
+    }
+
+    /// Verify that the loop still processes pending items before exiting when
+    /// the channel closes while the debouncer has buffered changes.
+    #[tokio::test]
+    async fn test_watcher_loop_drains_pending_before_exit() {
+        use crate::watcher::file_watcher::{FileChange, FileChangeKind, SmartDebouncer};
+        use tokio::sync::mpsc;
+
+        let (tx, mut rx) = mpsc::channel::<FileChange>(16);
+        let mut debouncer = SmartDebouncer::new();
+
+        // Send one change then drop to close the channel.
+        tx.send(FileChange {
+            kind: FileChangeKind::Modify,
+            path: PathBuf::from("/tmp/test.ts"),
+        })
+        .await
+        .unwrap();
+        drop(tx);
+
+        let mut processed = false;
+
+        let exited = tokio::time::timeout(std::time::Duration::from_secs(2), async {
+            loop {
+                tokio::select! {
+                    Some(change) = rx.recv() => {
+                        debouncer.add(change);
+                    }
+                    _ = tokio::time::sleep(std::time::Duration::from_millis(6)),
+                      if debouncer.has_pending() => {
+                        if debouncer.is_ready() {
+                            let _changes = debouncer.drain();
+                            processed = true;
+                        }
+                    }
+                    else => break,
+                }
+            }
+            processed
+        })
+        .await;
+
+        assert!(exited.is_ok(), "loop should exit cleanly");
+        assert!(
+            exited.unwrap(),
+            "pending change should be processed before exit"
         );
     }
 }
