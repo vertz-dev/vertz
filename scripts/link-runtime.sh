@@ -69,6 +69,11 @@ if [ -f "$PLATFORM_PKG/vtz" ]; then
   echo "Runtime ready: $VERSION"
 else
   # No native binary — create shell shims for CI/dev-without-binary
+  # Remove existing symlinks first to avoid overwriting source files via symlink follow
+  for cmd in vtz vertz vtzx; do
+    rm -f "$BIN_DIR/$cmd"
+  done
+
   # vtzx (vtz exec) → delegates to bunx
   cat > "$BIN_DIR/vtzx" << 'SHIM'
 #!/usr/bin/env bash

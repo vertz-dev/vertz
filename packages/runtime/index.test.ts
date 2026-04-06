@@ -198,6 +198,14 @@ describe('Feature: npm bin shims delegate to native binary (#2382)', () => {
       expect(content).toContain('result.signal');
       expect(content).toContain('process.kill(process.pid');
     });
+
+    it('Then falls back to bun for run/exec/test when native binary is unavailable', () => {
+      const content = readFileSync(join(pkgDir, 'cli.js'), 'utf8');
+      expect(content).toContain("'run'");
+      expect(content).toContain("'exec'");
+      expect(content).toContain("'test'");
+      expect(content).toContain('bunx');
+    });
   });
 
   describe('Given the cli-exec.js shim content', () => {
@@ -211,6 +219,11 @@ describe('Feature: npm bin shims delegate to native binary (#2382)', () => {
       const content = readFileSync(join(pkgDir, 'cli-exec.js'), 'utf8');
       expect(content).toContain('result.signal');
       expect(content).toContain('process.kill(process.pid');
+    });
+
+    it('Then falls back to bunx when native binary is unavailable', () => {
+      const content = readFileSync(join(pkgDir, 'cli-exec.js'), 'utf8');
+      expect(content).toContain('bunx');
     });
   });
 });
