@@ -49,6 +49,25 @@ const contactForm = form(api.support.send);     // service action
 
 Raw \`fetch()\` bypasses type safety, SSR integration, caching, and optimistic updates.
 The SDK runs codegen automatically during \`vtz dev\` and \`vtz build\`.
+
+## Common Mistakes
+
+- **DON'T** use \`signal()\`, \`.value\`, or \`computed()\` manually — use \`let\` for state, \`const\` for derived values. The compiler handles reactivity.
+- **DON'T** use \`() => true\` for entity access rules — use \`rules.public\` from \`vertz/server\`. Descriptors are serializable and inspectable; callbacks are opaque.
+- **DON'T** use raw \`fetch()\` — use the generated SDK via \`api.*\` from \`src/client.ts\`.
+- **DON'T** override generated SDK methods with manual fetch wrappers — if codegen doesn't expose something, report it as a framework gap.
+- **DON'T** call components as functions — always use JSX: \`<TaskCard task={t} />\`, not \`TaskCard({ task: t })\`.
+- **DON'T** use \`.references()\` on columns for foreign keys — use \`d.ref.one()\` on models instead.
+
+## Configuration (vertz.config.ts)
+
+The runtime auto-detects entry files by convention:
+- \`src/entry-client.ts\` — client hydration entry
+- \`src/app.tsx\` — SSR entry
+- \`src/api/server.ts\` — API server entry
+
+Valid compiler fields: \`sourceDir\`, \`outputDir\`, \`schemas\`, \`openapi\`, \`validation\`.
+Do NOT add \`entryFile\` — it is not a valid config option.
 `;
 }
 
@@ -110,20 +129,36 @@ Entities define your API resources. Each entity gets automatic CRUD endpoints.
 Entity files go in \`src/api/entities/\` with the \`.entity.ts\` suffix.
 
 \`\`\`ts
-import { entity } from 'vertz/server';
+import { entity, rules } from 'vertz/server';
 import { postsModel } from '../schema';
 
 export const posts = entity('posts', {
   model: postsModel,
   access: {
-    list: () => true,
-    get: () => true,
-    create: () => true,
-    update: () => true,
-    delete: () => true,
+    list: rules.public,
+    get: rules.public,
+    create: rules.public,
+    update: rules.public,
+    delete: rules.public,
   },
 });
 \`\`\`
+
+### Access Rules
+
+Use \`rules.*\` descriptors from \`vertz/server\` — never callback functions.
+
+| Rule | Description |
+| ---- | ----------- |
+| \`rules.public\` | No authentication required |
+| \`rules.authenticated()\` | User must be logged in |
+| \`rules.entitlement('name')\` | User has this entitlement |
+| \`rules.where({ field: rules.user.id })\` | Row-level condition |
+| \`rules.all(r1, r2)\` | All rules must pass (AND) |
+| \`rules.any(r1, r2)\` | Any rule must pass (OR) |
+
+Operations without access rules don't generate routes (deny-by-default).
+Always use descriptors — never callback functions. Descriptors are serializable and inspectable; callbacks are opaque.
 
 ### Entity Operations
 
@@ -749,17 +784,17 @@ export const db = createDb({
  * src/api/entities/tasks.entity.ts — entity with CRUD access
  */
 export function tasksEntityTemplate(): string {
-  return `import { entity } from 'vertz/server';
+  return `import { entity, rules } from 'vertz/server';
 import { tasksModel } from '../schema';
 
 export const tasks = entity('tasks', {
   model: tasksModel,
   access: {
-    list: () => true,
-    get: () => true,
-    create: () => true,
-    update: () => true,
-    delete: () => true,
+    list: rules.public,
+    get: rules.public,
+    create: rules.public,
+    update: rules.public,
+    delete: rules.public,
   },
 });
 `;
@@ -1090,6 +1125,12 @@ To add a new page, create a component in \`src/pages/\` and add a route entry in
 - See \`.claude/rules/\` for UI development conventions
 - Refer to https://docs.vertz.dev for full framework documentation
 - The Vertz compiler handles all reactivity — never use \`.value\`, \`signal()\`, or \`computed()\` manually
+
+## Common Mistakes
+
+- **DON'T** use \`signal()\`, \`.value\`, or \`computed()\` manually — use \`let\` for state, \`const\` for derived values. The compiler handles reactivity.
+- **DON'T** call components as functions — always use JSX: \`<Counter />\`, not \`Counter()\`.
+- **DON'T** annotate component return types — let TypeScript infer from JSX.
 `;
 }
 
@@ -1346,6 +1387,12 @@ vtz build            # Production build
 - The Vertz compiler handles all reactivity — never use \`.value\`, \`signal()\`, or \`computed()\` manually
 - Use \`css()\` for scoped styles, \`globalCss()\` for page-level styles
 - Use section components to compose pages — each section is self-contained
+
+## Common Mistakes
+
+- **DON'T** use \`signal()\`, \`.value\`, or \`computed()\` manually — use \`let\` for state, \`const\` for derived values. The compiler handles reactivity.
+- **DON'T** call components as functions — always use JSX: \`<Hero />\`, not \`Hero()\`.
+- **DON'T** annotate component return types — let TypeScript infer from JSX.
 
 ## Adding a Backend
 

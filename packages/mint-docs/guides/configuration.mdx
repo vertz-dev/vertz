@@ -1,0 +1,123 @@
+---
+title: Configuration
+description: 'vertz.config.ts reference'
+---
+
+The `vertz.config.ts` file at your project root configures the Vertz compiler, codegen, and cloud settings.
+
+## Basic structure
+
+```ts
+export default {
+  // Compiler and project-level options
+};
+
+export const codegen = {
+  generators: ['typescript'],
+};
+```
+
+The default export configures the compiler. Named exports configure other subsystems (codegen, database).
+
+## Entry file detection
+
+The Vertz runtime **auto-detects** entry files by convention. You do not need to specify them in config:
+
+| Convention            | Purpose                           |
+| --------------------- | --------------------------------- |
+| `src/entry-client.ts` | Client-side hydration entry       |
+| `src/app.tsx`         | SSR entry (server-side rendering) |
+| `src/api/server.ts`   | API server entry                  |
+
+<Warning>
+  Do **not** add an `entryFile` property to your config — it is not a valid option and will be
+  silently ignored.
+</Warning>
+
+## Compiler options
+
+```ts
+export default {
+  strict: false, // Enable strict validation
+  forceGenerate: false, // Force regeneration of all outputs
+
+  compiler: {
+    sourceDir: 'src', // Source directory
+    outputDir: '.vertz/generated', // Generated output directory
+
+    schemas: {
+      enforceNaming: true, // Enforce schema naming conventions
+      enforcePlacement: true, // Enforce schema file placement
+    },
+
+    openapi: {
+      output: '.vertz/generated/openapi.json', // OpenAPI spec output path
+      info: {
+        title: 'My API', // API title
+        version: '1.0.0', // API version
+        description: 'Optional description', // API description
+      },
+    },
+
+    validation: {
+      requireResponseSchema: true, // Require response schemas on services
+      detectDeadCode: true, // Detect unused entities/services
+    },
+  },
+};
+```
+
+All fields are optional. The defaults shown above apply when omitted.
+
+## Codegen options
+
+```ts
+export const codegen = {
+  generators: ['typescript'], // Which generators to run
+};
+```
+
+The `typescript` generator creates a fully typed SDK at `.vertz/generated/client.ts` from your entity and service definitions. This runs automatically during `vtz dev` and `vtz build`.
+
+## Cloud options
+
+```ts
+export default {
+  cloud: {
+    projectId: 'my-project', // Vertz Cloud project identifier
+  },
+};
+```
+
+Only needed when deploying to [Vertz Cloud](/guides/deploy/cloudflare).
+
+## `defineConfig` helper
+
+For type-checked configuration, use `defineConfig`:
+
+```ts
+import { defineConfig } from '@vertz/compiler';
+
+export default defineConfig({
+  strict: true,
+  compiler: {
+    validation: {
+      requireResponseSchema: true,
+    },
+  },
+});
+```
+
+## Scaffold default
+
+Projects created with `vtz create` start with a minimal config:
+
+```ts
+export default {};
+
+export const codegen = {
+  generators: ['typescript'],
+};
+```
+
+This uses all defaults — which is the right starting point for most projects.

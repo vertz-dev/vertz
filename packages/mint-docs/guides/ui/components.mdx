@@ -5,6 +5,37 @@ description: 'Writing components with JSX and TypeScript'
 
 A Vertz component is a plain function that returns JSX. It runs once to create the DOM — reactivity is handled by signals and effects, not by re-running the function.
 
+## Pre-built themed components
+
+Vertz ships a library of pre-built, themed components. Import them from `@vertz/ui/components`:
+
+```tsx
+import { Button, Input, Card, Dialog, Select, Table } from '@vertz/ui/components';
+
+// Or via the vertz meta-package:
+import { Button, Input } from 'vertz/ui/components';
+```
+
+<Warning>
+  Themed components require `registerTheme()` to be called first — typically in your
+  `src/styles/theme.ts`. See [Component Library](/guides/ui/component-library) for setup.
+</Warning>
+
+**Available components:**
+
+| Category       | Components                                                                        |
+| -------------- | --------------------------------------------------------------------------------- |
+| **Basic**      | `Button`, `Input`, `Label`, `Badge`, `Textarea`, `Separator`                      |
+| **Layout**     | `Card`, `Card.Header`, `Card.Content`, `Card.Footer`                              |
+| **Data**       | `Table`, `Table.Header`, `Table.Body`, `Table.Row`, `Table.Cell`                  |
+| **Feedback**   | `Alert`, `Skeleton`, `EmptyState`, `Toast`, `Progress`                            |
+| **Overlay**    | `Dialog`, `Sheet`, `Drawer`, `Popover`, `Tooltip`, `HoverCard`                    |
+| **Navigation** | `Tabs`, `Accordion`, `Breadcrumb`, `Pagination`, `NavigationMenu`                 |
+| **Form**       | `FormGroup`, `Select`, `RadioGroup`, `Checkbox`, `Switch`, `Toggle`, `DatePicker` |
+| **Identity**   | `Avatar`, `Avatar.Image`, `Avatar.Fallback`                                       |
+
+Prefer themed components over raw HTML elements. Use `css()` only for layout-specific styles that don't correspond to a component.
+
 ## Basic component
 
 ```tsx
