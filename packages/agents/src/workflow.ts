@@ -401,9 +401,17 @@ export async function runWorkflow<TInputSchema extends SchemaAny>(
     // Validate step output against schema (if output schema defined)
     let stepOutput: unknown = { response: agentResult.response };
     if (stepDef.output) {
-      let parsed: unknown;
       try {
-        parsed = JSON.parse(agentResult.response);
+        const parsed = JSON.parse(agentResult.response);
+        const validated = stepDef.output.parse(parsed);
+        if (!validated.ok) {
+          return {
+            status: 'error',
+            stepResults,
+            failedStep: stepDef.name,
+          };
+        }
+        stepOutput = validated.data;
       } catch {
         return {
           status: 'error',
@@ -411,15 +419,6 @@ export async function runWorkflow<TInputSchema extends SchemaAny>(
           failedStep: stepDef.name,
         };
       }
-      const validated = stepDef.output.parse(parsed);
-      if (!validated.ok) {
-        return {
-          status: 'error',
-          stepResults,
-          failedStep: stepDef.name,
-        };
-      }
-      stepOutput = validated.data;
     }
 
     // Store step output for subsequent steps

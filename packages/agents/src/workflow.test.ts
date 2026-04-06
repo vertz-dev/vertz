@@ -216,6 +216,8 @@ describe('runWorkflow()', () => {
     // Step 2's input callback should have received step 1's output in prev
     expect(capturedPrev).toHaveLength(1);
     expect(capturedPrev[0]).toHaveProperty('first');
+    // Without output schema, prev contains { response: rawText }
+    expect(capturedPrev[0].first).toEqual({ response: 'Step 1 done' });
   });
 
   it('stops on error and reports failed step', async () => {
@@ -547,6 +549,10 @@ describe('runWorkflow()', () => {
 
     expect(result.status).toBe('error');
     expect(result.failedStep).toBe('greet');
+    // Agent completed successfully — the error is from output validation, not the agent
+    expect(result.stepResults['greet']).toBeDefined();
+    expect(result.stepResults['greet'].status).toBe('complete');
+    expect(result.stepResults['greet'].response).toBe('{"greeting":42}');
   });
 
   it('returns error when agent output is not valid JSON and step has output schema', async () => {
@@ -574,6 +580,10 @@ describe('runWorkflow()', () => {
 
     expect(result.status).toBe('error');
     expect(result.failedStep).toBe('greet');
+    // Agent completed but response wasn't valid JSON
+    expect(result.stepResults['greet']).toBeDefined();
+    expect(result.stepResults['greet'].status).toBe('complete');
+    expect(result.stepResults['greet'].response).toBe('not json at all');
   });
 
   it('passes message from { message: string } form of step input callback', async () => {
