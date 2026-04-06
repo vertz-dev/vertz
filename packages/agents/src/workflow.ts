@@ -128,9 +128,7 @@ export interface WorkflowBuilder<TInput, TPrev = {}> {
 // Internal builder implementation
 // ---------------------------------------------------------------------------
 
-class WorkflowBuilderImpl<TInput, TPrev = {}>
-  implements WorkflowBuilder<TInput, TPrev>
-{
+class WorkflowBuilderImpl<TInput, TPrev = {}> implements WorkflowBuilder<TInput, TPrev> {
   private readonly _name: string;
   private readonly _inputSchema: SchemaAny;
   private readonly _access: Partial<Record<'start' | 'approve', unknown>>;
@@ -161,7 +159,16 @@ class WorkflowBuilderImpl<TInput, TPrev = {}>
       readonly output?: TOutputSchema;
       readonly approval?: StepApprovalConfig<TInput, TPrev>;
     },
-  ): WorkflowBuilder<TInput, Prettify<TPrev & Record<TName, TOutputSchema extends SchemaAny ? InferSchema<TOutputSchema> : { response: string }>>> {
+  ): WorkflowBuilder<
+    TInput,
+    Prettify<
+      TPrev &
+        Record<
+          TName,
+          TOutputSchema extends SchemaAny ? InferSchema<TOutputSchema> : { response: string }
+        >
+    >
+  > {
     if (!name || !NAME_PATTERN.test(name)) {
       throw new Error(
         `step() name must be a non-empty lowercase string matching /^[a-z][a-z0-9-]*$/. Got: "${name}"`,
