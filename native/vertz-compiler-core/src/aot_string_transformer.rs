@@ -5,6 +5,7 @@ use oxc_ast_visit::Visit;
 use oxc_span::GetSpan;
 
 use crate::component_analyzer::ComponentInfo;
+use crate::html_entities::decode_html_entities;
 use crate::magic_string::MagicString;
 use crate::reactivity_analyzer::{ReactivityKind, VariableInfo};
 
@@ -598,7 +599,8 @@ fn child_to_string(
             if cleaned.is_empty() {
                 "''".to_string()
             } else {
-                format!("'{}'", escape_string_literal(&cleaned))
+                let decoded = decode_html_entities(&cleaned);
+                format!("'{}'", escape_string_literal(&decoded))
             }
         }
         JSXChild::ExpressionContainer(container) => {
@@ -3177,6 +3179,61 @@ export function Profile() {
     #[test]
     fn clean_jsx_text_single_line_with_spaces() {
         assert_eq!(clean_jsx_text("   hello   "), "   hello   ");
+    }
+
+    // ========== HTML entity decoding in JSX text ==========
+
+    #[test]
+    fn html_entity_decoded_in_text_node() {
+        let source = "export function Nav() {\n    return <a href=\"/back\">&larr; Back</a>;\n}";
+        let result = compile(source);
+        // The decoded arrow character should appear in the output, not &larr;
+        assert!(
+            result.code.contains("'\\u{2190} Back'") || result.code.contains("'\u{2190} Back'"),
+            "AOT output should decode &larr; to ←: {}",
+            result.code
+        );
+        assert!(
+            !result.code.contains("'&larr;"),
+            "AOT output should not contain raw &larr; entity: {}",
+            result.code
+        );
+    }
+
+    #[test]
+    fn numeric_entity_decoded_in_text_node() {
+        let source = "export function Cart() {\n    return <div>&#128722;</div>;\n}";
+        let result = compile(source);
+        let ssr = appended_code(&result, source);
+        // Numeric entity should be decoded to the cart emoji
+        assert!(
+            !ssr.contains("&#128722;"),
+            "AOT output should decode numeric entity: {}",
+            ssr
+        );
+        assert!(
+            ssr.contains("🛒"),
+            "AOT output should contain decoded emoji: {}",
+            ssr
+        );
+    }
+
+    #[test]
+    fn xml_entity_decoded_in_text_node() {
+        let source = "export function Info() {\n    return <span>A &amp; B</span>;\n}";
+        let result = compile(source);
+        let ssr = appended_code(&result, source);
+        // &amp; should be decoded to & in the AOT output
+        assert!(
+            !ssr.contains("&amp;"),
+            "AOT output should decode &amp; entity: {}",
+            ssr
+        );
+        assert!(
+            ssr.contains("'A & B'"),
+            "AOT output should contain decoded &: {}",
+            ssr
+        );
     }
 
     // ========== escape_attr_value edge cases ==========

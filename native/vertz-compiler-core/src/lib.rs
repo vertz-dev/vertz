@@ -12,6 +12,7 @@ pub mod css_token_tables;
 pub mod css_transform;
 pub mod fast_refresh;
 pub mod field_selection;
+pub mod html_entities;
 pub mod hydration_markers;
 pub mod import_injection;
 pub mod jsx_transformer;

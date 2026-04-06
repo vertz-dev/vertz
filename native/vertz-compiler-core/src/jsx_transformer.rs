@@ -5,6 +5,7 @@ use oxc_ast_visit::Visit;
 use oxc_span::GetSpan;
 
 use crate::component_analyzer::ComponentInfo;
+use crate::html_entities::decode_html_entities;
 use crate::magic_string::MagicString;
 use crate::reactivity_analyzer::{ReactivityKind, VariableInfo};
 
@@ -770,7 +771,8 @@ fn extract_children(children: &oxc_allocator::Vec<JSXChild>, source: &str) -> Ve
             JSXChild::Text(text) => {
                 let cleaned = clean_jsx_text(&text.value);
                 if !cleaned.is_empty() {
-                    result.push(ChildInfo::Text(cleaned));
+                    let decoded = decode_html_entities(&cleaned);
+                    result.push(ChildInfo::Text(decoded));
                 }
             }
             JSXChild::ExpressionContainer(expr_container) => match &expr_container.expression {

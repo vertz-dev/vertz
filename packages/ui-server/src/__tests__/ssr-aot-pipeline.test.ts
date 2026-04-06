@@ -1121,9 +1121,9 @@ describe('Feature: Runtime holes and SSR integration', () => {
         });
 
         describe('Given a missing param in the params record', () => {
-          it('Then replaces with empty string', () => {
+          it('Then replaces with "undefined" to match JS template literal behavior', () => {
             const resolved = resolveParamQueryKeys(['game-${slug}'], {});
-            expect(resolved).toEqual(['game-']);
+            expect(resolved).toEqual(['game-undefined']);
           });
         });
 
@@ -1138,14 +1138,14 @@ describe('Feature: Runtime holes and SSR integration', () => {
             expect(resolved).toEqual(['set-base-set-3']);
           });
 
-          it('Then defaults to empty string for missing search params', () => {
+          it('Then defaults to "undefined" for missing search params', () => {
             const searchParams = new URLSearchParams('');
             const resolved = resolveParamQueryKeys(
               ['set-${slug}-${sp:page}'],
               { slug: 'base-set' },
               searchParams,
             );
-            expect(resolved).toEqual(['set-base-set-']);
+            expect(resolved).toEqual(['set-base-set-undefined']);
           });
 
           it('Then resolves search-params-only keys without route params', () => {
@@ -1192,13 +1192,13 @@ describe('Feature: Runtime holes and SSR integration', () => {
             expect(resolved).toEqual(['search-dragon-asc-1']);
           });
 
-          it('Then keeps backward compat with old format (no default)', () => {
+          it('Then falls back to "undefined" with old format (no default)', () => {
             const resolved = resolveParamQueryKeys(
               ['set-${slug}-${sp:page}'],
               { slug: 'base-set' },
               new URLSearchParams(''),
             );
-            expect(resolved).toEqual(['set-base-set-']);
+            expect(resolved).toEqual(['set-base-set-undefined']);
           });
         });
 
@@ -1221,13 +1221,13 @@ describe('Feature: Runtime holes and SSR integration', () => {
             expect(resolved).toEqual(['item-route-123']);
           });
 
-          it('Then resolves to empty string when neither source has the param', () => {
+          it('Then resolves to "undefined" when neither source has the param', () => {
             const resolved = resolveParamQueryKeys(
               ['set-${slug}-${page}'],
               { slug: 'base-set' },
               new URLSearchParams(''),
             );
-            expect(resolved).toEqual(['set-base-set-']);
+            expect(resolved).toEqual(['set-base-set-undefined']);
           });
         });
       });

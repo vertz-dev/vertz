@@ -519,11 +519,20 @@ export function resolveParamQueryKeys(
           // Use || semantics to match source code's `sp?.get('name') || 'default'`
           return value || defaultVal;
         }
-        return value ?? '';
+        // No default provided: match JS `sp?.get('x') || undefined` pattern.
+        // In template literals, `undefined` becomes the string "undefined".
+        return value || 'undefined';
       })
       .replace(
         /\$\{(\w+)\}/g,
-        (_, paramName) => params[paramName] ?? searchParams?.get(paramName) ?? '',
+        (_, paramName) => {
+          // Route params are always present for matched routes
+          if (params[paramName] !== undefined) return params[paramName];
+          // Search-param-derived variables: match JS template literal behavior
+          // where `undefined` values become the string "undefined"
+          const spValue = searchParams?.get(paramName);
+          return spValue || 'undefined';
+        },
       ),
   );
 }
