@@ -186,7 +186,11 @@ This generates `POST /api/tasks/:id/archive`. The handler receives:
 Custom actions get their own access rules in the `access` object, using the action name as the key.
 
 <Note>
-  Custom actions support an optional `path` property to override the generated URL segment. When provided, the path replaces the default `/:id/actionName` segment but still respects the API prefix (e.g., `path: 'tasks/bulk-archive'` produces `POST /api/tasks/bulk-archive`). Prefer the default generated paths — they follow REST conventions and keep your routes consistent. Use `path` only when you need a different URL structure.
+  Custom actions support an optional `path` property to override the generated URL segment. When
+  provided, the path replaces the default `/:id/actionName` segment but still respects the API
+  prefix (e.g., `path: 'tasks/bulk-archive'` produces `POST /api/tasks/bulk-archive`). Prefer the
+  default generated paths — they follow REST conventions and keep your routes consistent. Use `path`
+  only when you need a different URL structure.
 </Note>
 
 ## Cross-entity access
