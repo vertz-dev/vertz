@@ -1,0 +1,41 @@
+{
+  "name": "@vertz/dev-orchestrator",
+  "private": true,
+  "type": "module",
+  "vertz": {
+    "title": "Vertz Dev Orchestrator",
+    "description": "Internal dogfood app for orchestrating issue planning, implementation, review, and CI monitoring."
+  },
+  "scripts": {
+    "dev": "vtz dev",
+    "test": "vtz test",
+    "typecheck": "vtz exec tsc --noEmit",
+    "lint": "vtz exec oxlint src/",
+    "lint:fix": "vtz exec oxlint --fix src/",
+    "format": "vtz exec oxfmt --check src/",
+    "format:fix": "vtz exec oxfmt src/"
+  },
+  "dependencies": {
+    "@daytonaio/sdk": "^0.161.0",
+    "@img/sharp-darwin-arm64": "^0.34.5",
+    "@img/sharp-libvips-darwin-arm64": "^1.2.4",
+    "@vertz/agents": "^0.2.43",
+    "@vertz/icons": "^0.2.49",
+    "@vertz/schema": "^0.2.49",
+    "@vertz/server": "^0.2.49",
+    "@vertz/theme-shadcn": "^0.2.49",
+    "@vertz/ui": "^0.2.49",
+    "@vertz/ui-server": "^0.2.49",
+    "sharp": "^0.34.5",
+    "vertz": "^0.2.49"
+  },
+  "devDependencies": {
+    "@oxlint/binding-darwin-arm64": "^1.58.0",
+    "@types/node": "^25.5.0",
+    "@vertz/ui-compiler": "^0.2.41",
+    "bun-types": "^1.3.9",
+    "oxfmt": "^0.42.0",
+    "oxlint": "^1.58.0",
+    "typescript": "^5.9.3"
+  }
+}
