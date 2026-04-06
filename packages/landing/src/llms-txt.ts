@@ -18,23 +18,24 @@ export const LLMS_TXT = `# Vertz
 ## Quick Start
 
 \`\`\`bash
-bunx @vertz/create-vertz-app@latest my-app
+vtz create vertz my-app
 cd my-app
-bun install
-bun run dev
+vtz install
+vtz dev
 \`\`\`
 
 ## Templates
 
-- \`--template todo-app\` (default): Full-stack app with database, API, entities, and UI
-- \`--template hello-world\`: UI-only counter app — minimal starting point
+- \`todo-app\` (default): Full-stack app with database, API, entities, and UI
+- \`hello-world\`: UI-only counter app — minimal starting point
 
 ## Key Concepts
 
 - **Schema**: \`d.table()\` and \`d.model()\` define your data shape (\`vertz/db\`)
-- **Entities**: \`entity()\` generates typed CRUD endpoints (\`vertz/server\`)
+- **Entities**: \`entity()\` generates typed CRUD endpoints under \`/api/\` (\`vertz/server\`)
+- **Routes**: All endpoints mount under \`/api/\` by default (e.g. \`GET /api/tasks\`, \`POST /api/tasks\`)
 - **UI**: Compiler-driven reactivity — \`let\` becomes signals, \`const\` becomes computed (\`vertz/ui\`)
-- **One dependency**: \`bun add vertz\` — meta-package includes all framework packages
+- **One dependency**: \`vtz add vertz\` — meta-package includes all framework packages
 
 ## Stack
 
