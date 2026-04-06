@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from 'bun:test';
+import { beforeEach, describe, expect, it } from '@vertz/test';
 import type { EntityDbAdapter } from '@vertz/server';
 import { createServer } from '@vertz/server';
 import { webhooks } from '../api/actions/webhooks/webhooks.service';

@@ -8,7 +8,7 @@
  * - Verifying ARIA attributes
  */
 
-import { describe, expect, it } from 'bun:test';
+import { describe, expect, it } from '@vertz/test';
 import { renderTest, waitFor } from '@vertz/ui/test';
 import { ConfirmDialog } from '../components/confirm-dialog';
 

@@ -474,6 +474,26 @@ async fn async_main(cli: Cli) {
                     let output =
                         vertz_runtime::test::codemod::format_migrate_output(&result, args.dry_run);
                     print!("{}", output);
+
+                    // Add @vertz/test to package.json devDependencies
+                    match vertz_runtime::test::codemod::add_vertz_test_dep(&root_dir, args.dry_run)
+                    {
+                        Ok(true) => {
+                            if args.dry_run {
+                                println!(
+                                    "  ~ package.json\n    - Would add @vertz/test to devDependencies"
+                                );
+                            } else {
+                                println!(
+                                    "  ✓ package.json\n    - Added @vertz/test to devDependencies"
+                                );
+                            }
+                        }
+                        Ok(false) => {} // already present or no package.json
+                        Err(e) => {
+                            eprintln!("Warning: could not update package.json: {}", e);
+                        }
+                    }
                 }
                 Err(e) => {
                     eprintln!("Migration error: {}", e);

@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, it } from 'bun:test';
+import { afterAll, beforeAll, describe, expect, it } from '@vertz/test';
 import { existsSync, rmSync } from 'node:fs';
 import { resolve } from 'node:path';
 

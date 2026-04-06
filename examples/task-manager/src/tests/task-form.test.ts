@@ -9,7 +9,7 @@
  * - findByTestId() for locating form elements
  */
 
-import { beforeEach, describe, expect, it } from 'bun:test';
+import { beforeEach, describe, expect, it } from '@vertz/test';
 import { renderTest, waitFor } from '@vertz/ui/test';
 import { resetMockData } from '../api/mock-data';
 import { TaskForm } from '../components/task-form';

@@ -593,6 +593,7 @@ export function packageJsonTemplate(projectName: string): string {
       dev: 'vertz dev',
       build: 'vertz build',
       start: 'vertz start',
+      test: 'vertz test',
       codegen: 'vertz codegen',
     },
     imports: {
@@ -605,6 +606,7 @@ export function packageJsonTemplate(projectName: string): string {
     },
     devDependencies: {
       '@vertz/cli': '^0.2.0',
+      '@vertz/test': '^0.2.0',
       typescript: '^5.8.0',
     },
   };
@@ -1146,6 +1148,7 @@ export function helloWorldPackageJsonTemplate(projectName: string): string {
     scripts: {
       dev: 'vertz dev',
       build: 'vertz build',
+      test: 'vertz test',
     },
     dependencies: {
       vertz: '^0.2.0',
@@ -1153,6 +1156,7 @@ export function helloWorldPackageJsonTemplate(projectName: string): string {
     },
     devDependencies: {
       '@vertz/cli': '^0.2.0',
+      '@vertz/test': '^0.2.0',
       typescript: '^5.8.0',
     },
   };
@@ -1412,6 +1416,7 @@ export function landingPagePackageJsonTemplate(projectName: string): string {
     scripts: {
       dev: 'vertz dev',
       build: 'vertz build',
+      test: 'vertz test',
     },
     dependencies: {
       vertz: '^0.2.0',
@@ -1419,6 +1424,7 @@ export function landingPagePackageJsonTemplate(projectName: string): string {
     },
     devDependencies: {
       '@vertz/cli': '^0.2.0',
+      '@vertz/test': '^0.2.0',
       typescript: '^5.8.0',
     },
   };

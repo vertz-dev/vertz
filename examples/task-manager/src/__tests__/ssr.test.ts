@@ -8,7 +8,7 @@
  * via SSR-aware getters — no manual router.current.value assignment needed.
  */
 
-import { afterAll, beforeAll, describe, expect, test } from 'bun:test';
+import { afterAll, beforeAll, describe, expect, test } from '@vertz/test';
 import { GlobalWindow } from 'happy-dom';
 import { registerSSRResolver } from '@vertz/ui/internals';
 import { ssrRenderSinglePass, ssrStorage } from '@vertz/ui-server';
