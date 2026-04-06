@@ -1,0 +1,248 @@
+---
+title: OpenAPI SDK Generator
+description: 'Generate typed TypeScript SDKs from external OpenAPI 3.x specs'
+---
+
+`@vertz/openapi` generates a fully typed TypeScript SDK from any OpenAPI 3.x spec. It produces typed resource methods, TypeScript interfaces, and optional Zod schemas — powered by `@vertz/fetch` under the hood.
+
+<Note>
+  This page covers generating SDKs from **external** OpenAPI specs (third-party APIs, FastAPI
+  backends, etc.). For the SDK generated from your own Vertz entity definitions, see [SDK & Fetch
+  Client](/guides/fetch).
+</Note>
+
+## Install
+
+```bash
+bun add -d @vertz/openapi
+```
+
+## Quick start
+
+```bash
+npx @vertz/openapi generate --from ./openapi.json --output ./src/generated
+```
+
+This generates:
+
+```
+src/generated/
+  client.ts          # createClient() factory + HttpClient interface
+  types/             # TypeScript interfaces per resource
+  resources/         # Typed resource methods per resource
+  schemas/           # Zod schemas (opt-in with --schemas)
+  README.md          # Usage documentation
+```
+
+## Configuration
+
+Create an `openapi.config.ts` in your project root:
+
+```ts
+import { defineConfig } from '@vertz/openapi';
+
+export default defineConfig({
+  source: './openapi.json',
+  output: './src/generated',
+  baseURL: 'https://api.example.com',
+  groupBy: 'tag',
+  schemas: true,
+});
+```
+
+CLI flags override config file values.
+
+### CLI options
+
+| Flag                   | Description                      | Default                  |
+| ---------------------- | -------------------------------- | ------------------------ |
+| `--from <path-or-url>` | Path to OpenAPI spec file or URL | Required (or use config) |
+| `--output <dir>`       | Output directory                 | `./src/generated`        |
+| `--base-url <url>`     | Default base URL for API calls   | `''`                     |
+| `--group-by <mode>`    | Grouping: `tag`, `path`, `none`  | `tag`                    |
+| `--schemas`            | Generate Zod validation schemas  | `false`                  |
+| `--exclude-tags <t>`   | Comma-separated tags to exclude  | none                     |
+| `--dry-run`            | Preview without writing files    | `false`                  |
+
+## Using the generated SDK
+
+Install `@vertz/fetch` in the project that consumes the SDK:
+
+```bash
+bun add @vertz/fetch
+```
+
+```ts
+import { createClient } from './generated/client';
+import { isOk } from '@vertz/fetch';
+
+const api = createClient({ baseURL: 'https://api.example.com' });
+
+const result = await api.tasks.list();
+if (isOk(result)) {
+  console.log(result.data); // typed as Task[]
+}
+```
+
+Every method returns `Result<T, FetchError>` — never throws for HTTP errors.
+
+## Operation ID normalization
+
+Many backend frameworks generate verbose operationIds that include the full URL path. The generator provides three levels of control to produce clean, idiomatic method names.
+
+### Auto-cleaning (default)
+
+Without any configuration, the generator automatically:
+
+- Strips controller prefixes (e.g., `TasksController_findAll` → `findAll`)
+- Removes trailing HTTP method words (`listTasksGet` → `listTasks`)
+- Detects CRUD patterns from the HTTP method and path shape
+
+### Framework adapters
+
+Built-in adapters handle operationId quirks for common backend frameworks. Import from `@vertz/openapi/adapters`.
+
+#### FastAPI
+
+FastAPI generates operationIds by concatenating the function name, route path, and HTTP verb:
+
+```
+list_tasks_tasks_get
+get_user_v1_users__id__get
+get_bot_activities_web_organizations__organization_id__b__brand_id__sites_agent_traffic_bot_activities_get
+```
+
+The `fastapi()` adapter strips the route+verb suffix, leaving just the meaningful function name:
+
+```ts
+import { defineConfig } from '@vertz/openapi';
+import { fastapi } from '@vertz/openapi/adapters';
+
+export default defineConfig({
+  source: './openapi.json',
+  output: './src/generated',
+  operationIds: fastapi(),
+});
+```
+
+| FastAPI operationId                            | Path                          | Result               |
+| ---------------------------------------------- | ----------------------------- | -------------------- |
+| `list_tasks_tasks_get`                         | `/tasks`                      | `list_tasks`         |
+| `get_user_v1_users__id__get`                   | `/v1/users/{id}`              | `get_user_v1`        |
+| `create_task_v2_tasks_post`                    | `/v2/tasks`                   | `create_task_v2`     |
+| `delete_task_tasks__id__delete`                | `/tasks/{id}`                 | `delete_task`        |
+| `get_bot_activities_web_...bot_activities_get` | `/web/organizations/{id}/...` | `get_bot_activities` |
+
+The adapter also handles API version prefixes — if your path starts with `/v1/`, `/v2/`, etc., the version is preserved in the method name.
+
+#### NestJS
+
+NestJS (`@nestjs/swagger`) generates operationIds like `TasksController_findAll`. The adapter strips the Controller prefix:
+
+```ts
+import { defineConfig } from '@vertz/openapi';
+import { nestjs } from '@vertz/openapi/adapters';
+
+export default defineConfig({
+  source: './openapi.json',
+  output: './src/generated',
+  operationIds: nestjs(),
+});
+```
+
+| NestJS operationId        | Result    |
+| ------------------------- | --------- |
+| `TasksController_findAll` | `findAll` |
+| `UsersController.getById` | `getById` |
+
+### Custom transform
+
+For full control, provide a `transform` function that receives the auto-cleaned name and a full `OperationContext`:
+
+```ts
+export default defineConfig({
+  source: './openapi.json',
+  operationIds: {
+    transform: (cleaned, ctx) => {
+      // ctx.operationId  — raw operationId from the spec
+      // ctx.method       — GET, POST, PUT, DELETE, PATCH
+      // ctx.path         — /v1/tasks/{id}
+      // ctx.tags         — ['tasks']
+      // ctx.hasBody      — whether the operation has a request body
+      return cleaned;
+    },
+  },
+});
+```
+
+### Static overrides
+
+For one-off renames, use `overrides` — a map from raw operationId to desired method name:
+
+```ts
+export default defineConfig({
+  source: './openapi.json',
+  operationIds: {
+    overrides: {
+      listTasks: 'fetchAll',
+      getTask: 'findById',
+    },
+  },
+});
+```
+
+Overrides take the highest priority — they're applied before any transform or auto-cleaning.
+
+### Writing a custom adapter
+
+An adapter is a function that returns `{ transform }`. You can write one for any backend framework:
+
+```ts
+function myFramework() {
+  return {
+    transform: (cleaned, ctx) => {
+      // Your logic using ctx.operationId, ctx.method, ctx.path, etc.
+      return cleaned;
+    },
+  };
+}
+
+export default defineConfig({
+  operationIds: myFramework(),
+});
+```
+
+## Excluding tags
+
+Skip internal or deprecated tags:
+
+```ts
+export default defineConfig({
+  source: './openapi.json',
+  excludeTags: ['internal', 'deprecated'],
+});
+```
+
+Operations where **any** tag matches the exclude list are skipped entirely.
+
+## Programmatic API
+
+```ts
+import { generateFromOpenAPI } from '@vertz/openapi';
+
+const result = await generateFromOpenAPI({
+  source: './openapi.json',
+  output: './src/generated',
+  baseURL: 'https://api.example.com',
+  groupBy: 'tag',
+  schemas: false,
+});
+
+console.log(`${result.written} files written, ${result.skipped} unchanged`);
+```
+
+## Supported specs
+
+- OpenAPI 3.0.x and 3.1.x
+- JSON and YAML formats
+- File paths and URLs
