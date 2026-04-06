@@ -198,6 +198,20 @@ jobs:
             fi
           done
 
+      - name: Download runtime from latest release (when not built from source)
+        if: ${{ !contains(needs.build-binaries.result, 'success') }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "No binary artifacts from this run — downloading from latest GitHub release"
+          gh release download --pattern 'vtz-linux-x64' --dir /tmp/vtz-release || {
+            echo "::warning::Could not download vtz binary from latest release"
+            exit 0
+          }
+          cp /tmp/vtz-release/vtz-linux-x64 packages/runtime-linux-x64/vtz
+          chmod +x packages/runtime-linux-x64/vtz
+          echo "Downloaded vtz binary: $(packages/runtime-linux-x64/vtz --version 2>/dev/null || echo 'unknown')"
+
       - name: Re-link runtime binary
         run: bash scripts/link-runtime.sh
 

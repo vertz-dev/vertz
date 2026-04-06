@@ -108,7 +108,7 @@ for pkg_json in packages/*/package.json; do
   fi
 
   echo "Publishing $name@$version..."
-  if (cd "$dir" && bun publish --access public --provenance); then
+  if (cd "$dir" && vtz publish --access public --provenance); then
     echo "Published $name@$version"
   else
     echo "Failed to publish $name@$version"
@@ -129,4 +129,4 @@ echo ""
 echo "All packages published successfully"
 
 # Create git tags (changeset tag)
-bunx changeset tag 2>/dev/null || true
+vtzx changeset tag 2>/dev/null || true
