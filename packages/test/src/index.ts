@@ -91,20 +91,30 @@ export type EachFn = (
   table: unknown[],
 ) => (name: string, fn: (...args: unknown[]) => void | Promise<void>) => void;
 
+export interface DescribeModifier {
+  (name: string, fn: () => void): void;
+  each: EachFn;
+}
+
 export interface Describe {
   (name: string, fn: () => void): void;
-  skip: (name: string, fn: () => void) => void;
-  only: Describe;
-  skipIf: (condition: boolean) => Describe;
+  skip: DescribeModifier;
+  only: DescribeModifier;
+  skipIf: (condition: boolean) => Describe | DescribeModifier;
+  each: EachFn;
+}
+
+export interface ItModifier {
+  (name: string, fn: TestFn): void;
   each: EachFn;
 }
 
 export interface It {
   (name: string, fn: TestFn): void;
-  skip: (name: string, fn: TestFn) => void;
-  only: It;
+  skip: ItModifier;
+  only: ItModifier;
   todo: (name: string) => void;
-  skipIf: (condition: boolean) => It;
+  skipIf: (condition: boolean) => It | ItModifier;
   each: EachFn;
 }
 
@@ -164,29 +174,38 @@ export type ExpectTypeOf = <T = unknown>() => unknown;
 // Runtime stubs
 // ---------------------------------------------------------------------------
 
-function describeStub(_name: string, _fn: () => void): void {
-  stub();
-}
-describeStub.skip = (_name: string, _fn: () => void): void => stub();
-describeStub.only = describeStub as Describe;
-describeStub.skipIf = (_condition: boolean): Describe => stub();
-describeStub.each =
+const eachStub: EachFn =
   (_table: unknown[]) =>
   (_name: string, _fn: (...args: unknown[]) => void | Promise<void>): void =>
     stub();
+
+function describeSkipStub(_name: string, _fn: () => void): void {
+  stub();
+}
+describeSkipStub.each = eachStub;
+
+function describeStub(_name: string, _fn: () => void): void {
+  stub();
+}
+describeStub.skip = describeSkipStub as DescribeModifier;
+describeStub.only = describeSkipStub as DescribeModifier;
+describeStub.skipIf = (_condition: boolean): Describe | DescribeModifier => stub();
+describeStub.each = eachStub;
 const describe: Describe = describeStub as Describe;
+
+function itSkipStub(_name: string, _fn: TestFn): void {
+  stub();
+}
+itSkipStub.each = eachStub;
 
 function itStub(_name: string, _fn: TestFn): void {
   stub();
 }
-itStub.skip = (_name: string, _fn: TestFn): void => stub();
-itStub.only = itStub as It;
+itStub.skip = itSkipStub as ItModifier;
+itStub.only = itSkipStub as ItModifier;
 itStub.todo = (_name: string): void => stub();
-itStub.skipIf = (_condition: boolean): It => stub();
-itStub.each =
-  (_table: unknown[]) =>
-  (_name: string, _fn: (...args: unknown[]) => void | Promise<void>): void =>
-    stub();
+itStub.skipIf = (_condition: boolean): It | ItModifier => stub();
+itStub.each = eachStub;
 const it: It = itStub as It;
 
 const test: Test = it;

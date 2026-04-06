@@ -132,14 +132,36 @@ describe('@vertz/test runtime stubs', () => {
     expect(() => mod.describe.skip('suite', () => {})).toThrow(EXPECTED_ERROR);
   });
 
+  it('describe.only() throws a helpful error', () => {
+    const mod = require('../index');
+    expect(() => mod.describe.only('suite', () => {})).toThrow(EXPECTED_ERROR);
+  });
+
   it('describe.skipIf() throws a helpful error', () => {
     const mod = require('../index');
     expect(() => mod.describe.skipIf(true)).toThrow(EXPECTED_ERROR);
   });
 
+  it('describe.skip.each() throws a helpful error', () => {
+    const mod = require('../index');
+    const eachFn = mod.describe.skip.each([1, 2]);
+    expect(() => eachFn('test %s', () => {})).toThrow(EXPECTED_ERROR);
+  });
+
+  it('describe.only.each() throws a helpful error', () => {
+    const mod = require('../index');
+    const eachFn = mod.describe.only.each([1, 2]);
+    expect(() => eachFn('test %s', () => {})).toThrow(EXPECTED_ERROR);
+  });
+
   it('it.skip() throws a helpful error', () => {
     const mod = require('../index');
     expect(() => mod.it.skip('test', () => {})).toThrow(EXPECTED_ERROR);
+  });
+
+  it('it.only() throws a helpful error', () => {
+    const mod = require('../index');
+    expect(() => mod.it.only('test', () => {})).toThrow(EXPECTED_ERROR);
   });
 
   it('it.todo() throws a helpful error', () => {
@@ -150,6 +172,18 @@ describe('@vertz/test runtime stubs', () => {
   it('it.skipIf() throws a helpful error', () => {
     const mod = require('../index');
     expect(() => mod.it.skipIf(true)).toThrow(EXPECTED_ERROR);
+  });
+
+  it('it.skip.each() throws a helpful error', () => {
+    const mod = require('../index');
+    const eachFn = mod.it.skip.each([1, 2]);
+    expect(() => eachFn('test %s', () => {})).toThrow(EXPECTED_ERROR);
+  });
+
+  it('it.only.each() throws a helpful error', () => {
+    const mod = require('../index');
+    const eachFn = mod.it.only.each([1, 2]);
+    expect(() => eachFn('test %s', () => {})).toThrow(EXPECTED_ERROR);
   });
 
   it('expect.any() throws a helpful error', () => {
@@ -307,6 +341,16 @@ describe('@vertz/test exports', () => {
     expect(typeof mod.describe.each).toBe('function');
   });
 
+  it('describe.skip has each modifier', () => {
+    const mod = require('../index');
+    expect(typeof mod.describe.skip.each).toBe('function');
+  });
+
+  it('describe.only has each modifier', () => {
+    const mod = require('../index');
+    expect(typeof mod.describe.only.each).toBe('function');
+  });
+
   it('it has skip, only, todo, skipIf, each modifiers', () => {
     const mod = require('../index');
     expect(typeof mod.it.skip).toBe('function');
@@ -314,6 +358,16 @@ describe('@vertz/test exports', () => {
     expect(typeof mod.it.todo).toBe('function');
     expect(typeof mod.it.skipIf).toBe('function');
     expect(typeof mod.it.each).toBe('function');
+  });
+
+  it('it.skip has each modifier', () => {
+    const mod = require('../index');
+    expect(typeof mod.it.skip.each).toBe('function');
+  });
+
+  it('it.only has each modifier', () => {
+    const mod = require('../index');
+    expect(typeof mod.it.only.each).toBe('function');
   });
 
   it('expect has asymmetric matcher factories', () => {
