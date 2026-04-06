@@ -523,8 +523,9 @@ export function generateOpenAPISpec(
     if (def.actions) {
       for (const [actionName, actionDef] of Object.entries(def.actions)) {
         const method = (actionDef.method ?? 'POST').toUpperCase();
-        const actionPath = actionDef.path ?? actionName;
-        const fullPath = `${basePath}/{id}/${actionPath}`;
+        const fullPath = actionDef.path
+          ? `${basePath}/${actionDef.path.replace(/^\/+/, '')}`
+          : `${basePath}/{id}/${actionName}`;
 
         const operation = buildActionOperation(def.name, actionName, actionDef, tag);
         const pathItem: OpenAPIPathItem = {};
@@ -559,7 +560,9 @@ export function generateOpenAPISpec(
         if (accessRule === undefined) continue;
 
         const method = (actionDef.method ?? 'POST').toUpperCase();
-        const routePath = actionDef.path ?? `${apiPrefix}/${svcDef.name}/${actionName}`;
+        const routePath = actionDef.path
+          ? `${apiPrefix}/${actionDef.path.replace(/^\/+/, '')}`
+          : `${apiPrefix}/${svcDef.name}/${actionName}`;
 
         if (accessRule === false) {
           // Explicitly disabled → 405

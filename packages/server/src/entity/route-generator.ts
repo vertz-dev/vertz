@@ -643,7 +643,7 @@ export function generateEntityRoutes(
 
     const method = (actionDef.method ?? 'POST').toUpperCase();
     const actionPath = actionDef.path
-      ? `${basePath}/${actionDef.path}`
+      ? `${basePath}/${actionDef.path.replace(/^\/+/, '')}`
       : `${basePath}${idPath}/${actionName}`;
     const hasId = isCompositePk
       ? pkColumns.some((col) => actionPath.includes(`:${col}`))

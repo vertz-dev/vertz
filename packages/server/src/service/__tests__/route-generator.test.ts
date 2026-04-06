@@ -504,8 +504,92 @@ describe('Feature: generateServiceRoutes', () => {
     });
   });
 
-  describe('Given a service with a custom path containing :provider param', () => {
-    describe('When the route handler is invoked with a matching URL', () => {
+  describe('Given a service action with a custom path', () => {
+    describe('When generating routes with the default /api prefix', () => {
+      it('Then the custom path is prefixed with /api', () => {
+        const svc = service('webhook', {
+          access: { receive: () => true },
+          actions: {
+            receive: {
+              method: 'POST',
+              path: 'webhooks/stripe',
+              response: responseSchema,
+              handler: async () => ({ token: 'ok' }),
+            },
+          },
+        });
+
+        const registry = new EntityRegistry();
+        const routes = generateServiceRoutes(svc, registry);
+
+        expect(routes[0]?.path).toBe('/api/webhooks/stripe');
+      });
+    });
+
+    describe('When generating routes with a custom apiPrefix', () => {
+      it('Then the custom path is prefixed with the custom prefix', () => {
+        const svc = service('webhook', {
+          access: { receive: () => true },
+          actions: {
+            receive: {
+              method: 'POST',
+              path: 'webhooks/stripe',
+              response: responseSchema,
+              handler: async () => ({ token: 'ok' }),
+            },
+          },
+        });
+
+        const registry = new EntityRegistry();
+        const routes = generateServiceRoutes(svc, registry, { apiPrefix: '/v2' });
+
+        expect(routes[0]?.path).toBe('/v2/webhooks/stripe');
+      });
+    });
+
+    describe('When the custom path has a leading slash', () => {
+      it('Then the leading slash is normalized (no double slash)', () => {
+        const svc = service('webhook', {
+          access: { receive: () => true },
+          actions: {
+            receive: {
+              method: 'POST',
+              path: '/webhooks/stripe',
+              response: responseSchema,
+              handler: async () => ({ token: 'ok' }),
+            },
+          },
+        });
+
+        const registry = new EntityRegistry();
+        const routes = generateServiceRoutes(svc, registry);
+
+        expect(routes[0]?.path).toBe('/api/webhooks/stripe');
+      });
+    });
+
+    describe('When the custom path has multiple leading slashes', () => {
+      it('Then all leading slashes are stripped (no double slash)', () => {
+        const svc = service('webhook', {
+          access: { receive: () => true },
+          actions: {
+            receive: {
+              method: 'POST',
+              path: '///webhooks/stripe',
+              response: responseSchema,
+              handler: async () => ({ token: 'ok' }),
+            },
+          },
+        });
+
+        const registry = new EntityRegistry();
+        const routes = generateServiceRoutes(svc, registry);
+
+        expect(routes[0]?.path).toBe('/api/webhooks/stripe');
+      });
+    });
+
+    describe('When the custom path contains :provider param', () => {
       it('Then ctx.request.params contains { provider: "github" }', async () => {
         let capturedParams: unknown;
 
@@ -514,7 +598,7 @@ describe('Feature: generateServiceRoutes', () => {
           actions: {
             callback: {
               method: 'GET',
-              path: '/api/auth/callback/:provider',
+              path: 'auth/callback/:provider',
               response: responseSchema,
               handler: async (_input, ctx) => {
                 capturedParams = ctx.request.params;
@@ -526,6 +610,8 @@ describe('Feature: generateServiceRoutes', () => {
 
         const registry = new EntityRegistry();
         const routes = generateServiceRoutes(svc, registry);
+
+        expect(routes[0]?.path).toBe('/api/auth/callback/:provider');
 
         await routes[0]?.handler({
           params: { provider: 'github' },
