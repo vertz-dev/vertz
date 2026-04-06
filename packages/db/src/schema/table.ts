@@ -6,7 +6,7 @@ import type { DbExpr } from '../sql/expr';
 // Index Definition
 // ---------------------------------------------------------------------------
 
-export type IndexType = 'btree' | 'hash' | 'gin' | 'gist' | 'brin' | 'hnsw';
+export type IndexType = 'btree' | 'hash' | 'gin' | 'gist' | 'brin' | 'hnsw' | 'ivfflat';
 
 export interface IndexDef {
   readonly columns: readonly string[];
@@ -14,6 +14,10 @@ export interface IndexDef {
   readonly unique?: boolean;
   readonly type?: IndexType;
   readonly where?: string;
+  readonly opclass?: string;
+  readonly m?: number;
+  readonly efConstruction?: number;
+  readonly lists?: number;
 }
 
 export interface IndexOptions {
@@ -21,6 +25,10 @@ export interface IndexOptions {
   unique?: boolean;
   type?: IndexType;
   where?: string;
+  opclass?: string;
+  m?: number;
+  efConstruction?: number;
+  lists?: number;
 }
 
 const DANGEROUS_SQL_PATTERN = /;|--|\b(DROP|DELETE|INSERT|UPDATE|ALTER|CREATE|EXEC)\b/i;
@@ -28,6 +36,23 @@ const DANGEROUS_SQL_PATTERN = /;|--|\b(DROP|DELETE|INSERT|UPDATE|ALTER|CREATE|EX
 export function createIndex(columns: string | string[], options?: IndexOptions): IndexDef {
   if (options?.where && DANGEROUS_SQL_PATTERN.test(options.where)) {
     throw new Error(`Unsafe WHERE clause expression in index: "${options.where}"`);
+  }
+  if (options) {
+    const hasHnswParams = options.m != null || options.efConstruction != null;
+    const hasIvfflatParams = options.lists != null;
+    if (hasHnswParams && options.type === 'ivfflat') {
+      throw new Error(
+        `m and efConstruction are HNSW-only parameters. Use 'lists' for IVFFlat indexes.`,
+      );
+    }
+    if (hasIvfflatParams && options.type === 'hnsw') {
+      throw new Error(`lists is an IVFFlat-only parameter. Use 'm' and 'efConstruction' for HNSW indexes.`);
+    }
+    if ((hasHnswParams || hasIvfflatParams) && options.type !== 'hnsw' && options.type !== 'ivfflat') {
+      throw new Error(
+        `Vector index parameters (m, efConstruction, lists) require type: 'hnsw' or type: 'ivfflat'.`,
+      );
+    }
   }
   return {
     columns: Array.isArray(columns) ? columns : [columns],
