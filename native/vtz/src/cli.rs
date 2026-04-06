@@ -70,6 +70,10 @@ pub struct CreateArgs {
 
     /// Destination directory (defaults to repo name)
     pub destination: Option<String>,
+
+    /// Inner template variant (e.g. todo-app, hello-world, landing-page)
+    #[arg(long = "template")]
+    pub inner_template: Option<String>,
 }
 
 #[derive(Parser, Debug)]

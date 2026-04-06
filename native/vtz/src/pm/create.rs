@@ -6,6 +6,14 @@ use super::vertzrc::ScriptPolicy;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
+/// Whether `fetch_npm_template` executed a bin script or extracted a template.
+enum NpmFetchResult {
+    /// Package had a bin entry and was executed — project was scaffolded by the script.
+    BinExecuted,
+    /// Package was a plain template — files were extracted to the destination.
+    TemplateExtracted,
+}
+
 /// Errors specific to `vtz create` operations
 #[derive(Debug)]
 pub enum CreateError {
@@ -203,12 +211,142 @@ fn git_init(dest: &Path) -> Result<(), CreateError> {
     Ok(())
 }
 
-/// Download and extract an NPM package tarball to the destination.
+/// Find a JS runtime on PATH (`bun` preferred, then `node`).
+fn find_js_runtime() -> Result<String, CreateError> {
+    for cmd in ["bun", "node"] {
+        if std::process::Command::new(cmd)
+            .arg("--version")
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .status()
+            .is_ok()
+        {
+            return Ok(cmd.to_string());
+        }
+    }
+    Err(CreateError::Other(
+        "no JavaScript runtime found — install bun or node to run create-* packages".to_string(),
+    ))
+}
+
+/// Move all files/dirs from `src` into `dst` (which must already exist).
+fn move_dir_contents(src: &Path, dst: &Path) -> Result<(), CreateError> {
+    for entry in std::fs::read_dir(src)
+        .map_err(|e| CreateError::Other(format!("failed to read temp dir: {}", e)))?
+    {
+        let entry =
+            entry.map_err(|e| CreateError::Other(format!("failed to read entry: {}", e)))?;
+        let src_path = entry.path();
+        let dest_path = dst.join(entry.file_name());
+        std::fs::rename(&src_path, &dest_path).or_else(|_| {
+            // rename can fail across mount points — fall back to copy
+            if src_path.is_dir() {
+                copy_dir_recursive(&src_path, &dest_path)
+            } else {
+                std::fs::copy(src_path, &dest_path)
+                    .map(|_| ())
+                    .map_err(|e| CreateError::Other(format!("failed to copy file: {}", e)))
+            }
+        })?;
+    }
+    Ok(())
+}
+
+fn copy_dir_recursive(src: &Path, dst: &Path) -> Result<(), CreateError> {
+    std::fs::create_dir_all(dst)
+        .map_err(|e| CreateError::Other(format!("failed to create dir: {}", e)))?;
+    for entry in std::fs::read_dir(src)
+        .map_err(|e| CreateError::Other(format!("failed to read dir: {}", e)))?
+    {
+        let entry =
+            entry.map_err(|e| CreateError::Other(format!("failed to read entry: {}", e)))?;
+        let src_path = entry.path();
+        let dest_path = dst.join(entry.file_name());
+        if src_path.is_dir() {
+            copy_dir_recursive(&src_path, &dest_path)?;
+        } else {
+            std::fs::copy(src_path, &dest_path)
+                .map_err(|e| CreateError::Other(format!("failed to copy file: {}", e)))?;
+        }
+    }
+    Ok(())
+}
+
+/// Execute a bin script from an extracted npm package.
+///
+/// Installs the package's dependencies in-place, then runs the bin entry
+/// with the project name (and optional `--template`) as arguments.
+async fn execute_create_bin(
+    pkg_dir: &Path,
+    bin_path: &str,
+    dest: &Path,
+    inner_template: Option<&str>,
+    output: &Arc<dyn PmOutput>,
+) -> Result<(), CreateError> {
+    let runtime = find_js_runtime()?;
+
+    // Install dependencies so the bin script can import them
+    output.info("Installing scaffolding tool dependencies...");
+    if let Err(e) = super::install(
+        pkg_dir,
+        false,
+        ScriptPolicy::TrustBased,
+        false,
+        output.clone(),
+    )
+    .await
+    {
+        return Err(CreateError::Other(format!(
+            "failed to install scaffolding tool dependencies: {}",
+            e
+        )));
+    }
+
+    let project_name = dest
+        .file_name()
+        .map(|n| n.to_string_lossy().to_string())
+        .unwrap_or_else(|| "my-app".to_string());
+
+    let parent_dir = dest.parent().unwrap_or(dest);
+
+    // Build args: <bin_script> <project_name> [--template <variant>]
+    let bin_script = pkg_dir.join(bin_path.trim_start_matches("./"));
+    let mut args = vec![
+        bin_script.to_string_lossy().to_string(),
+        project_name.clone(),
+    ];
+    if let Some(tmpl) = inner_template {
+        args.push("--template".to_string());
+        args.push(tmpl.to_string());
+    }
+
+    output.info(&format!("Running {} scaffolding tool...", project_name));
+
+    let status = std::process::Command::new(&runtime)
+        .args(&args)
+        .current_dir(parent_dir)
+        .stdout(std::process::Stdio::inherit())
+        .stderr(std::process::Stdio::inherit())
+        .status()
+        .map_err(|e| CreateError::Other(format!("failed to run {}: {}", runtime, e)))?;
+
+    if !status.success() {
+        return Err(CreateError::Other(format!(
+            "scaffolding tool exited with code {}",
+            status.code().unwrap_or(1)
+        )));
+    }
+
+    Ok(())
+}
+
+/// Download an NPM package and either execute its bin script or extract as a template.
 async fn fetch_npm_template(
     package_name: &str,
     dest: &Path,
+    inner_template: Option<&str>,
     output: &Arc<dyn PmOutput>,
-) -> Result<(), CreateError> {
+) -> Result<NpmFetchResult, CreateError> {
     output.info(&format!("Resolving {}...", package_name));
     let cache_dir = super::registry::default_cache_dir();
     let registry = RegistryClient::new(&cache_dir);
@@ -266,18 +404,51 @@ async fn fetch_npm_template(
             .map_err(|e| CreateError::Other(format!("integrity check failed: {}", e)))?;
     }
 
-    output.info("Extracting template...");
-    std::fs::create_dir_all(dest)
-        .map_err(|e| CreateError::Other(format!("failed to create destination: {}", e)))?;
+    // Extract to temp dir first so we can inspect package.json for bin entries
+    let temp_dir = tempfile::tempdir()
+        .map_err(|e| CreateError::Other(format!("failed to create temp dir: {}", e)))?;
 
-    let dest_clone = dest.to_path_buf();
+    let temp_path = temp_dir.path().to_path_buf();
     let bytes_vec = bytes.to_vec();
-    tokio::task::spawn_blocking(move || extract_tarball(&bytes_vec, &dest_clone))
+    tokio::task::spawn_blocking(move || extract_tarball(&bytes_vec, &temp_path))
         .await
         .map_err(|e| CreateError::Other(format!("extraction task failed: {}", e)))?
         .map_err(|e| CreateError::Other(format!("failed to extract template: {}", e)))?;
 
-    Ok(())
+    // Check if the package has a bin entry — if so, it's a scaffolding tool
+    let pkg_json_path = temp_dir.path().join("package.json");
+    if let Ok(pkg_content) = std::fs::read_to_string(&pkg_json_path) {
+        if let Ok(pkg) = serde_json::from_str::<serde_json::Value>(&pkg_content) {
+            if let Some(bin_path) = extract_bin_path(&pkg) {
+                output.info("Detected scaffolding tool (has bin entry)");
+                execute_create_bin(temp_dir.path(), &bin_path, dest, inner_template, output)
+                    .await?;
+                return Ok(NpmFetchResult::BinExecuted);
+            }
+        }
+    }
+
+    // No bin entry — copy extracted files to destination as a template
+    output.info("Extracting template...");
+    std::fs::create_dir_all(dest)
+        .map_err(|e| CreateError::Other(format!("failed to create destination: {}", e)))?;
+
+    move_dir_contents(temp_dir.path(), dest)?;
+
+    Ok(NpmFetchResult::TemplateExtracted)
+}
+
+/// Extract the first bin path from a package.json value.
+fn extract_bin_path(pkg: &serde_json::Value) -> Option<String> {
+    match pkg.get("bin") {
+        Some(serde_json::Value::String(s)) => Some(s.clone()),
+        Some(serde_json::Value::Object(map)) => map
+            .values()
+            .next()
+            .and_then(|v| v.as_str())
+            .map(String::from),
+        _ => None,
+    }
 }
 
 /// Download and extract a GitHub repo tarball to the destination.
@@ -339,13 +510,14 @@ async fn fetch_github_template(
 /// - `https://github.com/owner/repo` → GitHub repository
 ///
 /// Post-creation steps:
-/// 1. Download & extract template
-/// 2. Update package.json name
+/// 1. Download & extract template (or execute bin script for create-* packages)
+/// 2. Update package.json name (skipped if bin script handled it)
 /// 3. Run `vtz install`
 /// 4. `git init` + initial commit
 pub async fn create(
     template: &str,
     dest: Option<&str>,
+    inner_template: Option<&str>,
     output: Arc<dyn PmOutput>,
 ) -> Result<PathBuf, CreateError> {
     // 1. Parse template
@@ -367,21 +539,30 @@ pub async fn create(
         .map(|n| n.to_string_lossy().to_string())
         .unwrap_or_else(|| "my-app".to_string());
 
-    // 3. Download & extract template
-    match &source {
+    // 3. Download & extract template (or execute bin script)
+    let bin_executed = match &source {
         TemplateSource::Npm { package_name } => {
             output.info(&format!("Using npm package {}", package_name));
-            fetch_npm_template(package_name, &dest_dir, &output).await?;
+            matches!(
+                fetch_npm_template(package_name, &dest_dir, inner_template, &output).await?,
+                NpmFetchResult::BinExecuted
+            )
         }
         TemplateSource::GitHub { owner, repo } => {
             output.info(&format!("Using GitHub template {}/{}", owner, repo));
             fetch_github_template(owner, repo, &dest_dir, &output).await?;
+            false
         }
-    }
+    };
 
-    // 4. Update package.json name
-    update_package_name(&dest_dir, &project_name)
-        .map_err(|e| CreateError::Other(format!("failed to update package.json: {}", e)))?;
+    if bin_executed {
+        // The bin script already scaffolded the project (created dirs, wrote files,
+        // set the correct package name). We still run install + git init.
+    } else {
+        // 4. Update package.json name (only for plain templates)
+        update_package_name(&dest_dir, &project_name)
+            .map_err(|e| CreateError::Other(format!("failed to update package.json: {}", e)))?;
+    }
 
     // 5. Install dependencies
     output.info("Installing dependencies...");
@@ -661,5 +842,99 @@ mod tests {
             repo: "create-foo".to_string(),
         };
         assert_eq!(default_dir_name(&src), "foo");
+    }
+
+    // --- extract_bin_path tests ---
+
+    #[test]
+    fn test_extract_bin_path_string() {
+        let pkg: serde_json::Value = serde_json::from_str(r#"{"bin": "./bin/cli.js"}"#).unwrap();
+        assert_eq!(extract_bin_path(&pkg), Some("./bin/cli.js".to_string()));
+    }
+
+    #[test]
+    fn test_extract_bin_path_object() {
+        let pkg: serde_json::Value =
+            serde_json::from_str(r#"{"bin": {"create-vertz": "./bin/create-vertz.ts"}}"#).unwrap();
+        assert_eq!(
+            extract_bin_path(&pkg),
+            Some("./bin/create-vertz.ts".to_string())
+        );
+    }
+
+    #[test]
+    fn test_extract_bin_path_no_bin() {
+        let pkg: serde_json::Value = serde_json::from_str(r#"{"name": "foo"}"#).unwrap();
+        assert_eq!(extract_bin_path(&pkg), None);
+    }
+
+    #[test]
+    fn test_extract_bin_path_null_bin() {
+        let pkg: serde_json::Value = serde_json::from_str(r#"{"bin": null}"#).unwrap();
+        assert_eq!(extract_bin_path(&pkg), None);
+    }
+
+    // --- find_js_runtime tests ---
+
+    #[test]
+    fn test_find_js_runtime_finds_something() {
+        // CI and dev machines should have at least node or bun
+        let result = find_js_runtime();
+        assert!(result.is_ok(), "expected bun or node on PATH");
+        let runtime = result.unwrap();
+        assert!(runtime == "bun" || runtime == "node");
+    }
+
+    // --- move_dir_contents tests ---
+
+    #[test]
+    fn test_move_dir_contents_basic() {
+        let src_dir = tempfile::tempdir().unwrap();
+        let dst_dir = tempfile::tempdir().unwrap();
+
+        std::fs::write(src_dir.path().join("file.txt"), "hello").unwrap();
+        std::fs::create_dir(src_dir.path().join("sub")).unwrap();
+        std::fs::write(src_dir.path().join("sub/nested.txt"), "world").unwrap();
+
+        move_dir_contents(src_dir.path(), dst_dir.path()).unwrap();
+
+        assert!(dst_dir.path().join("file.txt").exists());
+        assert_eq!(
+            std::fs::read_to_string(dst_dir.path().join("file.txt")).unwrap(),
+            "hello"
+        );
+        assert!(dst_dir.path().join("sub/nested.txt").exists());
+        assert_eq!(
+            std::fs::read_to_string(dst_dir.path().join("sub/nested.txt")).unwrap(),
+            "world"
+        );
+    }
+
+    #[test]
+    fn test_move_dir_contents_empty_src() {
+        let src_dir = tempfile::tempdir().unwrap();
+        let dst_dir = tempfile::tempdir().unwrap();
+        assert!(move_dir_contents(src_dir.path(), dst_dir.path()).is_ok());
+    }
+
+    // --- copy_dir_recursive tests ---
+
+    #[test]
+    fn test_copy_dir_recursive_basic() {
+        let src_dir = tempfile::tempdir().unwrap();
+        let dst_dir = tempfile::tempdir().unwrap();
+        let dst = dst_dir.path().join("output");
+
+        std::fs::write(src_dir.path().join("a.txt"), "aaa").unwrap();
+        std::fs::create_dir(src_dir.path().join("inner")).unwrap();
+        std::fs::write(src_dir.path().join("inner/b.txt"), "bbb").unwrap();
+
+        copy_dir_recursive(src_dir.path(), &dst).unwrap();
+
+        assert_eq!(std::fs::read_to_string(dst.join("a.txt")).unwrap(), "aaa");
+        assert_eq!(
+            std::fs::read_to_string(dst.join("inner/b.txt")).unwrap(),
+            "bbb"
+        );
     }
 }
