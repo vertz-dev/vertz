@@ -20,6 +20,7 @@
     "@vertz/icons",
     "@vertz/schema",
     "@vertz/server",
+    "@vertz/test",
     "@vertz/testing",
     "@vertz/theme-shadcn",
     "@vertz/tui",
