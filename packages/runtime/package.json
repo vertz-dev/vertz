@@ -1,6 +1,6 @@
 {
   "name": "@vertz/runtime",
-  "version": "0.2.49",
+  "version": "0.2.50",
   "description": "Vertz runtime binary — internal platform selector for vtz CLI. Use @vertz/cli for development.",
   "repository": {
     "type": "git",
@@ -36,9 +36,9 @@
     "@types/node": "^22.15.32"
   },
   "optionalDependencies": {
-    "@vertz/runtime-darwin-arm64": "0.2.49",
-    "@vertz/runtime-darwin-x64": "0.2.49",
-    "@vertz/runtime-linux-arm64": "0.2.49",
-    "@vertz/runtime-linux-x64": "0.2.49"
+    "@vertz/runtime-darwin-arm64": "0.2.50",
+    "@vertz/runtime-darwin-x64": "0.2.50",
+    "@vertz/runtime-linux-arm64": "0.2.50",
+    "@vertz/runtime-linux-x64": "0.2.50"
   }
 }

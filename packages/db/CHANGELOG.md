@@ -1,5 +1,15 @@
 # @vertz/db
 
+## 0.2.50
+
+### Patch Changes
+
+- [#2378](https://github.com/vertz-dev/vertz/pull/2378) [`5ab022d`](https://github.com/vertz-dev/vertz/commit/5ab022d712d2bf297e5ecec9907045b5fe7154ec) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - Fix autoApply generating invalid SQLite DDL for composite primary keys. Now emits a table-level `PRIMARY KEY(col1, col2)` constraint instead of per-column `PRIMARY KEY` on each column.
+
+- Updated dependencies []:
+  - @vertz/errors@0.2.50
+  - @vertz/schema@0.2.50
+
 ## 0.2.49
 
 ### Patch Changes
