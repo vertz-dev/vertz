@@ -149,9 +149,11 @@ const tasksModel = d.model(tasksTable);
 
 Column annotations: `.hidden()` (exclude from API), `.readOnly()` (exclude from inputs), `.default()` (optional on create).
 
-## Testing (Server)
+## Testing
 
-`createTestClient()` provides type-safe server integration tests. See [Testing](/guides/testing-server).
+`vtz test` is the built-in test runner (V8-powered, Vitest-compatible API). Import from `@vertz/test` — no install needed. See [Test Runner](/guides/testing-unit).
+
+`createTestClient()` provides type-safe server integration tests. See [Server Testing](/guides/testing-server).
 
 ```ts
 import { createTestClient } from '@vertz/testing';
