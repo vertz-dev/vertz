@@ -47,6 +47,8 @@ export class PostgresDialect implements Dialect {
         return meta?.length ? `VARCHAR(${meta.length})` : 'VARCHAR';
       case 'enum':
         return meta?.enumName ?? 'TEXT';
+      case 'vector':
+        return meta?.dimensions ? `vector(${meta.dimensions})` : 'vector';
       default:
         return 'TEXT';
     }

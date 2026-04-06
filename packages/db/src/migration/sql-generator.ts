@@ -1,9 +1,10 @@
 import type { Dialect } from '../dialect';
+import type { ColumnTypeMeta } from '../dialect/types';
 import { defaultPostgresDialect } from '../dialect';
 import { camelToSnake } from '../sql/casing';
 import type { DiffChange } from './differ';
 import type { ColumnSnapshot, TableSnapshot } from './snapshot';
-import { validateIndexes } from './validate-indexes';
+import { validateColumns, validateIndexes } from './validate-indexes';
 
 /**
  * Context needed by the SQL generator to produce full DDL.
@@ -77,20 +78,34 @@ function columnDef(
       checkConstraint = `CHECK("${snakeName}" IN (${escapedValues}))`;
     }
   } else {
+    // Build ColumnTypeMeta from snapshot fields for parameterized types
+    const hasMeta =
+      col.dimensions != null || col.length != null || col.precision != null || col.scale != null;
+    const meta: ColumnTypeMeta | undefined = hasMeta
+      ? {
+          ...(col.dimensions != null && { dimensions: col.dimensions }),
+          ...(col.length != null && { length: col.length }),
+          ...(col.precision != null && { precision: col.precision }),
+          ...(col.scale != null && { scale: col.scale }),
+        }
+      : undefined;
+
     // Use dialect's type mapping
     // For backward compatibility:
     // - PostgresDialect with lowercase types preserves them as-is
     // - SQLiteDialect always applies mapping (uuid->TEXT, boolean->INTEGER, etc.)
     // - Uppercase types are normalized and mapped via dialect
-    if (dialect.name === 'postgres' && col.type === col.type.toLowerCase()) {
-      // PostgresDialect with lowercase type - preserve as-is for backward compatibility
+    // - Parameterized types (vector, varchar, decimal) always go through dialect.mapColumnType()
+    if (dialect.name === 'postgres' && col.type === col.type.toLowerCase() && !hasMeta) {
+      // PostgresDialect with lowercase type (no params) - preserve as-is for backward compatibility
       sqlType = col.type;
     } else {
       // Apply dialect mapping:
       // - For SQLite: maps all types (UUID->TEXT, BOOLEAN->INTEGER, etc.)
       // - For Postgres with uppercase types: normalize and map
+      // - For parameterized types: pass meta for dimensions/length/precision
       const normalizedType = normalizeColumnType(col.type);
-      sqlType = dialect.mapColumnType(normalizedType);
+      sqlType = dialect.mapColumnType(normalizedType, meta);
     }
   }
 
@@ -152,10 +167,11 @@ export function generateMigrationSql(
   const tables = ctx?.tables;
   const enums = ctx?.enums;
 
-  // Emit warnings for unsupported index features
+  // Emit warnings for unsupported features
   if (tables) {
-    const warnings = validateIndexes(tables, dialect.name);
-    for (const warning of warnings) {
+    const indexWarnings = validateIndexes(tables, dialect.name);
+    const columnWarnings = validateColumns(tables, dialect.name);
+    for (const warning of [...indexWarnings, ...columnWarnings]) {
       console.warn(warning);
     }
   }
@@ -224,14 +240,21 @@ export function generateMigrationSql(
         statements.push(`CREATE TABLE "${tableName}" (\n${cols.join(',\n')}\n);`);
 
         for (const idx of table.indexes) {
-          const idxCols = idx.columns.map((c) => `"${camelToSnake(c)}"`).join(', ');
+          const idxColsStr = idx.opclass
+            ? idx.columns.map((c) => `"${camelToSnake(c)}" ${idx.opclass}`).join(', ')
+            : idx.columns.map((c) => `"${camelToSnake(c)}"`).join(', ');
           const idxName =
             idx.name ?? `idx_${tableName}_${idx.columns.map((c) => camelToSnake(c)).join('_')}`;
           const unique = idx.unique ? 'UNIQUE ' : '';
           const using = idx.type && dialect.name === 'postgres' ? ` USING ${idx.type}` : '';
+          const withParts: string[] = [];
+          if (idx.m != null) withParts.push(`m = ${idx.m}`);
+          if (idx.efConstruction != null) withParts.push(`ef_construction = ${idx.efConstruction}`);
+          if (idx.lists != null) withParts.push(`lists = ${idx.lists}`);
+          const withClause = withParts.length > 0 ? ` WITH (${withParts.join(', ')})` : '';
           const where = idx.where ? ` WHERE ${idx.where}` : '';
           statements.push(
-            `CREATE ${unique}INDEX "${idxName}" ON "${tableName}"${using} (${idxCols})${where};`,
+            `CREATE ${unique}INDEX "${idxName}" ON "${tableName}"${using} (${idxColsStr})${withClause}${where};`,
           );
         }
         break;
@@ -305,7 +328,9 @@ export function generateMigrationSql(
       case 'index_added': {
         if (!change.table || !change.columns) break;
         const snakeTable = camelToSnake(change.table);
-        const idxCols = change.columns.map((c) => `"${camelToSnake(c)}"`).join(', ');
+        const idxColsStr = change.indexOpclass
+          ? change.columns.map((c) => `"${camelToSnake(c)}" ${change.indexOpclass}`).join(', ')
+          : change.columns.map((c) => `"${camelToSnake(c)}"`).join(', ');
         const idxName =
           change.indexName ??
           `idx_${snakeTable}_${change.columns.map((c) => camelToSnake(c)).join('_')}`;
@@ -313,9 +338,15 @@ export function generateMigrationSql(
         // USING clause only supported on Postgres
         const using =
           change.indexType && dialect.name === 'postgres' ? ` USING ${change.indexType}` : '';
+        const withParts: string[] = [];
+        if (change.indexM != null) withParts.push(`m = ${change.indexM}`);
+        if (change.indexEfConstruction != null)
+          withParts.push(`ef_construction = ${change.indexEfConstruction}`);
+        if (change.indexLists != null) withParts.push(`lists = ${change.indexLists}`);
+        const withClause = withParts.length > 0 ? ` WITH (${withParts.join(', ')})` : '';
         const where = change.indexWhere ? ` WHERE ${change.indexWhere}` : '';
         statements.push(
-          `CREATE ${unique}INDEX "${idxName}" ON "${snakeTable}"${using} (${idxCols})${where};`,
+          `CREATE ${unique}INDEX "${idxName}" ON "${snakeTable}"${using} (${idxColsStr})${withClause}${where};`,
         );
         break;
       }

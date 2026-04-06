@@ -46,4 +46,5 @@ export interface ColumnTypeMeta {
   readonly length?: number;
   readonly precision?: number;
   readonly scale?: number;
+  readonly dimensions?: number;
 }

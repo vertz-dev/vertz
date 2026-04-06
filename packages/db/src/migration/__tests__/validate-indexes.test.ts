@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'bun:test';
-import type { IndexSnapshot, TableSnapshot } from '../snapshot';
-import { validateIndexes } from '../validate-indexes';
+import type { ColumnSnapshot, IndexSnapshot, TableSnapshot } from '../snapshot';
+import { validateColumns, validateIndexes } from '../validate-indexes';
 
 function makeTable(indexes: IndexSnapshot[]): Record<string, TableSnapshot> {
   return {
@@ -71,5 +71,71 @@ describe('validateIndexes', () => {
     const tables = makeTable([{ columns: ['title'], where: "status = 'active'" }]);
     expect(validateIndexes(tables, 'postgres')).toEqual([]);
     expect(validateIndexes(tables, 'sqlite')).toEqual([]);
+  });
+
+  it('warns when using ivfflat index type on sqlite', () => {
+    const tables = makeTable([{ columns: ['embedding'], type: 'ivfflat' }]);
+    const warnings = validateIndexes(tables, 'sqlite');
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0]).toContain('ivfflat');
+    expect(warnings[0]).toContain('sqlite');
+  });
+
+  it('returns no warnings for ivfflat on postgres', () => {
+    const tables = makeTable([{ columns: ['embedding'], type: 'ivfflat' }]);
+    expect(validateIndexes(tables, 'postgres')).toEqual([]);
+  });
+});
+
+describe('validateColumns', () => {
+  function makeTableWithColumns(
+    columns: Record<string, ColumnSnapshot>,
+  ): Record<string, TableSnapshot> {
+    return {
+      documents: {
+        columns,
+        indexes: [],
+        foreignKeys: [],
+        _metadata: {},
+      },
+    };
+  }
+
+  it('warns about vector column type on sqlite', () => {
+    const tables = makeTableWithColumns({
+      id: { type: 'uuid', nullable: false, primary: true, unique: false },
+      embedding: {
+        type: 'vector',
+        nullable: false,
+        primary: false,
+        unique: false,
+        dimensions: 1536,
+      },
+    });
+    const warnings = validateColumns(tables, 'sqlite');
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0]).toContain('vector');
+    expect(warnings[0]).toContain('sqlite');
+    expect(warnings[0]).toContain('embedding');
+  });
+
+  it('returns no warnings for vector column on postgres', () => {
+    const tables = makeTableWithColumns({
+      embedding: {
+        type: 'vector',
+        nullable: false,
+        primary: false,
+        unique: false,
+        dimensions: 1536,
+      },
+    });
+    expect(validateColumns(tables, 'postgres')).toEqual([]);
+  });
+
+  it('returns no warnings for non-vector columns on sqlite', () => {
+    const tables = makeTableWithColumns({
+      title: { type: 'text', nullable: false, primary: false, unique: false },
+    });
+    expect(validateColumns(tables, 'sqlite')).toEqual([]);
   });
 });

@@ -17,6 +17,8 @@ export interface ColumnSnapshot {
   precision?: number;
   /** numeric_scale for decimal/numeric columns. */
   scale?: number;
+  /** Vector dimension count for pgvector columns. */
+  dimensions?: number;
 }
 
 export interface IndexSnapshot {
@@ -25,6 +27,10 @@ export interface IndexSnapshot {
   unique?: boolean;
   type?: IndexType;
   where?: string;
+  opclass?: string;
+  m?: number;
+  efConstruction?: number;
+  lists?: number;
 }
 
 export interface ForeignKeySnapshot {
@@ -143,6 +149,10 @@ export function createSnapshot(entries: (TableDef<ColumnRecord> | ModelDef)[]): 
         colSnap.annotations = annotationNames;
       }
 
+      if (meta.dimensions != null) {
+        colSnap.dimensions = meta.dimensions;
+      }
+
       columns[colName] = colSnap;
 
       if (meta.enumName && meta.enumValues) {
@@ -156,6 +166,10 @@ export function createSnapshot(entries: (TableDef<ColumnRecord> | ModelDef)[]): 
       if (idx.unique) snap.unique = idx.unique;
       if (idx.type) snap.type = idx.type;
       if (idx.where) snap.where = idx.where;
+      if (idx.opclass) snap.opclass = idx.opclass;
+      if (idx.m != null) snap.m = idx.m;
+      if (idx.efConstruction != null) snap.efConstruction = idx.efConstruction;
+      if (idx.lists != null) snap.lists = idx.lists;
       indexes.push(snap);
     }
 
