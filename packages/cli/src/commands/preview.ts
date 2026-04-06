@@ -30,6 +30,7 @@ export interface PreviewDeps {
   validateBuildOutputs: (root: string, appType: AppType) => Result<void, Error>;
   serve: (appType: AppType, options: ServeOptions) => Promise<Result<ServeResult, Error>>;
   setupGracefulShutdown: (server: { stop(): void }) => void;
+  openBrowser: (url: string) => void;
   log: (message: string) => void;
 }
 
@@ -58,39 +59,35 @@ export async function previewAction(
   }
 
   // Determine build strategy
-  if (options.build === false) {
-    // --no-build: validate outputs exist
-    const validation = deps.validateBuildOutputs(projectRoot, detected.type);
-    if (!validation.ok) {
-      return validation;
-    }
-  } else if (options.build === true) {
-    // --build: force rebuild
-    if (verbose) {
-      deps.log('Forced rebuild requested');
-    }
-    const buildResult = await deps.buildAction();
-    if (!buildResult.ok) {
-      deps.log('Build failed. Fix the errors above and try again.');
-      return buildResult;
-    }
-  } else {
-    // Auto: check freshness
-    const freshness = deps.isBuildFresh(projectRoot, detected.type);
-    if (verbose) {
-      deps.log(`Build freshness: ${freshness.fresh ? 'fresh' : 'stale'} (${freshness.reason})`);
-    }
-    if (!freshness.fresh) {
-      deps.log(`Building... (${freshness.reason})`);
+  if (options.build !== false) {
+    if (options.build === true) {
+      // --build: force rebuild
+      if (verbose) {
+        deps.log('Forced rebuild requested');
+      }
       const buildResult = await deps.buildAction();
       if (!buildResult.ok) {
         deps.log('Build failed. Fix the errors above and try again.');
         return buildResult;
       }
+    } else {
+      // Auto: check freshness
+      const freshness = deps.isBuildFresh(projectRoot, detected.type);
+      if (verbose) {
+        deps.log(`Build freshness: ${freshness.fresh ? 'fresh' : 'stale'} (${freshness.reason})`);
+      }
+      if (!freshness.fresh) {
+        deps.log(`Building... (${freshness.reason})`);
+        const buildResult = await deps.buildAction();
+        if (!buildResult.ok) {
+          deps.log('Build failed. Fix the errors above and try again.');
+          return buildResult;
+        }
+      }
     }
   }
 
-  // Validate build outputs (even after build, for safety)
+  // Validate build outputs exist (catches --no-build with missing dist, or build that didn't produce outputs)
   const validation = deps.validateBuildOutputs(projectRoot, detected.type);
   if (!validation.ok) {
     return validation;
@@ -112,6 +109,10 @@ export async function previewAction(
   }
   deps.log('\nThis is a local preview. For production, use "vertz start".');
   deps.log('Press Ctrl+C to stop.');
+
+  if (options.open) {
+    deps.openBrowser(url);
+  }
 
   deps.setupGracefulShutdown(server);
   return ok(undefined);

@@ -95,7 +95,7 @@ describe('isBuildFresh', () => {
 
       const result = isBuildFresh(projectRoot, 'ui-only', { getFileMtimeMs: getMtime });
       expect(result.fresh).toBe(false);
-      expect(result.reason).toBe('src/ has changes newer than build');
+      expect(result.reason).toBe('source files have changes newer than build');
     });
   });
 
@@ -198,7 +198,7 @@ describe('isBuildFresh', () => {
 
       const result = isBuildFresh(projectRoot, 'full-stack', { getFileMtimeMs: getMtime });
       expect(result.fresh).toBe(false);
-      expect(result.reason).toBe('src/ has changes newer than build');
+      expect(result.reason).toBe('source files have changes newer than build');
     });
   });
 
@@ -218,7 +218,7 @@ describe('isBuildFresh', () => {
 
       const result = isBuildFresh(projectRoot, 'ui-only', { getFileMtimeMs: getMtime });
       expect(result.fresh).toBe(false);
-      expect(result.reason).toBe('src/ has changes newer than build');
+      expect(result.reason).toBe('source files have changes newer than build');
     });
   });
 

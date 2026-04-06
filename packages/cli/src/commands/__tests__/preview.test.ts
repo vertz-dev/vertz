@@ -21,6 +21,7 @@ function createMockDeps(overrides?: Partial<PreviewDeps>): PreviewDeps {
     serve: async () =>
       ok({ server: mockServer, url: 'http://localhost:4000', aotRouteCount: 0 }),
     setupGracefulShutdown: vi.fn(),
+    openBrowser: vi.fn(),
     log: vi.fn(),
     ...overrides,
   };
@@ -351,6 +352,36 @@ describe('previewAction', () => {
       if (!result.ok) {
         expect(result.error.message).toContain('Missing build outputs');
       }
+    });
+  });
+
+  describe('Given --open flag is true', () => {
+    it('Then opens the browser with the server URL', async () => {
+      const openBrowser = vi.fn();
+      const deps = createMockDeps({
+        serve: async () =>
+          ok({
+            server: { port: 4000, stop: vi.fn() },
+            url: 'http://localhost:4000',
+            aotRouteCount: 0,
+          }),
+        openBrowser,
+      });
+
+      await previewAction({ open: true }, deps);
+
+      expect(openBrowser).toHaveBeenCalledWith('http://localhost:4000');
+    });
+  });
+
+  describe('Given --open flag is not set', () => {
+    it('Then does not open the browser', async () => {
+      const openBrowser = vi.fn();
+      const deps = createMockDeps({ openBrowser });
+
+      await previewAction({}, deps);
+
+      expect(openBrowser).not.toHaveBeenCalled();
     });
   });
 

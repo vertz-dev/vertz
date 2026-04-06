@@ -5,7 +5,7 @@
  * source file mtimes against build output markers.
  */
 
-import { existsSync, readdirSync, statSync } from 'node:fs';
+import { existsSync, lstatSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import type { AppType } from '../dev-server/app-detector';
 
@@ -43,7 +43,7 @@ export function isBuildFresh(
   }
 
   if (maxSourceMtime > markerMtime) {
-    return { fresh: false, reason: 'src/ has changes newer than build' };
+    return { fresh: false, reason: 'source files have changes newer than build' };
   }
 
   return { fresh: true, reason: 'dist/ is up to date' };
@@ -133,16 +133,27 @@ function getMaxSourceMtime(projectRoot: string, getMtime: GetMtime): number | un
 
 /**
  * Recursively walk a directory, calling `callback` for each file.
+ * Skips symlinks and silently ignores unreadable entries.
  */
 function walkDir(dir: string, callback: (filePath: string) => void): void {
-  const entries = readdirSync(dir);
+  let entries: string[];
+  try {
+    entries = readdirSync(dir);
+  } catch {
+    return;
+  }
   for (const entry of entries) {
     const fullPath = join(dir, entry);
-    const stat = statSync(fullPath);
-    if (stat.isDirectory()) {
-      walkDir(fullPath, callback);
-    } else {
-      callback(fullPath);
+    try {
+      const stat = lstatSync(fullPath);
+      if (stat.isSymbolicLink()) continue;
+      if (stat.isDirectory()) {
+        walkDir(fullPath, callback);
+      } else {
+        callback(fullPath);
+      }
+    } catch {
+      // Skip unreadable entries
     }
   }
 }
