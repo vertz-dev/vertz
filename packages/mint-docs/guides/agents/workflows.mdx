@@ -127,10 +127,10 @@ type WorkflowErrorReason = 'agent-failed' | 'invalid-json' | 'schema-mismatch';
 interface WorkflowResult {
   status: 'complete' | 'error' | 'pending';
   stepResults: Record<string, StepResult>;
-  failedStep?: string;       // Only set when status is 'error'
+  failedStep?: string; // Only set when status is 'error'
   errorReason?: WorkflowErrorReason; // Only set when status is 'error'
-  pendingStep?: string;      // Only set when status is 'pending'
-  approvalMessage?: string;  // Only set when status is 'pending'
+  pendingStep?: string; // Only set when status is 'pending'
+  approvalMessage?: string; // Only set when status is 'pending'
 }
 
 interface StepResult {
