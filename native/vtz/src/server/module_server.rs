@@ -71,6 +71,9 @@ pub struct DevServerState {
     /// after the watcher already cleared it).
     /// `None` until the first file change is detected.
     pub last_file_change: Arc<std::sync::Mutex<Option<std::time::Instant>>>,
+    /// Pre-detected favicon link tag (e.g., `<link rel="icon" ... />`).
+    /// Detected at startup from `public/favicon.{svg,ico,png}`.
+    pub favicon_tag: Option<String>,
 }
 
 /// Handle requests for source files: `GET /src/**/*.tsx` → compiled JavaScript.
@@ -875,6 +878,7 @@ mod tests {
             api_proxy: None,
             auto_installer: None,
             last_file_change: Arc::new(std::sync::Mutex::new(None)),
+            favicon_tag: None,
         })
     }
 
@@ -1515,6 +1519,7 @@ mod tests {
             api_proxy: None,
             auto_installer: None,
             last_file_change: Arc::new(std::sync::Mutex::new(None)),
+            favicon_tag: None,
         });
 
         let req = Request::builder()
@@ -1672,6 +1677,7 @@ mod tests {
             api_proxy: None,
             auto_installer: None,
             last_file_change: Arc::new(std::sync::Mutex::new(None)),
+            favicon_tag: None,
         });
 
         let req = Request::builder()
@@ -1727,6 +1733,7 @@ mod tests {
             api_proxy: None,
             auto_installer: None,
             last_file_change: Arc::new(std::sync::Mutex::new(None)),
+            favicon_tag: None,
         });
 
         let req = Request::builder()
@@ -1811,6 +1818,7 @@ mod tests {
             api_proxy: None,
             auto_installer: None,
             last_file_change: Arc::new(std::sync::Mutex::new(None)),
+            favicon_tag: None,
         };
 
         // helper-lib/index.js is not in root's node_modules directly,
@@ -1863,6 +1871,7 @@ mod tests {
             api_proxy: None,
             auto_installer: None,
             last_file_change: Arc::new(std::sync::Mutex::new(None)),
+            favicon_tag: None,
         };
 
         let result = re_resolve_dep("some-dep/index.js", &state);
@@ -1916,6 +1925,7 @@ mod tests {
             api_proxy: None,
             auto_installer: None,
             last_file_change: Arc::new(std::sync::Mutex::new(None)),
+            favicon_tag: None,
         });
 
         // Request the bare specifier (no subpath) which should resolve via package.json exports
@@ -2079,6 +2089,7 @@ mod tests {
             api_proxy: None,
             auto_installer: None,
             last_file_change: Arc::new(std::sync::Mutex::new(None)),
+            favicon_tag: None,
         });
 
         let req = Request::builder()
@@ -2182,6 +2193,7 @@ mod tests {
             api_proxy: None,
             auto_installer: None,
             last_file_change: Arc::new(std::sync::Mutex::new(None)),
+            favicon_tag: None,
         });
 
         let req = Request::builder()

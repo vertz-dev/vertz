@@ -165,6 +165,9 @@ pub fn build_router(
     // Load theme CSS from the project (if available)
     let theme_css = theme_css::load_theme_css(&config.root_dir);
 
+    // Detect favicon in public/ directory
+    let favicon_tag = crate::ssr::html_document::detect_favicon_tag(&config.root_dir);
+
     let hmr_hub = HmrHub::new();
     let audit_log = crate::server::audit_log::AuditLog::default();
     let error_broadcaster =
@@ -328,6 +331,7 @@ pub fn build_router(
         ssr_pool,
         api_proxy,
         last_file_change: Arc::new(std::sync::Mutex::new(None)),
+        favicon_tag,
     });
 
     // Routes: HMR WebSocket, error WebSocket, diagnostics, AI API, fallback
@@ -476,11 +480,18 @@ async fn ai_render_handler(
 
             match isolate.handle_ssr(ssr_req).await {
                 Ok(ssr_resp) => {
+                    // Return 404 when no route matched (fallback content rendered but URL is invalid)
+                    let status_code = if ssr_resp.matched_route_patterns.is_empty() {
+                        404u16
+                    } else {
+                        200u16
+                    };
+
                     state
                         .audit_log
                         .record(crate::server::audit_log::AuditEvent::ssr_render(
                             &url,
-                            200,
+                            status_code,
                             0,
                             ssr_resp.is_ssr,
                             ssr_resp.render_time_ms,
@@ -507,11 +518,18 @@ async fn ai_render_handler(
                             ssr_data: ssr_resp.ssr_data.as_deref(),
                             head_tags: ssr_resp.head_tags.as_deref(),
                             root_dir: Some(&state.root_dir.to_string_lossy()),
+                            favicon_tag: state.favicon_tag.as_deref(),
                         },
                     );
 
+                    let status = if status_code == 404 {
+                        StatusCode::NOT_FOUND
+                    } else {
+                        StatusCode::OK
+                    };
+
                     return axum::response::Response::builder()
-                        .status(StatusCode::OK)
+                        .status(status)
                         .header(header::CONTENT_TYPE, "text/html; charset=utf-8")
                         .header(header::CACHE_CONTROL, "no-cache")
                         .header(
@@ -926,10 +944,16 @@ async fn dev_server_handler(
                                 }
                             );
                             eprintln!("[SSR] {}", render_msg);
+                            // Return 404 when no route matched
+                            let status_code = if ssr_resp.matched_route_patterns.is_empty() {
+                                404u16
+                            } else {
+                                200u16
+                            };
                             state.audit_log.record(
                                 crate::server::audit_log::AuditEvent::ssr_render(
                                     &path,
-                                    200,
+                                    status_code,
                                     0,
                                     ssr_resp.is_ssr,
                                     ssr_resp.render_time_ms,
@@ -945,6 +969,13 @@ async fn dev_server_handler(
                                 .body(Body::empty())
                                 .unwrap();
                         }
+
+                        // Return 404 when no route matched (fallback content rendered but URL is invalid)
+                        let status = if ssr_resp.matched_route_patterns.is_empty() {
+                            StatusCode::NOT_FOUND
+                        } else {
+                            StatusCode::OK
+                        };
 
                         // Assemble the full HTML document from SSR response.
                         // Framework path returns pre-formatted CSS HTML (with <style> tags);
@@ -970,11 +1001,12 @@ async fn dev_server_handler(
                                 ssr_data: ssr_resp.ssr_data.as_deref(),
                                 head_tags: ssr_resp.head_tags.as_deref(),
                                 root_dir: Some(&state.root_dir.to_string_lossy()),
+                                favicon_tag: state.favicon_tag.as_deref(),
                             },
                         );
 
                         return axum::response::Response::builder()
-                            .status(StatusCode::OK)
+                            .status(status)
                             .header(header::CONTENT_TYPE, "text/html; charset=utf-8")
                             .header(header::CACHE_CONTROL, "no-cache")
                             .body(Body::from(html))

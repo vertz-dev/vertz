@@ -25,6 +25,8 @@ export interface ProgressiveResponseOptions {
   nonce?: string;
   /** Additional response headers (e.g., Link for font preloads). */
   headers?: Record<string, string>;
+  /** HTTP status code (default: 200). */
+  status?: number;
 }
 
 /**
@@ -85,5 +87,5 @@ export function buildProgressiveResponse(options: ProgressiveResponseOptions): R
     ...headers,
   };
 
-  return new Response(stream, { status: 200, headers: responseHeaders });
+  return new Response(stream, { status: options.status ?? 200, headers: responseHeaders });
 }

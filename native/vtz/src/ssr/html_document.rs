@@ -43,6 +43,8 @@ pub struct SsrHtmlOptions<'a> {
     pub head_tags: Option<&'a str>,
     /// Absolute path to the project root directory (for editor link construction in the error overlay).
     pub root_dir: Option<&'a str>,
+    /// Favicon link tag to inject into `<head>` (e.g., `<link rel="icon" ... />`).
+    pub favicon_tag: Option<&'a str>,
 }
 
 /// Assemble a complete SSR HTML document.
@@ -81,6 +83,11 @@ pub fn assemble_ssr_document(options: &SsrHtmlOptions<'_>) -> String {
         "  <title>{}</title>\n",
         escape_html(options.title)
     ));
+
+    // Favicon link tag
+    if let Some(favicon) = options.favicon_tag {
+        html.push_str(&format!("  {}\n", favicon));
+    }
 
     // Project root path for editor link construction in the error overlay.
     if let Some(root) = options.root_dir {
@@ -178,6 +185,28 @@ pub fn entry_path_to_url(entry_path: &Path, root_dir: &Path) -> String {
     }
 }
 
+/// Detect a favicon file in `public/` and return the appropriate `<link>` tag.
+///
+/// Checks for (in order): `favicon.svg`, `favicon.ico`, `favicon.png`.
+/// Returns `None` if no favicon file is found.
+pub fn detect_favicon_tag(root_dir: &Path) -> Option<String> {
+    let public_dir = root_dir.join("public");
+    let candidates = [
+        ("favicon.svg", "image/svg+xml"),
+        ("favicon.ico", "image/x-icon"),
+        ("favicon.png", "image/png"),
+    ];
+    for (filename, mime_type) in &candidates {
+        if public_dir.join(filename).exists() {
+            return Some(format!(
+                r#"<link rel="icon" type="{}" href="/{}" />"#,
+                mime_type, filename
+            ));
+        }
+    }
+    None
+}
+
 /// Basic HTML escaping for text content.
 fn escape_html(s: &str) -> String {
     s.replace('&', "&amp;")
@@ -203,6 +232,7 @@ mod tests {
             ssr_data: None,
             head_tags: None,
             root_dir: None,
+            favicon_tag: None,
         }
     }
 
@@ -380,6 +410,7 @@ mod tests {
             ssr_data: None,
             head_tags: None,
             root_dir: None,
+            favicon_tag: None,
         };
         let html = assemble_ssr_document(&opts);
 
@@ -476,5 +507,84 @@ mod tests {
         let app_pos = html.find("<div id=\"app\">").unwrap();
         assert!(data_pos > app_pos, "SSR data should be after app content");
         assert!(data_pos < body_end, "SSR data should be before </body>");
+    }
+
+    #[test]
+    fn test_favicon_tag_injected_in_head() {
+        let opts = SsrHtmlOptions {
+            favicon_tag: Some(r#"<link rel="icon" type="image/svg+xml" href="/favicon.svg" />"#),
+            ..default_options()
+        };
+        let html = assemble_ssr_document(&opts);
+        assert!(html.contains(r#"<link rel="icon" type="image/svg+xml" href="/favicon.svg" />"#));
+        let favicon_pos = html.find("favicon.svg").unwrap();
+        let head_end = html.find("</head>").unwrap();
+        assert!(favicon_pos < head_end, "Favicon tag should be in <head>");
+    }
+
+    #[test]
+    fn test_favicon_tag_omitted_when_none() {
+        let opts = SsrHtmlOptions {
+            favicon_tag: None,
+            ..default_options()
+        };
+        let html = assemble_ssr_document(&opts);
+        assert!(
+            !html.contains("favicon"),
+            "Should NOT contain favicon when None"
+        );
+    }
+
+    #[test]
+    fn test_detect_favicon_svg() {
+        let temp = tempfile::tempdir().unwrap();
+        let public_dir = temp.path().join("public");
+        std::fs::create_dir_all(&public_dir).unwrap();
+        std::fs::write(public_dir.join("favicon.svg"), "<svg></svg>").unwrap();
+
+        let tag = detect_favicon_tag(temp.path());
+        assert_eq!(
+            tag,
+            Some(r#"<link rel="icon" type="image/svg+xml" href="/favicon.svg" />"#.to_string())
+        );
+    }
+
+    #[test]
+    fn test_detect_favicon_ico() {
+        let temp = tempfile::tempdir().unwrap();
+        let public_dir = temp.path().join("public");
+        std::fs::create_dir_all(&public_dir).unwrap();
+        std::fs::write(public_dir.join("favicon.ico"), [0u8; 4]).unwrap();
+
+        let tag = detect_favicon_tag(temp.path());
+        assert_eq!(
+            tag,
+            Some(r#"<link rel="icon" type="image/x-icon" href="/favicon.ico" />"#.to_string())
+        );
+    }
+
+    #[test]
+    fn test_detect_favicon_priority() {
+        let temp = tempfile::tempdir().unwrap();
+        let public_dir = temp.path().join("public");
+        std::fs::create_dir_all(&public_dir).unwrap();
+        std::fs::write(public_dir.join("favicon.svg"), "<svg></svg>").unwrap();
+        std::fs::write(public_dir.join("favicon.ico"), [0u8; 4]).unwrap();
+
+        let tag = detect_favicon_tag(temp.path());
+        assert!(
+            tag.unwrap().contains("image/svg+xml"),
+            "SVG should take priority over ICO"
+        );
+    }
+
+    #[test]
+    fn test_detect_favicon_none() {
+        let temp = tempfile::tempdir().unwrap();
+        let public_dir = temp.path().join("public");
+        std::fs::create_dir_all(&public_dir).unwrap();
+
+        let tag = detect_favicon_tag(temp.path());
+        assert!(tag.is_none(), "Should return None when no favicon exists");
     }
 }

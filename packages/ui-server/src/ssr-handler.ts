@@ -350,6 +350,9 @@ async function handleProgressiveHTMLRequest(
     if (linkHeader) headers.Link = linkHeader;
     if (cacheControl) headers['Cache-Control'] = cacheControl;
 
+    // Return 404 when no route matched (fallback content was rendered but URL is invalid)
+    const status = result.matchedRoutePatterns?.length ? 200 : 404;
+
     return buildProgressiveResponse({
       headChunk,
       renderStream: result.renderStream!,
@@ -357,6 +360,7 @@ async function handleProgressiveHTMLRequest(
       ssrData: result.ssrData,
       nonce,
       headers,
+      status,
     });
   } catch (err) {
     console.error('[SSR] Render failed:', err instanceof Error ? err.message : err);
@@ -450,7 +454,9 @@ async function handleHTMLRequest(
     if (linkHeader) headers.Link = linkHeader;
     if (cacheControl) headers['Cache-Control'] = cacheControl;
 
-    return new Response(html, { status: 200, headers });
+    // Return 404 when no route matched (fallback content was rendered but URL is invalid)
+    const status = result.matchedRoutePatterns?.length ? 200 : 404;
+    return new Response(html, { status, headers });
   } catch (err) {
     console.error('[SSR] Render failed:', err instanceof Error ? err.message : err);
     return new Response('Internal Server Error', {

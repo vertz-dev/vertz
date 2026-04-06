@@ -276,6 +276,7 @@ fn test_full_ssr_document_structure() {
         ssr_data: None,
         head_tags: None,
         root_dir: None,
+        favicon_tag: None,
     });
 
     // Document is valid HTML5

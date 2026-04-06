@@ -351,6 +351,7 @@ pub(crate) async fn execute_tool(
                                     ssr_data: ssr_resp.ssr_data.as_deref(),
                                     head_tags: ssr_resp.head_tags.as_deref(),
                                     root_dir: Some(&state.root_dir.to_string_lossy()),
+                                    favicon_tag: state.favicon_tag.as_deref(),
                                 },
                             );
 
@@ -1176,6 +1177,7 @@ mod tests {
             api_proxy: None,
             auto_installer: None,
             last_file_change: std::sync::Arc::new(std::sync::Mutex::new(None)),
+            favicon_tag: None,
         })
     }
 
@@ -1210,6 +1212,7 @@ mod tests {
             api_proxy: None,
             auto_installer: None,
             last_file_change: std::sync::Arc::new(std::sync::Mutex::new(None)),
+            favicon_tag: None,
         })
     }
 
@@ -1919,6 +1922,7 @@ mod tests {
                 api_proxy: None,
                 auto_installer: None,
                 last_file_change: std::sync::Arc::new(std::sync::Mutex::new(None)),
+                favicon_tag: None,
             })
         };
 

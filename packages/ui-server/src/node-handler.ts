@@ -175,7 +175,9 @@ export function createNodeHandler(
         if (linkHeader) headers.Link = linkHeader;
         if (cacheControl) headers['Cache-Control'] = cacheControl;
 
-        res.writeHead(200, headers);
+        // Return 404 when no route matched (fallback content rendered but URL is invalid)
+        const status = result.matchedRoutePatterns?.length ? 200 : 404;
+        res.writeHead(status, headers);
         res.end(html);
       } catch (err) {
         console.error('[SSR] Render failed:', err instanceof Error ? err.message : err);
@@ -262,7 +264,9 @@ async function handleProgressiveRequest(
   if (linkHeader) headers.Link = linkHeader;
   if (cacheControl) headers['Cache-Control'] = cacheControl;
 
-  res.writeHead(200, headers);
+  // Return 404 when no route matched
+  const status = result.matchedRoutePatterns?.length ? 200 : 404;
+  res.writeHead(status, headers);
 
   // 1. Send head chunk immediately
   res.write(headChunk);
