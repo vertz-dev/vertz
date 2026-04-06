@@ -538,8 +538,11 @@ async fn isolate_event_loop(
     let mut runtime;
 
     'init: loop {
-        // 1. Create V8 runtime (fresh on each retry to clear stale module map)
-        runtime = match VertzJsRuntime::new(VertzRuntimeOptions {
+        // 1. Create V8 runtime from production snapshot (bootstrap JS, async
+        //    context polyfill, and SSR DOM shim are pre-baked into the snapshot).
+        //    Each iteration creates a fresh isolate from the shared snapshot
+        //    bytes — retry semantics are preserved.
+        runtime = match VertzJsRuntime::new_for_production(VertzRuntimeOptions {
             root_dir: Some(root_dir.to_string_lossy().to_string()),
             capture_output: false,
             enable_inspector,
@@ -570,17 +573,7 @@ async fn isolate_event_loop(
             eprintln!("[Server] Debugger attached, continuing...");
         }
 
-        // 2. Load async context polyfill (must be before DOM shim to capture all promises)
-        if let Err(e) = crate::runtime::async_context::load_async_context(&mut runtime) {
-            eprintln!("[Server] Failed to load async context polyfill: {}", e);
-            return;
-        }
-        if let Err(e) = crate::ssr::dom_shim::load_dom_shim(&mut runtime) {
-            eprintln!("[Server] Failed to load DOM shim: {}", e);
-            return;
-        }
-
-        // 3. Load SSR entry module (app.tsx) and store as globalThis.__vertz_app_module
+        // 2. Load SSR entry module (app.tsx) and store as globalThis.__vertz_app_module
         if ssr_entry.exists() {
             let entry_specifier = match deno_core::ModuleSpecifier::from_file_path(&ssr_entry) {
                 Ok(s) => s,
