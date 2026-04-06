@@ -20,6 +20,6 @@
     "provenance": true
   },
   "dependencies": {
-    "@vertz/create-vertz-app": "workspace:*"
+    "@vertz/create-vertz-app": "workspace:^"
   }
 }
