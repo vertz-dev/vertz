@@ -1,6 +1,7 @@
 {
   "name": "@vertz/tui",
   "version": "0.2.49",
+  "description": "Terminal UI toolkit for building interactive CLI applications with Vertz",
   "license": "MIT",
   "repository": {
     "type": "git",
