@@ -198,6 +198,9 @@ jobs:
             fi
           done
 
+      - name: Re-link runtime binary
+        run: bash scripts/link-runtime.sh
+
       - name: Build runtime selector package
         working-directory: packages/runtime
         run: bun build index.ts --outdir . --target node
