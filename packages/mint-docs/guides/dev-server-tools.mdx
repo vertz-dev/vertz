@@ -1,0 +1,220 @@
+---
+title: Dev Server Tools for AI Agents
+description: 'Use the built-in MCP server and HTTP bridge to give AI agents full observability into your running Vertz app'
+---
+
+The Vertz dev server exposes a built-in [Model Context Protocol (MCP)](https://modelcontextprotocol.io/) server and an HTTP bridge that give AI coding agents real-time access to errors, rendered pages, API specs, audit logs, and more. Instead of guessing whether code works, agents can **verify** by inspecting the running app.
+
+## Quick setup
+
+The MCP server is always available when the dev server is running — no extra flags needed:
+
+```bash
+vtz dev
+```
+
+### Connect your AI tool
+
+<Tabs>
+  <Tab title="Claude Code (MCP)">
+    Add to your project's `.mcp.json`:
+    ```json
+    {
+      "mcpServers": {
+        "vertz-dev": {
+          "url": "http://localhost:3000/__vertz_mcp"
+        }
+      }
+    }
+    ```
+    Claude Code auto-discovers the tools on connection.
+  </Tab>
+  <Tab title="HTTP Bridge">
+    For AI tools that don't support MCP natively, start the HTTP bridge on a separate port:
+    ```bash
+    vtz dev --bridge-port 3001
+    ```
+    The bridge exposes the same tools as plain HTTP endpoints — no WebSocket required.
+  </Tab>
+</Tabs>
+
+## Available tools
+
+The dev server provides **9 MCP tools** that agents can call:
+
+### `vertz_get_errors`
+
+Returns current compilation and runtime errors with file paths, line numbers, code snippets, and fix suggestions.
+
+```json
+// No parameters needed
+// Returns: { errors: [...], count: 2, category: "build" }
+```
+
+**When to use:** After every code change to verify nothing is broken. This is the single most important tool for agent workflows.
+
+### `vertz_render_page`
+
+Server-side renders a URL and returns an HTML "text screenshot" with render timing and metadata.
+
+```json
+{ "url": "/tasks" }
+// Returns: rendered HTML + timing + SSR status
+```
+
+**When to use:** To verify what a page looks like after making UI changes, without needing a browser.
+
+### `vertz_get_audit_log`
+
+Returns a unified timeline of all server events — API requests, SSR renders, compilations, file changes, and errors — with nanosecond-precision timestamps.
+
+```json
+{ "last": 50, "type": "error,api_request", "since": "2026-04-05T14:30:00Z" }
+```
+
+All parameters are optional. `type` filters by event kind (comma-separated): `api_request`, `ssr_render`, `compilation`, `file_change`, `error`. `since` filters events after an ISO 8601 timestamp.
+
+**When to use:** To understand what happened in the server after a change — did the API return errors? Did SSR fail? Were there compilation issues?
+
+### `vertz_get_diagnostics`
+
+Returns a health snapshot: uptime, compilation cache stats, module graph size, connected HMR clients, SSR pool metrics, and current errors.
+
+```json
+// No parameters needed
+```
+
+**When to use:** To diagnose server health issues or understand the current state of the dev environment.
+
+### `vertz_get_api_spec`
+
+Returns an OpenAPI 3.1 specification with all entity CRUD routes, service endpoints, request/response schemas, and access rules.
+
+```json
+{ "filter": "tasks,users" }
+```
+
+`filter` is optional — comma-separated entity/service names to include. Without it, returns the full spec.
+
+**When to use:** To understand the API surface when writing frontend code or integration tests.
+
+### `vertz_render_component`
+
+Renders a single component in isolation with optional props.
+
+```json
+{ "file": "src/components/TaskCard.tsx", "props": { "title": "Buy milk" } }
+```
+
+**When to use:** To quickly check a component's rendered output during iterative editing, without navigating to a page.
+
+### `vertz_navigate`
+
+Triggers client-side navigation in the browser via the HMR WebSocket — no full page reload.
+
+```json
+{ "to": "/tasks/123" }
+```
+
+**When to use:** To navigate the user's browser to a specific page for visual verification.
+
+### `vertz_get_events_url`
+
+Returns the WebSocket URL for real-time event push, so agents can subscribe to live updates instead of polling.
+
+```json
+// No parameters needed
+// Returns: { url: "ws://localhost:3000/__vertz_mcp/events" }
+```
+
+### `vertz_get_console` (deprecated)
+
+Use `vertz_get_audit_log` instead — it provides the same information in a more structured, filterable format.
+
+## Real-time events
+
+Instead of polling, agents can subscribe to a WebSocket stream for live updates:
+
+```
+ws://localhost:3000/__vertz_mcp/events
+```
+
+Or via the HTTP bridge (SSE):
+
+```
+GET http://localhost:3001/events
+```
+
+### Event types
+
+| Event | Description |
+| --- | --- |
+| `error_update` | Error state changed (new errors, errors cleared) |
+| `file_change` | Source file was modified |
+| `hmr_update` | HMR sent update to browser |
+| `ssr_refresh` | SSR module re-imported after file change |
+| `typecheck_update` | Type checker diagnostics updated |
+| `server_status` | Server status change (sent on connect as handshake) |
+
+### Filtering
+
+Subscribe to specific events via query parameter:
+
+```
+ws://localhost:3000/__vertz_mcp/events?subscribe=error_update,typecheck_update
+```
+
+## HTTP bridge
+
+The HTTP bridge (`--bridge-port`) exposes the same capabilities as plain REST endpoints for tools that don't support MCP or WebSocket:
+
+| Method | Endpoint | Description |
+| --- | --- | --- |
+| `GET` | `/health` | Bridge health check, lists available event types |
+| `GET` | `/tools` | Tool discovery (list all available tools with descriptions) |
+| `POST` | `/command` | Execute a tool: `{ "tool": "vertz_get_errors", "args": {} }` |
+| `GET` | `/events` | SSE event stream (same events as WebSocket) |
+
+### Example: calling a tool via the bridge
+
+```bash
+curl -X POST http://localhost:3001/command \
+  -H 'Content-Type: application/json' \
+  -d '{"tool": "vertz_get_errors", "args": {}}'
+```
+
+Response:
+
+```json
+{ "ok": true, "result": { "errors": [], "count": 0 } }
+```
+
+## Recommended agent workflow
+
+The dev server tools are most effective when agents follow this pattern:
+
+1. **Make a code change** (edit a file)
+2. **Check for errors** — call `vertz_get_errors` to catch compilation/type issues immediately
+3. **Check the audit log** — call `vertz_get_audit_log` with `type: "error"` to see if runtime errors occurred
+4. **Verify the UI** — call `vertz_render_page` to see the rendered output
+5. **Only then report success** — don't tell the user "it works" until you've verified via the tools
+
+This prevents the common failure mode where an agent says "Done!" but the app has a build error or renders a blank page.
+
+<Tip>
+  For long-running development sessions, subscribe to the real-time event stream via WebSocket or SSE. This way the agent is notified immediately when errors appear, instead of discovering them later.
+</Tip>
+
+## Diagnostic endpoints
+
+These HTTP endpoints are always available (no MCP or bridge needed):
+
+| Endpoint | Description |
+| --- | --- |
+| `GET /__vertz_diagnostics` | JSON health snapshot (uptime, cache, module graph, errors, SSR pool) |
+| `GET /__vertz_ai/errors` | Current errors formatted for LLM consumption |
+| `GET /__vertz_ai/render?url=/path` | SSR render for LLM consumption |
+| `GET /__vertz_ai/console?last=N` | Recent console output |
+| `POST /__vertz_ai/navigate` | Navigate the browser |
+
+These are the same underlying handlers as the MCP tools, exposed as direct HTTP endpoints for simpler integrations.

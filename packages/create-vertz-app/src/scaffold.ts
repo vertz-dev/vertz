@@ -42,6 +42,7 @@ import {
   landingPageRouterTemplate,
   landingPageUiRuleTemplate,
   uiDevelopmentRuleTemplate,
+  devServerToolsRuleTemplate,
   vertzConfigTemplate,
 } from './templates/index.js';
 import type { ScaffoldOptions } from './types.js';
@@ -125,6 +126,7 @@ async function scaffoldHelloWorld(projectDir: string, projectName: string): Prom
     // LLM rules
     writeFile(projectDir, 'CLAUDE.md', helloWorldClaudeMdTemplate(projectName)),
     writeFile(claudeRulesDir, 'ui-development.md', uiDevelopmentRuleTemplate()),
+    writeFile(claudeRulesDir, 'dev-server-tools.md', devServerToolsRuleTemplate()),
   ]);
 }
 
@@ -178,6 +180,7 @@ async function scaffoldTodoApp(projectDir: string, projectName: string): Promise
     writeFile(projectDir, 'CLAUDE.md', claudeMdTemplate(projectName)),
     writeFile(claudeRulesDir, 'api-development.md', apiDevelopmentRuleTemplate()),
     writeFile(claudeRulesDir, 'ui-development.md', uiDevelopmentRuleTemplate()),
+    writeFile(claudeRulesDir, 'dev-server-tools.md', devServerToolsRuleTemplate()),
   ]);
 }
 
@@ -227,6 +230,7 @@ async function scaffoldLandingPage(projectDir: string, projectName: string): Pro
     // LLM rules
     writeFile(projectDir, 'CLAUDE.md', landingPageClaudeMdTemplate(projectName)),
     writeFile(claudeRulesDir, 'ui-development.md', landingPageUiRuleTemplate()),
+    writeFile(claudeRulesDir, 'dev-server-tools.md', devServerToolsRuleTemplate()),
   ]);
 }
 
