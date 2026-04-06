@@ -1033,7 +1033,7 @@ export function createDb<TModels extends Record<string, ModelEntry>>(
               let def = `"${snakeName}" ${sqlType}`;
               if (meta.primary) primaryKeys.push(`"${snakeName}"`);
               if (meta.unique && !meta.primary) def += ' UNIQUE';
-              if (!meta.nullable && !meta.primary) def += ' NOT NULL';
+              if (!meta.nullable) def += ' NOT NULL';
               if (meta.hasDefault && meta.defaultValue !== undefined) {
                 if (meta.defaultValue === 'now') def += ` DEFAULT (${dialectObj.now()})`;
                 else if (typeof meta.defaultValue === 'string')
