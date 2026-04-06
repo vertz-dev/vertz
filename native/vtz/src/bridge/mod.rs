@@ -131,6 +131,7 @@ pub(crate) mod tests {
             api_proxy: None,
             auto_installer: None,
             last_file_change: Arc::new(std::sync::Mutex::new(None)),
+            favicon_tag: None,
         });
 
         (state, tmp)

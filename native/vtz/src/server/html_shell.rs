@@ -61,6 +61,12 @@ pub fn generate_html_shell_with_hmr(
         "  <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\" />\n",
     );
     html.push_str(&format!("  <title>{}</title>\n", escape_html(title)));
+
+    // Favicon detection
+    if let Some(tag) = crate::ssr::html_document::detect_favicon_tag(root_dir) {
+        html.push_str(&format!("  {}\n", tag));
+    }
+
     // Project root path for editor link construction in the error overlay.
     html.push_str(&format!(
         "  <meta name=\"vertz-root\" content=\"{}\" />\n",

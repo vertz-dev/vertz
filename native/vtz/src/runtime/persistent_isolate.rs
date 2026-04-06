@@ -139,6 +139,8 @@ pub struct SsrResponse {
     pub head_tags: Option<String>,
     /// Redirect URL set by ProtectedRoute during SSR (server should return 302).
     pub redirect: Option<String>,
+    /// Route patterns that matched the current URL (empty = 404).
+    pub matched_route_patterns: Vec<String>,
 }
 
 /// A component render request for the persistent isolate.
@@ -1304,6 +1306,7 @@ const SSR_RENDER_FRAMEWORK_JS: &str = r#"
         headTags: result.headTags || '',
         redirect: result.redirect ? result.redirect.to : null,
         isSsr: (result.html || '').length > 0,
+        matchedRoutePatterns: result.matchedRoutePatterns || [],
     });
 })()
 "#;
@@ -1480,6 +1483,16 @@ async fn dispatch_ssr_request(
             .and_then(|v| v.as_bool())
             .unwrap_or(false);
 
+        let matched_route_patterns = parsed
+            .get("matchedRoutePatterns")
+            .and_then(|v| v.as_array())
+            .map(|arr| {
+                arr.iter()
+                    .filter_map(|v| v.as_str().map(String::from))
+                    .collect()
+            })
+            .unwrap_or_default();
+
         Ok(SsrResponse {
             content,
             css_entries: vec![],
@@ -1490,6 +1503,7 @@ async fn dispatch_ssr_request(
             ssr_data,
             head_tags,
             redirect,
+            matched_route_patterns,
         })
     } else {
         // Check if legacy fallback is inappropriate (framework app detected at init).
@@ -1551,6 +1565,7 @@ async fn dispatch_ssr_request(
             ssr_data: None,
             head_tags: None,
             redirect: None,
+            matched_route_patterns: vec![],
         })
     }
 }
@@ -1809,6 +1824,7 @@ mod tests {
             ssr_data: Some(r#"[{"key":"tasks","data":[]}]"#.to_string()),
             head_tags: Some(r#"<link rel="preload" href="/font.woff2" />"#.to_string()),
             redirect: None,
+            matched_route_patterns: vec![],
         };
         assert_eq!(
             resp.ssr_data,
