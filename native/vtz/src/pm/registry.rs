@@ -154,8 +154,12 @@ impl RegistryClient {
             .get(url)
             .header("Accept", "application/vnd.npm.install-v1+json");
 
-        if let Ok(etag) = std::fs::read_to_string(etag_file) {
-            request = request.header("If-None-Match", etag);
+        // Only send If-None-Match when the cache file also exists — a stale etag
+        // without a cache file would cause a 304 with nothing to read from.
+        if cache_file.exists() {
+            if let Ok(etag) = std::fs::read_to_string(etag_file) {
+                request = request.header("If-None-Match", etag);
+            }
         }
 
         let response = request.send().await?;
@@ -206,8 +210,12 @@ impl RegistryClient {
             .get(url)
             .header("Accept", "application/vnd.npm.install-v1+json");
 
-        if let Ok(etag) = std::fs::read_to_string(etag_file) {
-            request = request.header("If-None-Match", etag);
+        // Only send If-None-Match when the cache file also exists — a stale etag
+        // without a cache file would cause a 304 with nothing to read from.
+        if cache_file.exists() {
+            if let Ok(etag) = std::fs::read_to_string(etag_file) {
+                request = request.header("If-None-Match", etag);
+            }
         }
 
         let response = request.send().await?;
@@ -255,9 +263,12 @@ impl RegistryClient {
     ) -> Result<PackageMetadata, Box<dyn std::error::Error + Send + Sync>> {
         let mut request = self.client.get(url).header("Accept", "application/json");
 
-        // Send If-None-Match if we have a cached ETag
-        if let Ok(etag) = std::fs::read_to_string(etag_file) {
-            request = request.header("If-None-Match", etag);
+        // Only send If-None-Match when the cache file also exists — a stale etag
+        // without a cache file would cause a 304 with nothing to read from.
+        if cache_file.exists() {
+            if let Ok(etag) = std::fs::read_to_string(etag_file) {
+                request = request.header("If-None-Match", etag);
+            }
         }
 
         let response = request.send().await?;

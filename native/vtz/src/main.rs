@@ -241,8 +241,13 @@ async fn async_main(cli: Cli) {
             let output: Arc<dyn pm::output::PmOutput> =
                 Arc::new(TextOutput::new(std::io::stderr().is_terminal()));
 
-            if let Err(e) =
-                pm::create::create(&args.template, args.destination.as_deref(), output).await
+            if let Err(e) = pm::create::create(
+                &args.template,
+                args.destination.as_deref(),
+                args.inner_template.as_deref(),
+                output,
+            )
+            .await
             {
                 eprintln!("error: {}", e);
                 std::process::exit(1);
