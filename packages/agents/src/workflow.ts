@@ -282,6 +282,14 @@ export interface RunWorkflowOptions<TInput = unknown> {
   readonly previousResults?: Record<string, StepResult>;
 }
 
+/**
+ * Why a workflow errored — distinguishes agent failures from output validation issues.
+ *
+ * Note: workflow-level input validation failures throw an Error rather than
+ * returning a WorkflowResult. Only step-level failures produce error results.
+ */
+export type WorkflowErrorReason = 'agent-failed' | 'invalid-json' | 'schema-mismatch';
+
 /** Result of a workflow execution. */
 export interface WorkflowResult {
   readonly status: WorkflowStatus;
@@ -289,6 +297,8 @@ export interface WorkflowResult {
   readonly stepResults: Record<string, StepResult>;
   /** Step name where the workflow stopped (only set on error). */
   readonly failedStep?: string;
+  /** Why the workflow errored (only set on error). */
+  readonly errorReason?: WorkflowErrorReason;
   /** Step name where the workflow is waiting for approval (only set on pending). */
   readonly pendingStep?: string;
   /** Approval message for the pending step. */
@@ -395,20 +405,33 @@ export async function runWorkflow<TInputSchema extends SchemaAny>(
         status: 'error',
         stepResults,
         failedStep: stepDef.name,
+        errorReason: 'agent-failed',
       };
     }
 
     // Validate step output against schema (if output schema defined)
     let stepOutput: unknown = { response: agentResult.response };
     if (stepDef.output) {
+      let parsed: unknown;
       try {
-        const parsed = JSON.parse(agentResult.response);
+        parsed = JSON.parse(agentResult.response);
+      } catch {
+        return {
+          status: 'error',
+          stepResults,
+          failedStep: stepDef.name,
+          errorReason: 'invalid-json',
+        };
+      }
+
+      try {
         const validated = stepDef.output.parse(parsed);
         if (!validated.ok) {
           return {
             status: 'error',
             stepResults,
             failedStep: stepDef.name,
+            errorReason: 'schema-mismatch',
           };
         }
         stepOutput = validated.data;
@@ -417,6 +440,7 @@ export async function runWorkflow<TInputSchema extends SchemaAny>(
           status: 'error',
           stepResults,
           failedStep: stepDef.name,
+          errorReason: 'schema-mismatch',
         };
       }
     }

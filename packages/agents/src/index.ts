@@ -69,6 +69,7 @@ export type {
   StepResult,
   WorkflowBuilder,
   WorkflowDefinition,
+  WorkflowErrorReason,
   WorkflowResult,
   WorkflowStatus,
 } from './workflow';
