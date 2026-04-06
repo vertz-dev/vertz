@@ -500,11 +500,10 @@ async fn try_auto_install(
 
 /// The main event loop running on the dedicated V8 thread.
 ///
-/// 1. Creates a VertzJsRuntime
-/// 2. Loads DOM shim (for SSR) and ALS polyfill
-/// 3. Loads the app entry module (for SSR rendering)
-/// 4. Optionally loads the server module and extracts handler (for API routes)
-/// 5. Processes incoming messages (API or SSR)
+/// 1. Creates a VertzJsRuntime from production snapshot (includes DOM shim + async context polyfill)
+/// 2. Loads the app entry module (for SSR rendering)
+/// 3. Optionally loads the server module and extracts handler (for API routes)
+/// 4. Processes incoming messages (API or SSR)
 ///
 /// When `auto_installer` is `Some`, module load failures matching "Cannot find
 /// module '<pkg>' in node_modules" trigger auto-install and a full retry from
@@ -801,7 +800,7 @@ async fn isolate_event_loop(
             }
         }
 
-        // 4. Optionally load server module for API routes.
+        // 3. Optionally load server module for API routes.
         //
         // Two-step process:
         // a) Load the server module directly (file:// URL the loader can handle)
@@ -909,7 +908,7 @@ async fn isolate_event_loop(
     // Mark as initialized (even without API handler — SSR is still available)
     initialized.store(true, std::sync::atomic::Ordering::Release);
 
-    // 5. Main message processing loop (SSR enabled — app entry loaded)
+    // 4. Main message processing loop (SSR enabled — app entry loaded)
     process_messages(&mut runtime, &mut message_rx, true).await;
 }
 
