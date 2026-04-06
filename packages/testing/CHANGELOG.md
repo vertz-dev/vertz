@@ -1,5 +1,14 @@
 # @vertz/testing
 
+## 0.2.48
+
+### Patch Changes
+
+- Updated dependencies [[`fcf3524`](https://github.com/vertz-dev/vertz/commit/fcf352437f504c4e67b6ce231ebceeb1476c014f), [`9fd72d7`](https://github.com/vertz-dev/vertz/commit/9fd72d7b11e0d4890556d89ef29d1a6e050619b1), [`5d23ced`](https://github.com/vertz-dev/vertz/commit/5d23ced8c21e9cd6a3224e8baea78fedd86d1e1b), [`e11ac56`](https://github.com/vertz-dev/vertz/commit/e11ac56ab9361259f0ca428f8f7cb8c9d287df6e)]:
+  - @vertz/server@0.2.48
+  - @vertz/db@0.2.48
+  - @vertz/core@0.2.48
+
 ## 0.2.47
 
 ### Patch Changes

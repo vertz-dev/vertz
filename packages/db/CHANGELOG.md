@@ -1,5 +1,21 @@
 # @vertz/db
 
+## 0.2.48
+
+### Patch Changes
+
+- [#2314](https://github.com/vertz-dev/vertz/pull/2314) [`9fd72d7`](https://github.com/vertz-dev/vertz/commit/9fd72d7b11e0d4890556d89ef29d1a6e050619b1) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - feat(db): type nested include in IncludeOption
+
+  Nested `include` fields in query options are now validated against the target model's relations when `TModels` is provided to the type system. Invalid nested include keys produce compile-time errors instead of passing silently. Output types (`FindResult`) reflect nested relation data through `IncludeResolve`. Depth cap at 3 typed nesting levels matches the existing runtime cap. Backward compatible — existing code without `TModels` continues to work unchanged.
+
+- [#2292](https://github.com/vertz-dev/vertz/pull/2292) [`5d23ced`](https://github.com/vertz-dev/vertz/commit/5d23ced8c21e9cd6a3224e8baea78fedd86d1e1b) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - feat(db): add atomic update expressions — d.expr(), d.increment(), d.decrement()
+
+  Enables atomic column operations in update/upsert without read-modify-write cycles. Supports arbitrary SQL expressions via `d.expr(col => sql`...`)`, with `d.increment(n)` and `d.decrement(n)` as sugar. Works across PostgreSQL and SQLite dialects.
+
+- Updated dependencies []:
+  - @vertz/errors@0.2.48
+  - @vertz/schema@0.2.48
+
 ## 0.2.47
 
 ### Patch Changes

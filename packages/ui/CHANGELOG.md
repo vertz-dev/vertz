@@ -1,5 +1,22 @@
 # @vertz/ui
 
+## 0.2.48
+
+### Patch Changes
+
+- [#2308](https://github.com/vertz-dev/vertz/pull/2308) [`46397c6`](https://github.com/vertz-dev/vertz/commit/46397c67af30f5441cebdca616f3a1627111312d) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - fix(ui): AuthProvider no longer crashes during SSR when auth SDK is partial/undefined
+
+  Guards `auth.signIn.url` and `auth.signUp.url` property access with optional chaining so AuthProvider construction succeeds in the Rust V8 isolate where the auth SDK may not be fully available. Also adds runtime guards in signIn/signUp async bodies to return error Results instead of crashing when SDK methods are undefined.
+
+- [#2265](https://github.com/vertz-dev/vertz/pull/2265) [`36b0f20`](https://github.com/vertz-dev/vertz/commit/36b0f2007822bc5c580d04a30d4ef1ecbee2146b) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - feat(ui): add form-level onChange with per-input debounce
+
+  `<form onChange={handler}>` fires when any child input changes, receiving all current form values as a `FormValues` object. Per-input `debounce={ms}` delays the callback for text inputs while immediate controls (selects, checkboxes) flush instantly.
+
+  **Breaking:** `onChange` on `<form>` now receives `FormValues` instead of a DOM `Event`. Use `ref` + `addEventListener` for the raw DOM event.
+
+- Updated dependencies []:
+  - @vertz/fetch@0.2.48
+
 ## 0.2.47
 
 ### Patch Changes
