@@ -8,7 +8,7 @@
   },
   "scripts": {
     "dev": "vtz dev",
-    "test": "vtz test",
+    "test": "bun test",
     "typecheck": "vtz exec tsc --noEmit",
     "lint": "vtz exec oxlint src/",
     "lint:fix": "vtz exec oxlint --fix src/",
