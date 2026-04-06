@@ -160,6 +160,8 @@ The code generator maps database types to `d` builder calls:
 | `integer[]`             | `d.integerArray()`     |                                                         |
 | `USER-DEFINED`          | `d.enum(name, values)` | Reads enum values from `pg_enum`                        |
 | `smallint`              | `d.integer()`          | Annotated with `// Source: smallint`                    |
+| `vector(n)`             | `d.vector(n)`          | pgvector — dimensions preserved                         |
+| `vector`                | `d.text()`             | Falls back without dimensions                           |
 | `citext`                | `d.text()`             | Case-insensitive text extension                         |
 | `bytea`                 | `d.text()`             | Annotated with `// TODO: binary type`                   |
 

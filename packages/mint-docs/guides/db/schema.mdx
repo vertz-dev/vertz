@@ -44,6 +44,7 @@ The first argument is the table name in the database. The second is an object ma
 | `d.jsonb<T>()`         | `JSONB`            | `T`             |
 | `d.textArray()`        | `TEXT[]`           | `string[]`      |
 | `d.integerArray()`     | `INTEGER[]`        | `number[]`      |
+| `d.vector(n)`          | `vector(n)`        | `number[]`      |
 | `d.enum(name, values)` | `ENUM`             | literal union   |
 
 ## Column modifiers
@@ -254,6 +255,72 @@ const tasks = d.table(
 | `gin`   | Full-text search, JSONB containment  | Yes        | No            |
 | `gist`  | Geospatial, range types              | Yes        | No            |
 | `brin`  | Large sequential datasets            | Yes        | No            |
+| `hnsw`    | Vector similarity search (pgvector)  | Yes        | No            |
+| `ivfflat` | Vector similarity search (pgvector)  | Yes        | No            |
+
+### Vector indexes (pgvector)
+
+If you're using [pgvector](https://github.com/pgvector/pgvector) for vector similarity search, `d.vector(n)` defines a vector column and `d.index()` supports HNSW and IVFFlat index types with tuning parameters:
+
+```ts
+const documents = d.table(
+  'documents',
+  {
+    id: d.uuid().primary(),
+    content: d.text(),
+    embedding: d.vector(1536), // vector(1536) in Postgres, number[] in TypeScript
+  },
+  {
+    indexes: [
+      d.index('embedding', {
+        type: 'hnsw',
+        opclass: 'vector_cosine_ops',
+        m: 16,
+        efConstruction: 64,
+      }),
+    ],
+  },
+);
+```
+
+#### Index options
+
+| Option           | Type     | Applies to | Description                                      |
+| ---------------- | -------- | ---------- | ------------------------------------------------ |
+| `opclass`        | `string` | Both       | Distance function: `vector_cosine_ops`, `vector_l2_ops`, `vector_ip_ops` |
+| `m`              | `number` | HNSW       | Max connections per node (default: 16)            |
+| `efConstruction` | `number` | HNSW       | Build-time search breadth (default: 64)           |
+| `lists`          | `number` | IVFFlat    | Number of inverted lists (default: 100)           |
+
+#### IVFFlat example
+
+```ts
+d.index('embedding', {
+  type: 'ivfflat',
+  opclass: 'vector_l2_ops',
+  lists: 100,
+});
+```
+
+The generated SQL includes the `USING`, operator class, and `WITH` clauses:
+
+```sql
+-- HNSW
+CREATE INDEX "idx_documents_embedding" ON "documents"
+  USING hnsw ("embedding" vector_cosine_ops) WITH (m = 16, ef_construction = 64);
+
+-- IVFFlat
+CREATE INDEX "idx_documents_embedding" ON "documents"
+  USING ivfflat ("embedding" vector_l2_ops) WITH (lists = 100);
+```
+
+<Warning>
+  pgvector requires the `vector` extension to be installed in your Postgres database. Run `CREATE EXTENSION IF NOT EXISTS vector;` before running migrations that use vector columns.
+</Warning>
+
+<Note>
+  `d.vector(n)` validates that dimensions are an integer between 1 and 16000 (pgvector's maximum). Vector columns are PostgreSQL-only — using them with SQLite emits a warning at migration time.
+</Note>
 
 ### Dialect validation
 
