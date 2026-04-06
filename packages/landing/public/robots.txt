@@ -2,3 +2,4 @@ User-agent: *
 Allow: /
 
 Sitemap: https://vertz.dev/sitemap.xml
+Llms-Txt: https://vertz.dev/llms.txt

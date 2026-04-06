@@ -220,6 +220,9 @@ const PRODUCTION_HEAD = `
   <!-- Canonical -->
   <link rel="canonical" href="https://vertz.dev" />
 
+  <!-- LLM Discovery -->
+  <link rel="alternate" type="text/plain" href="/llms.txt" />
+
   <!-- Production CSS -->
 ${cssInjection.html}`;
 

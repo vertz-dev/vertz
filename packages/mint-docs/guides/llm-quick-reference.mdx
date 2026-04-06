@@ -10,7 +10,6 @@ Quick overview of Vertz patterns. Each section links to its full guide.
 See [Installation](/installation) and [Quickstart](/quickstart).
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/vertz-dev/vertz/main/install.sh | sh
 vtz create vertz my-app
 cd my-app && vtz install && vtz dev
 ```
@@ -73,9 +72,23 @@ const button = variants({
 });
 ```
 
+## Route Convention
+
+All server endpoints live under `/api/` by default. Entity routes follow `REST` conventions:
+
+```
+GET    /api/tasks          → list
+POST   /api/tasks          → create
+GET    /api/tasks/:id      → get
+PATCH  /api/tasks/:id      → update
+DELETE /api/tasks/:id      → delete
+```
+
+Domains add a prefix: `/api/billing/invoices`. Customizable via `apiPrefix` in `createServer()`. See [API Prefix](/guides/server/overview#api-prefix).
+
 ## Entities (Server)
 
-`entity()` generates typed CRUD endpoints with access control. Routes are under `/api/` by default. See [Entities](/guides/server/entities).
+`entity()` generates typed CRUD endpoints with access control. See [Entities](/guides/server/entities).
 
 ```ts
 import { entity, rules } from 'vertz/server';
