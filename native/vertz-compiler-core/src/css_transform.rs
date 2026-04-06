@@ -320,6 +320,23 @@ fn djb2_hash(s: &str) -> u32 {
     hash as u32
 }
 
+// ─── camelCase → kebab-case ──────────────────────────────────────
+
+fn camel_to_kebab(s: &str) -> String {
+    let mut result = String::with_capacity(s.len() + 4);
+    for (i, c) in s.chars().enumerate() {
+        if c.is_ascii_uppercase() {
+            if i > 0 {
+                result.push('-');
+            }
+            result.push(c.to_ascii_lowercase());
+        } else {
+            result.push(c);
+        }
+    }
+    result
+}
+
 // ─── CSS Rule Building ──────────────────────────────────────────
 
 fn build_css_rules(class_name: &str, entries: &[CssEntry]) -> Vec<String> {
@@ -363,7 +380,8 @@ fn build_css_rules(class_name: &str, entries: &[CssEntry]) -> Vec<String> {
                     }
                 }
                 for (prop, val) in raw_declarations {
-                    nested_decls.push(format!("{prop}: {val};"));
+                    let kebab_prop = camel_to_kebab(prop);
+                    nested_decls.push(format!("{kebab_prop}: {val};"));
                 }
                 if !nested_decls.is_empty() {
                     if selector.starts_with('@') {
@@ -468,6 +486,17 @@ fn resolve_shorthand(parsed: &ParsedShorthand) -> Option<Vec<String>> {
     }
 
     let value = parsed.value.as_deref().unwrap();
+
+    // Try multi-mode resolution first (font, text, border)
+    if let Some((css_properties, resolved)) = css_token_tables::resolve_multi_mode(property, value)
+    {
+        return Some(
+            css_properties
+                .iter()
+                .map(|p| format!("{p}: {resolved};"))
+                .collect(),
+        );
+    }
 
     if let Some((css_properties, value_type)) = css_token_tables::property_map(property) {
         let resolved = css_token_tables::resolve_value(value, value_type, property)?;
@@ -881,6 +910,93 @@ const b = css({ root: ['grid'] });
     fn multi_property_shorthand() {
         let (_, css) = transform("const s = css({ root: ['px:4'] });");
         assert!(css.contains("padding-inline: 1rem;"), "css: {}", css);
+    }
+
+    // ── Multi-mode properties ───────────────────────────────────
+
+    #[test]
+    fn font_bold_resolves_to_font_weight() {
+        let (_, css) = transform("const s = css({ root: ['font:bold'] });");
+        assert!(
+            css.contains("font-weight: 700;"),
+            "font:bold should produce font-weight: 700: css={}",
+            css
+        );
+    }
+
+    #[test]
+    fn font_semibold_resolves_to_font_weight() {
+        let (_, css) = transform("const s = css({ root: ['font:semibold'] });");
+        assert!(
+            css.contains("font-weight: 600;"),
+            "font:semibold should produce font-weight: 600: css={}",
+            css
+        );
+    }
+
+    #[test]
+    fn font_lg_still_resolves_to_font_size() {
+        let (_, css) = transform("const s = css({ root: ['font:lg'] });");
+        assert!(
+            css.contains("font-size: 1.125rem;"),
+            "font:lg should produce font-size: css={}",
+            css
+        );
+    }
+
+    #[test]
+    fn text_center_resolves_to_text_align() {
+        let (_, css) = transform("const s = css({ root: ['text:center'] });");
+        assert!(
+            css.contains("text-align: center;"),
+            "text:center should produce text-align: center: css={}",
+            css
+        );
+    }
+
+    #[test]
+    fn text_foreground_still_resolves_to_color() {
+        let (_, css) = transform("const s = css({ root: ['text:foreground'] });");
+        assert!(
+            css.contains("color: var(--color-foreground);"),
+            "text:foreground should produce color: css={}",
+            css
+        );
+    }
+
+    // ── camelCase → kebab-case for raw declarations ──────────────
+
+    #[test]
+    fn raw_declarations_camel_case_to_kebab() {
+        let source = r#"const s = css({ root: [{ '&:hover': { gridTemplateColumns: 'repeat(3, 1fr)' } }] });"#;
+        let (_, css) = transform(source);
+        assert!(
+            css.contains("grid-template-columns: repeat(3, 1fr);"),
+            "camelCase should be converted to kebab-case: css={}",
+            css
+        );
+    }
+
+    #[test]
+    fn raw_declarations_already_kebab_untouched() {
+        let source = r#"const s = css({ root: [{ '&:hover': { color: 'red' } }] });"#;
+        let (_, css) = transform(source);
+        assert!(
+            css.contains("color: red;"),
+            "already kebab should be untouched: css={}",
+            css
+        );
+    }
+
+    #[test]
+    fn raw_declarations_background_color_camel() {
+        let source = r#"const s = css({ root: [{ '&:focus': { backgroundColor: 'blue' } }] });"#;
+        let (_, css) = transform(source);
+        assert!(
+            css.contains("background-color: blue;"),
+            "backgroundColor → background-color: css={}",
+            css
+        );
     }
 
     // ── Full integration via compile() ───────────────────────────

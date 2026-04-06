@@ -410,6 +410,45 @@ fn resolve_color_token(token: &str) -> Option<String> {
     None
 }
 
+/// Multi-mode property resolution. Some properties (like `font`, `text`, `border`) resolve
+/// to different CSS properties depending on the value.
+/// Returns Some((css_properties, resolved_value)) if this is a multi-mode match.
+pub fn resolve_multi_mode(property: &str, value: &str) -> Option<(Vec<&'static str>, String)> {
+    match property {
+        "font" => {
+            // Check font-weight first, then fall through to font-size
+            if let Some(weight) = font_weight_scale(value) {
+                return Some((vec!["font-weight"], weight.to_string()));
+            }
+            if let Some(size) = font_size_scale(value) {
+                return Some((vec!["font-size"], size.to_string()));
+            }
+            None
+        }
+        "text" => {
+            // Check text-align first, then fall through to color
+            if is_text_align_keyword(value) {
+                return Some((vec!["text-align"], value.to_string()));
+            }
+            if let Some(color) = resolve_color(value) {
+                return Some((vec!["color"], color));
+            }
+            None
+        }
+        "border" => {
+            // Check border-width first, then fall through to border-color
+            if is_border_width(value) {
+                return Some((vec!["border-width"], format!("{value}px")));
+            }
+            if let Some(color) = resolve_color(value) {
+                return Some((vec!["border-color"], color));
+            }
+            None
+        }
+        _ => None,
+    }
+}
+
 /// Resolve a value token based on its type.
 pub fn resolve_value(value: &str, value_type: &str, property: &str) -> Option<String> {
     match value_type {
@@ -1210,5 +1249,94 @@ mod tests {
     #[test]
     fn resolve_ring_non_number_returns_none() {
         assert!(resolve_value("abc", "ring", "ring").is_none());
+    }
+
+    // ── resolve_multi_mode ──────────────────────────────────────
+
+    #[test]
+    fn multi_mode_font_bold_resolves_to_font_weight() {
+        let result = resolve_multi_mode("font", "bold");
+        assert!(result.is_some(), "font:bold should resolve");
+        let (props, val) = result.unwrap();
+        assert_eq!(props, vec!["font-weight"]);
+        assert_eq!(val, "700");
+    }
+
+    #[test]
+    fn multi_mode_font_semibold_resolves_to_font_weight() {
+        let result = resolve_multi_mode("font", "semibold");
+        assert!(result.is_some(), "font:semibold should resolve");
+        let (props, val) = result.unwrap();
+        assert_eq!(props, vec!["font-weight"]);
+        assert_eq!(val, "600");
+    }
+
+    #[test]
+    fn multi_mode_font_lg_resolves_to_font_size() {
+        let result = resolve_multi_mode("font", "lg");
+        assert!(result.is_some(), "font:lg should resolve");
+        let (props, val) = result.unwrap();
+        assert_eq!(props, vec!["font-size"]);
+        assert_eq!(val, "1.125rem");
+    }
+
+    #[test]
+    fn multi_mode_font_unknown_returns_none() {
+        assert!(resolve_multi_mode("font", "notavalue").is_none());
+    }
+
+    #[test]
+    fn multi_mode_text_center_resolves_to_text_align() {
+        let result = resolve_multi_mode("text", "center");
+        assert!(result.is_some(), "text:center should resolve");
+        let (props, val) = result.unwrap();
+        assert_eq!(props, vec!["text-align"]);
+        assert_eq!(val, "center");
+    }
+
+    #[test]
+    fn multi_mode_text_left_resolves_to_text_align() {
+        let result = resolve_multi_mode("text", "left");
+        assert!(result.is_some(), "text:left should resolve");
+        let (props, val) = result.unwrap();
+        assert_eq!(props, vec!["text-align"]);
+        assert_eq!(val, "left");
+    }
+
+    #[test]
+    fn multi_mode_text_foreground_resolves_to_color() {
+        let result = resolve_multi_mode("text", "foreground");
+        assert!(result.is_some(), "text:foreground should resolve");
+        let (props, val) = result.unwrap();
+        assert_eq!(props, vec!["color"]);
+        assert_eq!(val, "var(--color-foreground)");
+    }
+
+    #[test]
+    fn multi_mode_text_unknown_returns_none() {
+        assert!(resolve_multi_mode("text", "notavalue").is_none());
+    }
+
+    #[test]
+    fn multi_mode_border_numeric_resolves_to_border_width() {
+        let result = resolve_multi_mode("border", "1");
+        assert!(result.is_some(), "border:1 should resolve");
+        let (props, val) = result.unwrap();
+        assert_eq!(props, vec!["border-width"]);
+        assert_eq!(val, "1px");
+    }
+
+    #[test]
+    fn multi_mode_border_color_resolves_to_border_color() {
+        let result = resolve_multi_mode("border", "primary");
+        assert!(result.is_some(), "border:primary should resolve");
+        let (props, val) = result.unwrap();
+        assert_eq!(props, vec!["border-color"]);
+        assert_eq!(val, "var(--color-primary)");
+    }
+
+    #[test]
+    fn multi_mode_unknown_property_returns_none() {
+        assert!(resolve_multi_mode("bg", "primary").is_none());
     }
 }

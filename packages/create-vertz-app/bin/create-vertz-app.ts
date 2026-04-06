@@ -27,8 +27,8 @@ program
       console.log(`\n✓ Created ${resolved.projectName}`);
       console.log(`\nNext steps:`);
       console.log(`  cd ${resolved.projectName}`);
-      console.log(`  bun install`);
-      console.log(`  bun run dev`);
+      console.log(`  vtz install`);
+      console.log(`  vtz dev`);
     } catch (error) {
       console.error('Error:', error instanceof Error ? error.message : error);
       process.exit(1);
