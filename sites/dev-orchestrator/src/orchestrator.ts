@@ -29,9 +29,9 @@ export interface OrchestratorOptions {
 }
 
 export interface Orchestrator {
-  readonly agents: readonly AgentDefinition<any, any, any>[];
+  readonly agents: readonly AgentDefinition<unknown, unknown, unknown>[];
   readonly workflow: WorkflowDefinition;
-  readonly agentRunner: (...args: any[]) => Promise<any>;
+  readonly agentRunner: (...args: unknown[]) => Promise<unknown>;
   readonly store: AgentStore;
 }
 
