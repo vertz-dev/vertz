@@ -282,7 +282,12 @@ export interface RunWorkflowOptions<TInput = unknown> {
   readonly previousResults?: Record<string, StepResult>;
 }
 
-/** Why a workflow errored — distinguishes agent failures from output validation issues. */
+/**
+ * Why a workflow errored — distinguishes agent failures from output validation issues.
+ *
+ * Note: workflow-level input validation failures throw an Error rather than
+ * returning a WorkflowResult. Only step-level failures produce error results.
+ */
 export type WorkflowErrorReason = 'agent-failed' | 'invalid-json' | 'schema-mismatch';
 
 /** Result of a workflow execution. */

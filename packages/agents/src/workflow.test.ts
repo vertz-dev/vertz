@@ -590,6 +590,43 @@ describe('runWorkflow()', () => {
     expect(result.stepResults['greet'].response).toBe('not json at all');
   });
 
+  it('returns schema-mismatch when output schema parse() throws', async () => {
+    const noopAgent = agent('noop', {
+      state: s.object({}),
+      initialState: {},
+      tools: {},
+      model: { provider: 'cloudflare', model: 'test' },
+    });
+
+    const llm: LLMAdapter = {
+      async chat() {
+        return { text: '{"value":1}', toolCalls: [] };
+      },
+    };
+
+    // Create a schema whose parse() throws instead of returning { ok: false }
+    const throwingSchema = {
+      parse() {
+        throw new Error('custom refinement exploded');
+      },
+      _output: undefined as unknown,
+    };
+
+    const pipeline = workflow('parse-throws', { input: s.object({}) })
+      .step('greet', {
+        agent: noopAgent,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- testing edge case with throwing schema
+        output: throwingSchema as any,
+      })
+      .build();
+
+    const result = await runWorkflow(pipeline, { input: {}, llm });
+
+    expect(result.status).toBe('error');
+    expect(result.failedStep).toBe('greet');
+    expect(result.errorReason).toBe('schema-mismatch');
+  });
+
   it('passes message from { message: string } form of step input callback', async () => {
     const noopAgent = agent('noop', {
       state: s.object({}),

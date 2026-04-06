@@ -5,23 +5,42 @@ description: 'Multi-step sequential pipelines with approval gates, agent coordin
 
 Workflows coordinate multiple agents into a sequential pipeline. Each step runs an agent, validates the output, and passes it to the next step via `ctx.prev`. Approval gates suspend the workflow until a human approves.
 
-## Defining steps
+## Defining workflows
 
-A step is the unit of workflow execution. Each step optionally invokes an agent and produces an output.
+Use the builder pattern: `workflow()` returns a builder, chain `.step()` calls, then `.build()` to finalize.
 
 ```ts
-import { step } from '@vertz/agents';
+import { workflow } from '@vertz/agents';
 import { s } from '@vertz/schema';
 
-const analyzeStep = step('analyze', {
-  agent: analyzerAgent,
-  input: (ctx) => `Analyze this: ${ctx.workflow.input.topic}`,
-  output: s.object({
-    summary: s.string(),
-    score: s.number(),
+const pipeline = workflow('content-pipeline', {
+  input: s.object({
+    topic: s.string(),
+    tone: s.string(),
   }),
-});
+})
+  .step('research', {
+    agent: researchAgent,
+    input: (ctx) => `Research the topic: ${ctx.workflow.input.topic}`,
+    output: s.object({ findings: s.string(), sources: s.array(s.string()) }),
+  })
+  .step('write', {
+    agent: writerAgent,
+    input: (ctx) => {
+      // ctx.prev.research is typed as { findings: string; sources: string[] }
+      return `Write about this using a ${ctx.workflow.input.tone} tone: ${ctx.prev.research.findings}`;
+    },
+    output: s.object({ draft: s.string(), wordCount: s.number() }),
+  })
+  .step('edit', {
+    agent: editorAgent,
+    input: (ctx) => `Edit this draft: ${ctx.prev.write.draft}`,
+    output: s.object({ final: s.string() }),
+  })
+  .build();
 ```
+
+Each step's `ctx.prev` is strongly typed based on preceding steps' output schemas. No casts needed.
 
 ### Step options
 
@@ -37,14 +56,11 @@ const analyzeStep = step('analyze', {
 The `input` callback receives a `StepContext` with access to the workflow input and all previous step outputs:
 
 ```ts
-step('review', {
+.step('review', {
   agent: reviewerAgent,
-  input: (ctx) => {
-    const analysis = ctx.prev['analyze'] as { summary: string };
-    return `Review this analysis: ${analysis.summary}`;
-  },
+  input: (ctx) => `Review this analysis: ${ctx.prev.analyze.summary}`,
   output: s.object({ approved: s.boolean(), feedback: s.string() }),
-});
+})
 ```
 
 The callback can return a plain string or `{ message: string }`:
@@ -59,53 +75,11 @@ input: (ctx) => ({ message: `Analyze: ${ctx.workflow.input.topic}` }),
 
 If no `input` callback is provided, the agent receives a default message: `"Execute step \"step-name\""`.
 
-## Defining workflows
-
-A workflow groups steps into an ordered pipeline with a validated input schema.
-
-```ts
-import { workflow, step } from '@vertz/agents';
-import { s } from '@vertz/schema';
-
-const pipeline = workflow('content-pipeline', {
-  input: s.object({
-    topic: s.string(),
-    tone: s.string(),
-  }),
-  steps: [
-    step('research', {
-      agent: researchAgent,
-      input: (ctx) => `Research the topic: ${ctx.workflow.input.topic}`,
-      output: s.object({ findings: s.string(), sources: s.array(s.string()) }),
-    }),
-
-    step('write', {
-      agent: writerAgent,
-      input: (ctx) => {
-        const research = ctx.prev['research'] as { findings: string };
-        return `Write about this using a ${ctx.workflow.input.tone} tone: ${research.findings}`;
-      },
-      output: s.object({ draft: s.string(), wordCount: s.number() }),
-    }),
-
-    step('edit', {
-      agent: editorAgent,
-      input: (ctx) => {
-        const draft = ctx.prev['write'] as { draft: string };
-        return `Edit this draft: ${draft.draft}`;
-      },
-      output: s.object({ final: s.string() }),
-    }),
-  ],
-});
-```
-
 ### Workflow options
 
 | Option   | Type                   | Description                                            |
 | -------- | ---------------------- | ------------------------------------------------------ |
 | `input`  | Schema                 | Schema for validating workflow input.                  |
-| `steps`  | `StepDefinition[]`     | Ordered list of steps. Must have at least one.         |
 | `access` | `{ start?, approve? }` | Access control for starting or approving the workflow. |
 
 ### Validation rules
@@ -135,6 +109,10 @@ if (result.status === 'complete') {
   console.log(result.stepResults);
 } else if (result.status === 'error') {
   console.log(`Failed at step: ${result.failedStep}`);
+  console.log(`Reason: ${result.errorReason}`);
+  // 'agent-failed' — the agent hit max iterations or errored
+  // 'invalid-json' — agent response wasn't valid JSON (but output schema expected it)
+  // 'schema-mismatch' — agent response was valid JSON but didn't match the output schema
 } else if (result.status === 'pending') {
   console.log(`Waiting for approval at: ${result.pendingStep}`);
   console.log(result.approvalMessage);
@@ -144,12 +122,15 @@ if (result.status === 'complete') {
 ### Result shape
 
 ```ts
+type WorkflowErrorReason = 'agent-failed' | 'invalid-json' | 'schema-mismatch';
+
 interface WorkflowResult {
   status: 'complete' | 'error' | 'pending';
   stepResults: Record<string, StepResult>;
-  failedStep?: string; // Only set when status is 'error'
-  pendingStep?: string; // Only set when status is 'pending'
-  approvalMessage?: string; // Only set when status is 'pending'
+  failedStep?: string;       // Only set when status is 'error'
+  errorReason?: WorkflowErrorReason; // Only set when status is 'error'
+  pendingStep?: string;      // Only set when status is 'pending'
+  approvalMessage?: string;  // Only set when status is 'pending'
 }
 
 interface StepResult {
@@ -161,7 +142,9 @@ interface StepResult {
 
 ### How output accumulation works
 
-Each step's output is stored in `ctx.prev` keyed by step name. If a step has an `output` schema, the agent's response is parsed as JSON and validated against it. Validated data is stored in `prev`. If parsing or validation fails, the raw response is stored as `{ response: string }`.
+Each step's output is stored in `ctx.prev` keyed by step name. If a step has an `output` schema, the agent's response is parsed as JSON and validated against it. Validated data is stored in `prev`. Steps without an `output` schema store `{ response: string }`.
+
+If output validation fails (invalid JSON or schema mismatch), the workflow returns an error — it does not silently fall back.
 
 ```
 Step 1 "research" completes → ctx.prev = { research: { findings: "...", sources: [...] } }
@@ -169,9 +152,7 @@ Step 2 "write" completes    → ctx.prev = { research: { ... }, write: { draft: 
 Step 3 "edit" completes     → ctx.prev = { research: { ... }, write: { ... }, edit: { final: "..." } }
 ```
 
-<Note>
-  In v1, `ctx.prev` is typed as `Record<string, unknown>`. You need to cast the values to the expected type. Strongly typed accumulation (where `prev['step-a']` is automatically typed based on step-a's output schema) is planned for v2.
-</Note>
+`ctx.prev` is strongly typed — each step sees the output types of all preceding steps based on their `output` schemas. No casts needed.
 
 ## Approval gates
 
@@ -180,31 +161,26 @@ An approval gate suspends the workflow until a human approves. When `runWorkflow
 ```ts
 const reviewPipeline = workflow('review-pipeline', {
   input: s.object({ documentPath: s.string() }),
-  steps: [
-    step('auto-review', {
-      agent: reviewerAgent,
-      input: (ctx) => `Review document at: ${ctx.workflow.input.documentPath}`,
-      output: s.object({ approved: s.boolean(), findings: s.array(s.string()) }),
-    }),
-
-    // Approval gate — no agent, just a gate
-    step('human-approval', {
-      approval: {
-        message: (ctx) => {
-          const review = ctx.prev['auto-review'] as { findings: string[] };
-          return `Auto-review found ${review.findings.length} findings. Approve to proceed.`;
-        },
-        timeout: '7d',
-      },
-    }),
-
-    step('publish', {
-      agent: publisherAgent,
-      input: (ctx) => `Publish document at: ${ctx.workflow.input.documentPath}`,
-      output: s.object({ url: s.string() }),
-    }),
-  ],
-});
+})
+  .step('auto-review', {
+    agent: reviewerAgent,
+    input: (ctx) => `Review document at: ${ctx.workflow.input.documentPath}`,
+    output: s.object({ approved: s.boolean(), findings: s.array(s.string()) }),
+  })
+  // Approval gate — no agent, just a gate
+  .step('human-approval', {
+    approval: {
+      message: (ctx) =>
+        `Auto-review found ${ctx.prev['auto-review'].findings.length} findings. Approve to proceed.`,
+      timeout: '7d',
+    },
+  })
+  .step('publish', {
+    agent: publisherAgent,
+    input: (ctx) => `Publish document at: ${ctx.workflow.input.documentPath}`,
+    output: s.object({ url: s.string() }),
+  })
+  .build();
 ```
 
 ### Approval config
