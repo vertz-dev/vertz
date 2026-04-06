@@ -1,5 +1,14 @@
 # @vertz/openapi
 
+## 0.1.7
+
+### Patch Changes
+
+- [#2383](https://github.com/vertz-dev/vertz/pull/2383) [`f9e35e4`](https://github.com/vertz-dev/vertz/commit/f9e35e4cec498eb93192439e0c65f7cb3295c4da) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - Fix `@vertz/openapi/adapters` export missing from dist. Add bunup config with all entry points (index, cli, adapters).
+
+- Updated dependencies []:
+  - @vertz/fetch@0.2.50
+
 ## 0.1.6
 
 ### Patch Changes

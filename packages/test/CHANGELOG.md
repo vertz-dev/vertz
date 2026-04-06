@@ -1,0 +1,7 @@
+# @vertz/test
+
+## 0.2.50
+
+### Patch Changes
+
+- [#2388](https://github.com/vertz-dev/vertz/pull/2388) [`929947a`](https://github.com/vertz-dev/vertz/commit/929947a3485746608966c2938fdb2ac8658e5d51) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - Publish `@vertz/test` package with TypeScript type declarations and runtime stubs so that `vtz migrate-tests` produces resolvable imports

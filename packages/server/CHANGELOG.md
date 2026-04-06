@@ -1,5 +1,19 @@
 # @vertz/server
 
+## 0.2.50
+
+### Patch Changes
+
+- [#2385](https://github.com/vertz-dev/vertz/pull/2385) [`37247bd`](https://github.com/vertz-dev/vertz/commit/37247bd6b07b4cf1ca3ca897b67b3cfccf525e53) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - fix(server): service action custom `path` now respects the API prefix
+
+  Previously, providing a custom `path` on a service action would bypass the API prefix entirely (e.g., `path: '/webhooks/stripe'` produced `/webhooks/stripe` instead of `/api/webhooks/stripe`). Custom paths are now always prefixed with the configured API prefix, consistent with entity custom action behavior.
+
+- Updated dependencies [[`5ab022d`](https://github.com/vertz-dev/vertz/commit/5ab022d712d2bf297e5ecec9907045b5fe7154ec)]:
+  - @vertz/db@0.2.50
+  - @vertz/core@0.2.50
+  - @vertz/errors@0.2.50
+  - @vertz/schema@0.2.50
+
 ## 0.2.49
 
 ### Patch Changes

@@ -1,5 +1,11 @@
 # @vertz/runtime
 
+## 0.2.50
+
+### Patch Changes
+
+- [#2387](https://github.com/vertz-dev/vertz/pull/2387) [`00c4d91`](https://github.com/vertz-dev/vertz/commit/00c4d91c8a5c3760ea1cd8e858e621f602a09999) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - Ship Node.js CLI shims (`cli.js`, `cli-exec.js`) so npm creates working `node_modules/.bin/{vtz,vertz,vtzx}` entries. Previously the `bin` field pointed to `./vtz` which was not included in the published tarball.
+
 ## 0.2.49
 
 ## 0.2.48
