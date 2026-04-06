@@ -190,3 +190,16 @@ const result = await run(assistant, { message: 'Find docs about auth', llm });
 ```
 
 `workflow()` coordinates agents into pipelines with approval gates. `ctx.agents.invoke()` enables agent-to-agent delegation. See [Workflows](/guides/agents/workflows).
+
+## Common Pitfalls
+
+Avoid these patterns — they are the most frequent mistakes in Vertz projects. See [Common Mistakes](/guides/common-mistakes) for details.
+
+| Wrong | Right | Why |
+| ----- | ----- | --- |
+| `access: { list: () => true }` | `access: { list: rules.public }` | Descriptors are serializable; callbacks are opaque |
+| `const x = signal(0)` / `x.value` | `let x = 0` / `x` | Compiler transforms `let` to signals and auto-unwraps |
+| `await fetch('/api/tasks')` | `query(api.tasks.list())` | SDK provides types, SSR, caching, optimistic updates |
+| `TaskCard({ task })` | `<TaskCard task={task} />` | Function calls bypass reactive prop generation |
+| `d.uuid().references('users.id')` | `d.ref.one(() => usersTable, 'authorId')` | FKs live on models via `d.ref.one()`, not on columns |
+| `tasks.refetch()` after state change | Use `let` — queries auto-refetch | Compiler tracks dependencies inside query thunks |

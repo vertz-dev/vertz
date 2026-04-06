@@ -1,0 +1,127 @@
+---
+title: Common Mistakes
+description: 'Anti-patterns to avoid when building with Vertz'
+---
+
+These are the most common mistakes we see in Vertz projects — especially when AI agents or developers are getting started. Each one has a clear fix.
+
+## Using `signal()` instead of `let`
+
+The Vertz compiler transforms `let` declarations into signals automatically and auto-unwraps `.value` in JSX. Using `signal()` directly bypasses these optimizations.
+
+```tsx
+// Wrong — manual signal, requires .value everywhere
+import { signal } from 'vertz/ui';
+const count = signal(0);
+return <span>{count.value}</span>;
+
+// Right — compiler handles reactivity
+let count = 0;
+return <span>{count}</span>;
+```
+
+**Why it matters:** When you use `let`, the compiler tracks dependencies automatically — queries re-fetch, DOM updates, and effects re-run without manual `.value` reads. With `signal()`, you must manage everything yourself.
+
+## Using `() => true` instead of `rules.public`
+
+Entity access rules should use declarative `rules.*` descriptors, not callback functions.
+
+```ts
+// Wrong — opaque function, can't be serialized or inspected
+access: {
+  list: () => true,
+  create: () => true,
+}
+
+// Right — declarative descriptor
+import { entity, rules } from 'vertz/server';
+
+access: {
+  list: rules.public,
+  create: rules.authenticated(),
+}
+```
+
+**Why it matters:** `rules.*` descriptors are plain objects that the framework can serialize for the client SDK, display in generated OpenAPI docs, and potentially compile to database-level policies. Callback functions are opaque.
+
+See [Entities](/guides/server/entities) for the full access control API.
+
+## Using raw `fetch()` instead of the generated SDK
+
+Vertz auto-generates a typed SDK from your entity and service definitions. Always use it.
+
+```tsx
+// Wrong — bypasses type safety, SSR, caching, and optimistic updates
+const res = await fetch('/api/tasks');
+const data = await res.json();
+
+// Right — fully typed, SSR-integrated, cached
+import { query } from 'vertz/ui';
+import { api } from '../client';
+
+const tasks = query(api.tasks.list());
+```
+
+**Why it matters:** The generated SDK provides type safety (request and response types checked at compile time), SSR integration (queries run on the server during SSR), automatic cache invalidation (mutations refetch related queries), and optimistic updates.
+
+See [Data Fetching](/guides/ui/data-fetching) for the full guide.
+
+## Manual `refetch()` instead of reactive queries
+
+When queries read reactive state inside their thunk, they automatically re-fetch when that state changes. Manual `refetch()` calls are usually unnecessary.
+
+```tsx
+// Wrong — manual state tracking and refetch
+const filter = signal('all');
+const tasks = query(() => api.tasks.list({ status: filter.value }));
+// Later: tasks.refetch() after filter changes
+
+// Right — compiler auto-tracks dependencies
+let filter = 'all';
+const tasks = query(() => api.tasks.list({ status: filter }));
+// Changing filter automatically re-fetches
+```
+
+See [Data Fetching](/guides/ui/data-fetching#reactive-dependencies) for how dependency tracking works.
+
+## Calling components as functions
+
+Always use JSX syntax for components. Calling them as functions bypasses the compiler's reactive prop generation.
+
+```tsx
+// Wrong — no reactive props
+const card = TaskCard({ task, onClick: handleClick });
+
+// Right — compiler generates getters for reactive props
+<TaskCard task={task} onClick={handleClick} />
+```
+
+## Annotating component return types
+
+Let TypeScript infer return types from JSX. Annotating `: HTMLElement` is a lossy upcast.
+
+```tsx
+// Wrong
+export function TaskCard({ task }: Props): HTMLElement {
+
+// Right
+export function TaskCard({ task }: Props) {
+```
+
+## Using `.references()` on columns for foreign keys
+
+Foreign keys are declared via `d.ref.one()` on models, not `.references()` on columns.
+
+```ts
+// Wrong — this is a pattern from other ORMs, not Vertz
+const postsTable = d.table('posts', {
+  authorId: d.uuid().references('users.id'),  // Does not exist
+});
+
+// Right — use d.ref.one() on the model
+const postsModel = d.model(postsTable, {
+  author: d.ref.one(() => usersTable, 'authorId'),
+});
+```
+
+See [Schema](/guides/db/schema#relations) for the full relations API.

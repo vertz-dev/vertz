@@ -201,7 +201,13 @@ describe('templates', () => {
       const result = tasksEntityTemplate();
       expect(result).toContain("entity('tasks'");
       expect(result).toContain('tasksModel');
-      expect(result).toContain('list: () => true');
+    });
+
+    it('uses rules.public descriptors instead of callback functions', () => {
+      const result = tasksEntityTemplate();
+      expect(result).toContain('list: rules.public');
+      expect(result).toContain("import { entity, rules } from 'vertz/server'");
+      expect(result).not.toContain('() => true');
     });
   });
 
@@ -391,6 +397,19 @@ describe('templates', () => {
       const result = claudeMdTemplate('test-app');
       expect(result).toContain('NEVER use raw `fetch()`');
     });
+
+    it('includes Common Mistakes anti-patterns section', () => {
+      const result = claudeMdTemplate('test-app');
+      expect(result).toContain('Common Mistakes');
+      expect(result).toContain('rules.public');
+      expect(result).toContain('signal()');
+    });
+
+    it('includes Configuration section for vertz.config.ts', () => {
+      const result = claudeMdTemplate('test-app');
+      expect(result).toContain('vertz.config.ts');
+      expect(result).toContain('entryFile');
+    });
   });
 
   describe('apiDevelopmentRuleTemplate', () => {
@@ -446,6 +465,19 @@ describe('templates', () => {
     it('warns against raw fetch()', () => {
       const result = apiDevelopmentRuleTemplate();
       expect(result).toContain('NEVER use raw `fetch()`');
+    });
+
+    it('uses rules.public descriptors in entity examples', () => {
+      const result = apiDevelopmentRuleTemplate();
+      expect(result).toContain('rules.public');
+      expect(result).not.toContain('() => true');
+    });
+
+    it('documents available access rule descriptors', () => {
+      const result = apiDevelopmentRuleTemplate();
+      expect(result).toContain('rules.authenticated()');
+      expect(result).toContain('rules.entitlement');
+      expect(result).toContain('rules.where');
     });
   });
 
@@ -605,6 +637,12 @@ describe('templates', () => {
     it('mentions src/router.tsx as the routing entry point', () => {
       const result = helloWorldClaudeMdTemplate('test-app');
       expect(result).toContain('src/router.tsx');
+    });
+
+    it('includes Common Mistakes anti-patterns section', () => {
+      const result = helloWorldClaudeMdTemplate('test-app');
+      expect(result).toContain('Common Mistakes');
+      expect(result).toContain('signal()');
     });
   });
 

@@ -62,6 +62,10 @@
       "import": "./dist/ui-server.js",
       "types": "./dist/ui-server.d.ts"
     },
+    "./ui/components": {
+      "import": "./dist/ui-components.js",
+      "types": "./dist/ui-components.d.ts"
+    },
     "./ui-server/bun-plugin": {
       "import": "./dist/ui-server-bun-plugin.js",
       "types": "./dist/ui-server-bun-plugin.d.ts"

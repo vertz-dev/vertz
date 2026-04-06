@@ -47,7 +47,9 @@
               "project-structure",
               "conventions",
               "philosophy",
-              "guides/llm-quick-reference"
+              "guides/llm-quick-reference",
+              "guides/common-mistakes",
+              "guides/configuration"
             ]
           },
           {
