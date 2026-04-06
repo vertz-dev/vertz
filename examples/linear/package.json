@@ -3,16 +3,18 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "bun run src/dev-server.ts",
-    "codegen": "bun node_modules/@vertz/cli/dist/vertz.js codegen",
+    "dev": "vtz dev",
+    "build": "vtz build",
+    "codegen": "vtz codegen",
     "test": "bun test",
-    "typecheck": "bun run codegen && tsc --noEmit",
+    "typecheck": "vtz run codegen && tsc --noEmit",
     "e2e": "npx playwright test",
     "e2e:headed": "npx playwright test --headed"
   },
   "imports": {
     "#generated": "./.vertz/generated/client.ts",
-    "#generated/types": "./.vertz/generated/types/index.ts"
+    "#generated/types": "./.vertz/generated/types/index.ts",
+    "#generated/schemas": "./.vertz/generated/schemas/index.ts"
   },
   "dependencies": {
     "@vertz/db": "workspace:*",
@@ -28,7 +30,6 @@
   "devDependencies": {
     "@playwright/test": "^1.58.2",
     "@vertz/cli": "workspace:*",
-    "@vertz/ui-compiler": "workspace:*",
     "bun-types": "^1.3.9",
     "typescript": "^5.8.0"
   }
