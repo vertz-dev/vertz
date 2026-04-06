@@ -88,6 +88,14 @@ describe('PostgresDialect', () => {
     expect(dialect.mapColumnType('enum')).toBe('TEXT');
   });
 
+  it('mapColumnType: vector with dimensions -> vector(1536)', () => {
+    expect(dialect.mapColumnType('vector', { dimensions: 1536 })).toBe('vector(1536)');
+  });
+
+  it('mapColumnType: vector without dimensions -> vector', () => {
+    expect(dialect.mapColumnType('vector')).toBe('vector');
+  });
+
   it('mapColumnType: unknown type -> TEXT', () => {
     expect(dialect.mapColumnType('unknown')).toBe('TEXT');
   });

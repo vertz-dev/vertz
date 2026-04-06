@@ -34,6 +34,10 @@ export interface DiffChange {
   indexType?: string;
   indexWhere?: string;
   indexUnique?: boolean;
+  indexOpclass?: string;
+  indexM?: number;
+  indexEfConstruction?: number;
+  indexLists?: number;
 }
 
 export interface DiffResult {
@@ -72,7 +76,16 @@ function columnSimilarity(a: ColumnSnapshot, b: ColumnSnapshot): number {
  * Uses JSON.stringify to avoid separator collisions with SQL content.
  */
 function indexKey(idx: IndexSnapshot): string {
-  return JSON.stringify([idx.columns, idx.type ?? null, idx.where ?? null, idx.unique ?? false]);
+  return JSON.stringify([
+    idx.columns,
+    idx.type ?? null,
+    idx.where ?? null,
+    idx.unique ?? false,
+    idx.opclass ?? null,
+    idx.m ?? null,
+    idx.efConstruction ?? null,
+    idx.lists ?? null,
+  ]);
 }
 
 export function computeDiff(before: SchemaSnapshot, after: SchemaSnapshot): DiffResult {
@@ -215,6 +228,10 @@ export function computeDiff(before: SchemaSnapshot, after: SchemaSnapshot): Diff
         if (idx.type) change.indexType = idx.type;
         if (idx.where) change.indexWhere = idx.where;
         if (idx.unique) change.indexUnique = idx.unique;
+        if (idx.opclass) change.indexOpclass = idx.opclass;
+        if (idx.m != null) change.indexM = idx.m;
+        if (idx.efConstruction != null) change.indexEfConstruction = idx.efConstruction;
+        if (idx.lists != null) change.indexLists = idx.lists;
         changes.push(change);
       }
     }
@@ -231,6 +248,10 @@ export function computeDiff(before: SchemaSnapshot, after: SchemaSnapshot): Diff
         if (idx.type) change.indexType = idx.type;
         if (idx.where) change.indexWhere = idx.where;
         if (idx.unique) change.indexUnique = idx.unique;
+        if (idx.opclass) change.indexOpclass = idx.opclass;
+        if (idx.m != null) change.indexM = idx.m;
+        if (idx.efConstruction != null) change.indexEfConstruction = idx.efConstruction;
+        if (idx.lists != null) change.indexLists = idx.lists;
         changes.push(change);
       }
     }

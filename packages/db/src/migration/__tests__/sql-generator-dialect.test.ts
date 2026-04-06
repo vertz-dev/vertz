@@ -299,6 +299,262 @@ describe('generateMigrationSql with PostgresDialect', () => {
   });
 });
 
+describe('generateMigrationSql vector column SQL', () => {
+  it('vector column with dimensions produces vector(1536) on Postgres', () => {
+    const changes: DiffChange[] = [{ type: 'table_added', table: 'documents' }];
+    const sql = generateMigrationSql(
+      changes,
+      {
+        tables: {
+          documents: {
+            columns: {
+              id: { type: 'uuid', nullable: false, primary: true, unique: false },
+              embedding: {
+                type: 'vector',
+                nullable: false,
+                primary: false,
+                unique: false,
+                dimensions: 1536,
+              },
+            },
+            indexes: [],
+            foreignKeys: [],
+            _metadata: {},
+          },
+        },
+      },
+      defaultPostgresDialect,
+    );
+
+    expect(sql).toContain('"embedding" vector(1536) NOT NULL');
+  });
+
+  it('vector column without dimensions produces vector on Postgres', () => {
+    const changes: DiffChange[] = [{ type: 'table_added', table: 'documents' }];
+    const sql = generateMigrationSql(
+      changes,
+      {
+        tables: {
+          documents: {
+            columns: {
+              id: { type: 'uuid', nullable: false, primary: true, unique: false },
+              embedding: { type: 'vector', nullable: false, primary: false, unique: false },
+            },
+            indexes: [],
+            foreignKeys: [],
+            _metadata: {},
+          },
+        },
+      },
+      defaultPostgresDialect,
+    );
+
+    expect(sql).toContain('"embedding" vector NOT NULL');
+  });
+
+  it('vector column on SQLite maps to TEXT', () => {
+    const changes: DiffChange[] = [{ type: 'table_added', table: 'documents' }];
+    const sql = generateMigrationSql(
+      changes,
+      {
+        tables: {
+          documents: {
+            columns: {
+              id: { type: 'uuid', nullable: false, primary: true, unique: false },
+              embedding: {
+                type: 'vector',
+                nullable: false,
+                primary: false,
+                unique: false,
+                dimensions: 1536,
+              },
+            },
+            indexes: [],
+            foreignKeys: [],
+            _metadata: {},
+          },
+        },
+      },
+      defaultSqliteDialect,
+    );
+
+    expect(sql).toContain('"embedding" TEXT NOT NULL');
+  });
+
+  it('ALTER TABLE ADD COLUMN with vector(1536) on Postgres', () => {
+    const changes: DiffChange[] = [
+      { type: 'column_added', table: 'documents', column: 'embedding' },
+    ];
+    const sql = generateMigrationSql(
+      changes,
+      {
+        tables: {
+          documents: {
+            columns: {
+              id: { type: 'uuid', nullable: false, primary: true, unique: false },
+              embedding: {
+                type: 'vector',
+                nullable: false,
+                primary: false,
+                unique: false,
+                dimensions: 1536,
+              },
+            },
+            indexes: [],
+            foreignKeys: [],
+            _metadata: {},
+          },
+        },
+      },
+      defaultPostgresDialect,
+    );
+
+    expect(sql).toContain('ADD COLUMN "embedding" vector(1536) NOT NULL');
+  });
+});
+
+describe('generateMigrationSql vector index SQL', () => {
+  it('HNSW index with opclass and WITH params in table_added', () => {
+    const changes: DiffChange[] = [{ type: 'table_added', table: 'documents' }];
+    const sql = generateMigrationSql(
+      changes,
+      {
+        tables: {
+          documents: {
+            columns: {
+              id: { type: 'uuid', nullable: false, primary: true, unique: false },
+              embedding: {
+                type: 'vector',
+                nullable: false,
+                primary: false,
+                unique: false,
+                dimensions: 1536,
+              },
+            },
+            indexes: [
+              {
+                columns: ['embedding'],
+                type: 'hnsw',
+                opclass: 'vector_cosine_ops',
+                m: 16,
+                efConstruction: 64,
+              },
+            ],
+            foreignKeys: [],
+            _metadata: {},
+          },
+        },
+      },
+      defaultPostgresDialect,
+    );
+
+    expect(sql).toContain(
+      'USING hnsw ("embedding" vector_cosine_ops) WITH (m = 16, ef_construction = 64)',
+    );
+  });
+
+  it('IVFFlat index with opclass and lists in table_added', () => {
+    const changes: DiffChange[] = [{ type: 'table_added', table: 'documents' }];
+    const sql = generateMigrationSql(
+      changes,
+      {
+        tables: {
+          documents: {
+            columns: {
+              id: { type: 'uuid', nullable: false, primary: true, unique: false },
+              embedding: {
+                type: 'vector',
+                nullable: false,
+                primary: false,
+                unique: false,
+                dimensions: 1536,
+              },
+            },
+            indexes: [
+              {
+                columns: ['embedding'],
+                type: 'ivfflat',
+                opclass: 'vector_cosine_ops',
+                lists: 100,
+              },
+            ],
+            foreignKeys: [],
+            _metadata: {},
+          },
+        },
+      },
+      defaultPostgresDialect,
+    );
+
+    expect(sql).toContain('USING ivfflat ("embedding" vector_cosine_ops) WITH (lists = 100)');
+  });
+
+  it('index with opclass but no WITH params', () => {
+    const changes: DiffChange[] = [{ type: 'table_added', table: 'documents' }];
+    const sql = generateMigrationSql(
+      changes,
+      {
+        tables: {
+          documents: {
+            columns: {
+              id: { type: 'uuid', nullable: false, primary: true, unique: false },
+              embedding: {
+                type: 'vector',
+                nullable: false,
+                primary: false,
+                unique: false,
+                dimensions: 1536,
+              },
+            },
+            indexes: [{ columns: ['embedding'], type: 'hnsw', opclass: 'vector_cosine_ops' }],
+            foreignKeys: [],
+            _metadata: {},
+          },
+        },
+      },
+      defaultPostgresDialect,
+    );
+
+    expect(sql).toContain('USING hnsw ("embedding" vector_cosine_ops)');
+    expect(sql).not.toContain('WITH');
+  });
+
+  it('HNSW index via index_added diff change', () => {
+    const changes: DiffChange[] = [
+      {
+        type: 'index_added',
+        table: 'documents',
+        columns: ['embedding'],
+        indexType: 'hnsw',
+        indexOpclass: 'vector_cosine_ops',
+        indexM: 16,
+        indexEfConstruction: 64,
+      },
+    ];
+    const sql = generateMigrationSql(changes, {}, defaultPostgresDialect);
+
+    expect(sql).toContain(
+      'USING hnsw ("embedding" vector_cosine_ops) WITH (m = 16, ef_construction = 64)',
+    );
+  });
+
+  it('IVFFlat index via index_added diff change', () => {
+    const changes: DiffChange[] = [
+      {
+        type: 'index_added',
+        table: 'documents',
+        columns: ['embedding'],
+        indexType: 'ivfflat',
+        indexOpclass: 'vector_cosine_ops',
+        indexLists: 100,
+      },
+    ];
+    const sql = generateMigrationSql(changes, {}, defaultPostgresDialect);
+
+    expect(sql).toContain('USING ivfflat ("embedding" vector_cosine_ops) WITH (lists = 100)');
+  });
+});
+
 describe('generateMigrationSql backward compatibility', () => {
   it('works without dialect parameter (defaults to PostgresDialect)', () => {
     const changes: DiffChange[] = [
