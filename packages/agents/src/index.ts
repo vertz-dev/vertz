@@ -64,16 +64,15 @@ export { SessionNotFoundError, SessionAccessDeniedError } from './stores/errors'
 export type {
   RunWorkflowOptions,
   StepApprovalConfig,
-  StepConfig,
   StepContext,
   StepDefinition,
   StepResult,
-  WorkflowConfig,
+  WorkflowBuilder,
   WorkflowDefinition,
   WorkflowResult,
   WorkflowStatus,
 } from './workflow';
-export { runWorkflow, step, workflow } from './workflow';
+export { runWorkflow, workflow } from './workflow';
 
 // Provider utilities
 export type { AdapterFactory, CreateAdapterOptions, ToolDescription } from './providers/types';

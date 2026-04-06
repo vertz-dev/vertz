@@ -7,47 +7,38 @@ import { deepFreeze } from './utils';
 const NAME_PATTERN = /^[a-z][a-z0-9-]*$/;
 
 // ---------------------------------------------------------------------------
+// Utility types
+// ---------------------------------------------------------------------------
+
+/** Flatten intersection types into a single object for readable hover previews. */
+type Prettify<T> = { [K in keyof T]: T[K] } & {};
+
+// ---------------------------------------------------------------------------
 // Step types
 // ---------------------------------------------------------------------------
 
 /**
  * Context available to a step's input callback.
  *
- * v1: `prev` is `Record<string, unknown>` — typed accumulation
- * (where `prev['step-a']` is strongly typed based on step-a's output schema)
- * requires a builder pattern or recursive tuple types that are deferred to v2.
- * Runtime validation via output schemas ensures data integrity.
+ * `TPrev` accumulates step output types through the builder chain.
+ * Each step sees only the outputs of steps defined before it.
  */
-export interface StepContext<TWorkflowInput = unknown> {
+export interface StepContext<TWorkflowInput = unknown, TPrev = Record<string, unknown>> {
   /** Workflow-level input. */
   readonly workflow: { readonly input: TWorkflowInput };
   /** Accumulated outputs from all preceding steps, keyed by step name. */
-  readonly prev: Record<string, unknown>;
+  readonly prev: Readonly<TPrev>;
 }
 
 /** Approval gate configuration for a step. */
-export interface StepApprovalConfig {
+export interface StepApprovalConfig<TInput = unknown, TPrev = Record<string, unknown>> {
   /** Message shown to the human approver. */
-  readonly message: string | ((ctx: StepContext) => string);
+  readonly message: string | ((ctx: StepContext<TInput, TPrev>) => string);
   /** How long to wait for approval. */
   readonly timeout?: string;
 }
 
-/** Configuration passed to the `step()` factory. */
-export interface StepConfig<TOutputSchema extends SchemaAny = SchemaAny> {
-  /** The agent to execute for this step. Omit for approval-only steps. */
-  /* eslint-disable @typescript-eslint/no-explicit-any -- agent definitions have varying state/tool types */
-  readonly agent?: AgentDefinition<any, any, any>;
-  /* eslint-enable @typescript-eslint/no-explicit-any */
-  /** Transform workflow context into the message sent to the agent. */
-  readonly input?: (ctx: StepContext) => string | { message: string };
-  /** Schema for validating step output. Optional for approval-only steps. */
-  readonly output?: TOutputSchema;
-  /** Approval gate — suspends the workflow until a human approves. */
-  readonly approval?: StepApprovalConfig;
-}
-
-/** The frozen definition returned by `step()`. */
+/** The frozen definition of a single step (internal to builder). */
 export interface StepDefinition<
   TName extends string = string,
   TOutputSchema extends SchemaAny = SchemaAny,
@@ -63,53 +54,10 @@ export interface StepDefinition<
 }
 
 // ---------------------------------------------------------------------------
-// step() factory
-// ---------------------------------------------------------------------------
-
-/**
- * Define a workflow step.
- *
- * Steps are the unit of workflow execution. Each step optionally invokes an
- * agent and produces a typed output that subsequent steps can reference via
- * `ctx.prev`.
- */
-export function step<TName extends string, TOutputSchema extends SchemaAny>(
-  name: TName,
-  config: StepConfig<TOutputSchema>,
-): StepDefinition<TName, TOutputSchema> {
-  if (!name || !NAME_PATTERN.test(name)) {
-    throw new Error(
-      `step() name must be a non-empty lowercase string matching /^[a-z][a-z0-9-]*$/. Got: "${name}"`,
-    );
-  }
-
-  const def: StepDefinition<TName, TOutputSchema> = {
-    kind: 'step',
-    name,
-    agent: config.agent,
-    input: config.input,
-    output: config.output,
-    approval: config.approval,
-  };
-
-  return deepFreeze(def);
-}
-
-// ---------------------------------------------------------------------------
 // Workflow types
 // ---------------------------------------------------------------------------
 
-/** Configuration passed to the `workflow()` factory. */
-export interface WorkflowConfig<TInputSchema extends SchemaAny = SchemaAny> {
-  /** Schema for the workflow input. */
-  readonly input: TInputSchema;
-  /** Ordered list of steps to execute sequentially. */
-  readonly steps: readonly StepDefinition[];
-  /** Access control — who can start or approve the workflow. */
-  readonly access?: Partial<Record<'start' | 'approve', unknown>>;
-}
-
-/** The frozen definition returned by `workflow()`. */
+/** The frozen definition returned by `WorkflowBuilder.build()`. */
 export interface WorkflowDefinition<TInputSchema extends SchemaAny = SchemaAny> {
   readonly kind: 'workflow';
   readonly name: string;
@@ -119,47 +67,185 @@ export interface WorkflowDefinition<TInputSchema extends SchemaAny = SchemaAny> 
 }
 
 // ---------------------------------------------------------------------------
+// WorkflowBuilder
+// ---------------------------------------------------------------------------
+
+/**
+ * Fluent builder for defining multi-step workflows with typed `ctx.prev`.
+ *
+ * Each `.step()` call returns a new builder with an updated `TPrev` generic
+ * that includes the current step's output type. Subsequent steps see all
+ * preceding step outputs in their `ctx.prev`.
+ */
+// eslint-disable-next-line @typescript-eslint/no-empty-object-type -- empty initial prev is intentional
+export interface WorkflowBuilder<TInput, TPrev = {}> {
+  /**
+   * Add an approval-only step. Approval steps are gates that suspend the
+   * workflow — they do not produce output and do not appear in `ctx.prev`.
+   */
+  step<TName extends string>(
+    name: TName,
+    config: {
+      readonly approval: StepApprovalConfig<TInput, TPrev>;
+      readonly agent?: never;
+      readonly output?: never;
+      readonly input?: never;
+    },
+  ): WorkflowBuilder<TInput, TPrev>;
+
+  /**
+   * Add an agent step to the workflow.
+   *
+   * - Steps with an `output` schema: `prev[name]` is `InferSchema<TOutputSchema>`
+   * - Steps without an `output` schema: `prev[name]` is `{ response: string }`
+   */
+  step<TName extends string, TOutputSchema extends SchemaAny | undefined = undefined>(
+    name: TName,
+    config: {
+      /* eslint-disable @typescript-eslint/no-explicit-any -- agent definitions have varying state/tool types */
+      readonly agent?: AgentDefinition<any, any, any>;
+      /* eslint-enable @typescript-eslint/no-explicit-any */
+      readonly input?: (ctx: StepContext<TInput, TPrev>) => string | { message: string };
+      readonly output?: TOutputSchema;
+      readonly approval?: StepApprovalConfig<TInput, TPrev>;
+    },
+  ): WorkflowBuilder<
+    TInput,
+    Prettify<
+      TPrev &
+        Record<
+          TName,
+          TOutputSchema extends SchemaAny ? InferSchema<TOutputSchema> : { response: string }
+        >
+    >
+  >;
+
+  /** Finalize the workflow definition. Validates at least one step exists. */
+  build(): WorkflowDefinition;
+}
+
+// ---------------------------------------------------------------------------
+// Internal builder implementation
+// ---------------------------------------------------------------------------
+
+class WorkflowBuilderImpl<TInput, TPrev = {}>
+  implements WorkflowBuilder<TInput, TPrev>
+{
+  private readonly _name: string;
+  private readonly _inputSchema: SchemaAny;
+  private readonly _access: Partial<Record<'start' | 'approve', unknown>>;
+  private readonly _steps: StepDefinition[];
+  private readonly _stepNames: Set<string>;
+
+  constructor(
+    name: string,
+    inputSchema: SchemaAny,
+    access: Partial<Record<'start' | 'approve', unknown>>,
+    steps: StepDefinition[] = [],
+    stepNames: Set<string> = new Set(),
+  ) {
+    this._name = name;
+    this._inputSchema = inputSchema;
+    this._access = access;
+    this._steps = steps;
+    this._stepNames = stepNames;
+  }
+
+  step<TName extends string, TOutputSchema extends SchemaAny | undefined = undefined>(
+    name: TName,
+    config: {
+      /* eslint-disable @typescript-eslint/no-explicit-any -- agent definitions have varying state/tool types */
+      readonly agent?: AgentDefinition<any, any, any>;
+      /* eslint-enable @typescript-eslint/no-explicit-any */
+      readonly input?: (ctx: StepContext<TInput, TPrev>) => string | { message: string };
+      readonly output?: TOutputSchema;
+      readonly approval?: StepApprovalConfig<TInput, TPrev>;
+    },
+  ): WorkflowBuilder<TInput, Prettify<TPrev & Record<TName, TOutputSchema extends SchemaAny ? InferSchema<TOutputSchema> : { response: string }>>> {
+    if (!name || !NAME_PATTERN.test(name)) {
+      throw new Error(
+        `step() name must be a non-empty lowercase string matching /^[a-z][a-z0-9-]*$/. Got: "${name}"`,
+      );
+    }
+
+    if (this._stepNames.has(name)) {
+      throw new Error(`Duplicate step name "${name}" in workflow "${this._name}".`);
+    }
+
+    const stepDef: StepDefinition = {
+      kind: 'step',
+      name,
+      agent: config.agent,
+      input: config.input as StepDefinition['input'],
+      output: config.output ?? undefined,
+      approval: config.approval as StepDefinition['approval'],
+    };
+
+    const newSteps = [...this._steps, stepDef];
+    const newNames = new Set(this._stepNames);
+    newNames.add(name);
+
+    // The runtime type is the same builder class — the generics only exist at compile time
+    /* eslint-disable @typescript-eslint/no-explicit-any -- generic erasure at runtime */
+    return new WorkflowBuilderImpl(
+      this._name,
+      this._inputSchema,
+      this._access,
+      newSteps,
+      newNames,
+    ) as any;
+    /* eslint-enable @typescript-eslint/no-explicit-any */
+  }
+
+  build(): WorkflowDefinition {
+    if (this._steps.length === 0) {
+      throw new Error('workflow() must have at least one step.');
+    }
+
+    const def: WorkflowDefinition = {
+      kind: 'workflow',
+      name: this._name,
+      input: this._inputSchema,
+      steps: this._steps,
+      access: this._access,
+    };
+
+    return deepFreeze(def);
+  }
+}
+
+// ---------------------------------------------------------------------------
 // workflow() factory
 // ---------------------------------------------------------------------------
 
 /**
  * Define a multi-step workflow that coordinates agents and approval gates.
  *
- * v1 supports linear sequential steps only. Each step executes in order,
- * with outputs accumulated in `ctx.prev` for subsequent steps.
+ * Returns a `WorkflowBuilder` — call `.step()` to add steps, then `.build()`
+ * to finalize. Each step's `ctx.prev` is strongly typed based on preceding
+ * steps' output schemas.
+ *
+ * ```typescript
+ * const pipeline = workflow('my-pipeline', { input: s.object({ name: s.string() }) })
+ *   .step('greet', { agent: greeterAgent, output: s.object({ greeting: s.string() }) })
+ *   .step('summarize', {
+ *     agent: summarizerAgent,
+ *     input: (ctx) => ctx.prev.greet.greeting, // typed!
+ *   })
+ *   .build();
+ * ```
  */
 export function workflow<TInputSchema extends SchemaAny>(
   name: string,
-  config: WorkflowConfig<TInputSchema>,
-): WorkflowDefinition<TInputSchema> {
+  config: { input: TInputSchema; access?: Partial<Record<'start' | 'approve', unknown>> },
+): WorkflowBuilder<InferSchema<TInputSchema>> {
   if (!name || !NAME_PATTERN.test(name)) {
     throw new Error(
       `workflow() name must be a non-empty lowercase string matching /^[a-z][a-z0-9-]*$/. Got: "${name}"`,
     );
   }
 
-  if (config.steps.length === 0) {
-    throw new Error('workflow() must have at least one step.');
-  }
-
-  // Check for duplicate step names
-  const names = new Set<string>();
-  for (const s of config.steps) {
-    if (names.has(s.name)) {
-      throw new Error(`Duplicate step name "${s.name}" in workflow "${name}".`);
-    }
-    names.add(s.name);
-  }
-
-  const def: WorkflowDefinition<TInputSchema> = {
-    kind: 'workflow',
-    name,
-    input: config.input,
-    steps: config.steps,
-    access: config.access ?? {},
-  };
-
-  return deepFreeze(def);
+  return new WorkflowBuilderImpl(name, config.input, config.access ?? {});
 }
 
 // ---------------------------------------------------------------------------

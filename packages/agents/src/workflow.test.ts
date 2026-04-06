@@ -3,60 +3,13 @@ import { s } from '@vertz/schema';
 import { agent } from './agent';
 import type { LLMAdapter } from './loop/react-loop';
 import { tool } from './tool';
-import { runWorkflow, step, workflow } from './workflow';
-import type { StepContext } from './workflow';
+import { runWorkflow, workflow } from './workflow';
 
 // ---------------------------------------------------------------------------
-// step() factory
+// workflow() builder
 // ---------------------------------------------------------------------------
 
-describe('step()', () => {
-  it('returns a frozen StepDefinition with correct name and kind', () => {
-    const greetStep = step('greet', {
-      output: s.object({ greeting: s.string() }),
-    });
-
-    expect(greetStep.kind).toBe('step');
-    expect(greetStep.name).toBe('greet');
-    expect(Object.isFrozen(greetStep)).toBe(true);
-  });
-
-  it('throws on invalid step name', () => {
-    expect(() => step('Invalid Name', { output: s.object({}) })).toThrow(/step\(\) name must be/);
-  });
-
-  it('preserves agent reference', () => {
-    const testAgent = agent('test-agent', {
-      state: s.object({}),
-      initialState: {},
-      tools: {},
-      model: { provider: 'cloudflare', model: 'test' },
-    });
-
-    const greetStep = step('greet', {
-      agent: testAgent,
-      output: s.object({ greeting: s.string() }),
-    });
-
-    expect(greetStep.agent).toBe(testAgent);
-  });
-
-  it('preserves input callback', () => {
-    const inputFn = (_ctx: StepContext) => ({ message: 'hello' });
-    const greetStep = step('greet', {
-      input: inputFn,
-      output: s.object({ greeting: s.string() }),
-    });
-
-    expect(greetStep.input).toBe(inputFn);
-  });
-});
-
-// ---------------------------------------------------------------------------
-// workflow() factory
-// ---------------------------------------------------------------------------
-
-describe('workflow()', () => {
+describe('workflow() builder', () => {
   const testAgent = agent('test-agent', {
     state: s.object({}),
     initialState: {},
@@ -64,16 +17,13 @@ describe('workflow()', () => {
     model: { provider: 'cloudflare', model: 'test' },
   });
 
-  it('returns a frozen WorkflowDefinition with correct name and kind', () => {
-    const pipeline = workflow('my-pipeline', {
-      input: s.object({ userName: s.string() }),
-      steps: [
-        step('greet', {
-          agent: testAgent,
-          output: s.object({ greeting: s.string() }),
-        }),
-      ],
-    });
+  it('builds a frozen WorkflowDefinition with correct name and kind', () => {
+    const pipeline = workflow('my-pipeline', { input: s.object({ userName: s.string() }) })
+      .step('greet', {
+        agent: testAgent,
+        output: s.object({ greeting: s.string() }),
+      })
+      .build();
 
     expect(pipeline.kind).toBe('workflow');
     expect(pipeline.name).toBe('my-pipeline');
@@ -81,44 +31,36 @@ describe('workflow()', () => {
   });
 
   it('throws on invalid workflow name', () => {
-    expect(() =>
-      workflow('Bad Name!', {
-        input: s.object({}),
-        steps: [],
-      }),
-    ).toThrow(/workflow\(\) name must be/);
+    expect(() => workflow('Bad Name!', { input: s.object({}) })).toThrow(
+      /workflow\(\) name must be/,
+    );
   });
 
-  it('throws when steps array is empty', () => {
+  it('throws when build() is called with no steps', () => {
+    expect(() => workflow('empty', { input: s.object({}) }).build()).toThrow(/at least one step/);
+  });
+
+  it('throws on invalid step name', () => {
     expect(() =>
-      workflow('empty', {
-        input: s.object({}),
-        steps: [],
-      }),
-    ).toThrow(/at least one step/);
+      workflow('test', { input: s.object({}) }).step('Invalid Name', { output: s.object({}) }),
+    ).toThrow(/step\(\) name must be/);
   });
 
   it('throws on duplicate step names', () => {
     expect(() =>
-      workflow('dupe', {
-        input: s.object({}),
-        steps: [
-          step('do-work', { agent: testAgent, output: s.object({}) }),
-          step('do-work', { agent: testAgent, output: s.object({}) }),
-        ],
-      }),
+      workflow('dupe', { input: s.object({}) })
+        .step('do-work', { agent: testAgent, output: s.object({}) })
+        .step('do-work', { agent: testAgent, output: s.object({}) }),
     ).toThrow(/Duplicate step name/);
   });
 
   it('preserves input schema and steps', () => {
     const inputSchema = s.object({ repo: s.string() });
-    const step1 = step('analyze', { agent: testAgent, output: s.object({ result: s.string() }) });
-    const step2 = step('report', { agent: testAgent, output: s.object({ summary: s.string() }) });
 
-    const pipeline = workflow('pipeline', {
-      input: inputSchema,
-      steps: [step1, step2],
-    });
+    const pipeline = workflow('pipeline', { input: inputSchema })
+      .step('analyze', { agent: testAgent, output: s.object({ result: s.string() }) })
+      .step('report', { agent: testAgent, output: s.object({ summary: s.string() }) })
+      .build();
 
     expect(pipeline.input).toBe(inputSchema);
     expect(pipeline.steps).toHaveLength(2);
@@ -129,11 +71,32 @@ describe('workflow()', () => {
   it('preserves access config', () => {
     const pipeline = workflow('with-access', {
       input: s.object({}),
-      steps: [step('work', { agent: testAgent, output: s.object({}) })],
       access: { start: 'authenticated', approve: 'admin' },
-    });
+    })
+      .step('work', { agent: testAgent, output: s.object({}) })
+      .build();
 
     expect(pipeline.access).toEqual({ start: 'authenticated', approve: 'admin' });
+  });
+
+  it('preserves agent reference on steps', () => {
+    const pipeline = workflow('ref-test', { input: s.object({}) })
+      .step('greet', { agent: testAgent, output: s.object({ greeting: s.string() }) })
+      .build();
+
+    expect(pipeline.steps[0].agent).toBe(testAgent);
+  });
+
+  it('preserves input callback on steps', () => {
+    const pipeline = workflow('cb-test', { input: s.object({}) })
+      .step('greet', {
+        agent: testAgent,
+        input: () => ({ message: 'hello' }),
+        output: s.object({ greeting: s.string() }),
+      })
+      .build();
+
+    expect(typeof pipeline.steps[0].input).toBe('function');
   });
 });
 
@@ -184,16 +147,13 @@ describe('runWorkflow()', () => {
       { text: 'Hello, World!' },
     ]);
 
-    const pipeline = workflow('greet-pipeline', {
-      input: s.object({ target: s.string() }),
-      steps: [
-        step('greet', {
-          agent: greetAgent,
-          input: (ctx) => `Greet ${(ctx.workflow.input as { target: string }).target}`,
-          output: s.object({ response: s.string() }),
-        }),
-      ],
-    });
+    const pipeline = workflow('greet-pipeline', { input: s.object({ target: s.string() }) })
+      .step('greet', {
+        agent: greetAgent,
+        input: (ctx) => `Greet ${ctx.workflow.input.target}`,
+        output: s.object({ response: s.string() }),
+      })
+      .build();
 
     const result = await runWorkflow(pipeline, {
       input: { target: 'World' },
@@ -232,24 +192,21 @@ describe('runWorkflow()', () => {
 
     const capturedPrev: Record<string, unknown>[] = [];
 
-    const pipeline = workflow('multi-step', {
-      input: s.object({ data: s.string() }),
-      steps: [
-        step('first', {
-          agent: noopAgent,
-          input: () => 'Step 1: do something',
-          output: s.object({}),
-        }),
-        step('second', {
-          agent: noopAgent,
-          input: (ctx) => {
-            capturedPrev.push({ ...ctx.prev });
-            return 'Step 2: continue';
-          },
-          output: s.object({}),
-        }),
-      ],
-    });
+    const pipeline = workflow('multi-step', { input: s.object({ data: s.string() }) })
+      .step('first', {
+        agent: noopAgent,
+        input: () => 'Step 1: do something',
+        output: s.object({}),
+      })
+      .step('second', {
+        agent: noopAgent,
+        input: (ctx) => {
+          capturedPrev.push({ ...ctx.prev });
+          return 'Step 2: continue';
+        },
+        output: s.object({}),
+      })
+      .build();
 
     const result = await runWorkflow(pipeline, {
       input: { data: 'test' },
@@ -282,21 +239,18 @@ describe('runWorkflow()', () => {
       },
     };
 
-    const pipeline = workflow('fail-pipeline', {
-      input: s.object({}),
-      steps: [
-        step('will-fail', {
-          agent: noopAgent,
-          input: () => 'Please fail',
-          output: s.object({}),
-        }),
-        step('never-reached', {
-          agent: noopAgent,
-          input: () => 'Should not run',
-          output: s.object({}),
-        }),
-      ],
-    });
+    const pipeline = workflow('fail-pipeline', { input: s.object({}) })
+      .step('will-fail', {
+        agent: noopAgent,
+        input: () => 'Please fail',
+        output: s.object({}),
+      })
+      .step('never-reached', {
+        agent: noopAgent,
+        input: () => 'Should not run',
+        output: s.object({}),
+      })
+      .build();
 
     const result = await runWorkflow(pipeline, { input: {}, llm });
 
@@ -316,10 +270,9 @@ describe('runWorkflow()', () => {
 
     const llm = createMockLlm([{ text: 'done' }]);
 
-    const pipeline = workflow('validated', {
-      input: s.object({ name: s.string() }),
-      steps: [step('work', { agent: noopAgent, output: s.object({}) })],
-    });
+    const pipeline = workflow('validated', { input: s.object({ name: s.string() }) })
+      .step('work', { agent: noopAgent, output: s.object({}) })
+      .build();
 
     // @ts-expect-error — passing number where string is expected
     await expect(runWorkflow(pipeline, { input: { name: 42 }, llm })).rejects.toThrow();
@@ -328,10 +281,9 @@ describe('runWorkflow()', () => {
   it('throws when a step has no agent', async () => {
     const llm = createMockLlm([{ text: 'done' }]);
 
-    const pipeline = workflow('no-agent', {
-      input: s.object({}),
-      steps: [step('orphan', { output: s.object({}) })],
-    });
+    const pipeline = workflow('no-agent', { input: s.object({}) })
+      .step('orphan', { output: s.object({}) })
+      .build();
 
     await expect(runWorkflow(pipeline, { input: {}, llm })).rejects.toThrow(
       /Step "orphan" has no agent/,
@@ -354,10 +306,9 @@ describe('runWorkflow()', () => {
       },
     };
 
-    const pipeline = workflow('default-msg', {
-      input: s.object({}),
-      steps: [step('auto', { agent: noopAgent, output: s.object({}) })],
-    });
+    const pipeline = workflow('default-msg', { input: s.object({}) })
+      .step('auto', { agent: noopAgent, output: s.object({}) })
+      .build();
 
     await runWorkflow(pipeline, { input: {}, llm });
 
@@ -380,25 +331,24 @@ describe('runWorkflow()', () => {
 
     const pipeline = workflow('approval-pipeline', {
       input: s.object({ docPath: s.string() }),
-      steps: [
-        step('write-doc', {
-          agent: noopAgent,
-          input: () => 'Write the doc',
-          output: s.object({}),
-        }),
-        step('human-review', {
-          approval: {
-            message: (ctx) => `Review doc: ${(ctx.prev as Record<string, unknown>)['write-doc']}`,
-            timeout: '7d',
-          },
-        }),
-        step('implement', {
-          agent: noopAgent,
-          input: () => 'Start implementation',
-          output: s.object({}),
-        }),
-      ],
-    });
+    })
+      .step('write-doc', {
+        agent: noopAgent,
+        input: () => 'Write the doc',
+        output: s.object({}),
+      })
+      .step('human-review', {
+        approval: {
+          message: 'Review the doc',
+          timeout: '7d',
+        },
+      })
+      .step('implement', {
+        agent: noopAgent,
+        input: () => 'Start implementation',
+        output: s.object({}),
+      })
+      .build();
 
     const result = await runWorkflow(pipeline, {
       input: { docPath: '/plans/feature.md' },
@@ -427,24 +377,21 @@ describe('runWorkflow()', () => {
       },
     };
 
-    const pipeline = workflow('resume-pipeline', {
-      input: s.object({}),
-      steps: [
-        step('first', {
-          agent: noopAgent,
-          input: () => 'Step 1',
-          output: s.object({}),
-        }),
-        step('approve', {
-          approval: { message: 'Approve?' },
-        }),
-        step('last', {
-          agent: noopAgent,
-          input: () => 'Step 3',
-          output: s.object({}),
-        }),
-      ],
-    });
+    const pipeline = workflow('resume-pipeline', { input: s.object({}) })
+      .step('first', {
+        agent: noopAgent,
+        input: () => 'Step 1',
+        output: s.object({}),
+      })
+      .step('approve', {
+        approval: { message: 'Approve?' },
+      })
+      .step('last', {
+        agent: noopAgent,
+        input: () => 'Step 3',
+        output: s.object({}),
+      })
+      .build();
 
     // Resume from after the approval step, providing previous results
     const result = await runWorkflow(pipeline, {
@@ -464,30 +411,19 @@ describe('runWorkflow()', () => {
   });
 
   it('returns approval message from function', async () => {
-    const noopAgent = agent('noop', {
-      state: s.object({}),
-      initialState: {},
-      tools: {},
-      model: { provider: 'cloudflare', model: 'test' },
-    });
-
     const llm: LLMAdapter = {
       async chat() {
         return { text: 'done', toolCalls: [] };
       },
     };
 
-    const pipeline = workflow('msg-pipeline', {
-      input: s.object({ docPath: s.string() }),
-      steps: [
-        step('review', {
-          approval: {
-            message: (ctx) =>
-              `Please review: ${(ctx.workflow.input as { docPath: string }).docPath}`,
-          },
-        }),
-      ],
-    });
+    const pipeline = workflow('msg-pipeline', { input: s.object({ docPath: s.string() }) })
+      .step('review', {
+        approval: {
+          message: (ctx) => `Please review: ${ctx.workflow.input.docPath}`,
+        },
+      })
+      .build();
 
     const result = await runWorkflow(pipeline, {
       input: { docPath: '/plans/test.md' },
@@ -512,10 +448,9 @@ describe('runWorkflow()', () => {
       },
     };
 
-    const pipeline = workflow('bad-resume', {
-      input: s.object({}),
-      steps: [step('only', { agent: noopAgent, output: s.object({}) })],
-    });
+    const pipeline = workflow('bad-resume', { input: s.object({}) })
+      .step('only', { agent: noopAgent, output: s.object({}) })
+      .build();
 
     await expect(
       runWorkflow(pipeline, { input: {}, llm, resumeAfter: 'nonexistent' }),
@@ -538,13 +473,10 @@ describe('runWorkflow()', () => {
       },
     };
 
-    const pipeline = workflow('stuck-pipeline', {
-      input: s.object({}),
-      steps: [
-        step('will-get-stuck', { agent: noopAgent, output: s.object({}) }),
-        step('never-reached', { agent: noopAgent, output: s.object({}) }),
-      ],
-    });
+    const pipeline = workflow('stuck-pipeline', { input: s.object({}) })
+      .step('will-get-stuck', { agent: noopAgent, output: s.object({}) })
+      .step('never-reached', { agent: noopAgent, output: s.object({}) })
+      .build();
 
     const result = await runWorkflow(pipeline, { input: {}, llm });
 
@@ -570,16 +502,13 @@ describe('runWorkflow()', () => {
       },
     };
 
-    const pipeline = workflow('object-input', {
-      input: s.object({}),
-      steps: [
-        step('work', {
-          agent: noopAgent,
-          input: () => ({ message: 'Hello from object form' }),
-          output: s.object({}),
-        }),
-      ],
-    });
+    const pipeline = workflow('object-input', { input: s.object({}) })
+      .step('work', {
+        agent: noopAgent,
+        input: () => ({ message: 'Hello from object form' }),
+        output: s.object({}),
+      })
+      .build();
 
     await runWorkflow(pipeline, { input: {}, llm });
 
