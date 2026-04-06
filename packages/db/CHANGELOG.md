@@ -1,5 +1,15 @@
 # @vertz/db
 
+## 0.2.49
+
+### Patch Changes
+
+- [#2351](https://github.com/vertz-dev/vertz/pull/2351) [`3eacdf7`](https://github.com/vertz-dev/vertz/commit/3eacdf7281ef3bace92abf0d3eddd06f8cbbf32a) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - feat(db): full pgvector support — vector column type and HNSW/IVFFlat index options
+
+- Updated dependencies []:
+  - @vertz/errors@0.2.49
+  - @vertz/schema@0.2.49
+
 ## 0.2.48
 
 ### Patch Changes
