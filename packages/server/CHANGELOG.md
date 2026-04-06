@@ -1,5 +1,26 @@
 # @vertz/server
 
+## 0.2.48
+
+### Patch Changes
+
+- [#2294](https://github.com/vertz-dev/vertz/pull/2294) [`fcf3524`](https://github.com/vertz-dev/vertz/commit/fcf352437f504c4e67b6ce231ebceeb1476c014f) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - feat(server): conditional BaseContext types via typed() factory (#2004)
+
+  BaseContext is now generic over ContextFeatures. Auth/tenancy fields only
+  appear on ctx when configured. Use typed(auth) to get narrowed entity()
+  and service() factories. Existing code is unaffected — BaseContext without
+  a type parameter defaults to FullFeatures (all fields present).
+
+- [#2311](https://github.com/vertz-dev/vertz/pull/2311) [`e11ac56`](https://github.com/vertz-dev/vertz/commit/e11ac56ab9361259f0ca428f8f7cb8c9d287df6e) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - fix(auth): resolveAllLimitStates uses level-specific defaultPlan in multi-level mode
+
+  When a subscription expires in multi-level billing, `resolveAllLimitStates` now uses the per-level default plan (`defaultPlans[entry.type]`) instead of the global `defaultPlan`. Fixes inconsistency where gate check and limit resolution could fall back to different plans.
+
+- Updated dependencies [[`9fd72d7`](https://github.com/vertz-dev/vertz/commit/9fd72d7b11e0d4890556d89ef29d1a6e050619b1), [`5d23ced`](https://github.com/vertz-dev/vertz/commit/5d23ced8c21e9cd6a3224e8baea78fedd86d1e1b)]:
+  - @vertz/db@0.2.48
+  - @vertz/core@0.2.48
+  - @vertz/errors@0.2.48
+  - @vertz/schema@0.2.48
+
 ## 0.2.47
 
 ### Patch Changes

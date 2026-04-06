@@ -1,6 +1,6 @@
 {
   "name": "@vertz/ci",
-  "version": "0.2.46",
+  "version": "0.2.47",
   "description": "TypeScript SDK for vtz ci — define tasks, workflows, and caching for monorepo CI",
   "license": "MIT",
   "repository": {
