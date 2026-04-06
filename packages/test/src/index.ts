@@ -1,0 +1,258 @@
+// @vertz/test — Type declarations and runtime stubs for the Vertz test framework.
+//
+// When running under `vtz test`, the runtime's synthetic module loader intercepts
+// imports from '@vertz/test' and provides the real test framework globals.
+// This package exists so that:
+//   1. npm/bun can resolve the import (no 404 on install)
+//   2. TypeScript/IDEs can provide type checking and autocomplete
+//   3. Accidental use outside `vtz test` gives a clear error
+
+const STUB_ERROR =
+  '@vertz/test: this function is a stub. Run your tests with `vtz test` to use the real implementation.';
+
+function stub(): never {
+  throw new Error(STUB_ERROR);
+}
+
+// ---------------------------------------------------------------------------
+// Types
+// ---------------------------------------------------------------------------
+
+export interface MockState {
+  calls: unknown[][];
+  results: Array<{ type: 'return' | 'throw'; value: unknown }>;
+  lastCall?: unknown[];
+}
+
+export interface MockFunction<TArgs extends unknown[] = unknown[], TReturn = unknown> {
+  (...args: TArgs): TReturn;
+  mock: MockState;
+  mockImplementation(fn: (...args: TArgs) => TReturn): MockFunction<TArgs, TReturn>;
+  mockReturnValue(value: TReturn): MockFunction<TArgs, TReturn>;
+  mockReturnValueOnce(value: TReturn): MockFunction<TArgs, TReturn>;
+  mockResolvedValue(value: Awaited<TReturn>): MockFunction<TArgs, TReturn>;
+  mockResolvedValueOnce(value: Awaited<TReturn>): MockFunction<TArgs, TReturn>;
+  mockRejectedValue(value: unknown): MockFunction<TArgs, TReturn>;
+  mockRejectedValueOnce(value: unknown): MockFunction<TArgs, TReturn>;
+  mockImplementationOnce(fn: (...args: TArgs) => TReturn): MockFunction<TArgs, TReturn>;
+  mockClear(): MockFunction<TArgs, TReturn>;
+  mockReset(): MockFunction<TArgs, TReturn>;
+  mockRestore(): MockFunction<TArgs, TReturn>;
+}
+
+export interface AsymmetricMatcher {
+  match(received: unknown): boolean;
+  toString(): string;
+}
+
+export interface Matchers<T = unknown> {
+  toBe(expected: T): void;
+  toEqual(expected: unknown): void;
+  toStrictEqual(expected: unknown): void;
+  toBeTruthy(): void;
+  toBeFalsy(): void;
+  toBeNull(): void;
+  toBeUndefined(): void;
+  toBeDefined(): void;
+  toBeGreaterThan(n: number): void;
+  toBeGreaterThanOrEqual(n: number): void;
+  toBeLessThan(n: number): void;
+  toBeLessThanOrEqual(n: number): void;
+  toBeNaN(): void;
+  toBeArray(): void;
+  toContain(item: unknown): void;
+  toContainEqual(item: unknown): void;
+  toHaveLength(n: number): void;
+  toMatch(pattern: string | RegExp): void;
+  toBeCloseTo(expected: number, numDigits?: number): void;
+  toBeTypeOf(type: string): void;
+  toBeFunction(): void;
+  toHaveProperty(keyPath: string | string[], value?: unknown): void;
+  toMatchObject(expected: object): void;
+  toBeInstanceOf(constructor: new (...args: unknown[]) => unknown): void;
+  toThrow(expected?: string | RegExp | (new (...args: unknown[]) => unknown)): void;
+  toThrowError(expected?: string | RegExp | (new (...args: unknown[]) => unknown)): void;
+  toHaveBeenCalled(): void;
+  toHaveBeenCalledOnce(): void;
+  toHaveBeenCalledTimes(n: number): void;
+  toHaveBeenCalledWith(...args: unknown[]): void;
+  toHaveBeenLastCalledWith(...args: unknown[]): void;
+  toHaveBeenNthCalledWith(n: number, ...args: unknown[]): void;
+  toSatisfy(predicate: (actual: T) => boolean): void;
+  not: Matchers<T>;
+  resolves: Matchers<T>;
+  rejects: Matchers<T>;
+}
+
+export type TestFn = () => void | Promise<void>;
+export type HookFn = () => void | Promise<void>;
+
+export type EachFn = (
+  table: unknown[],
+) => (name: string, fn: (...args: unknown[]) => void | Promise<void>) => void;
+
+export interface Describe {
+  (name: string, fn: () => void): void;
+  skip: (name: string, fn: () => void) => void;
+  only: Describe;
+  skipIf: (condition: boolean) => Describe;
+  each: EachFn;
+}
+
+export interface It {
+  (name: string, fn: TestFn): void;
+  skip: (name: string, fn: TestFn) => void;
+  only: It;
+  todo: (name: string) => void;
+  skipIf: (condition: boolean) => It;
+  each: EachFn;
+}
+
+export type Test = It;
+
+export type BeforeEach = (fn: HookFn) => void;
+export type AfterEach = (fn: HookFn) => void;
+export type BeforeAll = (fn: HookFn) => void;
+export type AfterAll = (fn: HookFn) => void;
+
+export interface Expect {
+  <T>(actual: T): Matchers<T>;
+  any: (constructor: new (...args: unknown[]) => unknown) => AsymmetricMatcher;
+  anything: () => AsymmetricMatcher;
+  objectContaining: (expected: object) => AsymmetricMatcher;
+  arrayContaining: (expected: unknown[]) => AsymmetricMatcher;
+  stringContaining: (expected: string) => AsymmetricMatcher;
+  stringMatching: (pattern: string | RegExp) => AsymmetricMatcher;
+  extend: (
+    matchers: Record<
+      string,
+      (actual: unknown, ...args: unknown[]) => { pass: boolean; message: () => string }
+    >,
+  ) => void;
+}
+
+export interface Mock {
+  (impl?: (...args: unknown[]) => unknown): MockFunction;
+  module: (modulePath: string, factory?: (() => unknown) | unknown) => void;
+}
+
+export type SpyOn = (obj: object, method: string | symbol) => MockFunction;
+
+export interface Vi {
+  fn: (impl?: (...args: unknown[]) => unknown) => MockFunction;
+  spyOn: (obj: object, method: string) => MockFunction;
+  clearAllMocks: () => void;
+  resetAllMocks: () => void;
+  restoreAllMocks: () => void;
+  useFakeTimers: () => Vi;
+  useRealTimers: () => Vi;
+  advanceTimersByTime: (ms: number) => Vi;
+  advanceTimersToNextTimer: () => Vi;
+  runAllTimers: () => Vi;
+  runOnlyPendingTimers: () => Vi;
+  setSystemTime: (date: Date | number | string) => Vi;
+  getTimerCount: () => number;
+  isFakeTimers: () => boolean;
+  mock: (modulePath: string, factory?: (() => unknown) | unknown) => void;
+  hoisted: <T>(factory: () => T) => T;
+  importActual: (specifier: string) => Promise<unknown>;
+}
+
+export type ExpectTypeOf = <T = unknown>() => unknown;
+
+// ---------------------------------------------------------------------------
+// Runtime stubs
+// ---------------------------------------------------------------------------
+
+function describeStub(_name: string, _fn: () => void): void {
+  stub();
+}
+describeStub.skip = (_name: string, _fn: () => void): void => stub();
+describeStub.only = describeStub as Describe;
+describeStub.skipIf = (_condition: boolean): Describe => stub();
+describeStub.each =
+  (_table: unknown[]) =>
+  (_name: string, _fn: (...args: unknown[]) => void | Promise<void>): void =>
+    stub();
+const describe: Describe = describeStub as Describe;
+
+function itStub(_name: string, _fn: TestFn): void {
+  stub();
+}
+itStub.skip = (_name: string, _fn: TestFn): void => stub();
+itStub.only = itStub as It;
+itStub.todo = (_name: string): void => stub();
+itStub.skipIf = (_condition: boolean): It => stub();
+itStub.each =
+  (_table: unknown[]) =>
+  (_name: string, _fn: (...args: unknown[]) => void | Promise<void>): void =>
+    stub();
+const it: It = itStub as It;
+
+const test: Test = it;
+
+const expect: Expect = Object.assign(<T>(_actual: T): Matchers<T> => stub(), {
+  any: (_constructor: new (...args: unknown[]) => unknown): AsymmetricMatcher => stub(),
+  anything: (): AsymmetricMatcher => stub(),
+  objectContaining: (_expected: object): AsymmetricMatcher => stub(),
+  arrayContaining: (_expected: unknown[]): AsymmetricMatcher => stub(),
+  stringContaining: (_expected: string): AsymmetricMatcher => stub(),
+  stringMatching: (_pattern: string | RegExp): AsymmetricMatcher => stub(),
+  extend: (
+    _matchers: Record<
+      string,
+      (actual: unknown, ...args: unknown[]) => { pass: boolean; message: () => string }
+    >,
+  ): void => stub(),
+});
+
+const beforeEach: BeforeEach = (_fn: HookFn): void => stub();
+const afterEach: AfterEach = (_fn: HookFn): void => stub();
+const beforeAll: BeforeAll = (_fn: HookFn): void => stub();
+const afterAll: AfterAll = (_fn: HookFn): void => stub();
+
+const mock: Mock = Object.assign(
+  (_impl?: (...args: unknown[]) => unknown): MockFunction => stub(),
+  {
+    module: (_modulePath: string, _factory?: (() => unknown) | unknown): void => stub(),
+  },
+);
+
+const spyOn: SpyOn = (_obj: object, _method: string | symbol): MockFunction => stub();
+
+const vi: Vi = {
+  fn: (_impl?: (...args: unknown[]) => unknown): MockFunction => stub(),
+  spyOn: (_obj: object, _method: string): MockFunction => stub(),
+  clearAllMocks: (): void => stub(),
+  resetAllMocks: (): void => stub(),
+  restoreAllMocks: (): void => stub(),
+  useFakeTimers: (): Vi => stub(),
+  useRealTimers: (): Vi => stub(),
+  advanceTimersByTime: (_ms: number): Vi => stub(),
+  advanceTimersToNextTimer: (): Vi => stub(),
+  runAllTimers: (): Vi => stub(),
+  runOnlyPendingTimers: (): Vi => stub(),
+  setSystemTime: (_date: Date | number | string): Vi => stub(),
+  getTimerCount: (): number => stub(),
+  isFakeTimers: (): boolean => stub(),
+  mock: (_modulePath: string, _factory?: (() => unknown) | unknown): void => stub(),
+  hoisted: <T>(_factory: () => T): T => stub(),
+  importActual: (_specifier: string): Promise<unknown> => stub(),
+};
+
+const expectTypeOf: ExpectTypeOf = <_T = unknown>(): unknown => stub();
+
+export {
+  afterAll,
+  afterEach,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  expectTypeOf,
+  it,
+  mock,
+  spyOn,
+  test,
+  vi,
+};
