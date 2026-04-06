@@ -79,26 +79,17 @@ mount(App, {
 
 For local development, use the standard Vertz dev server:
 
-```ts
-// src/dev-server.ts
-import { createBunDevServer } from '@vertz/ui-server/bun-dev-server';
+The `vtz` runtime includes a built-in dev server with HMR, SSR, and the Vertz compiler — no additional configuration required. Just run:
 
-const devServer = createBunDevServer({
-  entry: './src/app.tsx',
-  clientEntry: './src/entry-client.ts',
-  port: 4000,
-  ssrModule: true,
-  title: 'My Site',
-});
-
-await devServer.start();
+```bash
+vtz dev
 ```
 
 ## Build script
 
 The build script produces a self-contained `dist/` directory. It:
 
-1. **Builds the client JS bundle** using `Bun.build()` with the Vertz compiler plugin
+1. **Builds the client JS bundle** with the Vertz compiler plugin
 2. **Extracts CSS** from component `css()` calls
 3. **Copies public assets** to `dist/public/`
 4. **SSR-renders the page** by starting the dev server and capturing its output
@@ -107,9 +98,17 @@ The build script produces a self-contained `dist/` directory. It:
 
 ```ts
 // scripts/build.ts
-import { cpSync, existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import {
+  cpSync,
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  readdirSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
 import { resolve } from 'node:path';
-import { createVertzBunPlugin } from '@vertz/ui-server/bun-plugin';
+import { execSync, spawn } from 'node:child_process';
 
 const ROOT = resolve(import.meta.dir, '..');
 const DIST = resolve(ROOT, 'dist');
@@ -119,55 +118,18 @@ const PORT = 4100;
 rmSync(DIST, { recursive: true, force: true });
 mkdirSync(resolve(DIST, 'assets'), { recursive: true });
 
-const { plugin, fileExtractions } = createVertzBunPlugin({
-  hmr: false,
-  fastRefresh: false,
-  projectRoot: ROOT,
-});
+// Use `vtz build` for the client bundle in production.
+// The build output goes to dist/assets/ with hashed filenames.
+execSync('vtz build', { cwd: ROOT, stdio: 'inherit' });
 
-const clientResult = await Bun.build({
-  entrypoints: [resolve(ROOT, 'src/entry-client.ts')],
-  plugins: [plugin],
-  target: 'browser',
-  minify: true,
-  splitting: true,
-  outdir: resolve(DIST, 'assets'),
-  naming: '[name]-[hash].[ext]',
-});
-
-if (!clientResult.success) {
-  console.error('Client build failed:', clientResult.logs);
-  process.exit(1);
-}
-
-// Collect output paths
-let clientJsPath = '';
-const clientCssPaths: string[] = [];
-
-for (const output of clientResult.outputs) {
-  const rel = output.path.replace(DIST, '');
-  if (output.kind === 'entry-point') clientJsPath = rel;
-  else if (output.path.endsWith('.css')) clientCssPaths.push(rel);
-}
-
-// ── 2. Extract component CSS ───────────────────────────────
-let extractedCss = '';
-for (const [, extraction] of fileExtractions) {
-  if (extraction.css) extractedCss += `${extraction.css}\n`;
-}
-if (extractedCss) {
-  writeFileSync(resolve(DIST, 'assets/vertz.css'), extractedCss);
-  clientCssPaths.push('/assets/vertz.css');
-}
-
-// ── 3. Copy public/ → dist/public/ ────────────────────────
+// ── 2. Copy public/ → dist/public/ ────────────────────────
 const publicDir = resolve(ROOT, 'public');
 if (existsSync(publicDir)) {
   cpSync(publicDir, resolve(DIST, 'public'), { recursive: true });
 }
 
-// ── 4. SSR-render the page ─────────────────────────────────
-const server = Bun.spawn(['bun', 'run', 'src/dev-server.ts'], {
+// ── 3. SSR-render the page ─────────────────────────────────
+const server = spawn('vtz', ['dev', '--port', String(PORT)], {
   cwd: ROOT,
   env: { ...process.env, PORT: String(PORT) },
   stdio: ['ignore', 'pipe', 'pipe'],
@@ -178,32 +140,37 @@ for (let i = 0; i < 60; i++) {
   try {
     if ((await fetch(`http://localhost:${PORT}`)).ok) break;
   } catch {}
-  await Bun.sleep(500);
+  await new Promise((r) => setTimeout(r, 500));
 }
 
 const html = await fetch(`http://localhost:${PORT}`).then((r) => r.text());
 server.kill();
 
-// ── 5. Strip dev-only scripts ──────────────────────────────
+// ── 4. Strip dev-only scripts ──────────────────────────────
 let clean = html
-  .replace(/<style>bun-hmr\{display:none!important\}[\s\S]*?\}\)\(\)<\/script>/g, '')
-  .replace(/<script>\(function\(\)\{var K="__vertz_reload_count"[\s\S]*?\}\)\(\)<\/script>/g, '')
-  .replace(/<script type="text\/plain"[^>]*data-bun-dev-server-script[^>]*><\/script>/g, '')
-  .replace(/<script>\(\(a\)=>\{document\.addEventListener[\s\S]*?\)<\/script>/g, '')
-  .replace(/<script>\(function\(\)\{var el=document\.querySelector[\s\S]*?\}\)\(\)<\/script>/g, '')
+  .replace(/<style>[\s\S]*?<\/style>/g, (match) => (match.includes('hmr') ? '' : match))
+  .replace(/<script[^>]*data-dev-server[^>]*>[\s\S]*?<\/script>/g, '')
   .replace(/<script type="module" src="\/src\/entry-client\.ts"><\/script>/g, '');
 
-// ── 6. Inject production head + client bundle ──────────────
-const cssLinks = clientCssPaths.map((p) => `  <link rel="stylesheet" href="${p}" />`).join('\n');
+// ── 5. Inject production head + client bundle ──────────────
+// Find the built client JS in dist/assets/
+const assets = existsSync(resolve(DIST, 'assets')) ? readdirSync(resolve(DIST, 'assets')) : [];
+const clientJs = assets.find((f) => f.startsWith('entry-client') && f.endsWith('.js'));
+const clientCss = assets.filter((f) => f.endsWith('.css'));
 
-clean = clean.replace(/(<title>[^<]*<\/title>)/, `$1\n${cssLinks}`);
+if (clientJs) {
+  clean = clean.replace(
+    /<\/body>/,
+    `  <script type="module" crossorigin src="/assets/${clientJs}"></script>\n</body>`,
+  );
+}
 
-clean = clean.replace(
-  /<\/body>/,
-  `  <script type="module" crossorigin src="${clientJsPath}"></script>\n</body>`,
-);
+const cssLinks = clientCss.map((f) => `  <link rel="stylesheet" href="/assets/${f}" />`).join('\n');
+if (cssLinks) {
+  clean = clean.replace(/(<title>[^<]*<\/title>)/, `$1\n${cssLinks}`);
+}
 
-await Bun.write(resolve(DIST, 'index.html'), clean);
+writeFileSync(resolve(DIST, 'index.html'), clean);
 console.log('✓ Build complete: dist/');
 ```
 
@@ -298,9 +265,8 @@ dist/
 ```
 
 <Warning>
-  The dev server's SSR output includes HMR scripts, WebSocket overlays, and Bun dev server
-  bootstrapping code. The build script strips all of these — never deploy the raw dev server output
-  directly.
+  The dev server's SSR output includes HMR scripts, WebSocket overlays, and dev server bootstrapping
+  code. The build script strips all of these — never deploy the raw dev server output directly.
 </Warning>
 
 ## How it differs from full-stack deployment

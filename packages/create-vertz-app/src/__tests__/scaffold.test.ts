@@ -121,7 +121,6 @@ describe('scaffold', () => {
       const content = await fs.readFile(projectPath('package.json'), 'utf-8');
       const pkg = JSON.parse(content);
       expect(pkg.devDependencies['@vertz/cli']).toBeDefined();
-      expect(pkg.devDependencies['bun-types']).toBeDefined();
     });
 
     it('package.json includes #generated imports map', async () => {
@@ -151,7 +150,7 @@ describe('scaffold', () => {
       expect(tsconfig.compilerOptions.jsx).toBe('react-jsx');
       expect(tsconfig.compilerOptions.jsxImportSource).toBe('@vertz/ui');
       expect(tsconfig.compilerOptions.strict).toBe(true);
-      expect(tsconfig.compilerOptions.types).toContain('bun-types');
+      expect(tsconfig.compilerOptions.types).toEqual([]);
     });
 
     it('vertz.config.ts includes codegen config', async () => {
@@ -177,21 +176,16 @@ describe('scaffold', () => {
       expect(content).toContain('PORT=3000');
     });
 
-    it('bunfig.toml registers Vertz compiler plugin for dev server', async () => {
+    it('does NOT generate bunfig.toml (vtz runtime handles compiler plugin)', async () => {
       await scaffold(tempDir, defaultOptions);
 
-      const content = await fs.readFile(projectPath('bunfig.toml'), 'utf-8');
-      expect(content).toContain('[serve.static]');
-      expect(content).toContain('bun-plugin-shim.ts');
+      expect(await exists(projectPath('bunfig.toml'))).toBe(false);
     });
 
-    it('bun-plugin-shim.ts bridges createVertzBunPlugin for bunfig.toml', async () => {
+    it('does NOT generate bun-plugin-shim.ts (vtz runtime handles compiler plugin)', async () => {
       await scaffold(tempDir, defaultOptions);
 
-      const content = await fs.readFile(projectPath('bun-plugin-shim.ts'), 'utf-8');
-      expect(content).toContain('createVertzBunPlugin');
-      expect(content).toContain("from 'vertz/ui-server/bun-plugin'");
-      expect(content).toContain('export default plugin');
+      expect(await exists(projectPath('bun-plugin-shim.ts'))).toBe(false);
     });
 
     it('package.json does not need @vertz/ui-server (provided by vertz meta-package)', async () => {
@@ -521,16 +515,12 @@ describe('scaffold', () => {
       expect(content).toContain("from 'vertz/ui'");
     });
 
-    it('reuses shared templates (tsconfig, bunfig, gitignore, theme, favicon)', async () => {
+    it('reuses shared templates (tsconfig, gitignore, theme, favicon)', async () => {
       await scaffold(tempDir, helloOptions);
 
       // tsconfig
       const tsconfig = JSON.parse(await fs.readFile(projectPath('tsconfig.json'), 'utf-8'));
       expect(tsconfig.compilerOptions.jsx).toBe('react-jsx');
-
-      // bunfig
-      const bunfig = await fs.readFile(projectPath('bunfig.toml'), 'utf-8');
-      expect(bunfig).toContain('[serve.static]');
 
       // gitignore
       const gitignore = await fs.readFile(projectPath('.gitignore'), 'utf-8');
@@ -543,6 +533,12 @@ describe('scaffold', () => {
       // favicon
       const favicon = await fs.readFile(projectPath('public', 'favicon.svg'), 'utf-8');
       expect(favicon).toContain('viewBox');
+    });
+
+    it('does NOT generate bunfig.toml', async () => {
+      await scaffold(tempDir, helloOptions);
+
+      expect(await exists(projectPath('bunfig.toml'))).toBe(false);
     });
 
     it('throws error if project directory already exists', async () => {
@@ -707,14 +703,11 @@ describe('scaffold', () => {
       expect(content).toContain('createRouter');
     });
 
-    it('reuses shared templates (tsconfig, bunfig, gitignore, theme, favicon)', async () => {
+    it('reuses shared templates (tsconfig, gitignore, theme, favicon)', async () => {
       await scaffold(tempDir, landingOptions);
 
       const tsconfig = JSON.parse(await fs.readFile(projectPath('tsconfig.json'), 'utf-8'));
       expect(tsconfig.compilerOptions.jsx).toBe('react-jsx');
-
-      const bunfig = await fs.readFile(projectPath('bunfig.toml'), 'utf-8');
-      expect(bunfig).toContain('[serve.static]');
 
       const gitignore = await fs.readFile(projectPath('.gitignore'), 'utf-8');
       expect(gitignore).toContain('node_modules');
@@ -724,6 +717,12 @@ describe('scaffold', () => {
 
       const favicon = await fs.readFile(projectPath('public', 'favicon.svg'), 'utf-8');
       expect(favicon).toContain('viewBox');
+    });
+
+    it('does NOT generate bunfig.toml', async () => {
+      await scaffold(tempDir, landingOptions);
+
+      expect(await exists(projectPath('bunfig.toml'))).toBe(false);
     });
 
     // ── Component content ──────────────────────────────────

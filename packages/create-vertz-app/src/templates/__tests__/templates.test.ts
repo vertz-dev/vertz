@@ -2,8 +2,6 @@ import { describe, expect, it } from 'bun:test';
 import {
   apiDevelopmentRuleTemplate,
   appComponentTemplate,
-  bunfigTemplate,
-  bunPluginShimTemplate,
   claudeMdTemplate,
   clientTemplate,
   dbTemplate,
@@ -51,7 +49,6 @@ describe('templates', () => {
       const result = packageJsonTemplate('test-app');
       const pkg = JSON.parse(result);
       expect(pkg.devDependencies['@vertz/cli']).toBeDefined();
-      expect(pkg.devDependencies['bun-types']).toBeDefined();
     });
 
     it('includes #generated imports map', () => {
@@ -89,10 +86,10 @@ describe('templates', () => {
       expect(tsconfig.compilerOptions.jsxImportSource).toBe('@vertz/ui');
     });
 
-    it('includes bun-types', () => {
+    it('has empty types array (no bun-types)', () => {
       const result = tsconfigTemplate();
       const tsconfig = JSON.parse(result);
-      expect(tsconfig.compilerOptions.types).toContain('bun-types');
+      expect(tsconfig.compilerOptions.types).toEqual([]);
     });
   });
 
@@ -119,26 +116,6 @@ describe('templates', () => {
   describe('envExampleTemplate', () => {
     it('contains PORT=3000', () => {
       expect(envExampleTemplate()).toContain('PORT=3000');
-    });
-  });
-
-  describe('bunfigTemplate', () => {
-    it('registers bun-plugin-shim.ts under [serve.static]', () => {
-      const result = bunfigTemplate();
-      expect(result).toContain('[serve.static]');
-      expect(result).toContain('bun-plugin-shim.ts');
-    });
-  });
-
-  describe('bunPluginShimTemplate', () => {
-    it('imports createVertzBunPlugin from vertz/ui-server/bun-plugin', () => {
-      const result = bunPluginShimTemplate();
-      expect(result).toContain("from 'vertz/ui-server/bun-plugin'");
-      expect(result).toContain('createVertzBunPlugin');
-    });
-
-    it('exports plugin as default', () => {
-      expect(bunPluginShimTemplate()).toContain('export default plugin');
     });
   });
 
@@ -388,10 +365,10 @@ describe('templates', () => {
       expect(result).toContain('Vertz');
     });
 
-    it('includes dev commands', () => {
+    it('includes vtz dev commands', () => {
       const result = claudeMdTemplate('test-app');
-      expect(result).toContain('bun run dev');
-      expect(result).toContain('bun run build');
+      expect(result).toContain('vtz dev');
+      expect(result).toContain('vtz build');
     });
 
     it('points to docs.vertz.dev', () => {
@@ -691,8 +668,6 @@ describe('templates', () => {
         envExampleTemplate,
         envModuleTemplate,
         gitignoreTemplate,
-        bunfigTemplate,
-        bunPluginShimTemplate,
         serverTemplate,
         schemaTemplate,
         dbTemplate,

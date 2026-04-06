@@ -15,7 +15,7 @@ Use `createNodeHandler` when deploying to any Node.js-based platform:
 - AWS Lambda (with a Node HTTP adapter)
 - Any platform that gives you `IncomingMessage` + `ServerResponse`
 
-If you're deploying to **Cloudflare Workers** or **Bun**, use the web-standard `createSSRHandler` instead — those runtimes handle `Request`/`Response` natively with no conversion cost.
+If you're deploying to **Cloudflare Workers** or another runtime with native web APIs, use the web-standard `createSSRHandler` instead — those runtimes handle `Request`/`Response` natively with no conversion cost.
 
 ## Quick start
 
@@ -46,7 +46,7 @@ That's it. The handler:
 
 ## Why not `createSSRHandler`?
 
-`createSSRHandler` returns a web-standard `(Request) => Promise<Response>` handler. On Bun and Cloudflare Workers, `Request` and `Response` are native — zero conversion cost.
+`createSSRHandler` returns a web-standard `(Request) => Promise<Response>` handler. On runtimes with native web APIs (Cloudflare Workers, Deno, etc.), `Request` and `Response` are native — zero conversion cost.
 
 On Node.js, bridging between Node's `IncomingMessage`/`ServerResponse` and web `Request`/`Response` adds two conversions per request:
 
@@ -207,7 +207,7 @@ Node's HTTP server has keep-alive enabled by default. For long-lived SSE connect
 |                      | `createSSRHandler`               | `createNodeHandler`                         |
 | -------------------- | -------------------------------- | ------------------------------------------- |
 | **Signature**        | `(Request) => Promise<Response>` | `(IncomingMessage, ServerResponse) => void` |
-| **Best for**         | Bun, Cloudflare Workers, Deno    | Node.js, Express, Fastify                   |
+| **Best for**         | Cloudflare Workers, Deno         | Node.js, Express, Fastify                   |
 | **Conversion cost**  | None (native)                    | None (writes directly)                      |
 | **Backpressure**     | Web stream API                   | Node `drain` events                         |
 | **Progressive HTML** | `ReadableStream` response body   | Direct `res.write()` chunks                 |

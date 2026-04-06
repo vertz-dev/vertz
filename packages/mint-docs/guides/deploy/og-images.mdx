@@ -29,6 +29,7 @@ Create a generation script at `scripts/generate-og.ts`. The "component" is a pla
 
 ```ts
 // scripts/generate-og.ts
+import { writeFile } from 'node:fs/promises';
 import satori from 'satori';
 import { Resvg } from '@resvg/resvg-js';
 
@@ -105,7 +106,7 @@ const svg = await satori(OGImage() as React.ReactNode, {
 const resvg = new Resvg(svg, { fitTo: { mode: 'width', value: WIDTH } });
 const png = resvg.render().asPng();
 
-await Bun.write('public/og.png', png);
+await writeFile('public/og.png', png);
 console.log(`✓ Generated OG image (${(png.byteLength / 1024).toFixed(1)} KB)`);
 ```
 
@@ -221,9 +222,11 @@ Call the OG generation script from your build script so images are always up to 
 
 ```ts
 // In scripts/build.ts
-const ogProc = Bun.spawnSync(['bun', 'run', 'scripts/generate-og.ts'], {
+import { execSync } from 'node:child_process';
+
+execSync('vtz run scripts/generate-og.ts', {
   cwd: ROOT,
-  stdio: ['inherit', 'inherit', 'inherit'],
+  stdio: 'inherit',
 });
 ```
 

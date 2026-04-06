@@ -3,7 +3,7 @@ title: Runtime
 description: 'The Vertz native runtime — fast dev server, built-in test runner'
 ---
 
-Vertz ships a native runtime (`vtz`) — a standalone binary that replaces Bun for development. It starts in ~5ms, includes a V8-based dev server with SSR, HMR, and a built-in test runner.
+Vertz ships a native runtime (`vtz`) — a standalone binary for development. It starts in ~5ms, includes a V8-based dev server with SSR, HMR, and a built-in test runner.
 
 ## How it works
 
@@ -87,7 +87,7 @@ vtz remove <pkg>     # Remove a package
 vtz update [pkg]     # Update packages (or all if no pkg specified)
 vtz run <script>     # Run a package.json script
 vtz exec <cmd>       # Run a command from node_modules/.bin
-vtzx <cmd>           # Shorthand for vtz exec (like npx/bunx)
+vtzx <cmd>           # Shorthand for vtz exec (like npx)
 vtz self-update      # Update the vtz binary itself
 ```
 
