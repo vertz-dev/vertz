@@ -312,7 +312,9 @@ export async function introspectPostgres(queryFn: MigrationQueryFn): Promise<Sch
               array_agg(a.attname ORDER BY k.n) AS columns,
               ix.indisunique AS is_unique,
               am.amname AS access_method,
-              pg_get_expr(ix.indpred, ix.indrelid) AS predicate
+              pg_get_expr(ix.indpred, ix.indrelid) AS predicate,
+              i.reloptions,
+              array_agg(opc.opcname ORDER BY k.n) AS opclasses
        FROM pg_index ix
        JOIN pg_class i ON i.oid = ix.indexrelid
        JOIN pg_class t ON t.oid = ix.indrelid
@@ -320,6 +322,7 @@ export async function introspectPostgres(queryFn: MigrationQueryFn): Promise<Sch
        JOIN pg_am am ON am.oid = i.relam
        JOIN LATERAL unnest(ix.indkey) WITH ORDINALITY AS k(attnum, n) ON true
        JOIN pg_attribute a ON a.attrelid = t.oid AND a.attnum = k.attnum
+       JOIN pg_opclass opc ON opc.oid = (string_to_array(ix.indclass::text, ' '))[k.n::int]::oid
        WHERE t.relname = $1
          AND ns.nspname = 'public'
          AND NOT ix.indisprimary
@@ -327,7 +330,7 @@ export async function introspectPostgres(queryFn: MigrationQueryFn): Promise<Sch
            SELECT 1 FROM pg_constraint c
            WHERE c.conindid = ix.indexrelid AND c.contype = 'u'
          )
-       GROUP BY i.relname, ix.indisunique, am.amname, ix.indpred, ix.indrelid`,
+       GROUP BY i.relname, ix.indisunique, am.amname, ix.indpred, ix.indrelid, i.reloptions`,
       [tableName],
     );
     for (const idx of idxRows) {

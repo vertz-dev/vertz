@@ -32,10 +32,16 @@ export interface IndexOptions {
 }
 
 const DANGEROUS_SQL_PATTERN = /;|--|\b(DROP|DELETE|INSERT|UPDATE|ALTER|CREATE|EXEC)\b/i;
+const VALID_IDENTIFIER = /^[a-zA-Z_][a-zA-Z0-9_]*$/;
 
 export function createIndex(columns: string | string[], options?: IndexOptions): IndexDef {
   if (options?.where && DANGEROUS_SQL_PATTERN.test(options.where)) {
     throw new Error(`Unsafe WHERE clause expression in index: "${options.where}"`);
+  }
+  if (options?.opclass && !VALID_IDENTIFIER.test(options.opclass)) {
+    throw new Error(
+      `Invalid opclass identifier: "${options.opclass}". Opclass must be a valid SQL identifier.`,
+    );
   }
   if (options) {
     const hasHnswParams = options.m != null || options.efConstruction != null;
@@ -46,9 +52,15 @@ export function createIndex(columns: string | string[], options?: IndexOptions):
       );
     }
     if (hasIvfflatParams && options.type === 'hnsw') {
-      throw new Error(`lists is an IVFFlat-only parameter. Use 'm' and 'efConstruction' for HNSW indexes.`);
+      throw new Error(
+        `lists is an IVFFlat-only parameter. Use 'm' and 'efConstruction' for HNSW indexes.`,
+      );
     }
-    if ((hasHnswParams || hasIvfflatParams) && options.type !== 'hnsw' && options.type !== 'ivfflat') {
+    if (
+      (hasHnswParams || hasIvfflatParams) &&
+      options.type !== 'hnsw' &&
+      options.type !== 'ivfflat'
+    ) {
       throw new Error(
         `Vector index parameters (m, efConstruction, lists) require type: 'hnsw' or type: 'ivfflat'.`,
       );

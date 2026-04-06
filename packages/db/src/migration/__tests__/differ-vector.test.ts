@@ -264,6 +264,53 @@ describe('computeDiff — vector index fields', () => {
     expect(added!.indexLists).toBe(100);
   });
 
+  it('changing vector dimensions produces column_altered with typed names', () => {
+    const before = makeSnapshot({
+      tables: {
+        documents: {
+          columns: {
+            embedding: {
+              type: 'vector',
+              nullable: false,
+              primary: false,
+              unique: false,
+              dimensions: 384,
+            },
+          },
+          indexes: [],
+          foreignKeys: [],
+          _metadata: {},
+        },
+      },
+    });
+
+    const after = makeSnapshot({
+      tables: {
+        documents: {
+          columns: {
+            embedding: {
+              type: 'vector',
+              nullable: false,
+              primary: false,
+              unique: false,
+              dimensions: 1536,
+            },
+          },
+          indexes: [],
+          foreignKeys: [],
+          _metadata: {},
+        },
+      },
+    });
+
+    const { changes } = computeDiff(before, after);
+    const altered = changes.find((c) => c.type === 'column_altered');
+    expect(altered).toBeDefined();
+    expect(altered!.column).toBe('embedding');
+    expect(altered!.oldType).toBe('vector(384)');
+    expect(altered!.newType).toBe('vector(1536)');
+  });
+
   it('non-vector indexes still diff correctly', () => {
     const before = makeSnapshot({
       tables: {

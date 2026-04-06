@@ -54,4 +54,27 @@ describe('vector index options', () => {
     expect(() => d.index('title', { efConstruction: 64 })).toThrow();
     expect(() => d.index('title', { lists: 100 })).toThrow();
   });
+
+  it('throws when opclass contains SQL injection', () => {
+    expect(() =>
+      d.index('embedding', {
+        type: 'hnsw',
+        opclass: 'vector_cosine_ops); DROP TABLE users; --',
+      }),
+    ).toThrow(/Invalid opclass identifier/);
+  });
+
+  it('throws when opclass contains spaces', () => {
+    expect(() => d.index('embedding', { type: 'hnsw', opclass: 'not an identifier' })).toThrow(
+      /Invalid opclass identifier/,
+    );
+  });
+
+  it('allows valid opclass identifiers', () => {
+    const idx = d.index('embedding', {
+      type: 'hnsw',
+      opclass: 'vector_l2_ops',
+    });
+    expect(idx.opclass).toBe('vector_l2_ops');
+  });
 });

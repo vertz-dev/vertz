@@ -189,7 +189,8 @@ export function computeDiff(before: SchemaSnapshot, after: SchemaSnapshot): Diff
       if (
         beforeCol.type !== afterCol.type ||
         beforeCol.nullable !== afterCol.nullable ||
-        beforeCol.default !== afterCol.default
+        beforeCol.default !== afterCol.default ||
+        beforeCol.dimensions !== afterCol.dimensions
       ) {
         const change: DiffChange = {
           type: 'column_altered',
@@ -199,6 +200,12 @@ export function computeDiff(before: SchemaSnapshot, after: SchemaSnapshot): Diff
         if (beforeCol.type !== afterCol.type) {
           change.oldType = beforeCol.type;
           change.newType = afterCol.type;
+        }
+        if (beforeCol.dimensions !== afterCol.dimensions) {
+          change.oldType = beforeCol.dimensions
+            ? `vector(${beforeCol.dimensions})`
+            : beforeCol.type;
+          change.newType = afterCol.dimensions ? `vector(${afterCol.dimensions})` : afterCol.type;
         }
         if (beforeCol.nullable !== afterCol.nullable) {
           change.oldNullable = beforeCol.nullable;

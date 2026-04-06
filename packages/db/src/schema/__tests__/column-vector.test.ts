@@ -31,4 +31,25 @@ describe('d.vector(N) column type', () => {
     expect(col._meta.unique).toBe(true);
     expect(col._meta.dimensions).toBe(1536);
   });
+
+  it('throws for zero dimensions', () => {
+    expect(() => d.vector(0)).toThrow(/dimensions must be an integer between 1 and 16000/);
+  });
+
+  it('throws for negative dimensions', () => {
+    expect(() => d.vector(-1)).toThrow(/dimensions must be an integer between 1 and 16000/);
+  });
+
+  it('throws for non-integer dimensions', () => {
+    expect(() => d.vector(1.5)).toThrow(/dimensions must be an integer between 1 and 16000/);
+  });
+
+  it('throws for dimensions exceeding pgvector max', () => {
+    expect(() => d.vector(16001)).toThrow(/dimensions must be an integer between 1 and 16000/);
+  });
+
+  it('accepts boundary values', () => {
+    expect(d.vector(1)._meta.dimensions).toBe(1);
+    expect(d.vector(16000)._meta.dimensions).toBe(16000);
+  });
 });

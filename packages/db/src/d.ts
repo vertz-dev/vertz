@@ -172,8 +172,14 @@ export const d: {
       opts?.validator ? { validator: opts.validator } : {},
     );
   },
-  vector: <TDimensions extends number>(dimensions: TDimensions) =>
-    createColumn<number[], VectorMeta<TDimensions>>('vector', { dimensions }),
+  vector: <TDimensions extends number>(dimensions: TDimensions) => {
+    if (!Number.isInteger(dimensions) || dimensions < 1 || dimensions > 16000) {
+      throw new Error(
+        `d.vector() dimensions must be an integer between 1 and 16000, got ${dimensions}`,
+      );
+    }
+    return createColumn<number[], VectorMeta<TDimensions>>('vector', { dimensions });
+  },
   textArray: () => createColumn<string[], DefaultMeta<'text[]'>>('text[]'),
   integerArray: () => createColumn<number[], DefaultMeta<'integer[]'>>('integer[]'),
   enum: <TName extends string, const TValues extends readonly string[]>(
