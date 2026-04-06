@@ -1020,6 +1020,7 @@ export function createDb<TModels extends Record<string, ModelEntry>>(
           for (const entry of Object.values(models)) {
             const table = entry.table;
             const cols: string[] = [];
+            const primaryKeys: string[] = [];
             for (const [colName, colBuilder] of Object.entries(table._columns)) {
               const meta = (colBuilder as { _meta: ColumnMetadata })._meta;
               const snakeName = camelToSnake(colName);
@@ -1030,9 +1031,9 @@ export function createDb<TModels extends Record<string, ModelEntry>>(
                 ...(meta.scale != null && { scale: meta.scale }),
               });
               let def = `"${snakeName}" ${sqlType}`;
-              if (meta.primary) def += ' PRIMARY KEY';
+              if (meta.primary) primaryKeys.push(`"${snakeName}"`);
               if (meta.unique && !meta.primary) def += ' UNIQUE';
-              if (!meta.nullable && !meta.primary) def += ' NOT NULL';
+              if (!meta.nullable) def += ' NOT NULL';
               if (meta.hasDefault && meta.defaultValue !== undefined) {
                 if (meta.defaultValue === 'now') def += ` DEFAULT (${dialectObj.now()})`;
                 else if (typeof meta.defaultValue === 'string')
@@ -1046,6 +1047,15 @@ export function createDb<TModels extends Record<string, ModelEntry>>(
                 def += ` DEFAULT (${dialectObj.now()})`;
               }
               cols.push(def);
+            }
+            if (primaryKeys.length === 1) {
+              // Single PK: add inline to the column definition
+              const pkCol = primaryKeys[0];
+              const idx = cols.findIndex((c) => c.startsWith(pkCol));
+              if (idx !== -1) cols[idx] += ' PRIMARY KEY';
+            } else if (primaryKeys.length > 1) {
+              // Composite PK: add table-level constraint
+              cols.push(`PRIMARY KEY (${primaryKeys.join(', ')})`);
             }
             const ddl = `CREATE TABLE IF NOT EXISTS "${table._name}" (\n  ${cols.join(',\n  ')}\n)`;
             await sqliteDriver!.execute(ddl);
