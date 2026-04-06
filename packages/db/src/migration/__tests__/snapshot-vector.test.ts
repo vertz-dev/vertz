@@ -49,19 +49,23 @@ describe('vector column snapshot', () => {
 
 describe('vector index snapshot', () => {
   it('captures HNSW index options in snapshot', () => {
-    const table = d.table('documents', {
-      id: d.uuid().primary(),
-      embedding: d.vector(1536),
-    }, {
-      indexes: [
-        d.index('embedding', {
-          type: 'hnsw',
-          opclass: 'vector_cosine_ops',
-          m: 16,
-          efConstruction: 64,
-        }),
-      ],
-    });
+    const table = d.table(
+      'documents',
+      {
+        id: d.uuid().primary(),
+        embedding: d.vector(1536),
+      },
+      {
+        indexes: [
+          d.index('embedding', {
+            type: 'hnsw',
+            opclass: 'vector_cosine_ops',
+            m: 16,
+            efConstruction: 64,
+          }),
+        ],
+      },
+    );
     const snapshot = createSnapshot([table]);
     const idx = snapshot.tables['documents'].indexes[0];
     expect(idx.type).toBe('hnsw');
@@ -72,18 +76,22 @@ describe('vector index snapshot', () => {
   });
 
   it('captures IVFFlat index options in snapshot', () => {
-    const table = d.table('docs', {
-      id: d.uuid().primary(),
-      embedding: d.vector(384),
-    }, {
-      indexes: [
-        d.index('embedding', {
-          type: 'ivfflat',
-          opclass: 'vector_l2_ops',
-          lists: 100,
-        }),
-      ],
-    });
+    const table = d.table(
+      'docs',
+      {
+        id: d.uuid().primary(),
+        embedding: d.vector(384),
+      },
+      {
+        indexes: [
+          d.index('embedding', {
+            type: 'ivfflat',
+            opclass: 'vector_l2_ops',
+            lists: 100,
+          }),
+        ],
+      },
+    );
     const snapshot = createSnapshot([table]);
     const idx = snapshot.tables['docs'].indexes[0];
     expect(idx.type).toBe('ivfflat');
@@ -93,12 +101,16 @@ describe('vector index snapshot', () => {
   });
 
   it('does not add vector fields to non-vector indexes', () => {
-    const table = d.table('posts', {
-      id: d.uuid().primary(),
-      title: d.text(),
-    }, {
-      indexes: [d.index('title', { type: 'gin' })],
-    });
+    const table = d.table(
+      'posts',
+      {
+        id: d.uuid().primary(),
+        title: d.text(),
+      },
+      {
+        indexes: [d.index('title', { type: 'gin' })],
+      },
+    );
     const snapshot = createSnapshot([table]);
     const idx = snapshot.tables['posts'].indexes[0];
     expect(idx.opclass).toBeUndefined();

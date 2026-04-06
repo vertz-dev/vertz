@@ -104,7 +104,13 @@ describe('validateColumns', () => {
   it('warns about vector column type on sqlite', () => {
     const tables = makeTableWithColumns({
       id: { type: 'uuid', nullable: false, primary: true, unique: false },
-      embedding: { type: 'vector', nullable: false, primary: false, unique: false, dimensions: 1536 },
+      embedding: {
+        type: 'vector',
+        nullable: false,
+        primary: false,
+        unique: false,
+        dimensions: 1536,
+      },
     });
     const warnings = validateColumns(tables, 'sqlite');
     expect(warnings).toHaveLength(1);
@@ -115,7 +121,13 @@ describe('validateColumns', () => {
 
   it('returns no warnings for vector column on postgres', () => {
     const tables = makeTableWithColumns({
-      embedding: { type: 'vector', nullable: false, primary: false, unique: false, dimensions: 1536 },
+      embedding: {
+        type: 'vector',
+        nullable: false,
+        primary: false,
+        unique: false,
+        dimensions: 1536,
+      },
     });
     expect(validateColumns(tables, 'postgres')).toEqual([]);
   });
