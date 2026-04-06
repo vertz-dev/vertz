@@ -36,7 +36,7 @@ export function queryKey(input: QueryKeyInput): readonly unknown[] {
 
   // Split path on {param} placeholders.
   // Even indices are static segments, odd indices are param names.
-  const segments = path.split(/\{(\w+)\}/);
+  const segments = path.split(/\{([^}]+)\}/);
   const parts: unknown[] = [];
   let stopped = false;
 
@@ -63,5 +63,5 @@ export function queryKey(input: QueryKeyInput): readonly unknown[] {
     parts.push(query);
   }
 
-  return parts;
+  return Object.freeze(parts);
 }

@@ -117,10 +117,63 @@ describe('queryKey', () => {
 
   describe('Given numeric param values', () => {
     it('preserves number types in the key', () => {
-      expect(queryKey({ path: '/tasks/{taskId}', params: { taskId: 42 } })).toEqual([
+      expect(queryKey({ path: '/tasks/{taskId}', params: { taskId: 42 } })).toEqual(['/tasks', 42]);
+    });
+  });
+
+  describe('Given query as null', () => {
+    it('omits it', () => {
+      expect(queryKey({ path: '/tasks', query: null as unknown as undefined })).toEqual(['/tasks']);
+    });
+  });
+
+  describe('Given empty params object', () => {
+    it('truncates at the first missing param', () => {
+      expect(queryKey({ path: '/tasks/{taskId}', params: {} })).toEqual(['/tasks']);
+    });
+  });
+
+  describe('Given extra params alongside valid params', () => {
+    it('ignores extra params and resolves matched ones', () => {
+      expect(queryKey({ path: '/tasks/{taskId}', params: { taskId: 'abc', bogus: 'x' } })).toEqual([
         '/tasks',
-        42,
+        'abc',
       ]);
+    });
+  });
+
+  describe('Given path with just a slash', () => {
+    it('returns an empty array', () => {
+      expect(queryKey({ path: '/' })).toEqual([]);
+    });
+  });
+
+  describe('Given consecutive params with no static segment between them', () => {
+    it('includes both param values without empty strings', () => {
+      expect(queryKey({ path: '/{a}/{b}', params: { a: 'x', b: 'y' } })).toEqual(['x', 'y']);
+    });
+  });
+
+  describe('Given param names with hyphens or dots', () => {
+    it('resolves hyphenated param names', () => {
+      expect(queryKey({ path: '/items/{item-id}', params: { 'item-id': '42' } })).toEqual([
+        '/items',
+        '42',
+      ]);
+    });
+
+    it('resolves dotted param names', () => {
+      expect(queryKey({ path: '/items/{item.id}', params: { 'item.id': '42' } })).toEqual([
+        '/items',
+        '42',
+      ]);
+    });
+  });
+
+  describe('Given the returned array', () => {
+    it('is frozen to prevent accidental mutation', () => {
+      const key = queryKey({ path: '/tasks' });
+      expect(Object.isFrozen(key)).toBe(true);
     });
   });
 });
