@@ -119,6 +119,10 @@
             "pages": ["guides/fetch"]
           },
           {
+            "group": "vertz/openapi",
+            "pages": ["guides/openapi"]
+          },
+          {
             "group": "Deployment",
             "pages": [
               "guides/deploy/cloudflare",
