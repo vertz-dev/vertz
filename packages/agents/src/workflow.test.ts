@@ -255,6 +255,7 @@ describe('runWorkflow()', () => {
 
     expect(result.status).toBe('error');
     expect(result.failedStep).toBe('will-fail');
+    expect(result.errorReason).toBe('agent-failed');
     expect(result.stepResults).toHaveProperty('will-fail');
     expect(result.stepResults).not.toHaveProperty('never-reached');
   });
@@ -477,6 +478,7 @@ describe('runWorkflow()', () => {
 
     expect(result.status).toBe('error');
     expect(result.failedStep).toBe('will-get-stuck');
+    expect(result.errorReason).toBe('agent-failed');
     expect(result.stepResults['will-get-stuck'].status).toBe('max-iterations');
     expect(result.stepResults).not.toHaveProperty('never-reached');
   });
@@ -549,6 +551,7 @@ describe('runWorkflow()', () => {
 
     expect(result.status).toBe('error');
     expect(result.failedStep).toBe('greet');
+    expect(result.errorReason).toBe('schema-mismatch');
     // Agent completed successfully — the error is from output validation, not the agent
     expect(result.stepResults['greet']).toBeDefined();
     expect(result.stepResults['greet'].status).toBe('complete');
@@ -580,6 +583,7 @@ describe('runWorkflow()', () => {
 
     expect(result.status).toBe('error');
     expect(result.failedStep).toBe('greet');
+    expect(result.errorReason).toBe('invalid-json');
     // Agent completed but response wasn't valid JSON
     expect(result.stepResults['greet']).toBeDefined();
     expect(result.stepResults['greet'].status).toBe('complete');
