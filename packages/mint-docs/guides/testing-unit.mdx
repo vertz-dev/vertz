@@ -6,7 +6,8 @@ description: 'Built-in test runner with Vitest-compatible API, watch mode, and c
 The `vtz` runtime includes a built-in test runner powered by V8. No extra packages to install, no configuration required.
 
 <Info>
-  `@vertz/test` is a **synthetic module** provided automatically by the `vtz` runtime — like `node:fs` in Node.js. You do **not** need to run `vtz add @vertz/test`.
+  `@vertz/test` is a **synthetic module** provided automatically by the `vtz` runtime — like
+  `node:fs` in Node.js. You do **not** need to run `vtz add @vertz/test`.
 </Info>
 
 ## Quick start
@@ -77,11 +78,19 @@ Hooks can be async. They compose hierarchically — parent `beforeEach` runs bef
 ### Modifiers
 
 ```ts
-describe.skip('skipped suite', () => { /* ... */ });
-describe.only('only this suite runs', () => { /* ... */ });
+describe.skip('skipped suite', () => {
+  /* ... */
+});
+describe.only('only this suite runs', () => {
+  /* ... */
+});
 
-it.skip('skipped test', () => { /* ... */ });
-it.only('only this test runs', () => { /* ... */ });
+it.skip('skipped test', () => {
+  /* ... */
+});
+it.only('only this test runs', () => {
+  /* ... */
+});
 it.todo('not implemented yet');
 ```
 
@@ -113,9 +122,9 @@ The `expect` API is compatible with Vitest. Here are the most common matchers:
 import { expect } from '@vertz/test';
 
 // Equality
-expect(result).toBe(42);              // strict identity (===)
+expect(result).toBe(42); // strict identity (===)
 expect(user).toEqual({ name: 'Ada' }); // deep equality
-expect(obj).toStrictEqual(expected);   // deep equality + constructor check
+expect(obj).toStrictEqual(expected); // deep equality + constructor check
 
 // Truthiness
 expect(value).toBeTruthy();
@@ -222,8 +231,8 @@ const fn = vi.fn(() => 42);
 const spy = vi.spyOn(console, 'log');
 
 // Manage all mocks
-vi.clearAllMocks();   // clear call history
-vi.resetAllMocks();   // clear + reset implementations
+vi.clearAllMocks(); // clear call history
+vi.resetAllMocks(); // clear + reset implementations
 vi.restoreAllMocks(); // restore all spied methods
 
 // Module mocking
@@ -261,11 +270,11 @@ export default {
   test: {
     include: ['src/**/*.test.ts'],
     exclude: ['**/*.local.ts'],
-    timeout: 10000,              // per-test timeout in ms
-    concurrency: 4,              // max parallel test files
-    reporter: 'terminal',        // terminal | json | junit
-    coverage: false,             // enable coverage collection
-    coverageThreshold: 95,       // minimum coverage %
+    timeout: 10000, // per-test timeout in ms
+    concurrency: 4, // max parallel test files
+    reporter: 'terminal', // terminal | json | junit
+    coverage: false, // enable coverage collection
+    coverageThreshold: 95, // minimum coverage %
     preload: ['./test-setup.ts'], // setup files loaded before tests
   },
 };
@@ -279,20 +288,20 @@ All fields are optional. Without a config file, `vtz test` uses sensible default
 vtz test [PATH...] [OPTIONS]
 ```
 
-| Option | Description |
-| --- | --- |
-| `[PATH...]` | Specific files or directories to test (default: project root) |
-| `--filter <str>` | Filter tests by name substring |
-| `--watch` | Re-run tests when files change |
-| `--coverage` | Collect V8 code coverage (outputs `coverage.lcov`) |
-| `--coverage-threshold <n>` | Minimum coverage percentage as integer (default: 95) |
-| `--timeout <ms>` | Per-test timeout in milliseconds (default: 5000) |
-| `--concurrency <n>` | Max parallel test files (default: CPU count) |
-| `--reporter <fmt>` | Output format: `terminal`, `json`, or `junit` |
-| `--bail` | Stop after the first failure |
-| `--no-preload` | Skip preload scripts from config |
-| `--no-cache` | Skip compilation cache |
-| `--root-dir <path>` | Workspace root for module resolution |
+| Option                     | Description                                                   |
+| -------------------------- | ------------------------------------------------------------- |
+| `[PATH...]`                | Specific files or directories to test (default: project root) |
+| `--filter <str>`           | Filter tests by name substring                                |
+| `--watch`                  | Re-run tests when files change                                |
+| `--coverage`               | Collect V8 code coverage (outputs `coverage.lcov`)            |
+| `--coverage-threshold <n>` | Minimum coverage percentage as integer (default: 95)          |
+| `--timeout <ms>`           | Per-test timeout in milliseconds (default: 5000)              |
+| `--concurrency <n>`        | Max parallel test files (default: CPU count)                  |
+| `--reporter <fmt>`         | Output format: `terminal`, `json`, or `junit`                 |
+| `--bail`                   | Stop after the first failure                                  |
+| `--no-preload`             | Skip preload scripts from config                              |
+| `--no-cache`               | Skip compilation cache                                        |
+| `--root-dir <path>`        | Workspace root for module resolution                          |
 
 ### Examples
 
@@ -314,12 +323,12 @@ vtz test --coverage --coverage-threshold 95
 
 The `@vertz/test` API is intentionally compatible with Vitest. Your test logic stays the same — only the import path and runner change.
 
-| | Vitest | Vertz |
-| --- | --- | --- |
-| **Import** | `import { describe, it, expect } from 'vitest'` | `import { describe, it, expect } from '@vertz/test'` |
-| **Config** | `vitest.config.ts` | `vertz.config.ts` |
-| **Run** | `npx vitest` | `vtz test` |
-| **Install** | `npm add -D vitest` | Nothing — built into the runtime |
+|             | Vitest                                          | Vertz                                                |
+| ----------- | ----------------------------------------------- | ---------------------------------------------------- |
+| **Import**  | `import { describe, it, expect } from 'vitest'` | `import { describe, it, expect } from '@vertz/test'` |
+| **Config**  | `vitest.config.ts`                              | `vertz.config.ts`                                    |
+| **Run**     | `npx vitest`                                    | `vtz test`                                           |
+| **Install** | `npm add -D vitest`                             | Nothing — built into the runtime                     |
 
 ### Key differences
 
