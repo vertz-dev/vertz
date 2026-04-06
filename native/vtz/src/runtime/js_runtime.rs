@@ -396,6 +396,98 @@ impl VertzJsRuntime {
             .wait_for_session_and_break_on_next_statement();
     }
 
+    /// Create a new VertzJsRuntime from the pre-built production snapshot.
+    ///
+    /// Faster than `new()` — skips bootstrap JS, async context polyfill,
+    /// and SSR DOM shim execution. Only re-registers native V8 functions
+    /// and re-installs promise hooks.
+    ///
+    /// Accepts the full [`VertzRuntimeOptions`] including cache-related fields
+    /// for module loader parity with [`new_for_test()`](Self::new_for_test).
+    ///
+    /// # Errors
+    ///
+    /// Returns `AnyError` if snapshot restore or post-restore JS execution
+    /// fails. There is no fallback to the non-snapshot path — a failure here
+    /// indicates a bug in the snapshot infrastructure, not a recoverable
+    /// condition.
+    pub fn new_for_production(options: VertzRuntimeOptions) -> Result<Self, AnyError> {
+        let captured_output = Arc::new(Mutex::new(CapturedOutput::default()));
+        let start_time = Instant::now();
+
+        let capture = options.capture_output;
+        let captured_clone = Arc::clone(&captured_output);
+
+        let ext = Extension {
+            name: "vertz",
+            ops: std::borrow::Cow::Owned(Self::all_op_decls()),
+            op_state_fn: Some(Box::new(move |state| {
+                state.put(console::ConsoleState {
+                    capture,
+                    captured: Arc::clone(&captured_clone),
+                });
+                state.put(performance::PerformanceState { start_time });
+                state.put(crypto_subtle::CryptoKeyStore::default());
+                state.put(sqlite::SqliteStore::default());
+            })),
+            ..Default::default()
+        };
+
+        let cache_enabled = options.compile_cache;
+        let root_dir = options.root_dir.unwrap_or_else(|| {
+            std::env::current_dir()
+                .unwrap()
+                .to_string_lossy()
+                .to_string()
+        });
+
+        let module_loader = if options.shared_source_cache.is_some()
+            || options.v8_code_cache.is_some()
+            || options.resolution_cache.is_some()
+            || cache_enabled
+        {
+            Rc::new(VertzModuleLoader::new_with_shared_cache(
+                &root_dir,
+                cache_enabled,
+                options.plugin.clone(),
+                options.shared_source_cache.clone(),
+                options.v8_code_cache.clone(),
+                options.resolution_cache.clone(),
+            ))
+        } else {
+            Rc::new(VertzModuleLoader::new(&root_dir, options.plugin.clone()))
+        };
+
+        let snapshot = crate::runtime::snapshot::get_production_snapshot();
+
+        let mut runtime = JsRuntime::new(RuntimeOptions {
+            startup_snapshot: Some(snapshot),
+            module_loader: Some(module_loader.clone()),
+            extensions: vec![ext],
+            inspector: options.enable_inspector,
+            ..Default::default()
+        });
+
+        // Re-register native V8 functions (not preserved in snapshot)
+        clone::register_structured_clone(&mut runtime);
+        async_context::register_promise_hooks(&mut runtime);
+        signals::register_signal_ops(&mut runtime);
+
+        // Re-install promise hooks from stored functions on globalThis
+        runtime.execute_script(
+            "[vertz:rehook]",
+            deno_core::FastString::from(
+                crate::runtime::snapshot::ASYNC_CONTEXT_REHOOK_JS.to_string(),
+            ),
+        )?;
+
+        Ok(Self {
+            runtime,
+            captured_output,
+            module_loader,
+        })
+    }
+
     /// Access the module loader (for registering mocked specifiers).
     pub fn loader(&self) -> &VertzModuleLoader {
         &self.module_loader
