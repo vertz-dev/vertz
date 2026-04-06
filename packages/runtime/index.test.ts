@@ -1,5 +1,6 @@
 import { describe, it, expect, mock, beforeEach, afterEach } from 'bun:test';
-import { join, dirname } from 'node:path';
+import { join, dirname, resolve } from 'node:path';
+import { existsSync, readFileSync } from 'node:fs';
 
 // We test getBinaryPath() by controlling what require.resolve returns.
 // Since getBinaryPath() uses createRequire internally, we mock at the module level.
@@ -125,6 +126,104 @@ describe('Feature: getBinaryPath() resolves correct path structure', () => {
           // Platform package not resolvable in this environment — skip
         }
       });
+    });
+  });
+});
+
+const pkgDir = dirname(new URL(import.meta.url).pathname);
+
+describe('Feature: npm bin shims delegate to native binary (#2382)', () => {
+  describe('Given the published package manifest', () => {
+    const pkgJson = JSON.parse(readFileSync(join(pkgDir, 'package.json'), 'utf8'));
+
+    it('Then every bin entry points to a file that exists in the package', () => {
+      for (const [, target] of Object.entries(pkgJson.bin as Record<string, string>)) {
+        const fullPath = resolve(pkgDir, target);
+        expect(existsSync(fullPath)).toBe(true);
+      }
+    });
+
+    it('Then every bin target is included in the files array', () => {
+      const files: string[] = pkgJson.files;
+      for (const [, target] of Object.entries(pkgJson.bin as Record<string, string>)) {
+        const relative = (target as string).replace(/^\.\//, '');
+        expect(files).toContain(relative);
+      }
+    });
+  });
+
+  describe('Given the cli.js shim', () => {
+    const shimPath = join(pkgDir, 'cli.js');
+
+    it('Then has a Node.js shebang as the first line', () => {
+      const content = readFileSync(shimPath, 'utf8');
+      expect(content.startsWith('#!/usr/bin/env node\n')).toBe(true);
+    });
+
+    it('Then imports getBinaryPath from index.js', () => {
+      const content = readFileSync(shimPath, 'utf8');
+      expect(content).toContain("from './index.js'");
+      expect(content).toContain('getBinaryPath');
+    });
+
+    it('Then spawns the binary with inherited stdio', () => {
+      const content = readFileSync(shimPath, 'utf8');
+      expect(content).toContain('spawnSync');
+      expect(content).toContain("stdio: 'inherit'");
+    });
+  });
+
+  describe('Given the cli-exec.js shim for vtzx', () => {
+    const shimPath = join(pkgDir, 'cli-exec.js');
+
+    it('Then has a Node.js shebang as the first line', () => {
+      const content = readFileSync(shimPath, 'utf8');
+      expect(content.startsWith('#!/usr/bin/env node\n')).toBe(true);
+    });
+
+    it('Then prepends exec to the arguments', () => {
+      const content = readFileSync(shimPath, 'utf8');
+      expect(content).toContain("'exec'");
+    });
+  });
+
+  describe('Given the cli.js shim content', () => {
+    it('Then forwards process.argv to the native binary', () => {
+      const content = readFileSync(join(pkgDir, 'cli.js'), 'utf8');
+      expect(content).toContain('process.argv.slice(2)');
+    });
+
+    it('Then re-raises signals from the child process', () => {
+      const content = readFileSync(join(pkgDir, 'cli.js'), 'utf8');
+      expect(content).toContain('result.signal');
+      expect(content).toContain('process.kill(process.pid');
+    });
+
+    it('Then falls back to bun for run/exec/test when native binary is unavailable', () => {
+      const content = readFileSync(join(pkgDir, 'cli.js'), 'utf8');
+      expect(content).toContain("'run'");
+      expect(content).toContain("'exec'");
+      expect(content).toContain("'test'");
+      expect(content).toContain('bunx');
+    });
+  });
+
+  describe('Given the cli-exec.js shim content', () => {
+    it('Then forwards process.argv with exec prepended', () => {
+      const content = readFileSync(join(pkgDir, 'cli-exec.js'), 'utf8');
+      expect(content).toContain('process.argv.slice(2)');
+      expect(content).toContain("'exec'");
+    });
+
+    it('Then re-raises signals from the child process', () => {
+      const content = readFileSync(join(pkgDir, 'cli-exec.js'), 'utf8');
+      expect(content).toContain('result.signal');
+      expect(content).toContain('process.kill(process.pid');
+    });
+
+    it('Then falls back to bunx when native binary is unavailable', () => {
+      const content = readFileSync(join(pkgDir, 'cli-exec.js'), 'utf8');
+      expect(content).toContain('bunx');
     });
   });
 });
