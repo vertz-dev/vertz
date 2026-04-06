@@ -248,13 +248,13 @@ const tasks = d.table(
 
 ### Index types
 
-| Type    | Use case                             | PostgreSQL | SQLite        |
-| ------- | ------------------------------------ | ---------- | ------------- |
-| `btree` | Default — equality and range queries | Yes        | N/A (default) |
-| `hash`  | Equality-only lookups                | Yes        | No            |
-| `gin`   | Full-text search, JSONB containment  | Yes        | No            |
-| `gist`  | Geospatial, range types              | Yes        | No            |
-| `brin`  | Large sequential datasets            | Yes        | No            |
+| Type      | Use case                             | PostgreSQL | SQLite        |
+| --------- | ------------------------------------ | ---------- | ------------- |
+| `btree`   | Default — equality and range queries | Yes        | N/A (default) |
+| `hash`    | Equality-only lookups                | Yes        | No            |
+| `gin`     | Full-text search, JSONB containment  | Yes        | No            |
+| `gist`    | Geospatial, range types              | Yes        | No            |
+| `brin`    | Large sequential datasets            | Yes        | No            |
 | `hnsw`    | Vector similarity search (pgvector)  | Yes        | No            |
 | `ivfflat` | Vector similarity search (pgvector)  | Yes        | No            |
 
@@ -285,12 +285,12 @@ const documents = d.table(
 
 #### Index options
 
-| Option           | Type     | Applies to | Description                                      |
-| ---------------- | -------- | ---------- | ------------------------------------------------ |
+| Option           | Type     | Applies to | Description                                                              |
+| ---------------- | -------- | ---------- | ------------------------------------------------------------------------ |
 | `opclass`        | `string` | Both       | Distance function: `vector_cosine_ops`, `vector_l2_ops`, `vector_ip_ops` |
-| `m`              | `number` | HNSW       | Max connections per node (default: 16)            |
-| `efConstruction` | `number` | HNSW       | Build-time search breadth (default: 64)           |
-| `lists`          | `number` | IVFFlat    | Number of inverted lists (default: 100)           |
+| `m`              | `number` | HNSW       | Max connections per node (default: 16)                                   |
+| `efConstruction` | `number` | HNSW       | Build-time search breadth (default: 64)                                  |
+| `lists`          | `number` | IVFFlat    | Number of inverted lists (default: 100)                                  |
 
 #### IVFFlat example
 
@@ -315,11 +315,13 @@ CREATE INDEX "idx_documents_embedding" ON "documents"
 ```
 
 <Warning>
-  pgvector requires the `vector` extension to be installed in your Postgres database. Run `CREATE EXTENSION IF NOT EXISTS vector;` before running migrations that use vector columns.
+  pgvector requires the `vector` extension to be installed in your Postgres database. Run `CREATE
+  EXTENSION IF NOT EXISTS vector;` before running migrations that use vector columns.
 </Warning>
 
 <Note>
-  `d.vector(n)` validates that dimensions are an integer between 1 and 16000 (pgvector's maximum). Vector columns are PostgreSQL-only — using them with SQLite emits a warning at migration time.
+  `d.vector(n)` validates that dimensions are an integer between 1 and 16000 (pgvector's maximum).
+  Vector columns are PostgreSQL-only — using them with SQLite emits a warning at migration time.
 </Note>
 
 ### Dialect validation
