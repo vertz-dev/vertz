@@ -39,5 +39,7 @@ export type {
   StreamingFormat,
   StreamingRequestOptions,
 } from './types';
+export type { QueryKeyInput } from './query-key';
+export { queryKey } from './query-key';
 export type { VertzQLParams } from './vertzql';
 export { encodeVertzQL, resolveVertzQL } from './vertzql';
