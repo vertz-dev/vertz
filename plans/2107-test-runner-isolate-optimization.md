@@ -10,6 +10,7 @@
 | 2 | 2026-03-30 | Address review findings: move Phase 3 to Future Work, add post-restore steps for snapshot (promise hooks + native functions), specify build.rs with caching, fix compile cache key (add compiler version + target + source maps + CSS), rename `--clear-cache` → `--no-cache`, add regression target for small suites, align acceptance criteria with projections, add V8 bytecode cache to non-goals, reconcile with parent design doc |
 | 3 | 2026-03-30 | POC Results: all 8 correctness tests pass, benchmark shows 75% reduction in isolate creation overhead (5.58ms → 1.39ms avg in release). POC validated, ready for implementation. |
 | 4 | 2026-03-30 | Implementation deviation: LazyLock instead of build.rs for snapshot creation. Eliminates need for deno_core as build dependency. Same functional behavior, simpler build pipeline. |
+| 5 | 2026-04-06 | Shared constants (`ASYNC_CONTEXT_SNAPSHOT_JS`, `ASYNC_CONTEXT_REHOOK_JS`) extracted to `runtime/snapshot.rs` for reuse by the production snapshot (#2116). `ASYNC_CONTEXT_SNAPSHOT_JS` now includes `AsyncContext.Snapshot` class for full parity with `ASYNC_CONTEXT_JS`. |
 
 ---
 

@@ -9,3 +9,4 @@ pub mod module_loader;
 pub mod ops;
 pub mod persistent_isolate;
 pub mod signal_graph;
+pub mod snapshot;
