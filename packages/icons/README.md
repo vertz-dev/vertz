@@ -30,11 +30,7 @@ In Vertz JSX components:
 import { MoonIcon, SunIcon } from '@vertz/icons';
 
 function ThemeToggle({ isDark }: { isDark: boolean }) {
-  return (
-    <button>
-      {isDark ? <SunIcon size={20} /> : <MoonIcon size={20} />}
-    </button>
-  );
+  return <button>{isDark ? <SunIcon size={20} /> : <MoonIcon size={20} />}</button>;
 }
 ```
 
@@ -43,10 +39,10 @@ function ThemeToggle({ isDark }: { isDark: boolean }) {
 All icons follow the same signature:
 
 ```typescript
-function IconName(props?: IconProps): HTMLSpanElement
+function IconName(props?: IconProps): HTMLSpanElement;
 
 interface IconProps {
-  size?: number;      // Width and height in pixels (default: 16)
+  size?: number; // Width and height in pixels (default: 16)
   className?: string; // CSS class for the wrapper span
 }
 ```
@@ -55,10 +51,10 @@ interface IconProps {
 
 Icons use the Lucide naming convention with an `Icon` suffix:
 
-| Lucide name | Import |
-|---|---|
-| `moon` | `MoonIcon` |
-| `arrow-left` | `ArrowLeftIcon` |
+| Lucide name    | Import            |
+| -------------- | ----------------- |
+| `moon`         | `MoonIcon`        |
+| `arrow-left`   | `ArrowLeftIcon`   |
 | `chevron-down` | `ChevronDownIcon` |
 | `circle-check` | `CircleCheckIcon` |
 

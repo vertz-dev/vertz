@@ -79,7 +79,9 @@ const researcher = agent('researcher', {
   initialState: { sources: [] },
   tools: { search: searchTool, summarize: summarizeTool },
   model: { provider: 'cloudflare', model: 'llama-3.3-70b-instruct-fp8' },
-  prompt: { system: 'You are a research assistant. Search for information and summarize findings.' },
+  prompt: {
+    system: 'You are a research assistant. Search for information and summarize findings.',
+  },
   loop: {
     maxIterations: 20,
     stuckThreshold: 3,
@@ -101,7 +103,7 @@ const result = await run(researcher, {
   llm: adapter,
 });
 
-console.log(result.status);   // 'complete' | 'max-iterations' | 'stuck' | 'error'
+console.log(result.status); // 'complete' | 'max-iterations' | 'stuck' | 'error'
 console.log(result.response); // Agent's final response
 ```
 

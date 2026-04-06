@@ -42,9 +42,7 @@ const message = match(result, {
 The core primitive — a discriminated union representing success or failure.
 
 ```typescript
-type Result<T, E = unknown> =
-  | { ok: true; data: T }
-  | { ok: false; error: E }
+type Result<T, E = unknown> = { ok: true; data: T } | { ok: false; error: E };
 ```
 
 ### Creating results
@@ -52,8 +50,8 @@ type Result<T, E = unknown> =
 ```typescript
 import { ok, err } from '@vertz/errors';
 
-ok({ name: 'Alice' })  // { ok: true, data: { name: 'Alice' } }
-err('not found')        // { ok: false, error: 'not found' }
+ok({ name: 'Alice' }); // { ok: true, data: { name: 'Alice' } }
+err('not found'); // { ok: false, error: 'not found' }
 ```
 
 ### Checking results
@@ -75,10 +73,7 @@ import { map, flatMap, unwrap, unwrapOr } from '@vertz/errors';
 const names = map(result, (user) => user.name);
 
 // Chain Result-returning operations
-const profile = await flatMap(
-  await findUser(id),
-  (user) => findProfile(user.profileId),
-);
+const profile = await flatMap(await findUser(id), (user) => findProfile(user.profileId));
 
 // Extract or throw (use in tests/scripts)
 const user = unwrap(result);
@@ -114,7 +109,10 @@ Extend `AppError` for typed, serializable domain errors:
 import { AppError } from '@vertz/errors';
 
 class InsufficientFundsError extends AppError<'INSUFFICIENT_FUNDS'> {
-  constructor(public required: number, public available: number) {
+  constructor(
+    public required: number,
+    public available: number,
+  ) {
     super('INSUFFICIENT_FUNDS', `Need $${required}, have $${available}`);
   }
 }
@@ -156,21 +154,21 @@ HTTP-status-code-mirrored classes thrown at server boundaries:
 ```typescript
 import { EntityNotFoundError, EntityValidationError, isForbiddenError } from '@vertz/errors';
 
-throw new EntityNotFoundError('User not found');         // → 404
+throw new EntityNotFoundError('User not found'); // → 404
 throw new EntityValidationError('Invalid input', errors); // → 422
 ```
 
-| Class | Status |
-|---|---|
-| `BadRequestError` | 400 |
-| `EntityUnauthorizedError` | 401 |
-| `EntityForbiddenError` | 403 |
-| `EntityNotFoundError` | 404 |
-| `MethodNotAllowedError` | 405 |
-| `EntityConflictError` | 409 |
-| `EntityValidationError` | 422 |
-| `InternalError` | 500 |
-| `ServiceUnavailableError` | 503 |
+| Class                     | Status |
+| ------------------------- | ------ |
+| `BadRequestError`         | 400    |
+| `EntityUnauthorizedError` | 401    |
+| `EntityForbiddenError`    | 403    |
+| `EntityNotFoundError`     | 404    |
+| `MethodNotAllowedError`   | 405    |
+| `EntityConflictError`     | 409    |
+| `EntityValidationError`   | 422    |
+| `InternalError`           | 500    |
+| `ServiceUnavailableError` | 503    |
 
 ## Fetch Errors (Client HTTP)
 

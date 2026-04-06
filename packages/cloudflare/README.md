@@ -22,7 +22,9 @@ vtz add @vertz/cloudflare
 ```typescript
 import { createHandler } from '@vertz/cloudflare';
 
-const app = createApp({ /* ... */ });
+const app = createApp({
+  /* ... */
+});
 
 export default createHandler(app, { apiPrefix: '/api' });
 ```
@@ -34,10 +36,11 @@ import { createHandler } from '@vertz/cloudflare';
 import { imageOptimizer } from '@vertz/cloudflare/image';
 
 export default createHandler({
-  app: (env) => createServer({
-    entities: schema,
-    db: createDb({ d1: env.DB }),
-  }),
+  app: (env) =>
+    createServer({
+      entities: schema,
+      db: createDb({ d1: env.DB }),
+    }),
   apiPrefix: '/api',
   ssr: {
     module: appModule,
@@ -118,11 +121,11 @@ await storeCache(env.CACHE_KV, '/products', html, 3600);
 
 ## Entry Points
 
-| Import | Purpose |
-|---|---|
-| `@vertz/cloudflare` | Main handler, ISR cache, HTML template |
-| `@vertz/cloudflare/image` | Edge image optimization |
-| `@vertz/cloudflare/tpr` | Traffic-aware pre-rendering |
+| Import                    | Purpose                                |
+| ------------------------- | -------------------------------------- |
+| `@vertz/cloudflare`       | Main handler, ISR cache, HTML template |
+| `@vertz/cloudflare/image` | Edge image optimization                |
+| `@vertz/cloudflare/tpr`   | Traffic-aware pre-rendering            |
 
 ## License
 
