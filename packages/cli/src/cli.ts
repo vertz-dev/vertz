@@ -25,6 +25,8 @@ import {
 } from './commands/docs';
 import { generateAction } from './commands/generate';
 import { loadDbContext, loadIntrospectContext } from './commands/load-db-context';
+import { previewAction } from './commands/preview';
+import type { PreviewDeps } from './commands/preview';
 import { startAction } from './commands/start';
 
 const pkg = JSON.parse(readFileSync(resolve(import.meta.dirname, '../package.json'), 'utf-8'));
@@ -124,6 +126,77 @@ export function createCLI(): Command {
         host: opts.host,
         verbose: opts.verbose,
       });
+      if (!result.ok) {
+        console.error(result.error.message);
+        process.exit(1);
+      }
+    });
+
+  // Preview command - serve the production build locally for testing
+  program
+    .command('preview')
+    .description('Serve the production build locally for testing')
+    .option('-p, --port <port>', 'Server port (default: PORT env or 4000)')
+    .option('--host <host>', 'Server host', 'localhost')
+    .option('--build', 'Force rebuild before serving')
+    .option('--no-build', 'Skip auto-build, fail if dist/ missing')
+    .option('--open', 'Open browser on start')
+    .option('-v, --verbose', 'Verbose output')
+    .action(async (opts) => {
+      // Lazy-load heavy deps to keep CLI startup fast
+      const { findProjectRoot } = await import('./utils/paths');
+      const { detectAppType } = await import('./dev-server/app-detector');
+      const { isBuildFresh } = await import('./commands/freshness');
+      const { buildAction: buildActionFn } = await import('./commands/build');
+      const {
+        validateBuildOutputs,
+        serveApiOnly,
+        serveUIOnly,
+        serveFullStack,
+        setupGracefulShutdown,
+      } = await import('./commands/serve-shared');
+
+      const deps: PreviewDeps = {
+        cwd: process.cwd(),
+        findProjectRoot,
+        detectAppType,
+        isBuildFresh,
+        buildAction: () => buildActionFn({}),
+        validateBuildOutputs,
+        serve: (appType, serveOpts) => {
+          switch (appType) {
+            case 'api-only':
+              return serveApiOnly(serveOpts);
+            case 'ui-only':
+              return serveUIOnly(serveOpts);
+            case 'full-stack':
+              return serveFullStack(serveOpts);
+          }
+        },
+        setupGracefulShutdown,
+        openBrowser: (url) => {
+          const { exec } = require('node:child_process');
+          const cmd =
+            process.platform === 'darwin'
+              ? 'open'
+              : process.platform === 'win32'
+                ? 'start'
+                : 'xdg-open';
+          exec(`${cmd} ${url}`);
+        },
+        log: console.log,
+      };
+
+      const result = await previewAction(
+        {
+          port: opts.port ? parseInt(opts.port, 10) : undefined,
+          host: opts.host,
+          build: opts.build,
+          open: opts.open,
+          verbose: opts.verbose,
+        },
+        deps,
+      );
       if (!result.ok) {
         console.error(result.error.message);
         process.exit(1);
