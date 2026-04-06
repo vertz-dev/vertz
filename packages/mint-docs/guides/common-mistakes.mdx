@@ -93,7 +93,7 @@ Always use JSX syntax for components. Calling them as functions bypasses the com
 const card = TaskCard({ task, onClick: handleClick });
 
 // Right — compiler generates getters for reactive props
-<TaskCard task={task} onClick={handleClick} />
+<TaskCard task={task} onClick={handleClick} />;
 ```
 
 ## Annotating component return types
@@ -115,7 +115,7 @@ Foreign keys are declared via `d.ref.one()` on models, not `.references()` on co
 ```ts
 // Wrong — this is a pattern from other ORMs, not Vertz
 const postsTable = d.table('posts', {
-  authorId: d.uuid().references('users.id'),  // Does not exist
+  authorId: d.uuid().references('users.id'), // Does not exist
 });
 
 // Right — use d.ref.one() on the model

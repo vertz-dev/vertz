@@ -23,11 +23,11 @@ The default export configures the compiler. Named exports configure other subsys
 
 The Vertz runtime **auto-detects** entry files by convention. You do not need to specify them in config:
 
-| Convention | Purpose |
-| ---------- | ------- |
-| `src/entry-client.ts` | Client-side hydration entry |
-| `src/app.tsx` | SSR entry (server-side rendering) |
-| `src/api/server.ts` | API server entry |
+| Convention            | Purpose                           |
+| --------------------- | --------------------------------- |
+| `src/entry-client.ts` | Client-side hydration entry       |
+| `src/app.tsx`         | SSR entry (server-side rendering) |
+| `src/api/server.ts`   | API server entry                  |
 
 <Warning>
   Do **not** add an `entryFile` property to your config — it is not a valid option and will be
@@ -38,30 +38,30 @@ The Vertz runtime **auto-detects** entry files by convention. You do not need to
 
 ```ts
 export default {
-  strict: false,          // Enable strict validation
-  forceGenerate: false,   // Force regeneration of all outputs
+  strict: false, // Enable strict validation
+  forceGenerate: false, // Force regeneration of all outputs
 
   compiler: {
-    sourceDir: 'src',                           // Source directory
-    outputDir: '.vertz/generated',              // Generated output directory
+    sourceDir: 'src', // Source directory
+    outputDir: '.vertz/generated', // Generated output directory
 
     schemas: {
-      enforceNaming: true,                      // Enforce schema naming conventions
-      enforcePlacement: true,                   // Enforce schema file placement
+      enforceNaming: true, // Enforce schema naming conventions
+      enforcePlacement: true, // Enforce schema file placement
     },
 
     openapi: {
-      output: '.vertz/generated/openapi.json',  // OpenAPI spec output path
+      output: '.vertz/generated/openapi.json', // OpenAPI spec output path
       info: {
-        title: 'My API',                        // API title
-        version: '1.0.0',                       // API version
-        description: 'Optional description',    // API description
+        title: 'My API', // API title
+        version: '1.0.0', // API version
+        description: 'Optional description', // API description
       },
     },
 
     validation: {
-      requireResponseSchema: true,              // Require response schemas on services
-      detectDeadCode: true,                     // Detect unused entities/services
+      requireResponseSchema: true, // Require response schemas on services
+      detectDeadCode: true, // Detect unused entities/services
     },
   },
 };
@@ -73,7 +73,7 @@ All fields are optional. The defaults shown above apply when omitted.
 
 ```ts
 export const codegen = {
-  generators: ['typescript'],   // Which generators to run
+  generators: ['typescript'], // Which generators to run
 };
 ```
 
@@ -84,7 +84,7 @@ The `typescript` generator creates a fully typed SDK at `.vertz/generated/client
 ```ts
 export default {
   cloud: {
-    projectId: 'my-project',   // Vertz Cloud project identifier
+    projectId: 'my-project', // Vertz Cloud project identifier
   },
 };
 ```
