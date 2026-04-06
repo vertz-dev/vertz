@@ -1582,3 +1582,114 @@ describe('generateSchemaCode — no app-level annotations', () => {
     expect(file.content).not.toContain('.shared()');
   });
 });
+
+describe('generateSchemaCode — vector columns', () => {
+  it('generates d.vector(1536) for vector column with dimensions', () => {
+    const snapshot = makeSnapshot({
+      documents: {
+        columns: {
+          id: { type: 'uuid', nullable: false, primary: true, unique: false },
+          embedding: {
+            type: 'vector',
+            nullable: false,
+            primary: false,
+            unique: false,
+            dimensions: 1536,
+          },
+        },
+        indexes: [],
+        foreignKeys: [],
+        _metadata: {},
+      },
+    });
+
+    const [file] = generateSchemaCode(snapshot, { dialect: 'postgres', mode: 'single-file' });
+    expect(file.content).toContain('embedding: d.vector(1536)');
+  });
+
+  it('falls back to d.text() with comment for vector without dimensions', () => {
+    const snapshot = makeSnapshot({
+      documents: {
+        columns: {
+          id: { type: 'uuid', nullable: false, primary: true, unique: false },
+          embedding: { type: 'vector', nullable: false, primary: false, unique: false },
+        },
+        indexes: [],
+        foreignKeys: [],
+        _metadata: {},
+      },
+    });
+
+    const [file] = generateSchemaCode(snapshot, { dialect: 'postgres', mode: 'single-file' });
+    expect(file.content).toContain('d.text()');
+    expect(file.content).toContain('// TODO: unmapped type "vector"');
+  });
+});
+
+describe('generateSchemaCode — vector index options', () => {
+  it('generates HNSW index with opclass, m, and efConstruction', () => {
+    const snapshot = makeSnapshot({
+      documents: {
+        columns: {
+          id: { type: 'uuid', nullable: false, primary: true, unique: false },
+          embedding: {
+            type: 'vector',
+            nullable: false,
+            primary: false,
+            unique: false,
+            dimensions: 1536,
+          },
+        },
+        indexes: [
+          {
+            columns: ['embedding'],
+            type: 'hnsw',
+            opclass: 'vector_cosine_ops',
+            m: 16,
+            efConstruction: 64,
+          },
+        ],
+        foreignKeys: [],
+        _metadata: {},
+      },
+    });
+
+    const [file] = generateSchemaCode(snapshot, { dialect: 'postgres', mode: 'single-file' });
+    expect(file.content).toContain("type: 'hnsw'");
+    expect(file.content).toContain("opclass: 'vector_cosine_ops'");
+    expect(file.content).toContain('m: 16');
+    expect(file.content).toContain('efConstruction: 64');
+  });
+
+  it('generates IVFFlat index with opclass and lists', () => {
+    const snapshot = makeSnapshot({
+      documents: {
+        columns: {
+          id: { type: 'uuid', nullable: false, primary: true, unique: false },
+          embedding: {
+            type: 'vector',
+            nullable: false,
+            primary: false,
+            unique: false,
+            dimensions: 1536,
+          },
+        },
+        indexes: [
+          {
+            columns: ['embedding'],
+            type: 'ivfflat',
+            opclass: 'vector_cosine_ops',
+            lists: 100,
+          },
+        ],
+        foreignKeys: [],
+        _metadata: {},
+      },
+    });
+
+    const [file] = generateSchemaCode(snapshot, { dialect: 'postgres', mode: 'single-file' });
+    expect(file.content).toContain("type: 'ivfflat'");
+    expect(file.content).toContain("opclass: 'vector_cosine_ops'");
+    expect(file.content).toContain('lists: 100');
+  });
+});

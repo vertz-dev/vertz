@@ -1023,7 +1023,12 @@ export function createDb<TModels extends Record<string, ModelEntry>>(
             for (const [colName, colBuilder] of Object.entries(table._columns)) {
               const meta = (colBuilder as { _meta: ColumnMetadata })._meta;
               const snakeName = camelToSnake(colName);
-              const sqlType = dialectObj.mapColumnType(meta.sqlType);
+              const sqlType = dialectObj.mapColumnType(meta.sqlType, {
+                ...(meta.dimensions != null && { dimensions: meta.dimensions }),
+                ...(meta.length != null && { length: meta.length }),
+                ...(meta.precision != null && { precision: meta.precision }),
+                ...(meta.scale != null && { scale: meta.scale }),
+              });
               let def = `"${snakeName}" ${sqlType}`;
               if (meta.primary) def += ' PRIMARY KEY';
               if (meta.unique && !meta.primary) def += ' UNIQUE';

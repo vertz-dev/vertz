@@ -297,6 +297,10 @@ function mapColumnType(col: ColumnSnapshot, snapshot: SchemaSnapshot): BuilderRe
       return mapArrayType(col);
     case 'USER-DEFINED':
       return mapEnumType(col, snapshot);
+    case 'vector':
+      return col.dimensions
+        ? { code: `d.vector(${col.dimensions})` }
+        : { code: 'd.text()', fallback: true };
     case 'citext':
       return { code: 'd.text()' };
     case 'blob':
@@ -370,6 +374,10 @@ function generateIndexCode(idx: {
   unique?: boolean;
   type?: string;
   where?: string;
+  opclass?: string;
+  m?: number;
+  efConstruction?: number;
+  lists?: number;
 }): string {
   const camelCols = idx.columns.map((c) => snakeToCamel(c));
   const cols =
@@ -380,6 +388,10 @@ function generateIndexCode(idx: {
   if (idx.unique) opts.push('unique: true');
   if (idx.type && idx.type !== 'btree') opts.push(`type: '${idx.type}'`);
   if (idx.where) opts.push(`where: '${escapeSingleQuotes(idx.where)}'`);
+  if (idx.opclass) opts.push(`opclass: '${idx.opclass}'`);
+  if (idx.m != null) opts.push(`m: ${idx.m}`);
+  if (idx.efConstruction != null) opts.push(`efConstruction: ${idx.efConstruction}`);
+  if (idx.lists != null) opts.push(`lists: ${idx.lists}`);
 
   if (opts.length === 0) return `d.index(${cols})`;
   return `d.index(${cols}, { ${opts.join(', ')} })`;
