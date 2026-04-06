@@ -3,18 +3,31 @@ title: Runtime
 description: 'The Vertz native runtime — fast dev server, built-in test runner'
 ---
 
-Vertz ships a native runtime (`vtz`) — a standalone binary for development. It starts in ~5ms, includes a V8-based dev server with SSR, HMR, and a built-in test runner.
+Vertz ships a native runtime (`vtz`) — a standalone Rust binary with an embedded V8 JavaScript engine. It starts in ~5ms and includes a dev server with SSR + HMR, a built-in test runner, and a package manager. No Node.js required.
 
 ## How it works
 
 `vtz` is the primary Vertz CLI. Run it directly — no extra configuration needed.
 
-The runtime handles:
+### Command architecture
 
-- `vtz dev` — Development server with SSR + HMR
-- `vtz test` — Built-in test runner
-- `vtz run <script>` — Run any package.json script (build, start, codegen, etc.)
-- `vtz install` / `vtz add` / `vtz remove` — Package management
+Not all `vtz` commands work the same way. Understanding the distinction helps avoid surprises:
+
+| Command | Engine | What it does |
+| --- | --- | --- |
+| `vtz dev` | **V8 (built-in)** | Dev server with SSR, HMR, and TypeScript compilation |
+| `vtz test` | **V8 (built-in)** | Test runner with Vitest-compatible API ([details](/guides/testing-unit)) |
+| `vtz run <script>` | **Shell (spawns process)** | Executes a `package.json` script via `sh -c` |
+| `vtz exec <cmd>` / `vtzx` | **Shell (spawns process)** | Runs a binary from `node_modules/.bin` via `sh -c` |
+| `vtz install` / `add` / `remove` | **Rust (native)** | Package management with native dependency resolution |
+
+**V8 commands** (`dev`, `test`) run JavaScript inside the `vtz` binary's own V8 engine. They use Vertz's module loader, compiler, and runtime APIs (like `@vertz/test` and `vertz:sqlite`).
+
+**Shell commands** (`run`, `exec`) spawn a child process through your system shell. They add `node_modules/.bin` to the PATH, then hand off execution — similar to `npm run` or `npx`. The spawned process uses whatever runtime the script calls for (Node.js, Bun, etc.).
+
+<Tip>
+  Use `vtz test` to run your tests — it's the built-in test runner with watch mode, coverage, and a Vitest-compatible API. Running a third-party test runner via `vtz run` or `vtz exec` spawns it as a separate process and won't use the Vertz test runtime.
+</Tip>
 
 ## Installation
 

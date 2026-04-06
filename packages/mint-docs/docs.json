@@ -134,7 +134,7 @@
           },
           {
             "group": "Testing",
-            "pages": ["guides/testing", "guides/testing-server"]
+            "pages": ["guides/testing-unit", "guides/testing-server", "guides/testing-e2e"]
           },
           {
             "group": "Runtime",
@@ -214,6 +214,10 @@
     {
       "destination": "/philosophy",
       "source": "/manifesto"
+    },
+    {
+      "destination": "/guides/testing-e2e",
+      "source": "/guides/testing"
     }
   ],
   "theme": "mint",

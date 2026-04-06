@@ -1,0 +1,355 @@
+---
+title: Test Runner
+description: 'Built-in test runner with Vitest-compatible API, watch mode, and code coverage'
+---
+
+The `vtz` runtime includes a built-in test runner powered by V8. No extra packages to install, no configuration required.
+
+<Info>
+  `@vertz/test` is a **synthetic module** provided automatically by the `vtz` runtime — like `node:fs` in Node.js. You do **not** need to run `vtz add @vertz/test`.
+</Info>
+
+## Quick start
+
+Create a test file:
+
+```ts
+// src/math.test.ts
+import { describe, expect, it } from '@vertz/test';
+import { add } from './math';
+
+describe('add', () => {
+  it('adds two numbers', () => {
+    expect(add(1, 2)).toBe(3);
+  });
+
+  it('handles negative numbers', () => {
+    expect(add(-1, 1)).toBe(0);
+  });
+});
+```
+
+Run it:
+
+```bash
+vtz test
+```
+
+That's it. The runner discovers `**/*.test.ts` and `**/*.test.tsx` files automatically.
+
+## Writing tests
+
+### Structure
+
+Use `describe` to group tests and `it` (or `test`) to define individual test cases:
+
+```ts
+import { describe, it, test, beforeEach, afterEach } from '@vertz/test';
+
+describe('UserService', () => {
+  beforeEach(() => {
+    // runs before each test in this block
+  });
+
+  afterEach(() => {
+    // runs after each test in this block
+  });
+
+  it('creates a user', async () => {
+    // test implementation
+  });
+
+  test('deletes a user', async () => {
+    // `test` is an alias for `it`
+  });
+});
+```
+
+### Hooks
+
+- `beforeEach(fn)` — runs before each test in the current `describe` block
+- `afterEach(fn)` — runs after each test
+- `beforeAll(fn)` — runs once before all tests in the block
+- `afterAll(fn)` — runs once after all tests in the block
+
+Hooks can be async. They compose hierarchically — parent `beforeEach` runs before child `beforeEach`.
+
+### Modifiers
+
+```ts
+describe.skip('skipped suite', () => { /* ... */ });
+describe.only('only this suite runs', () => { /* ... */ });
+
+it.skip('skipped test', () => { /* ... */ });
+it.only('only this test runs', () => { /* ... */ });
+it.todo('not implemented yet');
+```
+
+#### Conditional skip
+
+```ts
+it.skipIf(process.env.CI)('only runs locally', () => {
+  // skipped when CI=true
+});
+```
+
+#### Parameterized tests
+
+```ts
+it.each([
+  { input: 1, expected: 1 },
+  { input: 2, expected: 4 },
+  { input: 3, expected: 9 },
+])('square($input) = $expected', ({ input, expected }) => {
+  expect(input * input).toBe(expected);
+});
+```
+
+## Assertions
+
+The `expect` API is compatible with Vitest. Here are the most common matchers:
+
+```ts
+import { expect } from '@vertz/test';
+
+// Equality
+expect(result).toBe(42);              // strict identity (===)
+expect(user).toEqual({ name: 'Ada' }); // deep equality
+expect(obj).toStrictEqual(expected);   // deep equality + constructor check
+
+// Truthiness
+expect(value).toBeTruthy();
+expect(value).toBeFalsy();
+expect(value).toBeNull();
+expect(value).toBeUndefined();
+expect(value).toBeDefined();
+
+// Numbers
+expect(count).toBeGreaterThan(0);
+expect(count).toBeLessThanOrEqual(100);
+expect(pi).toBeCloseTo(3.14, 2);
+
+// Strings & Arrays
+expect(list).toHaveLength(3);
+expect(list).toContain('item');
+expect(message).toMatch(/hello/i);
+
+// Objects
+expect(user).toHaveProperty('email');
+expect(response).toMatchObject({ status: 'ok' });
+expect(err).toBeInstanceOf(ValidationError);
+
+// Errors
+expect(() => parse('{')).toThrow();
+expect(() => parse('{')).toThrow('Unexpected token');
+
+// Negation
+expect(value).not.toBe(0);
+
+// Async
+await expect(fetchUser()).resolves.toEqual({ name: 'Ada' });
+await expect(failingOp()).rejects.toThrow('timeout');
+```
+
+### Asymmetric matchers
+
+Use inside `toEqual`, `toHaveBeenCalledWith`, and other deep-equality matchers:
+
+```ts
+expect(user).toEqual({
+  id: expect.any(String),
+  name: 'Ada',
+  roles: expect.arrayContaining(['admin']),
+  bio: expect.stringContaining('computer scientist'),
+});
+```
+
+Available: `expect.any(constructor)`, `expect.anything()`, `expect.objectContaining()`, `expect.arrayContaining()`, `expect.stringContaining()`, `expect.stringMatching()`.
+
+## Mocking
+
+### Mock functions
+
+```ts
+import { mock, expect } from '@vertz/test';
+
+const fn = mock(() => 42);
+fn(1, 2);
+
+expect(fn).toHaveBeenCalledWith(1, 2);
+expect(fn).toHaveBeenCalledOnce();
+```
+
+Configure return values:
+
+```ts
+const fetch = mock();
+fetch.mockResolvedValue({ data: [] });
+
+const result = await fetch('/api/users');
+// result === { data: [] }
+```
+
+Available methods: `mockReturnValue`, `mockReturnValueOnce`, `mockResolvedValue`, `mockResolvedValueOnce`, `mockRejectedValue`, `mockRejectedValueOnce`, `mockImplementation`, `mockImplementationOnce`.
+
+Inspect calls via `fn.mock.calls`, `fn.mock.results`, and `fn.mock.lastCall`.
+
+Clean up with `mockClear()` (reset call history), `mockReset()` (clear + reset implementation), or `mockRestore()` (restore original for spies).
+
+### Spying on methods
+
+```ts
+import { spyOn, expect } from '@vertz/test';
+
+const obj = { greet: (name: string) => `Hello, ${name}` };
+const spy = spyOn(obj, 'greet');
+
+obj.greet('Ada');
+expect(spy).toHaveBeenCalledWith('Ada');
+
+spy.mockRestore(); // restores original method
+```
+
+### vi namespace
+
+For Vitest compatibility, the `vi` object provides the same utilities:
+
+```ts
+import { vi } from '@vertz/test';
+
+// Create mocks
+const fn = vi.fn(() => 42);
+const spy = vi.spyOn(console, 'log');
+
+// Manage all mocks
+vi.clearAllMocks();   // clear call history
+vi.resetAllMocks();   // clear + reset implementations
+vi.restoreAllMocks(); // restore all spied methods
+
+// Module mocking
+vi.mock('./db', () => ({ query: vi.fn() }));
+const actual = await vi.importActual('./db');
+```
+
+### Fake timers
+
+```ts
+import { vi, expect } from '@vertz/test';
+
+vi.useFakeTimers();
+
+const callback = vi.fn();
+setTimeout(callback, 1000);
+
+vi.advanceTimersByTime(1000);
+expect(callback).toHaveBeenCalled();
+
+vi.setSystemTime(new Date('2026-01-01'));
+expect(Date.now()).toBe(new Date('2026-01-01').getTime());
+
+vi.useRealTimers();
+```
+
+Available timer methods: `useFakeTimers`, `useRealTimers`, `advanceTimersByTime`, `advanceTimersToNextTimer`, `runAllTimers`, `runOnlyPendingTimers`, `setSystemTime`, `getTimerCount`, `isFakeTimers`.
+
+## Configuration
+
+Configure the test runner in `vertz.config.ts`:
+
+```ts
+export default {
+  test: {
+    include: ['src/**/*.test.ts'],
+    exclude: ['**/*.local.ts'],
+    timeout: 10000,              // per-test timeout in ms
+    concurrency: 4,              // max parallel test files
+    reporter: 'terminal',        // terminal | json | junit
+    coverage: false,             // enable coverage collection
+    coverageThreshold: 95,       // minimum coverage %
+    preload: ['./test-setup.ts'], // setup files loaded before tests
+  },
+};
+```
+
+All fields are optional. Without a config file, `vtz test` uses sensible defaults.
+
+## CLI reference
+
+```bash
+vtz test [PATH...] [OPTIONS]
+```
+
+| Option | Description |
+| --- | --- |
+| `[PATH...]` | Specific files or directories to test (default: project root) |
+| `--filter <str>` | Filter tests by name substring |
+| `--watch` | Re-run tests when files change |
+| `--coverage` | Collect V8 code coverage (outputs `coverage.lcov`) |
+| `--coverage-threshold <n>` | Minimum coverage percentage as integer (default: 95) |
+| `--timeout <ms>` | Per-test timeout in milliseconds (default: 5000) |
+| `--concurrency <n>` | Max parallel test files (default: CPU count) |
+| `--reporter <fmt>` | Output format: `terminal`, `json`, or `junit` |
+| `--bail` | Stop after the first failure |
+| `--no-preload` | Skip preload scripts from config |
+| `--no-cache` | Skip compilation cache |
+| `--root-dir <path>` | Workspace root for module resolution |
+
+### Examples
+
+```bash
+# Run a single file
+vtz test src/math.test.ts
+
+# Filter by test name
+vtz test --filter "creates a user"
+
+# Watch mode
+vtz test --watch
+
+# Coverage with threshold
+vtz test --coverage --coverage-threshold 95
+```
+
+## Coming from Vitest or Jest
+
+The `@vertz/test` API is intentionally compatible with Vitest. Your test logic stays the same — only the import path and runner change.
+
+| | Vitest | Vertz |
+| --- | --- | --- |
+| **Import** | `import { describe, it, expect } from 'vitest'` | `import { describe, it, expect } from '@vertz/test'` |
+| **Config** | `vitest.config.ts` | `vertz.config.ts` |
+| **Run** | `npx vitest` | `vtz test` |
+| **Install** | `npm add -D vitest` | Nothing — built into the runtime |
+
+### Key differences
+
+- **No package to install.** `@vertz/test` is provided by the `vtz` runtime automatically.
+- **Runs in V8**, not Node.js. The test runner uses the same V8 engine as `vtz dev`.
+- **Snapshot testing** (`toMatchSnapshot`, `toMatchInlineSnapshot`) is not currently supported.
+
+### Migrating from bun:test
+
+The `vtz migrate-tests` command rewrites imports from `bun:test` to `@vertz/test` and adjusts API differences:
+
+```bash
+vtz migrate-tests              # migrate all test files
+vtz migrate-tests --dry-run    # preview changes without writing
+vtz migrate-tests --verbose    # show detailed changes per file
+```
+
+## Troubleshooting
+
+**"Cannot find module '@vertz/test'"** — You're running tests with a different runner (Node, Bun, Vitest). Use `vtz test` instead — `@vertz/test` is only available inside the `vtz` runtime.
+
+**Coverage output** — `vtz test --coverage` generates a `coverage.lcov` file in the project root. Use any LCOV-compatible viewer to inspect results.
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Server Testing" icon="flask-vial" href="/guides/testing-server">
+    Type-safe test client for entity CRUD, service actions, and raw HTTP.
+  </Card>
+  <Card title="E2E Testing" icon="globe" href="/guides/testing-e2e">
+    Browser-based tests with Playwright and authenticated users.
+  </Card>
+</CardGroup>

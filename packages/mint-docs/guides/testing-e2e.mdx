@@ -5,6 +5,10 @@ description: 'Set up Playwright tests with authenticated users, test databases, 
 
 End-to-end tests verify your entire Vertz app — server, database, auth, and UI — from the user's perspective. This guide covers setting up Playwright, authenticating test users programmatically, and managing test databases.
 
+<Note>
+  This page covers **browser-based E2E tests** with Playwright. For unit and integration tests, see the [Test Runner](/guides/testing-unit) guide. For type-safe server tests without a browser, see [Server Testing](/guides/testing-server).
+</Note>
+
 ## Prerequisites
 
 Install Playwright and its browser binaries:
@@ -336,6 +340,9 @@ In CI, tests run headless with a single worker for stability. The `webServer` co
 ## Next steps
 
 <CardGroup cols={2}>
+  <Card title="Test Runner" icon="play" href="/guides/testing-unit">
+    Built-in test runner with Vitest-compatible API, watch mode, and coverage.
+  </Card>
   <Card title="Server Testing" icon="flask-vial" href="/guides/testing-server">
     Type-safe test client for entity CRUD, service actions, and raw HTTP requests.
   </Card>
@@ -344,8 +351,5 @@ In CI, tests run headless with a single worker for stability. The `webServer` co
   </Card>
   <Card title="Entities" icon="database" href="/guides/server/entities">
     Define entities with models, access rules, and hooks.
-  </Card>
-  <Card title="Client Auth" icon="user" href="/guides/ui/auth">
-    AuthProvider, useAuth(), and sign-in forms.
   </Card>
 </CardGroup>

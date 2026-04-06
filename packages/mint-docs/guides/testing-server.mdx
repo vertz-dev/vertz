@@ -3,7 +3,7 @@ title: Server Testing
 description: 'Type-safe test client for entity CRUD, service actions, and raw HTTP requests'
 ---
 
-The typed test client gives you 100% type-safe access to your server's entities and services in tests — no path strings, no manual casting, no guessing.
+The typed test client gives you 100% type-safe access to your server's entities and services in tests — no path strings, no manual casting, no guessing. Tests use the [built-in test runner](/guides/testing-unit) (`vtz test`) and import test utilities from `@vertz/test`.
 
 ```ts
 import { createTestClient } from '@vertz/testing';
@@ -225,7 +225,10 @@ describe('Todos API', () => {
 ## Next steps
 
 <CardGroup cols={2}>
-  <Card title="E2E Testing" icon="globe" href="/guides/testing">
+  <Card title="Test Runner" icon="play" href="/guides/testing-unit">
+    Built-in test runner with Vitest-compatible API, watch mode, and coverage.
+  </Card>
+  <Card title="E2E Testing" icon="globe" href="/guides/testing-e2e">
     Browser-based tests with Playwright and authenticated users.
   </Card>
   <Card title="Entities" icon="database" href="/guides/server/entities">
