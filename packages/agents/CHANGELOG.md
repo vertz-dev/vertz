@@ -1,5 +1,15 @@
 # @vertz/agents
 
+## 0.2.43
+
+### Patch Changes
+
+- [#2359](https://github.com/vertz-dev/vertz/pull/2359) [`fdb0c56`](https://github.com/vertz-dev/vertz/commit/fdb0c56107794e301a35f0d0e39a6ac6376155ab) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - fix(agents): error on output schema validation failure instead of silent fallback
+
+- [#2355](https://github.com/vertz-dev/vertz/pull/2355) [`815ad78`](https://github.com/vertz-dev/vertz/commit/815ad78cb56d671d7a288bcfd95f35e38331e889) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - feat(agents): typed ctx.prev accumulation via builder pattern for workflow steps
+
+- [#2362](https://github.com/vertz-dev/vertz/pull/2362) [`43f14ea`](https://github.com/vertz-dev/vertz/commit/43f14ea045503720f15bacf3166edfc811ca71b4) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - feat(agents): add errorReason to WorkflowResult for debugging workflow failures
+
 ## 0.2.42
 
 ### Patch Changes
