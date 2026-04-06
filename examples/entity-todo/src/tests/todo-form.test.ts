@@ -8,7 +8,7 @@
  * - waitFor() for async validation assertions
  */
 
-import { beforeEach, describe, expect, test } from 'bun:test';
+import { beforeEach, describe, expect, test } from '@vertz/test';
 import { renderTest, waitFor } from '@vertz/ui/test';
 import { resetMockData } from '../api/mock-data';
 import { TodoForm } from '../components/todo-form';

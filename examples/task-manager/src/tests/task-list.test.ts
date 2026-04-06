@@ -9,7 +9,7 @@
  * - RouterContext.Provider for page context
  */
 
-import { beforeEach, describe, expect, it } from 'bun:test';
+import { beforeEach, describe, expect, it } from '@vertz/test';
 import { createRouter, defineRoutes, RouterContext } from '@vertz/ui';
 import { renderTest, waitFor } from '@vertz/ui/test';
 import { resetMockData } from '../api/mock-data';

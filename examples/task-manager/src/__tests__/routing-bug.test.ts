@@ -5,7 +5,7 @@
  * server-side using the framework's zero-config SSR pipeline.
  */
 
-import { afterAll, afterEach, beforeAll, describe, expect, test } from 'bun:test';
+import { afterAll, afterEach, beforeAll, describe, expect, test } from '@vertz/test';
 import {
   EntityStore,
   MemoryCache,

@@ -1,7 +1,7 @@
 /**
- * Test setup for bun test with happy-dom
+ * Test setup for vtz test with happy-dom
  */
-import { afterAll } from 'bun:test';
+import { afterAll } from '@vertz/test';
 import { GlobalWindow } from 'happy-dom';
 
 // Force-exit after all tests complete — mock-data delays use setTimeout

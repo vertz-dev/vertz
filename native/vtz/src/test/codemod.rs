@@ -193,6 +193,60 @@ pub fn format_migrate_output(result: &MigrateResult, dry_run: bool) -> String {
     output
 }
 
+/// Update package.json in the given directory to add `@vertz/test` as a devDependency.
+/// Returns true if the file was modified.
+pub fn add_vertz_test_dep(root_dir: &Path, dry_run: bool) -> Result<bool, AnyError> {
+    let pkg_path = root_dir.join("package.json");
+    if !pkg_path.exists() {
+        return Ok(false);
+    }
+
+    let content = std::fs::read_to_string(&pkg_path)?;
+    let mut pkg: serde_json::Value = serde_json::from_str(&content)?;
+
+    // Check if already present
+    if pkg
+        .get("devDependencies")
+        .and_then(|d| d.get("@vertz/test"))
+        .is_some()
+    {
+        return Ok(false);
+    }
+
+    // Determine version from existing vertz or @vertz/* deps (read before mutating)
+    let version = ["devDependencies", "dependencies"]
+        .iter()
+        .filter_map(|section| pkg.get(*section)?.as_object())
+        .flat_map(|deps| deps.iter())
+        .find(|(k, _)| *k == "vertz" || k.starts_with("@vertz/"))
+        .and_then(|(_, v)| v.as_str())
+        .unwrap_or("^0.2.0")
+        .to_string();
+
+    // Ensure devDependencies exists and insert
+    let obj = pkg
+        .as_object_mut()
+        .ok_or_else(|| deno_core::error::generic_error("package.json is not an object"))?;
+    let dev_deps = obj
+        .entry("devDependencies")
+        .or_insert_with(|| serde_json::json!({}));
+    let dev_deps = dev_deps
+        .as_object_mut()
+        .ok_or_else(|| deno_core::error::generic_error("devDependencies is not an object"))?;
+
+    dev_deps.insert(
+        "@vertz/test".to_string(),
+        serde_json::Value::String(version),
+    );
+
+    if !dry_run {
+        let formatted = serde_json::to_string_pretty(&pkg)? + "\n";
+        std::fs::write(&pkg_path, formatted)?;
+    }
+
+    Ok(true)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -335,5 +389,140 @@ describe('test', () => {
 
         let output = format_migrate_output(&result, false);
         assert!(output.contains("No files needed migration"));
+    }
+
+    #[test]
+    fn test_add_vertz_test_dep_adds_to_dev_dependencies() {
+        let tmp = tempfile::tempdir().unwrap();
+        let pkg_json = tmp.path().join("package.json");
+        fs::write(
+            &pkg_json,
+            r#"{
+  "name": "my-app",
+  "devDependencies": {
+    "@vertz/cli": "^0.2.0",
+    "typescript": "^5.8.0"
+  }
+}"#,
+        )
+        .unwrap();
+
+        let changed = add_vertz_test_dep(tmp.path(), false).unwrap();
+        assert!(changed);
+
+        let updated: serde_json::Value =
+            serde_json::from_str(&fs::read_to_string(&pkg_json).unwrap()).unwrap();
+        assert_eq!(
+            updated["devDependencies"]["@vertz/test"].as_str().unwrap(),
+            "^0.2.0"
+        );
+    }
+
+    #[test]
+    fn test_add_vertz_test_dep_uses_existing_vertz_version() {
+        let tmp = tempfile::tempdir().unwrap();
+        let pkg_json = tmp.path().join("package.json");
+        fs::write(
+            &pkg_json,
+            r#"{
+  "name": "my-app",
+  "dependencies": {
+    "vertz": "^0.3.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.8.0"
+  }
+}"#,
+        )
+        .unwrap();
+
+        add_vertz_test_dep(tmp.path(), false).unwrap();
+
+        let updated: serde_json::Value =
+            serde_json::from_str(&fs::read_to_string(&pkg_json).unwrap()).unwrap();
+        assert_eq!(
+            updated["devDependencies"]["@vertz/test"].as_str().unwrap(),
+            "^0.3.0"
+        );
+    }
+
+    #[test]
+    fn test_add_vertz_test_dep_skips_if_already_present() {
+        let tmp = tempfile::tempdir().unwrap();
+        let pkg_json = tmp.path().join("package.json");
+        fs::write(
+            &pkg_json,
+            r#"{
+  "name": "my-app",
+  "devDependencies": {
+    "@vertz/test": "^0.2.0"
+  }
+}"#,
+        )
+        .unwrap();
+
+        let changed = add_vertz_test_dep(tmp.path(), false).unwrap();
+        assert!(!changed);
+    }
+
+    #[test]
+    fn test_add_vertz_test_dep_dry_run_does_not_write() {
+        let tmp = tempfile::tempdir().unwrap();
+        let pkg_json = tmp.path().join("package.json");
+        let original = r#"{
+  "name": "my-app",
+  "devDependencies": {
+    "typescript": "^5.8.0"
+  }
+}"#;
+        fs::write(&pkg_json, original).unwrap();
+
+        let changed = add_vertz_test_dep(tmp.path(), true).unwrap();
+        assert!(changed);
+
+        let actual = fs::read_to_string(&pkg_json).unwrap();
+        assert_eq!(actual, original);
+    }
+
+    #[test]
+    fn test_add_vertz_test_dep_no_package_json() {
+        let tmp = tempfile::tempdir().unwrap();
+        let changed = add_vertz_test_dep(tmp.path(), false).unwrap();
+        assert!(!changed);
+    }
+
+    #[test]
+    fn test_add_vertz_test_dep_preserves_key_order() {
+        let tmp = tempfile::tempdir().unwrap();
+        let pkg_json = tmp.path().join("package.json");
+        fs::write(
+            &pkg_json,
+            r#"{
+  "name": "my-app",
+  "version": "1.0.0",
+  "scripts": {},
+  "dependencies": {
+    "vertz": "^0.2.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.8.0"
+  }
+}"#,
+        )
+        .unwrap();
+
+        add_vertz_test_dep(tmp.path(), false).unwrap();
+
+        let content = fs::read_to_string(&pkg_json).unwrap();
+        let name_pos = content.find("\"name\"").unwrap();
+        let version_pos = content.find("\"version\"").unwrap();
+        let scripts_pos = content.find("\"scripts\"").unwrap();
+        let deps_pos = content.find("\"dependencies\"").unwrap();
+        let dev_deps_pos = content.find("\"devDependencies\"").unwrap();
+
+        assert!(name_pos < version_pos);
+        assert!(version_pos < scripts_pos);
+        assert!(scripts_pos < deps_pos);
+        assert!(deps_pos < dev_deps_pos);
     }
 }

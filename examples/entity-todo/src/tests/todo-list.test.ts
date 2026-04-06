@@ -7,7 +7,7 @@
  * - waitFor() for async assertions
  */
 
-import { beforeEach, describe, expect, test } from 'bun:test';
+import { beforeEach, describe, expect, test } from '@vertz/test';
 import { renderTest, waitFor } from '@vertz/ui/test';
 import { resetMockData } from '../api/mock-data';
 import { TodoListPage } from '../pages/todo-list';

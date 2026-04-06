@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from 'bun:test';
+import { beforeEach, describe, expect, it } from '@vertz/test';
 import { createDb } from '@vertz/db';
 import { createServer } from '@vertz/server';
 import { contacts } from '../src/entities';

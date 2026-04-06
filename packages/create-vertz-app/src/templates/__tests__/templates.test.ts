@@ -14,8 +14,10 @@ import {
   helloWorldAppTemplate,
   helloWorldClaudeMdTemplate,
   helloWorldNavBarTemplate,
+  helloWorldPackageJsonTemplate,
   helloWorldRouterTemplate,
   homePageTemplate,
+  landingPagePackageJsonTemplate,
   packageJsonTemplate,
   schemaTemplate,
   serverTemplate,
@@ -64,6 +66,56 @@ describe('templates', () => {
       expect(pkg.scripts.dev).toBe('vertz dev');
       expect(pkg.scripts.build).toBe('vertz build');
       expect(pkg.scripts.codegen).toBe('vertz codegen');
+    });
+
+    it('includes @vertz/test as devDependency', () => {
+      const result = packageJsonTemplate('test-app');
+      const pkg = JSON.parse(result);
+      expect(pkg.devDependencies['@vertz/test']).toBeDefined();
+    });
+
+    it('includes test script', () => {
+      const result = packageJsonTemplate('test-app');
+      const pkg = JSON.parse(result);
+      expect(pkg.scripts.test).toBe('vertz test');
+    });
+  });
+
+  describe('helloWorldPackageJsonTemplate', () => {
+    it('returns valid JSON', () => {
+      const result = helloWorldPackageJsonTemplate('test-app');
+      expect(() => JSON.parse(result)).not.toThrow();
+    });
+
+    it('includes @vertz/test as devDependency', () => {
+      const result = helloWorldPackageJsonTemplate('test-app');
+      const pkg = JSON.parse(result);
+      expect(pkg.devDependencies['@vertz/test']).toBeDefined();
+    });
+
+    it('includes test script', () => {
+      const result = helloWorldPackageJsonTemplate('test-app');
+      const pkg = JSON.parse(result);
+      expect(pkg.scripts.test).toBe('vertz test');
+    });
+  });
+
+  describe('landingPagePackageJsonTemplate', () => {
+    it('returns valid JSON', () => {
+      const result = landingPagePackageJsonTemplate('test-app');
+      expect(() => JSON.parse(result)).not.toThrow();
+    });
+
+    it('includes @vertz/test as devDependency', () => {
+      const result = landingPagePackageJsonTemplate('test-app');
+      const pkg = JSON.parse(result);
+      expect(pkg.devDependencies['@vertz/test']).toBeDefined();
+    });
+
+    it('includes test script', () => {
+      const result = landingPagePackageJsonTemplate('test-app');
+      const pkg = JSON.parse(result);
+      expect(pkg.scripts.test).toBe('vertz test');
     });
   });
 

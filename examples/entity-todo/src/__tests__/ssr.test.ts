@@ -5,7 +5,7 @@
  * framework's built-in SSR pipeline (@vertz/ui-server/dom-shim + renderToStream).
  */
 
-import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
+import { afterEach, beforeEach, describe, expect, test } from '@vertz/test';
 import { renderToStream, streamToString } from '@vertz/ui-server';
 import { installDomShim, removeDomShim, toVNode } from '@vertz/ui-server/dom-shim';
 import { resetMockData } from '../api/mock-data';
