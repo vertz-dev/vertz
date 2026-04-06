@@ -5,8 +5,8 @@ import { run } from './run';
 import type { SessionLoopResult, StatelessLoopResult } from './run';
 import { memoryStore } from './stores/memory-store';
 import { tool } from './tool';
-import { step, workflow } from './workflow';
-import type { StepDefinition, WorkflowDefinition } from './workflow';
+import { workflow } from './workflow';
+import type { WorkflowDefinition } from './workflow';
 
 // ---------------------------------------------------------------------------
 // Tool type safety
@@ -208,41 +208,128 @@ async function checkSession() {
 void checkSession;
 
 // ---------------------------------------------------------------------------
-// Step type safety
+// Workflow builder type safety
 // ---------------------------------------------------------------------------
 
-// step() carries name as literal type
-const greetStep = step('greet', {
-  output: s.object({ greeting: s.string() }),
-});
-const _stepName: 'greet' = greetStep.name;
-void _stepName;
+// Positive: typed prev accumulation across 3 steps
+const typedPipeline = workflow('typed-pipeline', { input: s.object({ userName: s.string() }) })
+  .step('greet', {
+    agent: testAgent,
+    output: s.object({ greeting: s.string() }),
+  })
+  .step('analyze', {
+    agent: testAgent,
+    input: (ctx) => {
+      const greeting: string = ctx.prev.greet.greeting;
+      return { message: greeting };
+    },
+    output: s.object({ sentiment: s.number() }),
+  })
+  .step('summarize', {
+    agent: testAgent,
+    input: (ctx) => {
+      const g: string = ctx.prev.greet.greeting;
+      const n: number = ctx.prev.analyze.sentiment;
+      return { message: `${g} (${n})` };
+    },
+  })
+  .build();
 
-// step() carries output schema type
-const _stepKind: 'step' = greetStep.kind;
-void _stepKind;
+// Positive: build() returns WorkflowDefinition
+const _wfDef: WorkflowDefinition = typedPipeline;
+void _wfDef;
 
-// ---------------------------------------------------------------------------
-// Workflow type safety
-// ---------------------------------------------------------------------------
+// Positive: single-step workflow
+workflow('one-step', { input: s.object({}) })
+  .step('only', { agent: testAgent, output: s.object({ x: s.string() }) })
+  .build();
 
-// workflow() preserves input schema type
-const pipeline = workflow('test-pipeline', {
-  input: s.object({ userName: s.string() }),
-  steps: [
-    step('greet', {
-      agent: testAgent,
-      output: s.object({ greeting: s.string() }),
-    }),
-  ],
-});
+// Positive: workflow input is typed in step callbacks
+workflow('input-typed', { input: s.object({ count: s.number() }) })
+  .step('use-input', {
+    agent: testAgent,
+    input: (ctx) => {
+      const n: number = ctx.workflow.input.count;
+      return { message: `Count: ${n}` };
+    },
+  })
+  .build();
 
-const _wfKind: 'workflow' = pipeline.kind;
-void _wfKind;
+// Positive: step without output schema gives { response: string }
+workflow('no-output', { input: s.object({}) })
+  .step('raw', { agent: testAgent })
+  .step('consumer', {
+    agent: testAgent,
+    input: (ctx) => {
+      const r: string = ctx.prev.raw.response;
+      return { message: r };
+    },
+  })
+  .build();
 
-// workflow() is a WorkflowDefinition
-const _wfType: WorkflowDefinition = pipeline;
-void _wfType;
+// Positive: explicit output: undefined gives { response: string }
+workflow('explicit-undef', { input: s.object({}) })
+  .step('raw', { agent: testAgent, output: undefined })
+  .step('consumer', {
+    agent: testAgent,
+    input: (ctx) => {
+      const r: string = ctx.prev.raw.response;
+      return { message: r };
+    },
+  })
+  .build();
+
+// Negative: nonexistent step in prev
+workflow('bad-access', { input: s.object({}) })
+  .step('first', { agent: testAgent, output: s.object({ x: s.string() }) })
+  .step('second', {
+    agent: testAgent,
+    input: (ctx) => {
+      // @ts-expect-error — 'nonexistent' step doesn't exist in prev
+      ctx.prev.nonexistent;
+      return '';
+    },
+  })
+  .build();
+
+// Negative: wrong property on step output
+workflow('bad-prop', { input: s.object({}) })
+  .step('first', { agent: testAgent, output: s.object({ x: s.string() }) })
+  .step('second', {
+    agent: testAgent,
+    input: (ctx) => {
+      // @ts-expect-error — 'y' doesn't exist on first's output { x: string }
+      ctx.prev.first.y;
+      return '';
+    },
+  })
+  .build();
+
+// Negative: wrong type assignment
+workflow('bad-type', { input: s.object({}) })
+  .step('first', { agent: testAgent, output: s.object({ x: s.string() }) })
+  .step('second', {
+    agent: testAgent,
+    input: (ctx) => {
+      // @ts-expect-error — x is string, not number
+      const _n: number = ctx.prev.first.x;
+      return '';
+    },
+  })
+  .build();
+
+// Negative: approval-only step not in prev
+workflow('approval-excluded', { input: s.object({}) })
+  .step('review', { approval: { message: 'Approve?' } })
+  .step('execute', {
+    agent: testAgent,
+    input: (ctx) => {
+      // @ts-expect-error — approval-only step has no output in prev
+      ctx.prev.review;
+      return '';
+    },
+  })
+  .build();
 
 // ---------------------------------------------------------------------------
 // Agent-to-agent invocation type safety
