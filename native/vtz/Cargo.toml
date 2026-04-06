@@ -17,8 +17,10 @@ async-trait = "0.1"
 axum = { version = "0.7", features = ["ws"] }
 axum-server = { version = "0.8", features = ["tls-rustls"] }
 clap = { version = "4", features = ["derive"] }
+bitvec = "1"
 crossbeam-channel = "0.5"
 deno_core = "0.311.0"
+smallvec = "1"
 flate2 = "1"
 fs2 = "0.4"
 futures = "0.3"
@@ -85,4 +87,8 @@ required-features = ["desktop"]
 
 [[bench]]
 name = "crud_benchmark"
+harness = false
+
+[[bench]]
+name = "signal_graph"
 harness = false

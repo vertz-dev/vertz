@@ -26,6 +26,7 @@ use super::ops::microtask;
 use super::ops::os;
 use super::ops::path;
 use super::ops::performance;
+use super::ops::signals;
 use super::ops::sqlite;
 use super::ops::streams;
 use super::ops::timers;
@@ -110,6 +111,7 @@ impl VertzJsRuntime {
         ops.extend(fs::op_decls());
         ops.extend(sqlite::op_decls());
         ops.extend(e2e::op_decls());
+        ops.extend(signals::op_decls());
         ops
     }
 
@@ -181,6 +183,7 @@ impl VertzJsRuntime {
         // Register V8 native functions (before bootstrap JS)
         clone::register_structured_clone(&mut runtime);
         async_context::register_promise_hooks(&mut runtime);
+        signals::register_signal_ops(&mut runtime);
 
         // Bootstrap all JS globals
         runtime.execute_script(
@@ -254,6 +257,7 @@ impl VertzJsRuntime {
         // Re-register native V8 functions (not preserved in snapshot)
         clone::register_structured_clone(&mut runtime);
         async_context::register_promise_hooks(&mut runtime);
+        signals::register_signal_ops(&mut runtime);
 
         // Re-install promise hooks from stored functions on globalThis
         runtime.execute_script(
