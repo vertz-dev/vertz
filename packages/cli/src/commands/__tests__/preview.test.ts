@@ -18,8 +18,7 @@ function createMockDeps(overrides?: Partial<PreviewDeps>): PreviewDeps {
     isBuildFresh: () => ({ fresh: true, reason: 'dist/ is up to date' }),
     buildAction: async () => ok(undefined),
     validateBuildOutputs: () => ok(undefined),
-    serve: async () =>
-      ok({ server: mockServer, url: 'http://localhost:4000', aotRouteCount: 0 }),
+    serve: async () => ok({ server: mockServer, url: 'http://localhost:4000', aotRouteCount: 0 }),
     setupGracefulShutdown: vi.fn(),
     openBrowser: vi.fn(),
     log: vi.fn(),
@@ -179,9 +178,7 @@ describe('previewAction', () => {
       if (!result.ok) {
         expect(result.error.message).toBe('Compilation failed');
       }
-      expect(log).toHaveBeenCalledWith(
-        expect.stringContaining('Build failed'),
-      );
+      expect(log).toHaveBeenCalledWith(expect.stringContaining('Build failed'));
     });
   });
 
