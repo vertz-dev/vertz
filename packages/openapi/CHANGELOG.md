@@ -1,5 +1,11 @@
 # @vertz/openapi
 
+## 0.1.6
+
+### Patch Changes
+
+- [#2366](https://github.com/vertz-dev/vertz/pull/2366) [`3317b59`](https://github.com/vertz-dev/vertz/commit/3317b59a442f39d4a9ebb77e56fa2938d6f66ffe) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - Add `@vertz/fetch` as a peer dependency (`>=0.2.47`) so package managers enforce the version that includes the `QueryParams` type fix (#2217).
+
 ## 0.1.5
 
 ### Patch Changes
