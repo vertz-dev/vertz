@@ -90,7 +90,8 @@ pub struct VertzJsRuntime {
 impl VertzJsRuntime {
     /// Collect all op declarations for the Vertz runtime extension.
     ///
-    /// Single source of truth — used by both `new()` and the test snapshot.
+    /// Single source of truth — used by `new()`, the test snapshot, and
+    /// the production snapshot.
     pub(crate) fn all_op_decls() -> Vec<deno_core::OpDecl> {
         let mut ops = Vec::new();
         ops.extend(async_context::op_decls());
@@ -117,7 +118,8 @@ impl VertzJsRuntime {
 
     /// Concatenate all bootstrap JS into a single string.
     ///
-    /// Single source of truth — used by both `new()` and the test snapshot.
+    /// Single source of truth — used by `new()`, the test snapshot, and
+    /// the production snapshot.
     pub(crate) fn bootstrap_js() -> String {
         [
             clone::CLONE_BOOTSTRAP_JS,
@@ -441,22 +443,14 @@ impl VertzJsRuntime {
                 .to_string()
         });
 
-        let module_loader = if options.shared_source_cache.is_some()
-            || options.v8_code_cache.is_some()
-            || options.resolution_cache.is_some()
-            || cache_enabled
-        {
-            Rc::new(VertzModuleLoader::new_with_shared_cache(
-                &root_dir,
-                cache_enabled,
-                options.plugin.clone(),
-                options.shared_source_cache.clone(),
-                options.v8_code_cache.clone(),
-                options.resolution_cache.clone(),
-            ))
-        } else {
-            Rc::new(VertzModuleLoader::new(&root_dir, options.plugin.clone()))
-        };
+        let module_loader = Rc::new(VertzModuleLoader::new_with_shared_cache(
+            &root_dir,
+            cache_enabled,
+            options.plugin.clone(),
+            options.shared_source_cache.clone(),
+            options.v8_code_cache.clone(),
+            options.resolution_cache.clone(),
+        ));
 
         let snapshot = crate::runtime::snapshot::get_production_snapshot();
 
