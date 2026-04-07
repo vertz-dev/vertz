@@ -81,6 +81,7 @@ fn build_dev_config(args: &cli::DevArgs) -> ServerConfig {
 #[cfg(feature = "desktop")]
 fn run_desktop_mode(cli: Cli) {
     use vertz_runtime::server::http::{start_server_with_lifecycle, ServerLifecycle};
+    use vertz_runtime::webview::ipc_dispatcher::IpcDispatcher;
     use vertz_runtime::webview::{UserEvent, WebviewApp, WebviewOptions};
 
     let Command::Dev(args) = cli.command else {
@@ -107,9 +108,16 @@ fn run_desktop_mode(cli: Cli) {
 
     let proxy = app.proxy();
 
+    // Channel to send the tokio handle back to the main thread
+    let (handle_tx, handle_rx) = std::sync::mpsc::channel();
+
     // Background thread: tokio runtime + dev server
     std::thread::spawn(move || {
         let rt = tokio::runtime::Runtime::new().expect("failed to create tokio runtime");
+
+        // Send the runtime handle to the main thread for IPC dispatch
+        let _ = handle_tx.send(rt.handle().clone());
+
         rt.block_on(async move {
             let (ready_tx, ready_rx) = tokio::sync::oneshot::channel();
             let (shutdown_tx, server_shutdown_rx) = tokio::sync::oneshot::channel();
@@ -140,8 +148,14 @@ fn run_desktop_mode(cli: Cli) {
         });
     });
 
+    // Wait for the tokio handle from the background thread
+    let tokio_handle = handle_rx.recv().expect("failed to receive tokio handle");
+
+    // Create IPC dispatcher with the tokio handle and event loop proxy
+    let dispatcher = IpcDispatcher::new(tokio_handle, app.proxy());
+
     // Main thread: run the native event loop (blocks forever)
-    app.run();
+    app.run(Some(dispatcher));
 }
 
 /// E2E test mode: hidden webview on main thread, tokio + test runner on background thread.
@@ -232,7 +246,7 @@ fn run_e2e_test_mode(cli: Cli) {
     });
 
     // Main thread: run the native event loop (blocks until Quit event)
-    app.run();
+    app.run(None);
 }
 
 async fn async_main(cli: Cli) {
