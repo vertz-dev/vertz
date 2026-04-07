@@ -657,9 +657,7 @@ describe('IR Adapter - Entities', () => {
         response: {
           kind: 'inline',
           sourceFile: '/test.ts',
-          resolvedFields: [
-            { name: 'id', tsType: 'string', optional: false },
-          ],
+          resolvedFields: [{ name: 'id', tsType: 'string', optional: false }],
         },
         resolved: true,
       };

@@ -12,9 +12,7 @@ function createCodegenIR(entities: CodegenEntityModule[]): CodegenIR {
   };
 }
 
-function createEntityWithExpose(
-  overrides: Partial<CodegenEntityModule> = {},
-): CodegenEntityModule {
+function createEntityWithExpose(overrides: Partial<CodegenEntityModule> = {}): CodegenEntityModule {
   return {
     entityName: 'task',
     operations: [
@@ -49,9 +47,7 @@ function createEntityWithExpose(
         operationId: 'createTask',
         inputSchema: 'CreateTaskInput',
         outputSchema: 'TaskResponse',
-        resolvedFields: [
-          { name: 'title', tsType: 'string', optional: false },
-        ],
+        resolvedFields: [{ name: 'title', tsType: 'string', optional: false }],
       },
       {
         kind: 'update',
@@ -60,9 +56,7 @@ function createEntityWithExpose(
         operationId: 'updateTask',
         inputSchema: 'UpdateTaskInput',
         outputSchema: 'TaskResponse',
-        resolvedFields: [
-          { name: 'title', tsType: 'string', optional: true },
-        ],
+        resolvedFields: [{ name: 'title', tsType: 'string', optional: true }],
       },
       {
         kind: 'delete',
@@ -169,7 +163,7 @@ describe('Entity SDK Generator - Query Types', () => {
 
       expect(sdkFile?.content).toContain('(body: CreateTaskInput)');
       expect(sdkFile?.content).toContain('(id: string, body: UpdateTaskInput)');
-      expect(sdkFile?.content).toContain('(id: string) => createMutationDescriptor(\'DELETE\'');
+      expect(sdkFile?.content).toContain("(id: string) => createMutationDescriptor('DELETE'");
     });
   });
 

@@ -147,9 +147,7 @@ export class EntitySdkGenerator implements Generator {
           if (op.outputSchema) {
             const queryType = hasExposeSelect ? `${pascal}GetQuery` : 'VertzQLParams';
             lines.push(`      (`);
-            lines.push(
-              `        id: string, options?: ${queryType},`,
-            );
+            lines.push(`        id: string, options?: ${queryType},`);
             lines.push(`      ) => {`);
             lines.push(`        const resolvedQuery = resolveVertzQL(options);`);
             lines.push(

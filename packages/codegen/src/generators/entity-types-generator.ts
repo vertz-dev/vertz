@@ -120,9 +120,7 @@ export class EntityTypesGenerator implements Generator {
       const hasGet = entity.operations.some((op) => op.kind === 'get');
 
       if (hasList) {
-        lines.push(
-          this.emitListQuery(entityPascal, selectType, hasWhere, hasOrderBy, hasInclude),
-        );
+        lines.push(this.emitListQuery(entityPascal, selectType, hasWhere, hasOrderBy, hasInclude));
         lines.push('');
       }
       if (hasGet) {
@@ -237,10 +235,7 @@ export class EntityTypesGenerator implements Generator {
     return `export interface ${typeName} {\n${props};\n}`;
   }
 
-  private whereOperators(
-    tsType: CodegenResolvedField['tsType'],
-    mapped: string,
-  ): string {
+  private whereOperators(tsType: CodegenResolvedField['tsType'], mapped: string): string {
     const ops: string[] = [`eq?: ${mapped}`, `neq?: ${mapped}`];
     if (tsType === 'string') {
       ops.push(`in?: ${mapped}[]`, `like?: ${mapped}`, `contains?: ${mapped}`);
@@ -299,9 +294,7 @@ export class EntityTypesGenerator implements Generator {
           }
         }
         if (config?.allowOrderBy?.length) {
-          const orderFields = config.allowOrderBy
-            .map((f) => `${f}?: 'asc' | 'desc'`)
-            .join('; ');
+          const orderFields = config.allowOrderBy.map((f) => `${f}?: 'asc' | 'desc'`).join('; ');
           parts.push(`orderBy?: { ${orderFields} }`);
         }
         if (config?.maxLimit !== undefined) {
@@ -336,11 +329,7 @@ export class EntityTypesGenerator implements Generator {
     return `export interface ${entityPascal}ListQuery {\n${props.join(';\n')};\n}`;
   }
 
-  private emitGetQuery(
-    entityPascal: string,
-    selectType: string,
-    hasInclude: boolean,
-  ): string {
+  private emitGetQuery(entityPascal: string, selectType: string, hasInclude: boolean): string {
     const props: string[] = [`  select?: ${selectType}`];
     if (hasInclude) props.push(`  include?: ${entityPascal}IncludeInput`);
     return `export interface ${entityPascal}GetQuery {\n${props.join(';\n')};\n}`;

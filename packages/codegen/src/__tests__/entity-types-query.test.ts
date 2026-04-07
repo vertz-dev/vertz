@@ -12,9 +12,7 @@ function createCodegenIR(entities: CodegenEntityModule[]): CodegenIR {
   };
 }
 
-function createEntityWithExpose(
-  overrides: Partial<CodegenEntityModule> = {},
-): CodegenEntityModule {
+function createEntityWithExpose(overrides: Partial<CodegenEntityModule> = {}): CodegenEntityModule {
   return {
     entityName: 'task',
     operations: [
@@ -92,7 +90,7 @@ describe('Entity Types Generator - Query Types', () => {
 
       expect(typesFile?.content).toContain('export interface TaskWhereInput {');
       expect(typesFile?.content).toContain(
-        "status?: string | { eq?: string; neq?: string; in?: string[]; like?: string; contains?: string }",
+        'status?: string | { eq?: string; neq?: string; in?: string[]; like?: string; contains?: string }',
       );
     });
 
@@ -105,7 +103,7 @@ describe('Entity Types Generator - Query Types', () => {
       const typesFile = files.find((f) => f.path === 'types/task.ts');
 
       expect(typesFile?.content).toContain(
-        "priority?: number | { eq?: number; neq?: number; gt?: number; lt?: number; gte?: number; lte?: number; in?: number[] }",
+        'priority?: number | { eq?: number; neq?: number; gt?: number; lt?: number; gte?: number; lte?: number; in?: number[] }',
       );
     });
 
@@ -117,9 +115,7 @@ describe('Entity Types Generator - Query Types', () => {
       const files = generator.generate(ir, { outputDir: '', options: {} });
       const typesFile = files.find((f) => f.path === 'types/task.ts');
 
-      expect(typesFile?.content).toContain(
-        "isActive?: boolean | { eq?: boolean; neq?: boolean }",
-      );
+      expect(typesFile?.content).toContain('isActive?: boolean | { eq?: boolean; neq?: boolean }');
     });
 
     it('generates WhereInput with range operators for date fields', () => {
@@ -131,7 +127,7 @@ describe('Entity Types Generator - Query Types', () => {
       const typesFile = files.find((f) => f.path === 'types/task.ts');
 
       expect(typesFile?.content).toContain(
-        "createdAt?: string | { eq?: string; neq?: string; gt?: string; lt?: string; gte?: string; lte?: string; in?: string[] }",
+        'createdAt?: string | { eq?: string; neq?: string; gt?: string; lt?: string; gte?: string; lte?: string; in?: string[] }',
       );
     });
 
@@ -144,7 +140,7 @@ describe('Entity Types Generator - Query Types', () => {
       const typesFile = files.find((f) => f.path === 'types/task.ts');
 
       expect(typesFile?.content).toContain(
-        "metadata?: unknown | { eq?: unknown; neq?: unknown; in?: unknown[] }",
+        'metadata?: unknown | { eq?: unknown; neq?: unknown; in?: unknown[] }',
       );
     });
 
@@ -299,7 +295,7 @@ describe('Entity Types Generator - Query Types', () => {
       expect(typesFile?.content).toContain('export interface TaskIncludeInput {');
       expect(typesFile?.content).toContain('select?: { id?: true; text?: true }');
       expect(typesFile?.content).toContain(
-        "status?: string | { eq?: string; neq?: string; in?: string[]; like?: string; contains?: string }",
+        'status?: string | { eq?: string; neq?: string; in?: string[]; like?: string; contains?: string }',
       );
       expect(typesFile?.content).toContain("createdAt?: 'asc' | 'desc'");
       expect(typesFile?.content).toContain('limit?: number');
@@ -322,9 +318,7 @@ describe('Entity Types Generator - Query Types', () => {
             entity: 'comment',
             type: 'many',
             select: [{ name: 'id', conditional: false }],
-            resolvedFields: [
-              { name: 'id', tsType: 'string', optional: false },
-            ],
+            resolvedFields: [{ name: 'id', tsType: 'string', optional: false }],
           },
         ],
         relationQueryConfig: {
@@ -353,9 +347,7 @@ describe('Entity Types Generator - Query Types', () => {
             name: 'assignee',
             entity: 'user',
             type: 'one',
-            resolvedFields: [
-              { name: 'id', tsType: 'string', optional: false },
-            ],
+            resolvedFields: [{ name: 'id', tsType: 'string', optional: false }],
           },
         ],
       });
@@ -383,9 +375,7 @@ describe('Entity Types Generator - Query Types', () => {
             name: 'assignee',
             entity: 'user',
             type: 'one',
-            resolvedFields: [
-              { name: 'id', tsType: 'string', optional: false },
-            ],
+            resolvedFields: [{ name: 'id', tsType: 'string', optional: false }],
           },
         ],
       });
@@ -466,9 +456,7 @@ describe('Entity Types Generator - Query Types', () => {
       entity.operations = entity.operations.map((op) => ({
         ...op,
         outputSchema: op.outputSchema ? 'TaskCategoryResponse' : undefined,
-        inputSchema: op.inputSchema
-          ? op.inputSchema.replace('Task', 'TaskCategory')
-          : undefined,
+        inputSchema: op.inputSchema ? op.inputSchema.replace('Task', 'TaskCategory') : undefined,
       }));
       const ir = createCodegenIR([entity]);
       const files = generator.generate(ir, { outputDir: '', options: {} });
