@@ -11,6 +11,12 @@
 export type { CSSInput, CSSOutput, StyleEntry, StyleValue } from './css';
 export { css } from './css';
 export type {
+  CamelCSSDeclarations,
+  CamelCSSPropertyName,
+  CSSDeclarations,
+  CSSPropertyName,
+} from './css-properties';
+export type {
   CompiledFonts,
   CompileFontsOptions,
   FallbackFontName,

@@ -32,15 +32,16 @@ import { generateClassName } from './class-generator';
 import { parseShorthand } from './shorthand-parser';
 import type { CSSDeclaration } from './token-resolver';
 import { resolveToken } from './token-resolver';
+import type { CSSDeclarations } from './css-properties';
 import type { UtilityClass } from './utility-types';
 
 /**
  * A value within a nested selector array: utility class string or CSS declarations map.
  *
  * Use a utility string for design token shorthands: 'p:4', 'bg:primary'
- * Use Record<string, string> for raw CSS: { 'flex-direction': 'row' }
+ * Use CSSDeclarations for raw CSS: { 'flex-direction': 'row' }
  */
-export type StyleValue = UtilityClass | Record<string, string>;
+export type StyleValue = UtilityClass | CSSDeclarations;
 
 /**
  * A style entry: utility class string or nested selectors map.
@@ -49,7 +50,7 @@ export type StyleValue = UtilityClass | Record<string, string>;
  * - Array form: ['text:foreground', { 'background-color': 'red' }]
  * - Direct object: { 'flex-direction': 'row', 'align-items': 'center' }
  */
-export type StyleEntry = UtilityClass | Record<string, StyleValue[] | Record<string, string>>;
+export type StyleEntry = UtilityClass | Record<string, StyleValue[] | CSSDeclarations>;
 
 /** Input to css(): a record of named style blocks. */
 export type CSSInput = Record<string, StyleEntry[]>;
@@ -195,14 +196,14 @@ export function css<T extends CSSInput>(
                 nestedDecls.push(...resolved.declarations);
               } else {
                 // CSS declarations map: { 'background-color': 'red', ... }
-                for (const [prop, val] of Object.entries(nestedEntry)) {
+                for (const [prop, val] of Object.entries(nestedEntry) as [string, string][]) {
                   nestedDecls.push({ property: prop, value: val });
                 }
               }
             }
           } else {
             // Direct object form: { 'flex-direction': 'row', 'align-items': 'center' }
-            for (const [prop, val] of Object.entries(nestedValue)) {
+            for (const [prop, val] of Object.entries(nestedValue) as [string, string][]) {
               nestedDecls.push({ property: prop, value: val });
             }
           }
@@ -263,18 +264,20 @@ function serializeEntries(entries: StyleEntry[]): string {
               .map((v) => {
                 if (typeof v === 'string') return v;
                 // Sort keys for deterministic fingerprinting
-                return Object.keys(v)
+                const obj = v as Record<string, string>;
+                return Object.keys(obj)
                   .sort()
-                  .map((k) => `${k}=${v[k]}`)
+                  .map((k) => `${k}=${obj[k]}`)
                   .join(',');
               })
               .join(',');
             return `${sel}:{${serialized}}`;
           }
           // Direct object form: sort keys for deterministic fingerprinting
-          const serialized = Object.keys(val)
+          const obj = val as Record<string, string>;
+          const serialized = Object.keys(obj)
             .sort()
-            .map((k) => `${k}=${val[k]}`)
+            .map((k) => `${k}=${obj[k]}`)
             .join(',');
           return `${sel}:{${serialized}}`;
         })

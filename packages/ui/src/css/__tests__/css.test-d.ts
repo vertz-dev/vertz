@@ -413,6 +413,38 @@ void _badUtil8;
 const _badUtil9: StyleEntry = 'items:banana';
 void _badUtil9;
 
+// ─── CSSDeclarations — rejects invalid CSS property names ───────────
+
+// Valid CSS properties in raw declarations
+const _validCssProp1: StyleValue = { 'background-color': 'red' };
+const _validCssProp2: StyleValue = { display: 'flex', 'flex-direction': 'row' };
+void _validCssProp1;
+void _validCssProp2;
+
+// CSS custom properties are valid
+const _validCustomProp: StyleValue = { '--color-primary': '#000' };
+void _validCustomProp;
+
+// Vendor prefixes are valid
+const _validVendor: StyleValue = { '-webkit-backdrop-filter': 'blur(8px)' };
+void _validVendor;
+
+// @ts-expect-error — 'hello' is not a valid CSS property name
+const _invalidCssProp1: StyleValue = { hello: 'world' };
+void _invalidCssProp1;
+
+// @ts-expect-error — 'bgColor' is not a valid CSS property (camelCase not allowed in css())
+const _invalidCssProp2: StyleValue = { bgColor: 'red' };
+void _invalidCssProp2;
+
+// Valid CSS property in nested selector
+const _validNested: StyleEntry = { '&': { 'min-height': '100vh' } };
+void _validNested;
+
+// @ts-expect-error — 'foo' is not a valid CSS property inside nested selector
+const _invalidNested: StyleEntry = { '&': { foo: 'bar' } };
+void _invalidNested;
+
 // ─── UtilityClass in css() calls ───────────────────────────────────
 
 // Valid css() call with all utility types
