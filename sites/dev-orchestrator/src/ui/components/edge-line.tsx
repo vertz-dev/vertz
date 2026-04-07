@@ -1,11 +1,12 @@
 import type { EdgeLineProps } from './edge-line-utils';
-import { edgeCoordinates } from './edge-line-utils';
+import { edgeCoordinates, edgeStrokeColor } from './edge-line-utils';
 
 export type { EdgeLineProps } from './edge-line-utils';
 
-export default function EdgeLine({ fromRow, toRow, animated }: EdgeLineProps) {
+export default function EdgeLine({ fromRow, toRow, animated, status }: EdgeLineProps) {
   const { y1, y2 } = edgeCoordinates(fromRow, toRow);
   const midX = 20;
+  const strokeColor = edgeStrokeColor(status);
 
   return (
     <svg
@@ -24,13 +25,13 @@ export default function EdgeLine({ fromRow, toRow, animated }: EdgeLineProps) {
         y1={y1}
         x2={midX}
         y2={y2}
-        stroke="var(--color-border)"
+        stroke={strokeColor}
         strokeWidth="2"
-        strokeDasharray={animated ? '6 4' : 'none'}
+        strokeDasharray={animated ? '6 4' : status === 'pending' ? '4 4' : 'none'}
       />
       <polygon
         points={`${midX - 4},${y2 - 6} ${midX + 4},${y2 - 6} ${midX},${y2}`}
-        fill="var(--color-border)"
+        fill={strokeColor}
       />
     </svg>
   );

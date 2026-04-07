@@ -43,14 +43,19 @@ export default function WorkflowDiagram({
         const fromNode = layout.nodes.find((n) => n.name === edge.from);
         const toNode = layout.nodes.find((n) => n.name === edge.to);
         if (!fromNode || !toNode) return null;
-        const isActive = activeRun?.stepStatuses[edge.from] === 'completed'
-          && activeRun?.stepStatuses[edge.to] === 'active';
+        const fromStatus = activeRun?.stepStatuses[edge.from];
+        const toStatus = activeRun?.stepStatuses[edge.to];
+        const isActive = fromStatus === 'completed' && toStatus === 'active';
+        const edgeStatus = fromStatus === 'completed' && toStatus === 'completed'
+          ? 'completed' as const
+          : isActive ? 'active' as const : 'pending' as const;
         return (
           <EdgeLine
             key={`${edge.from}-${edge.to}`}
             fromRow={fromNode.row}
             toRow={toNode.row}
             animated={isActive}
+            status={activeRun ? edgeStatus : undefined}
           />
         );
       })}

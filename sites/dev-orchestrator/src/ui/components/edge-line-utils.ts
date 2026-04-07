@@ -2,6 +2,15 @@ export interface EdgeLineProps {
   readonly fromRow: number;
   readonly toRow: number;
   readonly animated: boolean;
+  readonly status?: 'completed' | 'active' | 'pending';
+}
+
+export function edgeStrokeColor(status?: string): string {
+  switch (status) {
+    case 'completed': return 'hsl(142, 76%, 36%)';
+    case 'active': return 'hsl(217, 91%, 60%)';
+    default: return 'var(--color-border)';
+  }
 }
 
 export const NODE_HEIGHT = 52;

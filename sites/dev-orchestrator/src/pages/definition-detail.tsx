@@ -1,6 +1,10 @@
 import { query } from '@vertz/ui/query';
 import { useParams, useRouter } from '@vertz/ui/router';
+import type { WorkflowRun } from '../api/services/workflows';
 import WorkflowDiagram from '../ui/components/workflow-diagram';
+import { buildOverlay } from '../ui/components/live-overlay-utils';
+import type { StepProgressEvent } from '../ui/lib/sse-client';
+import { createWorkflowStream } from '../ui/lib/sse-client';
 import { sdk } from '../lib/sdk';
 import { resolveSelectedAgent, toggleStep } from './definition-detail-utils';
 
@@ -82,13 +86,42 @@ export default function DefinitionDetailPage() {
   const { navigate } = useRouter();
   let selectedStep: string | undefined;
 
+  let sseEvents: StepProgressEvent[] = [];
+
   const defQuery = query(
     () => sdk.definitions.get({ name }),
     { key: `definition-${name}` },
   );
 
+  // Check for an active run of this definition
+  const activeRunQuery = query(
+    () => sdk.workflows.list({ status: 'running', page: 1, pageSize: 1 }),
+    { key: `active-run-${name}`, refetchInterval: 10000 },
+  );
+
+  const activeRun = (): WorkflowRun | null => {
+    const runs = activeRunQuery.data?.runs ?? [];
+    return runs[0] ?? null;
+  };
+
+  // Subscribe to SSE for the active run
+  const activeRunId = activeRun()?.id;
+  if (activeRunId) {
+    const stream = createWorkflowStream(activeRunId);
+    stream.subscribe((event) => {
+      sseEvents = [...sseEvents, event];
+    });
+  }
+
   const definition = () => defQuery.data;
   const selectedAgent = () => resolveSelectedAgent(definition(), selectedStep);
+
+  const liveOverlay = () => {
+    const run = activeRun();
+    if (!run || !definition()) return undefined;
+    const stepNames = definition()!.steps.map((s) => s.name);
+    return buildOverlay(stepNames, run.currentStep, sseEvents);
+  };
 
   const handleStepSelect = (step: string) => {
     selectedStep = toggleStep(selectedStep, step);
@@ -110,6 +143,7 @@ export default function DefinitionDetailPage() {
         {definition() && (
           <WorkflowDiagram
             definition={definition()!}
+            activeRun={liveOverlay()}
             selectedStep={selectedStep}
             onStepSelect={handleStepSelect}
           />

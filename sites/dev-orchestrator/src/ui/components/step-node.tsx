@@ -1,3 +1,4 @@
+import { statusBadge, statusBadgeColor } from './live-overlay-utils';
 import type { StepNodeProps } from './step-node-utils';
 import { stepNodeBackground, stepNodeBorderColor } from './step-node-utils';
 
@@ -14,6 +15,7 @@ const styles = {
     cursor: 'pointer',
     transition: 'border-color 0.15s, background 0.15s',
     minWidth: '140px',
+    position: 'relative' as const,
   },
   approval: {
     borderStyle: 'dashed',
@@ -32,6 +34,20 @@ const styles = {
     width: '20px',
     textAlign: 'center' as const,
   },
+  badge: {
+    position: 'absolute' as const,
+    top: '-6px',
+    right: '-6px',
+    width: '18px',
+    height: '18px',
+    borderRadius: '50%',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    fontSize: '11px',
+    fontWeight: '700' as const,
+    color: 'white',
+  },
 };
 
 export default function StepNode({ name, type, agent, selected, status, onClick }: StepNodeProps) {
@@ -40,7 +56,11 @@ export default function StepNode({ name, type, agent, selected, status, onClick 
     ...(type === 'approval' ? styles.approval : {}),
     borderColor: stepNodeBorderColor(status, selected),
     background: stepNodeBackground(status, selected),
+    ...(status === 'active' ? { boxShadow: '0 0 0 3px hsla(217, 91%, 60%, 0.2)' } : {}),
   };
+
+  const badge = status ? statusBadge(status) : '';
+  const badgeColor = status ? statusBadgeColor(status) : 'transparent';
 
   return (
     <div
@@ -55,6 +75,9 @@ export default function StepNode({ name, type, agent, selected, status, onClick 
         <div style={styles.name}>{name}</div>
         {agent && <div style={styles.agent}>{agent}</div>}
       </div>
+      {badge && (
+        <span style={{ ...styles.badge, background: badgeColor }}>{badge}</span>
+      )}
     </div>
   );
 }
