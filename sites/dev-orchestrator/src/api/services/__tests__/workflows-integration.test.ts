@@ -31,6 +31,7 @@ function createTestStore(): WorkflowStore {
         status: 'running',
         currentStep: 'plan',
         steps: {},
+        artifacts: [],
         createdAt: new Date().toISOString(),
       };
       runs.set(id, run);

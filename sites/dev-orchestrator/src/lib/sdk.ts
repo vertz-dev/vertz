@@ -1,5 +1,5 @@
 import type { AgentInfo } from "../api/services/dashboard";
-import type { WorkflowRun } from "../api/services/workflows";
+import type { StepRunDetail, WorkflowArtifact, WorkflowRun } from "../api/services/workflows";
 
 type SdkMethod<TBody, TResult> = ((body: TBody) => Promise<TResult>) & {
   readonly url: string;
@@ -73,6 +73,26 @@ export const sdk = {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ id }),
+        }),
+    ),
+    stepDetail: createMethod<{ runId: string; step: string }, StepRunDetail | null>(
+      "/api/workflows/stepDetail",
+      "POST",
+      (body) =>
+        requestJson<StepRunDetail | null>("/api/workflows/stepDetail", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        }),
+    ),
+    artifacts: createMethod<{ runId: string }, { artifacts: WorkflowArtifact[] }>(
+      "/api/workflows/artifacts",
+      "POST",
+      (body) =>
+        requestJson<{ artifacts: WorkflowArtifact[] }>("/api/workflows/artifacts", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
         }),
     ),
   },

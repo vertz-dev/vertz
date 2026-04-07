@@ -7,7 +7,7 @@ import { handleWorkflowStream } from './workflow-stream';
 function readWithTimeout(
   reader: ReadableStreamDefaultReader<Uint8Array>,
   ms = 5000,
-): Promise<ReadableStreamReadResult<Uint8Array>> {
+): Promise<Awaited<ReturnType<ReadableStreamDefaultReader<Uint8Array>['read']>>> {
   return Promise.race([
     reader.read(),
     new Promise<never>((_, reject) =>

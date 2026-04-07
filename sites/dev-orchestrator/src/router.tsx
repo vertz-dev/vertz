@@ -7,6 +7,9 @@ const routes = defineRoutes({
   '/workflows/:id': {
     component: () => import('./pages/workflow-detail'),
   },
+  '/workflows/:id/steps/:step': {
+    component: () => import('./pages/step-inspector'),
+  },
   '/agents': {
     component: () => import('./pages/agents'),
   },

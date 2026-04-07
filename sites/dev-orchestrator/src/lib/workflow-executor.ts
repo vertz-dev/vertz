@@ -1,6 +1,13 @@
 import { runWorkflow } from '@vertz/agents';
-import type { AdapterFactory, LLMAdapter, ToolProvider, WorkflowDefinition, StepResult } from '@vertz/agents';
-import type { WorkflowRun, WorkflowStore } from '../api/services/workflows';
+import type {
+  AdapterFactory,
+  LLMAdapter,
+  StepProgressEvent,
+  StepResult,
+  ToolProvider,
+  WorkflowDefinition,
+} from '@vertz/agents';
+import type { StepRunDetail, WorkflowRun, WorkflowStore } from '../api/services/workflows';
 import type { ProgressEmitter } from './progress-emitter';
 
 export interface WorkflowExecutor {
@@ -15,6 +22,32 @@ export interface WorkflowExecutorOptions {
   readonly tools?: ToolProvider;
   /** Optional progress emitter for step events. */
   readonly emitter?: ProgressEmitter;
+}
+
+/** Build rich step details from step results + progress events. */
+function buildStepDetails(
+  stepResults: Record<string, StepResult>,
+  events: readonly StepProgressEvent[],
+): Record<string, StepRunDetail> {
+  const steps: Record<string, StepRunDetail> = {};
+  for (const [name, stepResult] of Object.entries(stepResults)) {
+    const started = events.find((e) => e.step === name && e.type === 'step-started');
+    const ended = events.find(
+      (e) => e.step === name && (e.type === 'step-completed' || e.type === 'step-failed'),
+    );
+    const duration =
+      started && ended ? ended.timestamp - started.timestamp : undefined;
+
+    steps[name] = {
+      status: stepResult.status,
+      output: stepResult.response,
+      startedAt: started ? new Date(started.timestamp).toISOString() : undefined,
+      completedAt: ended ? new Date(ended.timestamp).toISOString() : undefined,
+      iterations: stepResult.iterations,
+      duration,
+    };
+  }
+  return steps;
 }
 
 export function createWorkflowExecutor(
@@ -39,13 +72,8 @@ export function createWorkflowExecutor(
             : undefined,
         });
 
-        const steps: Record<string, { status: string; output?: string }> = {};
-        for (const [name, stepResult] of Object.entries(result.stepResults)) {
-          steps[name] = {
-            status: stepResult.status,
-            output: stepResult.response,
-          };
-        }
+        const events = options?.emitter?.snapshot(run.id) ?? [];
+        const steps = buildStepDetails(result.stepResults, events);
 
         if (result.status === 'pending' && result.pendingStep) {
           pendingResults.set(run.id, result.stepResults);
@@ -102,15 +130,11 @@ export function createWorkflowExecutor(
             : undefined,
         });
 
-        const steps: Record<string, { status: string; output?: string }> = {
+        const events = options?.emitter?.snapshot(runId) ?? [];
+        const steps: Record<string, StepRunDetail> = {
           ...run.steps,
+          ...buildStepDetails(result.stepResults, events),
         };
-        for (const [name, stepResult] of Object.entries(result.stepResults)) {
-          steps[name] = {
-            status: stepResult.status,
-            output: stepResult.response,
-          };
-        }
 
         if (result.status === 'complete') {
           store.update(runId, {

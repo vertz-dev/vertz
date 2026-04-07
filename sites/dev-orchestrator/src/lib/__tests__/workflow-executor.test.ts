@@ -32,6 +32,7 @@ function createTestStore(): WorkflowStore & { data: Map<string, WorkflowRun> } {
         status: 'running',
         currentStep: 'plan',
         steps: {},
+        artifacts: [],
         createdAt: new Date().toISOString(),
       };
       data.set(id, run);

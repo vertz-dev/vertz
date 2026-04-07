@@ -8,13 +8,30 @@ export type WorkflowStatus =
   | 'completed'
   | 'failed';
 
+export interface StepRunDetail {
+  readonly status: string;
+  readonly output?: string;
+  readonly startedAt?: string;
+  readonly completedAt?: string;
+  readonly iterations?: number;
+  readonly duration?: number;
+}
+
+export interface WorkflowArtifact {
+  readonly path: string;
+  readonly content: string;
+  readonly type: string;
+  readonly step: string;
+}
+
 export interface WorkflowRun {
   readonly id: string;
   readonly issueNumber: number;
   readonly repo: string;
   readonly status: WorkflowStatus;
   readonly currentStep: string;
-  readonly steps: Record<string, { status: string; output?: string }>;
+  readonly steps: Record<string, StepRunDetail>;
+  readonly artifacts: readonly WorkflowArtifact[];
   readonly createdAt: string;
 }
 
@@ -25,9 +42,20 @@ export interface WorkflowStore {
   update(id: string, data: Partial<WorkflowRun>): void;
 }
 
-const workflowStepSchema = s.object({
+const stepRunDetailSchema = s.object({
   status: s.string(),
   output: s.string().optional(),
+  startedAt: s.string().optional(),
+  completedAt: s.string().optional(),
+  iterations: s.number().optional(),
+  duration: s.number().optional(),
+});
+
+const artifactSchema = s.object({
+  path: s.string(),
+  content: s.string(),
+  type: s.string(),
+  step: s.string(),
 });
 
 const workflowRunSchema = s.object({
@@ -41,7 +69,8 @@ const workflowRunSchema = s.object({
     'failed',
   ]),
   currentStep: s.string(),
-  steps: s.record(workflowStepSchema),
+  steps: s.record(stepRunDetailSchema),
+  artifacts: s.array(artifactSchema),
   createdAt: s.string(),
 });
 
@@ -57,6 +86,8 @@ export function createWorkflowService(store: WorkflowStore, options?: WorkflowSe
       get: rules.public,
       list: rules.public,
       approve: rules.public,
+      stepDetail: rules.public,
+      artifacts: rules.public,
     },
     actions: {
       start: {
@@ -118,6 +149,28 @@ export function createWorkflowService(store: WorkflowStore, options?: WorkflowSe
             });
           }
           return { approved: true };
+        },
+      },
+
+      stepDetail: {
+        method: 'POST',
+        body: s.object({ runId: s.string(), step: s.string() }),
+        response: stepRunDetailSchema.nullable(),
+        async handler(input: { runId: string; step: string }) {
+          const run = store.get(input.runId);
+          if (!run) return null;
+          return run.steps[input.step] ?? null;
+        },
+      },
+
+      artifacts: {
+        method: 'POST',
+        body: s.object({ runId: s.string() }),
+        response: s.object({ artifacts: s.array(artifactSchema) }),
+        async handler(input: { runId: string }) {
+          const run = store.get(input.runId);
+          if (!run) return { artifacts: [] };
+          return { artifacts: [...run.artifacts] };
         },
       },
     },
