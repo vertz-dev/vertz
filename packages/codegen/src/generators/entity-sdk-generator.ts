@@ -63,6 +63,7 @@ export class EntitySdkGenerator implements Generator {
     const hasMutationOp = entity.operations.some(
       (op) => op.kind === 'create' || op.kind === 'update' || op.kind === 'delete',
     );
+    const hasExposeSelect = !!entity.exposeSelect;
     if (hasTypes) {
       const typeImports = new Set<string>();
       for (const op of entity.operations) {
@@ -72,6 +73,13 @@ export class EntitySdkGenerator implements Generator {
       for (const action of entity.actions) {
         if (action.inputSchema) typeImports.add(action.inputSchema);
         if (action.outputSchema) typeImports.add(action.outputSchema);
+      }
+      // Add query type imports when entity has expose config
+      if (hasExposeSelect) {
+        if (hasListOp) typeImports.add(`${pascal}ListQuery`);
+        if (entity.operations.some((op) => op.kind === 'get')) {
+          typeImports.add(`${pascal}GetQuery`);
+        }
       }
       lines.push(
         `import type { ${[...typeImports].join(', ')} } from '../types/${entity.entityName}';`,
@@ -84,6 +92,7 @@ export class EntitySdkGenerator implements Generator {
       const fetchImportParts: string[] = ['type FetchClient'];
       if (hasListOp) fetchImportParts.push('type ListResponse');
       if (hasMutationOp) fetchImportParts.push('type OptimisticHandler');
+      if (!hasExposeSelect && hasReadOp) fetchImportParts.push('type VertzQLParams');
       fetchImportParts.push('createDescriptor');
       if (hasMutationOp) fetchImportParts.push('createMutationDescriptor');
       if (hasReadOp) fetchImportParts.push('resolveVertzQL');
@@ -112,12 +121,13 @@ export class EntitySdkGenerator implements Generator {
         case 'list': {
           lines.push(`    list: Object.assign(`);
           if (op.outputSchema) {
-            lines.push(`      <K extends keyof ${outputType} = keyof ${outputType}>(`);
-            lines.push(`        query?: { select?: Record<K, true> } & Record<string, unknown>,`);
+            const queryType = hasExposeSelect ? `${pascal}ListQuery` : 'VertzQLParams';
+            lines.push(`      (`);
+            lines.push(`        query?: ${queryType},`);
             lines.push(`      ) => {`);
             lines.push(`        const resolvedQuery = resolveVertzQL(query);`);
             lines.push(
-              `        return createDescriptor('GET', '${op.path}', () => client.get<ListResponse<Pick<${outputType}, K>>>('${op.path}', { query: resolvedQuery }), resolvedQuery, { entityType: '${entity.entityName}', kind: 'list' as const, tenantScoped: ${tenantScopedLiteral} });`,
+              `        return createDescriptor('GET', '${op.path}', () => client.get<ListResponse<${outputType}>>('${op.path}', { query: resolvedQuery }), resolvedQuery, { entityType: '${entity.entityName}', kind: 'list' as const, tenantScoped: ${tenantScopedLiteral} });`,
             );
           } else {
             lines.push(`      (query?: Record<string, unknown>) => {`);
@@ -135,14 +145,15 @@ export class EntitySdkGenerator implements Generator {
           const getPathExpr = `\`${op.path.replace(':id', '${id}')}\``;
           lines.push(`    get: Object.assign(`);
           if (op.outputSchema) {
-            lines.push(`      <K extends keyof ${outputType} = keyof ${outputType}>(`);
+            const queryType = hasExposeSelect ? `${pascal}GetQuery` : 'VertzQLParams';
+            lines.push(`      (`);
             lines.push(
-              `        id: string, options?: { select?: Record<K, true> } & Record<string, unknown>,`,
+              `        id: string, options?: ${queryType},`,
             );
             lines.push(`      ) => {`);
             lines.push(`        const resolvedQuery = resolveVertzQL(options);`);
             lines.push(
-              `        return createDescriptor('GET', ${getPathExpr}, () => client.get<Pick<${outputType}, K>>(${getPathExpr}, { query: resolvedQuery }), resolvedQuery, { entityType: '${entity.entityName}', kind: 'get' as const, id, tenantScoped: ${tenantScopedLiteral} });`,
+              `        return createDescriptor('GET', ${getPathExpr}, () => client.get<${outputType}>(${getPathExpr}, { query: resolvedQuery }), resolvedQuery, { entityType: '${entity.entityName}', kind: 'get' as const, id, tenantScoped: ${tenantScopedLiteral} });`,
             );
           } else {
             lines.push(`      (id: string, options?: { select?: Record<string, true> }) => {`);

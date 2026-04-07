@@ -185,10 +185,10 @@ describe('EntitySdkGenerator', () => {
     const files = generator.generate(ir, { outputDir: '.vertz', options: {} });
     const userFile = files.find((f) => f.path === 'entities/user.ts');
 
-    expect(userFile?.content).toContain('client.get<ListResponse<Pick<UserResponse, K>>>');
+    expect(userFile?.content).toContain('client.get<ListResponse<UserResponse>>');
     expect(userFile?.content).not.toContain('client.get<UserResponse[]>');
     expect(userFile?.content).toContain(
-      "import { type FetchClient, type ListResponse, createDescriptor, resolveVertzQL } from '@vertz/fetch'",
+      "import { type FetchClient, type ListResponse, type VertzQLParams, createDescriptor, resolveVertzQL } from '@vertz/fetch'",
     );
   });
 
@@ -223,7 +223,7 @@ describe('EntitySdkGenerator', () => {
     expect(userFile?.content).toContain('(body: unknown)');
     expect(userFile?.content).toContain('createMutationDescriptor');
     expect(userFile?.content).toContain(
-      "import { type FetchClient, type ListResponse, type OptimisticHandler, createDescriptor, createMutationDescriptor, resolveVertzQL } from '@vertz/fetch'",
+      "import { type FetchClient, type ListResponse, type OptimisticHandler, type VertzQLParams, createDescriptor, createMutationDescriptor, resolveVertzQL } from '@vertz/fetch'",
     );
   });
 
@@ -668,7 +668,7 @@ describe('EntitySdkGenerator', () => {
     const userFile = files.find((f) => f.path === 'entities/user.ts');
 
     expect(userFile?.content).toContain(
-      "import { type FetchClient, createDescriptor, resolveVertzQL } from '@vertz/fetch'",
+      "import { type FetchClient, type VertzQLParams, createDescriptor, resolveVertzQL } from '@vertz/fetch'",
     );
   });
 
@@ -879,11 +879,11 @@ describe('EntitySdkGenerator', () => {
 
       expect(userFile?.content).toContain('resolveVertzQL');
       expect(userFile?.content).toContain(
-        "import { type FetchClient, type ListResponse, createDescriptor, resolveVertzQL } from '@vertz/fetch'",
+        "import { type FetchClient, type ListResponse, type VertzQLParams, createDescriptor, resolveVertzQL } from '@vertz/fetch'",
       );
     });
 
-    it('get() accepts optional options parameter with select and extra props', () => {
+    it('get() accepts optional options parameter with VertzQLParams', () => {
       const ir = createBasicIR([
         {
           entityName: 'user',
@@ -903,13 +903,11 @@ describe('EntitySdkGenerator', () => {
       const files = generator.generate(ir, { outputDir: '.vertz', options: {} });
       const userFile = files.find((f) => f.path === 'entities/user.ts');
 
-      expect(userFile?.content).toContain(
-        'id: string, options?: { select?: Record<K, true> } & Record<string, unknown>',
-      );
+      expect(userFile?.content).toContain('id: string, options?: VertzQLParams');
       expect(userFile?.content).toContain('resolveVertzQL');
     });
 
-    it('list() has generic signature constraining K to keyof ResponseType', () => {
+    it('list() uses VertzQLParams fallback when no exposeSelect', () => {
       const ir = createBasicIR([
         {
           entityName: 'user',
@@ -929,10 +927,11 @@ describe('EntitySdkGenerator', () => {
       const files = generator.generate(ir, { outputDir: '.vertz', options: {} });
       const userFile = files.find((f) => f.path === 'entities/user.ts');
 
-      expect(userFile?.content).toContain('<K extends keyof UserResponse = keyof UserResponse>');
+      expect(userFile?.content).toContain('query?: VertzQLParams');
+      expect(userFile?.content).not.toContain('<K extends keyof');
     });
 
-    it('list() return type uses Pick<ResponseType, K>', () => {
+    it('list() return type uses ListResponse<UserResponse> without Pick', () => {
       const ir = createBasicIR([
         {
           entityName: 'user',
@@ -952,10 +951,11 @@ describe('EntitySdkGenerator', () => {
       const files = generator.generate(ir, { outputDir: '.vertz', options: {} });
       const userFile = files.find((f) => f.path === 'entities/user.ts');
 
-      expect(userFile?.content).toContain('client.get<ListResponse<Pick<UserResponse, K>>>');
+      expect(userFile?.content).toContain('client.get<ListResponse<UserResponse>>');
+      expect(userFile?.content).not.toContain('Pick<');
     });
 
-    it('list() query parameter includes typed select', () => {
+    it('list() query parameter uses VertzQLParams', () => {
       const ir = createBasicIR([
         {
           entityName: 'user',
@@ -975,12 +975,10 @@ describe('EntitySdkGenerator', () => {
       const files = generator.generate(ir, { outputDir: '.vertz', options: {} });
       const userFile = files.find((f) => f.path === 'entities/user.ts');
 
-      expect(userFile?.content).toContain(
-        'query?: { select?: Record<K, true> } & Record<string, unknown>',
-      );
+      expect(userFile?.content).toContain('query?: VertzQLParams');
     });
 
-    it('get() has generic signature constraining K to keyof ResponseType', () => {
+    it('get() uses VertzQLParams fallback when no exposeSelect', () => {
       const ir = createBasicIR([
         {
           entityName: 'user',
@@ -1000,10 +998,11 @@ describe('EntitySdkGenerator', () => {
       const files = generator.generate(ir, { outputDir: '.vertz', options: {} });
       const userFile = files.find((f) => f.path === 'entities/user.ts');
 
-      expect(userFile?.content).toContain('<K extends keyof UserResponse = keyof UserResponse>');
+      expect(userFile?.content).toContain('options?: VertzQLParams');
+      expect(userFile?.content).not.toContain('<K extends keyof');
     });
 
-    it('get() return type uses Pick<ResponseType, K>', () => {
+    it('get() return type uses UserResponse without Pick', () => {
       const ir = createBasicIR([
         {
           entityName: 'user',
@@ -1023,10 +1022,11 @@ describe('EntitySdkGenerator', () => {
       const files = generator.generate(ir, { outputDir: '.vertz', options: {} });
       const userFile = files.find((f) => f.path === 'entities/user.ts');
 
-      expect(userFile?.content).toContain('client.get<Pick<UserResponse, K>>');
+      expect(userFile?.content).toContain('client.get<UserResponse>');
+      expect(userFile?.content).not.toContain('Pick<');
     });
 
-    it('get() options parameter includes typed select and Record<string, unknown>', () => {
+    it('get() options parameter uses VertzQLParams', () => {
       const ir = createBasicIR([
         {
           entityName: 'user',
@@ -1046,9 +1046,7 @@ describe('EntitySdkGenerator', () => {
       const files = generator.generate(ir, { outputDir: '.vertz', options: {} });
       const userFile = files.find((f) => f.path === 'entities/user.ts');
 
-      expect(userFile?.content).toContain(
-        'id: string, options?: { select?: Record<K, true> } & Record<string, unknown>',
-      );
+      expect(userFile?.content).toContain('id: string, options?: VertzQLParams');
     });
 
     it('preserves non-generic list signature when output schema is undefined', () => {
