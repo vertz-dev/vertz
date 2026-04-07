@@ -261,6 +261,19 @@ export function workflow<TInputSchema extends SchemaAny>(
 // Workflow execution
 // ---------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------
+// Step progress events
+// ---------------------------------------------------------------------------
+
+/** Event emitted during workflow execution to track step progress. */
+export interface StepProgressEvent {
+  readonly step: string;
+  readonly type: 'step-started' | 'step-completed' | 'step-failed';
+  readonly timestamp: number;
+  readonly iterations?: number;
+  readonly response?: string;
+}
+
 /** Status of a workflow execution. */
 export type WorkflowStatus = 'complete' | 'error' | 'pending';
 
@@ -293,6 +306,8 @@ export interface RunWorkflowOptions<TInput = unknown> {
   readonly resumeAfter?: string;
   /** Previous step results to restore when resuming. */
   readonly previousResults?: Record<string, StepResult>;
+  /** Optional callback for step progress events. Fire-and-forget (synchronous). */
+  readonly onStepProgress?: (event: StepProgressEvent) => void;
 }
 
 /**
@@ -328,7 +343,15 @@ export async function runWorkflow<TInputSchema extends SchemaAny>(
   workflowDef: WorkflowDefinition<TInputSchema>,
   options: RunWorkflowOptions<InferSchema<TInputSchema>>,
 ): Promise<WorkflowResult> {
-  const { input, llm, createAdapter, tools: toolProvider, resumeAfter, previousResults } = options;
+  const {
+    input,
+    llm,
+    createAdapter,
+    tools: toolProvider,
+    resumeAfter,
+    previousResults,
+    onStepProgress,
+  } = options;
 
   // Validate input against workflow schema
   const parseResult = workflowDef.input.parse(input);
@@ -392,6 +415,9 @@ export async function runWorkflow<TInputSchema extends SchemaAny>(
       throw new Error(`Step "${stepDef.name}" has no agent assigned.`);
     }
 
+    // Emit step-started event
+    onStepProgress?.({ step: stepDef.name, type: 'step-started', timestamp: Date.now() });
+
     // Resolve the message for this step
     let message: string;
     if (stepDef.input) {
@@ -421,6 +447,13 @@ export async function runWorkflow<TInputSchema extends SchemaAny>(
     const softComplete =
       agentResult.status === 'max-iterations' && agentResult.response.length > 0;
     if (agentResult.status !== 'complete' && !softComplete) {
+      onStepProgress?.({
+        step: stepDef.name,
+        type: 'step-failed',
+        timestamp: Date.now(),
+        iterations: agentResult.iterations,
+        response: agentResult.response,
+      });
       return {
         status: 'error',
         stepResults,
@@ -436,6 +469,13 @@ export async function runWorkflow<TInputSchema extends SchemaAny>(
       try {
         parsed = JSON.parse(agentResult.response);
       } catch {
+        onStepProgress?.({
+          step: stepDef.name,
+          type: 'step-failed',
+          timestamp: Date.now(),
+          iterations: agentResult.iterations,
+          response: agentResult.response,
+        });
         return {
           status: 'error',
           stepResults,
@@ -447,6 +487,13 @@ export async function runWorkflow<TInputSchema extends SchemaAny>(
       try {
         const validated = stepDef.output.parse(parsed);
         if (!validated.ok) {
+          onStepProgress?.({
+            step: stepDef.name,
+            type: 'step-failed',
+            timestamp: Date.now(),
+            iterations: agentResult.iterations,
+            response: agentResult.response,
+          });
           return {
             status: 'error',
             stepResults,
@@ -456,6 +503,13 @@ export async function runWorkflow<TInputSchema extends SchemaAny>(
         }
         stepOutput = validated.data;
       } catch {
+        onStepProgress?.({
+          step: stepDef.name,
+          type: 'step-failed',
+          timestamp: Date.now(),
+          iterations: agentResult.iterations,
+          response: agentResult.response,
+        });
         return {
           status: 'error',
           stepResults,
@@ -464,6 +518,15 @@ export async function runWorkflow<TInputSchema extends SchemaAny>(
         };
       }
     }
+
+    // Emit step-completed event (after validation passes)
+    onStepProgress?.({
+      step: stepDef.name,
+      type: 'step-completed',
+      timestamp: Date.now(),
+      iterations: agentResult.iterations,
+      response: agentResult.response,
+    });
 
     // Store step output for subsequent steps
     prev[stepDef.name] = stepOutput;

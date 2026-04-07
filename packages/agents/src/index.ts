@@ -68,6 +68,7 @@ export type {
   StepApprovalConfig,
   StepContext,
   StepDefinition,
+  StepProgressEvent,
   StepResult,
   WorkflowBuilder,
   WorkflowDefinition,

@@ -1,6 +1,7 @@
 import { runWorkflow } from '@vertz/agents';
 import type { AdapterFactory, LLMAdapter, ToolProvider, WorkflowDefinition, StepResult } from '@vertz/agents';
 import type { WorkflowRun, WorkflowStore } from '../api/services/workflows';
+import type { ProgressEmitter } from './progress-emitter';
 
 export interface WorkflowExecutor {
   start(run: WorkflowRun): Promise<void>;
@@ -12,6 +13,8 @@ export interface WorkflowExecutorOptions {
   readonly createAdapter?: AdapterFactory;
   /** Runtime tool implementations injected into every agent run. */
   readonly tools?: ToolProvider;
+  /** Optional progress emitter for step events. */
+  readonly emitter?: ProgressEmitter;
 }
 
 export function createWorkflowExecutor(
@@ -31,6 +34,9 @@ export function createWorkflowExecutor(
           llm,
           createAdapter: options?.createAdapter,
           tools: options?.tools,
+          onStepProgress: options?.emitter
+            ? (event) => options.emitter!.emit(run.id, event)
+            : undefined,
         });
 
         const steps: Record<string, { status: string; output?: string }> = {};
@@ -91,6 +97,9 @@ export function createWorkflowExecutor(
           tools: options?.tools,
           resumeAfter: run.currentStep,
           previousResults,
+          onStepProgress: options?.emitter
+            ? (event) => options.emitter!.emit(runId, event)
+            : undefined,
         });
 
         const steps: Record<string, { status: string; output?: string }> = {

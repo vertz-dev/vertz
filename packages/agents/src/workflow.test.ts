@@ -3,6 +3,7 @@ import { s } from '@vertz/schema';
 import { agent } from './agent';
 import type { LLMAdapter } from './loop/react-loop';
 import { tool } from './tool';
+import type { StepProgressEvent } from './workflow';
 import { runWorkflow, workflow } from './workflow';
 
 // ---------------------------------------------------------------------------
@@ -772,6 +773,240 @@ describe('runWorkflow()', () => {
     expect(factoryCalls).toHaveLength(1);
     expect(factoryCalls[0].config).toEqual({ provider: 'cloudflare', model: 'test-model' });
     expect(factoryCalls[0].toolNames).toEqual(['myTool']);
+  });
+
+  it('calls onStepProgress with step-started before each agent step executes', async () => {
+    const noopAgent = agent('noop', {
+      state: s.object({}),
+      initialState: {},
+      tools: {},
+      model: { provider: 'cloudflare', model: 'test' },
+    });
+
+    const llm: LLMAdapter = {
+      async chat() {
+        return { text: 'done', toolCalls: [] };
+      },
+    };
+
+    const events: StepProgressEvent[] = [];
+
+    const pipeline = workflow('progress-test', { input: s.object({}) })
+      .step('first', { agent: noopAgent, input: () => 'Step 1' })
+      .step('second', { agent: noopAgent, input: () => 'Step 2' })
+      .build();
+
+    await runWorkflow(pipeline, {
+      input: {},
+      llm,
+      onStepProgress: (event) => events.push(event),
+    });
+
+    const startEvents = events.filter((e) => e.type === 'step-started');
+    expect(startEvents).toHaveLength(2);
+    expect(startEvents[0].step).toBe('first');
+    expect(startEvents[1].step).toBe('second');
+    expect(typeof startEvents[0].timestamp).toBe('number');
+  });
+
+  it('calls onStepProgress with step-completed after each successful step', async () => {
+    const noopAgent = agent('noop', {
+      state: s.object({}),
+      initialState: {},
+      tools: {},
+      model: { provider: 'cloudflare', model: 'test' },
+    });
+
+    const llm: LLMAdapter = {
+      async chat() {
+        return { text: 'step done', toolCalls: [] };
+      },
+    };
+
+    const events: StepProgressEvent[] = [];
+
+    const pipeline = workflow('complete-events', { input: s.object({}) })
+      .step('alpha', { agent: noopAgent, input: () => 'Do alpha' })
+      .build();
+
+    await runWorkflow(pipeline, {
+      input: {},
+      llm,
+      onStepProgress: (event) => events.push(event),
+    });
+
+    const completeEvents = events.filter((e) => e.type === 'step-completed');
+    expect(completeEvents).toHaveLength(1);
+    expect(completeEvents[0].step).toBe('alpha');
+    expect(completeEvents[0].iterations).toBe(1);
+    expect(completeEvents[0].response).toBe('step done');
+    expect(typeof completeEvents[0].timestamp).toBe('number');
+  });
+
+  it('calls onStepProgress with step-failed when a step fails', async () => {
+    const noopAgent = agent('noop', {
+      state: s.object({}),
+      initialState: {},
+      tools: {},
+      model: { provider: 'cloudflare', model: 'test' },
+    });
+
+    const llm: LLMAdapter = {
+      async chat(messages) {
+        const userMsg = messages.find((m) => m.role === 'user')?.content ?? '';
+        if (userMsg.includes('fail')) {
+          throw new Error('LLM exploded');
+        }
+        return { text: 'ok', toolCalls: [] };
+      },
+    };
+
+    const events: StepProgressEvent[] = [];
+
+    const pipeline = workflow('fail-progress', { input: s.object({}) })
+      .step('will-fail', {
+        agent: noopAgent,
+        input: () => 'Please fail',
+        output: s.object({}),
+      })
+      .build();
+
+    await runWorkflow(pipeline, {
+      input: {},
+      llm,
+      onStepProgress: (event) => events.push(event),
+    });
+
+    const failEvents = events.filter((e) => e.type === 'step-failed');
+    expect(failEvents).toHaveLength(1);
+    expect(failEvents[0].step).toBe('will-fail');
+    expect(typeof failEvents[0].timestamp).toBe('number');
+  });
+
+  it('emits no events for approval steps', async () => {
+    const noopAgent = agent('noop', {
+      state: s.object({}),
+      initialState: {},
+      tools: {},
+      model: { provider: 'cloudflare', model: 'test' },
+    });
+
+    const llm: LLMAdapter = {
+      async chat() {
+        return { text: 'done', toolCalls: [] };
+      },
+    };
+
+    const events: StepProgressEvent[] = [];
+
+    const pipeline = workflow('approval-no-events', { input: s.object({}) })
+      .step('work', { agent: noopAgent, input: () => 'Do work' })
+      .step('review', { approval: { message: 'Approve?' } })
+      .build();
+
+    await runWorkflow(pipeline, {
+      input: {},
+      llm,
+      onStepProgress: (event) => events.push(event),
+    });
+
+    // Only the 'work' step should have events — approval step emits nothing
+    expect(events).toHaveLength(2); // step-started + step-completed for 'work'
+    expect(events.every((e) => e.step === 'work')).toBe(true);
+  });
+
+  it('emits events only for steps that run when resuming', async () => {
+    const noopAgent = agent('noop', {
+      state: s.object({}),
+      initialState: {},
+      tools: {},
+      model: { provider: 'cloudflare', model: 'test' },
+    });
+
+    const llm: LLMAdapter = {
+      async chat() {
+        return { text: 'done', toolCalls: [] };
+      },
+    };
+
+    const events: StepProgressEvent[] = [];
+
+    const pipeline = workflow('resume-events', { input: s.object({}) })
+      .step('first', { agent: noopAgent, input: () => 'Step 1' })
+      .step('approve', { approval: { message: 'Approve?' } })
+      .step('last', { agent: noopAgent, input: () => 'Step 3' })
+      .build();
+
+    await runWorkflow(pipeline, {
+      input: {},
+      llm,
+      resumeAfter: 'approve',
+      previousResults: {
+        first: { status: 'complete', response: 'Step 1 done', iterations: 1 },
+      },
+      onStepProgress: (event) => events.push(event),
+    });
+
+    // Only 'last' should have events — 'first' and 'approve' were skipped
+    expect(events).toHaveLength(2); // step-started + step-completed for 'last'
+    expect(events.every((e) => e.step === 'last')).toBe(true);
+  });
+
+  it('emits step-failed when output validation fails (invalid-json)', async () => {
+    const noopAgent = agent('noop', {
+      state: s.object({}),
+      initialState: {},
+      tools: {},
+      model: { provider: 'cloudflare', model: 'test' },
+    });
+
+    const llm: LLMAdapter = {
+      async chat() {
+        return { text: 'not json', toolCalls: [] };
+      },
+    };
+
+    const events: StepProgressEvent[] = [];
+
+    const pipeline = workflow('json-fail-progress', { input: s.object({}) })
+      .step('bad', { agent: noopAgent, output: s.object({ x: s.string() }) })
+      .build();
+
+    await runWorkflow(pipeline, {
+      input: {},
+      llm,
+      onStepProgress: (event) => events.push(event),
+    });
+
+    // Should have: step-started, step-completed (agent succeeded), then step-failed (validation)
+    // Actually — the agent completed fine, validation failed. Let's verify the sequence.
+    const types = events.map((e) => e.type);
+    expect(types).toContain('step-started');
+    expect(types).toContain('step-failed');
+    expect(events.find((e) => e.type === 'step-failed')!.step).toBe('bad');
+  });
+
+  it('does not change behavior when onStepProgress is omitted', async () => {
+    const noopAgent = agent('noop', {
+      state: s.object({}),
+      initialState: {},
+      tools: {},
+      model: { provider: 'cloudflare', model: 'test' },
+    });
+
+    const llm: LLMAdapter = {
+      async chat() {
+        return { text: 'done', toolCalls: [] };
+      },
+    };
+
+    const pipeline = workflow('no-callback', { input: s.object({}) })
+      .step('work', { agent: noopAgent })
+      .build();
+
+    // No onStepProgress — should not throw
+    const result = await runWorkflow(pipeline, { input: {}, llm });
+    expect(result.status).toBe('complete');
   });
 
   it('passes ToolProvider through to agent run() calls', async () => {
