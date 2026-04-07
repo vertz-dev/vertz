@@ -108,7 +108,7 @@ for pkg_json in packages/*/package.json; do
   fi
 
   echo "Publishing $name@$version..."
-  if (cd "$dir" && vtz publish --access public --provenance); then
+  if (cd "$dir" && vtz publish --access public); then
     echo "Published $name@$version"
   else
     echo "Failed to publish $name@$version"
