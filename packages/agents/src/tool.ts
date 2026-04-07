@@ -17,9 +17,8 @@ export function tool<TInput, TOutput>(
 
   const execution = config.execution ?? 'server';
 
-  if (execution === 'server' && !config.handler) {
-    throw new Error('tool() with execution "server" (default) must provide a handler function.');
-  }
+  // Handler-less tools are valid declarations — handlers are injected at runtime
+  // via ToolProvider when calling run() or runWorkflow().
 
   const def: ToolDefinition<TInput, TOutput> = {
     kind: 'tool',

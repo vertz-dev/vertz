@@ -287,7 +287,7 @@ describe('agent()', () => {
           state: s.object({ files: s.number() }),
           initialState: { files: 0 },
           tools: { readFile, writeFile },
-          model: { provider: 'minimax', model: 'minimax-01' },
+          model: { provider: 'minimax', model: 'MiniMax-M2.7' },
         });
 
         expect(Object.keys(coder.tools)).toEqual(['readFile', 'writeFile']);

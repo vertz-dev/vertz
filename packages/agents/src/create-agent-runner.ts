@@ -2,7 +2,7 @@ import type { LLMAdapter } from './loop/react-loop';
 import { run } from './run';
 import type { CreateAdapterOptions } from './providers/types';
 import type { AgentStore } from './stores/types';
-import type { AgentDefinition } from './types';
+import type { AgentDefinition, ToolProvider } from './types';
 
 // ---------------------------------------------------------------------------
 // Runner context — mirrors @vertz/server's BaseContext structurally
@@ -49,6 +49,8 @@ export interface CreateAgentRunnerOptions {
   readonly createAdapter?: (options: CreateAdapterOptions) => LLMAdapter;
   /** Persistence store for multi-turn sessions. */
   readonly store?: AgentStore;
+  /** Tool handler implementations to inject at runtime. */
+  readonly tools?: ToolProvider;
 }
 
 // ---------------------------------------------------------------------------
@@ -97,6 +99,7 @@ export function createAgentRunner(
       const result = await run(agentDef, {
         message: runOptions.message,
         llm,
+        tools: options.tools,
         store: options.store,
         sessionId: runOptions.sessionId,
         userId: ctx.userId,
@@ -110,7 +113,7 @@ export function createAgentRunner(
       };
     }
 
-    const result = await run(agentDef, { message: runOptions.message, llm });
+    const result = await run(agentDef, { message: runOptions.message, llm, tools: options.tools });
 
     return {
       status: result.status,

@@ -2,13 +2,13 @@ import type { LLMAdapter, Message } from '../loop/react-loop';
 import type { CreateAdapterOptions } from './types';
 import { fromOpenAIResponse, toOpenAIMessages, toOpenAITools } from './openai-format';
 
-const MINIMAX_API_BASE = 'https://api.minimaxi.com/v1';
+const MINIMAX_API_BASE = 'https://api.minimax.io/v1';
 
 /**
  * Create an LLM adapter for MiniMax.
  *
  * Uses the OpenAI-compatible API endpoint:
- * `https://api.minimaxi.com/v1/chat/completions`
+ * `https://api.minimax.io/v1/chat/completions`
  *
  * Required environment variables:
  * - `MINIMAX_API_KEY` — MiniMax API key

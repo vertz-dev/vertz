@@ -641,4 +641,226 @@ describe('run()', () => {
       });
     });
   });
+
+  describe('Given a ToolProvider with handler implementations', () => {
+    it('Then provider handlers override the agent tool definitions', async () => {
+      // Tool declaration without handler
+      const myTool = tool({
+        description: 'A handler-less tool',
+        input: s.object({ x: s.number() }),
+        output: s.object({ y: s.number() }),
+      });
+
+      const testAgent = agent('provider-test', {
+        state: s.object({}),
+        initialState: {},
+        tools: { myTool },
+        model: { provider: 'cloudflare', model: 'test' },
+      });
+
+      const handlerCalls: unknown[] = [];
+
+      const llm = mockLLM([
+        { toolCalls: [{ name: 'myTool', arguments: { x: 5 } }] },
+        { text: 'done' },
+      ]);
+
+      const result = await run(testAgent, {
+        message: 'Use the tool',
+        llm,
+        tools: {
+          myTool: (input: { x: number }) => {
+            handlerCalls.push(input);
+            return { y: input.x * 3 };
+          },
+        },
+      });
+
+      expect(result.status).toBe('complete');
+      expect(handlerCalls).toHaveLength(1);
+      expect(handlerCalls[0]).toEqual({ x: 5 });
+    });
+
+    it('Then tools with definition handlers still work without a provider', async () => {
+      const handlerCalls: unknown[] = [];
+      const myTool = tool({
+        description: 'Tool with handler',
+        input: s.object({ x: s.number() }),
+        output: s.object({ y: s.number() }),
+        handler: (input) => {
+          handlerCalls.push(input);
+          return { y: input.x * 2 };
+        },
+      });
+
+      const testAgent = agent('no-provider-test', {
+        state: s.object({}),
+        initialState: {},
+        tools: { myTool },
+        model: { provider: 'cloudflare', model: 'test' },
+      });
+
+      const llm = mockLLM([
+        { toolCalls: [{ name: 'myTool', arguments: { x: 7 } }] },
+        { text: 'done' },
+      ]);
+
+      const result = await run(testAgent, { message: 'Go', llm });
+
+      expect(result.status).toBe('complete');
+      expect(handlerCalls).toHaveLength(1);
+      expect(handlerCalls[0]).toEqual({ x: 7 });
+    });
+
+    it('Then provider handlers take precedence over definition handlers', async () => {
+      const definitionCalls: unknown[] = [];
+      const providerCalls: unknown[] = [];
+
+      const myTool = tool({
+        description: 'Tool with both handlers',
+        input: s.object({ x: s.number() }),
+        output: s.object({ y: s.number() }),
+        handler: (input) => {
+          definitionCalls.push(input);
+          return { y: input.x };
+        },
+      });
+
+      const testAgent = agent('override-test', {
+        state: s.object({}),
+        initialState: {},
+        tools: { myTool },
+        model: { provider: 'cloudflare', model: 'test' },
+      });
+
+      const llm = mockLLM([
+        { toolCalls: [{ name: 'myTool', arguments: { x: 3 } }] },
+        { text: 'done' },
+      ]);
+
+      const result = await run(testAgent, {
+        message: 'Go',
+        llm,
+        tools: {
+          myTool: (input: { x: number }) => {
+            providerCalls.push(input);
+            return { y: input.x * 10 };
+          },
+        },
+      });
+
+      expect(result.status).toBe('complete');
+      expect(definitionCalls).toHaveLength(0);
+      expect(providerCalls).toHaveLength(1);
+    });
+  });
+
+  describe('Given an agent with an output schema', () => {
+    it('Then validates the response when the agent completes with valid JSON', async () => {
+      const outputAgent = agent('output-valid', {
+        state: s.object({}),
+        initialState: {},
+        tools: {
+          noop: tool({
+            description: 'noop',
+            input: s.object({}),
+            output: s.object({}),
+            handler: () => ({}),
+          }),
+        },
+        output: s.object({ summary: s.string() }),
+        model: { provider: 'cloudflare', model: 'test' },
+        loop: { maxIterations: 5 },
+      });
+
+      const llm = mockLLM([
+        { text: '{"summary": "All done"}' },
+      ]);
+
+      const result = await run(outputAgent, { message: 'Go', llm });
+
+      expect(result.status).toBe('complete');
+      expect(result.response).toBe('{"summary": "All done"}');
+    });
+
+    it('Then returns error when the response is not valid JSON', async () => {
+      const outputAgent = agent('output-bad-json', {
+        state: s.object({}),
+        initialState: {},
+        tools: {
+          noop: tool({
+            description: 'noop',
+            input: s.object({}),
+            output: s.object({}),
+            handler: () => ({}),
+          }),
+        },
+        output: s.object({ summary: s.string() }),
+        model: { provider: 'cloudflare', model: 'test' },
+        loop: { maxIterations: 5 },
+      });
+
+      const llm = mockLLM([
+        { text: 'This is plain text, not JSON' },
+      ]);
+
+      const result = await run(outputAgent, { message: 'Go', llm });
+
+      expect(result.status).toBe('error');
+    });
+
+    it('Then returns error when the response JSON does not match the schema', async () => {
+      const outputAgent = agent('output-schema-mismatch', {
+        state: s.object({}),
+        initialState: {},
+        tools: {
+          noop: tool({
+            description: 'noop',
+            input: s.object({}),
+            output: s.object({}),
+            handler: () => ({}),
+          }),
+        },
+        output: s.object({ summary: s.string() }),
+        model: { provider: 'cloudflare', model: 'test' },
+        loop: { maxIterations: 5 },
+      });
+
+      const llm = mockLLM([
+        { text: '{"summary": 42}' },
+      ]);
+
+      const result = await run(outputAgent, { message: 'Go', llm });
+
+      expect(result.status).toBe('error');
+    });
+
+    it('Then skips output validation when the agent does not complete', async () => {
+      const outputAgent = agent('output-stuck', {
+        state: s.object({}),
+        initialState: {},
+        tools: {
+          noop: tool({
+            description: 'noop',
+            input: s.object({}),
+            output: s.object({}),
+            handler: () => ({}),
+          }),
+        },
+        output: s.object({ summary: s.string() }),
+        model: { provider: 'cloudflare', model: 'test' },
+        loop: { maxIterations: 1 },
+      });
+
+      const llm = mockLLM([
+        { toolCalls: [{ name: 'noop', arguments: {} }] },
+        { toolCalls: [{ name: 'noop', arguments: {} }] },
+      ]);
+
+      const result = await run(outputAgent, { message: 'Go', llm });
+
+      // max-iterations, not error — output validation is skipped
+      expect(result.status).toBe('max-iterations');
+    });
+  });
 });

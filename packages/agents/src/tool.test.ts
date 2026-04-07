@@ -85,14 +85,16 @@ describe('tool()', () => {
 
   describe('Given a server tool config without a handler', () => {
     describe('When tool() is called', () => {
-      it('Then throws an error because server tools must have handlers', () => {
-        expect(() =>
-          tool({
-            description: 'No handler server tool',
-            input: s.object({}),
-            output: s.object({}),
-          }),
-        ).toThrow('tool() with execution "server" (default) must provide a handler function');
+      it('Then creates a valid tool declaration (handler injected at runtime via ToolProvider)', () => {
+        const def = tool({
+          description: 'No handler server tool',
+          input: s.object({}),
+          output: s.object({}),
+        });
+
+        expect(def.kind).toBe('tool');
+        expect(def.execution).toBe('server');
+        expect(def.handler).toBeUndefined();
       });
     });
   });

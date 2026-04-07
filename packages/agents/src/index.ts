@@ -19,6 +19,8 @@ export type {
   ToolContext,
   ToolDefinition,
   ToolExecution,
+  ToolProvider,
+  InferToolProvider,
 } from './types';
 
 // Factories

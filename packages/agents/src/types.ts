@@ -86,6 +86,53 @@ export interface ToolDefinition<TInput = unknown, TOutput = unknown> {
 }
 
 // ---------------------------------------------------------------------------
+// Tool provider (DI)
+// ---------------------------------------------------------------------------
+
+/**
+ * A record mapping tool names to handler implementations (loose version).
+ *
+ * Use this type at DI composition roots where multiple typed providers are
+ * merged into a single record. For type-safe individual providers, use
+ * `InferToolProvider<TTools>` instead.
+ *
+ * ```ts
+ * // Composition root — merges multiple typed providers into one
+ * const allTools: ToolProvider = { ...sandboxProvider, ...gitProvider };
+ * ```
+ */
+export type ToolProvider = Record<
+  string,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- loose type for DI composition of heterogeneous providers
+  (input: any, ctx: ToolContext) => any | Promise<any>
+>;
+
+/**
+ * Derive a strongly-typed provider type from a tool record.
+ *
+ * Each handler's input and output types are inferred from the corresponding
+ * `ToolDefinition`. This ensures that provider implementations match the
+ * schemas declared in tool definitions at compile time.
+ *
+ * ```ts
+ * const sandboxTools = { readFile, writeFile } as const;
+ *
+ * function createSandboxProvider(sandbox: SandboxClient): InferToolProvider<typeof sandboxTools> {
+ *   return {
+ *     readFile: async ({ path }) => ({ content: await sandbox.readFile(path) }),
+ *     writeFile: async ({ path, content }) => { ... },
+ *   };
+ * }
+ * ```
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- TTools must accept any tool types for inference
+export type InferToolProvider<TTools extends Record<string, ToolDefinition<any, any>>> = {
+  [K in keyof TTools]: TTools[K] extends ToolDefinition<infer I, infer O>
+    ? (input: I, ctx: ToolContext) => O | Promise<O>
+    : never;
+};
+
+// ---------------------------------------------------------------------------
 // Agent types
 // ---------------------------------------------------------------------------
 
