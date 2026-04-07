@@ -111,7 +111,7 @@ fn main() {
     });
 
     // Main thread runs the event loop (blocks forever)
-    app.run();
+    app.run(None);
 }
 
 /// Print process RSS memory on macOS using mach APIs.

@@ -4,6 +4,9 @@
 //! The webview loads the app from VTZ's axum dev server on localhost.
 
 pub mod bridge;
+pub mod ipc_dispatcher;
+pub mod ipc_handlers;
+pub mod ipc_method;
 
 use std::sync::Mutex;
 
@@ -101,16 +104,34 @@ impl WebviewApp {
 
     /// Run the event loop. This blocks forever and never returns.
     /// Must be called on the main thread.
-    pub fn run(self) -> ! {
-        let webview = WebViewBuilder::new()
+    ///
+    /// If an `IpcDispatcher` is provided, IPC requests from the webview
+    /// are dispatched to async handlers. Otherwise, they are logged.
+    pub fn run(self, dispatcher: Option<ipc_dispatcher::IpcDispatcher>) -> ! {
+        let mut builder = WebViewBuilder::new()
             .with_url("about:blank")
-            .with_devtools(self.opts.devtools)
-            .with_ipc_handler(|req| {
-                let body = req.body();
-                eprintln!("[vtz webview ipc] {}", body);
-            })
-            .build(&self.window)
-            .expect("failed to build webview");
+            .with_devtools(self.opts.devtools);
+
+        if dispatcher.is_some() {
+            builder = builder.with_initialization_script(ipc_dispatcher::IPC_CLIENT_JS);
+        }
+
+        let webview = if let Some(dispatcher) = dispatcher {
+            builder
+                .with_ipc_handler(move |req| {
+                    dispatcher.dispatch(req.body());
+                })
+                .build(&self.window)
+                .expect("failed to build webview")
+        } else {
+            builder
+                .with_ipc_handler(|req| {
+                    let body = req.body();
+                    eprintln!("[vtz webview ipc] {}", body);
+                })
+                .build(&self.window)
+                .expect("failed to build webview")
+        };
 
         let shutdown_tx = self.shutdown_tx;
 
