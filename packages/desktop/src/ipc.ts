@@ -9,8 +9,7 @@ interface VtzIpc {
     params: Record<string, unknown>,
     options?: { timeout?: number },
   ): Promise<
-    | { ok: true; result: unknown }
-    | { ok: false; error: { code: string; message: string } }
+    { ok: true; result: unknown } | { ok: false; error: { code: string; message: string } }
   >;
 }
 
@@ -33,8 +32,7 @@ export async function invoke<T>(
   if (typeof window === 'undefined' || !window.__vtz_ipc) {
     return err({
       code: 'EXECUTION_FAILED' as DesktopErrorCode,
-      message:
-        '@vertz/desktop: IPC bridge not available. Are you running in the native webview?',
+      message: '@vertz/desktop: IPC bridge not available. Are you running in the native webview?',
     });
   }
 

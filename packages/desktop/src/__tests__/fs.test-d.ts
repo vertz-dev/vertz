@@ -45,9 +45,7 @@ describe('Feature: fs.writeTextFile type safety', () => {
 
 describe('Feature: fs.exists type safety', () => {
   it('Returns Promise<Result<boolean, DesktopError>>', () => {
-    expectTypeOf(fs.exists('/tmp')).toEqualTypeOf<
-      Promise<Result<boolean, DesktopError>>
-    >();
+    expectTypeOf(fs.exists('/tmp')).toEqualTypeOf<Promise<Result<boolean, DesktopError>>>();
   });
 });
 
@@ -55,9 +53,7 @@ describe('Feature: fs.exists type safety', () => {
 
 describe('Feature: fs.stat type safety', () => {
   it('Returns Promise<Result<FileStat, DesktopError>>', () => {
-    expectTypeOf(fs.stat('/tmp')).toEqualTypeOf<
-      Promise<Result<FileStat, DesktopError>>
-    >();
+    expectTypeOf(fs.stat('/tmp')).toEqualTypeOf<Promise<Result<FileStat, DesktopError>>>();
   });
 });
 
@@ -65,9 +61,7 @@ describe('Feature: fs.stat type safety', () => {
 
 describe('Feature: fs.readDir type safety', () => {
   it('Returns Promise<Result<DirEntry[], DesktopError>>', () => {
-    expectTypeOf(fs.readDir('/tmp')).toEqualTypeOf<
-      Promise<Result<DirEntry[], DesktopError>>
-    >();
+    expectTypeOf(fs.readDir('/tmp')).toEqualTypeOf<Promise<Result<DirEntry[], DesktopError>>>();
   });
 });
 
@@ -81,9 +75,7 @@ describe('Feature: fs.createDir type safety', () => {
   });
 
   it('Works without options', () => {
-    expectTypeOf(fs.createDir('/tmp/new')).toEqualTypeOf<
-      Promise<Result<void, DesktopError>>
-    >();
+    expectTypeOf(fs.createDir('/tmp/new')).toEqualTypeOf<Promise<Result<void, DesktopError>>>();
   });
 });
 
@@ -91,9 +83,7 @@ describe('Feature: fs.createDir type safety', () => {
 
 describe('Feature: fs.remove type safety', () => {
   it('Returns Promise<Result<void, DesktopError>>', () => {
-    expectTypeOf(fs.remove('/tmp/old.txt')).toEqualTypeOf<
-      Promise<Result<void, DesktopError>>
-    >();
+    expectTypeOf(fs.remove('/tmp/old.txt')).toEqualTypeOf<Promise<Result<void, DesktopError>>>();
   });
 });
 
