@@ -2,7 +2,7 @@
 
 ## Overview
 
-A full-featured dashboard for the dev-orchestrator that lets users monitor running workflows in real time, inspect artifacts, view workflow definitions as interactive flow diagrams, edit workflow configurations, and trigger new runs. Built entirely with Vertz (UI + server + Bun runtime).
+A full-featured dashboard for the dev-orchestrator that lets users monitor running workflows in real time, inspect artifacts, view workflow definitions as interactive flow diagrams, edit workflow configurations, and trigger new runs. Built entirely with Vertz (UI + server + VTZ runtime).
 
 ---
 
@@ -270,11 +270,12 @@ interface EdgeLineProps {
 
 - **Canvas vs DOM for flow diagram** — All three reviewers (DX, Product, Technical) recommended DOM-based rendering for v1. Workflows are 5-20 steps, well within DOM performance. Canvas is premature. **Resolution:** DOM-based (`<div>` nodes + SVG edges). Migrate to canvas only if we hit DOM performance limits.
 
-- **SSE runtime target** — The current dev-orchestrator runs on Bun (`Bun.serve()`), not the VTZ runtime. Bun natively supports SSE via streaming responses. **Resolution:** Phase 1 targets Bun. SSE is not an unknown on Bun — it works. Migration to VTZ runtime is a separate future concern.
-
 - **Phase 3 dependency on Phase 2** — Product review correctly identified this coupling as artificial. The prompt editor doesn't require the flow diagram. **Resolution:** Phase 3 depends on Phase 1 (not Phase 2). The prompt editor is accessible from the workflow detail page and agent detail page.
 
 ### Open
+
+- **SSE through VTZ runtime** — The VTZ runtime (Rust + V8) serves HTTP via axum. SSE requires chunked transfer-encoding with `text/event-stream`. Axum supports SSE natively via `axum::response::sse::Sse`, but the VTZ runtime's V8-to-axum bridge may not expose streaming responses to JS yet.
+  - **Resolution path:** Phase 0 verifies SSE support. If the runtime lacks streaming response support, we implement it — this is a gap worth fixing since SSE is a fundamental HTTP capability. Fallback (only if runtime fix is blocked): 500ms short-polling with ETag-based change detection.
 
 - **Agent step progress granularity** — The current `run()` function returns a single result after all iterations complete. To stream per-iteration progress, we'd need to hook into the ReAct loop.
   - **Resolution path:** Phase 0 adds step-level progress events via `onStepProgress` callback on the workflow executor. Iteration-level streaming is deferred to a future phase (requires modifying `reactLoop()` core).
@@ -283,10 +284,10 @@ interface EdgeLineProps {
 
 ## 5. POC Results
 
-No POC needed. All unknowns have been resolved:
-- SSE works on Bun (confirmed by existing Bun streaming patterns)
-- DOM-based diagram does not require a POC for <50 node workflows
-- Canvas POC is deferred until workflows outgrow DOM rendering
+POC needed for SSE on VTZ runtime:
+
+1. **SSE streaming from VTZ runtime** — Verify that a `@vertz/server` action running on VTZ can stream SSE events. If the V8-to-axum bridge doesn't expose streaming responses, implement the capability in the runtime. This is Phase 0 work.
+2. DOM-based diagram does not require a POC for <50 node workflows.
 
 ---
 
@@ -408,25 +409,32 @@ describe('Feature: Agent detail inspection', () => {
 
 ## 8. Implementation Plan
 
-### Phase 0: Workflow Progress Events (prerequisite)
+### Phase 0: Progress Events + SSE Runtime Verification (prerequisite)
 
-**Goal:** Add step-level progress event emission to the workflow executor in `@vertz/agents`.
+**Goal:** Add step-level progress event emission to the workflow executor in `@vertz/agents`, and verify/implement SSE support in the VTZ runtime.
+
+**Runtime target:** VTZ. The dev-orchestrator currently uses `Bun.serve()` — Phase 0 migrates it to VTZ. If VTZ lacks streaming response support for SSE, we implement it in the runtime (axum supports SSE natively; the gap would be in the V8-to-axum JS bridge).
 
 **Tasks:**
 1. Add `onStepProgress` callback to the workflow executor options
 2. Emit `step-started` and `step-completed`/`step-failed` events as each step runs
 3. Wire the orchestrator's workflow runner to emit events to the in-memory store
+4. Migrate dev-orchestrator from `Bun.serve()` to VTZ runtime
+5. Verify SSE streaming works (chunked `text/event-stream` response from a server action)
+6. If SSE is not supported: implement streaming response support in VTZ runtime
 
 **Acceptance criteria:**
 - Workflow executor emits typed progress events as steps execute
 - Events include step name, status, timestamp
 - Existing workflow execution behavior is unchanged (callback is optional)
+- Dev-orchestrator runs on VTZ runtime
+- SSE endpoint streams events to a client (verified with curl or test helper)
 
 ### Phase 1: Live Monitoring Upgrade (foundation)
 
 **Goal:** Replace polling with SSE streaming, add step detail inspection and artifact viewing.
 
-**Runtime target:** Bun (`Bun.serve()`) — the current dev-orchestrator runtime. SSE works natively.
+**Runtime target:** VTZ runtime (migrated in Phase 0). SSE verified/implemented in Phase 0.
 
 **Markdown renderer:** `marked` (lightweight, fast, no dependencies). XSS is acceptable since all content is agent-generated within our own sandbox. If untrusted content is introduced later, add `DOMPurify`.
 
@@ -607,7 +615,7 @@ Tests verify: events arrive incrementally (not batched), snapshot-on-connect sen
 | Data Fetching | `@vertz/ui/query` | Typed queries, SSE integration |
 | Backend | `@vertz/server` | Service-based API |
 | Validation | `@vertz/schema` | Input/output validation, SSE payload validation |
-| Runtime | Bun (`Bun.serve()`) | Current dev-orchestrator runtime |
+| Runtime | VTZ | Rust + V8, migrated from Bun in Phase 0 |
 | Markdown | `marked` | Lightweight, fast, no dependencies |
 
 ---
@@ -619,7 +627,7 @@ Tests verify: events arrive incrementally (not batched), snapshot-on-connect sen
 | Review | Finding | Resolution |
 |--------|---------|------------|
 | Technical BLOCKER-1 | StepProgressEvent source unscoped | Added Phase 0: workflow executor modification |
-| Technical BLOCKER-2 | SSE runtime ambiguity | Clarified: runs on Bun, not VTZ. SSE works natively. |
+| Technical BLOCKER-2 | SSE runtime ambiguity | Targets VTZ. Phase 0 verifies/implements SSE. If VTZ lacks streaming, we fix the runtime. |
 | DX SF-1 | GET/POST inconsistency | Standardized all endpoints to POST except SSE stream (GET) |
 | DX SF-2 | StepDetail name collision | Renamed to `StepRunDetail` |
 | DX SF-3 | Event type vs status confusion | Split into `type` field with explicit mapping to `StepCard.status` |
@@ -627,7 +635,7 @@ Tests verify: events arrive incrementally (not batched), snapshot-on-connect sen
 | DX SF-5 | Canvas premature | Switched to DOM-based diagram |
 | DX SF-6 | SSE reconnection unspecified | Added reconnection strategy in Phase 1 |
 | Product SF-1 | Canvas scope risk | Same as DX SF-5 — DOM-based |
-| Product SF-2 | SSE hiding as unknown | Same as BLOCKER-2 — resolved |
+| Product SF-2 | SSE hiding as unknown | Same as BLOCKER-2 — VTZ target, fix gaps in runtime |
 | Product SF-3 | Phase 3 depends on Phase 2 | Decoupled: Phase 3 depends on Phase 1 only |
 | Product SF-4 | Phase 4 too broad | Split into Phase 4a (error/run mgmt) and Phase 4b (UX polish) |
 | Technical SF-1 | ui-canvas dependency | Removed — DOM-based |
