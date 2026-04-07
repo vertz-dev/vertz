@@ -345,12 +345,37 @@ pub(crate) fn tool_definitions() -> serde_json::Value {
                     },
                     "required": ["target", "value"]
                 }
+            },
+            {
+                "name": "vertz_browser_fill_form",
+                "description": "Fill multiple form fields at once. Handles text inputs, textareas, selects, checkboxes, and radio buttons. Target must be a form ref from the snapshot.",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "sessionId": { "type": "string", "description": "Session ID. Optional if only one session is active." },
+                        "target": { "type": "string", "description": "Form ref from snapshot (e.g., 'f1')." },
+                        "data": { "type": "object", "description": "Field name → value mapping, e.g. { \"title\": \"My Task\", \"priority\": \"high\" }." }
+                    },
+                    "required": ["target", "data"]
+                }
+            },
+            {
+                "name": "vertz_browser_submit",
+                "description": "Submit a form by dispatching a submit event. Waits for navigation if it occurs (up to 2s). Returns updated snapshot with navigation info.",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "sessionId": { "type": "string", "description": "Session ID. Optional if only one session is active." },
+                        "target": { "type": "string", "description": "Form ref from snapshot (e.g., 'f1')." }
+                    },
+                    "required": ["target"]
+                }
             }
         ]
     })
 }
 
-// ── Browser Interaction Helper ──────────────────────────────────────
+// ── Browser Interaction Helper ────────────��─────────────────────────
 
 /// Execute a browser interaction by resolving the session, sending the
 /// action to the tab, and waiting for the browser response.
@@ -1079,6 +1104,39 @@ pub(crate) async fn execute_tool(
             .await
         }
 
+        "vertz_browser_fill_form" => {
+            let session_id = args.get("sessionId").and_then(|v| v.as_str());
+            let target = args
+                .get("target")
+                .cloned()
+                .unwrap_or(serde_json::Value::Null);
+            let data = args.get("data").cloned().unwrap_or(serde_json::json!({}));
+
+            execute_browser_interaction(
+                &state.browser_hub,
+                session_id,
+                "fill_form",
+                serde_json::json!({ "target": target, "data": data }),
+            )
+            .await
+        }
+
+        "vertz_browser_submit" => {
+            let session_id = args.get("sessionId").and_then(|v| v.as_str());
+            let target = args
+                .get("target")
+                .cloned()
+                .unwrap_or(serde_json::Value::Null);
+
+            execute_browser_interaction(
+                &state.browser_hub,
+                session_id,
+                "submit",
+                serde_json::json!({ "target": target }),
+            )
+            .await
+        }
+
         _ => Err(format!("Unknown tool: {}", name)),
     }
 }
@@ -1593,7 +1651,7 @@ mod tests {
         let defs = tool_definitions();
         let tools = defs["tools"].as_array().unwrap();
 
-        assert_eq!(tools.len(), 16);
+        assert_eq!(tools.len(), 18);
 
         let names: Vec<&str> = tools.iter().map(|t| t["name"].as_str().unwrap()).collect();
         assert!(names.contains(&"vertz_get_errors"));
@@ -1604,6 +1662,8 @@ mod tests {
         assert!(names.contains(&"vertz_browser_click"));
         assert!(names.contains(&"vertz_browser_type"));
         assert!(names.contains(&"vertz_browser_select"));
+        assert!(names.contains(&"vertz_browser_fill_form"));
+        assert!(names.contains(&"vertz_browser_submit"));
         assert!(names.contains(&"vertz_render_page"));
         assert!(names.contains(&"vertz_get_console"));
         assert!(names.contains(&"vertz_navigate"));
@@ -1705,7 +1765,7 @@ mod tests {
         let resp = handle_mcp_message(&state, req).await.unwrap();
         let result = resp.result.unwrap();
         let tools = result["tools"].as_array().unwrap();
-        assert_eq!(tools.len(), 16);
+        assert_eq!(tools.len(), 18);
     }
 
     #[tokio::test]
