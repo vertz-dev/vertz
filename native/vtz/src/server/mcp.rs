@@ -307,9 +307,85 @@ pub(crate) fn tool_definitions() -> serde_json::Value {
                     },
                     "required": []
                 }
+            },
+            {
+                "name": "vertz_browser_click",
+                "description": "Click an element in the controlled browser tab. Target can be an element ref from a snapshot, a CSS selector, or { text: \"...\", name: \"...\", label: \"...\" }. Returns updated snapshot after the page settles.",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "sessionId": { "type": "string", "description": "Session ID. Optional if only one session is active." },
+                        "target": { "description": "Element ref, CSS selector, or { text, name, label } object." }
+                    },
+                    "required": ["target"]
+                }
+            },
+            {
+                "name": "vertz_browser_type",
+                "description": "Type text into an input or textarea in the controlled browser tab. Sets the value and dispatches input/change events. Returns updated snapshot.",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "sessionId": { "type": "string", "description": "Session ID. Optional if only one session is active." },
+                        "target": { "description": "Element ref, CSS selector, or { text, name, label } object." },
+                        "text": { "type": "string", "description": "Text to type into the element." }
+                    },
+                    "required": ["target", "text"]
+                }
+            },
+            {
+                "name": "vertz_browser_select",
+                "description": "Select an option in a <select> element in the controlled browser tab. Sets the value and dispatches input/change events. Returns updated snapshot.",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "sessionId": { "type": "string", "description": "Session ID. Optional if only one session is active." },
+                        "target": { "description": "Element ref, CSS selector, or { text, name, label } object." },
+                        "value": { "type": "string", "description": "Option value to select." }
+                    },
+                    "required": ["target", "value"]
+                }
             }
         ]
     })
+}
+
+// ── Browser Interaction Helper ──────────────────────────────────────
+
+/// Execute a browser interaction by resolving the session, sending the
+/// action to the tab, and waiting for the browser response.
+async fn execute_browser_interaction(
+    hub: &crate::server::browser_hub::BrowserInteractionHub,
+    session_id: Option<&str>,
+    action: &str,
+    extra_fields: serde_json::Value,
+) -> Result<serde_json::Value, String> {
+    let tab_id = hub.resolve_session(session_id).await?;
+
+    let request_id = format!("act-{}", uuid::Uuid::new_v4().as_simple());
+    let mut message = serde_json::json!({
+        "type": "interact",
+        "requestId": request_id,
+        "action": action,
+    });
+
+    // Merge extra fields into the message
+    if let (Some(msg_obj), Some(extra_obj)) = (message.as_object_mut(), extra_fields.as_object()) {
+        for (k, v) in extra_obj {
+            msg_obj.insert(k.clone(), v.clone());
+        }
+    }
+
+    hub.send_to_tab(&tab_id, message).await?;
+
+    let response = hub
+        .wait_for_response(&request_id, std::time::Duration::from_secs(10))
+        .await?;
+
+    let text = serde_json::to_string_pretty(&response).unwrap_or_default();
+    Ok(serde_json::json!({
+        "content": [{ "type": "text", "text": text }]
+    }))
 }
 
 // ── Tool Execution ──────────────────────────────────────────────────
@@ -947,6 +1023,62 @@ pub(crate) async fn execute_tool(
             }))
         }
 
+        "vertz_browser_click" => {
+            let session_id = args.get("sessionId").and_then(|v| v.as_str());
+            let target = args
+                .get("target")
+                .cloned()
+                .unwrap_or(serde_json::Value::Null);
+
+            execute_browser_interaction(
+                &state.browser_hub,
+                session_id,
+                "click",
+                serde_json::json!({ "target": target }),
+            )
+            .await
+        }
+
+        "vertz_browser_type" => {
+            let session_id = args.get("sessionId").and_then(|v| v.as_str());
+            let target = args
+                .get("target")
+                .cloned()
+                .unwrap_or(serde_json::Value::Null);
+            let text = args
+                .get("text")
+                .and_then(|v| v.as_str())
+                .unwrap_or_default();
+
+            execute_browser_interaction(
+                &state.browser_hub,
+                session_id,
+                "type",
+                serde_json::json!({ "target": target, "text": text }),
+            )
+            .await
+        }
+
+        "vertz_browser_select" => {
+            let session_id = args.get("sessionId").and_then(|v| v.as_str());
+            let target = args
+                .get("target")
+                .cloned()
+                .unwrap_or(serde_json::Value::Null);
+            let value = args
+                .get("value")
+                .and_then(|v| v.as_str())
+                .unwrap_or_default();
+
+            execute_browser_interaction(
+                &state.browser_hub,
+                session_id,
+                "select",
+                serde_json::json!({ "target": target, "value": value }),
+            )
+            .await
+        }
+
         _ => Err(format!("Unknown tool: {}", name)),
     }
 }
@@ -1461,7 +1593,7 @@ mod tests {
         let defs = tool_definitions();
         let tools = defs["tools"].as_array().unwrap();
 
-        assert_eq!(tools.len(), 13);
+        assert_eq!(tools.len(), 16);
 
         let names: Vec<&str> = tools.iter().map(|t| t["name"].as_str().unwrap()).collect();
         assert!(names.contains(&"vertz_get_errors"));
@@ -1469,6 +1601,9 @@ mod tests {
         assert!(names.contains(&"vertz_browser_connect"));
         assert!(names.contains(&"vertz_browser_disconnect"));
         assert!(names.contains(&"vertz_browser_snapshot"));
+        assert!(names.contains(&"vertz_browser_click"));
+        assert!(names.contains(&"vertz_browser_type"));
+        assert!(names.contains(&"vertz_browser_select"));
         assert!(names.contains(&"vertz_render_page"));
         assert!(names.contains(&"vertz_get_console"));
         assert!(names.contains(&"vertz_navigate"));
@@ -1570,7 +1705,7 @@ mod tests {
         let resp = handle_mcp_message(&state, req).await.unwrap();
         let result = resp.result.unwrap();
         let tools = result["tools"].as_array().unwrap();
-        assert_eq!(tools.len(), 13);
+        assert_eq!(tools.len(), 16);
     }
 
     #[tokio::test]
