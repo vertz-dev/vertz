@@ -172,6 +172,7 @@ Returns a structured snapshot of the page: interactive elements with refs, form 
 ```
 
 The snapshot includes:
+
 - **Elements**: inputs, buttons, selects, links, checkboxes — each with a stable `ref` for targeting
 - **Forms**: form elements with their field refs, action, and method
 - **Focused element**: which element currently has focus
@@ -253,13 +254,13 @@ Waits for a condition to be met in the browser, polling every 100ms.
 
 All interaction tools accept flexible targeting:
 
-| Format | Example | Description |
-| ------ | ------- | ----------- |
-| Ref string | `"submit-btn"` | Element ref from the last snapshot (most reliable) |
-| CSS selector | `"#my-button"` | Standard CSS selector via `querySelector` |
-| Text match | `{ "text": "Save" }` | Find element by visible text content |
-| Name match | `{ "name": "email" }` | Find element by `name` attribute |
-| Label match | `{ "label": "Email" }` | Find input by its associated `<label>` text |
+| Format       | Example                | Description                                        |
+| ------------ | ---------------------- | -------------------------------------------------- |
+| Ref string   | `"submit-btn"`         | Element ref from the last snapshot (most reliable) |
+| CSS selector | `"#my-button"`         | Standard CSS selector via `querySelector`          |
+| Text match   | `{ "text": "Save" }`   | Find element by visible text content               |
+| Name match   | `{ "name": "email" }`  | Find element by `name` attribute                   |
+| Label match  | `{ "label": "Email" }` | Find input by its associated `<label>` text        |
 
 ### Browser interaction workflow
 
@@ -272,9 +273,8 @@ All interaction tools accept flexible targeting:
 ```
 
 <Tip>
-  If only one browser tab is open (the common case), you can omit both `tabId`
-  in connect and `sessionId` in all subsequent calls — the tools auto-resolve
-  to the single tab/session.
+  If only one browser tab is open (the common case), you can omit both `tabId` in connect and
+  `sessionId` in all subsequent calls — the tools auto-resolve to the single tab/session.
 </Tip>
 
 ## Real-time events
