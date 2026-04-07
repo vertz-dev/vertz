@@ -1,5 +1,6 @@
 import { service, rules } from '@vertz/server';
 import { s } from '@vertz/schema';
+import type { WorkflowExecutor } from '../../lib/workflow-executor';
 
 export type WorkflowStatus =
   | 'running'
@@ -44,7 +45,12 @@ const workflowRunSchema = s.object({
   createdAt: s.string(),
 });
 
-export function createWorkflowService(store: WorkflowStore) {
+export interface WorkflowServiceOptions {
+  executor?: WorkflowExecutor;
+}
+
+export function createWorkflowService(store: WorkflowStore, options?: WorkflowServiceOptions) {
+  const executor = options?.executor;
   return service('workflows', {
     access: {
       start: rules.public,
@@ -61,7 +67,14 @@ export function createWorkflowService(store: WorkflowStore) {
         }),
         response: workflowRunSchema,
         async handler(input: { issueNumber: number; repo: string }) {
-          return store.create(input);
+          const run = store.create(input);
+          if (executor) {
+            // Fire-and-forget: start workflow execution in background
+            executor.start(run).catch(() => {
+              // Error already recorded in store by executor
+            });
+          }
+          return run;
         },
       },
 
@@ -90,13 +103,20 @@ export function createWorkflowService(store: WorkflowStore) {
         response: s.object({ approved: s.boolean() }),
         async handler(input: { id: string }) {
           const run = store.get(input.id);
-          if (!run) {
+          if (!run || run.status !== 'waiting-approval') {
             return { approved: false };
           }
-          store.update(input.id, {
-            status: 'running',
-            currentStep: 'implement',
-          });
+          if (executor) {
+            // Fire-and-forget: resume workflow execution in background
+            executor.approve(input.id).catch(() => {
+              // Error already recorded in store by executor
+            });
+          } else {
+            store.update(input.id, {
+              status: 'running',
+              currentStep: 'implement',
+            });
+          }
           return { approved: true };
         },
       },

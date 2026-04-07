@@ -1,5 +1,5 @@
 import { BotIcon, LayoutDashboardIcon } from "@vertz/icons";
-import { css, Link } from "vertz/ui";
+import { css, Link } from '@vertz/ui';
 
 const styles = css({
   sidebar: [

@@ -48,6 +48,13 @@ describe('Feature: GitHub API client', () => {
 
     describe('When getPrChecks is called', () => {
       it('Then returns the check status and individual results', async () => {
+        // First call: PR details (to get head SHA)
+        mockFetch.mockResolvedValueOnce(
+          new Response(JSON.stringify({
+            head: { sha: 'abc123' },
+          })),
+        );
+        // Second call: check runs for the SHA
         mockFetch.mockResolvedValueOnce(
           new Response(JSON.stringify({
             check_runs: [

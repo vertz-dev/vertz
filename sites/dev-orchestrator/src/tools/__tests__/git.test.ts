@@ -1,5 +1,5 @@
 import { describe, expect, it, vi, beforeEach } from 'bun:test';
-import { createGitTools } from '../git';
+import { createGitProvider, gitStatus, gitCommit, gitPush, gitLog } from '../git';
 import type { SandboxClient } from '../../lib/sandbox-client';
 
 function createMockClient(): SandboxClient {
@@ -20,7 +20,27 @@ describe('Feature: Git tools', () => {
     client = createMockClient();
   });
 
-  describe('Given git tools created with a sandbox client', () => {
+  describe('Given git tool declarations', () => {
+    it('Then gitStatus is a tool declaration with kind "tool"', () => {
+      expect(gitStatus.kind).toBe('tool');
+      expect(gitStatus.parallel).toBe(true);
+    });
+
+    it('Then gitCommit is a tool declaration with kind "tool"', () => {
+      expect(gitCommit.kind).toBe('tool');
+    });
+
+    it('Then gitPush is a tool declaration with kind "tool"', () => {
+      expect(gitPush.kind).toBe('tool');
+    });
+
+    it('Then gitLog is a tool declaration with kind "tool"', () => {
+      expect(gitLog.kind).toBe('tool');
+      expect(gitLog.parallel).toBe(true);
+    });
+  });
+
+  describe('Given a git provider created with a sandbox client', () => {
     describe('When gitStatus handler is called', () => {
       it('Then returns modified and untracked files', async () => {
         (client.exec as ReturnType<typeof vi.fn>)
@@ -30,8 +50,8 @@ describe('Feature: Git tools', () => {
             exitCode: 0,
           });
 
-        const tools = createGitTools(client);
-        const result = await tools.gitStatus.handler!({}, {} as any);
+        const provider = createGitProvider(client);
+        const result = await provider.gitStatus({});
 
         expect(result.modified).toEqual(['src/index.ts']);
         expect(result.untracked).toEqual(['src/new.ts']);
@@ -48,15 +68,14 @@ describe('Feature: Git tools', () => {
             exitCode: 0,
           }); // git commit
 
-        const tools = createGitTools(client);
-        const result = await tools.gitCommit.handler!(
+        const provider = createGitProvider(client);
+        const result = await provider.gitCommit(
           { files: ['src/index.ts'], message: 'feat: add thing' },
-          {} as any,
         );
 
         expect(result.sha).toBe('abc1234');
         const calls = (client.exec as ReturnType<typeof vi.fn>).mock.calls;
-        expect(calls[0][0]).toBe('git add src/index.ts');
+        expect(calls[0][0]).toBe("git add 'src/index.ts'");
       });
     });
 
@@ -65,15 +84,12 @@ describe('Feature: Git tools', () => {
         (client.exec as ReturnType<typeof vi.fn>)
           .mockResolvedValueOnce({ stdout: '', stderr: '', exitCode: 0 });
 
-        const tools = createGitTools(client);
-        const result = await tools.gitPush.handler!(
-          { branch: 'feat/auth' },
-          {} as any,
-        );
+        const provider = createGitProvider(client);
+        const result = await provider.gitPush({ branch: 'feat/auth' });
 
         expect(result.success).toBe(true);
         const calls = (client.exec as ReturnType<typeof vi.fn>).mock.calls;
-        expect(calls[0][0]).toBe('git push -u origin feat/auth');
+        expect(calls[0][0]).toBe("git push -u origin 'feat/auth'");
       });
     });
 
@@ -86,8 +102,8 @@ describe('Feature: Git tools', () => {
             exitCode: 0,
           });
 
-        const tools = createGitTools(client);
-        const result = await tools.gitLog.handler!({ count: undefined }, {} as any);
+        const provider = createGitProvider(client);
+        const result = await provider.gitLog({ count: undefined });
 
         expect(result.commits).toHaveLength(2);
         expect(result.commits[0]).toEqual({

@@ -6,8 +6,24 @@ Current intent:
 
 - keep the app inside the Vertz monorepo for faster framework iteration
 - keep development and tests on `vtz` so runtime/test-runner gaps stay visible
+- all `@vertz/*` dependencies use `workspace:*` resolution (local packages)
 
-Known temporary gaps:
+## Running
 
-- this checkout does not yet expose a local `vtz` workspace binary, so the app depends on the published `vertz` package for the `vtz` command
-- this checkout's local Vertz workspace packages are behind the published runtime/API set used by this app, so the app is currently pinned to published Vertz package versions instead of `workspace:*`
+```bash
+# Build all packages first (required for workspace resolution)
+vtz run build
+
+# Run tests
+cd sites/dev-orchestrator && bun test
+
+# Typecheck
+tsc --noEmit
+```
+
+## Architecture
+
+- **Agents:** planner, reviewer, implementer, ci-monitor (all use MiniMax-M2.7)
+- **Workflow:** 8-step feature workflow (plan -> 3x review -> approval -> implement -> code review -> CI monitor)
+- **Executor:** `WorkflowExecutor` bridges `runWorkflow()` from `@vertz/agents` with the in-memory workflow store
+- **API:** REST services for dashboard and workflow management

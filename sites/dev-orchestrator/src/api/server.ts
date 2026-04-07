@@ -13,10 +13,10 @@ import { createInMemoryWorkflowStore } from './services/workflow-store';
 const workflowStore = createInMemoryWorkflowStore();
 
 const agents: AgentInfo[] = [
-  { name: 'planner', description: 'Reads a GitHub issue and produces a design doc', model: 'MiniMax-M1' },
-  { name: 'reviewer', description: 'Adversarially reviews design docs and code', model: 'MiniMax-M1' },
-  { name: 'implementer', description: 'Implements features using strict TDD', model: 'MiniMax-M1' },
-  { name: 'ci-monitor', description: 'Monitors GitHub CI status and diagnoses failures', model: 'MiniMax-M1' },
+  { name: 'planner', description: 'Reads a GitHub issue and produces a design doc', model: 'MiniMax-M2.7' },
+  { name: 'reviewer', description: 'Adversarially reviews design docs and code', model: 'MiniMax-M2.7' },
+  { name: 'implementer', description: 'Implements features using strict TDD', model: 'MiniMax-M2.7' },
+  { name: 'ci-monitor', description: 'Monitors GitHub CI status and diagnoses failures', model: 'MiniMax-M2.7' },
 ];
 
 const app = createServer({
