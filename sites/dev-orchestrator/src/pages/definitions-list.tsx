@@ -37,6 +37,7 @@ export default function DefinitionsListPage() {
     <div style={styles.page}>
       <h1 style={styles.heading}>Workflow Definitions</h1>
       {defsQuery.loading && <div style={styles.loading}>Loading...</div>}
+      {defsQuery.error && <div style={styles.loading}>Failed to load definitions.</div>}
       <table style={styles.table}>
         <thead>
           <tr>

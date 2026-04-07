@@ -46,7 +46,7 @@ export default function StepNode({ name, type, agent, selected, status, onClick 
     <div
       style={nodeStyle}
       onClick={onClick}
-      onKeyDown={(e: KeyboardEvent) => { if (e.key === 'Enter' || e.key === ' ') onClick?.(); }}
+      onKeyDown={(e: KeyboardEvent) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick?.(); } }}
       role="button"
       tabIndex={0}
     >

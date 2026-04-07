@@ -57,7 +57,8 @@ function handleDefinitionsList(): Response {
 }
 
 function handleDefinitionsGet(body: { name: string }): Response {
-  const wf = workflowRegistry.get(body.name) ?? null;
+  const wf = workflowRegistry.get(body.name);
+  if (!wf) return jsonResponse({ error: 'Definition not found' }, 404);
   return jsonResponse(extractDefinitionDetail(wf));
 }
 
@@ -76,8 +77,16 @@ const app = {
       return handleDefinitionsList();
     }
     if (url.pathname === '/api/definitions/get' && request.method === 'POST') {
-      const body = await request.json() as { name: string };
-      return handleDefinitionsGet(body);
+      let body: unknown;
+      try {
+        body = await request.json();
+      } catch {
+        return jsonResponse({ error: 'Invalid JSON' }, 400);
+      }
+      if (!body || typeof body !== 'object' || typeof (body as Record<string, unknown>).name !== 'string') {
+        return jsonResponse({ error: 'Missing or invalid "name" field' }, 400);
+      }
+      return handleDefinitionsGet(body as { name: string });
     }
 
     return innerApp.handler(request);
