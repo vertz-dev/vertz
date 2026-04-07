@@ -1,5 +1,14 @@
 # create-vertz
 
+## 0.2.51
+
+### Patch Changes
+
+- [#2393](https://github.com/vertz-dev/vertz/pull/2393) [`9c22efa`](https://github.com/vertz-dev/vertz/commit/9c22efae955665087578f4ccaeb2fc2a6e5f8881) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - Fix broken npm dependency: use `workspace:^` so the published `create-vertz` accepts any compatible `@vertz/create-vertz-app` version instead of pinning to an exact (possibly unpublished) version.
+
+- Updated dependencies []:
+  - @vertz/create-vertz-app@0.2.51
+
 ## 0.2.50
 
 ### Patch Changes
