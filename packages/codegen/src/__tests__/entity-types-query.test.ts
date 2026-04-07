@@ -457,6 +457,29 @@ describe('Entity Types Generator - Query Types', () => {
       expect(typesFile?.content).not.toContain('GetQuery');
     });
 
+    it('uses proper PascalCase for hyphenated entity names', () => {
+      const entity = createEntityWithExpose({
+        entityName: 'task-category',
+        allowWhere: [{ name: 'name', tsType: 'string' }],
+      });
+      // Fix operation schemas to match the new entity name
+      entity.operations = entity.operations.map((op) => ({
+        ...op,
+        outputSchema: op.outputSchema ? 'TaskCategoryResponse' : undefined,
+        inputSchema: op.inputSchema
+          ? op.inputSchema.replace('Task', 'TaskCategory')
+          : undefined,
+      }));
+      const ir = createCodegenIR([entity]);
+      const files = generator.generate(ir, { outputDir: '', options: {} });
+      const typesFile = files.find((f) => f.path === 'types/task-category.ts');
+
+      expect(typesFile?.content).toContain('export interface TaskCategoryWhereInput {');
+      expect(typesFile?.content).toContain('export interface TaskCategoryListQuery {');
+      expect(typesFile?.content).toContain('export interface TaskCategoryGetQuery {');
+      expect(typesFile?.content).not.toContain('Task-category');
+    });
+
     it('uses inline mapped type for select, not Record', () => {
       const entity = createEntityWithExpose();
       const ir = createCodegenIR([entity]);
