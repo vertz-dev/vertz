@@ -35,7 +35,7 @@ export class ModuleValidator implements Validator {
 
   private checkOwnership(mod: ModuleIR, diagnostics: Diagnostic[]): void {
     for (const svc of mod.services) {
-      if (svc.moduleName !== mod.name) {
+      if (svc.moduleName !== undefined && svc.moduleName !== mod.name) {
         diagnostics.push(
           createDiagnostic({
             severity: 'error',

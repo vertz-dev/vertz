@@ -19,6 +19,7 @@ export type {
 } from './generators/entity-schema-manifest-generator';
 export { EntitySdkGenerator } from './generators/entity-sdk-generator';
 export { EntityTypesGenerator } from './generators/entity-types-generator';
+export { ServiceSdkGenerator } from './generators/service-sdk-generator';
 export type { RelationManifestEntry } from './generators/relation-manifest-generator';
 export { generateRelationManifest } from './generators/relation-manifest-generator';
 export { hashContent } from './hasher';
@@ -42,6 +43,8 @@ export type {
   CodegenRelation,
   CodegenResolvedField,
   CodegenSchema,
+  CodegenServiceAction,
+  CodegenServiceModule,
   FileFragment,
   GeneratedFile,
   Generator,
