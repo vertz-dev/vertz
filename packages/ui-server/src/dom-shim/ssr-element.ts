@@ -340,11 +340,58 @@ export class SSRElement extends SSRNode {
     this.attrs.name = value;
   }
 
+  /** Internal storage for select.value (not serialized as an attribute). */
+  private _selectValue: string | undefined;
+
   get value(): string {
+    if (this.tag === 'select') {
+      return this._selectValue ?? '';
+    }
     return this.attrs.value ?? '';
   }
   set value(value: string) {
-    this.attrs.value = value;
+    if (this.tag === 'select') {
+      // <select> has no "value" content attribute — store internally and
+      // apply "selected" to the matching <option> child instead.
+      this._selectValue = value;
+      this._applySelectValue();
+    } else {
+      this.attrs.value = value;
+    }
+  }
+
+  /** Walk <option> children and set/remove "selected" to match _selectValue. */
+  private _applySelectValue(): void {
+    if (this._selectValue === undefined) return;
+    this._applySelectValueToChildren(this.children);
+  }
+
+  private _applySelectValueToChildren(children: (SSRElement | SSRComment | string)[]): void {
+    for (const child of children) {
+      if (child instanceof SSRElement) {
+        if (child.tag === 'option') {
+          const optValue = child.attrs.value ?? this._getChildTextContent(child);
+          if (optValue === this._selectValue) {
+            child.attrs.selected = '';
+          } else {
+            delete child.attrs.selected;
+          }
+        } else if (child.tag === 'optgroup') {
+          this._applySelectValueToChildren(child.children);
+        }
+      }
+    }
+  }
+
+  /** Get concatenated text content of an element's children. */
+  private _getChildTextContent(el: SSRElement): string {
+    return el.children
+      .map((c) => {
+        if (typeof c === 'string') return c;
+        if (c instanceof SSRElement) return this._getChildTextContent(c);
+        return '';
+      })
+      .join('');
   }
 
   get src(): string {
@@ -434,9 +481,16 @@ export class SSRElement extends SSRNode {
 
   /** Convert to a VNode tree for @vertz/ui-server */
   toVNode(): VNode {
+    // For <select>, ensure matching option has "selected" and omit the
+    // non-standard "value" attribute from the element's output.
+    let attrs = { ...this.attrs };
+    if (this.tag === 'select') {
+      this._applySelectValue();
+      delete attrs.value;
+    }
     return {
       tag: this.tag,
-      attrs: { ...this.attrs },
+      attrs,
       children: this.children.map((child) => {
         // innerHTML content is trusted markup — emit as raw HTML to avoid escaping
         if (typeof child === 'string') {

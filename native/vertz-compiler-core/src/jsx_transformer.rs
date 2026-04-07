@@ -55,6 +55,27 @@ fn is_debounce_element(tag_name: &str) -> bool {
     matches!(tag_name, "input" | "textarea" | "select")
 }
 
+/// Check if an attribute info will produce an IDL property statement that must
+/// be deferred until after children. This mirrors the logic in process_attr but
+/// only checks the name/tag — not whether the statement exists.
+fn is_idl_attr(attr: &AttrInfo, tag_name: &str) -> bool {
+    let name = match attr {
+        AttrInfo::Static { name, .. } => name.as_str(),
+        AttrInfo::Expression { name, .. } => {
+            let n = name.as_str();
+            // Event handlers and refs are never IDL property statements
+            if n == "ref" || (n.starts_with("on") && n.len() > 2) {
+                return false;
+            }
+            n
+        }
+        AttrInfo::BooleanShorthand { name } => name.as_str(),
+        AttrInfo::Spread { .. } => return false,
+    };
+    let attr_name = if name == "className" { "class" } else { name };
+    is_idl_property(tag_name, attr_name)
+}
+
 /// Transform all JSX in a component body into DOM helper calls.
 pub fn transform_jsx(
     ms: &mut MagicString,
@@ -1103,10 +1124,17 @@ fn transform_element(
         json_quote(&info.tag_name)
     ));
 
-    // Process attributes
+    // Process attributes — split into normal and deferred IDL property statements.
+    // IDL properties (select.value, input.value/checked, textarea.value) are deferred
+    // until after children so that e.g. <select>.value is set when <option>s exist.
+    let mut deferred_idl_stmts: Vec<String> = Vec::new();
     for attr in &info.attrs {
         if let Some(stmt) = process_attr(ms, attr, &el_var, &info.tag_name, rx) {
-            stmts.push(stmt);
+            if is_idl_attr(attr, &info.tag_name) {
+                deferred_idl_stmts.push(stmt);
+            } else {
+                stmts.push(stmt);
+            }
         }
     }
 
@@ -1125,6 +1153,10 @@ fn transform_element(
     if has_children {
         stmts.push("__exitChildren()".to_string());
     }
+
+    // IDL property statements after children — <select>.value needs <option>s in DOM first.
+    // Also safe for <input>/<textarea> (no meaningful children).
+    stmts.extend(deferred_idl_stmts);
 
     format!(
         "(() => {{\n{}\n  return {};\n}})()",
@@ -1407,6 +1439,11 @@ fn process_attr(
             } else {
                 name.as_str()
             };
+            // IDL properties use direct property assignment — setAttribute doesn't
+            // control the displayed state (e.g., <select> has no "value" content attribute).
+            if is_idl_property(tag_name, attr_name) {
+                return Some(format!("{}.{} = {}", el_var, attr_name, json_quote(value)));
+            }
             Some(format!(
                 "{}.setAttribute({}, {})",
                 el_var,
@@ -2599,30 +2636,106 @@ mod tests {
     // ========== IDL property handling ==========
 
     #[test]
-    fn input_static_value_uses_set_attribute() {
+    fn input_static_value_uses_property_assignment() {
         let result = transform(
             r#"export function App() {
     return <input value="test" />;
 }"#,
         );
-        // Static value on input uses setAttribute, not direct property
+        // Static value on input uses direct property assignment, not setAttribute
+        assert!(result.contains(r#".value = "test""#), "result: {result}");
         assert!(
-            result.contains(r#"setAttribute("value", "test")"#),
-            "result: {result}"
+            !result.contains(r#"setAttribute("value""#),
+            "should not use setAttribute for IDL property: {result}"
         );
     }
 
     #[test]
-    fn textarea_static_value_uses_set_attribute() {
+    fn textarea_static_value_uses_property_assignment() {
         let result = transform(
             r#"export function App() {
     return <textarea value="test"></textarea>;
 }"#,
         );
-        // Static value on textarea uses setAttribute, not direct property
+        // Static value on textarea uses direct property assignment, not setAttribute
+        assert!(result.contains(r#".value = "test""#), "result: {result}");
+    }
+
+    #[test]
+    fn select_static_value_uses_property_assignment() {
+        let result = transform(
+            r#"export function App() {
+    return <select value="medium"><option value="low">Low</option><option value="medium">Medium</option></select>;
+}"#,
+        );
+        // Static value on select uses direct property assignment (not setAttribute on the select)
         assert!(
-            result.contains(r#"setAttribute("value", "test")"#),
+            result.contains(r#"__el0.value = "medium""#),
             "result: {result}"
+        );
+    }
+
+    #[test]
+    fn select_value_after_children() {
+        let result = transform(
+            r#"export function App() {
+    return <select value="medium"><option value="low">Low</option><option value="medium">Medium</option></select>;
+}"#,
+        );
+        // IDL property (.value) must appear AFTER __exitChildren() so that
+        // <option> elements are in the DOM when select.value is set.
+        let exit_pos = result.find("__exitChildren()");
+        let value_pos = result.find(r#".value = "medium""#);
+        assert!(
+            exit_pos.is_some() && value_pos.is_some(),
+            "both __exitChildren and .value must be present: {result}"
+        );
+        assert!(
+            exit_pos.unwrap() < value_pos.unwrap(),
+            "value assignment must come after __exitChildren: {result}"
+        );
+    }
+
+    #[test]
+    fn select_reactive_value_after_children() {
+        let result = transform(
+            r#"import { query } from 'vertz';
+export function App() {
+    const tasks = query('/api/tasks');
+    return <select value={tasks.data}><option value="low">Low</option></select>;
+}"#,
+        );
+        // Reactive __prop must appear AFTER __exitChildren()
+        let exit_pos = result.find("__exitChildren()");
+        let prop_pos = result.find("__prop(");
+        assert!(
+            exit_pos.is_some() && prop_pos.is_some(),
+            "both __exitChildren and __prop must be present: {result}"
+        );
+        assert!(
+            exit_pos.unwrap() < prop_pos.unwrap(),
+            "__prop must come after __exitChildren: {result}"
+        );
+    }
+
+    #[test]
+    fn select_static_expression_value_after_children() {
+        let result = transform(
+            r#"export function App() {
+    const v = "medium";
+    return <select value={v}><option value="low">Low</option></select>;
+}"#,
+        );
+        // Static IDL expression must appear AFTER __exitChildren()
+        let exit_pos = result.find("__exitChildren()");
+        let value_pos = result.find(".value = __v");
+        assert!(
+            exit_pos.is_some() && value_pos.is_some(),
+            "both __exitChildren and .value assignment must be present: {result}"
+        );
+        assert!(
+            exit_pos.unwrap() < value_pos.unwrap(),
+            "value assignment must come after __exitChildren: {result}"
         );
     }
 
