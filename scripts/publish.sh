@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# Ensure node_modules/.bin is on PATH (changesets action may not inherit GITHUB_PATH)
+export PATH="$PWD/node_modules/.bin:$PATH"
+
 # Publish all public packages. Three-tier publishing:
 # 1. Runtime binary packages (packages/runtime-*) — npm publish --provenance
 # 2. Runtime selector package (packages/runtime) — npm publish --provenance
@@ -129,4 +132,4 @@ echo ""
 echo "All packages published successfully"
 
 # Create git tags (changeset tag)
-vtzx changeset tag 2>/dev/null || true
+changeset tag 2>/dev/null || true
