@@ -1,5 +1,5 @@
 import type { ToolContext, ToolDefinition } from '../types';
-import { validateToolInput } from './validate-tool-input';
+import { validateToolInput, validateToolOutput } from './validate-tool-input';
 
 // ---------------------------------------------------------------------------
 // LLM adapter interface — provider-agnostic
@@ -374,8 +374,9 @@ export async function reactLoop(options: ReactLoopOptions): Promise<LoopResult> 
     }
   }
 
-  // Exceeded max iterations
-  return buildResult('max-iterations', '');
+  // Exceeded max iterations — extract last meaningful assistant text
+  const lastAssistantMsg = [...messages].reverse().find((m) => m.role === 'assistant');
+  return buildResult('max-iterations', lastAssistantMsg?.content ?? '');
 }
 
 // ---------------------------------------------------------------------------
@@ -497,12 +498,29 @@ async function executeToolCall(
 
   try {
     const result = await toolDef.handler(validation.data, toolContext);
+
+    // Validate handler output against the tool's output schema
+    const outputValidation = validateToolOutput(toolDef, result);
+    if (!outputValidation.ok) {
+      return {
+        message: {
+          role: 'tool',
+          toolCallId: callId,
+          toolName: toolCall.name,
+          content: JSON.stringify({
+            error: `Tool "${toolCall.name}" returned invalid output: ${outputValidation.error}`,
+          }),
+        },
+        success: false,
+      };
+    }
+
     return {
       message: {
         role: 'tool',
         toolCallId: callId,
         toolName: toolCall.name,
-        content: JSON.stringify(result),
+        content: JSON.stringify(outputValidation.data),
       },
       success: true,
     };

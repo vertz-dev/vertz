@@ -18,7 +18,7 @@ function makeTool(name: string, handler: (input: unknown) => unknown): ToolDefin
     kind: 'tool',
     description: `Test tool: ${name}`,
     input: s.object({}),
-    output: s.object({}),
+    output: s.unknown(),
     handler: handler as ToolDefinition['handler'],
     execution: 'server',
   };
@@ -118,6 +118,8 @@ describe('reactLoop()', () => {
 
         expect(result.status).toBe('max-iterations');
         expect(result.iterations).toBe(3);
+        // max-iterations now preserves the last assistant message text
+        expect(result.response).toBe('[Calling noop]');
       });
     });
   });
@@ -169,6 +171,39 @@ describe('reactLoop()', () => {
         expect(result.status).toBe('complete');
         expect(result.response).toBe('The tool failed with: Connection refused');
         expect(result.iterations).toBe(2);
+      });
+    });
+  });
+
+  describe('Given a tool whose handler returns output that does not match the output schema', () => {
+    describe('When the LLM calls it', () => {
+      it('Then feeds the validation error back to the LLM as a tool result', async () => {
+        const badOutput: ToolDefinition = {
+          kind: 'tool',
+          description: 'Returns wrong type',
+          input: s.object({}),
+          output: s.object({ count: s.number() }),
+          handler: async () => ({ count: 'not-a-number' }),
+          execution: 'server',
+        };
+
+        const llm = mockLLM([
+          { toolCalls: [{ name: 'badOutput', arguments: {} }] },
+          { text: 'The tool output was invalid' },
+        ]);
+
+        const result = await reactLoop({
+          llm,
+          tools: { badOutput },
+          systemPrompt: 'You are helpful.',
+          userMessage: 'Call badOutput',
+          maxIterations: 10,
+          toolContext: TEST_TOOL_CONTEXT,
+        });
+
+        expect(result.status).toBe('complete');
+        const toolMsg = result.messages.find((m) => m.role === 'tool');
+        expect(toolMsg!.content).toContain('invalid output');
       });
     });
   });
@@ -1241,7 +1276,7 @@ function makeParallelTool(name: string, handler: (input: unknown) => unknown): T
     kind: 'tool',
     description: `Parallel test tool: ${name}`,
     input: s.object({}),
-    output: s.object({}),
+    output: s.unknown(),
     handler: handler as ToolDefinition['handler'],
     execution: 'server',
     parallel: true,
