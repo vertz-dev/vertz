@@ -1,5 +1,14 @@
 # @vertz/openapi
 
+## 0.1.8
+
+### Patch Changes
+
+- [#2416](https://github.com/vertz-dev/vertz/pull/2416) [`fe6d956`](https://github.com/vertz-dev/vertz/commit/fe6d9567bbfc63bd093da818cf0609e80176462a) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - Derive generated type names (Query, Response, Input, Event) from the resource name + cleaned method name instead of the raw operationId. This produces readable, unique type names like `BrandsFindManyQuery` instead of verbose path-embedded names like `FindManyWebOrganizationsOrganizationIdBrandsGetQuery` when using adapters like `fastapi()`. The resource prefix ensures uniqueness across files when types are imported together.
+
+- Updated dependencies []:
+  - @vertz/fetch@0.2.53
+
 ## 0.1.7
 
 ### Patch Changes

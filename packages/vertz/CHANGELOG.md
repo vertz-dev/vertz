@@ -1,5 +1,23 @@
 # vertz
 
+## 0.2.53
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @vertz/cli@0.2.53
+  - @vertz/cloudflare@0.2.53
+  - @vertz/db@0.2.53
+  - @vertz/errors@0.2.53
+  - @vertz/fetch@0.2.53
+  - @vertz/schema@0.2.53
+  - @vertz/server@0.2.53
+  - @vertz/testing@0.2.53
+  - @vertz/tui@0.2.53
+  - @vertz/ui@0.2.53
+  - @vertz/ui-primitives@0.2.53
+  - @vertz/ui-server@0.2.53
+
 ## 0.2.52
 
 ### Patch Changes
