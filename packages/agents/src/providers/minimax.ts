@@ -34,14 +34,23 @@ export function createMinimaxAdapter(options: CreateAdapterOptions): LLMAdapter 
         body.tools = openAITools;
       }
 
-      const response = await fetch(url, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${apiKey}`,
-        },
-        body: JSON.stringify(body),
-      });
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 120_000);
+
+      let response: Response;
+      try {
+        response = await fetch(url, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${apiKey}`,
+          },
+          body: JSON.stringify(body),
+          signal: controller.signal,
+        });
+      } finally {
+        clearTimeout(timeout);
+      }
 
       if (!response.ok) {
         const text = await response.text();
