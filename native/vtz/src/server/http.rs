@@ -332,6 +332,7 @@ pub fn build_router(
         api_proxy,
         last_file_change: Arc::new(std::sync::Mutex::new(None)),
         favicon_tag,
+        browser_hub: crate::server::browser_hub::BrowserInteractionHub::new(),
     });
 
     // Routes: HMR WebSocket, error WebSocket, diagnostics, AI API, fallback
@@ -360,6 +361,7 @@ pub fn build_router(
             axum::routing::post(mcp::mcp_streamable_handler),
         )
         .route("/__vertz_mcp/events", get(ws_mcp_events_handler))
+        .route("/__vertz_interact", get(ws_interact_handler))
         .fallback(dev_server_handler)
         .with_state(state.clone())
         .layer(RequestLoggingLayer)
@@ -405,6 +407,16 @@ async fn ws_mcp_events_handler(
             .mcp_event_hub
             .handle_connection(socket, server_status, error_snapshot)
             .await;
+    })
+}
+
+/// WebSocket upgrade handler for the browser interaction endpoint.
+async fn ws_interact_handler(
+    State(state): State<Arc<DevServerState>>,
+    ws: WebSocketUpgrade,
+) -> impl IntoResponse {
+    ws.on_upgrade(move |socket| async move {
+        state.browser_hub.handle_connection(socket).await;
     })
 }
 

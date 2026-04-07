@@ -21,6 +21,9 @@ const HMR_CLIENT_JS: &str = include_str!("../assets/hmr-client.js");
 /// The error overlay JS (embedded at compile time).
 const ERROR_OVERLAY_JS: &str = include_str!("../assets/error-overlay.js");
 
+/// The browser interaction client JS (embedded at compile time).
+const INTERACT_CLIENT_JS: &str = include_str!("../assets/interact-client.js");
+
 /// Options for assembling the SSR HTML document.
 pub struct SsrHtmlOptions<'a> {
     /// The title of the page.
@@ -157,6 +160,10 @@ pub fn assemble_ssr_document(options: &SsrHtmlOptions<'_>) -> String {
         html.push_str("\n  </script>\n");
         html.push_str("  <script>\n");
         html.push_str(ERROR_OVERLAY_JS);
+        html.push_str("\n  </script>\n");
+        // Browser interaction client (MCP tools)
+        html.push_str("  <script>\n");
+        html.push_str(INTERACT_CLIENT_JS);
         html.push_str("\n  </script>\n");
         // Module script that registers @vertz/ui context helpers with the FR runtime.
         html.push_str("  <script type=\"module\">\n");

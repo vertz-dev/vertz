@@ -263,6 +263,16 @@ pub(crate) fn tool_definitions() -> serde_json::Value {
                     },
                     "required": []
                 }
+            },
+            // ── Browser Interaction Tools ────────────────────────────────
+            {
+                "name": "vertz_browser_list_tabs",
+                "description": "List all connected browser tabs. Returns tab ID, current URL, page title, and whether a control session is active on each tab. Use this to discover tabs before connecting.",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {},
+                    "required": []
+                }
             }
         ]
     })
@@ -785,6 +795,30 @@ pub(crate) async fn execute_tool(
             }))
         }
 
+        // ── Browser Interaction Tools ────────────────────────────────
+        "vertz_browser_list_tabs" => {
+            let tabs = state.browser_hub.list_tabs().await;
+            let tab_list: Vec<serde_json::Value> = tabs
+                .iter()
+                .map(|t| {
+                    serde_json::json!({
+                        "id": t.id,
+                        "url": t.url,
+                        "title": t.title,
+                        "controlled": t.controlled,
+                    })
+                })
+                .collect();
+            let text = serde_json::to_string_pretty(&serde_json::json!({
+                "tabs": tab_list,
+            }))
+            .unwrap_or_default();
+
+            Ok(serde_json::json!({
+                "content": [{ "type": "text", "text": text }]
+            }))
+        }
+
         _ => Err(format!("Unknown tool: {}", name)),
     }
 }
@@ -1178,6 +1212,7 @@ mod tests {
             auto_installer: None,
             last_file_change: std::sync::Arc::new(std::sync::Mutex::new(None)),
             favicon_tag: None,
+            browser_hub: crate::server::browser_hub::BrowserInteractionHub::new(),
         })
     }
 
@@ -1213,6 +1248,7 @@ mod tests {
             auto_installer: None,
             last_file_change: std::sync::Arc::new(std::sync::Mutex::new(None)),
             favicon_tag: None,
+            browser_hub: crate::server::browser_hub::BrowserInteractionHub::new(),
         })
     }
 
@@ -1297,10 +1333,11 @@ mod tests {
         let defs = tool_definitions();
         let tools = defs["tools"].as_array().unwrap();
 
-        assert_eq!(tools.len(), 9);
+        assert_eq!(tools.len(), 10);
 
         let names: Vec<&str> = tools.iter().map(|t| t["name"].as_str().unwrap()).collect();
         assert!(names.contains(&"vertz_get_errors"));
+        assert!(names.contains(&"vertz_browser_list_tabs"));
         assert!(names.contains(&"vertz_render_page"));
         assert!(names.contains(&"vertz_get_console"));
         assert!(names.contains(&"vertz_navigate"));
@@ -1402,7 +1439,7 @@ mod tests {
         let resp = handle_mcp_message(&state, req).await.unwrap();
         let result = resp.result.unwrap();
         let tools = result["tools"].as_array().unwrap();
-        assert_eq!(tools.len(), 9);
+        assert_eq!(tools.len(), 10);
     }
 
     #[tokio::test]
@@ -1923,6 +1960,7 @@ mod tests {
                 auto_installer: None,
                 last_file_change: std::sync::Arc::new(std::sync::Mutex::new(None)),
                 favicon_tag: None,
+                browser_hub: crate::server::browser_hub::BrowserInteractionHub::new(),
             })
         };
 
