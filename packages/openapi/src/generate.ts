@@ -49,6 +49,14 @@ export async function generateFromOpenAPI(
     excludeTags: config.excludeTags,
   });
 
+  // 4b. Prefix type names with resource name for uniqueness across files
+  for (const resource of resources) {
+    for (const op of resource.operations) {
+      const methodPrefix = op.typePrefix ?? toPascalCase(op.methodName);
+      op.typePrefix = resource.name + methodPrefix;
+    }
+  }
+
   // 5. Build ParsedSpec
   const info = raw.info as Record<string, unknown> | undefined;
   const spec: ParsedSpec = {

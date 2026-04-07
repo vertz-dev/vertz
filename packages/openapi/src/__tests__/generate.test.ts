@@ -398,9 +398,9 @@ describe('generateFromOpenAPI', () => {
     });
 
     const typesContent = readFileSync(join(outputDir, 'types/brands.ts'), 'utf-8');
-    // Type names should derive from the cleaned method name, not the raw operationId
-    expect(typesContent).toContain('export interface FindManyQuery {');
-    expect(typesContent).toContain('export interface ArchiveResponse {');
+    // Type names include tag prefix + cleaned method name, not the raw operationId
+    expect(typesContent).toContain('export interface BrandsFindManyQuery {');
+    expect(typesContent).toContain('export interface BrandsArchiveResponse {');
     // Should NOT contain the verbose path-embedded names
     expect(typesContent).not.toContain('WebOrganizations');
     expect(typesContent).not.toContain('OrganizationId');
