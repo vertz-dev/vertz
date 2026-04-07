@@ -1,10 +1,5 @@
 import type { ParsedOperation, ParsedResource, ParsedSchema } from '../parser/types';
-import {
-  collectCircularRefs,
-  getTypePrefix,
-  sanitizeTypeName,
-  toPascalCase,
-} from './json-schema-to-ts';
+import { collectCircularRefs, getTypePrefix, sanitizeTypeName } from './json-schema-to-ts';
 import type { GeneratedFile } from './types';
 
 /**
@@ -233,7 +228,7 @@ function buildStreamingCall(op: ParsedOperation): string {
 
 function deriveStreamingTypeName(op: ParsedOperation): string {
   if (op.response?.name) return sanitizeTypeName(op.response.name);
-  if (op.response) return toPascalCase(op.operationId) + 'Event';
+  if (op.response) return getTypePrefix(op) + 'Event';
   return 'unknown';
 }
 

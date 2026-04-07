@@ -110,7 +110,7 @@ describe('generateResources', () => {
     const files = generateResources(resources);
     const tasksFile = files.find((f) => f.path === 'resources/tasks.ts');
     expect(tasksFile!.content).toContain(
-      'list: (query?: ListTasksQuery): Promise<FetchResponse<Task[]>>',
+      'list: (query?: ListQuery): Promise<FetchResponse<Task[]>>',
     );
     expect(tasksFile!.content).toContain("client.get('/tasks', { query })");
   });
@@ -362,7 +362,7 @@ describe('generateResources', () => {
     expect(tasksFile!.content).toContain('ping: (): Promise<FetchResponse<void>>');
   });
 
-  it('PascalCases fallback response name from underscore-heavy operationId', () => {
+  it('uses methodName-based fallback response name instead of verbose operationId (#2415)', () => {
     const resources: ParsedResource[] = [
       makeResource({
         operations: [
@@ -392,15 +392,13 @@ describe('generateResources', () => {
 
     const files = generateResources(resources);
     const tasksFile = files.find((f) => f.path === 'resources/tasks.ts');
-    expect(tasksFile!.content).toContain(
-      'ArchiveWebOrganizationsOrganizationIdBrandsBrandIdArchivePostResponse',
-    );
-    expect(tasksFile!.content).not.toContain(
-      'Archive_web_organizations__organization_id__brands__brand_id__archive_postResponse',
-    );
+    // Should use the clean methodName-based prefix
+    expect(tasksFile!.content).toContain('ArchiveResponse');
+    expect(tasksFile!.content).not.toContain('WebOrganizations');
+    expect(tasksFile!.content).not.toContain('OrganizationId');
   });
 
-  it('derives response name from operationId when schema has no name', () => {
+  it('derives response name from methodName when schema has no name', () => {
     const resources: ParsedResource[] = [
       makeResource({
         operations: [
@@ -426,7 +424,7 @@ describe('generateResources', () => {
 
     const files = generateResources(resources);
     const tasksFile = files.find((f) => f.path === 'resources/tasks.ts');
-    expect(tasksFile!.content).toContain('check: (): Promise<FetchResponse<CheckTaskResponse>>');
+    expect(tasksFile!.content).toContain('check: (): Promise<FetchResponse<CheckResponse>>');
   });
 
   it('sanitizes hyphenated type names in imports and return types', () => {
@@ -637,7 +635,7 @@ describe('generateResources', () => {
     const files = generateResources(resources, schemas);
     const tasksFile = files.find((f) => f.path === 'resources/tasks.ts');
     expect(tasksFile!.content).toContain("import type { Task } from '../types/components';");
-    expect(tasksFile!.content).toContain("import type { ListTasksQuery } from '../types/tasks';");
+    expect(tasksFile!.content).toContain("import type { ListQuery } from '../types/tasks';");
   });
 
   it('uses typePrefix for fallback type names instead of long operationId', () => {
@@ -822,6 +820,40 @@ describe('generateResources', () => {
     expect(tasksFile!.content).toContain('client.requestStream<unknown>');
   });
 
+  it('streaming event type name uses methodName-based prefix, not verbose operationId (#2415)', () => {
+    const resources: ParsedResource[] = [
+      makeResource({
+        operations: [
+          {
+            operationId:
+              'stream_brand_draft_web_organizations_organization_id_brands_draft_brand_post',
+            methodName: 'streamBrandDraft',
+            method: 'POST',
+            path: '/web/organizations/{organization_id}/brands/draft-brand',
+            pathParams: [{ name: 'organization_id', required: true, schema: { type: 'string' } }],
+            queryParams: [],
+            requestBody: {
+              name: 'DraftInput',
+              jsonSchema: { type: 'object', properties: { prompt: { type: 'string' } } },
+            },
+            response: {
+              jsonSchema: { type: 'object', properties: { chunk: { type: 'string' } } },
+            },
+            responseStatus: 200,
+            tags: ['tasks'],
+            streamingFormat: 'sse',
+          },
+        ],
+      }),
+    ];
+
+    const files = generateResources(resources);
+    const tasksFile = files.find((f) => f.path === 'resources/tasks.ts');
+    // Should use the clean methodName-based event type name
+    expect(tasksFile!.content).toContain('AsyncGenerator<StreamBrandDraftEvent>');
+    expect(tasksFile!.content).not.toContain('WebOrganizations');
+  });
+
   it('streaming method includes JSDoc @throws annotation', () => {
     const resources: ParsedResource[] = [
       makeResource({
@@ -880,7 +912,7 @@ describe('generateResources', () => {
     const files = generateResources(resources);
     const tasksFile = files.find((f) => f.path === 'resources/tasks.ts');
     expect(tasksFile!.content).toContain(
-      'search: (body: LogSearchInput, query?: SearchLogsQuery, options?: { signal?: AbortSignal }): AsyncGenerator<LogEntry>',
+      'search: (body: LogSearchInput, query?: SearchQuery, options?: { signal?: AbortSignal }): AsyncGenerator<LogEntry>',
     );
     expect(tasksFile!.content).toContain('body, query, signal');
   });
@@ -997,7 +1029,7 @@ describe('generateResources', () => {
     const files = generateResources(resources);
     const tasksFile = files.find((f) => f.path === 'resources/tasks.ts');
     expect(tasksFile!.content).toContain(
-      'streamFiltered: (query?: StreamFilteredEventsQuery, options?: { signal?: AbortSignal }): AsyncGenerator<Event>',
+      'streamFiltered: (query?: StreamFilteredQuery, options?: { signal?: AbortSignal }): AsyncGenerator<Event>',
     );
     expect(tasksFile!.content).toContain('query, signal');
   });

@@ -1,6 +1,7 @@
 import { groupOperations } from './adapter/resource-grouper';
 import type { OpenAPIConfig } from './config';
 import { generateAll } from './generators/index';
+import { toPascalCase } from './generators/json-schema-to-ts';
 import { loadSpec } from './loader';
 import { normalizeOperationId } from './parser/operation-id-normalizer';
 import { parseOpenAPI } from './parser/openapi-parser';
@@ -37,6 +38,9 @@ export async function generateFromOpenAPI(
           hasBody: op.requestBody !== undefined,
         },
       );
+      // Derive type prefix from the cleaned method name so type names
+      // match the adapter-cleaned identifiers (#2415)
+      op.typePrefix = toPascalCase(op.methodName);
     }
   }
 
@@ -44,6 +48,14 @@ export async function generateFromOpenAPI(
   const resources = groupOperations(parsed.operations, config.groupBy, {
     excludeTags: config.excludeTags,
   });
+
+  // 4b. Prefix type names with resource name for uniqueness across files
+  for (const resource of resources) {
+    for (const op of resource.operations) {
+      const methodPrefix = op.typePrefix ?? toPascalCase(op.methodName);
+      op.typePrefix = resource.name + methodPrefix;
+    }
+  }
 
   // 5. Build ParsedSpec
   const info = raw.info as Record<string, unknown> | undefined;

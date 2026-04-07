@@ -304,4 +304,105 @@ describe('generateFromOpenAPI', () => {
       }),
     ).rejects.toThrow('missing required field');
   });
+
+  it('derives type names from cleaned methodName when operationIds transform is configured (#2415)', async () => {
+    // FastAPI encodes path params with double underscores: {organization_id} → __organization_id__
+    const fastapiSpec = {
+      openapi: '3.0.3',
+      info: { title: 'Test API', version: '1.0.0' },
+      paths: {
+        '/web/organizations/{organization_id}/brands': {
+          get: {
+            operationId: 'find_many_web_organizations__organization_id__brands_get',
+            tags: ['brands'],
+            parameters: [
+              {
+                name: 'organization_id',
+                in: 'path',
+                required: true,
+                schema: { type: 'string' },
+              },
+              {
+                name: 'limit',
+                in: 'query',
+                required: false,
+                schema: { type: 'integer' },
+              },
+            ],
+            responses: {
+              '200': {
+                content: {
+                  'application/json': {
+                    schema: {
+                      type: 'object',
+                      properties: { items: { type: 'array' } },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+        '/web/organizations/{organization_id}/brands/{brand_id}/archive': {
+          post: {
+            operationId:
+              'archive_web_organizations__organization_id__brands__brand_id__archive_post',
+            tags: ['brands'],
+            parameters: [
+              {
+                name: 'organization_id',
+                in: 'path',
+                required: true,
+                schema: { type: 'string' },
+              },
+              {
+                name: 'brand_id',
+                in: 'path',
+                required: true,
+                schema: { type: 'string' },
+              },
+            ],
+            responses: {
+              '200': {
+                content: {
+                  'application/json': {
+                    schema: {
+                      type: 'object',
+                      properties: { success: { type: 'boolean' } },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    };
+    const specPath = writeSpec('fastapi-spec.json', fastapiSpec);
+    const outputDir = join(tmpDir, 'output');
+
+    await generateFromOpenAPI({
+      source: specPath,
+      output: outputDir,
+      baseURL: '',
+      groupBy: 'tag',
+      schemas: false,
+      operationIds: {
+        transform: (_cleaned, ctx) => {
+          // FastAPI adapter logic: strip route suffix and HTTP method
+          const parsedRoute = ctx.path.replace(/^\//, '').replace(/[{}/-]/g, '_');
+          const suffix = `_${parsedRoute}_${ctx.method.toLowerCase()}`;
+          return ctx.operationId.replace(suffix, '');
+        },
+      },
+    });
+
+    const typesContent = readFileSync(join(outputDir, 'types/brands.ts'), 'utf-8');
+    // Type names include tag prefix + cleaned method name, not the raw operationId
+    expect(typesContent).toContain('export interface BrandsFindManyQuery {');
+    expect(typesContent).toContain('export interface BrandsArchiveResponse {');
+    // Should NOT contain the verbose path-embedded names
+    expect(typesContent).not.toContain('WebOrganizations');
+    expect(typesContent).not.toContain('OrganizationId');
+  });
 });
