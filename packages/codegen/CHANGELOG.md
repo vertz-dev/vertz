@@ -1,5 +1,14 @@
 # @vertz/codegen
 
+## 0.2.52
+
+### Patch Changes
+
+- [#2398](https://github.com/vertz-dev/vertz/pull/2398) [`a350ab7`](https://github.com/vertz-dev/vertz/commit/a350ab7c97705b74e8309f23bb06a43a6530fd39) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - Generate type-safe query parameters for SDK list/get methods. Entities with expose config get typed WhereInput, OrderByInput, IncludeInput, ListQuery, and GetQuery interfaces. Entities without expose fall back to VertzQLParams.
+
+- Updated dependencies [[`a350ab7`](https://github.com/vertz-dev/vertz/commit/a350ab7c97705b74e8309f23bb06a43a6530fd39)]:
+  - @vertz/compiler@0.2.52
+
 ## 0.2.51
 
 ### Patch Changes
