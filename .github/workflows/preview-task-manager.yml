@@ -35,9 +35,11 @@ jobs:
       - name: Install Dependencies
         run: bun install --frozen-lockfile
 
-      - name: Build Task Manager
-        run: |
-          bun run build --filter=@vertz-examples/task-manager
+      - name: Build Workspace Dependencies
+        run: turbo run build --filter='@vertz-examples/task-manager^...' --filter='!@vertz/cli' --output-logs=errors-only
+
+      - name: Build Task Manager Worker
+        run: bun run build:worker
         working-directory: examples/task-manager
 
       - name: Deploy to Cloudflare Workers (Preview)
@@ -101,9 +103,11 @@ jobs:
       - name: Install Dependencies
         run: bun install --frozen-lockfile
 
-      - name: Build Task Manager
-        run: |
-          bun run build --filter=@vertz-examples/task-manager
+      - name: Build Workspace Dependencies
+        run: turbo run build --filter='@vertz-examples/task-manager^...' --filter='!@vertz/cli' --output-logs=errors-only
+
+      - name: Build Task Manager Worker
+        run: bun run build:worker
         working-directory: examples/task-manager
 
       - name: Deploy to Cloudflare Workers (Production)
