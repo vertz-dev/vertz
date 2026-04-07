@@ -1,104 +1,64 @@
+import { css } from '@vertz/ui';
 import type { StepCardProps } from './step-card-types';
 import { badgeLabel, formatDuration } from './step-card-utils';
 
 export type { StepCardProps } from './step-card-types';
 export { badgeLabel, formatDuration } from './step-card-utils';
 
-const styles = {
-  card: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '12px',
-    padding: '12px 16px',
-    borderLeft: '3px solid var(--color-border)',
-    cursor: 'pointer',
-    transition: 'background 0.15s',
-  },
-  cardActive: {
-    borderLeftColor: 'var(--color-primary)',
-    background: 'var(--color-accent)',
-  },
-  cardCompleted: {
-    borderLeftColor: 'hsl(142, 76%, 36%)',
-  },
-  cardFailed: {
-    borderLeftColor: 'hsl(0, 84%, 60%)',
-  },
-  name: {
-    fontSize: '13px',
-    fontWeight: '500' as const,
-    color: 'var(--color-foreground)',
-    flex: '1',
-  },
-  agent: {
-    fontSize: '11px',
-    color: 'var(--color-muted-foreground)',
-  },
-  badge: {
-    fontSize: '11px',
-    padding: '2px 8px',
-    borderRadius: '9999px',
-    fontWeight: '500' as const,
-  },
-  badgePending: {
-    background: 'var(--color-secondary)',
-    color: 'var(--color-secondary-foreground)',
-  },
-  badgeActive: {
-    background: 'hsl(217, 91%, 60%)',
-    color: 'white',
-  },
-  badgeCompleted: {
-    background: 'hsl(142, 76%, 36%)',
-    color: 'white',
-  },
-  badgeFailed: {
-    background: 'hsl(0, 84%, 60%)',
-    color: 'white',
-  },
-  meta: {
-    fontSize: '11px',
-    color: 'var(--color-muted-foreground)',
-    display: 'flex',
-    gap: '8px',
-  },
-};
+const s = css({
+  card: [
+    'flex',
+    'items:center',
+    'gap:3',
+    'py:3',
+    'px:4',
+    'cursor:pointer',
+    'transition:background 0.15s',
+    { '&': { 'border-left': '3px solid var(--color-border)' } },
+  ],
+  content: ['flex-1'],
+  name: ['text:sm', 'font:medium', 'text:foreground', 'flex-1'],
+  agent: ['text:xs', 'text:muted-foreground'],
+  badge: ['text:xs', 'px:2', 'rounded:full', 'font:medium', { '&': { padding: '2px 8px' } }],
+  meta: ['text:xs', 'text:muted-foreground', 'flex', 'gap:2'],
+});
+
+function cardDynamicStyle(status: StepCardProps['status']) {
+  if (status === 'active') return { borderLeftColor: 'var(--color-primary)', background: 'var(--color-accent)' };
+  if (status === 'completed') return { borderLeftColor: 'hsl(142, 76%, 36%)' };
+  if (status === 'failed') return { borderLeftColor: 'hsl(0, 84%, 60%)' };
+  return {};
+}
+
+function badgeDynamicStyle(status: StepCardProps['status']) {
+  if (status === 'pending') return { background: 'var(--color-secondary)', color: 'var(--color-secondary-foreground)' };
+  if (status === 'active') return { background: 'hsl(217, 91%, 60%)', color: 'white' };
+  if (status === 'completed') return { background: 'hsl(142, 76%, 36%)', color: 'white' };
+  if (status === 'failed') return { background: 'hsl(0, 84%, 60%)', color: 'white' };
+  return {};
+}
 
 export default function StepCard({ name, status, agent, detail, onClick }: StepCardProps) {
-  const cardStyle = {
-    ...styles.card,
-    ...(status === 'active' ? styles.cardActive : {}),
-    ...(status === 'completed' ? styles.cardCompleted : {}),
-    ...(status === 'failed' ? styles.cardFailed : {}),
-  };
-
-  const badgeStyle = {
-    ...styles.badge,
-    ...(status === 'pending' ? styles.badgePending : {}),
-    ...(status === 'active' ? styles.badgeActive : {}),
-    ...(status === 'completed' ? styles.badgeCompleted : {}),
-    ...(status === 'failed' ? styles.badgeFailed : {}),
-  };
-
   return (
     <div
-      style={cardStyle}
+      className={s.card}
+      style={cardDynamicStyle(status)}
       onClick={onClick}
       onKeyDown={(e: KeyboardEvent) => { if (e.key === 'Enter' || e.key === ' ') onClick?.(); }}
       role="button"
       tabIndex={0}
     >
-      <div style={{ flex: '1' }}>
-        <div style={styles.name}>{name}</div>
-        {agent && <div style={styles.agent}>{agent}</div>}
+      <div className={s.content}>
+        <div className={s.name}>{name}</div>
+        {agent && <div className={s.agent}>{agent}</div>}
         {detail && (detail.iterations || detail.duration) && (
-          <div style={styles.meta}>
+          <div className={s.meta}>
             {detail.iterations && <span>{detail.iterations} iterations</span>}
             {detail.duration !== undefined && <span>{formatDuration(detail.duration)}</span>}
           </div>
         )}
       </div>
-      <span style={badgeStyle}>{badgeLabel(status)}</span>
+      <span className={s.badge} style={badgeDynamicStyle(status)}>{badgeLabel(status)}</span>
     </div>
   );
 }

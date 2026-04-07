@@ -1,23 +1,17 @@
+import { css } from '@vertz/ui';
 import { useRouter } from '@vertz/ui/router';
 import { Breadcrumbs } from './breadcrumbs';
 
-const topbarStyle = {
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'space-between',
-  height: '52px',
-  padding: '0 24px',
-  borderBottom: '1px solid var(--color-border)',
-  background: 'var(--color-card)',
-};
-
-const badgeStyle = {
-  fontSize: '11px',
-  padding: '2px 8px',
-  borderRadius: '9999px',
-  background: 'var(--color-secondary)',
-  color: 'var(--color-secondary-foreground)',
-};
+const s = css({
+  topbar: [
+    'flex', 'items:center', 'justify:between', 'px:6', 'border-b:1', 'border:border', 'bg:card',
+    { '&': { height: '52px' } },
+  ],
+  badge: [
+    'rounded:full', 'bg:secondary', 'text:secondary-foreground',
+    { '&': { 'font-size': '11px', padding: '2px 8px' } },
+  ],
+});
 
 function currentPathname(router: ReturnType<typeof useRouter>): string {
   const match = router.current;
@@ -32,9 +26,9 @@ export function Topbar() {
   const pathname = currentPathname(router);
 
   return (
-    <header style={topbarStyle}>
+    <header className={s.topbar}>
       <Breadcrumbs pathname={pathname} />
-      <span style={badgeStyle}>Local</span>
+      <span className={s.badge}>Local</span>
     </header>
   );
 }

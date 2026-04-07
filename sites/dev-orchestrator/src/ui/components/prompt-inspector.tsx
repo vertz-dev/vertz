@@ -1,37 +1,29 @@
+import { css } from '@vertz/ui';
 import { parsePromptSegments } from './prompt-editor-utils';
 import type { PromptInspectorProps } from './prompt-editor-utils';
 
-const styles = {
-  container: {
-    fontSize: '12px',
-    fontFamily: 'monospace',
-    whiteSpace: 'pre-wrap' as const,
-    wordBreak: 'break-word' as const,
-    padding: '12px 16px',
-    background: 'var(--color-secondary)',
-    borderRadius: '6px',
-    maxHeight: '400px',
-    overflow: 'auto',
-    color: 'var(--color-foreground)',
-    lineHeight: '1.6',
-  },
-  variable: {
-    background: 'hsl(217, 91%, 60%, 0.15)',
-    color: 'hsl(217, 91%, 60%)',
-    padding: '1px 4px',
-    borderRadius: '3px',
-    fontWeight: '600' as const,
-  },
-};
+const s = css({
+  container: [
+    'rounded:md',
+    'bg:secondary',
+    'text:foreground',
+    'overflow:auto',
+    { '&': { 'font-size': '12px', 'font-family': 'monospace', 'white-space': 'pre-wrap', 'word-break': 'break-word', padding: '12px 16px', 'max-height': '400px', 'line-height': '1.6' } },
+  ],
+  variable: [
+    'font:semibold',
+    { '&': { background: 'hsl(217, 91%, 60%, 0.15)', color: 'hsl(217, 91%, 60%)', padding: '1px 4px', 'border-radius': '3px' } },
+  ],
+});
 
 export default function PromptInspector({ value }: PromptInspectorProps) {
   const segments = parsePromptSegments(value);
 
   return (
-    <div style={styles.container}>
+    <div className={s.container}>
       {segments.map((seg, i) =>
         seg.type === 'variable'
-          ? <span key={i} style={styles.variable}>{`{{${seg.value}}}`}</span>
+          ? <span key={i} className={s.variable}>{`{{${seg.value}}}`}</span>
           : <span key={i}>{seg.value}</span>,
       )}
     </div>

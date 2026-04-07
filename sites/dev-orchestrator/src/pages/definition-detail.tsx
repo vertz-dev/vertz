@@ -1,3 +1,4 @@
+import { css } from '@vertz/ui';
 import { query } from '@vertz/ui/query';
 import { useParams, useRouter } from '@vertz/ui/router';
 import type { WorkflowRun } from '../api/services/workflows';
@@ -8,77 +9,56 @@ import { createWorkflowStream } from '../ui/lib/sse-client';
 import { sdk } from '../lib/sdk';
 import { resolveSelectedAgent, toggleStep } from './definition-detail-utils';
 
-const styles = {
-  page: { display: 'flex', gap: '24px', maxWidth: '1200px' },
-  main: { flex: '1', display: 'flex', flexDirection: 'column' as const, gap: '16px' },
-  heading: { fontSize: '24px', fontWeight: '700', color: 'var(--color-foreground)', margin: '0' },
-  backBtn: {
-    display: 'inline-flex',
-    alignItems: 'center',
-    gap: '4px',
-    fontSize: '13px',
-    color: 'var(--color-muted-foreground)',
-    background: 'none',
-    border: 'none',
-    cursor: 'pointer',
-    padding: '4px 0',
-  },
-  panel: {
-    position: 'relative' as const,
-    width: '320px',
-    flexShrink: '0',
-    borderLeft: '1px solid var(--color-border)',
-    paddingLeft: '20px',
-    display: 'flex',
-    flexDirection: 'column' as const,
-    gap: '12px',
-  },
-  panelTitle: { fontSize: '16px', fontWeight: '600' as const, color: 'var(--color-foreground)' },
-  closeBtn: {
-    position: 'absolute' as const,
-    top: '0',
-    right: '0',
-    background: 'none',
-    border: 'none',
-    fontSize: '18px',
-    cursor: 'pointer',
-    color: 'var(--color-muted-foreground)',
-    padding: '4px 8px',
-  },
-  label: {
-    fontSize: '11px',
-    fontWeight: '600' as const,
-    textTransform: 'uppercase' as const,
-    color: 'var(--color-muted-foreground)',
-    marginBottom: '4px',
-  },
-  value: { fontSize: '13px', color: 'var(--color-foreground)' },
-  prompt: {
-    fontSize: '12px',
-    fontFamily: 'monospace',
-    whiteSpace: 'pre-wrap' as const,
-    wordBreak: 'break-word' as const,
-    padding: '8px 12px',
-    background: 'var(--color-secondary)',
-    borderRadius: '6px',
-    maxHeight: '200px',
-    overflow: 'auto',
-    color: 'var(--color-foreground)',
-  },
-  tools: {
-    display: 'flex',
-    flexWrap: 'wrap' as const,
-    gap: '4px',
-  },
-  toolBadge: {
-    fontSize: '11px',
-    padding: '2px 8px',
-    borderRadius: '9999px',
-    background: 'var(--color-secondary)',
-    color: 'var(--color-secondary-foreground)',
-  },
-  loading: { color: 'var(--color-muted-foreground)', fontSize: '13px' },
-};
+const s = css({
+  page: ['flex', 'gap:6', { '&': { 'max-width': '1200px' } }],
+  main: ['flex-1', 'flex', 'flex-col', 'gap:4'],
+  heading: ['text:foreground', 'font:bold', 'm:0', { '&': { 'font-size': '24px' } }],
+  backBtn: [
+    'inline-flex',
+    'items:center',
+    'gap:1',
+    'text:sm',
+    'text:muted-foreground',
+    'cursor:pointer',
+    { '&': { background: 'none', border: 'none', padding: '4px 0' } },
+  ],
+  panel: [
+    'relative',
+    'flex',
+    'flex-col',
+    'gap:3',
+    'shrink-0',
+    { '&': { width: '320px', 'border-left': '1px solid var(--color-border)', 'padding-left': '20px' } },
+  ],
+  panelTitle: ['font:semibold', 'text:foreground', { '&': { 'font-size': '16px' } }],
+  closeBtn: [
+    'absolute',
+    'text:muted-foreground',
+    'cursor:pointer',
+    { '&': { top: '0', right: '0', background: 'none', border: 'none', 'font-size': '18px', padding: '4px 8px' } },
+  ],
+  label: ['font:semibold', 'text:muted-foreground', 'uppercase', { '&': { 'font-size': '11px', 'margin-bottom': '4px' } }],
+  value: ['text:sm', 'text:foreground'],
+  prompt: [
+    'text:xs',
+    'text:foreground',
+    'bg:secondary',
+    'rounded:md',
+    'overflow:auto',
+    {
+      '&': {
+        'font-family': 'monospace',
+        'white-space': 'pre-wrap',
+        'word-break': 'break-word',
+        padding: '8px 12px',
+        'max-height': '200px',
+      },
+    },
+  ],
+  tools: ['flex', 'flex-wrap', { '&': { gap: '4px' } }],
+  toolBadge: ['text:xs', 'rounded:full', 'bg:secondary', { '&': { padding: '2px 8px', color: 'var(--color-secondary-foreground)' } }],
+  loading: ['text:muted-foreground', 'text:sm'],
+});
 
 
 export default function DefinitionDetailPage() {
@@ -119,7 +99,7 @@ export default function DefinitionDetailPage() {
   const liveOverlay = () => {
     const run = activeRun();
     if (!run || !definition()) return undefined;
-    const stepNames = definition()!.steps.map((s) => s.name);
+    const stepNames = definition()!.steps.map((st) => st.name);
     return buildOverlay(stepNames, run.currentStep, sseEvents);
   };
 
@@ -132,14 +112,14 @@ export default function DefinitionDetailPage() {
   };
 
   return (
-    <div style={styles.page} onKeyDown={handleKeyDown}>
-      <div style={styles.main}>
-        <button style={styles.backBtn} onClick={() => navigate({ to: '/definitions' })}>
+    <div className={s.page} onKeyDown={handleKeyDown}>
+      <div className={s.main}>
+        <button className={s.backBtn} onClick={() => navigate({ to: '/definitions' })}>
           &larr; Back to definitions
         </button>
-        <h1 style={styles.heading}>{name}</h1>
-        {defQuery.loading && <div style={styles.loading}>Loading...</div>}
-        {defQuery.error && <div style={styles.loading}>Failed to load definition.</div>}
+        <h1 className={s.heading}>{name}</h1>
+        {defQuery.loading && <div className={s.loading}>Loading...</div>}
+        {defQuery.error && <div className={s.loading}>Failed to load definition.</div>}
         {definition() && (
           <WorkflowDiagram
             definition={definition()!}
@@ -150,39 +130,39 @@ export default function DefinitionDetailPage() {
         )}
       </div>
       {selectedAgent() && (
-        <div style={styles.panel}>
+        <div className={s.panel}>
           <button
-            style={styles.closeBtn}
+            className={s.closeBtn}
             onClick={() => { selectedStep = undefined; }}
             aria-label="Close panel"
           >
             &times;
           </button>
-          <div style={styles.panelTitle}>{selectedAgent()!.name}</div>
+          <div className={s.panelTitle}>{selectedAgent()!.name}</div>
           {selectedAgent()!.description && (
             <div>
-              <div style={styles.label}>Description</div>
-              <div style={styles.value}>{selectedAgent()!.description}</div>
+              <div className={s.label}>Description</div>
+              <div className={s.value}>{selectedAgent()!.description}</div>
             </div>
           )}
           <div>
-            <div style={styles.label}>Model</div>
-            <div style={styles.value}>{selectedAgent()!.model}</div>
+            <div className={s.label}>Model</div>
+            <div className={s.value}>{selectedAgent()!.model}</div>
           </div>
           <div>
-            <div style={styles.label}>Max Iterations</div>
-            <div style={styles.value}>{selectedAgent()!.maxIterations}</div>
+            <div className={s.label}>Max Iterations</div>
+            <div className={s.value}>{selectedAgent()!.maxIterations}</div>
           </div>
           <div>
-            <div style={styles.label}>System Prompt</div>
-            <div style={styles.prompt}>{selectedAgent()!.systemPrompt}</div>
+            <div className={s.label}>System Prompt</div>
+            <div className={s.prompt}>{selectedAgent()!.systemPrompt}</div>
           </div>
           {selectedAgent()!.tools.length > 0 && (
             <div>
-              <div style={styles.label}>Tools ({selectedAgent()!.tools.length})</div>
-              <div style={styles.tools}>
+              <div className={s.label}>Tools ({selectedAgent()!.tools.length})</div>
+              <div className={s.tools}>
                 {selectedAgent()!.tools.map((tool) => (
-                  <span key={tool} style={styles.toolBadge}>{tool}</span>
+                  <span key={tool} className={s.toolBadge}>{tool}</span>
                 ))}
               </div>
             </div>

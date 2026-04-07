@@ -1,59 +1,53 @@
+import { css } from '@vertz/ui';
 import { statusBadge, statusBadgeColor } from './live-overlay-utils';
 import type { StepNodeProps } from './step-node-utils';
 import { stepNodeBackground, stepNodeBorderColor } from './step-node-utils';
 
 export type { StepNodeProps } from './step-node-utils';
 
-const styles = {
-  node: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '8px',
-    padding: '10px 14px',
-    borderRadius: '8px',
-    border: '2px solid',
-    cursor: 'pointer',
-    transition: 'border-color 0.15s, background 0.15s',
-    minWidth: '140px',
-    position: 'relative' as const,
-  },
-  approval: {
-    borderStyle: 'dashed',
-  },
-  name: {
-    fontSize: '13px',
-    fontWeight: '600' as const,
-    color: 'var(--color-foreground)',
-  },
-  agent: {
-    fontSize: '11px',
-    color: 'var(--color-muted-foreground)',
-  },
-  icon: {
-    fontSize: '16px',
-    width: '20px',
-    textAlign: 'center' as const,
-  },
-  badge: {
-    position: 'absolute' as const,
-    top: '-6px',
-    right: '-6px',
-    width: '18px',
-    height: '18px',
-    borderRadius: '50%',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    fontSize: '11px',
-    fontWeight: '700' as const,
-    color: 'white',
-  },
-};
+const s = css({
+  node: [
+    'flex',
+    'items:center',
+    'gap:2',
+    'rounded:lg',
+    'relative',
+    'cursor:pointer',
+    'transition:border-color 0.15s, background 0.15s',
+    {
+      '&': {
+        padding: '10px 14px',
+        border: '2px solid',
+        'min-width': '140px',
+      },
+    },
+  ],
+  name: ['text:sm', 'font:semibold', 'text:foreground'],
+  agent: ['text:xs', 'text:muted-foreground'],
+  icon: ['text:center', { '&': { 'font-size': '16px', width: '20px' } }],
+  badge: [
+    'absolute',
+    'flex',
+    'items:center',
+    'font:bold',
+    {
+      '&': {
+        top: '-6px',
+        right: '-6px',
+        width: '18px',
+        height: '18px',
+        'border-radius': '50%',
+        'justify-content': 'center',
+        'font-size': '11px',
+        color: 'white',
+      },
+    },
+  ],
+});
 
 export default function StepNode({ name, type, agent, selected, status, onClick }: StepNodeProps) {
-  const nodeStyle = {
-    ...styles.node,
-    ...(type === 'approval' ? styles.approval : {}),
+  const dynamicStyle = {
+    ...(type === 'approval' ? { borderStyle: 'dashed' } : {}),
     borderColor: stepNodeBorderColor(status, selected),
     background: stepNodeBackground(status, selected),
     ...(status === 'active' ? { boxShadow: '0 0 0 3px hsla(217, 91%, 60%, 0.2)' } : {}),
@@ -64,19 +58,20 @@ export default function StepNode({ name, type, agent, selected, status, onClick 
 
   return (
     <div
-      style={nodeStyle}
+      className={s.node}
+      style={dynamicStyle}
       onClick={onClick}
       onKeyDown={(e: KeyboardEvent) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick?.(); } }}
       role="button"
       tabIndex={0}
     >
-      <span style={styles.icon}>{type === 'approval' ? '\u23F8' : '\u25B6'}</span>
+      <span className={s.icon}>{type === 'approval' ? '\u23F8' : '\u25B6'}</span>
       <div>
-        <div style={styles.name}>{name}</div>
-        {agent && <div style={styles.agent}>{agent}</div>}
+        <div className={s.name}>{name}</div>
+        {agent && <div className={s.agent}>{agent}</div>}
       </div>
       {badge && (
-        <span style={{ ...styles.badge, background: badgeColor }}>{badge}</span>
+        <span className={s.badge} style={{ background: badgeColor }}>{badge}</span>
       )}
     </div>
   );

@@ -1,83 +1,67 @@
+import { css } from '@vertz/ui';
 import { useRouter } from '@vertz/ui/router';
 import type { CommandItem } from './command-palette-utils';
 import { STATIC_COMMANDS, filterCommands, nextIndex, prevIndex } from './command-palette-utils';
 
-const s = {
-  overlay: {
-    position: 'fixed' as const,
-    inset: '0',
-    background: 'rgba(0, 0, 0, 0.5)',
-    display: 'flex',
-    justifyContent: 'center',
-    paddingTop: '120px',
-    zIndex: '100',
-  },
-  dialog: {
-    width: '480px',
-    maxHeight: '400px',
-    background: 'var(--color-card)',
-    border: '1px solid var(--color-border)',
-    borderRadius: '12px',
-    overflow: 'hidden',
-    display: 'flex',
-    flexDirection: 'column' as const,
-    boxShadow: '0 16px 48px rgba(0, 0, 0, 0.2)',
-  },
-  input: {
-    width: '100%',
-    height: '48px',
-    padding: '0 16px',
-    border: 'none',
-    borderBottom: '1px solid var(--color-border)',
-    background: 'transparent',
-    color: 'var(--color-foreground)',
-    fontSize: '14px',
-    outline: 'none',
-  },
-  list: {
-    flex: '1',
-    overflowY: 'auto' as const,
-    padding: '8px',
-  },
-  category: {
-    fontSize: '11px',
-    fontWeight: '500' as const,
-    color: 'var(--color-muted-foreground)',
-    textTransform: 'uppercase' as const,
-    letterSpacing: '0.05em',
-    padding: '8px 8px 4px',
-  },
-  item: {
-    padding: '8px 12px',
-    borderRadius: '6px',
-    fontSize: '13px',
-    color: 'var(--color-foreground)',
-    cursor: 'pointer',
-    display: 'block',
-    width: '100%',
-    border: 'none',
-    background: 'transparent',
-    textAlign: 'left' as const,
-  },
-  itemActive: {
-    padding: '8px 12px',
-    borderRadius: '6px',
-    fontSize: '13px',
-    color: 'var(--color-foreground)',
-    cursor: 'pointer',
-    display: 'block',
-    width: '100%',
-    border: 'none',
-    background: 'var(--color-secondary)',
-    textAlign: 'left' as const,
-  },
-  empty: {
-    padding: '16px',
-    textAlign: 'center' as const,
-    fontSize: '13px',
-    color: 'var(--color-muted-foreground)',
-  },
-};
+const s = css({
+  overlay: [
+    'fixed',
+    'flex',
+    'inset:0',
+    'z:100',
+    { '&': { 'justify-content': 'center', 'padding-top': '120px', background: 'rgba(0, 0, 0, 0.5)' } },
+  ],
+  dialog: [
+    'flex',
+    'flex-col',
+    'rounded:xl',
+    'overflow:hidden',
+    { '&': { width: '480px', 'max-height': '400px', background: 'var(--color-card)', border: '1px solid var(--color-border)', 'box-shadow': '0 16px 48px rgba(0, 0, 0, 0.2)' } },
+  ],
+  input: [
+    'text:sm',
+    'text:foreground',
+    'w:full',
+    { '&': { height: '48px', padding: '0 16px', border: 'none', 'border-bottom': '1px solid var(--color-border)', background: 'transparent', outline: 'none' } },
+  ],
+  list: [
+    'p:2',
+    'overflow-y:auto',
+    { '&': { flex: '1' } },
+  ],
+  category: [
+    'font:medium',
+    'text:muted-foreground',
+    'uppercase',
+    'tracking:0.05em',
+    { '&': { 'font-size': '11px', padding: '8px 8px 4px' } },
+  ],
+  item: [
+    'rounded:md',
+    'text:sm',
+    'text:foreground',
+    'w:full',
+    'cursor:pointer',
+    'text:left',
+    { '&': { padding: '8px 12px', display: 'block', border: 'none', background: 'transparent' } },
+  ],
+  itemActive: [
+    'rounded:md',
+    'text:sm',
+    'text:foreground',
+    'bg:secondary',
+    'w:full',
+    'cursor:pointer',
+    'text:left',
+    { '&': { padding: '8px 12px', display: 'block', border: 'none' } },
+  ],
+  empty: [
+    'p:4',
+    'text:sm',
+    'text:muted-foreground',
+    'text:center',
+  ],
+});
 
 interface CommandPaletteProps {
   open: boolean;
@@ -118,27 +102,25 @@ export function CommandPalette({ open, onClose }: CommandPaletteProps) {
     activeIndex = 0;
   };
 
-  if (!open) return null;
-
   return (
-    <div style={s.overlay} onClick={onClose}>
-      <div style={s.dialog} onClick={(e: MouseEvent) => e.stopPropagation()}>
+    <div className={s.overlay} onClick={onClose}>
+      <div className={s.dialog} onClick={(e: MouseEvent) => e.stopPropagation()}>
         <input
-          style={s.input}
+          className={s.input}
           placeholder="Type to search..."
           value={searchQuery}
           onInput={handleInput}
           onKeyDown={handleKeyDown}
           autofocus
         />
-        <div style={s.list}>
+        <div className={s.list}>
           {filtered.length === 0 && (
-            <div style={s.empty}>No results found</div>
+            <div className={s.empty}>No results found</div>
           )}
           {filtered.map((item: CommandItem, i: number) => (
             <button
               key={item.href}
-              style={i === activeIndex ? s.itemActive : s.item}
+              className={i === activeIndex ? s.itemActive : s.item}
               onClick={() => selectItem(item)}
             >
               {item.label}
