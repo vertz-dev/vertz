@@ -1,5 +1,11 @@
 # @vertz/runtime
 
+## 0.2.53
+
+### Patch Changes
+
+- [#2420](https://github.com/vertz-dev/vertz/pull/2420) [`83be8f7`](https://github.com/vertz-dev/vertz/commit/83be8f7501c7487c4896855c7becfb6d5aa4fa7e) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - Remove Bun dependency from vtzx/vtz fallback paths. When the native binary is unavailable, the CLI now resolves commands from node_modules/.bin directly instead of delegating to bunx/bun.
+
 ## 0.2.52
 
 ## 0.2.51
