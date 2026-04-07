@@ -771,6 +771,16 @@ export class EntityAnalyzer extends BaseAnalyzer<EntityAnalyzerResult> {
       });
     }
 
+    const allowWhereExpr = getPropertyValue(exposeExpr, 'allowWhere');
+    const allowWhere = allowWhereExpr?.isKind(SyntaxKind.ObjectLiteralExpression)
+      ? getProperties(allowWhereExpr).map((p) => p.name)
+      : undefined;
+
+    const allowOrderByExpr = getPropertyValue(exposeExpr, 'allowOrderBy');
+    const allowOrderBy = allowOrderByExpr?.isKind(SyntaxKind.ObjectLiteralExpression)
+      ? getProperties(allowOrderByExpr).map((p) => p.name)
+      : undefined;
+
     const includeExpr = getPropertyValue(exposeExpr, 'include');
     let include: EntityExposeRelationIR[] | undefined;
 
@@ -802,7 +812,12 @@ export class EntityAnalyzer extends BaseAnalyzer<EntityAnalyzerResult> {
       if (include.length === 0) include = undefined;
     }
 
-    return { select, ...(include ? { include } : {}) };
+    return {
+      select,
+      ...(allowWhere ? { allowWhere } : {}),
+      ...(allowOrderBy ? { allowOrderBy } : {}),
+      ...(include ? { include } : {}),
+    };
   }
 
   private extractExposeFields(obj: ObjectLiteralExpression): EntityExposeFieldIR[] {

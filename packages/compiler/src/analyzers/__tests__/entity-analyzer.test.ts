@@ -1796,6 +1796,90 @@ describe('EntityAnalyzer', () => {
       expect(diagnostics.some((d) => d.code === 'ENTITY_EXPOSE_RELATION_UNRESOLVED')).toBe(true);
     });
 
+    it('extracts expose.allowWhere as field name array', async () => {
+      createFile(
+        '/entities.ts',
+        `
+        import { entity } from '@vertz/server';
+        import { taskModel } from './models';
+
+        export const taskEntity = entity('tasks', {
+          model: taskModel,
+          expose: {
+            select: { id: true, title: true, status: true, priority: true },
+            allowWhere: { status: true, priority: true },
+          },
+        });
+      `,
+      );
+
+      const result = await analyze();
+      expect(result.entities[0]?.expose?.allowWhere).toEqual(['status', 'priority']);
+    });
+
+    it('extracts expose.allowOrderBy as field name array', async () => {
+      createFile(
+        '/entities.ts',
+        `
+        import { entity } from '@vertz/server';
+        import { taskModel } from './models';
+
+        export const taskEntity = entity('tasks', {
+          model: taskModel,
+          expose: {
+            select: { id: true, createdAt: true, priority: true },
+            allowOrderBy: { createdAt: true, priority: true },
+          },
+        });
+      `,
+      );
+
+      const result = await analyze();
+      expect(result.entities[0]?.expose?.allowOrderBy).toEqual(['createdAt', 'priority']);
+    });
+
+    it('returns undefined allowWhere/allowOrderBy when not present in expose', async () => {
+      createFile(
+        '/entities.ts',
+        `
+        import { entity } from '@vertz/server';
+        import { taskModel } from './models';
+
+        export const taskEntity = entity('tasks', {
+          model: taskModel,
+          expose: {
+            select: { id: true, title: true },
+          },
+        });
+      `,
+      );
+
+      const result = await analyze();
+      expect(result.entities[0]?.expose?.allowWhere).toBeUndefined();
+      expect(result.entities[0]?.expose?.allowOrderBy).toBeUndefined();
+    });
+
+    it('returns empty array for empty allowWhere object', async () => {
+      createFile(
+        '/entities.ts',
+        `
+        import { entity } from '@vertz/server';
+        import { taskModel } from './models';
+
+        export const taskEntity = entity('tasks', {
+          model: taskModel,
+          expose: {
+            select: { id: true },
+            allowWhere: {},
+          },
+        });
+      `,
+      );
+
+      const result = await analyze();
+      expect(result.entities[0]?.expose?.allowWhere).toEqual([]);
+    });
+
     it('emits ENTITY_EXPOSE_EMPTY_SELECT for empty select', async () => {
       createFile(
         '/entities.ts',

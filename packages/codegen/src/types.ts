@@ -175,6 +175,8 @@ export interface CodegenEntityModule {
   hiddenFields?: string[];
   responseFields?: CodegenResolvedField[];
   exposeSelect?: CodegenExposeField[];
+  allowWhere?: Array<{ name: string; tsType: CodegenResolvedField['tsType'] }>;
+  allowOrderBy?: string[];
   exposeInclude?: CodegenExposeRelation[];
   relationSelections?: Record<string, 'all' | string[]>;
   relationQueryConfig?: Record<
