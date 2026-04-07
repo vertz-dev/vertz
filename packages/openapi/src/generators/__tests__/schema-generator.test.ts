@@ -450,7 +450,7 @@ describe('generateSchemas', () => {
 
     const files = generateSchemas(resources, schemas);
     const tasksFile = files.find((f) => f.path === 'schemas/tasks.ts');
-    expect(tasksFile!.content).toContain('export const listTasksQuerySchema = z.object({');
+    expect(tasksFile!.content).toContain('export const listQuerySchema = z.object({');
     expect(tasksFile!.content).toContain('status: z.string().optional()');
     expect(tasksFile!.content).toContain('limit: z.number().int().optional()');
   });

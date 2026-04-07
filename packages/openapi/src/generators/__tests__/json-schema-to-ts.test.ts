@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'bun:test';
-import { generateInterface, jsonSchemaToTS, toPascalCase } from '../json-schema-to-ts';
+import { generateInterface, getTypePrefix, jsonSchemaToTS, toPascalCase } from '../json-schema-to-ts';
 
 describe('jsonSchemaToTS', () => {
   const empty = new Map<string, string>();
@@ -312,6 +312,38 @@ describe('toPascalCase', () => {
 
   it('handles consecutive separators', () => {
     expect(toPascalCase('foo___bar')).toBe('FooBar');
+  });
+});
+
+describe('getTypePrefix', () => {
+  it('returns typePrefix when set', () => {
+    expect(
+      getTypePrefix({
+        typePrefix: 'FindMany',
+        methodName: 'findMany',
+        operationId: 'find_many_web_organizations_organization_id_brands_get',
+      }),
+    ).toBe('FindMany');
+  });
+
+  it('falls back to PascalCase of methodName when typePrefix is undefined (#2415)', () => {
+    expect(
+      getTypePrefix({
+        typePrefix: undefined,
+        methodName: 'findMany',
+        operationId: 'find_many_web_organizations_organization_id_brands_get',
+      }),
+    ).toBe('FindMany');
+  });
+
+  it('uses methodName fallback for CRUD method names', () => {
+    expect(
+      getTypePrefix({
+        typePrefix: undefined,
+        methodName: 'list',
+        operationId: 'find_many_web_organizations_organization_id_brands_get',
+      }),
+    ).toBe('List');
   });
 });
 

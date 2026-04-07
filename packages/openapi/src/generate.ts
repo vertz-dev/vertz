@@ -1,6 +1,7 @@
 import { groupOperations } from './adapter/resource-grouper';
 import type { OpenAPIConfig } from './config';
 import { generateAll } from './generators/index';
+import { toPascalCase } from './generators/json-schema-to-ts';
 import { loadSpec } from './loader';
 import { normalizeOperationId } from './parser/operation-id-normalizer';
 import { parseOpenAPI } from './parser/openapi-parser';
@@ -37,6 +38,9 @@ export async function generateFromOpenAPI(
           hasBody: op.requestBody !== undefined,
         },
       );
+      // Derive type prefix from the cleaned method name so type names
+      // match the adapter-cleaned identifiers (#2415)
+      op.typePrefix = toPascalCase(op.methodName);
     }
   }
 

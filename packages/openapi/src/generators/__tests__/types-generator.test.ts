@@ -119,7 +119,7 @@ describe('generateTypes', () => {
     expect(tasksFile!.content).toContain('  description?: string;');
   });
 
-  it('derives input name from operationId when schema has no name', () => {
+  it('derives input name from methodName when schema has no name', () => {
     const resources: ParsedResource[] = [
       makeResource({
         operations: [
@@ -148,7 +148,7 @@ describe('generateTypes', () => {
 
     const files = generateTypes(resources, schemas);
     const tasksFile = files.find((f) => f.path === 'types/tasks.ts');
-    expect(tasksFile!.content).toContain('export interface CreateTaskInput {');
+    expect(tasksFile!.content).toContain('export interface CreateInput {');
   });
 
   it('generates query parameter interfaces', () => {
@@ -177,7 +177,7 @@ describe('generateTypes', () => {
 
     const files = generateTypes(resources, schemas);
     const tasksFile = files.find((f) => f.path === 'types/tasks.ts');
-    expect(tasksFile!.content).toContain('export interface ListTasksQuery {');
+    expect(tasksFile!.content).toContain('export interface ListQuery {');
     expect(tasksFile!.content).toContain('  status?: string;');
     expect(tasksFile!.content).toContain('  limit?: number;');
     expect(tasksFile!.content).toContain('  page: number;');
@@ -260,7 +260,7 @@ describe('generateTypes', () => {
     expect(tasksFile!.content).not.toContain('Input');
   });
 
-  it('PascalCases fallback response name from underscore-heavy operationId', () => {
+  it('uses methodName-based fallback for type names instead of verbose operationId (#2415)', () => {
     const resources: ParsedResource[] = [
       makeResource({
         operations: [
@@ -288,15 +288,13 @@ describe('generateTypes', () => {
 
     const files = generateTypes(resources, schemas);
     const tasksFile = files.find((f) => f.path === 'types/tasks.ts');
-    expect(tasksFile!.content).toContain(
-      'export interface FindManyWebOrganizationsOrganizationIdBrandsGetResponse {',
-    );
-    expect(tasksFile!.content).not.toContain(
-      'Find_many_web_organizations__organization_id__brands__get',
-    );
+    // Should use the clean methodName-based prefix, not the verbose operationId
+    expect(tasksFile!.content).toContain('export interface ListResponse {');
+    expect(tasksFile!.content).not.toContain('WebOrganizations');
+    expect(tasksFile!.content).not.toContain('OrganizationId');
   });
 
-  it('derives response name from operationId when schema has no name', () => {
+  it('derives response name from methodName when schema has no name', () => {
     const resources: ParsedResource[] = [
       makeResource({
         operations: [
@@ -324,7 +322,7 @@ describe('generateTypes', () => {
 
     const files = generateTypes(resources, schemas);
     const tasksFile = files.find((f) => f.path === 'types/tasks.ts');
-    expect(tasksFile!.content).toContain('export interface GetTaskResponse {');
+    expect(tasksFile!.content).toContain('export interface GetResponse {');
   });
 
   it('handles nullable fields', () => {
