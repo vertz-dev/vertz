@@ -273,6 +273,40 @@ pub(crate) fn tool_definitions() -> serde_json::Value {
                     "properties": {},
                     "required": []
                 }
+            },
+            {
+                "name": "vertz_browser_connect",
+                "description": "Connect to a browser tab for interactive control. Returns a session ID and initial page snapshot showing all interactive elements. If tabId is omitted and exactly one tab is connected, auto-connects to it.",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "tabId": { "type": "string", "description": "Tab ID from vertz_browser_list_tabs. Optional if only one tab is connected." }
+                    },
+                    "required": []
+                }
+            },
+            {
+                "name": "vertz_browser_disconnect",
+                "description": "Release a browser control session. The tab continues running normally.",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "sessionId": { "type": "string", "description": "Session ID from vertz_browser_connect." }
+                    },
+                    "required": ["sessionId"]
+                }
+            },
+            {
+                "name": "vertz_browser_snapshot",
+                "description": "Get a structured snapshot of the controlled page: interactive elements, their types, current values, available actions. Returns elements with refs that can be used as targets in interaction tools.",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "sessionId": { "type": "string", "description": "Session ID. Optional if only one session is active." },
+                        "maxElements": { "type": "number", "description": "Maximum interactive elements to return (default: 50)." }
+                    },
+                    "required": []
+                }
             }
         ]
     })
@@ -819,6 +853,100 @@ pub(crate) async fn execute_tool(
             }))
         }
 
+        "vertz_browser_connect" => {
+            let tab_id = args.get("tabId").and_then(|v| v.as_str());
+
+            let (session_id, tab_info) = state.browser_hub.connect_session(tab_id).await?;
+
+            // Request initial snapshot from the tab
+            let request_id = format!("snap-{}", uuid::Uuid::new_v4().as_simple());
+            state
+                .browser_hub
+                .send_to_tab(
+                    &tab_info.id,
+                    serde_json::json!({
+                        "type": "interact",
+                        "requestId": request_id,
+                        "action": "snapshot",
+                        "maxElements": 50
+                    }),
+                )
+                .await?;
+
+            let snapshot = state
+                .browser_hub
+                .wait_for_response(&request_id, std::time::Duration::from_secs(10))
+                .await?;
+
+            let text = serde_json::to_string_pretty(&serde_json::json!({
+                "sessionId": session_id,
+                "tab": {
+                    "id": tab_info.id,
+                    "url": tab_info.url,
+                    "title": tab_info.title,
+                },
+                "snapshot": snapshot,
+            }))
+            .unwrap_or_default();
+
+            Ok(serde_json::json!({
+                "content": [{ "type": "text", "text": text }]
+            }))
+        }
+
+        "vertz_browser_disconnect" => {
+            let session_id = args
+                .get("sessionId")
+                .and_then(|v| v.as_str())
+                .ok_or_else(|| "Missing required parameter: sessionId".to_string())?;
+
+            state.browser_hub.disconnect_session(session_id).await?;
+
+            let text = serde_json::to_string_pretty(&serde_json::json!({
+                "released": true,
+            }))
+            .unwrap_or_default();
+
+            Ok(serde_json::json!({
+                "content": [{ "type": "text", "text": text }]
+            }))
+        }
+
+        "vertz_browser_snapshot" => {
+            let session_id = args.get("sessionId").and_then(|v| v.as_str());
+            let max_elements = args
+                .get("maxElements")
+                .and_then(|v| v.as_u64())
+                .unwrap_or(50);
+
+            let tab_id = state.browser_hub.resolve_session(session_id).await?;
+
+            let request_id = format!("snap-{}", uuid::Uuid::new_v4().as_simple());
+            state
+                .browser_hub
+                .send_to_tab(
+                    &tab_id,
+                    serde_json::json!({
+                        "type": "interact",
+                        "requestId": request_id,
+                        "action": "snapshot",
+                        "maxElements": max_elements
+                    }),
+                )
+                .await?;
+
+            let snapshot = state
+                .browser_hub
+                .wait_for_response(&request_id, std::time::Duration::from_secs(10))
+                .await?;
+
+            let text = serde_json::to_string_pretty(&snapshot).unwrap_or_default();
+
+            Ok(serde_json::json!({
+                "content": [{ "type": "text", "text": text }]
+            }))
+        }
+
         _ => Err(format!("Unknown tool: {}", name)),
     }
 }
@@ -1333,11 +1461,14 @@ mod tests {
         let defs = tool_definitions();
         let tools = defs["tools"].as_array().unwrap();
 
-        assert_eq!(tools.len(), 10);
+        assert_eq!(tools.len(), 13);
 
         let names: Vec<&str> = tools.iter().map(|t| t["name"].as_str().unwrap()).collect();
         assert!(names.contains(&"vertz_get_errors"));
         assert!(names.contains(&"vertz_browser_list_tabs"));
+        assert!(names.contains(&"vertz_browser_connect"));
+        assert!(names.contains(&"vertz_browser_disconnect"));
+        assert!(names.contains(&"vertz_browser_snapshot"));
         assert!(names.contains(&"vertz_render_page"));
         assert!(names.contains(&"vertz_get_console"));
         assert!(names.contains(&"vertz_navigate"));
@@ -1439,7 +1570,7 @@ mod tests {
         let resp = handle_mcp_message(&state, req).await.unwrap();
         let result = resp.result.unwrap();
         let tools = result["tools"].as_array().unwrap();
-        assert_eq!(tools.len(), 10);
+        assert_eq!(tools.len(), 13);
     }
 
     #[tokio::test]
