@@ -147,14 +147,14 @@ GET http://localhost:3001/events
 
 ### Event types
 
-| Event | Description |
-| --- | --- |
-| `error_update` | Error state changed (new errors, errors cleared) |
-| `file_change` | Source file was modified |
-| `hmr_update` | HMR sent update to browser |
-| `ssr_refresh` | SSR module re-imported after file change |
-| `typecheck_update` | Type checker diagnostics updated |
-| `server_status` | Server status change (sent on connect as handshake) |
+| Event              | Description                                         |
+| ------------------ | --------------------------------------------------- |
+| `error_update`     | Error state changed (new errors, errors cleared)    |
+| `file_change`      | Source file was modified                            |
+| `hmr_update`       | HMR sent update to browser                          |
+| `ssr_refresh`      | SSR module re-imported after file change            |
+| `typecheck_update` | Type checker diagnostics updated                    |
+| `server_status`    | Server status change (sent on connect as handshake) |
 
 ### Filtering
 
@@ -168,12 +168,12 @@ ws://localhost:3000/__vertz_mcp/events?subscribe=error_update,typecheck_update
 
 The HTTP bridge (`--bridge-port`) exposes the same capabilities as plain REST endpoints for tools that don't support MCP or WebSocket:
 
-| Method | Endpoint | Description |
-| --- | --- | --- |
-| `GET` | `/health` | Bridge health check, lists available event types |
-| `GET` | `/tools` | Tool discovery (list all available tools with descriptions) |
+| Method | Endpoint   | Description                                                  |
+| ------ | ---------- | ------------------------------------------------------------ |
+| `GET`  | `/health`  | Bridge health check, lists available event types             |
+| `GET`  | `/tools`   | Tool discovery (list all available tools with descriptions)  |
 | `POST` | `/command` | Execute a tool: `{ "tool": "vertz_get_errors", "args": {} }` |
-| `GET` | `/events` | SSE event stream (same events as WebSocket) |
+| `GET`  | `/events`  | SSE event stream (same events as WebSocket)                  |
 
 ### Example: calling a tool via the bridge
 
@@ -202,19 +202,21 @@ The dev server tools are most effective when agents follow this pattern:
 This prevents the common failure mode where an agent says "Done!" but the app has a build error or renders a blank page.
 
 <Tip>
-  For long-running development sessions, subscribe to the real-time event stream via WebSocket or SSE. This way the agent is notified immediately when errors appear, instead of discovering them later.
+  For long-running development sessions, subscribe to the real-time event stream via WebSocket or
+  SSE. This way the agent is notified immediately when errors appear, instead of discovering them
+  later.
 </Tip>
 
 ## Diagnostic endpoints
 
 These HTTP endpoints are always available (no MCP or bridge needed):
 
-| Endpoint | Description |
-| --- | --- |
-| `GET /__vertz_diagnostics` | JSON health snapshot (uptime, cache, module graph, errors, SSR pool) |
-| `GET /__vertz_ai/errors` | Current errors formatted for LLM consumption |
-| `GET /__vertz_ai/render?url=/path` | SSR render for LLM consumption |
-| `GET /__vertz_ai/console?last=N` | Recent console output |
-| `POST /__vertz_ai/navigate` | Navigate the browser |
+| Endpoint                           | Description                                                          |
+| ---------------------------------- | -------------------------------------------------------------------- |
+| `GET /__vertz_diagnostics`         | JSON health snapshot (uptime, cache, module graph, errors, SSR pool) |
+| `GET /__vertz_ai/errors`           | Current errors formatted for LLM consumption                         |
+| `GET /__vertz_ai/render?url=/path` | SSR render for LLM consumption                                       |
+| `GET /__vertz_ai/console?last=N`   | Recent console output                                                |
+| `POST /__vertz_ai/navigate`        | Navigate the browser                                                 |
 
 These are the same underlying handlers as the MCP tools, exposed as direct HTTP endpoints for simpler integrations.
