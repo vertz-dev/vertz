@@ -203,9 +203,17 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          echo "No binary artifacts from this run — downloading from latest GitHub release"
-          gh release download --pattern 'vtz-linux-x64' --dir /tmp/vtz-release || {
-            echo "::warning::Could not download vtz binary from latest release"
+          echo "No binary artifacts from this run — downloading from latest v* GitHub release"
+          # Find the latest v* release (changeset creates per-package releases that
+          # take over "Latest", so we can't rely on the default)
+          VTZ_TAG=$(gh release list --limit 50 --json tagName --jq '[.[] | select(.tagName | startswith("v0."))][0].tagName')
+          if [ -z "$VTZ_TAG" ]; then
+            echo "::warning::Could not find a v* release with runtime binaries"
+            exit 0
+          fi
+          echo "Found release: $VTZ_TAG"
+          gh release download "$VTZ_TAG" --pattern 'vtz-linux-x64' --dir /tmp/vtz-release || {
+            echo "::warning::Could not download vtz binary from release $VTZ_TAG"
             exit 0
           }
           cp /tmp/vtz-release/vtz-linux-x64 packages/runtime-linux-x64/vtz
