@@ -1,5 +1,5 @@
 import type { ArtifactViewerProps } from './artifact-viewer-utils';
-import { escapeHtml, isMarkdown } from './artifact-viewer-utils';
+import { isMarkdown } from './artifact-viewer-utils';
 
 export type { ArtifactViewerProps } from './artifact-viewer-utils';
 
@@ -45,7 +45,7 @@ export default function ArtifactViewer({ path, content, type }: ArtifactViewerPr
       {markdown ? (
         <div style={styles.body}>{content}</div>
       ) : (
-        <pre style={styles.pre}>{escapeHtml(content)}</pre>
+        <pre style={styles.pre}>{content}</pre>
       )}
     </div>
   );

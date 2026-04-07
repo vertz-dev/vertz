@@ -14,7 +14,3 @@ export function formatToolDuration(ms: number): string {
   return `${(ms / 1000).toFixed(1)}s`;
 }
 
-export function truncateJson(json: string, maxLength = 200): string {
-  if (json.length <= maxLength) return json;
-  return json.slice(0, maxLength) + '...';
-}

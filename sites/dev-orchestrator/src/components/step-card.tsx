@@ -81,7 +81,13 @@ export default function StepCard({ name, status, agent, detail, onClick }: StepC
   };
 
   return (
-    <div style={cardStyle} onClick={onClick} role="button" tabIndex={0}>
+    <div
+      style={cardStyle}
+      onClick={onClick}
+      onKeyDown={(e: KeyboardEvent) => { if (e.key === 'Enter' || e.key === ' ') onClick?.(); }}
+      role="button"
+      tabIndex={0}
+    >
       <div style={{ flex: '1' }}>
         <div style={styles.name}>{name}</div>
         {agent && <div style={styles.agent}>{agent}</div>}
