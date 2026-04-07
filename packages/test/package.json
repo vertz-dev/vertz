@@ -1,6 +1,6 @@
 {
   "name": "@vertz/test",
-  "version": "0.2.50",
+  "version": "0.2.51",
   "description": "Type declarations and runtime stubs for the Vertz test framework",
   "license": "MIT",
   "repository": {
