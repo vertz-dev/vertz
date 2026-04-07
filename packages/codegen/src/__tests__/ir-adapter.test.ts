@@ -28,6 +28,9 @@ function makeAppIR(overrides: Partial<AppIR>): AppIR {
     modules: [],
     middleware: [],
     schemas: [],
+    entities: [],
+    services: [],
+    databases: [],
     dependencyGraph: {
       nodes: [],
       edges: [],
@@ -303,6 +306,99 @@ describe('adaptIR', () => {
       const appIR = makeAppIR({});
       const result = adaptIR(appIR);
       expect(result.access).toBeUndefined();
+    });
+  });
+
+  describe('service adaptation', () => {
+    it('returns empty services when none exist', () => {
+      const appIR = makeAppIR({});
+      const result = adaptIR(appIR);
+      expect(result.services).toEqual([]);
+    });
+
+    it('adapts a service with actions', () => {
+      const appIR = makeAppIR({
+        services: [
+          {
+            name: 'notifications',
+            ...loc,
+            inject: [],
+            actions: [
+              { name: 'send', method: 'POST' },
+              { name: 'status', method: 'GET' },
+            ],
+            access: { send: 'function', status: 'function' },
+          },
+        ],
+      });
+      const result = adaptIR(appIR);
+      expect(result.services).toHaveLength(1);
+      expect(result.services[0].serviceName).toBe('notifications');
+      expect(result.services[0].actions).toHaveLength(2);
+      expect(result.services[0].actions[0]).toEqual({
+        name: 'send',
+        method: 'POST',
+        path: '/notifications/send',
+        operationId: 'sendNotifications',
+      });
+      expect(result.services[0].actions[1]).toEqual({
+        name: 'status',
+        method: 'GET',
+        path: '/notifications/status',
+        operationId: 'statusNotifications',
+      });
+    });
+
+    it('filters out actions with access: false', () => {
+      const appIR = makeAppIR({
+        services: [
+          {
+            name: 'notifications',
+            ...loc,
+            inject: [],
+            actions: [
+              { name: 'send', method: 'POST' },
+              { name: 'internal', method: 'POST' },
+            ],
+            access: { send: 'function', internal: 'false' },
+          },
+        ],
+      });
+      const result = adaptIR(appIR);
+      expect(result.services[0].actions).toHaveLength(1);
+      expect(result.services[0].actions[0].name).toBe('send');
+    });
+
+    it('uses custom path when specified on action', () => {
+      const appIR = makeAppIR({
+        services: [
+          {
+            name: 'notifications',
+            ...loc,
+            inject: [],
+            actions: [{ name: 'status', method: 'GET', path: 'notifications/status/:messageId' }],
+            access: { status: 'function' },
+          },
+        ],
+      });
+      const result = adaptIR(appIR);
+      expect(result.services[0].actions[0].path).toBe('notifications/status/:messageId');
+    });
+
+    it('includes actions with access: none', () => {
+      const appIR = makeAppIR({
+        services: [
+          {
+            name: 'notifications',
+            ...loc,
+            inject: [],
+            actions: [{ name: 'send', method: 'POST' }],
+            access: { send: 'none' },
+          },
+        ],
+      });
+      const result = adaptIR(appIR);
+      expect(result.services[0].actions).toHaveLength(1);
     });
   });
 });

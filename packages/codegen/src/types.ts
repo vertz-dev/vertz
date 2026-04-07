@@ -10,6 +10,7 @@ export interface CodegenIR {
   modules: CodegenModule[];
   schemas: CodegenSchema[];
   entities: CodegenEntityModule[];
+  services: CodegenServiceModule[];
   auth: CodegenAuth;
   access?: CodegenAccess;
 }
@@ -213,6 +214,20 @@ export interface CodegenEntityAction {
   outputSchema?: string;
   resolvedInputFields?: CodegenResolvedField[];
   resolvedOutputFields?: CodegenResolvedField[];
+}
+
+// ── Service ──────────────────────────────────────────────────────
+
+export interface CodegenServiceModule {
+  serviceName: string;
+  actions: CodegenServiceAction[];
+}
+
+export interface CodegenServiceAction {
+  name: string;
+  method: HttpMethod;
+  path: string;
+  operationId: string;
 }
 
 // ── Generator ───────────────────────────────────────────────────

@@ -8,6 +8,7 @@ import { EntitySdkGenerator } from '../generators/entity-sdk-generator';
 import { EntityTypesGenerator } from '../generators/entity-types-generator';
 import { RlsPolicyGenerator } from '../generators/rls-policy-generator';
 import { RouterAugmentationGenerator } from '../generators/router-augmentation-generator';
+import { ServiceSdkGenerator } from '../generators/service-sdk-generator';
 import type { CodegenIR, GeneratorConfig } from '../types';
 
 const emptyIR: CodegenIR = {
@@ -97,6 +98,44 @@ describe('Generator edge cases with empty IR', () => {
     // Use a nonexistent output dir so findProjectRoot returns null
     const config: GeneratorConfig = { outputDir: '/nonexistent/path', options: {} };
     expect(new RouterAugmentationGenerator().generate(emptyIR, config)).toEqual([]);
+  });
+});
+
+describe('ServiceSdkGenerator', () => {
+  it('returns empty for no services', () => {
+    expect(new ServiceSdkGenerator().generate(emptyIR, defaultConfig)).toEqual([]);
+  });
+
+  it('has name "service-sdk"', () => {
+    expect(new ServiceSdkGenerator().name).toBe('service-sdk');
+  });
+});
+
+describe('ClientGenerator with services', () => {
+  it('includes service SDKs in the generated client', () => {
+    const ir: CodegenIR = {
+      ...emptyIR,
+      services: [
+        {
+          serviceName: 'notifications',
+          actions: [
+            {
+              name: 'send',
+              method: 'POST',
+              path: '/notifications/send',
+              operationId: 'sendNotifications',
+            },
+          ],
+        },
+      ],
+    };
+    const files = new ClientGenerator().generate(ir, defaultConfig);
+    const clientFile = files.find((f) => f.path === 'client.ts');
+    expect(clientFile).toBeDefined();
+    expect(clientFile!.content).toContain(
+      "import { createNotificationsSdk } from './services/notifications'",
+    );
+    expect(clientFile!.content).toContain('notifications: createNotificationsSdk(client)');
   });
 });
 

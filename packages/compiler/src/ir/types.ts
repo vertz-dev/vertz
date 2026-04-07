@@ -17,6 +17,7 @@ export interface AppIR {
   middleware: MiddlewareIR[];
   schemas: SchemaIR[];
   entities: EntityIR[];
+  services: ServiceIR[];
   databases: DatabaseIR[];
   access?: AccessIR;
   auth?: AuthIR;
@@ -112,9 +113,19 @@ export interface ImportRef {
 
 export interface ServiceIR extends SourceLocation {
   name: string;
-  moduleName: string;
+  /** Module name — set for module-scoped services, omitted for standalone services */
+  moduleName?: string;
   inject: InjectRef[];
-  methods: ServiceMethodIR[];
+  actions: ServiceActionIR[];
+  access: Record<string, EntityAccessRuleKind>;
+}
+
+export interface ServiceActionIR {
+  name: string;
+  method: HttpMethod;
+  path?: string;
+  body?: SchemaRef;
+  response?: SchemaRef;
 }
 
 export interface InjectRef {
@@ -122,12 +133,14 @@ export interface InjectRef {
   resolvedToken: string;
 }
 
+/** @deprecated Use ServiceActionIR instead — kept for backward compat during migration */
 export interface ServiceMethodIR {
   name: string;
   parameters: ServiceMethodParam[];
   returnType: string;
 }
 
+/** @deprecated Use ServiceActionIR instead */
 export interface ServiceMethodParam {
   name: string;
   type: string;

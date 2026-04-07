@@ -72,6 +72,7 @@ export class ClientGenerator implements Generator {
 
   private generateClient(ir: CodegenIR): GeneratedFile {
     const entities = ir.entities ?? [];
+    const services = (ir.services ?? []).filter((s) => s.actions.length > 0);
     const hasAuth = ir.auth.operations.length > 0;
     const authSchemes = ir.auth.schemes ?? [];
     const hasAuthSchemes = authSchemes.length > 0;
@@ -84,7 +85,7 @@ export class ClientGenerator implements Generator {
     const hasRelations = manifest.some((entry) => Object.keys(entry.schema).length > 0);
     const lines: string[] = [FILE_HEADER];
 
-    if (entities.length > 0) {
+    if (entities.length > 0 || services.length > 0) {
       if (hasMutations) {
         lines.push("import { FetchClient, type OptimisticHandler } from '@vertz/fetch';");
         if (hasRelations) {
@@ -105,13 +106,18 @@ export class ClientGenerator implements Generator {
         const pascal = toPascalCase(entity.entityName);
         lines.push(`import { create${pascal}Sdk } from './entities/${entity.entityName}';`);
       }
+
+      for (const svc of services) {
+        const pascal = toPascalCase(svc.serviceName);
+        lines.push(`import { create${pascal}Sdk } from './services/${svc.serviceName}';`);
+      }
     }
 
     if (hasAuth) {
       lines.push("import { createAuthSdk } from './auth';");
     }
 
-    if (entities.length > 0 || hasAuth) {
+    if (entities.length > 0 || services.length > 0 || hasAuth) {
       lines.push('');
     }
 
@@ -158,10 +164,10 @@ export class ClientGenerator implements Generator {
 
     lines.push('export function createClient(options: ClientOptions = {}) {');
 
-    if (entities.length > 0 || hasAuth) {
+    if (entities.length > 0 || services.length > 0 || hasAuth) {
       const baseURLDefault = "options.baseURL ?? '/api'";
 
-      if (entities.length > 0) {
+      if (entities.length > 0 || services.length > 0) {
         if (hasAuthSchemes) {
           lines.push(`  const client = new FetchClient({`);
           lines.push(`    baseURL: ${baseURLDefault},`);
@@ -203,6 +209,11 @@ export class ClientGenerator implements Generator {
         } else {
           lines.push(`    ${camel}: create${pascal}Sdk(client),`);
         }
+      }
+      for (const svc of services) {
+        const pascal = toPascalCase(svc.serviceName);
+        const camel = toCamelCase(svc.serviceName);
+        lines.push(`    ${camel}: create${pascal}Sdk(client),`);
       }
       if (hasAuth) {
         lines.push('    auth,');

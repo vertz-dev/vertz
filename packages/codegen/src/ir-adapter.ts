@@ -7,6 +7,8 @@ import type {
   CodegenIR,
   CodegenResolvedField,
   CodegenSchema,
+  CodegenServiceAction,
+  CodegenServiceModule,
 } from './types';
 import { toPascalCase } from './utils/naming';
 
@@ -303,6 +305,24 @@ export function adaptIR(appIR: AppIR): CodegenIR {
       }
     : undefined;
 
+  // Process standalone services into codegen service modules
+  const services: CodegenServiceModule[] = (appIR.services ?? []).map((svc) => {
+    const svcPascal = toPascalCase(svc.name);
+    const actions: CodegenServiceAction[] = svc.actions
+      .filter((a) => svc.access[a.name] !== 'false')
+      .map((a) => {
+        const actionPath = a.path ?? `/${svc.name}/${a.name}`;
+        return {
+          name: a.name,
+          method: a.method,
+          path: actionPath,
+          operationId: `${a.name}${svcPascal}`,
+        };
+      });
+
+    return { serviceName: svc.name, actions };
+  });
+
   const authOperations = buildAuthOperations(appIR.auth?.features ?? []);
 
   return {
@@ -311,6 +331,7 @@ export function adaptIR(appIR: AppIR): CodegenIR {
     modules: [],
     schemas: allSchemas,
     entities,
+    services,
     auth: { schemes: [], operations: authOperations },
     access,
   };

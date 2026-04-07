@@ -194,6 +194,7 @@ export type {
   SchemaIR,
   SchemaNameParts,
   SchemaRef,
+  ServiceActionIR,
   ServiceIR,
   ServiceMethodIR,
   ServiceMethodParam,

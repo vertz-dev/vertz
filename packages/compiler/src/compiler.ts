@@ -22,6 +22,8 @@ import type { ModuleAnalyzerResult } from './analyzers/module-analyzer';
 import { ModuleAnalyzer } from './analyzers/module-analyzer';
 import type { SchemaAnalyzerResult } from './analyzers/schema-analyzer';
 import { SchemaAnalyzer } from './analyzers/schema-analyzer';
+import type { ServiceAnalyzerResult } from './analyzers/service-analyzer';
+import { ServiceAnalyzer } from './analyzers/service-analyzer';
 import type { ResolvedConfig, VertzConfig } from './config';
 import { resolveConfig } from './config';
 import type { Diagnostic } from './errors';
@@ -58,6 +60,7 @@ export interface CompilerDependencies {
     module: Analyzer<ModuleAnalyzerResult>;
     app: Analyzer<AppAnalyzerResult>;
     entity: Analyzer<EntityAnalyzerResult>;
+    service: Analyzer<ServiceAnalyzerResult>;
     database: Analyzer<DatabaseAnalyzerResult>;
     access: Analyzer<AccessAnalyzerResult>;
     auth: Analyzer<AuthAnalyzerResult>;
@@ -90,6 +93,7 @@ export class Compiler {
     const middlewareResult = await analyzers.middleware.analyze();
     const appResult = await analyzers.app.analyze();
     const entityResult = await analyzers.entity.analyze();
+    const serviceResult = await analyzers.service.analyze();
     const databaseResult = await analyzers.database.analyze();
     const accessResult = await analyzers.access.analyze();
     const authResult = await analyzers.auth.analyze();
@@ -101,6 +105,7 @@ export class Compiler {
     ir.middleware = middlewareResult.middleware;
     ir.app = appResult.app;
     ir.entities = entityResult.entities;
+    ir.services = serviceResult.services;
     ir.databases = databaseResult.databases;
     ir.access = accessResult.access;
     ir.auth = authResult.auth;
@@ -114,6 +119,7 @@ export class Compiler {
       ...analyzers.module.getDiagnostics(),
       ...analyzers.app.getDiagnostics(),
       ...analyzers.entity.getDiagnostics(),
+      ...analyzers.service.getDiagnostics(),
       ...analyzers.database.getDiagnostics(),
       ...analyzers.access.getDiagnostics(),
       ...analyzers.auth.getDiagnostics(),
@@ -174,6 +180,7 @@ export function createCompiler(config?: VertzConfig): Compiler {
       module: new ModuleAnalyzer(project, resolved),
       app: new AppAnalyzer(project, resolved),
       entity: new EntityAnalyzer(project, resolved),
+      service: new ServiceAnalyzer(project, resolved),
       database: new DatabaseAnalyzer(project, resolved),
       access: new AccessAnalyzer(project, resolved),
       auth: new AuthAnalyzer(project, resolved),

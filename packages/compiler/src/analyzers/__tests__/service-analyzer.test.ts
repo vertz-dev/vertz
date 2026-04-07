@@ -1,259 +1,298 @@
 import { describe, expect, it } from 'bun:test';
 import { Project, SyntaxKind } from 'ts-morph';
 import { resolveConfig } from '../../config';
-import type { InjectRef, ServiceIR, ServiceMethodIR, ServiceMethodParam } from '../../ir/types';
-import { extractMethodSignatures, parseInjectRefs, ServiceAnalyzer } from '../service-analyzer';
+import type { InjectRef, ServiceActionIR, ServiceIR } from '../../ir/types';
+import { parseInjectRefs, ServiceAnalyzer } from '../service-analyzer';
 
 function createProject() {
   return new Project({ useInMemoryFileSystem: true });
 }
 
 describe('ServiceAnalyzer', () => {
-  it('discovers moduleDef.service() call and extracts service name', async () => {
-    const project = createProject();
-    project.createSourceFile(
-      'src/user/user.service.ts',
-      `import { vertz } from '@vertz/core';
-const userModuleDef = vertz.moduleDef({ name: 'user' });
-const userService = userModuleDef.service({
-  inject: {},
-  methods: () => ({
-    findById: async (id: string) => ({ id, name: 'Test' }),
-  }),
-});`,
-    );
-    const analyzer = new ServiceAnalyzer(project, resolveConfig());
-    const result = await analyzer.analyzeForModule('userModuleDef', 'user');
-    expect(result).toHaveLength(1);
-    expect(result.at(0)?.name).toBe('userService');
-    expect(result.at(0)?.moduleName).toBe('user');
-  });
+  describe('standalone service() discovery', () => {
+    it('discovers standalone service() call imported from @vertz/server', async () => {
+      const project = createProject();
+      project.createSourceFile(
+        'src/notifications.service.ts',
+        `import { service, action } from '@vertz/server';
+import { s } from '@vertz/schema';
 
-  it('discovers multiple services on same moduleDef', async () => {
-    const project = createProject();
-    project.createSourceFile(
-      'src/user/user.service.ts',
-      `import { vertz } from '@vertz/core';
-const userModuleDef = vertz.moduleDef({ name: 'user' });
-const userService = userModuleDef.service({
-  methods: () => ({ findById: async (id: string) => id }),
-});
-const authService = userModuleDef.service({
-  methods: () => ({ verify: async (token: string) => true }),
-});`,
-    );
-    const analyzer = new ServiceAnalyzer(project, resolveConfig());
-    const result = await analyzer.analyzeForModule('userModuleDef', 'user');
-    expect(result).toHaveLength(2);
-  });
+const sendBody = s.object({ to: s.string() });
+const sendResponse = s.object({ ok: s.boolean() });
 
-  it('extracts source location of service definition', async () => {
-    const project = createProject();
-    project.createSourceFile(
-      'src/user/user.service.ts',
-      `import { vertz } from '@vertz/core';
-const userModuleDef = vertz.moduleDef({ name: 'user' });
-const userService = userModuleDef.service({
-  methods: () => ({ findById: async (id: string) => id }),
+export const notifications = service('notifications', {
+  access: { send: () => true },
+  actions: {
+    send: action({
+      body: sendBody,
+      response: sendResponse,
+      handler: async (input, ctx) => ({ ok: true }),
+    }),
+  },
 });`,
-    );
-    const analyzer = new ServiceAnalyzer(project, resolveConfig());
-    const result = await analyzer.analyzeForModule('userModuleDef', 'user');
-    expect(result.at(0)?.sourceLine).toBe(3);
-    expect(result.at(0)?.sourceFile).toContain('user.service.ts');
-  });
+      );
+      const analyzer = new ServiceAnalyzer(project, resolveConfig());
+      const result = await analyzer.analyze();
+      expect(result.services).toHaveLength(1);
+      expect(result.services[0].name).toBe('notifications');
+    });
 
-  it('extracts inject references with shorthand', async () => {
-    const project = createProject();
-    project.createSourceFile(
-      'src/user/user.service.ts',
-      `import { vertz } from '@vertz/core';
-const userModuleDef = vertz.moduleDef({ name: 'user' });
-const userService = userModuleDef.service({
-  inject: { dbService, configService },
-  methods: () => ({ findById: async (id: string) => id }),
+    it('extracts service name from first string argument, not variable name', async () => {
+      const project = createProject();
+      project.createSourceFile(
+        'src/my-service.ts',
+        `import { service, action } from '@vertz/server';
+import { s } from '@vertz/schema';
+
+export const myVar = service('email-sender', {
+  access: { send: () => true },
+  actions: {
+    send: action({
+      response: s.object({ ok: s.boolean() }),
+      handler: async () => ({ ok: true }),
+    }),
+  },
 });`,
-    );
-    const analyzer = new ServiceAnalyzer(project, resolveConfig());
-    const result = await analyzer.analyzeForModule('userModuleDef', 'user');
-    expect(result.at(0)?.inject).toHaveLength(2);
-    expect(result.at(0)?.inject[0]).toEqual({ localName: 'dbService', resolvedToken: 'dbService' });
-    expect(result.at(0)?.inject[1]).toEqual({
-      localName: 'configService',
-      resolvedToken: 'configService',
+      );
+      const analyzer = new ServiceAnalyzer(project, resolveConfig());
+      const result = await analyzer.analyze();
+      expect(result.services[0].name).toBe('email-sender');
+    });
+
+    it('discovers multiple services across files', async () => {
+      const project = createProject();
+      project.createSourceFile(
+        'src/a.ts',
+        `import { service, action } from '@vertz/server';
+import { s } from '@vertz/schema';
+export const a = service('svc-a', {
+  access: { ping: () => true },
+  actions: { ping: action({ response: s.object({ ok: s.boolean() }), handler: async () => ({ ok: true }) }) },
+});`,
+      );
+      project.createSourceFile(
+        'src/b.ts',
+        `import { service, action } from '@vertz/server';
+import { s } from '@vertz/schema';
+export const b = service('svc-b', {
+  access: { pong: () => true },
+  actions: { pong: action({ response: s.object({ ok: s.boolean() }), handler: async () => ({ ok: true }) }) },
+});`,
+      );
+      const analyzer = new ServiceAnalyzer(project, resolveConfig());
+      const result = await analyzer.analyze();
+      expect(result.services).toHaveLength(2);
+      const names = result.services.map((s) => s.name).sort();
+      expect(names).toEqual(['svc-a', 'svc-b']);
+    });
+
+    it('extracts source location', async () => {
+      const project = createProject();
+      project.createSourceFile(
+        'src/notifications.service.ts',
+        `import { service, action } from '@vertz/server';
+import { s } from '@vertz/schema';
+
+export const notifications = service('notifications', {
+  access: { send: () => true },
+  actions: {
+    send: action({ response: s.object({ ok: s.boolean() }), handler: async () => ({ ok: true }) }),
+  },
+});`,
+      );
+      const analyzer = new ServiceAnalyzer(project, resolveConfig());
+      const result = await analyzer.analyze();
+      expect(result.services[0].sourceFile).toContain('notifications.service.ts');
+      expect(result.services[0].sourceLine).toBe(4);
+    });
+
+    it('ignores service() calls not imported from @vertz/server', async () => {
+      const project = createProject();
+      project.createSourceFile(
+        'src/other.ts',
+        `function service(name: string, config: any) { return config; }
+const svc = service('fake', { actions: {} });`,
+      );
+      const analyzer = new ServiceAnalyzer(project, resolveConfig());
+      const result = await analyzer.analyze();
+      expect(result.services).toHaveLength(0);
     });
   });
 
-  it('extracts inject with explicit key', async () => {
-    const project = createProject();
-    project.createSourceFile(
-      'src/user/user.service.ts',
-      `import { vertz } from '@vertz/core';
-const userModuleDef = vertz.moduleDef({ name: 'user' });
-const dbService = {};
-const userService = userModuleDef.service({
-  inject: { db: dbService },
-  methods: () => ({ findById: async (id: string) => id }),
-});`,
-    );
-    const analyzer = new ServiceAnalyzer(project, resolveConfig());
-    const result = await analyzer.analyzeForModule('userModuleDef', 'user');
-    expect(result.at(0)?.inject[0]).toEqual({ localName: 'db', resolvedToken: 'dbService' });
-  });
-
-  it('empty inject when not specified', async () => {
-    const project = createProject();
-    project.createSourceFile(
-      'src/user/user.service.ts',
-      `import { vertz } from '@vertz/core';
-const userModuleDef = vertz.moduleDef({ name: 'user' });
-const userService = userModuleDef.service({
-  methods: () => ({ findById: async (id: string) => id }),
-});`,
-    );
-    const analyzer = new ServiceAnalyzer(project, resolveConfig());
-    const result = await analyzer.analyzeForModule('userModuleDef', 'user');
-    expect(result.at(0)?.inject).toEqual([]);
-  });
-
-  it('empty inject for empty object', async () => {
-    const project = createProject();
-    project.createSourceFile(
-      'src/user/user.service.ts',
-      `import { vertz } from '@vertz/core';
-const userModuleDef = vertz.moduleDef({ name: 'user' });
-const userService = userModuleDef.service({
-  inject: {},
-  methods: () => ({ findById: async (id: string) => id }),
-});`,
-    );
-    const analyzer = new ServiceAnalyzer(project, resolveConfig());
-    const result = await analyzer.analyzeForModule('userModuleDef', 'user');
-    expect(result.at(0)?.inject).toEqual([]);
-  });
-
-  it('extracts method names from arrow function return', async () => {
-    const project = createProject();
-    project.createSourceFile(
-      'src/user/user.service.ts',
-      `import { vertz } from '@vertz/core';
-const userModuleDef = vertz.moduleDef({ name: 'user' });
-const userService = userModuleDef.service({
-  methods: (deps: any) => ({
-    findById: async (id: string) => deps,
-    create: async (data: any) => deps,
-  }),
-});`,
-    );
-    const analyzer = new ServiceAnalyzer(project, resolveConfig());
-    const result = await analyzer.analyzeForModule('userModuleDef', 'user');
-    expect(result.at(0)?.methods).toHaveLength(2);
-    expect(result.at(0)?.methods.at(0)?.name).toBe('findById');
-    expect(result.at(0)?.methods.at(1)?.name).toBe('create');
-  });
-
-  it('extracts method parameter names and types', async () => {
-    const project = createProject();
-    project.createSourceFile(
-      'src/user/user.service.ts',
-      `import { vertz } from '@vertz/core';
-const userModuleDef = vertz.moduleDef({ name: 'user' });
-const userService = userModuleDef.service({
-  methods: () => ({
-    findById: async (id: string) => ({ id }),
-  }),
-});`,
-    );
-    const analyzer = new ServiceAnalyzer(project, resolveConfig());
-    const result = await analyzer.analyzeForModule('userModuleDef', 'user');
-    expect(result.at(0)?.methods.at(0)?.parameters).toHaveLength(1);
-    expect(result.at(0)?.methods.at(0)?.parameters.at(0)?.name).toBe('id');
-    expect(result.at(0)?.methods.at(0)?.parameters.at(0)?.type).toBe('string');
-  });
-
-  it('extracts method with multiple parameters', async () => {
-    const project = createProject();
-    project.createSourceFile(
-      'src/user/user.service.ts',
-      `import { vertz } from '@vertz/core';
-type UpdateData = { name: string };
-const userModuleDef = vertz.moduleDef({ name: 'user' });
-const userService = userModuleDef.service({
-  methods: () => ({
-    update: async (id: string, data: UpdateData) => ({ id }),
-  }),
-});`,
-    );
-    const analyzer = new ServiceAnalyzer(project, resolveConfig());
-    const result = await analyzer.analyzeForModule('userModuleDef', 'user');
-    expect(result.at(0)?.methods.at(0)?.parameters).toHaveLength(2);
-  });
-
-  it('extracts method return type', async () => {
-    const project = createProject();
-    project.createSourceFile(
-      'src/user/user.service.ts',
-      `import { vertz } from '@vertz/core';
-const userModuleDef = vertz.moduleDef({ name: 'user' });
-const userService = userModuleDef.service({
-  methods: () => ({
-    findById: async (id: string): Promise<string> => id,
-  }),
-});`,
-    );
-    const analyzer = new ServiceAnalyzer(project, resolveConfig());
-    const result = await analyzer.analyzeForModule('userModuleDef', 'user');
-    expect(result.at(0)?.methods.at(0)?.returnType).toContain('Promise');
-  });
-
-  it('handles methods factory with block body', async () => {
-    const project = createProject();
-    project.createSourceFile(
-      'src/user/user.service.ts',
-      `import { vertz } from '@vertz/core';
-const userModuleDef = vertz.moduleDef({ name: 'user' });
-const userService = userModuleDef.service({
-  methods: (deps: any) => {
-    return {
-      findById: async (id: string) => deps,
-    };
+  describe('action parsing', () => {
+    it('extracts action names from actions config', async () => {
+      const project = createProject();
+      project.createSourceFile(
+        'src/svc.ts',
+        `import { service, action } from '@vertz/server';
+import { s } from '@vertz/schema';
+export const svc = service('my-svc', {
+  access: { send: () => true, check: () => true },
+  actions: {
+    send: action({ body: s.object({ to: s.string() }), response: s.object({ ok: s.boolean() }), handler: async () => ({ ok: true }) }),
+    check: action({ method: 'GET', response: s.object({ status: s.string() }), handler: async () => ({ status: 'ok' }) }),
   },
 });`,
-    );
-    const analyzer = new ServiceAnalyzer(project, resolveConfig());
-    const result = await analyzer.analyzeForModule('userModuleDef', 'user');
-    expect(result.at(0)?.methods).toHaveLength(1);
-    expect(result.at(0)?.methods.at(0)?.name).toBe('findById');
+      );
+      const analyzer = new ServiceAnalyzer(project, resolveConfig());
+      const result = await analyzer.analyze();
+      expect(result.services[0].actions).toHaveLength(2);
+      expect(result.services[0].actions.map((a) => a.name).sort()).toEqual(['check', 'send']);
+    });
+
+    it('extracts method defaulting to POST when not specified', async () => {
+      const project = createProject();
+      project.createSourceFile(
+        'src/svc.ts',
+        `import { service, action } from '@vertz/server';
+import { s } from '@vertz/schema';
+export const svc = service('my-svc', {
+  access: { send: () => true },
+  actions: {
+    send: action({ response: s.object({ ok: s.boolean() }), handler: async () => ({ ok: true }) }),
+  },
+});`,
+      );
+      const analyzer = new ServiceAnalyzer(project, resolveConfig());
+      const result = await analyzer.analyze();
+      expect(result.services[0].actions[0].method).toBe('POST');
+    });
+
+    it('extracts explicit method override', async () => {
+      const project = createProject();
+      project.createSourceFile(
+        'src/svc.ts',
+        `import { service, action } from '@vertz/server';
+import { s } from '@vertz/schema';
+export const svc = service('my-svc', {
+  access: { check: () => true },
+  actions: {
+    check: action({ method: 'GET', response: s.object({ ok: s.boolean() }), handler: async () => ({ ok: true }) }),
+  },
+});`,
+      );
+      const analyzer = new ServiceAnalyzer(project, resolveConfig());
+      const result = await analyzer.analyze();
+      expect(result.services[0].actions[0].method).toBe('GET');
+    });
+
+    it('extracts custom path from action', async () => {
+      const project = createProject();
+      project.createSourceFile(
+        'src/svc.ts',
+        `import { service, action } from '@vertz/server';
+import { s } from '@vertz/schema';
+export const svc = service('my-svc', {
+  access: { status: () => true },
+  actions: {
+    status: action({ method: 'GET', path: 'notifications/status/:messageId', response: s.object({ ok: s.boolean() }), handler: async () => ({ ok: true }) }),
+  },
+});`,
+      );
+      const analyzer = new ServiceAnalyzer(project, resolveConfig());
+      const result = await analyzer.analyze();
+      expect(result.services[0].actions[0].path).toBe('notifications/status/:messageId');
+    });
   });
 
-  it('returns empty methods for methods without recognizable return', async () => {
-    const project = createProject();
-    project.createSourceFile(
-      'src/user/user.service.ts',
-      `import { vertz } from '@vertz/core';
-const userModuleDef = vertz.moduleDef({ name: 'user' });
-const userService = userModuleDef.service({
-  methods: 'not a function',
+  describe('access rule parsing', () => {
+    it('extracts access rules per action', async () => {
+      const project = createProject();
+      project.createSourceFile(
+        'src/svc.ts',
+        `import { service, action } from '@vertz/server';
+import { s } from '@vertz/schema';
+export const svc = service('my-svc', {
+  access: { send: () => true, check: false },
+  actions: {
+    send: action({ response: s.object({ ok: s.boolean() }), handler: async () => ({ ok: true }) }),
+    check: action({ response: s.object({ ok: s.boolean() }), handler: async () => ({ ok: true }) }),
+  },
 });`,
-    );
-    const analyzer = new ServiceAnalyzer(project, resolveConfig());
-    const result = await analyzer.analyzeForModule('userModuleDef', 'user');
-    expect(result.at(0)?.methods).toEqual([]);
+      );
+      const analyzer = new ServiceAnalyzer(project, resolveConfig());
+      const result = await analyzer.analyze();
+      expect(result.services[0].access.send).toBe('function');
+      expect(result.services[0].access.check).toBe('false');
+    });
+
+    it('marks missing access rules as none', async () => {
+      const project = createProject();
+      project.createSourceFile(
+        'src/svc.ts',
+        `import { service, action } from '@vertz/server';
+import { s } from '@vertz/schema';
+export const svc = service('my-svc', {
+  access: { send: () => true },
+  actions: {
+    send: action({ response: s.object({ ok: s.boolean() }), handler: async () => ({ ok: true }) }),
+    check: action({ response: s.object({ ok: s.boolean() }), handler: async () => ({ ok: true }) }),
+  },
+});`,
+      );
+      const analyzer = new ServiceAnalyzer(project, resolveConfig());
+      const result = await analyzer.analyze();
+      expect(result.services[0].access.send).toBe('function');
+      expect(result.services[0].access.check).toBe('none');
+    });
+
+    it('defaults to empty access when access property is missing', async () => {
+      const project = createProject();
+      project.createSourceFile(
+        'src/svc.ts',
+        `import { service, action } from '@vertz/server';
+import { s } from '@vertz/schema';
+export const svc = service('my-svc', {
+  actions: {
+    send: action({ response: s.object({ ok: s.boolean() }), handler: async () => ({ ok: true }) }),
+  },
+});`,
+      );
+      const analyzer = new ServiceAnalyzer(project, resolveConfig());
+      const result = await analyzer.analyze();
+      expect(result.services[0].access.send).toBe('none');
+    });
   });
 
-  it('emits no diagnostics for valid service', async () => {
-    const project = createProject();
-    project.createSourceFile(
-      'src/user/user.service.ts',
-      `import { vertz } from '@vertz/core';
-const userModuleDef = vertz.moduleDef({ name: 'user' });
-const userService = userModuleDef.service({
-  methods: () => ({ findById: async (id: string) => id }),
+  describe('inject parsing', () => {
+    it('extracts inject references with shorthand', async () => {
+      const project = createProject();
+      project.createSourceFile(
+        'src/svc.ts',
+        `import { service, action } from '@vertz/server';
+import { s } from '@vertz/schema';
+const todos = {};
+export const svc = service('my-svc', {
+  inject: { todos },
+  access: { sync: () => true },
+  actions: {
+    sync: action({ response: s.object({ ok: s.boolean() }), handler: async () => ({ ok: true }) }),
+  },
 });`,
-    );
-    const analyzer = new ServiceAnalyzer(project, resolveConfig());
-    await analyzer.analyzeForModule('userModuleDef', 'user');
-    expect(analyzer.getDiagnostics()).toHaveLength(0);
+      );
+      const analyzer = new ServiceAnalyzer(project, resolveConfig());
+      const result = await analyzer.analyze();
+      expect(result.services[0].inject).toHaveLength(1);
+      expect(result.services[0].inject[0]).toEqual({ localName: 'todos', resolvedToken: 'todos' });
+    });
+
+    it('empty inject when not specified', async () => {
+      const project = createProject();
+      project.createSourceFile(
+        'src/svc.ts',
+        `import { service, action } from '@vertz/server';
+import { s } from '@vertz/schema';
+export const svc = service('my-svc', {
+  access: { send: () => true },
+  actions: {
+    send: action({ response: s.object({ ok: s.boolean() }), handler: async () => ({ ok: true }) }),
+  },
+});`,
+      );
+      const analyzer = new ServiceAnalyzer(project, resolveConfig());
+      const result = await analyzer.analyze();
+      expect(result.services[0].inject).toEqual([]);
+    });
   });
 });
 
@@ -289,71 +328,29 @@ describe('parseInjectRefs', () => {
   });
 });
 
-describe('extractMethodSignatures', () => {
-  it('extracts from arrow function with implicit object return', () => {
-    const project = createProject();
-    const file = project.createSourceFile(
-      'test.ts',
-      `const x = () => ({ findById: async (id: string) => id });`,
-    );
-    const decl = file.getVariableDeclarationOrThrow('x');
-    const expr = decl.getInitializerOrThrow();
-    const methods = extractMethodSignatures(expr);
-    expect(methods).toHaveLength(1);
-    expect(methods.at(0)?.name).toBe('findById');
-  });
-
-  it('extracts from arrow function with block body and return statement', () => {
-    const project = createProject();
-    const file = project.createSourceFile(
-      'test.ts',
-      `const x = () => { return { findById: async (id: string) => id }; };`,
-    );
-    const decl = file.getVariableDeclarationOrThrow('x');
-    const expr = decl.getInitializerOrThrow();
-    const methods = extractMethodSignatures(expr);
-    expect(methods).toHaveLength(1);
-    expect(methods.at(0)?.name).toBe('findById');
-  });
-
-  it('returns empty array when expression is not a function', () => {
-    const project = createProject();
-    const file = project.createSourceFile('test.ts', `const x = 'not a function';`);
-    const decl = file.getVariableDeclarationOrThrow('x');
-    const expr = decl.getInitializerOrThrow();
-    expect(extractMethodSignatures(expr)).toEqual([]);
-  });
-});
-
 describe('type-level tests', () => {
-  it('ServiceIR requires name and moduleName', () => {
-    // @ts-expect-error — ServiceIR without 'moduleName' should be rejected
+  it('ServiceIR requires name, actions, and access', () => {
+    // @ts-expect-error — ServiceIR without 'access' should be rejected
     const bad: ServiceIR = {
-      name: 'userService',
+      name: 'svc',
       sourceFile: 'test.ts',
       sourceLine: 1,
       sourceColumn: 0,
       inject: [],
-      methods: [],
+      actions: [],
     };
+    expect(bad).toBeDefined();
+  });
+
+  it('ServiceActionIR requires name and method', () => {
+    // @ts-expect-error — ServiceActionIR without 'method' should be rejected
+    const bad: ServiceActionIR = { name: 'send' };
     expect(bad).toBeDefined();
   });
 
   it('InjectRef requires both localName and resolvedToken', () => {
     // @ts-expect-error — InjectRef without 'resolvedToken' should be rejected
     const bad: InjectRef = { localName: 'db' };
-    expect(bad).toBeDefined();
-  });
-
-  it('ServiceMethodIR requires name, parameters, and returnType', () => {
-    // @ts-expect-error — ServiceMethodIR without 'returnType' should be rejected
-    const bad: ServiceMethodIR = { name: 'findById', parameters: [] };
-    expect(bad).toBeDefined();
-  });
-
-  it('ServiceMethodParam requires name and type', () => {
-    // @ts-expect-error — ServiceMethodParam without 'type' should be rejected
-    const bad: ServiceMethodParam = { name: 'id' };
     expect(bad).toBeDefined();
   });
 });
