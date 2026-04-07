@@ -370,12 +370,40 @@ pub(crate) fn tool_definitions() -> serde_json::Value {
                     },
                     "required": ["target"]
                 }
+            },
+            {
+                "name": "vertz_browser_press_key",
+                "description": "Press a keyboard key. Dispatches keydown + keyup on the currently focused element. Use for Enter, Escape, Tab, arrow keys, etc.",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "sessionId": { "type": "string", "description": "Session ID. Optional if only one session is active." },
+                        "key": { "type": "string", "description": "Key to press (e.g., 'Enter', 'Escape', 'Tab', 'ArrowDown')." }
+                    },
+                    "required": ["key"]
+                }
+            },
+            {
+                "name": "vertz_browser_wait",
+                "description": "Wait for a condition to be met in the browser. Checks immediately, then polls every 100ms until the condition is met or timeout. Conditions: { text: '...' } for text on page, { selector: '...' } for element existence, { url: '...' } for URL match, { absent: '...' } for element removal.",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "sessionId": { "type": "string", "description": "Session ID. Optional if only one session is active." },
+                        "condition": {
+                            "type": "object",
+                            "description": "Condition to wait for. One of: { text: '...' }, { selector: '...' }, { url: '...' }, { absent: '...' }."
+                        },
+                        "timeoutMs": { "type": "number", "description": "Maximum wait time in milliseconds (default: 5000)." }
+                    },
+                    "required": ["condition"]
+                }
             }
         ]
     })
 }
 
-// ── Browser Interaction Helper ────────────��─────────────────────────
+// ── Browser Interaction Helper ──────────────────────────────────────
 
 /// Execute a browser interaction by resolving the session, sending the
 /// action to the tab, and waiting for the browser response.
@@ -1137,6 +1165,60 @@ pub(crate) async fn execute_tool(
             .await
         }
 
+        "vertz_browser_press_key" => {
+            let session_id = args.get("sessionId").and_then(|v| v.as_str());
+            let key = args.get("key").and_then(|v| v.as_str()).unwrap_or_default();
+
+            execute_browser_interaction(
+                &state.browser_hub,
+                session_id,
+                "press_key",
+                serde_json::json!({ "key": key }),
+            )
+            .await
+        }
+
+        "vertz_browser_wait" => {
+            let session_id = args.get("sessionId").and_then(|v| v.as_str());
+            let condition = args
+                .get("condition")
+                .cloned()
+                .unwrap_or(serde_json::json!({}));
+            let timeout_ms = args
+                .get("timeoutMs")
+                .and_then(|v| v.as_u64())
+                .unwrap_or(5000);
+
+            let tab_id = state.browser_hub.resolve_session(session_id).await?;
+
+            let request_id = format!("wait-{}", uuid::Uuid::new_v4().as_simple());
+            state
+                .browser_hub
+                .send_to_tab(
+                    &tab_id,
+                    serde_json::json!({
+                        "type": "interact",
+                        "requestId": request_id,
+                        "action": "wait",
+                        "condition": condition,
+                        "timeoutMs": timeout_ms
+                    }),
+                )
+                .await?;
+
+            // Server-side timeout = browser timeout + 2s buffer
+            let server_timeout = std::time::Duration::from_millis(timeout_ms + 2000);
+            let response = state
+                .browser_hub
+                .wait_for_response(&request_id, server_timeout)
+                .await?;
+
+            let text = serde_json::to_string_pretty(&response).unwrap_or_default();
+            Ok(serde_json::json!({
+                "content": [{ "type": "text", "text": text }]
+            }))
+        }
+
         _ => Err(format!("Unknown tool: {}", name)),
     }
 }
@@ -1651,7 +1733,7 @@ mod tests {
         let defs = tool_definitions();
         let tools = defs["tools"].as_array().unwrap();
 
-        assert_eq!(tools.len(), 18);
+        assert_eq!(tools.len(), 20);
 
         let names: Vec<&str> = tools.iter().map(|t| t["name"].as_str().unwrap()).collect();
         assert!(names.contains(&"vertz_get_errors"));
@@ -1664,6 +1746,8 @@ mod tests {
         assert!(names.contains(&"vertz_browser_select"));
         assert!(names.contains(&"vertz_browser_fill_form"));
         assert!(names.contains(&"vertz_browser_submit"));
+        assert!(names.contains(&"vertz_browser_press_key"));
+        assert!(names.contains(&"vertz_browser_wait"));
         assert!(names.contains(&"vertz_render_page"));
         assert!(names.contains(&"vertz_get_console"));
         assert!(names.contains(&"vertz_navigate"));
@@ -1765,7 +1849,7 @@ mod tests {
         let resp = handle_mcp_message(&state, req).await.unwrap();
         let result = resp.result.unwrap();
         let tools = result["tools"].as_array().unwrap();
-        assert_eq!(tools.len(), 18);
+        assert_eq!(tools.len(), 20);
     }
 
     #[tokio::test]
