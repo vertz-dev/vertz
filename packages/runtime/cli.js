@@ -2,7 +2,6 @@
 import { spawnSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { join, delimiter } from 'node:path';
-import { getBinaryPath } from './index.js';
 
 function run(cmd, args, options = {}) {
   const result = spawnSync(cmd, args, { stdio: 'inherit', ...options });
@@ -46,11 +45,7 @@ function runScript(scriptName, extraArgs) {
   run(fullCmd, [], { shell: true, env: binEnv() });
 }
 
-let binary;
-try {
-  binary = getBinaryPath();
-} catch {
-  // Native binary not available — handle subcommands directly
+function fallback() {
   const [sub, ...rest] = process.argv.slice(2);
   if (sub === 'run') {
     runScript(rest[0], rest.slice(1));
@@ -65,6 +60,15 @@ try {
     console.error('Build the native runtime: cd native && cargo build --release');
     process.exit(1);
   }
+}
+
+let binary;
+try {
+  const { getBinaryPath } = await import('./index.js');
+  binary = getBinaryPath();
+} catch {
+  // Native binary not available or index.js not built — handle subcommands directly
+  fallback();
 }
 
 run(binary, process.argv.slice(2));

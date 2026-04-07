@@ -74,17 +74,35 @@ else
     rm -f "$BIN_DIR/$cmd"
   done
 
-  # Delegate to the Node.js scripts in packages/runtime/ which handle
-  # subcommands without any Bun dependency.
-  cat > "$BIN_DIR/vtzx" << SHIM
+  # Self-contained shims that resolve from node_modules/.bin directly.
+  # vtzx prepends .bin to PATH and runs the command.
+  cat > "$BIN_DIR/vtzx" << 'SHIM'
 #!/usr/bin/env bash
-exec node "$RUNTIME_PKG/cli-exec.js" "\$@"
+BIN_DIR="$(cd "$(dirname "$0")" && pwd)"
+export PATH="$BIN_DIR:$PATH"
+exec "$@"
 SHIM
   chmod +x "$BIN_DIR/vtzx"
 
-  cat > "$BIN_DIR/vtz" << SHIM
+  # vtz handles "run" (reads package.json scripts) and "exec" (PATH prepend).
+  cat > "$BIN_DIR/vtz" << 'SHIM'
 #!/usr/bin/env bash
-exec node "$RUNTIME_PKG/cli.js" "\$@"
+BIN_DIR="$(cd "$(dirname "$0")" && pwd)"
+if [ "$1" = "run" ]; then
+  shift
+  SCRIPT_NAME="$1"
+  shift
+  CMD=$(node -e "const s=JSON.parse(require('fs').readFileSync('package.json','utf8')).scripts;const n=process.argv[1];if(s&&s[n])process.stdout.write(s[n]);else{process.stderr.write('vtz: script not found: \"'+n+'\"\n');process.exit(1)}" -- "$SCRIPT_NAME") || exit $?
+  export PATH="$BIN_DIR:$PATH"
+  exec sh -c "$CMD $*"
+elif [ "$1" = "exec" ]; then
+  shift
+  export PATH="$BIN_DIR:$PATH"
+  exec "$@"
+else
+  echo "vtz shim: native binary not available, only 'run' and 'exec' are supported" >&2
+  exit 1
+fi
 SHIM
   chmod +x "$BIN_DIR/vtz"
 

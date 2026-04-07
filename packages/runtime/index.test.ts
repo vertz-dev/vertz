@@ -160,9 +160,9 @@ describe('Feature: npm bin shims delegate to native binary (#2382)', () => {
       expect(content.startsWith('#!/usr/bin/env node\n')).toBe(true);
     });
 
-    it('Then imports getBinaryPath from index.js', () => {
+    it('Then dynamically imports getBinaryPath from index.js', () => {
       const content = readFileSync(shimPath, 'utf8');
-      expect(content).toContain("from './index.js'");
+      expect(content).toContain("import('./index.js')");
       expect(content).toContain('getBinaryPath');
     });
 

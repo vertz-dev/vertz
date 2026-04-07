@@ -2,7 +2,6 @@
 // vtzx is shorthand for `vtz exec` — resolves commands from node_modules/.bin
 import { spawnSync } from 'node:child_process';
 import { join, delimiter } from 'node:path';
-import { getBinaryPath } from './index.js';
 
 function run(cmd, args, options = {}) {
   const result = spawnSync(cmd, args, { stdio: 'inherit', ...options });
@@ -12,12 +11,8 @@ function run(cmd, args, options = {}) {
   process.exit(result.status ?? 1);
 }
 
-let binary;
-try {
-  binary = getBinaryPath();
-} catch {
-  // Native binary not available — resolve from node_modules/.bin directly
-  const [command, ...args] = process.argv.slice(2);
+function execFromBinPath(argv) {
+  const [command, ...args] = argv;
   if (!command) {
     console.error('vtzx: no command specified');
     process.exit(1);
@@ -25,6 +20,15 @@ try {
   const binDir = join(process.cwd(), 'node_modules', '.bin');
   const env = { ...process.env, PATH: `${binDir}${delimiter}${process.env.PATH || ''}` };
   run(command, args, { env });
+}
+
+let binary;
+try {
+  const { getBinaryPath } = await import('./index.js');
+  binary = getBinaryPath();
+} catch {
+  // Native binary not available or index.js not built — resolve from node_modules/.bin
+  execFromBinPath(process.argv.slice(2));
 }
 
 run(binary, ['exec', ...process.argv.slice(2)]);
