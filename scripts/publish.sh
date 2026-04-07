@@ -129,4 +129,4 @@ echo ""
 echo "All packages published successfully"
 
 # Create git tags (changeset tag)
-vtzx changeset tag 2>/dev/null || true
+bunx changeset tag 2>/dev/null || true

@@ -2,7 +2,7 @@
 set -euo pipefail
 
 # Run changeset version to bump npm package versions
-vtzx changeset version
+bunx changeset version
 
 # Read the new version from a source package (source of truth after changeset version)
 VERSION=$(jq -r '.version' packages/core/package.json)
