@@ -4,6 +4,18 @@ import { createProgressEmitter } from '../../lib/progress-emitter';
 import { createInMemoryWorkflowStore } from './workflow-store';
 import { handleWorkflowStream } from './workflow-stream';
 
+function readWithTimeout(
+  reader: ReadableStreamDefaultReader<Uint8Array>,
+  ms = 5000,
+): Promise<ReadableStreamReadResult<Uint8Array>> {
+  return Promise.race([
+    reader.read(),
+    new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error('Stream read timeout')), ms),
+    ),
+  ]);
+}
+
 describe('handleWorkflowStream()', () => {
   const makeEvent = (step: string, type: StepProgressEvent['type']): StepProgressEvent => ({
     step,
@@ -18,7 +30,7 @@ describe('handleWorkflowStream()', () => {
     expect(response.status).toBe(404);
   });
 
-  it('returns text/event-stream content type', () => {
+  it('returns text/event-stream content type', async () => {
     const store = createInMemoryWorkflowStore();
     const emitter = createProgressEmitter();
     const run = store.create({ issueNumber: 1, repo: 'test/repo' });
@@ -26,6 +38,9 @@ describe('handleWorkflowStream()', () => {
     const response = handleWorkflowStream(run.id, store, emitter);
     expect(response.headers.get('Content-Type')).toBe('text/event-stream');
     expect(response.headers.get('Cache-Control')).toBe('no-cache');
+
+    // Clean up the stream to avoid leaking the heartbeat interval
+    await response.body?.cancel();
   });
 
   it('sends snapshot of past events on connect', async () => {
@@ -43,7 +58,7 @@ describe('handleWorkflowStream()', () => {
     // Read chunks until we have both events
     let allText = '';
     for (let i = 0; i < 3; i++) {
-      const { value, done } = await reader.read();
+      const { value, done } = await readWithTimeout(reader);
       if (done) break;
       allText += new TextDecoder().decode(value);
       if (allText.includes('step-completed')) break;
@@ -52,7 +67,7 @@ describe('handleWorkflowStream()', () => {
     expect(allText).toContain('"type":"step-started"');
     expect(allText).toContain('"type":"step-completed"');
 
-    reader.cancel();
+    await reader.cancel();
   });
 
   it('streams new events after connect', async () => {
@@ -66,12 +81,12 @@ describe('handleWorkflowStream()', () => {
     // Emit an event after connecting
     emitter.emit(run.id, makeEvent('implement', 'step-started'));
 
-    // Read — should contain the new event
-    const { value } = await reader.read();
+    // Read with timeout to prevent hang
+    const { value } = await readWithTimeout(reader);
     const text = new TextDecoder().decode(value);
     expect(text).toContain('"step":"implement"');
     expect(text).toContain('"type":"step-started"');
 
-    reader.cancel();
+    await reader.cancel();
   });
 });

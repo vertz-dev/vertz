@@ -44,7 +44,7 @@ export function createProgressEmitter(): ProgressEmitter {
     },
 
     snapshot(runId) {
-      return events.get(runId) ?? [];
+      return [...(events.get(runId) ?? [])];
     },
 
     cleanup(runId) {

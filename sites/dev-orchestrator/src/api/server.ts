@@ -13,7 +13,7 @@ import { handleWorkflowStream } from './services/workflow-stream';
 import { createWorkflowService } from './services/workflows';
 
 const workflowStore = createInMemoryWorkflowStore();
-export const progressEmitter = createProgressEmitter();
+const progressEmitter = createProgressEmitter();
 
 const agents: AgentInfo[] = [
   { name: 'planner', description: 'Reads a GitHub issue and produces a design doc', model: 'MiniMax-M2.7' },
