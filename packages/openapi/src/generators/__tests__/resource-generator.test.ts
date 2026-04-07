@@ -820,6 +820,42 @@ describe('generateResources', () => {
     expect(tasksFile!.content).toContain('client.requestStream<unknown>');
   });
 
+  it('streaming event type name uses methodName-based prefix, not verbose operationId (#2415)', () => {
+    const resources: ParsedResource[] = [
+      makeResource({
+        operations: [
+          {
+            operationId:
+              'stream_brand_draft_web_organizations_organization_id_brands_draft_brand_post',
+            methodName: 'streamBrandDraft',
+            method: 'POST',
+            path: '/web/organizations/{organization_id}/brands/draft-brand',
+            pathParams: [
+              { name: 'organization_id', required: true, schema: { type: 'string' } },
+            ],
+            queryParams: [],
+            requestBody: {
+              name: 'DraftInput',
+              jsonSchema: { type: 'object', properties: { prompt: { type: 'string' } } },
+            },
+            response: {
+              jsonSchema: { type: 'object', properties: { chunk: { type: 'string' } } },
+            },
+            responseStatus: 200,
+            tags: ['tasks'],
+            streamingFormat: 'sse',
+          },
+        ],
+      }),
+    ];
+
+    const files = generateResources(resources);
+    const tasksFile = files.find((f) => f.path === 'resources/tasks.ts');
+    // Should use the clean methodName-based event type name
+    expect(tasksFile!.content).toContain('AsyncGenerator<StreamBrandDraftEvent>');
+    expect(tasksFile!.content).not.toContain('WebOrganizations');
+  });
+
   it('streaming method includes JSDoc @throws annotation', () => {
     const resources: ParsedResource[] = [
       makeResource({

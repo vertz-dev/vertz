@@ -192,10 +192,6 @@ export function toPascalCase(name: string): string {
  * Resolve the PascalCase type prefix for an operation.
  * Uses the shortened `typePrefix` when available, falling back to the methodName.
  */
-export function getTypePrefix(op: {
-  typePrefix?: string;
-  methodName: string;
-  operationId: string;
-}): string {
+export function getTypePrefix(op: { typePrefix?: string; methodName: string }): string {
   return op.typePrefix ?? toPascalCase(op.methodName);
 }

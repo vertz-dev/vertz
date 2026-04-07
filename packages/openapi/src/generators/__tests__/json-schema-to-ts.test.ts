@@ -321,7 +321,6 @@ describe('getTypePrefix', () => {
       getTypePrefix({
         typePrefix: 'FindMany',
         methodName: 'findMany',
-        operationId: 'find_many_web_organizations_organization_id_brands_get',
       }),
     ).toBe('FindMany');
   });
@@ -331,7 +330,6 @@ describe('getTypePrefix', () => {
       getTypePrefix({
         typePrefix: undefined,
         methodName: 'findMany',
-        operationId: 'find_many_web_organizations_organization_id_brands_get',
       }),
     ).toBe('FindMany');
   });
@@ -341,7 +339,6 @@ describe('getTypePrefix', () => {
       getTypePrefix({
         typePrefix: undefined,
         methodName: 'list',
-        operationId: 'find_many_web_organizations_organization_id_brands_get',
       }),
     ).toBe('List');
   });
