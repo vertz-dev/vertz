@@ -74,41 +74,12 @@ else
     rm -f "$BIN_DIR/$cmd"
   done
 
-  # Self-contained shims that resolve from node_modules/.bin directly.
-  # vtzx prepends .bin to PATH and runs the command.
-  cat > "$BIN_DIR/vtzx" << 'SHIM'
-#!/usr/bin/env bash
-BIN_DIR="$(cd "$(dirname "$0")" && pwd)"
-export PATH="$BIN_DIR:$PATH"
-exec "$@"
-SHIM
-  chmod +x "$BIN_DIR/vtzx"
+  # Symlink to the bash scripts — they handle the fallback internally
+  for cmd in vtz vertz; do
+    ln -sf "../../packages/runtime/cli.sh" "$BIN_DIR/$cmd"
+  done
+  ln -sf "../../packages/runtime/cli-exec.sh" "$BIN_DIR/vtzx"
 
-  # vtz handles "run" (reads package.json scripts) and "exec" (PATH prepend).
-  cat > "$BIN_DIR/vtz" << 'SHIM'
-#!/usr/bin/env bash
-BIN_DIR="$(cd "$(dirname "$0")" && pwd)"
-if [ "$1" = "run" ]; then
-  shift
-  SCRIPT_NAME="$1"
-  shift
-  CMD=$(node -e "const s=JSON.parse(require('fs').readFileSync('package.json','utf8')).scripts;const n=process.argv[1];if(s&&s[n])process.stdout.write(s[n]);else{process.stderr.write('vtz: script not found: \"'+n+'\"\n');process.exit(1)}" -- "$SCRIPT_NAME") || exit $?
-  export PATH="$BIN_DIR:$PATH"
-  exec sh -c "$CMD $*"
-elif [ "$1" = "exec" ]; then
-  shift
-  export PATH="$BIN_DIR:$PATH"
-  exec "$@"
-else
-  echo "vtz shim: native binary not available, only 'run' and 'exec' are supported" >&2
-  exit 1
-fi
-SHIM
-  chmod +x "$BIN_DIR/vtz"
-
-  # vertz → same as vtz
-  cp "$BIN_DIR/vtz" "$BIN_DIR/vertz"
-
-  echo "⚠️  No native binary found — created Node.js-based shims for vtz/vtzx"
+  echo "⚠️  No native binary found — using fallback shell scripts for vtz/vtzx"
   echo "   (Build with: ./scripts/link-runtime.sh --build)"
 fi

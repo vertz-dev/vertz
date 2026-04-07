@@ -7,16 +7,16 @@
     "url": "https://github.com/vertz-dev/vertz"
   },
   "bin": {
-    "vertz": "./cli.js",
-    "vtz": "./cli.js",
-    "vtzx": "./cli-exec.js"
+    "vertz": "./cli.sh",
+    "vtz": "./cli.sh",
+    "vtzx": "./cli-exec.sh"
   },
   "files": [
     "index.js",
     "index.d.ts",
     "postinstall.cjs",
-    "cli.js",
-    "cli-exec.js"
+    "cli.sh",
+    "cli-exec.sh"
   ],
   "type": "module",
   "main": "index.js",

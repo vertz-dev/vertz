@@ -1,35 +1,19 @@
-import { describe, it, expect, mock, beforeEach, afterEach } from 'bun:test';
-import { join, dirname, resolve } from 'node:path';
+import { describe, it, expect } from 'bun:test';
+import { dirname, join, resolve } from 'node:path';
 import { existsSync, readFileSync } from 'node:fs';
-
-// We test getBinaryPath() by controlling what require.resolve returns.
-// Since getBinaryPath() uses createRequire internally, we mock at the module level.
 
 describe('Feature: getBinaryPath() resolves platform binary', () => {
   describe('Given a platform package is installed at the expected path', () => {
     describe('When getBinaryPath() is called', () => {
       it('Then returns the full path to the vtz binary', async () => {
-        // The current platform's package exists (this test runs on whatever platform CI uses).
-        // We verify the function constructs the right package name and path.
         const expectedPkg = `@vertz/runtime-${process.platform}-${process.arch}`;
-
-        // Create a mock module that simulates require.resolve succeeding
-        // Since we can't easily mock createRequire, we test the actual function
-        // against the real filesystem. The platform packages exist in our monorepo
-        // as siblings, so require.resolve will find them.
         const { getBinaryPath } = await import('./index.ts');
 
-        // On our dev machine, the platform package exists in the monorepo workspace.
-        // getBinaryPath() should resolve to npm/runtime-<platform>-<arch>/vtz
         try {
           const result = getBinaryPath();
-          // If resolution succeeds, the path should end with 'vtz'
           expect(result.endsWith('vtz')).toBe(true);
-          // And it should contain the platform package name directory
           expect(result).toContain(`runtime-${process.platform}-${process.arch}`);
         } catch (e: unknown) {
-          // Platform package not installed, or installed but binary missing.
-          // Either error message should reference the expected package name.
           const error = e as Error;
           expect(error.message).toContain(expectedPkg);
         }
@@ -40,19 +24,13 @@ describe('Feature: getBinaryPath() resolves platform binary', () => {
   describe('Given no platform package is installed', () => {
     describe('When getBinaryPath() is called on an unsupported platform', () => {
       it('Then throws with platform name, package name, and install instructions', async () => {
-        // We can test this by temporarily overriding process.platform/arch
-        // to a platform that definitely doesn't have a package installed.
         const originalPlatform = process.platform;
         const originalArch = process.arch;
 
         try {
-          // Override to a fake platform
           Object.defineProperty(process, 'platform', { value: 'freebsd', configurable: true });
           Object.defineProperty(process, 'arch', { value: 'mips', configurable: true });
 
-          // Re-import to get fresh module with new platform values
-          // Since getBinaryPath reads process.platform at call time, not import time,
-          // we can call the existing import
           const { getBinaryPath } = await import('./index.ts');
 
           expect(() => getBinaryPath()).toThrow();
@@ -111,15 +89,10 @@ describe('Feature: getBinaryPath() resolves correct path structure', () => {
   describe('Given the current platform is darwin-arm64', () => {
     describe('When getBinaryPath() resolves the package', () => {
       it('Then the returned path is <pkgDir>/vtz', async () => {
-        // This test verifies the path construction: dirname(resolve(pkg/package.json)) + /vtz
-        // We test on the actual platform since our monorepo has the package.json files
         const { getBinaryPath } = await import('./index.ts');
-        const expectedPkg = `@vertz/runtime-${process.platform}-${process.arch}`;
 
         try {
           const result = getBinaryPath();
-          // Path should be: <somewhere>/runtime-<platform>-<arch>/vtz
-          const dir = dirname(result);
           const basename = result.split('/').pop();
           expect(basename).toBe('vtz');
         } catch {
@@ -132,12 +105,13 @@ describe('Feature: getBinaryPath() resolves correct path structure', () => {
 
 const pkgDir = dirname(new URL(import.meta.url).pathname);
 
-describe('Feature: npm bin shims delegate to native binary (#2382)', () => {
+describe('Feature: bin scripts are pure bash with no Node/Bun dependency (#2419)', () => {
   describe('Given the published package manifest', () => {
     const pkgJson = JSON.parse(readFileSync(join(pkgDir, 'package.json'), 'utf8'));
 
-    it('Then every bin entry points to a file that exists in the package', () => {
-      for (const [, target] of Object.entries(pkgJson.bin as Record<string, string>)) {
+    it('Then every bin entry points to a .sh file that exists', () => {
+      for (const [name, target] of Object.entries(pkgJson.bin as Record<string, string>)) {
+        expect(target).toMatch(/\.sh$/);
         const fullPath = resolve(pkgDir, target);
         expect(existsSync(fullPath)).toBe(true);
       }
@@ -150,96 +124,75 @@ describe('Feature: npm bin shims delegate to native binary (#2382)', () => {
         expect(files).toContain(relative);
       }
     });
-  });
 
-  describe('Given the cli.js shim', () => {
-    const shimPath = join(pkgDir, 'cli.js');
-
-    it('Then has a Node.js shebang as the first line', () => {
-      const content = readFileSync(shimPath, 'utf8');
-      expect(content.startsWith('#!/usr/bin/env node\n')).toBe(true);
-    });
-
-    it('Then dynamically imports getBinaryPath from index.js', () => {
-      const content = readFileSync(shimPath, 'utf8');
-      expect(content).toContain("import('./index.js')");
-      expect(content).toContain('getBinaryPath');
-    });
-
-    it('Then spawns the binary with inherited stdio', () => {
-      const content = readFileSync(shimPath, 'utf8');
-      expect(content).toContain('spawnSync');
-      expect(content).toContain("stdio: 'inherit'");
+    it('Then no .js bin entries remain', () => {
+      for (const [, target] of Object.entries(pkgJson.bin as Record<string, string>)) {
+        expect(target).not.toMatch(/\.js$/);
+      }
     });
   });
 
-  describe('Given the cli-exec.js shim for vtzx', () => {
-    const shimPath = join(pkgDir, 'cli-exec.js');
+  describe('Given the cli.sh script', () => {
+    const shimPath = join(pkgDir, 'cli.sh');
+    const content = readFileSync(shimPath, 'utf8');
 
-    it('Then has a Node.js shebang as the first line', () => {
-      const content = readFileSync(shimPath, 'utf8');
-      expect(content.startsWith('#!/usr/bin/env node\n')).toBe(true);
+    it('Then has a bash shebang as the first line', () => {
+      expect(content.startsWith('#!/usr/bin/env bash\n')).toBe(true);
     });
 
-    it('Then prepends exec to the arguments', () => {
-      const content = readFileSync(shimPath, 'utf8');
-      expect(content).toContain("'exec'");
-    });
-  });
-
-  describe('Given the cli.js shim content', () => {
-    it('Then forwards process.argv to the native binary', () => {
-      const content = readFileSync(join(pkgDir, 'cli.js'), 'utf8');
-      expect(content).toContain('process.argv.slice(2)');
-    });
-
-    it('Then re-raises signals from the child process', () => {
-      const content = readFileSync(join(pkgDir, 'cli.js'), 'utf8');
-      expect(content).toContain('result.signal');
-      expect(content).toContain('process.kill(process.pid');
-    });
-
-    it('Then handles run/exec subcommands without Bun dependency', () => {
-      const content = readFileSync(join(pkgDir, 'cli.js'), 'utf8');
-      expect(content).toContain("'run'");
-      expect(content).toContain("'exec'");
+    it('Then contains no references to node, bun, or bunx', () => {
+      expect(content).not.toContain('#!/usr/bin/env node');
       expect(content).not.toContain('bunx');
-      expect(content).not.toContain("'bun'");
+      // Check for 'bun ' (with space) to avoid matching 'subcommand'
+      expect(content).not.toMatch(/\bbun\b/);
     });
 
-    it('Then prepends node_modules/.bin to PATH for exec fallback', () => {
-      const content = readFileSync(join(pkgDir, 'cli.js'), 'utf8');
-      expect(content).toContain('node_modules');
-      expect(content).toContain('.bin');
-      expect(content).toContain('PATH');
+    it('Then resolves the native binary from sibling platform package', () => {
+      expect(content).toContain('runtime-${OS}-${ARCH}/vtz');
+      expect(content).toContain('exec "$BINARY"');
     });
 
-    it('Then reads package.json scripts for run fallback', () => {
-      const content = readFileSync(join(pkgDir, 'cli.js'), 'utf8');
+    it('Then handles run subcommand by extracting scripts from package.json', () => {
+      expect(content).toContain('run)');
       expect(content).toContain('package.json');
-      expect(content).toContain('scripts');
+      expect(content).toContain('SCRIPT_NAME');
+    });
+
+    it('Then handles exec subcommand by prepending node_modules/.bin to PATH', () => {
+      expect(content).toContain('exec)');
+      expect(content).toContain('node_modules/.bin');
+      expect(content).toContain('PATH');
+    });
+
+    it('Then errors clearly for unsupported subcommands', () => {
+      expect(content).toContain('no fallback');
+      expect(content).toContain('cargo build --release');
     });
   });
 
-  describe('Given the cli-exec.js shim content', () => {
-    it('Then forwards process.argv with exec prepended', () => {
-      const content = readFileSync(join(pkgDir, 'cli-exec.js'), 'utf8');
-      expect(content).toContain('process.argv.slice(2)');
-      expect(content).toContain("'exec'");
+  describe('Given the cli-exec.sh script', () => {
+    const shimPath = join(pkgDir, 'cli-exec.sh');
+    const content = readFileSync(shimPath, 'utf8');
+
+    it('Then has a bash shebang as the first line', () => {
+      expect(content.startsWith('#!/usr/bin/env bash\n')).toBe(true);
     });
 
-    it('Then re-raises signals from the child process', () => {
-      const content = readFileSync(join(pkgDir, 'cli-exec.js'), 'utf8');
-      expect(content).toContain('result.signal');
-      expect(content).toContain('process.kill(process.pid');
-    });
-
-    it('Then resolves from node_modules/.bin instead of bunx when native binary is unavailable', () => {
-      const content = readFileSync(join(pkgDir, 'cli-exec.js'), 'utf8');
+    it('Then contains no references to node, bun, or bunx', () => {
+      expect(content).not.toContain('#!/usr/bin/env node');
       expect(content).not.toContain('bunx');
-      expect(content).toContain('node_modules');
-      expect(content).toContain('.bin');
+      expect(content).not.toMatch(/\bbun\b/);
+    });
+
+    it('Then resolves the native binary from sibling platform package', () => {
+      expect(content).toContain('runtime-${OS}-${ARCH}/vtz');
+      expect(content).toContain('exec "$BINARY" exec');
+    });
+
+    it('Then falls back to PATH-based resolution from node_modules/.bin', () => {
+      expect(content).toContain('node_modules/.bin');
       expect(content).toContain('PATH');
+      expect(content).toContain('exec "$@"');
     });
   });
 });
