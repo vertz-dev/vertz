@@ -83,6 +83,53 @@ export class EntityTypesGenerator implements Generator {
       emitted.add(`${responseSchema}Fields`);
     }
 
+    // Emit query types (WhereInput, OrderByInput)
+    const entityPascal = entity.entityName.charAt(0).toUpperCase() + entity.entityName.slice(1);
+
+    if (entity.allowWhere?.length) {
+      const whereType = this.emitWhereInput(`${entityPascal}WhereInput`, entity.allowWhere);
+      lines.push(whereType);
+      lines.push('');
+    }
+
+    if (entity.allowOrderBy?.length) {
+      const orderByType = this.emitOrderByInput(`${entityPascal}OrderByInput`, entity.allowOrderBy);
+      lines.push(orderByType);
+      lines.push('');
+    }
+
+    if (entity.exposeInclude?.length) {
+      const includeType = this.emitIncludeInput(
+        `${entityPascal}IncludeInput`,
+        entity.exposeInclude,
+        entity.relationQueryConfig,
+      );
+      lines.push(includeType);
+      lines.push('');
+    }
+
+    // Emit ListQuery and GetQuery (only when entity has expose config)
+    if (entity.exposeSelect) {
+      const selectType = this.emitSelectType(entity.responseFields);
+      const hasWhere = !!entity.allowWhere?.length;
+      const hasOrderBy = !!entity.allowOrderBy?.length;
+      const hasInclude = !!entity.exposeInclude?.length;
+
+      const hasList = entity.operations.some((op) => op.kind === 'list');
+      const hasGet = entity.operations.some((op) => op.kind === 'get');
+
+      if (hasList) {
+        lines.push(
+          this.emitListQuery(entityPascal, selectType, hasWhere, hasOrderBy, hasInclude),
+        );
+        lines.push('');
+      }
+      if (hasGet) {
+        lines.push(this.emitGetQuery(entityPascal, selectType, hasInclude));
+        lines.push('');
+      }
+    }
+
     // Emit action input/output types
     for (const action of entity.actions) {
       if (action.inputSchema && !emitted.has(action.inputSchema)) {
@@ -173,6 +220,129 @@ export class EntityTypesGenerator implements Generator {
     const allProps = relationProps.length > 0 ? `${props};\n${relationProps.join(';\n')}` : props;
 
     return `export interface ${typeName} {\n${allProps};\n}`;
+  }
+
+  private emitWhereInput(
+    typeName: string,
+    fields: Array<{ name: string; tsType: CodegenResolvedField['tsType'] }>,
+  ): string {
+    const props = fields
+      .map((f) => {
+        const tsType = TS_TYPE_MAP[f.tsType] ?? 'unknown';
+        return `  ${f.name}?: ${tsType} | { ${this.whereOperators(f.tsType, tsType)} }`;
+      })
+      .join(';\n');
+
+    return `export interface ${typeName} {\n${props};\n}`;
+  }
+
+  private whereOperators(
+    tsType: CodegenResolvedField['tsType'],
+    mapped: string,
+  ): string {
+    const ops: string[] = [`eq?: ${mapped}`, `neq?: ${mapped}`];
+    if (tsType === 'string') {
+      ops.push(`in?: ${mapped}[]`, `like?: ${mapped}`, `contains?: ${mapped}`);
+    } else if (tsType === 'number' || tsType === 'date') {
+      ops.push(
+        `gt?: ${mapped}`,
+        `lt?: ${mapped}`,
+        `gte?: ${mapped}`,
+        `lte?: ${mapped}`,
+        `in?: ${mapped}[]`,
+      );
+    } else if (tsType === 'boolean') {
+      // only eq/neq
+    } else {
+      ops.push(`in?: ${mapped}[]`);
+    }
+    return ops.join('; ');
+  }
+
+  private emitOrderByInput(typeName: string, fields: string[]): string {
+    const props = fields.map((f) => `  ${f}?: 'asc' | 'desc'`).join(';\n');
+    return `export interface ${typeName} {\n${props};\n}`;
+  }
+
+  private emitIncludeInput(
+    typeName: string,
+    includes: NonNullable<CodegenEntityModule['exposeInclude']>,
+    queryConfig?: CodegenEntityModule['relationQueryConfig'],
+  ): string {
+    const props = includes
+      .map((rel) => {
+        const config = queryConfig?.[rel.name];
+        const hasSelect = !!rel.select?.length;
+        const hasQueryConfig = !!config;
+
+        if (!hasSelect && !hasQueryConfig) {
+          return `  ${rel.name}?: true`;
+        }
+
+        const parts: string[] = [];
+        if (hasSelect) {
+          const selectFields = rel.select!.map((f) => `${f.name}?: true`).join('; ');
+          parts.push(`select?: { ${selectFields} }`);
+        }
+        if (config?.allowWhere?.length && rel.resolvedFields) {
+          const fieldMap = new Map(rel.resolvedFields.map((f) => [f.name, f.tsType]));
+          const whereFields = config.allowWhere
+            .filter((name) => fieldMap.has(name))
+            .map((name) => {
+              const tsType = fieldMap.get(name)!;
+              const mapped = TS_TYPE_MAP[tsType] ?? 'unknown';
+              return `${name}?: ${mapped} | { ${this.whereOperators(tsType, mapped)} }`;
+            });
+          if (whereFields.length > 0) {
+            parts.push(`where?: { ${whereFields.join('; ')} }`);
+          }
+        }
+        if (config?.allowOrderBy?.length) {
+          const orderFields = config.allowOrderBy
+            .map((f) => `${f}?: 'asc' | 'desc'`)
+            .join('; ');
+          parts.push(`orderBy?: { ${orderFields} }`);
+        }
+        if (config?.maxLimit !== undefined) {
+          parts.push('limit?: number');
+        }
+
+        return `  ${rel.name}?: true | { ${parts.join('; ')} }`;
+      })
+      .join(';\n');
+
+    return `export interface ${typeName} {\n${props};\n}`;
+  }
+
+  private emitSelectType(fields: CodegenResolvedField[] | undefined): string {
+    if (!fields?.length) return '{}';
+    return `{ ${fields.map((f) => `${f.name}?: true`).join('; ')} }`;
+  }
+
+  private emitListQuery(
+    entityPascal: string,
+    selectType: string,
+    hasWhere: boolean,
+    hasOrderBy: boolean,
+    hasInclude: boolean,
+  ): string {
+    const props: string[] = [`  select?: ${selectType}`];
+    if (hasWhere) props.push(`  where?: ${entityPascal}WhereInput`);
+    if (hasOrderBy) props.push(`  orderBy?: ${entityPascal}OrderByInput`);
+    if (hasInclude) props.push(`  include?: ${entityPascal}IncludeInput`);
+    props.push('  limit?: number');
+    props.push('  after?: string');
+    return `export interface ${entityPascal}ListQuery {\n${props.join(';\n')};\n}`;
+  }
+
+  private emitGetQuery(
+    entityPascal: string,
+    selectType: string,
+    hasInclude: boolean,
+  ): string {
+    const props: string[] = [`  select?: ${selectType}`];
+    if (hasInclude) props.push(`  include?: ${entityPascal}IncludeInput`);
+    return `export interface ${entityPascal}GetQuery {\n${props.join(';\n')};\n}`;
   }
 
   private generateIndex(entities: CodegenEntityModule[]): GeneratedFile {
