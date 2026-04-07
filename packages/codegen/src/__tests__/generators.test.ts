@@ -16,6 +16,7 @@ const emptyIR: CodegenIR = {
   modules: [],
   schemas: [],
   entities: [],
+  services: [],
   auth: { schemes: [], operations: [] },
 };
 

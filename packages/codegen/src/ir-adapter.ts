@@ -311,7 +311,8 @@ export function adaptIR(appIR: AppIR): CodegenIR {
     const actions: CodegenServiceAction[] = svc.actions
       .filter((a) => svc.access[a.name] !== 'false')
       .map((a) => {
-        const actionPath = a.path ?? `/${svc.name}/${a.name}`;
+        const rawPath = a.path ?? `/${svc.name}/${a.name}`;
+        const actionPath = rawPath.startsWith('/') ? rawPath : `/${rawPath}`;
         return {
           name: a.name,
           method: a.method,

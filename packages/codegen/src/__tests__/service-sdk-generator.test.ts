@@ -148,6 +148,30 @@ describe('ServiceSdkGenerator', () => {
     expect(sdkFile.content).toContain('notifications/status/:messageId');
   });
 
+  it('interpolates path parameters in generated SDK', () => {
+    const ir = makeIR([
+      {
+        serviceName: 'notifications',
+        actions: [
+          {
+            name: 'status',
+            method: 'GET',
+            path: '/notifications/status/:messageId',
+            operationId: 'statusNotifications',
+          },
+        ],
+      },
+    ]);
+    const files = gen.generate(ir, { outputDir: '.', options: {} });
+    const sdkFile = files.find((f) => f.path === 'services/notifications.ts')!;
+    // Function should accept messageId as a parameter
+    expect(sdkFile.content).toContain('messageId: string');
+    // Path should use template literal interpolation
+    expect(sdkFile.content).toContain('`/notifications/status/${messageId}`');
+    // Static url metadata still uses the raw path pattern
+    expect(sdkFile.content).toContain("url: '/notifications/status/:messageId'");
+  });
+
   it('skips services with no actions', () => {
     const ir = makeIR([
       { serviceName: 'empty', actions: [] },

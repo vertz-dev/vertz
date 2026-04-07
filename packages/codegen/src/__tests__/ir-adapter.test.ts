@@ -382,7 +382,7 @@ describe('adaptIR', () => {
         ],
       });
       const result = adaptIR(appIR);
-      expect(result.services[0].actions[0].path).toBe('notifications/status/:messageId');
+      expect(result.services[0].actions[0].path).toBe('/notifications/status/:messageId');
     });
 
     it('includes actions with access: none', () => {

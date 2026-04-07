@@ -26,12 +26,29 @@ export interface ServiceAnalyzerResult {
 export class ServiceAnalyzer extends BaseAnalyzer<ServiceAnalyzerResult> {
   async analyze(): Promise<ServiceAnalyzerResult> {
     const services: ServiceIR[] = [];
+    const seenNames = new Map<string, { sourceFile: string; sourceLine: number }>();
 
     for (const file of this.project.getSourceFiles()) {
       const calls = this.findServiceCalls(file);
       for (const call of calls) {
         const svc = this.extractService(call);
-        if (svc) services.push(svc);
+        if (!svc) continue;
+
+        const existing = seenNames.get(svc.name);
+        if (existing) {
+          this.addDiagnostic({
+            code: 'VERTZ_SERVICE_DUPLICATE_NAME',
+            severity: 'error',
+            message: `Service '${svc.name}' is already defined at ${existing.sourceFile}:${existing.sourceLine}.`,
+            file: svc.sourceFile,
+            line: svc.sourceLine,
+            column: svc.sourceColumn,
+          });
+          continue;
+        }
+
+        seenNames.set(svc.name, { sourceFile: svc.sourceFile, sourceLine: svc.sourceLine });
+        services.push(svc);
       }
     }
 
@@ -88,10 +105,11 @@ export class ServiceAnalyzer extends BaseAnalyzer<ServiceAnalyzerResult> {
       const actionName = prop.name;
       const init = prop.value;
 
-      // Expect action() call
+      // Expect action() call imported from @vertz/server
       if (!init.isKind(SyntaxKind.CallExpression)) continue;
       const callee = init.getExpression();
       if (!callee.isKind(SyntaxKind.Identifier) || callee.getText() !== 'action') continue;
+      if (!isFromImport(callee, '@vertz/server')) continue;
 
       const actionConfig = extractObjectLiteral(init, 0);
       if (!actionConfig) continue;

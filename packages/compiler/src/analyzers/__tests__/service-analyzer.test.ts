@@ -117,6 +117,50 @@ const svc = service('fake', { actions: {} });`,
       const result = await analyzer.analyze();
       expect(result.services).toHaveLength(0);
     });
+
+    it('emits diagnostic for duplicate service names', async () => {
+      const project = createProject();
+      project.createSourceFile(
+        'src/a.ts',
+        `import { service, action } from '@vertz/server';
+import { s } from '@vertz/schema';
+export const a = service('notifications', {
+  access: { send: () => true },
+  actions: { send: action({ response: s.object({ ok: s.boolean() }), handler: async () => ({ ok: true }) }) },
+});`,
+      );
+      project.createSourceFile(
+        'src/b.ts',
+        `import { service, action } from '@vertz/server';
+import { s } from '@vertz/schema';
+export const b = service('notifications', {
+  access: { check: () => true },
+  actions: { check: action({ response: s.object({ ok: s.boolean() }), handler: async () => ({ ok: true }) }) },
+});`,
+      );
+      const analyzer = new ServiceAnalyzer(project, resolveConfig());
+      const result = await analyzer.analyze();
+      expect(result.services).toHaveLength(1);
+      const diags = analyzer.getDiagnostics();
+      expect(diags).toHaveLength(1);
+      expect(diags[0].code).toBe('VERTZ_SERVICE_DUPLICATE_NAME');
+    });
+
+    it('ignores action() calls not imported from @vertz/server', async () => {
+      const project = createProject();
+      project.createSourceFile(
+        'src/svc.ts',
+        `import { service } from '@vertz/server';
+function action(config: any) { return config; }
+export const svc = service('my-svc', {
+  access: {},
+  actions: { send: action({ handler: async () => ({}) }) },
+});`,
+      );
+      const analyzer = new ServiceAnalyzer(project, resolveConfig());
+      const result = await analyzer.analyze();
+      expect(result.services[0].actions).toHaveLength(0);
+    });
   });
 
   describe('action parsing', () => {
