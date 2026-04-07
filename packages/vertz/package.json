@@ -1,6 +1,6 @@
 {
   "name": "vertz",
-  "version": "0.2.51",
+  "version": "0.2.52",
   "description": "The first TypeScript stack built for LLMs",
   "license": "MIT",
   "repository": {
