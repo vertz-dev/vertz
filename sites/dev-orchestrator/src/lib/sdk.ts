@@ -1,4 +1,5 @@
 import type { AgentInfo } from "../api/services/dashboard";
+import type { DefinitionDetail, StepSummary } from "../api/services/definitions";
 import type { StepRunDetail, WorkflowArtifact, WorkflowRun } from "../api/services/workflows";
 
 type SdkMethod<TBody, TResult> = ((body: TBody) => Promise<TResult>) & {
@@ -90,6 +91,28 @@ export const sdk = {
       "POST",
       (body) =>
         requestJson<{ artifacts: WorkflowArtifact[] }>("/api/workflows/artifacts", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        }),
+    ),
+  },
+  definitions: {
+    list: createMethod<void, { definitions: Array<{ name: string; steps: StepSummary[] }> }>(
+      "/api/definitions/list",
+      "POST",
+      () =>
+        requestJson<{ definitions: Array<{ name: string; steps: StepSummary[] }> }>("/api/definitions/list", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: '{}',
+        }),
+    ),
+    get: createMethod<{ name: string }, DefinitionDetail | null>(
+      "/api/definitions/get",
+      "POST",
+      (body) =>
+        requestJson<DefinitionDetail | null>("/api/definitions/get", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(body),

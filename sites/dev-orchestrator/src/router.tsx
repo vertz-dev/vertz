@@ -13,6 +13,12 @@ const routes = defineRoutes({
   '/agents': {
     component: () => import('./pages/agents'),
   },
+  '/definitions': {
+    component: () => import('./pages/definitions-list'),
+  },
+  '/definitions/:name': {
+    component: () => import('./pages/definition-detail'),
+  },
 });
 
 export const appRouter = createRouter(routes);

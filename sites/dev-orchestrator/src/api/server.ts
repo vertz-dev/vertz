@@ -5,9 +5,12 @@
  * src/api/server.ts and wires it as the API handler for /api/* routes.
  */
 import { createServer } from '@vertz/server';
+import type { WorkflowDefinition } from '@vertz/agents';
 import type { ServiceDefinition } from '@vertz/server';
 import { createProgressEmitter } from '../lib/progress-emitter';
+import { featureWorkflow } from '../workflows/feature';
 import { createDashboardService, type AgentInfo } from './services/dashboard';
+import { extractDefinitionDetail, extractStepSummaries } from './services/definitions';
 import { createInMemoryWorkflowStore } from './services/workflow-store';
 import { handleWorkflowStream } from './services/workflow-stream';
 import { createWorkflowService } from './services/workflows';
@@ -22,6 +25,11 @@ const agents: AgentInfo[] = [
   { name: 'ci-monitor', description: 'Monitors GitHub CI status and diagnoses failures', model: 'MiniMax-M2.7' },
 ];
 
+// Registry of workflow definitions for the definitions API
+const workflowRegistry = new Map<string, WorkflowDefinition>([
+  [featureWorkflow.name, featureWorkflow],
+]);
+
 const innerApp = createServer({
   basePath: '/api',
   services: [
@@ -30,16 +38,48 @@ const innerApp = createServer({
   ] as ServiceDefinition[],
 });
 
-// SSE route pattern: /api/workflows/:id/stream
+// Custom route patterns
 const SSE_ROUTE = /^\/api\/workflows\/([^/]+)\/stream$/;
+
+function jsonResponse(data: unknown, status = 200): Response {
+  return new Response(JSON.stringify(data), {
+    status,
+    headers: { 'Content-Type': 'application/json' },
+  });
+}
+
+function handleDefinitionsList(): Response {
+  const definitions = [...workflowRegistry.values()].map((wf) => ({
+    name: wf.name,
+    steps: extractStepSummaries(wf),
+  }));
+  return jsonResponse({ definitions });
+}
+
+function handleDefinitionsGet(body: { name: string }): Response {
+  const wf = workflowRegistry.get(body.name) ?? null;
+  return jsonResponse(extractDefinitionDetail(wf));
+}
 
 const app = {
   handler: async (request: Request): Promise<Response> => {
     const url = new URL(request.url);
-    const match = SSE_ROUTE.exec(url.pathname);
-    if (match && request.method === 'GET') {
-      return handleWorkflowStream(match[1], workflowStore, progressEmitter);
+
+    // SSE streaming
+    const sseMatch = SSE_ROUTE.exec(url.pathname);
+    if (sseMatch && request.method === 'GET') {
+      return handleWorkflowStream(sseMatch[1], workflowStore, progressEmitter);
     }
+
+    // Definitions API
+    if (url.pathname === '/api/definitions/list' && request.method === 'POST') {
+      return handleDefinitionsList();
+    }
+    if (url.pathname === '/api/definitions/get' && request.method === 'POST') {
+      const body = await request.json() as { name: string };
+      return handleDefinitionsGet(body);
+    }
+
     return innerApp.handler(request);
   },
   listen: innerApp.listen.bind(innerApp),
