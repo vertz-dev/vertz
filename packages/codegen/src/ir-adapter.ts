@@ -188,6 +188,8 @@ export function adaptIR(appIR: AppIR): CodegenIR {
 
     // Process expose config: filter responseFields, map exposeSelect/exposeInclude
     let exposeSelect: CodegenExposeField[] | undefined;
+    let allowWhere: Array<{ name: string; tsType: CodegenResolvedField['tsType'] }> | undefined;
+    let allowOrderBy: string[] | undefined;
     let exposeInclude: CodegenExposeRelation[] | undefined;
 
     if (entity.expose) {
@@ -195,6 +197,20 @@ export function adaptIR(appIR: AppIR): CodegenIR {
         name: f.name,
         conditional: f.conditional,
       }));
+
+      // Resolve allowWhere with tsType from responseFields
+      if (entity.expose.allowWhere?.length && entityResponseFields) {
+        const fieldMap = new Map(entityResponseFields.map((f) => [f.name, f.tsType]));
+        const resolved = entity.expose.allowWhere
+          .filter((name) => fieldMap.has(name))
+          .map((name) => ({ name, tsType: fieldMap.get(name)! }));
+        if (resolved.length > 0) allowWhere = resolved;
+      }
+
+      // Pass through allowOrderBy
+      if (entity.expose.allowOrderBy?.length) {
+        allowOrderBy = entity.expose.allowOrderBy;
+      }
 
       // Filter responseFields to only include exposed, non-hidden fields
       if (entityResponseFields) {
@@ -266,6 +282,8 @@ export function adaptIR(appIR: AppIR): CodegenIR {
       hiddenFields: entity.modelRef.hiddenFields,
       responseFields: entityResponseFields,
       exposeSelect,
+      allowWhere,
+      allowOrderBy,
       exposeInclude,
       relationSelections:
         Object.keys(relationSelections).length > 0 ? relationSelections : undefined,

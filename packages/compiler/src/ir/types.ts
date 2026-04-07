@@ -241,6 +241,8 @@ export interface EntityIR extends SourceLocation {
 
 export interface EntityExposeIR {
   select: EntityExposeFieldIR[];
+  allowWhere?: string[];
+  allowOrderBy?: string[];
   include?: EntityExposeRelationIR[];
 }
 

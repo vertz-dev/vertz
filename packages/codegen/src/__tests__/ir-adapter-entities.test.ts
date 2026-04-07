@@ -601,4 +601,114 @@ describe('IR Adapter - Entities', () => {
       ]);
     });
   });
+
+  describe('allowWhere / allowOrderBy piping', () => {
+    it('resolves allowWhere field names with tsType from responseFields', () => {
+      const appIR = createEmptyAppIR();
+      const entity = createBasicEntity('tasks');
+      entity.modelRef.schemaRefs = {
+        response: {
+          kind: 'inline',
+          sourceFile: '/test.ts',
+          resolvedFields: [
+            { name: 'id', tsType: 'string', optional: false },
+            { name: 'status', tsType: 'string', optional: false },
+            { name: 'priority', tsType: 'number', optional: false },
+          ],
+        },
+        resolved: true,
+      };
+      entity.expose = {
+        select: [
+          { name: 'id', conditional: false },
+          { name: 'status', conditional: false },
+          { name: 'priority', conditional: false },
+        ],
+        allowWhere: ['status', 'priority'],
+      };
+      appIR.entities = [entity];
+
+      const result = adaptIR(appIR);
+
+      expect(result.entities[0]?.allowWhere).toEqual([
+        { name: 'status', tsType: 'string' },
+        { name: 'priority', tsType: 'number' },
+      ]);
+    });
+
+    it('passes allowOrderBy through as string[]', () => {
+      const appIR = createEmptyAppIR();
+      const entity = createBasicEntity('tasks');
+      entity.expose = {
+        select: [{ name: 'id', conditional: false }],
+        allowOrderBy: ['createdAt', 'priority'],
+      };
+      appIR.entities = [entity];
+
+      const result = adaptIR(appIR);
+
+      expect(result.entities[0]?.allowOrderBy).toEqual(['createdAt', 'priority']);
+    });
+
+    it('silently skips allowWhere fields not in responseFields', () => {
+      const appIR = createEmptyAppIR();
+      const entity = createBasicEntity('tasks');
+      entity.modelRef.schemaRefs = {
+        response: {
+          kind: 'inline',
+          sourceFile: '/test.ts',
+          resolvedFields: [{ name: 'id', tsType: 'string', optional: false }],
+        },
+        resolved: true,
+      };
+      entity.expose = {
+        select: [{ name: 'id', conditional: false }],
+        allowWhere: ['nonExistent'],
+      };
+      appIR.entities = [entity];
+
+      const result = adaptIR(appIR);
+
+      expect(result.entities[0]?.allowWhere).toBeUndefined();
+    });
+
+    it('returns undefined for empty allowWhere after filtering', () => {
+      const appIR = createEmptyAppIR();
+      const entity = createBasicEntity('tasks');
+      entity.expose = {
+        select: [{ name: 'id', conditional: false }],
+        allowWhere: [],
+      };
+      appIR.entities = [entity];
+
+      const result = adaptIR(appIR);
+
+      expect(result.entities[0]?.allowWhere).toBeUndefined();
+    });
+
+    it('returns undefined for empty allowOrderBy', () => {
+      const appIR = createEmptyAppIR();
+      const entity = createBasicEntity('tasks');
+      entity.expose = {
+        select: [{ name: 'id', conditional: false }],
+        allowOrderBy: [],
+      };
+      appIR.entities = [entity];
+
+      const result = adaptIR(appIR);
+
+      expect(result.entities[0]?.allowOrderBy).toBeUndefined();
+    });
+
+    it('returns undefined for both when no expose config', () => {
+      const appIR = createEmptyAppIR();
+      const entity = createBasicEntity('tasks');
+      appIR.entities = [entity];
+
+      const result = adaptIR(appIR);
+
+      expect(result.entities[0]?.allowWhere).toBeUndefined();
+      expect(result.entities[0]?.allowOrderBy).toBeUndefined();
+    });
+  });
 });
