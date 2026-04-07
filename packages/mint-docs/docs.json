@@ -140,7 +140,7 @@
           },
           {
             "group": "Runtime",
-            "pages": ["guides/debugging"]
+            "pages": ["guides/debugging", "guides/dev-server-tools"]
           }
         ],
         "tab": "Guides"
