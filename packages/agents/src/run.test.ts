@@ -773,9 +773,7 @@ describe('run()', () => {
         loop: { maxIterations: 5 },
       });
 
-      const llm = mockLLM([
-        { text: '{"summary": "All done"}' },
-      ]);
+      const llm = mockLLM([{ text: '{"summary": "All done"}' }]);
 
       const result = await run(outputAgent, { message: 'Go', llm });
 
@@ -800,9 +798,7 @@ describe('run()', () => {
         loop: { maxIterations: 5 },
       });
 
-      const llm = mockLLM([
-        { text: 'This is plain text, not JSON' },
-      ]);
+      const llm = mockLLM([{ text: 'This is plain text, not JSON' }]);
 
       const result = await run(outputAgent, { message: 'Go', llm });
 
@@ -826,9 +822,7 @@ describe('run()', () => {
         loop: { maxIterations: 5 },
       });
 
-      const llm = mockLLM([
-        { text: '{"summary": 42}' },
-      ]);
+      const llm = mockLLM([{ text: '{"summary": 42}' }]);
 
       const result = await run(outputAgent, { message: 'Go', llm });
 

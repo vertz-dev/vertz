@@ -758,7 +758,11 @@ describe('runWorkflow()', () => {
 
     const result = await runWorkflow(pipeline, {
       input: {},
-      llm: { async chat() { return { text: 'fallback', toolCalls: [] }; } },
+      llm: {
+        async chat() {
+          return { text: 'fallback', toolCalls: [] };
+        },
+      },
       createAdapter(opts) {
         factoryCalls.push({
           config: opts.config,

@@ -444,8 +444,7 @@ export async function runWorkflow<TInputSchema extends SchemaAny>(
     // If step did not complete successfully, stop the workflow.
     // Exception: 'max-iterations' with a non-empty response is treated as soft-complete —
     // the agent ran out of iterations but likely produced useful output (e.g., wrote files).
-    const softComplete =
-      agentResult.status === 'max-iterations' && agentResult.response.length > 0;
+    const softComplete = agentResult.status === 'max-iterations' && agentResult.response.length > 0;
     if (agentResult.status !== 'complete' && !softComplete) {
       onStepProgress?.({
         step: stepDef.name,
