@@ -1,3 +1,6 @@
+import { useRouter } from '@vertz/ui/router';
+import { Breadcrumbs } from './breadcrumbs';
+
 const topbarStyle = {
   display: 'flex',
   alignItems: 'center',
@@ -8,12 +11,6 @@ const topbarStyle = {
   background: 'var(--color-card)',
 };
 
-const titleStyle = {
-  fontSize: '14px',
-  fontWeight: '600',
-  color: 'var(--color-foreground)',
-};
-
 const badgeStyle = {
   fontSize: '11px',
   padding: '2px 8px',
@@ -22,14 +19,21 @@ const badgeStyle = {
   color: 'var(--color-secondary-foreground)',
 };
 
-interface TopbarProps {
-  title: string;
+function currentPathname(router: ReturnType<typeof useRouter>): string {
+  const match = router.current;
+  if (!match) return '/';
+  const pattern = match.route.pattern;
+  const params = match.params;
+  return pattern.replace(/:(\w+)/g, (_, key) => params[key] ?? '');
 }
 
-export function Topbar(props: TopbarProps) {
+export function Topbar() {
+  const router = useRouter();
+  const pathname = currentPathname(router);
+
   return (
     <header style={topbarStyle}>
-      <span style={titleStyle}>{props.title}</span>
+      <Breadcrumbs pathname={pathname} />
       <span style={badgeStyle}>Local</span>
     </header>
   );

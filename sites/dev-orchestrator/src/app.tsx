@@ -1,5 +1,6 @@
 import { getInjectedCSS, globalCss, ThemeProvider } from "@vertz/ui";
 import { RouterContext, RouterView } from "@vertz/ui/router";
+import { CommandPalette } from "./components/command-palette";
 import { Sidebar } from "./components/sidebar";
 import { Topbar } from "./components/topbar";
 import { appRouter } from "./router";
@@ -25,6 +26,17 @@ export { getInjectedCSS };
 export const globalStyles = [themeGlobals.css, appGlobals.css];
 
 export function App() {
+  let cmdPaletteOpen = false;
+
+  if (typeof document !== 'undefined') {
+    document.addEventListener('keydown', (e) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+        e.preventDefault();
+        cmdPaletteOpen = !cmdPaletteOpen;
+      }
+    });
+  }
+
   return (
     <div data-testid="app-root">
       <ThemeProvider theme="light">
@@ -46,12 +58,16 @@ export function App() {
                 minWidth: "0",
               }}
             >
-              <Topbar title="Dev Orchestrator" />
+              <Topbar />
               <main style={{ flex: "1", padding: "24px", overflow: "auto" }}>
                 <RouterView router={appRouter} />
               </main>
             </div>
           </div>
+          <CommandPalette
+            open={cmdPaletteOpen}
+            onClose={() => { cmdPaletteOpen = false; }}
+          />
         </RouterContext.Provider>
       </ThemeProvider>
     </div>
