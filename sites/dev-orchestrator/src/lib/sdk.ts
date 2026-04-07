@@ -1,3 +1,4 @@
+import type { AgentFullDetail, AgentSummary } from "../api/services/agents";
 import type { AgentInfo } from "../api/services/dashboard";
 import type { DefinitionDetail, StepSummary } from "../api/services/definitions";
 import type { StepRunDetail, WorkflowArtifact, WorkflowRun } from "../api/services/workflows";
@@ -91,6 +92,38 @@ export const sdk = {
       "POST",
       (body) =>
         requestJson<{ artifacts: WorkflowArtifact[] }>("/api/workflows/artifacts", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        }),
+    ),
+  },
+  agents: {
+    list: createMethod<void, { agents: AgentSummary[] }>(
+      "/api/agents/list",
+      "POST",
+      () =>
+        requestJson<{ agents: AgentSummary[] }>("/api/agents/list", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: '{}',
+        }),
+    ),
+    get: createMethod<{ name: string }, AgentFullDetail | null>(
+      "/api/agents/get",
+      "POST",
+      (body) =>
+        requestJson<AgentFullDetail | null>("/api/agents/get", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        }),
+    ),
+    updatePrompt: createMethod<{ name: string; prompt: string }, { success: boolean }>(
+      "/api/agents/updatePrompt",
+      "POST",
+      (body) =>
+        requestJson<{ success: boolean }>("/api/agents/updatePrompt", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(body),

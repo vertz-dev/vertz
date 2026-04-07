@@ -8,7 +8,13 @@ import { createServer } from '@vertz/server';
 import type { WorkflowDefinition } from '@vertz/agents';
 import type { ServiceDefinition } from '@vertz/server';
 import { createProgressEmitter } from '../lib/progress-emitter';
+import { plannerAgent } from '../agents/planner';
+import { reviewerAgent } from '../agents/reviewer';
+import { implementerAgent } from '../agents/implementer';
+import { ciMonitorAgent } from '../agents/ci-monitor';
+import { publisherAgent } from '../agents/publisher';
 import { featureWorkflow } from '../workflows/feature';
+import { createAgentRegistry } from './services/agents';
 import { createDashboardService, type AgentInfo } from './services/dashboard';
 import { extractDefinitionDetail, extractStepSummaries } from './services/definitions';
 import { createInMemoryWorkflowStore } from './services/workflow-store';
@@ -18,12 +24,21 @@ import { createWorkflowService } from './services/workflows';
 const workflowStore = createInMemoryWorkflowStore();
 const progressEmitter = createProgressEmitter();
 
-const agents: AgentInfo[] = [
-  { name: 'planner', description: 'Reads a GitHub issue and produces a design doc', model: 'MiniMax-M2.7' },
-  { name: 'reviewer', description: 'Adversarially reviews design docs and code', model: 'MiniMax-M2.7' },
-  { name: 'implementer', description: 'Implements features using strict TDD', model: 'MiniMax-M2.7' },
-  { name: 'ci-monitor', description: 'Monitors GitHub CI status and diagnoses failures', model: 'MiniMax-M2.7' },
-];
+// Agent registry wraps static definitions with mutable prompt overrides
+const agentRegistry = createAgentRegistry([
+  plannerAgent,
+  reviewerAgent,
+  implementerAgent,
+  ciMonitorAgent,
+  publisherAgent,
+]);
+
+// Dashboard still uses simple AgentInfo for backward compatibility
+const agents: AgentInfo[] = agentRegistry.list().map((a) => ({
+  name: a.name,
+  description: a.description,
+  model: a.model,
+}));
 
 // Registry of workflow definitions for the definitions API
 const workflowRegistry = new Map<string, WorkflowDefinition>([
@@ -87,6 +102,40 @@ const app = {
         return jsonResponse({ error: 'Missing or invalid "name" field' }, 400);
       }
       return handleDefinitionsGet(body as { name: string });
+    }
+
+    // Agents API
+    if (url.pathname === '/api/agents/list' && request.method === 'POST') {
+      return jsonResponse({ agents: agentRegistry.list() });
+    }
+    if (url.pathname === '/api/agents/get' && request.method === 'POST') {
+      let body: unknown;
+      try {
+        body = await request.json();
+      } catch {
+        return jsonResponse({ error: 'Invalid JSON' }, 400);
+      }
+      if (!body || typeof body !== 'object' || typeof (body as Record<string, unknown>).name !== 'string') {
+        return jsonResponse({ error: 'Missing or invalid "name" field' }, 400);
+      }
+      const detail = agentRegistry.get((body as { name: string }).name);
+      if (!detail) return jsonResponse({ error: 'Agent not found' }, 404);
+      return jsonResponse(detail);
+    }
+    if (url.pathname === '/api/agents/updatePrompt' && request.method === 'POST') {
+      let body: unknown;
+      try {
+        body = await request.json();
+      } catch {
+        return jsonResponse({ error: 'Invalid JSON' }, 400);
+      }
+      const b = body as Record<string, unknown>;
+      if (!b || typeof b !== 'object' || typeof b.name !== 'string' || typeof b.prompt !== 'string') {
+        return jsonResponse({ error: 'Missing "name" or "prompt" field' }, 400);
+      }
+      const success = agentRegistry.updatePrompt(b.name as string, b.prompt as string);
+      if (!success) return jsonResponse({ error: 'Agent not found' }, 404);
+      return jsonResponse({ success: true });
     }
 
     return innerApp.handler(request);

@@ -13,6 +13,9 @@ const routes = defineRoutes({
   '/agents': {
     component: () => import('./pages/agents'),
   },
+  '/agents/:name': {
+    component: () => import('./pages/agent-detail'),
+  },
   '/definitions': {
     component: () => import('./pages/definitions-list'),
   },

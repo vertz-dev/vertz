@@ -1,8 +1,8 @@
 import { query } from '@vertz/ui/query';
-import type { AgentInfo } from '../api/services/dashboard';
+import { useRouter } from '@vertz/ui/router';
 import { sdk } from '../lib/sdk';
 
-const s = {
+const styles = {
   page: { display: 'flex', flexDirection: 'column' as const, gap: '24px', maxWidth: '960px' },
   heading: { fontSize: '24px', fontWeight: '700', color: 'var(--color-foreground)', margin: '0' },
   subtitle: { fontSize: '13px', color: 'var(--color-muted-foreground)', margin: '4px 0 0' },
@@ -15,6 +15,8 @@ const s = {
     display: 'flex',
     flexDirection: 'column' as const,
     gap: '8px',
+    cursor: 'pointer',
+    transition: 'border-color 0.15s',
   },
   cardHeader: { display: 'flex', alignItems: 'center', justifyContent: 'space-between' },
   cardTitle: { fontSize: '14px', fontWeight: '500', color: 'var(--color-foreground)' },
@@ -27,35 +29,43 @@ const s = {
     color: 'var(--color-secondary-foreground)',
     fontWeight: '500',
   },
+  toolCount: { fontSize: '11px', color: 'var(--color-muted-foreground)' },
   loading: { color: 'var(--color-muted-foreground)', fontSize: '13px' },
   error: { color: 'var(--color-destructive)', fontSize: '13px' },
 };
 
 export default function AgentsPage() {
+  const { navigate } = useRouter();
   const agentsQuery = query(
-    () => sdk.dashboard.listAgents(),
+    () => sdk.agents.list(),
+    { key: 'agents-list' },
   );
 
-  const agents = () => (agentsQuery.data as { agents: AgentInfo[] } | undefined)?.agents ?? [];
+  const agents = () => agentsQuery.data?.agents ?? [];
 
   return (
-    <div style={s.page}>
+    <div style={styles.page}>
       <div>
-        <h1 style={s.heading}>Agents</h1>
-        <p style={s.subtitle}>LLM-powered actors in the orchestration pipeline</p>
+        <h1 style={styles.heading}>Agents</h1>
+        <p style={styles.subtitle}>LLM-powered actors in the orchestration pipeline</p>
       </div>
 
-      {agentsQuery.loading && <div style={s.loading}>Loading agents...</div>}
-      {agentsQuery.error && <div style={s.error}>Failed to load agents</div>}
+      {agentsQuery.loading && <div style={styles.loading}>Loading agents...</div>}
+      {agentsQuery.error && <div style={styles.error}>Failed to load agents</div>}
       {agents().length > 0 && (
-        <div style={s.grid}>
+        <div style={styles.grid}>
           {agents().map((agent) => (
-            <div key={agent.name} style={s.card}>
-              <div style={s.cardHeader}>
-                <div style={s.cardTitle}>{agent.name}</div>
-                <span style={s.badge}>{agent.model}</span>
+            <div
+              key={agent.name}
+              style={styles.card}
+              onClick={() => navigate({ to: `/agents/${agent.name}` })}
+            >
+              <div style={styles.cardHeader}>
+                <div style={styles.cardTitle}>{agent.name}</div>
+                <span style={styles.badge}>{agent.model}</span>
               </div>
-              <div style={s.cardDesc}>{agent.description}</div>
+              <div style={styles.cardDesc}>{agent.description}</div>
+              <div style={styles.toolCount}>{agent.toolCount} tools</div>
             </div>
           ))}
         </div>
