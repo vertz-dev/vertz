@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'bun:test';
-import { generateInterface, getTypePrefix, jsonSchemaToTS, toPascalCase } from '../json-schema-to-ts';
+import {
+  generateInterface,
+  getTypePrefix,
+  jsonSchemaToTS,
+  toPascalCase,
+} from '../json-schema-to-ts';
 
 describe('jsonSchemaToTS', () => {
   const empty = new Map<string, string>();

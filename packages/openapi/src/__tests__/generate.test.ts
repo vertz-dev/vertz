@@ -313,8 +313,7 @@ describe('generateFromOpenAPI', () => {
       paths: {
         '/web/organizations/{organization_id}/brands': {
           get: {
-            operationId:
-              'find_many_web_organizations__organization_id__brands_get',
+            operationId: 'find_many_web_organizations__organization_id__brands_get',
             tags: ['brands'],
             parameters: [
               {
@@ -391,19 +390,14 @@ describe('generateFromOpenAPI', () => {
       operationIds: {
         transform: (_cleaned, ctx) => {
           // FastAPI adapter logic: strip route suffix and HTTP method
-          const parsedRoute = ctx.path
-            .replace(/^\//, '')
-            .replace(/[{}/-]/g, '_');
+          const parsedRoute = ctx.path.replace(/^\//, '').replace(/[{}/-]/g, '_');
           const suffix = `_${parsedRoute}_${ctx.method.toLowerCase()}`;
           return ctx.operationId.replace(suffix, '');
         },
       },
     });
 
-    const typesContent = readFileSync(
-      join(outputDir, 'types/brands.ts'),
-      'utf-8',
-    );
+    const typesContent = readFileSync(join(outputDir, 'types/brands.ts'), 'utf-8');
     // Type names should derive from the cleaned method name, not the raw operationId
     expect(typesContent).toContain('export interface FindManyQuery {');
     expect(typesContent).toContain('export interface ArchiveResponse {');

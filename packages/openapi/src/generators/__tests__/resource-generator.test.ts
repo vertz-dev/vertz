@@ -830,9 +830,7 @@ describe('generateResources', () => {
             methodName: 'streamBrandDraft',
             method: 'POST',
             path: '/web/organizations/{organization_id}/brands/draft-brand',
-            pathParams: [
-              { name: 'organization_id', required: true, schema: { type: 'string' } },
-            ],
+            pathParams: [{ name: 'organization_id', required: true, schema: { type: 'string' } }],
             queryParams: [],
             requestBody: {
               name: 'DraftInput',
