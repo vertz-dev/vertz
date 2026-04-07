@@ -987,25 +987,37 @@ pub(crate) async fn execute_tool(
 
             let (session_id, tab_info) = state.browser_hub.connect_session(tab_id).await?;
 
-            // Request initial snapshot from the tab
+            // Request initial snapshot from the tab.
+            // If the snapshot fails, clean up the session to avoid orphaned state.
             let request_id = format!("snap-{}", uuid::Uuid::new_v4().as_simple());
-            state
-                .browser_hub
-                .send_to_tab(
-                    &tab_info.id,
-                    serde_json::json!({
-                        "type": "interact",
-                        "requestId": request_id,
-                        "action": "snapshot",
-                        "maxElements": 50
-                    }),
-                )
-                .await?;
+            let snapshot_result = async {
+                state
+                    .browser_hub
+                    .send_to_tab(
+                        &tab_info.id,
+                        serde_json::json!({
+                            "type": "interact",
+                            "requestId": request_id,
+                            "action": "snapshot",
+                            "maxElements": 50
+                        }),
+                    )
+                    .await?;
 
-            let snapshot = state
-                .browser_hub
-                .wait_for_response(&request_id, std::time::Duration::from_secs(10))
-                .await?;
+                state
+                    .browser_hub
+                    .wait_for_response(&request_id, std::time::Duration::from_secs(10))
+                    .await
+            }
+            .await;
+
+            let snapshot = match snapshot_result {
+                Ok(s) => s,
+                Err(e) => {
+                    let _ = state.browser_hub.disconnect_session(&session_id).await;
+                    return Err(e);
+                }
+            };
 
             let text = serde_json::to_string_pretty(&serde_json::json!({
                 "sessionId": session_id,

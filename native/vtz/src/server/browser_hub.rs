@@ -201,20 +201,19 @@ impl BrowserInteractionHub {
         }
 
         // Client disconnected — clean up.
+        // Lock ordering: tabs → sessions → tab_senders.
         write_task.abort();
-        tab_senders.write().await.remove(&tab_id_write);
 
-        // Check if this tab had an active session.
-        let session_to_remove = {
-            let tabs_guard = tabs.read().await;
-            tabs_guard
-                .get(&tab_id_write)
-                .and_then(|t| t.session_id.clone())
-        };
+        // Remove tab and its session under consistent lock ordering.
+        let mut tabs_guard = tabs.write().await;
+        let session_to_remove = tabs_guard.remove(&tab_id_write).and_then(|t| t.session_id);
+        drop(tabs_guard);
+
         if let Some(sid) = session_to_remove {
             sessions.write().await.remove(&sid);
         }
-        tabs.write().await.remove(&tab_id_write);
+
+        tab_senders.write().await.remove(&tab_id_write);
     }
 
     /// Send a message to a specific tab by tab ID.
@@ -268,30 +267,33 @@ impl BrowserInteractionHub {
     /// Create a control session for a specific tab.
     ///
     /// If `tab_id` is `None`, auto-connects to the only connected tab.
+    ///
+    /// Lock ordering: tabs (write) → sessions (write) → tab_senders (read).
     pub async fn connect_session(&self, tab_id: Option<&str>) -> Result<(String, TabInfo), String> {
+        // Acquire write lock on tabs first — resolve AND mutate under the same lock
+        // to eliminate the TOCTOU race between resolution and connection.
+        let mut tabs = self.tabs.write().await;
+
         let resolved_tab_id = match tab_id {
             Some(id) => id.to_string(),
             None => {
-                let tabs = self.tabs.read().await;
-                match tabs.len() {
-                    0 => {
-                        return Err(
-                            "No browser tabs connected. Open the app in a browser first."
-                                .to_string(),
-                        )
-                    }
-                    1 => tabs.keys().next().unwrap().clone(),
-                    n => {
-                        return Err(format!(
-                            "{} tabs connected. Specify tabId. Call vertz_browser_list_tabs to see them.",
-                            n
-                        ))
-                    }
+                let len = tabs.len();
+                if len == 0 {
+                    return Err(
+                        "No browser tabs connected. Open the app in a browser first.".to_string(),
+                    );
+                } else if len == 1 {
+                    tabs.keys().next().unwrap().clone()
+                } else {
+                    return Err(format!(
+                        "{} tabs connected. Specify tabId. \
+                         Call vertz_browser_list_tabs to see them.",
+                        len
+                    ));
                 }
             }
         };
 
-        let mut tabs = self.tabs.write().await;
         let tab = tabs.get_mut(&resolved_tab_id).ok_or_else(|| {
             format!(
                 "No browser tab with ID '{}'. Call vertz_browser_list_tabs to see connected tabs.",
@@ -313,6 +315,10 @@ impl BrowserInteractionHub {
         tab.session_id = Some(session_id.clone());
 
         let tab_info = tab.clone();
+
+        // Drop tabs lock before acquiring sessions lock, then tab_senders lock.
+        // Lock ordering: tabs → sessions → tab_senders (consistent with disconnect_session).
+        drop(tabs);
 
         // Register session
         self.sessions
@@ -336,24 +342,30 @@ impl BrowserInteractionHub {
     }
 
     /// Release a control session.
+    ///
+    /// Lock ordering: tabs (write) → sessions (write) → tab_senders (read).
     pub async fn disconnect_session(&self, session_id: &str) -> Result<bool, String> {
-        let tab_id = self
-            .sessions
-            .write()
-            .await
-            .remove(session_id)
-            .ok_or_else(|| {
-                format!(
-                    "Session '{}' not found. Call vertz_browser_connect first.",
-                    session_id
-                )
-            })?;
+        // Acquire tabs lock first (consistent lock ordering with connect_session).
+        let mut tabs = self.tabs.write().await;
+
+        // Find the tab ID for this session.
+        let mut sessions = self.sessions.write().await;
+        let tab_id = sessions.remove(session_id).ok_or_else(|| {
+            format!(
+                "Session '{}' not found. Call vertz_browser_connect first.",
+                session_id
+            )
+        })?;
 
         // Update tab info
-        if let Some(tab) = self.tabs.write().await.get_mut(&tab_id) {
+        if let Some(tab) = tabs.get_mut(&tab_id) {
             tab.controlled = false;
             tab.session_id = None;
         }
+
+        // Drop locks before sending (send_to_tab acquires tab_senders read lock)
+        drop(sessions);
+        drop(tabs);
 
         // Send control:disconnect to the tab
         let _ = self

@@ -140,6 +140,11 @@
     var action = msg.action;
     var requestId = msg.requestId;
 
+    if (action !== 'snapshot' && !controlled) {
+      sendResult(requestId, false, 'Not in a control session. Call vertz_browser_connect first.');
+      return;
+    }
+
     if (action === 'snapshot') {
       var snapshot = collectSnapshot(msg.maxElements);
       sendResult(requestId, true, { ok: true, snapshot: snapshot });
