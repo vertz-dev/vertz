@@ -989,6 +989,85 @@ describe('DOM Shim', () => {
     });
   });
 
+  describe('select value → option selected', () => {
+    it('should set selected on matching option when select.value is set', () => {
+      const select = new SSRElement('select');
+      const opt1 = new SSRElement('option');
+      opt1.setAttribute('value', 'a');
+      const opt2 = new SSRElement('option');
+      opt2.setAttribute('value', 'b');
+      select.appendChild(opt1);
+      select.appendChild(opt2);
+
+      select.value = 'b';
+      expect(opt2.attrs.selected).toBe('');
+      expect('selected' in opt1.attrs).toBe(false);
+    });
+
+    it('should remove selected from previously selected option', () => {
+      const select = new SSRElement('select');
+      const opt1 = new SSRElement('option');
+      opt1.setAttribute('value', 'a');
+      opt1.setAttribute('selected', '');
+      const opt2 = new SSRElement('option');
+      opt2.setAttribute('value', 'b');
+      select.appendChild(opt1);
+      select.appendChild(opt2);
+
+      select.value = 'b';
+      expect('selected' in opt1.attrs).toBe(false);
+      expect(opt2.attrs.selected).toBe('');
+    });
+
+    it('should not emit value attribute on select in toVNode', () => {
+      const select = new SSRElement('select');
+      const opt = new SSRElement('option');
+      opt.setAttribute('value', 'a');
+      select.appendChild(opt);
+
+      select.value = 'a';
+      const vnode = select.toVNode();
+      expect('value' in (vnode.attrs ?? {})).toBe(false);
+    });
+
+    it('should return the stored value from getter', () => {
+      const select = new SSRElement('select');
+      select.value = 'test';
+      expect(select.value).toBe('test');
+    });
+
+    it('should traverse options inside optgroup', () => {
+      const select = new SSRElement('select');
+      const optgroup = new SSRElement('optgroup');
+      optgroup.setAttribute('label', 'Group');
+      const opt1 = new SSRElement('option');
+      opt1.setAttribute('value', 'a');
+      const opt2 = new SSRElement('option');
+      opt2.setAttribute('value', 'b');
+      optgroup.appendChild(opt1);
+      optgroup.appendChild(opt2);
+      select.appendChild(optgroup);
+
+      select.value = 'b';
+      expect(opt2.attrs.selected).toBe('');
+      expect('selected' in opt1.attrs).toBe(false);
+    });
+
+    it('should match option text content when no value attribute', () => {
+      const select = new SSRElement('select');
+      const opt1 = new SSRElement('option');
+      opt1.appendChild(new SSRTextNode('Alpha'));
+      const opt2 = new SSRElement('option');
+      opt2.appendChild(new SSRTextNode('Beta'));
+      select.appendChild(opt1);
+      select.appendChild(opt2);
+
+      select.value = 'Beta';
+      expect(opt2.attrs.selected).toBe('');
+      expect('selected' in opt1.attrs).toBe(false);
+    });
+  });
+
   describe('style proxy get handler', () => {
     it('should return empty string for unset style properties', () => {
       const el = new SSRElement('div');

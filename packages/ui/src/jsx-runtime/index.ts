@@ -122,6 +122,17 @@ function applyChildren(parent: Node, children: unknown): void {
   }
 }
 
+/**
+ * IDL properties where setAttribute doesn't control the displayed state —
+ * only direct property assignment (el.prop = value) works correctly.
+ * Must be set AFTER children are appended (select.value needs options in DOM).
+ */
+const IDL_PROPS: Record<string, ReadonlySet<string>> = {
+  input: new Set(['value', 'checked']),
+  select: new Set(['value']),
+  textarea: new Set(['value']),
+};
+
 // Implementation
 function jsxImpl(
   tag: Tag | typeof Fragment,
@@ -136,6 +147,10 @@ function jsxImpl(
   const { children, ref: refProp, ...attrs } = props || {};
   const svg = isSVGTag(tag);
   const element = svg ? document.createElementNS(SVG_NS, tag) : document.createElement(tag);
+
+  // Collect IDL properties to set after children are appended
+  const idlSet = typeof tag === 'string' ? IDL_PROPS[tag] : undefined;
+  const deferredIdl: [string, unknown][] = [];
 
   // Apply attributes
   // Resolve className vs class: className takes precedence when both are present
@@ -160,8 +175,11 @@ function jsxImpl(
           ? styleObjectToString(value as Record<string, string | number>)
           : String(value),
       );
+    } else if (idlSet?.has(key) && value != null && value !== false) {
+      // IDL property — defer until after children (select.value needs options in DOM)
+      deferredIdl.push([key, value]);
     } else if (value === true) {
-      // Boolean attribute (e.g. checked, disabled)
+      // Boolean attribute (e.g. disabled)
       element.setAttribute(key, '');
     } else if (value != null && value !== false) {
       // SVG attribute normalization (camelCase → hyphenated)
@@ -171,6 +189,11 @@ function jsxImpl(
   }
 
   applyChildren(element, children);
+
+  // Set IDL properties after children are in the DOM
+  for (const [key, value] of deferredIdl) {
+    Reflect.set(element, key, value);
+  }
 
   // Assign ref after element is fully constructed with children
   if (refProp != null) {

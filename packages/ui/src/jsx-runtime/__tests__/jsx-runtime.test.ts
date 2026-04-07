@@ -82,8 +82,8 @@ describe('JSX Runtime (Client)', () => {
     });
 
     it('should handle boolean attributes', () => {
-      const el = jsx('input', { type: 'checkbox', checked: true });
-      expect(el.getAttribute('checked')).toBe('');
+      const el = jsx('input', { disabled: true });
+      expect(el.getAttribute('disabled')).toBe('');
     });
 
     it('should skip false boolean attributes', () => {
