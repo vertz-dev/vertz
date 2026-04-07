@@ -1,10 +1,11 @@
 #!/usr/bin/env node
-// vtzx is shorthand for `vtz exec` — fall back to bunx when native binary is unavailable
+// vtzx is shorthand for `vtz exec` — resolves commands from node_modules/.bin
 import { spawnSync } from 'node:child_process';
+import { join, delimiter } from 'node:path';
 import { getBinaryPath } from './index.js';
 
-function run(cmd, args) {
-  const result = spawnSync(cmd, args, { stdio: 'inherit' });
+function run(cmd, args, options = {}) {
+  const result = spawnSync(cmd, args, { stdio: 'inherit', ...options });
   if (result.signal) {
     process.kill(process.pid, result.signal);
   }
@@ -15,8 +16,15 @@ let binary;
 try {
   binary = getBinaryPath();
 } catch {
-  // Native binary not available — vtzx = bunx
-  run('bunx', process.argv.slice(2));
+  // Native binary not available — resolve from node_modules/.bin directly
+  const [command, ...args] = process.argv.slice(2);
+  if (!command) {
+    console.error('vtzx: no command specified');
+    process.exit(1);
+  }
+  const binDir = join(process.cwd(), 'node_modules', '.bin');
+  const env = { ...process.env, PATH: `${binDir}${delimiter}${process.env.PATH || ''}` };
+  run(command, args, { env });
 }
 
 run(binary, ['exec', ...process.argv.slice(2)]);

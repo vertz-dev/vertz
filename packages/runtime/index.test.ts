@@ -199,12 +199,25 @@ describe('Feature: npm bin shims delegate to native binary (#2382)', () => {
       expect(content).toContain('process.kill(process.pid');
     });
 
-    it('Then falls back to bun for run/exec/test when native binary is unavailable', () => {
+    it('Then handles run/exec subcommands without Bun dependency', () => {
       const content = readFileSync(join(pkgDir, 'cli.js'), 'utf8');
       expect(content).toContain("'run'");
       expect(content).toContain("'exec'");
-      expect(content).toContain("'test'");
-      expect(content).toContain('bunx');
+      expect(content).not.toContain('bunx');
+      expect(content).not.toContain("'bun'");
+    });
+
+    it('Then prepends node_modules/.bin to PATH for exec fallback', () => {
+      const content = readFileSync(join(pkgDir, 'cli.js'), 'utf8');
+      expect(content).toContain('node_modules');
+      expect(content).toContain('.bin');
+      expect(content).toContain('PATH');
+    });
+
+    it('Then reads package.json scripts for run fallback', () => {
+      const content = readFileSync(join(pkgDir, 'cli.js'), 'utf8');
+      expect(content).toContain('package.json');
+      expect(content).toContain('scripts');
     });
   });
 
@@ -221,9 +234,12 @@ describe('Feature: npm bin shims delegate to native binary (#2382)', () => {
       expect(content).toContain('process.kill(process.pid');
     });
 
-    it('Then falls back to bunx when native binary is unavailable', () => {
+    it('Then resolves from node_modules/.bin instead of bunx when native binary is unavailable', () => {
       const content = readFileSync(join(pkgDir, 'cli-exec.js'), 'utf8');
-      expect(content).toContain('bunx');
+      expect(content).not.toContain('bunx');
+      expect(content).toContain('node_modules');
+      expect(content).toContain('.bin');
+      expect(content).toContain('PATH');
     });
   });
 });
