@@ -22,3 +22,7 @@ export function reviewPath(
 export function implementationSummaryPath(issueNumber: number): string {
   return `${WORK_DIR}/reviews/issue-${issueNumber}/implementation-summary.md`;
 }
+
+export function designBranchName(issueNumber: number): string {
+  return `docs/issue-${issueNumber}-design`;
+}

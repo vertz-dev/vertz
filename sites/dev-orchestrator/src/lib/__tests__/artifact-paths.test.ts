@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'bun:test';
-import { planPath, reviewPath, implementationSummaryPath } from '../artifact-paths';
+import { planPath, reviewPath, implementationSummaryPath, designBranchName } from '../artifact-paths';
 
 describe('artifact-paths', () => {
   describe('planPath', () => {
@@ -35,6 +35,12 @@ describe('artifact-paths', () => {
       expect(implementationSummaryPath(42)).toBe(
         '/home/daytona/workspace/reviews/issue-42/implementation-summary.md',
       );
+    });
+  });
+
+  describe('designBranchName', () => {
+    it('returns the design branch name for an issue number', () => {
+      expect(designBranchName(1748)).toBe('docs/issue-1748-design');
     });
   });
 });

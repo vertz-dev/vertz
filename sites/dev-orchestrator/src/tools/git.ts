@@ -46,11 +46,17 @@ export const gitLog = tool({
   parallel: true,
 });
 
+export const gitCheckoutBranch = tool({
+  description: 'Create and checkout a new branch in the sandbox',
+  input: s.object({ branch: s.string() }),
+  output: s.object({ success: s.boolean() }),
+});
+
 // ---------------------------------------------------------------------------
 // Tool provider
 // ---------------------------------------------------------------------------
 
-const gitTools = { gitStatus, gitCommit, gitPush, gitLog };
+const gitTools = { gitStatus, gitCommit, gitPush, gitLog, gitCheckoutBranch };
 
 export function createGitProvider(sandbox: SandboxClient): InferToolProvider<typeof gitTools> {
   return {
@@ -100,6 +106,11 @@ export function createGitProvider(sandbox: SandboxClient): InferToolProvider<typ
           };
         });
       return { commits };
+    },
+    gitCheckoutBranch: async ({ branch }: { branch: string }) => {
+      const escapedBranch = branch.replace(/'/g, "'\\''");
+      const result = await sandbox.exec(`git checkout -b '${escapedBranch}'`);
+      return { success: result.exitCode === 0 };
     },
   };
 }

@@ -1,8 +1,9 @@
 import { workflow } from '@vertz/agents';
 import { s } from '@vertz/schema';
-import { planPath, reviewPath, implementationSummaryPath } from '../lib/artifact-paths';
+import { planPath, reviewPath, implementationSummaryPath, designBranchName } from '../lib/artifact-paths';
 import { plannerAgent } from '../agents/planner';
 import { reviewerAgent } from '../agents/reviewer';
+import { publisherAgent } from '../agents/publisher';
 import { implementerAgent } from '../agents/implementer';
 import { ciMonitorAgent } from '../agents/ci-monitor';
 
@@ -63,10 +64,35 @@ export const featureWorkflow = workflow('feature', {
       ].join('\n'),
     }),
   })
+  .step('publish-design-pr', {
+    agent: publisherAgent,
+    input: (ctx) => {
+      const { issueNumber, repo } = input(ctx);
+      const branch = designBranchName(issueNumber);
+      return {
+        message: [
+          `Publish design artifacts for issue #${issueNumber} as a pull request.`,
+          '',
+          `Branch name: ${branch}`,
+          `Repo: ${repo}`,
+          `Issue number: ${issueNumber}`,
+          '',
+          'Files to commit:',
+          `  - ${planPath(issueNumber)}`,
+          `  - ${reviewPath(issueNumber, 'dx')}`,
+          `  - ${reviewPath(issueNumber, 'product')}`,
+          `  - ${reviewPath(issueNumber, 'technical')}`,
+          '',
+          `PR title: "docs(design): design doc for #${issueNumber}"`,
+          `PR base: main`,
+        ].join('\n'),
+      };
+    },
+  })
   .step('human-approval', {
     approval: {
       message: (ctx) =>
-        `Design doc for #${input(ctx).issueNumber} reviewed by DX, Product, and Technical agents. Waiting for approval comment from a repo collaborator.`,
+        `Design doc for #${input(ctx).issueNumber} published as a PR and reviewed by DX, Product, and Technical agents. Waiting for approval comment from a repo collaborator.`,
       timeout: '7d',
     },
   })

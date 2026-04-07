@@ -14,14 +14,15 @@ describe('Feature: Feature workflow definition', () => {
       expect(featureWorkflow.input).toBeDefined();
     });
 
-    it('Then has 8 steps in the correct order', () => {
-      expect(featureWorkflow.steps).toHaveLength(8);
+    it('Then has 9 steps in the correct order', () => {
+      expect(featureWorkflow.steps).toHaveLength(9);
       const stepNames = featureWorkflow.steps.map((s) => s.name);
       expect(stepNames).toEqual([
         'plan',
         'review-dx',
         'review-product',
         'review-technical',
+        'publish-design-pr',
         'human-approval',
         'implement',
         'code-review',
@@ -75,6 +76,13 @@ describe('Feature: Feature workflow definition', () => {
       expect(codeReview!.agent!.name).toBe('reviewer');
     });
 
+    it('Then the publish-design-pr step uses the publisher agent', () => {
+      const pubStep = featureWorkflow.steps.find((s) => s.name === 'publish-design-pr');
+      expect(pubStep).toBeDefined();
+      expect(pubStep!.agent).toBeDefined();
+      expect(pubStep!.agent!.name).toBe('publisher');
+    });
+
     describe('When step inputs are resolved with issue #42', () => {
       it('Then the plan step references the artifact path, not inline content', () => {
         const planStep = featureWorkflow.steps.find((s) => s.name === 'plan')!;
@@ -112,6 +120,19 @@ describe('Feature: Feature workflow definition', () => {
         const result = step.input!(ctx);
         const msg = typeof result === 'string' ? result : result.message;
         expect(msg).toContain('implementation-summary.md');
+      });
+
+      it('Then the publish-design-pr step references branch name, artifact paths, and repo', () => {
+        const step = featureWorkflow.steps.find((s) => s.name === 'publish-design-pr')!;
+        const result = step.input!(ctx);
+        const msg = typeof result === 'string' ? result : result.message;
+        expect(msg).toContain('docs/issue-42-design');
+        expect(msg).toContain('plans/issue-42.md');
+        expect(msg).toContain('reviews/issue-42/dx.md');
+        expect(msg).toContain('reviews/issue-42/product.md');
+        expect(msg).toContain('reviews/issue-42/technical.md');
+        expect(msg).toContain('vertz-dev/vertz');
+        expect(msg).toContain('#42');
       });
     });
   });

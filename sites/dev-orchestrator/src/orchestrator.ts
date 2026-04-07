@@ -16,6 +16,7 @@ import type { SandboxClient } from './lib/sandbox-client';
 import type { GitHubClient } from './lib/github-client';
 import { plannerAgent } from './agents/planner';
 import { reviewerAgent } from './agents/reviewer';
+import { publisherAgent } from './agents/publisher';
 import { implementerAgent } from './agents/implementer';
 import { ciMonitorAgent } from './agents/ci-monitor';
 import { featureWorkflow } from './workflows/feature';
@@ -45,7 +46,7 @@ export function createOrchestrator(
   github: GitHubClient,
   options?: OrchestratorOptions,
 ): Orchestrator {
-  const agents = [plannerAgent, reviewerAgent, implementerAgent, ciMonitorAgent];
+  const agents = [plannerAgent, reviewerAgent, publisherAgent, implementerAgent, ciMonitorAgent];
 
   // Compose all tool providers into a single flat record
   const tools: ToolProvider = {

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi, beforeEach } from 'bun:test';
-import { createGitProvider, gitStatus, gitCommit, gitPush, gitLog } from '../git';
+import { createGitProvider, gitStatus, gitCommit, gitPush, gitLog, gitCheckoutBranch } from '../git';
 import type { SandboxClient } from '../../lib/sandbox-client';
 
 function createMockClient(): SandboxClient {
@@ -37,6 +37,10 @@ describe('Feature: Git tools', () => {
     it('Then gitLog is a tool declaration with kind "tool"', () => {
       expect(gitLog.kind).toBe('tool');
       expect(gitLog.parallel).toBe(true);
+    });
+
+    it('Then gitCheckoutBranch is a tool declaration with kind "tool"', () => {
+      expect(gitCheckoutBranch.kind).toBe('tool');
     });
   });
 
@@ -110,6 +114,30 @@ describe('Feature: Git tools', () => {
           sha: 'abc1234',
           message: 'feat: add auth',
         });
+      });
+    });
+
+    describe('When gitCheckoutBranch handler is called', () => {
+      it('Then creates and checks out a new branch', async () => {
+        (client.exec as ReturnType<typeof vi.fn>)
+          .mockResolvedValueOnce({ stdout: '', stderr: '', exitCode: 0 });
+
+        const provider = createGitProvider(client);
+        const result = await provider.gitCheckoutBranch({ branch: 'docs/issue-1748-design' });
+
+        expect(result.success).toBe(true);
+        const calls = (client.exec as ReturnType<typeof vi.fn>).mock.calls;
+        expect(calls[0][0]).toBe("git checkout -b 'docs/issue-1748-design'");
+      });
+
+      it('Then returns success false when checkout fails', async () => {
+        (client.exec as ReturnType<typeof vi.fn>)
+          .mockResolvedValueOnce({ stdout: '', stderr: 'fatal: branch already exists', exitCode: 1 });
+
+        const provider = createGitProvider(client);
+        const result = await provider.gitCheckoutBranch({ branch: 'docs/issue-1748-design' });
+
+        expect(result.success).toBe(false);
       });
     });
   });
