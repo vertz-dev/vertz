@@ -25,13 +25,6 @@ vtz build            # Production build
 
 The dev server automatically runs codegen and migrations when files change.
 
-## Dev Server Tools
-
-The dev server exposes built-in MCP tools and HTTP endpoints for AI agents.
-See \`.claude/rules/dev-server-tools.md\` for the full list.
-
-**Key rule:** Always call \`vertz_get_errors\` after code changes before reporting success.
-
 ## Conventions
 
 - See \`.claude/rules/\` for API and UI development conventions
@@ -1120,13 +1113,6 @@ vtz dev              # Start dev server with HMR
 vtz build            # Production build
 \`\`\`
 
-## Dev Server Tools
-
-The dev server exposes built-in MCP tools and HTTP endpoints for AI agents.
-See \`.claude/rules/dev-server-tools.md\` for the full list.
-
-**Key rule:** Always call \`vertz_get_errors\` after code changes before reporting success.
-
 ## Adding a Backend
 
 To add API and database support, see https://docs.vertz.dev/guides/server/overview
@@ -1386,13 +1372,6 @@ vtz build            # Production build
 - \`src/styles/\` — Theme configuration and global styles
 - \`src/router.tsx\` — Route definitions
 - \`src/app.tsx\` — App layout with Nav, Footer, and RouterView
-
-## Dev Server Tools
-
-The dev server exposes built-in MCP tools and HTTP endpoints for AI agents.
-See \`.claude/rules/dev-server-tools.md\` for the full list.
-
-**Key rule:** Always call \`vertz_get_errors\` after code changes before reporting success.
 
 ## Adding a Section
 
@@ -2081,91 +2060,5 @@ The Vertz compiler transforms your code at build time:
 - JSX attributes update automatically when signals change
 
 **Never** use \`.value\`, \`signal()\`, or \`computed()\` manually — the compiler handles it.
-`;
-}
-
-/**
- * .claude/rules/dev-server-tools.md — Dev server observability tools for LLMs
- */
-export function devServerToolsRuleTemplate(): string {
-  return `# Dev Server Tools
-
-The Vertz dev server includes built-in tools for observing your running app.
-Use these tools to verify your changes work before reporting success.
-
-## MCP Server (automatic)
-
-The dev server exposes an MCP server at:
-
-\`\`\`
-http://localhost:3000/__vertz_mcp
-\`\`\`
-
-Configure your AI tool to connect to this endpoint. The MCP server provides
-the tools listed below — they are auto-discovered on connection.
-
-## HTTP Bridge (optional)
-
-For tools without MCP support, start the HTTP bridge:
-
-\`\`\`bash
-vtz dev --bridge-port 3001
-\`\`\`
-
-Call tools via plain HTTP:
-
-\`\`\`bash
-curl -X POST http://localhost:3001/command \\\\
-  -H 'Content-Type: application/json' \\\\
-  -d '{"tool": "vertz_get_errors", "args": {}}'
-\`\`\`
-
-## Available Tools
-
-| Tool | Purpose |
-|------|---------|
-| \`vertz_get_errors\` | Current compilation/runtime errors with file paths, line numbers, and fix suggestions |
-| \`vertz_render_page\` | SSR render a URL — returns HTML "text screenshot" with timing metadata |
-| \`vertz_get_audit_log\` | Unified timeline of API requests, SSR renders, compilations, file changes, errors |
-| \`vertz_get_diagnostics\` | Server health: uptime, cache stats, module graph, SSR pool metrics |
-| \`vertz_get_api_spec\` | OpenAPI 3.1 spec with entity routes, schemas, and access rules |
-| \`vertz_render_component\` | Render a single component in isolation with optional props |
-| \`vertz_navigate\` | Navigate the browser to a URL via HMR WebSocket |
-| \`vertz_get_events_url\` | WebSocket URL for real-time event push |
-
-## MANDATORY: Verify Before Reporting Success
-
-After EVERY code change:
-
-1. Call \`vertz_get_errors\` — check for compilation and type errors
-2. Call \`vertz_get_audit_log\` with \`type: "error"\` — check for runtime errors
-3. If you changed UI, call \`vertz_render_page\` — verify the page renders correctly
-4. Only report success after all checks pass
-
-**NEVER tell the user "it works" or "done" without first checking for errors via these tools.**
-Common failure: the agent edits code, sees no editor errors, and declares success —
-but the dev server has a build error or the page renders a blank screen.
-
-## Real-Time Events
-
-Subscribe to live updates instead of polling:
-
-- **WebSocket:** \`ws://localhost:3000/__vertz_mcp/events\`
-- **SSE (bridge):** \`GET http://localhost:3001/events\`
-
-Event types: \`error_update\`, \`file_change\`, \`hmr_update\`, \`ssr_refresh\`, \`typecheck_update\`, \`server_status\`
-
-Filter with query param: \`?subscribe=error_update,typecheck_update\`
-
-## Direct HTTP Endpoints
-
-These are always available without MCP or bridge:
-
-- \`GET /__vertz_diagnostics\` — health snapshot (JSON)
-- \`GET /__vertz_ai/errors\` — current errors
-- \`GET /__vertz_ai/render?url=/path\` — SSR render
-- \`GET /__vertz_ai/console?last=50\` — recent console output
-
-Full docs: https://docs.vertz.dev/guides/dev-server-tools
 `;
 }
