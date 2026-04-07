@@ -1,89 +1,143 @@
 import { workflow } from '@vertz/agents';
 import { s } from '@vertz/schema';
-import type { SandboxClient } from '../lib/sandbox-client';
-import type { GitHubClient } from '../lib/github-client';
-import { createPlannerAgent } from '../agents/planner';
-import { createReviewerAgent } from '../agents/reviewer';
-import { createImplementerAgent } from '../agents/implementer';
-import { createCiMonitorAgent } from '../agents/ci-monitor';
+import { planPath, reviewPath, implementationSummaryPath, designBranchName } from '../lib/artifact-paths';
+import { plannerAgent } from '../agents/planner';
+import { reviewerAgent } from '../agents/reviewer';
+import { publisherAgent } from '../agents/publisher';
+import { implementerAgent } from '../agents/implementer';
+import { ciMonitorAgent } from '../agents/ci-monitor';
 
 interface FeatureInput {
   readonly issueNumber: number;
   readonly repo: string;
 }
 
-interface StepResultLike {
-  readonly response?: string;
-}
-
 function input(ctx: { workflow: { input: unknown } }): FeatureInput {
   return ctx.workflow.input as FeatureInput;
 }
 
-function prev(ctx: { prev: Record<string, unknown> }, name: string): string {
-  return (ctx.prev[name] as StepResultLike)?.response ?? '';
-}
-
-export function createFeatureWorkflow(sandbox: SandboxClient, github: GitHubClient) {
-  const plannerAgent = createPlannerAgent(sandbox, github);
-  const reviewerAgent = createReviewerAgent(sandbox);
-  const implementerAgent = createImplementerAgent(sandbox);
-  const ciMonitorAgent = createCiMonitorAgent(sandbox, github);
-
-  return workflow('feature', {
-    input: s.object({
-      issueNumber: s.number(),
-      repo: s.string(),
+export const featureWorkflow = workflow('feature', {
+  input: s.object({
+    issueNumber: s.number(),
+    repo: s.string(),
+  }),
+})
+  .step('plan', {
+    agent: plannerAgent,
+    input: (ctx) => ({
+      message: [
+        `Read issue #${input(ctx).issueNumber} from ${input(ctx).repo} and create a design doc following the Vertz format.`,
+        `Write it to: ${planPath(input(ctx).issueNumber)}`,
+      ].join('\n'),
     }),
   })
-    .step('plan', {
-      agent: plannerAgent,
-      input: (ctx) => ({
-        message: `Read issue #${input(ctx).issueNumber} from ${input(ctx).repo} and create a design doc following the Vertz format. Write it to plans/ in the repo.`,
-      }),
-    })
-    .step('review-dx', {
-      agent: reviewerAgent,
-      input: (ctx) => ({
-        message: `Review this design doc from a DX perspective. Is the API intuitive? Will developers love it?\n\n${prev(ctx, 'plan')}`,
-      }),
-    })
-    .step('review-product', {
-      agent: reviewerAgent,
-      input: (ctx) => ({
-        message: `Review this design doc from a product/scope perspective. Does it fit the roadmap? Right scope?\n\n${prev(ctx, 'plan')}`,
-      }),
-    })
-    .step('review-technical', {
-      agent: reviewerAgent,
-      input: (ctx) => ({
-        message: `Review this design doc from a technical perspective. Can it be built as designed? Hidden complexity?\n\n${prev(ctx, 'plan')}`,
-      }),
-    })
-    .step('human-approval', {
-      approval: {
-        message: (ctx) =>
-          `Design doc for #${input(ctx).issueNumber} reviewed by DX, Product, and Technical agents. Waiting for approval comment from a repo collaborator.`,
-        timeout: '7d',
-      },
-    })
-    .step('implement', {
-      agent: implementerAgent,
-      input: (ctx) => ({
-        message: `Implement the approved design using strict TDD. Follow the implementation plan phases. Run quality gates (vtz run test, vtz run typecheck, vtz run lint) after each green. Commit after each phase. Push when all phases pass.\n\nDesign:\n${prev(ctx, 'plan')}\n\nReview feedback:\n${prev(ctx, 'review-dx')}\n${prev(ctx, 'review-product')}\n${prev(ctx, 'review-technical')}`,
-      }),
-    })
-    .step('code-review', {
-      agent: reviewerAgent,
-      input: (ctx) => ({
-        message: `Adversarially review the implementation. Check: delivers what the design doc asks, TDD compliance, no type gaps, no security issues.\n\nDesign:\n${prev(ctx, 'plan')}\n\nImplementation:\n${prev(ctx, 'implement')}`,
-      }),
-    })
-    .step('ci-monitor', {
-      agent: ciMonitorAgent,
-      input: (ctx) => ({
-        message: `Monitor CI for the PR. Check status, report if green or diagnose failures.\n\nContext:\n${prev(ctx, 'implement')}`,
-      }),
-    })
-    .build();
-}
+  .step('review-dx', {
+    agent: reviewerAgent,
+    input: (ctx) => ({
+      message: [
+        'Review the design doc from a DX perspective. Is the API intuitive? Will developers love it?',
+        '',
+        `Design doc: ${planPath(input(ctx).issueNumber)}`,
+        `Write review to: ${reviewPath(input(ctx).issueNumber, 'dx')}`,
+      ].join('\n'),
+    }),
+  })
+  .step('review-product', {
+    agent: reviewerAgent,
+    input: (ctx) => ({
+      message: [
+        'Review the design doc from a product/scope perspective. Does it fit the roadmap? Right scope?',
+        '',
+        `Design doc: ${planPath(input(ctx).issueNumber)}`,
+        `Write review to: ${reviewPath(input(ctx).issueNumber, 'product')}`,
+      ].join('\n'),
+    }),
+  })
+  .step('review-technical', {
+    agent: reviewerAgent,
+    input: (ctx) => ({
+      message: [
+        'Review the design doc from a technical perspective. Can it be built as designed? Hidden complexity?',
+        '',
+        `Design doc: ${planPath(input(ctx).issueNumber)}`,
+        `Write review to: ${reviewPath(input(ctx).issueNumber, 'technical')}`,
+      ].join('\n'),
+    }),
+  })
+  .step('publish-design-pr', {
+    agent: publisherAgent,
+    input: (ctx) => {
+      const { issueNumber, repo } = input(ctx);
+      const branch = designBranchName(issueNumber);
+      return {
+        message: [
+          `Publish design artifacts for issue #${issueNumber} as a pull request.`,
+          '',
+          `Branch name: ${branch}`,
+          `Repo: ${repo}`,
+          `Issue number: ${issueNumber}`,
+          '',
+          'Files to commit:',
+          `  - ${planPath(issueNumber)}`,
+          `  - ${reviewPath(issueNumber, 'dx')}`,
+          `  - ${reviewPath(issueNumber, 'product')}`,
+          `  - ${reviewPath(issueNumber, 'technical')}`,
+          '',
+          `PR title: "docs(design): design doc for #${issueNumber}"`,
+          `PR base: main`,
+        ].join('\n'),
+      };
+    },
+  })
+  .step('human-approval', {
+    approval: {
+      message: (ctx) =>
+        `Design doc for #${input(ctx).issueNumber} published as a PR and reviewed by DX, Product, and Technical agents. Waiting for approval comment from a repo collaborator.`,
+      timeout: '7d',
+    },
+  })
+  .step('implement', {
+    agent: implementerAgent,
+    input: (ctx) => ({
+      message: [
+        'Implement the approved design using strict TDD.',
+        '',
+        `1. Read the design doc: ${planPath(input(ctx).issueNumber)}`,
+        '2. Read the review feedback:',
+        `   - DX: ${reviewPath(input(ctx).issueNumber, 'dx')}`,
+        `   - Product: ${reviewPath(input(ctx).issueNumber, 'product')}`,
+        `   - Technical: ${reviewPath(input(ctx).issueNumber, 'technical')}`,
+        '3. Extract the phases from the Implementation Plan section of the design doc.',
+        '4. Implement ONE phase at a time. For each phase:',
+        '   a. Write failing tests first',
+        '   b. Write minimal code to pass',
+        '   c. Run quality gates (runTests, runTypecheck, runLint)',
+        '   d. Commit when green (gitCommit)',
+        '5. After all phases pass, push (gitPush).',
+        `6. Write a brief implementation summary to: ${implementationSummaryPath(input(ctx).issueNumber)}`,
+      ].join('\n'),
+    }),
+  })
+  .step('code-review', {
+    agent: reviewerAgent,
+    input: (ctx) => ({
+      message: [
+        'Adversarially review the implementation. Check: delivers what the design doc asks, TDD compliance, no type gaps, no security issues.',
+        '',
+        `Design doc: ${planPath(input(ctx).issueNumber)}`,
+        `Implementation summary: ${implementationSummaryPath(input(ctx).issueNumber)}`,
+        `Write review to: ${reviewPath(input(ctx).issueNumber, 'code')}`,
+      ].join('\n'),
+    }),
+  })
+  .step('ci-monitor', {
+    agent: ciMonitorAgent,
+    input: (ctx) => ({
+      message: [
+        'Monitor CI for the PR. Check status, report if green or diagnose failures.',
+        '',
+        `Implementation summary: ${implementationSummaryPath(input(ctx).issueNumber)}`,
+      ].join('\n'),
+    }),
+  })
+  .build();

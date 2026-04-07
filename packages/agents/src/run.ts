@@ -8,7 +8,7 @@ import type {
 import { reactLoop } from './loop/react-loop';
 import { SessionAccessDeniedError, SessionNotFoundError } from './stores/errors';
 import type { AgentSession, AgentStore } from './stores/types';
-import type { AgentContext, AgentDefinition, ToolDefinition } from './types';
+import type { AgentContext, AgentDefinition, ToolDefinition, ToolProvider } from './types';
 
 // ---------------------------------------------------------------------------
 // Run options — discriminated union
@@ -22,6 +22,13 @@ interface RunOptionsBase {
   readonly llm: LLMAdapter;
   /** Optional instance ID for the agent. Defaults to a random ID. */
   readonly instanceId?: string;
+  /**
+   * Tool handler implementations to inject at runtime.
+   * Provider handlers override handlers defined on the tool itself.
+   * Only tools declared in the agent's `tools` record are resolved —
+   * extra provider entries are ignored.
+   */
+  readonly tools?: ToolProvider;
 }
 
 /** Stateless mode — no persistence. Same as current behavior. */
@@ -74,6 +81,29 @@ function generateSessionId(): string {
 
 function hasStore(opts: RunOptions): opts is RunOptionsWithStore {
   return opts.store !== undefined;
+}
+
+/**
+ * Merge a ToolProvider's handlers into the agent's tool definitions.
+ * Creates new (unfrozen) objects — never mutates frozen definitions.
+ * Provider handlers override definition handlers.
+ */
+function mergeToolProvider(
+  agentTools: Record<string, ToolDefinition<unknown, unknown>>,
+  provider?: ToolProvider,
+): Record<string, ToolDefinition<unknown, unknown>> {
+  if (!provider) return agentTools;
+
+  const merged: Record<string, ToolDefinition<unknown, unknown>> = {};
+  for (const [name, def] of Object.entries(agentTools)) {
+    const providerHandler = provider[name];
+    if (providerHandler) {
+      merged[name] = { ...def, handler: providerHandler };
+    } else {
+      merged[name] = def;
+    }
+  }
+  return merged;
 }
 
 // ---------------------------------------------------------------------------
@@ -177,6 +207,12 @@ export async function run(
     agentDef.prompt.system ??
     `You are an AI agent named "${agentDef.name}". Use the available tools to accomplish the user's request.`;
 
+  // Merge tool provider handlers into agent tool definitions
+  const resolvedTools = mergeToolProvider(
+    agentDef.tools as Record<string, ToolDefinition<unknown, unknown>>,
+    options.tools,
+  );
+
   // Build agent invoker for ctx.agents.invoke()
   const agents = {
     async invoke(
@@ -188,6 +224,7 @@ export async function run(
         message: invokeOpts.message,
         llm,
         instanceId: invokeOpts.instanceId,
+        tools: options.tools, // inherit tool provider for sub-agents
       });
       return { response: invokeResult.response };
     },
@@ -196,7 +233,7 @@ export async function run(
   // Run the ReAct loop
   const result = await reactLoop({
     llm,
-    tools: agentDef.tools as Record<string, ToolDefinition<unknown, unknown>>,
+    tools: resolvedTools,
     systemPrompt,
     userMessage: message,
     maxIterations: agentDef.loop.maxIterations,
@@ -223,6 +260,38 @@ export async function run(
   ) {
     if (agentDef.onStuck) {
       await agentDef.onStuck(ctx);
+    }
+  }
+
+  // Validate agent output against schema (if defined and agent completed)
+  if (agentDef.output && result.status === 'complete' && result.response) {
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(result.response);
+    } catch {
+      // Response is not valid JSON — return error status
+      return {
+        status: 'error',
+        response: result.response,
+        iterations: result.iterations,
+        messages: result.messages,
+        tokenUsage: result.tokenUsage,
+        compressionCount: result.compressionCount,
+        toolCallSummary: result.toolCallSummary,
+      };
+    }
+
+    const validation = agentDef.output.parse(parsed);
+    if (!validation.ok) {
+      return {
+        status: 'error',
+        response: result.response,
+        iterations: result.iterations,
+        messages: result.messages,
+        tokenUsage: result.tokenUsage,
+        compressionCount: result.compressionCount,
+        toolCallSummary: result.toolCallSummary,
+      };
     }
   }
 

@@ -7,8 +7,20 @@ const routes = defineRoutes({
   '/workflows/:id': {
     component: () => import('./pages/workflow-detail'),
   },
+  '/workflows/:id/steps/:step': {
+    component: () => import('./pages/step-inspector'),
+  },
   '/agents': {
     component: () => import('./pages/agents'),
+  },
+  '/agents/:name': {
+    component: () => import('./pages/agent-detail'),
+  },
+  '/definitions': {
+    component: () => import('./pages/definitions-list'),
+  },
+  '/definitions/:name': {
+    component: () => import('./pages/definition-detail'),
   },
 });
 

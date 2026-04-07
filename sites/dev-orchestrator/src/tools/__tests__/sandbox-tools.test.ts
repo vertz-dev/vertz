@@ -1,5 +1,5 @@
 import { describe, expect, it, vi, beforeEach } from 'bun:test';
-import { createSandboxTools } from '../sandbox-tools';
+import { createSandboxProvider, readFile, writeFile, searchCode, listFiles } from '../sandbox-tools';
 import type { SandboxClient } from '../../lib/sandbox-client';
 
 function createMockClient(): SandboxClient {
@@ -20,17 +20,35 @@ describe('Feature: Sandbox tools', () => {
     client = createMockClient();
   });
 
-  describe('Given sandbox tools created with a client', () => {
+  describe('Given sandbox tool declarations', () => {
+    it('Then readFile is a tool declaration with kind "tool"', () => {
+      expect(readFile.kind).toBe('tool');
+      expect(readFile.parallel).toBe(true);
+    });
+
+    it('Then writeFile is a tool declaration with kind "tool"', () => {
+      expect(writeFile.kind).toBe('tool');
+    });
+
+    it('Then searchCode is a tool declaration with kind "tool"', () => {
+      expect(searchCode.kind).toBe('tool');
+      expect(searchCode.parallel).toBe(true);
+    });
+
+    it('Then listFiles is a tool declaration with kind "tool"', () => {
+      expect(listFiles.kind).toBe('tool');
+      expect(listFiles.parallel).toBe(true);
+    });
+  });
+
+  describe('Given a sandbox provider created with a client', () => {
     describe('When readFile handler is called', () => {
       it('Then returns the file content', async () => {
         (client.readFile as ReturnType<typeof vi.fn>)
           .mockResolvedValueOnce('export const x = 1;');
 
-        const tools = createSandboxTools(client);
-        const result = await tools.readFile.handler!(
-          { path: 'src/index.ts' },
-          {} as any,
-        );
+        const provider = createSandboxProvider(client);
+        const result = await provider.readFile({ path: 'src/index.ts' });
 
         expect(result.content).toBe('export const x = 1;');
       });
@@ -38,10 +56,9 @@ describe('Feature: Sandbox tools', () => {
 
     describe('When writeFile handler is called', () => {
       it('Then writes the content and returns success', async () => {
-        const tools = createSandboxTools(client);
-        const result = await tools.writeFile.handler!(
+        const provider = createSandboxProvider(client);
+        const result = await provider.writeFile(
           { path: 'src/new.ts', content: 'const y = 2;' },
-          {} as any,
         );
 
         expect(result.success).toBe(true);
@@ -56,10 +73,9 @@ describe('Feature: Sandbox tools', () => {
             { file: 'src/a.ts', line: 3, content: 'TODO: fix' },
           ]);
 
-        const tools = createSandboxTools(client);
-        const result = await tools.searchCode.handler!(
+        const provider = createSandboxProvider(client);
+        const result = await provider.searchCode(
           { pattern: 'TODO', path: undefined },
-          {} as any,
         );
 
         expect(result.matches).toHaveLength(1);
@@ -72,11 +88,8 @@ describe('Feature: Sandbox tools', () => {
         (client.listFiles as ReturnType<typeof vi.fn>)
           .mockResolvedValueOnce(['index.ts', 'utils.ts']);
 
-        const tools = createSandboxTools(client);
-        const result = await tools.listFiles.handler!(
-          { path: 'src/' },
-          {} as any,
-        );
+        const provider = createSandboxProvider(client);
+        const result = await provider.listFiles({ path: 'src/' });
 
         expect(result.files).toEqual(['index.ts', 'utils.ts']);
       });

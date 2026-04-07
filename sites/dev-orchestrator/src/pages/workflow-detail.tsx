@@ -1,86 +1,68 @@
+import { css } from '@vertz/ui';
 import { query } from '@vertz/ui/query';
-import { useParams } from '@vertz/ui/router';
+import { useParams, useRouter } from '@vertz/ui/router';
 import type { WorkflowRun } from '../api/services/workflows';
+import StepCard from '../components/step-card';
 import { sdk } from '../lib/sdk';
+import type { StepProgressEvent } from '../ui/lib/sse-client';
+import { createWorkflowStream } from '../ui/lib/sse-client';
+import { WORKFLOW_STEPS, stepStatus } from './workflow-detail-utils';
 
-const WORKFLOW_STEPS = [
-  'plan',
-  'review-dx',
-  'review-product',
-  'review-technical',
-  'human-approval',
-  'implement',
-  'code-review',
-  'ci-monitor',
-] as const;
-
-const s = {
-  page: { display: 'flex', flexDirection: 'column' as const, gap: '24px', maxWidth: '960px' },
-  heading: { fontSize: '24px', fontWeight: '700', color: 'var(--color-foreground)', margin: '0' },
-  meta: { fontSize: '13px', color: 'var(--color-muted-foreground)', margin: '4px 0 0' },
-  timeline: { display: 'flex', flexDirection: 'column' as const, gap: '0px' },
-  step: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '12px',
-    padding: '12px 16px',
-    borderLeft: '2px solid var(--color-border)',
-  },
-  stepActive: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '12px',
-    padding: '12px 16px',
-    borderLeft: '2px solid var(--color-primary)',
-    background: 'var(--color-accent)',
-  },
-  stepDone: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '12px',
-    padding: '12px 16px',
-    borderLeft: '2px solid var(--color-primary)',
-  },
-  stepName: { fontSize: '13px', fontWeight: '500', color: 'var(--color-foreground)', flex: '1' },
-  badge: {
-    fontSize: '11px',
-    padding: '2px 8px',
-    borderRadius: '9999px',
-    background: 'var(--color-secondary)',
-    color: 'var(--color-secondary-foreground)',
-    fontWeight: '500',
-  },
-  btn: {
-    height: '32px',
-    padding: '0 14px',
-    borderRadius: '6px',
-    border: 'none',
-    background: 'var(--color-primary)',
-    color: 'var(--color-primary-foreground)',
-    fontSize: '13px',
-    fontWeight: '500',
-    cursor: 'pointer',
-  },
-  loading: { color: 'var(--color-muted-foreground)', fontSize: '13px' },
-  error: { color: 'var(--color-destructive)', fontSize: '13px' },
-};
-
-function stepStatus(stepName: string, currentStep: string): 'done' | 'active' | 'pending' {
-  const currentIdx = WORKFLOW_STEPS.indexOf(currentStep as typeof WORKFLOW_STEPS[number]);
-  const stepIdx = WORKFLOW_STEPS.indexOf(stepName as typeof WORKFLOW_STEPS[number]);
-  if (stepIdx < currentIdx) return 'done';
-  if (stepIdx === currentIdx) return 'active';
-  return 'pending';
-}
+const s = css({
+  page: ['flex', 'flex-col', 'gap:6', { '&': { 'max-width': '960px' } }],
+  heading: ['text:2xl', 'font:bold', 'text:foreground', 'm:0'],
+  meta: ['text:sm', 'text:muted-foreground', { '&': { margin: '4px 0 0' } }],
+  timeline: ['flex', 'flex-col', { '&': { gap: '0px' } }],
+  btn: [
+    'text:sm',
+    'font:medium',
+    'rounded:md',
+    'bg:primary',
+    'cursor:pointer',
+    { '&': { height: '32px', padding: '0 14px', border: 'none', color: 'var(--color-primary-foreground)' } },
+  ],
+  approveRow: ['flex', 'items:center', 'gap:3', 'py:2', 'px:4'],
+  loading: ['text:sm', 'text:muted-foreground'],
+  error: ['text:sm', 'text:destructive'],
+  actions: ['flex', 'gap:2', 'items:center'],
+  cancelBtn: [
+    'text:sm',
+    'rounded:md',
+    'cursor:pointer',
+    'font:medium',
+    { '&': { height: '32px', padding: '0 14px', border: '1px solid hsl(0, 84%, 60%)', background: 'transparent', color: 'hsl(0, 84%, 60%)' } },
+  ],
+  retryBtn: [
+    'text:sm',
+    'rounded:md',
+    'cursor:pointer',
+    'font:medium',
+    { '&': { height: '32px', padding: '0 14px', border: '1px solid var(--color-primary)', background: 'transparent', color: 'var(--color-primary)' } },
+  ],
+});
 
 export default function WorkflowDetailPage() {
   const { id } = useParams<'/workflows/:id'>();
+  const { navigate } = useRouter();
   let approving = false;
+  let cancelling = false;
+  let retrying = false;
+  let sseEvents: StepProgressEvent[] = [];
 
   const workflowQuery = query(
     () => sdk.workflows.get({ id }),
-    { refetchInterval: 3000 },
+    { key: `workflow-${id}` },
   );
+
+  // SSE live updates — close on page teardown
+  const stream = createWorkflowStream(id);
+  stream.subscribe((event) => {
+    sseEvents = [...sseEvents, event];
+    // Refetch workflow data when a step completes or fails
+    if (event.type === 'step-completed' || event.type === 'step-failed') {
+      workflowQuery.refetch();
+    }
+  });
 
   const handleApprove = async () => {
     approving = true;
@@ -89,41 +71,71 @@ export default function WorkflowDetailPage() {
     workflowQuery.refetch();
   };
 
+  const handleCancel = async () => {
+    cancelling = true;
+    await sdk.workflows.cancel({ id });
+    cancelling = false;
+    workflowQuery.refetch();
+  };
+
+  const handleRetry = async () => {
+    retrying = true;
+    const newRun = await sdk.workflows.retry({ id });
+    retrying = false;
+    if (newRun) {
+      navigate({ to: `/workflows/${newRun.id}` });
+    } else {
+      workflowQuery.refetch();
+    }
+  };
+
   const workflow = () => workflowQuery.data as WorkflowRun | null | undefined;
 
   return (
-    <div style={s.page}>
+    <div className={s.page}>
       <div>
-        <h1 style={s.heading}>Workflow {id}</h1>
-        {workflowQuery.loading && <div style={s.loading}>Loading...</div>}
-        {workflowQuery.error && <div style={s.error}>Failed to load workflow</div>}
+        <h1 className={s.heading}>Workflow {id}</h1>
+        {workflowQuery.loading && <div className={s.loading}>Loading...</div>}
+        {workflowQuery.error && <div className={s.error}>Failed to load workflow</div>}
         {workflow() && (
-          <p style={s.meta}>
-            Issue #{workflow()!.issueNumber} &middot; {workflow()!.repo} &middot; {workflow()!.status}
-          </p>
+          <>
+            <p className={s.meta}>
+              Issue #{workflow()!.issueNumber} &middot; {workflow()!.repo} &middot; {workflow()!.status}
+            </p>
+            <div className={s.actions}>
+              {(workflow()!.status === 'running' || workflow()!.status === 'waiting-approval') && (
+                <button className={s.cancelBtn} onClick={handleCancel} disabled={cancelling}>
+                  {cancelling ? 'Cancelling...' : 'Cancel'}
+                </button>
+              )}
+              {(workflow()!.status === 'failed' || workflow()!.status === 'cancelled') && (
+                <button className={s.retryBtn} onClick={handleRetry} disabled={retrying}>
+                  {retrying ? 'Retrying...' : 'Retry'}
+                </button>
+              )}
+            </div>
+          </>
         )}
       </div>
 
       {workflow() && (
-        <div style={s.timeline}>
+        <div className={s.timeline}>
           {WORKFLOW_STEPS.map((stepName) => {
-            const status = stepStatus(stepName, workflow()!.currentStep);
-            const stepStyle = status === 'active'
-              ? s.stepActive
-              : status === 'done'
-                ? s.stepDone
-                : s.step;
-
+            const status = stepStatus(stepName, workflow()!.currentStep, sseEvents);
             return (
-              <div key={stepName} style={stepStyle}>
-                <span style={s.stepName}>{stepName}</span>
-                <span style={s.badge}>
-                  {status === 'done' ? 'done' : status === 'active' ? 'running' : 'pending'}
-                </span>
+              <div key={stepName}>
+                <StepCard
+                  name={stepName}
+                  status={status}
+                  detail={workflow()!.steps[stepName]}
+                  onClick={() => navigate({ to: `/workflows/${id}/steps/${stepName}` })}
+                />
                 {stepName === 'human-approval' && status === 'active' && (
-                  <button style={s.btn} onClick={handleApprove} disabled={approving}>
-                    {approving ? 'Approving...' : 'Approve'}
-                  </button>
+                  <div className={s.approveRow}>
+                    <button className={s.btn} onClick={handleApprove} disabled={approving}>
+                      {approving ? 'Approving...' : 'Approve'}
+                    </button>
+                  </div>
                 )}
               </div>
             );

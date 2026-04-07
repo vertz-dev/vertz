@@ -746,20 +746,19 @@
         "@daytonaio/sdk": "^0.161.0",
         "@img/sharp-darwin-arm64": "^0.34.5",
         "@img/sharp-libvips-darwin-arm64": "^1.2.4",
-        "@vertz/agents": "^0.2.43",
-        "@vertz/icons": "^0.2.49",
-        "@vertz/schema": "^0.2.49",
-        "@vertz/server": "^0.2.49",
-        "@vertz/theme-shadcn": "^0.2.49",
-        "@vertz/ui": "^0.2.49",
-        "@vertz/ui-server": "^0.2.49",
+        "@vertz/agents": "workspace:*",
+        "@vertz/icons": "workspace:*",
+        "@vertz/schema": "workspace:*",
+        "@vertz/server": "workspace:*",
+        "@vertz/theme-shadcn": "workspace:*",
+        "@vertz/ui": "workspace:*",
+        "@vertz/ui-server": "workspace:*",
         "sharp": "^0.34.5",
-        "vertz": "^0.2.49",
+        "vertz": "workspace:*",
       },
       "devDependencies": {
         "@oxlint/binding-darwin-arm64": "^1.58.0",
         "@types/node": "^25.5.0",
-        "@vertz/ui-compiler": "^0.2.41",
         "bun-types": "^1.3.9",
         "oxfmt": "^0.42.0",
         "oxlint": "^1.58.0",
@@ -1845,8 +1844,6 @@
     "@vertz/ui-auth": ["@vertz/ui-auth@workspace:packages/ui-auth"],
 
     "@vertz/ui-canvas": ["@vertz/ui-canvas@workspace:packages/ui-canvas"],
-
-    "@vertz/ui-compiler": ["@vertz/ui-compiler@0.2.41", "", { "dependencies": { "@ampproject/remapping": "^2.3.0", "@vertz/ui": "^0.2.39", "magic-string": "^0.30.0", "ts-morph": "^27.0.2" } }, "sha512-oJvvPQpVCbtA5AGRymKT+0eP2fMyEeFtTYAncvtzgBlL9pfZgDwKtTAl8/iJNlA8zu3ELHvefPsilfgYmAhN+w=="],
 
     "@vertz/ui-primitives": ["@vertz/ui-primitives@workspace:packages/ui-primitives"],
 

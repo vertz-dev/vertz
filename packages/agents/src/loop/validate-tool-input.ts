@@ -34,3 +34,26 @@ export function validateToolInput(
     error: result.error instanceof Error ? result.error.message : String(result.error),
   };
 }
+
+/**
+ * Validate a tool handler's output against its schema.
+ *
+ * Returns the parsed data on success, or an error message on failure.
+ * Ensures handler implementations conform to their declared output schema.
+ */
+export function validateToolOutput(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- tool types vary
+  toolDef: ToolDefinition<any, any>,
+  output: unknown,
+): ValidationResult {
+  const result = toolDef.output.parse(output);
+
+  if (result.ok) {
+    return { ok: true, data: result.data };
+  }
+
+  return {
+    ok: false,
+    error: result.error instanceof Error ? result.error.message : String(result.error),
+  };
+}

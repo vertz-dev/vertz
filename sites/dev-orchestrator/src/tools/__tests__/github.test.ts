@@ -1,5 +1,5 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from 'bun:test';
-import { createGitHubTools } from '../github';
+import { createGitHubProvider, readIssue, ghPrChecks, createPr, commentOnIssue } from '../github';
 import { createGitHubClient } from '../../lib/github-client';
 
 describe('Feature: GitHub tools', () => {
@@ -15,9 +15,29 @@ describe('Feature: GitHub tools', () => {
     globalThis.fetch = originalFetch;
   });
 
-  describe('Given GitHub tools created with a client', () => {
+  describe('Given GitHub tool declarations', () => {
+    it('Then readIssue has kind "tool" and parallel enabled', () => {
+      expect(readIssue.kind).toBe('tool');
+      expect(readIssue.parallel).toBe(true);
+    });
+
+    it('Then ghPrChecks has kind "tool" and parallel enabled', () => {
+      expect(ghPrChecks.kind).toBe('tool');
+      expect(ghPrChecks.parallel).toBe(true);
+    });
+
+    it('Then createPr has kind "tool"', () => {
+      expect(createPr.kind).toBe('tool');
+    });
+
+    it('Then commentOnIssue has kind "tool"', () => {
+      expect(commentOnIssue.kind).toBe('tool');
+    });
+  });
+
+  describe('Given a GitHub provider created with a client', () => {
     const client = createGitHubClient('test-token');
-    const tools = createGitHubTools(client);
+    const provider = createGitHubProvider(client);
 
     describe('When readIssue handler is called', () => {
       it('Then returns the issue title, body, and labels', async () => {
@@ -29,9 +49,8 @@ describe('Feature: GitHub tools', () => {
           })),
         );
 
-        const result = await tools.readIssue.handler!(
+        const result = await provider.readIssue(
           { repo: 'vertz-dev/vertz', number: 1 },
-          {} as any,
         );
 
         expect(result.title).toBe('Add auth');
@@ -42,6 +61,13 @@ describe('Feature: GitHub tools', () => {
 
     describe('When ghPrChecks handler is called', () => {
       it('Then returns the check status', async () => {
+        // First call: PR details (head SHA)
+        mockFetch.mockResolvedValueOnce(
+          new Response(JSON.stringify({
+            head: { sha: 'abc123' },
+          })),
+        );
+        // Second call: check runs
         mockFetch.mockResolvedValueOnce(
           new Response(JSON.stringify({
             check_runs: [
@@ -50,9 +76,8 @@ describe('Feature: GitHub tools', () => {
           })),
         );
 
-        const result = await tools.ghPrChecks.handler!(
+        const result = await provider.ghPrChecks(
           { repo: 'vertz-dev/vertz', prNumber: 5 },
-          {} as any,
         );
 
         expect(result.status).toBe('success');
@@ -69,16 +94,13 @@ describe('Feature: GitHub tools', () => {
           })),
         );
 
-        const result = await tools.createPr.handler!(
-          {
-            repo: 'vertz-dev/vertz',
-            title: 'feat: auth',
-            body: 'Auth PR',
-            head: 'feat/auth',
-            base: 'main',
-          },
-          {} as any,
-        );
+        const result = await provider.createPr({
+          repo: 'vertz-dev/vertz',
+          title: 'feat: auth',
+          body: 'Auth PR',
+          head: 'feat/auth',
+          base: 'main',
+        });
 
         expect(result.number).toBe(42);
         expect(result.url).toBe('https://github.com/vertz-dev/vertz/pull/42');
@@ -91,22 +113,12 @@ describe('Feature: GitHub tools', () => {
           new Response(JSON.stringify({ id: 999 })),
         );
 
-        const result = await tools.commentOnIssue.handler!(
+        const result = await provider.commentOnIssue(
           { repo: 'vertz-dev/vertz', issueNumber: 1, body: 'Done!' },
-          {} as any,
         );
 
         expect(result.commentId).toBe(999);
       });
-    });
-  });
-
-  describe('Given the readIssue tool definition', () => {
-    const tools = createGitHubTools(createGitHubClient('t'));
-
-    it('Then has kind "tool" and parallel enabled', () => {
-      expect(tools.readIssue.kind).toBe('tool');
-      expect(tools.readIssue.parallel).toBe(true);
     });
   });
 });

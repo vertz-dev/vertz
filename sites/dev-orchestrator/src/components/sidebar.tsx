@@ -1,44 +1,79 @@
-import { BotIcon, LayoutDashboardIcon } from "@vertz/icons";
-import { css, Link } from "vertz/ui";
+import { BotIcon, LayoutDashboardIcon, NetworkIcon } from "@vertz/icons";
+import { css } from '@vertz/ui';
+import { useRouter } from '@vertz/ui/router';
 
-const styles = css({
-  sidebar: [
-    "w:64px",
-    "flex",
-    "flex-col",
-    "min-h:screen",
-    "bg:card",
-    "border-r:1",
-    "border:border",
+const s = css({
+  sidebar: ['flex', 'flex-col', 'min-h:screen', 'bg:card', 'border-r:1', 'border:border', { '&': { width: '220px' } }],
+  brand: ['p:4', 'text:sm', 'font:bold', 'text:foreground'],
+  separator: ['bg:border', 'mx:4', { '&': { height: '1px' } }],
+  nav: ['flex', 'flex-col', 'p:3', { '&': { gap: '2px' } }],
+  navItem: [
+    'flex', 'items:center', 'gap:2', 'px:3', 'py:2', 'rounded:md', 'text:sm',
+    'text:muted-foreground', 'w:full', 'cursor:pointer', 'text:left',
+    { '&': { background: 'transparent', border: 'none' } },
   ],
-  brandIcon: ["font:lg", "font:bold", "text:foreground", "mb:6", "px:2"],
-  brandText: ["font:lg", "font:bold", "text:foreground", "mb:6", "px:2"],
-  brand: ["font:lg", "font:bold", "text:foreground", "mb:6", "px:2"],
-  separator: ["h:1", "bg:border", "mx:4"],
-  nav: ["flex", "flex-col", "gap:2", "p:4"],
-  navItem: [],
-  footer: ["p:4", "font:xs", "text:muted-foreground"],
+  navItemActive: [
+    'flex', 'items:center', 'gap:2', 'px:3', 'py:2', 'rounded:md', 'text:sm',
+    'text:foreground', 'bg:secondary', 'font:medium', 'w:full', 'cursor:pointer', 'text:left',
+    { '&': { border: 'none' } },
+  ],
+  footer: ['p:4', 'text:muted-foreground', { '&': { 'margin-top': 'auto', 'font-size': '11px' } }],
+  kbd: [
+    'bg:background', 'text:muted-foreground', 'border:1', 'border:border',
+    { '&': { 'font-size': '10px', padding: '1px 4px', 'border-radius': '3px', 'margin-left': 'auto' } },
+  ],
 });
 
+interface NavEntry {
+  label: string;
+  href: string;
+  match: (path: string) => boolean;
+}
+
+const NAV_ITEMS: NavEntry[] = [
+  { label: 'Dashboard', href: '/', match: (p) => p === '/' },
+  { label: 'Definitions', href: '/definitions', match: (p) => p.startsWith('/definitions') },
+  { label: 'Agents', href: '/agents', match: (p) => p.startsWith('/agents') },
+];
+
+function NavIcon({ href }: { href: string }) {
+  if (href === '/') return <LayoutDashboardIcon />;
+  if (href === '/definitions') return <NetworkIcon />;
+  return <BotIcon />;
+}
+
+function currentPath(router: ReturnType<typeof useRouter>): string {
+  const match = router.current;
+  if (!match) return '/';
+  return match.route.pattern.replace(/:(\w+)/g, (_, key) => match.params[key] ?? '');
+}
+
 export function Sidebar() {
+  const router = useRouter();
+  const path = currentPath(router);
+
   return (
-    <aside className={styles.sidebar}>
-      <div className={styles.brand}>
-        <div className={styles.brandIcon}>DO</div>
-        <span className={styles.brandText}>Dev Orchestratosr</span>
-      </div>
-      <div className={styles.separator} />
-      <nav className={styles.nav}>
-        <Link href="/" className={styles.navItem}>
-          <LayoutDashboardIcon />
-          Dashboard
-        </Link>
-        <Link href="/agents" className={styles.navItem}>
-          <BotIcon />
-          Agents
-        </Link>
+    <aside className={s.sidebar}>
+      <div className={s.brand}>Dev Orchestrator</div>
+      <div className={s.separator} />
+      <nav className={s.nav}>
+        {NAV_ITEMS.map((item) => {
+          const active = item.match(path);
+          return (
+            <button
+              key={item.href}
+              className={active ? s.navItemActive : s.navItem}
+              onClick={() => router.navigate({ to: item.href })}
+            >
+              <NavIcon href={item.href} />
+              {item.label}
+            </button>
+          );
+        })}
       </nav>
-      <div className={styles.footer}>v0.0.1</div>
+      <div className={s.footer}>
+        <span className={s.kbd}>Cmd+K</span> to search
+      </div>
     </aside>
   );
 }

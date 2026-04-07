@@ -24,9 +24,10 @@
  */
 
 import { injectCSS } from './css';
+import type { CamelCSSDeclarations } from './css-properties';
 
-/** Input to globalCss(): selector → property-value map. */
-export type GlobalCSSInput = Record<string, Record<string, string>>;
+/** Input to globalCss(): selector → property-value map (camelCase keys). */
+export type GlobalCSSInput = Record<string, CamelCSSDeclarations>;
 
 /** Output of globalCss(): extracted CSS string. */
 export interface GlobalCSSOutput {

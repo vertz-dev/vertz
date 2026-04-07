@@ -27,11 +27,12 @@ describe('Feature: Server orchestrator setup', () => {
   describe('Given sandbox and GitHub clients', () => {
     const result = createOrchestrator(stubSandbox(), stubGitHub(), { storePath: ':memory:' });
 
-    it('Then returns agents array with 4 agent definitions', () => {
-      expect(result.agents).toHaveLength(4);
+    it('Then returns agents array with 5 agent definitions', () => {
+      expect(result.agents).toHaveLength(5);
       const names = result.agents.map((a) => a.name);
       expect(names).toContain('planner');
       expect(names).toContain('reviewer');
+      expect(names).toContain('publisher');
       expect(names).toContain('implementer');
       expect(names).toContain('ci-monitor');
     });

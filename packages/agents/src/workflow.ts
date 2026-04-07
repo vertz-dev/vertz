@@ -1,7 +1,8 @@
 import type { SchemaAny } from '@vertz/schema';
 import type { LLMAdapter, LoopStatus } from './loop/react-loop';
+import type { AdapterFactory } from './providers/types';
 import { run } from './run';
-import type { AgentDefinition, InferSchema } from './types';
+import type { AgentDefinition, InferSchema, ToolProvider } from './types';
 import { deepFreeze } from './utils';
 
 const NAME_PATTERN = /^[a-z][a-z0-9-]*$/;
@@ -260,6 +261,19 @@ export function workflow<TInputSchema extends SchemaAny>(
 // Workflow execution
 // ---------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------
+// Step progress events
+// ---------------------------------------------------------------------------
+
+/** Event emitted during workflow execution to track step progress. */
+export interface StepProgressEvent {
+  readonly step: string;
+  readonly type: 'step-started' | 'step-completed' | 'step-failed';
+  readonly timestamp: number;
+  readonly iterations?: number;
+  readonly response?: string;
+}
+
 /** Status of a workflow execution. */
 export type WorkflowStatus = 'complete' | 'error' | 'pending';
 
@@ -274,12 +288,26 @@ export interface StepResult {
 export interface RunWorkflowOptions<TInput = unknown> {
   /** Validated input matching the workflow's input schema. */
   readonly input: TInput;
-  /** The LLM adapter to use for all agent steps. */
+  /** The LLM adapter to use for all agent steps. When `createAdapter` is provided, this is used as a fallback. */
   readonly llm: LLMAdapter;
+  /**
+   * Optional adapter factory that creates per-agent adapters with the agent's tools.
+   * When provided, each agent step gets an adapter created with its specific tools,
+   * so the LLM knows which tools are available for function calling.
+   */
+  readonly createAdapter?: AdapterFactory;
+  /**
+   * Tool handler implementations to inject at runtime.
+   * Passed to each agent's `run()` call. Provider handlers override
+   * handlers defined on the tool itself.
+   */
+  readonly tools?: ToolProvider;
   /** Resume execution after a specific step (e.g., after approval). Steps up to and including this step are skipped. */
   readonly resumeAfter?: string;
   /** Previous step results to restore when resuming. */
   readonly previousResults?: Record<string, StepResult>;
+  /** Optional callback for step progress events. Fire-and-forget (synchronous). */
+  readonly onStepProgress?: (event: StepProgressEvent) => void;
 }
 
 /**
@@ -315,7 +343,15 @@ export async function runWorkflow<TInputSchema extends SchemaAny>(
   workflowDef: WorkflowDefinition<TInputSchema>,
   options: RunWorkflowOptions<InferSchema<TInputSchema>>,
 ): Promise<WorkflowResult> {
-  const { input, llm, resumeAfter, previousResults } = options;
+  const {
+    input,
+    llm,
+    createAdapter,
+    tools: toolProvider,
+    resumeAfter,
+    previousResults,
+    onStepProgress,
+  } = options;
 
   // Validate input against workflow schema
   const parseResult = workflowDef.input.parse(input);
@@ -379,6 +415,9 @@ export async function runWorkflow<TInputSchema extends SchemaAny>(
       throw new Error(`Step "${stepDef.name}" has no agent assigned.`);
     }
 
+    // Emit step-started event
+    onStepProgress?.({ step: stepDef.name, type: 'step-started', timestamp: Date.now() });
+
     // Resolve the message for this step
     let message: string;
     if (stepDef.input) {
@@ -388,8 +427,11 @@ export async function runWorkflow<TInputSchema extends SchemaAny>(
       message = `Execute step "${stepDef.name}"`;
     }
 
-    // Run the agent
-    const agentResult = await run(stepDef.agent, { message, llm });
+    // Run the agent — use per-agent adapter when factory is provided
+    const stepLlm = createAdapter
+      ? createAdapter({ config: stepDef.agent.model, tools: stepDef.agent.tools })
+      : llm;
+    const agentResult = await run(stepDef.agent, { message, llm: stepLlm, tools: toolProvider });
 
     const stepResult: StepResult = {
       status: agentResult.status,
@@ -399,8 +441,18 @@ export async function runWorkflow<TInputSchema extends SchemaAny>(
 
     stepResults[stepDef.name] = stepResult;
 
-    // If step did not complete successfully, stop the workflow
-    if (agentResult.status !== 'complete') {
+    // If step did not complete successfully, stop the workflow.
+    // Exception: 'max-iterations' with a non-empty response is treated as soft-complete —
+    // the agent ran out of iterations but likely produced useful output (e.g., wrote files).
+    const softComplete = agentResult.status === 'max-iterations' && agentResult.response.length > 0;
+    if (agentResult.status !== 'complete' && !softComplete) {
+      onStepProgress?.({
+        step: stepDef.name,
+        type: 'step-failed',
+        timestamp: Date.now(),
+        iterations: agentResult.iterations,
+        response: agentResult.response,
+      });
       return {
         status: 'error',
         stepResults,
@@ -416,6 +468,13 @@ export async function runWorkflow<TInputSchema extends SchemaAny>(
       try {
         parsed = JSON.parse(agentResult.response);
       } catch {
+        onStepProgress?.({
+          step: stepDef.name,
+          type: 'step-failed',
+          timestamp: Date.now(),
+          iterations: agentResult.iterations,
+          response: agentResult.response,
+        });
         return {
           status: 'error',
           stepResults,
@@ -427,6 +486,13 @@ export async function runWorkflow<TInputSchema extends SchemaAny>(
       try {
         const validated = stepDef.output.parse(parsed);
         if (!validated.ok) {
+          onStepProgress?.({
+            step: stepDef.name,
+            type: 'step-failed',
+            timestamp: Date.now(),
+            iterations: agentResult.iterations,
+            response: agentResult.response,
+          });
           return {
             status: 'error',
             stepResults,
@@ -436,6 +502,13 @@ export async function runWorkflow<TInputSchema extends SchemaAny>(
         }
         stepOutput = validated.data;
       } catch {
+        onStepProgress?.({
+          step: stepDef.name,
+          type: 'step-failed',
+          timestamp: Date.now(),
+          iterations: agentResult.iterations,
+          response: agentResult.response,
+        });
         return {
           status: 'error',
           stepResults,
@@ -444,6 +517,15 @@ export async function runWorkflow<TInputSchema extends SchemaAny>(
         };
       }
     }
+
+    // Emit step-completed event (after validation passes)
+    onStepProgress?.({
+      step: stepDef.name,
+      type: 'step-completed',
+      timestamp: Date.now(),
+      iterations: agentResult.iterations,
+      response: agentResult.response,
+    });
 
     // Store step output for subsequent steps
     prev[stepDef.name] = stepOutput;

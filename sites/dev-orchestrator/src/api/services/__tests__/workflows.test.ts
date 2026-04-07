@@ -13,6 +13,7 @@ function stubStore(): WorkflowStore {
         status: 'running' as const,
         currentStep: 'plan',
         steps: {},
+        artifacts: [],
         createdAt: new Date().toISOString(),
       };
       runs.set(id, run);

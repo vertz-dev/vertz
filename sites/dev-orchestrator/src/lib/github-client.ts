@@ -70,8 +70,14 @@ export function createGitHubClient(token: string): GitHubClient {
     },
 
     async getPrChecks(repo, prNumber) {
+      // First, get the PR's head SHA
+      const prResponse = await apiRequest(`/repos/${repo}/pulls/${prNumber}`);
+      const prData = await prResponse.json() as { head: { sha: string } };
+      const sha = prData.head.sha;
+
+      // Then query check runs for that commit
       const response = await apiRequest(
-        `/repos/${repo}/commits/heads/pr-${prNumber}/check-runs`,
+        `/repos/${repo}/commits/${sha}/check-runs`,
       );
       const data = await response.json() as {
         check_runs: Array<{ name: string; status: string; conclusion: string }>;

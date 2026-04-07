@@ -59,7 +59,7 @@ describe('createMinimaxAdapter()', () => {
         expect(fetchMock).toHaveBeenCalledTimes(1);
 
         const [url, options] = fetchMock.mock.calls[0];
-        expect(url).toBe('https://api.minimaxi.com/v1/chat/completions');
+        expect(url).toBe('https://api.minimax.io/v1/chat/completions');
         expect(options.method).toBe('POST');
         expect(options.headers['Authorization']).toBe('Bearer test-key');
 
@@ -95,7 +95,7 @@ describe('createMinimaxAdapter()', () => {
         });
 
         const adapter = createMinimaxAdapter({
-          config: { provider: 'minimax', model: 'minimax-01' },
+          config: { provider: 'minimax', model: 'MiniMax-M2.7' },
           tools: { test: testTool },
         });
 

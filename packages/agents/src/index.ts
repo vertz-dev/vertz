@@ -19,6 +19,8 @@ export type {
   ToolContext,
   ToolDefinition,
   ToolExecution,
+  ToolProvider,
+  InferToolProvider,
 } from './types';
 
 // Factories
@@ -66,6 +68,7 @@ export type {
   StepApprovalConfig,
   StepContext,
   StepDefinition,
+  StepProgressEvent,
   StepResult,
   WorkflowBuilder,
   WorkflowDefinition,

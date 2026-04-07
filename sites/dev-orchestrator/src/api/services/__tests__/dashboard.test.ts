@@ -3,8 +3,8 @@ import { createDashboardService } from '../dashboard';
 
 describe('Feature: Dashboard service', () => {
   const agents = [
-    { name: 'planner', description: 'Plans features', model: 'MiniMax-M1' },
-    { name: 'reviewer', description: 'Reviews code', model: 'MiniMax-M1' },
+    { name: 'planner', description: 'Plans features', model: 'MiniMax-M2.7' },
+    { name: 'reviewer', description: 'Reviews code', model: 'MiniMax-M2.7' },
   ];
 
   describe('Given a dashboard service with registered agents', () => {
@@ -27,8 +27,8 @@ describe('Feature: Dashboard service', () => {
       );
       expect(result).toEqual({
         agents: [
-          { name: 'planner', description: 'Plans features', model: 'MiniMax-M1' },
-          { name: 'reviewer', description: 'Reviews code', model: 'MiniMax-M1' },
+          { name: 'planner', description: 'Plans features', model: 'MiniMax-M2.7' },
+          { name: 'reviewer', description: 'Reviews code', model: 'MiniMax-M2.7' },
         ],
       });
     });

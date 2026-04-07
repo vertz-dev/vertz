@@ -22,6 +22,12 @@ export { generateClassName } from './class-generator';
 export type { CSSInput, CSSOutput, StyleEntry, StyleValue } from './css';
 export { css, getInjectedCSS, injectCSS, resetInjectedStyles } from './css';
 export type {
+  CamelCSSDeclarations,
+  CamelCSSPropertyName,
+  CSSDeclarations,
+  CSSPropertyName,
+} from './css-properties';
+export type {
   CompiledFonts,
   CompileFontsOptions,
   FallbackFontName,

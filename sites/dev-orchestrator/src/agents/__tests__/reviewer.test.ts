@@ -1,33 +1,19 @@
 import { describe, expect, it } from 'bun:test';
-import { createReviewerAgent } from '../reviewer';
-import type { SandboxClient } from '../../lib/sandbox-client';
-
-function stubSandbox(): SandboxClient {
-  return {
-    exec: async () => ({ stdout: '', stderr: '', exitCode: 0 }),
-    readFile: async () => '',
-    writeFile: async () => {},
-    searchFiles: async () => [],
-    listFiles: async () => [],
-    destroy: async () => {},
-  };
-}
+import { reviewerAgent } from '../reviewer';
 
 describe('Feature: Reviewer agent', () => {
-  describe('Given a reviewer agent definition', () => {
-    const agent = createReviewerAgent(stubSandbox());
-
+  describe('Given the reviewer agent definition', () => {
     it('Then has kind "agent" and name "reviewer"', () => {
-      expect(agent.kind).toBe('agent');
-      expect(agent.name).toBe('reviewer');
+      expect(reviewerAgent.kind).toBe('agent');
+      expect(reviewerAgent.name).toBe('reviewer');
     });
 
     it('Then uses MiniMax as the LLM provider', () => {
-      expect(agent.model.provider).toBe('minimax');
+      expect(reviewerAgent.model.provider).toBe('minimax');
     });
 
     it('Then has readFile, searchCode, listFiles, and writeFile tools', () => {
-      const toolNames = Object.keys(agent.tools);
+      const toolNames = Object.keys(reviewerAgent.tools);
       expect(toolNames).toContain('readFile');
       expect(toolNames).toContain('searchCode');
       expect(toolNames).toContain('listFiles');
@@ -35,11 +21,11 @@ describe('Feature: Reviewer agent', () => {
     });
 
     it('Then has a system prompt emphasizing adversarial review', () => {
-      expect(agent.prompt.system).toContain('adversarial');
+      expect(reviewerAgent.prompt.system).toContain('adversarial');
     });
 
-    it('Then has a max iterations limit of 20', () => {
-      expect(agent.loop.maxIterations).toBe(20);
+    it('Then has a max iterations limit of 30', () => {
+      expect(reviewerAgent.loop.maxIterations).toBe(30);
     });
   });
 });

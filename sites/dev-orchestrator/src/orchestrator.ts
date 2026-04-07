@@ -1,9 +1,8 @@
 /**
- * Orchestrator setup — wires agents, workflow, store, and LLM adapter.
+ * Orchestrator setup — wires providers, workflow, store, and LLM adapter.
  *
- * Separated from server.ts because @vertz/agents imports (sqliteStore,
- * createAgentRunner, createMinimaxAdapter) include native dependencies
- * that block the vtz dev server V8 isolate.
+ * Agents and workflows are static imports — only tool providers need runtime
+ * dependencies (sandbox, github). This is the DI composition root.
  */
 import { createServer } from '@vertz/server';
 import {
@@ -11,15 +10,20 @@ import {
   createMinimaxAdapter,
   sqliteStore,
 } from '@vertz/agents';
-import type { AgentDefinition, AgentStore, WorkflowDefinition } from '@vertz/agents';
-import type { ServiceDefinition } from '@vertz/server';
+import type { AgentStore, ToolProvider, WorkflowDefinition } from '@vertz/agents';
+import type { AgentRunnerFn, ServiceDefinition } from '@vertz/server';
 import type { SandboxClient } from './lib/sandbox-client';
 import type { GitHubClient } from './lib/github-client';
-import { createPlannerAgent } from './agents/planner';
-import { createReviewerAgent } from './agents/reviewer';
-import { createImplementerAgent } from './agents/implementer';
-import { createCiMonitorAgent } from './agents/ci-monitor';
-import { createFeatureWorkflow } from './workflows/feature';
+import { plannerAgent } from './agents/planner';
+import { reviewerAgent } from './agents/reviewer';
+import { publisherAgent } from './agents/publisher';
+import { implementerAgent } from './agents/implementer';
+import { ciMonitorAgent } from './agents/ci-monitor';
+import { featureWorkflow } from './workflows/feature';
+import { createSandboxProvider } from './tools/sandbox-tools';
+import { createGitHubProvider } from './tools/github';
+import { createBuildProvider } from './tools/build';
+import { createGitProvider } from './tools/git';
 import { createDashboardService, type AgentInfo } from './api/services/dashboard';
 import { createWorkflowService } from './api/services/workflows';
 import { createInMemoryWorkflowStore } from './api/services/workflow-store';
@@ -29,10 +33,12 @@ export interface OrchestratorOptions {
 }
 
 export interface Orchestrator {
-  readonly agents: readonly AgentDefinition<unknown, unknown, unknown>[];
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- agents have varying generic params
+  readonly agents: readonly any[];
   readonly workflow: WorkflowDefinition;
-  readonly agentRunner: (...args: unknown[]) => Promise<unknown>;
+  readonly agentRunner: AgentRunnerFn;
   readonly store: AgentStore;
+  readonly tools: ToolProvider;
 }
 
 export function createOrchestrator(
@@ -40,23 +46,25 @@ export function createOrchestrator(
   github: GitHubClient,
   options?: OrchestratorOptions,
 ): Orchestrator {
-  const agents = [
-    createPlannerAgent(sandbox, github),
-    createReviewerAgent(sandbox),
-    createImplementerAgent(sandbox),
-    createCiMonitorAgent(sandbox, github),
-  ];
+  const agents = [plannerAgent, reviewerAgent, publisherAgent, implementerAgent, ciMonitorAgent];
 
-  const workflow = createFeatureWorkflow(sandbox, github);
+  // Compose all tool providers into a single flat record
+  const tools: ToolProvider = {
+    ...createSandboxProvider(sandbox),
+    ...createGitHubProvider(github),
+    ...createBuildProvider(sandbox),
+    ...createGitProvider(sandbox),
+  };
 
   const store = sqliteStore({ path: options?.storePath ?? '.vertz/data/orchestrator.db' });
 
   const agentRunner = createAgentRunner(agents, {
     createAdapter: (opts) => createMinimaxAdapter(opts),
     store,
+    tools,
   });
 
-  return { agents, workflow, agentRunner, store };
+  return { agents, workflow: featureWorkflow, agentRunner, store, tools };
 }
 
 export function createApp(sandbox: SandboxClient, github: GitHubClient) {
@@ -65,7 +73,7 @@ export function createApp(sandbox: SandboxClient, github: GitHubClient) {
   const agentInfos: AgentInfo[] = agents.map((a) => ({
     name: a.name,
     description: a.description ?? '',
-    model: 'MiniMax-M1',
+    model: 'MiniMax-M2.7',
   }));
 
   const workflowStore = createInMemoryWorkflowStore();
