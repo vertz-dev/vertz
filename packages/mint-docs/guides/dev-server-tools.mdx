@@ -40,7 +40,7 @@ vtz dev
 
 ## Available tools
 
-The dev server provides **9 MCP tools** that agents can call:
+The dev server provides **20 MCP tools** that agents can call — 9 observability tools and 11 browser interaction tools:
 
 ### `vertz_get_errors`
 
@@ -131,6 +131,152 @@ Returns the WebSocket URL for real-time event push, so agents can subscribe to l
 
 Use `vertz_get_audit_log` instead — it provides the same information in a more structured, filterable format.
 
+## Browser interaction tools
+
+These tools let agents interact with the live browser page — clicking buttons, filling forms, reading page state — without needing a separate browser automation tool like Playwright.
+
+### `vertz_browser_list_tabs`
+
+Lists all connected browser tabs with their current URL, title, and control status.
+
+```json
+// No parameters needed
+// Returns: { tabs: [{ id, url, title, controlled }] }
+```
+
+### `vertz_browser_connect`
+
+Connects to a browser tab for interactive control. Returns a session ID and an initial page snapshot showing all interactive elements.
+
+```json
+{ "tabId": "tab-abc123" }
+// tabId is optional — auto-connects if only one tab is open
+// Returns: { sessionId, tab: { id, url, title }, snapshot: { ... } }
+```
+
+### `vertz_browser_disconnect`
+
+Releases a browser control session.
+
+```json
+{ "sessionId": "sess-abc123" }
+```
+
+### `vertz_browser_snapshot`
+
+Returns a structured snapshot of the page: interactive elements with refs, form structure, focused element, and current values.
+
+```json
+{ "sessionId": "sess-abc123", "maxElements": 50 }
+// sessionId is optional if only one session is active
+```
+
+The snapshot includes:
+
+- **Elements**: inputs, buttons, selects, links, checkboxes — each with a stable `ref` for targeting
+- **Forms**: form elements with their field refs, action, and method
+- **Focused element**: which element currently has focus
+- **URL and title**: current page state
+
+### `vertz_browser_click`
+
+Clicks an element. Target can be an element ref from a snapshot, a CSS selector, or a text/name/label matcher.
+
+```json
+{ "target": "submit-btn" }
+{ "target": "#my-button" }
+{ "target": { "text": "Save" } }
+// Returns updated snapshot after the page settles
+```
+
+### `vertz_browser_type`
+
+Types text into an input or textarea.
+
+```json
+{ "target": "email", "text": "user@example.com" }
+```
+
+### `vertz_browser_select`
+
+Selects an option in a `<select>` element.
+
+```json
+{ "target": "priority", "value": "high" }
+```
+
+### `vertz_browser_fill_form`
+
+Fills multiple form fields at once. Handles text inputs, textareas, selects, checkboxes, and radio buttons.
+
+```json
+{
+  "target": "f1",
+  "data": {
+    "title": "My Task",
+    "priority": "high",
+    "assignee": "alice"
+  }
+}
+```
+
+### `vertz_browser_submit`
+
+Submits a form. Waits for navigation if it occurs (up to 2s).
+
+```json
+{ "target": "f1" }
+// Returns: snapshot + navigation info if URL changed
+```
+
+### `vertz_browser_press_key`
+
+Presses a keyboard key on the currently focused element.
+
+```json
+{ "key": "Enter" }
+{ "key": "Escape" }
+{ "key": "Tab" }
+```
+
+### `vertz_browser_wait`
+
+Waits for a condition to be met in the browser, polling every 100ms.
+
+```json
+{ "condition": { "text": "Task created" }, "timeoutMs": 5000 }
+{ "condition": { "selector": ".success-message" } }
+{ "condition": { "url": "/tasks" } }
+{ "condition": { "absent": ".loading-spinner" } }
+```
+
+### Element targeting
+
+All interaction tools accept flexible targeting:
+
+| Format       | Example                | Description                                        |
+| ------------ | ---------------------- | -------------------------------------------------- |
+| Ref string   | `"submit-btn"`         | Element ref from the last snapshot (most reliable) |
+| CSS selector | `"#my-button"`         | Standard CSS selector via `querySelector`          |
+| Text match   | `{ "text": "Save" }`   | Find element by visible text content               |
+| Name match   | `{ "name": "email" }`  | Find element by `name` attribute                   |
+| Label match  | `{ "label": "Email" }` | Find input by its associated `<label>` text        |
+
+### Browser interaction workflow
+
+```
+1. vertz_browser_connect      → get session + initial snapshot
+2. vertz_browser_fill_form    → fill the form fields
+3. vertz_browser_submit       → submit and check navigation
+4. vertz_browser_wait         → wait for success message
+5. vertz_browser_disconnect   → release the session
+```
+
+<Tip>
+  If only one browser tab is open (the common case), you can omit both `tabId` in connect and
+  `sessionId` in all subsequent calls — the tools auto-resolve to the single tab/session.
+</Tip>
+
 ## Real-time events
 
 Instead of polling, agents can subscribe to a WebSocket stream for live updates:
@@ -197,7 +343,8 @@ The dev server tools are most effective when agents follow this pattern:
 2. **Check for errors** — call `vertz_get_errors` to catch compilation/type issues immediately
 3. **Check the audit log** — call `vertz_get_audit_log` with `type: "error"` to see if runtime errors occurred
 4. **Verify the UI** — call `vertz_render_page` to see the rendered output
-5. **Only then report success** — don't tell the user "it works" until you've verified via the tools
+5. **Interact with the page** — call `vertz_browser_connect`, then use click/type/fill_form/submit to test interactive behavior
+6. **Only then report success** — don't tell the user "it works" until you've verified via the tools
 
 This prevents the common failure mode where an agent says "Done!" but the app has a build error or renders a blank page.
 

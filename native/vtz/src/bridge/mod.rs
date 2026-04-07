@@ -132,6 +132,7 @@ pub(crate) mod tests {
             auto_installer: None,
             last_file_change: Arc::new(std::sync::Mutex::new(None)),
             favicon_tag: None,
+            browser_hub: crate::server::browser_hub::BrowserInteractionHub::new(),
         });
 
         (state, tmp)

@@ -15,6 +15,7 @@ use crate::hmr::websocket::HmrHub;
 use crate::runtime::persistent_isolate::PersistentIsolate;
 use crate::server::audit_log::AuditLog;
 use crate::server::auto_installer::AutoInstaller;
+use crate::server::browser_hub::BrowserInteractionHub;
 use crate::server::css_server;
 use crate::server::html_shell;
 use crate::server::mcp::McpSessions;
@@ -74,6 +75,8 @@ pub struct DevServerState {
     /// Pre-detected favicon link tag (e.g., `<link rel="icon" ... />`).
     /// Detected at startup from `public/favicon.{svg,ico,png}`.
     pub favicon_tag: Option<String>,
+    /// Browser interaction hub for MCP browser tools.
+    pub browser_hub: BrowserInteractionHub,
 }
 
 /// Handle requests for source files: `GET /src/**/*.tsx` → compiled JavaScript.
@@ -879,6 +882,7 @@ mod tests {
             auto_installer: None,
             last_file_change: Arc::new(std::sync::Mutex::new(None)),
             favicon_tag: None,
+            browser_hub: BrowserInteractionHub::new(),
         })
     }
 
@@ -1520,6 +1524,7 @@ mod tests {
             auto_installer: None,
             last_file_change: Arc::new(std::sync::Mutex::new(None)),
             favicon_tag: None,
+            browser_hub: BrowserInteractionHub::new(),
         });
 
         let req = Request::builder()
@@ -1678,6 +1683,7 @@ mod tests {
             auto_installer: None,
             last_file_change: Arc::new(std::sync::Mutex::new(None)),
             favicon_tag: None,
+            browser_hub: BrowserInteractionHub::new(),
         });
 
         let req = Request::builder()
@@ -1734,6 +1740,7 @@ mod tests {
             auto_installer: None,
             last_file_change: Arc::new(std::sync::Mutex::new(None)),
             favicon_tag: None,
+            browser_hub: BrowserInteractionHub::new(),
         });
 
         let req = Request::builder()
@@ -1819,6 +1826,7 @@ mod tests {
             auto_installer: None,
             last_file_change: Arc::new(std::sync::Mutex::new(None)),
             favicon_tag: None,
+            browser_hub: BrowserInteractionHub::new(),
         };
 
         // helper-lib/index.js is not in root's node_modules directly,
@@ -1872,6 +1880,7 @@ mod tests {
             auto_installer: None,
             last_file_change: Arc::new(std::sync::Mutex::new(None)),
             favicon_tag: None,
+            browser_hub: BrowserInteractionHub::new(),
         };
 
         let result = re_resolve_dep("some-dep/index.js", &state);
@@ -1926,6 +1935,7 @@ mod tests {
             auto_installer: None,
             last_file_change: Arc::new(std::sync::Mutex::new(None)),
             favicon_tag: None,
+            browser_hub: BrowserInteractionHub::new(),
         });
 
         // Request the bare specifier (no subpath) which should resolve via package.json exports
@@ -2090,6 +2100,7 @@ mod tests {
             auto_installer: None,
             last_file_change: Arc::new(std::sync::Mutex::new(None)),
             favicon_tag: None,
+            browser_hub: BrowserInteractionHub::new(),
         });
 
         let req = Request::builder()
@@ -2194,6 +2205,7 @@ mod tests {
             auto_installer: None,
             last_file_change: Arc::new(std::sync::Mutex::new(None)),
             favicon_tag: None,
+            browser_hub: BrowserInteractionHub::new(),
         });
 
         let req = Request::builder()

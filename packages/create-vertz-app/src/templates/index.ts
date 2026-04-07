@@ -2133,6 +2133,22 @@ curl -X POST http://localhost:3001/command \\\\
 | \`vertz_navigate\` | Navigate the browser to a URL via HMR WebSocket |
 | \`vertz_get_events_url\` | WebSocket URL for real-time event push |
 
+### Browser Interaction Tools
+
+| Tool | Purpose |
+|------|---------|
+| \`vertz_browser_list_tabs\` | List connected browser tabs |
+| \`vertz_browser_connect\` | Connect to a tab — returns session ID + initial page snapshot |
+| \`vertz_browser_disconnect\` | Release a control session |
+| \`vertz_browser_snapshot\` | Get current page state: interactive elements, forms, values |
+| \`vertz_browser_click\` | Click an element (by ref, selector, or text) |
+| \`vertz_browser_type\` | Type text into an input/textarea |
+| \`vertz_browser_select\` | Select an option in a \`<select>\` |
+| \`vertz_browser_fill_form\` | Fill multiple form fields at once |
+| \`vertz_browser_submit\` | Submit a form (waits for navigation) |
+| \`vertz_browser_press_key\` | Press a keyboard key (Enter, Escape, Tab, etc.) |
+| \`vertz_browser_wait\` | Wait for a condition (text, selector, URL, element removal) |
+
 ## MANDATORY: Verify Before Reporting Success
 
 After EVERY code change:
@@ -2140,7 +2156,8 @@ After EVERY code change:
 1. Call \`vertz_get_errors\` — check for compilation and type errors
 2. Call \`vertz_get_audit_log\` with \`type: "error"\` — check for runtime errors
 3. If you changed UI, call \`vertz_render_page\` — verify the page renders correctly
-4. Only report success after all checks pass
+4. If you changed interactive behavior, use \`vertz_browser_connect\` → interact → verify
+5. Only report success after all checks pass
 
 **NEVER tell the user "it works" or "done" without first checking for errors via these tools.**
 Common failure: the agent edits code, sees no editor errors, and declares success —

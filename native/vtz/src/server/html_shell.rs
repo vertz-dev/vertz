@@ -7,6 +7,10 @@ const HMR_CLIENT_JS: &str = include_str!("../assets/hmr-client.js");
 /// The error overlay JS (embedded at compile time). Runtime-provided, generic.
 const ERROR_OVERLAY_JS: &str = include_str!("../assets/error-overlay.js");
 
+/// The browser interaction client JS (embedded at compile time).
+/// Connects to /__vertz_interact for MCP browser interaction tools.
+const INTERACT_CLIENT_JS: &str = include_str!("../assets/interact-client.js");
+
 /// Generate the HTML shell document for client-side rendering.
 ///
 /// This is the document returned for page routes (SPA routing).
@@ -122,6 +126,10 @@ pub fn generate_html_shell_with_hmr(
         // 3. Runtime-provided: Error overlay (generic)
         html.push_str("  <script>\n");
         html.push_str(ERROR_OVERLAY_JS);
+        html.push_str("\n  </script>\n");
+        // 4. Runtime-provided: Browser interaction client (MCP tools)
+        html.push_str("  <script>\n");
+        html.push_str(INTERACT_CLIENT_JS);
         html.push_str("\n  </script>\n");
     }
 
