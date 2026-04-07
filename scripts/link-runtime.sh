@@ -12,7 +12,7 @@
 # platform package binary as-is.
 #
 # When the native binary isn't available (e.g. CI), creates lightweight shell
-# shims that delegate to bun so package scripts still work.
+# shims that delegate to the Node.js scripts so package scripts still work.
 
 set -e
 
@@ -74,32 +74,12 @@ else
     rm -f "$BIN_DIR/$cmd"
   done
 
-  # vtzx (vtz exec) → delegates to bunx
-  cat > "$BIN_DIR/vtzx" << 'SHIM'
-#!/usr/bin/env bash
-exec bunx "$@"
-SHIM
-  chmod +x "$BIN_DIR/vtzx"
+  # Symlink to the bash scripts — they handle the fallback internally
+  for cmd in vtz vertz; do
+    ln -sf "../../packages/runtime/cli.sh" "$BIN_DIR/$cmd"
+  done
+  ln -sf "../../packages/runtime/cli-exec.sh" "$BIN_DIR/vtzx"
 
-  # vtz → delegates to bun for "run" subcommand, warns for others
-  cat > "$BIN_DIR/vtz" << 'SHIM'
-#!/usr/bin/env bash
-if [ "$1" = "run" ]; then
-  shift
-  exec bun run "$@"
-elif [ "$1" = "exec" ]; then
-  shift
-  exec bunx "$@"
-else
-  echo "vtz shim: native binary not available, only 'run' and 'exec' are supported" >&2
-  exit 1
-fi
-SHIM
-  chmod +x "$BIN_DIR/vtz"
-
-  # vertz → same as vtz
-  cp "$BIN_DIR/vtz" "$BIN_DIR/vertz"
-
-  echo "⚠️  No native binary found — created bun-based shims for vtz/vtzx"
+  echo "⚠️  No native binary found — using fallback shell scripts for vtz/vtzx"
   echo "   (Build with: ./scripts/link-runtime.sh --build)"
 fi
