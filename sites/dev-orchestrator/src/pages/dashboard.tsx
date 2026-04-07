@@ -1,6 +1,8 @@
 import { query } from "@vertz/ui/query";
 import { useRouter } from "@vertz/ui/router";
 import { sdk } from "../lib/sdk";
+import { STATUS_FILTERS, filterLabel } from "./dashboard-utils";
+import type { StatusFilter } from "./dashboard-utils";
 
 const s = {
   page: {
@@ -113,18 +115,75 @@ const s = {
     fontWeight: "500",
   },
   grid: { display: "flex", flexDirection: "column" as const, gap: "8px" },
+  filterRow: { display: "flex", gap: "4px" },
+  filterTab: {
+    padding: "4px 12px",
+    fontSize: "12px",
+    fontWeight: "500" as const,
+    borderRadius: "6px",
+    border: "1px solid var(--color-border)",
+    background: "var(--color-background)",
+    color: "var(--color-muted-foreground)",
+    cursor: "pointer",
+  },
+  filterTabActive: {
+    padding: "4px 12px",
+    fontSize: "12px",
+    fontWeight: "500" as const,
+    borderRadius: "6px",
+    border: "1px solid var(--color-primary)",
+    background: "var(--color-primary)",
+    color: "var(--color-primary-foreground)",
+    cursor: "pointer",
+  },
+  pagination: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    fontSize: "12px",
+    color: "var(--color-muted-foreground)",
+  },
+  pageBtn: {
+    padding: "4px 12px",
+    fontSize: "12px",
+    borderRadius: "4px",
+    border: "1px solid var(--color-border)",
+    background: "var(--color-background)",
+    color: "var(--color-foreground)",
+    cursor: "pointer",
+  },
+  clickableCard: {
+    padding: "14px 16px",
+    borderRadius: "8px",
+    border: "1px solid var(--color-border)",
+    background: "var(--color-card)",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    cursor: "pointer",
+    transition: "border-color 0.15s",
+  },
 };
 
 export default function DashboardPage() {
   const { navigate } = useRouter();
   let issueNumber = "";
   let submitting = false;
+  let statusFilter: StatusFilter = 'all';
+  let currentPage = 1;
 
   const agentsQuery = query(() => sdk.dashboard.listAgents());
 
-  const workflowsQuery = query(() => sdk.workflows.list(), {
-    refetchInterval: 5000,
-  });
+  const workflowsQuery = query(
+    () => sdk.workflows.list({ status: statusFilter === 'all' ? undefined : statusFilter, page: currentPage, pageSize: 20 }),
+    { key: `workflows-${statusFilter}-${currentPage}`, refetchInterval: 5000 },
+  );
+
+  const handleFilterChange = (filter: StatusFilter) => {
+    statusFilter = filter;
+    currentPage = 1;
+    workflowsQuery.refetch();
+  };
 
   const handleTrigger = async () => {
     if (!issueNumber || submitting) return;
@@ -141,6 +200,9 @@ export default function DashboardPage() {
 
   const agents = () => agentsQuery.data?.agents ?? [];
   const runs = () => workflowsQuery.data?.runs ?? [];
+  const total = () => workflowsQuery.data?.total ?? 0;
+  const pageSize = () => workflowsQuery.data?.pageSize ?? 20;
+  const totalPages = () => Math.max(1, Math.ceil(total() / pageSize()));
 
   return (
     <div style={s.page}>
@@ -191,28 +253,68 @@ export default function DashboardPage() {
       <div style={s.separator} />
 
       <div style={s.section}>
-        <h2 style={s.sectionTitle}>Active Workflows</h2>
+        <h2 style={s.sectionTitle}>Workflows</h2>
+        <div style={s.filterRow}>
+          {STATUS_FILTERS.map((filter) => (
+            <button
+              key={filter}
+              style={statusFilter === filter ? s.filterTabActive : s.filterTab}
+              onClick={() => handleFilterChange(filter)}
+            >
+              {filterLabel(filter)}
+            </button>
+          ))}
+        </div>
         {workflowsQuery.loading && <span style={s.loading}>Refreshing...</span>}
         {workflowsQuery.error && (
           <div style={s.error}>Failed to load workflows</div>
         )}
         {runs().length === 0 && !workflowsQuery.loading && (
-          <div style={s.empty}>No active workflows. Trigger one above.</div>
+          <div style={s.empty}>
+            {statusFilter === 'all'
+              ? 'No workflows yet. Start one by entering an issue number.'
+              : `No ${filterLabel(statusFilter).toLowerCase()} workflows.`}
+          </div>
         )}
         {runs().length > 0 && (
-          <div style={s.grid}>
-            {runs().map((run) => (
-              <div key={run.id} style={s.card}>
-                <div style={s.cardInfo}>
-                  <div style={s.cardTitle}>Issue #{run.issueNumber}</div>
-                  <div style={s.cardMeta}>
-                    {run.repo} &middot; Step: {run.currentStep}
+          <>
+            <div style={s.grid}>
+              {runs().map((run) => (
+                <div
+                  key={run.id}
+                  style={s.clickableCard}
+                  onClick={() => navigate({ to: `/workflows/${run.id}` })}
+                >
+                  <div style={s.cardInfo}>
+                    <div style={s.cardTitle}>Issue #{run.issueNumber}</div>
+                    <div style={s.cardMeta}>
+                      {run.repo} &middot; Step: {run.currentStep}
+                    </div>
                   </div>
+                  <span style={s.badge}>{run.status}</span>
                 </div>
-                <span style={s.badge}>{run.status}</span>
+              ))}
+            </div>
+            {totalPages() > 1 && (
+              <div style={s.pagination}>
+                <button
+                  style={s.pageBtn}
+                  onClick={() => { currentPage = Math.max(1, currentPage - 1); workflowsQuery.refetch(); }}
+                  disabled={currentPage <= 1}
+                >
+                  Prev
+                </button>
+                <span>Page {currentPage} of {totalPages()} ({total()} total)</span>
+                <button
+                  style={s.pageBtn}
+                  onClick={() => { currentPage = Math.min(totalPages(), currentPage + 1); workflowsQuery.refetch(); }}
+                  disabled={currentPage >= totalPages()}
+                >
+                  Next
+                </button>
               </div>
-            ))}
-          </div>
+            )}
+          </>
         )}
       </div>
     </div>

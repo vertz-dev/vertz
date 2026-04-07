@@ -4,7 +4,7 @@ import ArtifactViewer from '../components/artifact-viewer';
 import StepCard from '../components/step-card';
 import ToolCallLog from '../components/tool-call-log';
 import { sdk } from '../lib/sdk';
-import { filterArtifactsByStep, stepStatusFromDetail } from './step-inspector-utils';
+import { errorReasonLabel, filterArtifactsByStep, stepStatusFromDetail } from './step-inspector-utils';
 
 const styles = {
   page: {
@@ -44,6 +44,33 @@ const styles = {
     whiteSpace: 'pre-wrap' as const,
   },
   loading: { color: 'var(--color-muted-foreground)', fontSize: '13px' },
+  errorBanner: {
+    padding: '12px 16px',
+    background: 'hsl(0, 84%, 60%, 0.1)',
+    border: '1px solid hsl(0, 84%, 60%, 0.3)',
+    borderRadius: '8px',
+    display: 'flex',
+    flexDirection: 'column' as const,
+    gap: '8px',
+  },
+  errorMessage: {
+    fontSize: '13px',
+    color: 'hsl(0, 84%, 60%)',
+    fontWeight: '500' as const,
+  },
+  errorDetail: {
+    fontSize: '12px',
+    color: 'var(--color-muted-foreground)',
+  },
+  reasonBadge: {
+    display: 'inline-block',
+    fontSize: '11px',
+    padding: '2px 8px',
+    borderRadius: '9999px',
+    background: 'hsl(0, 84%, 60%, 0.15)',
+    color: 'hsl(0, 84%, 60%)',
+    fontWeight: '500' as const,
+  },
 };
 
 export default function StepInspectorPage() {
@@ -82,6 +109,22 @@ export default function StepInspectorPage() {
             status={stepStatusFromDetail(detail()!)}
             detail={detail()!}
           />
+
+          {detail()!.errorMessage && (
+            <div style={styles.errorBanner}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <div style={styles.errorMessage}>{detail()!.errorMessage}</div>
+                {detail()!.errorReason && (
+                  <span style={styles.reasonBadge}>{errorReasonLabel(detail()!.errorReason)}</span>
+                )}
+              </div>
+              {detail()!.lastToolCall && (
+                <div style={styles.errorDetail}>
+                  Last tool call: <code>{detail()!.lastToolCall}</code>
+                </div>
+              )}
+            </div>
+          )}
 
           {detail()!.output && (
             <div style={styles.section}>

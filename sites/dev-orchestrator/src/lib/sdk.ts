@@ -42,10 +42,15 @@ export const sdk = {
     ),
   },
   workflows: {
-    list: createMethod<void, { runs: WorkflowRun[] }>(
+    list: createMethod<{ status?: string; page?: number; pageSize?: number } | void, { runs: WorkflowRun[]; total: number; page: number; pageSize: number }>(
       "/api/workflows/list",
-      "GET",
-      () => requestJson<{ runs: WorkflowRun[] }>("/api/workflows/list"),
+      "POST",
+      (body) =>
+        requestJson<{ runs: WorkflowRun[]; total: number; page: number; pageSize: number }>("/api/workflows/list", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body ?? {}),
+        }),
     ),
     start: createMethod<{ issueNumber: number; repo: string }, WorkflowRun>(
       "/api/workflows/start",
@@ -72,6 +77,26 @@ export const sdk = {
       "POST",
       ({ id }) =>
         requestJson<{ approved: boolean }>("/api/workflows/approve", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ id }),
+        }),
+    ),
+    cancel: createMethod<{ id: string }, { cancelled: boolean }>(
+      "/api/workflows/cancel",
+      "POST",
+      ({ id }) =>
+        requestJson<{ cancelled: boolean }>("/api/workflows/cancel", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ id }),
+        }),
+    ),
+    retry: createMethod<{ id: string }, WorkflowRun | null>(
+      "/api/workflows/retry",
+      "POST",
+      ({ id }) =>
+        requestJson<WorkflowRun | null>("/api/workflows/retry", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ id }),

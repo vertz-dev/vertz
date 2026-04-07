@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'bun:test';
 import type { StepRunDetail, WorkflowArtifact } from '../api/services/workflows';
-import { filterArtifactsByStep, stepStatusFromDetail } from './step-inspector-utils';
+import { errorReasonLabel, filterArtifactsByStep, stepStatusFromDetail } from './step-inspector-utils';
 
 describe('stepStatusFromDetail()', () => {
   it('returns "pending" for null detail', () => {
@@ -25,6 +25,36 @@ describe('stepStatusFromDetail()', () => {
   it('returns "pending" for unknown status', () => {
     const detail: StepRunDetail = { status: 'queued' };
     expect(stepStatusFromDetail(detail)).toBe('pending');
+  });
+});
+
+describe('errorReasonLabel()', () => {
+  it('returns "Agent Failed" for agent-failed', () => {
+    expect(errorReasonLabel('agent-failed')).toBe('Agent Failed');
+  });
+
+  it('returns "Invalid JSON" for invalid-json', () => {
+    expect(errorReasonLabel('invalid-json')).toBe('Invalid JSON');
+  });
+
+  it('returns "Schema Mismatch" for schema-mismatch', () => {
+    expect(errorReasonLabel('schema-mismatch')).toBe('Schema Mismatch');
+  });
+
+  it('returns "Max Iterations" for max-iterations', () => {
+    expect(errorReasonLabel('max-iterations')).toBe('Max Iterations');
+  });
+
+  it('returns "Token Budget Exceeded" for token-budget', () => {
+    expect(errorReasonLabel('token-budget')).toBe('Token Budget Exceeded');
+  });
+
+  it('returns the raw reason for unknown reasons', () => {
+    expect(errorReasonLabel('custom-reason')).toBe('custom-reason');
+  });
+
+  it('returns "Unknown" for undefined', () => {
+    expect(errorReasonLabel(undefined)).toBe('Unknown');
   });
 });
 

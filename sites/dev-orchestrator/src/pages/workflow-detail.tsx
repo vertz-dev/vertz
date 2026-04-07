@@ -31,12 +31,37 @@ const s = {
   },
   loading: { color: 'var(--color-muted-foreground)', fontSize: '13px' },
   error: { color: 'var(--color-destructive)', fontSize: '13px' },
+  actions: { display: 'flex', gap: '8px', alignItems: 'center' },
+  cancelBtn: {
+    height: '32px',
+    padding: '0 14px',
+    borderRadius: '6px',
+    border: '1px solid hsl(0, 84%, 60%)',
+    background: 'transparent',
+    color: 'hsl(0, 84%, 60%)',
+    fontSize: '13px',
+    fontWeight: '500' as const,
+    cursor: 'pointer',
+  },
+  retryBtn: {
+    height: '32px',
+    padding: '0 14px',
+    borderRadius: '6px',
+    border: '1px solid var(--color-primary)',
+    background: 'transparent',
+    color: 'var(--color-primary)',
+    fontSize: '13px',
+    fontWeight: '500' as const,
+    cursor: 'pointer',
+  },
 };
 
 export default function WorkflowDetailPage() {
   const { id } = useParams<'/workflows/:id'>();
   const { navigate } = useRouter();
   let approving = false;
+  let cancelling = false;
+  let retrying = false;
   let sseEvents: StepProgressEvent[] = [];
 
   const workflowQuery = query(
@@ -61,6 +86,24 @@ export default function WorkflowDetailPage() {
     workflowQuery.refetch();
   };
 
+  const handleCancel = async () => {
+    cancelling = true;
+    await sdk.workflows.cancel({ id });
+    cancelling = false;
+    workflowQuery.refetch();
+  };
+
+  const handleRetry = async () => {
+    retrying = true;
+    const newRun = await sdk.workflows.retry({ id });
+    retrying = false;
+    if (newRun) {
+      navigate({ to: `/workflows/${newRun.id}` });
+    } else {
+      workflowQuery.refetch();
+    }
+  };
+
   const workflow = () => workflowQuery.data as WorkflowRun | null | undefined;
 
   return (
@@ -70,9 +113,23 @@ export default function WorkflowDetailPage() {
         {workflowQuery.loading && <div style={s.loading}>Loading...</div>}
         {workflowQuery.error && <div style={s.error}>Failed to load workflow</div>}
         {workflow() && (
-          <p style={s.meta}>
-            Issue #{workflow()!.issueNumber} &middot; {workflow()!.repo} &middot; {workflow()!.status}
-          </p>
+          <>
+            <p style={s.meta}>
+              Issue #{workflow()!.issueNumber} &middot; {workflow()!.repo} &middot; {workflow()!.status}
+            </p>
+            <div style={s.actions}>
+              {(workflow()!.status === 'running' || workflow()!.status === 'waiting-approval') && (
+                <button style={s.cancelBtn} onClick={handleCancel} disabled={cancelling}>
+                  {cancelling ? 'Cancelling...' : 'Cancel'}
+                </button>
+              )}
+              {(workflow()!.status === 'failed' || workflow()!.status === 'cancelled') && (
+                <button style={s.retryBtn} onClick={handleRetry} disabled={retrying}>
+                  {retrying ? 'Retrying...' : 'Retry'}
+                </button>
+              )}
+            </div>
+          </>
         )}
       </div>
 

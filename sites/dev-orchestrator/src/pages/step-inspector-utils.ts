@@ -10,6 +10,17 @@ export function stepStatusFromDetail(detail: StepRunDetail | null): 'pending' | 
   }
 }
 
+export function errorReasonLabel(reason: string | undefined): string {
+  switch (reason) {
+    case 'agent-failed': return 'Agent Failed';
+    case 'invalid-json': return 'Invalid JSON';
+    case 'schema-mismatch': return 'Schema Mismatch';
+    case 'max-iterations': return 'Max Iterations';
+    case 'token-budget': return 'Token Budget Exceeded';
+    default: return reason ?? 'Unknown';
+  }
+}
+
 export function filterArtifactsByStep(
   artifacts: readonly WorkflowArtifact[],
   step: string,
