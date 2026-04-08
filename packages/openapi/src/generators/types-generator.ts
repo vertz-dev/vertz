@@ -163,6 +163,7 @@ function collectOperationCircularRefs(
 
 function deriveResponseName(op: ParsedOperation): string {
   if (op.response?.name) return sanitizeTypeName(op.response.name);
+  if (op.streamingFormat) return getTypePrefix(op) + 'Event';
   return getTypePrefix(op) + 'Response';
 }
 

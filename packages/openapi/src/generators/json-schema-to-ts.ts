@@ -106,6 +106,13 @@ export function generateInterface(
   namedSchemas: Map<string, string>,
 ): string {
   const safeName = sanitizeTypeName(name);
+
+  // oneOf/anyOf at the top level → type alias (union), not an empty interface
+  if (Array.isArray(schema.oneOf) || Array.isArray(schema.anyOf)) {
+    const tsType = jsonSchemaToTS(schema, namedSchemas);
+    return `export type ${safeName} =\n  | ${tsType.split(' | ').join('\n  | ')};\n`;
+  }
+
   const properties = schema.properties as Record<string, Record<string, unknown>> | undefined;
   if (!properties) {
     return `export interface ${safeName} {}\n`;
