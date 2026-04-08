@@ -3,6 +3,7 @@ use flate2::Compression;
 use glob::Pattern;
 use ring::digest;
 use sha2::{Digest, Sha512};
+use std::collections::HashMap;
 use std::io::Write;
 use std::path::Path;
 use walkdir::WalkDir;
@@ -85,23 +86,36 @@ pub fn collect_files(
     Ok(files)
 }
 
-/// Pack a directory into a gzipped tarball ready for npm publish
+/// Pack a directory into a gzipped tarball ready for npm publish.
+///
+/// If `pkg_json_override` is provided, it replaces the on-disk `package.json`
+/// content in the tarball. This is used to publish resolved workspace protocols
+/// without modifying the source file.
 pub fn pack_tarball(
     root_dir: &Path,
     pkg: &PackageJson,
+    pkg_json_override: Option<&[u8]>,
 ) -> Result<PackResult, Box<dyn std::error::Error>> {
     let files = collect_files(root_dir, pkg)?;
 
-    let unpacked_size: u64 = files.iter().map(|f| f.size).sum();
-
-    // Build tar archive
+    // Build tar archive, tracking actual content sizes for accurate unpacked_size
     let mut tar_builder = tar::Builder::new(Vec::new());
+    let mut unpacked_size: u64 = 0;
 
     for file in &files {
         let file_path = root_dir.join(&file.path);
         let tar_path = format!("package/{}", file.path);
 
-        let content = std::fs::read(&file_path)?;
+        let content = if file.path == "package.json" {
+            if let Some(override_bytes) = pkg_json_override {
+                override_bytes.to_vec()
+            } else {
+                std::fs::read(&file_path)?
+            }
+        } else {
+            std::fs::read(&file_path)?
+        };
+        unpacked_size += content.len() as u64;
         let mut header = tar::Header::new_gnu();
         header.set_size(content.len() as u64);
         header.set_mode(0o644);
@@ -314,6 +328,68 @@ pub fn read_package_json_raw(
     Ok(value)
 }
 
+/// Resolve `workspace:` protocol references in a package.json value.
+///
+/// Supported forms:
+/// - `workspace:^` → `^<version>` (caret range from workspace package version)
+/// - `workspace:~` → `~<version>` (tilde range)
+/// - `workspace:*` → `<version>` (exact version)
+/// - `workspace:^1.2.3` → `^1.2.3` (explicit range, strip prefix)
+///
+/// `workspace_versions` maps package name → version string.
+/// If a bare modifier (`^`, `~`, `*`) can't be resolved (package not in map),
+/// the value is left as-is.
+pub fn resolve_workspace_protocols(
+    pkg: &mut serde_json::Value,
+    workspace_versions: &HashMap<String, String>,
+) {
+    let dep_fields = [
+        "dependencies",
+        "devDependencies",
+        "peerDependencies",
+        "optionalDependencies",
+    ];
+
+    let obj = match pkg.as_object_mut() {
+        Some(o) => o,
+        None => return,
+    };
+
+    for field in &dep_fields {
+        let deps = match obj.get_mut(*field).and_then(|v| v.as_object_mut()) {
+            Some(d) => d,
+            None => continue,
+        };
+
+        for (name, value) in deps.iter_mut() {
+            let spec = match value.as_str() {
+                Some(s) if s.starts_with("workspace:") => s,
+                _ => continue,
+            };
+
+            let after_prefix = &spec["workspace:".len()..];
+
+            let resolved = match after_prefix {
+                "^" | "~" | "*" => {
+                    if let Some(version) = workspace_versions.get(name) {
+                        if after_prefix == "*" {
+                            version.clone()
+                        } else {
+                            format!("{}{}", after_prefix, version)
+                        }
+                    } else {
+                        continue; // can't resolve — leave as-is
+                    }
+                }
+                // Explicit range like "workspace:^1.2.3" → "^1.2.3"
+                rest => rest.to_string(),
+            };
+
+            *value = serde_json::Value::String(resolved);
+        }
+    }
+}
+
 /// Normalize package.json for inclusion in publish document.
 /// Removes devDependencies and non-install scripts (matching npm behavior).
 pub fn normalize_package_json(raw: &serde_json::Value) -> serde_json::Value {
@@ -353,6 +429,7 @@ pub fn normalize_package_json(raw: &serde_json::Value) -> serde_json::Value {
 mod tests {
     use super::*;
     use crate::pm::types::PackageJson;
+    use std::collections::HashMap;
 
     fn create_test_package(dir: &Path, name: &str, version: &str) {
         std::fs::write(
@@ -443,7 +520,7 @@ mod tests {
         std::fs::write(root.join("dist/index.js"), "console.log('hello')").unwrap();
 
         let pkg = read_pkg(root);
-        let result = pack_tarball(root, &pkg).unwrap();
+        let result = pack_tarball(root, &pkg, None).unwrap();
 
         // Verify it's a valid gzip
         use flate2::read::GzDecoder;
@@ -480,7 +557,7 @@ mod tests {
         std::fs::write(root.join("dist/index.js"), "hello").unwrap();
 
         let pkg = read_pkg(root);
-        let result = pack_tarball(root, &pkg).unwrap();
+        let result = pack_tarball(root, &pkg, None).unwrap();
 
         // Verify integrity format
         assert!(
@@ -508,7 +585,7 @@ mod tests {
         std::fs::write(root.join("dist/index.js"), "hello").unwrap();
 
         let pkg = read_pkg(root);
-        let result = pack_tarball(root, &pkg).unwrap();
+        let result = pack_tarball(root, &pkg, None).unwrap();
 
         // Verify shasum is a 40-char hex string (SHA-1)
         assert_eq!(result.shasum.len(), 40, "SHA-1 hex should be 40 chars");
@@ -533,7 +610,7 @@ mod tests {
         std::fs::write(root.join("dist/index.js"), "x".repeat(1000)).unwrap();
 
         let pkg = read_pkg(root);
-        let result = pack_tarball(root, &pkg).unwrap();
+        let result = pack_tarball(root, &pkg, None).unwrap();
 
         assert_eq!(result.packed_size, result.tarball.len() as u64);
         assert!(result.unpacked_size > 0);
@@ -783,5 +860,174 @@ mod tests {
             normalize_path_separators("already/forward/slash"),
             "already/forward/slash"
         );
+    }
+
+    // ─── resolve_workspace_protocols ───
+
+    #[test]
+    fn test_resolve_workspace_caret() {
+        let mut pkg: serde_json::Value = serde_json::json!({
+            "name": "test-pkg",
+            "version": "1.0.0",
+            "dependencies": {
+                "@vertz/errors": "workspace:^",
+                "zod": "^3.0.0"
+            }
+        });
+
+        let mut versions = HashMap::new();
+        versions.insert("@vertz/errors".to_string(), "0.2.53".to_string());
+
+        resolve_workspace_protocols(&mut pkg, &versions);
+
+        assert_eq!(pkg["dependencies"]["@vertz/errors"], "^0.2.53");
+        assert_eq!(pkg["dependencies"]["zod"], "^3.0.0");
+    }
+
+    #[test]
+    fn test_resolve_workspace_star() {
+        let mut pkg: serde_json::Value = serde_json::json!({
+            "name": "test-pkg",
+            "version": "1.0.0",
+            "dependencies": {
+                "@vertz/core": "workspace:*"
+            }
+        });
+
+        let mut versions = HashMap::new();
+        versions.insert("@vertz/core".to_string(), "0.2.53".to_string());
+
+        resolve_workspace_protocols(&mut pkg, &versions);
+
+        assert_eq!(pkg["dependencies"]["@vertz/core"], "0.2.53");
+    }
+
+    #[test]
+    fn test_resolve_workspace_tilde() {
+        let mut pkg: serde_json::Value = serde_json::json!({
+            "name": "test-pkg",
+            "version": "1.0.0",
+            "dependencies": {
+                "@vertz/ui": "workspace:~"
+            }
+        });
+
+        let mut versions = HashMap::new();
+        versions.insert("@vertz/ui".to_string(), "0.2.53".to_string());
+
+        resolve_workspace_protocols(&mut pkg, &versions);
+
+        assert_eq!(pkg["dependencies"]["@vertz/ui"], "~0.2.53");
+    }
+
+    #[test]
+    fn test_resolve_workspace_explicit_range() {
+        let mut pkg: serde_json::Value = serde_json::json!({
+            "name": "test-pkg",
+            "version": "1.0.0",
+            "dependencies": {
+                "@vertz/ui": "workspace:^1.2.3"
+            }
+        });
+
+        let versions = HashMap::new();
+
+        resolve_workspace_protocols(&mut pkg, &versions);
+
+        assert_eq!(pkg["dependencies"]["@vertz/ui"], "^1.2.3");
+    }
+
+    #[test]
+    fn test_resolve_workspace_peer_and_optional_deps() {
+        let mut pkg: serde_json::Value = serde_json::json!({
+            "name": "test-pkg",
+            "version": "1.0.0",
+            "peerDependencies": {
+                "@vertz/ui": "workspace:^"
+            },
+            "optionalDependencies": {
+                "@vertz/cli": "workspace:~"
+            }
+        });
+
+        let mut versions = HashMap::new();
+        versions.insert("@vertz/ui".to_string(), "1.0.0".to_string());
+        versions.insert("@vertz/cli".to_string(), "2.3.4".to_string());
+
+        resolve_workspace_protocols(&mut pkg, &versions);
+
+        assert_eq!(pkg["peerDependencies"]["@vertz/ui"], "^1.0.0");
+        assert_eq!(pkg["optionalDependencies"]["@vertz/cli"], "~2.3.4");
+    }
+
+    #[test]
+    fn test_resolve_workspace_missing_version_errors() {
+        let mut pkg: serde_json::Value = serde_json::json!({
+            "name": "test-pkg",
+            "version": "1.0.0",
+            "dependencies": {
+                "@vertz/unknown": "workspace:^"
+            }
+        });
+
+        let versions = HashMap::new();
+
+        // Should not panic — unresolvable bare workspace:^ keeps the original value
+        // (publish will fail on npm side, but we shouldn't crash)
+        resolve_workspace_protocols(&mut pkg, &versions);
+
+        // Bare modifier with no matching version: keep as-is (will fail at registry)
+        assert_eq!(pkg["dependencies"]["@vertz/unknown"], "workspace:^");
+    }
+
+    #[test]
+    fn test_resolve_workspace_no_deps_is_noop() {
+        let mut pkg: serde_json::Value = serde_json::json!({
+            "name": "test-pkg",
+            "version": "1.0.0"
+        });
+
+        let versions = HashMap::new();
+
+        resolve_workspace_protocols(&mut pkg, &versions);
+
+        assert_eq!(pkg["name"], "test-pkg");
+    }
+
+    // ─── pack_tarball with workspace resolution ───
+
+    #[test]
+    fn test_pack_tarball_overrides_package_json_in_tarball() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path();
+
+        create_test_package_with_files(root, "test-pkg", "1.0.0", &["dist/"]);
+        std::fs::create_dir_all(root.join("dist")).unwrap();
+        std::fs::write(root.join("dist/index.js"), "hello").unwrap();
+
+        let pkg = read_pkg(root);
+        let override_json = br#"{"name":"test-pkg","version":"1.0.0","resolved":true}"#;
+        let result = pack_tarball(root, &pkg, Some(override_json)).unwrap();
+
+        // Extract tarball and verify package.json content
+        use flate2::read::GzDecoder;
+        use std::io::Read;
+        let mut gz = GzDecoder::new(&result.tarball[..]);
+        let mut tar_bytes = Vec::new();
+        gz.read_to_end(&mut tar_bytes).unwrap();
+
+        let mut archive = tar::Archive::new(&tar_bytes[..]);
+        for entry in archive.entries().unwrap() {
+            let mut entry = entry.unwrap();
+            let path = entry.path().unwrap().to_string_lossy().to_string();
+            if path == "package/package.json" {
+                let mut content = String::new();
+                entry.read_to_string(&mut content).unwrap();
+                let parsed: serde_json::Value = serde_json::from_str(&content).unwrap();
+                assert_eq!(parsed["resolved"], true);
+                return;
+            }
+        }
+        panic!("package.json not found in tarball");
     }
 }

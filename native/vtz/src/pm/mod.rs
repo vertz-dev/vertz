@@ -1924,14 +1924,41 @@ pub async fn publish(
         }
     }
 
-    // 2. Run lifecycle scripts (npm order: prepublish → prepare → prepublishOnly)
+    // 2. Discover workspace version map for resolving workspace: protocols
+    let abs_root = std::fs::canonicalize(root_dir).unwrap_or_else(|_| root_dir.to_path_buf());
+    let workspace_versions = match workspace::find_workspace_root(&abs_root) {
+        Some(ws_root) => match workspace::build_workspace_version_map(&ws_root) {
+            Ok(versions) => versions,
+            Err(e) => {
+                return Err(
+                    format!("Failed to resolve workspace versions for publish: {}", e).into(),
+                );
+            }
+        },
+        None => std::collections::HashMap::new(),
+    };
+
+    // 3. Run lifecycle scripts (npm order: prepublish → prepare → prepublishOnly)
+    // Scripts may modify package.json, so we read it AFTER they run.
     scripts::run_lifecycle_script(root_dir, &pkg.scripts, "prepublish", output.clone()).await?;
     scripts::run_lifecycle_script(root_dir, &pkg.scripts, "prepare", output.clone()).await?;
     scripts::run_lifecycle_script(root_dir, &pkg.scripts, "prepublishOnly", output.clone()).await?;
 
-    // 3. Pack the tarball
+    // 4. Read package.json (after lifecycle scripts), resolve workspace protocols,
+    //    and pack the tarball with the resolved version.
+    let mut raw_pkg = pack::read_package_json_raw(root_dir)?;
+    if !workspace_versions.is_empty() {
+        pack::resolve_workspace_protocols(&mut raw_pkg, &workspace_versions);
+    }
+    let resolved_pkg_bytes = serde_json::to_vec_pretty(&raw_pkg)?;
+
     output.publish_packing(&name, &version);
-    let pack_result = pack::pack_tarball(root_dir, &pkg)?;
+    let pkg_override = if !workspace_versions.is_empty() {
+        Some(resolved_pkg_bytes.as_slice())
+    } else {
+        None
+    };
+    let pack_result = pack::pack_tarball(root_dir, &pkg, pkg_override)?;
 
     output.publish_packed(
         &name,
@@ -1941,7 +1968,7 @@ pub async fn publish(
         pack_result.unpacked_size,
     );
 
-    // 4. Dry run: list files and exit
+    // 5. Dry run: list files and exit
     if dry_run {
         for file in &pack_result.files {
             output.publish_file_list(&file.path, file.size);
@@ -1959,7 +1986,7 @@ pub async fn publish(
         return Ok(());
     }
 
-    // 5. Load registry config for auth
+    // 6. Load registry config for auth
     let reg_config = config::load_registry_config(root_dir, None)?;
     let registry_url = reg_config.registry_url_for_package(&name).to_string();
     // Auth matching uses prefix comparison — append "/" so "host:port" matches "host:port/"
@@ -1973,8 +2000,7 @@ pub async fn publish(
             )
         })?;
 
-    // 6. Build publish document
-    let raw_pkg = pack::read_package_json_raw(root_dir)?;
+    // 7. Build publish document (using already-resolved raw_pkg)
     let normalized = pack::normalize_package_json(&raw_pkg);
 
     let tarball_base64 = base64::Engine::encode(
@@ -1995,7 +2021,7 @@ pub async fn publish(
         registry_url: &registry_url,
     });
 
-    // 7. Upload
+    // 8. Upload
     output.publish_uploading(&name, &version, tag);
 
     let cache_dir = registry::default_cache_dir();

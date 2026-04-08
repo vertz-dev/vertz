@@ -1,5 +1,5 @@
 use crate::pm::types;
-use std::collections::{BTreeMap, HashSet};
+use std::collections::{BTreeMap, HashMap, HashSet};
 use std::path::{Path, PathBuf};
 
 /// A discovered workspace package
@@ -267,6 +267,46 @@ pub fn resolve_workspace_dir(
         available.join("\n")
     )
     .into())
+}
+
+/// Walk up from `start_dir` looking for a `package.json` with a `"workspaces"` field.
+/// Returns the directory containing that file, or `None` if not found.
+pub fn find_workspace_root(start_dir: &Path) -> Option<PathBuf> {
+    let mut dir = start_dir.to_path_buf();
+    loop {
+        let pkg_path = dir.join("package.json");
+        if pkg_path.exists() {
+            if let Ok(pkg) = types::read_package_json(&dir) {
+                if pkg.workspaces.is_some() {
+                    return Some(dir);
+                }
+            }
+        }
+
+        if !dir.pop() {
+            return None;
+        }
+    }
+}
+
+/// Discover all workspace packages from the workspace root and return a
+/// name → version map for resolving `workspace:` protocol references.
+pub fn build_workspace_version_map(
+    workspace_root: &Path,
+) -> Result<HashMap<String, String>, Box<dyn std::error::Error>> {
+    let root_pkg = types::read_package_json(workspace_root)?;
+    let patterns = root_pkg
+        .workspaces
+        .ok_or("No workspaces field in root package.json")?;
+
+    let workspaces = discover_workspaces(workspace_root, &patterns)?;
+
+    let mut versions = HashMap::new();
+    for ws in &workspaces {
+        versions.insert(ws.name.clone(), ws.version.clone());
+    }
+
+    Ok(versions)
 }
 
 #[cfg(test)]
@@ -642,5 +682,82 @@ mod tests {
             .unwrap_err()
             .to_string()
             .contains("no \"workspaces\" field"));
+    }
+
+    // ─── find_workspace_root ───
+
+    #[test]
+    fn test_find_workspace_root_from_package_dir() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path();
+
+        // Create workspace root with workspaces field
+        std::fs::write(
+            root.join("package.json"),
+            r#"{"name":"root","version":"1.0.0","workspaces":["packages/*"]}"#,
+        )
+        .unwrap();
+
+        // Create a package directory
+        let pkg_dir = root.join("packages/fetch");
+        std::fs::create_dir_all(&pkg_dir).unwrap();
+        std::fs::write(
+            pkg_dir.join("package.json"),
+            r#"{"name":"@vertz/fetch","version":"0.2.53"}"#,
+        )
+        .unwrap();
+
+        let result = find_workspace_root(&pkg_dir);
+        assert!(result.is_some());
+        assert_eq!(result.unwrap(), root);
+    }
+
+    #[test]
+    fn test_find_workspace_root_returns_none_for_standalone() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path();
+
+        // No workspaces field
+        std::fs::write(
+            root.join("package.json"),
+            r#"{"name":"standalone","version":"1.0.0"}"#,
+        )
+        .unwrap();
+
+        let result = find_workspace_root(root);
+        assert!(result.is_none());
+    }
+
+    // ─── build_workspace_version_map ───
+
+    #[test]
+    fn test_build_workspace_version_map() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path();
+
+        std::fs::write(
+            root.join("package.json"),
+            r#"{"name":"root","version":"1.0.0","workspaces":["packages/*"]}"#,
+        )
+        .unwrap();
+
+        let a_dir = root.join("packages/errors");
+        let b_dir = root.join("packages/fetch");
+        std::fs::create_dir_all(&a_dir).unwrap();
+        std::fs::create_dir_all(&b_dir).unwrap();
+        std::fs::write(
+            a_dir.join("package.json"),
+            r#"{"name":"@vertz/errors","version":"0.2.53"}"#,
+        )
+        .unwrap();
+        std::fs::write(
+            b_dir.join("package.json"),
+            r#"{"name":"@vertz/fetch","version":"0.2.53"}"#,
+        )
+        .unwrap();
+
+        let versions = build_workspace_version_map(root).unwrap();
+        assert_eq!(versions.get("@vertz/errors").unwrap(), "0.2.53");
+        assert_eq!(versions.get("@vertz/fetch").unwrap(), "0.2.53");
     }
 }
