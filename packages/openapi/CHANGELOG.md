@@ -1,5 +1,14 @@
 # @vertz/openapi
 
+## 0.1.9
+
+### Patch Changes
+
+- [#2427](https://github.com/vertz-dev/vertz/pull/2427) [`c2e8ad1`](https://github.com/vertz-dev/vertz/commit/c2e8ad1efc6e6e4f2e9c2762b7da7e1ebeb03be2) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - fix(openapi): generate correct types for SSE streaming endpoints
+
+  - Streaming operations now emit `*Event` type names (matching resource imports) instead of `*Response`
+  - `oneOf`/`anyOf` schemas at the top level generate union type aliases instead of empty interface stubs
+
 ## 0.1.8
 
 ### Patch Changes
