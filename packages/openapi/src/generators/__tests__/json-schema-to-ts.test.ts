@@ -27,6 +27,30 @@ describe('jsonSchemaToTS', () => {
     });
   });
 
+  describe('const values (#2429)', () => {
+    it('maps const string to literal type', () => {
+      expect(jsonSchemaToTS({ const: 'brand_details', type: 'string' }, empty)).toBe(
+        "'brand_details'",
+      );
+    });
+
+    it('maps const string without type annotation', () => {
+      expect(jsonSchemaToTS({ const: 'topics' }, empty)).toBe("'topics'");
+    });
+
+    it('maps const number to literal type', () => {
+      expect(jsonSchemaToTS({ const: 42, type: 'integer' }, empty)).toBe('42');
+    });
+
+    it('maps const boolean to literal type', () => {
+      expect(jsonSchemaToTS({ const: true, type: 'boolean' }, empty)).toBe('true');
+    });
+
+    it('maps const null to null type', () => {
+      expect(jsonSchemaToTS({ const: null }, empty)).toBe('null');
+    });
+  });
+
   describe('arrays', () => {
     it('maps array with typed items', () => {
       expect(jsonSchemaToTS({ type: 'array', items: { type: 'string' } }, empty)).toBe('string[]');
