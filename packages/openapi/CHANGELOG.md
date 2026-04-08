@@ -1,5 +1,11 @@
 # @vertz/openapi
 
+## 0.1.10
+
+### Patch Changes
+
+- [#2430](https://github.com/vertz-dev/vertz/pull/2430) [`0850c83`](https://github.com/vertz-dev/vertz/commit/0850c8314f0f80fe36d3835611cfc91078b64088) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - fix(openapi): emit const values as string literal types for discriminated unions
+
 ## 0.1.9
 
 ### Patch Changes
