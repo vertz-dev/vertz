@@ -1,5 +1,25 @@
 # @vertz/cli
 
+## 0.2.54
+
+### Patch Changes
+
+- [#2424](https://github.com/vertz-dev/vertz/pull/2424) [`d4dcd0c`](https://github.com/vertz-dev/vertz/commit/d4dcd0cf5e7b0dc98703f4da6c96d03ccde6e167) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - fix(pm): resolve workspace: protocols during publish
+
+  `vtz publish` now resolves `workspace:^`, `workspace:~`, and `workspace:*`
+  references to actual version numbers before packing and uploading. Previously
+  these leaked into the published package.json on npm, causing install failures
+  for consumers.
+
+- Updated dependencies []:
+  - @vertz/codegen@0.2.54
+  - @vertz/compiler@0.2.54
+  - @vertz/create-vertz-app@0.2.54
+  - @vertz/db@0.2.54
+  - @vertz/errors@0.2.54
+  - @vertz/tui@0.2.54
+  - @vertz/ui-server@0.2.54
+
 ## 0.2.53
 
 ### Patch Changes
