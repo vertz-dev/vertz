@@ -840,9 +840,7 @@ describe('generateTypes', () => {
       {
         name: 'SingleVariant',
         jsonSchema: {
-          oneOf: [
-            { type: 'object', properties: { id: { type: 'string' } }, required: ['id'] },
-          ],
+          oneOf: [{ type: 'object', properties: { id: { type: 'string' } }, required: ['id'] }],
         },
       },
     ];
