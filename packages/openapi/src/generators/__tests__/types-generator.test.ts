@@ -632,6 +632,242 @@ describe('generateTypes', () => {
     expect(matches).toHaveLength(1);
   });
 
+  it('generates *Event type for streaming operations instead of *Response (#2426)', () => {
+    const resources: ParsedResource[] = [
+      makeResource({
+        operations: [
+          {
+            operationId: 'streamBrandDraft',
+            methodName: 'streamBrandDraft',
+            method: 'POST',
+            path: '/brands/draft-brand',
+            pathParams: [],
+            queryParams: [],
+            requestBody: {
+              jsonSchema: { type: 'object', properties: { prompt: { type: 'string' } } },
+            },
+            response: {
+              jsonSchema: { type: 'object', properties: { chunk: { type: 'string' } } },
+            },
+            responseStatus: 200,
+            tags: ['brands'],
+            streamingFormat: 'sse',
+          },
+        ],
+      }),
+    ];
+    const schemas: ParsedSchema[] = [];
+
+    const files = generateTypes(resources, schemas);
+    const tasksFile = files.find((f) => f.path === 'types/tasks.ts');
+    // Streaming operations should use *Event suffix to match resource-generator imports
+    expect(tasksFile!.content).toContain('export interface StreamBrandDraftEvent {');
+    expect(tasksFile!.content).not.toContain('StreamBrandDraftResponse');
+  });
+
+  it('generates *Event type for streaming ops with named schema (#2426)', () => {
+    const resources: ParsedResource[] = [
+      makeResource({
+        operations: [
+          {
+            operationId: 'streamEvents',
+            methodName: 'streamEvents',
+            method: 'GET',
+            path: '/tasks/events',
+            pathParams: [],
+            queryParams: [],
+            response: {
+              name: 'TaskEvent',
+              jsonSchema: { type: 'object', properties: { type: { type: 'string' } } },
+            },
+            responseStatus: 200,
+            tags: ['tasks'],
+            streamingFormat: 'sse',
+          },
+        ],
+      }),
+    ];
+    const schemas: ParsedSchema[] = [];
+
+    const files = generateTypes(resources, schemas);
+    const tasksFile = files.find((f) => f.path === 'types/tasks.ts');
+    // Named streaming schemas should use the schema name directly
+    expect(tasksFile!.content).toContain('export interface TaskEvent {');
+  });
+
+  it('generates union type alias for oneOf streaming event schemas (#2426)', () => {
+    const resources: ParsedResource[] = [
+      makeResource({
+        operations: [
+          {
+            operationId: 'streamDraft',
+            methodName: 'streamDraft',
+            method: 'POST',
+            path: '/onboard/draft-brand',
+            pathParams: [],
+            queryParams: [],
+            requestBody: {
+              jsonSchema: { type: 'object', properties: { prompt: { type: 'string' } } },
+            },
+            response: {
+              jsonSchema: {
+                oneOf: [
+                  {
+                    type: 'object',
+                    properties: {
+                      step: { type: 'string', enum: ['brand_details'] },
+                      data: { type: 'object', properties: { name: { type: 'string' } } },
+                    },
+                    required: ['step', 'data'],
+                  },
+                  {
+                    type: 'object',
+                    properties: {
+                      step: { type: 'string', enum: ['topics'] },
+                      data: { type: 'array', items: { type: 'string' } },
+                    },
+                    required: ['step', 'data'],
+                  },
+                ],
+              },
+            },
+            responseStatus: 200,
+            tags: ['tasks'],
+            streamingFormat: 'sse',
+          },
+        ],
+      }),
+    ];
+    const schemas: ParsedSchema[] = [];
+
+    const files = generateTypes(resources, schemas);
+    const tasksFile = files.find((f) => f.path === 'types/tasks.ts');
+    // oneOf schemas should generate a type alias (union), not an empty interface
+    expect(tasksFile!.content).toContain('export type StreamDraftEvent =');
+    expect(tasksFile!.content).not.toContain('export interface StreamDraftEvent {}');
+    // Should contain the union members
+    expect(tasksFile!.content).toContain("step: 'brand_details'");
+    expect(tasksFile!.content).toContain('data: string[]');
+  });
+
+  it('generates union type alias for oneOf component schemas (#2426)', () => {
+    const resources: ParsedResource[] = [makeResource()];
+    const schemas: ParsedSchema[] = [
+      {
+        name: 'DraftEvent',
+        jsonSchema: {
+          oneOf: [
+            {
+              type: 'object',
+              properties: {
+                step: { type: 'string', enum: ['brand_details'] },
+                data: { type: 'object', properties: { name: { type: 'string' } } },
+              },
+              required: ['step', 'data'],
+            },
+            {
+              type: 'object',
+              properties: {
+                step: { type: 'string', enum: ['topics'] },
+                data: { type: 'array', items: { type: 'string' } },
+              },
+              required: ['step', 'data'],
+            },
+          ],
+        },
+      },
+    ];
+
+    const files = generateTypes(resources, schemas);
+    const componentsFile = files.find((f) => f.path === 'types/components.ts');
+    expect(componentsFile!.content).toContain('export type DraftEvent =');
+    expect(componentsFile!.content).not.toContain('export interface DraftEvent {}');
+  });
+
+  it('oneOf members with nullable properties preserve correct semantics (#2426)', () => {
+    const resources: ParsedResource[] = [
+      makeResource({
+        operations: [
+          {
+            operationId: 'streamProgress',
+            methodName: 'streamProgress',
+            method: 'GET',
+            path: '/progress',
+            pathParams: [],
+            queryParams: [],
+            response: {
+              jsonSchema: {
+                oneOf: [
+                  {
+                    type: 'object',
+                    properties: {
+                      step: { type: 'string', enum: ['init'] },
+                      value: { type: ['string', 'null'] },
+                    },
+                    required: ['step', 'value'],
+                  },
+                  {
+                    type: 'object',
+                    properties: {
+                      step: { type: 'string', enum: ['done'] },
+                      count: { type: 'number' },
+                    },
+                    required: ['step', 'count'],
+                  },
+                ],
+              },
+            },
+            responseStatus: 200,
+            tags: ['tasks'],
+            streamingFormat: 'sse',
+          },
+        ],
+      }),
+    ];
+    const schemas: ParsedSchema[] = [];
+
+    const files = generateTypes(resources, schemas);
+    const tasksFile = files.find((f) => f.path === 'types/tasks.ts');
+    // Each union member must stay intact — nullable `string | null` must not be split
+    expect(tasksFile!.content).toContain('value: string | null');
+    expect(tasksFile!.content).toContain("step: 'done'");
+    expect(tasksFile!.content).toContain('count: number');
+  });
+
+  it('single-member oneOf generates type alias without leading pipe (#2426)', () => {
+    const resources: ParsedResource[] = [makeResource()];
+    const schemas: ParsedSchema[] = [
+      {
+        name: 'SingleVariant',
+        jsonSchema: {
+          oneOf: [{ type: 'object', properties: { id: { type: 'string' } }, required: ['id'] }],
+        },
+      },
+    ];
+
+    const files = generateTypes(resources, schemas);
+    const componentsFile = files.find((f) => f.path === 'types/components.ts');
+    expect(componentsFile!.content).toContain('export type SingleVariant = { id: string };\n');
+    expect(componentsFile!.content).not.toContain('|');
+  });
+
+  it('generates union type alias for anyOf schemas (#2426)', () => {
+    const resources: ParsedResource[] = [makeResource()];
+    const schemas: ParsedSchema[] = [
+      {
+        name: 'NullableString',
+        jsonSchema: {
+          anyOf: [{ type: 'string' }, { type: 'null' }],
+        },
+      },
+    ];
+
+    const files = generateTypes(resources, schemas);
+    const componentsFile = files.find((f) => f.path === 'types/components.ts');
+    expect(componentsFile!.content).toContain('export type NullableString =');
+    expect(componentsFile!.content).not.toContain('export interface NullableString {}');
+  });
+
   it('uses typePrefix for fallback type names instead of long operationId', () => {
     const resources: ParsedResource[] = [
       makeResource({
