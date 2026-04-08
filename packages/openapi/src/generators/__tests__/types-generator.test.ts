@@ -784,6 +784,75 @@ describe('generateTypes', () => {
     expect(componentsFile!.content).not.toContain('export interface DraftEvent {}');
   });
 
+  it('oneOf members with nullable properties preserve correct semantics (#2426)', () => {
+    const resources: ParsedResource[] = [
+      makeResource({
+        operations: [
+          {
+            operationId: 'streamProgress',
+            methodName: 'streamProgress',
+            method: 'GET',
+            path: '/progress',
+            pathParams: [],
+            queryParams: [],
+            response: {
+              jsonSchema: {
+                oneOf: [
+                  {
+                    type: 'object',
+                    properties: {
+                      step: { type: 'string', enum: ['init'] },
+                      value: { type: ['string', 'null'] },
+                    },
+                    required: ['step', 'value'],
+                  },
+                  {
+                    type: 'object',
+                    properties: {
+                      step: { type: 'string', enum: ['done'] },
+                      count: { type: 'number' },
+                    },
+                    required: ['step', 'count'],
+                  },
+                ],
+              },
+            },
+            responseStatus: 200,
+            tags: ['tasks'],
+            streamingFormat: 'sse',
+          },
+        ],
+      }),
+    ];
+    const schemas: ParsedSchema[] = [];
+
+    const files = generateTypes(resources, schemas);
+    const tasksFile = files.find((f) => f.path === 'types/tasks.ts');
+    // Each union member must stay intact — nullable `string | null` must not be split
+    expect(tasksFile!.content).toContain('value: string | null');
+    expect(tasksFile!.content).toContain("step: 'done'");
+    expect(tasksFile!.content).toContain('count: number');
+  });
+
+  it('single-member oneOf generates type alias without leading pipe (#2426)', () => {
+    const resources: ParsedResource[] = [makeResource()];
+    const schemas: ParsedSchema[] = [
+      {
+        name: 'SingleVariant',
+        jsonSchema: {
+          oneOf: [
+            { type: 'object', properties: { id: { type: 'string' } }, required: ['id'] },
+          ],
+        },
+      },
+    ];
+
+    const files = generateTypes(resources, schemas);
+    const componentsFile = files.find((f) => f.path === 'types/components.ts');
+    expect(componentsFile!.content).toContain('export type SingleVariant = { id: string };\n');
+    expect(componentsFile!.content).not.toContain('|');
+  });
+
   it('generates union type alias for anyOf schemas (#2426)', () => {
     const resources: ParsedResource[] = [makeResource()];
     const schemas: ParsedSchema[] = [

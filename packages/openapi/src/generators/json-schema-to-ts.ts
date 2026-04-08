@@ -109,8 +109,12 @@ export function generateInterface(
 
   // oneOf/anyOf at the top level → type alias (union), not an empty interface
   if (Array.isArray(schema.oneOf) || Array.isArray(schema.anyOf)) {
-    const tsType = jsonSchemaToTS(schema, namedSchemas);
-    return `export type ${safeName} =\n  | ${tsType.split(' | ').join('\n  | ')};\n`;
+    const variants = (schema.oneOf ?? schema.anyOf) as Record<string, unknown>[];
+    const members = [...new Set(variants.map((s) => jsonSchemaToTS(s, namedSchemas)))];
+    if (members.length === 1) {
+      return `export type ${safeName} = ${members[0]};\n`;
+    }
+    return `export type ${safeName} =\n  | ${members.join('\n  | ')};\n`;
   }
 
   const properties = schema.properties as Record<string, Record<string, unknown>> | undefined;
