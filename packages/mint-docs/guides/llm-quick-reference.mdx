@@ -1,7 +1,20 @@
 ---
 title: LLM Quick Reference
-description: 'Quick overview of Vertz patterns for AI code generation — just enough to know what exists, with links to full docs.'
+description: 'Vertz is a full-stack TypeScript framework — database ORM, API server, compiled UI, AI agents, custom runtime. Quick reference for AI code generation.'
 ---
+
+## What is Vertz?
+
+Vertz is a full-stack TypeScript framework. It includes:
+
+- **Database ORM** (`vertz/db`) — typed queries, migrations, PostgreSQL + SQLite + D1
+- **API server** (`vertz/server`) — entities, services, REST endpoints, auto-generated OpenAPI
+- **Compiled UI** (`vertz/ui`) — signals, JSX, router, SSR, forms, scoped CSS
+- **AI agents** (`@vertz/agents`) — agents, typed tools, workflows on Cloudflare Workers
+- **Custom runtime & CLI** (`vtz`) — Rust-powered dev server, build, test runner
+- **Schema** (`vertz/schema`) — validation, JSON Schema output, shared across all layers
+
+One schema definition drives every layer. If it builds, it works.
 
 Quick overview of Vertz patterns. Each section links to its full guide.
 

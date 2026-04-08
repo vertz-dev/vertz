@@ -7,8 +7,8 @@
 <h1 align="center">Vertz</h1>
 
 <p align="center">
-  <strong>If it builds, it works.</strong><br />
-  The TypeScript stack where types flow from database to browser — and LLMs get it right on the first try.
+  <strong>A full-stack TypeScript framework.</strong><br />
+  Database ORM, API server, compiled UI, AI agents, and a custom runtime — one schema drives every layer. If it builds, it works.
 </p>
 
 <p align="center">
@@ -125,6 +125,7 @@ Or clone the [entity-todo example](./examples/entity-todo) for a full-stack app 
 | **Deploy** | Cloudflare Workers adapter | `@vertz/cloudflare` |
 | **Testing** | `createTestApp()` with service mocking | `@vertz/testing` |
 | **HTTP** | Type-safe client with retries, streaming, auth strategies | `@vertz/fetch` |
+| **Agents** | AI agents, typed tools, workflows, Cloudflare Workers | `@vertz/agents` |
 | **Terminal UI** | JSX components, prompts, wizards, spinners for CLI apps | `@vertz/tui` |
 
 Install everything with one dependency:
@@ -133,7 +134,7 @@ Install everything with one dependency:
 bun add vertz
 ```
 
-Then import what you need: `vertz/server`, `vertz/db`, `vertz/ui`, `vertz/schema`, `vertz/testing`.
+Then import what you need: `vertz/server`, `vertz/db`, `vertz/ui`, `vertz/schema`, `vertz/testing`. For AI agents, install `@vertz/agents` separately.
 
 ## Custom Endpoints
 
@@ -216,5 +217,5 @@ We don't accept pull requests. The entire codebase is written by [Claude Code](h
 ---
 
 <p align="center">
-  <em>Type-safe. LLM-native. The whole stack.</em>
+  <em>Full-stack TypeScript framework. Type-safe. LLM-native.</em>
 </p>

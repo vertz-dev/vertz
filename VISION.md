@@ -1,12 +1,14 @@
 # The Vertz Vision
 
+Vertz is a full-stack TypeScript framework with a database ORM, API server, compiled UI, AI agent framework, and a custom Rust-powered runtime. Today it ships: `@vertz/db` (typed queries, migrations, PostgreSQL/SQLite/D1), `@vertz/server` (entities, services, REST, OpenAPI), `@vertz/ui` (signals, JSX, SSR, scoped CSS), `@vertz/agents` (agents, tools, workflows), and `vtz` (dev server, build, test runner).
+
 ## Mission
 
 Build the only development stack you need — from database to browser — where every layer is type-safe, every API is predictable, and every decision is optimized for both human developers and the AI agents that build alongside them.
 
 ## Where We're Going
 
-Vertz is not a framework. It's not a piece of the stack. It's the stack.
+Vertz is not just a framework. It's not a piece of the stack. It's the stack.
 
 Today, building a production application means stitching together a dozen tools that don't talk to each other. Your ORM doesn't know about your API schema. Your API schema doesn't know about your frontend types. Your frontend types don't know about your validation rules. Every seam is a place where bugs hide and LLMs guess wrong.
 
