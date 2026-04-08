@@ -10,6 +10,15 @@ export function jsonSchemaToTS(
     return schema.$circular;
   }
 
+  // const → single literal type (OpenAPI 3.1)
+  if ('const' in schema) {
+    const value = schema.const;
+    if (value === null) return 'null';
+    if (typeof value === 'boolean') return String(value);
+    if (typeof value === 'number') return String(value);
+    return `'${String(value).replace(/'/g, "\\'")}'`;
+  }
+
   // Enum → literal union
   if (Array.isArray(schema.enum)) {
     return (schema.enum as unknown[])
