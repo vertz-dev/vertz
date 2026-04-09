@@ -303,10 +303,12 @@ describe('registerDevCommand', () => {
 describe('devAction error paths', () => {
   let pathsSpy: Mock<(...args: unknown[]) => unknown>;
   let appDetectorSpy: Mock<(...args: unknown[]) => unknown>;
+  let orchestratorSpy: Mock<(...args: unknown[]) => unknown>;
 
   afterEach(() => {
     pathsSpy?.mockRestore();
     appDetectorSpy?.mockRestore();
+    orchestratorSpy?.mockRestore();
   });
 
   it('returns err when findProjectRoot returns null', async () => {
@@ -330,6 +332,16 @@ describe('devAction error paths', () => {
       (...args: unknown[]) => unknown
     >;
 
+    // Mock pipeline so runCodegenPipeline doesn't try to compile from /fake/root
+    const pipelineMod = await import('../../pipeline');
+    orchestratorSpy = vi.spyOn(pipelineMod, 'PipelineOrchestrator').mockImplementation(
+      () =>
+        ({
+          runFull: vi.fn().mockResolvedValue({ success: true, stages: [] }),
+          dispose: vi.fn(),
+        }) as unknown,
+    ) as Mock<(...args: unknown[]) => unknown>;
+
     const appDetector = await import('../../dev-server/app-detector');
     appDetectorSpy = vi.spyOn(appDetector, 'detectAppType').mockImplementation(() => {
       throw new Error('No app entry found');
@@ -349,6 +361,16 @@ describe('devAction error paths', () => {
     pathsSpy = vi.spyOn(pathsMod, 'findProjectRoot').mockReturnValue('/fake/root') as Mock<
       (...args: unknown[]) => unknown
     >;
+
+    // Mock pipeline so runCodegenPipeline doesn't try to compile from /fake/root
+    const pipelineMod = await import('../../pipeline');
+    orchestratorSpy = vi.spyOn(pipelineMod, 'PipelineOrchestrator').mockImplementation(
+      () =>
+        ({
+          runFull: vi.fn().mockResolvedValue({ success: true, stages: [] }),
+          dispose: vi.fn(),
+        }) as unknown,
+    ) as Mock<(...args: unknown[]) => unknown>;
 
     const appDetector = await import('../../dev-server/app-detector');
     appDetectorSpy = vi.spyOn(appDetector, 'detectAppType').mockImplementation(() => {
@@ -472,7 +494,8 @@ describe('devAction full flow', () => {
     const result = await devAction({ port: 4000, host: '0.0.0.0' });
 
     expect(result.ok).toBe(true);
-    expect(mockOrchestrator.runFull).toHaveBeenCalledTimes(1);
+    // runFull is called twice: once by runCodegenPipeline, once by startBunDevServer
+    expect(mockOrchestrator.runFull).toHaveBeenCalledTimes(2);
     expect(watcherSpy).toHaveBeenCalledTimes(1);
     expect(devServerSpy).toHaveBeenCalledTimes(1);
   });
@@ -481,6 +504,17 @@ describe('devAction full flow', () => {
     const { devAction } = await import('../dev');
     await devAction({ port: 5000, host: '0.0.0.0', typecheck: false, open: true });
 
+    // Called twice: once for runCodegenPipeline (with fixed config),
+    // once for startBunDevServer (with full config)
+    expect(orchestratorSpy).toHaveBeenCalledWith({
+      sourceDir: 'src',
+      outputDir: '.vertz/generated',
+      typecheck: false,
+      autoSyncDb: true,
+      open: false,
+      port: 0,
+      host: 'localhost',
+    });
     expect(orchestratorSpy).toHaveBeenCalledWith({
       sourceDir: 'src',
       outputDir: '.vertz/generated',
@@ -592,8 +626,8 @@ describe('devAction full flow', () => {
     if (!result.ok) {
       expect(result.error.message).toBe('Server failed to start');
     }
-    // Dispose should be called on error
-    expect(mockOrchestrator.dispose).toHaveBeenCalledTimes(1);
+    // Dispose called twice: once by runCodegenPipeline, once by startBunDevServer error handler
+    expect(mockOrchestrator.dispose).toHaveBeenCalledTimes(2);
   });
 
   it('returns err with stringified message when catch receives non-Error', async () => {
@@ -728,10 +762,68 @@ describe('devAction full flow', () => {
 
       await (sigintHandler?.handler as () => Promise<void>)();
 
-      expect(mockOrchestrator.dispose).toHaveBeenCalledTimes(1);
+      // dispose called twice: once by runCodegenPipeline, once by shutdown handler
+      expect(mockOrchestrator.dispose).toHaveBeenCalledTimes(2);
       expect(processExitSpy).toHaveBeenCalledWith(0);
 
       processExitSpy.mockRestore();
+    });
+  });
+
+  describe('codegen pipeline before server', () => {
+    it('continues when codegen pipeline fails', async () => {
+      // First call (runCodegenPipeline) fails, second call (startBunDevServer) succeeds
+      let callCount = 0;
+      mockOrchestrator.runFull.mockImplementation(async () => {
+        callCount++;
+        if (callCount === 1) {
+          throw new Error('Codegen compilation error');
+        }
+        return { success: true, stages: [] };
+      });
+
+      const consoleWarnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+      const { devAction } = await import('../dev');
+      const result = await devAction();
+
+      // Should still succeed — codegen failure is non-fatal
+      expect(result.ok).toBe(true);
+      expect(devServerSpy).toHaveBeenCalledTimes(1);
+
+      const warnCalls = consoleWarnSpy.mock.calls.map((c: unknown[]) => String(c[0]));
+      expect(warnCalls.some((msg: string) => msg.includes('Codegen pipeline failed'))).toBe(true);
+
+      consoleWarnSpy.mockRestore();
+    });
+
+    it('logs codegen warnings when pipeline has stage errors', async () => {
+      let callCount = 0;
+      mockOrchestrator.runFull.mockImplementation(async () => {
+        callCount++;
+        if (callCount === 1) {
+          return {
+            success: false,
+            stages: [
+              { stage: 'analyze', success: false, durationMs: 10, error: new Error('Parse error') },
+            ],
+          };
+        }
+        return { success: true, stages: [] };
+      });
+
+      const consoleWarnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+      const { devAction } = await import('../dev');
+      const result = await devAction();
+
+      expect(result.ok).toBe(true);
+      const warnCalls = consoleWarnSpy.mock.calls.map((c: unknown[]) => String(c[0]));
+      expect(warnCalls.some((msg: string) => msg.includes('Codegen pipeline had errors'))).toBe(
+        true,
+      );
+
+      consoleWarnSpy.mockRestore();
     });
   });
 });
@@ -835,6 +927,16 @@ describe('devAction --experimental-runtime', () => {
       .spyOn(launcherMod, 'findRuntimeBinary')
       .mockReturnValue('/fake/binary') as Mock<(...args: unknown[]) => unknown>;
 
+    // Mock the pipeline for the codegen step that runs before native runtime
+    const pipelineMod = await import('../../pipeline');
+    const orchestratorSpy = vi.spyOn(pipelineMod, 'PipelineOrchestrator').mockImplementation(
+      () =>
+        ({
+          runFull: vi.fn().mockResolvedValue({ success: true, stages: [] }),
+          dispose: vi.fn(),
+        }) as unknown,
+    );
+
     // Mock the child process
     const mockChild = {
       on: vi.fn().mockImplementation((event: string, cb: () => void) => {
@@ -861,9 +963,11 @@ describe('devAction --experimental-runtime', () => {
       typecheck: true,
       open: false,
     });
+
+    orchestratorSpy.mockRestore();
   });
 
-  it('does not start Bun pipeline or dev server when using experimental runtime', async () => {
+  it('runs codegen pipeline but does not start Bun dev server when using native runtime', async () => {
     const launcherMod = await import('../../runtime/launcher');
     findBinarySpy = vi
       .spyOn(launcherMod, 'findRuntimeBinary')
@@ -881,10 +985,15 @@ describe('devAction --experimental-runtime', () => {
       (...args: unknown[]) => unknown
     >;
 
+    const mockOrch = {
+      runFull: vi.fn().mockResolvedValue({ success: true, stages: [] }),
+      dispose: vi.fn(),
+    };
+
     const pipelineMod = await import('../../pipeline');
     const orchestratorSpy = vi
       .spyOn(pipelineMod, 'PipelineOrchestrator')
-      .mockImplementation(() => ({}) as unknown);
+      .mockImplementation(() => mockOrch as unknown);
 
     const fullstackMod = await import('../../dev-server/fullstack-server');
     const devServerSpy = vi.spyOn(fullstackMod, 'startDevServer').mockResolvedValue(undefined);
@@ -892,8 +1001,11 @@ describe('devAction --experimental-runtime', () => {
     const { devAction } = await import('../dev');
     await devAction({ experimentalRuntime: true });
 
-    // Pipeline and Bun dev server should NOT be used
-    expect(orchestratorSpy).not.toHaveBeenCalled();
+    // Codegen pipeline SHOULD run before native runtime
+    expect(orchestratorSpy).toHaveBeenCalled();
+    expect(mockOrch.runFull).toHaveBeenCalledTimes(1);
+    expect(mockOrch.dispose).toHaveBeenCalledTimes(1);
+    // Bun dev server should NOT be used
     expect(devServerSpy).not.toHaveBeenCalled();
 
     orchestratorSpy.mockRestore();
