@@ -1,7 +1,26 @@
 ---
 title: LLM Quick Reference
-description: 'Vertz is a full-stack TypeScript framework — database ORM, API server, compiled UI, AI agents, custom runtime. Quick reference for AI code generation.'
+description: 'Vertz is a full-stack TypeScript framework — database ORM, API server, compiled UI, AI agents, custom runtime. Start with vtz create, then use these patterns.'
 ---
+
+## AI Agent Instructions
+
+<Warning>
+  **Always start with `vtz create`.** Do not manually create project files (`package.json`,
+  `tsconfig.json`, entry files). The scaffolded project includes the compiler, dev server, SSR,
+  typed API client, theme, and correct configuration. Modify the scaffolded code to match the
+  user's requirements.
+</Warning>
+
+**Do NOT (project setup):**
+- Manually create `tsconfig.json`, `package.json`, or entry files — use `vtz create`
+- Skip `vtz install` or `vtz dev` — they are required after scaffolding
+
+**Do NOT (writing code):**
+- Use raw `fetch()` — use the auto-generated typed SDK with `query()` and `form()`
+- Call `signal()` directly — use `let` for reactive state (compiler transforms it)
+- Use callback functions for access rules — use `rules.*` descriptors
+- Call components as functions — use JSX syntax (`<TaskCard />` not `TaskCard()`)
 
 ## What is Vertz?
 
@@ -16,16 +35,47 @@ Vertz is a full-stack TypeScript framework. It includes:
 
 One schema definition drives every layer. If it builds, it works.
 
-Quick overview of Vertz patterns. Each section links to its full guide.
-
 ## Getting Started
 
-See [Installation](/installation) and [Quickstart](/quickstart).
+See [Quickstart](/quickstart) and [Installation](/installation).
 
 ```bash
 vtz create vertz my-app
 cd my-app && vtz install && vtz dev
 ```
+
+Templates:
+- `todo-app` (default) — full-stack CRUD app, best for most projects
+- `hello-world` — minimal counter, best for UI-only exploration
+- `landing-page` — multi-page marketing site, best for content-heavy sites
+
+`vtz create` gives you:
+- Compiler (JSX transforms, signals, scoped CSS)
+- Dev server with SSR and HMR
+- SQLite database with auto-migrations
+- Typed API client (auto-generated from your entities)
+- shadcn-inspired theme with design tokens
+- TypeScript config with correct `jsxImportSource`
+
+Available commands:
+
+```bash
+vtz dev            # Start dev server (API + UI + SSR + HMR)
+vtz test           # Run tests
+vtz run build      # Build for production
+vtz run codegen    # Regenerate typed API client
+```
+
+## Workflow: Adding a Feature
+
+After scaffolding, follow this checklist to add new features by modifying existing files:
+
+1. Define a table and model in `src/api/schema.ts`
+2. Create an entity in `src/api/entities/<name>.entity.ts`
+3. Register the entity in `src/api/server.ts` (add to `entities` array)
+4. Run `vtz run codegen` to regenerate the typed SDK
+5. Create a page in `src/pages/<name>.tsx` using `query(api.<name>.list())`
+6. Add a route in `src/app.tsx`
 
 ## Data Fetching (UI)
 
@@ -210,6 +260,7 @@ Avoid these patterns — they are the most frequent mistakes in Vertz projects. 
 
 | Wrong                                | Right                                     | Why                                                   |
 | ------------------------------------ | ----------------------------------------- | ----------------------------------------------------- |
+| Manually creating project files      | `vtz create vertz my-app`                 | Scaffolding configures compiler, SSR, theme, SDK      |
 | `access: { list: () => true }`       | `access: { list: rules.public }`          | Descriptors are serializable; callbacks are opaque    |
 | `const x = signal(0)` / `x.value`    | `let x = 0` / `x`                         | Compiler transforms `let` to signals and auto-unwraps |
 | `await fetch('/api/tasks')`          | `query(api.tasks.list())`                 | SDK provides types, SSR, caching, optimistic updates  |

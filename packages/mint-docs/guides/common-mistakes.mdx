@@ -5,6 +5,22 @@ description: 'Anti-patterns to avoid when building with Vertz'
 
 These are the most common mistakes we see in Vertz projects — especially when AI agents or developers are getting started. Each one has a clear fix.
 
+## Skipping `vtz create`
+
+The fastest and most reliable way to start a Vertz project is `vtz create`. It scaffolds a working full-stack app with the compiler, dev server, SSR, typed API client, and theme — all configured correctly.
+
+```bash
+# Wrong — manually creating files from scratch
+mkdir my-app && cd my-app
+# ... creating package.json, tsconfig.json, entry files by hand
+
+# Right — scaffold and customize
+vtz create vertz my-app
+cd my-app && vtz install && vtz dev
+```
+
+**Why it matters:** Vertz requires specific compiler configuration, JSX import source settings, dev server setup, and file conventions. Manual setup is error-prone and misses features like SSR, HMR, scoped CSS extraction, and the typed API client. Start with `vtz create` and modify the scaffolded code.
+
 ## Using `signal()` instead of `let`
 
 The Vertz compiler transforms `let` declarations into signals automatically and auto-unwraps `.value` in JSX. Using `signal()` directly bypasses these optimizations.
