@@ -4,9 +4,9 @@
  * InMemorySessionStore remains the runtime default for Phase 2.
  */
 
-import { d } from '@vertz/db';
+import { d, type TableDef } from '@vertz/db';
 
-export const sessionsTable = d.table('sessions', {
+export const sessionsTable: TableDef = d.table('sessions', {
   id: d.uuid().primary(),
   userId: d.uuid(),
   refreshTokenHash: d.text(),

@@ -1050,7 +1050,7 @@ export function createDb<TModels extends Record<string, ModelEntry>>(
             }
             if (primaryKeys.length === 1) {
               // Single PK: add inline to the column definition
-              const pkCol = primaryKeys[0];
+              const pkCol = primaryKeys[0]!;
               const idx = cols.findIndex((c) => c.startsWith(pkCol));
               if (idx !== -1) cols[idx] += ' PRIMARY KEY';
             } else if (primaryKeys.length > 1) {

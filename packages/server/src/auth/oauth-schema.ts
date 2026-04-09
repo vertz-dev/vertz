@@ -4,9 +4,9 @@
  * InMemoryOAuthAccountStore remains the runtime default for Phase 3.
  */
 
-import { d } from '@vertz/db';
+import { d, type TableDef } from '@vertz/db';
 
-export const oauthAccountsTable = d.table('oauth_accounts', {
+export const oauthAccountsTable: TableDef = d.table('oauth_accounts', {
   id: d.uuid().primary(),
   userId: d.uuid(),
   provider: d.text(),

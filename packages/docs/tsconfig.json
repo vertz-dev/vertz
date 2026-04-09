@@ -5,7 +5,8 @@
     "jsxImportSource": "@vertz/ui",
     "noUncheckedIndexedAccess": true,
     "outDir": "dist",
-    "rootDir": "src"
+    "rootDir": "src",
+    "types": ["bun-types"]
   },
   "exclude": ["node_modules", "dist", "**/*.test.ts", "**/*.test.tsx", "**/*.test-d.ts"],
   "extends": "../../tsconfig.json",
