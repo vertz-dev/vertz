@@ -1,5 +1,13 @@
 # @vertz/runtime
 
+## 0.2.55
+
+### Patch Changes
+
+- [#2441](https://github.com/vertz-dev/vertz/pull/2441) [`e2126aa`](https://github.com/vertz-dev/vertz/commit/e2126aa0dca54dbb11c917c030895417ba6285da) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - fix(runtime): expose `process.cwd()` globally so `@vertz/server` auth module works in the vtz test runtime
+
+- [#2434](https://github.com/vertz-dev/vertz/pull/2434) [`a4957d6`](https://github.com/vertz-dev/vertz/commit/a4957d6160ce9ba181cdc54239a947106bc2c67f) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - fix(install): remove macOS quarantine xattr and ad-hoc sign binaries in CI to prevent Gatekeeper from killing the vtz binary after curl install
+
 ## 0.2.54
 
 ## 0.2.53

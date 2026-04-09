@@ -1,5 +1,15 @@
 # @vertz/theme-shadcn
 
+## 0.2.55
+
+### Patch Changes
+
+- [#2436](https://github.com/vertz-dev/vertz/pull/2436) [`b998c86`](https://github.com/vertz-dev/vertz/commit/b998c861136c07939abe06d025b0f61f21f7ff18) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - fix(theme-shadcn): preserve children getter descriptors in themed List wrapper to prevent eager evaluation before ListContext.Provider is active
+
+- Updated dependencies []:
+  - @vertz/ui@0.2.55
+  - @vertz/ui-primitives@0.2.55
+
 ## 0.2.54
 
 ### Patch Changes
