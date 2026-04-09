@@ -7,9 +7,16 @@
     "noUncheckedIndexedAccess": true,
     "outDir": "dist",
     "rootDir": "src",
-    "types": ["bun-types"]
+    "types": ["node"]
   },
-  "exclude": ["node_modules", "dist", "**/*.test.ts", "**/*.test.tsx", "**/*.test-d.ts"],
+  "exclude": [
+    "node_modules",
+    "dist",
+    "**/__tests__/**",
+    "**/*.test.ts",
+    "**/*.test.tsx",
+    "**/*.test-d.ts"
+  ],
   "extends": "../../tsconfig.json",
   "include": ["src"]
 }

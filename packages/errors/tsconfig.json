@@ -5,9 +5,9 @@
     "noUncheckedIndexedAccess": true,
     "outDir": "dist",
     "rootDir": "src",
-    "types": ["bun-types"]
+    "types": ["node"]
   },
-  "exclude": ["node_modules", "dist", "**/*.test.ts"],
+  "exclude": ["node_modules", "dist", "**/*.test.ts", "**/*.test-d.ts"],
   "extends": "../../tsconfig.json",
   "include": ["src"]
 }
