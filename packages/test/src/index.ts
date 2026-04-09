@@ -1,11 +1,10 @@
-// @vertz/test — Type declarations and runtime stubs for the Vertz test framework.
+// @vertz/test — Type declarations and runtime bridge for the Vertz test framework.
 //
-// When running under `vtz test`, the runtime's synthetic module loader intercepts
-// imports from '@vertz/test' and provides the real test framework globals.
-// This package exists so that:
-//   1. npm/bun can resolve the import (no 404 on install)
-//   2. TypeScript/IDEs can provide type checking and autocomplete
-//   3. Accidental use outside `vtz test` gives a clear error
+// Resolution order:
+//   1. `vtz test` — the runtime's synthetic module loader intercepts this import
+//      and provides the real test framework globals. This file is never reached.
+//   2. `bun test` — detects the Bun runtime and re-exports from `bun:test`.
+//   3. Any other context — stubs that throw a helpful error.
 
 const STUB_ERROR =
   '@vertz/test: this function is a stub. Run your tests with `vtz test` to use the real implementation.';
@@ -171,7 +170,21 @@ export interface Vi {
 export type ExpectTypeOf = <T = unknown>() => unknown;
 
 // ---------------------------------------------------------------------------
-// Runtime stubs
+// Runtime resolution: Bun re-export or stubs
+// ---------------------------------------------------------------------------
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+let _runtime: any;
+
+// @ts-expect-error - Bun global is only available in Bun runtime
+if (typeof Bun !== 'undefined') {
+  // Running under Bun — re-export from bun:test so `bun test` works
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  _runtime = require('bun:test');
+}
+
+// ---------------------------------------------------------------------------
+// Stubs (fallback when not in Bun or vtz test)
 // ---------------------------------------------------------------------------
 
 const eachStub: EachFn =
@@ -191,7 +204,6 @@ describeStub.skip = describeSkipStub as DescribeModifier;
 describeStub.only = describeSkipStub as DescribeModifier;
 describeStub.skipIf = (_condition: boolean): Describe | DescribeModifier => stub();
 describeStub.each = eachStub;
-const describe: Describe = describeStub as Describe;
 
 function itSkipStub(_name: string, _fn: TestFn): void {
   stub();
@@ -206,11 +218,8 @@ itStub.only = itSkipStub as ItModifier;
 itStub.todo = (_name: string): void => stub();
 itStub.skipIf = (_condition: boolean): It | ItModifier => stub();
 itStub.each = eachStub;
-const it: It = itStub as It;
 
-const test: Test = it;
-
-const expect: Expect = Object.assign(<T>(_actual: T): Matchers<T> => stub(), {
+const stubExpect: Expect = Object.assign(<T>(_actual: T): Matchers<T> => stub(), {
   any: (_constructor: new (...args: unknown[]) => unknown): AsymmetricMatcher => stub(),
   anything: (): AsymmetricMatcher => stub(),
   objectContaining: (_expected: object): AsymmetricMatcher => stub(),
@@ -225,21 +234,14 @@ const expect: Expect = Object.assign(<T>(_actual: T): Matchers<T> => stub(), {
   ): void => stub(),
 });
 
-const beforeEach: BeforeEach = (_fn: HookFn): void => stub();
-const afterEach: AfterEach = (_fn: HookFn): void => stub();
-const beforeAll: BeforeAll = (_fn: HookFn): void => stub();
-const afterAll: AfterAll = (_fn: HookFn): void => stub();
-
-const mock: Mock = Object.assign(
+const stubMock: Mock = Object.assign(
   (_impl?: (...args: unknown[]) => unknown): MockFunction => stub(),
   {
     module: (_modulePath: string, _factory?: (() => unknown) | unknown): void => stub(),
   },
 );
 
-const spyOn: SpyOn = (_obj: object, _method: string | symbol): MockFunction => stub();
-
-const vi: Vi = {
+const stubVi: Vi = {
   fn: (_impl?: (...args: unknown[]) => unknown): MockFunction => stub(),
   spyOn: (_obj: object, _method: string): MockFunction => stub(),
   clearAllMocks: (): void => stub(),
@@ -259,7 +261,23 @@ const vi: Vi = {
   importActual: (_specifier: string): Promise<unknown> => stub(),
 };
 
-const expectTypeOf: ExpectTypeOf = <_T = unknown>(): unknown => stub();
+// ---------------------------------------------------------------------------
+// Exports: use Bun runtime when available, otherwise stubs
+// ---------------------------------------------------------------------------
+
+const describe: Describe = _runtime?.describe ?? (describeStub as Describe);
+const it: It = _runtime?.it ?? (itStub as It);
+const test: Test = _runtime?.test ?? (itStub as It);
+const expect: Expect = _runtime?.expect ?? stubExpect;
+const beforeEach: BeforeEach = _runtime?.beforeEach ?? ((_fn: HookFn): void => stub());
+const afterEach: AfterEach = _runtime?.afterEach ?? ((_fn: HookFn): void => stub());
+const beforeAll: BeforeAll = _runtime?.beforeAll ?? ((_fn: HookFn): void => stub());
+const afterAll: AfterAll = _runtime?.afterAll ?? ((_fn: HookFn): void => stub());
+const mock: Mock = _runtime?.mock ?? stubMock;
+const spyOn: SpyOn =
+  _runtime?.spyOn ?? ((_obj: object, _method: string | symbol): MockFunction => stub());
+const vi: Vi = _runtime?.jest ?? _runtime?.vi ?? stubVi;
+const expectTypeOf: ExpectTypeOf = _runtime?.expectTypeOf ?? (<_T = unknown>(): unknown => stub());
 
 export {
   afterAll,

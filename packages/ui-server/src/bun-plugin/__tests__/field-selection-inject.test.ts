@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'bun:test';
+import { describe, expect, it } from '@vertz/test';
 import { injectFieldSelection } from '../field-selection-inject';
 import { FieldSelectionManifest } from '../field-selection-manifest';
 

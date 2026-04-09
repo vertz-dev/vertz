@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'bun:test';
+import { describe, expect, it } from '@vertz/test';
 import type { ResourceRef } from '../access-context';
 import { createAccessContext } from '../access-context';
 import { calculateBillingPeriod } from '../billing-period';

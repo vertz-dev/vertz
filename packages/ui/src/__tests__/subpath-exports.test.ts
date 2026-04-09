@@ -1,4 +1,4 @@
-import { describe, expect, test } from 'bun:test';
+import { describe, expect, test } from '@vertz/test';
 import { existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 

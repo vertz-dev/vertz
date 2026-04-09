@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'bun:test';
+import { describe, expect, it } from '@vertz/test';
 import { Banner } from '../components/banner';
 import type { DocsConfig } from '../config/types';
 import { renderPageHtml } from '../dev/render-page-html';

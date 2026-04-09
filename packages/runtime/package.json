@@ -33,7 +33,8 @@
     "postinstall": "node postinstall.cjs"
   },
   "devDependencies": {
-    "@types/node": "^22.15.32"
+    "@types/node": "^22.15.32",
+    "@vertz/test": "workspace:*"
   },
   "optionalDependencies": {
     "@vertz/runtime-darwin-arm64": "0.2.55",

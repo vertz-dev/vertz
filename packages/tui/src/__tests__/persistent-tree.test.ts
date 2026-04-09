@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'bun:test';
+import { describe, expect, it } from '@vertz/test';
 import { onMount, signal } from '@vertz/ui';
 import { domEffect } from '@vertz/ui/internals';
 import { tui } from '../app';

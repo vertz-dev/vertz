@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, mock, spyOn } from 'bun:test';
+import { afterEach, beforeEach, describe, expect, it, mock, spyOn } from '@vertz/test';
 import { symbols } from '../theme';
 import type { WizardStep } from '../wizard';
 import { wizard } from '../wizard';

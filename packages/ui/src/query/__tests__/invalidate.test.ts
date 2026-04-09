@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'bun:test';
+import { afterEach, beforeEach, describe, expect, it, vi } from '@vertz/test';
 import { createDescriptor } from '@vertz/fetch';
 import { popScope, pushScope, runCleanups } from '../../runtime/disposal';
 import type { DisposeFn } from '../../runtime/signal-types';

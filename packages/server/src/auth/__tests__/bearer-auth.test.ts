@@ -3,7 +3,7 @@
  * Issue: #1658
  */
 
-import { beforeEach, describe, expect, it } from 'bun:test';
+import { beforeEach, describe, expect, it } from '@vertz/test';
 import { createAuth } from '../index';
 import { InMemorySessionStore } from '../session-store';
 import type { AuthConfig, AuthInstance } from '../types';

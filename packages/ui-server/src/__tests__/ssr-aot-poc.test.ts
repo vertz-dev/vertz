@@ -11,7 +11,7 @@
  *
  * Issue: #1745
  */
-import { describe, expect, it } from 'bun:test';
+import { describe, expect, it } from '@vertz/test';
 import { query } from '@vertz/ui';
 import { __styleStr as styleObjectToString } from '@vertz/ui/internals';
 import { installDomShim, toVNode } from '../dom-shim';

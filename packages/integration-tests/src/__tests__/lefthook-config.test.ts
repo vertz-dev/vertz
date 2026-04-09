@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'bun:test';
+import { describe, expect, it } from '@vertz/test';
 import fs from 'node:fs';
 import path from 'node:path';
 import YAML from 'yaml';

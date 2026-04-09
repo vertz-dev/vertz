@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'bun:test';
+import { describe, expect, it } from '@vertz/test';
 import { groupOperations } from '../../adapter/resource-grouper';
 import { parseOpenAPI } from '../../parser/openapi-parser';
 import type { ParsedSpec } from '../../parser/types';

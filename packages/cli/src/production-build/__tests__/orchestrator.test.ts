@@ -8,7 +8,7 @@
  * - Manifest generation
  */
 
-import { afterEach, beforeEach, describe, expect, it, type Mock, vi } from 'bun:test';
+import { afterEach, beforeEach, describe, expect, it, type MockFunction, vi } from '@vertz/test';
 import { existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { BuildOrchestrator, createBuildOrchestrator } from '../orchestrator';

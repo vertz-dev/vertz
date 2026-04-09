@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'bun:test';
+import { describe, expect, it } from '@vertz/test';
 import { TerminalBuffer } from '../buffer/terminal-buffer';
 import { jsx } from '../jsx-runtime/index';
 import { computeLayout } from '../layout/compute';

@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'bun:test';
+import { describe, expect, it } from '@vertz/test';
 import { createAotManifestManager } from '../ssr-aot-manifest-dev';
 
 // Minimal TSX source with a static component

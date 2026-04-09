@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'bun:test';
+import { describe, expect, it } from '@vertz/test';
 import { signal } from '@vertz/ui';
 import { Text } from 'pixi.js';
 import { jsxCanvas } from './jsx-canvas';

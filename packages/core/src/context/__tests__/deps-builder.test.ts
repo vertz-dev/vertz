@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from 'bun:test';
+import { afterEach, describe, expect, it } from '@vertz/test';
 import { buildDeps } from '../deps-builder';
 
 describe('buildDeps', () => {

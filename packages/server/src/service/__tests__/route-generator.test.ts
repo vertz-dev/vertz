@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, spyOn } from 'bun:test';
+import { afterEach, beforeEach, describe, expect, it, spyOn } from '@vertz/test';
 import { NotFoundException } from '@vertz/core';
 import { d } from '@vertz/db';
 import { content } from '../../content';

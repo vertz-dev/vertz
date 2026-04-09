@@ -4,7 +4,7 @@
  * Tests for the diagnostic collection and snapshot system that
  * powers the /__vertz_ssr_aot dev endpoint.
  */
-import { afterEach, describe, expect, it } from 'bun:test';
+import { afterEach, describe, expect, it } from '@vertz/test';
 import { AotDiagnostics } from '../ssr-aot-diagnostics';
 import { isAotDebugEnabled } from '../ssr-aot-pipeline';
 

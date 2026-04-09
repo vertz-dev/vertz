@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from 'bun:test';
+import { afterEach, describe, expect, it } from '@vertz/test';
 import { computed } from '../../runtime/signal';
 import { EntityStore } from '../entity-store';
 import { registerRelationSchema, resetRelationSchemas_TEST_ONLY } from '../relation-registry';

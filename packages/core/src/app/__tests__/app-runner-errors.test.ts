@@ -13,7 +13,7 @@
  * Every assertion here verifies something a consumer integration-tests against.
  */
 
-import { describe, expect, it } from 'bun:test';
+import { describe, expect, it } from '@vertz/test';
 import { err, ok } from '../../result';
 import { createApp } from '../app-builder';
 

@@ -4,7 +4,7 @@
  * and password reset lifecycle end-to-end.
  */
 
-import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
+import { afterEach, beforeEach, describe, expect, it } from '@vertz/test';
 import { generateKeyPairSync } from 'node:crypto';
 import type { AuthConfig, AuthInstance } from '@vertz/server';
 import { createAuth } from '@vertz/server';

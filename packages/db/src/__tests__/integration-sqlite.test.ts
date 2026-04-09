@@ -6,7 +6,7 @@
  * works correctly.
  */
 
-import { describe, expect, it, mock } from 'bun:test';
+import { describe, expect, it, mock } from '@vertz/test';
 import { unwrap } from '@vertz/schema';
 import { createDb } from '../client/database';
 import type { D1Database, D1PreparedStatement } from '../client/sqlite-driver';

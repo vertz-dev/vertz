@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'bun:test';
+import { describe, expect, it } from '@vertz/test';
 import { Expandable } from '../components/expandable';
 import { Icon } from '../components/icon';
 import { ParamField } from '../components/param-field';

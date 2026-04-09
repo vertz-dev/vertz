@@ -1,7 +1,7 @@
 /**
  * Tests for List drag-and-sort functionality.
  */
-import { afterEach, describe, expect, it } from 'bun:test';
+import { afterEach, describe, expect, it } from '@vertz/test';
 import { ComposedList } from '../list-composed';
 
 // ---------------------------------------------------------------------------

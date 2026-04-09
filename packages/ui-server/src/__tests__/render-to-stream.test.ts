@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'bun:test';
+import { describe, expect, it } from '@vertz/test';
 import { jsx } from '../jsx-runtime';
 import { renderToStream } from '../render-to-stream';
 import { resetSlotCounter } from '../slot-placeholder';

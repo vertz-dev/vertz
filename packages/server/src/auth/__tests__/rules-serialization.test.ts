@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'bun:test';
+import { describe, expect, it } from '@vertz/test';
 import { defineAccess } from '../define-access';
 import type { SerializableEntity } from '../rules';
 import { rules, serializeAccessDefinitions, serializeEntityRules, serializeRule } from '../rules';

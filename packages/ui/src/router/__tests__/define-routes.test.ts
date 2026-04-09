@@ -1,4 +1,4 @@
-import { describe, expect, test } from 'bun:test';
+import { describe, expect, test } from '@vertz/test';
 import type { ParamSchema } from '../define-routes';
 import { defineRoutes, matchRoute } from '../define-routes';
 

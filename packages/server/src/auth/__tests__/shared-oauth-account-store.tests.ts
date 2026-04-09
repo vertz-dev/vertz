@@ -2,7 +2,7 @@
  * Shared test factory for OAuthAccountStore behavioral parity.
  */
 
-import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
+import { afterEach, beforeEach, describe, expect, it } from '@vertz/test';
 import type { OAuthAccountStore } from '../types';
 
 export function oauthAccountStoreTests(

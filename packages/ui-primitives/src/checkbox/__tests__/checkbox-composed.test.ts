@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
+import { afterEach, beforeEach, describe, expect, it } from '@vertz/test';
 import { ComposedCheckbox } from '../checkbox-composed';
 
 describe('Composed Checkbox', () => {

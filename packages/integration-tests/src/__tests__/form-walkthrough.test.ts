@@ -11,7 +11,7 @@
 // Uses only public package imports — never relative imports.
 // ===========================================================================
 
-import { describe, expect, it, mock } from 'bun:test';
+import { describe, expect, it, mock } from '@vertz/test';
 import { err, ok } from '@vertz/fetch';
 import { s } from '@vertz/schema';
 import type { FormOptions, SdkMethod, SdkMethodWithMeta } from '@vertz/ui/form';

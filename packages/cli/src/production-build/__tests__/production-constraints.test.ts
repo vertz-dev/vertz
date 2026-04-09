@@ -7,7 +7,7 @@
  * - Startup diagnostics logging
  */
 
-import { describe, expect, it } from 'bun:test';
+import { describe, expect, it } from '@vertz/test';
 import type { EntityAccessIR, EntityIR } from '@vertz/compiler';
 import { formatStartupDiagnostics, validateProductionConstraints } from '../production-constraints';
 

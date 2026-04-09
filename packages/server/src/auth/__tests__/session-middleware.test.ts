@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'bun:test';
+import { describe, expect, it } from '@vertz/test';
 import { ok } from '@vertz/errors';
 import { createAuthSessionMiddleware } from '../session-middleware';
 import type { AuthApi, AuthUser, Session, SessionPayload } from '../types';

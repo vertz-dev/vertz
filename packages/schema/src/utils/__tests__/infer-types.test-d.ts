@@ -1,4 +1,4 @@
-import { describe, it } from 'bun:test';
+import { describe, it } from '@vertz/test';
 import type { Equal, Expect } from '../../__tests__/_type-helpers';
 import { s } from '../../index';
 import type { Infer, Input, Output } from '../type-inference';

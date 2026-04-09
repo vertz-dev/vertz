@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'bun:test';
+import { describe, expect, it } from '@vertz/test';
 import { groupOperations } from '../resource-grouper';
 import { sanitizeIdentifier } from '../identifier';
 import type { ParsedOperation } from '../../parser/types';

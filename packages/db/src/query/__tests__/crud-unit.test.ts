@@ -12,7 +12,7 @@
  * - autoUpdate column injection
  */
 
-import { describe, expect, it } from 'bun:test';
+import { describe, expect, it } from '@vertz/test';
 import { d } from '../../d';
 import { NotFoundError } from '../../errors/db-error';
 import {

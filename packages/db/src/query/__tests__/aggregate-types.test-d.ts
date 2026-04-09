@@ -4,7 +4,7 @@
  * Phase 1: TypedAggregateArgs validates columns, restricts _avg/_sum to numeric.
  * Phase 2: AggregateResult computes return shape from requested fields.
  */
-import { describe, it } from 'bun:test';
+import { describe, it } from '@vertz/test';
 import type { InferColumnType } from '../../schema/column';
 import type { ModelEntry } from '../../schema/inference';
 import type { AggregateResult, GroupByResult, TypedAggregateArgs } from '../aggregate';

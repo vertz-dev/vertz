@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'bun:test';
+import { describe, expect, it } from '@vertz/test';
 import { createMiddleware } from '@vertz/core';
 import { d } from '@vertz/db';
 import { createServer } from '../../create-server';

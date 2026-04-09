@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'bun:test';
+import { afterEach, beforeEach, describe, expect, it, vi } from '@vertz/test';
 import { createDescriptor } from '@vertz/fetch';
 import { signal } from '../../runtime/signal';
 import type { SSRRenderContext } from '../../ssr/ssr-render-context';

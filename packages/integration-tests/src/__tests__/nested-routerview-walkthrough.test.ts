@@ -11,7 +11,7 @@
 // Uses only public package imports — never relative imports.
 // ===========================================================================
 
-import { describe, expect, it } from 'bun:test';
+import { describe, expect, it } from '@vertz/test';
 import type { Router } from '@vertz/ui';
 import {
   createRouter,

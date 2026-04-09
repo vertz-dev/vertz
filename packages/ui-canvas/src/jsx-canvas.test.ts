@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from 'bun:test';
+import { afterEach, describe, expect, it, vi } from '@vertz/test';
 import { signal } from '@vertz/ui';
 import { popScope, pushScope, runCleanups } from '@vertz/ui/internals';
 import { Assets, Container, Graphics, Sprite, Text, Texture } from 'pixi.js';

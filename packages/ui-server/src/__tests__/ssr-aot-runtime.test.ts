@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'bun:test';
+import { describe, expect, it } from '@vertz/test';
 import { escapeAttr, escapeHtml } from '../html-serializer';
 import { __esc, __esc_attr, __ssr_spread, __ssr_style_object } from '../ssr-aot-runtime';
 

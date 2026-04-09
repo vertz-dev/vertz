@@ -5,7 +5,7 @@
  * (Record<string, unknown> for user, unknown for accessSet) were not assignable to
  * SessionResolver's SSRSessionInfo type.
  */
-import { describe, it } from 'bun:test';
+import { describe, it } from '@vertz/test';
 import type { AuthInstance } from '@vertz/server';
 import type { SessionResolver } from '@vertz/ui-server';
 

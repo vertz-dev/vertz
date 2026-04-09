@@ -1,4 +1,4 @@
-import { describe, expectTypeOf, it } from 'bun:test';
+import { describe, expectTypeOf, it } from '@vertz/test';
 import { d } from '@vertz/db';
 import { s } from '@vertz/schema';
 import { action } from '../action';

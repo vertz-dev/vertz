@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
+import { afterEach, beforeEach, describe, expect, it } from '@vertz/test';
 import { InMemoryPasswordResetStore } from '../password-reset-store';
 
 describe('InMemoryPasswordResetStore', () => {

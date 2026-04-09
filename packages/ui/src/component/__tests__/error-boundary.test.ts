@@ -1,4 +1,4 @@
-import { describe, expect, test } from 'bun:test';
+import { describe, expect, test } from '@vertz/test';
 import { ErrorBoundary } from '../error-boundary';
 
 describe('ErrorBoundary', () => {

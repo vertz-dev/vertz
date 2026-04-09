@@ -4,7 +4,7 @@
  * Phase 2 of AOT-compiled SSR: runtime holes and SSR pipeline integration.
  * Issue: #1745
  */
-import { beforeEach, describe, expect, it } from 'bun:test';
+import { beforeEach, describe, expect, it } from '@vertz/test';
 import { installDomShim } from '../dom-shim';
 import {
   type AotDataResolver,

@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'bun:test';
+import { describe, expect, it } from '@vertz/test';
 import { getEntityStore } from '../entity-store-singleton';
 
 describe('EntityStore singleton', () => {

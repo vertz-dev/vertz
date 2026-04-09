@@ -2,7 +2,7 @@
  * MFA Routes Tests — Sub-Phase 3
  */
 
-import { beforeEach, describe, expect, it } from 'bun:test';
+import { beforeEach, describe, expect, it } from '@vertz/test';
 import { createAuth } from '../index';
 import { generateTotpCode } from '../totp';
 import type { AuthConfig, AuthInstance } from '../types';

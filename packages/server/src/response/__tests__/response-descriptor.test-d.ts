@@ -1,4 +1,4 @@
-import { describe, expectTypeOf, it } from 'bun:test';
+import { describe, expectTypeOf, it } from '@vertz/test';
 import type { ServiceActionDef } from '../../service/types';
 import { type ResponseDescriptor, response } from '../response-descriptor';
 

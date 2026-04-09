@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from 'bun:test';
+import { afterEach, describe, expect, it } from '@vertz/test';
 import { renderTest } from '@vertz/ui/test';
 import { ThemeToggle } from '../layout/theme-toggle';
 

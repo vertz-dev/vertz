@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'bun:test';
+import { describe, expect, it } from '@vertz/test';
 import type { BillingEvent } from '../../billing/event-emitter';
 import { createBillingEventEmitter } from '../../billing/event-emitter';
 import { createWebhookHandler, type WebhookHandlerConfig } from '../../billing/webhook-handler';

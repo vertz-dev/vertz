@@ -1,4 +1,4 @@
-import { afterAll, afterEach, beforeAll, describe, expect, it } from 'bun:test';
+import { afterAll, afterEach, beforeAll, describe, expect, it } from '@vertz/test';
 import * as jose from 'jose';
 import { createCloudJWTVerifier } from './cloud-jwt-verifier';
 import { createJWKSClient } from './jwks-client';

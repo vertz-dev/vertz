@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'bun:test';
+import { describe, expect, it } from '@vertz/test';
 import { ArraySchema } from '../../schemas/array';
 import { NumberSchema } from '../../schemas/number';
 import { ObjectSchema } from '../../schemas/object';

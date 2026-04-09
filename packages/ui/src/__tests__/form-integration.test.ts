@@ -1,4 +1,4 @@
-import { describe, expect, test, vi } from 'bun:test';
+import { describe, expect, test, vi } from '@vertz/test';
 import { ok } from '@vertz/fetch';
 import { s } from '@vertz/schema';
 import { form } from '../form/form';

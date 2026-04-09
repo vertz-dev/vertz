@@ -1,4 +1,4 @@
-import { describe, test } from 'bun:test';
+import { describe, test } from '@vertz/test';
 import type { ExtractParams } from '../params';
 
 describe('ExtractParams type utility', () => {

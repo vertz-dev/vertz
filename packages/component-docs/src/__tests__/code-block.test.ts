@@ -1,4 +1,4 @@
-import { beforeAll, describe, expect, it } from 'bun:test';
+import { beforeAll, describe, expect, it } from '@vertz/test';
 import { initHighlighter } from '../lib/highlighter';
 
 describe('CodeBlock', () => {

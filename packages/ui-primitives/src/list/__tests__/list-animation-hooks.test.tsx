@@ -6,7 +6,7 @@
  * NOTE: JSX must be in named functions (component-like) because the Vertz
  * compiler only transforms JSX inside functions that look like components.
  */
-import { afterEach, describe, expect, it } from 'bun:test';
+import { afterEach, describe, expect, it } from '@vertz/test';
 import type { ListAnimationHooks } from '@vertz/ui';
 import { ListAnimationContext, useContext } from '@vertz/ui';
 import { ComposedList } from '../list-composed';

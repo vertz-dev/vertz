@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'bun:test';
+import { describe, expect, it } from '@vertz/test';
 import { Callout } from '../components/callout';
 import { CardGroup } from '../components/card';
 import { CodeGroup } from '../components/code-group';

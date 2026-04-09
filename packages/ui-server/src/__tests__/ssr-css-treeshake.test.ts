@@ -6,7 +6,7 @@
  *
  * @see https://github.com/vertz-dev/vertz/issues/1912
  */
-import { afterEach, describe, expect, it } from 'bun:test';
+import { afterEach, describe, expect, it } from '@vertz/test';
 import { injectCSS, resetInjectedStyles } from '@vertz/ui';
 import { installDomShim } from '../dom-shim';
 import { ssrRenderSinglePass } from '../ssr-single-pass';

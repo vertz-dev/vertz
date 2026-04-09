@@ -10,7 +10,7 @@
  *   → encode/decode round-trip
  */
 
-import { describe, expect, it } from 'bun:test';
+import { describe, expect, it } from '@vertz/test';
 import type { AncestorChainEntry } from '../access-set';
 import { computeAccessSet, decodeAccessSet, encodeAccessSet } from '../access-set';
 import { InMemoryClosureStore } from '../closure-store';

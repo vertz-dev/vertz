@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, test, vi } from 'bun:test';
+import { afterEach, beforeEach, describe, expect, test, vi } from '@vertz/test';
 import { createMutationDescriptor, ok } from '@vertz/fetch';
 import { popScope, pushScope, runCleanups } from '../../runtime/disposal';
 import { signal } from '../../runtime/signal';

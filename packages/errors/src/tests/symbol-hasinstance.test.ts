@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'bun:test';
+import { describe, it, expect } from '@vertz/test';
 import { AppError } from '../app-error';
 import {
   FetchError,

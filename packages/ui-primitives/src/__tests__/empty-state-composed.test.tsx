@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'bun:test';
+import { describe, expect, it } from '@vertz/test';
 import { withStyles } from '../composed/with-styles';
 import type { EmptyStateClasses } from '../empty-state/empty-state-composed';
 import { ComposedEmptyState } from '../empty-state/empty-state-composed';

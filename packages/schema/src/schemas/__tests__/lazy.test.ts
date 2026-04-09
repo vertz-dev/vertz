@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'bun:test';
+import { describe, expect, it } from '@vertz/test';
 import { NullableSchema } from '../../core/schema';
 import { SchemaType } from '../../core/types';
 import { LazySchema } from '../lazy';

@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from 'bun:test';
+import { afterEach, describe, expect, it, vi } from '@vertz/test';
 import { Assets, Sprite, Texture } from 'pixi.js';
 import { loadSpriteTexture } from './sprite-loading';
 

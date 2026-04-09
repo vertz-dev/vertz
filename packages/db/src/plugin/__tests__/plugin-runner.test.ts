@@ -1,4 +1,4 @@
-import { describe, expect, it, mock } from 'bun:test';
+import { describe, expect, it, mock } from '@vertz/test';
 import { createPluginRunner } from '../plugin-runner';
 import type { DbPlugin, QueryContext } from '../plugin-types';
 

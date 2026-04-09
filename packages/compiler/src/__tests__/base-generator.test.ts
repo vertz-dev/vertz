@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'bun:test';
+import { describe, expect, it } from '@vertz/test';
 import { resolveConfig } from '../config';
 import { BaseGenerator } from '../generators/base-generator';
 import type { AppIR } from '../ir/types';

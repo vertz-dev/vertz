@@ -1,4 +1,4 @@
-import { describe, it } from 'bun:test';
+import { describe, it } from '@vertz/test';
 import type { ReadonlySchema, SchemaAny } from '../core/schema';
 import { s } from '../index';
 import type { Equal, Expect, Unwrap } from './_type-helpers';

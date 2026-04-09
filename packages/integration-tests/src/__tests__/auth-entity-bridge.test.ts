@@ -4,7 +4,7 @@
  * auth sign-up → onUserCreated callback → entity population → rollback on failure.
  */
 
-import { describe, expect, it } from 'bun:test';
+import { describe, expect, it } from '@vertz/test';
 import { generateKeyPairSync } from 'node:crypto';
 import type {
   AuthCallbackContext,

@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
+import { afterEach, beforeEach, describe, expect, it } from '@vertz/test';
 import { sql } from '@vertz/db/sql';
 import { DbSubscriptionStore } from '../db-subscription-store';
 import { InMemorySubscriptionStore } from '../subscription-store';

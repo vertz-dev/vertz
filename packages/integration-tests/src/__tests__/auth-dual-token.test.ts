@@ -6,7 +6,7 @@
  * They will pass once all sub-phases are implemented.
  */
 
-import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
+import { afterEach, beforeEach, describe, expect, it } from '@vertz/test';
 import { generateKeyPairSync } from 'node:crypto';
 import type { AuthConfig, AuthInstance, SessionInfo } from '@vertz/server';
 import { createAuth } from '@vertz/server';

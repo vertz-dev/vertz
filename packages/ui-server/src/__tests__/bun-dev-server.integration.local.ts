@@ -8,7 +8,7 @@
  * `Bun.file()`, and `plugin()`. They require a built dist to resolve
  * the HMR shell's module imports.
  */
-import { afterEach, beforeEach, describe, expect, it, spyOn } from 'bun:test';
+import { afterEach, beforeEach, describe, expect, it, spyOn } from '@vertz/test';
 import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';

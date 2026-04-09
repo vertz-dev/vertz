@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, mock } from 'bun:test';
+import { beforeEach, describe, expect, it, mock } from '@vertz/test';
 import { createColumn } from '../../schema/column';
 import type { ModelEntry } from '../../schema/inference';
 import { createTable } from '../../schema/table';

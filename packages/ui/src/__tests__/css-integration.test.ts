@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'bun:test';
+import { describe, expect, it } from '@vertz/test';
 import { css, generateClassName, globalCss, parseShorthand, resolveToken } from '../css';
 
 /**

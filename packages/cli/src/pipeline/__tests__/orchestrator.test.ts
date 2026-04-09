@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'bun:test';
+import { afterEach, beforeEach, describe, expect, it, vi } from '@vertz/test';
 import { type PipelineConfig, PipelineOrchestrator } from '../orchestrator';
 
 // Mock the compiler and codegen modules

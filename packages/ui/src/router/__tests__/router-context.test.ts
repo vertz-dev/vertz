@@ -1,4 +1,4 @@
-import { describe, expect, test } from 'bun:test';
+import { describe, expect, test } from '@vertz/test';
 import { lifecycleEffect } from '../../runtime/signal';
 import { untrack } from '../../runtime/tracking';
 import type { ParamSchema } from '../define-routes';

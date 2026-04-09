@@ -3,7 +3,7 @@
  *
  * Uses only public package imports to verify the developer experience.
  */
-import { afterEach, beforeEach, describe, expect, it, mock } from 'bun:test';
+import { afterEach, beforeEach, describe, expect, it, mock } from '@vertz/test';
 import { __formOnChange } from '@vertz/ui/internals';
 import type { FormValues } from '@vertz/ui';
 

@@ -11,7 +11,7 @@
  * Related: #1357 (cursor restoration fix), #1361 (composed primitive hydration),
  *          #1362 (this suite).
  */
-import { afterEach, describe, expect, it, vi } from 'bun:test';
+import { afterEach, describe, expect, it, vi } from '@vertz/test';
 import type { ChildValue } from '../../component/children';
 import { resolveChildren } from '../../component/children';
 import {

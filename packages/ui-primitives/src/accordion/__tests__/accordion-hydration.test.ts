@@ -6,7 +6,7 @@
  * trigger buttons.
  */
 
-import { afterEach, beforeEach, describe, expect, it, vi } from 'bun:test';
+import { afterEach, beforeEach, describe, expect, it, vi } from '@vertz/test';
 import { mount, resetInjectedStyles } from '@vertz/ui';
 import { ComposedAccordion } from '../accordion-composed';
 

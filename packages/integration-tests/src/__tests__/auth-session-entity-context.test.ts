@@ -8,7 +8,7 @@
  * Issue: #1658
  */
 
-import { describe, expect, it } from 'bun:test';
+import { describe, expect, it } from '@vertz/test';
 import { generateKeyPairSync } from 'node:crypto';
 import { d } from '@vertz/db';
 import type { AuthConfig, AuthInstance, EntityDbAdapter } from '@vertz/server';

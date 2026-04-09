@@ -1,4 +1,4 @@
-import { describe, expect, it, spyOn } from 'bun:test';
+import { describe, expect, it, spyOn } from '@vertz/test';
 import { computeDiff } from '../differ';
 import type { SchemaSnapshot } from '../snapshot';
 

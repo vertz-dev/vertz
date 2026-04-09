@@ -1,7 +1,7 @@
 /**
  * Type-level tests for entity-centric defineAccess [#1072]
  */
-import { describe, it } from 'bun:test';
+import { describe, it } from '@vertz/test';
 import type { AccessContext } from '../access-context';
 import type {
   AccessCheckResult,

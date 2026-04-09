@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, it } from 'bun:test';
+import { afterAll, beforeAll, describe, expect, it } from '@vertz/test';
 import { PGlite } from '@electric-sql/pglite';
 import { unwrap } from '@vertz/errors';
 import { d } from '../../d';

@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, mock } from 'bun:test';
+import { afterEach, beforeEach, describe, expect, it, mock } from '@vertz/test';
 import { createAccessEventClient } from '../access-event-client';
 
 // ============================================================================

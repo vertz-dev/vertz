@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, test, vi } from 'bun:test';
+import { afterEach, beforeEach, describe, expect, test, vi } from '@vertz/test';
 import { query } from '../query/query';
 import { signal } from '../runtime/signal';
 

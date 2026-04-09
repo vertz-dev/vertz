@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'bun:test';
+import { describe, expect, it } from '@vertz/test';
 import { createPublicKey } from 'node:crypto';
 import type { CloudJWTVerifier } from './cloud-jwt-verifier';
 import { type ResolveSessionForSSRConfig, resolveSessionForSSR } from './resolve-session-for-ssr';

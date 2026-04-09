@@ -5,7 +5,7 @@
  * production build pipeline for UI apps.
  */
 
-import { afterEach, beforeEach, describe, expect, it, vi } from 'bun:test';
+import { afterEach, beforeEach, describe, expect, it, vi } from '@vertz/test';
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { buildUI, type UIBuildConfig } from '../ui-build-pipeline';

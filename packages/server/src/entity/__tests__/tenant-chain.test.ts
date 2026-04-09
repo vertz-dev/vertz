@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'bun:test';
+import { describe, expect, it } from '@vertz/test';
 import { computeTenantGraph, d } from '@vertz/db';
 import { resolveTenantChain } from '../tenant-chain';
 

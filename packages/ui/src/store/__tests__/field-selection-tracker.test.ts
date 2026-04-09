@@ -1,4 +1,4 @@
-import { describe, expect, it, mock } from 'bun:test';
+import { describe, expect, it, mock } from '@vertz/test';
 import { FieldSelectionTracker } from '../field-selection-tracker';
 
 function withWarnSpy(fn: (warnSpy: ReturnType<typeof mock>) => void): void {

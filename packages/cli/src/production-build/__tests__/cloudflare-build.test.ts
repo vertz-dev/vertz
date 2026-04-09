@@ -8,7 +8,7 @@
  * - Access rule validation at build time
  */
 
-import { describe, expect, it } from 'bun:test';
+import { describe, expect, it } from '@vertz/test';
 import type { EntityAccessIR, EntityIR } from '@vertz/compiler';
 import { ManifestBuilder } from '../cloudflare/manifest-builder';
 import type { DeploymentManifest } from '../cloudflare/types';

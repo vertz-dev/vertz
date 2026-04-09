@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'bun:test';
+import { describe, expect, it } from '@vertz/test';
 import { EntityRegistry } from '../entity-registry';
 import type { EntityDefinition } from '../types';
 

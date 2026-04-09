@@ -2,7 +2,7 @@
  * Tests for JWT iss/aud claim integration through createAuth (#1723)
  */
 
-import { describe, expect, it } from 'bun:test';
+import { describe, expect, it } from '@vertz/test';
 import { createPrivateKey } from 'node:crypto';
 import * as jose from 'jose';
 import { createAuth } from '../index';

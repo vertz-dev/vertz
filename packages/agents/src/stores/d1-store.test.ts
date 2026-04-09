@@ -1,5 +1,5 @@
 import { Database } from 'bun:sqlite';
-import { describe, expect, it } from 'bun:test';
+import { describe, expect, it } from '@vertz/test';
 import type { Message } from '../loop/react-loop';
 import { d1Store } from './d1-store';
 import type { D1Binding } from './d1-store';

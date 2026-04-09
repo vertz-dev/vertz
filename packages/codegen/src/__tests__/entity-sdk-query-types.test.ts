@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'bun:test';
+import { describe, expect, it } from '@vertz/test';
 import type { CodegenEntityModule, CodegenIR } from '../types';
 import { EntitySdkGenerator } from '../generators/entity-sdk-generator';
 

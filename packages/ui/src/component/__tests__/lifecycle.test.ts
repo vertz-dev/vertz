@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, test } from 'bun:test';
+import { afterEach, describe, expect, test } from '@vertz/test';
 import { onCleanup, popScope, pushScope, runCleanups } from '../../runtime/disposal';
 import { signal } from '../../runtime/signal';
 import { registerSSRResolver } from '../../ssr/ssr-render-context';

@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'bun:test';
+import { describe, expect, it } from '@vertz/test';
 import { Card } from '../../templates/card';
 import { findStyleInTree, findTextInTree } from '../test-helpers';
 

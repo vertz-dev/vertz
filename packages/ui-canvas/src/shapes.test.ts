@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'bun:test';
+import { describe, expect, it, vi } from '@vertz/test';
 import { signal } from '@vertz/ui';
 import { Graphics } from 'pixi.js';
 import { Circle, Ellipse, Line, Rect } from './shapes';

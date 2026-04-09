@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'bun:test';
+import { describe, expect, it } from '@vertz/test';
 import { s } from '@vertz/schema';
 import type { Message } from './loop/react-loop';
 import { agent } from './agent';

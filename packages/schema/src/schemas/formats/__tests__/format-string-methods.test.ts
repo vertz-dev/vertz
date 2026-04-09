@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'bun:test';
+import { describe, expect, it } from '@vertz/test';
 import { s } from '../../../index';
 import type { Infer } from '../../../utils/type-inference';
 import { Base64Schema } from '../base64';

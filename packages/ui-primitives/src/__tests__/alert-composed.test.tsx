@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'bun:test';
+import { describe, expect, it } from '@vertz/test';
 import type { AlertClasses } from '../alert/alert-composed';
 import { ComposedAlert } from '../alert/alert-composed';
 import { withStyles } from '../composed/with-styles';

@@ -1,4 +1,4 @@
-import { describe, expect, it, spyOn } from 'bun:test';
+import { describe, expect, it, spyOn } from '@vertz/test';
 import { EventEmitter } from 'node:events';
 import { signal } from '@vertz/ui';
 import { tui } from '../app';

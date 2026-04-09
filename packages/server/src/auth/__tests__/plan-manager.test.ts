@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'bun:test';
+import { describe, expect, it } from '@vertz/test';
 import type { PlanDef } from '../define-access';
 import { InMemoryGrandfatheringStore } from '../grandfathering-store';
 import { createPlanManager, type PlanEvent } from '../plan-manager';

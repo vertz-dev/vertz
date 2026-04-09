@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'bun:test';
+import { describe, expect, it } from '@vertz/test';
 import type { ParsedResource } from '../../parser/types';
 import { generateResources } from '../resource-generator';
 

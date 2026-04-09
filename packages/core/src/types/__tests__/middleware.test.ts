@@ -1,4 +1,4 @@
-import { describe, expectTypeOf, it } from 'bun:test';
+import { describe, expectTypeOf, it } from '@vertz/test';
 import type { MiddlewareDef } from '../middleware';
 
 describe('MiddlewareDef', () => {

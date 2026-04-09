@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'bun:test';
+import { describe, expect, it } from '@vertz/test';
 import { formatOutput } from '../output';
 
 describe('formatOutput', () => {

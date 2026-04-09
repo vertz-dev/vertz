@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'bun:test';
+import { describe, expect, it } from '@vertz/test';
 import { type BillingEvent, createBillingEventEmitter } from '../../billing/event-emitter';
 
 describe('Feature: Billing event emitter', () => {

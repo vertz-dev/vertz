@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, test, vi } from 'bun:test';
+import { afterEach, describe, expect, test, vi } from '@vertz/test';
 import { signal } from '../../runtime/signal';
 import type { Signal } from '../../runtime/signal-types';
 import { createReactiveSearchParams } from '../reactive-search-params';

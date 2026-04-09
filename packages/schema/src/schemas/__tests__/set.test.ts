@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'bun:test';
+import { describe, expect, it } from '@vertz/test';
 import { SchemaType } from '../../core/types';
 import { SetSchema } from '../set';
 import { StringSchema } from '../string';

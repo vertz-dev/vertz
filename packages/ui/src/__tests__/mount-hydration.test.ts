@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'bun:test';
+import { afterEach, beforeEach, describe, expect, it, vi } from '@vertz/test';
 import { __flushMountFrame, __pushMountFrame, onMount } from '../component/lifecycle';
 import { resetInjectedStyles } from '../css/css';
 import {

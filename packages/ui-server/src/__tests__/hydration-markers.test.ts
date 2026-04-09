@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'bun:test';
+import { describe, expect, it } from '@vertz/test';
 import { wrapWithHydrationMarkers } from '../hydration-markers';
 import type { VNode } from '../types';
 

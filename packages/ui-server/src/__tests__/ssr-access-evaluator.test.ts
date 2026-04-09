@@ -4,7 +4,7 @@
  * Phase 3 of SSR single-pass prefetch: evaluates serialized entity access
  * rules against the current session to determine prefetch eligibility.
  */
-import { describe, expect, it } from 'bun:test';
+import { describe, expect, it } from '@vertz/test';
 import {
   evaluateAccessRule,
   type PrefetchSession,

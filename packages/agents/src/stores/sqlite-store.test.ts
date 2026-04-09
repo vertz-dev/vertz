@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'bun:test';
+import { describe, expect, it } from '@vertz/test';
 import type { Message } from '../loop/react-loop';
 import { sqliteStore } from './sqlite-store';
 import type { AgentSession } from './types';

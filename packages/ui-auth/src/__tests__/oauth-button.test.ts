@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'bun:test';
+import { describe, expect, it } from '@vertz/test';
 import type { OAuthProviderInfo } from '@vertz/ui/auth';
 import { OAuthButton } from '../oauth-button';
 import { OAuthButtons } from '../oauth-buttons';

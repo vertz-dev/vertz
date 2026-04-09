@@ -1,4 +1,4 @@
-import { describe, expect, it, mock } from 'bun:test';
+import { describe, expect, it, mock } from '@vertz/test';
 import { s } from '@vertz/schema';
 import { agent } from './agent';
 import { createAgentRunner } from './create-agent-runner';

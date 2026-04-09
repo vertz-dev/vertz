@@ -66,6 +66,7 @@
     "@electric-sql/pglite": "^0.3.14",
     "@types/better-sqlite3": "^7.6.12",
     "@types/node": "^25.3.1",
+    "@vertz/test": "workspace:*",
     "better-sqlite3": "^12.6.2",
     "bun-types": "^1.3.10",
     "bunup": "^0.16.31",

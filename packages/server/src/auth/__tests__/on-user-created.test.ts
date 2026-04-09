@@ -2,7 +2,7 @@
  * onUserCreated Callback Tests — Auth-Entity Bridge
  */
 
-import { describe, expect, it } from 'bun:test';
+import { describe, expect, it } from '@vertz/test';
 import { InMemoryClosureStore } from '../closure-store';
 import { defineAccess } from '../define-access';
 import { createAuth } from '../index';

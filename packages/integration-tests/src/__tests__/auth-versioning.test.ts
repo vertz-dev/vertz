@@ -12,7 +12,7 @@
  *
  * Uses public package imports only (@vertz/server).
  */
-import { describe, expect, it } from 'bun:test';
+import { describe, expect, it } from '@vertz/test';
 import {
   computePlanHash,
   createPlanManager,

@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'bun:test';
+import { afterEach, beforeEach, describe, expect, it, vi } from '@vertz/test';
 import { MemoryCache } from '../query/cache';
 import { query, resetDefaultQueryCache } from '../query/query';
 import { defineRoutes } from '../router/define-routes';

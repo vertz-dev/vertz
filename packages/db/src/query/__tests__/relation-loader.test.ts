@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'bun:test';
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from '@vertz/test';
 import { PGlite } from '@electric-sql/pglite';
 import { unwrap } from '@vertz/schema';
 import { createDb } from '../../client/database';

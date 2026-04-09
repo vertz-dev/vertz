@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'bun:test';
+import { describe, expect, it } from '@vertz/test';
 import type { AvatarClasses } from '../avatar/avatar-composed';
 import { ComposedAvatar } from '../avatar/avatar-composed';
 import { withStyles } from '../composed/with-styles';

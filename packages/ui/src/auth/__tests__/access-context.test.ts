@@ -1,4 +1,4 @@
-import { describe, expect, it, spyOn } from 'bun:test';
+import { describe, expect, it, spyOn } from '@vertz/test';
 import { createContext, useContext } from '../../component/context';
 import { signal } from '../../runtime/signal';
 import {

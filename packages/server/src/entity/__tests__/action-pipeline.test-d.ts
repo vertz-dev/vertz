@@ -1,4 +1,4 @@
-import { describe, it } from 'bun:test';
+import { describe, it } from '@vertz/test';
 import { d, type EntityDbAdapter, type ModelEntry } from '@vertz/db';
 import type { EntityError, Result } from '@vertz/errors';
 import { createActionHandler } from '../action-pipeline';

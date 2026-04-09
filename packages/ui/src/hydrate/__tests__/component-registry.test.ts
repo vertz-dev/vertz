@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'bun:test';
+import { describe, expect, it } from '@vertz/test';
 import type { ComponentRegistry } from '../component-registry';
 import { resolveComponent } from '../component-registry';
 

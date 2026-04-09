@@ -1,5 +1,5 @@
 import { Database } from 'bun:sqlite';
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'bun:test';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from '@vertz/test';
 import { PGlite } from '@electric-sql/pglite';
 import { introspectPostgres, introspectSqlite, validateIdentifier } from '../introspect';
 import type { MigrationQueryFn } from '../runner';

@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'bun:test';
+import { describe, expect, it } from '@vertz/test';
 import { Project, SyntaxKind } from 'ts-morph';
 import { resolveConfig } from '../../config';
 import type { InjectRef, ServiceActionIR, ServiceIR } from '../../ir/types';

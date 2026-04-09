@@ -3,7 +3,7 @@
  * Phase 2: createAuth plumbing, key generation, key-algorithm validation.
  */
 
-import { afterEach, describe, expect, it } from 'bun:test';
+import { afterEach, describe, expect, it } from '@vertz/test';
 import { createPrivateKey, createPublicKey, generateKeyPairSync } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';

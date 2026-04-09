@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
+import { afterEach, beforeEach, describe, expect, it } from '@vertz/test';
 import { createAuth } from '../index';
 import type { AuthInstance, TenantInfo } from '../types';
 import { TEST_PRIVATE_KEY, TEST_PUBLIC_KEY } from './test-keys';

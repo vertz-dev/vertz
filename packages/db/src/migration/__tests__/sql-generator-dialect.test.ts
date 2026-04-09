@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, mock } from 'bun:test';
+import { afterEach, describe, expect, it, mock } from '@vertz/test';
 import { defaultPostgresDialect, defaultSqliteDialect } from '../../dialect';
 import type { DiffChange } from '../differ';
 import { generateMigrationSql } from '../sql-generator';

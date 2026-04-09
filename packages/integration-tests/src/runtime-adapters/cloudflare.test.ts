@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from 'bun:test';
+import { afterEach, describe, expect, it } from '@vertz/test';
 import { createHandler as directCreateHandler } from '@vertz/cloudflare';
 import { cloudflareAdapter } from './cloudflare';
 import type { ServerHandle } from './types';

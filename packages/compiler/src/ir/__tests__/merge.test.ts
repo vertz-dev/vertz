@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'bun:test';
+import { describe, expect, it } from '@vertz/test';
 import { createEmptyAppIR, enrichSchemasWithModuleNames } from '../builder';
 import { mergeIR } from '../merge';
 import type { AppIR, DependencyGraphIR, MiddlewareIR, ModuleIR, SchemaIR } from '../types';

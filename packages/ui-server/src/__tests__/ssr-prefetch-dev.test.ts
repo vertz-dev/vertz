@@ -1,7 +1,7 @@
 /**
  * Tests for SSR prefetch manifest manager — in-memory manifest for dev server.
  */
-import { beforeEach, describe, expect, it } from 'bun:test';
+import { beforeEach, describe, expect, it } from '@vertz/test';
 import { createPrefetchManifestManager } from '../ssr-prefetch-dev';
 
 // Minimal virtual file system for testing

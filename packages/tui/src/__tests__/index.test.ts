@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'bun:test';
+import { describe, expect, it } from '@vertz/test';
 import { batch, signal } from '@vertz/ui';
 import { Message, SelectList, Task, TaskList } from '../legacy';
 import { symbols } from '../theme';

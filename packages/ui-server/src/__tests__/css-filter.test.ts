@@ -6,7 +6,7 @@
  *
  * @see https://github.com/vertz-dev/vertz/issues/1979
  */
-import { describe, expect, it } from 'bun:test';
+import { describe, expect, it } from '@vertz/test';
 import { filterCSSByHTML } from '../css-filter';
 
 describe('filterCSSByHTML (#1979)', () => {

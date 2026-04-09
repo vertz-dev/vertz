@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, test, vi } from 'bun:test';
+import { afterEach, beforeEach, describe, expect, test, vi } from '@vertz/test';
 import { ok } from '@vertz/fetch';
 import { getEntityStore, resetEntityStore } from '../../store/entity-store-singleton';
 import {

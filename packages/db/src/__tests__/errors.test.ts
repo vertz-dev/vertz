@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'bun:test';
+import { describe, expect, it } from '@vertz/test';
 import { toReadError, toWriteError } from '../errors';
 import {
   CheckConstraintError,

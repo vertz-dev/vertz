@@ -3,7 +3,7 @@
  * Tests: add-on features, limit stacking, unlimited limits, lifetime limits
  */
 
-import { describe, expect, it } from 'bun:test';
+import { describe, expect, it } from '@vertz/test';
 import { computeAccessSet } from '../access-set';
 import { InMemoryClosureStore } from '../closure-store';
 import { defineAccess } from '../define-access';

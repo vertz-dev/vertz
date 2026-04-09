@@ -27,6 +27,7 @@
     "@vertz/fetch": "workspace:^",
     "@vertz/schema": "workspace:^",
     "@vertz/server": "workspace:^",
+    "@vertz/test": "workspace:*",
     "@vertz/theme-shadcn": "workspace:^",
     "@vertz/ui": "workspace:^",
     "@vertz/ui-auth": "workspace:^",

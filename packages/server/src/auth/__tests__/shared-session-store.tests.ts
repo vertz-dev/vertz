@@ -2,7 +2,7 @@
  * Shared test factory for SessionStore behavioral parity.
  */
 
-import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
+import { afterEach, beforeEach, describe, expect, it } from '@vertz/test';
 import type { SessionStore } from '../types';
 
 export function sessionStoreTests(

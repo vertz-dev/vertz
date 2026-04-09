@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
+import { afterEach, beforeEach, describe, expect, it } from '@vertz/test';
 import { CachedWalletStore } from '../../cloud/cached-wallet-store';
 import type { ConsumeResult, WalletStore } from '../../wallet-store';
 

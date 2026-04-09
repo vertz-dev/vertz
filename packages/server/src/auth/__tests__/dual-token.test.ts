@@ -2,7 +2,7 @@
  * Dual-Token Issuance Tests — Sub-Phase 2
  */
 
-import { beforeEach, describe, expect, it } from 'bun:test';
+import { beforeEach, describe, expect, it } from '@vertz/test';
 import { createAuth } from '../index';
 import type { AuthConfig, AuthInstance } from '../types';
 import { TEST_PRIVATE_KEY, TEST_PUBLIC_KEY } from './test-keys';

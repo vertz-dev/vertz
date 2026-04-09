@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'bun:test';
+import { describe, expect, it } from '@vertz/test';
 import { encodeVertzQL, resolveVertzQL } from './vertzql';
 
 function decodeBase64url(encoded: string): unknown {

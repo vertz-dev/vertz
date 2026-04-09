@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
+import { afterEach, beforeEach, describe, expect, it } from '@vertz/test';
 import { registerSSRResolver } from '../../ssr/ssr-render-context';
 import { isBrowser } from '../is-browser';
 

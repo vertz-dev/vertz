@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'bun:test';
+import { describe, expect, it } from '@vertz/test';
 import { Project, SyntaxKind } from 'ts-morph';
 import { isFromImport, resolveExport, resolveIdentifier } from '../import-resolver';
 

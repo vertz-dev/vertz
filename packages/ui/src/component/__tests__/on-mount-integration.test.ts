@@ -15,7 +15,7 @@
  *     throw __mfErr;
  *   }
  */
-import { afterEach, describe, expect, test } from 'bun:test';
+import { afterEach, describe, expect, test } from '@vertz/test';
 import { popScope, pushScope, runCleanups } from '../../runtime/disposal';
 import { registerSSRResolver } from '../../ssr/ssr-render-context';
 import { __discardMountFrame, __flushMountFrame, __pushMountFrame, onMount } from '../lifecycle';

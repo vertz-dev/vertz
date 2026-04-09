@@ -1,4 +1,4 @@
-import { describe, expect, it, jest, spyOn } from 'bun:test';
+import { describe, expect, it, spyOn, vi } from '@vertz/test';
 import { signal } from '@vertz/ui';
 import { tui } from '../app';
 import { Confirm } from '../components/Confirm';
@@ -521,7 +521,7 @@ describe('Spinner', () => {
   });
 
   it('animates through frames over time', () => {
-    jest.useFakeTimers();
+    vi.useFakeTimers();
     const adapter = new TestAdapter(40, 10);
 
     function App(): TuiNode {
@@ -531,16 +531,16 @@ describe('Spinner', () => {
     const handle = tui.mount(App, { adapter });
     const initial = adapter.text();
 
-    jest.advanceTimersByTime(80);
+    vi.advanceTimersByTime(80);
     const after = adapter.text();
     expect(after).not.toBe(initial);
 
     handle.unmount();
-    jest.useRealTimers();
+    vi.useRealTimers();
   });
 
   it('cleans up interval on unmount', () => {
-    jest.useFakeTimers();
+    vi.useFakeTimers();
     const adapter = new TestAdapter(40, 10);
 
     function App(): TuiNode {
@@ -551,7 +551,7 @@ describe('Spinner', () => {
     handle.unmount();
 
     // Advancing timers after unmount should not throw
-    expect(() => jest.advanceTimersByTime(200)).not.toThrow();
-    jest.useRealTimers();
+    expect(() => vi.advanceTimersByTime(200)).not.toThrow();
+    vi.useRealTimers();
   });
 });

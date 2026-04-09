@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'bun:test';
+import { describe, expect, it } from '@vertz/test';
 import type { ValidationIssue } from '../errors';
 import { ErrorCode, ParseError } from '../errors';
 

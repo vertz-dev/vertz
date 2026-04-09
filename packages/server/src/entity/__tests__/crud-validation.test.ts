@@ -1,4 +1,4 @@
-import { describe, expect, it, mock } from 'bun:test';
+import { describe, expect, it, mock } from '@vertz/test';
 import { d } from '@vertz/db';
 import { EntityValidationError, isEntityValidationError, unwrap } from '@vertz/errors';
 import { createEntityContext } from '../context';

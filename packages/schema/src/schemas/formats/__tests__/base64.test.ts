@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'bun:test';
+import { describe, expect, it } from '@vertz/test';
 import { Base64Schema } from '../base64';
 
 describe('Base64Schema', () => {

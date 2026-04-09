@@ -8,7 +8,7 @@
     "noUnusedLocals": false,
     "noUnusedParameters": false,
     "skipLibCheck": true,
-    "types": ["bun-types"]
+    "types": ["@types/node"]
   },
   "extends": "../../tsconfig.json",
   "include": ["src"]

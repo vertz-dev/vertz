@@ -1,4 +1,4 @@
-import { describe, expect, it, spyOn } from 'bun:test';
+import { describe, expect, it, spyOn } from '@vertz/test';
 import { prompt } from '../prompt';
 import { TestAdapter } from '../test/test-adapter';
 import { TestStdin } from '../test/test-stdin';

@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'bun:test';
+import { describe, expect, it } from '@vertz/test';
 import { createPrivateKey, createPublicKey } from 'node:crypto';
 import type { AccessSet } from '../access-set';
 import { InMemoryClosureStore } from '../closure-store';

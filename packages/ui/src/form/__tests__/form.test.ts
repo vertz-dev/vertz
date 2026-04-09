@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'bun:test';
+import { describe, expect, it, vi } from '@vertz/test';
 import { err, ok } from '@vertz/fetch';
 import { s } from '@vertz/schema';
 import type { SdkMethodWithMeta } from '../form';

@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, test, vi } from 'bun:test';
+import { afterEach, beforeEach, describe, expect, test, vi } from '@vertz/test';
 import { startSignalCollection, stopSignalCollection } from '../../runtime/signal';
 import { query, resetDefaultQueryCache } from '../query';
 

@@ -8,7 +8,7 @@
  * 4. matchError exhaustive handling
  */
 
-import { afterAll, beforeAll, describe, expect, it, mock } from 'bun:test';
+import { afterAll, beforeAll, describe, expect, it, mock } from '@vertz/test';
 import {
   BadRequestError,
   EntityConflictError,

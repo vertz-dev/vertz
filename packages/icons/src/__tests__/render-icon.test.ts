@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'bun:test';
+import { describe, expect, it } from '@vertz/test';
 import { renderIcon } from '../render-icon';
 
 const SAMPLE_SVG =

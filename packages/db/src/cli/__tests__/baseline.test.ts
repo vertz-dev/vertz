@@ -1,4 +1,4 @@
-import { describe, expect, it, mock } from 'bun:test';
+import { describe, expect, it, mock } from '@vertz/test';
 import { unwrap } from '@vertz/errors';
 import type { MigrationFile, MigrationQueryFn } from '../../migration';
 import { baseline } from '../baseline';

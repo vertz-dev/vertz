@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'bun:test';
+import { describe, expect, it } from '@vertz/test';
 import { Project } from 'ts-morph';
 import { extractMethodSignatures, ServiceAnalyzer } from '../analyzers/service-analyzer';
 import { resolveConfig } from '../config';

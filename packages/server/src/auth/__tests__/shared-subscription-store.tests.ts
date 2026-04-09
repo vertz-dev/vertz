@@ -2,7 +2,7 @@
  * Shared test factory for SubscriptionStore behavioral parity.
  */
 
-import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
+import { afterEach, beforeEach, describe, expect, it } from '@vertz/test';
 import type { SubscriptionStore } from '../subscription-store';
 
 export function subscriptionStoreTests(

@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'bun:test';
+import { describe, expect, it } from '@vertz/test';
 import { s } from '@vertz/schema';
 import { agent } from './agent';
 import { tool } from './tool';

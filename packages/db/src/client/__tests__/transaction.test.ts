@@ -1,5 +1,5 @@
 import { Database } from 'bun:sqlite';
-import { describe, expect, it } from 'bun:test';
+import { describe, expect, it } from '@vertz/test';
 import { d } from '../../d';
 import { sql } from '../../sql/tagged';
 import { createDb } from '../database';

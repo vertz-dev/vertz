@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, mock, vi } from 'bun:test';
+import { afterEach, beforeEach, describe, expect, it, mock, vi } from '@vertz/test';
 import { err, ok } from '@vertz/fetch';
 import { useContext } from '../../component/context';
 import type { SdkMethodWithMeta } from '../../form/form';

@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from 'bun:test';
+import { afterEach, describe, expect, it, vi } from '@vertz/test';
 import { normalizeEntity } from '../normalize';
 import { registerRelationSchema, resetRelationSchemas_TEST_ONLY } from '../relation-registry';
 

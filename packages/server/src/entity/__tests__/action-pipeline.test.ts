@@ -1,4 +1,4 @@
-import { describe, expect, it, mock } from 'bun:test';
+import { describe, expect, it, mock } from '@vertz/test';
 import { d } from '@vertz/db';
 import { BadRequestError, EntityForbiddenError, EntityNotFoundError } from '@vertz/errors';
 import { createActionHandler } from '../action-pipeline';

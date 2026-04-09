@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'bun:test';
+import { describe, expect, it } from '@vertz/test';
 import { __element } from '../element';
 import { isSVGTag, normalizeSVGAttr, SVG_NS } from '../svg-tags';
 

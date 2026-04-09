@@ -6,7 +6,7 @@
  * correctly and the native compiler produces expected output.
  */
 
-import { describe, expect, it, vi } from 'bun:test';
+import { describe, expect, it, vi } from '@vertz/test';
 import { originalPositionFor, TraceMap } from '@jridgewell/trace-mapping';
 import { createVertzBunPlugin } from '../plugin';
 

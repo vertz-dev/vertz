@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
+import { afterEach, beforeEach, describe, expect, it } from '@vertz/test';
 import { PGlite } from '@electric-sql/pglite';
 import type { MigrationQueryFn, SchemaSnapshot } from '../../migration';
 import type { RlsPolicyInput } from '../../migration/rls-snapshot';

@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'bun:test';
+import { describe, expect, it } from '@vertz/test';
 import { renderTest } from '@vertz/ui/test';
 import type { SidebarTab } from '../config/types';
 import { Sidebar } from '../layout/sidebar';

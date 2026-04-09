@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'bun:test';
+import { describe, expect, it, vi } from '@vertz/test';
 import type { CodegenConfig, CodegenIR, CodegenPipeline, IncrementalResult } from '@vertz/codegen';
 import { codegenAction } from '../codegen';
 

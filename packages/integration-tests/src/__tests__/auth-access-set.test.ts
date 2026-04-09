@@ -13,7 +13,7 @@
  *
  * Uses public package imports only (@vertz/server, @vertz/ui/auth).
  */
-import { afterEach, describe, expect, it } from 'bun:test';
+import { afterEach, describe, expect, it } from '@vertz/test';
 import { generateKeyPairSync } from 'node:crypto';
 import {
   computeAccessSet,

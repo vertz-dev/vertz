@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from 'bun:test';
+import { afterEach, describe, expect, it } from '@vertz/test';
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 import { defineTheme, font } from '@vertz/ui';
 import type { AuthSdk } from '@vertz/ui/auth';

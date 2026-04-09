@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'bun:test';
+import { describe, expect, it } from '@vertz/test';
 import { createApp } from '../app/app-builder';
 import { NotFoundException } from '../exceptions';
 import { err, ok } from '../result';

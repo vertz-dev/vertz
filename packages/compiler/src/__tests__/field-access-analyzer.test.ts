@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'bun:test';
+import { describe, expect, it } from '@vertz/test';
 import { Project } from 'ts-morph';
 import { FieldAccessAnalyzer } from '../analyzers/field-access-analyzer';
 import { resolveConfig } from '../config';

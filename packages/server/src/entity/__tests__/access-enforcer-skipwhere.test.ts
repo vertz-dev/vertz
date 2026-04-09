@@ -3,7 +3,7 @@
  * Tests: unknown user marker, any() with skipWhere, function rules with skipWhere
  */
 
-import { describe, expect, it } from 'bun:test';
+import { describe, expect, it } from '@vertz/test';
 import { EntityForbiddenError } from '@vertz/errors';
 import type { UserMarker } from '../../auth/rules';
 import { rules } from '../../auth/rules';

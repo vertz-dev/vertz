@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'bun:test';
+import { describe, expect, it } from '@vertz/test';
 import { formatRelativeTime } from '../relative-time';
 
 const now = new Date('2026-03-21T12:00:00Z');

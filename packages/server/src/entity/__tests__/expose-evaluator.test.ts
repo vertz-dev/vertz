@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'bun:test';
+import { describe, expect, it } from '@vertz/test';
 import { rules } from '../../auth/rules';
 import { evaluateExposeDescriptors } from '../expose-evaluator';
 import type { BaseContext } from '../types';

@@ -1,4 +1,4 @@
-import { describe, it } from 'bun:test';
+import { describe, it } from '@vertz/test';
 import { InMemoryRateLimitStore } from '../rate-limit-store';
 import { InMemorySessionStore } from '../session-store';
 import type {

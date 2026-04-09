@@ -7,7 +7,7 @@
  * isn't supported, it throws at runtime — which is a terrible DX.
  * This test catches those gaps at build time.
  */
-import { describe, it } from 'bun:test';
+import { describe, it } from '@vertz/test';
 import { parseShorthand } from '../shorthand-parser';
 import { resolveToken } from '../token-resolver';
 

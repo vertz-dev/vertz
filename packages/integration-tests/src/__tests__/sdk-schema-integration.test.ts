@@ -7,7 +7,7 @@
  * Uses only public package imports — never relative imports.
  */
 
-import { describe, expect, it, mock } from 'bun:test';
+import { describe, expect, it, mock } from '@vertz/test';
 import { ok } from '@vertz/fetch';
 import { s } from '@vertz/schema';
 import { form } from '@vertz/ui/form';

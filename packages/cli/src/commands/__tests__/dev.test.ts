@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, type Mock, vi } from 'bun:test';
+import { afterEach, beforeEach, describe, expect, it, type MockFunction, vi } from '@vertz/test';
 import { Command } from 'commander';
 import type { DetectedApp } from '../../dev-server/app-detector';
 import type { FileChange } from '../../pipeline';
@@ -301,9 +301,9 @@ describe('registerDevCommand', () => {
 });
 
 describe('devAction error paths', () => {
-  let pathsSpy: Mock<(...args: unknown[]) => unknown>;
-  let appDetectorSpy: Mock<(...args: unknown[]) => unknown>;
-  let orchestratorSpy: Mock<(...args: unknown[]) => unknown>;
+  let pathsSpy: MockFunction<(...args: unknown[]) => unknown>;
+  let appDetectorSpy: MockFunction<(...args: unknown[]) => unknown>;
+  let orchestratorSpy: MockFunction<(...args: unknown[]) => unknown>;
 
   afterEach(() => {
     pathsSpy?.mockRestore();
@@ -313,7 +313,7 @@ describe('devAction error paths', () => {
 
   it('returns err when findProjectRoot returns null', async () => {
     const pathsMod = await import('../../utils/paths');
-    pathsSpy = vi.spyOn(pathsMod, 'findProjectRoot').mockReturnValue(null) as Mock<
+    pathsSpy = vi.spyOn(pathsMod, 'findProjectRoot').mockReturnValue(null) as MockFunction<
       (...args: unknown[]) => unknown
     >;
 
@@ -328,7 +328,7 @@ describe('devAction error paths', () => {
 
   it('returns err when detectAppType throws', async () => {
     const pathsMod = await import('../../utils/paths');
-    pathsSpy = vi.spyOn(pathsMod, 'findProjectRoot').mockReturnValue('/fake/root') as Mock<
+    pathsSpy = vi.spyOn(pathsMod, 'findProjectRoot').mockReturnValue('/fake/root') as MockFunction<
       (...args: unknown[]) => unknown
     >;
 
@@ -340,12 +340,12 @@ describe('devAction error paths', () => {
           runFull: vi.fn().mockResolvedValue({ success: true, stages: [] }),
           dispose: vi.fn(),
         }) as unknown,
-    ) as Mock<(...args: unknown[]) => unknown>;
+    ) as MockFunction<(...args: unknown[]) => unknown>;
 
     const appDetector = await import('../../dev-server/app-detector');
     appDetectorSpy = vi.spyOn(appDetector, 'detectAppType').mockImplementation(() => {
       throw new Error('No app entry found');
-    }) as Mock<(...args: unknown[]) => unknown>;
+    }) as MockFunction<(...args: unknown[]) => unknown>;
 
     const { devAction } = await import('../dev');
     const result = await devAction();
@@ -358,7 +358,7 @@ describe('devAction error paths', () => {
 
   it('returns err with stringified value when detectAppType throws non-Error', async () => {
     const pathsMod = await import('../../utils/paths');
-    pathsSpy = vi.spyOn(pathsMod, 'findProjectRoot').mockReturnValue('/fake/root') as Mock<
+    pathsSpy = vi.spyOn(pathsMod, 'findProjectRoot').mockReturnValue('/fake/root') as MockFunction<
       (...args: unknown[]) => unknown
     >;
 
@@ -370,12 +370,12 @@ describe('devAction error paths', () => {
           runFull: vi.fn().mockResolvedValue({ success: true, stages: [] }),
           dispose: vi.fn(),
         }) as unknown,
-    ) as Mock<(...args: unknown[]) => unknown>;
+    ) as MockFunction<(...args: unknown[]) => unknown>;
 
     const appDetector = await import('../../dev-server/app-detector');
     appDetectorSpy = vi.spyOn(appDetector, 'detectAppType').mockImplementation(() => {
       throw 'unexpected string error';
-    }) as Mock<(...args: unknown[]) => unknown>;
+    }) as MockFunction<(...args: unknown[]) => unknown>;
 
     const { devAction } = await import('../dev');
     const result = await devAction();
@@ -388,14 +388,14 @@ describe('devAction error paths', () => {
 });
 
 describe('devAction full flow', () => {
-  let pathsSpy: Mock<(...args: unknown[]) => unknown>;
-  let appDetectorSpy: Mock<(...args: unknown[]) => unknown>;
-  let orchestratorSpy: Mock<(...args: unknown[]) => unknown>;
-  let watcherSpy: Mock<(...args: unknown[]) => unknown>;
-  let devServerSpy: Mock<(...args: unknown[]) => unknown>;
-  let consoleLogSpy: Mock<(...args: unknown[]) => unknown>;
-  let consoleErrorSpy: Mock<(...args: unknown[]) => unknown>;
-  let processOnSpy: Mock<(...args: unknown[]) => unknown>;
+  let pathsSpy: MockFunction<(...args: unknown[]) => unknown>;
+  let appDetectorSpy: MockFunction<(...args: unknown[]) => unknown>;
+  let orchestratorSpy: MockFunction<(...args: unknown[]) => unknown>;
+  let watcherSpy: MockFunction<(...args: unknown[]) => unknown>;
+  let devServerSpy: MockFunction<(...args: unknown[]) => unknown>;
+  let consoleLogSpy: MockFunction<(...args: unknown[]) => unknown>;
+  let consoleErrorSpy: MockFunction<(...args: unknown[]) => unknown>;
+  let processOnSpy: MockFunction<(...args: unknown[]) => unknown>;
   let registeredListeners: Array<{ event: string; handler: (...args: unknown[]) => unknown }>;
 
   const fakeDetected: DetectedApp = {
@@ -405,9 +405,9 @@ describe('devAction full flow', () => {
   };
 
   let mockOrchestrator: {
-    runFull: Mock<(...args: unknown[]) => unknown>;
-    runStages: Mock<(...args: unknown[]) => unknown>;
-    dispose: Mock<(...args: unknown[]) => unknown>;
+    runFull: MockFunction<(...args: unknown[]) => unknown>;
+    runStages: MockFunction<(...args: unknown[]) => unknown>;
+    dispose: MockFunction<(...args: unknown[]) => unknown>;
   };
 
   let capturedOnChange: ((changes: FileChange[]) => Promise<void>) | null;
@@ -423,19 +423,19 @@ describe('devAction full flow', () => {
     };
 
     const pathsMod = await import('../../utils/paths');
-    pathsSpy = vi.spyOn(pathsMod, 'findProjectRoot').mockReturnValue('/fake/root') as Mock<
+    pathsSpy = vi.spyOn(pathsMod, 'findProjectRoot').mockReturnValue('/fake/root') as MockFunction<
       (...args: unknown[]) => unknown
     >;
 
     const appDetector = await import('../../dev-server/app-detector');
-    appDetectorSpy = vi.spyOn(appDetector, 'detectAppType').mockReturnValue(fakeDetected) as Mock<
-      (...args: unknown[]) => unknown
-    >;
+    appDetectorSpy = vi
+      .spyOn(appDetector, 'detectAppType')
+      .mockReturnValue(fakeDetected) as MockFunction<(...args: unknown[]) => unknown>;
 
     const pipelineMod = await import('../../pipeline');
     orchestratorSpy = vi
       .spyOn(pipelineMod, 'PipelineOrchestrator')
-      .mockImplementation(() => mockOrchestrator as unknown) as Mock<
+      .mockImplementation(() => mockOrchestrator as unknown) as MockFunction<
       (...args: unknown[]) => unknown
     >;
 
@@ -447,17 +447,17 @@ describe('devAction full flow', () => {
           capturedOnChange = cfg.onChange;
         }
         return { close: vi.fn() } as unknown;
-      }) as Mock<(...args: unknown[]) => unknown>;
+      }) as MockFunction<(...args: unknown[]) => unknown>;
 
     const fullstackMod = await import('../../dev-server/fullstack-server');
-    devServerSpy = vi.spyOn(fullstackMod, 'startDevServer').mockResolvedValue(undefined) as Mock<
-      (...args: unknown[]) => unknown
-    >;
+    devServerSpy = vi
+      .spyOn(fullstackMod, 'startDevServer')
+      .mockResolvedValue(undefined) as MockFunction<(...args: unknown[]) => unknown>;
 
-    consoleLogSpy = vi.spyOn(console, 'log').mockImplementation(() => {}) as Mock<
+    consoleLogSpy = vi.spyOn(console, 'log').mockImplementation(() => {}) as MockFunction<
       (...args: unknown[]) => unknown
     >;
-    consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {}) as Mock<
+    consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {}) as MockFunction<
       (...args: unknown[]) => unknown
     >;
 
@@ -469,7 +469,7 @@ describe('devAction full flow', () => {
     ) => {
       registeredListeners.push({ event, handler });
       return process;
-    }) as typeof process.on) as Mock<(...args: unknown[]) => unknown>;
+    }) as typeof process.on) as MockFunction<(...args: unknown[]) => unknown>;
   });
 
   afterEach(() => {
@@ -829,14 +829,14 @@ describe('devAction full flow', () => {
 });
 
 describe('devAction --experimental-runtime', () => {
-  let pathsSpy: Mock<(...args: unknown[]) => unknown>;
-  let appDetectorSpy: Mock<(...args: unknown[]) => unknown>;
-  let consoleLogSpy: Mock<(...args: unknown[]) => unknown>;
-  let consoleErrorSpy: Mock<(...args: unknown[]) => unknown>;
-  let processOnSpy: Mock<(...args: unknown[]) => unknown>;
+  let pathsSpy: MockFunction<(...args: unknown[]) => unknown>;
+  let appDetectorSpy: MockFunction<(...args: unknown[]) => unknown>;
+  let consoleLogSpy: MockFunction<(...args: unknown[]) => unknown>;
+  let consoleErrorSpy: MockFunction<(...args: unknown[]) => unknown>;
+  let processOnSpy: MockFunction<(...args: unknown[]) => unknown>;
   let registeredListeners: Array<{ event: string; handler: (...args: unknown[]) => unknown }>;
-  let findBinarySpy: Mock<(...args: unknown[]) => unknown>;
-  let launchSpy: Mock<(...args: unknown[]) => unknown>;
+  let findBinarySpy: MockFunction<(...args: unknown[]) => unknown>;
+  let launchSpy: MockFunction<(...args: unknown[]) => unknown>;
 
   const fakeDetected: DetectedApp = {
     type: 'full-stack',
@@ -849,19 +849,19 @@ describe('devAction --experimental-runtime', () => {
     registeredListeners = [];
 
     const pathsMod = await import('../../utils/paths');
-    pathsSpy = vi.spyOn(pathsMod, 'findProjectRoot').mockReturnValue('/fake/root') as Mock<
+    pathsSpy = vi.spyOn(pathsMod, 'findProjectRoot').mockReturnValue('/fake/root') as MockFunction<
       (...args: unknown[]) => unknown
     >;
 
     const appDetector = await import('../../dev-server/app-detector');
-    appDetectorSpy = vi.spyOn(appDetector, 'detectAppType').mockReturnValue(fakeDetected) as Mock<
-      (...args: unknown[]) => unknown
-    >;
+    appDetectorSpy = vi
+      .spyOn(appDetector, 'detectAppType')
+      .mockReturnValue(fakeDetected) as MockFunction<(...args: unknown[]) => unknown>;
 
-    consoleLogSpy = vi.spyOn(console, 'log').mockImplementation(() => {}) as Mock<
+    consoleLogSpy = vi.spyOn(console, 'log').mockImplementation(() => {}) as MockFunction<
       (...args: unknown[]) => unknown
     >;
-    consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {}) as Mock<
+    consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {}) as MockFunction<
       (...args: unknown[]) => unknown
     >;
 
@@ -871,7 +871,7 @@ describe('devAction --experimental-runtime', () => {
     ) => {
       registeredListeners.push({ event, handler });
       return process;
-    }) as typeof process.on) as Mock<(...args: unknown[]) => unknown>;
+    }) as typeof process.on) as MockFunction<(...args: unknown[]) => unknown>;
   });
 
   afterEach(() => {
@@ -891,9 +891,9 @@ describe('devAction --experimental-runtime', () => {
 
   it('falls back to Bun dev server when binary is not found', async () => {
     const launcherMod = await import('../../runtime/launcher');
-    findBinarySpy = vi.spyOn(launcherMod, 'findRuntimeBinary').mockReturnValue(null) as Mock<
-      (...args: unknown[]) => unknown
-    >;
+    findBinarySpy = vi
+      .spyOn(launcherMod, 'findRuntimeBinary')
+      .mockReturnValue(null) as MockFunction<(...args: unknown[]) => unknown>;
 
     // Mock the Bun fallback path to prevent it from actually starting
     const fullstackMod = await import('../../dev-server/fullstack-server');
@@ -905,7 +905,7 @@ describe('devAction --experimental-runtime', () => {
           runFull: vi.fn().mockResolvedValue({ success: true, stages: [] }),
           dispose: vi.fn(),
         }) as never,
-    ) as Mock<(...args: unknown[]) => unknown>;
+    ) as MockFunction<(...args: unknown[]) => unknown>;
     vi.spyOn(pipelineMod, 'createPipelineWatcher').mockReturnValue({
       close: vi.fn(),
     } as never);
@@ -925,7 +925,7 @@ describe('devAction --experimental-runtime', () => {
     const launcherMod = await import('../../runtime/launcher');
     findBinarySpy = vi
       .spyOn(launcherMod, 'findRuntimeBinary')
-      .mockReturnValue('/fake/binary') as Mock<(...args: unknown[]) => unknown>;
+      .mockReturnValue('/fake/binary') as MockFunction<(...args: unknown[]) => unknown>;
 
     // Mock the pipeline for the codegen step that runs before native runtime
     const pipelineMod = await import('../../pipeline');
@@ -949,9 +949,9 @@ describe('devAction --experimental-runtime', () => {
       kill: vi.fn(),
       pid: 12345,
     };
-    launchSpy = vi.spyOn(launcherMod, 'launchRuntime').mockReturnValue(mockChild as never) as Mock<
-      (...args: unknown[]) => unknown
-    >;
+    launchSpy = vi
+      .spyOn(launcherMod, 'launchRuntime')
+      .mockReturnValue(mockChild as never) as MockFunction<(...args: unknown[]) => unknown>;
 
     const { devAction } = await import('../dev');
     const result = await devAction({ experimentalRuntime: true, port: 4000, host: '0.0.0.0' });
@@ -971,7 +971,7 @@ describe('devAction --experimental-runtime', () => {
     const launcherMod = await import('../../runtime/launcher');
     findBinarySpy = vi
       .spyOn(launcherMod, 'findRuntimeBinary')
-      .mockReturnValue('/fake/binary') as Mock<(...args: unknown[]) => unknown>;
+      .mockReturnValue('/fake/binary') as MockFunction<(...args: unknown[]) => unknown>;
 
     const mockChild = {
       on: vi.fn().mockImplementation((event: string, cb: () => void) => {
@@ -981,9 +981,9 @@ describe('devAction --experimental-runtime', () => {
       kill: vi.fn(),
       pid: 12345,
     };
-    launchSpy = vi.spyOn(launcherMod, 'launchRuntime').mockReturnValue(mockChild as never) as Mock<
-      (...args: unknown[]) => unknown
-    >;
+    launchSpy = vi
+      .spyOn(launcherMod, 'launchRuntime')
+      .mockReturnValue(mockChild as never) as MockFunction<(...args: unknown[]) => unknown>;
 
     const mockOrch = {
       runFull: vi.fn().mockResolvedValue({ success: true, stages: [] }),
@@ -1016,10 +1016,10 @@ describe('devAction --experimental-runtime', () => {
 describe('registerDevCommand action handler', () => {
   it('calls process.exit(1) when devAction returns err', async () => {
     const pathsMod = await import('../../utils/paths');
-    const pathsSpy = vi.spyOn(pathsMod, 'findProjectRoot').mockReturnValue(null) as Mock<
+    const pathsSpy = vi.spyOn(pathsMod, 'findProjectRoot').mockReturnValue(null) as MockFunction<
       (...args: unknown[]) => unknown
     >;
-    const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {}) as Mock<
+    const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {}) as MockFunction<
       (...args: unknown[]) => unknown
     >;
     const processExitSpy = vi

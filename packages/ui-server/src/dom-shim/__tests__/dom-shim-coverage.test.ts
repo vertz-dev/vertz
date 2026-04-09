@@ -4,7 +4,7 @@
  * Bun's coverage tool under-counts certain patterns in this file.
  * This test exercises the specific code paths to maximize coverage attribution.
  */
-import { afterEach, describe, expect, it } from 'bun:test';
+import { afterEach, describe, expect, it } from '@vertz/test';
 import type { SSRRenderContext } from '@vertz/ui/internals';
 import { ssrStorage } from '../../ssr-context';
 import {

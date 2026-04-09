@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'bun:test';
+import { describe, expect, it } from '@vertz/test';
 import { AccessTypesGenerator } from '../generators/access-types-generator';
 import { AuthSdkGenerator } from '../generators/auth-sdk-generator';
 import { ClientGenerator } from '../generators/client-generator';

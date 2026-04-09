@@ -2,7 +2,7 @@
  * Tests for EntityError classes.
  */
 
-import { describe, expect, it } from 'bun:test';
+import { describe, expect, it } from '@vertz/test';
 import {
   BadRequestError,
   EntityConflictError,

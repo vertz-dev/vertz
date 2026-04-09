@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'bun:test';
+import { describe, expect, it } from '@vertz/test';
 import { ok } from '@vertz/schema';
 import type { DatabaseClient, ModelDelegate } from '../../client/database';
 import { d } from '../../d';
