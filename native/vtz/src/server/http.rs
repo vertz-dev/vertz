@@ -364,7 +364,7 @@ pub fn build_router(
         .route("/__vertz_interact", get(ws_interact_handler))
         .fallback(dev_server_handler)
         .with_state(state.clone())
-        .layer(RequestLoggingLayer)
+        .layer(RequestLoggingLayer::new(state.audit_log.clone()))
         .layer(
             tower_http::cors::CorsLayer::new()
                 .allow_origin(tower_http::cors::Any)
@@ -1273,7 +1273,6 @@ async fn handle_api_request(
         }
     };
 
-    let method_str = method.clone();
     let isolate_req = IsolateRequest {
         method,
         url,
@@ -1281,20 +1280,8 @@ async fn handle_api_request(
         body: body_bytes,
     };
 
-    let start = Instant::now();
     match isolate.handle_request(isolate_req).await {
         Ok(response) => {
-            let elapsed = start.elapsed();
-            let duration_ms = elapsed.as_secs_f64() * 1000.0;
-            state
-                .audit_log
-                .record(crate::server::audit_log::AuditEvent::api_request(
-                    &method_str,
-                    path,
-                    response.status,
-                    duration_ms,
-                ));
-
             let mut builder = axum::response::Response::builder().status(response.status);
             for (key, value) in &response.headers {
                 builder = builder.header(key.as_str(), value.as_str());
@@ -1304,17 +1291,7 @@ async fn handle_api_request(
             builder.body(Body::from(response.body)).unwrap()
         }
         Err(e) => {
-            let elapsed = start.elapsed();
-            let duration_ms = elapsed.as_secs_f64() * 1000.0;
             eprintln!("[Server] API handler error: {}", e);
-            state
-                .audit_log
-                .record(crate::server::audit_log::AuditEvent::api_request(
-                    &method_str,
-                    path,
-                    500,
-                    duration_ms,
-                ));
 
             let body = serde_json::json!({ "error": e.to_string() }).to_string();
             axum::response::Response::builder()

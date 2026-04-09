@@ -1,3 +1,4 @@
+use crate::server::audit_log::{AuditEvent, AuditLog};
 use axum::body::Body;
 use axum::http::{Request, Response, StatusCode};
 use owo_colors::OwoColorize;
@@ -8,14 +9,31 @@ use std::time::Instant;
 use tower::{Layer, Service};
 
 /// Tower layer that logs each HTTP request with colored status codes and timing.
+///
+/// Console output suppresses "noise" paths (internal endpoints, assets, source modules)
+/// to keep the developer's terminal focused on meaningful requests (pages, API routes).
+/// All requests — including suppressed ones — are recorded in the audit log so that
+/// LLMs can access the full stream via MCP (`vertz_get_audit_log`).
 #[derive(Clone)]
-pub struct RequestLoggingLayer;
+pub struct RequestLoggingLayer {
+    audit_log: AuditLog,
+}
+
+impl RequestLoggingLayer {
+    /// Create a new logging layer that records all requests to the given audit log.
+    pub fn new(audit_log: AuditLog) -> Self {
+        Self { audit_log }
+    }
+}
 
 impl<S> Layer<S> for RequestLoggingLayer {
     type Service = RequestLoggingMiddleware<S>;
 
     fn layer(&self, inner: S) -> Self::Service {
-        RequestLoggingMiddleware { inner }
+        RequestLoggingMiddleware {
+            inner,
+            audit_log: self.audit_log.clone(),
+        }
     }
 }
 
@@ -23,6 +41,7 @@ impl<S> Layer<S> for RequestLoggingLayer {
 #[derive(Clone)]
 pub struct RequestLoggingMiddleware<S> {
     inner: S,
+    audit_log: AuditLog,
 }
 
 impl<S> Service<Request<Body>> for RequestLoggingMiddleware<S>
@@ -43,24 +62,36 @@ where
         let path = req.uri().path().to_string();
         let start = Instant::now();
         let mut inner = self.inner.clone();
+        let audit_log = self.audit_log.clone();
 
         Box::pin(async move {
             let response = inner.call(req).await?;
             let elapsed = start.elapsed();
             let status = response.status();
+            let duration_ms = elapsed.as_secs_f64() * 1000.0;
 
-            let time_str = format_elapsed(elapsed);
-            let status_str = format_status(status);
+            // Always record to audit log (accessible via MCP vertz_get_audit_log)
+            audit_log.record(AuditEvent::api_request(
+                method.as_ref(),
+                &path,
+                status.as_u16(),
+                duration_ms,
+            ));
 
-            let now = chrono_free_time();
-            eprintln!(
-                "{} {} {} {} ({})",
-                now.dimmed(),
-                status_str,
-                method.to_string().bold(),
-                path,
-                time_str.dimmed()
-            );
+            // Only print to console for non-noise paths
+            if !is_noise_path(&path) {
+                let time_str = format_elapsed(elapsed);
+                let status_str = format_status(status);
+                let now = chrono_free_time();
+                eprintln!(
+                    "{} {} {} {} ({})",
+                    now.dimmed(),
+                    status_str,
+                    method.to_string().bold(),
+                    path,
+                    time_str.dimmed()
+                );
+            }
 
             Ok(response)
         })
@@ -90,6 +121,50 @@ fn format_status(status: StatusCode) -> String {
     } else {
         text.red().to_string()
     }
+}
+
+/// Returns `true` if the path is "noise" — internal dev-server endpoints, source modules,
+/// or static assets that clutter the console without providing actionable information.
+/// These requests are still recorded in the audit log for LLM/MCP access.
+///
+/// Note: HTTP requests never include fragments (`#section`), so we only strip query params.
+pub(crate) fn is_noise_path(path: &str) -> bool {
+    // Internal dev-server endpoints and dependency/artifact paths
+    if path.starts_with("/__vertz")
+        || path.starts_with("/@deps/")
+        || path.starts_with("/@fs/")
+        || path.starts_with("/@css/")
+        || path.starts_with("/.vertz/")
+        || path.starts_with("/node_modules/")
+    {
+        return true;
+    }
+
+    // API routes are never noise, even if they happen to have file-like extensions
+    // (e.g., /api/bundle.js, /api/export.csv)
+    if path.starts_with("/api/") || path == "/api" {
+        return false;
+    }
+
+    // Strip query params before checking the extension
+    let clean = path.split('?').next().unwrap_or(path);
+
+    if let Some(dot_pos) = clean.rfind('.') {
+        let ext = &clean[dot_pos + 1..];
+        return matches!(
+            ext,
+            // Source modules
+            "js" | "mjs" | "ts" | "tsx" | "jsx"
+            // Stylesheets and source maps
+            | "css" | "map"
+            // Images
+            | "svg" | "png" | "jpg" | "jpeg" | "gif" | "webp" | "ico"
+            // Fonts
+            | "woff" | "woff2" | "ttf" | "eot"
+        );
+    }
+
+    false
 }
 
 /// Simple HH:MM:SS timestamp without pulling in the chrono crate.
@@ -154,5 +229,112 @@ mod tests {
         assert_eq!(time.len(), 8);
         assert_eq!(&time[2..3], ":");
         assert_eq!(&time[5..6], ":");
+    }
+
+    // ── is_noise_path tests ──
+
+    #[test]
+    fn test_internal_vertz_paths_are_noise() {
+        assert!(is_noise_path("/__vertz_hmr"));
+        assert!(is_noise_path("/__vertz_errors"));
+        assert!(is_noise_path("/__vertz_diagnostics"));
+        assert!(is_noise_path("/__vertz_mcp/sse"));
+        assert!(is_noise_path("/__vertz_ai/errors"));
+        assert!(is_noise_path("/__vertz_image/foo.png"));
+    }
+
+    #[test]
+    fn test_deps_paths_are_noise() {
+        assert!(is_noise_path("/@deps/react/index.js"));
+        assert!(is_noise_path("/@deps/@vertz/ui/dist/index.js"));
+    }
+
+    #[test]
+    fn test_source_module_paths_are_noise() {
+        assert!(is_noise_path("/src/App.tsx"));
+        assert!(is_noise_path("/src/components/Button.ts"));
+        assert!(is_noise_path("/src/main.js"));
+        assert!(is_noise_path("/src/utils.mjs"));
+        assert!(is_noise_path("/src/page.jsx"));
+    }
+
+    #[test]
+    fn test_css_paths_are_noise() {
+        assert!(is_noise_path("/@css/theme.css"));
+        assert!(is_noise_path("/src/styles/app.css"));
+    }
+
+    #[test]
+    fn test_source_map_paths_are_noise() {
+        assert!(is_noise_path("/src/App.tsx.map"));
+    }
+
+    #[test]
+    fn test_asset_paths_are_noise() {
+        // Images
+        assert!(is_noise_path("/logo.svg"));
+        assert!(is_noise_path("/images/hero.png"));
+        assert!(is_noise_path("/photo.jpg"));
+        assert!(is_noise_path("/photo.jpeg"));
+        assert!(is_noise_path("/anim.gif"));
+        assert!(is_noise_path("/icon.webp"));
+        assert!(is_noise_path("/favicon.ico"));
+
+        // Fonts
+        assert!(is_noise_path("/fonts/inter.woff"));
+        assert!(is_noise_path("/fonts/inter.woff2"));
+        assert!(is_noise_path("/fonts/inter.ttf"));
+        assert!(is_noise_path("/fonts/legacy.eot"));
+    }
+
+    #[test]
+    fn test_vertz_dev_artifact_paths_are_noise() {
+        assert!(is_noise_path("/.vertz/css/abc123.css"));
+        assert!(is_noise_path("/.vertz/dev/ssr-reload-entry.ts"));
+    }
+
+    #[test]
+    fn test_page_routes_are_not_noise() {
+        assert!(!is_noise_path("/"));
+        assert!(!is_noise_path("/tasks"));
+        assert!(!is_noise_path("/tasks/123"));
+        assert!(!is_noise_path("/settings"));
+    }
+
+    #[test]
+    fn test_api_routes_are_not_noise() {
+        assert!(!is_noise_path("/api/tasks"));
+        assert!(!is_noise_path("/api/users/123"));
+        assert!(!is_noise_path("/api"));
+    }
+
+    #[test]
+    fn test_node_modules_paths_are_noise() {
+        assert!(is_noise_path("/node_modules/react/index.js"));
+        assert!(is_noise_path("/node_modules/@vertz/ui/dist/index.js"));
+    }
+
+    #[test]
+    fn test_api_routes_with_file_extensions_are_not_noise() {
+        assert!(!is_noise_path("/api/bundle.js"));
+        assert!(!is_noise_path("/api/export.csv"));
+        assert!(!is_noise_path("/api/data.json"));
+    }
+
+    #[test]
+    fn test_bare_vertz_prefix_is_noise() {
+        assert!(is_noise_path("/__vertz"));
+    }
+
+    #[test]
+    fn test_trailing_slash_page_routes_are_not_noise() {
+        assert!(!is_noise_path("/api/tasks/"));
+        assert!(!is_noise_path("/tasks/"));
+    }
+
+    #[test]
+    fn test_query_params_on_module_paths_still_noise() {
+        assert!(is_noise_path("/src/App.tsx?t=1234567890"));
+        assert!(is_noise_path("/@deps/react/index.js?v=abc"));
     }
 }

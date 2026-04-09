@@ -97,30 +97,35 @@ async fn entry_file_change_triggers_full_reload() {
     let src_dir = tmp.path().join("src");
     let (_watcher, mut rx) = FileWatcher::start(&src_dir, FileWatcherConfig::default()).unwrap();
 
-    // Give the watcher time to initialize
-    tokio::time::sleep(Duration::from_millis(100)).await;
+    // Give the watcher time to initialize and drain any stale events from
+    // copy_fixture (file creation events for Hello.tsx, etc.).
+    tokio::time::sleep(Duration::from_millis(300)).await;
+    while rx.try_recv().is_ok() {}
 
     // Modify entry file
     let entry = src_dir.join("app.tsx");
     let content = std::fs::read_to_string(&entry).unwrap();
     std::fs::write(&entry, format!("{}\n// changed", content)).unwrap();
 
-    // Wait for change event
-    let change = timeout(Duration::from_secs(5), rx.recv())
-        .await
-        .expect("no file change detected within 5s")
-        .expect("watcher channel closed");
+    // Wait for the app.tsx change event. The watcher may deliver events for
+    // other files first (e.g., late copy_fixture events on slow CI runners),
+    // so loop until we see the one we care about.
+    let change = timeout(Duration::from_secs(5), async {
+        loop {
+            let event = rx.recv().await.expect("watcher channel closed");
+            if event.path.ends_with("app.tsx") {
+                return event;
+            }
+        }
+    })
+    .await
+    .expect("no app.tsx change detected within 5s");
 
     // macOS may report Create instead of Modify for writes to temp dirs
     assert!(
         change.kind == FileChangeKind::Modify || change.kind == FileChangeKind::Create,
         "Expected Modify or Create, got: {:?}",
         change.kind
-    );
-    assert!(
-        change.path.ends_with("app.tsx"),
-        "Changed path should be app.tsx, got: {:?}",
-        change.path
     );
 }
 
