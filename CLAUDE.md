@@ -1,5 +1,17 @@
 # Vertz Framework
 
+## What is Vertz?
+
+Vertz is a full-stack TypeScript framework. It includes:
+
+- **Database ORM** (`@vertz/db`) — typed queries, migrations, PostgreSQL + SQLite + D1
+- **API server** (`@vertz/server`) — entities, services, REST endpoints, auto-generated OpenAPI
+- **Compiled UI** (`@vertz/ui`) — signals, JSX, router, SSR, forms, scoped CSS
+- **AI agents** (`@vertz/agents`) — agents, typed tools, workflows on Cloudflare Workers
+- **Custom runtime & CLI** (`vtz`) — Rust-powered dev server, build, test runner
+
+One schema definition (`d.table()`) drives the database, API types, client SDK, and UI — if it builds, it works.
+
 **Read [VISION.md](./VISION.md) and [MANIFESTO.md](./MANIFESTO.md) before making any design decision.** Every API, architecture choice, and implementation approach must align with the 8 principles in the vision.
 
 ## Stack

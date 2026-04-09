@@ -1,9 +1,9 @@
 ---
 title: Introduction
-description: 'Vertz — the TypeScript stack where types flow from database to browser'
+description: 'Vertz — a full-stack TypeScript framework with a database ORM, API server, compiled UI, AI agents, and a custom runtime'
 ---
 
-Vertz is a TypeScript stack that covers database, API, and UI. Define your schema once — get a typed database layer, a typed API with auto-generated OpenAPI, and a compiled UI with fine-grained reactivity. If it builds, it works.
+Vertz is a full-stack TypeScript framework. It includes a database ORM with typed queries and migrations (PostgreSQL, SQLite, D1), an API server with entities, services, and auto-generated REST endpoints with OpenAPI, a compiled UI framework with signals, JSX, SSR, and scoped CSS, an AI agent framework for orchestrating tools and workflows, and a custom Rust-powered runtime and CLI. One schema definition drives every layer — if it builds, it works.
 
 <Steps>
   <Step title="Define your schema" icon="database">
@@ -137,6 +137,7 @@ Vertz is a TypeScript stack that covers database, API, and UI. Define your schem
 | **Deploy**     | Cloudflare Workers adapter                                          | `vertz/cloudflare`    |
 | **Testing**    | `createTestApp()` with service mocking                              | `vertz/testing`       |
 | **HTTP**       | Type-safe client with retries, streaming, auth strategies           | `vertz/fetch`         |
+| **Agents**     | AI agents, typed tools, workflows, Cloudflare Workers               | `@vertz/agents`       |
 
 Install everything with one dependency:
 
@@ -144,7 +145,7 @@ Install everything with one dependency:
 vtz add vertz
 ```
 
-Then import what you need: `vertz/server`, `vertz/db`, `vertz/ui`, `vertz/schema`, `vertz/testing`.
+Then import what you need: `vertz/server`, `vertz/db`, `vertz/ui`, `vertz/schema`, `vertz/testing`. For AI agents, install `@vertz/agents` separately.
 
 ## Next steps
 

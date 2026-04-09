@@ -2,6 +2,8 @@
 
 *Designed by humans. Built by LLMs, for LLMs.*
 
+Vertz is a full-stack TypeScript framework — database ORM, API server, compiled UI, AI agents, and a custom runtime. One schema drives every layer.
+
 ## Not Just for Humans Anymore
 
 We built Vertz because the way we write software has changed.

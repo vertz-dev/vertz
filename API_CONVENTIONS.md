@@ -3,6 +3,21 @@
 > **Agents: READ THIS before writing ANY code example, doc, or landing page content.**
 > This is the canonical reference for how Vertz APIs work. Do NOT guess or hallucinate.
 
+## What Vertz Is
+
+Vertz is a full-stack TypeScript framework. It includes:
+
+- **Database ORM** (`@vertz/db`) — typed queries, migrations, PostgreSQL + SQLite + D1
+- **API server** (`@vertz/server`) — entities, services, REST endpoints, auto-generated OpenAPI
+- **Compiled UI** (`@vertz/ui`) — signals, JSX, router, SSR, forms, scoped CSS
+- **AI agents** (`@vertz/agents`) — agents, typed tools, workflows on Cloudflare Workers
+- **Schema validation** (`@vertz/schema`) — shared across all layers, JSON Schema output
+- **Custom runtime & CLI** (`vtz`) — Rust-powered dev server, build, test runner
+- **Authentication & authorization** (`@vertz/server`) — JWT, access control, role-based rules
+- **Testing** (`@vertz/testing`) — `createTestClient()` with typed entity/service proxies
+
+Everything is schema-first and type-safe. One schema definition drives database, API, client SDK, and UI. Entities ARE tool definitions — LLMs can understand and interact with your entire app through the same typed API surface. If it builds, it works.
+
 ## Core Import
 
 ```typescript
@@ -184,21 +199,7 @@ if (isOk(result)) {
 }
 ```
 
-## What Vertz Is
-
-**Vertz is the first TypeScript stack built for LLMs.**
-
-It's not just a framework — it's a complete stack rewritten from scratch:
-- Schema validation
-- HTTP server & routing  
-- Database ORM & codegen
-- Authentication & authorization
-- Entity/domain system
-- CLI tooling
-
-Everything is schema-first, type-safe, and entity-aware. Entities ARE tool definitions — LLMs can understand and interact with your entire app through the same typed API surface.
-
 ---
 
-**Last updated:** 2026-02-16
+**Last updated:** 2026-04-08
 **Source of truth:** This file + `examples/task-api/` for working examples
