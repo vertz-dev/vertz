@@ -52,7 +52,7 @@
     "build": "vtzx bunup",
     "test": "bun test",
     "test:watch": "bun test --watch",
-    "typecheck": "tsc --noEmit -p tsconfig.typecheck.json"
+    "typecheck": "tsgo --noEmit -p tsconfig.typecheck.json"
   },
   "dependencies": {
     "@paralleldrive/cuid2": "^3.3.0",

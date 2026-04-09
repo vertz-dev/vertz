@@ -65,7 +65,7 @@
     "test": "bun test --timeout 60000 src/",
     "test:integration": "bun test src/__tests__/bun-dev-server.integration.local.ts",
     "test:e2e": "bunx playwright test",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsgo --noEmit"
   },
   "dependencies": {
     "@ampproject/remapping": "^2.3.0",

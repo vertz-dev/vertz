@@ -30,7 +30,7 @@
     "generate": "bun run scripts/generate.ts",
     "test": "bun test",
     "test:watch": "bun test --watch",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsgo --noEmit"
   },
   "devDependencies": {
     "@happy-dom/global-registrator": "^20.7.0",

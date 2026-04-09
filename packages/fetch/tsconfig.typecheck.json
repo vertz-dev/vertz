@@ -3,7 +3,8 @@
     "noEmit": true,
     "noUnusedLocals": false,
     "noUnusedParameters": false,
-    "skipLibCheck": true
+    "skipLibCheck": true,
+    "types": ["bun-types"]
   },
   "extends": "../../tsconfig.json",
   "include": ["src"]
