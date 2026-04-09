@@ -1,5 +1,5 @@
 import type { ChildValue } from '@vertz/ui';
-import type { AnimateConfig, ComposedListProps } from '@vertz/ui-primitives';
+import type { AnimateConfig } from '@vertz/ui-primitives';
 import { ComposedList, withStyles } from '@vertz/ui-primitives';
 
 interface ListStyleClasses {
@@ -52,14 +52,17 @@ export function createThemedList(styles: ListStyleClasses): ThemedListComponent 
     animate,
     sortable,
     onReorder,
-  }: ListRootProps): HTMLElement {
-    return StyledList({
-      children,
-      className: className ?? classProp,
-      animate,
-      sortable,
-      onReorder,
-    } as ComposedListProps);
+  }: ListRootProps) {
+    return (
+      <StyledList
+        className={className ?? classProp}
+        animate={animate}
+        sortable={sortable}
+        onReorder={onReorder}
+      >
+        {children}
+      </StyledList>
+    );
   }
 
   return Object.assign(ListRoot, {
