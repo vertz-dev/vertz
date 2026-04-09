@@ -2,10 +2,15 @@
  * Native compiler wrapper — loads the Rust-based Vertz compiler via NAPI
  * and exposes it with proper TypeScript types.
  *
- * The native compiler is the sole compilation path. Both compile() and
- * compileForSsrAot() throw if the binary is unavailable — there is no
- * fallback. Bun's JSX transpiler does not produce children thunks, signal
- * transforms, or CSS extraction, so silent fallback produces broken output.
+ * The native compiler is the primary compilation path:
+ * - loadNativeCompiler() — throws if the binary is unavailable
+ * - tryLoadNativeCompiler() — returns null if unavailable
+ * - compile() — falls back to Bun's JSX transpiler with a warning
+ * - compileForSsrAot() — throws (no fallback, AOT needs full transforms)
+ *
+ * The Bun JSX fallback does NOT produce children thunks, signal transforms,
+ * or CSS extraction — it exists for CI environments where the native
+ * binary is not available and partial compilation is acceptable.
  *
  * NAPI-RS auto-converts between Rust snake_case and JS camelCase
  * in both directions, so our TypeScript interfaces use camelCase
@@ -180,16 +185,41 @@ function wrapCompiler(raw: RawNativeCompiler): NativeCompiler {
   };
 }
 
+// ─── Bun JSX fallback ───────────────────────────────────────────────
+
+let warnedFallback = false;
+
+function compileFallback(source: string): NativeCompileResult {
+  if (!warnedFallback) {
+    warnedFallback = true;
+    console.warn(
+      '[vertz] Native compiler binary not available — falling back to Bun JSX transpiler. ' +
+        'Signal transforms, CSS extraction, and hydration markers will be missing.',
+    );
+  }
+  const code = new Bun.Transpiler({
+    loader: 'tsx',
+    autoImportJSX: true,
+    tsconfig: JSON.stringify({
+      compilerOptions: { jsx: 'react-jsx', jsxImportSource: '@vertz/ui' },
+    }),
+  }).transformSync(source);
+  return { code, diagnostics: [] };
+}
+
 // ─── Convenience functions ──────────────────────────────────────────
 
 /**
  * Compile a TypeScript/JSX source file using the native Rust compiler.
- * Throws if the native binary is unavailable — there is no fallback.
- * Bun's JSX transpiler does not produce children thunks, signal transforms,
- * or CSS extraction, so falling back silently produces broken output.
+ * Falls back to Bun's JSX transpiler with a warning when the native
+ * binary is unavailable (e.g. on CI without the platform binary).
+ * The fallback does NOT produce signal transforms, CSS extraction, or
+ * children thunks — use loadNativeCompiler() directly when these are required.
  */
 export function compile(source: string, options?: NativeCompileOptions): NativeCompileResult {
-  return loadNativeCompiler().compile(source, options);
+  const compiler = tryLoadNativeCompiler();
+  if (!compiler) return compileFallback(source);
+  return compiler.compile(source, options);
 }
 
 /**
