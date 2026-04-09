@@ -1,5 +1,16 @@
 # @vertz/testing
 
+## 0.2.55
+
+### Patch Changes
+
+- [#2444](https://github.com/vertz-dev/vertz/pull/2444) [`4a9d4e4`](https://github.com/vertz-dev/vertz/commit/4a9d4e46590278474abc65af298fdd10a84c9fd1) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - fix(testing): resolve service proxy 404 for non-POST and custom-path actions in createTestClient
+
+- Updated dependencies []:
+  - @vertz/core@0.2.55
+  - @vertz/db@0.2.55
+  - @vertz/server@0.2.55
+
 ## 0.2.54
 
 ### Patch Changes
