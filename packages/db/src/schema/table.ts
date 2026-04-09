@@ -304,7 +304,7 @@ export function createTable<TColumns extends ColumnRecord>(
   if (pkOption && pkOption.length > 0) {
     // Validate: no column-level .primary() when table-level primaryKey is used
     for (const colName of Object.keys(columns)) {
-      if (columns[colName]._meta.primary) {
+      if (columns[colName]!._meta.primary) {
         throw new Error(
           `Cannot use both column-level .primary() and table-level primaryKey option in table "${name}". ` +
             `Column "${colName}" has .primary(). Remove it or remove the primaryKey option.`,
@@ -325,7 +325,7 @@ export function createTable<TColumns extends ColumnRecord>(
     // Clone PK columns with primary: true (preserving existing hasDefault)
     const cloned = { ...columns } as Record<string, ColumnBuilder<unknown, ColumnMetadata>>;
     for (const pkCol of pkOption) {
-      const col = cloned[pkCol];
+      const col = cloned[pkCol]!;
       cloned[pkCol] = { ...col, _meta: { ...col._meta, primary: true } };
     }
     finalColumns = cloned as TColumns;

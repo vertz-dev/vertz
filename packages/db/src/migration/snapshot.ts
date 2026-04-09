@@ -105,7 +105,7 @@ function deriveForeignKeys(
         `Target table "${targetTable._name}" referenced by relation "${relName}" on table "${table._name}" has no primary key column`,
       );
     }
-    const targetColumn = targetPkCols[0];
+    const targetColumn = targetPkCols[0]!;
 
     foreignKeys.push({
       column: rel._foreignKey,
