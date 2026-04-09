@@ -79,7 +79,11 @@ export function createThemedMenubar(styles: MenubarStyleClasses): ThemedMenubarC
   });
 
   function MenubarRoot({ children, onSelect }: MenubarRootProps): HTMLElement {
-    return Styled({ children, onSelect, positioning: { placement: 'bottom-start' } });
+    return (
+      <Styled onSelect={onSelect} positioning={{ placement: 'bottom-start' }}>
+        {children}
+      </Styled>
+    ) as HTMLElement;
   }
 
   return Object.assign(MenubarRoot, {

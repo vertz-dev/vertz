@@ -52,7 +52,7 @@ export function createThemedList(styles: ListStyleClasses): ThemedListComponent 
     animate,
     sortable,
     onReorder,
-  }: ListRootProps) {
+  }: ListRootProps): HTMLElement {
     return (
       <StyledList
         className={className ?? classProp}
@@ -62,7 +62,7 @@ export function createThemedList(styles: ListStyleClasses): ThemedListComponent 
       >
         {children}
       </StyledList>
-    );
+    ) as HTMLElement;
   }
 
   return Object.assign(ListRoot, {

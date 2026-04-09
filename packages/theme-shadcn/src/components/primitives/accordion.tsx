@@ -49,7 +49,11 @@ export function createThemedAccordion(styles: AccordionStyleClasses): ThemedAcco
   });
 
   function AccordionRoot({ type, defaultValue, children }: AccordionRootProps): HTMLElement {
-    return StyledAccordion({ children, type, defaultValue });
+    return (
+      <StyledAccordion type={type} defaultValue={defaultValue}>
+        {children}
+      </StyledAccordion>
+    ) as HTMLElement;
   }
 
   return Object.assign(AccordionRoot, {

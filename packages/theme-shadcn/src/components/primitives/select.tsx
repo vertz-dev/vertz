@@ -73,12 +73,15 @@ export function createThemedSelect(styles: SelectStyleClasses): ThemedSelectComp
     onValueChange,
     children,
   }: SelectRootProps): HTMLElement {
-    return StyledSelect({
-      children,
-      defaultValue,
-      placeholder,
-      onValueChange,
-    });
+    return (
+      <StyledSelect
+        defaultValue={defaultValue}
+        placeholder={placeholder}
+        onValueChange={onValueChange}
+      >
+        {children}
+      </StyledSelect>
+    ) as HTMLElement;
   }
 
   return Object.assign(SelectRoot, {

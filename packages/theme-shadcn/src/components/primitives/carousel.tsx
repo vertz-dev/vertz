@@ -53,13 +53,16 @@ export function createThemedCarousel(styles: CarouselStyleClasses): ThemedCarous
     onSlideChange,
     children,
   }: CarouselRootProps): HTMLElement {
-    return StyledCarousel({
-      children,
-      orientation,
-      loop,
-      defaultIndex,
-      onSlideChange,
-    });
+    return (
+      <StyledCarousel
+        orientation={orientation}
+        loop={loop}
+        defaultIndex={defaultIndex}
+        onSlideChange={onSlideChange}
+      >
+        {children}
+      </StyledCarousel>
+    ) as HTMLElement;
   }
 
   return Object.assign(CarouselRoot, {

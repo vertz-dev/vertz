@@ -59,18 +59,21 @@ export function createThemedSheet(styles: SheetStyleClasses): ThemedSheetCompone
     const resolvedSide = side ?? 'right';
     const panelClass = styles[PANEL_CLASS_MAP[resolvedSide]];
 
-    return ComposedSheet({
-      children,
-      side: resolvedSide,
-      onOpenChange,
-      classes: {
-        overlay: styles.overlay,
-        content: panelClass,
-        title: styles.title,
-        description: styles.description,
-        close: styles.close,
-      },
-    });
+    return (
+      <ComposedSheet
+        side={resolvedSide}
+        onOpenChange={onOpenChange}
+        classes={{
+          overlay: styles.overlay,
+          content: panelClass,
+          title: styles.title,
+          description: styles.description,
+          close: styles.close,
+        }}
+      >
+        {children}
+      </ComposedSheet>
+    ) as HTMLElement;
   }
 
   return Object.assign(SheetRoot, {

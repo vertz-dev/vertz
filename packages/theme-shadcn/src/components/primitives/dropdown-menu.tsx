@@ -77,7 +77,11 @@ export function createThemedDropdownMenu(
     onSelect,
     onOpenChange,
   }: DropdownMenuRootProps): HTMLElement {
-    return Styled({ children, onSelect, onOpenChange });
+    return (
+      <Styled onSelect={onSelect} onOpenChange={onOpenChange}>
+        {children}
+      </Styled>
+    ) as HTMLElement;
   }
 
   return Object.assign(DropdownMenuRoot, {
