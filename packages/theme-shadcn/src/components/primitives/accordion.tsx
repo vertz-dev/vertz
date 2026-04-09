@@ -48,8 +48,12 @@ export function createThemedAccordion(styles: AccordionStyleClasses): ThemedAcco
     content: styles.content,
   });
 
-  function AccordionRoot({ type, defaultValue, children }: AccordionRootProps): HTMLElement {
-    return StyledAccordion({ children, type, defaultValue });
+  function AccordionRoot({ type, defaultValue, children }: AccordionRootProps) {
+    return (
+      <StyledAccordion type={type} defaultValue={defaultValue}>
+        {children}
+      </StyledAccordion>
+    );
   }
 
   return Object.assign(AccordionRoot, {

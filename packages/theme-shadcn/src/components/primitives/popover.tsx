@@ -34,8 +34,12 @@ export function createThemedPopover(styles: PopoverStyleClasses): ThemedPopoverC
     content: styles.content,
   });
 
-  function PopoverRoot({ children, onOpenChange }: PopoverRootProps): HTMLElement {
-    return StyledPopover({ children, onOpenChange });
+  function PopoverRoot({ children, onOpenChange }: PopoverRootProps) {
+    return (
+      <StyledPopover onOpenChange={onOpenChange}>
+        {children}
+      </StyledPopover>
+    );
   }
 
   return Object.assign(PopoverRoot, {
