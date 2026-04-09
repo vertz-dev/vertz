@@ -326,6 +326,46 @@ describe('ServiceSdkGenerator', () => {
     expect(content).toContain('id: messageId');
   });
 
+  it('includes both id and body in MutationMeta for PATCH with path params', () => {
+    const content = getSdkContent(
+      [
+        {
+          serviceName: 'tasks',
+          actions: [
+            { name: 'update', method: 'PATCH', path: '/tasks/:taskId', operationId: 'updateTasks' },
+          ],
+        },
+      ],
+      'tasks',
+    );
+    expect(content).toContain('taskId: string');
+    expect(content).toContain('body: unknown');
+    expect(content).toContain("kind: 'update' as const");
+    expect(content).toContain('id: taskId');
+    expect(content).toContain('body }');
+  });
+
+  it('omits id from MutationMeta for DELETE without path params', () => {
+    const content = getSdkContent(
+      [
+        {
+          serviceName: 'tasks',
+          actions: [
+            {
+              name: 'clear_all',
+              method: 'DELETE',
+              path: '/tasks/clear',
+              operationId: 'clearAllTasks',
+            },
+          ],
+        },
+      ],
+      'tasks',
+    );
+    expect(content).toContain("kind: 'delete' as const");
+    expect(content).not.toContain('id:');
+  });
+
   // ── Import tests ──────────────────────────────────────
 
   it('imports only createDescriptor when service has only GET actions', () => {
@@ -480,6 +520,28 @@ describe('ServiceSdkGenerator', () => {
       'notifications',
     );
     expect(content).toContain("queryKey: () => queryKey({ path: '/notifications/send' })");
+  });
+
+  it('generates .queryKey() with optional path params on mutation actions', () => {
+    const content = getSdkContent(
+      [
+        {
+          serviceName: 'notifications',
+          actions: [
+            {
+              name: 'remove',
+              method: 'DELETE',
+              path: '/notifications/:messageId',
+              operationId: 'removeNotifications',
+            },
+          ],
+        },
+      ],
+      'notifications',
+    );
+    expect(content).toContain('queryKey: (messageId?: string)');
+    expect(content).toContain("path: '/notifications/{messageId}'");
+    expect(content).toContain('params: { messageId }');
   });
 
   it('generates .queryKey() with multiple optional path params', () => {
