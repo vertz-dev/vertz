@@ -58,6 +58,33 @@ const echoService = service('echo', {
   },
 });
 
+const statusResponseSchema = {
+  parse: (v: unknown) => ({ ok: true as const, data: v as { status: string } }),
+};
+
+const getHealthService = service('health', {
+  access: { status: rules.public },
+  actions: {
+    status: {
+      method: 'GET',
+      response: statusResponseSchema,
+      handler: async () => ({ status: 'healthy' }),
+    },
+  },
+});
+
+const customPathService = service('health', {
+  access: { status: rules.public },
+  actions: {
+    status: {
+      method: 'GET',
+      path: '/health',
+      response: statusResponseSchema,
+      handler: async () => ({ status: 'healthy' }),
+    },
+  },
+});
+
 function createInMemoryDb() {
   const store: Record<string, Record<string, unknown>> = {};
   return {
@@ -262,6 +289,58 @@ describe('Service proxy', () => {
     const health = client.service(healthService);
 
     expect((health as Record<string, unknown>).nonExistent).toBeUndefined();
+  });
+
+  it('routes GET service actions correctly via proxy', async () => {
+    const server = createServer({
+      services: [getHealthService],
+    });
+    const client = createTestClient(server);
+    const health = client.service(getHealthService);
+
+    const result = await health.status();
+    expect(result.ok).toBe(true);
+    expect(result.status).toBe(200);
+    if (result.ok) {
+      expect(result.body.status).toBe('healthy');
+    }
+  });
+
+  it('routes GET service actions correctly via raw client', async () => {
+    const server = createServer({
+      services: [getHealthService],
+    });
+    const client = createTestClient(server);
+
+    const result = await client.get('/api/health/status');
+    expect(result.ok).toBe(true);
+    expect(result.status).toBe(200);
+  });
+
+  it('routes service with custom action path via proxy', async () => {
+    const server = createServer({
+      services: [customPathService],
+    });
+    const client = createTestClient(server);
+    const health = client.service(customPathService);
+
+    const result = await health.status();
+    expect(result.ok).toBe(true);
+    expect(result.status).toBe(200);
+    if (result.ok) {
+      expect(result.body.status).toBe('healthy');
+    }
+  });
+
+  it('routes service with custom action path via raw client', async () => {
+    const server = createServer({
+      services: [customPathService],
+    });
+    const client = createTestClient(server);
+
+    const result = await client.get('/api/health');
+    expect(result.ok).toBe(true);
+    expect(result.status).toBe(200);
   });
 });
 

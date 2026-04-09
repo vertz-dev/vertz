@@ -32,19 +32,49 @@ function resolveEntityBasePath(server: AppBuilder, entityName: string): string {
 }
 
 /**
- * Matches service routes by looking for "/<serviceName>/" as a segment boundary.
- * Uses a regex to ensure we match whole segments, not substrings.
+ * Matches service routes by looking for "/<serviceName>/" or "/<serviceName>" as
+ * a segment boundary. Searches all HTTP methods (not just POST) so GET-only
+ * services are resolved correctly.
  * E.g. for service "health": matches "/api/health/check" but not "/api/health-check/action".
  */
 function resolveServiceBasePath(server: AppBuilder, serviceName: string): string {
   const routes = server.router.routes;
-  const segmentPattern = new RegExp(`/${serviceName}/`);
-  const serviceRoute = routes.find((r) => r.method === 'POST' && segmentPattern.test(r.path));
+  // Match routes containing /{serviceName}/ or ending with /{serviceName}
+  const segmentPattern = new RegExp(`/${serviceName}(/|$)`);
+  const serviceRoute = routes.find((r) => segmentPattern.test(r.path));
   if (serviceRoute) {
-    const idx = serviceRoute.path.indexOf(`/${serviceName}/`);
+    const idx = serviceRoute.path.indexOf(`/${serviceName}`);
     return serviceRoute.path.slice(0, idx + 1 + serviceName.length);
   }
   return `/api/${serviceName}`;
+}
+
+/**
+ * Resolve the full request path for a service action by matching against
+ * registered routes. Handles custom action paths correctly.
+ */
+function resolveActionPath(
+  server: AppBuilder,
+  actionName: string,
+  actionDef: { method?: string; path?: string } | undefined,
+  basePath: string,
+): string {
+  if (!actionDef?.path) {
+    // Default path: basePath + /actionName
+    return `${basePath}/${actionName}`;
+  }
+  // Custom path: find the matching registered route
+  const method = (actionDef.method ?? 'POST').toUpperCase();
+  const customSuffix = actionDef.path.replace(/^\/+/, '');
+  const routes = server.router.routes;
+  const matchedRoute = routes.find(
+    (r) => r.method === method && r.path.endsWith(`/${customSuffix}`),
+  );
+  if (matchedRoute) {
+    return matchedRoute.path;
+  }
+  // Fallback: basePath + custom path
+  return `${basePath}${actionDef.path.startsWith('/') ? actionDef.path : `/${actionDef.path}`}`;
 }
 
 // ---------------------------------------------------------------------------
@@ -188,6 +218,7 @@ function createServiceProxy<TDef extends ServiceDefinition>(
   basePath: string,
   serviceDef: TDef,
   defaultHeaders: Record<string, string>,
+  server: AppBuilder,
 ): ServiceTestProxy<TDef> {
   const actionNames = Object.keys(serviceDef.actions);
 
@@ -213,8 +244,7 @@ function createServiceProxy<TDef extends ServiceDefinition>(
         }
 
         const method = action?.method?.toUpperCase() ?? 'POST';
-        const actionPath = action?.path ?? `/${prop}`;
-        const fullPath = `${basePath}${actionPath}`;
+        const fullPath = resolveActionPath(server, prop, action, basePath);
 
         return dispatch(
           handler,
@@ -248,7 +278,7 @@ export function createTestClient(server: AppBuilder, options?: TestClientOptions
 
       service<TDef extends ServiceDefinition>(def: TDef) {
         const basePath = resolveServiceBasePath(server, def.name);
-        return createServiceProxy(handler, basePath, def, headers);
+        return createServiceProxy(handler, basePath, def, headers, server);
       },
 
       withHeaders(newHeaders: Record<string, string>) {
