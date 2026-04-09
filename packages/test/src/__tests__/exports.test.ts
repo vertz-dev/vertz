@@ -88,19 +88,21 @@ describe('@vertz/test Bun bridge', () => {
     expect(typeof vi.restoreAllMocks).toBe('function');
   });
 
-  it('describe has skip, only, skipIf, each modifiers', () => {
+  it('describe has skip, each modifiers', () => {
     const mod = require('../index');
     expect(typeof mod.describe.skip).toBe('function');
-    expect(typeof mod.describe.only).toBe('function');
     expect(typeof mod.describe.each).toBe('function');
+    // Note: describe.only throws on CI (Bun disables .only to prevent skipping)
+    expect('only' in mod.describe).toBe(true);
   });
 
-  it('it has skip, only, todo, each modifiers', () => {
+  it('it has skip, todo, each modifiers', () => {
     const mod = require('../index');
     expect(typeof mod.it.skip).toBe('function');
-    expect(typeof mod.it.only).toBe('function');
     expect(typeof mod.it.todo).toBe('function');
     expect(typeof mod.it.each).toBe('function');
+    // Note: it.only throws on CI (Bun disables .only to prevent skipping)
+    expect('only' in mod.it).toBe(true);
   });
 
   it('expect has asymmetric matcher factories', () => {
