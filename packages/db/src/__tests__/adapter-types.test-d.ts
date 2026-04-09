@@ -4,7 +4,7 @@
  * Verifies that EntityDbAdapter parameterized with a ModelEntry
  * provides fully typed CRUD operations — inputs, outputs, and query options.
  */
-import { describe, it } from 'bun:test';
+import { describe, it } from '@vertz/test';
 import { d } from '../d';
 import type { ModelEntry } from '../schema/inference';
 import type { EntityDbAdapter, ListOptions } from '../types/adapter';

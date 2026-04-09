@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, test, vi } from 'bun:test';
+import { afterEach, describe, expect, test, vi } from '@vertz/test';
 import { signal } from '../../runtime/signal';
 import { click, fillForm, press, submitForm, type } from '../interactions';
 import { findByTestId, findByText, queryByTestId, queryByText, waitFor } from '../queries';

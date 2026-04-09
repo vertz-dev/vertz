@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
+import { afterEach, beforeEach, describe, expect, it } from '@vertz/test';
 import { createContext, getContextScope, useContext } from '../../component/context';
 import { __element } from '../../dom/element';
 import { __on } from '../../dom/events';

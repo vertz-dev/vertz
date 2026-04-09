@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'bun:test';
+import { describe, expect, it } from '@vertz/test';
 import { d } from '@vertz/db';
 import { TEST_PRIVATE_KEY, TEST_PUBLIC_KEY } from '../auth/__tests__/test-keys';
 import type { AuthConfig } from '../auth/types';

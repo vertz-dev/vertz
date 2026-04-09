@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'bun:test';
+import { describe, expect, it, vi } from '@vertz/test';
 import { d } from '@vertz/db';
 import { createServer } from '../../create-server';
 import type { EntityDbAdapter } from '../crud-pipeline';

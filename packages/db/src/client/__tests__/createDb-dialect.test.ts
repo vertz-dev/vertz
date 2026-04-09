@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, mock } from 'bun:test';
+import { beforeEach, describe, expect, it, mock } from '@vertz/test';
 import { d } from '../../d';
 import { createDb } from '../database';
 

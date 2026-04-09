@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from 'bun:test';
+import { afterEach, describe, expect, it } from '@vertz/test';
 import { _resetTheme, registerTheme } from '../theme/registry';
 
 describe('@vertz/ui/components proxies', () => {

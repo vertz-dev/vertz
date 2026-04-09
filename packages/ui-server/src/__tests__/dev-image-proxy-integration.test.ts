@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from 'bun:test';
+import { afterEach, describe, expect, it } from '@vertz/test';
 import { buildOptimizedUrl, configureImageOptimizer } from '@vertz/ui';
 // Internal test helper — not part of public API
 import { resetImageOptimizer_TEST_ONLY } from '../../../ui/src/image/config';

@@ -3,7 +3,7 @@
  * Tests: PK fallback to 'id', multi-hop tenant traversal, missing parent FK, non-existent parent
  */
 
-import { describe, expect, it, mock } from 'bun:test';
+import { describe, expect, it, mock } from '@vertz/test';
 import { d } from '@vertz/db';
 import { EntityNotFoundError, EntityValidationError, unwrap } from '@vertz/errors';
 import { rules } from '../../auth/rules';

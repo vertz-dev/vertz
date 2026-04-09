@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from 'bun:test';
+import { beforeEach, describe, expect, it } from '@vertz/test';
 import { ErrorCode, ParseError } from '../../core/errors';
 import { SchemaRegistry } from '../../core/registry';
 import { SchemaType } from '../../core/types';

@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from 'bun:test';
+import { afterEach, describe, expect, it } from '@vertz/test';
 import { compileTheme, getInjectedCSS, resetInjectedStyles } from '@vertz/ui';
 import { configureTheme } from '../configure';
 

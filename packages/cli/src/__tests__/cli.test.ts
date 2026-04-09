@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, type Mock, vi } from 'bun:test';
+import { afterEach, beforeEach, describe, expect, it, type MockFunction, vi } from '@vertz/test';
 import { join } from 'node:path';
 import { createCLI } from '../cli';
 
@@ -138,18 +138,20 @@ describe('createCLI', () => {
   });
 
   describe('command action error handling', () => {
-    let exitSpy: Mock<(...args: unknown[]) => unknown>;
-    let errorSpy: Mock<(...args: unknown[]) => unknown>;
-    let createSpy: Mock<(...args: unknown[]) => unknown>;
-    let buildSpy: Mock<(...args: unknown[]) => unknown>;
-    let devSpy: Mock<(...args: unknown[]) => unknown>;
-    let generateSpy: Mock<(...args: unknown[]) => unknown>;
+    let exitSpy: MockFunction<(...args: unknown[]) => unknown>;
+    let errorSpy: MockFunction<(...args: unknown[]) => unknown>;
+    let createSpy: MockFunction<(...args: unknown[]) => unknown>;
+    let buildSpy: MockFunction<(...args: unknown[]) => unknown>;
+    let devSpy: MockFunction<(...args: unknown[]) => unknown>;
+    let generateSpy: MockFunction<(...args: unknown[]) => unknown>;
 
     beforeEach(async () => {
-      exitSpy = vi.spyOn(process, 'exit').mockImplementation(() => undefined as never) as Mock<
+      exitSpy = vi
+        .spyOn(process, 'exit')
+        .mockImplementation(() => undefined as never) as MockFunction<
         (...args: unknown[]) => unknown
       >;
-      errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {}) as Mock<
+      errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {}) as MockFunction<
         (...args: unknown[]) => unknown
       >;
     });
@@ -168,7 +170,7 @@ describe('createCLI', () => {
       createSpy = vi.spyOn(createMod, 'createAction').mockResolvedValue({
         ok: false,
         error: new Error('create failed'),
-      }) as Mock<(...args: unknown[]) => unknown>;
+      }) as MockFunction<(...args: unknown[]) => unknown>;
 
       const program = createCLI();
       program.exitOverride();
@@ -187,7 +189,7 @@ describe('createCLI', () => {
       createSpy = vi.spyOn(createMod, 'createAction').mockResolvedValue({
         ok: true,
         data: undefined,
-      }) as Mock<(...args: unknown[]) => unknown>;
+      }) as MockFunction<(...args: unknown[]) => unknown>;
 
       const program = createCLI();
       program.exitOverride();
@@ -205,7 +207,7 @@ describe('createCLI', () => {
       buildSpy = vi.spyOn(buildMod, 'buildAction').mockResolvedValue({
         ok: false,
         error: new Error('build failed'),
-      }) as Mock<(...args: unknown[]) => unknown>;
+      }) as MockFunction<(...args: unknown[]) => unknown>;
 
       const program = createCLI();
       program.exitOverride();
@@ -224,7 +226,7 @@ describe('createCLI', () => {
       buildSpy = vi.spyOn(buildMod, 'buildAction').mockResolvedValue({
         ok: true,
         data: undefined,
-      }) as Mock<(...args: unknown[]) => unknown>;
+      }) as MockFunction<(...args: unknown[]) => unknown>;
 
       const program = createCLI();
       program.exitOverride();
@@ -242,7 +244,7 @@ describe('createCLI', () => {
       devSpy = vi.spyOn(devMod, 'devAction').mockResolvedValue({
         ok: false,
         error: new Error('dev failed'),
-      }) as Mock<(...args: unknown[]) => unknown>;
+      }) as MockFunction<(...args: unknown[]) => unknown>;
 
       const program = createCLI();
       program.exitOverride();
@@ -261,7 +263,7 @@ describe('createCLI', () => {
       devSpy = vi.spyOn(devMod, 'devAction').mockResolvedValue({
         ok: true,
         data: undefined,
-      }) as Mock<(...args: unknown[]) => unknown>;
+      }) as MockFunction<(...args: unknown[]) => unknown>;
 
       const program = createCLI();
       program.exitOverride();
@@ -279,7 +281,7 @@ describe('createCLI', () => {
       generateSpy = vi.spyOn(genMod, 'generateAction').mockReturnValue({
         ok: false,
         error: new Error('generate failed'),
-      }) as Mock<(...args: unknown[]) => unknown>;
+      }) as MockFunction<(...args: unknown[]) => unknown>;
 
       const program = createCLI();
       program.exitOverride();
@@ -298,7 +300,7 @@ describe('createCLI', () => {
       generateSpy = vi.spyOn(genMod, 'generateAction').mockReturnValue({
         ok: true,
         data: { files: [] },
-      }) as Mock<(...args: unknown[]) => unknown>;
+      }) as MockFunction<(...args: unknown[]) => unknown>;
 
       const program = createCLI();
       program.exitOverride();
@@ -316,7 +318,7 @@ describe('createCLI', () => {
       const startSpy = vi.spyOn(startMod, 'startAction').mockResolvedValue({
         ok: false,
         error: new Error('start failed'),
-      }) as Mock<(...args: unknown[]) => unknown>;
+      }) as MockFunction<(...args: unknown[]) => unknown>;
 
       const program = createCLI();
       program.exitOverride();
@@ -337,7 +339,7 @@ describe('createCLI', () => {
       const startSpy = vi.spyOn(startMod, 'startAction').mockResolvedValue({
         ok: true,
         data: undefined,
-      }) as Mock<(...args: unknown[]) => unknown>;
+      }) as MockFunction<(...args: unknown[]) => unknown>;
 
       const program = createCLI();
       program.exitOverride();
@@ -384,18 +386,20 @@ describe('createCLI', () => {
   });
 
   describe('codegen command action', () => {
-    let exitSpy: Mock<(...args: unknown[]) => unknown>;
-    let errorSpy: Mock<(...args: unknown[]) => unknown>;
-    let logSpy: Mock<(...args: unknown[]) => unknown>;
+    let exitSpy: MockFunction<(...args: unknown[]) => unknown>;
+    let errorSpy: MockFunction<(...args: unknown[]) => unknown>;
+    let logSpy: MockFunction<(...args: unknown[]) => unknown>;
 
     beforeEach(() => {
-      exitSpy = vi.spyOn(process, 'exit').mockImplementation(() => undefined as never) as Mock<
+      exitSpy = vi
+        .spyOn(process, 'exit')
+        .mockImplementation(() => undefined as never) as MockFunction<
         (...args: unknown[]) => unknown
       >;
-      errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {}) as Mock<
+      errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {}) as MockFunction<
         (...args: unknown[]) => unknown
       >;
-      logSpy = vi.spyOn(console, 'log').mockImplementation(() => {}) as Mock<
+      logSpy = vi.spyOn(console, 'log').mockImplementation(() => {}) as MockFunction<
         (...args: unknown[]) => unknown
       >;
     });
@@ -526,16 +530,16 @@ describe('createCLI', () => {
   });
 
   describe('db command actions', () => {
-    let exitSpy: Mock<(...args: unknown[]) => unknown>;
-    let errorSpy: Mock<(...args: unknown[]) => unknown>;
-    let logSpy: Mock<(...args: unknown[]) => unknown>;
-    let loadDbSpy: Mock<(...args: unknown[]) => unknown>;
-    let migrateSpy: Mock<(...args: unknown[]) => unknown>;
-    let pushSpy: Mock<(...args: unknown[]) => unknown>;
-    let deploySpy: Mock<(...args: unknown[]) => unknown>;
-    let statusSpy: Mock<(...args: unknown[]) => unknown>;
-    let resetSpy: Mock<(...args: unknown[]) => unknown>;
-    let baselineSpy: Mock<(...args: unknown[]) => unknown>;
+    let exitSpy: MockFunction<(...args: unknown[]) => unknown>;
+    let errorSpy: MockFunction<(...args: unknown[]) => unknown>;
+    let logSpy: MockFunction<(...args: unknown[]) => unknown>;
+    let loadDbSpy: MockFunction<(...args: unknown[]) => unknown>;
+    let migrateSpy: MockFunction<(...args: unknown[]) => unknown>;
+    let pushSpy: MockFunction<(...args: unknown[]) => unknown>;
+    let deploySpy: MockFunction<(...args: unknown[]) => unknown>;
+    let statusSpy: MockFunction<(...args: unknown[]) => unknown>;
+    let resetSpy: MockFunction<(...args: unknown[]) => unknown>;
+    let baselineSpy: MockFunction<(...args: unknown[]) => unknown>;
 
     const mockCtx = {
       queryFn: vi.fn(),
@@ -551,20 +555,22 @@ describe('createCLI', () => {
     };
 
     beforeEach(async () => {
-      exitSpy = vi.spyOn(process, 'exit').mockImplementation(() => undefined as never) as Mock<
+      exitSpy = vi
+        .spyOn(process, 'exit')
+        .mockImplementation(() => undefined as never) as MockFunction<
         (...args: unknown[]) => unknown
       >;
-      errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {}) as Mock<
+      errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {}) as MockFunction<
         (...args: unknown[]) => unknown
       >;
-      logSpy = vi.spyOn(console, 'log').mockImplementation(() => {}) as Mock<
+      logSpy = vi.spyOn(console, 'log').mockImplementation(() => {}) as MockFunction<
         (...args: unknown[]) => unknown
       >;
 
       const loadDbMod = await import('../commands/load-db-context');
-      loadDbSpy = vi.spyOn(loadDbMod, 'loadDbContext').mockResolvedValue(mockCtx as never) as Mock<
-        (...args: unknown[]) => unknown
-      >;
+      loadDbSpy = vi
+        .spyOn(loadDbMod, 'loadDbContext')
+        .mockResolvedValue(mockCtx as never) as MockFunction<(...args: unknown[]) => unknown>;
     });
 
     afterEach(() => {
@@ -604,7 +610,7 @@ describe('createCLI', () => {
       migrateSpy = vi.spyOn(dbMod, 'dbMigrateAction').mockResolvedValue({
         ok: true,
         data: { migrationFile: '001_init.sql', sql: 'CREATE TABLE ...', dryRun: false },
-      } as never) as Mock<(...args: unknown[]) => unknown>;
+      } as never) as MockFunction<(...args: unknown[]) => unknown>;
 
       const program = createCLI();
       program.exitOverride();
@@ -625,7 +631,7 @@ describe('createCLI', () => {
       migrateSpy = vi.spyOn(dbMod, 'dbMigrateAction').mockResolvedValue({
         ok: true,
         data: { migrationFile: '001_init.sql', sql: 'CREATE TABLE foo;', dryRun: true },
-      } as never) as Mock<(...args: unknown[]) => unknown>;
+      } as never) as MockFunction<(...args: unknown[]) => unknown>;
 
       const program = createCLI();
       program.exitOverride();
@@ -644,7 +650,7 @@ describe('createCLI', () => {
       migrateSpy = vi.spyOn(dbMod, 'dbMigrateAction').mockResolvedValue({
         ok: false,
         error: new Error('migrate failed'),
-      } as never) as Mock<(...args: unknown[]) => unknown>;
+      } as never) as MockFunction<(...args: unknown[]) => unknown>;
 
       const program = createCLI();
       program.exitOverride();
@@ -664,7 +670,7 @@ describe('createCLI', () => {
       pushSpy = vi.spyOn(dbMod, 'dbPushAction').mockResolvedValue({
         ok: true,
         data: { tablesAffected: ['users', 'tasks'] },
-      } as never) as Mock<(...args: unknown[]) => unknown>;
+      } as never) as MockFunction<(...args: unknown[]) => unknown>;
 
       const program = createCLI();
       program.exitOverride();
@@ -683,7 +689,7 @@ describe('createCLI', () => {
       pushSpy = vi.spyOn(dbMod, 'dbPushAction').mockResolvedValue({
         ok: true,
         data: { tablesAffected: [] },
-      } as never) as Mock<(...args: unknown[]) => unknown>;
+      } as never) as MockFunction<(...args: unknown[]) => unknown>;
 
       const program = createCLI();
       program.exitOverride();
@@ -701,7 +707,7 @@ describe('createCLI', () => {
       deploySpy = vi.spyOn(dbMod, 'dbDeployAction').mockResolvedValue({
         ok: true,
         data: { applied: ['001_init', '002_users'], dryRun: false },
-      } as never) as Mock<(...args: unknown[]) => unknown>;
+      } as never) as MockFunction<(...args: unknown[]) => unknown>;
 
       const program = createCLI();
       program.exitOverride();
@@ -720,7 +726,7 @@ describe('createCLI', () => {
       deploySpy = vi.spyOn(dbMod, 'dbDeployAction').mockResolvedValue({
         ok: true,
         data: { applied: [], dryRun: false },
-      } as never) as Mock<(...args: unknown[]) => unknown>;
+      } as never) as MockFunction<(...args: unknown[]) => unknown>;
 
       const program = createCLI();
       program.exitOverride();
@@ -743,7 +749,7 @@ describe('createCLI', () => {
           codeChanges: [{ description: 'added column email' }],
           drift: [{ description: 'extra index on users' }],
         },
-      } as never) as Mock<(...args: unknown[]) => unknown>;
+      } as never) as MockFunction<(...args: unknown[]) => unknown>;
 
       const program = createCLI();
       program.exitOverride();
@@ -773,7 +779,7 @@ describe('createCLI', () => {
           codeChanges: [],
           drift: [],
         },
-      } as never) as Mock<(...args: unknown[]) => unknown>;
+      } as never) as MockFunction<(...args: unknown[]) => unknown>;
 
       const program = createCLI();
       program.exitOverride();
@@ -793,7 +799,7 @@ describe('createCLI', () => {
       resetSpy = vi.spyOn(dbMod, 'dbResetAction').mockResolvedValue({
         ok: true,
         data: { tablesDropped: ['users', 'tasks'], migrationsApplied: ['001_init'] },
-      } as never) as Mock<(...args: unknown[]) => unknown>;
+      } as never) as MockFunction<(...args: unknown[]) => unknown>;
 
       const program = createCLI();
       program.exitOverride();
@@ -814,7 +820,7 @@ describe('createCLI', () => {
       baselineSpy = vi.spyOn(dbMod, 'dbBaselineAction').mockResolvedValue({
         ok: true,
         data: { recorded: ['001_init', '002_users'] },
-      } as never) as Mock<(...args: unknown[]) => unknown>;
+      } as never) as MockFunction<(...args: unknown[]) => unknown>;
 
       const program = createCLI();
       program.exitOverride();
@@ -833,7 +839,7 @@ describe('createCLI', () => {
       baselineSpy = vi.spyOn(dbMod, 'dbBaselineAction').mockResolvedValue({
         ok: true,
         data: { recorded: [] },
-      } as never) as Mock<(...args: unknown[]) => unknown>;
+      } as never) as MockFunction<(...args: unknown[]) => unknown>;
 
       const program = createCLI();
       program.exitOverride();
@@ -851,7 +857,7 @@ describe('createCLI', () => {
       deploySpy = vi.spyOn(dbMod, 'dbDeployAction').mockResolvedValue({
         ok: true,
         data: { applied: ['001_init'], dryRun: true },
-      } as never) as Mock<(...args: unknown[]) => unknown>;
+      } as never) as MockFunction<(...args: unknown[]) => unknown>;
 
       const program = createCLI();
       program.exitOverride();
@@ -869,7 +875,7 @@ describe('createCLI', () => {
       migrateSpy = vi.spyOn(dbMod, 'dbMigrateAction').mockResolvedValue({
         ok: true,
         data: { migrationFile: '001_noop.sql', sql: '', dryRun: true },
-      } as never) as Mock<(...args: unknown[]) => unknown>;
+      } as never) as MockFunction<(...args: unknown[]) => unknown>;
 
       const program = createCLI();
       program.exitOverride();
@@ -892,7 +898,7 @@ describe('createCLI', () => {
           codeChanges: [{ description: 'new column added' }],
           drift: [],
         },
-      } as never) as Mock<(...args: unknown[]) => unknown>;
+      } as never) as MockFunction<(...args: unknown[]) => unknown>;
 
       const program = createCLI();
       program.exitOverride();
@@ -918,7 +924,7 @@ describe('createCLI', () => {
           codeChanges: [],
           drift: [{ description: 'unexpected index' }],
         },
-      } as never) as Mock<(...args: unknown[]) => unknown>;
+      } as never) as MockFunction<(...args: unknown[]) => unknown>;
 
       const program = createCLI();
       program.exitOverride();
@@ -940,7 +946,7 @@ describe('createCLI', () => {
       pushSpy = vi.spyOn(dbMod, 'dbPushAction').mockResolvedValue({
         ok: true,
         data: { tablesAffected: [] },
-      } as never) as Mock<(...args: unknown[]) => unknown>;
+      } as never) as MockFunction<(...args: unknown[]) => unknown>;
 
       const program = createCLI();
       program.exitOverride();
@@ -956,11 +962,11 @@ describe('createCLI', () => {
   });
 
   describe('db pull command actions', () => {
-    let exitSpy: Mock<(...args: unknown[]) => unknown>;
-    let errorSpy: Mock<(...args: unknown[]) => unknown>;
-    let logSpy: Mock<(...args: unknown[]) => unknown>;
-    let loadIntrospectSpy: Mock<(...args: unknown[]) => unknown>;
-    let pullSpy: Mock<(...args: unknown[]) => unknown>;
+    let exitSpy: MockFunction<(...args: unknown[]) => unknown>;
+    let errorSpy: MockFunction<(...args: unknown[]) => unknown>;
+    let logSpy: MockFunction<(...args: unknown[]) => unknown>;
+    let loadIntrospectSpy: MockFunction<(...args: unknown[]) => unknown>;
+    let pullSpy: MockFunction<(...args: unknown[]) => unknown>;
 
     const mockIntrospectCtx = {
       queryFn: vi.fn(),
@@ -970,20 +976,24 @@ describe('createCLI', () => {
     };
 
     beforeEach(async () => {
-      exitSpy = vi.spyOn(process, 'exit').mockImplementation(() => undefined as never) as Mock<
+      exitSpy = vi
+        .spyOn(process, 'exit')
+        .mockImplementation(() => undefined as never) as MockFunction<
         (...args: unknown[]) => unknown
       >;
-      errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {}) as Mock<
+      errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {}) as MockFunction<
         (...args: unknown[]) => unknown
       >;
-      logSpy = vi.spyOn(console, 'log').mockImplementation(() => {}) as Mock<
+      logSpy = vi.spyOn(console, 'log').mockImplementation(() => {}) as MockFunction<
         (...args: unknown[]) => unknown
       >;
 
       const loadDbMod = await import('../commands/load-db-context');
       loadIntrospectSpy = vi
         .spyOn(loadDbMod, 'loadIntrospectContext')
-        .mockResolvedValue(mockIntrospectCtx as never) as Mock<(...args: unknown[]) => unknown>;
+        .mockResolvedValue(mockIntrospectCtx as never) as MockFunction<
+        (...args: unknown[]) => unknown
+      >;
     });
 
     afterEach(() => {
@@ -1015,7 +1025,7 @@ describe('createCLI', () => {
       pullSpy = vi.spyOn(dbMod, 'dbPullAction').mockResolvedValue({
         ok: true,
         data: { files: [{ path: 'schema.ts', content: 'export const users = {}' }] },
-      } as never) as Mock<(...args: unknown[]) => unknown>;
+      } as never) as MockFunction<(...args: unknown[]) => unknown>;
 
       const program = createCLI();
       program.exitOverride();
@@ -1035,7 +1045,7 @@ describe('createCLI', () => {
       pullSpy = vi.spyOn(dbMod, 'dbPullAction').mockResolvedValue({
         ok: true,
         data: { files: [{ path: 'schema.ts', content: 'export const users = {}' }] },
-      } as never) as Mock<(...args: unknown[]) => unknown>;
+      } as never) as MockFunction<(...args: unknown[]) => unknown>;
 
       const program = createCLI();
       program.exitOverride();
@@ -1054,7 +1064,7 @@ describe('createCLI', () => {
       pullSpy = vi.spyOn(dbMod, 'dbPullAction').mockResolvedValue({
         ok: false,
         error: new Error('pull failed'),
-      } as never) as Mock<(...args: unknown[]) => unknown>;
+      } as never) as MockFunction<(...args: unknown[]) => unknown>;
 
       const program = createCLI();
       program.exitOverride();
@@ -1077,7 +1087,7 @@ describe('createCLI', () => {
       pullSpy = vi.spyOn(dbMod, 'dbPullAction').mockResolvedValue({
         ok: true,
         data: { files: [{ path: 'schema.ts', content: 'export const users = {}' }] },
-      } as never) as Mock<(...args: unknown[]) => unknown>;
+      } as never) as MockFunction<(...args: unknown[]) => unknown>;
 
       const program = createCLI();
       program.exitOverride();
@@ -1107,7 +1117,7 @@ describe('createCLI', () => {
             { path: 'posts.ts', content: 'export const posts = {}' },
           ],
         },
-      } as never) as Mock<(...args: unknown[]) => unknown>;
+      } as never) as MockFunction<(...args: unknown[]) => unknown>;
 
       const program = createCLI();
       program.exitOverride();
@@ -1135,7 +1145,7 @@ describe('createCLI', () => {
       pullSpy = vi.spyOn(dbMod, 'dbPullAction').mockResolvedValue({
         ok: true,
         data: { files: [{ path: 'schema.ts', content: 'new content' }] },
-      } as never) as Mock<(...args: unknown[]) => unknown>;
+      } as never) as MockFunction<(...args: unknown[]) => unknown>;
 
       const program = createCLI();
       program.exitOverride();
@@ -1158,7 +1168,7 @@ describe('createCLI', () => {
       pullSpy = vi.spyOn(dbMod, 'dbPullAction').mockResolvedValue({
         ok: true,
         data: { files: [{ path: 'schema.ts', content: 'export const users = {}' }] },
-      } as never) as Mock<(...args: unknown[]) => unknown>;
+      } as never) as MockFunction<(...args: unknown[]) => unknown>;
 
       const program = createCLI();
       program.exitOverride();

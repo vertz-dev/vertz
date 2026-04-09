@@ -1,4 +1,4 @@
-import { describe, it } from 'bun:test';
+import { describe, it } from '@vertz/test';
 import type { Equal, Expect, HasKey, Not } from '../../__tests__/_type-helpers';
 import { d } from '../../d';
 

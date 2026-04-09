@@ -2,7 +2,7 @@
  * Tests for FetchError classes.
  */
 
-import { describe, expect, it } from 'bun:test';
+import { describe, expect, it } from '@vertz/test';
 import {
   createHttpError,
   FetchBadRequestError,

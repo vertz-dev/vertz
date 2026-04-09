@@ -3,7 +3,7 @@
  * Tests: direct-to-root scope, broken chain, PK default fallback, cycles
  */
 
-import { describe, expect, it } from 'bun:test';
+import { describe, expect, it } from '@vertz/test';
 import { computeTenantGraph, d } from '@vertz/db';
 import { resolveTenantChain, resolveTenantFkFromRelations } from '../tenant-chain';
 

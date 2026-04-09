@@ -3,7 +3,7 @@
  * Tests: corrupted cookie, expired state, rollback failures, user deleted mid-flow
  */
 
-import { afterEach, beforeEach, describe, expect, it, spyOn } from 'bun:test';
+import { afterEach, beforeEach, describe, expect, it, spyOn } from '@vertz/test';
 import { encrypt } from '../crypto';
 import { createAuth } from '../index';
 import { InMemoryOAuthAccountStore } from '../oauth-account-store';

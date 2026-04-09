@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from 'bun:test';
+import { afterEach, describe, expect, it } from '@vertz/test';
 import { nodeAdapter } from './node';
 import type { ServerHandle } from './types';
 

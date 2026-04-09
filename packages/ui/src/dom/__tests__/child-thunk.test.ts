@@ -1,4 +1,4 @@
-import { describe, expect, test } from 'bun:test';
+import { describe, expect, test } from '@vertz/test';
 import { __child, __element, __insert, __staticText } from '../element';
 
 describe('__child() resolves children thunks', () => {

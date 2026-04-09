@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'bun:test';
+import { describe, expect, it } from '@vertz/test';
 import type { ColumnSnapshot, IndexSnapshot, TableSnapshot } from '../snapshot';
 import { validateColumns, validateIndexes } from '../validate-indexes';
 

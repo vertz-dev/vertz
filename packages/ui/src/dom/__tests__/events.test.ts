@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'bun:test';
+import { describe, expect, it } from '@vertz/test';
 import { popScope, pushScope, runCleanups } from '../../runtime/disposal';
 import { __on } from '../events';
 

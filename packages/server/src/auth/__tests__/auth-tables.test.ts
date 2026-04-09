@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'bun:test';
+import { describe, expect, it } from '@vertz/test';
 import { AUTH_TABLE_NAMES, generateAuthDDL } from '../auth-tables';
 
 describe('generateAuthDDL', () => {

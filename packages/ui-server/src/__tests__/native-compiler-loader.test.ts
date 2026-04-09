@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'bun:test';
+import { describe, expect, it } from '@vertz/test';
 import { loadNativeCompiler } from '../compiler/native-compiler';
 
 // Check if the native binary is available on this platform

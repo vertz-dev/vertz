@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from 'bun:test';
+import { afterEach, describe, expect, it } from '@vertz/test';
 import { disableTestSSR, enableTestSSR } from '../../ssr/test-ssr-helpers';
 import { batch } from '../scheduler';
 import {

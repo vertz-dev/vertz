@@ -1,4 +1,4 @@
-import { describe, expectTypeOf, it } from 'bun:test';
+import { describe, expectTypeOf, it } from '@vertz/test';
 import type { ServerAdapter, ServerHandle } from '../server-adapter';
 
 describe('ServerAdapter', () => {

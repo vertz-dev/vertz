@@ -1,4 +1,4 @@
-import { describe, expect, test } from 'bun:test';
+import { describe, expect, test } from '@vertz/test';
 import { query } from '../../query/query';
 import { computed, domEffect, signal } from '../../runtime/signal';
 import { createContext, isSignalLike, useContext, wrapSignalProps } from '../context';

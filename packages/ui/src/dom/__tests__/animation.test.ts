@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, mock } from 'bun:test';
+import { beforeEach, describe, expect, it, mock } from '@vertz/test';
 
 describe('onAnimationsComplete', () => {
   let onAnimationsComplete: typeof import('../animation').onAnimationsComplete;

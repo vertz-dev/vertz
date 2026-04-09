@@ -1,4 +1,4 @@
-import { describe, expect, test } from 'bun:test';
+import { describe, expect, test } from '@vertz/test';
 import { MemoryCache } from '../cache';
 
 describe('MemoryCache', () => {

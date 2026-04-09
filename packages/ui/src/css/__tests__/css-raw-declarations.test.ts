@@ -4,7 +4,7 @@
  * CSS declaration objects allow inline CSS property-value pairs that can't be
  * expressed as shorthand strings (e.g. opacity modifiers, color-mix).
  */
-import { beforeEach, describe, expect, it } from 'bun:test';
+import { beforeEach, describe, expect, it } from '@vertz/test';
 import { css, resetInjectedStyles } from '../css';
 
 describe('css() raw declarations', () => {

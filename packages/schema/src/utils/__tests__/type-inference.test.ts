@@ -1,4 +1,4 @@
-import { describe, it } from 'bun:test';
+import { describe, it } from '@vertz/test';
 import { ErrorCode } from '../../core/errors';
 import type { ParseContext } from '../../core/parse-context';
 import { Schema } from '../../core/schema';

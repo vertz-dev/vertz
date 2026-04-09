@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'bun:test';
+import { afterEach, beforeEach, describe, expect, it, vi } from '@vertz/test';
 
 /** Flush queued microtasks so deferred signal effects propagate to the DOM. */
 const flush = () => new Promise<void>((r) => queueMicrotask(r));

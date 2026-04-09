@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from 'bun:test';
+import { afterEach, describe, expect, it } from '@vertz/test';
 import type { Server } from 'bun';
 import { type CloudHealthResult, checkCloudHealth } from '../../cloud/cloud-health';
 

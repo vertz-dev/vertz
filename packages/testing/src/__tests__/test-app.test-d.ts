@@ -1,4 +1,4 @@
-import { describe, it } from 'bun:test';
+import { describe, it } from '@vertz/test';
 import { createMiddleware } from '@vertz/server';
 
 import { createTestApp, type RouteMapEntry, type TestResponse } from '../test-app';

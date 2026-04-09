@@ -1,5 +1,5 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
-import { afterEach, describe, expect, it } from 'bun:test';
+import { afterEach, describe, expect, it } from '@vertz/test';
 import { createContext, getContextScope, setContextScope } from '../component/context';
 import { getAdapter } from '../dom/adapter';
 import { popScope, pushScope } from '../runtime/disposal';

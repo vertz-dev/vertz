@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'bun:test';
+import { describe, expect, it } from '@vertz/test';
 import { signal } from '../../runtime/signal';
 import { __spread } from '../spread';
 import { SVG_NS } from '../svg-tags';

@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, spyOn } from 'bun:test';
+import { afterEach, describe, expect, it, spyOn } from '@vertz/test';
 import { signal } from '../../runtime/signal';
 import { __listValue, _resetUnkeyedListValueWarning } from '../list-value';
 

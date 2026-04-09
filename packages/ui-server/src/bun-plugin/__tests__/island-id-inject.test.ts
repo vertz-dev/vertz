@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'bun:test';
+import { describe, expect, it } from '@vertz/test';
 import MagicString from 'magic-string';
 import ts from 'typescript';
 import { injectIslandIds } from '../island-id-inject';

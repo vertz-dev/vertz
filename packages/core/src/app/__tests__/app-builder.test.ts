@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from 'bun:test';
+import { afterEach, describe, expect, it } from '@vertz/test';
 import { NotFoundException, UnauthorizedException } from '../../exceptions';
 import { createMiddleware } from '../../middleware/middleware-def';
 import type { HandlerCtx } from '../../types/context';

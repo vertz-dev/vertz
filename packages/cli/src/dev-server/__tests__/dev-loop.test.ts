@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'bun:test';
+import { describe, expect, it, vi } from '@vertz/test';
 import type { DevLoopDeps } from '../dev-loop';
 import { createDevLoop } from '../dev-loop';
 import type { FileChange } from '../watcher';

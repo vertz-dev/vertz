@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'bun:test';
+import { describe, expect, it } from '@vertz/test';
 import { IsoDateSchema, IsoDatetimeSchema, IsoDurationSchema, IsoTimeSchema } from '../iso';
 
 describe('IsoDateSchema', () => {

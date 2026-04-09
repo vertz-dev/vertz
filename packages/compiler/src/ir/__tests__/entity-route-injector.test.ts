@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from 'bun:test';
+import { beforeEach, describe, expect, it } from '@vertz/test';
 import { createEmptyAppIR } from '../builder';
 import { detectRouteCollisions, injectEntityRoutes } from '../entity-route-injector';
 import type { AppIR, EntityAccessIR, EntityIR } from '../types';

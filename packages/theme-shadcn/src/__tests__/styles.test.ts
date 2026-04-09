@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'bun:test';
+import { describe, expect, it } from '@vertz/test';
 import { variants } from '@vertz/ui';
 import { createAlertStyles } from '../styles/alert';
 import { badgeConfig, createBadge } from '../styles/badge';

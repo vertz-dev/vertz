@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'bun:test';
+import { describe, expect, it } from '@vertz/test';
 import { accordionItemProps, accordionProps } from '../props/accordion-props';
 import { confirmProps } from '../props/alert-dialog-props';
 import { alertProps } from '../props/alert-props';

@@ -10,7 +10,7 @@
  * - D1 provisioning
  */
 
-import { describe, expect, it } from 'bun:test';
+import { describe, expect, it } from '@vertz/test';
 import type { DeploymentManifest } from '../../production-build/cloudflare/types';
 import {
   type CloudflareDeployOptions,

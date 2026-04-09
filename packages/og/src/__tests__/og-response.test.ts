@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'bun:test';
+import { describe, expect, it } from '@vertz/test';
 import { createOGResponse } from '../og-response';
 import type { SatoriElement } from '../types';
 import { getTestFont, testFonts } from './test-helpers';

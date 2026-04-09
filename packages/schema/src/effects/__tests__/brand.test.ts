@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'bun:test';
+import { describe, expect, it } from '@vertz/test';
 import { StringSchema } from '../../schemas/string';
 import type { Infer } from '../../utils/type-inference';
 

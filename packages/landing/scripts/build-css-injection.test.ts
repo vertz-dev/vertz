@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'bun:test';
+import { describe, expect, it } from '@vertz/test';
 import { buildCssInjection, CSS_INLINE_THRESHOLD, type CssSource } from './build-css-injection';
 
 describe('buildCssInjection()', () => {

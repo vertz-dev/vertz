@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'bun:test';
+import { describe, expect, it } from '@vertz/test';
 import { onCleanup } from '../../runtime/disposal';
 import { domEffect, signal } from '../../runtime/signal';
 import { Presence } from '../presence';

@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'bun:test';
+import { describe, expect, it } from '@vertz/test';
 import { compileMdxToHtml } from '../dev/compile-mdx-html';
 import { parseMeta } from '../mdx/rehype-enhanced-code';
 

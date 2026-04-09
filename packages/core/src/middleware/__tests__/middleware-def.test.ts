@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'bun:test';
+import { describe, expect, it } from '@vertz/test';
 import { createMiddleware } from '../middleware-def';
 
 describe('createMiddleware', () => {

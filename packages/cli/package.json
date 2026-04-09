@@ -49,6 +49,7 @@
   "devDependencies": {
     "@electric-sql/pglite": "^0.3.14",
     "@types/node": "^25.3.1",
+    "@vertz/test": "workspace:*",
     "bunup": "^0.16.23",
     "typescript": "^5.9.3"
   },

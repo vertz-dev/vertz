@@ -4,7 +4,7 @@
  * Verifies that the bridge adapter correctly threads generic types from
  * DatabaseClient through to EntityDbAdapter — typed inputs, typed outputs.
  */
-import { describe, it } from 'bun:test';
+import { describe, it } from '@vertz/test';
 import type { Equal, Expect, Extends } from '../../__tests__/_type-helpers';
 import type { DatabaseClient } from '../../client/database';
 import { d } from '../../d';

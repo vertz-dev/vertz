@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, mock, vi } from 'bun:test';
+import { afterEach, beforeEach, describe, expect, it, mock, vi } from '@vertz/test';
 import type { IslandRegistry } from '../island-hydrate';
 import { hydrateIslands } from '../island-hydrate';
 

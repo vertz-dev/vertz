@@ -5,7 +5,7 @@
  * individual getConsumption calls, grouped by billing period.
  */
 
-import { describe, expect, it } from 'bun:test';
+import { describe, expect, it } from '@vertz/test';
 import { computeAccessSet } from '../access-set';
 import { calculateBillingPeriod } from '../billing-period';
 import { InMemoryClosureStore } from '../closure-store';

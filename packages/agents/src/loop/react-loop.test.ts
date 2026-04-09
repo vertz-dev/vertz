@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'bun:test';
+import { describe, expect, it } from '@vertz/test';
 import { s } from '@vertz/schema';
 import type { ToolDefinition } from '../types';
 import { type LoopResult, type LLMAdapter, type Message, reactLoop } from './react-loop';

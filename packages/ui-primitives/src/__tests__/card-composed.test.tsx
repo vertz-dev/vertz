@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'bun:test';
+import { describe, expect, it } from '@vertz/test';
 import type { CardClasses } from '../card/card-composed';
 import { ComposedCard } from '../card/card-composed';
 import { withStyles } from '../composed/with-styles';

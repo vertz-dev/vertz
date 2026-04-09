@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'bun:test';
+import { describe, expect, it } from '@vertz/test';
 import { toCamelCase, toKebabCase, toPascalCase, toSnakeCase } from '../../utils/naming';
 
 describe('toPascalCase', () => {

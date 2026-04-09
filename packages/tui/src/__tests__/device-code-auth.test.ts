@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, mock } from 'bun:test';
+import { afterEach, describe, expect, it, mock } from '@vertz/test';
 import { signal } from '@vertz/ui';
 import { tui } from '../app';
 import type { AuthConfig, AuthStatus, DeviceCodeResponse } from '../auth/index';

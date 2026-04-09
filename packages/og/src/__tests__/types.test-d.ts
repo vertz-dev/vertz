@@ -1,4 +1,4 @@
-import { describe, it } from 'bun:test';
+import { describe, it } from '@vertz/test';
 import type { SatoriChild, SatoriElement } from '../types';
 
 describe('SatoriElement type', () => {

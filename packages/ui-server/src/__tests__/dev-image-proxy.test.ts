@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, mock, spyOn } from 'bun:test';
+import { afterEach, beforeEach, describe, expect, it, mock, spyOn } from '@vertz/test';
 import { handleDevImageProxy } from '../dev-image-proxy';
 
 describe('handleDevImageProxy', () => {

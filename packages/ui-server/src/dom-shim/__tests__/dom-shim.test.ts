@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
+import { afterEach, beforeEach, describe, expect, it } from '@vertz/test';
 import type { SSRRenderContext } from '@vertz/ui/internals';
 import { ssrStorage } from '../../ssr-context';
 import {

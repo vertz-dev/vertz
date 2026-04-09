@@ -1,4 +1,4 @@
-import { it } from 'bun:test';
+import { it } from '@vertz/test';
 import { existsSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { dirname, join } from 'node:path';

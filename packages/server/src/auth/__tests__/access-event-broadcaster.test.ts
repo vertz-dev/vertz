@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'bun:test';
+import { describe, expect, it } from '@vertz/test';
 import { createPrivateKey, createPublicKey } from 'node:crypto';
 import * as jose from 'jose';
 import type { AccessWsData } from '../access-event-broadcaster';

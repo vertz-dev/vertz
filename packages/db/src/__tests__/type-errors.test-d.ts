@@ -1,4 +1,4 @@
-import { describe, it } from 'bun:test';
+import { describe, it } from '@vertz/test';
 import { d } from '../d';
 import type { FilterType, SelectOption } from '../schema/inference';
 import type {

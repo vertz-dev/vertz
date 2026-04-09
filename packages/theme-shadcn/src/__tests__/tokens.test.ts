@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'bun:test';
+import { describe, expect, it } from '@vertz/test';
 import { grayTokens } from '../tokens/gray';
 import { neutralTokens } from '../tokens/neutral';
 import { slateTokens } from '../tokens/slate';

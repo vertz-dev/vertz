@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, spyOn } from 'bun:test';
+import { afterEach, beforeEach, describe, expect, it, spyOn } from '@vertz/test';
 import { isInteractive, NonInteractiveError } from '../interactive';
 import { prompt } from '../prompt';
 

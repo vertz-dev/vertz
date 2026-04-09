@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'bun:test';
+import { describe, expect, it } from '@vertz/test';
 import { EventEmitter } from 'node:events';
 import { parseTscOutput, parseWatchBlock, typecheck, typecheckWatch } from '../typecheck';
 

@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, spyOn, test } from 'bun:test';
+import { afterEach, describe, expect, spyOn, test } from '@vertz/test';
 import { configureImageOptimizer, resetImageOptimizer_TEST_ONLY } from '../config';
 import { Image } from '../image';
 

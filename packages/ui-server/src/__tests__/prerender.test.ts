@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'bun:test';
+import { describe, expect, it } from '@vertz/test';
 import { createRouter, defineRoutes } from '@vertz/ui';
 import { installDomShim } from '../dom-shim';
 import {

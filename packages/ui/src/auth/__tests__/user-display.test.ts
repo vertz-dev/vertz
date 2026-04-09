@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'bun:test';
+import { describe, expect, it } from '@vertz/test';
 import type { User } from '../auth-types';
 import { getUserDisplayName, getUserInitials } from '../user-display';
 

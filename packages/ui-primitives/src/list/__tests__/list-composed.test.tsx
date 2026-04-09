@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'bun:test';
+import { describe, expect, it } from '@vertz/test';
 import { withStyles } from '../../composed/with-styles';
 import type { ListClasses } from '../list-composed';
 import { ComposedList } from '../list-composed';

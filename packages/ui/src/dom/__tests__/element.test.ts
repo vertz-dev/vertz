@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'bun:test';
+import { describe, expect, it } from '@vertz/test';
 import { signal } from '../../runtime/signal';
 import { __element, __text } from '../element';
 

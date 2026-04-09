@@ -1,4 +1,4 @@
-import { afterEach, beforeAll, describe, expect, it } from 'bun:test';
+import { afterEach, beforeAll, describe, expect, it } from '@vertz/test';
 import * as jose from 'jose';
 import { createJWKSClient } from './jwks-client';
 

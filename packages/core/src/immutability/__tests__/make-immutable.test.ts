@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from 'bun:test';
+import { afterEach, describe, expect, it } from '@vertz/test';
 import { makeImmutable } from '../make-immutable';
 
 describe('makeImmutable', () => {

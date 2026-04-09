@@ -8,7 +8,7 @@
 // Security-critical: Cross-tenant data leakage is a vulnerability.
 // ===========================================================================
 
-import { describe, expect, it } from 'bun:test';
+import { describe, expect, it } from '@vertz/test';
 import { d } from '@vertz/db';
 import type { EntityDbAdapter } from '@vertz/server';
 import { createMiddleware, createServer, entity, rules } from '@vertz/server';

@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'bun:test';
+import { describe, expect, it } from '@vertz/test';
 import { filterProtectedHeaders, isResponseDescriptor, response } from '../response-descriptor';
 
 describe('Feature: ResponseDescriptor and response() helper', () => {

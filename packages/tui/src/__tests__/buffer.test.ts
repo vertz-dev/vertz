@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'bun:test';
+import { describe, expect, it } from '@vertz/test';
 import { cellsEqual, emptyCell, stylesEqual } from '../buffer/cell';
 import { TerminalBuffer } from '../buffer/terminal-buffer';
 

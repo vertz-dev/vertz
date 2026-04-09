@@ -2,7 +2,7 @@
  * Tests for manifest-driven descriptor reconstruction — produces real
  * QueryDescriptors from manifest metadata + route params + API client.
  */
-import { describe, expect, it } from 'bun:test';
+import { describe, expect, it } from '@vertz/test';
 import type { ExtractedQuery } from '../compiler/prefetch-manifest';
 import { reconstructDescriptors } from '../ssr-manifest-prefetch';
 

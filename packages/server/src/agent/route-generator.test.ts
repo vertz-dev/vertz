@@ -1,4 +1,4 @@
-import { describe, expect, it, mock } from 'bun:test';
+import { describe, expect, it, mock } from '@vertz/test';
 import { NotFoundException } from '@vertz/core';
 import { rules } from '../auth/rules';
 import { generateAgentRoutes } from './route-generator';

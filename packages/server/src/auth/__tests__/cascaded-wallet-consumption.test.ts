@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from 'bun:test';
+import { beforeEach, describe, expect, it } from '@vertz/test';
 import { createAccessContext } from '../access-context';
 import type { AncestorChainEntry } from '../access-set';
 import { calculateBillingPeriod } from '../billing-period';

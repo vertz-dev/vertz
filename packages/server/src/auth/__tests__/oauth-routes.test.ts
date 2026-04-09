@@ -2,7 +2,7 @@
  * OAuth Routes Tests — Sub-Phase 4
  */
 
-import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
+import { afterEach, beforeEach, describe, expect, it } from '@vertz/test';
 import { createAuth } from '../index';
 import { InMemoryOAuthAccountStore } from '../oauth-account-store';
 import type { AuthConfig, OAuthProvider } from '../types';

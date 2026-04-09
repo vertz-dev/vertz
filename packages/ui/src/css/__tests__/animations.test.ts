@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'bun:test';
+import { describe, expect, it } from '@vertz/test';
 // Import animations at module level — this triggers all keyframes() calls
 import {
   ANIMATION_DURATION,

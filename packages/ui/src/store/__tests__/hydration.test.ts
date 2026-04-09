@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'bun:test';
+import { describe, expect, it } from '@vertz/test';
 import { EntityStore } from '../entity-store';
 import type { SerializedStore } from '../types';
 

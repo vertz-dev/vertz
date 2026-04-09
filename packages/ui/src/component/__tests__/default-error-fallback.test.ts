@@ -1,4 +1,4 @@
-import { describe, expect, test, vi } from 'bun:test';
+import { describe, expect, test, vi } from '@vertz/test';
 import { DefaultErrorFallback } from '../default-error-fallback';
 
 describe('DefaultErrorFallback', () => {

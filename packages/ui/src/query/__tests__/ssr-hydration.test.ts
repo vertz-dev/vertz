@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'bun:test';
+import { afterEach, beforeEach, describe, expect, it, vi } from '@vertz/test';
 import { cleanupSSRData, hydrateQueryFromSSR } from '../ssr-hydration';
 
 // Minimal browser-like environment for event dispatching

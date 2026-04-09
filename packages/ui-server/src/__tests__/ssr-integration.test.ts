@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'bun:test';
+import { describe, expect, it } from '@vertz/test';
 import { SSRComment, SSRElement } from '../dom-shim';
 import { renderHeadToHtml } from '../head';
 import { wrapWithHydrationMarkers } from '../hydration-markers';

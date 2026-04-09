@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'bun:test';
+import { describe, expect, it } from '@vertz/test';
 import { palettes } from '@vertz/theme-shadcn';
 import { generateCustomizationScript } from '../customization-script';
 import { ACCENT_PRESETS, RADIUS_VALUES } from '../hooks/use-customization';

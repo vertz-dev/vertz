@@ -1,4 +1,4 @@
-import { afterAll, afterEach, beforeAll, describe, expect, it } from 'bun:test';
+import { afterAll, afterEach, beforeAll, describe, expect, it } from '@vertz/test';
 import { createCircuitBreaker } from './circuit-breaker';
 import { type CloudProxyLifecycleCallbacks, createAuthProxy } from './cloud-proxy';
 

@@ -1,4 +1,4 @@
-import { describe, expect, test } from 'bun:test';
+import { describe, expect, test } from '@vertz/test';
 import { onMount } from '../../component/lifecycle';
 import { __element } from '../../dom/element';
 import { endHydration, startHydration } from '../../hydrate/hydration-context';

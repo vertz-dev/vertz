@@ -119,5 +119,7 @@
     "@vertz/ui-primitives": "workspace:^",
     "@vertz/ui-server": "workspace:^"
   },
-  "devDependencies": {}
+  "devDependencies": {
+    "@vertz/test": "workspace:*"
+  }
 }

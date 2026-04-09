@@ -2,7 +2,7 @@
  * Tests for resolveSessionForSSR — JWT-only session resolution for SSR injection.
  */
 
-import { describe, expect, it } from 'bun:test';
+import { describe, expect, it } from '@vertz/test';
 import { createPrivateKey, createPublicKey } from 'node:crypto';
 import { createJWT } from '../jwt';
 import { resolveSessionForSSR } from '../resolve-session-for-ssr';

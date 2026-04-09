@@ -1,4 +1,4 @@
-import { describe, expect, it, mock } from 'bun:test';
+import { describe, expect, it, mock } from '@vertz/test';
 import type { ConfigStore, DeviceCodeResponse, TokenResponse } from '../auth';
 import { AuthError, createAuthManager } from '../auth';
 

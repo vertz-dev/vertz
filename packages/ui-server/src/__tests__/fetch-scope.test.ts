@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, mock } from 'bun:test';
+import { afterEach, beforeEach, describe, expect, it, mock } from '@vertz/test';
 import { _resetFetchProxy, installFetchProxy, runWithScopedFetch } from '../fetch-scope';
 
 describe('fetch-scope', () => {

@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'bun:test';
+import { describe, expect, it } from '@vertz/test';
 import { tui } from '../app';
 import { Banner } from '../components/Banner';
 import type { DiagnosticItem } from '../components/DiagnosticView';

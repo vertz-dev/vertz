@@ -1,4 +1,4 @@
-import { describe, expect, it, mock } from 'bun:test';
+import { describe, expect, it, mock } from '@vertz/test';
 import { FetchNetworkError, ok } from '@vertz/errors';
 import {
   createDescriptor,

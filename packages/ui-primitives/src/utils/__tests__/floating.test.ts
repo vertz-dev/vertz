@@ -1,25 +1,21 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'bun:test';
+import { afterEach, beforeEach, describe, expect, it, vi } from '@vertz/test';
 import type { ComputePositionReturn } from '@floating-ui/dom';
 
-// Hoist mock functions so they're available in the vi.mock factory
-const { mockComputePosition, mockAutoUpdate } = vi.hoisted(() => {
-  const mockComputePosition = vi.fn<() => Promise<ComputePositionReturn>>(() =>
-    Promise.resolve({
-      x: 100,
-      y: 200,
-      placement: 'bottom-start',
-      strategy: 'fixed',
-      middlewareData: {},
-    } as ComputePositionReturn),
-  );
+// Mock functions for @floating-ui/dom (used in vi.mock factory below)
+const mockComputePosition = vi.fn<() => Promise<ComputePositionReturn>>(() =>
+  Promise.resolve({
+    x: 100,
+    y: 200,
+    placement: 'bottom-start',
+    strategy: 'fixed',
+    middlewareData: {},
+  } as ComputePositionReturn),
+);
 
-  const mockAutoUpdate = vi.fn<() => () => void>(() => {
-    const updateFn = mockAutoUpdate.mock.calls.at(-1)?.[2] as (() => void) | undefined;
-    if (updateFn) updateFn();
-    return () => {};
-  });
-
-  return { mockComputePosition, mockAutoUpdate };
+const mockAutoUpdate = vi.fn<() => () => void>(() => {
+  const updateFn = mockAutoUpdate.mock.calls.at(-1)?.[2] as (() => void) | undefined;
+  if (updateFn) updateFn();
+  return () => {};
 });
 
 // Mock @floating-ui/dom — happy-dom doesn't implement real layout

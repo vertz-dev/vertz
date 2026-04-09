@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'bun:test';
+import { describe, expect, it } from '@vertz/test';
 import { computed, signal } from '@vertz/ui';
 import type { AuthClientError, AuthContextValue, AuthStatus } from '@vertz/ui/auth';
 import { AuthContext } from '@vertz/ui/auth';

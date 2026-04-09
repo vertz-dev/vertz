@@ -1,7 +1,7 @@
 /**
  * Tests for renderToHTMLStream() — the streaming SSR API.
  */
-import { afterAll, beforeAll, describe, expect, it } from 'bun:test';
+import { afterAll, beforeAll, describe, expect, it } from '@vertz/test';
 import { query } from '../../../ui/src/query/query';
 import { registerSSRResolver } from '../../../ui/src/ssr/ssr-render-context';
 import type { RenderToHTMLStreamOptions } from '../render-to-html';

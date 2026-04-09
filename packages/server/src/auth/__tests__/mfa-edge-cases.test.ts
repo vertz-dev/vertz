@@ -5,7 +5,7 @@
  * passwordless account MFA operations, step-up decryption failure
  */
 
-import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
+import { afterEach, beforeEach, describe, expect, it } from '@vertz/test';
 import { encrypt } from '../crypto';
 import { createAuth } from '../index';
 import { InMemoryMFAStore } from '../mfa-store';

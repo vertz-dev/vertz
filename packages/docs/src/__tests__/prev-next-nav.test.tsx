@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'bun:test';
+import { describe, expect, it } from '@vertz/test';
 import { renderTest } from '@vertz/ui/test';
 import { PrevNextNav } from '../layout/prev-next-nav';
 

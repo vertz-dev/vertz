@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'bun:test';
+import { describe, expect, it } from '@vertz/test';
 import { createEmptyAppIR } from '../../ir/builder';
 import type { AppIR, SchemaIR } from '../../ir/types';
 import { PlacementValidator } from '../placement-validator';

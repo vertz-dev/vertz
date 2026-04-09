@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, mock } from 'bun:test';
+import { afterEach, beforeEach, describe, expect, it, mock } from '@vertz/test';
 import { PGlite } from '@electric-sql/pglite';
 import { unwrap } from '@vertz/errors';
 import type { MigrationQueryFn, SchemaSnapshot } from '../../migration';

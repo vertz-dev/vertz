@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, mock } from 'bun:test';
+import { afterEach, describe, expect, it, mock } from '@vertz/test';
 import { s } from '@vertz/schema';
 import { tool } from '../tool';
 import { createCloudflareAdapter } from './cloudflare';

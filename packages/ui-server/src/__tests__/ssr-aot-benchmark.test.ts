@@ -4,7 +4,7 @@
  * Uses the real `compileForSsrAot()` and `compile()` to generate both paths,
  * then benchmarks them head-to-head.
  */
-import { describe, expect, it } from 'bun:test';
+import { describe, expect, it } from '@vertz/test';
 import { compileForSsrAot, loadNativeCompiler } from '../compiler/native-compiler';
 import { __esc, __esc_attr, __ssr_style_object } from '../ssr-aot-runtime';
 

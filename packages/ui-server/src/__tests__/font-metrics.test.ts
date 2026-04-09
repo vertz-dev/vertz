@@ -1,4 +1,4 @@
-import { afterAll, describe, expect, it, spyOn } from 'bun:test';
+import { afterAll, describe, expect, it, spyOn } from '@vertz/test';
 import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { font } from '@vertz/ui';

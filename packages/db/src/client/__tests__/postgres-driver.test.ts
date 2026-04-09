@@ -9,18 +9,15 @@
  * - #207: Connection cleanup
  */
 
-import { afterEach, beforeEach, describe, expect, it, spyOn, vi } from 'bun:test';
+import { afterEach, beforeEach, describe, expect, it, spyOn, vi } from '@vertz/test';
 
-// Hoist mock functions so they're available in the vi.mock factory
-const { mockEnd, mockUnsafe, mockPostgres } = vi.hoisted(() => {
-  const mockEnd = vi.fn().mockResolvedValue(undefined);
-  const mockUnsafe = vi.fn().mockResolvedValue({ count: 0, rows: [] });
-  const mockPostgres = vi.fn(() => ({
-    end: mockEnd,
-    unsafe: mockUnsafe,
-  }));
-  return { mockEnd, mockUnsafe, mockPostgres };
-});
+// Mock functions for postgres module (used in per-test mock configuration)
+const mockEnd = vi.fn().mockResolvedValue(undefined);
+const mockUnsafe = vi.fn().mockResolvedValue({ count: 0, rows: [] });
+const mockPostgres = vi.fn(() => ({
+  end: mockEnd,
+  unsafe: mockUnsafe,
+}));
 
 // Mock the postgres module at top level (compiler hoists this)
 vi.mock('postgres', () => ({

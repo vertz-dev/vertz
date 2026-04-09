@@ -2,7 +2,7 @@
  * Shared test factory for RoleAssignmentStore behavioral parity.
  */
 
-import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
+import { afterEach, beforeEach, describe, expect, it } from '@vertz/test';
 import { InMemoryClosureStore } from '../closure-store';
 import type { AccessDefinition } from '../define-access';
 import type { RoleAssignmentStore } from '../role-assignment-store';

@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'bun:test';
+import { describe, expect, it } from '@vertz/test';
 import type { CompilerDependencies } from '../compiler';
 import { Compiler } from '../compiler';
 import { resolveConfig } from '../config';

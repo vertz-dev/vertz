@@ -10,8 +10,8 @@
  * 3. We need createSSRHandler available for the server startup tests
  */
 
-import type { Mock } from 'bun:test';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'bun:test';
+import type { MockFunction } from '@vertz/test';
+import { afterEach, beforeEach, describe, expect, it, vi } from '@vertz/test';
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -283,7 +283,7 @@ describe('servePrerenderHTML', () => {
 });
 
 describe('startAction', () => {
-  let pathsSpy: Mock<(...args: unknown[]) => unknown>;
+  let pathsSpy: MockFunction<(...args: unknown[]) => unknown>;
 
   afterEach(() => {
     pathsSpy?.mockRestore();
@@ -291,7 +291,7 @@ describe('startAction', () => {
 
   it('returns err when project root is not found', async () => {
     const pathsMod = await import('../../utils/paths');
-    pathsSpy = vi.spyOn(pathsMod, 'findProjectRoot').mockReturnValue(undefined) as Mock<
+    pathsSpy = vi.spyOn(pathsMod, 'findProjectRoot').mockReturnValue(undefined) as MockFunction<
       (...args: unknown[]) => unknown
     >;
     const result = await startAction({});
@@ -307,7 +307,7 @@ describe('startAction', () => {
       mkdirSync(join(tmpDir, 'src'), { recursive: true });
       // No entry files → detectAppType throws
       const pathsMod = await import('../../utils/paths');
-      pathsSpy = vi.spyOn(pathsMod, 'findProjectRoot').mockReturnValue(tmpDir) as Mock<
+      pathsSpy = vi.spyOn(pathsMod, 'findProjectRoot').mockReturnValue(tmpDir) as MockFunction<
         (...args: unknown[]) => unknown
       >;
       const result = await startAction({});
@@ -326,7 +326,7 @@ describe('startAction', () => {
       mkdirSync(join(tmpDir, 'src'), { recursive: true });
       writeFileSync(join(tmpDir, 'src', 'server.ts'), 'export default {}');
       const pathsMod = await import('../../utils/paths');
-      pathsSpy = vi.spyOn(pathsMod, 'findProjectRoot').mockReturnValue(tmpDir) as Mock<
+      pathsSpy = vi.spyOn(pathsMod, 'findProjectRoot').mockReturnValue(tmpDir) as MockFunction<
         (...args: unknown[]) => unknown
       >;
       const result = await startAction({});
@@ -341,14 +341,14 @@ describe('startAction', () => {
 
   it('logs detected app type when verbose is true', async () => {
     const tmpDir = mkdtempSync(join(tmpdir(), 'vertz-start-'));
-    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {}) as Mock<
+    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {}) as MockFunction<
       (...args: unknown[]) => unknown
     >;
     try {
       mkdirSync(join(tmpDir, 'src'), { recursive: true });
       writeFileSync(join(tmpDir, 'src', 'server.ts'), 'export default {}');
       const pathsMod = await import('../../utils/paths');
-      pathsSpy = vi.spyOn(pathsMod, 'findProjectRoot').mockReturnValue(tmpDir) as Mock<
+      pathsSpy = vi.spyOn(pathsMod, 'findProjectRoot').mockReturnValue(tmpDir) as MockFunction<
         (...args: unknown[]) => unknown
       >;
       // Will fail at validateBuildOutputs but verbose log happens before that
@@ -367,18 +367,20 @@ describe('startAction', () => {
 
 describe('startAction — api-only', () => {
   let tmpDir: string;
-  let pathsSpy: Mock<(...args: unknown[]) => unknown>;
-  let logSpy: Mock<(...args: unknown[]) => unknown>;
-  let processOnSpy: Mock<(...args: unknown[]) => unknown>;
+  let pathsSpy: MockFunction<(...args: unknown[]) => unknown>;
+  let logSpy: MockFunction<(...args: unknown[]) => unknown>;
+  let processOnSpy: MockFunction<(...args: unknown[]) => unknown>;
   let originalServe: typeof Bun.serve;
 
   beforeEach(() => {
     tmpDir = mkdtempSync(join(tmpdir(), 'vertz-start-api-'));
     originalServe = Bun.serve;
-    logSpy = vi.spyOn(console, 'log').mockImplementation(() => {}) as Mock<
+    logSpy = vi.spyOn(console, 'log').mockImplementation(() => {}) as MockFunction<
       (...args: unknown[]) => unknown
     >;
-    processOnSpy = vi.spyOn(process, 'on').mockImplementation(() => process) as unknown as Mock<
+    processOnSpy = vi
+      .spyOn(process, 'on')
+      .mockImplementation(() => process) as unknown as MockFunction<
       (...args: unknown[]) => unknown
     >;
   });
@@ -407,7 +409,7 @@ describe('startAction — api-only', () => {
     scaffoldApiProject('export default { handler: (req) => new Response("ok") };');
 
     const pathsMod = await import('../../utils/paths');
-    pathsSpy = vi.spyOn(pathsMod, 'findProjectRoot').mockReturnValue(tmpDir) as Mock<
+    pathsSpy = vi.spyOn(pathsMod, 'findProjectRoot').mockReturnValue(tmpDir) as MockFunction<
       (...args: unknown[]) => unknown
     >;
 
@@ -435,7 +437,7 @@ describe('startAction — api-only', () => {
     scaffoldApiProject('export default { handler: (req) => new Response("ok") };');
 
     const pathsMod = await import('../../utils/paths');
-    pathsSpy = vi.spyOn(pathsMod, 'findProjectRoot').mockReturnValue(tmpDir) as Mock<
+    pathsSpy = vi.spyOn(pathsMod, 'findProjectRoot').mockReturnValue(tmpDir) as MockFunction<
       (...args: unknown[]) => unknown
     >;
 
@@ -459,7 +461,7 @@ describe('startAction — api-only', () => {
     scaffoldApiProject('this is not valid javascript }{}{');
 
     const pathsMod = await import('../../utils/paths');
-    pathsSpy = vi.spyOn(pathsMod, 'findProjectRoot').mockReturnValue(tmpDir) as Mock<
+    pathsSpy = vi.spyOn(pathsMod, 'findProjectRoot').mockReturnValue(tmpDir) as MockFunction<
       (...args: unknown[]) => unknown
     >;
 
@@ -474,7 +476,7 @@ describe('startAction — api-only', () => {
     scaffoldApiProject('export default { handler: "not-a-function" };');
 
     const pathsMod = await import('../../utils/paths');
-    pathsSpy = vi.spyOn(pathsMod, 'findProjectRoot').mockReturnValue(tmpDir) as Mock<
+    pathsSpy = vi.spyOn(pathsMod, 'findProjectRoot').mockReturnValue(tmpDir) as MockFunction<
       (...args: unknown[]) => unknown
     >;
 
@@ -491,7 +493,7 @@ describe('startAction — api-only', () => {
     scaffoldApiProject('export default { handler: (req) => new Response("hello") };');
 
     const pathsMod = await import('../../utils/paths');
-    pathsSpy = vi.spyOn(pathsMod, 'findProjectRoot').mockReturnValue(tmpDir) as Mock<
+    pathsSpy = vi.spyOn(pathsMod, 'findProjectRoot').mockReturnValue(tmpDir) as MockFunction<
       (...args: unknown[]) => unknown
     >;
 
@@ -512,7 +514,7 @@ describe('startAction — api-only', () => {
     scaffoldApiProject('export default { handler: (req) => new Response("ok") };');
 
     const pathsMod = await import('../../utils/paths');
-    pathsSpy = vi.spyOn(pathsMod, 'findProjectRoot').mockReturnValue(tmpDir) as Mock<
+    pathsSpy = vi.spyOn(pathsMod, 'findProjectRoot').mockReturnValue(tmpDir) as MockFunction<
       (...args: unknown[]) => unknown
     >;
 
@@ -533,18 +535,20 @@ describe('startAction — api-only', () => {
 
 describe('startAction — ui-only', () => {
   let tmpDir: string;
-  let pathsSpy: Mock<(...args: unknown[]) => unknown>;
-  let logSpy: Mock<(...args: unknown[]) => unknown>;
-  let processOnSpy: Mock<(...args: unknown[]) => unknown>;
+  let pathsSpy: MockFunction<(...args: unknown[]) => unknown>;
+  let logSpy: MockFunction<(...args: unknown[]) => unknown>;
+  let processOnSpy: MockFunction<(...args: unknown[]) => unknown>;
   let originalServe: typeof Bun.serve;
 
   beforeEach(() => {
     tmpDir = mkdtempSync(join(tmpdir(), 'vertz-start-ui-'));
     originalServe = Bun.serve;
-    logSpy = vi.spyOn(console, 'log').mockImplementation(() => {}) as Mock<
+    logSpy = vi.spyOn(console, 'log').mockImplementation(() => {}) as MockFunction<
       (...args: unknown[]) => unknown
     >;
-    processOnSpy = vi.spyOn(process, 'on').mockImplementation(() => process) as unknown as Mock<
+    processOnSpy = vi
+      .spyOn(process, 'on')
+      .mockImplementation(() => process) as unknown as MockFunction<
       (...args: unknown[]) => unknown
     >;
   });
@@ -577,7 +581,7 @@ describe('startAction — ui-only', () => {
     scaffoldUIProject('export default {};');
 
     const pathsMod = await import('../../utils/paths');
-    pathsSpy = vi.spyOn(pathsMod, 'findProjectRoot').mockReturnValue(tmpDir) as Mock<
+    pathsSpy = vi.spyOn(pathsMod, 'findProjectRoot').mockReturnValue(tmpDir) as MockFunction<
       (...args: unknown[]) => unknown
     >;
 
@@ -608,7 +612,7 @@ describe('startAction — ui-only', () => {
     );
 
     const pathsMod = await import('../../utils/paths');
-    pathsSpy = vi.spyOn(pathsMod, 'findProjectRoot').mockReturnValue(tmpDir) as Mock<
+    pathsSpy = vi.spyOn(pathsMod, 'findProjectRoot').mockReturnValue(tmpDir) as MockFunction<
       (...args: unknown[]) => unknown
     >;
 
@@ -626,7 +630,7 @@ describe('startAction — ui-only', () => {
     scaffoldUIProject('this is not valid javascript }{}{');
 
     const pathsMod = await import('../../utils/paths');
-    pathsSpy = vi.spyOn(pathsMod, 'findProjectRoot').mockReturnValue(tmpDir) as Mock<
+    pathsSpy = vi.spyOn(pathsMod, 'findProjectRoot').mockReturnValue(tmpDir) as MockFunction<
       (...args: unknown[]) => unknown
     >;
 
@@ -641,7 +645,7 @@ describe('startAction — ui-only', () => {
     scaffoldUIProject('export default {};');
 
     const pathsMod = await import('../../utils/paths');
-    pathsSpy = vi.spyOn(pathsMod, 'findProjectRoot').mockReturnValue(tmpDir) as Mock<
+    pathsSpy = vi.spyOn(pathsMod, 'findProjectRoot').mockReturnValue(tmpDir) as MockFunction<
       (...args: unknown[]) => unknown
     >;
 
@@ -662,7 +666,7 @@ describe('startAction — ui-only', () => {
     scaffoldUIProject('export default {};');
 
     const pathsMod = await import('../../utils/paths');
-    pathsSpy = vi.spyOn(pathsMod, 'findProjectRoot').mockReturnValue(tmpDir) as Mock<
+    pathsSpy = vi.spyOn(pathsMod, 'findProjectRoot').mockReturnValue(tmpDir) as MockFunction<
       (...args: unknown[]) => unknown
     >;
 
@@ -693,7 +697,7 @@ describe('startAction — ui-only', () => {
     writeFileSync(join(tmpDir, 'dist', 'client', 'assets', 'app.js'), 'console.log("hello")');
 
     const pathsMod = await import('../../utils/paths');
-    pathsSpy = vi.spyOn(pathsMod, 'findProjectRoot').mockReturnValue(tmpDir) as Mock<
+    pathsSpy = vi.spyOn(pathsMod, 'findProjectRoot').mockReturnValue(tmpDir) as MockFunction<
       (...args: unknown[]) => unknown
     >;
 
@@ -724,18 +728,20 @@ describe('startAction — ui-only', () => {
 
 describe('startAction — full-stack', () => {
   let tmpDir: string;
-  let pathsSpy: Mock<(...args: unknown[]) => unknown>;
-  let logSpy: Mock<(...args: unknown[]) => unknown>;
-  let processOnSpy: Mock<(...args: unknown[]) => unknown>;
+  let pathsSpy: MockFunction<(...args: unknown[]) => unknown>;
+  let logSpy: MockFunction<(...args: unknown[]) => unknown>;
+  let processOnSpy: MockFunction<(...args: unknown[]) => unknown>;
   let originalServe: typeof Bun.serve;
 
   beforeEach(() => {
     tmpDir = mkdtempSync(join(tmpdir(), 'vertz-start-fs-'));
     originalServe = Bun.serve;
-    logSpy = vi.spyOn(console, 'log').mockImplementation(() => {}) as Mock<
+    logSpy = vi.spyOn(console, 'log').mockImplementation(() => {}) as MockFunction<
       (...args: unknown[]) => unknown
     >;
-    processOnSpy = vi.spyOn(process, 'on').mockImplementation(() => process) as unknown as Mock<
+    processOnSpy = vi
+      .spyOn(process, 'on')
+      .mockImplementation(() => process) as unknown as MockFunction<
       (...args: unknown[]) => unknown
     >;
   });
@@ -770,7 +776,7 @@ describe('startAction — full-stack', () => {
     );
 
     const pathsMod = await import('../../utils/paths');
-    pathsSpy = vi.spyOn(pathsMod, 'findProjectRoot').mockReturnValue(tmpDir) as Mock<
+    pathsSpy = vi.spyOn(pathsMod, 'findProjectRoot').mockReturnValue(tmpDir) as MockFunction<
       (...args: unknown[]) => unknown
     >;
 
@@ -797,7 +803,7 @@ describe('startAction — full-stack', () => {
     scaffoldFullStackProject('this is not valid javascript }{}{', 'export default {};');
 
     const pathsMod = await import('../../utils/paths');
-    pathsSpy = vi.spyOn(pathsMod, 'findProjectRoot').mockReturnValue(tmpDir) as Mock<
+    pathsSpy = vi.spyOn(pathsMod, 'findProjectRoot').mockReturnValue(tmpDir) as MockFunction<
       (...args: unknown[]) => unknown
     >;
 
@@ -812,7 +818,7 @@ describe('startAction — full-stack', () => {
     scaffoldFullStackProject('export default { handler: 42 };', 'export default {};');
 
     const pathsMod = await import('../../utils/paths');
-    pathsSpy = vi.spyOn(pathsMod, 'findProjectRoot').mockReturnValue(tmpDir) as Mock<
+    pathsSpy = vi.spyOn(pathsMod, 'findProjectRoot').mockReturnValue(tmpDir) as MockFunction<
       (...args: unknown[]) => unknown
     >;
 
@@ -832,7 +838,7 @@ describe('startAction — full-stack', () => {
     );
 
     const pathsMod = await import('../../utils/paths');
-    pathsSpy = vi.spyOn(pathsMod, 'findProjectRoot').mockReturnValue(tmpDir) as Mock<
+    pathsSpy = vi.spyOn(pathsMod, 'findProjectRoot').mockReturnValue(tmpDir) as MockFunction<
       (...args: unknown[]) => unknown
     >;
 
@@ -850,7 +856,7 @@ describe('startAction — full-stack', () => {
     );
 
     const pathsMod = await import('../../utils/paths');
-    pathsSpy = vi.spyOn(pathsMod, 'findProjectRoot').mockReturnValue(tmpDir) as Mock<
+    pathsSpy = vi.spyOn(pathsMod, 'findProjectRoot').mockReturnValue(tmpDir) as MockFunction<
       (...args: unknown[]) => unknown
     >;
 
@@ -879,7 +885,7 @@ describe('startAction — full-stack', () => {
     );
 
     const pathsMod = await import('../../utils/paths');
-    pathsSpy = vi.spyOn(pathsMod, 'findProjectRoot').mockReturnValue(tmpDir) as Mock<
+    pathsSpy = vi.spyOn(pathsMod, 'findProjectRoot').mockReturnValue(tmpDir) as MockFunction<
       (...args: unknown[]) => unknown
     >;
 
@@ -899,7 +905,7 @@ describe('startAction — full-stack', () => {
     );
 
     const pathsMod = await import('../../utils/paths');
-    pathsSpy = vi.spyOn(pathsMod, 'findProjectRoot').mockReturnValue(tmpDir) as Mock<
+    pathsSpy = vi.spyOn(pathsMod, 'findProjectRoot').mockReturnValue(tmpDir) as MockFunction<
       (...args: unknown[]) => unknown
     >;
 
@@ -924,7 +930,7 @@ describe('startAction — full-stack', () => {
     );
 
     const pathsMod = await import('../../utils/paths');
-    pathsSpy = vi.spyOn(pathsMod, 'findProjectRoot').mockReturnValue(tmpDir) as Mock<
+    pathsSpy = vi.spyOn(pathsMod, 'findProjectRoot').mockReturnValue(tmpDir) as MockFunction<
       (...args: unknown[]) => unknown
     >;
 
@@ -956,7 +962,7 @@ describe('startAction — full-stack', () => {
     );
 
     const pathsMod = await import('../../utils/paths');
-    pathsSpy = vi.spyOn(pathsMod, 'findProjectRoot').mockReturnValue(tmpDir) as Mock<
+    pathsSpy = vi.spyOn(pathsMod, 'findProjectRoot').mockReturnValue(tmpDir) as MockFunction<
       (...args: unknown[]) => unknown
     >;
 
@@ -987,7 +993,7 @@ describe('startAction — full-stack', () => {
     writeFileSync(join(tmpDir, 'dist', 'client', 'assets', 'style.css'), 'body{}');
 
     const pathsMod = await import('../../utils/paths');
-    pathsSpy = vi.spyOn(pathsMod, 'findProjectRoot').mockReturnValue(tmpDir) as Mock<
+    pathsSpy = vi.spyOn(pathsMod, 'findProjectRoot').mockReturnValue(tmpDir) as MockFunction<
       (...args: unknown[]) => unknown
     >;
 
@@ -1022,7 +1028,7 @@ describe('startAction — full-stack', () => {
     );
 
     const pathsMod = await import('../../utils/paths');
-    pathsSpy = vi.spyOn(pathsMod, 'findProjectRoot').mockReturnValue(tmpDir) as Mock<
+    pathsSpy = vi.spyOn(pathsMod, 'findProjectRoot').mockReturnValue(tmpDir) as MockFunction<
       (...args: unknown[]) => unknown
     >;
 
@@ -1032,7 +1038,9 @@ describe('startAction — full-stack', () => {
       writable: true,
     });
 
-    const exitSpy = vi.spyOn(process, 'exit').mockImplementation(() => undefined as never) as Mock<
+    const exitSpy = vi
+      .spyOn(process, 'exit')
+      .mockImplementation(() => undefined as never) as MockFunction<
       (...args: unknown[]) => unknown
     >;
 

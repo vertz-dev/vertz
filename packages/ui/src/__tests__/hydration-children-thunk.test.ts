@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
+import { afterEach, beforeEach, describe, expect, it } from '@vertz/test';
 import type { ChildValue } from '../component/children';
 import { resolveChildren } from '../component/children';
 import { createContext, useContext } from '../component/context';

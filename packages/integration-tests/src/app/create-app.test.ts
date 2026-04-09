@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, it } from 'bun:test';
+import { afterAll, beforeAll, describe, expect, it } from '@vertz/test';
 import { adapter } from '../runtime-adapters/index';
 import { createIntegrationServer, type TestServer } from './create-app';
 

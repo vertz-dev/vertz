@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'bun:test';
+import { describe, expect, it } from '@vertz/test';
 import { formatRouteLog, type RouteInfo } from '../route-log';
 
 describe('formatRouteLog', () => {

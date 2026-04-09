@@ -7,7 +7,7 @@
  * 3. Injector uses manifest to classify scalar vs relation fields
  * 4. Output contains correct select + include clauses
  */
-import { describe, expect, it } from 'bun:test';
+import { describe, expect, it } from '@vertz/test';
 import type { EntitySchemaManifest } from '../field-selection-inject';
 import { injectFieldSelection } from '../field-selection-inject';
 import { FieldSelectionManifest } from '../field-selection-manifest';

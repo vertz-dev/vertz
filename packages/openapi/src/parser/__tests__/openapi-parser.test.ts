@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'bun:test';
+import { describe, expect, it } from '@vertz/test';
 import { parseOpenAPI } from '../openapi-parser';
 
 describe('parseOpenAPI', () => {

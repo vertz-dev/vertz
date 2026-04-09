@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'bun:test';
+import { describe, expect, it } from '@vertz/test';
 import { EntityStore } from '../entity-store';
 import { createMutationEventBus } from '../mutation-event-bus';
 import { createOptimisticHandler } from '../optimistic-handler';

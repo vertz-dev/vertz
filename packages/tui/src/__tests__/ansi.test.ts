@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'bun:test';
+import { describe, expect, it } from '@vertz/test';
 import { cursorTo, RESET, renderRegions, styleToSGR } from '../renderer/ansi';
 
 describe('ANSI', () => {

@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, mock, spyOn } from 'bun:test';
+import { beforeEach, describe, expect, it, mock, spyOn } from '@vertz/test';
 import { d } from '@vertz/db';
 import type { TenantLevel } from '@vertz/db/client';
 import { unwrap } from '@vertz/errors';

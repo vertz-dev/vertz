@@ -3,7 +3,7 @@
  *
  * Tests for ssrRenderSinglePass — discovery-only (captures queries) → prefetch → single render.
  */
-import { afterEach, describe, expect, it, spyOn } from 'bun:test';
+import { afterEach, describe, expect, it, spyOn } from '@vertz/test';
 import {
   createRouter,
   defineRoutes,

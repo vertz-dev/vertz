@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'bun:test';
+import { describe, expect, it } from '@vertz/test';
 import { ServiceSdkGenerator } from '../generators/service-sdk-generator';
 import type { CodegenIR, CodegenServiceModule } from '../types';
 

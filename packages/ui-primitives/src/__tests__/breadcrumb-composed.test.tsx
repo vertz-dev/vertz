@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'bun:test';
+import { describe, expect, it } from '@vertz/test';
 import { RouterContext, signal } from '@vertz/ui';
 import type { BreadcrumbClasses } from '../breadcrumb/breadcrumb-composed';
 import { ComposedBreadcrumb } from '../breadcrumb/breadcrumb-composed';

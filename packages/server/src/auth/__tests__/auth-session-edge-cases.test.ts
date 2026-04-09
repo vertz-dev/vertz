@@ -3,7 +3,7 @@
  * Tests: session races, global error handler, CSRF edge cases, input validation
  */
 
-import { afterEach, beforeEach, describe, expect, it, spyOn } from 'bun:test';
+import { afterEach, beforeEach, describe, expect, it, spyOn } from '@vertz/test';
 import { createAuth } from '../index';
 import { InMemorySessionStore } from '../session-store';
 import type { AuthConfig, AuthInstance } from '../types';

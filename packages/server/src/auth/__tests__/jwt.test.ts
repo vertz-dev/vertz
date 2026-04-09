@@ -2,7 +2,7 @@
  * JWT utility tests — parseDuration, createJWT, verifyJWT (RS256 + ES256)
  */
 
-import { describe, expect, it } from 'bun:test';
+import { describe, expect, it } from '@vertz/test';
 import { createPrivateKey, createPublicKey, generateKeyPairSync } from 'node:crypto';
 import * as jose from 'jose';
 import { createJWT, parseDuration, verifyJWT } from '../jwt';

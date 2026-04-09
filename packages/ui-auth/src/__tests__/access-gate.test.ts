@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'bun:test';
+import { describe, expect, it } from '@vertz/test';
 import { signal } from '@vertz/ui';
 import type { AccessContextValue, AccessSet } from '@vertz/ui/auth';
 import { AccessContext } from '@vertz/ui/auth';

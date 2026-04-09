@@ -4,7 +4,7 @@
  * Uses a mock queryFn to verify SQL generation and result mapping
  * without requiring PGlite.
  */
-import { describe, expect, it } from 'bun:test';
+import { describe, expect, it } from '@vertz/test';
 import { d } from '../../d';
 import { groupBy } from '../aggregate';
 import type { QueryFn } from '../executor';

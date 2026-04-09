@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from 'bun:test';
+import { afterEach, describe, expect, it } from '@vertz/test';
 import { onCleanup, popScope, pushScope, runCleanups } from '../../runtime/disposal';
 import { domEffect, signal } from '../../runtime/signal';
 import { __list, _resetUnkeyedListWarning } from '../list';

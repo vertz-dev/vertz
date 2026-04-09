@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'bun:test';
+import { describe, expect, it } from '@vertz/test';
 import { serializeToHtml } from '@vertz/ui-server';
 import { Fragment, jsx, jsxs } from '@vertz/ui-server/jsx-runtime';
 

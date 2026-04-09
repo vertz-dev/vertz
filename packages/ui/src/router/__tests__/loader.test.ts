@@ -1,4 +1,4 @@
-import { describe, expect, test, vi } from 'bun:test';
+import { describe, expect, test, vi } from '@vertz/test';
 import type { MatchedRoute } from '../define-routes';
 import { executeLoaders } from '../loader';
 

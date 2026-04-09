@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'bun:test';
+import { describe, expect, it, vi } from '@vertz/test';
 import type { AppIR, CompileResult, Compiler, Diagnostic } from '@vertz/compiler';
 import { checkAction } from '../check';
 

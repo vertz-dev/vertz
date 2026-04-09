@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'bun:test';
+import { describe, expect, it } from '@vertz/test';
 import { EntityForbiddenError } from '@vertz/errors';
 import { rules } from '../../auth/rules';
 import {

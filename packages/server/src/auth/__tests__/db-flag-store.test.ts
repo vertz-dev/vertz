@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
+import { afterEach, beforeEach, describe, expect, it } from '@vertz/test';
 import { sql } from '@vertz/db/sql';
 import { DbFlagStore } from '../db-flag-store';
 import { InMemoryFlagStore } from '../flag-store';

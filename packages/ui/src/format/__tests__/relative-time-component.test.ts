@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from 'bun:test';
+import { afterEach, describe, expect, it } from '@vertz/test';
 import { popScope, pushScope, runCleanups } from '../../runtime/disposal';
 import type { DisposeFn } from '../../runtime/signal-types';
 import { formatRelativeTime } from '../relative-time';

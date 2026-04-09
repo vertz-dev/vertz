@@ -7,7 +7,7 @@
  * @see plans/route-param-schemas.md
  */
 
-import { describe, expect, it } from 'bun:test';
+import { describe, expect, it } from '@vertz/test';
 import type { ParamSchema } from '@vertz/ui';
 import { createRouter, defineRoutes } from '@vertz/ui';
 

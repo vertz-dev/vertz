@@ -11,7 +11,7 @@
 // Uses only public package imports — never relative imports.
 // ===========================================================================
 
-import { describe, expect, it } from 'bun:test';
+import { describe, expect, it } from '@vertz/test';
 import { configureTheme } from '@vertz/theme-shadcn';
 import { badgeConfig, buttonConfig } from '@vertz/theme-shadcn/configs';
 import { compileTheme, variants } from '@vertz/ui';

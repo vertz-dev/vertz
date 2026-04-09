@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'bun:test';
+import { describe, expect, it } from '@vertz/test';
 import { DefaultSchema, NullableSchema, OptionalSchema } from '../../core/schema';
 import { DateSchema } from '../../schemas/date';
 import { DiscriminatedUnionSchema } from '../../schemas/discriminated-union';

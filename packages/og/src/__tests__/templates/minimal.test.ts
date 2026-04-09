@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'bun:test';
+import { describe, expect, it } from '@vertz/test';
 import { Minimal } from '../../templates/minimal';
 import { findStyleValue, findTextInTree } from '../test-helpers';
 

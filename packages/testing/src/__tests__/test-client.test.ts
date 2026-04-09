@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'bun:test';
+import { describe, expect, it } from '@vertz/test';
 import { d } from '@vertz/db';
 import { createServer, entity, rules, service } from '@vertz/server';
 import { createTestClient } from '../index';

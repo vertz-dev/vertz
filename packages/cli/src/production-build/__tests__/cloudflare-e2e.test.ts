@@ -9,7 +9,7 @@
  * - Production constraints integrate with entity analysis
  */
 
-import { describe, expect, it } from 'bun:test';
+import { describe, expect, it } from '@vertz/test';
 import type { EntityAccessIR, EntityActionIR, EntityIR } from '@vertz/compiler';
 import { ManifestBuilder } from '../cloudflare/manifest-builder';
 import { WorkerEntryGenerator } from '../cloudflare/worker-entry-generator';

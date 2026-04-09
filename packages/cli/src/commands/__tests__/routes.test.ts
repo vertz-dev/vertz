@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'bun:test';
+import { describe, expect, it, vi } from '@vertz/test';
 import type { AppIR, Compiler, ModuleIR, RouteIR, RouterIR } from '@vertz/compiler';
 import { routesAction } from '../routes';
 

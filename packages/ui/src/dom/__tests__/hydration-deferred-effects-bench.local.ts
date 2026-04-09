@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from 'bun:test';
+import { afterEach, describe, expect, it } from '@vertz/test';
 import { endHydration, startHydration } from '../../hydrate/hydration-context';
 import { deferredDomEffect, domEffect, signal } from '../../runtime/signal';
 

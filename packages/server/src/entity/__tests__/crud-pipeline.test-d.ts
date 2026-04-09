@@ -1,4 +1,4 @@
-import { describe, it } from 'bun:test';
+import { describe, it } from '@vertz/test';
 import { d, type EntityDbAdapter } from '@vertz/db';
 import type { EntityError, Result } from '@vertz/errors';
 import type { CrudHandlers, CrudResult, ListResult } from '../crud-pipeline';

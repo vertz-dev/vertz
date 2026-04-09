@@ -11,7 +11,7 @@
 // proves the public API surface is complete.
 // ===========================================================================
 
-import { describe, expect, it, mock } from 'bun:test';
+import { describe, expect, it, mock } from '@vertz/test';
 import { d } from '@vertz/db';
 import type { EntityDbAdapter } from '@vertz/server';
 import { createServer, entity } from '@vertz/server';

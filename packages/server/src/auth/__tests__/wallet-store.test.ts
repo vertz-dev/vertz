@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'bun:test';
+import { describe, expect, it } from '@vertz/test';
 import { InMemoryWalletStore } from '../wallet-store';
 
 const periodStart = new Date('2026-01-01T00:00:00Z');

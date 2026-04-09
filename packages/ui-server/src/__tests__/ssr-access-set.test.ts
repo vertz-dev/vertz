@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'bun:test';
+import { describe, expect, it } from '@vertz/test';
 import type { AccessSet } from '@vertz/ui/auth';
 import { createAccessSetScript, getAccessSetForSSR } from '../ssr-access-set';
 

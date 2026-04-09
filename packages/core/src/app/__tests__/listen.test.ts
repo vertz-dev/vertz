@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, spyOn } from 'bun:test';
+import { afterEach, beforeEach, describe, expect, it, spyOn } from '@vertz/test';
 import type { ServerHandle } from '../../types/server-adapter';
 import { createApp } from '../app-builder';
 

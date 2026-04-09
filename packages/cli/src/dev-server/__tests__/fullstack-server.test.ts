@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, type Mock, vi } from 'bun:test';
+import { afterEach, beforeEach, describe, expect, it, type MockFunction, vi } from '@vertz/test';
 import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -413,16 +413,18 @@ describe('importServerModule — initialize', () => {
 });
 
 describe('startDevServer', () => {
-  let logSpy: Mock<(...args: unknown[]) => unknown>;
-  let processOnSpy: Mock<(...args: unknown[]) => unknown>;
-  let existsSyncSpy: Mock<(...args: unknown[]) => unknown>;
+  let logSpy: MockFunction<(...args: unknown[]) => unknown>;
+  let processOnSpy: MockFunction<(...args: unknown[]) => unknown>;
+  let existsSyncSpy: MockFunction<(...args: unknown[]) => unknown>;
 
   beforeEach(() => {
-    logSpy = vi.spyOn(console, 'log').mockImplementation(() => {}) as Mock<
+    logSpy = vi.spyOn(console, 'log').mockImplementation(() => {}) as MockFunction<
       (...args: unknown[]) => unknown
     >;
     // Track process.on calls to prevent actual signal handlers from being registered
-    processOnSpy = vi.spyOn(process, 'on').mockImplementation((() => process) as never) as Mock<
+    processOnSpy = vi
+      .spyOn(process, 'on')
+      .mockImplementation((() => process) as never) as MockFunction<
       (...args: unknown[]) => unknown
     >;
   });
@@ -488,7 +490,7 @@ describe('startDevServer', () => {
 
   it('dispatches to Bun dev server for ui-only app', async () => {
     const fsMod = await import('node:fs');
-    existsSyncSpy = vi.spyOn(fsMod, 'existsSync').mockReturnValue(false) as Mock<
+    existsSyncSpy = vi.spyOn(fsMod, 'existsSync').mockReturnValue(false) as MockFunction<
       (...args: unknown[]) => unknown
     >;
 
@@ -538,7 +540,7 @@ describe('startDevServer', () => {
 
   it('dispatches to Bun dev server for full-stack app with initialize', async () => {
     const fsMod = await import('node:fs');
-    existsSyncSpy = vi.spyOn(fsMod, 'existsSync').mockReturnValue(false) as Mock<
+    existsSyncSpy = vi.spyOn(fsMod, 'existsSync').mockReturnValue(false) as MockFunction<
       (...args: unknown[]) => unknown
     >;
 
@@ -600,7 +602,7 @@ describe('startDevServer', () => {
 
   it('dispatches to Bun dev server for full-stack app without initialize', async () => {
     const fsMod = await import('node:fs');
-    existsSyncSpy = vi.spyOn(fsMod, 'existsSync').mockReturnValue(false) as Mock<
+    existsSyncSpy = vi.spyOn(fsMod, 'existsSync').mockReturnValue(false) as MockFunction<
       (...args: unknown[]) => unknown
     >;
 
@@ -649,7 +651,7 @@ describe('startDevServer', () => {
 
   it('prefers requestHandler over handler for full-stack apps when auth is configured', async () => {
     const fsMod = await import('node:fs');
-    existsSyncSpy = vi.spyOn(fsMod, 'existsSync').mockReturnValue(false) as Mock<
+    existsSyncSpy = vi.spyOn(fsMod, 'existsSync').mockReturnValue(false) as MockFunction<
       (...args: unknown[]) => unknown
     >;
 
@@ -699,7 +701,7 @@ describe('startDevServer', () => {
     existsSyncSpy = vi.spyOn(fsMod, 'existsSync').mockImplementation((p: unknown) => {
       const path = String(p);
       return path.includes('openapi.json');
-    }) as Mock<(...args: unknown[]) => unknown>;
+    }) as MockFunction<(...args: unknown[]) => unknown>;
 
     const fullstackMod = await import('../fullstack-server');
     const importSpy = vi.spyOn(fullstackMod, 'importServerModule').mockResolvedValue({

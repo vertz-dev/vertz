@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, spyOn } from 'bun:test';
+import { afterEach, beforeEach, describe, expect, it, spyOn } from '@vertz/test';
 import { existsSync, rmSync } from 'node:fs';
 import { buildMfaChallengeCookie, buildOAuthStateCookie, buildRefreshCookie } from '../cookies';
 import { createAuth } from '../index';

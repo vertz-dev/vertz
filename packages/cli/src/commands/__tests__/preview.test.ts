@@ -4,7 +4,7 @@
  * Uses injectable deps to test orchestration logic without real servers.
  */
 
-import { afterEach, describe, expect, it, vi } from 'bun:test';
+import { afterEach, describe, expect, it, vi } from '@vertz/test';
 import { err, ok } from '@vertz/errors';
 import type { PreviewDeps } from '../preview';
 import { previewAction } from '../preview';

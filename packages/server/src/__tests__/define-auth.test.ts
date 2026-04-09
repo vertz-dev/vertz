@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'bun:test';
+import { describe, expect, it } from '@vertz/test';
 import type { AuthConfig } from '../auth/types';
 import type { EntityDefinition } from '../entity/types';
 import { defineAuth, defineEntities } from '../index';

@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'bun:test';
+import { describe, expect, it } from '@vertz/test';
 import { Container, Graphics, Text } from 'pixi.js';
 import { createDebugOverlay } from './debug-overlay';
 

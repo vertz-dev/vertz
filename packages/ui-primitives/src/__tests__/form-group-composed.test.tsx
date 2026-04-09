@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'bun:test';
+import { describe, expect, it } from '@vertz/test';
 import { withStyles } from '../composed/with-styles';
 import type { FormGroupClasses } from '../form-group/form-group-composed';
 import { ComposedFormGroup } from '../form-group/form-group-composed';

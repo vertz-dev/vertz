@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, test } from 'bun:test';
+import { beforeEach, describe, expect, test } from '@vertz/test';
 import { defineRoutes, matchRoute } from '../router/define-routes';
 import { executeLoaders } from '../router/loader';
 import type { Router } from '../router/navigate';

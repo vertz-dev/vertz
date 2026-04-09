@@ -1,4 +1,4 @@
-import { describe, expect, test, vi } from 'bun:test';
+import { describe, expect, test, vi } from '@vertz/test';
 import { signal } from '../../runtime/signal';
 import { defineRoutes } from '../define-routes';
 import { createLink, Link } from '../link';

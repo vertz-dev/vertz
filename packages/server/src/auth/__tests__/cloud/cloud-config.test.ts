@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'bun:test';
+import { describe, expect, it } from '@vertz/test';
 import { type CloudConfig, validateCloudConfig } from '../../cloud/cloud-config';
 
 describe('Feature: Cloud configuration', () => {

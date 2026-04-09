@@ -1,4 +1,4 @@
-import { describe, it } from 'bun:test';
+import { describe, it } from '@vertz/test';
 import { d } from '@vertz/db';
 import { rules } from '../../auth/rules';
 import { entity } from '../index';

@@ -34,6 +34,7 @@
   },
   "devDependencies": {
     "@happy-dom/global-registrator": "^20.7.0",
+    "@vertz/test": "workspace:*",
     "bunup": "^0.16.31",
     "happy-dom": "^20.7.0",
     "lucide-static": "^0.575.0",

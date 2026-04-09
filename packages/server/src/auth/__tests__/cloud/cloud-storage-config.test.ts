@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'bun:test';
+import { describe, expect, it } from '@vertz/test';
 import { CachedWalletStore } from '../../cloud/cached-wallet-store';
 import { CloudWalletStore } from '../../cloud/cloud-wallet-store';
 import { createCloudWalletStore } from '../../cloud/create-cloud-wallet-store';

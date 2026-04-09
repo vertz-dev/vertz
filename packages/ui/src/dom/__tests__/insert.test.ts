@@ -1,4 +1,4 @@
-import { describe, expect, test } from 'bun:test';
+import { describe, expect, test } from '@vertz/test';
 import { endHydration, startHydration } from '../../hydrate/hydration-context';
 import { __insert } from '../element';
 

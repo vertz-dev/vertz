@@ -2,7 +2,7 @@
  * Device Name Parser Tests — Sub-Phase 4
  */
 
-import { describe, expect, it } from 'bun:test';
+import { describe, expect, it } from '@vertz/test';
 import { parseDeviceName } from '../device-name';
 
 describe('parseDeviceName', () => {

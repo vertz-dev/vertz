@@ -1,7 +1,7 @@
 /**
  * Tests for SSR route matcher — matches URLs to manifest route patterns.
  */
-import { describe, expect, it } from 'bun:test';
+import { describe, expect, it } from '@vertz/test';
 import { matchUrlToPatterns } from '../ssr-route-matcher';
 
 const PATTERNS = [

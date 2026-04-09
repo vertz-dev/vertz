@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'bun:test';
+import { describe, expect, it } from '@vertz/test';
 import { signal } from '../../runtime/signal';
 import { handleAccessEvent } from '../access-event-handler';
 import type { AccessSet } from '../access-set-types';

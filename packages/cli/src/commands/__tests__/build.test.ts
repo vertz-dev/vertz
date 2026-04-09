@@ -10,16 +10,16 @@
  * Instead, we spy on individual functions in beforeEach/afterEach.
  */
 
-import { afterEach, beforeEach, describe, expect, it, type Mock, vi } from 'bun:test';
+import { afterEach, beforeEach, describe, expect, it, type MockFunction, vi } from '@vertz/test';
 import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 describe('buildAction', () => {
   let tmpDir: string;
-  let pathsSpy: Mock<(...args: unknown[]) => unknown>;
-  let orchestratorSpy: Mock<(...args: unknown[]) => unknown>;
-  let buildUISpy: Mock<(...args: unknown[]) => unknown>;
+  let pathsSpy: MockFunction<(...args: unknown[]) => unknown>;
+  let orchestratorSpy: MockFunction<(...args: unknown[]) => unknown>;
+  let buildUISpy: MockFunction<(...args: unknown[]) => unknown>;
 
   const mockBuildResult = {
     success: true,
@@ -41,7 +41,7 @@ describe('buildAction', () => {
 
     // Spy on findProjectRoot to return our temp dir
     const pathsMod = await import('../../utils/paths');
-    pathsSpy = vi.spyOn(pathsMod, 'findProjectRoot').mockReturnValue(tmpDir) as Mock<
+    pathsSpy = vi.spyOn(pathsMod, 'findProjectRoot').mockReturnValue(tmpDir) as MockFunction<
       (...args: unknown[]) => unknown
     >;
 
@@ -53,12 +53,12 @@ describe('buildAction', () => {
           build: vi.fn().mockResolvedValue(mockBuildResult),
           dispose: vi.fn().mockResolvedValue(undefined),
         }) as unknown,
-    ) as Mock<(...args: unknown[]) => unknown>;
+    ) as MockFunction<(...args: unknown[]) => unknown>;
 
     buildUISpy = vi.spyOn(prodBuild, 'buildUI').mockResolvedValue({
       success: true,
       durationMs: 100,
-    }) as Mock<(...args: unknown[]) => unknown>;
+    }) as MockFunction<(...args: unknown[]) => unknown>;
   });
 
   afterEach(() => {

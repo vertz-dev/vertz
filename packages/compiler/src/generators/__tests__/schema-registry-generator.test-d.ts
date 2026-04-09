@@ -1,4 +1,4 @@
-import { describe, it } from 'bun:test';
+import { describe, it } from '@vertz/test';
 import type { Generator } from '../base-generator';
 import type { SchemaRegistryEntry, SchemaRegistryGenerator } from '../schema-registry-generator';
 

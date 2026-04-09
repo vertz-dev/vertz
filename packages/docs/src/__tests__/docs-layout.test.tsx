@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'bun:test';
+import { describe, expect, it } from '@vertz/test';
 import { renderTest } from '@vertz/ui/test';
 import type { DocsConfig } from '../config/types';
 import { DocsLayout } from '../layout/docs-layout';

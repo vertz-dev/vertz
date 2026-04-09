@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from 'bun:test';
+import { beforeEach, describe, expect, it } from '@vertz/test';
 import { Project } from 'ts-morph';
 import type { ResolvedConfig } from '../../config';
 import { createEmptyAppIR } from '../../ir/builder';

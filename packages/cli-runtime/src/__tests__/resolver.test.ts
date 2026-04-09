@@ -1,4 +1,4 @@
-import { describe, expect, it, mock } from 'bun:test';
+import { describe, expect, it, mock } from '@vertz/test';
 import type { PromptAdapter } from '../resolver';
 import { CliRuntimeError, resolveParameters } from '../resolver';
 import type { CommandDefinition, ParameterResolver } from '../types';

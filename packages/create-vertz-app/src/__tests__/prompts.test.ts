@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'bun:test';
+import { beforeEach, describe, expect, it, vi } from '@vertz/test';
 import { type CliOptions, resolveOptions } from '../index.js';
 
 // Mock the readline module (hoisted to top via compiler)

@@ -3,7 +3,7 @@
  * Tests for createAuth(), JWT, password hashing, sign-up/sign-in flows
  */
 
-import { beforeEach, describe, expect, it } from 'bun:test';
+import { beforeEach, describe, expect, it } from '@vertz/test';
 import { TEST_PRIVATE_KEY, TEST_PUBLIC_KEY } from '../../auth/__tests__/test-keys';
 import { createAuth, hashPassword, validatePassword, verifyPassword } from '../../auth/index';
 import type { AuthConfig } from '../auth/types';

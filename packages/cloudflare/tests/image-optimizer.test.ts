@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, mock } from 'bun:test';
+import { afterEach, describe, expect, it, mock } from '@vertz/test';
 import { imageOptimizer } from '../src/image-optimizer.js';
 
 // Mock global fetch for testing

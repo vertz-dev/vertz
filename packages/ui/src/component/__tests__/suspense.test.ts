@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, test, vi } from 'bun:test';
+import { afterEach, describe, expect, test, vi } from '@vertz/test';
 import { ErrorBoundary } from '../error-boundary';
 import { Suspense } from '../suspense';
 

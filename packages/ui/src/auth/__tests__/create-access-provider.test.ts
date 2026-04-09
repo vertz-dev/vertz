@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from 'bun:test';
+import { afterEach, describe, expect, it } from '@vertz/test';
 import type { AccessSet } from '../access-set-types';
 import { createAccessProvider } from '../create-access-provider';
 

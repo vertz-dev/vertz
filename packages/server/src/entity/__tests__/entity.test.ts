@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'bun:test';
+import { describe, expect, it } from '@vertz/test';
 import { d } from '@vertz/db';
 import { entity } from '../index';
 import type { EntityConfig } from '../types';

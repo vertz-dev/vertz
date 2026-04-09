@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, test } from 'bun:test';
+import { beforeEach, describe, expect, test } from '@vertz/test';
 import { createContext, useContext } from '../../component/context';
 import { onMount } from '../../component/lifecycle';
 import { __element, __enterChildren, __exitChildren } from '../../dom/element';

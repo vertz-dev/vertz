@@ -3,7 +3,7 @@
  * Tests: invoice tenant extraction, price metadata planId, checkout add-on fallback
  */
 
-import { describe, expect, it } from 'bun:test';
+import { describe, expect, it } from '@vertz/test';
 import { createBillingEventEmitter } from '../../billing/event-emitter';
 import { createWebhookHandler, type WebhookHandlerConfig } from '../../billing/webhook-handler';
 import { InMemorySubscriptionStore } from '../../subscription-store';

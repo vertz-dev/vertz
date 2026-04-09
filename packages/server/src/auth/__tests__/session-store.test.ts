@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
+import { afterEach, beforeEach, describe, expect, it } from '@vertz/test';
 import { InMemorySessionStore } from '../session-store';
 
 describe('InMemorySessionStore', () => {

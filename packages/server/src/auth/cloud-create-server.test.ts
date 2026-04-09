@@ -1,4 +1,4 @@
-import { afterAll, afterEach, beforeAll, describe, expect, it, spyOn } from 'bun:test';
+import { afterAll, afterEach, beforeAll, describe, expect, it, spyOn } from '@vertz/test';
 import * as jose from 'jose';
 import { createServer } from '../create-server';
 

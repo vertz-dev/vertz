@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'bun:test';
+import { describe, expect, it } from '@vertz/test';
 import type { DiffChange } from '../differ';
 import { generateMigrationSql, generateRollbackSql } from '../sql-generator';
 

@@ -2,7 +2,7 @@
  * Shared test factory for FlagStore behavioral parity.
  */
 
-import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
+import { afterEach, beforeEach, describe, expect, it } from '@vertz/test';
 import type { FlagStore } from '../flag-store';
 
 export function flagStoreTests(

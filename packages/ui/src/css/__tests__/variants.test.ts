@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from 'bun:test';
+import { afterEach, describe, expect, it } from '@vertz/test';
 import { getInjectedCSS, resetInjectedStyles } from '../css';
 import { variants } from '../variants';
 

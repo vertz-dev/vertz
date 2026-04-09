@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, it, mock } from 'bun:test';
+import { afterAll, beforeAll, describe, expect, it, mock } from '@vertz/test';
 import { PGlite } from '@electric-sql/pglite';
 import { d } from '../../d';
 import type { MigrationQueryFn } from '../../migration';

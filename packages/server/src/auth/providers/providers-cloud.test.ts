@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'bun:test';
+import { describe, expect, it } from '@vertz/test';
 import { discord } from './discord';
 import { github } from './github';
 import { google } from './google';

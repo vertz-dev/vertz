@@ -8,7 +8,7 @@
 // in service actions, while JSON endpoints continue to require schemas.
 // ===========================================================================
 
-import { describe, expect, it } from 'bun:test';
+import { describe, expect, it } from '@vertz/test';
 import { d } from '@vertz/db';
 import { s } from '@vertz/schema';
 import type { EntityDbAdapter } from '@vertz/server';

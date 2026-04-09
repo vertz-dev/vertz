@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, mock } from 'bun:test';
+import { beforeEach, describe, expect, it, mock } from '@vertz/test';
 import { d } from '@vertz/db';
 import type { TenantLevel } from '@vertz/db';
 import { InMemoryClosureStore } from '../../auth/closure-store';

@@ -1,4 +1,4 @@
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'bun:test';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from '@vertz/test';
 import { GlobalRegistrator } from '@happy-dom/global-registrator';
 
 beforeAll(() => {

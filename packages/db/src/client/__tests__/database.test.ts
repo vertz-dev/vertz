@@ -1,14 +1,11 @@
-import { afterEach, describe, expect, it, spyOn, vi } from 'bun:test';
+import { afterEach, describe, expect, it, spyOn, vi } from '@vertz/test';
 import { d } from '../../d';
 import type { QueryFn } from '../../query/executor';
 import { createDb, isReadQuery } from '../database';
 import type { PostgresDriver } from '../postgres-driver';
 
-// Hoist mock function for postgres-driver (used in per-test mock configuration)
-const { mockCreatePostgresDriver } = vi.hoisted(() => {
-  const mockCreatePostgresDriver = vi.fn();
-  return { mockCreatePostgresDriver };
-});
+// Mock function for postgres-driver (used in per-test mock configuration)
+const mockCreatePostgresDriver = vi.fn();
 
 // Mock the postgres-driver module at top level (compiler hoists this)
 vi.mock('../postgres-driver', () => ({

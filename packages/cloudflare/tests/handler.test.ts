@@ -1,19 +1,16 @@
-import { beforeEach, describe, expect, it, spyOn, vi } from 'bun:test';
+import { beforeEach, describe, expect, it, spyOn, vi } from '@vertz/test';
 import type { AppBuilder } from '@vertz/core';
 import { createHandler, generateHTMLTemplate, generateNonce } from '../src/handler.js';
 
-// Hoist mock functions so they're available in the vi.mock factory
-const { mockSSRRequestHandler, mockCreateSSRHandler } = vi.hoisted(() => {
-  const mockSSRRequestHandler = vi.fn().mockImplementation(() =>
-    Promise.resolve(
-      new Response('<html>SSR Module</html>', {
-        headers: { 'Content-Type': 'text/html' },
-      }),
-    ),
-  );
-  const mockCreateSSRHandler = vi.fn().mockReturnValue(mockSSRRequestHandler);
-  return { mockSSRRequestHandler, mockCreateSSRHandler };
-});
+// Mock functions hoisted above vi.mock factory
+const mockSSRRequestHandler = vi.fn().mockImplementation(() =>
+  Promise.resolve(
+    new Response('<html>SSR Module</html>', {
+      headers: { 'Content-Type': 'text/html' },
+    }),
+  ),
+);
+const mockCreateSSRHandler = vi.fn().mockReturnValue(mockSSRRequestHandler);
 
 // Mock the SSR module at top level (compiler hoists this)
 vi.mock('@vertz/ui-server/ssr', () => ({

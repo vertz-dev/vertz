@@ -2,7 +2,7 @@
  * Session Management API Tests — Sub-Phase 4
  */
 
-import { beforeEach, describe, expect, it } from 'bun:test';
+import { beforeEach, describe, expect, it } from '@vertz/test';
 import { createAuth } from '../index';
 import type { AuthConfig, AuthInstance, SessionInfo } from '../types';
 import { TEST_PRIVATE_KEY, TEST_PUBLIC_KEY } from './test-keys';

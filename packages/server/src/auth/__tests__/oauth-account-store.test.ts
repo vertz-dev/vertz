@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'bun:test';
+import { describe, expect, it } from '@vertz/test';
 import { InMemoryOAuthAccountStore } from '../oauth-account-store';
 
 describe('InMemoryOAuthAccountStore', () => {

@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'bun:test';
+import { describe, expect, it } from '@vertz/test';
 import { normalizeOperationId } from '../../parser/operation-id-normalizer';
 import type { OperationContext } from '../../parser/operation-id-normalizer';
 import { fastapi, nestjs } from '../index';

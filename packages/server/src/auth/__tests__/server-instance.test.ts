@@ -1,5 +1,5 @@
 import { Database } from 'bun:sqlite';
-import { afterEach, describe, expect, it } from 'bun:test';
+import { afterEach, describe, expect, it } from '@vertz/test';
 import { createDb } from '@vertz/db';
 import { createServer } from '../../create-server';
 import { authModels } from '../auth-models';

@@ -1,5 +1,5 @@
 import { Database } from 'bun:sqlite';
-import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
+import { afterEach, beforeEach, describe, expect, it } from '@vertz/test';
 import { createDb, d } from '@vertz/db';
 import { createServer, type ServerInstance } from '../../create-server';
 import { entity } from '../../entity/entity';

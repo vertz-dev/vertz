@@ -6,7 +6,7 @@
  * CSS import, Fast Refresh preamble) are prepended before the compiled code.
  */
 
-import { describe, expect, it, vi } from 'bun:test';
+import { describe, expect, it, vi } from '@vertz/test';
 import { TraceMap } from '@jridgewell/trace-mapping';
 
 import { createVertzBunPlugin } from '../plugin';

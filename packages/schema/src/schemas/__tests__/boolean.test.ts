@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'bun:test';
+import { describe, expect, it } from '@vertz/test';
 import { ParseError } from '../../core/errors';
 import { SchemaType } from '../../core/types';
 import { BooleanSchema } from '../boolean';

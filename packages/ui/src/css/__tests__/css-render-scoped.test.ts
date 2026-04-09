@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from 'bun:test';
+import { afterEach, describe, expect, it } from '@vertz/test';
 import type { SSRRenderContext } from '../../ssr/ssr-render-context';
 import { registerSSRResolver } from '../../ssr/ssr-render-context';
 import { injectCSS, resetInjectedStyles } from '../css';

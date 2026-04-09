@@ -1,5 +1,5 @@
 import { Database } from 'bun:sqlite';
-import { describe, expect, it } from 'bun:test';
+import { describe, expect, it } from '@vertz/test';
 import type { D1Database } from '@vertz/db';
 import { createDb } from '@vertz/db';
 import { authModels } from '../auth-models';

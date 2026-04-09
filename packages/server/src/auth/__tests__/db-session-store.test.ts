@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'bun:test';
+import { describe, expect, it } from '@vertz/test';
 import { DbSessionStore } from '../db-session-store';
 import type { AuthDbClient } from '../db-types';
 import { InMemorySessionStore } from '../session-store';

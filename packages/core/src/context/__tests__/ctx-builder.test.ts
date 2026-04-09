@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from 'bun:test';
+import { afterEach, describe, expect, it } from '@vertz/test';
 import type { CtxConfig } from '../ctx-builder';
 import { buildCtx } from '../ctx-builder';
 
