@@ -61,7 +61,7 @@ describe('createSSRHandler', () => {
     const request = new Request('http://localhost/');
     const response = await handler(request);
 
-    expect(response.status).toBe(200);
+    expect(response.status).toBe(404);
     expect(response.headers.get('content-type')).toBe('text/html; charset=utf-8');
 
     const html = await response.text();
@@ -475,7 +475,7 @@ describe('createSSRHandler', () => {
       const handler = createSSRHandler({ module: simpleModule, template, sessionResolver });
       const response = await handler(new Request('http://localhost/'));
 
-      expect(response.status).toBe(200);
+      expect(response.status).toBe(404);
       const html = await response.text();
       expect(html).not.toContain('__VERTZ_SESSION__');
       expect(html).toContain('Hello World');
@@ -694,7 +694,7 @@ describe('createSSRHandler', () => {
       expect(response.headers.get('Location')).toBe('/login?returnTo=%2Fadmin');
     });
 
-    it('returns 200 with rendered HTML when authenticated', async () => {
+    it('returns 404 with rendered HTML when authenticated (no routes defined)', async () => {
       const sessionResolver = async () => ({
         session: {
           user: { id: 'u1', email: 'a@b.c', role: 'user' },
@@ -710,7 +710,7 @@ describe('createSSRHandler', () => {
 
       const response = await handler(new Request('http://localhost/dashboard'));
 
-      expect(response.status).toBe(200);
+      expect(response.status).toBe(404);
       expect(response.headers.get('content-type')).toBe('text/html; charset=utf-8');
     });
 
@@ -728,7 +728,7 @@ describe('createSSRHandler', () => {
       const response = await handler(new Request('http://localhost/admin'));
 
       // No redirect — ssrAuth is undefined, auth stays idle, renders fallback
-      expect(response.status).toBe(200);
+      expect(response.status).toBe(404);
       expect(response.headers.get('content-type')).toBe('text/html; charset=utf-8');
     });
   });
@@ -742,7 +742,7 @@ describe('createSSRHandler', () => {
       });
       const response = await handler(new Request('http://localhost/'));
 
-      expect(response.status).toBe(200);
+      expect(response.status).toBe(404);
       expect(response.body).toBeInstanceOf(ReadableStream);
     });
 
@@ -924,7 +924,7 @@ describe('createSSRHandler', () => {
       const response = await handler(new Request('http://localhost/'));
 
       // Should be a buffered string response (not streaming), verified by consuming as text
-      expect(response.status).toBe(200);
+      expect(response.status).toBe(404);
       const html = await response.text();
       expect(html).toContain('Hello World');
       expect(html).toContain('<!DOCTYPE html>');
@@ -1134,7 +1134,7 @@ describe('createSSRHandler', () => {
         const html = await response.text();
         // DOM shim renders simpleModule.default() → <div>Hello World</div>
         expect(html).toContain('Hello World');
-        expect(response.status).toBe(200);
+        expect(response.status).toBe(404);
       });
     });
   });
@@ -1150,7 +1150,7 @@ describe('createSSRHandler', () => {
         const response = await handler(new Request('http://localhost/'));
         const html = await response.text();
         expect(html).toContain('Hello World');
-        expect(response.status).toBe(200);
+        expect(response.status).toBe(404);
       });
     });
   });

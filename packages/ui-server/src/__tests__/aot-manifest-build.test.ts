@@ -1,4 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from '@vertz/test';
+
+const hasNativeCompiler = !!(globalThis as Record<string, unknown>).__NATIVE_COMPILER_AVAILABLE__;
 import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type {
@@ -15,7 +17,7 @@ import {
   hasResidualJsx,
 } from '../aot-manifest-build';
 
-describe('generateAotBuildManifest', () => {
+describe.skipIf(!hasNativeCompiler)('generateAotBuildManifest', () => {
   let tmpDir: string;
   let srcDir: string;
 
@@ -127,40 +129,43 @@ describe('generateAotBuildManifest', () => {
     });
   });
 
-  describe('Given a component that references child components (holes)', () => {
-    describe('When generateAotBuildManifest is called', () => {
-      it('Then logs holes count in classification log', () => {
-        writeFileSync(
-          join(srcDir, 'layout.tsx'),
-          `function Sidebar() { return <aside>Side</aside>; }
+  describe.skipIf(!hasNativeCompiler)(
+    'Given a component that references child components (holes)',
+    () => {
+      describe('When generateAotBuildManifest is called', () => {
+        it('Then logs holes count in classification log', () => {
+          writeFileSync(
+            join(srcDir, 'layout.tsx'),
+            `function Sidebar() { return <aside>Side</aside>; }
 export function Layout() { return <div><main>Content</main><Sidebar /></div>; }`,
-        );
+          );
 
-        const result = generateAotBuildManifest(srcDir);
+          const result = generateAotBuildManifest(srcDir);
 
-        expect(result.components.Layout).toBeDefined();
-        expect(result.components.Layout.holes).toEqual(['Sidebar']);
-        const layoutLine = result.classificationLog.find((l) => l.startsWith('Layout:'));
-        expect(layoutLine).toContain('1 hole');
-        expect(layoutLine).toContain('Sidebar');
-      });
+          expect(result.components.Layout).toBeDefined();
+          expect(result.components.Layout.holes).toEqual(['Sidebar']);
+          const layoutLine = result.classificationLog.find((l) => l.startsWith('Layout:'));
+          expect(layoutLine).toContain('1 hole');
+          expect(layoutLine).toContain('Sidebar');
+        });
 
-      it('Then uses plural "holes" for multiple holes', () => {
-        writeFileSync(
-          join(srcDir, 'page.tsx'),
-          `function Header() { return <header>H</header>; }
+        it('Then uses plural "holes" for multiple holes', () => {
+          writeFileSync(
+            join(srcDir, 'page.tsx'),
+            `function Header() { return <header>H</header>; }
 function Footer() { return <footer>F</footer>; }
 export function Page() { return <div><Header /><main>Body</main><Footer /></div>; }`,
-        );
+          );
 
-        const result = generateAotBuildManifest(srcDir);
+          const result = generateAotBuildManifest(srcDir);
 
-        expect(result.components.Page.holes.length).toBe(2);
-        const pageLine = result.classificationLog.find((l) => l.startsWith('Page:'));
-        expect(pageLine).toContain('2 holes');
+          expect(result.components.Page.holes.length).toBe(2);
+          const pageLine = result.classificationLog.find((l) => l.startsWith('Page:'));
+          expect(pageLine).toContain('2 holes');
+        });
       });
-    });
-  });
+    },
+  );
 
   describe('Given a file that fails to compile', () => {
     describe('When generateAotBuildManifest is called', () => {
@@ -187,7 +192,7 @@ export function Page() { return <div><Header /><main>Body</main><Footer /></div>
     });
   });
 
-  describe('Given compiled code preservation', () => {
+  describe.skipIf(!hasNativeCompiler)('Given compiled code preservation', () => {
     describe('When generateAotBuildManifest is called', () => {
       it('Then preserves compiled code in compiledFiles', () => {
         writeFileSync(

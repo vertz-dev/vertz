@@ -1,4 +1,5 @@
 [test]
+preload = ["./src/__tests__/preload-mock-native-compiler.ts"]
 timeout = 15000
 coveragePathIgnorePatterns = [
   "**/core/dist/**",
