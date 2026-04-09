@@ -65,13 +65,9 @@ export function createThemedTabs(styles: TabsStyleClasses): ThemedTabsComponent 
     panel: styles.panel,
   });
 
-  function TabsRoot({ defaultValue, variant, children }: TabsRootProps) {
+  function TabsRoot({ defaultValue, variant, children }: TabsRootProps): HTMLElement {
     const Styled = variant === 'line' ? LineTabs : DefaultTabs;
-    return (
-      <Styled defaultValue={defaultValue}>
-        {children}
-      </Styled>
-    );
+    return (<Styled defaultValue={defaultValue}>{children}</Styled>) as HTMLElement;
   }
 
   return Object.assign(TabsRoot, {

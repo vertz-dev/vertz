@@ -55,7 +55,7 @@ export interface ThemedSheetComponent {
 // ── Factory ────────────────────────────────────────────────
 
 export function createThemedSheet(styles: SheetStyleClasses): ThemedSheetComponent {
-  function SheetRoot({ children, side, onOpenChange }: SheetRootProps) {
+  function SheetRoot({ children, side, onOpenChange }: SheetRootProps): HTMLElement {
     const resolvedSide = side ?? 'right';
     const panelClass = styles[PANEL_CLASS_MAP[resolvedSide]];
 
@@ -73,7 +73,7 @@ export function createThemedSheet(styles: SheetStyleClasses): ThemedSheetCompone
       >
         {children}
       </ComposedSheet>
-    );
+    ) as HTMLElement;
   }
 
   return Object.assign(SheetRoot, {

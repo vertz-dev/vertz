@@ -71,12 +71,8 @@ export function createThemedContextMenu(
     separator: styles.separator,
   });
 
-  function ContextMenuRoot({ children, onSelect }: ContextMenuRootProps) {
-    return (
-      <Styled onSelect={onSelect}>
-        {children}
-      </Styled>
-    );
+  function ContextMenuRoot({ children, onSelect }: ContextMenuRootProps): HTMLElement {
+    return (<Styled onSelect={onSelect}>{children}</Styled>) as HTMLElement;
   }
 
   return Object.assign(ContextMenuRoot, {

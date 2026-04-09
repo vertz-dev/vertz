@@ -52,7 +52,7 @@ export function createThemedCarousel(styles: CarouselStyleClasses): ThemedCarous
     defaultIndex,
     onSlideChange,
     children,
-  }: CarouselRootProps) {
+  }: CarouselRootProps): HTMLElement {
     return (
       <StyledCarousel
         orientation={orientation}
@@ -62,7 +62,7 @@ export function createThemedCarousel(styles: CarouselStyleClasses): ThemedCarous
       >
         {children}
       </StyledCarousel>
-    );
+    ) as HTMLElement;
   }
 
   return Object.assign(CarouselRoot, {
