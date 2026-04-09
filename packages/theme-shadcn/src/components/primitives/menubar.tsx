@@ -78,8 +78,12 @@ export function createThemedMenubar(styles: MenubarStyleClasses): ThemedMenubarC
     separator: styles.separator,
   });
 
-  function MenubarRoot({ children, onSelect }: MenubarRootProps): HTMLElement {
-    return Styled({ children, onSelect, positioning: { placement: 'bottom-start' } });
+  function MenubarRoot({ children, onSelect }: MenubarRootProps) {
+    return (
+      <Styled onSelect={onSelect} positioning={{ placement: 'bottom-start' }}>
+        {children}
+      </Styled>
+    );
   }
 
   return Object.assign(MenubarRoot, {

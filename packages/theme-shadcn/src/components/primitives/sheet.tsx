@@ -55,22 +55,25 @@ export interface ThemedSheetComponent {
 // ── Factory ────────────────────────────────────────────────
 
 export function createThemedSheet(styles: SheetStyleClasses): ThemedSheetComponent {
-  function SheetRoot({ children, side, onOpenChange }: SheetRootProps): HTMLElement {
+  function SheetRoot({ children, side, onOpenChange }: SheetRootProps) {
     const resolvedSide = side ?? 'right';
     const panelClass = styles[PANEL_CLASS_MAP[resolvedSide]];
 
-    return ComposedSheet({
-      children,
-      side: resolvedSide,
-      onOpenChange,
-      classes: {
-        overlay: styles.overlay,
-        content: panelClass,
-        title: styles.title,
-        description: styles.description,
-        close: styles.close,
-      },
-    });
+    return (
+      <ComposedSheet
+        side={resolvedSide}
+        onOpenChange={onOpenChange}
+        classes={{
+          overlay: styles.overlay,
+          content: panelClass,
+          title: styles.title,
+          description: styles.description,
+          close: styles.close,
+        }}
+      >
+        {children}
+      </ComposedSheet>
+    );
   }
 
   return Object.assign(SheetRoot, {
