@@ -1,5 +1,5 @@
 import { TwitterIcon } from '@vertz/icons';
-import { css, Image } from '@vertz/ui';
+import { css } from '@vertz/ui';
 
 const s = css({
   section: ['py:24', 'px:6'],
@@ -48,43 +48,31 @@ interface Founder {
 const FOUNDERS: Founder[] = [
   {
     name: 'Vinicius Dacal',
-    photo: '/viniciusdacal.jpg',
+    photo: '/public/viniciusdacal.jpg',
     bio: '15+ years building at scale. Senior Engineer at Scrunch. Previously Staff Engineer at Voiceflow. Led Angular-to-React migrations, built GraphQL servers, shipped NestJS backends \u2014 and got tired of fighting the frameworks.',
     x: { handle: '@vinicius_dacal', url: 'https://x.com/vinicius_dacal' },
   },
   {
     name: 'Matheus Poleza',
-    photo: '/matheuspoleza.jpg',
+    photo: '/public/matheuspoleza.jpg',
     bio: '10+ years full-stack. Seed to Series C startups. Microservices, AI integration, performance at scale \u2014 now channeling it all into one stack that does it right.',
     x: { handle: '@matheeuspoleza', url: 'https://x.com/matheeuspoleza' },
   },
 ];
 
-function FounderPhoto({ name }: { name: string }) {
-  if (name === 'Vinicius Dacal') {
-    return (
-      <div className={s.imgWrap}>
-        <Image
-          src="/public/viniciusdacal.jpg"
-          alt="Vinicius Dacal"
-          width={80}
-          height={80}
-          style="object-fit: cover; border-radius: 9999px; outline: 2px solid #2A2826; outline-offset: 2px"
-          fit="cover"
-        />
-      </div>
-    );
-  }
+const photoStyle = {
+  width: '80px',
+  height: '80px',
+  objectFit: 'cover' as const,
+  borderRadius: '9999px',
+  outline: '2px solid #2A2826',
+  outlineOffset: '2px',
+};
+
+function FounderPhoto({ photo, name }: { photo: string; name: string }) {
   return (
     <div className={s.imgWrap}>
-      <Image
-        src="/public/matheuspoleza.jpg"
-        alt="Matheus Poleza"
-        width={80}
-        height={80}
-        style="object-fit: cover; border-radius: 9999px; outline: 2px solid #2A2826; outline-offset: 2px"
-        fit="cover"
-      />
+      <img src={photo} alt={name} width={80} height={80} style={photoStyle} />
     </div>
   );
 }
@@ -105,7 +93,7 @@ export function Founders() {
         <div className={s.grid}>
           {FOUNDERS.map((f) => (
             <div key={f.name} className={s.card}>
-              <FounderPhoto name={f.name} />
+              <FounderPhoto photo={f.photo} name={f.name} />
               <p className={s.name}>{f.name}</p>
               <p className={s.role} style={{ fontFamily: 'var(--font-mono)' }}>
                 Co-founder
