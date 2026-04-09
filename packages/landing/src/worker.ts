@@ -103,7 +103,15 @@ export default {
       });
     }
 
-    // ── 0c. Redirect /docs/* to docs.vertz.dev ────────────────
+    // ── 0c. vtz install script redirect ─────────────────────
+    if (pathname === '/vtz/install') {
+      return Response.redirect(
+        'https://raw.githubusercontent.com/vertz-dev/vertz/main/install.sh',
+        302,
+      );
+    }
+
+    // ── 0d. Redirect /docs/* to docs.vertz.dev ────────────────
     if (pathname === '/docs' || pathname.startsWith('/docs/')) {
       const subpath = pathname.replace(/^\/docs\/?/, '');
       const target = subpath ? `https://docs.vertz.dev/${subpath}` : 'https://docs.vertz.dev';

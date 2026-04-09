@@ -49,7 +49,7 @@ export function GetStarted() {
           style={{ background: '#1C1B1A', borderColor: '#2A2826', fontFamily: 'var(--font-mono)' }}
         >
           <div className={`${s.terminalLine} ${s.terminalCmd}`} style={{ color: '#6B6560' }}>
-            $ curl -fsSL https://raw.githubusercontent.com/vertz-dev/vertz/main/install.sh | sh
+            $ curl -fsSL vertz.dev/vtz/install | sh
           </div>
           <div className={`${s.terminalLine} ${s.terminalCmd}`} style={{ color: '#6B6560' }}>
             $ vtz create my-app
