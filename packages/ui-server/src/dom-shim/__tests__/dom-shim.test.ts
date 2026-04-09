@@ -145,6 +145,33 @@ describe('DOM Shim', () => {
     });
   });
 
+  describe('document.createElementNS', () => {
+    beforeEach(() => {
+      installDomShim();
+    });
+
+    it('should create an SVG element via createElementNS', () => {
+      const SVG_NS = 'http://www.w3.org/2000/svg';
+      const el = document.createElementNS(SVG_NS, 'svg');
+      expect(el).toBeDefined();
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- SSR DOM shim requires dynamic typing
+      expect((el as any).tag).toBe('svg');
+    });
+
+    it('should create an SVG child element via createElementNS', () => {
+      const SVG_NS = 'http://www.w3.org/2000/svg';
+      const path = document.createElementNS(SVG_NS, 'path');
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- SSR DOM shim requires dynamic typing
+      expect((path as any).tag).toBe('path');
+    });
+
+    it('should return an SSRElement instance', () => {
+      const SVG_NS = 'http://www.w3.org/2000/svg';
+      const el = document.createElementNS(SVG_NS, 'circle');
+      expect(el).toBeInstanceOf(SSRElement);
+    });
+  });
+
   describe('document.createDocumentFragment', () => {
     beforeEach(() => {
       installDomShim();
