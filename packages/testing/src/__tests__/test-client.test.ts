@@ -342,6 +342,25 @@ describe('Service proxy', () => {
     expect(result.ok).toBe(true);
     expect(result.status).toBe(200);
   });
+
+  it('routes correctly when multiple services are registered', async () => {
+    const server = createServer({
+      services: [healthService, echoService],
+    });
+    const client = createTestClient(server);
+
+    const health = client.service(healthService);
+    const healthResult = await health.check();
+    expect(healthResult.ok).toBe(true);
+    expect(healthResult.status).toBe(200);
+
+    const echo = client.service(echoService);
+    const echoResult = await echo.send({ message: 'multi' });
+    expect(echoResult.ok).toBe(true);
+    if (echoResult.ok) {
+      expect(echoResult.body.echo).toBe('multi');
+    }
+  });
 });
 
 // ---------------------------------------------------------------------------

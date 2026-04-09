@@ -40,7 +40,8 @@ function resolveEntityBasePath(server: AppBuilder, entityName: string): string {
 function resolveServiceBasePath(server: AppBuilder, serviceName: string): string {
   const routes = server.router.routes;
   // Match routes containing /{serviceName}/ or ending with /{serviceName}
-  const segmentPattern = new RegExp(`/${serviceName}(/|$)`);
+  const escaped = serviceName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const segmentPattern = new RegExp(`/${escaped}(/|$)`);
   const serviceRoute = routes.find((r) => segmentPattern.test(r.path));
   if (serviceRoute) {
     const idx = serviceRoute.path.indexOf(`/${serviceName}`);
@@ -63,13 +64,13 @@ function resolveActionPath(
     // Default path: basePath + /actionName
     return `${basePath}/${actionName}`;
   }
-  // Custom path: find the matching registered route
+  // Custom path: find the matching registered route by exact path
   const method = (actionDef.method ?? 'POST').toUpperCase();
   const customSuffix = actionDef.path.replace(/^\/+/, '');
+  const prefix = basePath.slice(0, basePath.lastIndexOf('/'));
+  const expectedPath = `${prefix}/${customSuffix}`;
   const routes = server.router.routes;
-  const matchedRoute = routes.find(
-    (r) => r.method === method && r.path.endsWith(`/${customSuffix}`),
-  );
+  const matchedRoute = routes.find((r) => r.method === method && r.path === expectedPath);
   if (matchedRoute) {
     return matchedRoute.path;
   }
