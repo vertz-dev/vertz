@@ -49,7 +49,10 @@ export function GetStarted() {
           style={{ background: '#1C1B1A', borderColor: '#2A2826', fontFamily: 'var(--font-mono)' }}
         >
           <div className={`${s.terminalLine} ${s.terminalCmd}`} style={{ color: '#6B6560' }}>
-            $ npx create-vertz@latest my-app
+            $ npm install -g vertz
+          </div>
+          <div className={`${s.terminalLine} ${s.terminalCmd}`} style={{ color: '#6B6560' }}>
+            $ vtz create my-app
           </div>
           <div className={`${s.terminalLine} ${s.terminalCmd}`} style={{ color: '#6B6560' }}>
             $ cd my-app
