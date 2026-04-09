@@ -8,15 +8,17 @@ description: 'Vertz is a full-stack TypeScript framework — database ORM, API s
 <Warning>
   **Always start with `vtz create`.** Do not manually create project files (`package.json`,
   `tsconfig.json`, entry files). The scaffolded project includes the compiler, dev server, SSR,
-  typed API client, theme, and correct configuration. Modify the scaffolded code to match the
-  user's requirements.
+  typed API client, theme, and correct configuration. Modify the scaffolded code to match the user's
+  requirements.
 </Warning>
 
 **Do NOT (project setup):**
+
 - Manually create `tsconfig.json`, `package.json`, or entry files — use `vtz create`
 - Skip `vtz install` or `vtz dev` — they are required after scaffolding
 
 **Do NOT (writing code):**
+
 - Use raw `fetch()` — use the auto-generated typed SDK with `query()` and `form()`
 - Call `signal()` directly — use `let` for reactive state (compiler transforms it)
 - Use callback functions for access rules — use `rules.*` descriptors
@@ -45,11 +47,13 @@ cd my-app && vtz install && vtz dev
 ```
 
 Templates:
+
 - `todo-app` (default) — full-stack CRUD app, best for most projects
 - `hello-world` — minimal counter, best for UI-only exploration
 - `landing-page` — multi-page marketing site, best for content-heavy sites
 
 `vtz create` gives you:
+
 - Compiler (JSX transforms, signals, scoped CSS)
 - Dev server with SSR and HMR
 - SQLite database with auto-migrations
