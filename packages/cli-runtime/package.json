@@ -1,6 +1,6 @@
 {
   "name": "@vertz/cli-runtime",
-  "version": "0.2.54",
+  "version": "0.2.55",
   "private": true,
   "description": "Vertz CLI runtime internals — internal, no stability guarantee",
   "license": "MIT",
