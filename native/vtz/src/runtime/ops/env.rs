@@ -11,10 +11,10 @@ pub fn op_env_get(#[string] key: String) -> Option<String> {
 /// Get the current working directory.
 #[op2]
 #[string]
-pub fn op_cwd() -> String {
+pub fn op_cwd() -> Result<String, deno_core::error::AnyError> {
     std::env::current_dir()
         .map(|p| p.to_string_lossy().to_string())
-        .unwrap_or_else(|_| "/".to_string())
+        .map_err(|e| deno_core::error::type_error(format!("Failed to get current directory: {e}")))
 }
 
 /// Get the op declarations for env ops.
