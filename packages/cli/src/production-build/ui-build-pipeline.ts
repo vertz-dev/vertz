@@ -53,6 +53,16 @@ export interface UIBuildConfig {
   title?: string;
   /** Meta description for SEO */
   description?: string;
+  /** Canonical URL for the site (e.g. 'https://example.com') */
+  canonical?: string;
+  /** Twitter/X @handle for twitter:site meta tag */
+  twitterSite?: string;
+  /** og:image width in pixels */
+  ogImageWidth?: number;
+  /** og:image height in pixels */
+  ogImageHeight?: number;
+  /** Additional raw HTML strings injected into <head> */
+  customHead?: string[];
 }
 
 export interface UIBuildResult {
@@ -117,6 +127,11 @@ export async function buildUI(config: UIBuildConfig): Promise<UIBuildResult> {
     sourcemap,
     title = 'Vertz App',
     description,
+    canonical,
+    twitterSite,
+    ogImageWidth,
+    ogImageHeight,
+    customHead,
   } = config;
   const distDir = resolve(projectRoot, outputDir);
   const distClient = resolve(distDir, 'client');
@@ -239,6 +254,9 @@ export async function buildUI(config: UIBuildConfig): Promise<UIBuildResult> {
       : '';
     const manifestTag = hasManifest ? '\n    <link rel="manifest" href="/site.webmanifest">' : '';
     const themeColorTag = '\n    <meta name="theme-color" content="#111110">';
+    const canonicalTag = canonical ? `\n    <link rel="canonical" href="${canonical}" />` : '';
+    const customHeadTags =
+      customHead && customHead.length > 0 ? '\n    ' + customHead.join('\n    ') : '';
 
     // Open Graph and Twitter meta tags
     let ogTags = '';
@@ -264,8 +282,17 @@ export async function buildUI(config: UIBuildConfig): Promise<UIBuildResult> {
       if (ogImage) {
         const imageUrl = ogUrl ? `${ogUrl}${ogImage}` : ogImage;
         ogTags += `\n    <meta property="og:image" content="${imageUrl}" />`;
+        if (ogImageWidth) {
+          ogTags += `\n    <meta property="og:image:width" content="${ogImageWidth}" />`;
+        }
+        if (ogImageHeight) {
+          ogTags += `\n    <meta property="og:image:height" content="${ogImageHeight}" />`;
+        }
         ogTags += '\n    <meta name="twitter:card" content="summary_large_image" />';
         ogTags += `\n    <meta name="twitter:image" content="${imageUrl}" />`;
+      }
+      if (twitterSite) {
+        ogTags += `\n    <meta name="twitter:site" content="${twitterSite}" />`;
       }
       if (ogTitle) {
         ogTags += `\n    <meta name="twitter:title" content="${ogTitle.replace(/"/g, '&quot;')}" />`;
@@ -282,7 +309,7 @@ export async function buildUI(config: UIBuildConfig): Promise<UIBuildResult> {
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>${title}</title>${descriptionTag}${themeColorTag}${faviconTag}${manifestTag}${ogTags}
+    <title>${title}</title>${descriptionTag}${themeColorTag}${faviconTag}${manifestTag}${canonicalTag}${ogTags}${customHeadTags}
 ${cssLinks}
 ${modulepreloadLinks}
   </head>

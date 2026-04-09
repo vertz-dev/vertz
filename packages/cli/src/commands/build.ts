@@ -203,14 +203,24 @@ async function buildUIOnly(
     console.log('');
   }
 
-  // Read title and description from package.json for SEO
+  // Read build config from package.json
   let title: string | undefined;
   let description: string | undefined;
+  let canonical: string | undefined;
+  let twitterSite: string | undefined;
+  let ogImageWidth: number | undefined;
+  let ogImageHeight: number | undefined;
+  let customHead: string[] | undefined;
   try {
     const pkgPath = resolve(detected.projectRoot, 'package.json');
     const pkg = JSON.parse(readFileSync(pkgPath, 'utf-8'));
     title = pkg.vertz?.title ?? pkg.title;
     description = pkg.vertz?.description ?? pkg.description;
+    canonical = pkg.vertz?.canonical;
+    twitterSite = pkg.vertz?.og?.twitterSite;
+    ogImageWidth = pkg.vertz?.og?.imageWidth;
+    ogImageHeight = pkg.vertz?.og?.imageHeight;
+    customHead = pkg.vertz?.head;
   } catch {
     // Ignore — defaults will be used
   }
@@ -224,6 +234,11 @@ async function buildUIOnly(
     sourcemap,
     title,
     description,
+    canonical,
+    twitterSite,
+    ogImageWidth,
+    ogImageHeight,
+    customHead,
   });
 
   if (!result.success) {

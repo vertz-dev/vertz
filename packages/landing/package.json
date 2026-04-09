@@ -6,7 +6,7 @@
     "dev": "bun run src/dev-server.ts",
     "dev:presence": "bun run src/presence-dev-server.ts",
     "dev:all": "bun run scripts/dev-all.ts",
-    "build": "bun run scripts/build.ts",
+    "build": "bun run scripts/generate-og.ts && vertz build",
     "build:og": "bun run scripts/og-images.ts",
     "deploy": "bun run build && bunx wrangler deploy --define DEPLOY_VERSION:\"'$(date +%s)'\" --define PRESENCE_WS_URL:\"'wss://vertz.dev/__presence'\" && bun run scripts/pre-warm.ts",
     "typecheck": "tsc --noEmit"
@@ -31,9 +31,16 @@
   "vertz": {
     "title": "Vertz — The Agent-Native Framework",
     "description": "One schema derives your database, API, and UI. Fully typed end-to-end. Built for agents to write, humans to ship.",
+    "canonical": "https://vertz.dev",
     "og": {
       "image": "/og.png",
-      "url": "https://vertz.dev"
-    }
+      "url": "https://vertz.dev",
+      "twitterSite": "@vinicius_dacal",
+      "imageWidth": 1200,
+      "imageHeight": 630
+    },
+    "head": [
+      "<link rel=\"alternate\" type=\"text/plain\" href=\"/llms.txt\" />"
+    ]
   }
 }

@@ -4,7 +4,7 @@ compatibility_date = "2025-01-01"
 workers_dev = true
 
 [assets]
-directory = "./dist"
+directory = "./dist/client"
 binding = "ASSETS"
 not_found_handling = "single-page-application"
 html_handling = "auto-trailing-slash"
