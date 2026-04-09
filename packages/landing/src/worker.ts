@@ -103,7 +103,15 @@ export default {
       });
     }
 
-    // ── 0c. Redirect /docs/* to docs.vertz.dev ────────────────
+    // ── 0c. vtz install script redirect ─────────────────────
+    if (pathname === '/vtz/install') {
+      return Response.redirect(
+        'https://raw.githubusercontent.com/vertz-dev/vertz/main/install.sh',
+        302,
+      );
+    }
+
+    // ── 0d. Redirect /docs/* to docs.vertz.dev ────────────────
     if (pathname === '/docs' || pathname.startsWith('/docs/')) {
       const subpath = pathname.replace(/^\/docs\/?/, '');
       const target = subpath ? `https://docs.vertz.dev/${subpath}` : 'https://docs.vertz.dev';
@@ -239,14 +247,14 @@ function getCacheControl(pathname: string): string {
   if (pathname.startsWith('/assets/')) return IMMUTABLE_CACHE;
   if (pathname.startsWith('/__vertz_img/')) return IMMUTABLE_CACHE;
   if (pathname.startsWith('/fonts/') || pathname.endsWith('.woff2')) return FONT_CACHE;
-  if (/\.\w{2,4}$/.test(pathname) && !pathname.endsWith('.html')) return STATIC_CACHE;
+  if (/\.\w{2,5}$/.test(pathname) && !pathname.endsWith('.html')) return STATIC_CACHE;
   return HTML_CACHE;
 }
 
 /** Check if a path looks like an HTML page route (no file extension, or .html). */
 function isHTMLRoute(pathname: string): boolean {
   if (pathname.endsWith('.html')) return true;
-  return !/\.\w{2,4}$/.test(pathname);
+  return !/\.\w{2,5}$/.test(pathname);
 }
 
 /** Map file extensions to MIME types for Brotli responses. */

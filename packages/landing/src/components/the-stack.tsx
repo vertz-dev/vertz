@@ -82,7 +82,7 @@ const LAYERS = [
   },
   {
     pkg: 'vertz/testing',
-    what: 'API & UI test utilities on Bun',
+    what: 'API & UI test utilities on vtz',
     replaces: 'Vitest + Testing Library',
     color: '#4ade80',
   },

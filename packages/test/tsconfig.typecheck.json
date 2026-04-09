@@ -6,7 +6,7 @@
     "noUnusedLocals": false,
     "noUnusedParameters": false,
     "skipLibCheck": true,
-    "types": ["@types/node"]
+    "types": ["node"]
   },
   "extends": "../../tsconfig.json",
   "include": ["src"]

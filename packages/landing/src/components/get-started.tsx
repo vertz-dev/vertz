@@ -49,13 +49,16 @@ export function GetStarted() {
           style={{ background: '#1C1B1A', borderColor: '#2A2826', fontFamily: 'var(--font-mono)' }}
         >
           <div className={`${s.terminalLine} ${s.terminalCmd}`} style={{ color: '#6B6560' }}>
-            $ bun create vertz@latest my-app
+            $ curl -fsSL vertz.dev/vtz/install | sh
+          </div>
+          <div className={`${s.terminalLine} ${s.terminalCmd}`} style={{ color: '#6B6560' }}>
+            $ vtz create my-app
           </div>
           <div className={`${s.terminalLine} ${s.terminalCmd}`} style={{ color: '#6B6560' }}>
             $ cd my-app
           </div>
           <div className={s.terminalCmd} style={{ color: '#6B6560' }}>
-            $ bun dev
+            $ vtz dev
           </div>
           <div className={s.successLine} style={{ color: '#C8451B' }}>
             ✓ SQLite database ready

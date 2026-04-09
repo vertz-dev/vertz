@@ -60,7 +60,7 @@ export function Footer() {
           <span className={s.separator}>|</span>
           <span>MIT License</span>
           <span className={s.separator}>|</span>
-          <span>Powered by Bun</span>
+          <span>Powered by vtz</span>
         </div>
       </div>
     </footer>

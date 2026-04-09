@@ -853,29 +853,27 @@ function RotatingWord() {
 
   return (
     <span className={s.rotatingWrap}>
-      {ROTATING_WORDS.map((word, i) => {
-        const isActive = activeIndex === i;
-        const isLeaving = prevIndex === i;
-        const shouldAnimate = isActive || isLeaving;
-
-        return (
-          <span
-            key={word}
-            className={isActive ? s.rotatingWordActive : s.rotatingWord}
-            style={{
-              opacity: isActive ? 1 : 0,
-              transform: isActive
+      {ROTATING_WORDS.map((word, i) => (
+        <span
+          key={word}
+          className={activeIndex === i ? s.rotatingWordActive : s.rotatingWord}
+          style={{
+            opacity: activeIndex === i ? 1 : 0,
+            transform:
+              activeIndex === i
                 ? 'translateY(0)'
-                : isLeaving
+                : prevIndex === i
                   ? 'translateY(100%)'
                   : 'translateY(-100%)',
-              transition: shouldAnimate ? 'transform 0.35s ease, opacity 0.35s ease' : 'none',
-            }}
-          >
-            {word}
-          </span>
-        );
-      })}
+            transition:
+              activeIndex === i || prevIndex === i
+                ? 'transform 0.35s ease, opacity 0.35s ease'
+                : 'none',
+          }}
+        >
+          {word}
+        </span>
+      ))}
     </span>
   );
 }

@@ -101,6 +101,9 @@ export function installDomShim(): void {
     createComment(text: string): SSRComment {
       return new SSRComment(text);
     },
+    createElementNS(_ns: string, tag: string): SSRElement {
+      return new SSRElement(tag);
+    },
     createDocumentFragment(): SSRDocumentFragment {
       return new SSRDocumentFragment();
     },
