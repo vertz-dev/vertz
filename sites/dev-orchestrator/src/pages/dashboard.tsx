@@ -161,7 +161,7 @@ export default function DashboardPage() {
                   <div className={s.cardInfo}>
                     <div className={s.cardTitle}>Issue #{run.issueNumber}</div>
                     <div className={s.cardMeta}>
-                      {run.repo} &middot; Step: {run.currentStep}
+                      {run.repo} · Step: {run.currentStep}
                     </div>
                   </div>
                   <span className={s.badge}>{run.status}</span>

@@ -1,5 +1,25 @@
 # Writing @vertz/ui Components
 
+## Component & Icon Reference
+
+**Component documentation:** [components.vertz.dev](https://components.vertz.dev) — browse all available themed components, primitives, and usage examples. Always check this site before building custom UI.
+
+**Icons:** `@vertz/icons` provides a full icon set. Import and use icons instead of Unicode characters or emoji:
+
+```tsx
+import { ArrowLeft, MoreHorizontal, X } from '@vertz/icons';
+
+// WRONG — raw text or Unicode
+<button>← Back</button>
+<button>×</button>
+
+// RIGHT — use icons
+<button><ArrowLeft size={16} /> Back</button>
+<button><X size={16} /></button>
+```
+
+When building any Vertz app, always use `@vertz/icons` for iconography and themed components from `@vertz/ui/components` for UI elements.
+
 ## Component Signatures
 
 ### Destructure props in parameters

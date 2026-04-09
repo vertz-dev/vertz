@@ -100,7 +100,7 @@ export default function WorkflowDetailPage() {
         {workflow() && (
           <>
             <p className={s.meta}>
-              Issue #{workflow()!.issueNumber} &middot; {workflow()!.repo} &middot; {workflow()!.status}
+              Issue #{workflow()!.issueNumber} · {workflow()!.repo} · {workflow()!.status}
             </p>
             <div className={s.actions}>
               {(workflow()!.status === 'running' || workflow()!.status === 'waiting-approval') && (

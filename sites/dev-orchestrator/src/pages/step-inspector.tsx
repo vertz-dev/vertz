@@ -73,7 +73,7 @@ export default function StepInspectorPage() {
   return (
     <div className={s.page}>
       <button className={s.backBtn} onClick={() => navigate({ to: `/workflows/${id}` })}>
-        &larr; Back to workflow
+        ← Back to workflow
       </button>
 
       {detailQuery.loading && <div className={s.loading}>Loading step details...</div>}
