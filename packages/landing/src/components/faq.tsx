@@ -17,7 +17,7 @@ const QUESTIONS = [
   },
   {
     q: 'Can I use existing libraries?',
-    a: 'Yes. Standard TypeScript, runs on Bun, npm-compatible. Use any library you want alongside Vertz.',
+    a: 'Yes. Standard TypeScript, npm-compatible. Use any library you want alongside Vertz.',
   },
   {
     q: 'What if I only want the UI?',
