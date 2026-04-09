@@ -115,7 +115,7 @@ export default function DefinitionDetailPage() {
     <div className={s.page} onKeyDown={handleKeyDown}>
       <div className={s.main}>
         <button className={s.backBtn} onClick={() => navigate({ to: '/definitions' })}>
-          &larr; Back to definitions
+          ← Back to definitions
         </button>
         <h1 className={s.heading}>{name}</h1>
         {defQuery.loading && <div className={s.loading}>Loading...</div>}
@@ -136,7 +136,7 @@ export default function DefinitionDetailPage() {
             onClick={() => { selectedStep = undefined; }}
             aria-label="Close panel"
           >
-            &times;
+            ×
           </button>
           <div className={s.panelTitle}>{selectedAgent()!.name}</div>
           {selectedAgent()!.description && (
