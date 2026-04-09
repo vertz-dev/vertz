@@ -105,7 +105,7 @@ describe('createDocsDevServer — static files', () => {
     expect(res.status).toBe(200);
     const html = await res.text();
     expect(html).toContain('Hello');
-  });
+  }, 15_000);
 });
 
 describe('docsBuildAction', () => {

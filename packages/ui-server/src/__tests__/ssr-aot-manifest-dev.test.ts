@@ -1,5 +1,43 @@
-import { describe, expect, it } from '@vertz/test';
-import { createAotManifestManager } from '../ssr-aot-manifest-dev';
+import { describe, expect, it, mock } from '@vertz/test';
+
+import type { AotCompileResult } from '../compiler/native-compiler';
+
+// Mock the native compiler — the binary may not be available in all environments.
+// The tests exercise AotManifestManager logic, not the compiler itself.
+mock.module('../compiler/native-compiler', () => ({
+  compileForSsrAot: (source: string, _options?: { filename: string }): AotCompileResult => {
+    // Minimal fake: extract exported functions and classify by heuristics
+    const components: AotCompileResult['components'] = [];
+    const fnRegex = /export\s+function\s+(\w+)\s*\(([^)]*)\)/g;
+    let match;
+    while ((match = fnRegex.exec(source)) !== null) {
+      const name = match[1]!;
+      const params = match[2]!.trim();
+      const body = source.slice(match.index);
+
+      let tier: 'static' | 'data-driven' | 'conditional' | 'runtime-fallback';
+      if (body.includes('try') && body.includes('catch')) {
+        tier = 'runtime-fallback';
+      } else if (params.length > 0) {
+        tier = 'data-driven';
+      } else {
+        tier = 'static';
+      }
+
+      components.push({ name, tier, holes: [], queryKeys: [], code: '' });
+    }
+
+    if (components.length === 0 && source.trim().length > 0) {
+      // Source has content but no exported functions — treat as compilation failure
+      throw new Error('Mock: no exported components found');
+    }
+
+    return { code: source, components };
+  },
+}));
+
+// Import AFTER mock is set up
+const { createAotManifestManager } = await import('../ssr-aot-manifest-dev');
 
 // Minimal TSX source with a static component
 const STATIC_COMPONENT = `
