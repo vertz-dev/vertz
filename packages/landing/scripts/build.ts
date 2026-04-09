@@ -108,6 +108,11 @@ for (const bunCssPath of bunCssFilePaths) {
 const publicDir = resolve(ROOT, 'public');
 if (existsSync(publicDir)) {
   cpSync(publicDir, resolve(DIST, 'public'), { recursive: true });
+  // Also copy fonts to root-level /fonts/ so CSS @font-face paths resolve
+  const fontsDir = resolve(publicDir, 'fonts');
+  if (existsSync(fontsDir)) {
+    cpSync(fontsDir, resolve(DIST, 'fonts'), { recursive: true });
+  }
   console.log('[build] Copied public/ assets');
 }
 
