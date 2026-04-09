@@ -859,11 +859,12 @@ function RotatingWord() {
           className={activeIndex === i ? s.rotatingWordActive : s.rotatingWord}
           style={{
             opacity: activeIndex === i ? 1 : 0,
-            transform: activeIndex === i
-              ? 'translateY(0)'
-              : prevIndex === i
-                ? 'translateY(100%)'
-                : 'translateY(-100%)',
+            transform:
+              activeIndex === i
+                ? 'translateY(0)'
+                : prevIndex === i
+                  ? 'translateY(100%)'
+                  : 'translateY(-100%)',
             transition:
               activeIndex === i || prevIndex === i
                 ? 'transform 0.35s ease, opacity 0.35s ease'
