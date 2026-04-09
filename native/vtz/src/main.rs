@@ -249,6 +249,36 @@ fn run_e2e_test_mode(cli: Cli) {
     app.run(None);
 }
 
+/// Run the project's `codegen` script (if defined in package.json) before
+/// starting the dev server. This generates `.vertz/generated/client.ts` and
+/// other SDK files that the app imports via `#generated`.
+async fn run_codegen_if_available(root_dir: &std::path::Path) {
+    // Check if the project defines a "codegen" script
+    let has_codegen_script = match pm::list_scripts(root_dir, None) {
+        Ok(scripts) => scripts.contains_key("codegen"),
+        Err(_) => false,
+    };
+
+    if !has_codegen_script {
+        return;
+    }
+
+    use owo_colors::OwoColorize;
+    eprintln!("{}", "  Running codegen...".dimmed());
+    match pm::run_script(root_dir, "codegen", &[], None).await {
+        Ok(0) => {}
+        Ok(code) => {
+            eprintln!(
+                "{}",
+                format!("  Codegen exited with code {code} — continuing").yellow()
+            );
+        }
+        Err(e) => {
+            eprintln!("{}", format!("  Codegen failed: {e} — continuing").yellow());
+        }
+    }
+}
+
 async fn async_main(cli: Cli) {
     match cli.command {
         Command::Create(args) => {
@@ -272,6 +302,11 @@ async fn async_main(cli: Cli) {
             let hint_handle = tokio::spawn(vertz_runtime::self_update::check_for_update_hint());
 
             let config = build_dev_config(&args);
+
+            // Run codegen before starting the dev server so that
+            // .vertz/generated/ files (SDK client, types, etc.) exist.
+            // Without this, imports like `#generated` resolve to missing files.
+            run_codegen_if_available(&config.root_dir).await;
 
             if let Err(e) = vertz_runtime::server::http::start_server(config).await {
                 eprintln!("Error: {}", e);
@@ -1548,5 +1583,29 @@ async fn async_main(cli: Cli) {
                 std::process::exit(1);
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn run_codegen_skips_when_no_package_json() {
+        let tmp = tempfile::tempdir().unwrap();
+        // No package.json → should return immediately without error
+        run_codegen_if_available(tmp.path()).await;
+    }
+
+    #[tokio::test]
+    async fn run_codegen_skips_when_no_codegen_script() {
+        let tmp = tempfile::tempdir().unwrap();
+        std::fs::write(
+            tmp.path().join("package.json"),
+            r#"{ "name": "test", "scripts": { "dev": "vtz dev" } }"#,
+        )
+        .unwrap();
+        // Has package.json but no "codegen" script → should return immediately
+        run_codegen_if_available(tmp.path()).await;
     }
 }

@@ -68,6 +68,11 @@ export async function devAction(options: DevCommandOptions = {}): Promise<Result
     );
   }
 
+  // Run codegen pipeline before starting any server so that
+  // .vertz/generated/ files (SDK client, types, etc.) exist.
+  // Without this, imports like `#generated` resolve to missing files.
+  await runCodegenPipeline(projectRoot, { typecheck, verbose });
+
   // Try native runtime first (it's now the default)
   if (NATIVE_RUNTIME_COMMANDS.has('dev')) {
     const runtimeResult = tryNativeRuntime(projectRoot, { port, host, typecheck, open }, verbose);
@@ -76,6 +81,53 @@ export async function devAction(options: DevCommandOptions = {}): Promise<Result
 
   // Fallback to Bun-based dev server
   return startBunDevServer(projectRoot, { port, host, open, typecheck, verbose });
+}
+
+/**
+ * Run the codegen pipeline (analyze → codegen) to generate .vertz/generated/ files.
+ * Non-fatal: if codegen fails, log a warning and continue.
+ */
+async function runCodegenPipeline(
+  _projectRoot: string,
+  options: { typecheck: boolean; verbose: boolean },
+): Promise<void> {
+  const pipelineConfig: PipelineConfig = {
+    sourceDir: 'src',
+    outputDir: '.vertz/generated',
+    typecheck: options.typecheck,
+    autoSyncDb: true,
+    open: false,
+    port: 0,
+    host: 'localhost',
+  };
+
+  const orchestrator = new PipelineOrchestrator(pipelineConfig);
+
+  try {
+    const result = await orchestrator.runFull();
+
+    if (!result.success) {
+      console.warn('[vertz] Codegen pipeline had errors:');
+      for (const stage of result.stages) {
+        if (!stage.success && stage.error) {
+          console.warn(`  - ${stage.stage}: ${stage.error.message}`);
+        }
+      }
+      console.warn('[vertz] Continuing with dev server startup...');
+    } else if (options.verbose) {
+      console.log('[vertz] Codegen pipeline complete:');
+      for (const stage of result.stages) {
+        console.log(`  - ${stage.stage}: ${stage.output} (${formatDuration(stage.durationMs)})`);
+      }
+    }
+  } catch (error) {
+    console.warn(
+      `[vertz] Codegen pipeline failed: ${error instanceof Error ? error.message : String(error)}`,
+    );
+    console.warn('[vertz] Continuing with dev server startup...');
+  } finally {
+    await orchestrator.dispose();
+  }
 }
 
 /**

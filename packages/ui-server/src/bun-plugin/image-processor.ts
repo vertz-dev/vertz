@@ -7,7 +7,16 @@
 import { createHash } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { basename, extname, resolve } from 'node:path';
-import sharp from 'sharp';
+import type sharp from 'sharp';
+
+let _sharp: typeof sharp | undefined;
+
+async function getSharp(): Promise<typeof sharp> {
+  if (!_sharp) {
+    _sharp = (await import('sharp')).default;
+  }
+  return _sharp;
+}
 
 export interface ProcessImageOptions {
   sourcePath: string;
@@ -60,8 +69,11 @@ export async function processImage(opts: ProcessImageOptions): Promise<ProcessIm
 
   const name = basename(sourcePath, extname(sourcePath));
 
+  // Load sharp lazily — only when actually processing images
+  const sharpModule = await getSharp();
+
   // Detect source format
-  const meta = await sharp(sourceBuffer).metadata();
+  const meta = await sharpModule(sourceBuffer).metadata();
   const sourceFormat = meta.format ?? 'jpeg';
   const defaultFormat = { ext: '.jpg', mime: 'image/jpeg' };
   const formatInfo = FORMAT_MAP[sourceFormat] ?? defaultFormat;
@@ -96,14 +108,14 @@ export async function processImage(opts: ProcessImageOptions): Promise<ProcessIm
 
   const [webp1xBuf, webp2xBuf, fallbackBuf] = await Promise.all([
     // 1x WebP
-    sharp(sourceBuffer).resize(width, height, { fit: sharpFit }).webp({ quality }).toBuffer(),
+    sharpModule(sourceBuffer).resize(width, height, { fit: sharpFit }).webp({ quality }).toBuffer(),
     // 2x WebP (retina)
-    sharp(sourceBuffer)
+    sharpModule(sourceBuffer)
       .resize(width * 2, height * 2, { fit: sharpFit })
       .webp({ quality })
       .toBuffer(),
     // Fallback in original format at 2x
-    sharp(sourceBuffer)
+    sharpModule(sourceBuffer)
       .resize(width * 2, height * 2, { fit: sharpFit })
       .toFormat(sourceFormat as keyof sharp.FormatEnum, { quality })
       .toBuffer(),

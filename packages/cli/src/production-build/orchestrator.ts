@@ -80,7 +80,10 @@ export class BuildOrchestrator {
           stages,
           manifest,
           startTime,
-          `Codegen failed: ${codegenResult.stages.map((s) => s.error?.message).join(', ')}`,
+          `Codegen failed: ${codegenResult.stages
+            .map((s) => s.error?.message)
+            .filter(Boolean)
+            .join(', ')}`,
         );
       }
 
