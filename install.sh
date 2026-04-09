@@ -62,6 +62,14 @@ fi
 # Make executable
 chmod +x "$INSTALL_DIR/vtz"
 
+# macOS: remove quarantine attribute and re-sign the binary.
+# The linker-signed adhoc signature from CI becomes invalid after download,
+# causing macOS to kill the process with "Taskgated Invalid Signature" (SIGKILL).
+if [ "$PLATFORM" = "darwin" ]; then
+  xattr -d com.apple.quarantine "$INSTALL_DIR/vtz" 2>/dev/null || true
+  codesign --force -s - "$INSTALL_DIR/vtz" 2>/dev/null || true
+fi
+
 # Create aliases
 ln -sf "$INSTALL_DIR/vtz" "$INSTALL_DIR/vertz"
 ln -sf "$INSTALL_DIR/vtz" "$INSTALL_DIR/vtzx"

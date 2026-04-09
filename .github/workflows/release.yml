@@ -114,6 +114,10 @@ jobs:
           cp native/target/${{ matrix.target }}/release/vtz packages/${{ matrix.pkg }}/vtz
           chmod +x packages/${{ matrix.pkg }}/vtz
 
+      - name: Ad-hoc code sign binary (macOS)
+        if: runner.os == 'macOS'
+        run: codesign -s - packages/${{ matrix.pkg }}/vtz
+
       - name: Verify binary version matches version.txt
         run: |
           EXPECTED="vtz ${{ steps.version.outputs.version }}"
