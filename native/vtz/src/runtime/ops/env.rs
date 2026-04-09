@@ -8,9 +8,18 @@ pub fn op_env_get(#[string] key: String) -> Option<String> {
     std::env::var(&key).ok()
 }
 
+/// Get the current working directory.
+#[op2]
+#[string]
+pub fn op_cwd() -> Result<String, deno_core::error::AnyError> {
+    std::env::current_dir()
+        .map(|p| p.to_string_lossy().to_string())
+        .map_err(|e| deno_core::error::type_error(format!("Failed to get current directory: {e}")))
+}
+
 /// Get the op declarations for env ops.
 pub fn op_decls() -> Vec<OpDecl> {
-    vec![op_env_get()]
+    vec![op_env_get(), op_cwd()]
 }
 
 /// JavaScript bootstrap code for process.env.
@@ -32,6 +41,9 @@ pub const ENV_BOOTSTRAP_JS: &str = r#"
     globalThis.process = {};
   }
   globalThis.process.env = envProxy;
+  if (!globalThis.process.cwd) {
+    globalThis.process.cwd = () => Deno.core.ops.op_cwd();
+  }
 })(globalThis);
 "#;
 
@@ -58,6 +70,31 @@ mod tests {
             )
             .unwrap();
         assert_eq!(result, serde_json::json!(true));
+    }
+
+    #[test]
+    fn test_process_cwd_is_a_function() {
+        let mut rt = VertzJsRuntime::new(VertzRuntimeOptions::default()).unwrap();
+        let result = rt.execute_script("<test>", "typeof process.cwd").unwrap();
+        assert_eq!(result, serde_json::json!("function"));
+    }
+
+    #[test]
+    fn test_process_cwd_returns_string() {
+        let mut rt = VertzJsRuntime::new(VertzRuntimeOptions::default()).unwrap();
+        let result = rt.execute_script("<test>", "typeof process.cwd()").unwrap();
+        assert_eq!(result, serde_json::json!("string"));
+    }
+
+    #[test]
+    fn test_process_cwd_returns_actual_directory() {
+        let mut rt = VertzJsRuntime::new(VertzRuntimeOptions::default()).unwrap();
+        let result = rt.execute_script("<test>", "process.cwd()").unwrap();
+        let expected = std::env::current_dir()
+            .unwrap()
+            .to_string_lossy()
+            .to_string();
+        assert_eq!(result, serde_json::json!(expected));
     }
 
     #[test]

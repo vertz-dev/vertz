@@ -309,6 +309,23 @@ mod tests {
     }
 
     #[test]
+    fn test_new_for_test_has_process_cwd() {
+        let mut rt = VertzJsRuntime::new_for_test(VertzRuntimeOptions {
+            capture_output: true,
+            ..Default::default()
+        })
+        .unwrap();
+
+        let result = rt
+            .execute_script(
+                "<test>",
+                "typeof process.cwd === 'function' && typeof process.cwd() === 'string'",
+            )
+            .unwrap();
+        assert_eq!(result, serde_json::json!(true));
+    }
+
+    #[test]
     fn test_new_for_test_has_dom_stubs() {
         let mut rt = VertzJsRuntime::new_for_test(VertzRuntimeOptions {
             capture_output: true,
