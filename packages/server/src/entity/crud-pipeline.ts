@@ -181,9 +181,12 @@ export function createCrudHandlers<TModel extends ModelDef = ModelDef>(
 
   // Derive strict validation schemas for CRUD input (one-time, at setup).
   // Tenant columns are auto-set by the pipeline, so exclude them from the schema.
-  // @ts-expect-error — bunup inlines types for @vertz/db/schema-derive separately from @vertz/db,
-  // creating duplicate `unique symbol` declarations for PhantomType. They are structurally identical.
-  const derivedSchemas = tableToSchemas(table);
+  // bunup inlines types for @vertz/db/schema-derive separately from @vertz/db,
+  // creating duplicate `unique symbol` declarations for PhantomType. They are structurally
+  // identical — cast the function to accept our copy of TableDef.
+  const derivedSchemas = (tableToSchemas as (t: TableDef) => ReturnType<typeof tableToSchemas>)(
+    table,
+  );
   // `.omit()` creates a new ObjectSchema that defaults to `strip` mode,
   // so `.strict()` must be re-applied after omitting the tenant column.
   const createSchema =
