@@ -14,12 +14,12 @@ describe('LLMS_TXT', () => {
   });
 
   it('includes the scaffold command', () => {
-    expect(LLMS_TXT).toContain('bunx @vertz/create-vertz-app@latest');
+    expect(LLMS_TXT).toContain('vtz create vertz my-app');
   });
 
   it('includes both template options', () => {
-    expect(LLMS_TXT).toContain('--template todo-app');
-    expect(LLMS_TXT).toContain('--template hello-world');
+    expect(LLMS_TXT).toContain('todo-app');
+    expect(LLMS_TXT).toContain('hello-world');
   });
 
   it('includes key concepts', () => {
