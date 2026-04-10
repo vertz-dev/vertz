@@ -77,21 +77,10 @@ mount(App, {
 
 ## Dev server
 
-For local development, use the standard Vertz dev server:
+For local development, use the native `vtz` dev server:
 
-```ts
-// src/dev-server.ts
-import { createBunDevServer } from '@vertz/ui-server/bun-dev-server';
-
-const devServer = createBunDevServer({
-  entry: './src/app.tsx',
-  clientEntry: './src/entry-client.ts',
-  port: 4000,
-  ssrModule: true,
-  title: 'My Site',
-});
-
-await devServer.start();
+```bash
+vtz dev --port 4000
 ```
 
 ## Build script

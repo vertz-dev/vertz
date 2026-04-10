@@ -43,10 +43,6 @@
       "import": "./dist/bun-plugin/state-inspector.js",
       "types": "./dist/bun-plugin/state-inspector.d.ts"
     },
-    "./bun-dev-server": {
-      "import": "./dist/bun-dev-server.js",
-      "types": "./dist/bun-dev-server.d.ts"
-    },
     "./fetch-scope": {
       "import": "./dist/fetch-scope.js",
       "types": "./dist/fetch-scope.d.ts"
@@ -63,7 +59,6 @@
   "scripts": {
     "build": "vtzx bunup",
     "test": "bun test --timeout 60000 src/",
-    "test:integration": "bun test src/__tests__/bun-dev-server.integration.local.ts",
     "test:e2e": "bunx playwright test",
     "typecheck": "tsgo --noEmit"
   },

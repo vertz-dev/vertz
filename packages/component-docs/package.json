@@ -3,7 +3,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "bun run src/dev-server.ts",
+    "dev": "vtz dev",
     "build": "bun node_modules/@vertz/cli/dist/vertz.js build",
     "typecheck": "tsgo --noEmit",
     "deploy": "bun run build && bunx wrangler deploy",
