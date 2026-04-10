@@ -279,50 +279,10 @@ jobs:
             vtz-ci-${{ runner.os }}-
 
       - name: Build & typecheck
-        run: |
-          # vtz ci may hang after completing due to child processes with
-          # open handles — use timeout to ensure the step finishes.
-          set +eo pipefail
-          timeout --kill-after=10 120 vtz ci build-typecheck --concurrency 2 2>&1 | tee /tmp/build-output.log
-          EXIT_CODE=${PIPESTATUS[0]}
-          set -eo pipefail
-
-          if [ $EXIT_CODE -eq 0 ]; then exit 0; fi
-
-          # Exit 124/137 = timeout — check if all tasks actually completed
-          if [ $EXIT_CODE -eq 124 ] || [ $EXIT_CODE -eq 137 ]; then
-            if grep -q '\[pipe\] Done in' /tmp/build-output.log && grep -q '0 failed' /tmp/build-output.log; then
-              echo "::warning::vtz ci completed but process did not exit cleanly"
-              exit 0
-            fi
-          fi
-
-          echo "::error::Build/typecheck failed with exit code $EXIT_CODE"
-          exit 1
+        run: vtz ci build-typecheck --concurrency 2
 
       - name: Test
-        run: |
-          # vtz ci may hang after completing due to child processes with
-          # open handles — use timeout to ensure the step finishes.
-          set +eo pipefail
-          timeout --kill-after=10 600 vtz ci test --concurrency 2 2>&1 | tee /tmp/test-output.log
-          EXIT_CODE=${PIPESTATUS[0]}
-          set -eo pipefail
-
-          if [ $EXIT_CODE -eq 0 ]; then exit 0; fi
-
-          # Check if any bun test reported actual failures (N fail where N > 0)
-          FAIL_LINES=$(grep -cE '^\s*[1-9][0-9]*\s+fail' /tmp/test-output.log || true)
-          if [ "$FAIL_LINES" -gt 0 ]; then
-            echo "::error::Tests failed"
-            exit 1
-          fi
-
-          # Exit 124/137 = timeout, or vtz ci exited non-zero due to
-          # task timeouts (hung processes). If no actual bun test failures
-          # were detected, treat as success — matching old Turbo CI behavior.
-          echo "::warning::Test processes did not exit cleanly (likely open handles in bun) but no test failures detected"
-          exit 0
+        run: vtz ci test --concurrency 2
 
   # ---------------------------------------------------------------------------
   # Rust checks — runs in parallel with TS jobs.
