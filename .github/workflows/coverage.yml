@@ -52,8 +52,14 @@ jobs:
           chmod +x packages/runtime-linux-x64/vtz
           cd packages/ci && bun run build && cd ../..
 
-      # TODO: Re-enable actions/cache for .pipe/cache once the vtz ci
-      # cache engine actually writes task outputs (LocalCache bug).
+      - name: Restore vtz ci cache
+        uses: actions/cache@v4
+        with:
+          path: .pipe/cache
+          key: vtz-ci-${{ runner.os }}-${{ hashFiles('bun.lock') }}-${{ github.sha }}
+          restore-keys: |
+            vtz-ci-${{ runner.os }}-${{ hashFiles('bun.lock') }}-
+            vtz-ci-${{ runner.os }}-
 
       - name: Build packages
         run: |

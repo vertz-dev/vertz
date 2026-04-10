@@ -402,7 +402,27 @@ impl<'a> Scheduler<'a> {
                         match cache_ref.get(full_key, restore_keys).await {
                             Ok(Some((matched_key, data))) => {
                                 if matched_key == *full_key {
-                                    // Exact hit — restore and skip execution
+                                    // Exact hit — sentinel means no outputs, archive means restore files
+                                    if cache::is_sentinel(&data) {
+                                        if !quiet {
+                                            eprintln!(" \u{25cf} {:<35} cached", node.label());
+                                        }
+                                        let _ = tx
+                                            .send(WorkerResult {
+                                                node_idx,
+                                                result: TaskResult {
+                                                    status: TaskStatus::Success,
+                                                    exit_code: Some(0),
+                                                    duration_ms: 0,
+                                                    package: node.package.clone(),
+                                                    task: task_name.clone(),
+                                                    cached: true,
+                                                },
+                                            })
+                                            .await;
+                                        continue;
+                                    }
+
                                     match cache::restore_outputs(&data, &working_dir) {
                                         Ok(count) => {
                                             if !quiet {
@@ -438,19 +458,23 @@ impl<'a> Scheduler<'a> {
                                     }
                                 } else {
                                     // Fallback hit — restore warm cache, still execute
+                                    // (sentinels are skipped for fallback — no files to warm)
                                     was_fallback_hit = true;
-                                    if let Err(e) = cache::restore_outputs(&data, &working_dir) {
-                                        if !quiet {
+                                    if !cache::is_sentinel(&data) {
+                                        if let Err(e) = cache::restore_outputs(&data, &working_dir)
+                                        {
+                                            if !quiet {
+                                                eprintln!(
+                                                    "[pipe] warning: warm cache restore failed for {}: {e}",
+                                                    node.label()
+                                                );
+                                            }
+                                        } else if !quiet {
                                             eprintln!(
-                                                "[pipe] warning: warm cache restore failed for {}: {e}",
+                                                "[pipe] Cache hit (stale) for {} — re-executing with warm cache",
                                                 node.label()
                                             );
                                         }
-                                    } else if !quiet {
-                                        eprintln!(
-                                            "[pipe] Cache hit (stale) for {} — re-executing with warm cache",
-                                            node.label()
-                                        );
                                     }
                                 }
                             }
@@ -531,7 +555,20 @@ impl<'a> Scheduler<'a> {
                                         }
                                     }
                                 }
-                                Ok(_) => {} // No output files to cache
+                                Ok(_) => {
+                                    // No output files — store a sentinel so the task
+                                    // can be skipped on cache hit (typecheck, test, etc.).
+                                    if let Err(e) =
+                                        cache_ref.put(full_key, cache::SENTINEL_DATA).await
+                                    {
+                                        if !quiet {
+                                            eprintln!(
+                                                "[pipe] warning: cache put failed for {}: {e}",
+                                                node.label()
+                                            );
+                                        }
+                                    }
+                                }
                                 Err(e) => {
                                     if !quiet {
                                         eprintln!(

@@ -155,11 +155,23 @@ pub fn lockfile_hash(root_dir: &Path) -> String {
 
 /// Hash input files matching glob patterns under a directory.
 /// Hashes incrementally (doesn't load all files into memory).
+/// Normalize glob patterns for the Rust `glob` crate: `dir/**` → `dir/**/*`.
+/// The crate treats `**` as matching directory components only, so `dist/**`
+/// won't match `dist/index.js`. Appending `/*` fixes this.
+fn normalize_glob(pattern: &str) -> String {
+    if pattern.ends_with("/**") {
+        format!("{}/*", pattern)
+    } else {
+        pattern.to_string()
+    }
+}
+
 fn hash_input_files(patterns: &[String], base_dir: &Path) -> Result<String, String> {
     let mut all_files = Vec::new();
 
     for pattern in patterns {
-        let full_pattern = base_dir.join(pattern).display().to_string();
+        let normalized = normalize_glob(pattern);
+        let full_pattern = base_dir.join(&normalized).display().to_string();
         match glob::glob(&full_pattern) {
             Ok(entries) => {
                 for path in entries.flatten() {
@@ -268,8 +280,10 @@ impl LocalCache {
     }
 
     /// Path to a cache entry file.
+    /// Replaces `/` in the key with `__` to produce a flat, filesystem-safe filename.
     fn entry_path(&self, key: &str) -> PathBuf {
-        self.cache_dir.join(format!("{key}.tar.zst"))
+        let safe_key = key.replace('/', "__");
+        self.cache_dir.join(format!("{safe_key}.tar.zst"))
     }
 
     /// Load the manifest from disk.
@@ -494,11 +508,22 @@ impl CacheBackend for LocalCache {
 // Pack / restore outputs
 // ---------------------------------------------------------------------------
 
+/// Sentinel data stored for tasks with no output files (typecheck, test, etc.).
+/// On cache hit the scheduler checks for this marker to skip execution without
+/// attempting to unpack a tar archive.
+pub const SENTINEL_DATA: &[u8] = b"__pipe_ok__";
+
+/// Returns `true` if `data` is the no-output sentinel (not a tar+zstd archive).
+pub fn is_sentinel(data: &[u8]) -> bool {
+    data == SENTINEL_DATA
+}
+
 /// Pack output files into a tar+zstd archive.
 pub fn pack_outputs(output_patterns: &[String], base_dir: &Path) -> Result<Vec<u8>, String> {
     let mut files = Vec::new();
     for pattern in output_patterns {
-        let full_pattern = base_dir.join(pattern).display().to_string();
+        let normalized = normalize_glob(pattern);
+        let full_pattern = base_dir.join(&normalized).display().to_string();
         match glob::glob(&full_pattern) {
             Ok(entries) => {
                 for path in entries.flatten() {
@@ -612,8 +637,22 @@ pub fn restore_outputs(data: &[u8], target_dir: &Path) -> Result<usize, String> 
 // ---------------------------------------------------------------------------
 
 /// Create the appropriate cache backend from config.
-pub fn create_cache_backend(root_dir: &Path, max_size: Option<u64>) -> Box<dyn CacheBackend> {
-    let cache_dir = root_dir.join(".pipe").join("cache");
+pub fn create_cache_backend(
+    root_dir: &Path,
+    local_path: Option<&str>,
+    max_size: Option<u64>,
+) -> Box<dyn CacheBackend> {
+    let cache_dir = match local_path {
+        Some(p) => {
+            let path = Path::new(p);
+            if path.is_absolute() {
+                path.to_path_buf()
+            } else {
+                root_dir.join(p)
+            }
+        }
+        None => root_dir.join(".pipe").join("cache"),
+    };
     Box::new(LocalCache::new(cache_dir, max_size))
 }
 
@@ -1187,5 +1226,82 @@ mod tests {
         .unwrap();
 
         assert_eq!(h1, h2);
+    }
+
+    // -- pack with ** glob --
+
+    #[test]
+    fn pack_outputs_double_star_glob() {
+        let dir = tempfile::tempdir().unwrap();
+        let dist = dir.path().join("dist");
+        std::fs::create_dir_all(&dist).unwrap();
+        std::fs::write(dist.join("index.js"), "code").unwrap();
+        std::fs::write(dist.join("index.d.ts"), "types").unwrap();
+
+        let data = pack_outputs(&["dist/**".to_string()], dir.path()).unwrap();
+        assert!(
+            !data.is_empty(),
+            "dist/** should match files in dist/ directory"
+        );
+    }
+
+    // -- sentinel --
+
+    #[test]
+    fn sentinel_is_detected() {
+        assert!(is_sentinel(SENTINEL_DATA));
+        assert!(!is_sentinel(b"other data"));
+        assert!(!is_sentinel(&[]));
+    }
+
+    #[tokio::test]
+    async fn local_cache_sentinel_roundtrip() {
+        let (_dir, cache_dir) = test_cache_dir();
+        let cache = LocalCache::new(cache_dir, None);
+
+        cache.put("sentinel-key", SENTINEL_DATA).await.unwrap();
+        let result = cache.get("sentinel-key", &[]).await.unwrap();
+        assert!(result.is_some());
+        let (key, data) = result.unwrap();
+        assert_eq!(key, "sentinel-key");
+        assert!(is_sentinel(&data));
+    }
+
+    // -- create_cache_backend with custom path --
+
+    #[test]
+    fn create_cache_backend_default_path() {
+        let dir = tempfile::tempdir().unwrap();
+        let _backend = create_cache_backend(dir.path(), None, None);
+        // Should not panic — backend created with default .pipe/cache
+    }
+
+    #[test]
+    fn create_cache_backend_custom_relative_path() {
+        let dir = tempfile::tempdir().unwrap();
+        let _backend = create_cache_backend(dir.path(), Some("my-cache"), None);
+        // Relative path resolved against root_dir
+    }
+
+    #[test]
+    fn create_cache_backend_custom_absolute_path() {
+        let dir = tempfile::tempdir().unwrap();
+        let abs_path = dir.path().join("abs-cache");
+        let _backend = create_cache_backend(dir.path(), Some(abs_path.to_str().unwrap()), None);
+    }
+
+    #[tokio::test]
+    async fn create_cache_backend_custom_path_writes_to_correct_dir() {
+        let dir = tempfile::tempdir().unwrap();
+        let backend = create_cache_backend(dir.path(), Some("custom-cache"), None);
+
+        backend.put("test-key", b"test-data").await.unwrap();
+
+        let cache_dir = dir.path().join("custom-cache");
+        assert!(cache_dir.exists(), "custom cache dir should be created");
+        assert!(
+            cache_dir.join("manifest.json").exists(),
+            "manifest should exist"
+        );
     }
 }
