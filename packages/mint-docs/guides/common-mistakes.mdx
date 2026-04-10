@@ -126,17 +126,17 @@ export function TaskCard({ task }: Props) {
 
 ## Running SQLite scripts with `node` instead of `vtz`
 
-SQLite in Vertz uses `bun:sqlite`, which is provided natively by the `vtz` runtime. Running scripts that use `@vertz/db` with SQLite under plain `node` will fail — `bun:sqlite` is not available outside `vtz` or Bun.
+The `vtz` runtime includes a built-in SQLite driver powered by Rust — no extra dependencies needed. Running scripts that use `@vertz/db` with SQLite under plain `node` will fail because Node.js doesn't have the native driver.
 
 ```bash
-# Wrong — plain Node can't resolve bun:sqlite
+# Wrong — plain Node doesn't have the built-in SQLite driver
 node ./scripts/ensure-db.ts
 
-# Right — vtz includes bun:sqlite natively
+# Right — vtz includes a native SQLite driver
 vtz run ensure-db
 ```
 
-**Why it matters:** The `vtz` runtime embeds SQLite via Rust, so any script run through `vtz` (including `vtz run <script>`, `vtz dev`, and `vtz test`) has SQLite available with zero extra dependencies. Running the same script with `node` bypasses the runtime entirely — Node.js has no `bun:sqlite` module, so the import fails.
+**Why it matters:** The `vtz` runtime embeds SQLite via Rust, so any script run through `vtz` (including `vtz run <script>`, `vtz dev`, and `vtz test`) has SQLite available with zero extra dependencies. Running the same script with `node` bypasses the runtime entirely.
 
 If you need to run database scripts outside of `vtz`, use PostgreSQL instead of SQLite, or install `better-sqlite3` as a fallback.
 
