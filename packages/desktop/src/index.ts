@@ -15,3 +15,9 @@ export type {
   ShellOutput,
   WindowSize,
 } from './types.js';
+export type {
+  DesktopPermissionConfig,
+  IpcCapabilityGroup,
+  IpcMethodString,
+  IpcPermission,
+} from './permissions.js';
