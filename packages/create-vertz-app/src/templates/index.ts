@@ -825,7 +825,7 @@ export const api = createClient();
  * src/app.tsx — SSR module exports + ThemeProvider + render HomePage
  */
 export function appComponentTemplate(): string {
-  return `import { css, getInjectedCSS, globalCss, ThemeProvider } from 'vertz/ui';
+  return `import { css, DialogStackProvider, getInjectedCSS, globalCss, ThemeProvider } from 'vertz/ui';
 import { HomePage } from './pages/home';
 import { appTheme, themeGlobals } from './styles/theme';
 
@@ -859,14 +859,16 @@ export function App() {
   return (
     <div data-testid="app-root">
       <ThemeProvider theme="light">
-        <div className={styles.shell}>
-          <header className={styles.header}>
-            <div className={styles.title}>My Vertz App</div>
-          </header>
-          <main className={styles.main}>
-            <HomePage />
-          </main>
-        </div>
+        <DialogStackProvider>
+          <div className={styles.shell}>
+            <header className={styles.header}>
+              <div className={styles.title}>My Vertz App</div>
+            </header>
+            <main className={styles.main}>
+              <HomePage />
+            </main>
+          </div>
+        </DialogStackProvider>
       </ThemeProvider>
     </div>
   );
