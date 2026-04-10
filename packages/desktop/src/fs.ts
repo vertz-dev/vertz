@@ -71,7 +71,7 @@ export function createDir(
 }
 
 /**
- * Remove a file or empty directory.
+ * Remove a file or directory. Directories are removed recursively.
  */
 export function remove(
   path: string,
