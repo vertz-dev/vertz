@@ -4,16 +4,12 @@
  * Demonstrates:
  * - Automatic optimistic updates — no manual state management needed
  * - Generated SDK mutations with auto-wired optimistic handler
- * - Declarative confirm dialog with `let` signal for open/close state
+ * - useDialogStack().confirm() for delete confirmation
  */
 
-import { css } from '@vertz/ui';
+import { useDialogStack } from '@vertz/ui';
 import { api } from '../api/client';
-import { alertDialogStyles, button, todoItemStyles } from '../styles/components';
-
-const dialogWrapperStyles = css({
-  wrapper: ['fixed', 'inset:0', 'flex', 'items:center', 'justify:center', 'z:50'],
-});
+import { button, todoItemStyles } from '../styles/components';
 
 export interface TodoItemProps {
   id: string;
@@ -22,7 +18,7 @@ export interface TodoItemProps {
 }
 
 export function TodoItem({ id, title, completed }: TodoItemProps) {
-  let isConfirmOpen = false;
+  const dialogs = useDialogStack();
 
   const handleToggle = async () => {
     // Automatic optimistic update: the framework applies the patch to EntityStore
@@ -34,7 +30,14 @@ export function TodoItem({ id, title, completed }: TodoItemProps) {
   };
 
   const handleDelete = async () => {
-    isConfirmOpen = false;
+    const confirmed = await dialogs.confirm({
+      title: 'Delete todo?',
+      description: `This will permanently delete "${title}". This action cannot be undone.`,
+      confirm: 'Delete',
+      cancel: 'Cancel',
+      intent: 'danger',
+    });
+    if (!confirmed) return;
 
     const result = await api.todos.delete(id);
     if (!result.ok) {
@@ -60,51 +63,11 @@ export function TodoItem({ id, title, completed }: TodoItemProps) {
       <button
         type="button"
         className={button({ intent: 'ghost', size: 'sm' })}
-        onClick={() => {
-          isConfirmOpen = true;
-        }}
+        onClick={handleDelete}
         data-testid={`todo-delete-${id}`}
       >
         Delete
       </button>
-
-      <div
-        className={alertDialogStyles.overlay}
-        aria-hidden={isConfirmOpen ? 'false' : 'true'}
-        style={{ display: isConfirmOpen ? '' : 'none' }}
-      />
-      <div className={dialogWrapperStyles.wrapper} style={{ display: isConfirmOpen ? '' : 'none' }}>
-        <div
-          className={alertDialogStyles.panel}
-          role="alertdialog"
-          aria-modal="true"
-          aria-hidden={isConfirmOpen ? 'false' : 'true'}
-          data-state={isConfirmOpen ? 'open' : 'closed'}
-        >
-          <h2 className={alertDialogStyles.title}>Delete todo?</h2>
-          <p className={alertDialogStyles.description}>
-            This will permanently delete "{title}". This action cannot be undone.
-          </p>
-          <div className={alertDialogStyles.footer}>
-            <button
-              type="button"
-              className={button({ intent: 'secondary', size: 'sm' })}
-              onClick={() => {
-                isConfirmOpen = false;
-              }}
-            >
-              Cancel
-            </button>
-            <button
-              type="button"
-              className={button({ intent: 'destructive', size: 'sm' })}
-              onClick={handleDelete}
-            >
-              Delete
-            </button>
-          </div>
-        </div>
-      </div>
     </div>
   );
 }

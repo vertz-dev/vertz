@@ -30,16 +30,6 @@ export function createListStyles(): CSSOutput<ListBlocks> {
       },
     ],
     listItem: [
-      'flex',
-      'items:center',
-      'gap:2',
-      'px:3',
-      'py:2',
-      'border-b:1',
-      'border:border',
-      'text:sm',
-      'text:foreground',
-      { '&:last-child': { 'border-bottom': '0' } },
       {
         '&[data-dragging]': {
           position: 'relative',
