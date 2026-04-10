@@ -1,9 +1,18 @@
-import { afterEach, beforeEach, describe, expect, it } from '@vertz/test';
+import { afterEach, beforeEach, describe, expect, it, vi } from '@vertz/test';
 import { createContext, getContextScope, useContext } from '../../component/context';
-import { __append, __element, __enterChildren, __exitChildren } from '../../dom/element';
+import { resetInjectedStyles } from '../../css/css';
+import { ThemeProvider } from '../../css/theme-provider';
+import {
+  __append,
+  __element,
+  __enterChildren,
+  __exitChildren,
+  __staticText,
+} from '../../dom/element';
 import { __on } from '../../dom/events';
 import { form, type SdkMethod } from '../../form/form';
 import { endHydration, startHydration } from '../../hydrate/hydration-context';
+import { mount } from '../../mount';
 import type { DialogHandle, DialogStack } from '../dialog-stack';
 import {
   createDialogStack,
@@ -1084,6 +1093,337 @@ describe('Feature: DialogStackProvider hydration', () => {
 
         // The span should be the same DOM node (claimed, not recreated)
         expect(claimedSpan).toBe(ssrSpan);
+      });
+    });
+  });
+});
+
+describe('Feature: DialogStackProvider hydration via mount()', () => {
+  let root: HTMLElement;
+
+  beforeEach(() => {
+    root = document.createElement('div');
+    root.id = 'app';
+    document.body.appendChild(root);
+    resetInjectedStyles();
+  });
+
+  afterEach(() => {
+    document.body.removeChild(root);
+    resetInjectedStyles();
+  });
+
+  describe('Given SSR output with ThemeProvider > DialogStackProvider > children', () => {
+    describe('When mount() hydrates the app', () => {
+      it('Then children survive hydration inside the container div', () => {
+        // Simulate SSR output matching the todo-app template structure:
+        // <div data-theme="light"><div data-dialog-container=""><div><header>App</header><main>Content</main></div></div></div>
+        root.innerHTML =
+          '<div data-theme="light"><div data-dialog-container="">' +
+          '<div><header>App</header><main>Content</main></div>' +
+          '</div></div>';
+
+        const ssrContainer = root.querySelector('[data-dialog-container]')!;
+        const ssrHeader = root.querySelector('header')!;
+        const ssrMain = root.querySelector('main')!;
+
+        let dialogs: DialogStack | undefined;
+
+        const App = () => {
+          return ThemeProvider({
+            theme: 'light',
+            children: () =>
+              DialogStackProvider({
+                children: () => {
+                  dialogs = useDialogStack();
+                  const shell = __element('div');
+                  __enterChildren(shell);
+
+                  const header = __element('header');
+                  __enterChildren(header);
+                  __append(header, __staticText('App'));
+                  __exitChildren();
+                  __append(shell, header);
+
+                  const main = __element('main');
+                  __enterChildren(main);
+                  __append(main, __staticText('Content'));
+                  __exitChildren();
+                  __append(shell, main);
+
+                  __exitChildren();
+                  return shell;
+                },
+              }),
+          });
+        };
+
+        const handle = mount(App);
+
+        // Children must survive hydration
+        const container = root.querySelector('[data-dialog-container]')!;
+        expect(container).toBe(ssrContainer);
+        expect(container.querySelector('header')).toBe(ssrHeader);
+        expect(container.querySelector('main')).toBe(ssrMain);
+        expect(container.children.length).toBeGreaterThanOrEqual(1);
+        expect(root.textContent).toContain('App');
+        expect(root.textContent).toContain('Content');
+
+        // DialogStack context must be available
+        expect(dialogs).toBeDefined();
+
+        handle.unmount();
+      });
+
+      it('Then children are adopted (same DOM references, not recreated)', () => {
+        root.innerHTML =
+          '<div data-theme="light"><div data-dialog-container="">' +
+          '<span>child-content</span>' +
+          '</div></div>';
+
+        const ssrSpan = root.querySelector('span')!;
+        let claimedSpan: Element | undefined;
+
+        const App = () => {
+          return ThemeProvider({
+            theme: 'light',
+            children: () =>
+              DialogStackProvider({
+                children: () => {
+                  useDialogStack();
+                  claimedSpan = __element('span');
+                  __enterChildren(claimedSpan);
+                  __append(claimedSpan, __staticText('child-content'));
+                  __exitChildren();
+                  return claimedSpan;
+                },
+              }),
+          });
+        };
+
+        const handle = mount(App);
+
+        // The span should be the same DOM node (adopted, not recreated)
+        expect(claimedSpan).toBe(ssrSpan);
+
+        handle.unmount();
+      });
+
+      it('Then no hydration warnings are produced', () => {
+        root.innerHTML =
+          '<div data-theme="light"><div data-dialog-container="">' +
+          '<div><header>App</header></div>' +
+          '</div></div>';
+
+        const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+        const App = () => {
+          return ThemeProvider({
+            theme: 'light',
+            children: () =>
+              DialogStackProvider({
+                children: () => {
+                  useDialogStack();
+                  const shell = __element('div');
+                  __enterChildren(shell);
+                  const header = __element('header');
+                  __enterChildren(header);
+                  __append(header, __staticText('App'));
+                  __exitChildren();
+                  __append(shell, header);
+                  __exitChildren();
+                  return shell;
+                },
+              }),
+          });
+        };
+
+        mount(App);
+
+        const claimWarns = warnSpy.mock.calls.filter(
+          (args) => typeof args[0] === 'string' && args[0].includes('not claimed'),
+        );
+        expect(claimWarns).toHaveLength(0);
+
+        warnSpy.mockRestore();
+      });
+
+      it('Then event handlers work on adopted elements inside DialogStackProvider', () => {
+        root.innerHTML =
+          '<div data-theme="light"><div data-dialog-container="">' +
+          '<div><button>Delete</button></div>' +
+          '</div></div>';
+
+        const ssrButton = root.querySelector('button')!;
+        let clicked = false;
+
+        const App = () => {
+          return ThemeProvider({
+            theme: 'light',
+            children: () =>
+              DialogStackProvider({
+                children: () => {
+                  useDialogStack();
+                  const wrapper = __element('div');
+                  __enterChildren(wrapper);
+                  const btn = __element('button');
+                  __on(btn, 'click', () => {
+                    clicked = true;
+                  });
+                  __enterChildren(btn);
+                  __append(btn, __staticText('Delete'));
+                  __exitChildren();
+                  __append(wrapper, btn);
+                  __exitChildren();
+                  return wrapper;
+                },
+              }),
+          });
+        };
+
+        mount(App);
+
+        // Button should be the SSR button (adopted)
+        expect(root.querySelector('button')).toBe(ssrButton);
+
+        // Click handler must work
+        ssrButton.click();
+        expect(clicked).toBe(true);
+      });
+    });
+  });
+
+  describe('Given SSR output with DialogStackProvider (no ThemeProvider)', () => {
+    describe('When mount() hydrates the app', () => {
+      it('Then children survive hydration', () => {
+        root.innerHTML =
+          '<div data-dialog-container="">' + '<div><h1>Hello</h1><p>World</p></div>' + '</div>';
+
+        const ssrH1 = root.querySelector('h1')!;
+        const ssrP = root.querySelector('p')!;
+
+        const App = () => {
+          return DialogStackProvider({
+            children: () => {
+              useDialogStack();
+              const content = __element('div');
+              __enterChildren(content);
+
+              const h1 = __element('h1');
+              __enterChildren(h1);
+              __append(h1, __staticText('Hello'));
+              __exitChildren();
+              __append(content, h1);
+
+              const p = __element('p');
+              __enterChildren(p);
+              __append(p, __staticText('World'));
+              __exitChildren();
+              __append(content, p);
+
+              __exitChildren();
+              return content;
+            },
+          });
+        };
+
+        const handle = mount(App);
+
+        expect(root.querySelector('h1')).toBe(ssrH1);
+        expect(root.querySelector('p')).toBe(ssrP);
+        expect(root.textContent).toContain('Hello');
+        expect(root.textContent).toContain('World');
+
+        handle.unmount();
+      });
+    });
+  });
+
+  describe('Given no SSR content (CSR render)', () => {
+    describe('When mount() renders DialogStackProvider from scratch', () => {
+      it('Then children are rendered inside the container div', () => {
+        // Empty root = CSR path
+        let dialogs: DialogStack | undefined;
+
+        const App = () => {
+          return DialogStackProvider({
+            children: () => {
+              dialogs = useDialogStack();
+              const content = __element('div');
+              __enterChildren(content);
+
+              const h1 = __element('h1');
+              __enterChildren(h1);
+              __append(h1, __staticText('CSR Content'));
+              __exitChildren();
+              __append(content, h1);
+
+              __exitChildren();
+              return content;
+            },
+          });
+        };
+
+        const handle = mount(App);
+
+        const container = root.querySelector('[data-dialog-container]')!;
+        expect(container).toBeTruthy();
+        expect(container.querySelector('h1')).toBeTruthy();
+        expect(container.textContent).toContain('CSR Content');
+        expect(dialogs).toBeDefined();
+
+        handle.unmount();
+      });
+    });
+  });
+
+  describe('Given SSR output with multiple sibling children in DialogStackProvider', () => {
+    describe('When mount() hydrates', () => {
+      it('Then all children survive hydration (array children)', () => {
+        root.innerHTML =
+          '<div data-dialog-container="">' +
+          '<header>Nav</header><main>Body</main><footer>Foot</footer>' +
+          '</div>';
+
+        const ssrHeader = root.querySelector('header')!;
+        const ssrMain = root.querySelector('main')!;
+        const ssrFooter = root.querySelector('footer')!;
+
+        const App = () => {
+          return DialogStackProvider({
+            children: () => {
+              useDialogStack();
+              // Multiple children returned as array (compiler generates this for 2+ children)
+              const header = __element('header');
+              __enterChildren(header);
+              __append(header, __staticText('Nav'));
+              __exitChildren();
+
+              const main = __element('main');
+              __enterChildren(main);
+              __append(main, __staticText('Body'));
+              __exitChildren();
+
+              const footer = __element('footer');
+              __enterChildren(footer);
+              __append(footer, __staticText('Foot'));
+              __exitChildren();
+
+              return [header, main, footer];
+            },
+          });
+        };
+
+        const handle = mount(App);
+
+        expect(root.querySelector('header')).toBe(ssrHeader);
+        expect(root.querySelector('main')).toBe(ssrMain);
+        expect(root.querySelector('footer')).toBe(ssrFooter);
+        expect(root.textContent).toContain('Nav');
+        expect(root.textContent).toContain('Body');
+        expect(root.textContent).toContain('Foot');
+
+        handle.unmount();
       });
     });
   });
