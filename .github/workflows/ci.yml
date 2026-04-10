@@ -269,6 +269,15 @@ jobs:
           # Verify it works
           vtz --version
 
+      - name: Restore vtz ci cache
+        uses: actions/cache@v4
+        with:
+          path: .pipe/cache
+          key: vtz-ci-${{ runner.os }}-${{ hashFiles('bun.lock') }}-${{ github.sha }}
+          restore-keys: |
+            vtz-ci-${{ runner.os }}-${{ hashFiles('bun.lock') }}-
+            vtz-ci-${{ runner.os }}-
+
       - name: Build & typecheck
         run: |
           if [ "${{ github.event_name }}" = "push" ]; then
@@ -379,6 +388,15 @@ jobs:
           cp /tmp/package/vtz packages/runtime-linux-x64/vtz
           chmod +x packages/runtime-linux-x64/vtz
           cd packages/ci && bun run build && cd ../..
+
+      - name: Restore vtz ci cache
+        uses: actions/cache@v4
+        with:
+          path: .pipe/cache
+          key: vtz-ci-${{ runner.os }}-${{ hashFiles('bun.lock') }}-${{ github.sha }}
+          restore-keys: |
+            vtz-ci-${{ runner.os }}-${{ hashFiles('bun.lock') }}-
+            vtz-ci-${{ runner.os }}-
 
       - name: Build packages
         run: vtz ci build-typecheck --concurrency 2
