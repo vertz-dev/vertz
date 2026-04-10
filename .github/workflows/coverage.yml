@@ -43,23 +43,11 @@ jobs:
           bun install --frozen-lockfile
           echo "$PWD/node_modules/.bin" >> "$GITHUB_PATH"
 
-      - name: Install vtz runtime
-        run: |
-          VTZ_VERSION=$(cat version.txt | tr -d '[:space:]')
-          npm pack "@vertz/runtime-linux-x64@${VTZ_VERSION}" --pack-destination /tmp
-          tar -xzf "/tmp/vertz-runtime-linux-x64-${VTZ_VERSION}.tgz" -C /tmp
-          cp /tmp/package/vtz packages/runtime-linux-x64/vtz
-          chmod +x packages/runtime-linux-x64/vtz
-          cd packages/ci && bun run build && cd ../..
+      - name: Setup vtz
+        uses: vertz-dev/setup-vtz@v1
 
-      - name: Restore vtz ci cache
-        uses: actions/cache@v4
-        with:
-          path: .pipe/cache
-          key: vtz-ci-${{ runner.os }}-${{ hashFiles('bun.lock') }}-${{ github.sha }}
-          restore-keys: |
-            vtz-ci-${{ runner.os }}-${{ hashFiles('bun.lock') }}-
-            vtz-ci-${{ runner.os }}-
+      - name: Build @vertz/ci
+        run: cd packages/ci && bun run build
 
       - name: Build packages
         run: |
