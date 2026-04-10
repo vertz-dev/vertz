@@ -8,10 +8,7 @@
 
 import { err, ok, type Result } from '@vertz/errors';
 import type { Command } from 'commander';
-import {
-  type PipelineConfig,
-  PipelineOrchestrator,
-} from '../pipeline';
+import { type PipelineConfig, PipelineOrchestrator } from '../pipeline';
 import {
   checkVersionCompatibility,
   findRuntimeBinary,
