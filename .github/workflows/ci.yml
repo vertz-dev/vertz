@@ -264,6 +264,8 @@ jobs:
           tar -xzf "/tmp/vertz-runtime-linux-x64-${VTZ_VERSION}.tgz" -C /tmp
           cp /tmp/package/vtz packages/runtime-linux-x64/vtz
           chmod +x packages/runtime-linux-x64/vtz
+          # Build @vertz/ci so the config can import it
+          cd packages/ci && bun run build && cd ../..
           # Verify it works
           vtz --version
 
@@ -376,6 +378,7 @@ jobs:
           tar -xzf "/tmp/vertz-runtime-linux-x64-${VTZ_VERSION}.tgz" -C /tmp
           cp /tmp/package/vtz packages/runtime-linux-x64/vtz
           chmod +x packages/runtime-linux-x64/vtz
+          cd packages/ci && bun run build && cd ../..
 
       - name: Build packages
         run: vtz ci build-typecheck --concurrency 2
