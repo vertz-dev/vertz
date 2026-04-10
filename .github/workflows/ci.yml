@@ -269,14 +269,8 @@ jobs:
           # Verify it works
           vtz --version
 
-      - name: Restore vtz ci cache
-        uses: actions/cache@v4
-        with:
-          path: .pipe/cache
-          key: vtz-ci-${{ runner.os }}-${{ hashFiles('bun.lock') }}-${{ github.sha }}
-          restore-keys: |
-            vtz-ci-${{ runner.os }}-${{ hashFiles('bun.lock') }}-
-            vtz-ci-${{ runner.os }}-
+      # TODO: Re-enable actions/cache for .pipe/cache once the vtz ci
+      # cache engine actually writes task outputs (LocalCache bug).
 
       - name: Build & typecheck
         run: |
