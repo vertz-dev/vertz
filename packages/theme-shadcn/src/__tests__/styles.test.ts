@@ -190,21 +190,12 @@ describe('textarea', () => {
 });
 
 describe('dialog global styles', () => {
-  it('dialog wrapper has centering properties for viewport coverage', () => {
+  it('dialog wrapper uses margin:auto for native dialog centering', () => {
     const output = createDialogGlobalStyles();
     const css = output.css;
 
-    // Dialog wrapper must fill the viewport
-    expect(css).toContain('width: 100vw');
-    expect(css).toContain('height: 100vh');
-
-    // Dialog wrapper must center its panel child
-    expect(css).toContain('display: flex');
-    expect(css).toContain('align-items: center');
-    expect(css).toContain('justify-content: center');
-
-    // Dialog wrapper must not have browser-default margin
-    expect(css).toMatch(/dialog\[data-dialog-wrapper\]\s*\{[^}]*margin:\s*0/);
+    // Dialog wrapper uses margin: auto for native <dialog> centering
+    expect(css).toMatch(/dialog\[data-dialog-wrapper\]\s*\{[^}]*margin:\s*auto/);
   });
 });
 
