@@ -1517,6 +1517,9 @@ pub async fn start_server_with_lifecycle(
                 // Spawn file watcher task with error broadcasting
                 tokio::spawn(async move {
                     let mut debouncer = SmartDebouncer::new();
+                    // Generation counter: prevents stale isolates from winning
+                    // when rapid saves spawn concurrent init-then-swap tasks.
+                    let isolate_generation = Arc::new(std::sync::atomic::AtomicU64::new(0));
 
                     loop {
                         tokio::select! {
@@ -1560,6 +1563,11 @@ pub async fn start_server_with_lifecycle(
                                                 let new_arc = Arc::new(new_isolate);
                                                 let api_isolate_ref =
                                                     watcher_state.api_isolate.clone();
+                                                let gen = isolate_generation.fetch_add(
+                                                    1,
+                                                    std::sync::atomic::Ordering::SeqCst,
+                                                ) + 1;
+                                                let gen_ref = isolate_generation.clone();
                                                 tokio::spawn(async move {
                                                     if let Err(e) =
                                                         new_arc.wait_for_init().await
@@ -1569,6 +1577,21 @@ pub async fn start_server_with_lifecycle(
                                                              initialize: {} (old isolate still \
                                                              serving)",
                                                             e
+                                                        );
+                                                        return;
+                                                    }
+                                                    // Only swap if no newer isolate has
+                                                    // been created since this task was
+                                                    // spawned. Prevents stale isolates
+                                                    // from overwriting newer ones when
+                                                    // rapid saves spawn concurrent tasks.
+                                                    if gen_ref.load(
+                                                        std::sync::atomic::Ordering::SeqCst,
+                                                    ) != gen
+                                                    {
+                                                        eprintln!(
+                                                            "[Server] Newer isolate pending \
+                                                             — dropping stale isolate"
                                                         );
                                                         return;
                                                     }
