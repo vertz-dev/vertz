@@ -399,6 +399,17 @@ mod tests {
         assert_eq!(suggest_capability(""), None);
     }
 
+    // ── Structural invariant ──
+
+    #[test]
+    fn fs_all_equals_fs_read_plus_fs_write() {
+        let read: HashSet<&str> = resolve_capability("fs:read").into_iter().collect();
+        let write: HashSet<&str> = resolve_capability("fs:write").into_iter().collect();
+        let all: HashSet<&str> = resolve_capability("fs:all").into_iter().collect();
+        let combined: HashSet<&str> = read.union(&write).copied().collect();
+        assert_eq!(all, combined, "fs:all must equal fs:read ∪ fs:write");
+    }
+
     // ── resolve_capability coverage ──
 
     #[test]
