@@ -5,39 +5,25 @@
  * - query() with descriptor-based data fetching
  * - Direct conditional rendering for loading/error/data states
  * - Automatic optimistic updates — no refetch callbacks needed for any CRUD operation
- * - <List animate> for animated list item enter/exit
+ * - Plain <ul>/<li> for todo list (List component context bug with reactive .map())
  */
 
-import {
-  ANIMATION_DURATION,
-  ANIMATION_EASING,
-  css,
-  fadeOut,
-  globalCss,
-  query,
-  slideInFromTop,
-} from '@vertz/ui';
-import { List } from '@vertz/ui/components';
+import { css, query } from '@vertz/ui';
 import type { TodosResponse } from '../api/client';
 import { api } from '../api/client';
 import { TodoForm } from '../components/todo-form';
 import { TodoItem } from '../components/todo-item';
 import { emptyStateStyles } from '../styles/components';
 
-// Side-effect: injects global data-presence animation rules
-void globalCss({
-  '[data-presence="enter"]': {
-    animation: `${slideInFromTop} ${ANIMATION_DURATION} ${ANIMATION_EASING}`,
-  },
-  '[data-presence="exit"]': {
-    animation: `${fadeOut} ${ANIMATION_DURATION} ${ANIMATION_EASING}`,
-  },
-});
-
 const pageStyles = css({
   container: ['py:2', 'w:full'],
   listContainer: ['flex', 'flex-col', 'gap:2', 'mt:6', 'w:full'],
-  todoList: ['flex', 'flex-col', 'gap:2'],
+  todoList: [
+    'flex',
+    'flex-col',
+    'gap:2',
+    { '&': { 'list-style': 'none', margin: '0', padding: '0' } },
+  ],
   loading: ['text:muted-foreground'],
   error: ['text:destructive'],
 });
@@ -75,15 +61,13 @@ export function TodoListPage() {
                 </p>
               </div>
             )}
-            <div data-testid="todo-list" className={pageStyles.todoList}>
-              <List animate>
-                {todosQuery.data.items.map((todo: TodosResponse) => (
-                  <List.Item key={todo.id}>
-                    <TodoItem id={todo.id} title={todo.title} completed={todo.completed} />
-                  </List.Item>
-                ))}
-              </List>
-            </div>
+            <ul data-testid="todo-list" className={pageStyles.todoList}>
+              {todosQuery.data.items.map((todo: TodosResponse) => (
+                <li key={todo.id}>
+                  <TodoItem id={todo.id} title={todo.title} completed={todo.completed} />
+                </li>
+              ))}
+            </ul>
           </>
         )}
       </div>
