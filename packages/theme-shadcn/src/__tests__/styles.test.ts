@@ -4,6 +4,7 @@ import { createAlertStyles } from '../styles/alert';
 import { badgeConfig, createBadge } from '../styles/badge';
 import { buttonConfig, createButton } from '../styles/button';
 import { createCard } from '../styles/card';
+import { createDialogGlobalStyles } from '../styles/dialog';
 import { createFormGroup } from '../styles/form-group';
 import { createInput } from '../styles/input';
 import { createLabel } from '../styles/label';
@@ -185,6 +186,25 @@ describe('textarea', () => {
   it('has a non-empty class name string', () => {
     expect(typeof textarea.base).toBe('string');
     expect(textarea.base.length).toBeGreaterThan(0);
+  });
+});
+
+describe('dialog global styles', () => {
+  it('dialog wrapper has centering properties for viewport coverage', () => {
+    const output = createDialogGlobalStyles();
+    const css = output.css;
+
+    // Dialog wrapper must fill the viewport
+    expect(css).toContain('width: 100vw');
+    expect(css).toContain('height: 100vh');
+
+    // Dialog wrapper must center its panel child
+    expect(css).toContain('display: flex');
+    expect(css).toContain('align-items: center');
+    expect(css).toContain('justify-content: center');
+
+    // Dialog wrapper must not have browser-default margin
+    expect(css).toMatch(/dialog\[data-dialog-wrapper\]\s*\{[^}]*margin:\s*0/);
   });
 });
 

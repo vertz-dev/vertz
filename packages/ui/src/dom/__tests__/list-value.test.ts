@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, spyOn } from '@vertz/test';
+import { createContext, useContext } from '../../component/context';
 import { signal } from '../../runtime/signal';
 import { __listValue, _resetUnkeyedListValueWarning } from '../list-value';
 
@@ -448,6 +449,123 @@ describe('__listValue', () => {
     // Adding items works
     items.value = [{ id: 1, text: 'A' }];
     expect(container.childNodes.length).toBe(3);
+  });
+
+  describe('context scope preservation', () => {
+    it('renderFn can access context when children thunk resolves inside Provider', () => {
+      // Simulates the real compiled output: the parent component wraps
+      // children in a thunk `() => __listValue(...)`, and the List component
+      // resolves this thunk inside its Provider via __insert/resolveAndInsert.
+      const TestContext = createContext<{ label: string }>();
+      const items = signal<{ id: number }[]>([]);
+
+      const contextValues: (string | undefined)[] = [];
+
+      // 1. Children thunk (what the compiler generates for parent component)
+      const childrenThunk = () =>
+        __listValue(
+          items,
+          (item) => item.id,
+          (_item) => {
+            const ctx = useContext(TestContext);
+            contextValues.push(ctx?.label);
+            const li = document.createElement('li');
+            li.textContent = ctx?.label ?? 'no-context';
+            return li;
+          },
+        );
+
+      // 2. Resolve the thunk INSIDE the Provider (simulates __insert in ComposedListRoot)
+      const container = document.createElement('div');
+      TestContext.Provider({ label: 'from-provider' }, () => {
+        const fragment = childrenThunk();
+        container.appendChild(fragment);
+      });
+
+      // 3. Trigger reactive update — items arrive after initial empty render
+      items.value = [{ id: 1 }, { id: 2 }];
+
+      // renderFn should find the context on reactive re-runs via scope
+      expect(contextValues.length).toBe(2);
+      expect(contextValues[0]).toBe('from-provider');
+      expect(contextValues[1]).toBe('from-provider');
+    });
+
+    it('renderFn preserves context across multiple reactive updates', () => {
+      const TestContext = createContext<{ label: string }>();
+      const items = signal<{ id: number }[]>([{ id: 1 }]);
+
+      const contextValues: (string | undefined)[] = [];
+
+      const childrenThunk = () =>
+        __listValue(
+          items,
+          (item) => item.id,
+          (_item) => {
+            const ctx = useContext(TestContext);
+            contextValues.push(ctx?.label);
+            const li = document.createElement('li');
+            li.textContent = ctx?.label ?? 'no-context';
+            return li;
+          },
+        );
+
+      const container = document.createElement('div');
+      TestContext.Provider({ label: 'from-provider' }, () => {
+        const fragment = childrenThunk();
+        container.appendChild(fragment);
+      });
+
+      // First render: 1 item rendered with context
+      expect(contextValues.length).toBe(1);
+      expect(contextValues[0]).toBe('from-provider');
+
+      // Second update: add new items — context must still be available
+      items.value = [{ id: 1 }, { id: 2 }, { id: 3 }];
+      expect(contextValues.length).toBe(3);
+      expect(contextValues[1]).toBe('from-provider');
+      expect(contextValues[2]).toBe('from-provider');
+
+      // Third update: remove and add — context still works
+      items.value = [{ id: 4 }];
+      expect(contextValues.length).toBe(4);
+      expect(contextValues[3]).toBe('from-provider');
+    });
+
+    it('uses inner Provider value when same context is nested', () => {
+      const TestContext = createContext<{ label: string }>();
+      const items = signal<{ id: number }[]>([]);
+
+      const contextValues: (string | undefined)[] = [];
+
+      const childrenThunk = () =>
+        __listValue(
+          items,
+          (item) => item.id,
+          (_item) => {
+            const ctx = useContext(TestContext);
+            contextValues.push(ctx?.label);
+            const li = document.createElement('li');
+            li.textContent = ctx?.label ?? 'no-context';
+            return li;
+          },
+        );
+
+      // Nested Providers: outer provides 'outer', inner provides 'inner'
+      const container = document.createElement('div');
+      TestContext.Provider({ label: 'outer' }, () => {
+        TestContext.Provider({ label: 'inner' }, () => {
+          const fragment = childrenThunk();
+          container.appendChild(fragment);
+        });
+      });
+
+      items.value = [{ id: 1 }];
+
+      // Should see the inner Provider's value, not the outer
+      expect(contextValues.length).toBe(1);
+      expect(contextValues[0]).toBe('inner');
+    });
   });
 
   describe('index parameter', () => {

@@ -274,7 +274,29 @@ export function createContext<T>(defaultValue?: T, __stableId?: string): Context
 export function useContext<T>(ctx: Context<T>): UnwrapSignals<T> | undefined {
   // Synchronous path: Provider is currently on the call stack
   if (ctx._stack.length > 0) {
-    return ctx._stack[ctx._stack.length - 1] as UnwrapSignals<T>;
+    const value = ctx._stack[ctx._stack.length - 1] as UnwrapSignals<T>;
+
+    // Augment the effect's captured scope so that on re-runs (when the
+    // Provider is no longer on the call stack) the context is still found
+    // via the scope path. This fixes the case where __listValue creates
+    // its domEffect outside a Provider but the rendered output is placed
+    // inside one — the first run succeeds via _stack, and re-runs succeed
+    // via the augmented scope. See #2477.
+    //
+    // Safety: this mutates the ContextScope Map by reference. This is safe
+    // because each Provider creates a fresh Map via `new Map(parentScope)`,
+    // so child scopes are clones. The `!scope.has(key)` guard prevents
+    // overwriting an existing value (e.g., from a nested Provider for the
+    // same context). The augmented entry persists on the Map, which is the
+    // desired behavior — the effect's `_contextScope` reference is the
+    // same Map, so re-runs see the augmented value.
+    const key = asKey(ctx);
+    const scope = getContextScope();
+    if (scope && !scope.has(key)) {
+      scope.set(key, value);
+    }
+
+    return value;
   }
   // Async path: check the captured context scope
   const key = asKey(ctx);

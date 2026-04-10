@@ -53,13 +53,12 @@ export function createDialogStyles(): CSSOutput<DialogBlocks> {
         // No fixed/z-index/inset needed — the browser handles positioning.
         '&': {
           display: 'grid',
-          width: '100%',
-          'max-width': 'calc(100% - 2rem)',
+          width: 'calc(100vw - 2rem)',
+          'max-width': 'calc(100vw - 2rem)',
           'box-shadow': '0 0 0 1px color-mix(in oklch, var(--color-foreground) 10%, transparent)',
           'border-radius': 'calc(var(--radius) * 2)',
           padding: '1rem',
           'font-size': '0.875rem',
-          margin: 'auto',
           height: 'fit-content',
           outline: 'none',
           border: 'none',
@@ -178,12 +177,22 @@ export function createDialogStyles(): CSSOutput<DialogBlocks> {
 export function createDialogGlobalStyles(): GlobalCSSOutput {
   const output = globalCss({
     // ── Dialog wrapper (native <dialog>) ──
+    // Fill the viewport and center the panel via flexbox.
+    // Without explicit sizing + centering the browser's UA dialog centering
+    // breaks because theme overrides (border: none, padding: 0) remove the
+    // constraints the UA stylesheet relies on.
     'dialog[data-dialog-wrapper]': {
       background: 'transparent',
       border: 'none',
       padding: '0',
+      width: '100vw',
+      height: '100vh',
       maxWidth: '100vw',
       maxHeight: '100vh',
+      margin: '0',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
       overflow: 'visible',
     },
     'dialog[data-dialog-wrapper]::backdrop': {
@@ -202,13 +211,12 @@ export function createDialogGlobalStyles(): GlobalCSSOutput {
       position: 'relative',
       display: 'grid',
       gap: '1rem',
-      width: '100%',
-      maxWidth: 'calc(100% - 2rem)',
+      width: 'calc(100vw - 2rem)',
+      maxWidth: 'calc(100vw - 2rem)',
       boxShadow: '0 0 0 1px color-mix(in oklch, var(--color-foreground) 10%, transparent)',
       borderRadius: 'calc(var(--radius) * 2)',
       padding: '1rem',
       fontSize: '0.875rem',
-      margin: 'auto',
       height: 'fit-content',
       outline: 'none',
       containerType: 'inline-size',
