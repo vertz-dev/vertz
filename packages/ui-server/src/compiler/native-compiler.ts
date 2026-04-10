@@ -126,6 +126,9 @@ interface RawNativeCompiler {
 
 // ─── Loader ─────────────────────────────────────────────────────────
 
+import { existsSync } from 'node:fs';
+import { dirname, resolve } from 'node:path';
+
 let cachedCompiler: RawNativeCompiler | null = null;
 let nativeUnavailable = false;
 
@@ -133,6 +136,45 @@ function resolveBinaryName(): string {
   const platform = process.platform === 'darwin' ? 'darwin' : 'linux';
   const arch = process.arch === 'arm64' ? 'arm64' : 'x64';
   return `vertz-compiler.${platform}-${arch}.node`;
+}
+
+/**
+ * Resolve the native compiler binary path.
+ *
+ * 1. Try `require.resolve('@vertz/native-compiler/<binary>')` — works when
+ *    the package is installed as a regular npm dependency.
+ * 2. Walk up from this file to find the monorepo root (`native/vertz-compiler/`)
+ *    and load the binary directly — works in Bun workspace monorepos where
+ *    `require.resolve` doesn't resolve workspace-linked packages with subpath
+ *    exports.
+ */
+function resolveBinaryPath(binaryName: string): string | null {
+  // Try 1: standard npm module resolution
+  try {
+    return require.resolve(`@vertz/native-compiler/${binaryName}`);
+  } catch {
+    // Fall through to workspace resolution
+  }
+
+  // Try 2: workspace-relative resolution (monorepo / CI)
+  // Walk up from this file's directory to find `native/vertz-compiler/`
+  const startDir =
+    (typeof import.meta !== 'undefined' && import.meta.dir) ||
+    (typeof __dirname !== 'undefined' ? __dirname : null);
+  if (!startDir) return null;
+
+  let dir = dirname(startDir);
+  for (let i = 0; i < 10; i++) {
+    const candidate = resolve(dir, 'native', 'vertz-compiler', binaryName);
+    if (existsSync(candidate)) {
+      return candidate;
+    }
+    const parent = dirname(dir);
+    if (parent === dir) break;
+    dir = parent;
+  }
+
+  return null;
 }
 
 /**
@@ -144,17 +186,17 @@ export function loadNativeCompiler(): NativeCompiler {
   }
 
   const binaryName = resolveBinaryName();
+  const binaryPath = resolveBinaryPath(binaryName);
 
-  try {
-    const modulePath = require.resolve(`@vertz/native-compiler/${binaryName}`);
-    cachedCompiler = require(modulePath) as RawNativeCompiler;
-    return wrapCompiler(cachedCompiler);
-  } catch {
+  if (!binaryPath) {
     throw new Error(
       `Failed to load native compiler binary: @vertz/native-compiler/${binaryName}. ` +
         'Ensure @vertz/native-compiler is installed with the correct platform binary.',
     );
   }
+
+  cachedCompiler = require(binaryPath) as RawNativeCompiler;
+  return wrapCompiler(cachedCompiler);
 }
 
 /**
