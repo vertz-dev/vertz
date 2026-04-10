@@ -22,7 +22,7 @@ import type { TodosResponse } from '../api/client';
 import { api } from '../api/client';
 import { TodoForm } from '../components/todo-form';
 import { TodoItem } from '../components/todo-item';
-import { emptyStateStyles, listItemStyles } from '../styles/components';
+import { emptyStateStyles } from '../styles/components';
 
 // Side-effect: injects global data-presence animation rules
 void globalCss({
@@ -78,7 +78,7 @@ export function TodoListPage() {
             <div data-testid="todo-list" className={pageStyles.todoList}>
               <List animate>
                 {todosQuery.data.items.map((todo: TodosResponse) => (
-                  <List.Item key={todo.id} className={listItemStyles.root}>
+                  <List.Item key={todo.id}>
                     <TodoItem id={todo.id} title={todo.title} completed={todo.completed} />
                   </List.Item>
                 ))}

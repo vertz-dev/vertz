@@ -39,12 +39,6 @@ export const formStyles = css({
   error: ['text:xs', 'text:destructive', 'mt:1'],
 });
 
-// ── List item override (removes themed dividers/padding) ─────
-
-export const listItemStyles = css({
-  root: [{ '&': { padding: '0', 'border-bottom': 'none', background: 'none' } }],
-});
-
 // ── Todo item styles ─────────────────────────────────────────
 
 export const todoItemStyles = css({
