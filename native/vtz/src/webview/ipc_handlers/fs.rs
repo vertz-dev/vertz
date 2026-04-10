@@ -455,6 +455,20 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn remove_empty_directory() {
+        let dir = "/tmp/vtz_ipc_remove_empty";
+        let _ = tokio::fs::remove_dir_all(dir).await;
+        tokio::fs::create_dir_all(dir).await.unwrap();
+
+        let result = remove(FsPathParams {
+            path: dir.to_string(),
+        })
+        .await;
+        assert!(result.is_ok());
+        assert!(tokio::fs::metadata(dir).await.is_err());
+    }
+
+    #[tokio::test]
     async fn remove_non_empty_directory() {
         let dir = "/tmp/vtz_ipc_remove_nonempty";
         let _ = tokio::fs::remove_dir_all(dir).await;
