@@ -12,6 +12,7 @@ use tokio::runtime::Handle as TokioHandle;
 
 use super::ipc_handlers::fs as fs_handlers;
 use super::ipc_method::IpcMethod;
+use super::ipc_permissions::{suggest_capability, IpcPermissions};
 use super::{eval_script_event, UserEvent};
 
 /// A request from the webview JS side.
@@ -101,27 +102,37 @@ impl IpcError {
 /// Dispatches IPC requests from the webview to async handlers.
 ///
 /// Constructed before the event loop starts. Captures a tokio `Handle`
-/// (for spawning async work) and an `EventLoopProxy` (for sending
-/// responses back to the main thread).
+/// (for spawning async work), an `EventLoopProxy` (for sending
+/// responses back to the main thread), and `IpcPermissions` (for
+/// checking method allowlists before dispatch).
 #[derive(Clone)]
 pub struct IpcDispatcher {
     tokio_handle: TokioHandle,
     proxy: EventLoopProxy<UserEvent>,
+    permissions: IpcPermissions,
 }
 
 impl IpcDispatcher {
-    /// Create a new dispatcher.
-    pub fn new(tokio_handle: TokioHandle, proxy: EventLoopProxy<UserEvent>) -> Self {
+    /// Create a new dispatcher with the given permissions.
+    ///
+    /// For dev mode, pass `IpcPermissions::allow_all()`.
+    /// For production, pass `IpcPermissions::from_capabilities(&caps)`.
+    pub fn new(
+        tokio_handle: TokioHandle,
+        proxy: EventLoopProxy<UserEvent>,
+        permissions: IpcPermissions,
+    ) -> Self {
         Self {
             tokio_handle,
             proxy,
+            permissions,
         }
     }
 
     /// Handle a raw IPC request string from the webview.
     ///
     /// This runs on the main thread and must not block. It deserializes
-    /// the request and spawns async work on the tokio runtime.
+    /// the request, checks permissions, and spawns async work on the tokio runtime.
     pub fn dispatch(&self, body: &str) {
         let request: IpcRequest = match serde_json::from_str(body) {
             Ok(req) => req,
@@ -130,6 +141,37 @@ impl IpcDispatcher {
                 return;
             }
         };
+
+        // Permission check — synchronous, before spawning async work
+        if !self.permissions.is_allowed(&request.method) {
+            let suggestion = suggest_capability(&request.method);
+            let message = match suggestion {
+                Some(group) => format!(
+                    "IPC method '{}' is not allowed. \
+                     Add \"{}\" (or \"{}\" for fine-grained) to desktop.permissions in .vertzrc",
+                    request.method, group, request.method
+                ),
+                None => format!(
+                    "IPC method '{}' is not allowed. \
+                     Add it to desktop.permissions in .vertzrc",
+                    request.method
+                ),
+            };
+            let response = IpcErrResponse {
+                id: request.id,
+                ok: false,
+                error: IpcErrorPayload {
+                    code: IpcErrorCode::PermissionDenied.as_str().to_string(),
+                    message,
+                },
+            };
+            if let Ok(json) = serde_json::to_string(&response) {
+                let js = format!("window.__vtz_ipc_resolve({}, {})", request.id, json);
+                let (tx, _rx) = tokio::sync::oneshot::channel();
+                let _ = self.proxy.send_event(eval_script_event(js, tx));
+            }
+            return;
+        }
 
         let proxy = self.proxy.clone();
         let start = Instant::now();

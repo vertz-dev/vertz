@@ -7,6 +7,7 @@ pub mod bridge;
 pub mod ipc_dispatcher;
 pub mod ipc_handlers;
 pub mod ipc_method;
+pub mod ipc_permissions;
 
 use std::sync::Mutex;
 

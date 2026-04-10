@@ -151,8 +151,10 @@ fn run_desktop_mode(cli: Cli) {
     // Wait for the tokio handle from the background thread
     let tokio_handle = handle_rx.recv().expect("failed to receive tokio handle");
 
-    // Create IPC dispatcher with the tokio handle and event loop proxy
-    let dispatcher = IpcDispatcher::new(tokio_handle, app.proxy());
+    // Create IPC dispatcher with the tokio handle and event loop proxy.
+    // Dev mode: allow all IPC methods unrestricted.
+    let permissions = vertz_runtime::webview::ipc_permissions::IpcPermissions::allow_all();
+    let dispatcher = IpcDispatcher::new(tokio_handle, app.proxy(), permissions);
 
     // Main thread: run the native event loop (blocks forever)
     app.run(Some(dispatcher));

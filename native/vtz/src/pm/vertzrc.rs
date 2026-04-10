@@ -2,6 +2,14 @@ use fs2::FileExt;
 use serde::{Deserialize, Serialize};
 use std::path::Path;
 
+/// Desktop-specific configuration.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DesktopConfig {
+    /// IPC permission capability strings (e.g., "fs:read", "shell:all", "fs.readTextFile").
+    #[serde(default)]
+    pub permissions: Vec<String>,
+}
+
 /// Parsed .vertzrc configuration file.
 ///
 /// Uses `#[serde(flatten)]` to preserve unknown fields during round-trip.
@@ -31,6 +39,10 @@ pub struct VertzConfig {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub proxy: Option<serde_json::Value>,
 
+    /// Desktop-specific configuration (IPC permissions).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub desktop: Option<DesktopConfig>,
+
     /// Preserve unknown fields for forward compatibility.
     #[serde(flatten)]
     pub extra: serde_json::Map<String, serde_json::Value>,
@@ -48,8 +60,20 @@ impl Default for VertzConfig {
             extra_watch_paths: Vec::new(),
             plugin: None,
             proxy: None,
+            desktop: None,
             extra: serde_json::Map::new(),
         }
+    }
+}
+
+impl VertzConfig {
+    /// Get desktop IPC permission capability strings.
+    /// Returns empty vec if no desktop config is present.
+    pub fn desktop_permissions(&self) -> Vec<String> {
+        self.desktop
+            .as_ref()
+            .map(|d| d.permissions.clone())
+            .unwrap_or_default()
     }
 }
 
@@ -813,5 +837,109 @@ mod tests {
         let raw = std::fs::read_to_string(dir.path().join(".vertzrc")).unwrap();
         let parsed: serde_json::Value = serde_json::from_str(&raw).unwrap();
         assert!(parsed.get("proxy").is_none());
+    }
+
+    // --- desktop config tests ---
+
+    #[test]
+    fn test_desktop_defaults_to_none() {
+        let dir = tempfile::tempdir().unwrap();
+        let config = load_vertzrc(dir.path()).unwrap();
+        assert!(config.desktop.is_none());
+    }
+
+    #[test]
+    fn test_desktop_permissions_from_vertzrc() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(
+            dir.path().join(".vertzrc"),
+            r#"{"desktop": {"permissions": ["fs:read", "clipboard:all"]}}"#,
+        )
+        .unwrap();
+        let config = load_vertzrc(dir.path()).unwrap();
+        assert!(config.desktop.is_some());
+        let desktop = config.desktop.unwrap();
+        assert_eq!(desktop.permissions, vec!["fs:read", "clipboard:all"]);
+    }
+
+    #[test]
+    fn test_desktop_empty_object() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(dir.path().join(".vertzrc"), r#"{"desktop": {}}"#).unwrap();
+        let config = load_vertzrc(dir.path()).unwrap();
+        assert!(config.desktop.is_some());
+        assert!(config.desktop.unwrap().permissions.is_empty());
+    }
+
+    #[test]
+    fn test_desktop_empty_permissions_array() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(
+            dir.path().join(".vertzrc"),
+            r#"{"desktop": {"permissions": []}}"#,
+        )
+        .unwrap();
+        let config = load_vertzrc(dir.path()).unwrap();
+        assert!(config.desktop.is_some());
+        assert!(config.desktop.unwrap().permissions.is_empty());
+    }
+
+    #[test]
+    fn test_desktop_permissions_accessor_with_config() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(
+            dir.path().join(".vertzrc"),
+            r#"{"desktop": {"permissions": ["fs:read"]}}"#,
+        )
+        .unwrap();
+        let config = load_vertzrc(dir.path()).unwrap();
+        assert_eq!(config.desktop_permissions(), vec!["fs:read"]);
+    }
+
+    #[test]
+    fn test_desktop_permissions_accessor_without_config() {
+        let config = VertzConfig::default();
+        assert!(config.desktop_permissions().is_empty());
+    }
+
+    #[test]
+    fn test_desktop_round_trip() {
+        let dir = tempfile::tempdir().unwrap();
+        let config = VertzConfig {
+            desktop: Some(DesktopConfig {
+                permissions: vec!["fs:all".to_string(), "shell:execute".to_string()],
+            }),
+            ..Default::default()
+        };
+        save_vertzrc(dir.path(), &config).unwrap();
+        let loaded = load_vertzrc(dir.path()).unwrap();
+        assert_eq!(
+            loaded.desktop_permissions(),
+            vec!["fs:all", "shell:execute"]
+        );
+    }
+
+    #[test]
+    fn test_desktop_preserved_with_other_operations() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(
+            dir.path().join(".vertzrc"),
+            r#"{"trustScripts": ["esbuild"], "desktop": {"permissions": ["fs:read"]}}"#,
+        )
+        .unwrap();
+        config_add_trust_scripts(dir.path(), &["sharp".to_string()]).unwrap();
+        let loaded = load_vertzrc(dir.path()).unwrap();
+        assert_eq!(loaded.trust_scripts, vec!["esbuild", "sharp"]);
+        assert_eq!(loaded.desktop_permissions(), vec!["fs:read"]);
+    }
+
+    #[test]
+    fn test_desktop_not_serialized_when_none() {
+        let dir = tempfile::tempdir().unwrap();
+        let config = VertzConfig::default();
+        save_vertzrc(dir.path(), &config).unwrap();
+        let raw = std::fs::read_to_string(dir.path().join(".vertzrc")).unwrap();
+        let parsed: serde_json::Value = serde_json::from_str(&raw).unwrap();
+        assert!(parsed.get("desktop").is_none());
     }
 }
