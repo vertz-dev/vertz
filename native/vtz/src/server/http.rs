@@ -492,11 +492,11 @@ async fn ai_render_handler(
 
             match isolate.handle_ssr(ssr_req).await {
                 Ok(ssr_resp) => {
-                    // Return 404 when no route matched (fallback content rendered but URL is invalid)
-                    let status_code = if ssr_resp.matched_route_patterns.is_empty() {
-                        404u16
-                    } else {
-                        200u16
+                    // None = no router (always 200), Some(empty) = router but no match (404)
+                    let status_code = match &ssr_resp.matched_route_patterns {
+                        None => 200u16,
+                        Some(patterns) if patterns.is_empty() => 404u16,
+                        Some(_) => 200u16,
                     };
 
                     state
@@ -956,11 +956,11 @@ async fn dev_server_handler(
                                 }
                             );
                             eprintln!("[SSR] {}", render_msg);
-                            // Return 404 when no route matched
-                            let status_code = if ssr_resp.matched_route_patterns.is_empty() {
-                                404u16
-                            } else {
-                                200u16
+                            // None = no router (200), Some(empty) = router but no match (404)
+                            let status_code = match &ssr_resp.matched_route_patterns {
+                                None => 200u16,
+                                Some(patterns) if patterns.is_empty() => 404u16,
+                                Some(_) => 200u16,
                             };
                             state.audit_log.record(
                                 crate::server::audit_log::AuditEvent::ssr_render(
@@ -982,11 +982,11 @@ async fn dev_server_handler(
                                 .unwrap();
                         }
 
-                        // Return 404 when no route matched (fallback content rendered but URL is invalid)
-                        let status = if ssr_resp.matched_route_patterns.is_empty() {
-                            StatusCode::NOT_FOUND
-                        } else {
-                            StatusCode::OK
+                        // None = no router (200), Some(empty) = router but no match (404)
+                        let status = match &ssr_resp.matched_route_patterns {
+                            None => StatusCode::OK,
+                            Some(patterns) if patterns.is_empty() => StatusCode::NOT_FOUND,
+                            Some(_) => StatusCode::OK,
                         };
 
                         // Assemble the full HTML document from SSR response.
@@ -1224,13 +1224,16 @@ async fn handle_api_request(
     };
 
     if !isolate.is_initialized() {
-        return axum::response::Response::builder()
-            .status(StatusCode::SERVICE_UNAVAILABLE)
-            .header(header::CONTENT_TYPE, "application/json; charset=utf-8")
-            .body(Body::from(
-                r#"{"error":"API isolate is still initializing. Try again shortly."}"#,
-            ))
-            .unwrap();
+        if let Err(e) = isolate.wait_for_init().await {
+            return axum::response::Response::builder()
+                .status(StatusCode::SERVICE_UNAVAILABLE)
+                .header(header::CONTENT_TYPE, "application/json; charset=utf-8")
+                .body(Body::from(format!(
+                    r#"{{"error":"API isolate failed to initialize: {}"}}"#,
+                    e.to_string().replace('"', "\\\"")
+                )))
+                .unwrap();
+        }
     }
 
     if !isolate.has_api_handler() {

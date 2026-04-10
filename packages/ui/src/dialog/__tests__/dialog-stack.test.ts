@@ -1,8 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it } from '@vertz/test';
 import { createContext, getContextScope, useContext } from '../../component/context';
-import { __element } from '../../dom/element';
+import { __append, __element, __enterChildren, __exitChildren } from '../../dom/element';
 import { __on } from '../../dom/events';
 import { form, type SdkMethod } from '../../form/form';
+import { endHydration, startHydration } from '../../hydrate/hydration-context';
 import type { DialogHandle, DialogStack } from '../dialog-stack';
 import {
   createDialogStack,
@@ -1023,6 +1024,66 @@ describe('Feature: dialogs.confirm()', () => {
 
         const result = await resultPromise;
         expect(result).toBe(false);
+      });
+    });
+  });
+});
+
+describe('Feature: DialogStackProvider hydration', () => {
+  afterEach(() => {
+    endHydration();
+  });
+
+  describe('Given SSR output with DialogStackProvider wrapping children', () => {
+    describe('When hydration runs', () => {
+      it('Then the result is an HTMLElement with data-dialog-container', () => {
+        // Simulate SSR output: <div data-dialog-container><span>child</span></div>
+        const root = document.createElement('div');
+        root.innerHTML = '<div data-dialog-container=""><span>child</span></div>';
+
+        startHydration(root);
+
+        let dialogs: DialogStack | undefined;
+        const result = DialogStackProvider({
+          children: () => {
+            dialogs = useDialogStack();
+            // During hydration, __element should claim the existing <span>
+            const child = __element('span');
+            return child;
+          },
+        });
+
+        endHydration();
+
+        // Result must be an HTMLElement (not a DocumentFragment)
+        expect(result).toBeInstanceOf(HTMLElement);
+        // The container div should have the marker attribute
+        expect((result as HTMLElement).getAttribute('data-dialog-container')).toBe('');
+        // Children should be inside the container
+        expect((result as HTMLElement).querySelector('span')).toBeTruthy();
+        expect(dialogs).toBeDefined();
+      });
+
+      it('Then children are claimed from SSR DOM (not recreated)', () => {
+        const root = document.createElement('div');
+        root.innerHTML = '<div data-dialog-container=""><span>content</span></div>';
+        const ssrSpan = root.querySelector('span')!;
+
+        startHydration(root);
+
+        let claimedSpan: Element | undefined;
+        DialogStackProvider({
+          children: () => {
+            useDialogStack();
+            claimedSpan = __element('span');
+            return claimedSpan;
+          },
+        });
+
+        endHydration();
+
+        // The span should be the same DOM node (claimed, not recreated)
+        expect(claimedSpan).toBe(ssrSpan);
       });
     });
   });

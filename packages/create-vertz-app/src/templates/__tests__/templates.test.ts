@@ -281,6 +281,12 @@ describe('templates', () => {
       expect(appComponentTemplate()).toContain('ThemeProvider');
     });
 
+    it('wraps the tree with DialogStackProvider for useDialogStack support', () => {
+      const result = appComponentTemplate();
+      expect(result).toContain('DialogStackProvider');
+      expect(result).toContain('<DialogStackProvider>');
+    });
+
     it('renders HomePage', () => {
       expect(appComponentTemplate()).toContain('HomePage');
     });

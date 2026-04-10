@@ -350,8 +350,13 @@ async function handleProgressiveHTMLRequest(
     if (linkHeader) headers.Link = linkHeader;
     if (cacheControl) headers['Cache-Control'] = cacheControl;
 
-    // Return 404 when no route matched (fallback content was rendered but URL is invalid)
-    const status = result.matchedRoutePatterns?.length ? 200 : 404;
+    // undefined = no router (200), empty array = router but no match (404)
+    const status =
+      result.matchedRoutePatterns === undefined
+        ? 200
+        : result.matchedRoutePatterns.length > 0
+          ? 200
+          : 404;
 
     return buildProgressiveResponse({
       headChunk,
@@ -454,8 +459,13 @@ async function handleHTMLRequest(
     if (linkHeader) headers.Link = linkHeader;
     if (cacheControl) headers['Cache-Control'] = cacheControl;
 
-    // Return 404 when no route matched (fallback content was rendered but URL is invalid)
-    const status = result.matchedRoutePatterns?.length ? 200 : 404;
+    // undefined = no router (200), empty array = router but no match (404)
+    const status =
+      result.matchedRoutePatterns === undefined
+        ? 200
+        : result.matchedRoutePatterns.length > 0
+          ? 200
+          : 404;
     return new Response(html, { status, headers });
   } catch (err) {
     console.error('[SSR] Render failed:', err instanceof Error ? err.message : err);
