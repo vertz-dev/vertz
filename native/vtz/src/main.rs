@@ -1584,6 +1584,10 @@ async fn async_main(cli: Cli) {
                 eprintln!("error: {e}");
                 std::process::exit(1);
             }
+            // Force exit after successful completion. Child processes spawned by
+            // bun may leave open handles (file watchers, WebSocket connections)
+            // that keep the tokio runtime alive indefinitely.
+            std::process::exit(0);
         }
     }
 }
