@@ -65,65 +65,58 @@
     "@jridgewell/resolve-uri" "^3.1.0"
     "@jridgewell/sourcemap-codec" "^1.4.14"
 
-@vertz/core@^0.2.41:
-  version "0.2.44"
-  resolved "https://registry.npmjs.org/@vertz/core/-/core-0.2.44.tgz"
-  integrity "sha512-S9ttn8p46XGyK1UmL+zhHqb9a4bJPGxdmYb4twmz7YDoOUZHFez24D9L9EgqOWxWIRzU9nnEyfnSGAI7pSU1Aw=="
+@vertz/core@^0.2.56:
+  version "0.2.56"
+  resolved "https://registry.npmjs.org/@vertz/core/-/core-0.2.56.tgz"
+  integrity "sha512-r6RGZTCy8HEjtOgcJbCm9txAh4BNi/uSRwo1JjB0qWK1f1SSK6mCokj8/JbW/xyaEkTEjqifnzA6Xu7iZPPA6g=="
   dependencies:
-    "@vertz/schema" "^0.2.43"
+    "@vertz/schema" "^0.2.56"
 
-@vertz/errors@^0.2.43:
-  version "0.2.44"
-  resolved "https://registry.npmjs.org/@vertz/errors/-/errors-0.2.44.tgz"
-  integrity "sha512-tNpp0VRy95mIsOdO5xzj0X2V7bUwjLcNv/+tLHRU3Zy0NQhJ3bcCC3qlRmwmt8nGDZcM+5kD56N7PQdZ8lsEgw=="
+@vertz/errors@^0.2.56:
+  version "0.2.56"
+  resolved "https://registry.npmjs.org/@vertz/errors/-/errors-0.2.56.tgz"
+  integrity "sha512-pOZ99NwgzgP4l+rFeLuXnSFEaUWNjtk1XTXQVmZ4EyYZvFP4loSvMeEdmxzGZSDAEE+5S6Yjf3MDRqvuPlraUA=="
 
-@vertz/fetch@^0.2.41:
-  version "0.2.44"
-  resolved "https://registry.npmjs.org/@vertz/fetch/-/fetch-0.2.44.tgz"
-  integrity "sha512-AlO0br0T1gmnH74cX7GHcFnr/bmVVEAIq5QQDhwKXXKVS+vokiz7hq6DyXJwiUBo+QBjYJvHYyzDKOx8tQ8QcQ=="
+@vertz/fetch@^0.2.56:
+  version "0.2.56"
+  resolved "https://registry.npmjs.org/@vertz/fetch/-/fetch-0.2.56.tgz"
+  integrity "sha512-T0Mh6KfTKA47mTvGkf4PtU5UXLQhvTSAzxT9htuDKRwt4hbl7Ldm0jaeO3Ss9WfPEKL6rPjXJwcWLKGBHhhdtg=="
   dependencies:
-    "@vertz/errors" "^0.2.43"
+    "@vertz/errors" "^0.2.56"
 
-@vertz/fetch@^0.2.43:
-  version "0.2.44"
-  resolved "https://registry.npmjs.org/@vertz/fetch/-/fetch-0.2.44.tgz"
-  integrity "sha512-AlO0br0T1gmnH74cX7GHcFnr/bmVVEAIq5QQDhwKXXKVS+vokiz7hq6DyXJwiUBo+QBjYJvHYyzDKOx8tQ8QcQ=="
+@vertz/schema@^0.2.56:
+  version "0.2.56"
+  resolved "https://registry.npmjs.org/@vertz/schema/-/schema-0.2.56.tgz"
+  integrity "sha512-1meY7mAtKfib6GgfxUEzbqPa7XqCkYuGHyHN9IhLMa6Gu1qoS2tIrJa+bKcaZwFXCc9DUCrg37y1NVCtRuIkZA=="
   dependencies:
-    "@vertz/errors" "^0.2.43"
+    "@vertz/errors" "^0.2.56"
 
-@vertz/schema@^0.2.43:
-  version "0.2.44"
-  resolved "https://registry.npmjs.org/@vertz/schema/-/schema-0.2.44.tgz"
-  integrity "sha512-ftlRyhAIyyk1mUixq2kXGCMawpdz9goQDrFA+AZWXmjOxwBABnXcyf3DyJG6zQyp2Glh4zAAzBvmHifk8tODGg=="
-  dependencies:
-    "@vertz/errors" "^0.2.43"
-
-@vertz/ui-server@0.2.43:
-  version "0.2.43"
-  resolved "https://registry.npmjs.org/@vertz/ui-server/-/ui-server-0.2.43.tgz"
-  integrity "sha512-5UoOMVlH39HGXho7raGmQ/OrVl5bf+2eKeXI6ViP4N/DsOxo1wQh6/e5+njm/poV7oLqw9e9p4uSIQzF321KSQ=="
+@vertz/ui-server@0.2.56:
+  version "0.2.56"
+  resolved "https://registry.npmjs.org/@vertz/ui-server/-/ui-server-0.2.56.tgz"
+  integrity "sha512-09btB5cGKkCtgIy8jZtnxi6WT5KjqD3DV//glzVXNsjfjDwnqLAiAY/53Y6r8yD0daHw3QI9IHCOrrPHi6jvgw=="
   dependencies:
     "@ampproject/remapping" "^2.3.0"
     "@capsizecss/unpack" "^4.0.0"
     "@jridgewell/trace-mapping" "^0.3.31"
-    "@vertz/core" "^0.2.41"
-    "@vertz/ui" "^0.2.41"
+    "@vertz/core" "^0.2.56"
+    "@vertz/ui" "^0.2.56"
     "magic-string" "^0.30.0"
     "sharp" "^0.34.5"
 
-@vertz/ui@0.2.43:
-  version "0.2.44"
-  resolved "https://registry.npmjs.org/@vertz/ui/-/ui-0.2.44.tgz"
-  integrity "sha512-1cpMFHDpgxa0i+SEk1D+0aNzGszojnBOSveBv49WipxVvgro1F2qac/b4K7rdqBX0nqc17VkgvgduXlt9BlBmQ=="
+@vertz/ui@0.2.56:
+  version "0.2.56"
+  resolved "https://registry.npmjs.org/@vertz/ui/-/ui-0.2.56.tgz"
+  integrity "sha512-q8eK2co7mOgXYPlEKd/tXdDdKZ8c9cwLrqKl36q6DofODcHPRA3VWqJAioxyt16jtC7qXBISKO+WiWw8xr30ZA=="
   dependencies:
-    "@vertz/fetch" "^0.2.43"
+    "@vertz/fetch" "^0.2.56"
 
-@vertz/ui@^0.2.41:
-  version "0.2.43"
-  resolved "https://registry.npmjs.org/@vertz/ui/-/ui-0.2.43.tgz"
-  integrity "sha512-aOriJKpvMDL3H0M7UbwLzsxDgIRECftL2jSj4mBR4ysxQfRJT5h0QcU1Ulir1QZtGIK0FjjuI7TxUAfST4XNHg=="
+@vertz/ui@^0.2.56:
+  version "0.2.56"
+  resolved "https://registry.npmjs.org/@vertz/ui/-/ui-0.2.56.tgz"
+  integrity "sha512-q8eK2co7mOgXYPlEKd/tXdDdKZ8c9cwLrqKl36q6DofODcHPRA3VWqJAioxyt16jtC7qXBISKO+WiWw8xr30ZA=="
   dependencies:
-    "@vertz/fetch" "^0.2.41"
+    "@vertz/fetch" "^0.2.56"
 
 detect-libc@^2.1.2:
   version "2.1.2"
@@ -148,6 +141,8 @@ semver@^7.7.3:
   version "7.7.4"
   resolved "https://registry.npmjs.org/semver/-/semver-7.7.4.tgz"
   integrity "sha512-vFKC2IEtQnVhpT78h1Yp8wzwrf8CM+MzKMHGJZfBtzhZNycRFnXsHk6E5TxIkkMsgNS7mdX3AGB7x2QM2di4lA=="
+  bin:
+    "semver" "bin/semver.js"
 
 sharp@^0.34.5:
   version "0.34.5"

@@ -3,7 +3,7 @@
   "private": true,
   "type": "module",
   "dependencies": {
-    "@vertz/ui": "0.2.43",
-    "@vertz/ui-server": "0.2.43"
+    "@vertz/ui": "0.2.56",
+    "@vertz/ui-server": "0.2.56"
   }
 }
