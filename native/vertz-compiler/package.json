@@ -11,10 +11,10 @@
     "vertz-compiler.*.node"
   ],
   "scripts": {
-    "build": "which cargo > /dev/null 2>&1 && cargo build --release --manifest-path ../Cargo.toml && cp ../target/release/libvertz_compiler.dylib ./vertz-compiler.darwin-arm64.node || echo 'Skipping native build (cargo not found)'",
-    "build:debug": "cargo build --manifest-path ../Cargo.toml && cp ../target/debug/libvertz_compiler.dylib ./vertz-compiler.darwin-arm64.node",
-    "test": "test -f vertz-compiler.darwin-arm64.node && bun test __tests__/*.test.ts || echo 'Skipping native tests (binary not found)'",
-    "test:parity": "test -f vertz-compiler.darwin-arm64.node && bun test __tests__/parity/ || echo 'Skipping parity tests'"
+    "build": "which cargo > /dev/null 2>&1 && bash -c 'cargo build --release --manifest-path ../Cargo.toml -p vertz-compiler && if [ \"$(uname)\" = \"Darwin\" ]; then cp ../target/release/libvertz_compiler.dylib ./vertz-compiler.darwin-$([ \"$(uname -m)\" = \"arm64\" ] && echo arm64 || echo x64).node; else cp ../target/release/libvertz_compiler.so ./vertz-compiler.linux-$([ \"$(uname -m)\" = \"aarch64\" ] && echo arm64 || echo x64).node; fi' || echo 'Skipping native build (cargo not found)'",
+    "build:debug": "cargo build --manifest-path ../Cargo.toml -p vertz-compiler && if [ \"$(uname)\" = \"Darwin\" ]; then cp ../target/debug/libvertz_compiler.dylib ./vertz-compiler.darwin-arm64.node; else cp ../target/debug/libvertz_compiler.so ./vertz-compiler.linux-x64.node; fi",
+    "test": "ls vertz-compiler.*.node 1>/dev/null 2>&1 && bun test __tests__/*.test.ts || echo 'Skipping native tests (binary not found)'",
+    "test:parity": "ls vertz-compiler.*.node 1>/dev/null 2>&1 && bun test __tests__/parity/ || echo 'Skipping parity tests'"
   },
   "devDependencies": {}
 }

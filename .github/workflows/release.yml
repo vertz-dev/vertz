@@ -231,6 +231,21 @@ jobs:
         working-directory: packages/runtime
         run: bun build index.ts --outdir . --target node
 
+      - name: Install Rust (for native compiler)
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Cargo dependencies
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: native
+          key: compiler-only
+
+      - name: Build native compiler for library builds
+        run: |
+          cargo build --release --manifest-path native/Cargo.toml -p vertz-compiler
+          cp native/target/release/libvertz_compiler.so native/vertz-compiler/vertz-compiler.linux-x64.node
+          echo "Native compiler binary ready: $(ls -la native/vertz-compiler/vertz-compiler.linux-x64.node)"
+
       - name: Build TS packages
         run: turbo run build --filter='!@vertz-examples/*' --filter='!entity-todo-example' --filter='!@vertz/landing-nextjs' --filter='!@vertz/landing-nextjs-vercel' --filter='!@vertz/landing' --filter='!@vertz/component-docs' --filter='!@vertz/site' --filter='!@vertz/og' --filter='!@vertz/mint-docs' --filter='!@vertz-benchmarks/*' --filter='!contacts-api-example' --filter='!create-vertz'
 
