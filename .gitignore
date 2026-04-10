@@ -47,6 +47,7 @@ generated/
 tmp/
 temp/
 .turbo
+.pipe/
 memory/
 MEMORY.md
 
