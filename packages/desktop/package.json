@@ -1,6 +1,6 @@
 {
   "name": "@vertz/desktop",
-  "version": "0.2.54",
+  "version": "0.2.55",
   "description": "Type-safe desktop APIs for Vertz native webview — filesystem, shell, clipboard, dialogs, window control",
   "license": "MIT",
   "repository": {

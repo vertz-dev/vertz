@@ -1,5 +1,20 @@
 # @vertz/ui-server
 
+## 0.2.56
+
+### Patch Changes
+
+- [#2459](https://github.com/vertz-dev/vertz/pull/2459) [`52ebef6`](https://github.com/vertz-dev/vertz/commit/52ebef61c623f77becfde5bef8115a32daf027a6) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - fix(build): use native compiler for library builds so Provider children are thunked
+
+  Library packages (ui-primitives, theme-shadcn) were compiled with Bun's JSX fallback
+  instead of the native Rust compiler. The fallback doesn't wrap JSX children in thunks,
+  causing context-based components (List, Tabs, Dialog, etc.) to throw "must be used
+  inside" errors because children evaluate before the Provider sets up context.
+
+- Updated dependencies []:
+  - @vertz/core@0.2.56
+  - @vertz/ui@0.2.56
+
 ## 0.2.55
 
 ### Patch Changes

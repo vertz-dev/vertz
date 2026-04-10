@@ -1,6 +1,6 @@
 {
   "name": "@vertz/ui-server",
-  "version": "0.2.55",
+  "version": "0.2.56",
   "description": "Vertz UI server-side rendering runtime",
   "license": "MIT",
   "repository": {
