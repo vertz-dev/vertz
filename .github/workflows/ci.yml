@@ -279,10 +279,41 @@ jobs:
             vtz-ci-${{ runner.os }}-
 
       - name: Build & typecheck
-        run: vtz ci build-typecheck --concurrency 2
+        run: |
+          # TODO: Remove timeout wrapper after next runtime release that
+          # includes the std::process::exit(0) fix (see #2474).
+          # The pre-built vtz binary from npm doesn't have the fix yet.
+          set +eo pipefail
+          timeout --kill-after=10 120 vtz ci build-typecheck --concurrency 2 2>&1 | tee /tmp/build-output.log
+          EXIT_CODE=${PIPESTATUS[0]}
+          set -eo pipefail
+          if [ $EXIT_CODE -eq 0 ]; then exit 0; fi
+          if [ $EXIT_CODE -eq 124 ] || [ $EXIT_CODE -eq 137 ]; then
+            if grep -q '\[pipe\] Done in' /tmp/build-output.log && grep -q '0 failed' /tmp/build-output.log; then
+              echo "::warning::vtz ci completed but process did not exit cleanly (pending runtime release with #2474 fix)"
+              exit 0
+            fi
+          fi
+          echo "::error::Build/typecheck failed with exit code $EXIT_CODE"
+          exit 1
 
       - name: Test
-        run: vtz ci test --concurrency 2
+        run: |
+          # TODO: Remove timeout wrapper after next runtime release that
+          # includes the std::process::exit(0) fix (see #2474).
+          set +eo pipefail
+          timeout --kill-after=10 600 vtz ci test --concurrency 2 2>&1 | tee /tmp/test-output.log
+          EXIT_CODE=${PIPESTATUS[0]}
+          set -eo pipefail
+          if [ $EXIT_CODE -eq 0 ]; then exit 0; fi
+          if [ $EXIT_CODE -eq 124 ] || [ $EXIT_CODE -eq 137 ]; then
+            if grep -q '\[pipe\] Done in' /tmp/test-output.log && grep -q '0 failed' /tmp/test-output.log; then
+              echo "::warning::vtz ci completed but process did not exit cleanly (pending runtime release with #2474 fix)"
+              exit 0
+            fi
+          fi
+          echo "::error::Tests failed with exit code $EXIT_CODE"
+          exit 1
 
   # ---------------------------------------------------------------------------
   # Rust checks — runs in parallel with TS jobs.
