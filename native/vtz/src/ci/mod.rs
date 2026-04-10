@@ -92,7 +92,7 @@ pub async fn execute(action: CiAction, root_dir: &Path) -> Result<(), String> {
         }
         CiAction::Affected { base, json } => run_affected(root_dir, &base, json).await,
         CiAction::CacheStatus => {
-            let cache_dir = cache_dir(root_dir);
+            let cache_dir = cache_dir(root_dir, None);
             let local = cache::LocalCache::new(cache_dir.clone(), None);
             let (total_bytes, count) = local.status();
             let total_mb = total_bytes as f64 / (1024.0 * 1024.0);
@@ -103,7 +103,7 @@ pub async fn execute(action: CiAction, root_dir: &Path) -> Result<(), String> {
             Ok(())
         }
         CiAction::CacheClean => {
-            let local = cache::LocalCache::new(cache_dir(root_dir), None);
+            let local = cache::LocalCache::new(cache_dir(root_dir, None), None);
             match local.clean() {
                 Ok((count, bytes)) => {
                     let mb = bytes as f64 / (1024.0 * 1024.0);
@@ -301,9 +301,13 @@ async fn run_task_or_workflow(root_dir: &Path, opts: RunOptions) -> Result<(), S
     }
 
     // 8a. Create cache backend
+    let cache_local = pipe_config.cache.as_ref().and_then(|c| c.local.as_deref());
     let max_cache_size = pipe_config.cache.as_ref().and_then(|c| c.max_size);
-    let cache_backend: Arc<dyn cache::CacheBackend> =
-        Arc::from(cache::create_cache_backend(root_dir, max_cache_size));
+    let cache_backend: Arc<dyn cache::CacheBackend> = Arc::from(cache::create_cache_backend(
+        root_dir,
+        cache_local,
+        max_cache_size,
+    ));
 
     // Compute change context for task-level condition evaluation.
     // current_branch is cheap; ChangeSet needs a git diff so we only compute it
@@ -545,8 +549,18 @@ fn needs_changeset(cond: &types::Condition) -> bool {
 }
 
 /// Get the cache directory path for a given root.
-fn cache_dir(root_dir: &Path) -> std::path::PathBuf {
-    root_dir.join(".pipe").join("cache")
+fn cache_dir(root_dir: &Path, local_override: Option<&str>) -> std::path::PathBuf {
+    match local_override {
+        Some(p) => {
+            let path = Path::new(p);
+            if path.is_absolute() {
+                path.to_path_buf()
+            } else {
+                root_dir.join(p)
+            }
+        }
+        None => root_dir.join(".pipe").join("cache"),
+    }
 }
 
 /// Result of resolving the affected filter when root files changed but no packages are affected.
