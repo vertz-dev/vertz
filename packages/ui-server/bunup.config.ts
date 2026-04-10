@@ -19,6 +19,7 @@ export default defineConfig([
       'src/bun-plugin/fast-refresh-dom-state.ts',
       'src/bun-plugin/state-inspector.ts',
     ],
+    outDir: 'dist/bun-plugin',
     dts: true,
     target: 'bun',
     clean: false,
