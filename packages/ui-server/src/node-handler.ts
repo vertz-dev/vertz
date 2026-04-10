@@ -175,8 +175,13 @@ export function createNodeHandler(
         if (linkHeader) headers.Link = linkHeader;
         if (cacheControl) headers['Cache-Control'] = cacheControl;
 
-        // Return 404 when no route matched (fallback content rendered but URL is invalid)
-        const status = result.matchedRoutePatterns?.length ? 200 : 404;
+        // undefined = no router (200), empty array = router but no match (404)
+        const status =
+          result.matchedRoutePatterns === undefined
+            ? 200
+            : result.matchedRoutePatterns.length > 0
+              ? 200
+              : 404;
         res.writeHead(status, headers);
         res.end(html);
       } catch (err) {
@@ -264,8 +269,13 @@ async function handleProgressiveRequest(
   if (linkHeader) headers.Link = linkHeader;
   if (cacheControl) headers['Cache-Control'] = cacheControl;
 
-  // Return 404 when no route matched
-  const status = result.matchedRoutePatterns?.length ? 200 : 404;
+  // undefined = no router (200), empty array = router but no match (404)
+  const status =
+    result.matchedRoutePatterns === undefined
+      ? 200
+      : result.matchedRoutePatterns.length > 0
+        ? 200
+        : 404;
   res.writeHead(status, headers);
 
   // 1. Send head chunk immediately

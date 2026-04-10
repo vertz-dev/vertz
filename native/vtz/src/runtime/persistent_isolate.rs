@@ -139,8 +139,11 @@ pub struct SsrResponse {
     pub head_tags: Option<String>,
     /// Redirect URL set by ProtectedRoute during SSR (server should return 302).
     pub redirect: Option<String>,
-    /// Route patterns that matched the current URL (empty = 404).
-    pub matched_route_patterns: Vec<String>,
+    /// Route patterns that matched the current URL.
+    /// `None` = app has no router (always 200).
+    /// `Some(vec![])` = router present but no route matched (404).
+    /// `Some(vec![...])` = router matched these patterns (200).
+    pub matched_route_patterns: Option<Vec<String>>,
 }
 
 /// A component render request for the persistent isolate.
@@ -1482,8 +1485,7 @@ async fn dispatch_ssr_request(
                 arr.iter()
                     .filter_map(|v| v.as_str().map(String::from))
                     .collect()
-            })
-            .unwrap_or_default();
+            });
 
         Ok(SsrResponse {
             content,
@@ -1557,7 +1559,7 @@ async fn dispatch_ssr_request(
             ssr_data: None,
             head_tags: None,
             redirect: None,
-            matched_route_patterns: vec![],
+            matched_route_patterns: None,
         })
     }
 }
@@ -1816,7 +1818,7 @@ mod tests {
             ssr_data: Some(r#"[{"key":"tasks","data":[]}]"#.to_string()),
             head_tags: Some(r#"<link rel="preload" href="/font.woff2" />"#.to_string()),
             redirect: None,
-            matched_route_patterns: vec![],
+            matched_route_patterns: None,
         };
         assert_eq!(
             resp.ssr_data,

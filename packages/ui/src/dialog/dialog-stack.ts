@@ -1,7 +1,9 @@
+import type { ChildValue } from '../component/children';
+import { resolveChildren } from '../component/children';
 import type { ContextScope } from '../component/context';
 import { createContext, getContextScope, setContextScope, useContext } from '../component/context';
 import { onAnimationsComplete } from '../dom/animation';
-import { __element, __insert } from '../dom/element';
+import { __append, __element, __enterChildren, __exitChildren } from '../dom/element';
 import { popScope, pushScope, runCleanups } from '../runtime/disposal';
 import type { DisposeFn } from '../runtime/signal-types';
 
@@ -132,7 +134,12 @@ interface StackEntry {
  *
  * Creates a hydration-safe container div via `__element`, initializes the
  * dialog stack, and wraps children in `DialogStackContext.Provider`.
- * The container renders after children — dialogs portal into it.
+ *
+ * Uses `__enterChildren`/`__exitChildren`/`__append` so that during
+ * hydration it claims existing SSR nodes instead of creating new elements.
+ * The container div doubles as the wrapper element — children render inside
+ * it, and dialogs portal into it via `showModal()` (top-layer, so DOM
+ * position doesn't matter).
  */
 export function DialogStackProvider({ children }: { children?: unknown }): HTMLElement {
   const container = __element('div', { 'data-dialog-container': '' });
@@ -141,10 +148,13 @@ export function DialogStackProvider({ children }: { children?: unknown }): HTMLE
   return DialogStackContext.Provider({
     value: stack,
     children: () => {
-      const frag = document.createDocumentFragment();
-      __insert(frag, children as Parameters<typeof __insert>[1]);
-      frag.appendChild(container);
-      return frag;
+      __enterChildren(container);
+      const nodes = resolveChildren(children as ChildValue);
+      for (const node of nodes) {
+        __append(container, node);
+      }
+      __exitChildren();
+      return container;
     },
   });
 }
