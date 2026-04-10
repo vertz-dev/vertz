@@ -142,7 +142,7 @@ interface StackEntry {
  * position doesn't matter).
  */
 export function DialogStackProvider({ children }: { children?: unknown }): HTMLElement {
-  const container = __element('div', { 'data-dialog-container': '' });
+  const container = __element('div', { 'data-dialog-container': '', style: 'display:contents' });
   const stack = createDialogStack(container);
 
   return DialogStackContext.Provider({
