@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from '@vertz/test';
 //
 // NOTE: We do NOT vi.mock('jiti') because Bun test runs all files in one
 // process and vi.mock() is global — it would break every other test file
-// that uses jiti (fullstack-server, loader, load-db-context).
+// that uses jiti (loader, load-db-context).
 // Instead, we spy on the exported _importConfig helper.
 // ---------------------------------------------------------------------------
 

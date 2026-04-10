@@ -1,4 +1,4 @@
-import type { ErrorCategory } from './bun-dev-server';
+export type ErrorCategory = 'build' | 'resolve' | 'runtime' | 'ssr';
 
 export interface RuntimeErrorEntry {
   message: string;

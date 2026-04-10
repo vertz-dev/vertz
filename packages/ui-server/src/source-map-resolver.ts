@@ -167,7 +167,7 @@ export interface SourceMapResolver {
   invalidate(): void;
 }
 
-/** Error detail compatible with bun-dev-server's broadcastError. */
+/** Error detail for dev server error broadcasting. */
 export interface ErrorDetail {
   message: string;
   file?: string;

@@ -97,7 +97,6 @@ export function createCLI(): Command {
     .option('--open', 'Open browser on start')
     .option('--no-typecheck', 'Disable background type checking')
     .option('-v, --verbose', 'Verbose output')
-    .option('--experimental-runtime', '(deprecated) Use the native runtime — now the default')
     .action(async (opts) => {
       const result = await devAction({
         port: parseInt(opts.port, 10),
@@ -105,7 +104,6 @@ export function createCLI(): Command {
         open: opts.open,
         typecheck: opts.typecheck !== false && !opts.noTypecheck,
         verbose: opts.verbose,
-        experimentalRuntime: opts.experimentalRuntime,
       });
       if (!result.ok) {
         console.error(result.error.message);

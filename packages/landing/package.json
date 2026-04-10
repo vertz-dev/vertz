@@ -3,7 +3,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "bun run src/dev-server.ts",
+    "dev": "vtz dev",
     "dev:presence": "bun run src/presence-dev-server.ts",
     "dev:all": "bun run scripts/dev-all.ts",
     "build": "bun run scripts/generate-og.ts && vertz build",
