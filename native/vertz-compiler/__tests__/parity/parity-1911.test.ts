@@ -1,11 +1,5 @@
 import { describe, expect, it } from 'bun:test';
-import { join } from 'node:path';
-
-const NATIVE_MODULE_PATH = join(
-  import.meta.dir,
-  '..',
-  'vertz-compiler.darwin-arm64.node',
-);
+import { NATIVE_MODULE_PATH } from '../load-compiler';
 
 function loadCompiler() {
   return require(NATIVE_MODULE_PATH) as {
