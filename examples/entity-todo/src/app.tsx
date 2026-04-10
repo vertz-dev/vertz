@@ -8,7 +8,14 @@
  * - Minimal app shell without router (single page)
  */
 
-import { css, getInjectedCSS, globalCss, ThemeProvider, useContext } from '@vertz/ui';
+import {
+  css,
+  DialogStackProvider,
+  getInjectedCSS,
+  globalCss,
+  ThemeProvider,
+  useContext,
+} from '@vertz/ui';
 import { createSettingsValue, SettingsContext } from './lib/settings-context';
 import { TodoListPage } from './pages/todo-list';
 import { layoutStyles } from './styles/components';
@@ -88,12 +95,14 @@ export function App() {
     <div data-testid="app-root">
       <SettingsContext.Provider value={settings}>
         <ThemeProvider theme={settings.theme.peek()}>
-          <div className={layoutStyles.shell}>
-            <AppHeader />
-            <main className={layoutStyles.main}>
-              <TodoListPage />
-            </main>
-          </div>
+          <DialogStackProvider>
+            <div className={layoutStyles.shell}>
+              <AppHeader />
+              <main className={layoutStyles.main}>
+                <TodoListPage />
+              </main>
+            </div>
+          </DialogStackProvider>
         </ThemeProvider>
       </SettingsContext.Provider>
     </div>
