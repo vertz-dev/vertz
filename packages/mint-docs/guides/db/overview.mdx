@@ -111,8 +111,8 @@ export function createD1Db(d1: D1Database) {
 </Note>
 
 <Warning>
-  **SQLite requires the `vtz` runtime or Bun.** The `vtz` runtime includes a native SQLite driver
-  (`bun:sqlite`) — no extra dependencies needed. If you run scripts with plain `node` instead of
+  **SQLite requires the `vtz` runtime.** The `vtz` runtime includes a built-in SQLite driver
+  powered by Rust — no extra dependencies needed. If you run scripts with plain `node` instead of
   `vtz`, SQLite will fail to initialize. Always use `vtz dev`, `vtz test`, or `vtz run <script>` to
   run code that uses SQLite. For Node.js-only environments (e.g. production without `vtz`), use
   PostgreSQL instead.
