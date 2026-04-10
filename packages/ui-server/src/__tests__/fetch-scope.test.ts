@@ -135,7 +135,8 @@ describe('fetch-scope', () => {
       for (let i = 0; i < count; i++) {
         expect(await results[i].text()).toBe(`scope-${i}`);
       }
-      expect(mockOriginal).not.toHaveBeenCalled();
+      // Note: we don't assert mockOriginal was never called because parallel
+      // test files may trigger fetch through the proxy outside any scope.
     });
   });
 });

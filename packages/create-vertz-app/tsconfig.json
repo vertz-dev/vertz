@@ -13,7 +13,8 @@
     "rootDir": "./src",
     "skipLibCheck": true,
     "strict": true,
-    "target": "ES2022"
+    "target": "ES2022",
+    "types": ["bun-types"]
   },
   "exclude": ["node_modules", "dist", "**/__tests__"],
   "include": ["src/**/*"]

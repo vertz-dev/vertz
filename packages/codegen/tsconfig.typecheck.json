@@ -4,7 +4,7 @@
     "noEmit": true,
     "noUncheckedIndexedAccess": false,
     "skipLibCheck": true,
-    "types": ["node"]
+    "types": ["bun-types"]
   },
   "extends": "../../tsconfig.json",
   "include": ["src"]

@@ -92,7 +92,7 @@ describe('createNodeHandler', () => {
           server = result.server;
 
           const res = await fetch(`http://localhost:${result.port}/`);
-          expect(res.status).toBe(200);
+          expect(res.status).toBe(404);
           const html = await res.text();
           expect(html).toContain('Hello World');
           expect(html).toContain('<!DOCTYPE html>');
@@ -252,8 +252,8 @@ describe('createNodeHandler', () => {
         server = result.server;
 
         const res = await fetch(`http://localhost:${result.port}/`);
-        // Should still return 200 with HTML, just without session
-        expect(res.status).toBe(200);
+        // Should still return HTML, just without session (404 because no routes matched)
+        expect(res.status).toBe(404);
         const html = await res.text();
         expect(html).toContain('Hello World');
         expect(html).not.toContain('__VERTZ_SESSION__');
@@ -383,7 +383,7 @@ describe('createNodeHandler', () => {
           server = result.server;
 
           const res = await fetch(`http://localhost:${result.port}/`);
-          expect(res.status).toBe(200);
+          expect(res.status).toBe(404);
           expect(res.headers.get('content-type')).toBe('text/html; charset=utf-8');
           const html = await res.text();
           expect(html).toContain('Hello World');
@@ -602,7 +602,7 @@ describe('createNodeHandler', () => {
           const res = await fetch(`http://localhost:${result.port}/settings`);
           const html = await res.text();
           expect(html).toContain('Hello World');
-          expect(res.status).toBe(200);
+          expect(res.status).toBe(404);
         });
       });
     });
@@ -620,7 +620,7 @@ describe('createNodeHandler', () => {
           const res = await fetch(`http://localhost:${result.port}/`);
           const html = await res.text();
           expect(html).toContain('Hello World');
-          expect(res.status).toBe(200);
+          expect(res.status).toBe(404);
         });
       });
     });

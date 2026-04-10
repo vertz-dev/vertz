@@ -29,7 +29,7 @@
     "build": "vtzx bunup",
     "test": "bun test",
     "test:watch": "bun test --watch",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsgo --noEmit"
   },
   "dependencies": {
     "@vertz/icons": "workspace:^",

@@ -2,7 +2,9 @@ import { describe, expect, it } from '@vertz/test';
 
 import { compile, compileForSsrAot, loadNativeCompiler } from '../../compiler/native-compiler';
 
-describe('native-compiler wrapper', () => {
+const hasNativeCompiler = !!(globalThis as Record<string, unknown>).__NATIVE_COMPILER_AVAILABLE__;
+
+describe.skipIf(!hasNativeCompiler)('native-compiler wrapper', () => {
   describe('loadNativeCompiler', () => {
     it('loads the native compiler binary', () => {
       const nc = loadNativeCompiler();

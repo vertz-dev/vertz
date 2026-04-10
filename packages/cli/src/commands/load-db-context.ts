@@ -239,7 +239,6 @@ export async function createConnection(config: DbConfig): Promise<DbConnection> 
     const dbPath = parseSqliteUrl(config.url);
     let db: SqliteDatabase;
     try {
-      // @ts-expect-error — bun:sqlite is a runtime-only module (available when running under Bun)
       const { Database } = await import('bun:sqlite');
       db = new Database(dbPath) as SqliteDatabase;
     } catch (err) {

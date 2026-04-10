@@ -12,6 +12,8 @@ import { join } from 'node:path';
 import { installDomShim } from '../dom-shim';
 import type { SSRModule } from '../ssr-shared';
 
+const hasNativeCompiler = !!(globalThis as Record<string, unknown>).__NATIVE_COMPILER_AVAILABLE__;
+
 installDomShim();
 
 // ─── Test Fixtures ──────────────────────────────────────────────
@@ -264,7 +266,7 @@ describe('Feature: E2E AOT Pipeline', () => {
     });
   });
 
-  describe('Given the build manifest pipeline', () => {
+  describe.skipIf(!hasNativeCompiler)('Given the build manifest pipeline', () => {
     describe('When compiling source → building route map → generating barrel', () => {
       it('Then generateAotBuildManifest → buildAotRouteMap → generateAotBarrel produces valid output', async () => {
         // 1. Write source component

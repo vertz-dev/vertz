@@ -9,7 +9,8 @@
     "noUnusedLocals": false,
     "noUnusedParameters": false,
     "rootDir": "src",
-    "skipLibCheck": true
+    "skipLibCheck": true,
+    "types": ["bun-types"]
   },
   "exclude": ["node_modules", "dist", "**/*.test.ts", "**/*.test-d.ts", "**/*.test.tsx"],
   "extends": "../../tsconfig.json",

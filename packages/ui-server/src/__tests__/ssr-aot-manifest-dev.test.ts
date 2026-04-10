@@ -1,4 +1,7 @@
 import { describe, expect, it } from '@vertz/test';
+
+const hasNativeCompiler = !!(globalThis as Record<string, unknown>).__NATIVE_COMPILER_AVAILABLE__;
+
 import { createAotManifestManager } from '../ssr-aot-manifest-dev';
 
 // Minimal TSX source with a static component
@@ -27,7 +30,7 @@ export function Footer() {
 }
 `.trim();
 
-describe('AotManifestManager', () => {
+describe.skipIf(!hasNativeCompiler)('AotManifestManager', () => {
   describe('Given a manager with source files', () => {
     describe('When build() is called', () => {
       it('Then produces a manifest with AOT-compiled components', () => {

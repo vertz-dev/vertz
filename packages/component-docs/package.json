@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "bun run src/dev-server.ts",
     "build": "bun node_modules/@vertz/cli/dist/vertz.js build",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsgo --noEmit",
     "deploy": "bun run build && bunx wrangler deploy",
     "deploy:preview": "bun run build && bunx wrangler deploy --env preview"
   },

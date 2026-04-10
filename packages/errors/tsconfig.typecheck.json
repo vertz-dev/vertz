@@ -8,6 +8,7 @@
     "skipLibCheck": true,
     "types": ["@types/node"]
   },
+  "exclude": ["**/*.test.ts", "**/*.test-d.ts"],
   "extends": "../../tsconfig.json",
   "include": ["src"]
 }

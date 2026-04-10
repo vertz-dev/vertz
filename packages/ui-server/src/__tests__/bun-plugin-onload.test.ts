@@ -78,6 +78,8 @@ async function runPluginOnLoad(
   return onLoad({ path: filePath });
 }
 
+const hasNativeCompiler = !!(globalThis as Record<string, unknown>).__NATIVE_COMPILER_AVAILABLE__;
+
 // ── Tests ────────────────────────────────────────────────────────
 
 describe('bun-plugin onLoad handler', () => {
@@ -165,7 +167,7 @@ export function TaskList() {
     });
   });
 
-  describe('CSS sidecar with HMR', () => {
+  describe.skipIf(!hasNativeCompiler)('CSS sidecar with HMR', () => {
     it('writes CSS sidecar file and adds CSS import when hmr is enabled', async () => {
       const filePath = project.write(
         'styled.tsx',
@@ -239,12 +241,14 @@ export function Simple() {
       expect(doneEntries[0]?.data?.stages as string).toContain('sourceMap');
     });
 
-    it('includes css and hmr in stages when CSS is present and hmr enabled', async () => {
-      const logger = createMockLogger(new Set(['plugin']));
+    it.skipIf(!hasNativeCompiler)(
+      'includes css and hmr in stages when CSS is present and hmr enabled',
+      async () => {
+        const logger = createMockLogger(new Set(['plugin']));
 
-      const filePath = project.write(
-        'with-css.tsx',
-        `
+        const filePath = project.write(
+          'with-css.tsx',
+          `
 const styles = css({
   root: ['p:4'],
 });
@@ -253,27 +257,28 @@ export function WithCSS() {
   return <div class={styles.root}>Hello</div>;
 }
 `,
-      );
+        );
 
-      const { plugin } = createVertzBunPlugin({
-        projectRoot: project.dir,
-        srcDir: project.srcDir,
-        cssOutDir: project.cssDir,
-        hmr: true,
-        fastRefresh: false,
-        logger,
-      });
+        const { plugin } = createVertzBunPlugin({
+          projectRoot: project.dir,
+          srcDir: project.srcDir,
+          cssOutDir: project.cssDir,
+          hmr: true,
+          fastRefresh: false,
+          logger,
+        });
 
-      await runPluginOnLoad(plugin, filePath);
+        await runPluginOnLoad(plugin, filePath);
 
-      const doneEntries = logger.entries.filter(
-        (e) => e.category === 'plugin' && e.message === 'done',
-      );
-      expect(doneEntries.length).toBe(1);
-      const stages = doneEntries[0]?.data?.stages as string;
-      expect(stages).toContain('css');
-      expect(stages).toContain('hmr');
-    });
+        const doneEntries = logger.entries.filter(
+          (e) => e.category === 'plugin' && e.message === 'done',
+        );
+        expect(doneEntries.length).toBe(1);
+        const stages = doneEntries[0]?.data?.stages as string;
+        expect(stages).toContain('css');
+        expect(stages).toContain('hmr');
+      },
+    );
 
     it('includes fastRefresh and stableIds in stages when fastRefresh enabled', async () => {
       const logger = createMockLogger(new Set(['plugin']));
@@ -395,7 +400,7 @@ export function UserList() {
     });
   });
 
-  describe('CSS import line in output assembly', () => {
+  describe.skipIf(!hasNativeCompiler)('CSS import line in output assembly', () => {
     it('prepends CSS import line when CSS extraction has content and hmr is on', async () => {
       const filePath = project.write(
         'css-component.tsx',
