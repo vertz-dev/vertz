@@ -250,8 +250,10 @@ export async function resolveLocalSqliteDatabase(
         `  bun:sqlite error: ${bunMsg}\n` +
         `  better-sqlite3 error: ${betterMsg}\n\n` +
         'To fix this, either:\n' +
-        '  1. Use the Bun or Vertz runtime (which includes bun:sqlite), or\n' +
-        '  2. Install better-sqlite3: npm install better-sqlite3',
+        '  1. Run your script with vtz (e.g. vtz run <script> or vtz dev) — the Vertz\n' +
+        '     runtime includes a native SQLite driver. See https://vertz.dev/runtime\n' +
+        '  2. Use the Bun runtime (which includes bun:sqlite), or\n' +
+        '  3. Install better-sqlite3: npm install better-sqlite3',
     );
   }
 }
