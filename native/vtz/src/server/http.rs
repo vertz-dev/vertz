@@ -1541,6 +1541,11 @@ pub async fn start_server_with_lifecycle(
                                 // imports components transitively) or API routes,
                                 // so we restart on every change using the zero-
                                 // downtime create-then-swap pattern.
+                                //
+                                // The new isolate initializes on its V8 thread.
+                                // We spawn a task that waits for init to complete
+                                // before swapping it in, so the OLD isolate keeps
+                                // serving requests during initialization. (#2405)
                                 {
                                     let opts = {
                                         let guard = watcher_state
@@ -1552,27 +1557,50 @@ pub async fn start_server_with_lifecycle(
                                     if let Some(opts) = opts {
                                         match PersistentIsolate::new(opts) {
                                             Ok(new_isolate) => {
-                                                let old = {
-                                                    let mut guard = watcher_state
-                                                        .api_isolate
-                                                        .write()
-                                                        .unwrap_or_else(|e| e.into_inner());
-                                                    guard.replace(Arc::new(new_isolate))
-                                                };
-                                                if let Some(old_arc) = old {
-                                                    let refs = Arc::strong_count(&old_arc);
-                                                    if refs > 1 {
+                                                let new_arc = Arc::new(new_isolate);
+                                                let api_isolate_ref =
+                                                    watcher_state.api_isolate.clone();
+                                                tokio::spawn(async move {
+                                                    if let Err(e) =
+                                                        new_arc.wait_for_init().await
+                                                    {
                                                         eprintln!(
-                                                            "[Server] Old isolate still draining ({} refs)",
-                                                            refs - 1
+                                                            "[Server] New isolate failed to \
+                                                             initialize: {} (old isolate still \
+                                                             serving)",
+                                                            e
                                                         );
+                                                        return;
                                                     }
-                                                }
-                                                eprintln!("[Server] Isolate restarted (source change)");
+                                                    let old = {
+                                                        let mut guard = api_isolate_ref
+                                                            .write()
+                                                            .unwrap_or_else(|e| {
+                                                                e.into_inner()
+                                                            });
+                                                        guard.replace(new_arc)
+                                                    };
+                                                    if let Some(old_arc) = old {
+                                                        let refs =
+                                                            Arc::strong_count(&old_arc);
+                                                        if refs > 1 {
+                                                            eprintln!(
+                                                                "[Server] Old isolate still \
+                                                                 draining ({} refs)",
+                                                                refs - 1
+                                                            );
+                                                        }
+                                                    }
+                                                    eprintln!(
+                                                        "[Server] Isolate restarted \
+                                                         (source change)"
+                                                    );
+                                                });
                                             }
                                             Err(e) => {
                                                 eprintln!(
-                                                    "[Server] Failed to restart isolate: {} (old isolate still serving)",
+                                                    "[Server] Failed to restart isolate: {} \
+                                                     (old isolate still serving)",
                                                     e
                                                 );
                                             }
