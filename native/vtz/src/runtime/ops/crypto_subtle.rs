@@ -459,7 +459,7 @@ pub fn op_crypto_subtle_export_key(
             let curve = key.algorithm.split("::").nth(1).ok_or_else(|| {
                 deno_core::anyhow::anyhow!("Internal: malformed EC key algorithm")
             })?;
-            Ok(encode_ec_spki(bytes, curve))
+            encode_ec_spki(bytes, curve)
         }
         (KeyMaterial::EcPrivate(bytes), "pkcs8") => Ok(bytes.clone()),
         (KeyMaterial::RsaPrivate(bytes), "pkcs8") => Ok(bytes.clone()),
@@ -473,7 +473,7 @@ pub fn op_crypto_subtle_export_key(
 }
 
 /// Encode an EC public key (uncompressed point) as SubjectPublicKeyInfo DER.
-fn encode_ec_spki(uncompressed_point: &[u8], curve: &str) -> Vec<u8> {
+fn encode_ec_spki(uncompressed_point: &[u8], curve: &str) -> Result<Vec<u8>, AnyError> {
     // OID for id-ecPublicKey (1.2.840.10045.2.1)
     let ec_public_key_oid: &[u8] = &[0x06, 0x07, 0x2A, 0x86, 0x48, 0xCE, 0x3D, 0x02, 0x01];
 
@@ -482,7 +482,12 @@ fn encode_ec_spki(uncompressed_point: &[u8], curve: &str) -> Vec<u8> {
         "P-256" => &[0x06, 0x08, 0x2A, 0x86, 0x48, 0xCE, 0x3D, 0x03, 0x01, 0x07],
         // OID for secp384r1 (1.3.132.0.34)
         "P-384" => &[0x06, 0x05, 0x2B, 0x81, 0x04, 0x00, 0x22],
-        _ => return Vec::new(),
+        _ => {
+            return Err(deno_core::anyhow::anyhow!(
+                "NotSupportedError: Unsupported curve for SPKI export: {}",
+                curve
+            ))
+        }
     };
 
     // Inner SEQUENCE (algorithm identifier) = ecPublicKey OID + curve OID
@@ -511,7 +516,7 @@ fn encode_ec_spki(uncompressed_point: &[u8], curve: &str) -> Vec<u8> {
     result.push(0x00); // no unused bits
     result.extend_from_slice(uncompressed_point);
 
-    result
+    Ok(result)
 }
 
 fn der_length_size(len: usize) -> usize {
@@ -556,6 +561,8 @@ fn build_ec_jwk(key: &StoredKey) -> Result<serde_json::Value, AnyError> {
         }
     };
 
+    let key_ops: Vec<&str> = key.usages.iter().map(|s| s.as_str()).collect();
+
     match &key.material {
         KeyMaterial::EcPublic(raw) => {
             // raw is uncompressed point: 0x04 || x || y
@@ -571,6 +578,8 @@ fn build_ec_jwk(key: &StoredKey) -> Result<serde_json::Value, AnyError> {
                 "crv": curve,
                 "x": x,
                 "y": y,
+                "ext": key.extractable,
+                "key_ops": key_ops,
             }))
         }
         KeyMaterial::EcPrivate(pkcs8) => {
@@ -591,9 +600,7 @@ fn build_ec_jwk(key: &StoredKey) -> Result<serde_json::Value, AnyError> {
             let x = URL_SAFE_NO_PAD.encode(&pub_bytes[1..1 + coord_size]);
             let y = URL_SAFE_NO_PAD.encode(&pub_bytes[1 + coord_size..]);
 
-            // Extract d (private scalar) from PKCS#8
-            // PKCS#8 for EC: SEQUENCE { version, algorithmId, OCTET STRING { ECPrivateKey } }
-            // ECPrivateKey: SEQUENCE { version(1), OCTET STRING(d), [0] curve OID, [1] public key }
+            // Extract d (private scalar) from PKCS#8 by walking the ASN.1 structure
             let d_bytes = extract_ec_private_scalar(pkcs8, coord_size)?;
             let d = URL_SAFE_NO_PAD.encode(d_bytes);
 
@@ -603,6 +610,8 @@ fn build_ec_jwk(key: &StoredKey) -> Result<serde_json::Value, AnyError> {
                 "x": x,
                 "y": y,
                 "d": d,
+                "ext": key.extractable,
+                "key_ops": key_ops,
             }))
         }
         _ => Err(deno_core::anyhow::anyhow!(
@@ -611,53 +620,116 @@ fn build_ec_jwk(key: &StoredKey) -> Result<serde_json::Value, AnyError> {
     }
 }
 
-/// Extract the private scalar `d` from a PKCS#8-encoded EC private key.
-/// The PKCS#8 structure wraps an ECPrivateKey which contains the scalar
-/// as an OCTET STRING.
+/// Extract the private scalar `d` from a PKCS#8-encoded EC private key
+/// by walking the ASN.1 DER structure.
+///
+/// PKCS#8 layout:
+/// ```text
+/// SEQUENCE {                          -- outer envelope
+///   INTEGER 0                         -- version
+///   SEQUENCE { OID, OID }             -- algorithmIdentifier
+///   OCTET STRING {                    -- privateKey payload
+///     SEQUENCE {                      -- ECPrivateKey (RFC 5915)
+///       INTEGER 1                     -- version
+///       OCTET STRING <d>              -- private scalar ← this is what we extract
+///       [0] OID                       -- namedCurve (optional)
+///       [1] BIT STRING                -- publicKey (optional)
+///     }
+///   }
+/// }
+/// ```
 fn extract_ec_private_scalar(pkcs8: &[u8], coord_size: usize) -> Result<&[u8], AnyError> {
-    // Walk the ASN.1 DER to find the private key octet string.
-    // PKCS#8: SEQUENCE { INTEGER(0), SEQUENCE(algorithmId), OCTET STRING(ecPrivateKey) }
-    // ECPrivateKey: SEQUENCE { INTEGER(1), OCTET STRING(d), ... }
-    //
-    // We scan for a `coord_size`-byte OCTET STRING (tag 0x04) that appears
-    // inside the ECPrivateKey portion. The ECPrivateKey is itself wrapped
-    // in the outermost OCTET STRING of the PKCS#8 envelope, so we look for
-    // the inner OCTET STRING whose length matches `coord_size`.
-    let mut i = 0;
-    while i + 1 < pkcs8.len() {
-        if pkcs8[i] == 0x04 {
-            // OCTET STRING tag
-            let (len, hdr_size) = read_der_length(&pkcs8[i + 1..])?;
-            if len == coord_size && i + 1 + hdr_size + len <= pkcs8.len() {
-                let start = i + 1 + hdr_size;
-                return Ok(&pkcs8[start..start + len]);
-            }
-        }
-        i += 1;
+    let err =
+        || deno_core::anyhow::anyhow!("DataError: Could not extract EC private scalar from PKCS#8");
+    let mut pos = 0;
+
+    // 1. Outer SEQUENCE
+    expect_tag(pkcs8, &mut pos, 0x30)?;
+    skip_der_length(pkcs8, &mut pos)?;
+
+    // 2. Skip version INTEGER
+    expect_tag(pkcs8, &mut pos, 0x02)?;
+    let ver_len = read_and_advance_length(pkcs8, &mut pos)?;
+    pos += ver_len;
+
+    // 3. Skip algorithmIdentifier SEQUENCE
+    expect_tag(pkcs8, &mut pos, 0x30)?;
+    let algo_len = read_and_advance_length(pkcs8, &mut pos)?;
+    pos += algo_len;
+
+    // 4. Enter outer OCTET STRING (privateKey payload)
+    expect_tag(pkcs8, &mut pos, 0x04)?;
+    skip_der_length(pkcs8, &mut pos)?;
+
+    // 5. Enter ECPrivateKey SEQUENCE
+    expect_tag(pkcs8, &mut pos, 0x30)?;
+    skip_der_length(pkcs8, &mut pos)?;
+
+    // 6. Skip ECPrivateKey version INTEGER
+    expect_tag(pkcs8, &mut pos, 0x02)?;
+    let ec_ver_len = read_and_advance_length(pkcs8, &mut pos)?;
+    pos += ec_ver_len;
+
+    // 7. Read d OCTET STRING
+    expect_tag(pkcs8, &mut pos, 0x04)?;
+    let d_len = read_and_advance_length(pkcs8, &mut pos)?;
+    if d_len != coord_size {
+        return Err(err());
     }
-    Err(deno_core::anyhow::anyhow!(
-        "DataError: Could not extract EC private scalar from PKCS#8"
-    ))
+    if pos + d_len > pkcs8.len() {
+        return Err(err());
+    }
+    Ok(&pkcs8[pos..pos + d_len])
 }
 
-/// Read a DER length field. Returns (length_value, header_bytes_consumed).
-fn read_der_length(data: &[u8]) -> Result<(usize, usize), AnyError> {
-    if data.is_empty() {
-        return Err(deno_core::anyhow::anyhow!("DataError: Truncated DER"));
+/// Verify the expected DER tag at the current position and advance past it.
+fn expect_tag(data: &[u8], pos: &mut usize, expected: u8) -> Result<(), AnyError> {
+    if *pos >= data.len() || data[*pos] != expected {
+        return Err(deno_core::anyhow::anyhow!(
+            "DataError: Expected DER tag 0x{:02X} at offset {}, got 0x{:02X}",
+            expected,
+            pos,
+            if *pos < data.len() { data[*pos] } else { 0 }
+        ));
     }
-    if data[0] < 0x80 {
-        Ok((data[0] as usize, 1))
+    *pos += 1;
+    Ok(())
+}
+
+/// Read a DER length at the current position and advance past the length bytes.
+/// Returns the content length.
+fn read_and_advance_length(data: &[u8], pos: &mut usize) -> Result<usize, AnyError> {
+    if *pos >= data.len() {
+        return Err(deno_core::anyhow::anyhow!(
+            "DataError: Truncated DER at offset {}",
+            pos
+        ));
+    }
+    let first = data[*pos];
+    *pos += 1;
+    if first < 0x80 {
+        Ok(first as usize)
     } else {
-        let num_bytes = (data[0] & 0x7F) as usize;
-        if num_bytes == 0 || num_bytes > 2 || data.len() < 1 + num_bytes {
-            return Err(deno_core::anyhow::anyhow!("DataError: Invalid DER length"));
+        let num_bytes = (first & 0x7F) as usize;
+        if num_bytes == 0 || num_bytes > 2 || *pos + num_bytes > data.len() {
+            return Err(deno_core::anyhow::anyhow!(
+                "DataError: Invalid DER length at offset {}",
+                *pos - 1
+            ));
         }
         let mut len = 0usize;
-        for j in 0..num_bytes {
-            len = (len << 8) | (data[1 + j] as usize);
+        for _ in 0..num_bytes {
+            len = (len << 8) | (data[*pos] as usize);
+            *pos += 1;
         }
-        Ok((len, 1 + num_bytes))
+        Ok(len)
     }
+}
+
+/// Read a DER length and advance past both the length field and the content,
+/// effectively skipping the entire TLV value.
+fn skip_der_length(data: &[u8], pos: &mut usize) -> Result<usize, AnyError> {
+    read_and_advance_length(data, pos)
 }
 
 /// crypto.subtle.exportKey('jwk', key) — returns a JWK object
@@ -3701,6 +3773,8 @@ mod tests {
                 typeof jwk.x === 'string' && jwk.x.length > 0,
                 typeof jwk.y === 'string' && jwk.y.length > 0,
                 jwk.d === undefined,
+                jwk.ext === true,
+                Array.isArray(jwk.key_ops) && jwk.key_ops.includes('verify'),
             ];
         "#,
         )
@@ -3730,6 +3804,7 @@ mod tests {
                 jwk.crv === 'P-384',
                 typeof jwk.x === 'string' && jwk.x.length > 0,
                 typeof jwk.y === 'string' && jwk.y.length > 0,
+                jwk.ext === true,
             ];
         "#,
         )
@@ -3754,12 +3829,15 @@ mod tests {
                 { name: 'ECDSA', namedCurve: 'P-256' }, true, ['sign', 'verify']
             );
             const jwk = await crypto.subtle.exportKey('jwk', keyPair.privateKey);
+            // P-256 d is 32 bytes = 43 base64url chars
             return [
                 jwk.kty === 'EC',
                 jwk.crv === 'P-256',
                 typeof jwk.x === 'string' && jwk.x.length > 0,
                 typeof jwk.y === 'string' && jwk.y.length > 0,
-                typeof jwk.d === 'string' && jwk.d.length > 0,
+                typeof jwk.d === 'string' && jwk.d.length === 43,
+                jwk.ext === true,
+                Array.isArray(jwk.key_ops) && jwk.key_ops.includes('sign'),
             ];
         "#,
         )
@@ -3827,6 +3905,80 @@ mod tests {
             assert!(
                 item.as_bool().unwrap(),
                 "ECDSA P-384 SPKI export check {} failed",
+                i
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn test_ecdsa_p384_export_private_jwk() {
+        let mut rt = create_runtime();
+        let result = run_async(
+            &mut rt,
+            r#"
+            const keyPair = await crypto.subtle.generateKey(
+                { name: 'ECDSA', namedCurve: 'P-384' }, true, ['sign', 'verify']
+            );
+            const jwk = await crypto.subtle.exportKey('jwk', keyPair.privateKey);
+            // P-384 d is 48 bytes = 64 base64url chars
+            return [
+                jwk.kty === 'EC',
+                jwk.crv === 'P-384',
+                typeof jwk.x === 'string' && jwk.x.length > 0,
+                typeof jwk.y === 'string' && jwk.y.length > 0,
+                typeof jwk.d === 'string' && jwk.d.length === 64,
+                jwk.ext === true,
+                Array.isArray(jwk.key_ops) && jwk.key_ops.includes('sign'),
+            ];
+        "#,
+        )
+        .await;
+        let arr = result.as_array().unwrap();
+        for (i, item) in arr.iter().enumerate() {
+            assert!(
+                item.as_bool().unwrap(),
+                "ECDSA P-384 private JWK export check {} failed",
+                i
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn test_ecdsa_private_jwk_roundtrip_sign_verify() {
+        let mut rt = create_runtime();
+        let result = run_async(
+            &mut rt,
+            r#"
+            const keyPair = await crypto.subtle.generateKey(
+                { name: 'ECDSA', namedCurve: 'P-256' }, true, ['sign', 'verify']
+            );
+            // Export private key as JWK
+            const privJwk = await crypto.subtle.exportKey('jwk', keyPair.privateKey);
+            // Reconstruct private key from JWK d value, re-import via pkcs8 from original
+            // Verify that the exported d can produce valid signatures by:
+            // 1. Export private key as pkcs8, re-import
+            const pkcs8 = await crypto.subtle.exportKey('pkcs8', keyPair.privateKey);
+            const reimported = await crypto.subtle.importKey(
+                'pkcs8', pkcs8, { name: 'ECDSA', namedCurve: 'P-256' }, true, ['sign']
+            );
+            // 2. Sign with reimported key, verify with original public key
+            const data = new TextEncoder().encode('private roundtrip');
+            const sig = await crypto.subtle.sign(
+                { name: 'ECDSA', hash: 'SHA-256' }, reimported, data
+            );
+            const valid = await crypto.subtle.verify(
+                { name: 'ECDSA', hash: 'SHA-256' }, keyPair.publicKey, sig, data
+            );
+            // 3. Also verify the JWK d length is correct (43 base64url chars for 32 bytes)
+            return [valid, privJwk.d.length === 43];
+        "#,
+        )
+        .await;
+        let arr = result.as_array().unwrap();
+        for (i, item) in arr.iter().enumerate() {
+            assert!(
+                item.as_bool().unwrap(),
+                "ECDSA private JWK roundtrip check {} failed",
                 i
             );
         }
