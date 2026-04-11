@@ -1,3 +1,4 @@
+import { ok as okResult } from '@vertz/errors';
 import type { Result } from '@vertz/errors';
 import { allocateSubscription, addListener, unsubscribe } from './event.js';
 import { invoke } from './ipc.js';
@@ -95,7 +96,7 @@ export async function spawn(
     return result as Result<ChildProcess, DesktopError>;
   }
 
-  const { pid } = result.value;
+  const { pid } = result.data;
 
   const handle: ChildProcess = {
     pid,
@@ -121,5 +122,5 @@ export async function spawn(
     },
   };
 
-  return { ok: true, value: handle } as Result<ChildProcess, DesktopError>;
+  return okResult(handle);
 }
