@@ -39,8 +39,6 @@ export interface FileFilter {
 export interface OpenDialogOptions {
   filters?: FileFilter[];
   defaultPath?: string;
-  multiple?: boolean;
-  directory?: boolean;
   title?: string;
 }
 
@@ -77,8 +75,7 @@ export type DesktopErrorCode =
   | 'TIMEOUT'
   | 'METHOD_NOT_FOUND'
   | 'WINDOW_CLOSED'
-  | 'EXECUTION_FAILED'
-  | 'CANCELLED';
+  | 'EXECUTION_FAILED';
 
 export interface DesktopError {
   code: DesktopErrorCode;
