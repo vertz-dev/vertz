@@ -45,12 +45,12 @@ describe('generateDts', () => {
     }
   });
 
-  it('rejects with tsc stderr when source has type errors', async () => {
+  it('generates .d.ts even when source has type errors (--noCheck)', async () => {
     const typeErrorOutDir = join(typeErrorFixtureDir, 'dist');
     try {
-      await expect(
-        generateDts({ entry: ['src/index.ts'], dts: true }, typeErrorFixtureDir),
-      ).rejects.toThrow('tsc failed');
+      await generateDts({ entry: ['src/index.ts'], dts: true }, typeErrorFixtureDir);
+      // --noCheck skips type checking, so DTS is still generated
+      expect(existsSync(join(typeErrorOutDir, 'index.d.ts'))).toBe(true);
     } finally {
       if (existsSync(typeErrorOutDir)) {
         rmSync(typeErrorOutDir, { recursive: true });

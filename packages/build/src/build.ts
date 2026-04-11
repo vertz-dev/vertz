@@ -1,9 +1,9 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { bundle } from './bundle';
-import { generateDts } from './dts';
-import { normalizeHooks, runHooks } from './hooks';
-import type { BuildConfig } from './types';
+import { bundle } from './bundle.js';
+import { generateDts } from './dts.js';
+import { normalizeHooks, runHooks } from './hooks.js';
+import type { BuildConfig } from './types.js';
 
 export async function build(
   configs: BuildConfig | BuildConfig[],

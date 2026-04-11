@@ -1,8 +1,8 @@
 import { existsSync, readFileSync, rmSync, statSync } from 'node:fs';
 import { join, relative, resolve } from 'node:path';
 import * as esbuild from 'esbuild';
-import { resolveExternals } from './externals';
-import type { BuildConfig, OutputFileInfo } from './types';
+import { resolveExternals } from './externals.js';
+import type { BuildConfig, OutputFileInfo } from './types.js';
 
 export interface BundleResult {
   outputFiles: OutputFileInfo[];
@@ -42,6 +42,11 @@ export async function bundle(config: BuildConfig, cwd: string): Promise<BundleRe
   }
 
   const external = resolveExternals(packageJson, config.external);
+
+  // Always externalize node builtins — esbuild's neutral platform doesn't auto-externalize them
+  if (config.target !== 'browser') {
+    external.push('node:*');
+  }
 
   const result = await esbuild.build({
     entryPoints: config.entry,

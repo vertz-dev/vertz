@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import { resolve } from 'node:path';
-import { build } from './build';
-import type { BuildConfig } from './types';
+import { build } from './build.js';
+import type { BuildConfig } from './types.js';
 
 async function main() {
   const cwd = process.cwd();

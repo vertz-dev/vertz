@@ -26,7 +26,7 @@
     "provenance": true
   },
   "scripts": {
-    "build": "bunup",
+    "build": "vtzx vertz-build",
     "generate": "vtz run scripts/generate.ts",
     "test": "vtz test",
     "test:watch": "vtz test --watch",
@@ -34,6 +34,7 @@
   },
   "devDependencies": {
     "@happy-dom/global-registrator": "^20.7.0",
+    "@vertz/build": "workspace:^",
     "@vertz/test": "workspace:*",
     "bunup": "^0.16.31",
     "happy-dom": "^20.7.0",

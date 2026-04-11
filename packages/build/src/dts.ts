@@ -1,7 +1,7 @@
 import { execFile } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { dirname, join } from 'node:path';
-import type { BuildConfig } from './types';
+import type { BuildConfig } from './types.js';
 
 function findTsc(cwd: string): string {
   // Walk up from cwd looking for node_modules/.bin/tsc
@@ -26,7 +26,7 @@ export async function generateDts(config: BuildConfig, cwd: string): Promise<voi
   return new Promise((resolve, reject) => {
     execFile(
       tscPath,
-      ['--emitDeclarationOnly', '--outDir', outDir],
+      ['--emitDeclarationOnly', '--noCheck', '--outDir', outDir],
       { cwd },
       (error, _stdout, stderr) => {
         if (error) {

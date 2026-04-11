@@ -3,16 +3,16 @@ export type {
   OutputFileInfo,
   PostBuildContext,
   PostBuildHook,
-} from './types';
+} from './types.js';
 
-export { build } from './build';
+export { build } from './build.js';
 
-export function defineConfig(config: import('./types').BuildConfig): import('./types').BuildConfig;
+export function defineConfig(config: import('./types.js').BuildConfig): import('./types.js').BuildConfig;
 export function defineConfig(
-  config: import('./types').BuildConfig[],
-): import('./types').BuildConfig[];
+  config: import('./types.js').BuildConfig[],
+): import('./types.js').BuildConfig[];
 export function defineConfig(
-  config: import('./types').BuildConfig | import('./types').BuildConfig[],
-): import('./types').BuildConfig | import('./types').BuildConfig[] {
+  config: import('./types.js').BuildConfig | import('./types.js').BuildConfig[],
+): import('./types.js').BuildConfig | import('./types.js').BuildConfig[] {
   return config;
 }

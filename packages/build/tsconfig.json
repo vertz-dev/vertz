@@ -7,7 +7,7 @@
     "rootDir": "src",
     "types": ["@types/node"]
   },
-  "exclude": ["node_modules", "dist", "**/*.test.ts", "**/*.test-d.ts"],
+  "exclude": ["node_modules", "dist", "**/*.test.ts", "**/*.test-d.ts", "**/fixtures/**"],
   "extends": "../../tsconfig.json",
   "include": ["src"]
 }

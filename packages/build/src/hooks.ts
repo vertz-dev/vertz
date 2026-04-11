@@ -1,4 +1,4 @@
-import type { BuildConfig, PostBuildContext, PostBuildHook } from './types';
+import type { BuildConfig, PostBuildContext, PostBuildHook } from './types.js';
 
 export function normalizeHooks(onSuccess: BuildConfig['onSuccess']): PostBuildHook[] {
   if (!onSuccess) return [];
