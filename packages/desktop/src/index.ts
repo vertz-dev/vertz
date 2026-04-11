@@ -20,7 +20,7 @@ export type {
   ShellOutput,
   WindowSize,
 } from './types.js';
-export type { ExecuteOptions } from './shell.js';
+export type { ChildProcess, ExecuteOptions, SpawnOptions } from './shell.js';
 export type {
   DesktopPermissionConfig,
   IpcCapabilityGroup,

@@ -9,6 +9,7 @@ pub mod ipc_dispatcher;
 pub mod ipc_handlers;
 pub mod ipc_method;
 pub mod ipc_permissions;
+pub mod process_map;
 
 use std::sync::Mutex;
 

@@ -4,12 +4,14 @@
 //! deserializes them, spawns async work on a tokio runtime, and sends responses
 //! back via `UserEvent::EvalScript`.
 
+use std::sync::Arc;
 use std::time::Instant;
 
 use serde::{Deserialize, Serialize};
 use tao::event_loop::EventLoopProxy;
 use tokio::runtime::Handle as TokioHandle;
 
+use super::event_channel::EventChannel;
 use super::ipc_handlers::app as app_handlers;
 use super::ipc_handlers::clipboard as clipboard_handlers;
 use super::ipc_handlers::dialog as dialog_handlers;
@@ -18,6 +20,7 @@ use super::ipc_handlers::shell as shell_handlers;
 use super::ipc_handlers::window as window_handlers;
 use super::ipc_method::IpcMethod;
 use super::ipc_permissions::{suggest_capability, IpcPermissions};
+use super::process_map::ProcessMap;
 use super::{eval_script_event, UserEvent, WindowOp};
 
 /// A request from the webview JS side.
@@ -115,6 +118,8 @@ pub struct IpcDispatcher {
     tokio_handle: TokioHandle,
     proxy: EventLoopProxy<UserEvent>,
     permissions: IpcPermissions,
+    event_channel: EventChannel,
+    process_map: Arc<ProcessMap>,
 }
 
 impl IpcDispatcher {
@@ -127,11 +132,19 @@ impl IpcDispatcher {
         proxy: EventLoopProxy<UserEvent>,
         permissions: IpcPermissions,
     ) -> Self {
+        let event_channel = EventChannel::new(proxy.clone());
         Self {
             tokio_handle,
             proxy,
             permissions,
+            event_channel,
+            process_map: Arc::new(ProcessMap::new()),
         }
+    }
+
+    /// Get a reference to the process map for cleanup on shutdown.
+    pub fn process_map(&self) -> &Arc<ProcessMap> {
+        &self.process_map
     }
 
     /// Handle a raw IPC request string from the webview.
@@ -181,10 +194,14 @@ impl IpcDispatcher {
         let proxy = self.proxy.clone();
         let proxy_for_handler = self.proxy.clone();
         let start = Instant::now();
+        let event_channel = self.event_channel.clone();
+        let process_map = self.process_map.clone();
 
         self.tokio_handle.spawn(async move {
             let result = match IpcMethod::parse(&request.method, request.params) {
-                Ok(method) => execute_method(method, proxy_for_handler).await,
+                Ok(method) => {
+                    execute_method(method, proxy_for_handler, event_channel, process_map).await
+                }
                 Err(e) => Err(e),
             };
             let elapsed = start.elapsed();
@@ -232,6 +249,8 @@ impl IpcDispatcher {
 async fn execute_method(
     method: IpcMethod,
     proxy: EventLoopProxy<UserEvent>,
+    event_channel: EventChannel,
+    process_map: Arc<ProcessMap>,
 ) -> Result<serde_json::Value, IpcError> {
     match method {
         // ── Filesystem ──
@@ -245,6 +264,8 @@ async fn execute_method(
         IpcMethod::FsRename(p) => fs_handlers::rename(p).await,
         // ── Shell ──
         IpcMethod::ShellExecute(p) => shell_handlers::execute(p).await,
+        IpcMethod::ShellSpawn(p) => shell_handlers::spawn(p, event_channel, process_map).await,
+        IpcMethod::ProcessKill(p) => shell_handlers::kill(p, process_map).await,
         // ── Clipboard ──
         IpcMethod::ClipboardReadText => clipboard_handlers::read_text().await,
         IpcMethod::ClipboardWriteText(p) => clipboard_handlers::write_text(p).await,

@@ -42,6 +42,16 @@ pub struct ShellExecuteParams {
     pub env: Option<std::collections::HashMap<String, String>>,
 }
 
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ShellSpawnParams {
+    pub command: String,
+    pub args: Option<Vec<String>>,
+    pub cwd: Option<String>,
+    pub env: Option<std::collections::HashMap<String, String>>,
+    pub sub_id: u64,
+}
+
 // ── Clipboard params ──
 
 #[derive(Debug, Deserialize)]
@@ -55,6 +65,12 @@ pub struct ClipboardWriteTextParams {
 pub struct FileFilterParam {
     pub name: String,
     pub extensions: Vec<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProcessKillParams {
+    pub sub_id: u64,
 }
 
 #[derive(Debug, Deserialize)]
@@ -116,6 +132,11 @@ pub struct ShellOutputResponse {
 }
 
 #[derive(Debug, Serialize)]
+pub struct ShellSpawnResponse {
+    pub pid: u32,
+}
+
+#[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct FileStatResponse {
     pub size: u64,
@@ -159,6 +180,8 @@ pub enum IpcMethod {
     FsRename(FsRenameParams),
     // ── Shell ──
     ShellExecute(ShellExecuteParams),
+    ShellSpawn(ShellSpawnParams),
+    ProcessKill(ProcessKillParams),
     // ── Clipboard ──
     ClipboardReadText,
     ClipboardWriteText(ClipboardWriteTextParams),
@@ -207,6 +230,8 @@ impl IpcMethod {
             "fs.rename" => Ok(Self::FsRename(parse_params(method, params)?)),
             // ── Shell ──
             "shell.execute" => Ok(Self::ShellExecute(parse_params(method, params)?)),
+            "shell.spawn" => Ok(Self::ShellSpawn(parse_params(method, params)?)),
+            "process.kill" => Ok(Self::ProcessKill(parse_params(method, params)?)),
             // ── Clipboard ──
             "clipboard.readText" => Ok(Self::ClipboardReadText),
             "clipboard.writeText" => Ok(Self::ClipboardWriteText(parse_params(method, params)?)),
@@ -508,6 +533,31 @@ mod tests {
     }
 
     // ── Error cases ──
+
+    #[test]
+    fn parse_shell_spawn() {
+        let params = serde_json::json!({"command": "node", "args": ["server.js"], "subId": 42});
+        let method = IpcMethod::parse("shell.spawn", params).unwrap();
+        assert!(
+            matches!(method, IpcMethod::ShellSpawn(p) if p.command == "node" && p.sub_id == 42)
+        );
+    }
+
+    #[test]
+    fn parse_shell_spawn_minimal() {
+        let params = serde_json::json!({"command": "cat", "subId": 1});
+        let method = IpcMethod::parse("shell.spawn", params).unwrap();
+        assert!(
+            matches!(method, IpcMethod::ShellSpawn(p) if p.command == "cat" && p.args.is_none() && p.cwd.is_none())
+        );
+    }
+
+    #[test]
+    fn parse_process_kill() {
+        let params = serde_json::json!({"subId": 7});
+        let method = IpcMethod::parse("process.kill", params).unwrap();
+        assert!(matches!(method, IpcMethod::ProcessKill(p) if p.sub_id == 7));
+    }
 
     #[test]
     fn parse_unknown_method_returns_error() {
