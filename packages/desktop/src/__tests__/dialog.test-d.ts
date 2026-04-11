@@ -18,8 +18,6 @@ describe('Feature: dialog.open type safety', () => {
         dialog.open({
           filters: [{ name: 'Images', extensions: ['png', 'jpg'] }],
           defaultPath: '/tmp',
-          multiple: true,
-          directory: false,
           title: 'Open file',
         }),
       ).toEqualTypeOf<Promise<Result<string | null, DesktopError>>>();

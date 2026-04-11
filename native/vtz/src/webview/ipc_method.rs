@@ -60,8 +60,6 @@ pub struct FileFilterParam {
 pub struct DialogOpenParams {
     pub filters: Option<Vec<FileFilterParam>>,
     pub default_path: Option<String>,
-    pub multiple: Option<bool>,
-    pub directory: Option<bool>,
     pub title: Option<String>,
 }
 

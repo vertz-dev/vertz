@@ -36,24 +36,12 @@ pub async fn open(params: DialogOpenParams) -> Result<serde_json::Value, IpcErro
         }
     }
 
-    let is_directory = params.directory.unwrap_or(false);
-
-    if is_directory {
-        let result = dialog.pick_folder().await;
-        match result {
-            Some(handle) => Ok(serde_json::Value::String(
-                handle.path().to_string_lossy().to_string(),
-            )),
-            None => Ok(serde_json::Value::Null),
-        }
-    } else {
-        let result = dialog.pick_file().await;
-        match result {
-            Some(handle) => Ok(serde_json::Value::String(
-                handle.path().to_string_lossy().to_string(),
-            )),
-            None => Ok(serde_json::Value::Null),
-        }
+    let result = dialog.pick_file().await;
+    match result {
+        Some(handle) => Ok(serde_json::Value::String(
+            handle.path().to_string_lossy().to_string(),
+        )),
+        None => Ok(serde_json::Value::Null),
     }
 }
 
