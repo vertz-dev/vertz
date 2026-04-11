@@ -199,6 +199,7 @@ export interface ExpectTypeOf {
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 let _runtime: any;
 
+// @ts-expect-error - Bun global is only available in Bun runtime
 if (typeof Bun !== 'undefined') {
   // Running under Bun — re-export from bun:test so `bun test` works
   // eslint-disable-next-line @typescript-eslint/no-require-imports
