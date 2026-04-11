@@ -1,8 +1,8 @@
-import { defineConfig } from 'bunup';
+import { defineConfig } from '@vertz/build';
 
 export default defineConfig({
   entry: ['src/index.ts'],
-  dts: { inferTypes: true },
+  dts: true,
   external: [
     '@mdx-js/mdx',
     '@shikijs/rehype',

@@ -55,7 +55,7 @@ export async function bundle(config: BuildConfig, cwd: string): Promise<BundleRe
     outdir: config.outDir ?? 'dist',
     splitting: config.entry.length > 1,
     target: resolveTarget(config.target),
-    platform: config.target === 'browser' ? 'browser' : 'neutral',
+    platform: config.target === 'node' ? 'node' : config.target === 'browser' ? 'browser' : 'neutral',
     external,
     plugins: config.plugins,
     banner: resolveBanner(config.banner),

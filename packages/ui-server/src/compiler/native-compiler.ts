@@ -128,6 +128,7 @@ interface RawNativeCompiler {
 
 import { existsSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 let cachedCompiler: RawNativeCompiler | null = null;
 let nativeUnavailable = false;
@@ -160,6 +161,9 @@ function resolveBinaryPath(binaryName: string): string | null {
   // Walk up from this file's directory to find `native/vertz-compiler/`
   const startDir =
     (typeof import.meta !== 'undefined' && import.meta.dir) ||
+    (typeof import.meta !== 'undefined' && import.meta.url
+      ? dirname(fileURLToPath(import.meta.url))
+      : null) ||
     (typeof __dirname !== 'undefined' ? __dirname : null);
   if (!startDir) return null;
 
@@ -227,7 +231,9 @@ function wrapCompiler(raw: RawNativeCompiler): NativeCompiler {
   };
 }
 
-// ─── Bun JSX fallback ───────────────────────────────────────────────
+// ─── JSX fallback ───────────────────────────────────────────────────
+
+import { transformSync } from 'esbuild';
 
 let warnedFallback = false;
 
@@ -235,17 +241,15 @@ function compileFallback(source: string): NativeCompileResult {
   if (!warnedFallback) {
     warnedFallback = true;
     console.warn(
-      '[vertz] Native compiler binary not available — falling back to Bun JSX transpiler. ' +
+      '[vertz] Native compiler binary not available — falling back to esbuild JSX transpiler. ' +
         'Signal transforms, CSS extraction, and hydration markers will be missing.',
     );
   }
-  const code = new Bun.Transpiler({
+  const { code } = transformSync(source, {
     loader: 'tsx',
-    autoImportJSX: true,
-    tsconfig: JSON.stringify({
-      compilerOptions: { jsx: 'react-jsx', jsxImportSource: '@vertz/ui' },
-    }),
-  }).transformSync(source);
+    jsx: 'automatic',
+    jsxImportSource: '@vertz/ui',
+  });
   return { code, diagnostics: [] };
 }
 

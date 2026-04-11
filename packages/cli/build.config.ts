@@ -1,10 +1,9 @@
-import { defineConfig } from 'bunup';
+import { defineConfig } from '@vertz/build';
 
 export default defineConfig([
   {
     entry: ['src/index.ts'],
-    format: ['esm'],
-    dts: { inferTypes: true },
+    dts: true,
     clean: true,
     external: [
       '@vertz/compiler',
@@ -18,9 +17,7 @@ export default defineConfig([
   },
   {
     entry: ['bin/vertz.ts'],
-    format: ['esm'],
     dts: false,
-    clean: false,
     external: [
       '@vertz/compiler',
       '@vertz/tui',
@@ -30,6 +27,6 @@ export default defineConfig([
       'jiti',
       'postgres',
     ],
-    banner: '#!/usr/bin/env bun',
+    banner: '#!/usr/bin/env node',
   },
 ]);

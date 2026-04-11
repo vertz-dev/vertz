@@ -1,4 +1,4 @@
-import { defineConfig } from 'bunup';
+import { defineConfig } from '@vertz/build';
 
 export default defineConfig({
   entry: [

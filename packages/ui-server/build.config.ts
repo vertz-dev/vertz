@@ -1,4 +1,4 @@
-import { defineConfig } from 'bunup';
+import { defineConfig } from '@vertz/build';
 
 export default defineConfig([
   {
@@ -21,7 +21,6 @@ export default defineConfig([
     ],
     outDir: 'dist/bun-plugin',
     dts: true,
-    target: 'bun',
-    clean: false,
+    target: 'node',
   },
 ]);

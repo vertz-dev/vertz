@@ -21,6 +21,22 @@ export function resolveExternals(
     }
   }
 
+  const devDependencies = packageJson.devDependencies as Record<string, string> | undefined;
+  if (devDependencies) {
+    for (const key of Object.keys(devDependencies)) {
+      deps.add(key);
+      deps.add(`${key}/*`);
+    }
+  }
+
+  const optionalDependencies = packageJson.optionalDependencies as Record<string, string> | undefined;
+  if (optionalDependencies) {
+    for (const key of Object.keys(optionalDependencies)) {
+      deps.add(key);
+      deps.add(`${key}/*`);
+    }
+  }
+
   if (configExternals) {
     for (const ext of configExternals) {
       deps.add(ext);

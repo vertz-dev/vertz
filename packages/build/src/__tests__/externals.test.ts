@@ -17,11 +17,20 @@ describe('resolveExternals', () => {
     expect(result).toContain('react');
   });
 
-  it('does not include devDependencies', () => {
+  it('includes devDependencies as external', () => {
     const result = resolveExternals({
       devDependencies: { vitest: '^1.0.0' },
     });
-    expect(result).not.toContain('vitest');
+    expect(result).toContain('vitest');
+    expect(result).toContain('vitest/*');
+  });
+
+  it('includes optionalDependencies as external', () => {
+    const result = resolveExternals({
+      optionalDependencies: { postgres: '^3.4.0' },
+    });
+    expect(result).toContain('postgres');
+    expect(result).toContain('postgres/*');
   });
 
   it('merges config externals', () => {
