@@ -51,7 +51,7 @@ export function createApp(config: AppConfig): AppBuilder {
       return { routes: registeredRoutes };
     },
     async listen(port, options) {
-      const adapter = detectAdapter();
+      const adapter = await detectAdapter();
       const serverHandle = await adapter.listen(port ?? DEFAULT_PORT, builder.handler, options);
 
       if (options?.logRoutes !== false) {
