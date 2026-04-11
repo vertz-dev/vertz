@@ -31,7 +31,9 @@ export function resolveExternals(
     }
   }
 
-  const optionalDependencies = packageJson.optionalDependencies as Record<string, string> | undefined;
+  const optionalDependencies = packageJson.optionalDependencies as
+    | Record<string, string>
+    | undefined;
   if (optionalDependencies) {
     for (const key of Object.keys(optionalDependencies)) {
       deps.add(key);

@@ -5,10 +5,7 @@ import { generateDts } from './dts.js';
 import { normalizeHooks, runHooks } from './hooks.js';
 import type { BuildConfig } from './types.js';
 
-export async function build(
-  configs: BuildConfig | BuildConfig[],
-  cwd: string,
-): Promise<void> {
+export async function build(configs: BuildConfig | BuildConfig[], cwd: string): Promise<void> {
   const configArray = Array.isArray(configs) ? configs : [configs];
 
   // Read package.json once for hooks context
@@ -40,8 +37,6 @@ export async function build(
 
     const elapsed = Date.now() - startTime;
     const outFileCount = result.outputFiles.length;
-    console.error(
-      `  Built ${entryCount} entries → ${outFileCount} files (${elapsed}ms)`,
-    );
+    console.error(`  Built ${entryCount} entries → ${outFileCount} files (${elapsed}ms)`);
   }
 }

@@ -34,20 +34,17 @@ describe('resolveExternals', () => {
   });
 
   it('merges config externals', () => {
-    const result = resolveExternals(
-      { dependencies: { lodash: '^4.0.0' } },
-      ['bun:sqlite', 'bun:test'],
-    );
+    const result = resolveExternals({ dependencies: { lodash: '^4.0.0' } }, [
+      'bun:sqlite',
+      'bun:test',
+    ]);
     expect(result).toContain('lodash');
     expect(result).toContain('bun:sqlite');
     expect(result).toContain('bun:test');
   });
 
   it('deduplicates entries', () => {
-    const result = resolveExternals(
-      { dependencies: { lodash: '^4.0.0' } },
-      ['lodash'],
-    );
+    const result = resolveExternals({ dependencies: { lodash: '^4.0.0' } }, ['lodash']);
     const lodashCount = result.filter((e) => e === 'lodash').length;
     expect(lodashCount).toBe(1);
   });

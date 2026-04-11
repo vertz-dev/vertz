@@ -12,8 +12,9 @@ async function main() {
     const { createJiti } = await import('jiti');
     const jiti = createJiti(cwd, { interopDefault: true });
     const loaded = await jiti.import(configPath);
-    config = ((loaded as { default?: BuildConfig | BuildConfig[] }).default ??
-      loaded) as BuildConfig | BuildConfig[];
+    config = ((loaded as { default?: BuildConfig | BuildConfig[] }).default ?? loaded) as
+      | BuildConfig
+      | BuildConfig[];
   } catch (err) {
     console.error(`Failed to load build.config.ts: ${(err as Error).message}`);
     process.exit(1);

@@ -81,9 +81,9 @@
   },
   "devDependencies": {
     "@happy-dom/global-registrator": "^20.7.0",
+    "@vertz/build": "workspace:^",
     "@vertz/schema": "workspace:^",
     "@vertz/test": "workspace:*",
-    "@vertz/build": "workspace:^",
     "happy-dom": "^20.7.0",
     "typescript": "^5.7.0"
   },

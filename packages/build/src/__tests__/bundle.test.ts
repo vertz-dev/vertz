@@ -33,10 +33,7 @@ describe('bundle', () => {
   });
 
   it('respects config external entries', async () => {
-    const result = await bundle(
-      { entry: ['src/index.ts'], external: ['lodash'] },
-      fixtureDir,
-    );
+    const result = await bundle({ entry: ['src/index.ts'], external: ['lodash'] }, fixtureDir);
 
     const indexFile = result.outputFiles.find((f) => f.relativePath.endsWith('index.js'));
     const content = await readFile(indexFile!.path, 'utf-8');
@@ -44,10 +41,7 @@ describe('bundle', () => {
   });
 
   it('handles multi-entry builds', async () => {
-    const result = await bundle(
-      { entry: ['src/index.ts', 'src/utils.ts'] },
-      fixtureDir,
-    );
+    const result = await bundle({ entry: ['src/index.ts', 'src/utils.ts'] }, fixtureDir);
 
     const indexFile = result.outputFiles.find((f) => f.relativePath.endsWith('index.js'));
     const utilsFile = result.outputFiles.find((f) => f.relativePath.endsWith('utils.js'));
@@ -94,10 +88,7 @@ describe('bundle', () => {
   it('uses custom outDir', async () => {
     const customOutDir = join(fixtureDir, 'build-output');
     try {
-      const result = await bundle(
-        { entry: ['src/utils.ts'], outDir: 'build-output' },
-        fixtureDir,
-      );
+      const result = await bundle({ entry: ['src/utils.ts'], outDir: 'build-output' }, fixtureDir);
       expect(result.outDir).toBe(customOutDir);
       expect(existsSync(join(customOutDir, 'utils.js'))).toBe(true);
     } finally {

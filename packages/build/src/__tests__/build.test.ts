@@ -15,10 +15,7 @@ afterEach(() => {
 
 describe('build', () => {
   it('bundles JS and generates DTS for a single config', async () => {
-    await build(
-      { entry: ['src/index.ts', 'src/utils.ts'], dts: true, clean: true },
-      fixtureDir,
-    );
+    await build({ entry: ['src/index.ts', 'src/utils.ts'], dts: true, clean: true }, fixtureDir);
 
     // JS output
     expect(existsSync(join(outDir, 'index.js'))).toBe(true);
@@ -36,7 +33,9 @@ describe('build', () => {
       {
         entry: ['src/utils.ts'],
         dts: false,
-        onSuccess: () => { hookRan = true; },
+        onSuccess: () => {
+          hookRan = true;
+        },
       },
       fixtureDir,
     );
@@ -53,7 +52,9 @@ describe('build', () => {
         dts: false,
         onSuccess: {
           name: 'check-files',
-          handler: async (ctx) => { fileCount = ctx.outputFiles.length; },
+          handler: async (ctx) => {
+            fileCount = ctx.outputFiles.length;
+          },
         },
       },
       fixtureDir,
@@ -83,10 +84,7 @@ describe('build', () => {
   });
 
   it('externalizes package.json dependencies', async () => {
-    await build(
-      { entry: ['src/index.ts'], dts: false },
-      fixtureDir,
-    );
+    await build({ entry: ['src/index.ts'], dts: false }, fixtureDir);
 
     const content = await readFile(join(outDir, 'index.js'), 'utf-8');
     expect(content).toContain('from "lodash"');
