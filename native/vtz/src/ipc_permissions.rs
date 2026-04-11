@@ -19,6 +19,8 @@ const KNOWN_METHODS: &[&str] = &[
     "fs.rename",
     "fs.createDir",
     "shell.execute",
+    "shell.spawn",
+    "process.kill",
     "clipboard.readText",
     "clipboard.writeText",
     "dialog.open",
@@ -114,7 +116,9 @@ fn resolve_capability(cap: &str) -> Vec<&'static str> {
             "fs.rename",
             "fs.createDir",
         ],
-        "shell:execute" | "shell:all" => vec!["shell.execute"],
+        "shell:execute" => vec!["shell.execute"],
+        "shell:spawn" => vec!["shell.spawn", "process.kill"],
+        "shell:all" => vec!["shell.execute", "shell.spawn", "process.kill"],
         "clipboard:read" => vec!["clipboard.readText"],
         "clipboard:write" => vec!["clipboard.writeText"],
         "clipboard:all" => vec!["clipboard.readText", "clipboard.writeText"],
@@ -148,6 +152,7 @@ pub fn suggest_capability(method: &str) -> Option<&'static str> {
             Some("fs:write")
         }
         "shell.execute" => Some("shell:all"),
+        "shell.spawn" | "process.kill" => Some("shell:spawn"),
         "clipboard.readText" => Some("clipboard:read"),
         "clipboard.writeText" => Some("clipboard:write"),
         "dialog.open" | "dialog.save" | "dialog.confirm" | "dialog.message" => Some("dialog:all"),

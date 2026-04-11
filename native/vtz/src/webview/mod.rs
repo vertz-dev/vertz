@@ -4,10 +4,12 @@
 //! The webview loads the app from VTZ's axum dev server on localhost.
 
 pub mod bridge;
+pub mod event_channel;
 pub mod ipc_dispatcher;
 pub mod ipc_handlers;
 pub mod ipc_method;
 pub mod ipc_permissions;
+pub mod process_map;
 
 use std::sync::Mutex;
 
@@ -48,6 +50,9 @@ pub enum UserEvent {
         op: WindowOp,
         tx: Mutex<Option<oneshot::Sender<Result<serde_json::Value, ipc_dispatcher::IpcError>>>>,
     },
+    /// Execute JavaScript in the webview without waiting for a result.
+    /// Used by the event channel for push events (no oneshot overhead).
+    EvalScriptFireAndForget { js: String },
     /// Close the window and exit the process.
     Quit,
 }
@@ -268,6 +273,9 @@ impl WebviewApp {
                                 let _ = sender.send(result);
                             }
                         }
+                        UserEvent::EvalScriptFireAndForget { js } => {
+                            let _ = webview.evaluate_script(&js);
+                        }
                         UserEvent::Quit => {
                             // Signal background threads to shut down
                             if let Some(tx) = shutdown_tx.lock().unwrap().take() {
@@ -331,6 +339,16 @@ mod tests {
         let evt = UserEvent::Quit;
         let debug = format!("{:?}", evt);
         assert!(debug.contains("Quit"));
+    }
+
+    #[test]
+    fn user_event_eval_script_fire_and_forget_debug() {
+        let evt = UserEvent::EvalScriptFireAndForget {
+            js: "console.log('test')".to_string(),
+        };
+        let debug = format!("{:?}", evt);
+        assert!(debug.contains("EvalScriptFireAndForget"));
+        assert!(debug.contains("console.log"));
     }
 
     #[test]
