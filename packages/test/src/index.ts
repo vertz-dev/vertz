@@ -167,7 +167,30 @@ export interface Vi {
   importActual: (specifier: string) => Promise<unknown>;
 }
 
-export type ExpectTypeOf = <T = unknown>() => unknown;
+export interface ExpectTypeOfMatchers<Actual> {
+  toEqualTypeOf<Expected>(...args: [Expected] | []): void;
+  toMatchTypeOf<Expected>(...args: [Expected] | []): void;
+  toBeAny(): void;
+  toBeUnknown(): void;
+  toBeNever(): void;
+  toBeFunction(): void;
+  toBeObject(): void;
+  toBeArray(): void;
+  toBeNumber(): void;
+  toBeString(): void;
+  toBeBoolean(): void;
+  toBeVoid(): void;
+  toBeSymbol(): void;
+  toBeNull(): void;
+  toBeUndefined(): void;
+  toBeNullable(): void;
+  not: ExpectTypeOfMatchers<Actual>;
+}
+
+export interface ExpectTypeOf {
+  <Actual>(actual: Actual): ExpectTypeOfMatchers<Actual>;
+  <Actual>(): ExpectTypeOfMatchers<Actual>;
+}
 
 // ---------------------------------------------------------------------------
 // Runtime resolution: Bun re-export or stubs
@@ -277,7 +300,8 @@ const mock: Mock = _runtime?.mock ?? stubMock;
 const spyOn: SpyOn =
   _runtime?.spyOn ?? ((_obj: object, _method: string | symbol): MockFunction => stub());
 const vi: Vi = _runtime?.jest ?? _runtime?.vi ?? stubVi;
-const expectTypeOf: ExpectTypeOf = _runtime?.expectTypeOf ?? (<_T = unknown>(): unknown => stub());
+const expectTypeOf: ExpectTypeOf =
+  _runtime?.expectTypeOf ?? (<_T = unknown>(_actual?: _T): ExpectTypeOfMatchers<_T> => stub());
 
 export {
   afterAll,

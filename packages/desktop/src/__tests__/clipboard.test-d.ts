@@ -1,4 +1,4 @@
-import { describe, expectTypeOf, it } from 'bun:test';
+import { describe, expectTypeOf, it } from '@vertz/test';
 import type { Result } from '@vertz/errors';
 import { clipboard } from '../index.js';
 import type { DesktopError } from '../types.js';
