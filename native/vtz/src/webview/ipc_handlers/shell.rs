@@ -1,6 +1,7 @@
 //! Shell IPC handlers.
 
 use std::sync::Arc;
+use std::time::Duration;
 
 use tokio::io::AsyncBufReadExt;
 use tokio::process::Command;
@@ -14,11 +15,26 @@ use crate::webview::ipc_method::{
 };
 use crate::webview::process_map::ProcessMap;
 
+/// Default Rust-side timeout for `shell.execute()` — prevents zombie processes when
+/// the JS-side timeout (120s) fires but the Rust child process keeps running.
+const EXECUTE_TIMEOUT: Duration = Duration::from_secs(300);
+
 /// Execute a command and wait for it to finish, returning stdout, stderr, and exit code.
 ///
 /// The command is executed directly (not through a shell) to avoid injection risks.
 /// Use `args` for all arguments — do NOT concatenate them into the command string.
+///
+/// A Rust-side timeout (300s) kills the child process if the JS-side timeout fires
+/// first, preventing leaked zombie processes.
 pub async fn execute(params: ShellExecuteParams) -> Result<serde_json::Value, IpcError> {
+    execute_with_timeout(params, EXECUTE_TIMEOUT).await
+}
+
+/// Inner implementation with a configurable timeout — exposed for testing.
+async fn execute_with_timeout(
+    params: ShellExecuteParams,
+    timeout_duration: Duration,
+) -> Result<serde_json::Value, IpcError> {
     let mut cmd = tokio::process::Command::new(&params.command);
 
     if let Some(ref args) = params.args {
@@ -33,7 +49,14 @@ pub async fn execute(params: ShellExecuteParams) -> Result<serde_json::Value, Ip
         cmd.envs(env);
     }
 
-    let output = cmd.output().await.map_err(|e| match e.kind() {
+    // Pipe stdout/stderr so wait_with_output() can capture them.
+    cmd.stdout(std::process::Stdio::piped());
+    cmd.stderr(std::process::Stdio::piped());
+
+    // Ensure the child process is killed when the future is dropped (e.g., on timeout).
+    cmd.kill_on_drop(true);
+
+    let child = cmd.spawn().map_err(|e| match e.kind() {
         std::io::ErrorKind::NotFound => IpcError {
             code: IpcErrorCode::ExecutionFailed,
             message: format!("Command not found: {}", params.command),
@@ -47,6 +70,21 @@ pub async fn execute(params: ShellExecuteParams) -> Result<serde_json::Value, Ip
             message: format!("Failed to execute '{}': {}", params.command, e),
         },
     })?;
+
+    let output = tokio::time::timeout(timeout_duration, child.wait_with_output())
+        .await
+        .map_err(|_| IpcError {
+            code: IpcErrorCode::ExecutionFailed,
+            message: format!(
+                "Command '{}' timed out after {}s",
+                params.command,
+                timeout_duration.as_secs()
+            ),
+        })?
+        .map_err(|e| IpcError {
+            code: IpcErrorCode::ExecutionFailed,
+            message: format!("Failed to execute '{}': {}", params.command, e),
+        })?;
 
     let response = ShellOutputResponse {
         code: output.status.code().unwrap_or(-1),
@@ -391,5 +429,47 @@ mod tests {
         let response = ShellSpawnResponse { pid: 12345 };
         let value = serde_json::to_value(response).unwrap();
         assert_eq!(value["pid"], 12345);
+    }
+
+    // ── timeout tests ──
+
+    #[tokio::test]
+    async fn execute_timeout_returns_error_and_kills_child() {
+        let params = ShellExecuteParams {
+            command: "sleep".to_string(),
+            args: Some(vec!["30".to_string()]),
+            cwd: None,
+            env: None,
+        };
+        let start = std::time::Instant::now();
+        let result = execute_with_timeout(params, Duration::from_secs(1)).await;
+        let elapsed = start.elapsed();
+
+        assert!(result.is_err(), "expected timeout error");
+        let err = result.unwrap_err();
+        assert!(matches!(err.code, IpcErrorCode::ExecutionFailed));
+        assert!(
+            err.message.contains("timed out"),
+            "message: {}",
+            err.message
+        );
+        assert!(err.message.contains("sleep"), "message: {}", err.message);
+        // Should complete in ~1s, not 30s
+        assert!(elapsed.as_secs() < 5, "took too long: {:?}", elapsed);
+    }
+
+    #[tokio::test]
+    async fn execute_within_timeout_succeeds() {
+        let params = ShellExecuteParams {
+            command: "echo".to_string(),
+            args: Some(vec!["fast".to_string()]),
+            cwd: None,
+            env: None,
+        };
+        let result = execute_with_timeout(params, Duration::from_secs(10)).await;
+        assert!(result.is_ok(), "expected success: {:?}", result);
+        let value = result.unwrap();
+        assert_eq!(value["code"], 0);
+        assert_eq!(value["stdout"].as_str().unwrap().trim(), "fast");
     }
 }
