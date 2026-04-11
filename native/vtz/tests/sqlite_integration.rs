@@ -101,7 +101,7 @@ async fn test_bun_sqlite_file_based_db() {
     assert!(db_path.exists(), "SQLite file should exist on disk");
 }
 
-/// Module resolution: vertz:sqlite is canonical, bun:sqlite is compat alias
+/// Module resolution: vertz:sqlite is canonical, @vertz/sqlite is npm, bun:sqlite is compat
 #[test]
 fn test_sqlite_module_resolution() {
     use deno_core::{ModuleLoader, ResolutionKind};
@@ -115,6 +115,11 @@ fn test_sqlite_module_resolution() {
     // Canonical: vertz:sqlite
     let result = loader.resolve("vertz:sqlite", "file:///test.js", ResolutionKind::Import);
     assert!(result.is_ok(), "vertz:sqlite should resolve");
+    assert_eq!(result.unwrap().as_str(), "vertz:sqlite");
+
+    // NPM package: @vertz/sqlite
+    let result = loader.resolve("@vertz/sqlite", "file:///test.js", ResolutionKind::Import);
+    assert!(result.is_ok(), "@vertz/sqlite should resolve");
     assert_eq!(result.unwrap().as_str(), "vertz:sqlite");
 
     // Compat alias: bun:sqlite
@@ -142,6 +147,55 @@ async fn test_vertz_sqlite_canonical_import() {
         output.stdout,
         output.stderr
     );
+}
+
+/// `@vertz/sqlite` npm package import resolves to synthetic module
+#[tokio::test]
+async fn test_vertz_sqlite_package_import() {
+    let mut rt = create_runtime();
+    let entry = fixtures_dir().join("package-import-test.js");
+    let specifier = deno_core::ModuleSpecifier::from_file_path(&entry).unwrap();
+
+    rt.load_main_module(&specifier).await.unwrap();
+
+    let output = rt.captured_output();
+    assert!(
+        output
+            .stdout
+            .iter()
+            .any(|s| s.contains("@vertz/sqlite package import test passed")),
+        "@vertz/sqlite import test did not pass. stdout: {:?}, stderr: {:?}",
+        output.stdout,
+        output.stderr
+    );
+}
+
+/// db.transaction() �� commit on success, rollback on error, return values
+#[tokio::test]
+async fn test_sqlite_transaction() {
+    let mut rt = create_runtime();
+    let entry = fixtures_dir().join("transaction-test.js");
+    let specifier = deno_core::ModuleSpecifier::from_file_path(&entry).unwrap();
+
+    rt.load_main_module(&specifier).await.unwrap();
+
+    let output = rt.captured_output();
+    let expected_messages = [
+        "transaction commit test passed",
+        "transaction rollback test passed",
+        "transaction return value test passed",
+        "all transaction tests passed",
+    ];
+
+    for msg in &expected_messages {
+        assert!(
+            output.stdout.iter().any(|s| s.contains(msg)),
+            "Missing '{}'. stdout: {:?}, stderr: {:?}",
+            msg,
+            output.stdout,
+            output.stderr
+        );
+    }
 }
 
 /// Phase 3: @vertz/db integration patterns — queryFn bridge, transactions,
