@@ -1,12 +1,9 @@
-import { describe, expect, it } from 'bun:test';
+import { describe, expect, it } from '@vertz/test';
 import { NATIVE_MODULE_PATH } from './load-compiler';
 
 function loadCompiler() {
   return require(NATIVE_MODULE_PATH) as {
-    compile: (
-      source: string,
-      options?: { filename?: string },
-    ) => { code: string };
+    compile: (source: string, options?: { filename?: string }) => { code: string };
   };
 }
 

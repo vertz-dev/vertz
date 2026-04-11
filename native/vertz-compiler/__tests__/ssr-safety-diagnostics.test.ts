@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'bun:test';
+import { describe, expect, it } from '@vertz/test';
 import { NATIVE_MODULE_PATH } from './load-compiler';
 
 function loadCompiler() {
@@ -27,9 +27,7 @@ describe('Feature: SSR safety diagnostics', () => {
         const result = compile(source, { filename: 'src/App.tsx' });
         expect(result.diagnostics).toBeDefined();
         expect(result.diagnostics!.length).toBeGreaterThanOrEqual(1);
-        const diag = result.diagnostics!.find((d) =>
-          d.message.includes('localStorage'),
-        );
+        const diag = result.diagnostics!.find((d) => d.message.includes('localStorage'));
         expect(diag).toBeDefined();
         expect(diag!.message).toContain('ssr-unsafe-api');
         expect(diag!.line).toBe(2);
@@ -102,9 +100,7 @@ describe('Feature: SSR safety diagnostics', () => {
 }`;
         const result = compile(source, { filename: 'src/App.tsx' });
         expect(result.diagnostics).toBeDefined();
-        const diag = result.diagnostics!.find((d) =>
-          d.message.includes('document.querySelector'),
-        );
+        const diag = result.diagnostics!.find((d) => d.message.includes('document.querySelector'));
         expect(diag).toBeDefined();
         expect(diag!.message).toContain('ssr-unsafe-api');
         expect(diag!.line).toBe(2);
@@ -142,16 +138,10 @@ describe('Feature: SSR safety diagnostics', () => {
 }`;
         const result = compile(source, { filename: 'src/App.tsx' });
         expect(result.diagnostics).toBeDefined();
-        const ssrDiags = result.diagnostics!.filter((d) =>
-          d.message.includes('ssr-unsafe-api'),
-        );
+        const ssrDiags = result.diagnostics!.filter((d) => d.message.includes('ssr-unsafe-api'));
         expect(ssrDiags.length).toBeGreaterThanOrEqual(2);
-        expect(ssrDiags.some((d) => d.message.includes('localStorage'))).toBe(
-          true,
-        );
-        expect(ssrDiags.some((d) => d.message.includes('navigator'))).toBe(
-          true,
-        );
+        expect(ssrDiags.some((d) => d.message.includes('localStorage'))).toBe(true);
+        expect(ssrDiags.some((d) => d.message.includes('navigator'))).toBe(true);
       });
     });
   });

@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'bun:test';
+import { describe, expect, it } from '@vertz/test';
 import { NATIVE_MODULE_PATH } from './load-compiler';
 
 interface VariableInfo {
@@ -110,15 +110,9 @@ describe('Feature: Reactivity classification', () => {
           }
         `;
         const result = compile(source, { filename: 'test.tsx' });
-        expect(findVar(result.components, 'Counter', 'count')!.kind).toBe(
-          'signal',
-        );
-        expect(findVar(result.components, 'Counter', 'doubled')!.kind).toBe(
-          'computed',
-        );
-        expect(findVar(result.components, 'Counter', 'label')!.kind).toBe(
-          'computed',
-        );
+        expect(findVar(result.components, 'Counter', 'count')!.kind).toBe('signal');
+        expect(findVar(result.components, 'Counter', 'doubled')!.kind).toBe('computed');
+        expect(findVar(result.components, 'Counter', 'label')!.kind).toBe('computed');
       });
     });
   });
@@ -221,11 +215,7 @@ describe('Feature: Reactivity classification', () => {
           }
         `;
         const result = compile(source, { filename: 'test.tsx' });
-        const errorMsgVar = findVar(
-          result.components,
-          'TaskList',
-          'errorMsg',
-        );
+        const errorMsgVar = findVar(result.components, 'TaskList', 'errorMsg');
         expect(errorMsgVar).toBeDefined();
         expect(errorMsgVar!.kind).toBe('computed');
       });
@@ -263,12 +253,8 @@ describe('Feature: Reactivity classification', () => {
           }
         `;
         const result = compile(source, { filename: 'test.tsx' });
-        expect(findVar(result.components, 'App', 'visible')!.kind).toBe(
-          'signal',
-        );
-        expect(
-          findVar(result.components, 'App', 'internalCounter')!.kind,
-        ).toBe('static');
+        expect(findVar(result.components, 'App', 'visible')!.kind).toBe('signal');
+        expect(findVar(result.components, 'App', 'internalCounter')!.kind).toBe('static');
       });
     });
   });
@@ -286,12 +272,8 @@ describe('Feature: Reactivity classification', () => {
           }
         `;
         const result = compile(source, { filename: 'test.tsx' });
-        expect(findVar(result.components, 'App', 'temp')!.kind).toBe(
-          'static',
-        );
-        expect(findVar(result.components, 'App', 'derived')!.kind).toBe(
-          'static',
-        );
+        expect(findVar(result.components, 'App', 'temp')!.kind).toBe('static');
+        expect(findVar(result.components, 'App', 'derived')!.kind).toBe('static');
       });
     });
   });
@@ -309,13 +291,9 @@ describe('Feature: Reactivity classification', () => {
         `;
         const result = compile(source, { filename: 'test.tsx' });
         // temp is transitively JSX-reachable (through derived) → signal
-        expect(findVar(result.components, 'App', 'temp')!.kind).toBe(
-          'signal',
-        );
+        expect(findVar(result.components, 'App', 'temp')!.kind).toBe('signal');
         // derived depends on a signal → computed
-        expect(findVar(result.components, 'App', 'derived')!.kind).toBe(
-          'computed',
-        );
+        expect(findVar(result.components, 'App', 'derived')!.kind).toBe('computed');
       });
     });
   });

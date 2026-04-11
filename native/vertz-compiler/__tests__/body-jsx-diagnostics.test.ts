@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'bun:test';
+import { describe, expect, it } from '@vertz/test';
 import { NATIVE_MODULE_PATH } from './load-compiler';
 
 function loadCompiler() {
@@ -26,9 +26,7 @@ describe('Feature: Body JSX diagnostics', () => {
 }`;
         const result = compile(source, { filename: 'src/App.tsx' });
         expect(result.diagnostics).toBeDefined();
-        const diag = result.diagnostics!.find((d) =>
-          d.message.includes('jsx-outside-tree'),
-        );
+        const diag = result.diagnostics!.find((d) => d.message.includes('jsx-outside-tree'));
         expect(diag).toBeDefined();
         expect(diag!.line).toBe(2);
       });

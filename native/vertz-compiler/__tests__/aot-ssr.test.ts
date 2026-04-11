@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'bun:test';
+import { describe, expect, it } from '@vertz/test';
 import { NATIVE_MODULE_PATH } from './load-compiler';
 
 interface AotComponentInfo {
@@ -15,10 +15,7 @@ interface AotCompileResult {
 
 function loadCompiler() {
   return require(NATIVE_MODULE_PATH) as {
-    compileForSsrAot: (
-      source: string,
-      options?: { filename?: string },
-    ) => AotCompileResult;
+    compileForSsrAot: (source: string, options?: { filename?: string }) => AotCompileResult;
   };
 }
 
@@ -55,11 +52,7 @@ const __ssr_style_object = (obj: Record<string, unknown>): string => {
 };
 
 /** Evaluate the generated AOT function by extracting and running __ssr_* functions. */
-function evalAot(
-  code: string,
-  fnName: string,
-  args: Record<string, unknown> = {},
-): string {
+function evalAot(code: string, fnName: string, args: Record<string, unknown> = {}): string {
   // Extract all __ssr_* function declarations from generated code
   const fnRegex =
     /(?:export\s+)?function\s+(__ssr_\w+)\s*\([^)]*\)\s*\{[^}]*(?:\{[^}]*\}[^}]*)*\}/g;
@@ -67,9 +60,7 @@ function evalAot(
   let match;
   while ((match = fnRegex.exec(code)) !== null) {
     // Strip export keyword and type annotations
-    let fn = match[0]
-      .replace(/^export\s+/, '')
-      .replace(/\)\s*:\s*string\s*\{/, ') {');
+    let fn = match[0].replace(/^export\s+/, '').replace(/\)\s*:\s*string\s*\{/, ') {');
     fns.push(fn);
   }
 
@@ -85,13 +76,7 @@ function evalAot(
     ...argNames,
     `${aotCode}\nreturn ${fnName};`,
   );
-  const fn = wrapper(
-    __esc,
-    __esc_attr,
-    __ssr_spread,
-    __ssr_style_object,
-    ...argValues,
-  );
+  const fn = wrapper(__esc, __esc_attr, __ssr_spread, __ssr_style_object, ...argValues);
 
   if (args.__ctx) {
     return fn(args.__data ?? {}, args.__ctx);
@@ -102,11 +87,13 @@ function evalAot(
 describe('compileForSsrAot() — native AOT SSR', () => {
   describe('Tier 1: static components', () => {
     it('Then compiles static HTML to string concatenation', () => {
-      const result = compileAot(`
+      const result = compileAot(
+        `
 function Footer() {
   return <footer class="app-footer"><p>Built with Vertz</p></footer>;
 }
-      `.trim());
+      `.trim(),
+      );
 
       expect(result.code).toContain('__ssr_Footer');
       expect(result.components).toHaveLength(1);
@@ -115,35 +102,33 @@ function Footer() {
       expect(result.components[0]!.holes).toEqual([]);
 
       const html = evalAot(result.code, '__ssr_Footer');
-      expect(html).toBe(
-        '<footer class="app-footer"><p>Built with Vertz</p></footer>',
-      );
+      expect(html).toBe('<footer class="app-footer"><p>Built with Vertz</p></footer>');
     });
 
     it('Then handles void elements (no closing tag)', () => {
-      const result = compileAot(`
+      const result = compileAot(
+        `
 function Form() {
   return <div><input type="text" name="title" disabled /><br /><hr /></div>;
 }
-      `.trim());
+      `.trim(),
+      );
 
       const html = evalAot(result.code, '__ssr_Form');
-      expect(html).toBe(
-        '<div><input type="text" name="title" disabled><br><hr></div>',
-      );
+      expect(html).toBe('<div><input type="text" name="title" disabled><br><hr></div>');
     });
 
     it('Then handles fragments', () => {
-      const result = compileAot(`
+      const result = compileAot(
+        `
 function Badges() {
   return <><span class="open">Open</span><span class="closed">Closed</span></>;
 }
-      `.trim());
+      `.trim(),
+      );
 
       const html = evalAot(result.code, '__ssr_Badges');
-      expect(html).toBe(
-        '<span class="open">Open</span><span class="closed">Closed</span>',
-      );
+      expect(html).toBe('<span class="open">Open</span><span class="closed">Closed</span>');
     });
 
     it('Then returns empty components for non-component files', () => {
@@ -155,11 +140,13 @@ function Badges() {
 
   describe('Tier 2: data-driven components', () => {
     it('Then escapes dynamic text content with __esc()', () => {
-      const result = compileAot(`
+      const result = compileAot(
+        `
 function Greeting({ name }: { name: string }) {
   return <h1>Hello, {name}!</h1>;
 }
-      `.trim());
+      `.trim(),
+      );
 
       expect(result.code).toContain('__esc(');
       expect(result.components[0]!.tier).toBe('data-driven');
@@ -171,26 +158,28 @@ function Greeting({ name }: { name: string }) {
     });
 
     it('Then escapes HTML special characters in text', () => {
-      const result = compileAot(`
+      const result = compileAot(
+        `
 function Greeting({ name }: { name: string }) {
   return <span>{name}</span>;
 }
-      `.trim());
+      `.trim(),
+      );
 
       const html = evalAot(result.code, '__ssr_Greeting', {
         __props: { name: '<script>alert("xss")</script>' },
       });
-      expect(html).toBe(
-        '<span>&lt;script&gt;alert(&quot;xss&quot;)&lt;/script&gt;</span>',
-      );
+      expect(html).toBe('<span>&lt;script&gt;alert(&quot;xss&quot;)&lt;/script&gt;</span>');
     });
 
     it('Then escapes dynamic attribute values with __esc_attr()', () => {
-      const result = compileAot(`
+      const result = compileAot(
+        `
 function Card({ id }: { id: string }) {
   return <div data-testid={id}>card</div>;
 }
-      `.trim());
+      `.trim(),
+      );
 
       expect(result.code).toContain('__esc_attr(');
 
@@ -201,11 +190,13 @@ function Card({ id }: { id: string }) {
     });
 
     it('Then maps className to class attribute', () => {
-      const result = compileAot(`
+      const result = compileAot(
+        `
 function Box({ cls }: { cls: string }) {
   return <div className={cls}>content</div>;
 }
-      `.trim());
+      `.trim(),
+      );
 
       expect(result.code).not.toMatch(/__ssr_Box[^]*className/);
       const html = evalAot(result.code, '__ssr_Box', {
@@ -215,11 +206,13 @@ function Box({ cls }: { cls: string }) {
     });
 
     it('Then maps htmlFor to for attribute', () => {
-      const result = compileAot(`
+      const result = compileAot(
+        `
 function Field({ fieldId }: { fieldId: string }) {
   return <label htmlFor={fieldId}>Label</label>;
 }
-      `.trim());
+      `.trim(),
+      );
 
       expect(result.code).not.toMatch(/__ssr_Field[^]*htmlFor/);
       const html = evalAot(result.code, '__ssr_Field', {
@@ -229,11 +222,13 @@ function Field({ fieldId }: { fieldId: string }) {
     });
 
     it('Then strips event handlers from output', () => {
-      const result = compileAot(`
+      const result = compileAot(
+        `
 function Button({ label }: { label: string }) {
   return <button onClick={() => {}}>{label}</button>;
 }
-      `.trim());
+      `.trim(),
+      );
 
       expect(result.code).not.toMatch(/__ssr_Button[^]*onClick/);
       const html = evalAot(result.code, '__ssr_Button', {
@@ -245,11 +240,13 @@ function Button({ label }: { label: string }) {
 
   describe('Tier 3: conditional/dynamic components', () => {
     it('Then handles ternary conditionals with markers', () => {
-      const result = compileAot(`
+      const result = compileAot(
+        `
 function Status({ isOnline }: { isOnline: boolean }) {
   return <div>{isOnline ? <span class="on">Online</span> : <span class="off">Offline</span>}</div>;
 }
-      `.trim());
+      `.trim(),
+      );
 
       expect(result.components[0]!.tier).toBe('conditional');
 
@@ -269,11 +266,13 @@ function Status({ isOnline }: { isOnline: boolean }) {
     });
 
     it('Then handles && conditionals with markers', () => {
-      const result = compileAot(`
+      const result = compileAot(
+        `
 function Alert({ message }: { message: string | null }) {
   return <div>{message && <span class="alert">{message}</span>}</div>;
 }
-      `.trim());
+      `.trim(),
+      );
 
       expect(result.components[0]!.tier).toBe('conditional');
 
@@ -291,29 +290,31 @@ function Alert({ message }: { message: string | null }) {
     });
 
     it('Then handles list rendering with .map()', () => {
-      const result = compileAot(`
+      const result = compileAot(
+        `
 function List({ items }: { items: string[] }) {
   return <ul>{items.map(item => <li>{item}</li>)}</ul>;
 }
-      `.trim());
+      `.trim(),
+      );
 
       expect(result.components[0]!.tier).toBe('conditional');
 
       const html = evalAot(result.code, '__ssr_List', {
         __props: { items: ['A', 'B', 'C'] },
       });
-      expect(html).toBe(
-        '<ul><!--list--><li>A</li><li>B</li><li>C</li><!--/list--></ul>',
-      );
+      expect(html).toBe('<ul><!--list--><li>A</li><li>B</li><li>C</li><!--/list--></ul>');
     });
 
     it('Then handles interactive components with data-v-id and child markers', () => {
-      const result = compileAot(`
+      const result = compileAot(
+        `
 function Counter({ initial }: { initial: number }) {
   let count = initial;
   return <button>{count}</button>;
 }
-      `.trim());
+      `.trim(),
+      );
 
       expect(result.code).toContain('data-v-id="Counter"');
       expect(result.code).toContain('<!--child-->');
@@ -323,7 +324,8 @@ function Counter({ initial }: { initial: number }) {
 
   describe('Component calls and holes', () => {
     it('Then calls child components as __ssr_* functions', () => {
-      const result = compileAot(`
+      const result = compileAot(
+        `
 function Badge({ text }: { text: string }) {
   return <span class="badge">{text}</span>;
 }
@@ -331,7 +333,8 @@ function Badge({ text }: { text: string }) {
 function Card({ title }: { title: string }) {
   return <div class="card"><Badge text={title} /></div>;
 }
-      `.trim());
+      `.trim(),
+      );
 
       expect(result.code).toContain('__ssr_Badge(');
       const cardInfo = result.components.find((c) => c.name === 'Card');
@@ -341,11 +344,13 @@ function Card({ title }: { title: string }) {
 
   describe('Spread attributes', () => {
     it('Then handles spread attributes with __ssr_spread()', () => {
-      const result = compileAot(`
+      const result = compileAot(
+        `
 function Box({ className, ...rest }: { className: string; [key: string]: unknown }) {
   return <div className={className} {...rest}>content</div>;
 }
-      `.trim());
+      `.trim(),
+      );
 
       expect(result.code).toContain('__ssr_spread(');
     });
@@ -353,11 +358,13 @@ function Box({ className, ...rest }: { className: string; [key: string]: unknown
 
   describe('Boolean attributes', () => {
     it('Then handles dynamic boolean attributes correctly', () => {
-      const result = compileAot(`
+      const result = compileAot(
+        `
 function Toggle({ isDisabled }: { isDisabled: boolean }) {
   return <button disabled={isDisabled}>Click</button>;
 }
-      `.trim());
+      `.trim(),
+      );
 
       const htmlEnabled = evalAot(result.code, '__ssr_Toggle', {
         __props: { isDisabled: false },
@@ -373,24 +380,28 @@ function Toggle({ isDisabled }: { isDisabled: boolean }) {
 
   describe('Guard patterns', () => {
     it('Then classifies guard pattern (if-return + main return) as conditional', () => {
-      const result = compileAot(`
+      const result = compileAot(
+        `
 function Comp({ loading }: { loading: boolean }) {
   if (loading) return <div>Loading...</div>;
   return <div>Content</div>;
 }
-      `.trim());
+      `.trim(),
+      );
 
       expect(result.components[0]!.tier).toBe('conditional');
       expect(result.code).toContain('__ssr_Comp');
     });
 
     it('Then classifies non-guard multiple returns as runtime-fallback', () => {
-      const result = compileAot(`
+      const result = compileAot(
+        `
 function Comp({ x }: { x: number }) {
   try { return <div>OK</div>; }
   catch { return <div>Error</div>; }
 }
-      `.trim());
+      `.trim(),
+      );
 
       expect(result.components[0]!.tier).toBe('runtime-fallback');
       expect(result.code).not.toContain('__ssr_Comp');
@@ -399,12 +410,14 @@ function Comp({ x }: { x: number }) {
 
   describe('@vertz-no-aot pragma', () => {
     it('Then skips AOT compilation when pragma is present', () => {
-      const result = compileAot(`
+      const result = compileAot(
+        `
 // @vertz-no-aot
 function Widget({ data }: { data: string }) {
   return <div>{data}</div>;
 }
-      `.trim());
+      `.trim(),
+      );
 
       expect(result.components).toHaveLength(1);
       expect(result.components[0]!.tier).toBe('runtime-fallback');
@@ -414,25 +427,27 @@ function Widget({ data }: { data: string }) {
 
   describe('Style objects and dangerouslySetInnerHTML', () => {
     it('Then handles style objects with __ssr_style_object()', () => {
-      const result = compileAot(`
+      const result = compileAot(
+        `
 function Styled({ bg }: { bg: string }) {
   return <div style={{ backgroundColor: bg }}>content</div>;
 }
-      `.trim());
+      `.trim(),
+      );
 
       expect(result.code).toContain('__ssr_style_object(');
     });
 
     it('Then handles dangerouslySetInnerHTML as raw child content', () => {
-      const result = compileAot(`
+      const result = compileAot(
+        `
 function RawContent({ html }: { html: string }) {
   return <div dangerouslySetInnerHTML={{ __html: html }} />;
 }
-      `.trim());
-
-      expect(result.code).not.toMatch(
-        /__ssr_RawContent[^]*dangerouslySetInnerHTML/,
+      `.trim(),
       );
+
+      expect(result.code).not.toMatch(/__ssr_RawContent[^]*dangerouslySetInnerHTML/);
       const output = evalAot(result.code, '__ssr_RawContent', {
         __props: { html: '<strong>bold</strong>' },
       });
@@ -442,42 +457,48 @@ function RawContent({ html }: { html: string }) {
 
   describe('Query-sourced variables', () => {
     it('Then emits queryKeys for query() variables', () => {
-      const result = compileAot(`
+      const result = compileAot(
+        `
 import { query } from '@vertz/ui';
 
 function ProjectsPage() {
   const projects = query(api.projects.list());
   return <div>{projects.data}</div>;
 }
-      `.trim());
+      `.trim(),
+      );
 
       expect(result.components).toHaveLength(1);
       expect(result.components[0]!.queryKeys).toEqual(['projects-list']);
     });
 
     it('Then replaces query().data with ctx.getData(key)', () => {
-      const result = compileAot(`
+      const result = compileAot(
+        `
 import { query } from '@vertz/ui';
 
 function ProjectsPage() {
   const projects = query(api.projects.list());
   return <div>{projects.data}</div>;
 }
-      `.trim());
+      `.trim(),
+      );
 
       expect(result.code).toContain("ctx.getData('projects-list')");
       expect(result.code).not.toMatch(/__ssr_ProjectsPage[^]*projects\.data/);
     });
 
     it('Then falls back to runtime-fallback when query() has no extractable key', () => {
-      const result = compileAot(`
+      const result = compileAot(
+        `
 import { query } from '@vertz/ui';
 
 function SearchPage() {
   const results = query(async () => fetchResults());
   return <div>{results.data}</div>;
 }
-      `.trim());
+      `.trim(),
+      );
 
       expect(result.components).toHaveLength(1);
       expect(result.components[0]!.tier).toBe('runtime-fallback');
@@ -486,7 +507,8 @@ function SearchPage() {
 
   describe('Multiple components', () => {
     it('Then handles multiple components in one file', () => {
-      const result = compileAot(`
+      const result = compileAot(
+        `
 function Header() {
   return <header>Title</header>;
 }
@@ -494,7 +516,8 @@ function Header() {
 function Footer() {
   return <footer>Copyright</footer>;
 }
-      `.trim());
+      `.trim(),
+      );
 
       expect(result.components).toHaveLength(2);
       expect(result.components[0]!.name).toBe('Header');
@@ -510,11 +533,13 @@ function Footer() {
 
   describe('Self-closing non-void elements', () => {
     it('Then renders closing tags for non-void self-closing elements', () => {
-      const result = compileAot(`
+      const result = compileAot(
+        `
 function Empty() {
   return <div />;
 }
-      `.trim());
+      `.trim(),
+      );
 
       const html = evalAot(result.code, '__ssr_Empty');
       expect(html).toBe('<div></div>');
@@ -523,7 +548,8 @@ function Empty() {
 
   describe('.map() with closure variables (#1936)', () => {
     it('Then falls back to __esc() when block body has variable declarations', () => {
-      const result = compileAot(`
+      const result = compileAot(
+        `
 function CardList({ listings, sellerMap }: { listings: any[]; sellerMap: Map<string, any> }) {
   return (
     <div>
@@ -538,7 +564,8 @@ function CardList({ listings, sellerMap }: { listings: any[]; sellerMap: Map<str
     </div>
   );
 }
-      `.trim());
+      `.trim(),
+      );
 
       expect(result.components).toHaveLength(1);
       expect(result.code).toContain('__esc(');
@@ -547,27 +574,32 @@ function CardList({ listings, sellerMap }: { listings: any[]; sellerMap: Map<str
     });
 
     it('Then still optimizes simple .map() with expression body', () => {
-      const result = compileAot(`
+      const result = compileAot(
+        `
 function List({ items }: { items: string[] }) {
   return <ul>{items.map(item => <li>{item}</li>)}</ul>;
 }
-      `.trim());
+      `.trim(),
+      );
 
       expect(result.code).toContain('<!--list-->');
     });
 
     it('Then still optimizes .map() with block body containing only return', () => {
-      const result = compileAot(`
+      const result = compileAot(
+        `
 function List({ items }: { items: string[] }) {
   return <ul>{items.map((item) => { return <li>{item}</li>; })}</ul>;
 }
-      `.trim());
+      `.trim(),
+      );
 
       expect(result.code).toContain('<!--list-->');
     });
 
     it('Then falls back for any non-return statement in block body', () => {
-      const result = compileAot(`
+      const result = compileAot(
+        `
 function ListWithLog({ items }: { items: string[] }) {
   return (
     <ul>
@@ -578,7 +610,8 @@ function ListWithLog({ items }: { items: string[] }) {
     </ul>
   );
 }
-      `.trim());
+      `.trim(),
+      );
 
       expect(result.code).toContain('__esc(');
       expect(result.code).not.toMatch(/__ssr_ListWithLog[^]*<!--list-->/);

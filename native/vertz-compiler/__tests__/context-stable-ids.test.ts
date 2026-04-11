@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'bun:test';
+import { describe, expect, it } from '@vertz/test';
 import { NATIVE_MODULE_PATH } from './load-compiler';
 
 function loadCompiler() {
@@ -19,7 +19,7 @@ describe('Feature: Context stable ID injection', () => {
     describe('When compiled with fastRefresh enabled', () => {
       it('Then injects undefined and stable ID string', () => {
         const { compile } = loadCompiler();
-        const source = "const Ctx = createContext<string>();";
+        const source = 'const Ctx = createContext<string>();';
         const result = compile(source, { filename: 'src/ctx.tsx', fastRefresh: true });
         // TS type parameter <string> is stripped; only the JS args remain
         expect(result.code).toContain("createContext(undefined, 'src/ctx.tsx::Ctx')");
@@ -31,7 +31,7 @@ describe('Feature: Context stable ID injection', () => {
     describe('When compiled with fastRefresh enabled', () => {
       it('Then appends stable ID after existing argument', () => {
         const { compile } = loadCompiler();
-        const source = "const Settings = createContext<Config>(defaultConfig);";
+        const source = 'const Settings = createContext<Config>(defaultConfig);';
         const result = compile(source, { filename: 'src/settings.tsx', fastRefresh: true });
         expect(result.code).toContain(", 'src/settings.tsx::Settings'");
       });
@@ -43,8 +43,8 @@ describe('Feature: Context stable ID injection', () => {
       it('Then injects stable IDs for all of them', () => {
         const { compile } = loadCompiler();
         const source = [
-          "const ThemeCtx = createContext<Theme>();",
-          "const AuthCtx = createContext<Auth>();",
+          'const ThemeCtx = createContext<Theme>();',
+          'const AuthCtx = createContext<Auth>();',
         ].join('\n');
         const result = compile(source, { filename: 'src/app.tsx', fastRefresh: true });
         expect(result.code).toContain("'src/app.tsx::ThemeCtx'");
@@ -57,7 +57,7 @@ describe('Feature: Context stable ID injection', () => {
     describe('When compiled WITHOUT fastRefresh', () => {
       it('Then does NOT inject stable IDs', () => {
         const { compile } = loadCompiler();
-        const source = "const Ctx = createContext<string>();";
+        const source = 'const Ctx = createContext<string>();';
         const result = compile(source, { filename: 'src/ctx.tsx' });
         expect(result.code).not.toContain('::Ctx');
       });
@@ -68,7 +68,7 @@ describe('Feature: Context stable ID injection', () => {
     describe('When compiled with fastRefresh enabled', () => {
       it('Then does not modify the call', () => {
         const { compile } = loadCompiler();
-        const source = "const data = fetchData();";
+        const source = 'const data = fetchData();';
         const result = compile(source, { filename: 'src/data.tsx', fastRefresh: true });
         expect(result.code).not.toContain('::');
         expect(result.code).toContain('fetchData()');
@@ -95,7 +95,7 @@ describe('Feature: Context stable ID injection', () => {
     describe('When compiled with fastRefresh enabled', () => {
       it('Then injects stable ID for export const pattern', () => {
         const { compile } = loadCompiler();
-        const source = "export const RouterCtx = createContext<Router>();";
+        const source = 'export const RouterCtx = createContext<Router>();';
         const result = compile(source, { filename: 'src/router.tsx', fastRefresh: true });
         expect(result.code).toContain("'src/router.tsx::RouterCtx'");
       });
@@ -106,7 +106,7 @@ describe('Feature: Context stable ID injection', () => {
     describe('When compiled with fastRefresh enabled', () => {
       it('Then also injects stable ID (matches TS behavior)', () => {
         const { compile } = loadCompiler();
-        const source = "let Ctx = createContext<string>();";
+        const source = 'let Ctx = createContext<string>();';
         const result = compile(source, { filename: 'src/ctx.tsx', fastRefresh: true });
         expect(result.code).toContain("'src/ctx.tsx::Ctx'");
       });

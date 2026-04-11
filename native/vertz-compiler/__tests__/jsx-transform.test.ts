@@ -1,12 +1,9 @@
-import { describe, expect, it } from 'bun:test';
+import { describe, expect, it } from '@vertz/test';
 import { NATIVE_MODULE_PATH } from './load-compiler';
 
 function loadCompiler() {
   return require(NATIVE_MODULE_PATH) as {
-    compile: (
-      source: string,
-      options?: { filename?: string },
-    ) => { code: string };
+    compile: (source: string, options?: { filename?: string }) => { code: string };
   };
 }
 
@@ -20,9 +17,7 @@ describe('Feature: JSX element transform', () => {
   describe('Given a simple HTML element', () => {
     describe('When compiled', () => {
       it('Then produces __element() call', () => {
-        const code = compileAndGetCode(
-          `function App() {\n  return <div></div>;\n}`,
-        );
+        const code = compileAndGetCode(`function App() {\n  return <div></div>;\n}`);
         expect(code).toContain('__element("div")');
         expect(code).not.toContain('<div>');
       });
@@ -32,9 +27,7 @@ describe('Feature: JSX element transform', () => {
   describe('Given a self-closing HTML element', () => {
     describe('When compiled', () => {
       it('Then produces __element() call', () => {
-        const code = compileAndGetCode(
-          `function App() {\n  return <input />;\n}`,
-        );
+        const code = compileAndGetCode(`function App() {\n  return <input />;\n}`);
         expect(code).toContain('__element("input")');
         expect(code).not.toContain('<input');
       });
@@ -44,9 +37,7 @@ describe('Feature: JSX element transform', () => {
   describe('Given an element with static string attribute', () => {
     describe('When compiled', () => {
       it('Then sets attribute with setAttribute', () => {
-        const code = compileAndGetCode(
-          `function App() {\n  return <div title="hello"></div>;\n}`,
-        );
+        const code = compileAndGetCode(`function App() {\n  return <div title="hello"></div>;\n}`);
         expect(code).toContain('__element("div")');
         expect(code).toContain('.setAttribute("title", "hello")');
       });
@@ -67,9 +58,7 @@ describe('Feature: JSX element transform', () => {
   describe('Given an element with static text child', () => {
     describe('When compiled', () => {
       it('Then uses __staticText', () => {
-        const code = compileAndGetCode(
-          `function App() {\n  return <div>hello world</div>;\n}`,
-        );
+        const code = compileAndGetCode(`function App() {\n  return <div>hello world</div>;\n}`);
         expect(code).toContain('__staticText("hello world")');
       });
     });
@@ -90,9 +79,7 @@ describe('Feature: JSX element transform', () => {
   describe('Given an element with static expression child', () => {
     describe('When compiled', () => {
       it('Then uses __insert (no effect overhead)', () => {
-        const code = compileAndGetCode(
-          `function App() {\n  return <div>{"hello"}</div>;\n}`,
-        );
+        const code = compileAndGetCode(`function App() {\n  return <div>{"hello"}</div>;\n}`);
         expect(code).toContain('__insert(');
         expect(code).not.toContain('__child(');
       });
@@ -143,9 +130,7 @@ describe('Feature: JSX element transform', () => {
   describe('Given a component call (PascalCase)', () => {
     describe('When compiled', () => {
       it('Then calls the component as a function with props object', () => {
-        const code = compileAndGetCode(
-          `function App() {\n  return <Button label="hi" />;\n}`,
-        );
+        const code = compileAndGetCode(`function App() {\n  return <Button label="hi" />;\n}`);
         expect(code).toContain('Button(');
         expect(code).toContain('label: "hi"');
         expect(code).not.toContain('<Button');
@@ -240,9 +225,7 @@ describe('Feature: JSX element transform', () => {
   describe('Given a boolean shorthand attribute', () => {
     describe('When compiled', () => {
       it('Then sets attribute with empty string', () => {
-        const code = compileAndGetCode(
-          `function App() {\n  return <input disabled />;\n}`,
-        );
+        const code = compileAndGetCode(`function App() {\n  return <input disabled />;\n}`);
         expect(code).toContain('.setAttribute("disabled", "")');
       });
     });
@@ -251,9 +234,7 @@ describe('Feature: JSX element transform', () => {
   describe('Given an element with spread attributes', () => {
     describe('When compiled', () => {
       it('Then uses __spread', () => {
-        const code = compileAndGetCode(
-          `function App() {\n  return <div {...props}></div>;\n}`,
-        );
+        const code = compileAndGetCode(`function App() {\n  return <div {...props}></div>;\n}`);
         expect(code).toContain('__spread(');
       });
     });
@@ -283,9 +264,7 @@ describe('Feature: JSX element transform', () => {
   describe('Given a ref attribute', () => {
     describe('When compiled', () => {
       it('Then assigns .current on the element variable', () => {
-        const code = compileAndGetCode(
-          `function App() {\n  return <input ref={myRef} />;\n}`,
-        );
+        const code = compileAndGetCode(`function App() {\n  return <input ref={myRef} />;\n}`);
         expect(code).toContain('myRef.current');
       });
     });
@@ -318,9 +297,7 @@ describe('Feature: JSX element transform', () => {
   describe('Given a self-closing element with no attributes', () => {
     describe('When compiled', () => {
       it('Then produces a simple __element call with no children', () => {
-        const code = compileAndGetCode(
-          `function App() {\n  return <br />;\n}`,
-        );
+        const code = compileAndGetCode(`function App() {\n  return <br />;\n}`);
         expect(code).toContain('__element("br")');
         expect(code).not.toContain('__enterChildren');
         expect(code).not.toContain('__exitChildren');
@@ -331,9 +308,7 @@ describe('Feature: JSX element transform', () => {
   describe('Given an empty element (no children)', () => {
     describe('When compiled', () => {
       it('Then omits __enterChildren/__exitChildren', () => {
-        const code = compileAndGetCode(
-          `function App() {\n  return <div></div>;\n}`,
-        );
+        const code = compileAndGetCode(`function App() {\n  return <div></div>;\n}`);
         expect(code).toContain('__element("div")');
         expect(code).not.toContain('__enterChildren');
         expect(code).not.toContain('__exitChildren');
@@ -356,9 +331,7 @@ describe('Feature: JSX element transform', () => {
   describe('Given a component with boolean shorthand prop', () => {
     describe('When compiled', () => {
       it('Then passes true as the prop value', () => {
-        const code = compileAndGetCode(
-          `function App() {\n  return <Button disabled />;\n}`,
-        );
+        const code = compileAndGetCode(`function App() {\n  return <Button disabled />;\n}`);
         expect(code).toContain('Button(');
         expect(code).toContain('disabled: true');
       });
@@ -475,9 +448,7 @@ describe('Feature: JSX element transform', () => {
   describe('Given a literal expression attribute', () => {
     describe('When compiled', () => {
       it('Then uses guarded setAttribute (guards null/false/true)', () => {
-        const code = compileAndGetCode(
-          `function App() {\n  return <div tabIndex={0}></div>;\n}`,
-        );
+        const code = compileAndGetCode(`function App() {\n  return <div tabIndex={0}></div>;\n}`);
         expect(code).toContain('const __v = 0');
         expect(code).toContain('.setAttribute("tabIndex"');
       });
@@ -489,9 +460,7 @@ describe('Feature: JSX element transform', () => {
   describe('Given an input with IDL value attribute (static)', () => {
     describe('When compiled', () => {
       it('Then uses direct property assignment instead of setAttribute', () => {
-        const code = compileAndGetCode(
-          `function App() {\n  return <input value={someVar} />;\n}`,
-        );
+        const code = compileAndGetCode(`function App() {\n  return <input value={someVar} />;\n}`);
         expect(code).toContain('.value = __v');
         expect(code).not.toContain('.setAttribute("value"');
       });
@@ -501,9 +470,7 @@ describe('Feature: JSX element transform', () => {
   describe('Given an input with IDL checked attribute (boolean shorthand)', () => {
     describe('When compiled', () => {
       it('Then uses direct property assignment with true', () => {
-        const code = compileAndGetCode(
-          `function App() {\n  return <input checked />;\n}`,
-        );
+        const code = compileAndGetCode(`function App() {\n  return <input checked />;\n}`);
         expect(code).toContain('.checked = true');
         expect(code).not.toContain('.setAttribute("checked"');
       });
@@ -695,9 +662,7 @@ describe('Feature: JSX element transform', () => {
   describe('Given a non-IDL boolean shorthand on non-input element', () => {
     describe('When compiled', () => {
       it('Then uses setAttribute (not property assignment)', () => {
-        const code = compileAndGetCode(
-          `function App() {\n  return <button disabled />;\n}`,
-        );
+        const code = compileAndGetCode(`function App() {\n  return <button disabled />;\n}`);
         expect(code).toContain('.setAttribute("disabled", "")');
       });
     });
@@ -1060,9 +1025,7 @@ describe('Feature: .map() callback with block body preserves pre-return code', (
   describe('Given an input with static debounce attribute', () => {
     describe('When compiled', () => {
       it('Then renames to data-vertz-debounce', () => {
-        const code = compileAndGetCode(
-          `function App() {\n  return <input debounce={300} />;\n}`,
-        );
+        const code = compileAndGetCode(`function App() {\n  return <input debounce={300} />;\n}`);
         expect(code).toContain('"data-vertz-debounce"');
         expect(code).not.toContain('"debounce"');
       });
@@ -1109,9 +1072,7 @@ describe('Feature: .map() callback with block body preserves pre-return code', (
   describe('Given a div with debounce attribute', () => {
     describe('When compiled', () => {
       it('Then passes through as regular attribute (no rename)', () => {
-        const code = compileAndGetCode(
-          `function App() {\n  return <div debounce={300}></div>;\n}`,
-        );
+        const code = compileAndGetCode(`function App() {\n  return <div debounce={300}></div>;\n}`);
         expect(code).toContain('"debounce"');
         expect(code).not.toContain('"data-vertz-debounce"');
       });
@@ -1198,7 +1159,9 @@ describe('Feature: .map() callback with block body preserves pre-return code', (
           `function App() {\n  return <form onChange={handleChange}></form>;\n}`,
         );
         expect(code).toContain('__formOnChange');
-        expect(code).toMatch(/import\s*\{[^}]*__formOnChange[^}]*\}\s*from\s*['"]@vertz\/ui\/internals['"]/);
+        expect(code).toMatch(
+          /import\s*\{[^}]*__formOnChange[^}]*\}\s*from\s*['"]@vertz\/ui\/internals['"]/,
+        );
       });
     });
   });

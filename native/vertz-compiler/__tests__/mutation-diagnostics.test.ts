@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'bun:test';
+import { describe, expect, it } from '@vertz/test';
 import { NATIVE_MODULE_PATH } from './load-compiler';
 
 function loadCompiler() {
@@ -27,9 +27,7 @@ describe('Feature: Mutation diagnostics', () => {
 }`;
         const result = compile(source, { filename: 'src/App.tsx' });
         expect(result.diagnostics).toBeDefined();
-        const diag = result.diagnostics!.find((d) =>
-          d.message.includes('non-reactive-mutation'),
-        );
+        const diag = result.diagnostics!.find((d) => d.message.includes('non-reactive-mutation'));
         expect(diag).toBeDefined();
         expect(diag!.message).toContain('push');
         expect(diag!.message).toContain('items');
@@ -101,9 +99,7 @@ describe('Feature: Mutation diagnostics', () => {
 }`;
         const result = compile(source, { filename: 'src/App.tsx' });
         expect(result.diagnostics).toBeDefined();
-        const diag = result.diagnostics!.find((d) =>
-          d.message.includes('non-reactive-mutation'),
-        );
+        const diag = result.diagnostics!.find((d) => d.message.includes('non-reactive-mutation'));
         expect(diag).toBeDefined();
         expect(diag!.message).toContain('obj');
       });
@@ -121,9 +117,7 @@ describe('Feature: Mutation diagnostics', () => {
 }`;
         const result = compile(source, { filename: 'src/App.tsx' });
         expect(result.diagnostics).toBeDefined();
-        const diag = result.diagnostics!.find((d) =>
-          d.message.includes('non-reactive-mutation'),
-        );
+        const diag = result.diagnostics!.find((d) => d.message.includes('non-reactive-mutation'));
         expect(diag).toBeDefined();
         expect(diag!.message).toContain('sort');
       });

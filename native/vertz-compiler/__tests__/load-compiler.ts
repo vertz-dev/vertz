@@ -6,8 +6,4 @@ function resolveBinaryName(): string {
   return `vertz-compiler.${platform}-${arch}.node`;
 }
 
-export const NATIVE_MODULE_PATH = join(
-  import.meta.dir,
-  '..',
-  resolveBinaryName(),
-);
+export const NATIVE_MODULE_PATH = join(import.meta.dir, '..', resolveBinaryName());
