@@ -5,10 +5,10 @@
  * The native compiler is the primary compilation path:
  * - loadNativeCompiler() — throws if the binary is unavailable
  * - tryLoadNativeCompiler() — returns null if unavailable
- * - compile() — falls back to Bun's JSX transpiler with a warning
+ * - compile() — falls back to esbuild's JSX transpiler with a warning
  * - compileForSsrAot() — throws (no fallback, AOT needs full transforms)
  *
- * The Bun JSX fallback does NOT produce children thunks, signal transforms,
+ * The esbuild JSX fallback does NOT produce children thunks, signal transforms,
  * or CSS extraction — it exists for CI environments where the native
  * binary is not available and partial compilation is acceptable.
  *
@@ -257,7 +257,7 @@ function compileFallback(source: string): NativeCompileResult {
 
 /**
  * Compile a TypeScript/JSX source file using the native Rust compiler.
- * Falls back to Bun's JSX transpiler with a warning when the native
+ * Falls back to esbuild's JSX transpiler with a warning when the native
  * binary is unavailable (e.g. on CI without the platform binary).
  * The fallback does NOT produce signal transforms, CSS extraction, or
  * children thunks — use loadNativeCompiler() directly when these are required.

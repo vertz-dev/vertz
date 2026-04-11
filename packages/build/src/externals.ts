@@ -21,6 +21,8 @@ export function resolveExternals(
     }
   }
 
+  // Externalize devDeps to avoid bundling build-time tools (typescript, test frameworks, etc.)
+  // that use CJS or node builtins incompatible with ESM output. Matches bunup's behavior.
   const devDependencies = packageJson.devDependencies as Record<string, string> | undefined;
   if (devDependencies) {
     for (const key of Object.keys(devDependencies)) {

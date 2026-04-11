@@ -3,7 +3,7 @@
   "tasks": {
     "build": {
       "dependsOn": ["^build"],
-      "inputs": ["src/**", "package.json", "tsconfig.json", "bunup.config.ts"],
+      "inputs": ["src/**", "package.json", "tsconfig.json", "build.config.ts"],
       "outputs": ["dist/**"]
     },
     "lint": {
