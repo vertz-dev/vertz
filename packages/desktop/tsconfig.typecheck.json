@@ -6,7 +6,7 @@
     "noUnusedLocals": false,
     "noUnusedParameters": false,
     "skipLibCheck": true,
-    "types": ["node"]
+    "types": ["bun-types"]
   },
   "extends": "../../tsconfig.json",
   "include": ["src", "src/**/*.test-d.ts"]

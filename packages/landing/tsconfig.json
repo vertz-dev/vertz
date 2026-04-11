@@ -10,7 +10,7 @@
     "skipLibCheck": true,
     "strict": true,
     "target": "ES2022",
-    "types": ["node"]
+    "types": ["bun-types"]
   },
   "include": ["src"]
 }

@@ -2,7 +2,7 @@
   "compilerOptions": {
     "outDir": "dist",
     "rootDir": "src",
-    "types": ["node"]
+    "types": ["bun-types"]
   },
   "exclude": ["node_modules", "dist", "**/*.test.ts", "**/*.test-d.ts", "**/__tests__/test-*.ts"],
   "extends": "../../tsconfig.json",

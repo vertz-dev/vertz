@@ -7,7 +7,7 @@
     "noUncheckedIndexedAccess": true,
     "outDir": "dist",
     "rootDir": "src",
-    "types": ["node"]
+    "types": ["bun-types"]
   },
   "exclude": [
     "node_modules",
