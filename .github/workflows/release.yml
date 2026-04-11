@@ -170,6 +170,8 @@ jobs:
         run: |
           bun install --frozen-lockfile
           echo "$PWD/node_modules/.bin" >> "$GITHUB_PATH"
+          # Remove fallback vtz shell script so the native binary from setup-vtz is used
+          rm -f node_modules/.bin/vtz node_modules/.bin/vertz
 
       - name: Download darwin-arm64 binary
         uses: actions/download-artifact@v4

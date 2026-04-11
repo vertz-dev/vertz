@@ -230,6 +230,8 @@ jobs:
         run: |
           bun install --frozen-lockfile
           echo "$PWD/node_modules/.bin" >> "$GITHUB_PATH"
+          # Remove fallback vtz shell script so the native binary from setup-vtz is used
+          rm -f node_modules/.bin/vtz node_modules/.bin/vertz
 
       - name: Lint
         run: oxlint packages/
@@ -266,6 +268,8 @@ jobs:
         run: |
           bun install --frozen-lockfile
           echo "$PWD/node_modules/.bin" >> "$GITHUB_PATH"
+          # Remove fallback vtz shell script so the native binary from setup-vtz is used
+          rm -f node_modules/.bin/vtz node_modules/.bin/vertz
 
       - name: Build @vertz/ci
         run: cd packages/ci && vtz run build
@@ -363,8 +367,9 @@ jobs:
         with:
           workspaces: native
 
-      - name: Setup vtz
-        uses: vertz-dev/setup-vtz@v1
+      # NAPI tests use bun test because they import workspace packages
+      # (@vertz/ui etc.) which require Bun's module resolution.
+      - uses: oven-sh/setup-bun@v2
 
       - name: Build native compiler
         working-directory: native
@@ -375,4 +380,4 @@ jobs:
 
       - name: Run NAPI binding tests
         working-directory: native/vertz-compiler
-        run: vtz test __tests__/*.test.ts
+        run: bun test __tests__/*.test.ts
