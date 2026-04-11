@@ -17,6 +17,7 @@ fn current_platform() -> Platform {
     } else if cfg!(target_os = "windows") {
         Platform::Windows
     } else {
+        // Treat all Unix-like OSes (Linux, FreeBSD, etc.) as Linux/XDG.
         Platform::Linux
     }
 }
