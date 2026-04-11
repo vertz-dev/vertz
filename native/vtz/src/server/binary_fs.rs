@@ -389,6 +389,11 @@ pub async fn handle_binary_stream_write(
         let _ = tokio::fs::remove_file(&tmp_path).await;
         return map_io_error_response(e, &expanded);
     }
+    // fsync to ensure data is persisted to disk before the atomic rename
+    if let Err(e) = file.sync_all().await {
+        let _ = tokio::fs::remove_file(&tmp_path).await;
+        return map_io_error_response(e, &expanded);
+    }
     drop(file);
 
     if let Err(e) = tokio::fs::rename(&tmp_path, &expanded).await {
@@ -900,6 +905,78 @@ mod tests {
             .unwrap();
         let resp = handle_binary_stream_write(State(state), req).await;
         assert_eq!(resp.status(), StatusCode::FORBIDDEN);
+    }
+
+    #[tokio::test]
+    async fn handle_stream_read_rejects_denied_permission() {
+        use crate::ipc_permissions::IpcPermissions;
+        let state = test_state_with_permissions(IpcPermissions::from_capabilities(&[
+            "shell:all".to_string()
+        ]));
+        let req = Request::builder()
+            .uri("/__vertz_fs_binary/stream/read?path=%2Ftmp%2Ftest.bin")
+            .header("x-vtz-ipc-token", TEST_NONCE)
+            .body(Body::empty())
+            .unwrap();
+        let resp = handle_binary_stream_read(State(state), req).await;
+        assert_eq!(resp.status(), StatusCode::FORBIDDEN);
+    }
+
+    #[tokio::test]
+    async fn handle_stream_write_rejects_denied_permission() {
+        use crate::ipc_permissions::IpcPermissions;
+        let state =
+            test_state_with_permissions(IpcPermissions::from_capabilities(
+                &["fs:read".to_string()],
+            ));
+        let req = Request::builder()
+            .method("POST")
+            .uri("/__vertz_fs_binary/stream/write?path=%2Ftmp%2Ftest.bin")
+            .header("x-vtz-ipc-token", TEST_NONCE)
+            .body(Body::from(vec![0x01]))
+            .unwrap();
+        let resp = handle_binary_stream_write(State(state), req).await;
+        assert_eq!(resp.status(), StatusCode::FORBIDDEN);
+    }
+
+    #[tokio::test]
+    async fn handle_stream_read_rejects_directory() {
+        let dir = tempfile::tempdir().unwrap();
+        let state = test_state();
+        let encoded_path = urlencoding::encode(dir.path().to_str().unwrap());
+        let uri = format!("/__vertz_fs_binary/stream/read?path={}", encoded_path);
+        let req = Request::builder()
+            .uri(&uri)
+            .header("x-vtz-ipc-token", TEST_NONCE)
+            .body(Body::empty())
+            .unwrap();
+        let resp = handle_binary_stream_read(State(state), req).await;
+        assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
+    }
+
+    #[tokio::test]
+    async fn handle_stream_read_rejects_missing_path() {
+        let state = test_state();
+        let req = Request::builder()
+            .uri("/__vertz_fs_binary/stream/read")
+            .header("x-vtz-ipc-token", TEST_NONCE)
+            .body(Body::empty())
+            .unwrap();
+        let resp = handle_binary_stream_read(State(state), req).await;
+        assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
+    }
+
+    #[tokio::test]
+    async fn handle_stream_write_rejects_missing_path() {
+        let state = test_state();
+        let req = Request::builder()
+            .method("POST")
+            .uri("/__vertz_fs_binary/stream/write")
+            .header("x-vtz-ipc-token", TEST_NONCE)
+            .body(Body::from(vec![0x01]))
+            .unwrap();
+        let resp = handle_binary_stream_write(State(state), req).await;
+        assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
     }
 
     // ── Test helpers ──

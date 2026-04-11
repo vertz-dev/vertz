@@ -141,7 +141,7 @@ export async function readBinaryStream(
       message: 'Response has no body stream',
     });
   }
-  return ok(result.data.body as ReadableStream<Uint8Array>);
+  return ok(result.data.body);
 }
 
 /**
