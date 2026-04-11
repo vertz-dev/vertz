@@ -349,7 +349,70 @@ pub const IPC_CLIENT_JS: &str = r#"
       entry.resolve({ ok: false, error: { code: 'WINDOW_CLOSED', message: 'Window closed' } });
     }
     pending.clear();
+    // Clear all event subscriptions
+    __vtz_event_subs.clear();
   });
+
+  // ── Event Channel (Rust → JS push) ──
+  // Generic push mechanism for streaming events (shell.spawn stdout/stderr,
+  // future file watchers, etc.). Subscriptions are pre-allocated before the
+  // IPC call to avoid race conditions with fast-exiting processes.
+
+  const __vtz_event_subs = new Map();
+
+  // Pre-allocate a subscription slot (buffer mode — events queued until listeners added)
+  window.__vtz_event_alloc = (subId) => {
+    __vtz_event_subs.set(subId, { listeners: {}, buffer: [], ready: false });
+  };
+
+  // Register a listener for a specific event type on a subscription.
+  // Returns a disposer function. On first call, flushes buffered events.
+  window.__vtz_event_on = (subId, eventType, callback) => {
+    const sub = __vtz_event_subs.get(subId);
+    if (!sub) return () => {};
+    if (!sub.listeners[eventType]) sub.listeners[eventType] = [];
+    sub.listeners[eventType].push(callback);
+    // Flush buffer on first listener registration
+    if (!sub.ready) {
+      sub.ready = true;
+      for (const [type, data] of sub.buffer) {
+        const cbs = sub.listeners[type];
+        if (cbs) for (const cb of cbs) cb(data);
+      }
+      sub.buffer.length = 0;
+    }
+    return () => {
+      const arr = sub.listeners[eventType];
+      if (arr) {
+        const idx = arr.indexOf(callback);
+        if (idx >= 0) arr.splice(idx, 1);
+      }
+    };
+  };
+
+  // Remove a subscription entirely
+  window.__vtz_event_unsub = (subId) => {
+    __vtz_event_subs.delete(subId);
+  };
+
+  // Called by Rust via evaluate_script — single event dispatch
+  window.__vtz_event = (subId, eventType, data) => {
+    const sub = __vtz_event_subs.get(subId);
+    if (!sub) return;
+    if (!sub.ready) {
+      sub.buffer.push([eventType, data]);
+      return;
+    }
+    const cbs = sub.listeners[eventType];
+    if (cbs) for (const cb of cbs) cb(data);
+  };
+
+  // Called by Rust via evaluate_script — batched event dispatch
+  window.__vtz_event_batch = (events) => {
+    for (const [subId, eventType, data] of events) {
+      window.__vtz_event(subId, eventType, data);
+    }
+  };
 })();
 "#;
 
@@ -478,5 +541,28 @@ mod tests {
     #[test]
     fn ipc_client_js_supports_custom_timeout_override() {
         assert!(IPC_CLIENT_JS.contains("options.timeout"));
+    }
+
+    // ── Event channel JS ──
+
+    #[test]
+    fn ipc_client_js_contains_event_channel_globals() {
+        assert!(IPC_CLIENT_JS.contains("window.__vtz_event"));
+        assert!(IPC_CLIENT_JS.contains("window.__vtz_event_batch"));
+        assert!(IPC_CLIENT_JS.contains("window.__vtz_event_alloc"));
+        assert!(IPC_CLIENT_JS.contains("window.__vtz_event_on"));
+        assert!(IPC_CLIENT_JS.contains("window.__vtz_event_unsub"));
+        assert!(IPC_CLIENT_JS.contains("__vtz_event_subs"));
+    }
+
+    #[test]
+    fn ipc_client_js_event_channel_buffers_before_ready() {
+        assert!(IPC_CLIENT_JS.contains("buffer"));
+        assert!(IPC_CLIENT_JS.contains("ready"));
+    }
+
+    #[test]
+    fn ipc_client_js_event_channel_cleans_up_on_unload() {
+        assert!(IPC_CLIENT_JS.contains("__vtz_event_subs.clear()"));
     }
 }
