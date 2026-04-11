@@ -1,5 +1,24 @@
 # @vertz/theme-shadcn
 
+## 0.2.58
+
+### Patch Changes
+
+- [#2480](https://github.com/vertz-dev/vertz/pull/2480) [`066bf9f`](https://github.com/vertz-dev/vertz/commit/066bf9f0be12865570c13414d595fd6dc77c1761) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - fix(ui): preserve context scope in useContext for effect re-runs (#2477)
+  fix(theme-shadcn): center dialog wrapper with viewport sizing and flexbox (#2478)
+
+- [#2471](https://github.com/vertz-dev/vertz/pull/2471) [`a31284d`](https://github.com/vertz-dev/vertz/commit/a31284df9dc6efb4ccb10dfedbc37afaf5e07c3a) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - Remove default layout styles (border, padding, text) from List.Item theme — List is a functional primitive, not a layout component
+
+- [#2479](https://github.com/vertz-dev/vertz/pull/2479) [`4ccb5db`](https://github.com/vertz-dev/vertz/commit/4ccb5db72f7b14f9cb3d50bff77dc26a34c8bd53) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - fix(create-vertz-app): add DialogStackProvider and `w:full` to todo-app template
+
+  fix(ui): fix DialogStackProvider hydration — add `display:contents` so wrapper doesn't break layout
+
+  fix(theme-shadcn): fix dialog centering — add `margin: auto` to wrapper, use explicit panel width `min(28rem, calc(100vw - 2rem))`
+
+- Updated dependencies [[`066bf9f`](https://github.com/vertz-dev/vertz/commit/066bf9f0be12865570c13414d595fd6dc77c1761), [`4ccb5db`](https://github.com/vertz-dev/vertz/commit/4ccb5db72f7b14f9cb3d50bff77dc26a34c8bd53)]:
+  - @vertz/ui@0.2.58
+  - @vertz/ui-primitives@0.2.58
+
 ## 0.2.57
 
 ### Patch Changes
