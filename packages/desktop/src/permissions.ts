@@ -16,6 +16,8 @@ export type IpcCapabilityGroup =
 export type IpcMethodString =
   | 'fs.readTextFile'
   | 'fs.writeTextFile'
+  | 'fs.readBinaryFile'
+  | 'fs.writeBinaryFile'
   | 'fs.readDir'
   | 'fs.exists'
   | 'fs.stat'

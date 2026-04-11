@@ -1,6 +1,7 @@
 pub mod api_proxy;
 pub mod audit_log;
 pub mod auto_installer;
+pub mod binary_fs;
 pub mod browser_hub;
 pub mod css_server;
 pub mod diagnostics;

@@ -12,6 +12,7 @@ use crate::errors::broadcaster::ErrorBroadcaster;
 use crate::errors::categories::{extract_snippet, DevError, ErrorCategory};
 use crate::errors::suggestions;
 use crate::hmr::websocket::HmrHub;
+use crate::ipc_permissions::IpcPermissions;
 use crate::runtime::persistent_isolate::PersistentIsolate;
 use crate::server::audit_log::AuditLog;
 use crate::server::auto_installer::AutoInstaller;
@@ -77,6 +78,11 @@ pub struct DevServerState {
     pub favicon_tag: Option<String>,
     /// Browser interaction hub for MCP browser tools.
     pub browser_hub: BrowserInteractionHub,
+    /// IPC permissions for binary file route enforcement.
+    pub ipc_permissions: Arc<IpcPermissions>,
+    /// Session nonce for binary file route authentication.
+    /// Regenerated on every server restart. Required as `X-VTZ-IPC-Token` header.
+    pub ipc_nonce: String,
 }
 
 /// Handle requests for source files: `GET /src/**/*.tsx` → compiled JavaScript.
@@ -883,6 +889,8 @@ mod tests {
             last_file_change: Arc::new(std::sync::Mutex::new(None)),
             favicon_tag: None,
             browser_hub: BrowserInteractionHub::new(),
+            ipc_permissions: Arc::new(IpcPermissions::allow_all()),
+            ipc_nonce: String::new(),
         })
     }
 
@@ -1525,6 +1533,8 @@ mod tests {
             last_file_change: Arc::new(std::sync::Mutex::new(None)),
             favicon_tag: None,
             browser_hub: BrowserInteractionHub::new(),
+            ipc_permissions: Arc::new(IpcPermissions::allow_all()),
+            ipc_nonce: String::new(),
         });
 
         let req = Request::builder()
@@ -1684,6 +1694,8 @@ mod tests {
             last_file_change: Arc::new(std::sync::Mutex::new(None)),
             favicon_tag: None,
             browser_hub: BrowserInteractionHub::new(),
+            ipc_permissions: Arc::new(IpcPermissions::allow_all()),
+            ipc_nonce: String::new(),
         });
 
         let req = Request::builder()
@@ -1741,6 +1753,8 @@ mod tests {
             last_file_change: Arc::new(std::sync::Mutex::new(None)),
             favicon_tag: None,
             browser_hub: BrowserInteractionHub::new(),
+            ipc_permissions: Arc::new(IpcPermissions::allow_all()),
+            ipc_nonce: String::new(),
         });
 
         let req = Request::builder()
@@ -1827,6 +1841,8 @@ mod tests {
             last_file_change: Arc::new(std::sync::Mutex::new(None)),
             favicon_tag: None,
             browser_hub: BrowserInteractionHub::new(),
+            ipc_permissions: Arc::new(IpcPermissions::allow_all()),
+            ipc_nonce: String::new(),
         };
 
         // helper-lib/index.js is not in root's node_modules directly,
@@ -1881,6 +1897,8 @@ mod tests {
             last_file_change: Arc::new(std::sync::Mutex::new(None)),
             favicon_tag: None,
             browser_hub: BrowserInteractionHub::new(),
+            ipc_permissions: Arc::new(IpcPermissions::allow_all()),
+            ipc_nonce: String::new(),
         };
 
         let result = re_resolve_dep("some-dep/index.js", &state);
@@ -1936,6 +1954,8 @@ mod tests {
             last_file_change: Arc::new(std::sync::Mutex::new(None)),
             favicon_tag: None,
             browser_hub: BrowserInteractionHub::new(),
+            ipc_permissions: Arc::new(IpcPermissions::allow_all()),
+            ipc_nonce: String::new(),
         });
 
         // Request the bare specifier (no subpath) which should resolve via package.json exports
@@ -2101,6 +2121,8 @@ mod tests {
             last_file_change: Arc::new(std::sync::Mutex::new(None)),
             favicon_tag: None,
             browser_hub: BrowserInteractionHub::new(),
+            ipc_permissions: Arc::new(IpcPermissions::allow_all()),
+            ipc_nonce: String::new(),
         });
 
         let req = Request::builder()
@@ -2206,6 +2228,8 @@ mod tests {
             last_file_change: Arc::new(std::sync::Mutex::new(None)),
             favicon_tag: None,
             browser_hub: BrowserInteractionHub::new(),
+            ipc_permissions: Arc::new(IpcPermissions::allow_all()),
+            ipc_nonce: String::new(),
         });
 
         let req = Request::builder()

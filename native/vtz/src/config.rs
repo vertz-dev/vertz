@@ -71,6 +71,9 @@ pub struct ServerConfig {
     pub inspect_brk: bool,
     /// Inspector port (default 9229).
     pub inspect_port: u16,
+    /// Session nonce for authenticating binary file HTTP requests from the webview.
+    /// Generated per dev server session. `None` = generate on startup.
+    pub ipc_nonce: Option<String>,
 }
 
 /// Resolve the `auto_install` setting from multiple sources.
@@ -231,6 +234,7 @@ impl ServerConfig {
             inspect: false,
             inspect_brk: false,
             inspect_port: 9229,
+            ipc_nonce: None,
         }
     }
 
@@ -269,6 +273,7 @@ impl ServerConfig {
             inspect: false,
             inspect_brk: false,
             inspect_port: 9229,
+            ipc_nonce: None,
         }
     }
 

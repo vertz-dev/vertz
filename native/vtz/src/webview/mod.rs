@@ -127,13 +127,29 @@ impl WebviewApp {
     ///
     /// If an `IpcDispatcher` is provided, IPC requests from the webview
     /// are dispatched to async handlers. Otherwise, they are logged.
-    pub fn run(self, dispatcher: Option<ipc_dispatcher::IpcDispatcher>) -> ! {
+    ///
+    /// `ipc_nonce` is injected as `window.__vtz_ipc_token` for authenticating
+    /// binary file HTTP requests from the webview.
+    pub fn run(
+        self,
+        dispatcher: Option<ipc_dispatcher::IpcDispatcher>,
+        ipc_nonce: Option<String>,
+    ) -> ! {
         let mut builder = WebViewBuilder::new()
             .with_url("about:blank")
             .with_devtools(self.opts.devtools);
 
         if dispatcher.is_some() {
             builder = builder.with_initialization_script(ipc_dispatcher::IPC_CLIENT_JS);
+        }
+
+        // Inject the session nonce for binary file IPC authentication.
+        if let Some(nonce) = ipc_nonce {
+            let nonce_script = format!(
+                "window.__vtz_ipc_token = '{}';",
+                nonce.replace('\\', "\\\\").replace('\'', "\\'")
+            );
+            builder = builder.with_initialization_script(&nonce_script);
         }
 
         // Extract fields before consuming self.event_loop.run()

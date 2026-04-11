@@ -1,0 +1,203 @@
+---
+title: File System
+description: 'Read, write, and manage files from Vertz desktop apps'
+---
+
+The `@vertz/desktop` package provides a file system API for Vertz desktop apps running in the native webview. Every operation returns a `Result<T, DesktopError>` — errors are values, not exceptions.
+
+## Setup
+
+```ts
+import { fs } from '@vertz/desktop';
+```
+
+All functions require the desktop runtime (native webview). They return a `Result` error if called outside that environment.
+
+## Permissions
+
+File system access requires permissions declared in `.vertzrc`:
+
+```json
+{
+  "desktop": {
+    "permissions": ["fs:read", "fs:write"]
+  }
+}
+```
+
+| Capability | Methods                                                                                  |
+| ---------- | ---------------------------------------------------------------------------------------- |
+| `fs:read`  | `readTextFile`, `readBinaryFile`, `readBinaryStream`, `readDir`, `stat`, `exists`        |
+| `fs:write` | `writeTextFile`, `writeBinaryFile`, `writeBinaryStream`, `createDir`, `remove`, `rename` |
+| `fs:all`   | All of the above                                                                         |
+
+## Text files
+
+### Reading text
+
+```ts
+const result = await fs.readTextFile('/path/to/file.txt');
+
+if (result.ok) {
+  console.log(result.data); // string (UTF-8)
+} else {
+  console.log(result.error.code); // DesktopErrorCode
+}
+```
+
+### Writing text
+
+```ts
+const result = await fs.writeTextFile('/path/to/file.txt', 'Hello, world!');
+
+if (!result.ok) {
+  console.error(result.error.message);
+}
+```
+
+## Binary files
+
+Binary file operations use HTTP transport instead of JSON IPC, avoiding the 33% overhead of base64 encoding.
+
+### Reading binary data
+
+Returns the entire file as a `Uint8Array`. Files larger than 2 GiB return an error suggesting `readBinaryStream()`.
+
+```ts
+const result = await fs.readBinaryFile('/path/to/image.png');
+
+if (result.ok) {
+  const bytes: Uint8Array = result.data;
+  console.log(`Read ${bytes.byteLength} bytes`);
+}
+```
+
+### Writing binary data
+
+Writes a `Uint8Array` to a file. The write is **atomic** — data is written to a temp file first, then renamed into place for crash safety. Parent directories are created automatically.
+
+```ts
+const data = new Uint8Array([0xde, 0xad, 0xbe, 0xef]);
+const result = await fs.writeBinaryFile('/path/to/output.bin', data);
+
+if (!result.ok) {
+  console.error(result.error.message);
+}
+```
+
+### Streaming binary reads
+
+For files larger than 2 GiB or when you want to process data incrementally, use `readBinaryStream()`. Returns a `ReadableStream<Uint8Array>` — no size limit, data arrives chunk by chunk.
+
+```ts
+const result = await fs.readBinaryStream('/path/to/large-file.bin');
+
+if (result.ok) {
+  const stream: ReadableStream<Uint8Array> = result.data;
+  const reader = stream.getReader();
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    processChunk(value); // Uint8Array chunk
+  }
+}
+```
+
+### Streaming binary writes
+
+Write data from a `ReadableStream<Uint8Array>` to a file. No size limit — data flows chunk by chunk. The write is **atomic** (temp file + rename).
+
+```ts
+const stream = new ReadableStream<Uint8Array>({
+  start(controller) {
+    controller.enqueue(new Uint8Array([0x01, 0x02]));
+    controller.enqueue(new Uint8Array([0x03, 0x04]));
+    controller.close();
+  },
+});
+
+const result = await fs.writeBinaryStream('/path/to/output.bin', stream);
+```
+
+## Directory operations
+
+### Check existence
+
+```ts
+const result = await fs.exists('/path/to/check');
+if (result.ok && result.data) {
+  console.log('Exists');
+}
+```
+
+### File metadata
+
+```ts
+const result = await fs.stat('/path/to/file');
+if (result.ok) {
+  const { size, isFile, isDirectory, modified } = result.data;
+}
+```
+
+### List directory
+
+```ts
+const result = await fs.readDir('/path/to/dir');
+if (result.ok) {
+  for (const entry of result.data) {
+    console.log(entry.name, entry.isFile ? 'file' : 'dir');
+  }
+}
+```
+
+### Create directory
+
+```ts
+await fs.createDir('/path/to/new/dir', { recursive: true });
+```
+
+### Remove
+
+Removes a file or directory. Directories are removed recursively.
+
+```ts
+await fs.remove('/path/to/delete');
+```
+
+### Rename / move
+
+```ts
+await fs.rename('/path/from.txt', '/path/to.txt');
+```
+
+## Timeouts
+
+All operations accept an optional `timeout` (milliseconds):
+
+```ts
+const result = await fs.readBinaryFile('/path/to/file', { timeout: 5000 });
+
+if (!result.ok && result.error.code === 'TIMEOUT') {
+  console.error('Read timed out after 5 seconds');
+}
+```
+
+## Error codes
+
+| Code                | Meaning                                               |
+| ------------------- | ----------------------------------------------------- |
+| `NOT_FOUND`         | File or directory does not exist                      |
+| `PERMISSION_DENIED` | OS-level permission denied, or IPC method not allowed |
+| `IO_ERROR`          | General I/O failure                                   |
+| `TIMEOUT`           | Operation exceeded the specified timeout              |
+| `EXECUTION_FAILED`  | Not running in the native webview                     |
+
+## Buffered vs streaming — when to use which
+
+|                | Buffered (`readBinaryFile` / `writeBinaryFile`) | Streaming (`readBinaryStream` / `writeBinaryStream`) |
+| -------------- | ----------------------------------------------- | ---------------------------------------------------- |
+| **Size limit** | 2 GiB                                           | No limit                                             |
+| **Memory**     | Entire file in memory                           | Chunk by chunk                                       |
+| **API**        | `Uint8Array`                                    | `ReadableStream<Uint8Array>`                         |
+| **Best for**   | Images, config, small assets                    | Video, database dumps, large exports                 |

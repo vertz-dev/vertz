@@ -117,6 +117,10 @@
             ]
           },
           {
+            "group": "vertz/desktop",
+            "pages": ["guides/desktop/fs"]
+          },
+          {
             "group": "vertz/fetch",
             "pages": ["guides/fetch"]
           },

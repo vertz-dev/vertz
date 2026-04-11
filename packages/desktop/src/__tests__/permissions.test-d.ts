@@ -40,6 +40,8 @@ describe('Feature: IpcMethodString type safety', () => {
     it('Then fs methods are assignable', () => {
       expectTypeOf<'fs.readTextFile'>().toMatchTypeOf<IpcMethodString>();
       expectTypeOf<'fs.writeTextFile'>().toMatchTypeOf<IpcMethodString>();
+      expectTypeOf<'fs.readBinaryFile'>().toMatchTypeOf<IpcMethodString>();
+      expectTypeOf<'fs.writeBinaryFile'>().toMatchTypeOf<IpcMethodString>();
       expectTypeOf<'fs.readDir'>().toMatchTypeOf<IpcMethodString>();
       expectTypeOf<'fs.exists'>().toMatchTypeOf<IpcMethodString>();
       expectTypeOf<'fs.stat'>().toMatchTypeOf<IpcMethodString>();

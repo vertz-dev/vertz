@@ -16,6 +16,8 @@ interface VtzIpc {
 declare global {
   interface Window {
     __vtz_ipc?: VtzIpc;
+    /** Session nonce injected by the Rust runtime for binary file HTTP authentication. */
+    __vtz_ipc_token?: string;
   }
 }
 
