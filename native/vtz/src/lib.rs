@@ -7,6 +7,7 @@ pub mod deps;
 pub mod env;
 pub mod errors;
 pub mod hmr;
+pub mod ipc_permissions;
 pub mod native_handler;
 pub mod plugin;
 pub mod pm;

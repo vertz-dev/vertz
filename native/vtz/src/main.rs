@@ -88,7 +88,12 @@ fn run_desktop_mode(cli: Cli) {
         unreachable!()
     };
 
-    let config = build_dev_config(&args);
+    let mut config = build_dev_config(&args);
+
+    // Generate a session nonce for binary file IPC authentication.
+    // Shared between the HTTP routes and the webview initialization script.
+    let ipc_nonce = vertz_runtime::server::binary_fs::generate_nonce();
+    config.ipc_nonce = Some(ipc_nonce.clone());
 
     // Derive window title from project name or directory
     let title = config
@@ -157,7 +162,7 @@ fn run_desktop_mode(cli: Cli) {
     let dispatcher = IpcDispatcher::new(tokio_handle, app.proxy(), permissions);
 
     // Main thread: run the native event loop (blocks forever)
-    app.run(Some(dispatcher));
+    app.run(Some(dispatcher), Some(ipc_nonce));
 }
 
 /// E2E test mode: hidden webview on main thread, tokio + test runner on background thread.
@@ -248,7 +253,7 @@ fn run_e2e_test_mode(cli: Cli) {
     });
 
     // Main thread: run the native event loop (blocks until Quit event)
-    app.run(None);
+    app.run(None, None);
 }
 
 /// Run the project's `codegen` script (if defined in package.json) before

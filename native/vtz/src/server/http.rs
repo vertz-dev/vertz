@@ -333,6 +333,11 @@ pub fn build_router(
         last_file_change: Arc::new(std::sync::Mutex::new(None)),
         favicon_tag,
         browser_hub: crate::server::browser_hub::BrowserInteractionHub::new(),
+        ipc_permissions: Arc::new(crate::ipc_permissions::IpcPermissions::allow_all()),
+        ipc_nonce: config
+            .ipc_nonce
+            .clone()
+            .unwrap_or_else(crate::server::binary_fs::generate_nonce),
     });
 
     // Routes: HMR WebSocket, error WebSocket, diagnostics, AI API, fallback
@@ -362,6 +367,22 @@ pub fn build_router(
         )
         .route("/__vertz_mcp/events", get(ws_mcp_events_handler))
         .route("/__vertz_interact", get(ws_interact_handler))
+        .route(
+            "/__vertz_fs_binary/read",
+            get(crate::server::binary_fs::handle_binary_read),
+        )
+        .route(
+            "/__vertz_fs_binary/write",
+            axum::routing::post(crate::server::binary_fs::handle_binary_write),
+        )
+        .route(
+            "/__vertz_fs_binary/stream/read",
+            get(crate::server::binary_fs::handle_binary_stream_read),
+        )
+        .route(
+            "/__vertz_fs_binary/stream/write",
+            axum::routing::post(crate::server::binary_fs::handle_binary_stream_write),
+        )
         .fallback(dev_server_handler)
         .with_state(state.clone())
         .layer(RequestLoggingLayer::new(state.audit_log.clone()))

@@ -133,6 +133,8 @@ pub(crate) mod tests {
             last_file_change: Arc::new(std::sync::Mutex::new(None)),
             favicon_tag: None,
             browser_hub: crate::server::browser_hub::BrowserInteractionHub::new(),
+            ipc_permissions: Arc::new(crate::ipc_permissions::IpcPermissions::allow_all()),
+            ipc_nonce: String::new(),
         });
 
         (state, tmp)
