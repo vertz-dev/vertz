@@ -8,7 +8,7 @@
     "outDir": "dist",
     "rootDir": "src"
   },
-  "exclude": ["node_modules", "dist", "**/*.test.ts", "**/*.test.tsx"],
+  "exclude": ["node_modules", "dist", "**/*.test.ts", "**/*.test.tsx", "src/build-hooks.ts"],
   "extends": "../../tsconfig.json",
   "include": ["src"]
 }
