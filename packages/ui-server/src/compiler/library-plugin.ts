@@ -1,5 +1,5 @@
 import { readFile } from 'node:fs/promises';
-import type { BunPlugin } from 'bun';
+import { transform, type Plugin } from 'esbuild';
 import { compile } from './native-compiler';
 
 export interface VertzLibraryPluginOptions {
@@ -8,24 +8,22 @@ export interface VertzLibraryPluginOptions {
   exclude?: RegExp;
 }
 
-export function createVertzLibraryPlugin(options?: VertzLibraryPluginOptions): BunPlugin {
+export function createVertzLibraryPlugin(options?: VertzLibraryPluginOptions): Plugin {
   const filter = options?.filter ?? /\.tsx$/;
 
   return {
     name: 'vertz-library-plugin',
     setup(build) {
-      build.onLoad({ filter }, async (args) => {
+      build.onLoad({ filter, namespace: 'file' }, async (args) => {
         const source = await readFile(args.path, 'utf-8');
 
         if (options?.exclude?.test(args.path)) {
-          const transpiled = new Bun.Transpiler({
+          const { code } = await transform(source, {
             loader: 'tsx',
-            autoImportJSX: true,
-            tsconfig: JSON.stringify({
-              compilerOptions: { jsx: 'react-jsx', jsxImportSource: '@vertz/ui' },
-            }),
-          }).transformSync(source);
-          return { contents: transpiled, loader: 'js' as const };
+            jsx: 'automatic',
+            jsxImportSource: '@vertz/ui',
+          });
+          return { contents: code, loader: 'js' as const };
         }
 
         const result = compile(source, {
@@ -40,7 +38,7 @@ export function createVertzLibraryPlugin(options?: VertzLibraryPluginOptions): B
           contents += `\n//# sourceMappingURL=data:application/json;base64,${mapBase64}`;
         }
 
-        return { contents, loader: 'tsx' as const };
+        return { contents, loader: 'js' as const };
       });
     },
   };

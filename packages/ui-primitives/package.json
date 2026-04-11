@@ -41,6 +41,7 @@
   },
   "devDependencies": {
     "@happy-dom/global-registrator": "^20.7.0",
+    "@vertz/build": "workspace:^",
     "@vertz/test": "workspace:*",
     "@vertz/ui-server": "workspace:^",
     "bunup": "^0.16.31",
