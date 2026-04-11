@@ -25,11 +25,11 @@ File system access requires permissions declared in `.vertzrc`:
 }
 ```
 
-| Capability | Methods |
-|------------|---------|
-| `fs:read` | `readTextFile`, `readBinaryFile`, `readBinaryStream`, `readDir`, `stat`, `exists` |
+| Capability | Methods                                                                                  |
+| ---------- | ---------------------------------------------------------------------------------------- |
+| `fs:read`  | `readTextFile`, `readBinaryFile`, `readBinaryStream`, `readDir`, `stat`, `exists`        |
 | `fs:write` | `writeTextFile`, `writeBinaryFile`, `writeBinaryStream`, `createDir`, `remove`, `rename` |
-| `fs:all` | All of the above |
+| `fs:all`   | All of the above                                                                         |
 
 ## Text files
 
@@ -39,7 +39,7 @@ File system access requires permissions declared in `.vertzrc`:
 const result = await fs.readTextFile('/path/to/file.txt');
 
 if (result.ok) {
-  console.log(result.value); // string (UTF-8)
+  console.log(result.data); // string (UTF-8)
 } else {
   console.log(result.error.code); // DesktopErrorCode
 }
@@ -67,7 +67,7 @@ Returns the entire file as a `Uint8Array`. Files larger than 2 GiB return an err
 const result = await fs.readBinaryFile('/path/to/image.png');
 
 if (result.ok) {
-  const bytes: Uint8Array = result.value;
+  const bytes: Uint8Array = result.data;
   console.log(`Read ${bytes.byteLength} bytes`);
 }
 ```
@@ -77,7 +77,7 @@ if (result.ok) {
 Writes a `Uint8Array` to a file. The write is **atomic** — data is written to a temp file first, then renamed into place for crash safety. Parent directories are created automatically.
 
 ```ts
-const data = new Uint8Array([0xDE, 0xAD, 0xBE, 0xEF]);
+const data = new Uint8Array([0xde, 0xad, 0xbe, 0xef]);
 const result = await fs.writeBinaryFile('/path/to/output.bin', data);
 
 if (!result.ok) {
@@ -93,7 +93,7 @@ For files larger than 2 GiB or when you want to process data incrementally, use 
 const result = await fs.readBinaryStream('/path/to/large-file.bin');
 
 if (result.ok) {
-  const stream: ReadableStream<Uint8Array> = result.value;
+  const stream: ReadableStream<Uint8Array> = result.data;
   const reader = stream.getReader();
 
   while (true) {
@@ -126,7 +126,7 @@ const result = await fs.writeBinaryStream('/path/to/output.bin', stream);
 
 ```ts
 const result = await fs.exists('/path/to/check');
-if (result.ok && result.value) {
+if (result.ok && result.data) {
   console.log('Exists');
 }
 ```
@@ -136,7 +136,7 @@ if (result.ok && result.value) {
 ```ts
 const result = await fs.stat('/path/to/file');
 if (result.ok) {
-  const { size, isFile, isDirectory, modified } = result.value;
+  const { size, isFile, isDirectory, modified } = result.data;
 }
 ```
 
@@ -145,7 +145,7 @@ if (result.ok) {
 ```ts
 const result = await fs.readDir('/path/to/dir');
 if (result.ok) {
-  for (const entry of result.value) {
+  for (const entry of result.data) {
     console.log(entry.name, entry.isFile ? 'file' : 'dir');
   }
 }
@@ -185,19 +185,19 @@ if (!result.ok && result.error.code === 'TIMEOUT') {
 
 ## Error codes
 
-| Code | Meaning |
-|------|---------|
-| `NOT_FOUND` | File or directory does not exist |
+| Code                | Meaning                                               |
+| ------------------- | ----------------------------------------------------- |
+| `NOT_FOUND`         | File or directory does not exist                      |
 | `PERMISSION_DENIED` | OS-level permission denied, or IPC method not allowed |
-| `IO_ERROR` | General I/O failure |
-| `TIMEOUT` | Operation exceeded the specified timeout |
-| `EXECUTION_FAILED` | Not running in the native webview |
+| `IO_ERROR`          | General I/O failure                                   |
+| `TIMEOUT`           | Operation exceeded the specified timeout              |
+| `EXECUTION_FAILED`  | Not running in the native webview                     |
 
 ## Buffered vs streaming — when to use which
 
-| | Buffered (`readBinaryFile` / `writeBinaryFile`) | Streaming (`readBinaryStream` / `writeBinaryStream`) |
-|---|---|---|
-| **Size limit** | 2 GiB | No limit |
-| **Memory** | Entire file in memory | Chunk by chunk |
-| **API** | `Uint8Array` | `ReadableStream<Uint8Array>` |
-| **Best for** | Images, config, small assets | Video, database dumps, large exports |
+|                | Buffered (`readBinaryFile` / `writeBinaryFile`) | Streaming (`readBinaryStream` / `writeBinaryStream`) |
+| -------------- | ----------------------------------------------- | ---------------------------------------------------- |
+| **Size limit** | 2 GiB                                           | No limit                                             |
+| **Memory**     | Entire file in memory                           | Chunk by chunk                                       |
+| **API**        | `Uint8Array`                                    | `ReadableStream<Uint8Array>`                         |
+| **Best for**   | Images, config, small assets                    | Video, database dumps, large exports                 |

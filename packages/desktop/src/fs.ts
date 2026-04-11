@@ -106,7 +106,7 @@ export async function readBinaryFile(
 ): Promise<Result<Uint8Array, DesktopError>> {
   const result = await binaryFetch('read', path, undefined, options);
   if (!result.ok) return result;
-  return ok(new Uint8Array(await result.value.arrayBuffer()));
+  return ok(new Uint8Array(await result.data.arrayBuffer()));
 }
 
 /**
@@ -135,13 +135,13 @@ export async function readBinaryStream(
 ): Promise<Result<ReadableStream<Uint8Array>, DesktopError>> {
   const result = await binaryFetch('stream/read', path, undefined, options);
   if (!result.ok) return result;
-  if (!result.value.body) {
+  if (!result.data.body) {
     return err({
       code: 'IO_ERROR' as DesktopErrorCode,
       message: 'Response has no body stream',
     });
   }
-  return ok(result.value.body as ReadableStream<Uint8Array>);
+  return ok(result.data.body as ReadableStream<Uint8Array>);
 }
 
 /**
