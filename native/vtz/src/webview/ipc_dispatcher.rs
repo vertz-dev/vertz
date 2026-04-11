@@ -62,6 +62,7 @@ pub enum IpcErrorCode {
     InvalidPath,
     MethodNotFound,
     ExecutionFailed,
+    Timeout,
 }
 
 impl IpcErrorCode {
@@ -73,6 +74,7 @@ impl IpcErrorCode {
             Self::InvalidPath => "INVALID_PATH",
             Self::MethodNotFound => "METHOD_NOT_FOUND",
             Self::ExecutionFailed => "EXECUTION_FAILED",
+            Self::Timeout => "TIMEOUT",
         }
     }
 }
@@ -511,6 +513,7 @@ mod tests {
         assert_eq!(IpcErrorCode::InvalidPath.as_str(), "INVALID_PATH");
         assert_eq!(IpcErrorCode::MethodNotFound.as_str(), "METHOD_NOT_FOUND");
         assert_eq!(IpcErrorCode::ExecutionFailed.as_str(), "EXECUTION_FAILED");
+        assert_eq!(IpcErrorCode::Timeout.as_str(), "TIMEOUT");
     }
 
     // ── IpcError constructors ──

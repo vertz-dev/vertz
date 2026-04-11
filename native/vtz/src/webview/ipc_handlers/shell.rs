@@ -74,7 +74,7 @@ async fn execute_with_timeout(
     let output = tokio::time::timeout(timeout_duration, child.wait_with_output())
         .await
         .map_err(|_| IpcError {
-            code: IpcErrorCode::ExecutionFailed,
+            code: IpcErrorCode::Timeout,
             message: format!(
                 "Command '{}' timed out after {}s",
                 params.command,
@@ -447,7 +447,7 @@ mod tests {
 
         assert!(result.is_err(), "expected timeout error");
         let err = result.unwrap_err();
-        assert!(matches!(err.code, IpcErrorCode::ExecutionFailed));
+        assert!(matches!(err.code, IpcErrorCode::Timeout));
         assert!(
             err.message.contains("timed out"),
             "message: {}",
