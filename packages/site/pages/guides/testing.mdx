@@ -55,7 +55,7 @@ For E2E tests, use a **file-based SQLite** database. Each dev server run creates
 
 ```ts
 // src/api/db.ts
-import { Database } from 'bun:sqlite';
+import { Database } from '@vertz/sqlite';
 import { createDb } from '@vertz/db';
 import { authModels } from '@vertz/server';
 

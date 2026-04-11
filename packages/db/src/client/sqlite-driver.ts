@@ -212,7 +212,7 @@ export async function resolveLocalSqliteDatabase(
   dbPath: string,
   importFn?: (mod: string) => unknown,
 ): Promise<LocalSqliteDatabase> {
-  let bunSqliteError: unknown;
+  let sqliteError: unknown;
 
   // Use provided import function (for testing) or dynamic import
   const loadModule = importFn ?? ((mod: string) => import(mod));
@@ -228,7 +228,7 @@ export async function resolveLocalSqliteDatabase(
     if (!Database) throw new Error('@vertz/sqlite module has no Database export');
     return new Database(dbPath);
   } catch (e) {
-    bunSqliteError = e;
+    sqliteError = e;
   }
 
   try {
@@ -240,14 +240,14 @@ export async function resolveLocalSqliteDatabase(
     ) => LocalSqliteDatabase;
     return new Database(dbPath);
   } catch (betterSqliteError) {
-    const bunMsg =
-      bunSqliteError instanceof Error ? bunSqliteError.message : String(bunSqliteError);
+    const sqliteMsg =
+      sqliteError instanceof Error ? sqliteError.message : String(sqliteError);
     const betterMsg =
       betterSqliteError instanceof Error ? betterSqliteError.message : String(betterSqliteError);
 
     throw new Error(
       `Failed to initialize SQLite database at "${dbPath}".\n` +
-        `  @vertz/sqlite error: ${bunMsg}\n` +
+        `  @vertz/sqlite error: ${sqliteMsg}\n` +
         `  better-sqlite3 error: ${betterMsg}\n\n` +
         'To fix this, either:\n' +
         '  1. Run your script with vtz (e.g. vtz run <script> or vtz dev) — the Vertz\n' +

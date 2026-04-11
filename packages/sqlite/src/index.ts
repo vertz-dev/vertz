@@ -64,7 +64,7 @@ export class Database {
    * Returns a callable that executes the transaction when invoked.
    *
    * Note: argument forwarding is not supported — the returned function takes
-   * no arguments. This covers all current codebase usage. bun:sqlite's
+   * no arguments. This covers all current codebase usage. The upstream
    * `.deferred()`, `.immediate()`, `.exclusive()` modifiers are also omitted.
    */
   transaction<T>(_fn: () => T): () => T {
