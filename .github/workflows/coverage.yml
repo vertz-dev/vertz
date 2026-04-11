@@ -37,6 +37,8 @@ jobs:
       - name: Setup vtz
         uses: vertz-dev/setup-vtz@v1
 
+      # TODO: Switch to `vtz install --frozen` once the next vtz release
+      # ships with the scoped-bin-stub fix (native/vtz/src/pm/bin.rs).
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: 1.3.9
