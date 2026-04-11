@@ -20,7 +20,7 @@ export default defineConfig([
       'src/bun-plugin/state-inspector.ts',
     ],
     outDir: 'dist/bun-plugin',
-    dts: true,
+    dts: false,
     target: 'node',
   },
 ]);

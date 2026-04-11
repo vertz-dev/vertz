@@ -29,7 +29,7 @@ export function createFixBarrelReExportsHook(): PostBuildHook {
       for (const match of sourceBarrel.matchAll(exportRegex)) {
         const names = match[1]
           .split(',')
-          .map((n) => n.trim())
+          .map((n: string) => n.trim())
           .filter(Boolean);
         const sourcePath = match[2];
         const isType = match[0].startsWith('export type');
