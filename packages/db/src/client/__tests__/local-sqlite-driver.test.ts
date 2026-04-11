@@ -175,7 +175,7 @@ describe('resolveLocalSqliteDatabase', () => {
           /Failed to initialize SQLite/,
         );
         await expect(resolveLocalSqliteDatabase(':memory:', failingImport)).rejects.toThrow(
-          /@vertz/sqlite/,
+          /@vertz\/sqlite/,
         );
         await expect(resolveLocalSqliteDatabase(':memory:', failingImport)).rejects.toThrow(
           /better-sqlite3/,

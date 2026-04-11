@@ -240,8 +240,7 @@ export async function resolveLocalSqliteDatabase(
     ) => LocalSqliteDatabase;
     return new Database(dbPath);
   } catch (betterSqliteError) {
-    const sqliteMsg =
-      sqliteError instanceof Error ? sqliteError.message : String(sqliteError);
+    const sqliteMsg = sqliteError instanceof Error ? sqliteError.message : String(sqliteError);
     const betterMsg =
       betterSqliteError instanceof Error ? betterSqliteError.message : String(betterSqliteError);
 

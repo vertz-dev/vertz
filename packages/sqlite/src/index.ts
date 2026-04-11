@@ -19,10 +19,7 @@ function stub(): never {
 // ---------------------------------------------------------------------------
 
 /** Use `db.prepare()` to create statements. Exported for type annotations only. */
-export class Statement<
-  TRow = Record<string, unknown>,
-  TParams extends unknown[] = unknown[],
-> {
+export class Statement<TRow = Record<string, unknown>, TParams extends unknown[] = unknown[]> {
   all(..._params: TParams): TRow[] {
     return stub();
   }
