@@ -17,6 +17,20 @@ use tao::window::{Window, WindowBuilder};
 use tokio::sync::oneshot;
 use wry::WebViewBuilder;
 
+/// A window operation to execute on the main thread.
+///
+/// Window methods (`tao::Window`) require the main thread on macOS.
+/// The dispatcher sends these via `EventLoopProxy` and awaits the result.
+#[derive(Debug)]
+pub enum WindowOp {
+    SetTitle(String),
+    SetSize { width: u32, height: u32 },
+    SetFullscreen(bool),
+    InnerSize,
+    Minimize,
+    Close,
+}
+
 /// Events sent from background threads to the main-thread event loop.
 #[derive(Debug)]
 pub enum UserEvent {
@@ -28,6 +42,11 @@ pub enum UserEvent {
     EvalScript {
         js: String,
         tx: Mutex<Option<oneshot::Sender<String>>>,
+    },
+    /// Execute a window operation on the main thread and return the result.
+    WindowOp {
+        op: WindowOp,
+        tx: Mutex<Option<oneshot::Sender<Result<serde_json::Value, ipc_dispatcher::IpcError>>>>,
     },
     /// Close the window and exit the process.
     Quit,
@@ -117,12 +136,15 @@ impl WebviewApp {
             builder = builder.with_initialization_script(ipc_dispatcher::IPC_CLIENT_JS);
         }
 
+        // Extract fields before consuming self.event_loop.run()
+        let window = self.window;
+
         let webview = if let Some(dispatcher) = dispatcher {
             builder
                 .with_ipc_handler(move |req| {
                     dispatcher.dispatch(req.body());
                 })
-                .build(&self.window)
+                .build(&window)
                 .expect("failed to build webview")
         } else {
             builder
@@ -130,7 +152,7 @@ impl WebviewApp {
                     let body = req.body();
                     eprintln!("[vtz webview ipc] {}", body);
                 })
-                .build(&self.window)
+                .build(&window)
                 .expect("failed to build webview")
         };
 
@@ -177,6 +199,57 @@ impl WebviewApp {
                                         let _ = s.send(result);
                                     }
                                 });
+                            }
+                        }
+                        UserEvent::WindowOp { op, tx } => {
+                            use ipc_method::WindowSizeResponse;
+                            let result = match op {
+                                WindowOp::SetTitle(title) => {
+                                    window.set_title(&title);
+                                    Ok(serde_json::Value::Null)
+                                }
+                                WindowOp::SetSize { width, height } => {
+                                    window
+                                        .set_inner_size(tao::dpi::LogicalSize::new(width, height));
+                                    Ok(serde_json::Value::Null)
+                                }
+                                WindowOp::SetFullscreen(fullscreen) => {
+                                    let mode = if fullscreen {
+                                        Some(tao::window::Fullscreen::Borderless(None))
+                                    } else {
+                                        None
+                                    };
+                                    window.set_fullscreen(mode);
+                                    Ok(serde_json::Value::Null)
+                                }
+                                WindowOp::InnerSize => {
+                                    let size = window.inner_size();
+                                    serde_json::to_value(WindowSizeResponse {
+                                        width: size.width,
+                                        height: size.height,
+                                    })
+                                    .map_err(|e| {
+                                        ipc_dispatcher::IpcError::io_error(format!(
+                                            "Serialization error: {}",
+                                            e
+                                        ))
+                                    })
+                                }
+                                WindowOp::Minimize => {
+                                    window.set_minimized(true);
+                                    Ok(serde_json::Value::Null)
+                                }
+                                WindowOp::Close => {
+                                    // Signal shutdown and exit
+                                    if let Some(tx) = shutdown_tx.lock().unwrap().take() {
+                                        let _ = tx.send(());
+                                    }
+                                    *control_flow = ControlFlow::Exit;
+                                    Ok(serde_json::Value::Null)
+                                }
+                            };
+                            if let Some(sender) = tx.lock().unwrap().take() {
+                                let _ = sender.send(result);
                             }
                         }
                         UserEvent::Quit => {

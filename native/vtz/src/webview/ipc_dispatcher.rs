@@ -10,10 +10,15 @@ use serde::{Deserialize, Serialize};
 use tao::event_loop::EventLoopProxy;
 use tokio::runtime::Handle as TokioHandle;
 
+use super::ipc_handlers::app as app_handlers;
+use super::ipc_handlers::clipboard as clipboard_handlers;
+use super::ipc_handlers::dialog as dialog_handlers;
 use super::ipc_handlers::fs as fs_handlers;
+use super::ipc_handlers::shell as shell_handlers;
+use super::ipc_handlers::window as window_handlers;
 use super::ipc_method::IpcMethod;
 use super::ipc_permissions::{suggest_capability, IpcPermissions};
-use super::{eval_script_event, UserEvent};
+use super::{eval_script_event, UserEvent, WindowOp};
 
 /// A request from the webview JS side.
 #[derive(Debug, Deserialize)]
@@ -174,11 +179,12 @@ impl IpcDispatcher {
         }
 
         let proxy = self.proxy.clone();
+        let proxy_for_handler = self.proxy.clone();
         let start = Instant::now();
 
         self.tokio_handle.spawn(async move {
             let result = match IpcMethod::parse(&request.method, request.params) {
-                Ok(method) => execute_method(method).await,
+                Ok(method) => execute_method(method, proxy_for_handler).await,
                 Err(e) => Err(e),
             };
             let elapsed = start.elapsed();
@@ -221,8 +227,14 @@ impl IpcDispatcher {
 /// Execute a typed IPC method. Exhaustive match ensures compile-time
 /// coverage — adding a new `IpcMethod` variant without a handler arm
 /// is a compile error.
-async fn execute_method(method: IpcMethod) -> Result<serde_json::Value, IpcError> {
+///
+/// The `proxy` is needed for window operations that must run on the main thread.
+async fn execute_method(
+    method: IpcMethod,
+    proxy: EventLoopProxy<UserEvent>,
+) -> Result<serde_json::Value, IpcError> {
     match method {
+        // ── Filesystem ──
         IpcMethod::FsReadTextFile(p) => fs_handlers::read_text_file(p).await,
         IpcMethod::FsWriteTextFile(p) => fs_handlers::write_text_file(p).await,
         IpcMethod::FsExists(p) => fs_handlers::exists(p).await,
@@ -231,6 +243,46 @@ async fn execute_method(method: IpcMethod) -> Result<serde_json::Value, IpcError
         IpcMethod::FsCreateDir(p) => fs_handlers::create_dir(p).await,
         IpcMethod::FsRemove(p) => fs_handlers::remove(p).await,
         IpcMethod::FsRename(p) => fs_handlers::rename(p).await,
+        // ── Shell ──
+        IpcMethod::ShellExecute(p) => shell_handlers::execute(p).await,
+        // ── Clipboard ──
+        IpcMethod::ClipboardReadText => clipboard_handlers::read_text().await,
+        IpcMethod::ClipboardWriteText(p) => clipboard_handlers::write_text(p).await,
+        // ── Dialog ──
+        IpcMethod::DialogOpen(p) => dialog_handlers::open(p).await,
+        IpcMethod::DialogSave(p) => dialog_handlers::save(p).await,
+        IpcMethod::DialogConfirm(p) => dialog_handlers::confirm(p).await,
+        IpcMethod::DialogMessage(p) => dialog_handlers::message(p).await,
+        // ── Window (dispatched to main thread) ──
+        IpcMethod::AppWindowSetTitle(p) => {
+            window_handlers::dispatch_window_op(&proxy, WindowOp::SetTitle(p.title)).await
+        }
+        IpcMethod::AppWindowSetSize(p) => {
+            window_handlers::dispatch_window_op(
+                &proxy,
+                WindowOp::SetSize {
+                    width: p.width,
+                    height: p.height,
+                },
+            )
+            .await
+        }
+        IpcMethod::AppWindowSetFullscreen(p) => {
+            window_handlers::dispatch_window_op(&proxy, WindowOp::SetFullscreen(p.fullscreen)).await
+        }
+        IpcMethod::AppWindowInnerSize => {
+            window_handlers::dispatch_window_op(&proxy, WindowOp::InnerSize).await
+        }
+        IpcMethod::AppWindowMinimize => {
+            window_handlers::dispatch_window_op(&proxy, WindowOp::Minimize).await
+        }
+        IpcMethod::AppWindowClose => {
+            window_handlers::dispatch_window_op(&proxy, WindowOp::Close).await
+        }
+        // ── App ──
+        IpcMethod::AppDataDir => app_handlers::data_dir().await,
+        IpcMethod::AppCacheDir => app_handlers::cache_dir().await,
+        IpcMethod::AppVersion => app_handlers::version().await,
     }
 }
 
