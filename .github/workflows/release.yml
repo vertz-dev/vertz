@@ -161,7 +161,7 @@ jobs:
         id: resolve-vtz
         run: |
           VERSION=$(cat version.txt | tr -d '[:space:]')
-          if npm view "@vertz/runtime-linux-x64@${VERSION}" version &>/dev/null 2>&1; then
+          if npm view "@vertz/runtime-linux-x64@${VERSION}" version &>/dev/null; then
             echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
           else
             LATEST=$(npm view @vertz/runtime-linux-x64 dist-tags.latest 2>/dev/null)
