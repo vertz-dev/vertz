@@ -1,0 +1,49 @@
+{
+  "name": "@vertz/build",
+  "version": "0.2.58",
+  "description": "Build tool for Vertz packages — esbuild bundling + tsc declarations",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/vertz-dev/vertz.git",
+    "directory": "packages/build"
+  },
+  "files": [
+    "dist"
+  ],
+  "type": "module",
+  "sideEffects": false,
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "bin": {
+    "vertz-build": "dist/cli.js"
+  },
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
+  "scripts": {
+    "build": "tsc --outDir dist --declaration",
+    "test": "vtz test",
+    "test:watch": "vtz test --watch",
+    "typecheck": "tsgo --noEmit -p tsconfig.typecheck.json"
+  },
+  "dependencies": {
+    "esbuild": "^0.27.3",
+    "jiti": "^2.4.2"
+  },
+  "devDependencies": {
+    "@types/node": "^25.3.1",
+    "@vertz/test": "workspace:*",
+    "typescript": "^5.7.0"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}

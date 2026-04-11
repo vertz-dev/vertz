@@ -3,7 +3,7 @@ node_modules/
 
 # Build outputs
 dist/
-build/
+/*/build/
 *.tsbuildinfo
 
 # Compiled TypeScript in src/ (should only commit .ts files)
