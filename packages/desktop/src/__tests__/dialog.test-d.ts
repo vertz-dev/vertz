@@ -8,9 +8,7 @@ import type { DesktopError } from '../types.js';
 describe('Feature: dialog.open type safety', () => {
   describe('Given dialog.open called without options', () => {
     it('Then returns Promise<Result<string | null, DesktopError>>', () => {
-      expectTypeOf(dialog.open()).toEqualTypeOf<
-        Promise<Result<string | null, DesktopError>>
-      >();
+      expectTypeOf(dialog.open()).toEqualTypeOf<Promise<Result<string | null, DesktopError>>>();
     });
   });
 
@@ -40,9 +38,7 @@ describe('Feature: dialog.open type safety', () => {
 
 describe('Feature: dialog.save type safety', () => {
   it('Returns Promise<Result<string | null, DesktopError>>', () => {
-    expectTypeOf(dialog.save()).toEqualTypeOf<
-      Promise<Result<string | null, DesktopError>>
-    >();
+    expectTypeOf(dialog.save()).toEqualTypeOf<Promise<Result<string | null, DesktopError>>>();
   });
 });
 
@@ -59,9 +55,9 @@ describe('Feature: dialog.confirm type safety', () => {
 
   describe('Given dialog.confirm called with kind option', () => {
     it('Then accepts ConfirmDialogOptions', () => {
-      expectTypeOf(
-        dialog.confirm('Delete?', { kind: 'warning', title: 'Confirm' }),
-      ).toEqualTypeOf<Promise<Result<boolean, DesktopError>>>();
+      expectTypeOf(dialog.confirm('Delete?', { kind: 'warning', title: 'Confirm' })).toEqualTypeOf<
+        Promise<Result<boolean, DesktopError>>
+      >();
     });
   });
 
@@ -78,9 +74,7 @@ describe('Feature: dialog.confirm type safety', () => {
 describe('Feature: dialog.message type safety', () => {
   describe('Given dialog.message called with message', () => {
     it('Then returns Promise<Result<void, DesktopError>>', () => {
-      expectTypeOf(dialog.message('Done!')).toEqualTypeOf<
-        Promise<Result<void, DesktopError>>
-      >();
+      expectTypeOf(dialog.message('Done!')).toEqualTypeOf<Promise<Result<void, DesktopError>>>();
     });
   });
 });

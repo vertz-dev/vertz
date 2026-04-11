@@ -7,9 +7,7 @@ import type { DesktopError, WindowSize } from '../types.js';
 
 describe('Feature: appWindow.setTitle type safety', () => {
   it('Returns Promise<Result<void, DesktopError>>', () => {
-    expectTypeOf(appWindow.setTitle('My App')).toEqualTypeOf<
-      Promise<Result<void, DesktopError>>
-    >();
+    expectTypeOf(appWindow.setTitle('My App')).toEqualTypeOf<Promise<Result<void, DesktopError>>>();
   });
 });
 
@@ -53,9 +51,7 @@ describe('Feature: appWindow.setFullscreen type safety', () => {
 
 describe('Feature: appWindow.innerSize type safety', () => {
   it('Returns Promise<Result<WindowSize, DesktopError>>', () => {
-    expectTypeOf(appWindow.innerSize()).toEqualTypeOf<
-      Promise<Result<WindowSize, DesktopError>>
-    >();
+    expectTypeOf(appWindow.innerSize()).toEqualTypeOf<Promise<Result<WindowSize, DesktopError>>>();
   });
 });
 

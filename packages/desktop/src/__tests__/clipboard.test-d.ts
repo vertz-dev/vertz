@@ -8,9 +8,7 @@ import type { DesktopError } from '../types.js';
 describe('Feature: clipboard.readText type safety', () => {
   describe('Given clipboard.readText called', () => {
     it('Then returns Promise<Result<string, DesktopError>>', () => {
-      expectTypeOf(clipboard.readText()).toEqualTypeOf<
-        Promise<Result<string, DesktopError>>
-      >();
+      expectTypeOf(clipboard.readText()).toEqualTypeOf<Promise<Result<string, DesktopError>>>();
     });
   });
 
