@@ -6,22 +6,41 @@
  * (no signal handlers, no console logging, no process.exit).
  */
 
-// Minimal ambient declaration for Bun APIs used by this module.
-// The CLI runs under Bun at runtime; these declarations let tsc validate
-// without pulling in bun-types (which conflicts with @types/node).
-declare const Bun: {
-  serve(options: {
-    port: number;
-    hostname: string;
-    fetch: (req: Request) => Response | Promise<Response>;
-  }): { port: number; stop(): void };
-  file(path: string): Blob & { size: number; type: string };
-};
-
+import { createServer, type Server } from 'node:http';
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
-import { join, resolve } from 'node:path';
+import { extname, join, resolve } from 'node:path';
 import { err, ok, type Result } from '@vertz/errors';
 import type { AppType } from '../dev-server/app-detector';
+
+/** Simple MIME type lookup for static file serving. */
+const MIME_TYPES: Record<string, string> = {
+  '.html': 'text/html; charset=utf-8',
+  '.css': 'text/css',
+  '.js': 'application/javascript',
+  '.mjs': 'application/javascript',
+  '.json': 'application/json',
+  '.png': 'image/png',
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.gif': 'image/gif',
+  '.svg': 'image/svg+xml',
+  '.ico': 'image/x-icon',
+  '.woff': 'font/woff',
+  '.woff2': 'font/woff2',
+  '.ttf': 'font/ttf',
+  '.txt': 'text/plain',
+  '.xml': 'application/xml',
+  '.webp': 'image/webp',
+  '.avif': 'image/avif',
+  '.mp4': 'video/mp4',
+  '.webm': 'video/webm',
+  '.wasm': 'application/wasm',
+  '.map': 'application/json',
+};
+
+function getMimeType(filePath: string): string {
+  return MIME_TYPES[extname(filePath)] ?? 'application/octet-stream';
+}
 
 export interface ServeOptions {
   projectRoot: string;
@@ -129,10 +148,11 @@ export function servePrerenderHTML(clientDir: string, pathname: string): Respons
   // Skip _shell.html — that's the SSR template, not a pre-rendered page
   if (htmlPath.endsWith('/_shell.html')) return null;
 
-  const file = Bun.file(htmlPath);
-  if (!file.size) return null;
+  if (!existsSync(htmlPath) || !statSync(htmlPath).isFile()) return null;
+  const fileSize = statSync(htmlPath).size;
+  if (!fileSize) return null;
 
-  return new Response(file, {
+  return new Response(readFileSync(htmlPath), {
     headers: {
       'Content-Type': 'text/html; charset=utf-8',
       'Cache-Control': 'public, max-age=0, must-revalidate',
@@ -153,12 +173,11 @@ export function serveStaticFile(clientDir: string, pathname: string): Response |
   // Path traversal guard
   if (!filePath.startsWith(clientDir)) return null;
 
-  // Guard: skip directories (Bun.file on a directory causes "MacOS does not
-  // support sending non-regular files" when used as a Response body).
+  // Guard: skip directories and non-existent files
   if (!existsSync(filePath) || !statSync(filePath).isFile()) return null;
 
-  const file = Bun.file(filePath);
-  if (!file.size) return null;
+  const fileSize = statSync(filePath).size;
+  if (!fileSize) return null;
 
   // Cache headers
   const isHashedAsset = pathname.startsWith('/assets/');
@@ -166,11 +185,78 @@ export function serveStaticFile(clientDir: string, pathname: string): Response |
     ? 'public, max-age=31536000, immutable'
     : 'public, max-age=3600';
 
-  return new Response(file, {
+  return new Response(readFileSync(filePath), {
     headers: {
       'Cache-Control': cacheControl,
-      'Content-Type': file.type,
+      'Content-Type': getMimeType(filePath),
     },
+  });
+}
+
+/**
+ * Create an HTTP server from a web-standard fetch handler.
+ * Converts between node:http IncomingMessage/ServerResponse and Request/Response.
+ */
+function startWebServer(
+  port: number,
+  hostname: string,
+  handler: (req: Request) => Response | Promise<Response>,
+): Promise<{ port: number; stop(): void }> {
+  return new Promise((resolvePromise) => {
+    const server: Server = createServer(async (nodeReq, nodeRes) => {
+      try {
+        const url = `http://${hostname}:${port}${nodeReq.url ?? '/'}`;
+        const headers = new Headers();
+        for (const [key, value] of Object.entries(nodeReq.headers)) {
+          if (value) {
+            if (Array.isArray(value)) {
+              for (const v of value) headers.append(key, v);
+            } else {
+              headers.set(key, value);
+            }
+          }
+        }
+
+        const method = nodeReq.method ?? 'GET';
+        const hasBody = method !== 'GET' && method !== 'HEAD';
+        let bodyArrayBuffer: ArrayBuffer | undefined;
+        if (hasBody) {
+          const chunks: Buffer[] = [];
+          for await (const chunk of nodeReq) {
+            chunks.push(chunk as Buffer);
+          }
+          const buf = Buffer.concat(chunks);
+          bodyArrayBuffer = buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength);
+        }
+
+        const request = new Request(url, {
+          method,
+          headers,
+          body: hasBody ? bodyArrayBuffer : undefined,
+        });
+
+        const response = await handler(request);
+
+        nodeRes.writeHead(response.status, Object.fromEntries(response.headers));
+        const respBody = await response.arrayBuffer();
+        nodeRes.end(Buffer.from(respBody));
+      } catch (error) {
+        nodeRes.writeHead(500, { 'Content-Type': 'text/plain' });
+        nodeRes.end(error instanceof Error ? error.message : 'Internal Server Error');
+      }
+    });
+
+    server.listen(port, hostname, () => {
+      const addr = server.address();
+      const actualPort = typeof addr === 'object' && addr ? addr.port : port;
+
+      resolvePromise({
+        port: actualPort,
+        stop() {
+          server.close();
+        },
+      });
+    });
   });
 }
 
@@ -221,29 +307,25 @@ export async function serveUIOnly(options: ServeOptions): Promise<Result<ServeRe
 
   const clientDir = resolve(projectRoot, 'dist', 'client');
 
-  const server = Bun.serve({
-    port,
-    hostname: host,
-    async fetch(req) {
-      const url = new URL(req.url);
-      const pathname = url.pathname;
+  const server = await startWebServer(port, host, async (req) => {
+    const url = new URL(req.url);
+    const pathname = url.pathname;
 
-      // Nav pre-fetch always goes through SSR (for query discovery)
-      if (req.headers.get('x-vertz-nav') === '1') {
-        return ssrHandler(req);
-      }
-
-      // Serve static assets (JS, CSS, images)
-      const staticResponse = serveStaticFile(clientDir, pathname);
-      if (staticResponse) return staticResponse;
-
-      // Check for pre-rendered HTML
-      const prerenderResponse = servePrerenderHTML(clientDir, pathname);
-      if (prerenderResponse) return prerenderResponse;
-
-      // Fallback: runtime SSR
+    // Nav pre-fetch always goes through SSR (for query discovery)
+    if (req.headers.get('x-vertz-nav') === '1') {
       return ssrHandler(req);
-    },
+    }
+
+    // Serve static assets (JS, CSS, images)
+    const staticResponse = serveStaticFile(clientDir, pathname);
+    if (staticResponse) return staticResponse;
+
+    // Check for pre-rendered HTML
+    const prerenderResponse = servePrerenderHTML(clientDir, pathname);
+    if (prerenderResponse) return prerenderResponse;
+
+    // Fallback: runtime SSR
+    return ssrHandler(req);
   });
 
   const displayHost = host === '0.0.0.0' ? 'localhost' : host;
@@ -274,11 +356,7 @@ export async function serveApiOnly(options: ServeOptions): Promise<Result<ServeR
     return err(new Error('API module must export default with a .handler function.'));
   }
 
-  const server = Bun.serve({
-    port,
-    hostname: host,
-    fetch: handler,
-  });
+  const server = await startWebServer(port, host, handler);
 
   const displayHost = host === '0.0.0.0' ? 'localhost' : host;
   return ok({ server, url: `http://${displayHost}:${server.port}`, aotRouteCount: 0 });
@@ -350,34 +428,30 @@ export async function serveFullStack(options: ServeOptions): Promise<Result<Serv
 
   const clientDir = resolve(projectRoot, 'dist', 'client');
 
-  const server = Bun.serve({
-    port,
-    hostname: host,
-    async fetch(req) {
-      const url = new URL(req.url);
-      const pathname = url.pathname;
+  const server = await startWebServer(port, host, async (req) => {
+    const url = new URL(req.url);
+    const pathname = url.pathname;
 
-      // API routes
-      if (pathname.startsWith('/api')) {
-        return apiHandler(req);
-      }
+    // API routes
+    if (pathname.startsWith('/api')) {
+      return apiHandler(req);
+    }
 
-      // Nav pre-fetch always goes through SSR (for query discovery)
-      if (req.headers.get('x-vertz-nav') === '1') {
-        return ssrHandler(req);
-      }
-
-      // Static assets
-      const staticResponse = serveStaticFile(clientDir, pathname);
-      if (staticResponse) return staticResponse;
-
-      // Pre-rendered HTML
-      const prerenderResponse = servePrerenderHTML(clientDir, pathname);
-      if (prerenderResponse) return prerenderResponse;
-
-      // Runtime SSR fallback
+    // Nav pre-fetch always goes through SSR (for query discovery)
+    if (req.headers.get('x-vertz-nav') === '1') {
       return ssrHandler(req);
-    },
+    }
+
+    // Static assets
+    const staticResponse = serveStaticFile(clientDir, pathname);
+    if (staticResponse) return staticResponse;
+
+    // Pre-rendered HTML
+    const prerenderResponse = servePrerenderHTML(clientDir, pathname);
+    if (prerenderResponse) return prerenderResponse;
+
+    // Runtime SSR fallback
+    return ssrHandler(req);
   });
 
   const displayHost = host === '0.0.0.0' ? 'localhost' : host;

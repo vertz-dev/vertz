@@ -1,6 +1,7 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from '@vertz/test';
 import { GlobalRegistrator } from '@happy-dom/global-registrator';
 import { existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { readFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -37,7 +38,7 @@ describe('createDocsDevServer — static files', () => {
   let testDir: string;
   let server: { port: number; hostname: string; stop(): void } | null = null;
 
-  // Bun.serve() requires native Response — unregister happy-dom for these tests
+  // HTTP server requires native Response — unregister happy-dom for these tests
   beforeAll(() => {
     GlobalRegistrator.unregister();
   });
@@ -175,7 +176,7 @@ describe('docsBuildAction', () => {
     expect(result.ok).toBe(true);
     if (result.ok) {
       expect(existsSync(join(testDir, 'dist', 'llms.txt'))).toBe(true);
-      const llmsTxt = await Bun.file(join(testDir, 'dist', 'llms.txt')).text();
+      const llmsTxt = await readFile(join(testDir, 'dist', 'llms.txt'), 'utf-8');
       expect(llmsTxt).toContain('https://docs.example.com');
     }
   });

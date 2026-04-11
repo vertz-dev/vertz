@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from '@vertz/test';
-import { existsSync, mkdirSync, rmSync } from 'node:fs';
+import { existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { readFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { initDocs } from '../cli/init';
@@ -33,15 +34,15 @@ describe('initDocs', () => {
 
   it('does not overwrite existing config', async () => {
     const configPath = join(tempDir, 'vertz.config.ts');
-    await Bun.write(configPath, 'export default { name: "Existing" }');
+    writeFileSync(configPath, 'export default { name: "Existing" }');
     await initDocs(tempDir);
-    const content = await Bun.file(configPath).text();
+    const content = await readFile(configPath, 'utf-8');
     expect(content).toContain('Existing');
   });
 
   it('config contains defineDocsConfig import', async () => {
     await initDocs(tempDir);
-    const content = await Bun.file(join(tempDir, 'vertz.config.ts')).text();
+    const content = await readFile(join(tempDir, 'vertz.config.ts'), 'utf-8');
     expect(content).toContain('defineDocsConfig');
   });
 });

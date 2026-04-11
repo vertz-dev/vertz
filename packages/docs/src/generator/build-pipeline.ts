@@ -1,4 +1,5 @@
 import { cpSync, existsSync, mkdirSync } from 'node:fs';
+import { readFile, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { loadDocsConfig } from '../config/load';
 import { compileMdxToHtml } from '../dev/compile-mdx-html';
@@ -63,7 +64,7 @@ export async function buildDocs(options: BuildDocsOptions): Promise<BuildManifes
     const filePath = join(pagesDir, normalizedFilePath);
     if (!existsSync(filePath)) continue;
 
-    const rawContent = await Bun.file(filePath).text();
+    const rawContent = await readFile(filePath, 'utf-8');
     const { data: frontmatter, content: bodyContent } = parseFrontmatter(rawContent);
     const headings = extractHeadings(bodyContent);
     const title = frontmatter.title ?? route.title;
@@ -94,7 +95,7 @@ export async function buildDocs(options: BuildDocsOptions): Promise<BuildManifes
 
     const htmlPath = toHtmlOutputPath(route.path, outDir);
     mkdirSync(dirname(htmlPath), { recursive: true });
-    await Bun.write(htmlPath, seoHtml);
+    await writeFile(htmlPath, seoHtml);
 
     // Generate LLM markdown with enriched frontmatter
     if (config.llm?.enabled && !isLlmExcluded(route.filePath, config.llm.exclude)) {
@@ -109,7 +110,7 @@ export async function buildDocs(options: BuildDocsOptions): Promise<BuildManifes
 
       const llmFilePath = toLlmOutputPath(route.path, outDir);
       mkdirSync(dirname(llmFilePath), { recursive: true });
-      await Bun.write(llmFilePath, markdown);
+      await writeFile(llmFilePath, markdown);
     }
   }
 
@@ -118,19 +119,19 @@ export async function buildDocs(options: BuildDocsOptions): Promise<BuildManifes
     const llmConfig = config.llm;
     const includedRoutes = routes.filter((r) => !isLlmExcluded(r.filePath, llmConfig.exclude));
     const llmsTxt = generateLlmsTxt(includedRoutes, llmConfig, baseUrl);
-    await Bun.write(join(outDir, 'llms.txt'), llmsTxt);
+    await writeFile(join(outDir, 'llms.txt'), llmsTxt);
 
     const llmsFullTxt = generateLlmsFullTxt(llmPages, llmConfig);
-    await Bun.write(join(outDir, 'llms-full.txt'), llmsFullTxt);
+    await writeFile(join(outDir, 'llms-full.txt'), llmsFullTxt);
   }
 
   // Generate sitemap.xml
   if (baseUrl) {
     const sitemap = generateSitemap(manifestRoutes, baseUrl);
-    await Bun.write(join(outDir, 'sitemap.xml'), sitemap);
+    await writeFile(join(outDir, 'sitemap.xml'), sitemap);
 
     const robots = generateRobotsTxt(baseUrl);
-    await Bun.write(join(outDir, 'robots.txt'), robots);
+    await writeFile(join(outDir, 'robots.txt'), robots);
   }
 
   // Generate redirect pages
@@ -139,7 +140,7 @@ export async function buildDocs(options: BuildDocsOptions): Promise<BuildManifes
       const redirectHtml = generateRedirectHtml(redirect.destination);
       const redirectPath = join(outDir, redirect.source, 'index.html');
       mkdirSync(dirname(redirectPath), { recursive: true });
-      await Bun.write(redirectPath, redirectHtml);
+      await writeFile(redirectPath, redirectHtml);
     }
   }
 
@@ -159,7 +160,7 @@ export async function buildDocs(options: BuildDocsOptions): Promise<BuildManifes
     name: config.name,
     routes: manifestRoutes,
   };
-  await Bun.write(join(outDir, 'manifest.json'), JSON.stringify(manifest, null, 2));
+  await writeFile(join(outDir, 'manifest.json'), JSON.stringify(manifest, null, 2));
 
   return manifest;
 }
