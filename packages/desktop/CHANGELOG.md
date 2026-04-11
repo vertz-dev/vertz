@@ -1,5 +1,20 @@
 # @vertz/desktop
 
+## 0.2.57
+
+### Patch Changes
+
+- [#2488](https://github.com/vertz-dev/vertz/pull/2488) [`1406000`](https://github.com/vertz-dev/vertz/commit/14060004c364ab1865d6917356def18317abd549) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - feat(desktop): add binary file read/write APIs with HTTP transport (#2407)
+
+  - `fs.readBinaryFile()` / `fs.writeBinaryFile()` — buffered binary I/O via HTTP sidecar (2 GiB limit)
+  - `fs.readBinaryStream()` / `fs.writeBinaryStream()` — streaming binary I/O with no size limit
+  - Atomic writes via temp file + rename for crash safety
+  - Session nonce authentication on all binary routes
+  - IPC permission enforcement (`fs:read`, `fs:write`)
+
+- Updated dependencies []:
+  - @vertz/errors@0.2.58
+
 ## 0.2.56
 
 ### Patch Changes
