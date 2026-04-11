@@ -220,9 +220,13 @@ jobs:
       - name: Setup vtz
         uses: vertz-dev/setup-vtz@v1
 
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.9
+
       - name: Install dependencies
         run: |
-          vtz install --frozen
+          bun install --frozen-lockfile
           echo "$PWD/node_modules/.bin" >> "$GITHUB_PATH"
 
       - name: Lint
@@ -250,9 +254,13 @@ jobs:
       - name: Setup vtz
         uses: vertz-dev/setup-vtz@v1
 
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.9
+
       - name: Install dependencies
         run: |
-          vtz install --frozen
+          bun install --frozen-lockfile
           echo "$PWD/node_modules/.bin" >> "$GITHUB_PATH"
 
       - name: Build @vertz/ci
