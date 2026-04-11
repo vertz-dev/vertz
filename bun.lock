@@ -23,7 +23,7 @@
     },
     "benchmarks/vertz": {
       "name": "@vertz-benchmarks/vertz-app",
-      "version": "0.0.55",
+      "version": "0.0.56",
       "dependencies": {
         "@vertz/theme-shadcn": "workspace:*",
         "@vertz/ui": "workspace:*",
@@ -112,7 +112,7 @@
     },
     "examples/task-manager": {
       "name": "@vertz-examples/task-manager",
-      "version": "0.2.57",
+      "version": "0.2.58",
       "dependencies": {
         "@vertz/errors": "workspace:*",
         "@vertz/fetch": "workspace:*",
@@ -137,6 +137,9 @@
     "native/vertz-compiler": {
       "name": "@vertz/native-compiler",
       "version": "0.1.1",
+      "devDependencies": {
+        "@vertz/test": "workspace:*",
+      },
     },
     "packages/agents": {
       "name": "@vertz/agents",
@@ -144,6 +147,7 @@
       "dependencies": {
         "@vertz/errors": "workspace:^",
         "@vertz/schema": "workspace:^",
+        "@vertz/sqlite": "workspace:*",
       },
       "devDependencies": {
         "@types/node": "^25.3.1",
@@ -173,7 +177,7 @@
     },
     "packages/cli": {
       "name": "@vertz/cli",
-      "version": "0.2.57",
+      "version": "0.2.58",
       "bin": {
         "vertz": "./dist/vertz.js",
       },
@@ -184,6 +188,7 @@
         "@vertz/db": "workspace:^",
         "@vertz/docs": "workspace:^",
         "@vertz/errors": "workspace:^",
+        "@vertz/sqlite": "workspace:*",
         "@vertz/tui": "workspace:^",
         "@vertz/ui-server": "workspace:^",
         "commander": "^14.0.0",
@@ -205,7 +210,7 @@
     },
     "packages/cli-runtime": {
       "name": "@vertz/cli-runtime",
-      "version": "0.2.57",
+      "version": "0.2.58",
       "dependencies": {
         "@vertz/fetch": "workspace:^",
       },
@@ -218,7 +223,7 @@
     },
     "packages/cloudflare": {
       "name": "@vertz/cloudflare",
-      "version": "0.2.57",
+      "version": "0.2.58",
       "dependencies": {
         "@vertz/core": "workspace:^",
       },
@@ -237,7 +242,7 @@
     },
     "packages/codegen": {
       "name": "@vertz/codegen",
-      "version": "0.2.57",
+      "version": "0.2.58",
       "dependencies": {
         "@vertz/compiler": "workspace:^",
       },
@@ -251,7 +256,7 @@
     },
     "packages/compiler": {
       "name": "@vertz/compiler",
-      "version": "0.2.57",
+      "version": "0.2.58",
       "dependencies": {
         "ts-morph": "^27.0.2",
       },
@@ -284,7 +289,7 @@
     },
     "packages/core": {
       "name": "@vertz/core",
-      "version": "0.2.57",
+      "version": "0.2.58",
       "dependencies": {
         "@vertz/schema": "workspace:^",
       },
@@ -298,7 +303,7 @@
     },
     "packages/create-vertz": {
       "name": "create-vertz",
-      "version": "0.2.57",
+      "version": "0.2.58",
       "bin": {
         "create-vertz": "./bin/create-vertz.ts",
       },
@@ -308,7 +313,7 @@
     },
     "packages/create-vertz-app": {
       "name": "@vertz/create-vertz-app",
-      "version": "0.2.57",
+      "version": "0.2.58",
       "bin": {
         "create-vertz-app": "./bin/create-vertz-app.ts",
       },
@@ -324,11 +329,12 @@
     },
     "packages/db": {
       "name": "@vertz/db",
-      "version": "0.2.57",
+      "version": "0.2.58",
       "dependencies": {
         "@paralleldrive/cuid2": "^3.3.0",
         "@vertz/errors": "workspace:^",
         "@vertz/schema": "workspace:^",
+        "@vertz/sqlite": "workspace:*",
         "nanoid": "^5.1.5",
         "uuid": "^13.0.0",
       },
@@ -355,7 +361,7 @@
     },
     "packages/desktop": {
       "name": "@vertz/desktop",
-      "version": "0.2.56",
+      "version": "0.2.57",
       "dependencies": {
         "@vertz/errors": "workspace:*",
       },
@@ -396,7 +402,7 @@
     },
     "packages/errors": {
       "name": "@vertz/errors",
-      "version": "0.2.57",
+      "version": "0.2.58",
       "devDependencies": {
         "@types/node": "^25.3.1",
         "@vertz/test": "workspace:*",
@@ -407,7 +413,7 @@
     },
     "packages/fetch": {
       "name": "@vertz/fetch",
-      "version": "0.2.57",
+      "version": "0.2.58",
       "dependencies": {
         "@vertz/errors": "workspace:^",
       },
@@ -420,7 +426,7 @@
     },
     "packages/icons": {
       "name": "@vertz/icons",
-      "version": "0.2.57",
+      "version": "0.2.58",
       "devDependencies": {
         "@happy-dom/global-registrator": "^20.7.0",
         "@vertz/test": "workspace:*",
@@ -444,6 +450,7 @@
         "@vertz/fetch": "workspace:^",
         "@vertz/schema": "workspace:^",
         "@vertz/server": "workspace:^",
+        "@vertz/sqlite": "workspace:*",
         "@vertz/test": "workspace:*",
         "@vertz/theme-shadcn": "workspace:^",
         "@vertz/ui": "workspace:^",
@@ -545,7 +552,7 @@
     },
     "packages/runtime": {
       "name": "@vertz/runtime",
-      "version": "0.2.57",
+      "version": "0.2.58",
       "bin": {
         "vertz": "./cli.sh",
         "vtz": "./cli.sh",
@@ -556,31 +563,31 @@
         "@vertz/test": "workspace:*",
       },
       "optionalDependencies": {
-        "@vertz/runtime-darwin-arm64": "0.2.57",
-        "@vertz/runtime-darwin-x64": "0.2.57",
-        "@vertz/runtime-linux-arm64": "0.2.57",
-        "@vertz/runtime-linux-x64": "0.2.57",
+        "@vertz/runtime-darwin-arm64": "0.2.58",
+        "@vertz/runtime-darwin-x64": "0.2.58",
+        "@vertz/runtime-linux-arm64": "0.2.58",
+        "@vertz/runtime-linux-x64": "0.2.58",
       },
     },
     "packages/runtime-darwin-arm64": {
       "name": "@vertz/runtime-darwin-arm64",
-      "version": "0.2.57",
+      "version": "0.2.58",
     },
     "packages/runtime-darwin-x64": {
       "name": "@vertz/runtime-darwin-x64",
-      "version": "0.2.57",
+      "version": "0.2.58",
     },
     "packages/runtime-linux-arm64": {
       "name": "@vertz/runtime-linux-arm64",
-      "version": "0.2.57",
+      "version": "0.2.58",
     },
     "packages/runtime-linux-x64": {
       "name": "@vertz/runtime-linux-x64",
-      "version": "0.2.57",
+      "version": "0.2.58",
     },
     "packages/schema": {
       "name": "@vertz/schema",
-      "version": "0.2.57",
+      "version": "0.2.58",
       "dependencies": {
         "@vertz/errors": "workspace:^",
       },
@@ -594,7 +601,7 @@
     },
     "packages/server": {
       "name": "@vertz/server",
-      "version": "0.2.57",
+      "version": "0.2.58",
       "dependencies": {
         "@vertz/core": "workspace:^",
         "@vertz/db": "workspace:^",
@@ -605,6 +612,7 @@
       },
       "devDependencies": {
         "@types/node": "^25.3.1",
+        "@vertz/sqlite": "workspace:*",
         "@vertz/test": "workspace:*",
         "bun-types": "^1.3.10",
         "bunup": "^0.16.31",
@@ -619,9 +627,18 @@
         "@vertz/docs": "workspace:^",
       },
     },
+    "packages/sqlite": {
+      "name": "@vertz/sqlite",
+      "version": "0.2.58",
+      "devDependencies": {
+        "@types/node": "^25.3.1",
+        "bunup": "^0.16.31",
+        "typescript": "^5.7.0",
+      },
+    },
     "packages/test": {
       "name": "@vertz/test",
-      "version": "0.2.57",
+      "version": "0.2.58",
       "devDependencies": {
         "@types/node": "^25.3.1",
         "bun-types": "^1.3.10",
@@ -631,7 +648,7 @@
     },
     "packages/testing": {
       "name": "@vertz/testing",
-      "version": "0.2.57",
+      "version": "0.2.58",
       "dependencies": {
         "@vertz/core": "workspace:^",
         "@vertz/db": "workspace:^",
@@ -648,7 +665,7 @@
     },
     "packages/theme-shadcn": {
       "name": "@vertz/theme-shadcn",
-      "version": "0.2.57",
+      "version": "0.2.58",
       "dependencies": {
         "@vertz/ui": "workspace:^",
         "@vertz/ui-primitives": "workspace:^",
@@ -664,7 +681,7 @@
     },
     "packages/tui": {
       "name": "@vertz/tui",
-      "version": "0.2.57",
+      "version": "0.2.58",
       "dependencies": {
         "@vertz/ui": "workspace:^",
       },
@@ -678,7 +695,7 @@
     },
     "packages/ui": {
       "name": "@vertz/ui",
-      "version": "0.2.57",
+      "version": "0.2.58",
       "dependencies": {
         "@vertz/fetch": "workspace:^",
       },
@@ -709,7 +726,7 @@
     },
     "packages/ui-canvas": {
       "name": "@vertz/ui-canvas",
-      "version": "0.2.57",
+      "version": "0.2.58",
       "dependencies": {
         "pixi.js": "^8.0.0",
       },
@@ -727,7 +744,7 @@
     },
     "packages/ui-primitives": {
       "name": "@vertz/ui-primitives",
-      "version": "0.2.57",
+      "version": "0.2.58",
       "dependencies": {
         "@floating-ui/dom": "^1.7.5",
         "@vertz/ui": "workspace:^",
@@ -743,7 +760,7 @@
     },
     "packages/ui-server": {
       "name": "@vertz/ui-server",
-      "version": "0.2.57",
+      "version": "0.2.58",
       "dependencies": {
         "@ampproject/remapping": "^2.3.0",
         "@capsizecss/unpack": "^4.0.0",
@@ -776,7 +793,7 @@
     },
     "packages/vertz": {
       "name": "vertz",
-      "version": "0.2.57",
+      "version": "0.2.58",
       "dependencies": {
         "@vertz/cli": "workspace:^",
         "@vertz/cloudflare": "workspace:^",
@@ -1902,6 +1919,8 @@
     "@vertz/server": ["@vertz/server@workspace:packages/server"],
 
     "@vertz/site": ["@vertz/site@workspace:packages/site"],
+
+    "@vertz/sqlite": ["@vertz/sqlite@workspace:packages/sqlite"],
 
     "@vertz/test": ["@vertz/test@workspace:packages/test"],
 
@@ -3075,6 +3094,8 @@
 
     "@vertz/agents/bun-types": ["bun-types@1.3.12", "", { "dependencies": { "@types/node": "*" } }, "sha512-HqOLj5PoFajAQciOMRiIZGNoKxDJSr6qigAttOX40vJuSp6DN/CxWp9s3C1Xwm4oH7ybueITwiaOcWXoYVoRkA=="],
 
+    "@vertz/cli/bun-types": ["bun-types@1.3.12", "", { "dependencies": { "@types/node": "*" } }, "sha512-HqOLj5PoFajAQciOMRiIZGNoKxDJSr6qigAttOX40vJuSp6DN/CxWp9s3C1Xwm4oH7ybueITwiaOcWXoYVoRkA=="],
+
     "@vertz/cli/esbuild": ["esbuild@0.25.12", "", { "optionalDependencies": { "@esbuild/aix-ppc64": "0.25.12", "@esbuild/android-arm": "0.25.12", "@esbuild/android-arm64": "0.25.12", "@esbuild/android-x64": "0.25.12", "@esbuild/darwin-arm64": "0.25.12", "@esbuild/darwin-x64": "0.25.12", "@esbuild/freebsd-arm64": "0.25.12", "@esbuild/freebsd-x64": "0.25.12", "@esbuild/linux-arm": "0.25.12", "@esbuild/linux-arm64": "0.25.12", "@esbuild/linux-ia32": "0.25.12", "@esbuild/linux-loong64": "0.25.12", "@esbuild/linux-mips64el": "0.25.12", "@esbuild/linux-ppc64": "0.25.12", "@esbuild/linux-riscv64": "0.25.12", "@esbuild/linux-s390x": "0.25.12", "@esbuild/linux-x64": "0.25.12", "@esbuild/netbsd-arm64": "0.25.12", "@esbuild/netbsd-x64": "0.25.12", "@esbuild/openbsd-arm64": "0.25.12", "@esbuild/openbsd-x64": "0.25.12", "@esbuild/openharmony-arm64": "0.25.12", "@esbuild/sunos-x64": "0.25.12", "@esbuild/win32-arm64": "0.25.12", "@esbuild/win32-ia32": "0.25.12", "@esbuild/win32-x64": "0.25.12" }, "bin": { "esbuild": "bin/esbuild" } }, "sha512-bbPBYYrtZbkt6Os6FiTLCTFxvq4tt3JKall1vRwshA3fdVztsLAatFaZobhkBC8/BrPetoa0oksYoKXoG4ryJg=="],
 
     "@vertz/codegen/bun-types": ["bun-types@1.3.12", "", { "dependencies": { "@types/node": "*" } }, "sha512-HqOLj5PoFajAQciOMRiIZGNoKxDJSr6qigAttOX40vJuSp6DN/CxWp9s3C1Xwm4oH7ybueITwiaOcWXoYVoRkA=="],
@@ -3085,19 +3106,27 @@
 
     "@vertz/core/bun-types": ["bun-types@1.3.12", "", { "dependencies": { "@types/node": "*" } }, "sha512-HqOLj5PoFajAQciOMRiIZGNoKxDJSr6qigAttOX40vJuSp6DN/CxWp9s3C1Xwm4oH7ybueITwiaOcWXoYVoRkA=="],
 
+    "@vertz/create-vertz-app/bun-types": ["bun-types@1.3.12", "", { "dependencies": { "@types/node": "*" } }, "sha512-HqOLj5PoFajAQciOMRiIZGNoKxDJSr6qigAttOX40vJuSp6DN/CxWp9s3C1Xwm4oH7ybueITwiaOcWXoYVoRkA=="],
+
     "@vertz/db/bun-types": ["bun-types@1.3.12", "", { "dependencies": { "@types/node": "*" } }, "sha512-HqOLj5PoFajAQciOMRiIZGNoKxDJSr6qigAttOX40vJuSp6DN/CxWp9s3C1Xwm4oH7ybueITwiaOcWXoYVoRkA=="],
 
     "@vertz/dev-orchestrator/oxlint": ["oxlint@1.59.0", "", { "optionalDependencies": { "@oxlint/binding-android-arm-eabi": "1.59.0", "@oxlint/binding-android-arm64": "1.59.0", "@oxlint/binding-darwin-arm64": "1.59.0", "@oxlint/binding-darwin-x64": "1.59.0", "@oxlint/binding-freebsd-x64": "1.59.0", "@oxlint/binding-linux-arm-gnueabihf": "1.59.0", "@oxlint/binding-linux-arm-musleabihf": "1.59.0", "@oxlint/binding-linux-arm64-gnu": "1.59.0", "@oxlint/binding-linux-arm64-musl": "1.59.0", "@oxlint/binding-linux-ppc64-gnu": "1.59.0", "@oxlint/binding-linux-riscv64-gnu": "1.59.0", "@oxlint/binding-linux-riscv64-musl": "1.59.0", "@oxlint/binding-linux-s390x-gnu": "1.59.0", "@oxlint/binding-linux-x64-gnu": "1.59.0", "@oxlint/binding-linux-x64-musl": "1.59.0", "@oxlint/binding-openharmony-arm64": "1.59.0", "@oxlint/binding-win32-arm64-msvc": "1.59.0", "@oxlint/binding-win32-ia32-msvc": "1.59.0", "@oxlint/binding-win32-x64-msvc": "1.59.0" }, "peerDependencies": { "oxlint-tsgolint": ">=0.18.0" }, "optionalPeers": ["oxlint-tsgolint"], "bin": { "oxlint": "bin/oxlint" } }, "sha512-0xBLeGGjP4vD9pygRo8iuOkOzEU1MqOnfiOl7KYezL/QvWL8NUg6n03zXc7ZVqltiOpUxBk2zgHI3PnRIEdAvw=="],
 
+    "@vertz/docs/bun-types": ["bun-types@1.3.12", "", { "dependencies": { "@types/node": "*" } }, "sha512-HqOLj5PoFajAQciOMRiIZGNoKxDJSr6qigAttOX40vJuSp6DN/CxWp9s3C1Xwm4oH7ybueITwiaOcWXoYVoRkA=="],
+
     "@vertz/errors/bun-types": ["bun-types@1.3.12", "", { "dependencies": { "@types/node": "*" } }, "sha512-HqOLj5PoFajAQciOMRiIZGNoKxDJSr6qigAttOX40vJuSp6DN/CxWp9s3C1Xwm4oH7ybueITwiaOcWXoYVoRkA=="],
 
     "@vertz/icons/lucide-static": ["lucide-static@0.575.0", "", {}, "sha512-XbHfIufz9ZDW6iLjUphffUmcEWg6gLjufIQOb6heDjYZCRk+ePRbkp8Ax/Rq3Ek4OkT8tyBO/gTCOPDvFMuC4w=="],
+
+    "@vertz/integration-tests/bun-types": ["bun-types@1.3.12", "", { "dependencies": { "@types/node": "*" } }, "sha512-HqOLj5PoFajAQciOMRiIZGNoKxDJSr6qigAttOX40vJuSp6DN/CxWp9s3C1Xwm4oH7ybueITwiaOcWXoYVoRkA=="],
 
     "@vertz/landing/wrangler": ["wrangler@4.81.0", "", { "dependencies": { "@cloudflare/kv-asset-handler": "0.4.2", "@cloudflare/unenv-preset": "2.16.0", "blake3-wasm": "2.1.5", "esbuild": "0.27.3", "miniflare": "4.20260405.0", "path-to-regexp": "6.3.0", "unenv": "2.0.0-rc.24", "workerd": "1.20260405.1" }, "optionalDependencies": { "fsevents": "~2.3.2" }, "peerDependencies": { "@cloudflare/workers-types": "^4.20260405.1" }, "optionalPeers": ["@cloudflare/workers-types"], "bin": { "wrangler": "bin/wrangler.js", "wrangler2": "bin/wrangler.js" } }, "sha512-9fLPDuDcb8Nu6iXrl5E3HGYt3TVhQr/UvqtTvWr9Nl1X7PlQrmWMwQCfSioqN8VHYyQCyESV5jQsoKg8Sx+sEA=="],
 
     "@vertz/landing-nextjs/wrangler": ["wrangler@4.72.0", "", { "dependencies": { "@cloudflare/kv-asset-handler": "0.4.2", "@cloudflare/unenv-preset": "2.15.0", "blake3-wasm": "2.1.5", "esbuild": "0.27.3", "miniflare": "4.20260310.0", "path-to-regexp": "6.3.0", "unenv": "2.0.0-rc.24", "workerd": "1.20260310.1" }, "optionalDependencies": { "fsevents": "~2.3.2" }, "peerDependencies": { "@cloudflare/workers-types": "^4.20260310.1" }, "optionalPeers": ["@cloudflare/workers-types"], "bin": { "wrangler": "bin/wrangler.js", "wrangler2": "bin/wrangler.js" } }, "sha512-bKkb8150JGzJZJWiNB2nu/33smVfawmfYiecA6rW4XH7xS23/jqMbgpdelM34W/7a1IhR66qeQGVqTRXROtAZg=="],
 
     "@vertz/landing-nextjs-vercel/@types/node": ["@types/node@25.4.0", "", { "dependencies": { "undici-types": "~7.18.0" } }, "sha512-9wLpoeWuBlcbBpOY3XmzSTG3oscB6xjBEEtn+pYXTfhyXhIxC5FsBer2KTopBlvKEiW9l13po9fq+SJY/5lkhw=="],
+
+    "@vertz/mdx/bun-types": ["bun-types@1.3.12", "", { "dependencies": { "@types/node": "*" } }, "sha512-HqOLj5PoFajAQciOMRiIZGNoKxDJSr6qigAttOX40vJuSp6DN/CxWp9s3C1Xwm4oH7ybueITwiaOcWXoYVoRkA=="],
 
     "@vertz/runtime/@types/node": ["@types/node@22.19.17", "", { "dependencies": { "undici-types": "~6.21.0" } }, "sha512-wGdMcf+vPYM6jikpS/qhg6WiqSV/OhG+jeeHT/KlVqxYfD40iYJf9/AE1uQxVWFvU7MipKRkRv8NSHiCGgPr8Q=="],
 
@@ -3106,6 +3135,10 @@
     "@vertz/server/bun-types": ["bun-types@1.3.12", "", { "dependencies": { "@types/node": "*" } }, "sha512-HqOLj5PoFajAQciOMRiIZGNoKxDJSr6qigAttOX40vJuSp6DN/CxWp9s3C1Xwm4oH7ybueITwiaOcWXoYVoRkA=="],
 
     "@vertz/test/bun-types": ["bun-types@1.3.12", "", { "dependencies": { "@types/node": "*" } }, "sha512-HqOLj5PoFajAQciOMRiIZGNoKxDJSr6qigAttOX40vJuSp6DN/CxWp9s3C1Xwm4oH7ybueITwiaOcWXoYVoRkA=="],
+
+    "@vertz/testing/bun-types": ["bun-types@1.3.12", "", { "dependencies": { "@types/node": "*" } }, "sha512-HqOLj5PoFajAQciOMRiIZGNoKxDJSr6qigAttOX40vJuSp6DN/CxWp9s3C1Xwm4oH7ybueITwiaOcWXoYVoRkA=="],
+
+    "@vertz/tui/bun-types": ["bun-types@1.3.12", "", { "dependencies": { "@types/node": "*" } }, "sha512-HqOLj5PoFajAQciOMRiIZGNoKxDJSr6qigAttOX40vJuSp6DN/CxWp9s3C1Xwm4oH7ybueITwiaOcWXoYVoRkA=="],
 
     "@vertz/ui-server/bun-types": ["bun-types@1.3.12", "", { "dependencies": { "@types/node": "*" } }, "sha512-HqOLj5PoFajAQciOMRiIZGNoKxDJSr6qigAttOX40vJuSp6DN/CxWp9s3C1Xwm4oH7ybueITwiaOcWXoYVoRkA=="],
 
