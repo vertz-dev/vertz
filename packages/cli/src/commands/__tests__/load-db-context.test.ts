@@ -610,7 +610,7 @@ export const db = {
 });
 
 // ---------------------------------------------------------------------------
-// createConnection — sqlite (bun:sqlite is available in bun test)
+// createConnection — sqlite (@vertz/sqlite is available in vtz test)
 // ---------------------------------------------------------------------------
 
 describe('createConnection', () => {

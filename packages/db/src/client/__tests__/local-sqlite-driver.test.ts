@@ -161,21 +161,21 @@ describe('createLocalSqliteDriver', () => {
 // ---------------------------------------------------------------------------
 
 describe('resolveLocalSqliteDatabase', () => {
-  describe('Given both bun:sqlite and better-sqlite3 are unavailable', () => {
+  describe('Given both @vertz/sqlite and better-sqlite3 are unavailable', () => {
     describe('When resolving the database', () => {
       it('Then throws an error mentioning both backends and the db path', async () => {
-        const bunError = new Error('bun:sqlite not available');
+        const bunError = new Error('@vertz/sqlite not available');
         const betterError = new Error('Could not locate the bindings file');
 
         const failingImport = (_mod: string) => {
-          throw _mod === 'bun:sqlite' ? bunError : betterError;
+          throw _mod === '@vertz/sqlite' ? bunError : betterError;
         };
 
         await expect(resolveLocalSqliteDatabase(':memory:', failingImport)).rejects.toThrow(
           /Failed to initialize SQLite/,
         );
         await expect(resolveLocalSqliteDatabase(':memory:', failingImport)).rejects.toThrow(
-          /bun:sqlite/,
+          /@vertz\/sqlite/,
         );
         await expect(resolveLocalSqliteDatabase(':memory:', failingImport)).rejects.toThrow(
           /better-sqlite3/,
@@ -194,15 +194,15 @@ describe('resolveLocalSqliteDatabase', () => {
     });
   });
 
-  describe('Given bun:sqlite succeeds', () => {
+  describe('Given @vertz/sqlite succeeds', () => {
     describe('When resolving the database', () => {
-      it('Then returns the database from bun:sqlite', async () => {
+      it('Then returns the database from @vertz/sqlite', async () => {
         const mockDb = { prepare: () => {}, exec: () => {}, close: () => {} };
         function MockDatabase() {
           return mockDb;
         }
         const mockImport = (mod: string) => {
-          if (mod === 'bun:sqlite') return { Database: MockDatabase };
+          if (mod === '@vertz/sqlite') return { Database: MockDatabase };
           throw new Error('should not reach better-sqlite3');
         };
 
@@ -212,7 +212,7 @@ describe('resolveLocalSqliteDatabase', () => {
     });
   });
 
-  describe('Given bun:sqlite fails but better-sqlite3 succeeds', () => {
+  describe('Given @vertz/sqlite fails but better-sqlite3 succeeds', () => {
     describe('When resolving the database', () => {
       it('Then returns the database from better-sqlite3', async () => {
         const mockDb = { prepare: () => {}, exec: () => {}, close: () => {} };
@@ -220,7 +220,7 @@ describe('resolveLocalSqliteDatabase', () => {
           return mockDb;
         }
         const mockImport = (mod: string) => {
-          if (mod === 'bun:sqlite') throw new Error('not available');
+          if (mod === '@vertz/sqlite') throw new Error('not available');
           return { default: MockDatabase };
         };
 

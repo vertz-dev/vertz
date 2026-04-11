@@ -9,7 +9,7 @@ export default defineConfig([
     external: [
       '@vertz/compiler',
       '@vertz/tui',
-      'bun:sqlite',
+      '@vertz/sqlite',
       'commander',
       'esbuild',
       'jiti',
@@ -24,7 +24,7 @@ export default defineConfig([
     external: [
       '@vertz/compiler',
       '@vertz/tui',
-      'bun:sqlite',
+      '@vertz/sqlite',
       'commander',
       'esbuild',
       'jiti',

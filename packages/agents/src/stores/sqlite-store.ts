@@ -1,4 +1,4 @@
-import { Database } from 'bun:sqlite';
+import { Database } from '@vertz/sqlite';
 import type { Message } from '../loop/react-loop';
 import type { AgentSession, AgentStore, ListSessionsFilter } from './types';
 
@@ -99,7 +99,7 @@ function rowToMessage(row: MessageRow): Message {
 
 /**
  * SQLite-backed store for agent sessions and messages.
- * Uses bun:sqlite for persistence. Supports both file-based and :memory: databases.
+ * Uses @vertz/sqlite for persistence. Supports both file-based and :memory: databases.
  */
 export function sqliteStore(options: SqliteStoreOptions): AgentStore {
   const db = new Database(options.path);

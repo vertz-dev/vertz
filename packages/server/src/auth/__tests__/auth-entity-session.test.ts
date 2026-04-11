@@ -1,4 +1,4 @@
-import { Database } from 'bun:sqlite';
+import { Database } from '@vertz/sqlite';
 import { afterEach, beforeEach, describe, expect, it } from '@vertz/test';
 import { createDb, d } from '@vertz/db';
 import { createServer, type ServerInstance } from '../../create-server';

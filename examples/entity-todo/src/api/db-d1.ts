@@ -3,7 +3,7 @@
  *
  * Uses createDb from @vertz/db with Cloudflare D1 binding.
  * This is used in the Cloudflare Worker (worker.ts).
- * For local development with bun:sqlite, see db.ts instead.
+ * For local development with @vertz/sqlite, see db.ts instead.
  */
 
 import type { D1Database } from '@vertz/db';

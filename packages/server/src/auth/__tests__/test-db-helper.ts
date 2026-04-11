@@ -1,11 +1,11 @@
 /**
  * Test helper — creates an in-memory SQLite database with auth tables.
  *
- * Uses bun:sqlite directly with a _queryFn bridge so the DatabaseClient
+ * Uses @vertz/sqlite directly with a _queryFn bridge so the DatabaseClient
  * can execute raw SQL (including DDL) against a real SQLite instance.
  */
 
-import { Database } from 'bun:sqlite';
+import { Database } from '@vertz/sqlite';
 import type { DatabaseClient, ModelEntry } from '@vertz/db';
 import { createDb } from '@vertz/db';
 import { authModels } from '../auth-models';
@@ -32,7 +32,7 @@ function dummyD1() {
 export async function createTestDb(): Promise<TestDb> {
   const rawDb = new Database(':memory:');
 
-  // Bridge: convert $N parameter placeholders to ? for bun:sqlite
+  // Bridge: convert $N parameter placeholders to ? for @vertz/sqlite
   const queryFn = async <T>(sqlStr: string, params: readonly unknown[]) => {
     const sqliteSql = sqlStr.replace(/\$\d+/g, '?');
 

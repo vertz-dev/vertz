@@ -40,6 +40,7 @@
     "@vertz/db": "workspace:^",
     "@vertz/docs": "workspace:^",
     "@vertz/errors": "workspace:^",
+    "@vertz/sqlite": "workspace:*",
     "@vertz/tui": "workspace:^",
     "@vertz/ui-server": "workspace:^",
     "commander": "^14.0.0",

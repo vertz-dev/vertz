@@ -1,4 +1,4 @@
-import { Database } from 'bun:sqlite';
+import { Database } from '@vertz/sqlite';
 import { describe, expect, it } from '@vertz/test';
 import type { Message } from '../loop/react-loop';
 import { d1Store } from './d1-store';
@@ -6,11 +6,11 @@ import type { D1Binding } from './d1-store';
 import type { AgentSession } from './types';
 
 // ---------------------------------------------------------------------------
-// Mock D1 binding using bun:sqlite
+// Mock D1 binding using @vertz/sqlite
 // ---------------------------------------------------------------------------
 
 /**
- * Creates a mock D1 binding backed by bun:sqlite in-memory.
+ * Creates a mock D1 binding backed by @vertz/sqlite in-memory.
  * This mimics the D1 API surface used by d1Store.
  */
 function mockD1Binding(): D1Binding {

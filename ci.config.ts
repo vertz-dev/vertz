@@ -23,6 +23,7 @@ const CI_PACKAGES = [
   '@vertz/openapi',
   '@vertz/schema',
   '@vertz/server',
+  '@vertz/sqlite',
   '@vertz/test',
   '@vertz/testing',
   '@vertz/theme-shadcn',

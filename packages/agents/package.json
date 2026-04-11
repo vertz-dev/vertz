@@ -37,7 +37,8 @@
   },
   "dependencies": {
     "@vertz/errors": "workspace:^",
-    "@vertz/schema": "workspace:^"
+    "@vertz/schema": "workspace:^",
+    "@vertz/sqlite": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "^25.3.1",
