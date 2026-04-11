@@ -1,12 +1,9 @@
-import { describe, expect, it } from 'bun:test';
+import { describe, expect, it } from '@vertz/test';
 import { NATIVE_MODULE_PATH } from './load-compiler';
 
 function loadCompiler() {
   return require(NATIVE_MODULE_PATH) as {
-    compile: (
-      source: string,
-      options?: { filename?: string },
-    ) => { code: string };
+    compile: (source: string, options?: { filename?: string }) => { code: string };
   };
 }
 
@@ -20,9 +17,7 @@ describe('Feature: Mount frame transform', () => {
   describe('Given a component with a single return statement', () => {
     describe('When compiled', () => {
       it('Then wraps body with __pushMountFrame / try-catch / __flushMountFrame', () => {
-        const code = compileAndGetCode(
-          `function MyComponent() {\n  return <div>Hello</div>;\n}`,
-        );
+        const code = compileAndGetCode(`function MyComponent() {\n  return <div>Hello</div>;\n}`);
         expect(code).toContain('__pushMountFrame()');
         expect(code).toContain('__flushMountFrame()');
         expect(code).toContain('__discardMountFrame(__mfDepth)');
@@ -31,9 +26,7 @@ describe('Feature: Mount frame transform', () => {
       });
 
       it('Then generates __mfDepth = __pushMountFrame() and __discardMountFrame(__mfDepth)', () => {
-        const code = compileAndGetCode(
-          `function MyComponent() {\n  return <div>Hello</div>;\n}`,
-        );
+        const code = compileAndGetCode(`function MyComponent() {\n  return <div>Hello</div>;\n}`);
         expect(code).toContain('const __mfDepth = __pushMountFrame()');
         expect(code).toContain('__discardMountFrame(__mfDepth)');
       });
@@ -87,9 +80,7 @@ describe('Feature: Mount frame transform', () => {
   describe('Given an arrow component with expression body', () => {
     describe('When compiled', () => {
       it('Then converts to block body with mount frame wrapping', () => {
-        const code = compileAndGetCode(
-          `const MyComponent = () => <div>Hello</div>;`,
-        );
+        const code = compileAndGetCode(`const MyComponent = () => <div>Hello</div>;`);
         expect(code).toContain('__pushMountFrame()');
         expect(code).toContain('__flushMountFrame()');
       });
@@ -99,9 +90,7 @@ describe('Feature: Mount frame transform', () => {
   describe('Given a component that does NOT use onMount', () => {
     describe('When compiled', () => {
       it('Then still injects mount frame (unconditional)', () => {
-        const code = compileAndGetCode(
-          `function MyComponent() {\n  return <div>Hello</div>;\n}`,
-        );
+        const code = compileAndGetCode(`function MyComponent() {\n  return <div>Hello</div>;\n}`);
         expect(code).toContain('__pushMountFrame()');
         expect(code).toContain('__flushMountFrame()');
       });

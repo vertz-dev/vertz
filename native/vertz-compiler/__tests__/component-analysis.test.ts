@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'bun:test';
+import { describe, expect, it } from '@vertz/test';
 import { NATIVE_MODULE_PATH } from './load-compiler';
 
 function loadCompiler() {
@@ -37,9 +37,7 @@ describe('Feature: Component detection in native compiler', () => {
         expect(result.components!.length).toBe(1);
         expect(result.components![0].name).toBe('TaskCard');
         expect(result.components![0].bodyStart).toBeGreaterThan(0);
-        expect(result.components![0].bodyEnd).toBeGreaterThan(
-          result.components![0].bodyStart,
-        );
+        expect(result.components![0].bodyEnd).toBeGreaterThan(result.components![0].bodyStart);
       });
     });
   });
@@ -62,10 +60,9 @@ describe('Feature: Component detection in native compiler', () => {
     describe('When analyzed', () => {
       it('Then detects the component', () => {
         const { compile } = loadCompiler();
-        const result = compile(
-          'const TaskCard = () => { return <div />; };',
-          { filename: 'test.tsx' },
-        );
+        const result = compile('const TaskCard = () => { return <div />; };', {
+          filename: 'test.tsx',
+        });
         expect(result.components).toBeDefined();
         expect(result.components!.length).toBe(1);
         expect(result.components![0].name).toBe('TaskCard');
@@ -77,10 +74,9 @@ describe('Feature: Component detection in native compiler', () => {
     describe('When analyzed', () => {
       it('Then detects the component', () => {
         const { compile } = loadCompiler();
-        const result = compile(
-          'const Panel = function() { return <div />; };',
-          { filename: 'test.tsx' },
-        );
+        const result = compile('const Panel = function() { return <div />; };', {
+          filename: 'test.tsx',
+        });
         expect(result.components).toBeDefined();
         expect(result.components!.length).toBe(1);
         expect(result.components![0].name).toBe('Panel');
@@ -122,8 +118,7 @@ describe('Feature: Component detection in native compiler', () => {
     describe('When analyzed', () => {
       it('Then detects the exported component', () => {
         const { compile } = loadCompiler();
-        const source =
-          'export function TaskCard() { return <div />; }';
+        const source = 'export function TaskCard() { return <div />; }';
         const result = compile(source, { filename: 'test.tsx' });
         expect(result.components).toBeDefined();
         expect(result.components!.length).toBe(1);
@@ -136,8 +131,7 @@ describe('Feature: Component detection in native compiler', () => {
     describe('When analyzed', () => {
       it('Then detects the exported const component', () => {
         const { compile } = loadCompiler();
-        const source =
-          'export const TaskCard = () => <div />;';
+        const source = 'export const TaskCard = () => <div />;';
         const result = compile(source, { filename: 'test.tsx' });
         expect(result.components).toBeDefined();
         expect(result.components!.length).toBe(1);
@@ -150,8 +144,7 @@ describe('Feature: Component detection in native compiler', () => {
     describe('When analyzed', () => {
       it('Then detects the default exported component', () => {
         const { compile } = loadCompiler();
-        const source =
-          'export default function App() { return <div />; }';
+        const source = 'export default function App() { return <div />; }';
         const result = compile(source, { filename: 'test.tsx' });
         expect(result.components).toBeDefined();
         expect(result.components!.length).toBe(1);

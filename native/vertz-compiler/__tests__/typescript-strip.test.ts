@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'bun:test';
+import { describe, expect, it } from '@vertz/test';
 import { NATIVE_MODULE_PATH } from './load-compiler';
 
 function loadCompiler() {
@@ -85,7 +85,7 @@ describe('Feature: TypeScript syntax stripping', () => {
           }
         `);
 
-        expect(code).not.toContain("type Status");
+        expect(code).not.toContain('type Status');
         expect(code).not.toContain("'active' | 'inactive'");
       });
     });
@@ -153,7 +153,7 @@ describe('Feature: TypeScript syntax stripping', () => {
           }
         `);
 
-        expect(code).not.toContain("import type");
+        expect(code).not.toContain('import type');
         expect(code).not.toContain("from 'react'");
       });
     });

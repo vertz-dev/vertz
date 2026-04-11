@@ -399,9 +399,13 @@ jobs:
         with:
           workspaces: native
 
-      # NAPI tests use bun test because they import workspace packages
-      # (@vertz/ui etc.) which require Bun's module resolution.
+      # NAPI tests use bun test because the vtz runtime doesn't support
+      # require()/createRequire() for loading .node (NAPI) binaries.
+      # TODO: Switch to vtz test once the runtime supports NAPI loading.
       - uses: oven-sh/setup-bun@v2
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
 
       - name: Build native compiler
         working-directory: native

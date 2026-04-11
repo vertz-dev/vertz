@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'bun:test';
+import { describe, expect, it } from '@vertz/test';
 import { NATIVE_MODULE_PATH } from './load-compiler';
 
 function loadCompiler() {
@@ -27,9 +27,7 @@ describe('Feature: CSS diagnostics', () => {
   return <div class={styles.container}>Hello</div>;
 }`;
         const result = compile(source, { filename: 'src/App.tsx' });
-        const cssDiags = (result.diagnostics ?? []).filter((d) =>
-          d.message.includes('css-'),
-        );
+        const cssDiags = (result.diagnostics ?? []).filter((d) => d.message.includes('css-'));
         expect(cssDiags.length).toBe(0);
       });
     });
@@ -47,9 +45,7 @@ describe('Feature: CSS diagnostics', () => {
 }`;
         const result = compile(source, { filename: 'src/App.tsx' });
         expect(result.diagnostics).toBeDefined();
-        const diag = result.diagnostics!.find((d) =>
-          d.message.includes('css-unknown-property'),
-        );
+        const diag = result.diagnostics!.find((d) => d.message.includes('css-unknown-property'));
         expect(diag).toBeDefined();
         expect(diag!.message).toContain('xyz');
       });
@@ -68,9 +64,7 @@ describe('Feature: CSS diagnostics', () => {
 }`;
         const result = compile(source, { filename: 'src/App.tsx' });
         expect(result.diagnostics).toBeDefined();
-        const diag = result.diagnostics!.find((d) =>
-          d.message.includes('css-invalid-spacing'),
-        );
+        const diag = result.diagnostics!.find((d) => d.message.includes('css-invalid-spacing'));
         expect(diag).toBeDefined();
         expect(diag!.message).toContain('99');
       });
@@ -89,9 +83,7 @@ describe('Feature: CSS diagnostics', () => {
 }`;
         const result = compile(source, { filename: 'src/App.tsx' });
         expect(result.diagnostics).toBeDefined();
-        const diag = result.diagnostics!.find((d) =>
-          d.message.includes('css-unknown-color-token'),
-        );
+        const diag = result.diagnostics!.find((d) => d.message.includes('css-unknown-color-token'));
         expect(diag).toBeDefined();
         expect(diag!.message).toContain('nonexistent');
       });
@@ -110,9 +102,7 @@ describe('Feature: CSS diagnostics', () => {
 }`;
         const result = compile(source, { filename: 'src/App.tsx' });
         expect(result.diagnostics).toBeDefined();
-        const diag = result.diagnostics!.find((d) =>
-          d.message.includes('css-malformed-shorthand'),
-        );
+        const diag = result.diagnostics!.find((d) => d.message.includes('css-malformed-shorthand'));
         expect(diag).toBeDefined();
       });
     });
@@ -126,9 +116,7 @@ describe('Feature: CSS diagnostics', () => {
   return <div>Hello</div>;
 }`;
         const result = compile(source, { filename: 'src/App.tsx' });
-        const cssDiags = (result.diagnostics ?? []).filter((d) =>
-          d.message.includes('css-'),
-        );
+        const cssDiags = (result.diagnostics ?? []).filter((d) => d.message.includes('css-'));
         expect(cssDiags.length).toBe(0);
       });
     });
@@ -145,9 +133,7 @@ describe('Feature: CSS diagnostics', () => {
   return <div class={styles.btn}>Hello</div>;
 }`;
         const result = compile(source, { filename: 'src/App.tsx' });
-        const cssDiags = (result.diagnostics ?? []).filter((d) =>
-          d.message.includes('css-'),
-        );
+        const cssDiags = (result.diagnostics ?? []).filter((d) => d.message.includes('css-'));
         expect(cssDiags.length).toBe(0);
       });
     });
@@ -165,9 +151,7 @@ describe('Feature: CSS diagnostics', () => {
 }`;
         const result = compile(source, { filename: 'src/App.tsx' });
         expect(result.diagnostics).toBeDefined();
-        const cssDiags = result.diagnostics!.filter((d) =>
-          d.message.includes('css-'),
-        );
+        const cssDiags = result.diagnostics!.filter((d) => d.message.includes('css-'));
         expect(cssDiags.length).toBeGreaterThanOrEqual(2);
       });
     });
@@ -185,9 +169,7 @@ describe('Feature: CSS diagnostics', () => {
 }`;
         const result = compile(source, { filename: 'src/App.tsx' });
         expect(result.diagnostics).toBeDefined();
-        const diag = result.diagnostics!.find((d) =>
-          d.message.includes('css-unknown-color-token'),
-        );
+        const diag = result.diagnostics!.find((d) => d.message.includes('css-unknown-color-token'));
         expect(diag).toBeDefined();
         expect(diag!.message).toContain('fakecolor');
       });

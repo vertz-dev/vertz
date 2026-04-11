@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'bun:test';
+import { describe, expect, it } from '@vertz/test';
 import { NATIVE_MODULE_PATH } from './load-compiler';
 
 function loadCompiler() {
@@ -77,7 +77,7 @@ describe('Feature: Import injection', () => {
         const { compile } = loadCompiler();
         const source = 'const x = 1; export default x;';
         const result = compile(source, { filename: 'src/utils.ts' });
-        expect(result.code).not.toContain("import {");
+        expect(result.code).not.toContain('import {');
       });
     });
   });
@@ -92,7 +92,9 @@ describe('Feature: Import injection', () => {
 }`;
         const result = compile(source, { filename: 'src/App.tsx' });
         // Extract the internals import
-        const internalsMatch = result.code.match(/import \{ ([^}]+) \} from '@vertz\/ui\/internals'/);
+        const internalsMatch = result.code.match(
+          /import \{ ([^}]+) \} from '@vertz\/ui\/internals'/,
+        );
         expect(internalsMatch).toBeTruthy();
         const imports = internalsMatch![1].split(', ');
         const sorted = [...imports].sort();
@@ -168,8 +170,8 @@ describe('Feature: Import injection', () => {
         const result = compile(source, { filename: 'src/App.tsx' });
         const lines = result.code.split('\n');
         // After the "// compiled by vertz-native" line, imports should come first
-        const importLineIndex = lines.findIndex(l => l.startsWith('import'));
-        const functionLineIndex = lines.findIndex(l => l.includes('function App'));
+        const importLineIndex = lines.findIndex((l) => l.startsWith('import'));
+        const functionLineIndex = lines.findIndex((l) => l.includes('function App'));
         expect(importLineIndex).toBeLessThan(functionLineIndex);
       });
     });

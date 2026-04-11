@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'bun:test';
+import { describe, expect, it } from '@vertz/test';
 import { NATIVE_MODULE_PATH } from './load-compiler';
 
 function loadCompiler() {
@@ -6,7 +6,11 @@ function loadCompiler() {
     compile: (
       source: string,
       options?: { filename?: string },
-    ) => { code: string; map?: string; diagnostics?: Array<{ message: string; line?: number; column?: number }> };
+    ) => {
+      code: string;
+      map?: string;
+      diagnostics?: Array<{ message: string; line?: number; column?: number }>;
+    };
   };
 }
 

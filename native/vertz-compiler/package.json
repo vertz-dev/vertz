@@ -16,5 +16,7 @@
     "test": "ls vertz-compiler.*.node 1>/dev/null 2>&1 && bun test __tests__/*.test.ts || echo 'Skipping native tests (binary not found)'",
     "test:parity": "ls vertz-compiler.*.node 1>/dev/null 2>&1 && bun test __tests__/parity/ || echo 'Skipping parity tests'"
   },
-  "devDependencies": {}
+  "devDependencies": {
+    "@vertz/test": "workspace:*"
+  }
 }

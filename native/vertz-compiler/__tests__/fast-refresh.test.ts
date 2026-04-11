@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'bun:test';
+import { describe, expect, it } from '@vertz/test';
 import { NATIVE_MODULE_PATH } from './load-compiler';
 
 function loadCompiler() {
@@ -104,8 +104,12 @@ describe('Feature: Fast Refresh registration', () => {
         const result1 = compile(source1, { filename: 'src/App.tsx', fastRefresh: true });
         const result2 = compile(source2, { filename: 'src/App.tsx', fastRefresh: true });
         // Extract the hash from __$refreshReg calls
-        const hash1 = result1.code.match(/__\$refreshReg\(__\$moduleId, 'App', App, '([^']+)'\)/)?.[1];
-        const hash2 = result2.code.match(/__\$refreshReg\(__\$moduleId, 'App', App, '([^']+)'\)/)?.[1];
+        const hash1 = result1.code.match(
+          /__\$refreshReg\(__\$moduleId, 'App', App, '([^']+)'\)/,
+        )?.[1];
+        const hash2 = result2.code.match(
+          /__\$refreshReg\(__\$moduleId, 'App', App, '([^']+)'\)/,
+        )?.[1];
         expect(hash1).toBeDefined();
         expect(hash2).toBeDefined();
         expect(hash1).not.toBe(hash2);
