@@ -1,0 +1,6 @@
+export default {
+  test: {
+    preload: ['./test-setup.ts', './test-compiler-plugin.ts'],
+    root: './src',
+  },
+};

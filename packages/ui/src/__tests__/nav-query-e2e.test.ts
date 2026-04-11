@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from '@vertz/test';
+import { afterEach, beforeEach, describe, expect, it, mock } from '@vertz/test';
 import { MemoryCache } from '../query/cache';
 import { query, resetDefaultQueryCache } from '../query/query';
 import { defineRoutes } from '../router/define-routes';
@@ -102,7 +102,7 @@ describe('Navigation → Query E2E Integration', () => {
     await navPromise;
 
     // Create query — should hydrate from the SSR bus buffer
-    const fetchThunk = vi.fn(() => Promise.resolve({ items: [] }));
+    const fetchThunk = mock(() => Promise.resolve({ items: [] }));
     const result = query(fetchThunk, { key: 'task-list' });
 
     expect(result.data.value).toEqual(taskData);
@@ -128,7 +128,7 @@ describe('Navigation → Query E2E Integration', () => {
     await navPromise;
 
     // Create query — no data in buffer, should be in loading/deferred state
-    const fetchThunk = vi.fn(() => Promise.resolve({ items: [] }));
+    const fetchThunk = mock(() => Promise.resolve({ items: [] }));
     const result = query(fetchThunk, { key: 'task-list' });
 
     expect(result.data.value).toBeUndefined();
@@ -161,7 +161,7 @@ describe('Navigation → Query E2E Integration', () => {
     await navPromise;
 
     // Create query — deferred, in loading state
-    const fetchThunk = vi.fn(() => Promise.resolve(clientData));
+    const fetchThunk = mock(() => Promise.resolve(clientData));
     const result = query(fetchThunk, { key: 'task-list' });
 
     expect(result.loading.value).toBe(true);
@@ -198,7 +198,7 @@ describe('Navigation → Query E2E Integration', () => {
     await navPromise1;
 
     const q1 = query(
-      vi.fn(() => Promise.resolve({ items: [] })),
+      mock(() => Promise.resolve({ items: [] })),
       { key: 'task-list', cache },
     );
     expect(q1.data.value).toEqual(taskDataV1);
@@ -219,7 +219,7 @@ describe('Navigation → Query E2E Integration', () => {
     await navPromise3;
 
     // Create query — should serve from cache immediately
-    const fetchThunk = vi.fn(() => Promise.resolve({ items: [] }));
+    const fetchThunk = mock(() => Promise.resolve({ items: [] }));
     const q2 = query(fetchThunk, { key: 'task-list', cache });
     expect(q2.data.value).toEqual(taskDataV1); // Cache hit
     expect(q2.loading.value).toBe(false);
@@ -250,7 +250,7 @@ describe('Navigation → Query E2E Integration', () => {
     await navPromise1;
 
     const q1 = query(
-      vi.fn(() => Promise.resolve({ items: [] })),
+      mock(() => Promise.resolve({ items: [] })),
       {
         key: 'task-list',
         cache,
@@ -272,7 +272,7 @@ describe('Navigation → Query E2E Integration', () => {
     await navPromise3;
 
     // Create query with same key and same cache instance
-    const fetchThunk = vi.fn(() => Promise.resolve({ items: [] }));
+    const fetchThunk = mock(() => Promise.resolve({ items: [] }));
     const q2 = query(fetchThunk, { key: 'task-list', cache });
 
     // Should serve from cache — instant, no loading flash

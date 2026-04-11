@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from '@vertz/test';
+import { afterEach, beforeEach, describe, expect, it, mock, spyOn } from '@vertz/test';
 import { popScope, pushScope, runCleanups } from '@vertz/ui/internals';
 import { ComposedMenubar } from '../menubar-composed';
 
@@ -202,7 +202,7 @@ describe('Composed Menubar', () => {
 
   describe('Given a menu is open and Enter is pressed on an item', () => {
     it('Then fires onSelect and closes the menu', () => {
-      const onSelect = vi.fn();
+      const onSelect = mock();
       const root = renderMenubar({ onSelect });
       const trigger = root.querySelector('[data-value="file"]') as HTMLElement;
       const content = root.querySelectorAll('[role="menu"]')[0] as HTMLElement;
@@ -219,7 +219,7 @@ describe('Composed Menubar', () => {
 
   describe('Given a menu item is clicked', () => {
     it('Then fires onSelect and closes the menu', () => {
-      const onSelect = vi.fn();
+      const onSelect = mock();
       const root = renderMenubar({ onSelect });
       const trigger = root.querySelector('[data-value="file"]') as HTMLElement;
       const content = root.querySelectorAll('[role="menu"]')[0] as HTMLElement;
@@ -432,7 +432,7 @@ describe('Composed Menubar', () => {
         popScope();
 
         const trigger = root.querySelector('[data-value="file"]') as HTMLElement;
-        const spy = vi.spyOn(trigger, 'removeEventListener');
+        const spy = spyOn(trigger, 'removeEventListener');
         runCleanups(scope);
 
         expect(spy).toHaveBeenCalledWith('click', expect.any(Function));
@@ -567,7 +567,7 @@ describe('Composed Menubar', () => {
 
   describe('Given a menu is open and Space is pressed on a focused item', () => {
     it('Then fires onSelect and closes the menu', () => {
-      const onSelect = vi.fn();
+      const onSelect = mock();
       const root = renderMenubar({ onSelect });
       const trigger = root.querySelector('[data-value="file"]') as HTMLElement;
       const content = root.querySelectorAll('[role="menu"]')[0] as HTMLElement;

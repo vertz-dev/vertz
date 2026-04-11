@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from '@vertz/test';
+import { afterEach, beforeEach, describe, expect, it, mock } from '@vertz/test';
 import { DropdownMenu } from '../dropdown-menu';
 
 describe('DropdownMenu', () => {
@@ -71,7 +71,7 @@ describe('DropdownMenu', () => {
   });
 
   it('activates item with Enter key and calls onSelect', () => {
-    const onSelect = vi.fn();
+    const onSelect = mock();
     const { trigger, content, Item } = DropdownMenu.Root({ onSelect });
     container.appendChild(trigger);
     container.appendChild(content);

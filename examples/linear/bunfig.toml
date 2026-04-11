@@ -1,5 +1,0 @@
-[serve.static]
-plugins = ["./bun-plugin-shim.ts"]
-
-[test]
-root = "src"

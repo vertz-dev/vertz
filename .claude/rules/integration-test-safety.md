@@ -2,7 +2,7 @@
 
 ## The Problem
 
-Tests that spin up real servers (`Bun.serve()`), WebSocket connections, or file watchers can hang on CI runners. The event loop stays alive because of unclosed resources, unresolved Promises, or cleanup that only runs on the happy path.
+Tests that spin up real servers (e.g., `Bun.serve()`), WebSocket connections, or file watchers can hang on CI runners. The event loop stays alive because of unclosed resources, unresolved Promises, or cleanup that only runs on the happy path.
 
 ## Rules
 
@@ -87,9 +87,9 @@ When implementing a `stop()` method:
 
 ### 6. Integration tests that start real servers go in `.local.ts` files
 
-Tests that `Bun.serve()` on a real port, create WebSocket connections, or use file watchers are **local-only**. They don't run in CI because:
+Tests that start a real server (e.g., `Bun.serve()`) on a real port, create WebSocket connections, or use file watchers are **local-only**. They don't run in CI because:
 - CI runners have stricter process exit semantics
-- Port binding and WebSocket teardown can race with the test runner
+- Port binding and WebSocket teardown can race with the vtz test runner
 - File watcher events are non-deterministic across OS/CI environments
 
 Name these files `*.local.ts` (not `.test.ts`). Add a `test:integration` script in `package.json` for running them explicitly:

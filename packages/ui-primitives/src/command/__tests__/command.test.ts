@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from '@vertz/test';
+import { afterEach, beforeEach, describe, expect, it, mock } from '@vertz/test';
 import { Command } from '../command';
 
 describe('Command', () => {
@@ -80,7 +80,7 @@ describe('Command', () => {
   });
 
   it('Enter fires onSelect with active item value', () => {
-    const onSelect = vi.fn();
+    const onSelect = mock();
     const { input, list, Item } = Command.Root({ onSelect });
     container.appendChild(input);
     list.appendChild(Item('apple', 'Apple'));
@@ -180,7 +180,7 @@ describe('Command', () => {
   });
 
   it('Escape clears input', () => {
-    const onInputChange = vi.fn();
+    const onInputChange = mock();
     const { input, state } = Command.Root({ onInputChange });
     container.appendChild(input);
 
@@ -207,7 +207,7 @@ describe('Command', () => {
   });
 
   it('click on item fires onSelect', () => {
-    const onSelect = vi.fn();
+    const onSelect = mock();
     const { list, Item } = Command.Root({ onSelect });
     const item = Item('apple', 'Apple');
     list.appendChild(item);
@@ -234,7 +234,7 @@ describe('Command', () => {
   });
 
   it('calls onInputChange when typing', () => {
-    const onInputChange = vi.fn();
+    const onInputChange = mock();
     const { input } = Command.Root({ onInputChange });
     container.appendChild(input);
 

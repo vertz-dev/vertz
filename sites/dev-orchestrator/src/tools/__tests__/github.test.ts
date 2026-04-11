@@ -1,10 +1,10 @@
-import { describe, expect, it, vi, beforeEach, afterEach } from 'bun:test';
+import { describe, expect, it, beforeEach, afterEach, mock } from '@vertz/test';
 import { createGitHubProvider, readIssue, ghPrChecks, createPr, commentOnIssue } from '../github';
 import { createGitHubClient } from '../../lib/github-client';
 
 describe('Feature: GitHub tools', () => {
   const originalFetch = globalThis.fetch;
-  const mockFetch = vi.fn();
+  const mockFetch = mock();
 
   beforeEach(() => {
     mockFetch.mockReset();

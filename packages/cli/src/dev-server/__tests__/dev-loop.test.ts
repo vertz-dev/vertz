@@ -1,11 +1,11 @@
-import { describe, expect, it, vi } from '@vertz/test';
+import { describe, expect, it, vi, mock } from '@vertz/test';
 import type { DevLoopDeps } from '../dev-loop';
 import { createDevLoop } from '../dev-loop';
 import type { FileChange } from '../watcher';
 
 function createMockDeps(overrides?: Partial<DevLoopDeps>): DevLoopDeps {
   return {
-    compile: vi.fn().mockResolvedValue({
+    compile: mock().mockResolvedValue({
       success: true,
       ir: {
         modules: [],
@@ -17,11 +17,11 @@ function createMockDeps(overrides?: Partial<DevLoopDeps>): DevLoopDeps {
       },
       diagnostics: [],
     }),
-    startProcess: vi.fn(),
-    stopProcess: vi.fn().mockResolvedValue(undefined),
-    onFileChange: vi.fn(),
-    onCompileSuccess: vi.fn(),
-    onCompileError: vi.fn(),
+    startProcess: mock(),
+    stopProcess: mock().mockResolvedValue(undefined),
+    onFileChange: mock(),
+    onCompileSuccess: mock(),
+    onCompileError: mock(),
     ...overrides,
   };
 }
@@ -46,7 +46,7 @@ describe('createDevLoop', () => {
 
   it('start compiles but does not start process on failure', async () => {
     const deps = createMockDeps({
-      compile: vi.fn().mockResolvedValue({
+      compile: mock().mockResolvedValue({
         success: false,
         ir: {
           modules: [],
@@ -95,7 +95,7 @@ describe('createDevLoop', () => {
   it('recompiles and restarts process on file change', async () => {
     let changeHandler: ((changes: FileChange[]) => void) | undefined;
     const deps = createMockDeps({
-      onFileChange: vi.fn((handler) => {
+      onFileChange: mock((handler) => {
         changeHandler = handler;
       }),
     });
@@ -115,7 +115,7 @@ describe('createDevLoop', () => {
     let changeHandler: ((changes: FileChange[]) => void) | undefined;
     let callCount = 0;
     const deps = createMockDeps({
-      compile: vi.fn().mockImplementation(() => {
+      compile: mock().mockImplementation(() => {
         callCount++;
         if (callCount === 1) {
           return Promise.resolve({
@@ -146,7 +146,7 @@ describe('createDevLoop', () => {
           ],
         });
       }),
-      onFileChange: vi.fn((handler) => {
+      onFileChange: mock((handler) => {
         changeHandler = handler;
       }),
     });

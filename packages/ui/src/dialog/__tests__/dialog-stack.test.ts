@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from '@vertz/test';
+import { afterEach, beforeEach, describe, expect, it } from '@vertz/test';
 import { createContext, getContextScope, useContext } from '../../component/context';
 import { resetInjectedStyles } from '../../css/css';
 import { ThemeProvider } from '../../css/theme-provider';
@@ -1219,7 +1219,7 @@ describe('Feature: DialogStackProvider hydration via mount()', () => {
           '<div><header>App</header></div>' +
           '</div></div>';
 
-        const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+        const warnSpy = spyOn(console, 'warn').mockImplementation(() => {});
 
         const App = () => {
           return ThemeProvider({

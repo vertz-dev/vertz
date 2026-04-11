@@ -27,7 +27,7 @@
   },
   "scripts": {
     "build": "bunup",
-    "test": "bun test",
+    "test": "vtz test",
     "typecheck": "tsgo --noEmit"
   },
   "dependencies": {
@@ -44,6 +44,7 @@
     "@happy-dom/global-registrator": "^20.7.0",
     "@types/bun": "latest",
     "@types/hast": "^3.0.4",
+    "@types/node": "^25.3.1",
     "@types/unist": "^3.0.3",
     "@vertz/test": "workspace:*",
     "@vertz/ui-server": "workspace:^",

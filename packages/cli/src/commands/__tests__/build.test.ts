@@ -10,7 +10,17 @@
  * Instead, we spy on individual functions in beforeEach/afterEach.
  */
 
-import { afterEach, beforeEach, describe, expect, it, type MockFunction, vi } from '@vertz/test';
+import {
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  type MockFunction,
+  vi,
+  mock,
+  spyOn,
+} from '@vertz/test';
 import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -41,21 +51,21 @@ describe('buildAction', () => {
 
     // Spy on findProjectRoot to return our temp dir
     const pathsMod = await import('../../utils/paths');
-    pathsSpy = vi.spyOn(pathsMod, 'findProjectRoot').mockReturnValue(tmpDir) as MockFunction<
+    pathsSpy = spyOn(pathsMod, 'findProjectRoot').mockReturnValue(tmpDir) as MockFunction<
       (...args: unknown[]) => unknown
     >;
 
     // Spy on BuildOrchestrator to avoid real bundling
     const prodBuild = await import('../../production-build');
-    orchestratorSpy = vi.spyOn(prodBuild, 'BuildOrchestrator').mockImplementation(
+    orchestratorSpy = spyOn(prodBuild, 'BuildOrchestrator').mockImplementation(
       () =>
         ({
-          build: vi.fn().mockResolvedValue(mockBuildResult),
-          dispose: vi.fn().mockResolvedValue(undefined),
+          build: mock().mockResolvedValue(mockBuildResult),
+          dispose: mock().mockResolvedValue(undefined),
         }) as unknown,
     ) as MockFunction<(...args: unknown[]) => unknown>;
 
-    buildUISpy = vi.spyOn(prodBuild, 'buildUI').mockResolvedValue({
+    buildUISpy = spyOn(prodBuild, 'buildUI').mockResolvedValue({
       success: true,
       durationMs: 100,
     }) as MockFunction<(...args: unknown[]) => unknown>;
@@ -142,11 +152,11 @@ describe('buildAction', () => {
     orchestratorSpy.mockImplementation(
       () =>
         ({
-          build: vi.fn().mockResolvedValue({
+          build: mock().mockResolvedValue({
             success: false,
             error: 'esbuild compilation error',
           }),
-          dispose: vi.fn().mockResolvedValue(undefined),
+          dispose: mock().mockResolvedValue(undefined),
         }) as unknown,
     );
 
@@ -185,11 +195,11 @@ describe('buildAction', () => {
     orchestratorSpy.mockImplementation(
       () =>
         ({
-          build: vi.fn().mockResolvedValue({
+          build: mock().mockResolvedValue({
             success: false,
             error: 'API stage failed in full-stack build',
           }),
-          dispose: vi.fn().mockResolvedValue(undefined),
+          dispose: mock().mockResolvedValue(undefined),
         }) as unknown,
     );
 
@@ -216,7 +226,7 @@ describe('buildAction', () => {
 
   it('should log verbose output for api-only build', async () => {
     writeFileSync(join(tmpDir, 'src', 'server.ts'), 'export default {};');
-    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+    const logSpy = spyOn(console, 'log').mockImplementation(() => {});
 
     try {
       const { buildAction } = await import('../build');
@@ -239,7 +249,7 @@ describe('buildAction', () => {
     // This happens when we mock detectAppType directly
     const appDetector = await import('../../dev-server/app-detector');
     // @ts-expect-error — intentionally passing undefined serverEntry to test missing entry guard
-    const detectSpy = vi.spyOn(appDetector, 'detectAppType').mockReturnValue({
+    const detectSpy = spyOn(appDetector, 'detectAppType').mockReturnValue({
       type: 'api-only',
       serverEntry: undefined,
       projectRoot: tmpDir,
@@ -264,8 +274,8 @@ describe('buildAction', () => {
     orchestratorSpy.mockImplementation(
       () =>
         ({
-          build: vi.fn().mockRejectedValue(new Error('unexpected crash')),
-          dispose: vi.fn().mockResolvedValue(undefined),
+          build: mock().mockRejectedValue(new Error('unexpected crash')),
+          dispose: mock().mockResolvedValue(undefined),
         }) as unknown,
     );
 
@@ -284,7 +294,7 @@ describe('buildAction', () => {
     orchestratorSpy.mockImplementation(
       () =>
         ({
-          build: vi.fn().mockResolvedValue({
+          build: mock().mockResolvedValue({
             ...mockBuildResult,
             manifest: {
               ...mockBuildResult.manifest,
@@ -295,11 +305,11 @@ describe('buildAction', () => {
               ],
             },
           }),
-          dispose: vi.fn().mockResolvedValue(undefined),
+          dispose: mock().mockResolvedValue(undefined),
         }) as unknown,
     );
 
-    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+    const logSpy = spyOn(console, 'log').mockImplementation(() => {});
 
     try {
       const { buildAction } = await import('../build');
@@ -320,7 +330,7 @@ describe('buildAction', () => {
 
     // Force ui-only detection with clientEntry but no uiEntry/ssrEntry
     const appDetector = await import('../../dev-server/app-detector');
-    const detectSpy = vi.spyOn(appDetector, 'detectAppType').mockReturnValue({
+    const detectSpy = spyOn(appDetector, 'detectAppType').mockReturnValue({
       type: 'ui-only',
       clientEntry: join(tmpDir, 'src', 'entry-client.ts'),
       projectRoot: tmpDir,
@@ -343,7 +353,7 @@ describe('buildAction', () => {
     writeFileSync(join(tmpDir, 'src', 'app.tsx'), 'export default function App() {}');
     writeFileSync(join(tmpDir, 'src', 'entry-client.ts'), 'console.log("client");');
 
-    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+    const logSpy = spyOn(console, 'log').mockImplementation(() => {});
 
     try {
       const { buildAction } = await import('../build');

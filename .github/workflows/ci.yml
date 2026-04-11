@@ -217,6 +217,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Setup vtz
+        uses: vertz-dev/setup-vtz@v1
+
+      # TODO: Switch to `vtz install --frozen` once the next vtz release
+      # ships with the scoped-bin-stub fix (native/vtz/src/pm/bin.rs).
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: 1.3.9
@@ -225,6 +230,8 @@ jobs:
         run: |
           bun install --frozen-lockfile
           echo "$PWD/node_modules/.bin" >> "$GITHUB_PATH"
+          # Remove fallback vtz shell script so the native binary from setup-vtz is used
+          rm -f node_modules/.bin/vtz node_modules/.bin/vertz
 
       - name: Lint
         run: oxlint packages/
@@ -248,6 +255,11 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Setup vtz
+        uses: vertz-dev/setup-vtz@v1
+
+      # TODO: Switch to `vtz install --frozen` once the next vtz release
+      # ships with the scoped-bin-stub fix (native/vtz/src/pm/bin.rs).
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: 1.3.9
@@ -256,12 +268,11 @@ jobs:
         run: |
           bun install --frozen-lockfile
           echo "$PWD/node_modules/.bin" >> "$GITHUB_PATH"
-
-      - name: Setup vtz
-        uses: vertz-dev/setup-vtz@v1
+          # Remove fallback vtz shell script so the native binary from setup-vtz is used
+          rm -f node_modules/.bin/vtz node_modules/.bin/vertz
 
       - name: Build @vertz/ci
-        run: cd packages/ci && bun run build
+        run: cd packages/ci && vtz run build
 
       - name: Build & typecheck
         run: |
@@ -291,14 +302,14 @@ jobs:
           EXIT_CODE=${PIPESTATUS[0]}
           set -eo pipefail
           if [ $EXIT_CODE -eq 0 ]; then exit 0; fi
-          # Check if any bun test reported actual failures (N fail where N > 0)
+          # Check if any vtz test reported actual failures (N fail where N > 0)
           FAIL_LINES=$(grep -cE '^\s*[1-9][0-9]*\s+fail' /tmp/test-output.log || true)
           if [ "$FAIL_LINES" -gt 0 ]; then
             echo "::error::Tests failed"
             exit 1
           fi
           # Exit 124/137 = timeout, or vtz ci exited non-zero due to
-          # task timeouts (hung processes). If no actual bun test failures
+          # task timeouts (hung processes). If no actual vtz test failures
           # were detected, treat as success — matching old CI behavior.
           echo "::warning::Test processes did not exit cleanly (pending runtime release with #2474 fix)"
           exit 0
@@ -356,6 +367,8 @@ jobs:
         with:
           workspaces: native
 
+      # NAPI tests use bun test because they import workspace packages
+      # (@vertz/ui etc.) which require Bun's module resolution.
       - uses: oven-sh/setup-bun@v2
 
       - name: Build native compiler

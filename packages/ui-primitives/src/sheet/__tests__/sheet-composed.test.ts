@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from '@vertz/test';
+import { afterEach, beforeEach, describe, expect, it, mock, spyOn } from '@vertz/test';
 import { ComposedSheet } from '../sheet-composed';
 
 function flush() {
@@ -101,7 +101,7 @@ describe('Composed Sheet', () => {
 
     describe('When Escape is pressed while the sheet is open', () => {
       it('Then closes the sheet', async () => {
-        const onOpenChange = vi.fn();
+        const onOpenChange = mock();
         const { root, triggerBtn } = createSheetTree(undefined, { onOpenChange });
         container.appendChild(root);
 
@@ -118,7 +118,7 @@ describe('Composed Sheet', () => {
 
     describe('When the backdrop is clicked', () => {
       it('Then closes the sheet', async () => {
-        const onOpenChange = vi.fn();
+        const onOpenChange = mock();
         const { root, triggerBtn } = createSheetTree(undefined, { onOpenChange });
         container.appendChild(root);
 
@@ -135,7 +135,7 @@ describe('Composed Sheet', () => {
 
     describe('When Sheet.Close is clicked', () => {
       it('Then closes the sheet', async () => {
-        const onOpenChange = vi.fn();
+        const onOpenChange = mock();
         const { root, triggerBtn, closeEl } = createSheetTree(undefined, { onOpenChange });
         container.appendChild(root);
 
@@ -206,7 +206,7 @@ describe('Composed Sheet', () => {
 
   describe('Given onOpenChange callback', () => {
     it('Then calls the callback when the sheet opens and closes', async () => {
-      const onOpenChange = vi.fn();
+      const onOpenChange = mock();
       const triggerBtn = document.createElement('button');
       let closeEl!: HTMLElement;
 
@@ -240,7 +240,7 @@ describe('Composed Sheet', () => {
         const panel = getConnectedPanel(root);
         expect(panel.open).toBe(true);
 
-        const closeSpy = vi.spyOn(panel, 'close');
+        const closeSpy = spyOn(panel, 'close');
 
         closeEl.click();
 
@@ -261,7 +261,7 @@ describe('Composed Sheet', () => {
         const panel = getConnectedPanel(root);
         expect(panel.open).toBe(true);
 
-        const closeSpy = vi.spyOn(panel, 'close');
+        const closeSpy = spyOn(panel, 'close');
         const cancelEvent = new Event('cancel', { bubbles: true, cancelable: true });
         panel.dispatchEvent(cancelEvent);
 

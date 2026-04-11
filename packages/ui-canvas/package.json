@@ -27,9 +27,9 @@
   },
   "scripts": {
     "build": "vtzx bunup",
-    "test": "bun test",
-    "test:benchmark": "bun test src/graphics-benchmark.local.ts",
-    "test:watch": "bun test --watch",
+    "test": "vtz test",
+    "test:benchmark": "vtz test src/graphics-benchmark.local.ts",
+    "test:watch": "vtz test --watch",
     "typecheck": "tsgo --noEmit"
   },
   "dependencies": {

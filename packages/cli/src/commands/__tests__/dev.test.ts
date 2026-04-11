@@ -1,4 +1,13 @@
-import { afterEach, beforeEach, describe, expect, it, type MockFunction, vi } from '@vertz/test';
+import {
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  type MockFunction,
+  mock,
+  spyOn,
+} from '@vertz/test';
 import { Command } from 'commander';
 import type { FileChange } from '../../pipeline';
 import {
@@ -110,7 +119,7 @@ describe('Pipeline Orchestrator', () => {
     it('should propagate compiler errors without crashing the watcher', async () => {
       // This tests that when the compiler throws, the error propagates correctly
       const mockCompiler = {
-        analyze: vi.fn().mockRejectedValue(new Error('Syntax error')),
+        analyze: mock().mockRejectedValue(new Error('Syntax error')),
       };
 
       // The error should propagate - the orchestrator catches it
@@ -120,7 +129,7 @@ describe('Pipeline Orchestrator', () => {
     it('should propagate codegen errors correctly', async () => {
       // When codegen fails, the error should propagate
       const mockCodegen = {
-        generate: vi.fn().mockRejectedValue(new Error('Codegen failed')),
+        generate: mock().mockRejectedValue(new Error('Codegen failed')),
       };
 
       // The error should propagate
@@ -308,7 +317,7 @@ describe('devAction error paths', () => {
 
   it('returns err when findProjectRoot returns null', async () => {
     const pathsMod = await import('../../utils/paths');
-    pathsSpy = vi.spyOn(pathsMod, 'findProjectRoot').mockReturnValue(null) as MockFunction<
+    pathsSpy = spyOn(pathsMod, 'findProjectRoot').mockReturnValue(null) as MockFunction<
       (...args: unknown[]) => unknown
     >;
 
@@ -348,23 +357,23 @@ describe('devAction native runtime flow', () => {
     registeredListeners = [];
 
     mockOrchestrator = {
-      runFull: vi.fn().mockResolvedValue({ success: true, stages: [] }),
-      dispose: vi.fn().mockResolvedValue(undefined),
+      runFull: mock().mockResolvedValue({ success: true, stages: [] }),
+      dispose: mock().mockResolvedValue(undefined),
     };
 
     mockChild = {
-      on: vi.fn().mockImplementation((event: string, cb: () => void) => {
+      on: mock().mockImplementation((event: string, cb: () => void) => {
         if (event === 'exit') {
           setTimeout(cb, 10);
         }
         return mockChild;
       }),
-      kill: vi.fn(),
+      kill: mock(),
       pid: 12345,
     };
 
     const pathsMod = await import('../../utils/paths');
-    pathsSpy = vi.spyOn(pathsMod, 'findProjectRoot').mockReturnValue('/fake/root') as MockFunction<
+    pathsSpy = spyOn(pathsMod, 'findProjectRoot').mockReturnValue('/fake/root') as MockFunction<
       (...args: unknown[]) => unknown
     >;
 
@@ -382,19 +391,19 @@ describe('devAction native runtime flow', () => {
     launchSpy = vi
       .spyOn(launcherMod, 'launchRuntime')
       .mockReturnValue(mockChild as never) as MockFunction<(...args: unknown[]) => unknown>;
-    vi.spyOn(launcherMod, 'checkVersionCompatibility').mockReturnValue(null);
+    spyOn(launcherMod, 'checkVersionCompatibility').mockReturnValue(null);
 
-    consoleLogSpy = vi.spyOn(console, 'log').mockImplementation(() => {}) as MockFunction<
+    consoleLogSpy = spyOn(console, 'log').mockImplementation(() => {}) as MockFunction<
       (...args: unknown[]) => unknown
     >;
-    consoleWarnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {}) as MockFunction<
+    consoleWarnSpy = spyOn(console, 'warn').mockImplementation(() => {}) as MockFunction<
       (...args: unknown[]) => unknown
     >;
-    consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {}) as MockFunction<
+    consoleErrorSpy = spyOn(console, 'error').mockImplementation(() => {}) as MockFunction<
       (...args: unknown[]) => unknown
     >;
 
-    processOnSpy = vi.spyOn(process, 'on').mockImplementation(((
+    processOnSpy = spyOn(process, 'on').mockImplementation(((
       event: string,
       handler: (...args: unknown[]) => unknown,
     ) => {
@@ -556,10 +565,10 @@ describe('devAction native runtime flow', () => {
 describe('registerDevCommand action handler', () => {
   it('calls process.exit(1) when devAction returns err', async () => {
     const pathsMod = await import('../../utils/paths');
-    const pathsSpy = vi.spyOn(pathsMod, 'findProjectRoot').mockReturnValue(null) as MockFunction<
+    const pathsSpy = spyOn(pathsMod, 'findProjectRoot').mockReturnValue(null) as MockFunction<
       (...args: unknown[]) => unknown
     >;
-    const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {}) as MockFunction<
+    const consoleErrorSpy = spyOn(console, 'error').mockImplementation(() => {}) as MockFunction<
       (...args: unknown[]) => unknown
     >;
     const processExitSpy = vi

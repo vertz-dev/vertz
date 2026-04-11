@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from '@vertz/test';
+import { afterEach, describe, expect, it } from '@vertz/test';
 import { normalizeEntity } from '../normalize';
 import { registerRelationSchema, resetRelationSchemas_TEST_ONLY } from '../relation-registry';
 
@@ -250,7 +250,7 @@ describe('normalizeEntity', () => {
       author: { type: 'one', entity: 'users' },
     });
 
-    const spy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const spy = spyOn(console, 'warn').mockImplementation(() => {});
     const entity = { id: 'p1', title: 'Hello', author: 42 };
     normalizeEntity('posts', entity);
 
@@ -264,7 +264,7 @@ describe('normalizeEntity', () => {
       tags: { type: 'many', entity: 'tags' },
     });
 
-    const spy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const spy = spyOn(console, 'warn').mockImplementation(() => {});
     const entity = { id: 'p1', title: 'Hello', tags: 'not-an-array' };
     normalizeEntity('posts', entity);
 

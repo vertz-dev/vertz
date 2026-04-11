@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from '@vertz/test';
+import { afterEach, beforeEach, describe, expect, it, mock } from '@vertz/test';
 import { Popover } from '../popover';
 
 describe('Popover', () => {
@@ -64,7 +64,7 @@ describe('Popover', () => {
   });
 
   it('calls onOpenChange', () => {
-    const onOpenChange = vi.fn();
+    const onOpenChange = mock();
     const { trigger, content } = Popover.Root({ onOpenChange });
     container.appendChild(trigger);
     container.appendChild(content);

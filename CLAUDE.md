@@ -17,12 +17,12 @@ One schema definition (`d.table()`) drives the database, API types, client SDK, 
 ## Stack
 
 ### TypeScript (packages/)
-- Runtime: Bun
+- Runtime: vtz
 - Language: TypeScript (strict mode)
 - Linter: oxlint
 - Formatter: oxfmt
 - Test runner: `vtz test`
-- Monorepo: Bun workspaces under `packages/`
+- Monorepo: vtz workspaces under `packages/`
 
 ### Rust (native/)
 - Language: Rust (2021 edition)
@@ -63,7 +63,7 @@ cargo build --release      # Release build
 
 - **vtz** (`native/vtz/`) — Full runtime: V8 dev server, test runner, package manager
 - **vertz-compiler-core** (`native/vertz-compiler-core/`) — Rust compilation library (transforms, JSX, CSS)
-- **vertz-compiler** (`native/vertz-compiler/`) — NAPI bindings for the framework's Bun plugin
+- **vertz-compiler** (`native/vertz-compiler/`) — NAPI bindings for the framework's compilation plugin
 
 ## Git
 

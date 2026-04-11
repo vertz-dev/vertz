@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from '@vertz/test';
+import { afterEach, describe, expect, it, mock } from '@vertz/test';
 import { domEffect } from '../../runtime/signal';
 import { EntityStore } from '../entity-store';
 import { registerRelationSchema, resetRelationSchemas_TEST_ONLY } from '../relation-registry';
@@ -234,7 +234,7 @@ describe('EntityStore - remove', () => {
     const store = new EntityStore();
     store.merge('User', { id: '1', name: 'Alice' });
 
-    const listener = vi.fn();
+    const listener = mock();
     store.onTypeChange('User', listener);
 
     store.remove('User', '1');
@@ -317,7 +317,7 @@ describe('EntityStore - getMany', () => {
 describe('EntityStore - onTypeChange', () => {
   it('fires on merge of new entity (create)', () => {
     const store = new EntityStore();
-    const listener = vi.fn();
+    const listener = mock();
     store.onTypeChange('User', listener);
 
     store.merge('User', { id: '1', name: 'Alice' });
@@ -329,7 +329,7 @@ describe('EntityStore - onTypeChange', () => {
     const store = new EntityStore();
     store.merge('User', { id: '1', name: 'Alice' });
 
-    const listener = vi.fn();
+    const listener = mock();
     store.onTypeChange('User', listener);
 
     store.remove('User', '1');
@@ -341,7 +341,7 @@ describe('EntityStore - onTypeChange', () => {
     const store = new EntityStore();
     store.merge('User', { id: '1', name: 'Alice' });
 
-    const listener = vi.fn();
+    const listener = mock();
     store.onTypeChange('User', listener);
 
     store.merge('User', { id: '1', name: 'Alicia' }); // update
@@ -351,7 +351,7 @@ describe('EntityStore - onTypeChange', () => {
 
   it('returns unsubscribe function that works', () => {
     const store = new EntityStore();
-    const listener = vi.fn();
+    const listener = mock();
     const unsubscribe = store.onTypeChange('User', listener);
 
     unsubscribe();
@@ -362,8 +362,8 @@ describe('EntityStore - onTypeChange', () => {
 
   it('multiple listeners on same type all fire', () => {
     const store = new EntityStore();
-    const listener1 = vi.fn();
-    const listener2 = vi.fn();
+    const listener1 = mock();
+    const listener2 = mock();
 
     store.onTypeChange('User', listener1);
     store.onTypeChange('User', listener2);
@@ -1148,7 +1148,7 @@ describe('EntityStore - field selection tracking', () => {
     const entity = sig.value!;
 
     // Access selected field — no warning
-    const warnSpy = vi.fn();
+    const warnSpy = mock();
     const originalWarn = console.warn;
     console.warn = warnSpy;
 
@@ -1175,7 +1175,7 @@ describe('EntityStore - field selection tracking', () => {
     const sig = store.get<{ id: string; name: string; bio?: string }>('users', 'u1');
     const entity = sig.value!;
 
-    const warnSpy = vi.fn();
+    const warnSpy = mock();
     const originalWarn = console.warn;
     console.warn = warnSpy;
 
@@ -1194,7 +1194,7 @@ describe('EntityStore - field selection tracking', () => {
     const sig = store.get<{ id: string; name: string; bio?: string }>('users', 'u1');
     const entity = sig.value!;
 
-    const warnSpy = vi.fn();
+    const warnSpy = mock();
     const originalWarn = console.warn;
     console.warn = warnSpy;
 
@@ -1213,7 +1213,7 @@ describe('EntityStore - field selection tracking', () => {
       querySource: 'GET:/users',
     });
 
-    const warnSpy = vi.fn();
+    const warnSpy = mock();
     const originalWarn = console.warn;
     console.warn = warnSpy;
 
@@ -1242,7 +1242,7 @@ describe('EntityStore - field selection tracking', () => {
     const sig = store.get<{ id: string; name: string; bio?: string }>('users', 'u1');
     expect(sig.value!.name).toBe('Bob');
 
-    const warnSpy = vi.fn();
+    const warnSpy = mock();
     const originalWarn = console.warn;
     console.warn = warnSpy;
 
@@ -1272,7 +1272,7 @@ describe('EntityStore - field selection tracking', () => {
     const sig = store.get<{ id: string; name: string; bio?: string }>('users', 'u1');
     expect(sig.value!.name).toBe('Bob');
 
-    const warnSpy = vi.fn();
+    const warnSpy = mock();
     const originalWarn = console.warn;
     console.warn = warnSpy;
 

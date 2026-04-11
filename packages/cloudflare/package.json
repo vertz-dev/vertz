@@ -27,7 +27,7 @@
   "scripts": {
     "build": "tsc",
     "typecheck": "tsgo --noEmit",
-    "test": "bun test"
+    "test": "vtz test"
   },
   "dependencies": {
     "@vertz/core": "workspace:^"

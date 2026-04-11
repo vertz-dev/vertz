@@ -12,7 +12,7 @@ describe('Feature: Sprite async texture loading', () => {
       it('then the sprite starts invisible', () => {
         const sprite = new Sprite();
         const mockTexture = Texture.WHITE;
-        vi.spyOn(Assets, 'load').mockResolvedValue(mockTexture);
+        spyOn(Assets, 'load').mockResolvedValue(mockTexture);
 
         loadSpriteTexture(sprite, 'assets/player.png');
 
@@ -22,7 +22,7 @@ describe('Feature: Sprite async texture loading', () => {
       it('then the sprite becomes visible after texture loads', async () => {
         const sprite = new Sprite();
         const mockTexture = Texture.WHITE;
-        vi.spyOn(Assets, 'load').mockResolvedValue(mockTexture);
+        spyOn(Assets, 'load').mockResolvedValue(mockTexture);
 
         await loadSpriteTexture(sprite, 'assets/player.png');
 
@@ -36,8 +36,8 @@ describe('Feature: Sprite async texture loading', () => {
     describe('When loadSpriteTexture is called', () => {
       it('then the sprite remains invisible and a warning is logged', async () => {
         const sprite = new Sprite();
-        const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
-        vi.spyOn(Assets, 'load').mockRejectedValue(new Error('Not found'));
+        const warnSpy = spyOn(console, 'warn').mockImplementation(() => {});
+        spyOn(Assets, 'load').mockRejectedValue(new Error('Not found'));
 
         await loadSpriteTexture(sprite, 'assets/missing.png');
 
@@ -54,7 +54,7 @@ describe('Feature: Sprite async texture loading', () => {
         const mockTexture = Texture.WHITE;
 
         let resolveLoad!: (value: Texture) => void;
-        vi.spyOn(Assets, 'load').mockReturnValue(
+        spyOn(Assets, 'load').mockReturnValue(
           new Promise((resolve) => {
             resolveLoad = resolve;
           }),

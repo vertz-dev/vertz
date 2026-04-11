@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from '@vertz/test';
+import { afterEach, beforeEach, describe, expect, it, mock, spyOn } from '@vertz/test';
 import { Radio } from '../radio';
 
 describe('Radio', () => {
@@ -29,7 +29,7 @@ describe('Radio', () => {
   });
 
   it('selects item on click', () => {
-    const onValueChange = vi.fn();
+    const onValueChange = mock();
     const { root, state, Item } = Radio.Root({ onValueChange });
     container.appendChild(root);
     const item = Item('opt1', 'Option 1');
@@ -118,7 +118,7 @@ describe('Radio', () => {
     });
 
     it('does not select disabled item on click', () => {
-      const onValueChange = vi.fn();
+      const onValueChange = mock();
       const { root, state, Item } = Radio.Root({ onValueChange });
       container.appendChild(root);
       const item1 = Item('opt1', 'Option 1', { disabled: true });
@@ -225,8 +225,8 @@ describe('Radio', () => {
         const item2 = Item('opt2', 'Option 2');
         root.appendChild(item2);
 
-        const spy1 = vi.spyOn(item1, 'removeEventListener');
-        const spy2 = vi.spyOn(item2, 'removeEventListener');
+        const spy1 = spyOn(item1, 'removeEventListener');
+        const spy2 = spyOn(item2, 'removeEventListener');
 
         destroy();
 

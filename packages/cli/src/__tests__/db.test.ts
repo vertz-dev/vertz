@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from '@vertz/test';
+import { afterEach, beforeEach, describe, expect, it, vi, mock } from '@vertz/test';
 import type { DbCommandContext } from '../commands/db';
 import {
   dbBaselineAction,
@@ -13,12 +13,12 @@ import {
 // Mock @vertz/db
 // ---------------------------------------------------------------------------
 
-const pushMock = vi.fn();
-const migrateDevMock = vi.fn();
-const migrateDeployMock = vi.fn();
-const migrateStatusMock = vi.fn();
-const resetMock = vi.fn();
-const baselineMock = vi.fn();
+const pushMock = mock();
+const migrateDevMock = mock();
+const migrateDeployMock = mock();
+const migrateStatusMock = mock();
+const resetMock = mock();
+const baselineMock = mock();
 
 vi.mock('@vertz/db', () => ({
   push: (...args: unknown[]) => pushMock(...args),
@@ -35,13 +35,13 @@ vi.mock('@vertz/db', () => ({
 
 function createMockContext(overrides?: Partial<DbCommandContext>): DbCommandContext {
   return {
-    queryFn: vi.fn(),
+    queryFn: mock(),
     currentSnapshot: { version: 1, tables: {}, enums: {} },
     previousSnapshot: { version: 1, tables: {}, enums: {} },
     migrationFiles: [],
     migrationsDir: '/tmp/migrations',
     existingFiles: [],
-    writeFile: vi.fn(),
+    writeFile: mock(),
     ...overrides,
   };
 }

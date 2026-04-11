@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from '@vertz/test';
+import { afterEach, beforeEach, describe, expect, it, mock } from '@vertz/test';
 import { ResizablePanel } from '../resizable-panel';
 
 describe('ResizablePanel', () => {
@@ -136,7 +136,7 @@ describe('ResizablePanel', () => {
   });
 
   it('onResize callback is called', () => {
-    const onResize = vi.fn();
+    const onResize = mock();
     const { root, Panel, Handle } = ResizablePanel.Root({ onResize });
     container.appendChild(root);
     root.appendChild(Panel());

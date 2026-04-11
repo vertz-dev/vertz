@@ -34,6 +34,11 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Setup vtz
+        uses: vertz-dev/setup-vtz@v1
+
+      # TODO: Switch to `vtz install --frozen` once the next vtz release
+      # ships with the scoped-bin-stub fix (native/vtz/src/pm/bin.rs).
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: 1.3.9
@@ -42,12 +47,11 @@ jobs:
         run: |
           bun install --frozen-lockfile
           echo "$PWD/node_modules/.bin" >> "$GITHUB_PATH"
-
-      - name: Setup vtz
-        uses: vertz-dev/setup-vtz@v1
+          # Remove fallback vtz shell script so the native binary from setup-vtz is used
+          rm -f node_modules/.bin/vtz node_modules/.bin/vertz
 
       - name: Build @vertz/ci
-        run: cd packages/ci && bun run build
+        run: cd packages/ci && vtz run build
 
       - name: Build packages
         run: |
@@ -80,8 +84,8 @@ jobs:
             # Detect test runner from package.json "test" script
             TEST_SCRIPT=$(node -e "console.log(require('./package.json').scripts?.test ?? '')")
 
-            if echo "$TEST_SCRIPT" | grep -q "bun test"; then
-              timeout --kill-after=10 120 bun test --coverage || true
+            if echo "$TEST_SCRIPT" | grep -q "vtz test"; then
+              timeout --kill-after=10 120 vtz test --coverage || true
             else
               timeout --kill-after=10 120 vitest run \
                 --coverage \
@@ -103,7 +107,7 @@ jobs:
         run: |
           for pkg in core schema compiler codegen cli cli-runtime fetch testing db cloudflare errors server tui ui ui-canvas ui-primitives ui-server; do
             if [ -f "packages/$pkg/coverage/lcov.info" ]; then
-              echo "OK: packages/$pkg/coverage/lcov.info (bun test)"
+              echo "OK: packages/$pkg/coverage/lcov.info (vtz test)"
             elif [ -f "packages/$pkg/coverage/coverage-summary.json" ]; then
               echo "OK: packages/$pkg/coverage/coverage-summary.json (vitest)"
             else
@@ -124,11 +128,11 @@ jobs:
           ./codecov create-report -t "$CODECOV_TOKEN" --git-service github
 
           # Upload each package's coverage with its own flag
-          # bun test produces lcov.info (relative paths), vitest produces coverage-final.json (absolute paths)
+          # vtz test produces lcov.info (relative paths), vitest produces coverage-final.json (absolute paths)
           for pkg in core schema compiler codegen cli cli-runtime fetch testing db cloudflare errors server tui ui ui-canvas ui-primitives ui-server; do
             if [ -f "packages/$pkg/coverage/lcov.info" ]; then
               echo "Uploading coverage for $pkg (lcov)"
-              # bun test emits relative SF: paths (e.g. "src/foo.ts").
+              # vtz test emits relative SF: paths (e.g. "src/foo.ts").
               # Codecov flags match against repo-root-relative paths (e.g. "packages/pkg/src/foo.ts").
               # Rewrite SF: lines to include the package prefix so flag matching works.
               sed -i "s|^SF:src/|SF:packages/$pkg/src/|" "packages/$pkg/coverage/lcov.info"

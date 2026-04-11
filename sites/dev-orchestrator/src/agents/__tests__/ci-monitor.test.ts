@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'bun:test';
+import { describe, expect, it } from '@vertz/test';
 import { ciMonitorAgent } from '../ci-monitor';
 
 describe('Feature: CI Monitor agent', () => {

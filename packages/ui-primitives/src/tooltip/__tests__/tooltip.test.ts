@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from '@vertz/test';
+import { afterEach, beforeEach, describe, expect, it, vi, mock } from '@vertz/test';
 import { Tooltip } from '../tooltip';
 
 describe('Tooltip', () => {
@@ -67,7 +67,7 @@ describe('Tooltip', () => {
   });
 
   it('calls onOpenChange', () => {
-    const onOpenChange = vi.fn();
+    const onOpenChange = mock();
     const { trigger, content } = Tooltip.Root({ delay: 0, onOpenChange });
     container.appendChild(trigger);
     container.appendChild(content);

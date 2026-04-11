@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from '@vertz/test';
+import { describe, expect, it, mock } from '@vertz/test';
 import type { PaginationClasses } from '../pagination/pagination-composed';
 import { ComposedPagination } from '../pagination/pagination-composed';
 
@@ -93,7 +93,7 @@ describe('ComposedPagination', () => {
   });
 
   it('onPageChange called when clicking a page button', () => {
-    const onPageChange = vi.fn();
+    const onPageChange = mock();
     clickHandler = onPageChange;
     const el = RenderClickable() as HTMLElement;
     const buttons = el.querySelectorAll('button');

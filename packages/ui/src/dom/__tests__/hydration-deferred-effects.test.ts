@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from '@vertz/test';
+import { afterEach, describe, expect, it } from '@vertz/test';
 import {
   endHydration,
   pauseHydration,
@@ -253,7 +253,7 @@ describe('deferred effects during hydration', () => {
       });
 
       // Suppress expected console.error
-      const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
+      const spy = spyOn(console, 'error').mockImplementation(() => {});
       endHydration();
       spy.mockRestore();
 

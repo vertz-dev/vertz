@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'bun:test';
+import { describe, expect, it } from '@vertz/test';
 import { reviewerAgent } from '../reviewer';
 
 describe('Feature: Reviewer agent', () => {

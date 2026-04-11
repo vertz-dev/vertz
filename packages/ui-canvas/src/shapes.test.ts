@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from '@vertz/test';
+import { describe, expect, it } from '@vertz/test';
 import { signal } from '@vertz/ui';
 import { Graphics } from 'pixi.js';
 import { Circle, Ellipse, Line, Rect } from './shapes';
@@ -29,7 +29,7 @@ describe('Feature: Circle shape', () => {
         const radius = signal(10);
         const circle = Circle({ radius: () => radius.value, fill: 0xff0000 });
 
-        const clearSpy = vi.spyOn(circle as Graphics, 'clear');
+        const clearSpy = spyOn(circle as Graphics, 'clear');
 
         radius.value = 20;
         expect(clearSpy).toHaveBeenCalled();

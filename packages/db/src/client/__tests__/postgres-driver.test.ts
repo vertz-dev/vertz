@@ -9,12 +9,12 @@
  * - #207: Connection cleanup
  */
 
-import { afterEach, beforeEach, describe, expect, it, spyOn, vi } from '@vertz/test';
+import { afterEach, beforeEach, describe, expect, it, spyOn, vi, mock } from '@vertz/test';
 
 // Mock functions for postgres module (used in per-test mock configuration)
-const mockEnd = vi.fn().mockResolvedValue(undefined);
-const mockUnsafe = vi.fn().mockResolvedValue({ count: 0, rows: [] });
-const mockPostgres = vi.fn(() => ({
+const mockEnd = mock().mockResolvedValue(undefined);
+const mockUnsafe = mock().mockResolvedValue({ count: 0, rows: [] });
+const mockPostgres = mock(() => ({
   end: mockEnd,
   unsafe: mockUnsafe,
 }));
@@ -556,7 +556,7 @@ describe('PostgreSQL Driver', () => {
       mockPostgres.mockReturnValue({
         end: mockEnd,
         unsafe: mockUnsafe,
-        begin: vi.fn(async (fn: MockBeginFn) => {
+        begin: mock(async (fn: MockBeginFn) => {
           const txSql = { unsafe: txUnsafe };
           return fn(txSql as never);
         }),
@@ -589,7 +589,7 @@ describe('PostgreSQL Driver', () => {
       mockPostgres.mockReturnValue({
         end: mockEnd,
         unsafe: mockUnsafe,
-        begin: vi.fn(async (fn: MockBeginFn) => fn({ unsafe: txUnsafe } as never)),
+        begin: mock(async (fn: MockBeginFn) => fn({ unsafe: txUnsafe } as never)),
       });
 
       const { createPostgresDriver: createDriver } = await import('../postgres-driver');
@@ -617,13 +617,13 @@ describe('PostgreSQL Driver', () => {
         constraint_name: 'users_pkey',
       });
 
-      const txUnsafe = vi.fn().mockRejectedValue(pgError);
+      const txUnsafe = mock().mockRejectedValue(pgError);
 
       // Override postgres constructor to include begin
       mockPostgres.mockReturnValue({
         end: mockEnd,
         unsafe: mockUnsafe,
-        begin: vi.fn(async (fn: MockBeginFn) => fn({ unsafe: txUnsafe } as never)),
+        begin: mock(async (fn: MockBeginFn) => fn({ unsafe: txUnsafe } as never)),
       });
 
       const { createPostgresDriver: createDriver } = await import('../postgres-driver');

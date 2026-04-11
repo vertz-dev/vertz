@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from '@vertz/test';
+import { afterEach, beforeEach, describe, expect, it, mock } from '@vertz/test';
 import { createDescriptor } from '@vertz/fetch';
 import { signal } from '../../runtime/signal';
 import type { SSRRenderContext } from '../../ssr/ssr-render-context';
@@ -232,7 +232,7 @@ describe('query() client-side SSR hydration', () => {
   });
 
   it('picks up pre-existing SSR data without fetching', async () => {
-    const fetchFn = vi.fn(() => Promise.resolve('fetched-from-server'));
+    const fetchFn = mock(() => Promise.resolve('fetched-from-server'));
 
     // Simulate SSR data already buffered
     (globalThis as Record<string, unknown>).__VERTZ_SSR_DATA__ = [
@@ -277,7 +277,7 @@ describe('query() client-side SSR hydration', () => {
 
   it('preserves SSR data during hydration for derived-key query (#1859)', async () => {
     const page = signal(1);
-    const fetchFn = vi.fn(async () => ({ items: ['fetched'], total: 10 }));
+    const fetchFn = mock(async () => ({ items: ['fetched'], total: 10 }));
 
     const thunk = () => {
       const currentPage = page.value;
@@ -304,7 +304,7 @@ describe('query() client-side SSR hydration', () => {
 
   it('preserves SSR data for descriptor-in-thunk during hydration (#1859)', async () => {
     const page = signal(1);
-    const fetchFn = vi.fn().mockImplementation(async () => ({
+    const fetchFn = mock().mockImplementation(async () => ({
       ok: true as const,
       data: { items: ['fetched'], total: 10 },
     }));
@@ -344,7 +344,7 @@ describe('query() client-side SSR hydration', () => {
   it('re-fetches when reactive deps change after SSR hydration (#1861)', async () => {
     const page = signal(1);
 
-    const fetchFn = vi.fn(async (offset: number) => {
+    const fetchFn = mock(async (offset: number) => {
       return { items: [`item-at-${offset}`], total: 100 };
     });
 
@@ -385,7 +385,7 @@ describe('query() client-side SSR hydration', () => {
   it('re-fetches descriptor-in-thunk when reactive deps change after SSR hydration (#1861)', async () => {
     const page = signal(1);
 
-    const fetchFn = vi.fn().mockImplementation(async (offset: number) => ({
+    const fetchFn = mock().mockImplementation(async (offset: number) => ({
       ok: true as const,
       data: { items: [`brand-at-${offset}`], total: 50 },
     }));
@@ -432,7 +432,7 @@ describe('query() client-side SSR hydration', () => {
   it('full lifecycle: SSR hydrate → preserve data → dep change → re-fetch (#1859 + #1861)', async () => {
     const page = signal(1);
 
-    const fetchFn = vi.fn(async (offset: number) => ({
+    const fetchFn = mock(async (offset: number) => ({
       items: [`item-at-${offset}`],
       total: 100,
     }));
@@ -482,7 +482,7 @@ describe('query() client-side SSR hydration', () => {
 
   it('null-returning thunk during hydration falls through to normal effect path', async () => {
     let ready = false;
-    const fetchFn = vi.fn(async () => 'data');
+    const fetchFn = mock(async () => 'data');
     const thunk = () => (ready ? fetchFn() : null) as Promise<string> | null;
 
     const ssrKey = computeSSRKey(thunk);
@@ -536,7 +536,7 @@ describe('query() nav prefetch integration', () => {
     (globalThis as Record<string, unknown>).__VERTZ_SSR_PUSH__ = () => {};
     (globalThis as Record<string, unknown>).__VERTZ_NAV_PREFETCH_ACTIVE__ = true;
 
-    const fetchFn = vi.fn(() => Promise.resolve('fetched'));
+    const fetchFn = mock(() => Promise.resolve('fetched'));
     const result = query(fetchFn, { key: 'nav-defer-test' });
 
     // Wait for potential async operations
@@ -557,7 +557,7 @@ describe('query() nav prefetch integration', () => {
     (globalThis as Record<string, unknown>).__VERTZ_SSR_PUSH__ = () => {};
     (globalThis as Record<string, unknown>).__VERTZ_NAV_PREFETCH_ACTIVE__ = true;
 
-    const fetchFn = vi.fn(() => Promise.resolve('fetched'));
+    const fetchFn = mock(() => Promise.resolve('fetched'));
     const result = query(fetchFn, { key: 'nav-buf-test' });
 
     expect(result.data.value).toBe('prefetched');
@@ -572,7 +572,7 @@ describe('query() nav prefetch integration', () => {
     (globalThis as Record<string, unknown>).__VERTZ_SSR_PUSH__ = () => {};
     (globalThis as Record<string, unknown>).__VERTZ_NAV_PREFETCH_ACTIVE__ = true;
 
-    const fetchFn = vi.fn(() => Promise.resolve('fetched'));
+    const fetchFn = mock(() => Promise.resolve('fetched'));
     const result = query(fetchFn, { key: 'nav-event-test' });
 
     // Data arrives via SSE after query mounted
@@ -636,7 +636,7 @@ describe('query() nav prefetch integration', () => {
     const cache = new MemoryCache<unknown>();
     const dep = signal(1);
 
-    const fetchFn = vi.fn(async (page: number) => ({
+    const fetchFn = mock(async (page: number) => ({
       ok: true as const,
       data: { items: [`page-${page}`], total: 10 },
     }));
@@ -714,7 +714,7 @@ describe('query() nav prefetch integration', () => {
     const dep = signal(1);
 
     const ssrData = { items: ['page-1'], total: 10 };
-    const fetchFn = vi.fn(async (page: number) => ({
+    const fetchFn = mock(async (page: number) => ({
       ok: true as const,
       data: ssrData,
     }));
@@ -781,7 +781,7 @@ describe('query() nav prefetch integration', () => {
     (globalThis as Record<string, unknown>).__VERTZ_NAV_PREFETCH_ACTIVE__ = true;
 
     let fetchCount = 0;
-    const fetchFn = vi.fn(() => {
+    const fetchFn = mock(() => {
       fetchCount++;
       return Promise.resolve(`data-${fetchCount}`);
     });
@@ -816,7 +816,7 @@ describe('query() nav prefetch integration', () => {
     (globalThis as Record<string, unknown>).__VERTZ_SSR_PUSH__ = () => {};
     (globalThis as Record<string, unknown>).__VERTZ_NAV_PREFETCH_ACTIVE__ = true;
 
-    const fetchFn = vi.fn(() => Promise.resolve('client-data'));
+    const fetchFn = mock(() => Promise.resolve('client-data'));
     const result = query(fetchFn, { key: 'nav-fallback-test' });
 
     // Simulate prefetch completing without data for this key

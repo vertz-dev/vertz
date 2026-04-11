@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from '@vertz/test';
+import { afterEach, beforeEach, describe, expect, it, mock, spyOn } from '@vertz/test';
 import { popScope, pushScope, runCleanups } from '@vertz/ui/internals';
 
 describe('Composed ContextMenu', () => {
@@ -257,7 +257,7 @@ describe('Composed ContextMenu', () => {
         popScope();
 
         const trigger = root.querySelector('[data-part="trigger"]') as HTMLElement;
-        const spy = vi.spyOn(trigger, 'removeEventListener');
+        const spy = spyOn(trigger, 'removeEventListener');
         runCleanups(scope);
 
         expect(spy).toHaveBeenCalledWith('contextmenu', expect.any(Function));
@@ -331,7 +331,7 @@ describe('Composed ContextMenu', () => {
 
     describe('When Enter is pressed on a focused item', () => {
       it('Then selects the focused item and closes the menu', () => {
-        const onSelect = vi.fn();
+        const onSelect = mock();
         const { menu, openMenu } = renderMenuWithItems(onSelect);
         openMenu();
 
@@ -347,7 +347,7 @@ describe('Composed ContextMenu', () => {
 
     describe('When Escape is pressed', () => {
       it('Then closes the menu without selection', () => {
-        const onSelect = vi.fn();
+        const onSelect = mock();
         const { menu, openMenu } = renderMenuWithItems(onSelect);
         openMenu();
 
@@ -360,7 +360,7 @@ describe('Composed ContextMenu', () => {
 
     describe('When Tab is pressed', () => {
       it('Then closes the menu', () => {
-        const onSelect = vi.fn();
+        const onSelect = mock();
         const { menu, openMenu } = renderMenuWithItems(onSelect);
         openMenu();
 
@@ -374,7 +374,7 @@ describe('Composed ContextMenu', () => {
 
   describe('Given a ContextMenu with duplicate Content sub-components', () => {
     it('Then warns about the duplicate', () => {
-      const spy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      const spy = spyOn(console, 'warn').mockImplementation(() => {});
 
       ComposedContextMenu({
         children: () => {

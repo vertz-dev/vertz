@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from 'bun:test';
+import { afterEach, describe, expect, it } from '@vertz/test';
 import { resolve } from 'node:path';
 import { rmSync } from 'node:fs';
 

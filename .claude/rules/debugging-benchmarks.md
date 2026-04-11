@@ -6,7 +6,7 @@ Common issues encountered when working with the benchmarks repo and how to diagn
 
 **Symptom:** The browser reloads the page endlessly. DevTools network tab shows the page loading, then immediately reloading, in a tight loop.
 
-**Root cause:** Bun's dev server serves a reload stub when the client module fails to compile or resolve its imports. The stub is literally:
+**Root cause:** The dev server serves a reload stub when the client module fails to compile or resolve its imports. The stub is literally:
 
 ```js
 try{location.reload()}catch(_){}

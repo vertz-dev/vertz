@@ -6,7 +6,7 @@
  * CSS import, Fast Refresh preamble) are prepended before the compiled code.
  */
 
-import { describe, expect, it, vi } from '@vertz/test';
+import { describe, expect, it, mock } from '@vertz/test';
 import { TraceMap } from '@jridgewell/trace-mapping';
 
 import { createVertzBunPlugin } from '../plugin';
@@ -46,7 +46,7 @@ describe('source map line offset', () => {
 
     // Simulate the onLoad call
     const mockBuild = {
-      onLoad: vi.fn(),
+      onLoad: mock(),
     };
     plugin.setup(mockBuild as any);
 
@@ -98,7 +98,7 @@ export default function StyledComp() {
       cssOutDir: '/tmp/vertz-test-css',
     });
 
-    const mockBuild = { onLoad: vi.fn() };
+    const mockBuild = { onLoad: mock() };
     plugin.setup(mockBuild as any);
     const onLoadCallback = mockBuild.onLoad.mock.calls[0][1];
 

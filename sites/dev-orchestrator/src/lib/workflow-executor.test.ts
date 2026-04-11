@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'bun:test';
+import { describe, expect, it } from '@vertz/test';
 import { agent, workflow } from '@vertz/agents';
 import type { LLMAdapter, StepProgressEvent } from '@vertz/agents';
 import { s } from '@vertz/schema';

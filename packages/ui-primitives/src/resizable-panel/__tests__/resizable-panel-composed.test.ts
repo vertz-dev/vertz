@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from '@vertz/test';
+import { afterEach, beforeEach, describe, expect, it, mock } from '@vertz/test';
 
 /** Flush queued microtasks so deferred signal effects propagate to the DOM. */
 const flush = () => new Promise<void>((r) => queueMicrotask(r));
@@ -169,7 +169,7 @@ describe('ComposedResizablePanel', () => {
   });
 
   it('passes onResize through', async () => {
-    const onResize = vi.fn();
+    const onResize = mock();
     const { ComposedResizablePanel } = await import('../resizable-panel-composed');
     const root = ComposedResizablePanel({
       onResize,
@@ -268,7 +268,7 @@ describe('ComposedResizablePanel', () => {
 
   it('nested ResizablePanel does not interfere with outer', async () => {
     const { ComposedResizablePanel } = await import('../resizable-panel-composed');
-    const outerResize = vi.fn();
+    const outerResize = mock();
     const root = ComposedResizablePanel({
       onResize: outerResize,
       children: () => {
@@ -325,7 +325,7 @@ describe('ComposedResizablePanel', () => {
   });
 
   it('keyboard Home collapses left panel to minSize', async () => {
-    const onResize = vi.fn();
+    const onResize = mock();
     const { ComposedResizablePanel } = await import('../resizable-panel-composed');
     const root = ComposedResizablePanel({
       onResize,
@@ -349,7 +349,7 @@ describe('ComposedResizablePanel', () => {
   });
 
   it('keyboard End expands left panel to fill available space', async () => {
-    const onResize = vi.fn();
+    const onResize = mock();
     const { ComposedResizablePanel } = await import('../resizable-panel-composed');
     const root = ComposedResizablePanel({
       onResize,
@@ -389,7 +389,7 @@ describe('ComposedResizablePanel', () => {
   });
 
   it('vertical orientation: ArrowDown grows top panel', async () => {
-    const onResize = vi.fn();
+    const onResize = mock();
     const { ComposedResizablePanel } = await import('../resizable-panel-composed');
     const root = ComposedResizablePanel({
       orientation: 'vertical',
@@ -411,7 +411,7 @@ describe('ComposedResizablePanel', () => {
   });
 
   it('vertical orientation: ArrowUp shrinks top panel', async () => {
-    const onResize = vi.fn();
+    const onResize = mock();
     const { ComposedResizablePanel } = await import('../resizable-panel-composed');
     const root = ComposedResizablePanel({
       orientation: 'vertical',
@@ -447,8 +447,8 @@ describe('ComposedResizablePanel', () => {
 
     const handle = root.querySelector('[role="separator"]') as HTMLElement;
     // Mock setPointerCapture/releasePointerCapture (not in happy-dom)
-    handle.setPointerCapture = vi.fn();
-    handle.releasePointerCapture = vi.fn();
+    handle.setPointerCapture = mock();
+    handle.releasePointerCapture = mock();
 
     expect(handle.getAttribute('data-state')).toBe('idle');
 
@@ -466,7 +466,7 @@ describe('ComposedResizablePanel', () => {
   });
 
   it('pointer drag updates sizes proportionally', async () => {
-    const onResize = vi.fn();
+    const onResize = mock();
     const { ComposedResizablePanel } = await import('../resizable-panel-composed');
     const root = ComposedResizablePanel({
       onResize,
@@ -484,8 +484,8 @@ describe('ComposedResizablePanel', () => {
     Object.defineProperty(root, 'offsetWidth', { value: 1000, configurable: true });
 
     const handle = root.querySelector('[role="separator"]') as HTMLElement;
-    handle.setPointerCapture = vi.fn();
-    handle.releasePointerCapture = vi.fn();
+    handle.setPointerCapture = mock();
+    handle.releasePointerCapture = mock();
 
     onResize.mockClear();
 

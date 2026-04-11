@@ -1,16 +1,16 @@
-import { beforeEach, describe, expect, it, vi } from '@vertz/test';
+import { beforeEach, describe, expect, it, vi, mock } from '@vertz/test';
 import { type CliOptions, resolveOptions } from '../index.js';
 
 // Mock the readline module (hoisted to top via compiler)
 vi.mock('readline', () => {
   const mockRl = {
-    question: vi.fn((_: string, callback: (answer: string) => void) => callback('test-project')),
-    close: vi.fn(),
+    question: mock((_: string, callback: (answer: string) => void) => callback('test-project')),
+    close: mock(),
   };
 
   return {
-    createInterface: vi.fn(() => mockRl),
-    default: { createInterface: vi.fn(() => mockRl) },
+    createInterface: mock(() => mockRl),
+    default: { createInterface: mock(() => mockRl) },
   };
 });
 

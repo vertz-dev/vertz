@@ -1,0 +1,16 @@
+export default {
+  test: {
+    coveragePathIgnorePatterns: [
+      '**/codegen/dist/**',
+      '**/compiler/dist/**',
+      '**/create-vertz-app/dist/**',
+      '**/db/dist/**',
+      '**/errors/dist/**',
+      '**/schema/dist/**',
+      '**/tui/dist/**',
+      '**/ui/dist/**',
+      '**/server/dist/**',
+      '**/__tests__/**',
+    ],
+  },
+};

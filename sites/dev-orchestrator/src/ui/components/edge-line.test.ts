@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'bun:test';
+import { describe, expect, it } from '@vertz/test';
 import { edgeCoordinates, edgeStrokeColor, NODE_HEIGHT, NODE_GAP } from './edge-line-utils';
 
 describe('edgeCoordinates()', () => {

@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from '@vertz/test';
+import { afterEach, beforeEach, describe, expect, it, vi, mock } from '@vertz/test';
 import { createDescriptor } from '@vertz/fetch';
 import { popScope, pushScope, runCleanups } from '../../runtime/disposal';
 import type { DisposeFn } from '../../runtime/signal-types';
@@ -26,7 +26,7 @@ describe('invalidate()', () => {
 
   describe('query registry', () => {
     it('registerActiveQuery adds entry, unregister removes it', () => {
-      const refetch = vi.fn();
+      const refetch = mock();
       const meta = { entityType: 'tasks', kind: 'list' as const };
 
       const unregister = registerActiveQuery(meta, refetch);
@@ -37,8 +37,8 @@ describe('invalidate()', () => {
     });
 
     it('supports multiple registrations for the same entity type', () => {
-      const refetch1 = vi.fn();
-      const refetch2 = vi.fn();
+      const refetch1 = mock();
+      const refetch2 = mock();
       const meta = { entityType: 'tasks', kind: 'list' as const };
 
       const unsub1 = registerActiveQuery(meta, refetch1);
@@ -55,8 +55,8 @@ describe('invalidate()', () => {
 
   describe('invalidate with list descriptor', () => {
     it('calls refetch on all active list queries for that entity type', () => {
-      const refetch1 = vi.fn();
-      const refetch2 = vi.fn();
+      const refetch1 = mock();
+      const refetch2 = mock();
       const meta = { entityType: 'tasks', kind: 'list' as const };
 
       registerActiveQuery(meta, refetch1);
@@ -77,8 +77,8 @@ describe('invalidate()', () => {
     });
 
     it('does not call refetch on queries for a different entity type', () => {
-      const taskRefetch = vi.fn();
-      const projectRefetch = vi.fn();
+      const taskRefetch = mock();
+      const projectRefetch = mock();
 
       registerActiveQuery({ entityType: 'tasks', kind: 'list' }, taskRefetch);
       registerActiveQuery({ entityType: 'projects', kind: 'list' }, projectRefetch);
@@ -98,8 +98,8 @@ describe('invalidate()', () => {
     });
 
     it('does not call refetch on get queries when invalidating with list descriptor', () => {
-      const listRefetch = vi.fn();
-      const getRefetch = vi.fn();
+      const listRefetch = mock();
+      const getRefetch = mock();
 
       registerActiveQuery({ entityType: 'tasks', kind: 'list' }, listRefetch);
       registerActiveQuery({ entityType: 'tasks', kind: 'get', id: '1' }, getRefetch);
@@ -121,8 +121,8 @@ describe('invalidate()', () => {
 
   describe('invalidate with get descriptor', () => {
     it('calls refetch only on the matching get query by id', () => {
-      const refetch1 = vi.fn();
-      const refetch2 = vi.fn();
+      const refetch1 = mock();
+      const refetch2 = mock();
 
       registerActiveQuery({ entityType: 'tasks', kind: 'get', id: '1' }, refetch1);
       registerActiveQuery({ entityType: 'tasks', kind: 'get', id: '2' }, refetch2);
@@ -144,8 +144,8 @@ describe('invalidate()', () => {
 
   describe('invalidate with get descriptor without id', () => {
     it('is a no-op — does not match any get queries', () => {
-      const refetch1 = vi.fn();
-      const refetch2 = vi.fn();
+      const refetch1 = mock();
+      const refetch2 = mock();
 
       registerActiveQuery({ entityType: 'tasks', kind: 'get', id: '1' }, refetch1);
       registerActiveQuery({ entityType: 'tasks', kind: 'get', id: '2' }, refetch2);
@@ -168,7 +168,7 @@ describe('invalidate()', () => {
 
   describe('after unregister', () => {
     it('invalidate does not call refetch on unregistered queries', () => {
-      const refetch = vi.fn();
+      const refetch = mock();
       const meta = { entityType: 'tasks', kind: 'list' as const };
 
       const unregister = registerActiveQuery(meta, refetch);
@@ -370,8 +370,8 @@ describe('invalidate()', () => {
   describe('invalidateTenantQueries()', () => {
     describe('Given registered queries with mixed tenantScoped flags', () => {
       it('Then only queries with tenantScoped=true call refetch', () => {
-        const taskRefetch = vi.fn();
-        const templateRefetch = vi.fn();
+        const taskRefetch = mock();
+        const templateRefetch = mock();
 
         registerActiveQuery({ entityType: 'tasks', kind: 'list', tenantScoped: true }, taskRefetch);
         registerActiveQuery(
@@ -388,8 +388,8 @@ describe('invalidate()', () => {
 
     describe('Given registered queries where none are tenantScoped', () => {
       it('Then no queries are refetched', () => {
-        const refetch1 = vi.fn();
-        const refetch2 = vi.fn();
+        const refetch1 = mock();
+        const refetch2 = mock();
 
         registerActiveQuery({ entityType: 'settings', kind: 'get', id: 'global' }, refetch1);
         registerActiveQuery(
@@ -406,8 +406,8 @@ describe('invalidate()', () => {
 
     describe('Given both get and list tenant-scoped queries', () => {
       it('Then both get and list queries call refetch', () => {
-        const listRefetch = vi.fn();
-        const getRefetch = vi.fn();
+        const listRefetch = mock();
+        const getRefetch = mock();
 
         registerActiveQuery({ entityType: 'tasks', kind: 'list', tenantScoped: true }, listRefetch);
         registerActiveQuery(
@@ -425,8 +425,8 @@ describe('invalidate()', () => {
     describe('Given queries with clearData callbacks', () => {
       it('Then clearData is called before refetch for tenant-scoped queries', () => {
         const order: string[] = [];
-        const clearData = vi.fn(() => order.push('clear'));
-        const refetch = vi.fn(() => order.push('refetch'));
+        const clearData = mock(() => order.push('clear'));
+        const refetch = mock(() => order.push('refetch'));
 
         registerActiveQuery(
           { entityType: 'tasks', kind: 'list', tenantScoped: true },
@@ -442,8 +442,8 @@ describe('invalidate()', () => {
       });
 
       it('Then clearData is NOT called for non-tenant-scoped queries', () => {
-        const clearData = vi.fn();
-        const refetch = vi.fn();
+        const clearData = mock();
+        const refetch = mock();
 
         registerActiveQuery(
           { entityType: 'templates', kind: 'list', tenantScoped: false },
@@ -460,7 +460,7 @@ describe('invalidate()', () => {
 
     describe('Given a query registered without clearData callback', () => {
       it('Then refetch is still called (clearData is optional)', () => {
-        const refetch = vi.fn();
+        const refetch = mock();
 
         registerActiveQuery({ entityType: 'tasks', kind: 'list', tenantScoped: true }, refetch);
 
@@ -472,7 +472,7 @@ describe('invalidate()', () => {
 
     describe('Given queries with tenantScoped undefined (legacy)', () => {
       it('Then they are NOT affected (undefined !== true)', () => {
-        const refetch = vi.fn();
+        const refetch = mock();
 
         registerActiveQuery({ entityType: 'tasks', kind: 'list' }, refetch);
 
@@ -488,7 +488,7 @@ describe('invalidate()', () => {
       });
 
       it('Then it is a no-op — does not call refetch', () => {
-        const refetch = vi.fn();
+        const refetch = mock();
         registerActiveQuery({ entityType: 'tasks', kind: 'list', tenantScoped: true }, refetch);
 
         enableTestSSR();
@@ -501,7 +501,7 @@ describe('invalidate()', () => {
 
   describe('descriptor without entity metadata', () => {
     it('is a no-op — does not throw', () => {
-      const refetch = vi.fn();
+      const refetch = mock();
       registerActiveQuery({ entityType: 'tasks', kind: 'list' }, refetch);
 
       // Descriptor without entity metadata

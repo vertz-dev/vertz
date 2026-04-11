@@ -1,9 +1,9 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from '@vertz/test';
+import { afterEach, beforeEach, describe, expect, it, vi, mock, spyOn } from '@vertz/test';
 import { docsBuildCommand, docsDevCommand, docsInitCommand } from '../docs';
 
-const mockDocsInitAction = vi.fn();
-const mockDocsBuildAction = vi.fn();
-const mockDocsDevAction = vi.fn();
+const mockDocsInitAction = mock();
+const mockDocsBuildAction = mock();
+const mockDocsDevAction = mock();
 
 vi.mock('@vertz/docs', () => ({
   docsInitAction: (...args: unknown[]) => mockDocsInitAction(...args),
@@ -24,7 +24,7 @@ afterEach(() => {
 describe('docsInitCommand', () => {
   it('returns ok when docsInitAction succeeds', async () => {
     mockDocsInitAction.mockResolvedValue({ ok: true, data: undefined });
-    const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+    const consoleSpy = spyOn(console, 'log').mockImplementation(() => {});
 
     const result = await docsInitCommand();
 
@@ -38,7 +38,7 @@ describe('docsInitCommand', () => {
 
   it('resolves dir option relative to cwd', async () => {
     mockDocsInitAction.mockResolvedValue({ ok: true, data: undefined });
-    vi.spyOn(console, 'log').mockImplementation(() => {});
+    spyOn(console, 'log').mockImplementation(() => {});
 
     await docsInitCommand({ dir: 'my-docs' });
 
@@ -73,7 +73,7 @@ describe('docsInitCommand', () => {
 describe('docsBuildCommand', () => {
   it('returns ok when docsBuildAction succeeds', async () => {
     mockDocsBuildAction.mockResolvedValue({ ok: true, data: undefined });
-    const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+    const consoleSpy = spyOn(console, 'log').mockImplementation(() => {});
 
     const result = await docsBuildCommand();
 
@@ -84,7 +84,7 @@ describe('docsBuildCommand', () => {
 
   it('passes output and baseUrl options', async () => {
     mockDocsBuildAction.mockResolvedValue({ ok: true, data: undefined });
-    vi.spyOn(console, 'log').mockImplementation(() => {});
+    spyOn(console, 'log').mockImplementation(() => {});
 
     await docsBuildCommand({ output: 'dist/docs', baseUrl: '/docs' });
 
@@ -108,9 +108,9 @@ describe('docsBuildCommand', () => {
 
 describe('docsDevCommand', () => {
   it('calls docsDevAction with project dir, port, and host', async () => {
-    const mockServer = { port: 3001, hostname: 'localhost', stop: vi.fn() };
+    const mockServer = { port: 3001, hostname: 'localhost', stop: mock() };
     mockDocsDevAction.mockResolvedValue({ ok: true, data: mockServer });
-    vi.spyOn(console, 'log').mockImplementation(() => {});
+    spyOn(console, 'log').mockImplementation(() => {});
 
     // docsDevCommand waits for SIGINT/SIGTERM, so we need to emit it
     const promise = docsDevCommand();
@@ -129,9 +129,9 @@ describe('docsDevCommand', () => {
   });
 
   it('passes custom port and host', async () => {
-    const mockServer = { port: 4000, hostname: '0.0.0.0', stop: vi.fn() };
+    const mockServer = { port: 4000, hostname: '0.0.0.0', stop: mock() };
     mockDocsDevAction.mockResolvedValue({ ok: true, data: mockServer });
-    vi.spyOn(console, 'log').mockImplementation(() => {});
+    spyOn(console, 'log').mockImplementation(() => {});
 
     const promise = docsDevCommand({ port: 4000, host: '0.0.0.0' });
     await new Promise((r) => setTimeout(r, 10));

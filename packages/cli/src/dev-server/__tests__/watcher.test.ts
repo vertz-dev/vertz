@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from '@vertz/test';
+import { afterEach, beforeEach, describe, expect, it, vi, mock } from '@vertz/test';
 import { createWatcher } from '../watcher';
 
 describe('createWatcher', () => {
@@ -24,7 +24,7 @@ describe('createWatcher', () => {
   });
 
   it('emits batched changes after debounce period', () => {
-    const handler = vi.fn();
+    const handler = mock();
     const watcher = createWatcher('/tmp/test-dir');
     watcher.on('change', handler);
 
@@ -40,7 +40,7 @@ describe('createWatcher', () => {
   });
 
   it('batches rapid changes within debounce window', () => {
-    const handler = vi.fn();
+    const handler = mock();
     const watcher = createWatcher('/tmp/test-dir');
     watcher.on('change', handler);
 
@@ -62,7 +62,7 @@ describe('createWatcher', () => {
   });
 
   it('ignores node_modules paths', () => {
-    const handler = vi.fn();
+    const handler = mock();
     const watcher = createWatcher('/tmp/test-dir');
     watcher.on('change', handler);
 
@@ -74,7 +74,7 @@ describe('createWatcher', () => {
   });
 
   it('ignores .git paths', () => {
-    const handler = vi.fn();
+    const handler = mock();
     const watcher = createWatcher('/tmp/test-dir');
     watcher.on('change', handler);
 
@@ -86,7 +86,7 @@ describe('createWatcher', () => {
   });
 
   it('ignores .vertz/generated paths', () => {
-    const handler = vi.fn();
+    const handler = mock();
     const watcher = createWatcher('/tmp/test-dir');
     watcher.on('change', handler);
 
@@ -98,7 +98,7 @@ describe('createWatcher', () => {
   });
 
   it('close cancels pending changes', () => {
-    const handler = vi.fn();
+    const handler = mock();
     const watcher = createWatcher('/tmp/test-dir');
     watcher.on('change', handler);
 

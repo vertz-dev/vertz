@@ -21,6 +21,14 @@ pub fn generate_bin_stubs(
             let stub_path = bin_dir.join(bin_name);
             let target = format!("../{}/{}", pkg.name, bin_path.trim_start_matches("./"));
 
+            // Ensure parent directory exists (scoped bin names like @babel/parser
+            // require creating .bin/@babel/)
+            if let Some(parent) = stub_path.parent() {
+                if parent != bin_dir {
+                    std::fs::create_dir_all(parent)?;
+                }
+            }
+
             let stub_content = format!(
                 "#!/bin/sh\nexec node \"$(dirname \"$0\")/{}\" \"$@\"\n",
                 target

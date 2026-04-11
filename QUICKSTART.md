@@ -4,7 +4,7 @@ Get a working Vertz full-stack app running in under 5 minutes. Copy-paste friend
 
 ## Prerequisites
 
-- [Bun](https://bun.sh) installed
+- [vtz](https://vertz.dev) installed
 - That's it!
 
 ## Step 1: Create Your App
@@ -87,7 +87,6 @@ my-app/
 │   ├── client.ts                  # Typed API client
 │   └── entry-client.ts            # Client-side mount
 ├── vertz.config.ts
-├── bunfig.toml
 ├── package.json
 └── tsconfig.json
 ```

@@ -29,8 +29,8 @@
   },
   "scripts": {
     "build": "vtzx bunup && chmod +x dist/vertz.js",
-    "test": "bun test",
-    "test:watch": "bun test --watch",
+    "test": "vtz test",
+    "test:watch": "vtz test --watch",
     "typecheck": "tsgo --noEmit -p tsconfig.typecheck.json"
   },
   "dependencies": {

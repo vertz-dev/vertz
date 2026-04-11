@@ -17,7 +17,7 @@ node benchmarks/run.mjs --runs=5 --dev-runs=10
 
 ## Prerequisites
 
-- **Bun** (monorepo runtime)
+- **vtz** (monorepo runtime)
 - **Node.js 22+** (benchmark harness, vinext dev server)
 - **npm** (vinext dependency isolation)
 - **hyperfine** (optional — falls back to manual timing if not installed)
@@ -26,9 +26,9 @@ node benchmarks/run.mjs --runs=5 --dev-runs=10
 
 | Metric | vinext | Vertz |
 |--------|--------|-------|
-| **Production Build Time** | `vite build` | `bun vertz.js build --no-typecheck` |
+| **Production Build Time** | `vite build` | `vtz build --no-typecheck` |
 | **Client Bundle Size** | `dist/client/` JS+CSS (raw + gzip) | `dist/client/` JS+CSS (raw + gzip) |
-| **Dev Cold Start** | `vite dev` → HTTP 200 + peak RSS | `bun vertz.js dev` → HTTP 200 + peak RSS |
+| **Dev Cold Start** | `vite dev` → HTTP 200 + peak RSS | `vtz dev` → HTTP 200 + peak RSS |
 
 ### Not Measured (v1)
 
@@ -59,7 +59,7 @@ These benchmarks compare two fundamentally different frameworks:
 | Aspect | vinext | Vertz |
 |--------|--------|-------|
 | Reactivity | React (hooks, virtual DOM) | Signals (compiler-transformed `let`) |
-| Bundler | Vite (Rollup) | Bun.build() |
+| Bundler | Vite (Rollup) | vtz build |
 | Routing | File-based (Next.js convention) | Code-based (`defineRoutes()`) |
 | Styling | Inline React styles | `css()` scoped atomic styles |
 | Code volume | ~17 KB source | ~28 KB source |
@@ -90,11 +90,11 @@ benchmarks/
 ├── setup.sh               # One-time setup
 ├── README.md              # This file
 ├── results/               # Output (gitignored)
-├── vinext/                # vinext project (npm-managed, outside bun workspace)
+├── vinext/                # vinext project (npm-managed, outside vtz workspace)
 │   ├── package.json
 │   ├── vite.config.ts
 │   └── app/               # Generated React/RSC pages
-└── vertz/                 # Vertz project (bun workspace member)
+└── vertz/                 # Vertz project (vtz workspace member)
     ├── package.json
     ├── tsconfig.json
     ├── index.html
@@ -137,5 +137,5 @@ If `src/` doesn't exist or is stale, the dev server will fail with "no app entry
 
 ## Notes
 
-- The `vinext/` directory uses **npm** (not bun) intentionally to avoid workspace resolution conflicts. Never run `bun install` inside `benchmarks/vinext/`.
+- The `vinext/` directory uses **npm** (not vtz) intentionally to avoid workspace resolution conflicts. Never run `vtz install` inside `benchmarks/vinext/`.
 - vinext is pinned to a specific npm version in `vinext/package.json`. Record the git hash of the vinext repo if using a local build.

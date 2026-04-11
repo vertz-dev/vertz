@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from '@vertz/test';
+import { afterEach, beforeEach, describe, expect, it, mock } from '@vertz/test';
 import { Calendar } from '../calendar';
 
 describe('Calendar', () => {
@@ -152,7 +152,7 @@ describe('Calendar', () => {
   });
 
   it('calls onValueChange when a date is clicked', () => {
-    const onValueChange = vi.fn();
+    const onValueChange = mock();
     const { root, grid } = Calendar.Root({
       defaultMonth: new Date(2024, 5, 1),
       onValueChange,
@@ -168,7 +168,7 @@ describe('Calendar', () => {
   });
 
   it('calls onMonthChange when month changes', () => {
-    const onMonthChange = vi.fn();
+    const onMonthChange = mock();
     const { nextButton, prevButton } = Calendar.Root({
       defaultMonth: new Date(2024, 5, 15),
       onMonthChange,

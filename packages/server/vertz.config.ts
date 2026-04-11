@@ -1,0 +1,12 @@
+export default {
+  test: {
+    coveragePathIgnorePatterns: [
+      '**/core/dist/**',
+      '**/db/dist/**',
+      '**/errors/dist/**',
+      '**/schema/dist/**',
+      '**/__tests__/**',
+    ],
+    timeout: 120000,
+  },
+};

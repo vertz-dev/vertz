@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from '@vertz/test';
+import { afterEach, beforeEach, describe, expect, it, vi, mock } from '@vertz/test';
 import { dbPullAction } from '../commands/db';
 import type { IntrospectContext } from '../commands/load-db-context';
 
@@ -6,9 +6,9 @@ import type { IntrospectContext } from '../commands/load-db-context';
 // Mock @vertz/db
 // ---------------------------------------------------------------------------
 
-const introspectPostgresMock = vi.fn();
-const introspectSqliteMock = vi.fn();
-const generateSchemaCodeMock = vi.fn();
+const introspectPostgresMock = mock();
+const introspectSqliteMock = mock();
+const generateSchemaCodeMock = mock();
 
 vi.mock('@vertz/db', () => ({
   introspectPostgres: (...args: unknown[]) => introspectPostgresMock(...args),
@@ -24,10 +24,10 @@ vi.mock('@vertz/db', () => ({
 
 function createMockIntrospectContext(overrides?: Partial<IntrospectContext>): IntrospectContext {
   return {
-    queryFn: vi.fn(),
+    queryFn: mock(),
     dialect: { name: 'postgres' } as IntrospectContext['dialect'],
     dialectName: 'postgres' as const,
-    close: vi.fn(),
+    close: mock(),
     ...overrides,
   };
 }

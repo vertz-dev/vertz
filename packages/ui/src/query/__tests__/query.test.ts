@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, test, vi } from '@vertz/test';
+import { afterEach, beforeEach, describe, expect, test, vi, mock, spyOn } from '@vertz/test';
 import { createMutationDescriptor, ok } from '@vertz/fetch';
 import { popScope, pushScope, runCleanups } from '../../runtime/disposal';
 import { signal } from '../../runtime/signal';
@@ -368,7 +368,7 @@ describe('query()', () => {
 
   test('cache entries are retained across reactive dependency changes', async () => {
     const cache = new MemoryCache<string>();
-    const setSpy = vi.spyOn(cache, 'set');
+    const setSpy = spyOn(cache, 'set');
     const filter = signal('a');
     const resolvers: Array<{ value: string; resolve: (v: string) => void }> = [];
 
@@ -493,7 +493,7 @@ describe('query()', () => {
 
   test('old cached data is retained when reactive dependency changes', async () => {
     const cache = new MemoryCache<string>();
-    const setSpy = vi.spyOn(cache, 'set');
+    const setSpy = spyOn(cache, 'set');
     const userId = signal(1);
 
     const result = query(
@@ -525,8 +525,8 @@ describe('query()', () => {
 
   test('cache key reflects actual signal values, not just a version counter', async () => {
     const cache = new MemoryCache<string>();
-    const setSpy = vi.spyOn(cache, 'set');
-    const getSpy = vi.spyOn(cache, 'get');
+    const setSpy = spyOn(cache, 'set');
+    const getSpy = spyOn(cache, 'get');
     const userId = signal(1);
     let fetchCount = 0;
 
@@ -673,7 +673,7 @@ describe('query()', () => {
   });
 
   test('calls descriptor _fetch function', async () => {
-    const fetchFn = vi.fn().mockResolvedValue(ok('fetched-data'));
+    const fetchFn = mock().mockResolvedValue(ok('fetched-data'));
     const descriptor = {
       _tag: 'QueryDescriptor' as const,
       _key: 'GET:/tasks/1',
@@ -694,7 +694,7 @@ describe('query()', () => {
   });
 
   test('null-return thunk does not fetch', async () => {
-    const fetchFn = vi.fn().mockResolvedValue(ok('data'));
+    const fetchFn = mock().mockResolvedValue(ok('data'));
 
     const result = query(() => null as Promise<string> | null);
 
@@ -2070,7 +2070,7 @@ describe('query()', () => {
       resetEntityStore();
 
       const dep = signal<string | undefined>(undefined);
-      const fetchFn = vi.fn().mockResolvedValue(ok({ id: 'task-1', title: 'Test Task' }));
+      const fetchFn = mock().mockResolvedValue(ok({ id: 'task-1', title: 'Test Task' }));
 
       const result = query(() => {
         const id = dep.value;

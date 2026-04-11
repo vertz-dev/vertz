@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from '@vertz/test';
+import { afterEach, beforeEach, describe, expect, it, mock } from '@vertz/test';
 import { AlertDialog } from '../alert-dialog';
 
 describe('AlertDialog', () => {
@@ -94,7 +94,7 @@ describe('AlertDialog', () => {
   });
 
   it('fires onAction callback when action is clicked', () => {
-    const onAction = vi.fn();
+    const onAction = mock();
     const { trigger, content, action } = AlertDialog.Root({ onAction });
     container.appendChild(trigger);
     container.appendChild(content);
@@ -216,7 +216,7 @@ describe('AlertDialog', () => {
   });
 
   it('fires onOpenChange callback', () => {
-    const onOpenChange = vi.fn();
+    const onOpenChange = mock();
     const { trigger, content, cancel } = AlertDialog.Root({ onOpenChange });
     content.appendChild(cancel);
     container.appendChild(trigger);
@@ -230,7 +230,7 @@ describe('AlertDialog', () => {
   });
 
   it('show() is idempotent — calling twice only fires onOpenChange(true) once', () => {
-    const onOpenChange = vi.fn();
+    const onOpenChange = mock();
     const { trigger, content, cancel, show } = AlertDialog.Root({ onOpenChange });
     content.appendChild(cancel);
     container.appendChild(trigger);
@@ -244,21 +244,21 @@ describe('AlertDialog', () => {
   });
 
   it('show() is a no-op on an already-open dialog (defaultOpen)', () => {
-    const onOpenChange = vi.fn();
+    const onOpenChange = mock();
     AlertDialog.Root({ defaultOpen: true, onOpenChange }).show();
 
     expect(onOpenChange).not.toHaveBeenCalled();
   });
 
   it('hide() is a no-op on a never-opened dialog', () => {
-    const onOpenChange = vi.fn();
+    const onOpenChange = mock();
     AlertDialog.Root({ onOpenChange }).hide();
 
     expect(onOpenChange).not.toHaveBeenCalled();
   });
 
   it('hide() is idempotent — calling twice only fires onOpenChange(false) once', () => {
-    const onOpenChange = vi.fn();
+    const onOpenChange = mock();
     const { trigger, content, cancel, show, hide } = AlertDialog.Root({ onOpenChange });
     content.appendChild(cancel);
     container.appendChild(trigger);

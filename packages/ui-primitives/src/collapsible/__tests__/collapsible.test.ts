@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from '@vertz/test';
+import { afterEach, beforeEach, describe, expect, it, mock } from '@vertz/test';
 import { Collapsible } from '../collapsible';
 
 describe('Collapsible', () => {
@@ -83,7 +83,7 @@ describe('Collapsible', () => {
   });
 
   it('onOpenChange callback called with correct value', () => {
-    const onOpenChange = vi.fn();
+    const onOpenChange = mock();
     const { root, trigger } = Collapsible.Root({ onOpenChange });
     container.appendChild(root);
 

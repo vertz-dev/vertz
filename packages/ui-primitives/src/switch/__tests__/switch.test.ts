@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from '@vertz/test';
+import { afterEach, beforeEach, describe, expect, it, mock } from '@vertz/test';
 import { Switch } from '../switch';
 
 describe('Switch', () => {
@@ -25,7 +25,7 @@ describe('Switch', () => {
   });
 
   it('toggles on click', () => {
-    const onCheckedChange = vi.fn();
+    const onCheckedChange = mock();
     const root = Switch.Root({ onCheckedChange });
     container.appendChild(root);
 

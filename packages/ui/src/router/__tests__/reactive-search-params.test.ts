@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, test, vi } from '@vertz/test';
+import { afterEach, describe, expect, test, vi, mock } from '@vertz/test';
 import { signal } from '../../runtime/signal';
 import type { Signal } from '../../runtime/signal-types';
 import { createReactiveSearchParams } from '../reactive-search-params';
@@ -9,7 +9,7 @@ import { createReactiveSearchParams } from '../reactive-search-params';
  */
 function createMockNavigate(searchSignal: Signal<Record<string, unknown>>) {
   const calls: Array<{ to: string; search: Record<string, unknown>; replace: boolean }> = [];
-  const navigate = vi.fn(
+  const navigate = mock(
     async (input: { to: string; search?: Record<string, unknown>; replace?: boolean }) => {
       calls.push({
         to: input.to,
@@ -33,7 +33,7 @@ describe('createReactiveSearchParams', () => {
   describe('reading', () => {
     test('reads properties from the underlying signal', () => {
       const sig = signal<Record<string, unknown>>({ q: 'dragon', page: 2 });
-      const sp = createReactiveSearchParams(sig, vi.fn());
+      const sp = createReactiveSearchParams(sig, mock());
 
       expect(sp.q).toBe('dragon');
       expect(sp.page).toBe(2);
@@ -41,14 +41,14 @@ describe('createReactiveSearchParams', () => {
 
     test('returns undefined for missing properties', () => {
       const sig = signal<Record<string, unknown>>({ q: 'dragon' });
-      const sp = createReactiveSearchParams(sig, vi.fn());
+      const sp = createReactiveSearchParams(sig, mock());
 
       expect(sp.missing).toBeUndefined();
     });
 
     test('reflects signal changes', () => {
       const sig = signal<Record<string, unknown>>({ q: 'dragon' });
-      const sp = createReactiveSearchParams(sig, vi.fn());
+      const sp = createReactiveSearchParams(sig, mock());
 
       expect(sp.q).toBe('dragon');
       sig.value = { q: 'phoenix' };
@@ -81,7 +81,7 @@ describe('createReactiveSearchParams', () => {
 
     test('read-after-write returns the pending value', () => {
       const sig = signal<Record<string, unknown>>({ page: 1 });
-      const sp = createReactiveSearchParams(sig, vi.fn());
+      const sp = createReactiveSearchParams(sig, mock());
 
       sp.page = 2;
       expect(sp.page).toBe(2);
@@ -174,14 +174,14 @@ describe('createReactiveSearchParams', () => {
   describe('introspection', () => {
     test('Object.keys returns current param names', () => {
       const sig = signal<Record<string, unknown>>({ q: 'dragon', page: 1 });
-      const sp = createReactiveSearchParams(sig, vi.fn());
+      const sp = createReactiveSearchParams(sig, mock());
 
       expect(Object.keys(sp).sort()).toEqual(['page', 'q']);
     });
 
     test('spread creates a plain object copy', () => {
       const sig = signal<Record<string, unknown>>({ q: 'dragon', page: 1 });
-      const sp = createReactiveSearchParams(sig, vi.fn());
+      const sp = createReactiveSearchParams(sig, mock());
 
       const copy = { ...sp };
       expect(copy).toEqual({ q: 'dragon', page: 1 });
@@ -189,7 +189,7 @@ describe('createReactiveSearchParams', () => {
 
     test('JSON.stringify serializes current params', () => {
       const sig = signal<Record<string, unknown>>({ q: 'dragon', page: 1 });
-      const sp = createReactiveSearchParams(sig, vi.fn());
+      const sp = createReactiveSearchParams(sig, mock());
 
       const json = JSON.stringify(sp);
       expect(JSON.parse(json)).toEqual({ page: 1, q: 'dragon' });
@@ -197,7 +197,7 @@ describe('createReactiveSearchParams', () => {
 
     test('"key" in sp returns true for existing params', () => {
       const sig = signal<Record<string, unknown>>({ q: 'dragon' });
-      const sp = createReactiveSearchParams(sig, vi.fn());
+      const sp = createReactiveSearchParams(sig, mock());
 
       expect('q' in sp).toBe(true);
       expect('missing' in sp).toBe(false);
@@ -205,7 +205,7 @@ describe('createReactiveSearchParams', () => {
 
     test('Object.keys reflects pending writes', () => {
       const sig = signal<Record<string, unknown>>({ q: 'dragon' });
-      const sp = createReactiveSearchParams(sig, vi.fn());
+      const sp = createReactiveSearchParams(sig, mock());
 
       sp.page = 1;
       expect(Object.keys(sp).sort()).toEqual(['page', 'q']);
@@ -213,7 +213,7 @@ describe('createReactiveSearchParams', () => {
 
     test('Object.keys excludes params pending deletion', () => {
       const sig = signal<Record<string, unknown>>({ q: 'dragon', page: 1 });
-      const sp = createReactiveSearchParams(sig, vi.fn());
+      const sp = createReactiveSearchParams(sig, mock());
 
       sp.q = undefined;
       expect(Object.keys(sp)).toEqual(['page']);

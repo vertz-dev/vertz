@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from '@vertz/test';
+import { afterEach, beforeEach, describe, expect, it, mock } from '@vertz/test';
 import { ComposedCalendar } from '../calendar-composed';
 
 describe('Composed Calendar', () => {
@@ -244,7 +244,7 @@ describe('Composed Calendar', () => {
   describe('Given a ComposedCalendar with onValueChange', () => {
     describe('When clicking a date', () => {
       it('Then calls onValueChange with the selected date', () => {
-        const onValueChange = vi.fn();
+        const onValueChange = mock();
         const root = ComposedCalendar({
           defaultMonth: new Date(2024, 5, 1),
           onValueChange,
@@ -288,7 +288,7 @@ describe('Composed Calendar', () => {
   describe('Given a ComposedCalendar with onMonthChange', () => {
     describe('When navigating months', () => {
       it('Then calls onMonthChange', () => {
-        const onMonthChange = vi.fn();
+        const onMonthChange = mock();
         const root = ComposedCalendar({
           defaultMonth: new Date(2024, 5, 15),
           onMonthChange,
@@ -495,7 +495,7 @@ describe('Composed Calendar', () => {
       });
 
       it('Then fires onMonthChange with the new Date', () => {
-        const onMonthChange = vi.fn();
+        const onMonthChange = mock();
         const root = ComposedCalendar({
           captionLayout: 'dropdown',
           defaultMonth: new Date(2024, 5, 1),
@@ -565,7 +565,7 @@ describe('Composed Calendar', () => {
       });
 
       it('Then fires onMonthChange with the new Date', () => {
-        const onMonthChange = vi.fn();
+        const onMonthChange = mock();
         const root = ComposedCalendar({
           captionLayout: 'dropdown',
           defaultMonth: new Date(2024, 5, 1),
@@ -704,7 +704,7 @@ describe('Composed Calendar', () => {
 
     describe('When selecting a disabled month option', () => {
       it('Then displayMonth does NOT change', () => {
-        const onMonthChange = vi.fn();
+        const onMonthChange = mock();
         const root = ComposedCalendar({
           captionLayout: 'dropdown',
           defaultMonth: new Date(2020, 5, 1),
@@ -853,7 +853,7 @@ describe('Composed Calendar', () => {
 
     describe('When Enter is pressed on a focused date', () => {
       it('Then selects the date and calls onValueChange', () => {
-        const onValueChange = vi.fn();
+        const onValueChange = mock();
         const root = ComposedCalendar({
           defaultMonth: new Date(2024, 5, 1),
           onValueChange,

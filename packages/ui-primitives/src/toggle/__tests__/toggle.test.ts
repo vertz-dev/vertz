@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from '@vertz/test';
+import { afterEach, beforeEach, describe, expect, it, mock } from '@vertz/test';
 import { Toggle } from '../toggle';
 
 describe('Toggle', () => {
@@ -24,7 +24,7 @@ describe('Toggle', () => {
   });
 
   it('toggles on click', () => {
-    const onPressedChange = vi.fn();
+    const onPressedChange = mock();
     const root = Toggle.Root({ onPressedChange });
     container.appendChild(root);
 
@@ -57,7 +57,7 @@ describe('Toggle', () => {
   });
 
   it('calls onPressedChange with correct value', () => {
-    const onPressedChange = vi.fn();
+    const onPressedChange = mock();
     const root = Toggle.Root({ onPressedChange });
     container.appendChild(root);
 

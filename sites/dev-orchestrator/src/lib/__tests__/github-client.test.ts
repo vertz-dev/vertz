@@ -1,11 +1,11 @@
-import { describe, expect, it, vi, beforeEach, afterEach } from 'bun:test';
+import { describe, expect, it, beforeEach, afterEach, mock } from '@vertz/test';
 import { createGitHubClient, type GitHubClient } from '../github-client';
 
 describe('Feature: GitHub API client', () => {
   let client: GitHubClient;
   const originalFetch = globalThis.fetch;
 
-  const mockFetch = vi.fn();
+  const mockFetch = mock();
 
   beforeEach(() => {
     client = createGitHubClient('test-token');

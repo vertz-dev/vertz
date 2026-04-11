@@ -11,7 +11,7 @@
  * Related: #1357 (cursor restoration fix), #1361 (composed primitive hydration),
  *          #1362 (this suite).
  */
-import { afterEach, describe, expect, it, vi } from '@vertz/test';
+import { afterEach, describe, expect, it } from '@vertz/test';
 import type { ChildValue } from '../../component/children';
 import { resolveChildren } from '../../component/children';
 import {
@@ -28,8 +28,8 @@ import {
  * Returns a cleanup function to restore spies.
  */
 function suppressHydrationWarnings() {
-  const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
-  const debugSpy = vi.spyOn(console, 'debug').mockImplementation(() => {});
+  const warnSpy = spyOn(console, 'warn').mockImplementation(() => {});
+  const debugSpy = spyOn(console, 'debug').mockImplementation(() => {});
   return () => {
     warnSpy.mockRestore();
     debugSpy.mockRestore();

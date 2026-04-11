@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, type MockFunction, vi } from '@vertz/test';
+import { afterEach, beforeEach, describe, expect, it, type MockFunction } from '@vertz/test';
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import { createAction } from '../create';
@@ -22,7 +22,7 @@ describe('createAction', () => {
     const originalCwd = process.cwd();
     process.chdir(testDir);
 
-    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {}) as MockFunction<
+    const logSpy = spyOn(console, 'log').mockImplementation(() => {}) as MockFunction<
       (...args: unknown[]) => unknown
     >;
 

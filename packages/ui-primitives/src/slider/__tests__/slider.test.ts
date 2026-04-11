@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from '@vertz/test';
+import { afterEach, beforeEach, describe, expect, it, mock } from '@vertz/test';
 import { Slider } from '../slider';
 
 describe('Slider', () => {
@@ -26,7 +26,7 @@ describe('Slider', () => {
   });
 
   it('increments with ArrowRight', () => {
-    const onValueChange = vi.fn();
+    const onValueChange = mock();
     const { thumb, state } = Slider.Root({
       defaultValue: 50,
       step: 5,

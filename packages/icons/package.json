@@ -27,9 +27,9 @@
   },
   "scripts": {
     "build": "bunup",
-    "generate": "bun run scripts/generate.ts",
-    "test": "bun test",
-    "test:watch": "bun test --watch",
+    "generate": "vtz run scripts/generate.ts",
+    "test": "vtz test",
+    "test:watch": "vtz test --watch",
     "typecheck": "tsgo --noEmit"
   },
   "devDependencies": {

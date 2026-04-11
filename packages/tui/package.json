@@ -43,7 +43,7 @@
   "scripts": {
     "build": "vtzx bunup",
     "typecheck": "tsgo --noEmit",
-    "test": "bun test",
+    "test": "vtz test",
     "lint": "oxlint src/"
   },
   "dependencies": {

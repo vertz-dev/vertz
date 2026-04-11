@@ -1,4 +1,4 @@
-import { describe, expect, test, vi } from '@vertz/test';
+import { describe, expect, test, mock, spyOn } from '@vertz/test';
 import { signal } from '../../runtime/signal';
 import { defineRoutes } from '../define-routes';
 import { createLink, Link } from '../link';
@@ -8,7 +8,7 @@ import { RouterContext } from '../router-context';
 describe('Link component', () => {
   test('creates an anchor element with href', () => {
     const currentPath = signal('/');
-    const navigate = vi.fn();
+    const navigate = mock();
     const Link = createLink(currentPath, navigate);
 
     const el = Link({ children: 'Home', href: '/' });
@@ -20,13 +20,13 @@ describe('Link component', () => {
 
   test('clicking link calls navigate and prevents default', () => {
     const currentPath = signal('/');
-    const navigate = vi.fn();
+    const navigate = mock();
     const Link = createLink(currentPath, navigate);
 
     const el = Link({ children: 'About', href: '/about' });
 
     const event = new MouseEvent('click', { bubbles: true, cancelable: true });
-    const preventSpy = vi.spyOn(event, 'preventDefault');
+    const preventSpy = spyOn(event, 'preventDefault');
     el.dispatchEvent(event);
 
     expect(preventSpy).toHaveBeenCalled();
@@ -35,7 +35,7 @@ describe('Link component', () => {
 
   test('applies activeClass when href matches current path', () => {
     const currentPath = signal('/about');
-    const navigate = vi.fn();
+    const navigate = mock();
     const Link = createLink(currentPath, navigate);
 
     const el = Link({ activeClass: 'active', children: 'About', href: '/about' });
@@ -45,7 +45,7 @@ describe('Link component', () => {
 
   test('does not apply activeClass when href does not match', () => {
     const currentPath = signal('/');
-    const navigate = vi.fn();
+    const navigate = mock();
     const Link = createLink(currentPath, navigate);
 
     const el = Link({ activeClass: 'active', children: 'About', href: '/about' });
@@ -55,7 +55,7 @@ describe('Link component', () => {
 
   test('applies className to the anchor', () => {
     const currentPath = signal('/');
-    const navigate = vi.fn();
+    const navigate = mock();
     const Link = createLink(currentPath, navigate);
 
     const el = Link({ children: 'Home', className: 'nav-link', href: '/' });
@@ -65,7 +65,7 @@ describe('Link component', () => {
 
   test('applies class prop to the anchor', () => {
     const currentPath = signal('/');
-    const navigate = vi.fn();
+    const navigate = mock();
     const Link = createLink(currentPath, navigate);
 
     const el = Link({ children: 'Home', class: 'nav-link', href: '/' });
@@ -75,7 +75,7 @@ describe('Link component', () => {
 
   test('className prop takes precedence over class', () => {
     const currentPath = signal('/');
-    const navigate = vi.fn();
+    const navigate = mock();
     const Link = createLink(currentPath, navigate);
 
     const el = Link({ children: 'Home', className: 'primary', class: 'secondary', href: '/' });
@@ -86,7 +86,7 @@ describe('Link component', () => {
 
   test('does not navigate on ctrl+click (allows new tab)', () => {
     const currentPath = signal('/');
-    const navigate = vi.fn();
+    const navigate = mock();
     const Link = createLink(currentPath, navigate);
 
     const el = Link({ children: 'About', href: '/about' });
@@ -99,7 +99,7 @@ describe('Link component', () => {
 
   test('does not navigate on meta+click (allows new tab on Mac)', () => {
     const currentPath = signal('/');
-    const navigate = vi.fn();
+    const navigate = mock();
     const Link = createLink(currentPath, navigate);
 
     const el = Link({ children: 'About', href: '/about' });
@@ -112,7 +112,7 @@ describe('Link component', () => {
 
   test('accepts thunked string children', () => {
     const currentPath = signal('/');
-    const navigate = vi.fn();
+    const navigate = mock();
     const Link = createLink(currentPath, navigate);
 
     const el = Link({ children: () => 'Home', href: '/' });
@@ -123,7 +123,7 @@ describe('Link component', () => {
 
   test('renders multiple Node children (icon + text pattern)', () => {
     const currentPath = signal('/');
-    const navigate = vi.fn();
+    const navigate = mock();
     const Link = createLink(currentPath, navigate);
 
     const icon = document.createElement('span');
@@ -140,7 +140,7 @@ describe('Link component', () => {
 
   test('renders array of mixed string and Node children', () => {
     const currentPath = signal('/');
-    const navigate = vi.fn();
+    const navigate = mock();
     const Link = createLink(currentPath, navigate);
 
     const bold = document.createElement('strong');
@@ -154,7 +154,7 @@ describe('Link component', () => {
 
   test('activeClass toggles reactively when currentPath changes', () => {
     const currentPath = signal('/');
-    const navigate = vi.fn();
+    const navigate = mock();
     const Link = createLink(currentPath, navigate);
 
     const el = Link({ activeClass: 'active', children: 'About', href: '/about' });
@@ -181,7 +181,7 @@ describe('Link component', () => {
 describe('Link XSS prevention', () => {
   test('blocks javascript: href', () => {
     const currentPath = signal('/');
-    const navigate = vi.fn();
+    const navigate = mock();
     const Link = createLink(currentPath, navigate);
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any -- testing runtime safety against untyped input
@@ -192,7 +192,7 @@ describe('Link XSS prevention', () => {
 
   test('blocks JAVASCRIPT: href (case insensitive)', () => {
     const currentPath = signal('/');
-    const navigate = vi.fn();
+    const navigate = mock();
     const Link = createLink(currentPath, navigate);
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any -- testing runtime safety against untyped input
@@ -203,7 +203,7 @@ describe('Link XSS prevention', () => {
 
   test('blocks data: href', () => {
     const currentPath = signal('/');
-    const navigate = vi.fn();
+    const navigate = mock();
     const Link = createLink(currentPath, navigate);
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any -- testing runtime safety against untyped input
@@ -217,7 +217,7 @@ describe('Link XSS prevention', () => {
 
   test('blocks vbscript: href', () => {
     const currentPath = signal('/');
-    const navigate = vi.fn();
+    const navigate = mock();
     const Link = createLink(currentPath, navigate);
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any -- testing runtime safety against untyped input
@@ -228,7 +228,7 @@ describe('Link XSS prevention', () => {
 
   test('blocks protocol-relative URLs', () => {
     const currentPath = signal('/');
-    const navigate = vi.fn();
+    const navigate = mock();
     const Link = createLink(currentPath, navigate);
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any -- testing runtime safety against untyped input
@@ -239,7 +239,7 @@ describe('Link XSS prevention', () => {
 
   test('blocks javascript: with whitespace injection', () => {
     const currentPath = signal('/');
-    const navigate = vi.fn();
+    const navigate = mock();
     const Link = createLink(currentPath, navigate);
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any -- testing runtime safety against untyped input
@@ -250,7 +250,7 @@ describe('Link XSS prevention', () => {
 
   test('does not navigate to blocked URLs on click', () => {
     const currentPath = signal('/');
-    const navigate = vi.fn();
+    const navigate = mock();
     const Link = createLink(currentPath, navigate);
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any -- testing runtime safety against untyped input
@@ -264,7 +264,7 @@ describe('Link XSS prevention', () => {
 
   test('allows safe URLs', () => {
     const currentPath = signal('/');
-    const navigate = vi.fn();
+    const navigate = mock();
     const Link = createLink(currentPath, navigate);
 
     const safeHrefs = ['/about', '#section', 'https://example.com', 'http://example.com'];
@@ -282,8 +282,8 @@ describe('Link XSS prevention', () => {
 describe('Link hover prefetch', () => {
   test('createLink accepts onPrefetch callback option', () => {
     const currentPath = signal('/');
-    const navigate = vi.fn();
-    const onPrefetch = vi.fn();
+    const navigate = mock();
+    const onPrefetch = mock();
     const Link = createLink(currentPath, navigate, { onPrefetch });
 
     const el = Link({ children: 'About', href: '/about' });
@@ -292,8 +292,8 @@ describe('Link hover prefetch', () => {
 
   test('mouseenter fires onPrefetch when prefetch: hover', () => {
     const currentPath = signal('/');
-    const navigate = vi.fn();
-    const onPrefetch = vi.fn();
+    const navigate = mock();
+    const onPrefetch = mock();
     const Link = createLink(currentPath, navigate, { onPrefetch });
 
     const el = Link({ children: 'About', href: '/about', prefetch: 'hover' });
@@ -304,8 +304,8 @@ describe('Link hover prefetch', () => {
 
   test('focus fires onPrefetch when prefetch: hover', () => {
     const currentPath = signal('/');
-    const navigate = vi.fn();
-    const onPrefetch = vi.fn();
+    const navigate = mock();
+    const onPrefetch = mock();
     const Link = createLink(currentPath, navigate, { onPrefetch });
 
     const el = Link({ children: 'About', href: '/about', prefetch: 'hover' });
@@ -316,8 +316,8 @@ describe('Link hover prefetch', () => {
 
   test('no prefetch without prefetch prop', () => {
     const currentPath = signal('/');
-    const navigate = vi.fn();
-    const onPrefetch = vi.fn();
+    const navigate = mock();
+    const onPrefetch = mock();
     const Link = createLink(currentPath, navigate, { onPrefetch });
 
     const el = Link({ children: 'About', href: '/about' });
@@ -329,8 +329,8 @@ describe('Link hover prefetch', () => {
 
   test('only fires once per link (dedup)', () => {
     const currentPath = signal('/');
-    const navigate = vi.fn();
-    const onPrefetch = vi.fn();
+    const navigate = mock();
+    const onPrefetch = mock();
     const Link = createLink(currentPath, navigate, { onPrefetch });
 
     const el = Link({ children: 'About', href: '/about', prefetch: 'hover' });
@@ -376,7 +376,7 @@ describe('Link (context-based)', () => {
     const el = renderInRouter('/', () => Link({ children: 'About', href: '/about' }));
 
     const event = new MouseEvent('click', { bubbles: true, cancelable: true });
-    const preventSpy = vi.spyOn(event, 'preventDefault');
+    const preventSpy = spyOn(event, 'preventDefault');
     el.dispatchEvent(event);
 
     expect(preventSpy).toHaveBeenCalled();
@@ -386,12 +386,12 @@ describe('Link (context-based)', () => {
     const el = renderInRouter('/', () => Link({ children: 'About', href: '/about' }));
 
     const ctrlClick = new MouseEvent('click', { bubbles: true, cancelable: true, ctrlKey: true });
-    const preventSpy = vi.spyOn(ctrlClick, 'preventDefault');
+    const preventSpy = spyOn(ctrlClick, 'preventDefault');
     el.dispatchEvent(ctrlClick);
     expect(preventSpy).not.toHaveBeenCalled();
 
     const metaClick = new MouseEvent('click', { bubbles: true, cancelable: true, metaKey: true });
-    const preventSpy2 = vi.spyOn(metaClick, 'preventDefault');
+    const preventSpy2 = spyOn(metaClick, 'preventDefault');
     el.dispatchEvent(metaClick);
     expect(preventSpy2).not.toHaveBeenCalled();
   });

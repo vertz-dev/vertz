@@ -131,7 +131,7 @@ Or clone the [entity-todo example](./examples/entity-todo) for a full-stack app 
 Install everything with one dependency:
 
 ```bash
-bun add vertz
+vtz add vertz
 ```
 
 Then import what you need: `vertz/server`, `vertz/db`, `vertz/ui`, `vertz/schema`, `vertz/testing`. For AI agents, install `@vertz/agents` separately.

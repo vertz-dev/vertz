@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from '@vertz/test';
+import { afterEach, beforeEach, describe, expect, it, mock } from '@vertz/test';
 import { Accordion } from '../accordion';
 
 describe('Accordion', () => {
@@ -90,7 +90,7 @@ describe('Accordion', () => {
   });
 
   it('calls onValueChange', () => {
-    const onValueChange = vi.fn();
+    const onValueChange = mock();
     const { root, Item } = Accordion.Root({ onValueChange });
     container.appendChild(root);
     const { item, trigger } = Item('s1');
