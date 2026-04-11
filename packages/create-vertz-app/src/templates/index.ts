@@ -962,6 +962,7 @@ const styles = css({
   list: ['flex', 'flex-col', 'gap:2'],
   item: [
     'flex',
+    'w:full',
     'items:center',
     'gap:3',
     'px:4',

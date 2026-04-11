@@ -1048,7 +1048,8 @@ describe('Feature: DialogStackProvider hydration', () => {
       it('Then the result is an HTMLElement with data-dialog-container', () => {
         // Simulate SSR output: <div data-dialog-container><span>child</span></div>
         const root = document.createElement('div');
-        root.innerHTML = '<div data-dialog-container=""><span>child</span></div>';
+        root.innerHTML =
+          '<div data-dialog-container="" style="display:contents"><span>child</span></div>';
 
         startHydration(root);
 
@@ -1068,6 +1069,8 @@ describe('Feature: DialogStackProvider hydration', () => {
         expect(result).toBeInstanceOf(HTMLElement);
         // The container div should have the marker attribute
         expect((result as HTMLElement).getAttribute('data-dialog-container')).toBe('');
+        // display:contents makes wrapper transparent to layout
+        expect((result as HTMLElement).style.display).toBe('contents');
         // Children should be inside the container
         expect((result as HTMLElement).querySelector('span')).toBeTruthy();
         expect(dialogs).toBeDefined();
@@ -1075,7 +1078,8 @@ describe('Feature: DialogStackProvider hydration', () => {
 
       it('Then children are claimed from SSR DOM (not recreated)', () => {
         const root = document.createElement('div');
-        root.innerHTML = '<div data-dialog-container=""><span>content</span></div>';
+        root.innerHTML =
+          '<div data-dialog-container="" style="display:contents"><span>content</span></div>';
         const ssrSpan = root.querySelector('span')!;
 
         startHydration(root);
