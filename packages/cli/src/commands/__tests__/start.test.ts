@@ -365,16 +365,39 @@ describe('startAction', () => {
   });
 });
 
+/**
+ * Helper: extract the server URL from console.log spy calls.
+ * Looks for a log message containing "running at" and extracts the http://... URL.
+ */
+function extractServerUrl(logSpy: MockFunction<(...args: unknown[]) => unknown>): string {
+  const calls = logSpy.mock.calls as unknown[][];
+  const logArgs = calls.find(
+    (args) => typeof args[0] === 'string' && args[0].includes('running at'),
+  );
+  const match = (logArgs?.[0] as string)?.match(/http:\/\/.+?:\d+/);
+  if (!match) throw new Error('Could not extract server URL from log output');
+  return match[0];
+}
+
+/**
+ * Helper: extract the SIGINT shutdown handler from process.on spy calls
+ * and invoke it to stop the server.
+ */
+function stopServerViaSigint(processOnSpy: MockFunction<(...args: unknown[]) => unknown>): void {
+  const onCalls = processOnSpy.mock.calls as [string, () => void][];
+  const sigintHandler = onCalls.find(([signal]) => signal === 'SIGINT');
+  if (sigintHandler) sigintHandler[1]();
+}
+
 describe('startAction — api-only', () => {
   let tmpDir: string;
   let pathsSpy: MockFunction<(...args: unknown[]) => unknown>;
   let logSpy: MockFunction<(...args: unknown[]) => unknown>;
   let processOnSpy: MockFunction<(...args: unknown[]) => unknown>;
-  let originalServe: typeof Bun.serve;
+  let exitSpy: MockFunction<(...args: unknown[]) => unknown>;
 
   beforeEach(() => {
     tmpDir = mkdtempSync(join(tmpdir(), 'vertz-start-api-'));
-    originalServe = Bun.serve;
     logSpy = spyOn(console, 'log').mockImplementation(() => {}) as MockFunction<
       (...args: unknown[]) => unknown
     >;
@@ -383,14 +406,19 @@ describe('startAction — api-only', () => {
       .mockImplementation(() => process) as unknown as MockFunction<
       (...args: unknown[]) => unknown
     >;
+    exitSpy = vi
+      .spyOn(process, 'exit')
+      .mockImplementation(() => undefined as never) as MockFunction<
+      (...args: unknown[]) => unknown
+    >;
   });
 
   afterEach(() => {
+    stopServerViaSigint(processOnSpy);
     pathsSpy?.mockRestore();
     logSpy.mockRestore();
     processOnSpy.mockRestore();
-    // Restore Bun.serve
-    Object.defineProperty(Bun, 'serve', { value: originalServe, writable: true });
+    exitSpy.mockRestore();
     rmSync(tmpDir, { recursive: true, force: true });
   });
 
@@ -413,17 +441,8 @@ describe('startAction — api-only', () => {
       (...args: unknown[]) => unknown
     >;
 
-    const mockServer = { port: 3000, stop: mock() };
-    Object.defineProperty(Bun, 'serve', {
-      value: mock().mockReturnValue(mockServer),
-      writable: true,
-    });
-
-    const result = await startAction({ port: 3000, host: '0.0.0.0' });
+    const result = await startAction({ port: 0, host: '0.0.0.0' });
     expect(result.ok).toBe(true);
-
-    // Verify Bun.serve was called
-    expect(Bun.serve).toHaveBeenCalledTimes(1);
 
     // Verify server startup message was logged
     const calls = logSpy.mock.calls as unknown[][];
@@ -441,13 +460,7 @@ describe('startAction — api-only', () => {
       (...args: unknown[]) => unknown
     >;
 
-    const mockServer = { port: 3000, stop: mock() };
-    Object.defineProperty(Bun, 'serve', {
-      value: mock().mockReturnValue(mockServer),
-      writable: true,
-    });
-
-    await startAction({ port: 3000 });
+    await startAction({ port: 0 });
 
     const onCalls = processOnSpy.mock.calls as unknown[][];
     const signals = onCalls.map((args) => args[0]);
@@ -465,7 +478,7 @@ describe('startAction — api-only', () => {
       (...args: unknown[]) => unknown
     >;
 
-    const result = await startAction({ port: 3000 });
+    const result = await startAction({ port: 0 });
     expect(result.ok).toBe(false);
     if (!result.ok) {
       expect(result.error.message).toContain('Failed to import API module');
@@ -480,7 +493,7 @@ describe('startAction — api-only', () => {
       (...args: unknown[]) => unknown
     >;
 
-    const result = await startAction({ port: 3000 });
+    const result = await startAction({ port: 0 });
     expect(result.ok).toBe(false);
     if (!result.ok) {
       expect(result.error.message).toContain(
@@ -489,7 +502,7 @@ describe('startAction — api-only', () => {
     }
   });
 
-  it('passes handler to Bun.serve as the fetch function', async () => {
+  it('handler responds to HTTP requests', async () => {
     scaffoldApiProject('export default { handler: (req) => new Response("hello") };');
 
     const pathsMod = await import('../../utils/paths');
@@ -497,17 +510,13 @@ describe('startAction — api-only', () => {
       (...args: unknown[]) => unknown
     >;
 
-    const mockServe = mock().mockReturnValue({ port: 4000, stop: mock() });
-    Object.defineProperty(Bun, 'serve', { value: mockServe, writable: true });
+    await startAction({ port: 0, host: '127.0.0.1' });
 
-    await startAction({ port: 4000, host: '127.0.0.1' });
-
-    const serveCall = mockServe.mock.calls[0] as [
-      { port: number; hostname: string; fetch: unknown },
-    ];
-    expect(serveCall[0].port).toBe(4000);
-    expect(serveCall[0].hostname).toBe('127.0.0.1');
-    expect(typeof serveCall[0].fetch).toBe('function');
+    const url = extractServerUrl(logSpy);
+    const res = await fetch(`${url}/test`);
+    expect(res.status).toBe(200);
+    const body = await res.text();
+    expect(body).toBe('hello');
   });
 
   it('uses localhost in log when host is 0.0.0.0', async () => {
@@ -518,12 +527,7 @@ describe('startAction — api-only', () => {
       (...args: unknown[]) => unknown
     >;
 
-    Object.defineProperty(Bun, 'serve', {
-      value: mock().mockReturnValue({ port: 3000, stop: mock() }),
-      writable: true,
-    });
-
-    await startAction({ port: 3000, host: '0.0.0.0' });
+    await startAction({ port: 0, host: '0.0.0.0' });
 
     const calls = logSpy.mock.calls as unknown[][];
     const found = calls.some(
@@ -538,11 +542,10 @@ describe('startAction — ui-only', () => {
   let pathsSpy: MockFunction<(...args: unknown[]) => unknown>;
   let logSpy: MockFunction<(...args: unknown[]) => unknown>;
   let processOnSpy: MockFunction<(...args: unknown[]) => unknown>;
-  let originalServe: typeof Bun.serve;
+  let exitSpy: MockFunction<(...args: unknown[]) => unknown>;
 
   beforeEach(() => {
     tmpDir = mkdtempSync(join(tmpdir(), 'vertz-start-ui-'));
-    originalServe = Bun.serve;
     logSpy = spyOn(console, 'log').mockImplementation(() => {}) as MockFunction<
       (...args: unknown[]) => unknown
     >;
@@ -551,13 +554,19 @@ describe('startAction — ui-only', () => {
       .mockImplementation(() => process) as unknown as MockFunction<
       (...args: unknown[]) => unknown
     >;
+    exitSpy = vi
+      .spyOn(process, 'exit')
+      .mockImplementation(() => undefined as never) as MockFunction<
+      (...args: unknown[]) => unknown
+    >;
   });
 
   afterEach(() => {
+    stopServerViaSigint(processOnSpy);
     pathsSpy?.mockRestore();
     logSpy.mockRestore();
     processOnSpy.mockRestore();
-    Object.defineProperty(Bun, 'serve', { value: originalServe, writable: true });
+    exitSpy.mockRestore();
     rmSync(tmpDir, { recursive: true, force: true });
   });
 
@@ -585,15 +594,8 @@ describe('startAction — ui-only', () => {
       (...args: unknown[]) => unknown
     >;
 
-    const mockServer = { port: 3000, stop: mock() };
-    Object.defineProperty(Bun, 'serve', {
-      value: mock().mockReturnValue(mockServer),
-      writable: true,
-    });
-
-    const result = await startAction({ port: 3000 });
+    const result = await startAction({ port: 0 });
     expect(result.ok).toBe(true);
-    expect(Bun.serve).toHaveBeenCalledTimes(1);
 
     // Verify server startup message
     const calls = logSpy.mock.calls as unknown[][];
@@ -616,13 +618,7 @@ describe('startAction — ui-only', () => {
       (...args: unknown[]) => unknown
     >;
 
-    const mockServer = { port: 3000, stop: mock() };
-    Object.defineProperty(Bun, 'serve', {
-      value: mock().mockReturnValue(mockServer),
-      writable: true,
-    });
-
-    const result = await startAction({ port: 3000 });
+    const result = await startAction({ port: 0 });
     expect(result.ok).toBe(true);
   });
 
@@ -634,7 +630,7 @@ describe('startAction — ui-only', () => {
       (...args: unknown[]) => unknown
     >;
 
-    const result = await startAction({ port: 3000 });
+    const result = await startAction({ port: 0 });
     expect(result.ok).toBe(false);
     if (!result.ok) {
       expect(result.error.message).toContain('Failed to import SSR module');
@@ -649,12 +645,7 @@ describe('startAction — ui-only', () => {
       (...args: unknown[]) => unknown
     >;
 
-    Object.defineProperty(Bun, 'serve', {
-      value: mock().mockReturnValue({ port: 3000, stop: mock() }),
-      writable: true,
-    });
-
-    await startAction({ port: 3000 });
+    await startAction({ port: 0 });
 
     const onCalls = processOnSpy.mock.calls as unknown[][];
     const signals = onCalls.map((args) => args[0]);
@@ -662,7 +653,7 @@ describe('startAction — ui-only', () => {
     expect(signals).toContain('SIGTERM');
   });
 
-  it('fetch handler serves SSR for nav pre-fetch requests', async () => {
+  it('serves SSR for nav pre-fetch requests', async () => {
     scaffoldUIProject('export default {};');
 
     const pathsMod = await import('../../utils/paths');
@@ -670,27 +661,16 @@ describe('startAction — ui-only', () => {
       (...args: unknown[]) => unknown
     >;
 
-    let capturedFetch: ((req: Request) => Response | Promise<Response>) | undefined;
-    const mockServe = vi
-      .fn()
-      .mockImplementation((opts: { fetch: (req: Request) => Response | Promise<Response> }) => {
-        capturedFetch = opts.fetch;
-        return { port: 3000, stop: mock() };
-      });
-    Object.defineProperty(Bun, 'serve', { value: mockServe, writable: true });
+    await startAction({ port: 0, host: '127.0.0.1' });
 
-    await startAction({ port: 3000 });
-
-    expect(capturedFetch).toBeDefined();
-    // Nav pre-fetch request — goes through SSR handler which returns a Response
-    const navReq = new Request('http://localhost:3000/', {
-      headers: { 'x-vertz-nav': '1' },
-    });
-    const response = await capturedFetch?.(navReq);
-    expect(response).toBeInstanceOf(Response);
+    const url = extractServerUrl(logSpy);
+    const response = await fetch(url, { headers: { 'x-vertz-nav': '1' } });
+    expect(response.status).toBe(200);
+    const body = await response.text();
+    expect(body).toBe('ssr-mock');
   });
 
-  it('fetch handler serves static files and falls back to SSR', async () => {
+  it('serves static files and falls back to SSR', async () => {
     scaffoldUIProject('export default {};');
     // Create a static file
     mkdirSync(join(tmpDir, 'dist', 'client', 'assets'), { recursive: true });
@@ -701,28 +681,20 @@ describe('startAction — ui-only', () => {
       (...args: unknown[]) => unknown
     >;
 
-    let capturedFetch: ((req: Request) => Response | Promise<Response>) | undefined;
-    const mockServe = vi
-      .fn()
-      .mockImplementation((opts: { fetch: (req: Request) => Response | Promise<Response> }) => {
-        capturedFetch = opts.fetch;
-        return { port: 3000, stop: mock() };
-      });
-    Object.defineProperty(Bun, 'serve', { value: mockServe, writable: true });
+    await startAction({ port: 0, host: '127.0.0.1' });
 
-    await startAction({ port: 3000 });
+    const url = extractServerUrl(logSpy);
 
     // Request a static asset
-    const staticReq = new Request('http://localhost:3000/assets/app.js');
-    const staticRes = await capturedFetch?.(staticReq);
-    expect(staticRes).toBeDefined();
-    expect(staticRes!.headers.get('Cache-Control')).toBe('public, max-age=31536000, immutable');
+    const staticRes = await fetch(`${url}/assets/app.js`);
+    expect(staticRes.status).toBe(200);
+    expect(staticRes.headers.get('Cache-Control')).toBe('public, max-age=31536000, immutable');
 
     // Request a route — falls through to SSR
-    const routeReq = new Request('http://localhost:3000/about');
-    const routeRes = await capturedFetch?.(routeReq);
-    expect(routeRes).toBeDefined();
-    expect(routeRes).toBeInstanceOf(Response);
+    const routeRes = await fetch(`${url}/about`);
+    expect(routeRes.status).toBe(200);
+    const body = await routeRes.text();
+    expect(body).toBe('ssr-mock');
   });
 });
 
@@ -731,11 +703,10 @@ describe('startAction — full-stack', () => {
   let pathsSpy: MockFunction<(...args: unknown[]) => unknown>;
   let logSpy: MockFunction<(...args: unknown[]) => unknown>;
   let processOnSpy: MockFunction<(...args: unknown[]) => unknown>;
-  let originalServe: typeof Bun.serve;
+  let exitSpy: MockFunction<(...args: unknown[]) => unknown>;
 
   beforeEach(() => {
     tmpDir = mkdtempSync(join(tmpdir(), 'vertz-start-fs-'));
-    originalServe = Bun.serve;
     logSpy = spyOn(console, 'log').mockImplementation(() => {}) as MockFunction<
       (...args: unknown[]) => unknown
     >;
@@ -744,13 +715,19 @@ describe('startAction — full-stack', () => {
       .mockImplementation(() => process) as unknown as MockFunction<
       (...args: unknown[]) => unknown
     >;
+    exitSpy = vi
+      .spyOn(process, 'exit')
+      .mockImplementation(() => undefined as never) as MockFunction<
+      (...args: unknown[]) => unknown
+    >;
   });
 
   afterEach(() => {
+    stopServerViaSigint(processOnSpy);
     pathsSpy?.mockRestore();
     logSpy.mockRestore();
     processOnSpy.mockRestore();
-    Object.defineProperty(Bun, 'serve', { value: originalServe, writable: true });
+    exitSpy.mockRestore();
     rmSync(tmpDir, { recursive: true, force: true });
   });
 
@@ -780,15 +757,8 @@ describe('startAction — full-stack', () => {
       (...args: unknown[]) => unknown
     >;
 
-    const mockServer = { port: 3000, stop: mock() };
-    Object.defineProperty(Bun, 'serve', {
-      value: mock().mockReturnValue(mockServer),
-      writable: true,
-    });
-
-    const result = await startAction({ port: 3000 });
+    const result = await startAction({ port: 0 });
     expect(result.ok).toBe(true);
-    expect(Bun.serve).toHaveBeenCalledTimes(1);
 
     // Verify full-stack server startup message
     const calls = logSpy.mock.calls as unknown[][];
@@ -807,7 +777,7 @@ describe('startAction — full-stack', () => {
       (...args: unknown[]) => unknown
     >;
 
-    const result = await startAction({ port: 3000 });
+    const result = await startAction({ port: 0 });
     expect(result.ok).toBe(false);
     if (!result.ok) {
       expect(result.error.message).toContain('Failed to import API module');
@@ -822,7 +792,7 @@ describe('startAction — full-stack', () => {
       (...args: unknown[]) => unknown
     >;
 
-    const result = await startAction({ port: 3000 });
+    const result = await startAction({ port: 0 });
     expect(result.ok).toBe(false);
     if (!result.ok) {
       expect(result.error.message).toContain(
@@ -842,7 +812,7 @@ describe('startAction — full-stack', () => {
       (...args: unknown[]) => unknown
     >;
 
-    const result = await startAction({ port: 3000 });
+    const result = await startAction({ port: 0 });
     expect(result.ok).toBe(false);
     if (!result.ok) {
       expect(result.error.message).toContain('Failed to import SSR module');
@@ -860,12 +830,7 @@ describe('startAction — full-stack', () => {
       (...args: unknown[]) => unknown
     >;
 
-    Object.defineProperty(Bun, 'serve', {
-      value: mock().mockReturnValue({ port: 3000, stop: mock() }),
-      writable: true,
-    });
-
-    await startAction({ port: 3000 });
+    await startAction({ port: 0 });
 
     const onCalls = processOnSpy.mock.calls as unknown[][];
     const signals = onCalls.map((args) => args[0]);
@@ -889,12 +854,7 @@ describe('startAction — full-stack', () => {
       (...args: unknown[]) => unknown
     >;
 
-    Object.defineProperty(Bun, 'serve', {
-      value: mock().mockReturnValue({ port: 3000, stop: mock() }),
-      writable: true,
-    });
-
-    const result = await startAction({ port: 3000 });
+    const result = await startAction({ port: 0 });
     expect(result.ok).toBe(true);
   });
 
@@ -909,21 +869,16 @@ describe('startAction — full-stack', () => {
       (...args: unknown[]) => unknown
     >;
 
-    Object.defineProperty(Bun, 'serve', {
-      value: mock().mockReturnValue({ port: 8080, stop: mock() }),
-      writable: true,
-    });
-
-    await startAction({ port: 8080, host: '192.168.1.1' });
+    await startAction({ port: 0, host: '127.0.0.1' });
 
     const calls = logSpy.mock.calls as unknown[][];
     const found = calls.some(
-      (args) => typeof args[0] === 'string' && args[0].includes('192.168.1.1'),
+      (args) => typeof args[0] === 'string' && args[0].includes('127.0.0.1'),
     );
     expect(found).toBe(true);
   });
 
-  it('fetch handler routes /api paths to API handler', async () => {
+  it('routes /api paths to API handler', async () => {
     scaffoldFullStackProject(
       'export default { handler: (req) => new Response("api-response") };',
       'export default {};',
@@ -934,28 +889,16 @@ describe('startAction — full-stack', () => {
       (...args: unknown[]) => unknown
     >;
 
-    let capturedFetch: ((req: Request) => Response | Promise<Response>) | undefined;
-    const mockServe = vi
-      .fn()
-      .mockImplementation((opts: { fetch: (req: Request) => Response | Promise<Response> }) => {
-        capturedFetch = opts.fetch;
-        return { port: 3000, stop: mock() };
-      });
-    Object.defineProperty(Bun, 'serve', { value: mockServe, writable: true });
+    await startAction({ port: 0, host: '127.0.0.1' });
 
-    await startAction({ port: 3000 });
-
-    expect(capturedFetch).toBeDefined();
-
-    // API request
-    const apiReq = new Request('http://localhost:3000/api/users');
-    const apiRes = await capturedFetch?.(apiReq);
-    expect(apiRes).toBeDefined();
-    const body = await apiRes!.text();
+    const url = extractServerUrl(logSpy);
+    const apiRes = await fetch(`${url}/api/users`);
+    expect(apiRes.status).toBe(200);
+    const body = await apiRes.text();
     expect(body).toBe('api-response');
   });
 
-  it('fetch handler routes nav pre-fetch to SSR handler', async () => {
+  it('routes nav pre-fetch to SSR handler', async () => {
     scaffoldFullStackProject(
       'export default { handler: (req) => new Response("api") };',
       'export default {};',
@@ -966,25 +909,16 @@ describe('startAction — full-stack', () => {
       (...args: unknown[]) => unknown
     >;
 
-    let capturedFetch: ((req: Request) => Response | Promise<Response>) | undefined;
-    const mockServe = vi
-      .fn()
-      .mockImplementation((opts: { fetch: (req: Request) => Response | Promise<Response> }) => {
-        capturedFetch = opts.fetch;
-        return { port: 3000, stop: mock() };
-      });
-    Object.defineProperty(Bun, 'serve', { value: mockServe, writable: true });
+    await startAction({ port: 0, host: '127.0.0.1' });
 
-    await startAction({ port: 3000 });
-
-    const navReq = new Request('http://localhost:3000/', {
-      headers: { 'x-vertz-nav': '1' },
-    });
-    const response = await capturedFetch?.(navReq);
-    expect(response).toBeInstanceOf(Response);
+    const url = extractServerUrl(logSpy);
+    const response = await fetch(url, { headers: { 'x-vertz-nav': '1' } });
+    expect(response.status).toBe(200);
+    const body = await response.text();
+    expect(body).toBe('ssr-mock');
   });
 
-  it('fetch handler serves static files and falls back to SSR', async () => {
+  it('serves static files and falls back to SSR', async () => {
     scaffoldFullStackProject(
       'export default { handler: (req) => new Response("api") };',
       'export default {};',
@@ -997,28 +931,20 @@ describe('startAction — full-stack', () => {
       (...args: unknown[]) => unknown
     >;
 
-    let capturedFetch: ((req: Request) => Response | Promise<Response>) | undefined;
-    const mockServe = vi
-      .fn()
-      .mockImplementation((opts: { fetch: (req: Request) => Response | Promise<Response> }) => {
-        capturedFetch = opts.fetch;
-        return { port: 3000, stop: mock() };
-      });
-    Object.defineProperty(Bun, 'serve', { value: mockServe, writable: true });
+    await startAction({ port: 0, host: '127.0.0.1' });
 
-    await startAction({ port: 3000 });
+    const url = extractServerUrl(logSpy);
 
     // Static asset
-    const staticReq = new Request('http://localhost:3000/assets/style.css');
-    const staticRes = await capturedFetch?.(staticReq);
-    expect(staticRes).toBeDefined();
-    expect(staticRes!.headers.get('Cache-Control')).toBe('public, max-age=31536000, immutable');
+    const staticRes = await fetch(`${url}/assets/style.css`);
+    expect(staticRes.status).toBe(200);
+    expect(staticRes.headers.get('Cache-Control')).toBe('public, max-age=31536000, immutable');
 
     // Non-API, non-static route falls to SSR
-    const routeReq = new Request('http://localhost:3000/dashboard');
-    const routeRes = await capturedFetch?.(routeReq);
-    expect(routeRes).toBeDefined();
-    expect(routeRes).toBeInstanceOf(Response);
+    const routeRes = await fetch(`${url}/dashboard`);
+    expect(routeRes.status).toBe(200);
+    const body = await routeRes.text();
+    expect(body).toBe('ssr-mock');
   });
 
   it('graceful shutdown callback stops server and exits', async () => {
@@ -1032,19 +958,7 @@ describe('startAction — full-stack', () => {
       (...args: unknown[]) => unknown
     >;
 
-    const mockStop = mock();
-    Object.defineProperty(Bun, 'serve', {
-      value: mock().mockReturnValue({ port: 3000, stop: mockStop }),
-      writable: true,
-    });
-
-    const exitSpy = vi
-      .spyOn(process, 'exit')
-      .mockImplementation(() => undefined as never) as MockFunction<
-      (...args: unknown[]) => unknown
-    >;
-
-    await startAction({ port: 3000 });
+    await startAction({ port: 0 });
 
     // Find the SIGINT handler from process.on calls
     const onCalls = processOnSpy.mock.calls as [string, () => void][];
@@ -1054,9 +968,6 @@ describe('startAction — full-stack', () => {
     // Call the shutdown handler
     sigintHandler?.[1]();
 
-    expect(mockStop).toHaveBeenCalledTimes(1);
     expect(exitSpy).toHaveBeenCalledWith(0);
-
-    exitSpy.mockRestore();
   });
 });

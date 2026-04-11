@@ -8,6 +8,7 @@ pub mod encoding;
 pub mod env;
 pub mod fetch;
 pub mod fs;
+pub mod http_serve;
 pub mod microtask;
 pub mod os;
 pub mod path;

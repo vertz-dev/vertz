@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from '@vertz/test';
 import { existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { readFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { buildDocs } from '../generator/build-pipeline';
@@ -54,7 +55,7 @@ Check the guides.
   it('generates llms.txt index', async () => {
     await buildDocs({ projectDir: tempDir, outDir, baseUrl: 'https://docs.example.com' });
     expect(existsSync(join(outDir, 'llms.txt'))).toBe(true);
-    const content = await Bun.file(join(outDir, 'llms.txt')).text();
+    const content = await readFile(join(outDir, 'llms.txt'), 'utf-8');
     expect(content).toContain('# Test Docs');
     expect(content).toContain('home.md');
   });
@@ -62,7 +63,7 @@ Check the guides.
   it('generates llms-full.txt concatenated file', async () => {
     await buildDocs({ projectDir: tempDir, outDir });
     expect(existsSync(join(outDir, 'llms-full.txt'))).toBe(true);
-    const content = await Bun.file(join(outDir, 'llms-full.txt')).text();
+    const content = await readFile(join(outDir, 'llms-full.txt'), 'utf-8');
     expect(content).toContain('# Welcome');
   });
 
@@ -81,7 +82,7 @@ Check the guides.
   it('generates a manifest with route metadata', async () => {
     await buildDocs({ projectDir: tempDir, outDir });
     expect(existsSync(join(outDir, 'manifest.json'))).toBe(true);
-    const manifest = JSON.parse(await Bun.file(join(outDir, 'manifest.json')).text());
+    const manifest = JSON.parse(await readFile(join(outDir, 'manifest.json'), 'utf-8'));
     expect(manifest.routes).toHaveLength(1);
     expect(manifest.routes[0].path).toBe('/');
     expect(manifest.routes[0].headings).toHaveLength(2);
@@ -111,7 +112,7 @@ Content here.
   it('generates HTML files for each page', async () => {
     await buildDocs({ projectDir: tempDir, outDir });
     expect(existsSync(join(outDir, 'index.html'))).toBe(true);
-    const html = await Bun.file(join(outDir, 'index.html')).text();
+    const html = await readFile(join(outDir, 'index.html'), 'utf-8');
     expect(html).toContain('<!DOCTYPE html>');
     expect(html).toContain('Welcome');
   });
@@ -130,7 +131,7 @@ Page content.
 `,
     );
     await buildDocs({ projectDir: tempDir, outDir });
-    const html = await Bun.file(join(outDir, 'index.html')).text();
+    const html = await readFile(join(outDir, 'index.html'), 'utf-8');
     expect(html).toContain('<title>Custom Title - Test Docs</title>');
     expect(html).toContain('A custom description for SEO.');
   });
@@ -138,7 +139,7 @@ Page content.
   it('generates sitemap.xml listing all pages', async () => {
     await buildDocs({ projectDir: tempDir, outDir, baseUrl: 'https://docs.example.com' });
     expect(existsSync(join(outDir, 'sitemap.xml'))).toBe(true);
-    const sitemap = await Bun.file(join(outDir, 'sitemap.xml')).text();
+    const sitemap = await readFile(join(outDir, 'sitemap.xml'), 'utf-8');
     expect(sitemap).toContain('<?xml');
     expect(sitemap).toContain('https://docs.example.com/');
   });
@@ -146,7 +147,7 @@ Page content.
   it('generates robots.txt', async () => {
     await buildDocs({ projectDir: tempDir, outDir, baseUrl: 'https://docs.example.com' });
     expect(existsSync(join(outDir, 'robots.txt'))).toBe(true);
-    const robots = await Bun.file(join(outDir, 'robots.txt')).text();
+    const robots = await readFile(join(outDir, 'robots.txt'), 'utf-8');
     expect(robots).toContain('Sitemap: https://docs.example.com/sitemap.xml');
   });
 
@@ -161,7 +162,7 @@ Page content.
     );
     await buildDocs({ projectDir: tempDir, outDir });
     expect(existsSync(join(outDir, 'old-page', 'index.html'))).toBe(true);
-    const html = await Bun.file(join(outDir, 'old-page', 'index.html')).text();
+    const html = await readFile(join(outDir, 'old-page', 'index.html'), 'utf-8');
     expect(html).toContain('/new-page');
     expect(html).toContain('http-equiv="refresh"');
   });
@@ -183,7 +184,7 @@ Page content.
     // But HTML should still be generated
     expect(existsSync(join(outDir, 'internal/debug.html'))).toBe(true);
     // llms.txt should not list excluded page
-    const llmsTxt = await Bun.file(join(outDir, 'llms.txt')).text();
+    const llmsTxt = await readFile(join(outDir, 'llms.txt'), 'utf-8');
     expect(llmsTxt).not.toContain('debug');
   });
 
@@ -201,7 +202,7 @@ Content here.
 `,
     );
     await buildDocs({ projectDir: tempDir, outDir, baseUrl: 'https://docs.example.com' });
-    const llmMd = await Bun.file(join(outDir, 'llms', 'home.md')).text();
+    const llmMd = await readFile(join(outDir, 'llms', 'home.md'), 'utf-8');
     // Enriched frontmatter includes title, description, category, and url
     expect(llmMd).toContain('title: Getting Started');
     expect(llmMd).toContain('description: Learn how to get started with Vertz.');
@@ -211,7 +212,7 @@ Content here.
 
   it('enriches LLM frontmatter even when source has no frontmatter', async () => {
     await buildDocs({ projectDir: tempDir, outDir, baseUrl: 'https://docs.example.com' });
-    const llmMd = await Bun.file(join(outDir, 'llms', 'home.md')).text();
+    const llmMd = await readFile(join(outDir, 'llms', 'home.md'), 'utf-8');
     // Even without source frontmatter, the build injects category and url
     expect(llmMd).toContain('category: Start');
     expect(llmMd).toContain('url: https://docs.example.com/');
@@ -228,7 +229,7 @@ Content here.
     await buildDocs({ projectDir: tempDir, outDir });
     expect(existsSync(join(outDir, 'favicon.svg'))).toBe(true);
     expect(existsSync(join(outDir, 'logo', 'dark.svg'))).toBe(true);
-    const content = await Bun.file(join(outDir, 'favicon.svg')).text();
+    const content = await readFile(join(outDir, 'favicon.svg'), 'utf-8');
     expect(content).toBe('<svg>icon</svg>');
   });
 

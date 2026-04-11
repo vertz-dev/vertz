@@ -835,3 +835,25 @@ async fn test_node_buffer_import() {
     assert_eq!(output.stdout[1], "hex: 68656c6c6f");
     assert_eq!(output.stdout[2], "isBuffer: true");
 }
+
+// --- __vtz_runtime identity marker ---
+
+#[test]
+fn test_vtz_runtime_identity_marker() {
+    let mut rt = VertzJsRuntime::new(VertzRuntimeOptions {
+        capture_output: true,
+        ..Default::default()
+    })
+    .unwrap();
+
+    rt.execute_script_void(
+        "<test>",
+        r#"
+        console.log("marker: " + globalThis.__vtz_runtime);
+    "#,
+    )
+    .unwrap();
+
+    let output = rt.captured_output();
+    assert_eq!(output.stdout[0], "marker: true");
+}

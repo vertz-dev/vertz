@@ -1,5 +1,6 @@
+import { createServer, type Server } from 'node:http';
 import { existsSync, readFileSync, statSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { extname, resolve } from 'node:path';
 import { loadDocsConfig } from '../config/load';
 import { extractHeadings } from '../mdx/extract-headings';
 import { parseFrontmatter } from '../mdx/frontmatter';
@@ -19,6 +20,26 @@ export interface DocsDevServer {
   hostname: string;
   stop(): void;
 }
+
+/** Simple MIME type lookup for static file serving. */
+const MIME_TYPES: Record<string, string> = {
+  '.html': 'text/html',
+  '.css': 'text/css',
+  '.js': 'application/javascript',
+  '.json': 'application/json',
+  '.png': 'image/png',
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.gif': 'image/gif',
+  '.svg': 'image/svg+xml',
+  '.ico': 'image/x-icon',
+  '.woff': 'font/woff',
+  '.woff2': 'font/woff2',
+  '.ttf': 'font/ttf',
+  '.txt': 'text/plain',
+  '.xml': 'application/xml',
+  '.webp': 'image/webp',
+};
 
 /**
  * Read frontmatter from all page MDX files and return a map of
@@ -61,6 +82,7 @@ function readPageFrontmatter(
  */
 export async function createDocsDevServer(options: DocsDevServerOptions): Promise<DocsDevServer> {
   const { projectDir, host = 'localhost' } = options;
+  const port = options.port ?? 3001;
   const pagesDir = resolve(projectDir, 'pages');
 
   const config = await loadDocsConfig(projectDir);
@@ -74,106 +96,105 @@ export async function createDocsDevServer(options: DocsDevServerOptions): Promis
   // Read frontmatter from all pages at startup
   const { pageTitles, pageDescriptions } = readPageFrontmatter(pagesDir, routes);
 
-  const sseClients = new Set<ReadableStreamController<Uint8Array>>();
+  const sseClients = new Set<import('node:http').ServerResponse>();
 
-  const server = Bun.serve({
-    port: options.port ?? 3001,
-    hostname: host,
-    async fetch(req) {
-      const url = new URL(req.url);
-      const pathname = url.pathname;
+  const server: Server = createServer(async (req, res) => {
+    const pathname = new URL(req.url ?? '/', `http://${host}:${port}`).pathname;
 
-      // SSE endpoint for live reload
-      if (pathname === '/__docs_reload') {
-        let streamController: ReadableStreamDefaultController<Uint8Array>;
-        const stream = new ReadableStream<Uint8Array>({
-          start(controller) {
-            streamController = controller;
-            sseClients.add(controller);
-          },
-          cancel() {
-            sseClients.delete(streamController);
-          },
-        });
-        return new Response(stream, {
-          headers: {
-            'content-type': 'text/event-stream',
-            'cache-control': 'no-cache',
-            connection: 'keep-alive',
-          },
-        });
+    // SSE endpoint for live reload
+    if (pathname === '/__docs_reload') {
+      res.writeHead(200, {
+        'content-type': 'text/event-stream',
+        'cache-control': 'no-cache',
+        connection: 'keep-alive',
+      });
+      sseClients.add(res);
+      req.on('close', () => {
+        sseClients.delete(res);
+      });
+      return;
+    }
+
+    // Find matching route
+    const route = routeMap.get(pathname);
+    if (!route) {
+      // Try serving from public/ directory
+      const publicPath = resolve(projectDir, 'public', pathname.slice(1));
+      if (
+        publicPath.startsWith(resolve(projectDir, 'public')) &&
+        existsSync(publicPath) &&
+        statSync(publicPath).isFile()
+      ) {
+        const content = readFileSync(publicPath);
+        const mime = MIME_TYPES[extname(publicPath)] ?? 'application/octet-stream';
+        res.writeHead(200, { 'content-type': mime });
+        res.end(content);
+        return;
+      }
+      res.writeHead(404, { 'content-type': 'text/plain' });
+      res.end('Not Found');
+      return;
+    }
+
+    try {
+      const normalizedFilePath = route.filePath.endsWith('.mdx')
+        ? route.filePath
+        : `${route.filePath}.mdx`;
+      const mdxPath = resolve(pagesDir, normalizedFilePath);
+
+      // Guard against path traversal
+      if (!mdxPath.startsWith(pagesDir)) {
+        res.writeHead(403, { 'content-type': 'text/plain' });
+        res.end('Forbidden');
+        return;
       }
 
-      // Find matching route
-      const route = routeMap.get(pathname);
-      if (!route) {
-        // Try serving from public/ directory
-        const publicPath = resolve(projectDir, 'public', pathname.slice(1));
-        if (
-          publicPath.startsWith(resolve(projectDir, 'public')) &&
-          existsSync(publicPath) &&
-          statSync(publicPath).isFile()
-        ) {
-          const file = Bun.file(publicPath);
-          return new Response(file);
-        }
-        return new Response('Not Found', { status: 404 });
-      }
+      const source = readFileSync(mdxPath, 'utf-8');
+      const contentHtml = await compileMdxToHtml(source);
+      const headings = extractHeadings(source);
 
-      try {
-        const normalizedFilePath = route.filePath.endsWith('.mdx')
-          ? route.filePath
-          : `${route.filePath}.mdx`;
-        const mdxPath = resolve(pagesDir, normalizedFilePath);
+      // Get frontmatter title and description for this page
+      const pageTitle = pageTitles[route.filePath];
+      const description = pageDescriptions[route.filePath];
 
-        // Guard against path traversal
-        if (!mdxPath.startsWith(pagesDir)) {
-          return new Response('Forbidden', { status: 403 });
-        }
-
-        const source = readFileSync(mdxPath, 'utf-8');
-        const contentHtml = await compileMdxToHtml(source);
-        const headings = extractHeadings(source);
-
-        // Get frontmatter title and description for this page
-        const pageTitle = pageTitles[route.filePath];
-        const description = pageDescriptions[route.filePath];
-
-        const html = renderPageHtml({
-          config,
-          route,
-          contentHtml,
-          headings,
-          pageTitle,
-          description,
-          pageTitles,
-        });
-        return new Response(html, {
-          headers: { 'content-type': 'text/html; charset=utf-8' },
-        });
-      } catch (error) {
-        const message = error instanceof Error ? error.message : String(error);
-        return new Response(`<h1>Error</h1><pre>${escapeHtml(message)}</pre>`, {
-          status: 500,
-          headers: { 'content-type': 'text/html' },
-        });
-      }
-    },
+      const html = renderPageHtml({
+        config,
+        route,
+        contentHtml,
+        headings,
+        pageTitle,
+        description,
+        pageTitles,
+      });
+      res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' });
+      res.end(html);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      res.writeHead(500, { 'content-type': 'text/html' });
+      res.end(`<h1>Error</h1><pre>${escapeHtml(message)}</pre>`);
+    }
   });
 
-  return {
-    port: server.port ?? options.port ?? 3001,
-    hostname: server.hostname ?? host,
-    stop() {
-      for (const client of sseClients) {
-        try {
-          client.close();
-        } catch {
-          // Client already closed
-        }
-      }
-      sseClients.clear();
-      server.stop();
-    },
-  };
+  return new Promise((resolvePromise) => {
+    server.listen(port, host, () => {
+      const addr = server.address();
+      const actualPort = typeof addr === 'object' && addr ? addr.port : port;
+
+      resolvePromise({
+        port: actualPort,
+        hostname: host,
+        stop() {
+          for (const client of sseClients) {
+            try {
+              client.end();
+            } catch {
+              // Client already closed
+            }
+          }
+          sseClients.clear();
+          server.close();
+        },
+      });
+    });
+  });
 }

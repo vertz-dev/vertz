@@ -5,7 +5,7 @@
  * and returns new FontDescriptor objects with local `src` paths.
  */
 
-import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, renameSync, statSync, writeFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { join, relative } from 'node:path';
 import type { FontDescriptor, GoogleFontMeta } from '@vertz/ui/css';
@@ -160,8 +160,8 @@ function isCacheValid(cacheDir: string, entry: ManifestEntry): boolean {
   for (let i = 0; i < entry.files.length; i++) {
     const filePath = join(cacheDir, entry.files[i]!);
     if (!existsSync(filePath)) return false;
-    const stat = Bun.file(filePath).size;
-    if (stat < MIN_WOFF2_SIZE) return false;
+    const fileSize = statSync(filePath).size;
+    if (fileSize < MIN_WOFF2_SIZE) return false;
   }
   return true;
 }

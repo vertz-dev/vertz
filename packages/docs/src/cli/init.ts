@@ -1,4 +1,5 @@
 import { existsSync, mkdirSync } from 'node:fs';
+import { writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
 const CONFIG_TEMPLATE = `import { defineDocsConfig } from '@vertz/docs';
@@ -78,16 +79,16 @@ export async function initDocs(projectDir: string): Promise<void> {
 
   const configPath = join(projectDir, 'vertz.config.ts');
   if (!existsSync(configPath)) {
-    await Bun.write(configPath, CONFIG_TEMPLATE);
+    await writeFile(configPath, CONFIG_TEMPLATE);
   }
 
   const indexPath = join(pagesDir, 'index.mdx');
   if (!existsSync(indexPath)) {
-    await Bun.write(indexPath, INDEX_TEMPLATE);
+    await writeFile(indexPath, INDEX_TEMPLATE);
   }
 
   const quickstartPath = join(pagesDir, 'quickstart.mdx');
   if (!existsSync(quickstartPath)) {
-    await Bun.write(quickstartPath, QUICKSTART_TEMPLATE);
+    await writeFile(quickstartPath, QUICKSTART_TEMPLATE);
   }
 }

@@ -22,6 +22,7 @@ use super::ops::encoding;
 use super::ops::env;
 use super::ops::fetch;
 use super::ops::fs;
+use super::ops::http_serve;
 use super::ops::microtask;
 use super::ops::os;
 use super::ops::path;
@@ -113,6 +114,7 @@ impl VertzJsRuntime {
         ops.extend(sqlite::op_decls());
         ops.extend(e2e::op_decls());
         ops.extend(signals::op_decls());
+        ops.extend(http_serve::op_decls());
         ops
     }
 
@@ -120,8 +122,12 @@ impl VertzJsRuntime {
     ///
     /// Single source of truth — used by `new()`, the test snapshot, and
     /// the production snapshot.
+    /// Runtime identity marker — stable contract for runtime detection.
+    const RUNTIME_MARKER_JS: &'static str = "globalThis.__vtz_runtime = true;";
+
     pub(crate) fn bootstrap_js() -> String {
         [
+            Self::RUNTIME_MARKER_JS,
             clone::CLONE_BOOTSTRAP_JS,
             console::CONSOLE_BOOTSTRAP_JS,
             timers::TIMERS_BOOTSTRAP_JS,
@@ -137,6 +143,7 @@ impl VertzJsRuntime {
             streams::STREAMS_BOOTSTRAP_JS,
             os::OS_BOOTSTRAP_JS,
             fs::FS_BOOTSTRAP_JS,
+            http_serve::HTTP_SERVE_BOOTSTRAP_JS,
         ]
         .join("\n")
     }
@@ -163,6 +170,7 @@ impl VertzJsRuntime {
                 state.put(performance::PerformanceState { start_time });
                 state.put(crypto_subtle::CryptoKeyStore::default());
                 state.put(sqlite::SqliteStore::default());
+                state.put(http_serve::HttpServeState::default());
             })),
             ..Default::default()
         };
@@ -227,6 +235,7 @@ impl VertzJsRuntime {
                 state.put(performance::PerformanceState { start_time });
                 state.put(crypto_subtle::CryptoKeyStore::default());
                 state.put(sqlite::SqliteStore::default());
+                state.put(http_serve::HttpServeState::default());
             })),
             ..Default::default()
         };
@@ -431,6 +440,7 @@ impl VertzJsRuntime {
                 state.put(performance::PerformanceState { start_time });
                 state.put(crypto_subtle::CryptoKeyStore::default());
                 state.put(sqlite::SqliteStore::default());
+                state.put(http_serve::HttpServeState::default());
             })),
             ..Default::default()
         };
