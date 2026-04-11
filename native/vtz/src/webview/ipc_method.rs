@@ -37,7 +37,9 @@ pub struct FsRenameParams {
 #[derive(Debug, Deserialize)]
 pub struct ShellExecuteParams {
     pub command: String,
-    pub args: Vec<String>,
+    pub args: Option<Vec<String>>,
+    pub cwd: Option<String>,
+    pub env: Option<std::collections::HashMap<String, String>>,
 }
 
 // ── Clipboard params ──
@@ -107,6 +109,14 @@ pub struct AppWindowSetFullscreenParams {
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
+pub struct ShellOutputResponse {
+    pub code: i32,
+    pub stdout: String,
+    pub stderr: String,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct FileStatResponse {
     pub size: u64,
     pub is_file: bool,
@@ -123,13 +133,6 @@ pub struct DirEntryResponse {
     pub name: String,
     pub is_file: bool,
     pub is_dir: bool,
-}
-
-#[derive(Debug, Serialize)]
-pub struct ShellOutputResponse {
-    pub code: i32,
-    pub stdout: String,
-    pub stderr: String,
 }
 
 #[derive(Debug, Serialize)]
@@ -309,10 +312,19 @@ mod tests {
 
     #[test]
     fn parse_shell_execute() {
-        let params = serde_json::json!({"command": "git", "args": ["status"]});
+        let params = serde_json::json!({"command": "echo", "args": ["hello"]});
         let method = IpcMethod::parse("shell.execute", params).unwrap();
         assert!(
-            matches!(method, IpcMethod::ShellExecute(p) if p.command == "git" && p.args == vec!["status"])
+            matches!(method, IpcMethod::ShellExecute(p) if p.command == "echo" && p.args == Some(vec!["hello".to_string()]))
+        );
+    }
+
+    #[test]
+    fn parse_shell_execute_minimal() {
+        let params = serde_json::json!({"command": "ls"});
+        let method = IpcMethod::parse("shell.execute", params).unwrap();
+        assert!(
+            matches!(method, IpcMethod::ShellExecute(p) if p.command == "ls" && p.args.is_none() && p.cwd.is_none() && p.env.is_none())
         );
     }
 
@@ -321,15 +333,26 @@ mod tests {
         let params = serde_json::json!({"command": "ls", "args": []});
         let method = IpcMethod::parse("shell.execute", params).unwrap();
         assert!(
-            matches!(method, IpcMethod::ShellExecute(p) if p.command == "ls" && p.args.is_empty())
+            matches!(method, IpcMethod::ShellExecute(p) if p.command == "ls" && p.args == Some(vec![]))
         );
     }
 
     #[test]
-    fn parse_shell_execute_missing_args_returns_error() {
-        let params = serde_json::json!({"command": "ls"});
-        let result = IpcMethod::parse("shell.execute", params);
-        assert!(result.is_err());
+    fn parse_shell_execute_with_cwd_and_env() {
+        let params = serde_json::json!({"command": "git", "args": ["status"], "cwd": "/tmp", "env": {"GIT_DIR": "/tmp/.git"}});
+        let method = IpcMethod::parse("shell.execute", params).unwrap();
+        match method {
+            IpcMethod::ShellExecute(p) => {
+                assert_eq!(p.command, "git");
+                assert_eq!(p.args, Some(vec!["status".to_string()]));
+                assert_eq!(p.cwd, Some("/tmp".to_string()));
+                assert_eq!(
+                    p.env.unwrap().get("GIT_DIR"),
+                    Some(&"/tmp/.git".to_string())
+                );
+            }
+            _ => panic!("expected ShellExecute"),
+        }
     }
 
     // ── Clipboard ──
