@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'bun:test';
+import { describe, expect, it } from '@vertz/test';
 import { createOrchestrator } from '../server';
 import type { SandboxClient } from '../lib/sandbox-client';
 import type { GitHubClient } from '../lib/github-client';

@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from '@vertz/test';
+import { afterEach, beforeEach, describe, expect, it, mock } from '@vertz/test';
 import { Carousel } from '../carousel';
 
 describe('Carousel', () => {
@@ -177,7 +177,7 @@ describe('Carousel', () => {
   });
 
   it('calls onSlideChange when slide changes', () => {
-    const onSlideChange = vi.fn();
+    const onSlideChange = mock();
     const { Slide, nextButton, viewport } = Carousel.Root({ onSlideChange });
     viewport.appendChild(Slide());
     viewport.appendChild(Slide());

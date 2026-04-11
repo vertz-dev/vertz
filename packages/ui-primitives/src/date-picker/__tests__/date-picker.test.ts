@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from '@vertz/test';
+import { afterEach, beforeEach, describe, expect, it, mock } from '@vertz/test';
 import { resetIdCounter } from '../../utils/id';
 import { DatePicker } from '../date-picker';
 
@@ -78,7 +78,7 @@ describe('DatePicker', () => {
   });
 
   it('calls onOpenChange when opened', () => {
-    const onOpenChange = vi.fn();
+    const onOpenChange = mock();
     const result = DatePicker.Root({ onOpenChange });
     container.appendChild(result.trigger);
     container.appendChild(result.content);
@@ -87,7 +87,7 @@ describe('DatePicker', () => {
   });
 
   it('single mode: selecting a date closes popover and updates trigger', () => {
-    const onValueChange = vi.fn();
+    const onValueChange = mock();
     const result = DatePicker.Root({
       defaultMonth: new Date(2025, 5, 1),
       formatDate: (d) =>

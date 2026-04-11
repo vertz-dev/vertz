@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, test, vi } from '@vertz/test';
+import { afterEach, describe, expect, test, mock } from '@vertz/test';
 import { signal } from '../../runtime/signal';
 import { click, fillForm, press, submitForm, type } from '../interactions';
 import { findByTestId, findByText, queryByTestId, queryByText, waitFor } from '../queries';
@@ -172,7 +172,7 @@ describe('Testing Utilities', () => {
   // ─── Interactions ─────────────────────────────────────────────────────────
   describe('interactions', () => {
     test('click dispatches MouseEvent', async () => {
-      const handler = vi.fn();
+      const handler = mock();
       const btn = document.createElement('button');
       btn.addEventListener('click', handler);
 
@@ -185,8 +185,8 @@ describe('Testing Utilities', () => {
     });
 
     test('type sets value and dispatches events', async () => {
-      const inputHandler = vi.fn();
-      const changeHandler = vi.fn();
+      const inputHandler = mock();
+      const changeHandler = mock();
 
       const input = document.createElement('input');
       input.addEventListener('input', inputHandler);
@@ -227,8 +227,8 @@ describe('Testing Utilities', () => {
     });
 
     test('press dispatches keydown and keyup', async () => {
-      const keydownHandler = vi.fn();
-      const keyupHandler = vi.fn();
+      const keydownHandler = mock();
+      const keyupHandler = mock();
 
       document.body.addEventListener('keydown', keydownHandler);
       document.body.addEventListener('keyup', keyupHandler);
@@ -350,7 +350,7 @@ describe('Testing Utilities', () => {
   // ─── IT-8A-3: form interaction simulation ────────────────────────────────
   describe('form interaction simulation', () => {
     test('type into form fields and submit', async () => {
-      const submitted = vi.fn();
+      const submitted = mock();
 
       const formEl = document.createElement('form');
       formEl.addEventListener('submit', (e) => {
@@ -482,8 +482,8 @@ describe('Testing Utilities', () => {
       document.body.appendChild(formEl);
       cleanups.push(() => formEl.remove());
 
-      const inputHandler = vi.fn();
-      const changeHandler = vi.fn();
+      const inputHandler = mock();
+      const changeHandler = mock();
       input.addEventListener('input', inputHandler);
       input.addEventListener('change', changeHandler);
 
@@ -601,7 +601,7 @@ describe('Testing Utilities', () => {
   // ─── submitForm ────────────────────────────────────────────────────────────
   describe('submitForm', () => {
     test('triggers the form submit handler', async () => {
-      const handler = vi.fn((e: Event) => e.preventDefault());
+      const handler = mock((e: Event) => e.preventDefault());
       const formEl = document.createElement('form');
       formEl.addEventListener('submit', handler);
 
@@ -620,7 +620,7 @@ describe('Testing Utilities', () => {
       document.body.appendChild(wrapper);
       cleanups.push(() => wrapper.remove());
 
-      const bubbleHandler = vi.fn((e: Event) => e.preventDefault());
+      const bubbleHandler = mock((e: Event) => e.preventDefault());
       wrapper.addEventListener('submit', bubbleHandler);
 
       await submitForm(formEl);
@@ -656,7 +656,7 @@ describe('Testing Utilities', () => {
   // ─── IT-8A-3 (updated): fillForm + submitForm full lifecycle ───────────────
   describe('fillForm + submitForm lifecycle', () => {
     test('fillForm then submitForm exercises the full form lifecycle', async () => {
-      const submitted = vi.fn();
+      const submitted = mock();
 
       const formEl = document.createElement('form');
       formEl.addEventListener('submit', (e) => {

@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from '@vertz/test';
+import { describe, expect, it, vi, mock } from '@vertz/test';
 import { signal } from '@vertz/ui';
 import { bindSignal, createReactiveSprite, render } from './canvas';
 
@@ -128,7 +128,7 @@ describe('Feature: Canvas Reactivity', () => {
         it('Then the transform is called once per update, not more', () => {
           const sig = signal(5);
           const obj: Record<string, unknown> = { doubled: 0 };
-          const transform = vi.fn((v: number) => v * 2);
+          const transform = mock((v: number) => v * 2);
 
           const dispose = bindSignal(sig, obj, 'doubled', transform);
 
@@ -341,7 +341,7 @@ describe('Issue #445: Integration tests with real PixiJS objects', () => {
       // Since vi.doMock/vi.resetModules are not supported in bun,
       // we validate the DOM manipulation that render()/dispose() performs.
       const mockCanvas = document.createElement('canvas');
-      const destroySpy = vi.fn();
+      const destroySpy = mock();
 
       const container = document.createElement('div');
       document.body.appendChild(container);

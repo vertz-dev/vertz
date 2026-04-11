@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from '@vertz/test';
+import { describe, expect, it, mock } from '@vertz/test';
 import { Button } from '../button';
 
 describe('Button', () => {
@@ -9,14 +9,14 @@ describe('Button', () => {
   });
 
   it('calls onClick when clicked', () => {
-    const onClick = vi.fn();
+    const onClick = mock();
     const root = Button.Root({ onClick });
     root.click();
     expect(onClick).toHaveBeenCalledOnce();
   });
 
   it('does not call onClick when disabled', () => {
-    const onClick = vi.fn();
+    const onClick = mock();
     const root = Button.Root({ disabled: true, onClick });
     root.click();
     expect(onClick).not.toHaveBeenCalled();
@@ -29,7 +29,7 @@ describe('Button', () => {
   });
 
   it('activates on Enter key', () => {
-    const onClick = vi.fn();
+    const onClick = mock();
     const root = Button.Root({ onClick });
     document.body.appendChild(root);
 
@@ -40,7 +40,7 @@ describe('Button', () => {
   });
 
   it('activates on Space key', () => {
-    const onClick = vi.fn();
+    const onClick = mock();
     const root = Button.Root({ onClick });
     document.body.appendChild(root);
 

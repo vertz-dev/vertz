@@ -27,7 +27,7 @@ If you're interested in contributing code in the future, the best way to prepare
 If you want to run the project locally:
 
 ```bash
-# Requires Bun (https://bun.sh)
+# Requires vtz (https://vertz.dev)
 git clone https://github.com/vertz-dev/vertz.git
 cd vertz
 vtz install

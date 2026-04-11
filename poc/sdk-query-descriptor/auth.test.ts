@@ -4,7 +4,7 @@
  * Validates the auth abstraction works without exposing signals.
  */
 
-import { describe, expect, test } from 'bun:test';
+import { describe, expect, test } from '@vertz/test';
 import { createBearerAuthHandle } from './auth';
 import { createClient } from './simulated-sdk';
 

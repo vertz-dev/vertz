@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from '@vertz/test';
+import { afterEach, beforeEach, describe, expect, it } from '@vertz/test';
 import { ComposedSelect } from '../select-composed';
 
 describe('Composed Select', () => {
@@ -281,7 +281,7 @@ describe('Composed Select', () => {
 
   describe('Given a Select with duplicate Content sub-components', () => {
     it('Then warns about the duplicate', () => {
-      const spy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      const spy = spyOn(console, 'warn').mockImplementation(() => {});
 
       ComposedSelect({
         children: () => {

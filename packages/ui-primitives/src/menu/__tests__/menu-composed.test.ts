@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from '@vertz/test';
+import { afterEach, beforeEach, describe, expect, it, mock, spyOn } from '@vertz/test';
 import { popScope, pushScope, runCleanups } from '@vertz/ui/internals';
 import { ComposedMenu } from '../menu-composed';
 
@@ -246,7 +246,7 @@ describe('Composed Menu', () => {
 
   describe('Given a Menu with onOpenChange callback', () => {
     it('Then calls onOpenChange when the menu opens and closes', () => {
-      const onOpenChange = vi.fn();
+      const onOpenChange = mock();
       const btn = document.createElement('button');
 
       const root = ComposedMenu({
@@ -273,7 +273,7 @@ describe('Composed Menu', () => {
 
   describe('Given a Menu with duplicate Content sub-components', () => {
     it('Then warns about the duplicate', () => {
-      const spy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      const spy = spyOn(console, 'warn').mockImplementation(() => {});
       const btn = document.createElement('button');
 
       ComposedMenu({
@@ -402,7 +402,7 @@ describe('Composed Menu', () => {
     });
 
     it('Then selects item with Enter key', () => {
-      const onSelect = vi.fn();
+      const onSelect = mock();
       const btn = document.createElement('button');
 
       const root = ComposedMenu({

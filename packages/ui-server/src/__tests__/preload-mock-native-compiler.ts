@@ -10,7 +10,7 @@
  *
  * Added to bunfig.toml [test].preload.
  */
-import { mock } from 'bun:test';
+import { mock } from '@vertz/test';
 
 // ── Native compiler availability ────────────────────────────────
 

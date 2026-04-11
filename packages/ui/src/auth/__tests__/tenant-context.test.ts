@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, mock, vi } from '@vertz/test';
+import { afterEach, beforeEach, describe, expect, it, mock } from '@vertz/test';
 import { err, ok } from '@vertz/fetch';
 import { useContext } from '../../component/context';
 import type { SdkMethodWithMeta } from '../../form/form';
@@ -432,8 +432,8 @@ describe('TenantContext', () => {
       });
 
       it('invalidates tenant-scoped queries after successful switch', async () => {
-        const tenantRefetch = vi.fn();
-        const globalRefetch = vi.fn();
+        const tenantRefetch = mock();
+        const globalRefetch = mock();
 
         registerActiveQuery(
           { entityType: 'tasks', kind: 'list', tenantScoped: true },
@@ -464,7 +464,7 @@ describe('TenantContext', () => {
       });
 
       it('does NOT invalidate queries when switch fails', async () => {
-        const tenantRefetch = vi.fn();
+        const tenantRefetch = mock();
 
         registerActiveQuery(
           { entityType: 'tasks', kind: 'list', tenantScoped: true },

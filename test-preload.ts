@@ -8,7 +8,7 @@
  * vi.mock(specifier, factory) — Bun supports this natively since v1.1.x as an alias
  * for mock.module(). No polyfill needed.
  */
-import { vi } from 'bun:test';
+import { vi } from '@vertz/test';
 
 if (typeof vi.hoisted !== 'function') {
   // @ts-expect-error — extending vi with vitest-compatible hoisted()

@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from '@vertz/test';
+import { afterEach, beforeEach, describe, expect, it, mock } from '@vertz/test';
 import { Combobox } from '../combobox';
 
 describe('Combobox', () => {
@@ -68,7 +68,7 @@ describe('Combobox', () => {
   });
 
   it('selects option with Enter', () => {
-    const onValueChange = vi.fn();
+    const onValueChange = mock();
     const { input, listbox, state, Option } = Combobox.Root({ onValueChange });
     container.appendChild(input);
     container.appendChild(listbox);
@@ -85,7 +85,7 @@ describe('Combobox', () => {
   });
 
   it('selects option on click', () => {
-    const onValueChange = vi.fn();
+    const onValueChange = mock();
     const { input, listbox, state, Option } = Combobox.Root({ onValueChange });
     container.appendChild(input);
     container.appendChild(listbox);
@@ -113,7 +113,7 @@ describe('Combobox', () => {
   });
 
   it('calls onInputChange', () => {
-    const onInputChange = vi.fn();
+    const onInputChange = mock();
     const { input, listbox } = Combobox.Root({ onInputChange });
     container.appendChild(input);
     container.appendChild(listbox);

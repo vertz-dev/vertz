@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from '@vertz/test';
+import { afterEach, beforeEach, describe, expect, it, mock } from '@vertz/test';
 import { Select } from '../select';
 
 describe('Select', () => {
@@ -53,7 +53,7 @@ describe('Select', () => {
   });
 
   it('selects item on click', () => {
-    const onValueChange = vi.fn();
+    const onValueChange = mock();
     const { trigger, content, state, Item } = Select.Root({ onValueChange });
     container.appendChild(trigger);
     container.appendChild(content);
@@ -89,7 +89,7 @@ describe('Select', () => {
   });
 
   it('selects with Enter key', () => {
-    const onValueChange = vi.fn();
+    const onValueChange = mock();
     const { trigger, content, state, Item } = Select.Root({ onValueChange });
     container.appendChild(trigger);
     container.appendChild(content);

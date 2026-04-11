@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from '@vertz/test';
+import { afterEach, beforeEach, describe, expect, it, mock } from '@vertz/test';
 import { Menu } from '../menu';
 
 describe('Menu', () => {
@@ -42,7 +42,7 @@ describe('Menu', () => {
   });
 
   it('calls onSelect when item is clicked', () => {
-    const onSelect = vi.fn();
+    const onSelect = mock();
     const { trigger, content, Item } = Menu.Root({ onSelect });
     container.appendChild(trigger);
     container.appendChild(content);
@@ -89,7 +89,7 @@ describe('Menu', () => {
   });
 
   it('activates item with Enter key', () => {
-    const onSelect = vi.fn();
+    const onSelect = mock();
     const { trigger, content, Item } = Menu.Root({ onSelect });
     container.appendChild(trigger);
     container.appendChild(content);

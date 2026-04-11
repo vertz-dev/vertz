@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, test, vi } from '@vertz/test';
+import { afterEach, beforeEach, describe, expect, test, mock } from '@vertz/test';
 import { computed, domEffect } from '../../runtime/signal';
 import { setReadValueCallback } from '../../runtime/tracking';
 import { createTestSSRContext, disableTestSSR, enableTestSSR } from '../../ssr/test-ssr-helpers';
@@ -85,7 +85,7 @@ describe('router.searchParams signal', () => {
   });
 
   test('search params schema.parse is called only once per navigation (no double parsing)', async () => {
-    const parseSpy = vi.fn((data: unknown) => {
+    const parseSpy = mock((data: unknown) => {
       const raw = data as Record<string, string>;
       return { ok: true as const, data: { page: Number(raw.page ?? '1') } };
     });

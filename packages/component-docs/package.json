@@ -4,10 +4,10 @@
   "type": "module",
   "scripts": {
     "dev": "vtz dev",
-    "build": "bun node_modules/@vertz/cli/dist/vertz.js build",
+    "build": "vtz run node_modules/@vertz/cli/dist/vertz.js build",
     "typecheck": "tsgo --noEmit",
-    "deploy": "bun run build && bunx wrangler deploy",
-    "deploy:preview": "bun run build && bunx wrangler deploy --env preview"
+    "deploy": "vtz run build && vtzx wrangler deploy",
+    "deploy:preview": "vtz run build && vtzx wrangler deploy --env preview"
   },
   "dependencies": {
     "@vertz/mdx": "workspace:*",
@@ -18,6 +18,7 @@
     "shiki": "^4.0.1"
   },
   "devDependencies": {
+    "@types/node": "^25.3.1",
     "@vertz/cli": "workspace:*",
     "@vertz/test": "workspace:*",
     "bun-types": "^1.3.9",

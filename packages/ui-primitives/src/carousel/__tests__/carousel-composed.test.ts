@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from '@vertz/test';
+import { afterEach, beforeEach, describe, expect, it, mock } from '@vertz/test';
 import { ComposedCarousel } from '../carousel-composed';
 
 function renderCarousel(
@@ -274,7 +274,7 @@ describe('Composed Carousel', () => {
     });
 
     it('Then keyboard navigation stops at first slide when loop is disabled (horizontal)', () => {
-      const onSlideChange = vi.fn();
+      const onSlideChange = mock();
       const root = renderCarousel(['S1', 'S2', 'S3'], { onSlideChange });
       container.appendChild(root);
 
@@ -287,7 +287,7 @@ describe('Composed Carousel', () => {
     });
 
     it('Then keyboard navigation stops at last slide when loop is disabled (horizontal)', () => {
-      const onSlideChange = vi.fn();
+      const onSlideChange = mock();
       const root = renderCarousel(['S1', 'S2', 'S3'], { onSlideChange });
       container.appendChild(root);
 
@@ -305,7 +305,7 @@ describe('Composed Carousel', () => {
     });
 
     it('Then keyboard navigation stops at first slide when loop is disabled (vertical)', () => {
-      const onSlideChange = vi.fn();
+      const onSlideChange = mock();
       const root = renderCarousel(['S1', 'S2', 'S3'], {
         orientation: 'vertical',
         onSlideChange,
@@ -321,7 +321,7 @@ describe('Composed Carousel', () => {
     });
 
     it('Then keyboard navigation stops at last slide when loop is disabled (vertical)', () => {
-      const onSlideChange = vi.fn();
+      const onSlideChange = mock();
       const root = renderCarousel(['S1', 'S2', 'S3'], {
         orientation: 'vertical',
         onSlideChange,
@@ -342,7 +342,7 @@ describe('Composed Carousel', () => {
     });
 
     it('Then cross-axis keys are ignored in horizontal orientation', () => {
-      const onSlideChange = vi.fn();
+      const onSlideChange = mock();
       const root = renderCarousel(['S1', 'S2', 'S3'], { onSlideChange });
       container.appendChild(root);
 
@@ -355,7 +355,7 @@ describe('Composed Carousel', () => {
     });
 
     it('Then cross-axis keys are ignored in vertical orientation', () => {
-      const onSlideChange = vi.fn();
+      const onSlideChange = mock();
       const root = renderCarousel(['S1', 'S2', 'S3'], {
         orientation: 'vertical',
         onSlideChange,
@@ -371,7 +371,7 @@ describe('Composed Carousel', () => {
     });
 
     it('Then keyboard navigation triggers onSlideChange', () => {
-      const onSlideChange = vi.fn();
+      const onSlideChange = mock();
       const root = renderCarousel(['S1', 'S2', 'S3'], { onSlideChange });
       container.appendChild(root);
 
@@ -382,7 +382,7 @@ describe('Composed Carousel', () => {
     });
 
     it('Then keyboard loop wrap triggers onSlideChange', () => {
-      const onSlideChange = vi.fn();
+      const onSlideChange = mock();
       const root = renderCarousel(['S1', 'S2', 'S3'], { loop: true, onSlideChange });
       container.appendChild(root);
 
@@ -396,7 +396,7 @@ describe('Composed Carousel', () => {
 
   describe('Given a Carousel with an onSlideChange callback', () => {
     it('Then calls onSlideChange when slide changes', () => {
-      const onSlideChange = vi.fn();
+      const onSlideChange = mock();
       const root = renderCarousel(['S1', 'S2'], { onSlideChange });
       container.appendChild(root);
 

@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from '@vertz/test';
+import { afterEach, describe, expect, it } from '@vertz/test';
 import {
   claimComment,
   claimElement,
@@ -70,7 +70,7 @@ describe('hydration-context', () => {
       root.insertBefore(extension, root.firstChild);
       startHydration(root);
 
-      const debugSpy = vi.spyOn(console, 'debug').mockImplementation(() => {});
+      const debugSpy = spyOn(console, 'debug').mockImplementation(() => {});
       const span = claimElement('span');
       expect(span).not.toBeNull();
       expect(span?.tagName).toBe('SPAN');
@@ -85,7 +85,7 @@ describe('hydration-context', () => {
       root.innerHTML = '<span></span>';
       startHydration(root);
 
-      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      const warnSpy = spyOn(console, 'warn').mockImplementation(() => {});
       const result = claimElement('article');
       expect(result).toBeNull();
       expect(warnSpy).toHaveBeenCalledWith(
@@ -114,7 +114,7 @@ describe('hydration-context', () => {
       startHydration(root);
 
       // claimText should NOT skip past the comment to reach "after"
-      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      const warnSpy = spyOn(console, 'warn').mockImplementation(() => {});
       const text = claimText();
       expect(text).toBeNull();
       warnSpy.mockRestore();
@@ -137,7 +137,7 @@ describe('hydration-context', () => {
       startHydration(root);
 
       // claimText should NOT skip past the <span> to reach "world"
-      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      const warnSpy = spyOn(console, 'warn').mockImplementation(() => {});
       const text = claimText();
       expect(text).toBeNull();
       warnSpy.mockRestore();
@@ -158,7 +158,7 @@ describe('hydration-context', () => {
       root.innerHTML = '<span></span>';
       startHydration(root);
 
-      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      const warnSpy = spyOn(console, 'warn').mockImplementation(() => {});
       const result = claimText();
       expect(result).toBeNull();
       warnSpy.mockRestore();
@@ -173,7 +173,7 @@ describe('hydration-context', () => {
       root.appendChild(document.createTextNode('after'));
       startHydration(root);
 
-      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      const warnSpy = spyOn(console, 'warn').mockImplementation(() => {});
       // claimText should skip PI, then stop at the comment node
       const text = claimText();
       expect(text).toBeNull();
@@ -244,7 +244,7 @@ describe('hydration-context', () => {
       root.innerHTML = '<span></span>';
       startHydration(root);
 
-      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      const warnSpy = spyOn(console, 'warn').mockImplementation(() => {});
       const result = claimComment();
       expect(result).toBeNull();
       warnSpy.mockRestore();
@@ -332,7 +332,7 @@ describe('hydration-context', () => {
       root.innerHTML = '<div></div>';
       startHydration(root);
 
-      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      const warnSpy = spyOn(console, 'warn').mockImplementation(() => {});
       exitChildren(); // No matching enterChildren — stack is empty
       expect(warnSpy).toHaveBeenCalledWith(
         expect.stringContaining('exitChildren() called with empty stack'),
@@ -350,8 +350,8 @@ describe('hydration-context', () => {
       // Claim only the first node, leaving <p> unclaimed
       claimElement('span');
 
-      const debugSpy = vi.spyOn(console, 'debug').mockImplementation(() => {});
-      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      const debugSpy = spyOn(console, 'debug').mockImplementation(() => {});
+      const warnSpy = spyOn(console, 'warn').mockImplementation(() => {});
       endHydration();
       expect(debugSpy).toHaveBeenCalledWith(
         '[hydrate] Hydration ended with unclaimed nodes remaining. ' +
@@ -370,7 +370,7 @@ describe('hydration-context', () => {
       enterChildren(div);
       // Do NOT call exitChildren — stack is unbalanced
 
-      const debugSpy = vi.spyOn(console, 'debug').mockImplementation(() => {});
+      const debugSpy = spyOn(console, 'debug').mockImplementation(() => {});
       endHydration();
       expect(debugSpy).toHaveBeenCalledWith(
         expect.stringContaining('unbalanced cursor stack (depth: 1)'),
@@ -386,7 +386,7 @@ describe('hydration-context', () => {
       // Claim all nodes
       claimElement('span');
 
-      const debugSpy = vi.spyOn(console, 'debug').mockImplementation(() => {});
+      const debugSpy = spyOn(console, 'debug').mockImplementation(() => {});
       endHydration();
       expect(debugSpy).not.toHaveBeenCalled();
       debugSpy.mockRestore();
@@ -402,7 +402,7 @@ describe('hydration-context', () => {
       claimElement('span');
       claimElement('p');
 
-      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      const warnSpy = spyOn(console, 'warn').mockImplementation(() => {});
       endHydration();
 
       // No unclaimed-node warnings
@@ -422,8 +422,8 @@ describe('hydration-context', () => {
       // Claim only <span>, leave <p> unclaimed
       claimElement('span');
 
-      const debugSpy = vi.spyOn(console, 'debug').mockImplementation(() => {});
-      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      const debugSpy = spyOn(console, 'debug').mockImplementation(() => {});
+      const warnSpy = spyOn(console, 'warn').mockImplementation(() => {});
       endHydration();
 
       expect(warnSpy).toHaveBeenCalledWith(expect.stringMatching(/1 SSR node\(s\) not claimed/));
@@ -446,7 +446,7 @@ describe('hydration-context', () => {
       // Claim the comment anchor (as __child would)
       claimComment();
 
-      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      const warnSpy = spyOn(console, 'warn').mockImplementation(() => {});
       endHydration();
 
       // <p> after the claimed <!--child--> comment should NOT trigger an unclaimed warning
@@ -474,7 +474,7 @@ describe('hydration-context', () => {
       // Claim the <!--child--> anchor
       claimComment();
 
-      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      const warnSpy = spyOn(console, 'warn').mockImplementation(() => {});
       endHydration();
 
       // "csr" text and <!--/child--> should be skipped (CSR-managed).
@@ -494,8 +494,8 @@ describe('hydration-context', () => {
       startHydration(root);
 
       // Do NOT claim anything
-      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
-      const debugSpy = vi.spyOn(console, 'debug').mockImplementation(() => {});
+      const warnSpy = spyOn(console, 'warn').mockImplementation(() => {});
+      const debugSpy = spyOn(console, 'debug').mockImplementation(() => {});
       endHydration();
 
       expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('<!-- orphan -->'));
@@ -513,7 +513,7 @@ describe('hydration-context', () => {
 
       claimElement('span');
 
-      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      const warnSpy = spyOn(console, 'warn').mockImplementation(() => {});
       endHydration();
 
       // grammarly-extension should NOT trigger an unclaimed warning
@@ -532,8 +532,8 @@ describe('hydration-context', () => {
       root.innerHTML = '<div id="target"></div><p></p>';
       startHydration(root);
 
-      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
-      const debugSpy = vi.spyOn(console, 'debug').mockImplementation(() => {});
+      const warnSpy = spyOn(console, 'warn').mockImplementation(() => {});
+      const debugSpy = spyOn(console, 'debug').mockImplementation(() => {});
 
       // Try to claim a <span> — doesn't exist. Should fail without corrupting cursor.
       const span = claimElement('span');
@@ -553,8 +553,8 @@ describe('hydration-context', () => {
       root.innerHTML = '<div></div><p></p><section></section>';
       startHydration(root);
 
-      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
-      const debugSpy = vi.spyOn(console, 'debug').mockImplementation(() => {});
+      const warnSpy = spyOn(console, 'warn').mockImplementation(() => {});
+      const debugSpy = spyOn(console, 'debug').mockImplementation(() => {});
 
       // Try to claim a <span> — not present. claimElement scans all siblings.
       const span = claimElement('span');
@@ -575,7 +575,7 @@ describe('hydration-context', () => {
       root.appendChild(document.createElement('span'));
       startHydration(root);
 
-      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      const warnSpy = spyOn(console, 'warn').mockImplementation(() => {});
 
       // Try to claim text — only comment + element exist. Should fail without corruption.
       const text = claimText();
@@ -594,8 +594,8 @@ describe('hydration-context', () => {
       root.innerHTML = '<span></span><p></p>';
       startHydration(root);
 
-      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
-      const debugSpy = vi.spyOn(console, 'debug').mockImplementation(() => {});
+      const warnSpy = spyOn(console, 'warn').mockImplementation(() => {});
+      const debugSpy = spyOn(console, 'debug').mockImplementation(() => {});
 
       // Try to claim a comment — doesn't exist. Should fail without corrupting cursor.
       const comment = claimComment();
@@ -623,8 +623,8 @@ describe('hydration-context', () => {
       expect(radiogroup).not.toBeNull();
       enterChildren(radiogroup);
 
-      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
-      const debugSpy = vi.spyOn(console, 'debug').mockImplementation(() => {});
+      const warnSpy = spyOn(console, 'warn').mockImplementation(() => {});
+      const debugSpy = spyOn(console, 'debug').mockImplementation(() => {});
 
       // Slot marker tries to claim <span> inside radiogroup — only <div role="radio"> exists
       const span = claimElement('span');
@@ -664,8 +664,8 @@ describe('hydration-context', () => {
         '</div>';
       startHydration(root);
 
-      const debugSpy = vi.spyOn(console, 'debug').mockImplementation(() => {});
-      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      const debugSpy = spyOn(console, 'debug').mockImplementation(() => {});
+      const warnSpy = spyOn(console, 'warn').mockImplementation(() => {});
 
       // Step 1: Simulate resolveChildren — children thunk creates slot markers
       // Each slot marker calls __element('span') → claimElement('span') → fails
@@ -711,8 +711,8 @@ describe('hydration-context', () => {
         '<footer></footer>';
       startHydration(root);
 
-      const debugSpy = vi.spyOn(console, 'debug').mockImplementation(() => {});
-      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      const debugSpy = spyOn(console, 'debug').mockImplementation(() => {});
+      const warnSpy = spyOn(console, 'warn').mockImplementation(() => {});
 
       // Claim <main>
       const main = claimElement('main');
@@ -761,7 +761,7 @@ describe('hydration-context', () => {
 
         // isDebug() should return true via the globalThis path
         // claimElement emits debug logs when isDebug() is true
-        const debugSpy = vi.spyOn(console, 'debug').mockImplementation(() => {});
+        const debugSpy = spyOn(console, 'debug').mockImplementation(() => {});
         claimElement('span');
         expect(debugSpy).toHaveBeenCalledWith(expect.stringContaining('claimElement(<span>)'));
         debugSpy.mockRestore();
@@ -779,7 +779,7 @@ describe('hydration-context', () => {
         root.innerHTML = '<span></span>';
         startHydration(root);
 
-        const debugSpy = vi.spyOn(console, 'debug').mockImplementation(() => {});
+        const debugSpy = spyOn(console, 'debug').mockImplementation(() => {});
         claimElement('span');
         // No debug output when isDebug() returns false
         expect(debugSpy).not.toHaveBeenCalled();

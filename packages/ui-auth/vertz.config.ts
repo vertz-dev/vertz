@@ -1,0 +1,5 @@
+export default {
+  test: {
+    preload: ['./happydom.ts', './test-compiler-plugin.ts'],
+  },
+};

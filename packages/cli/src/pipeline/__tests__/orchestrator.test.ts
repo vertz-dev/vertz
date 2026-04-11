@@ -1,22 +1,22 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from '@vertz/test';
+import { afterEach, beforeEach, describe, expect, it, vi, mock } from '@vertz/test';
 import { type PipelineConfig, PipelineOrchestrator } from '../orchestrator';
 
 // Mock the compiler and codegen modules
 vi.mock('@vertz/compiler', () => {
-  const mockGenerate = vi.fn().mockResolvedValue(undefined);
+  const mockGenerate = mock().mockResolvedValue(undefined);
 
   return {
-    createCompiler: vi.fn(() => ({
-      analyze: vi.fn().mockResolvedValue({
+    createCompiler: mock(() => ({
+      analyze: mock().mockResolvedValue({
         modules: [{ name: 'test', services: [], routes: [], schemas: [] }],
         routes: [],
         schemas: [],
         env: { variables: [] },
         middlewares: [],
       }),
-      validate: vi.fn().mockResolvedValue([]),
-      compile: vi.fn().mockResolvedValue({ success: true, diagnostics: [] }),
-      getConfig: vi.fn().mockReturnValue({
+      validate: mock().mockResolvedValue([]),
+      compile: mock().mockResolvedValue({ success: true, diagnostics: [] }),
+      getConfig: mock().mockReturnValue({
         strict: false,
         forceGenerate: false,
         compiler: {
@@ -37,7 +37,7 @@ vi.mock('@vertz/compiler', () => {
         },
       }),
     })),
-    Compiler: vi.fn(),
+    Compiler: mock(),
     OpenAPIGenerator: class {
       generate = mockGenerate;
     },
@@ -45,18 +45,18 @@ vi.mock('@vertz/compiler', () => {
 });
 
 vi.mock('@vertz/codegen', () => ({
-  createCodegenPipeline: vi.fn(() => ({
-    validate: vi.fn().mockReturnValue([]),
-    generate: vi.fn().mockReturnValue({
+  createCodegenPipeline: mock(() => ({
+    validate: mock().mockReturnValue([]),
+    generate: mock().mockReturnValue({
       files: [{ path: 'test.ts', content: 'export type Test = string;' }],
       fileCount: 1,
       generators: ['typescript'],
       incremental: { written: ['test.ts'], skipped: [], removed: [] },
     }),
-    resolveOutputDir: vi.fn().mockReturnValue('.vertz/generated'),
-    resolveConfig: vi.fn((config) => config),
+    resolveOutputDir: mock().mockReturnValue('.vertz/generated'),
+    resolveConfig: mock((config) => config),
   })),
-  generate: vi.fn().mockResolvedValue({
+  generate: mock().mockResolvedValue({
     files: [{ path: 'test.ts', content: 'export type Test = string;' }],
     fileCount: 1,
     generators: ['typescript'],
@@ -64,21 +64,21 @@ vi.mock('@vertz/codegen', () => ({
   }),
 }));
 
-const mockCreateVertzBunPlugin = vi.fn(() => ({
-  plugin: { name: 'vertz-bun-plugin', setup: vi.fn() },
+const mockCreateVertzBunPlugin = mock(() => ({
+  plugin: { name: 'vertz-bun-plugin', setup: mock() },
   fileExtractions: new Map(),
   cssSidecarMap: new Map(),
-  updateManifest: vi.fn(() => ({ changed: false })),
-  deleteManifest: vi.fn(() => false),
-  reloadEntitySchema: vi.fn(() => false),
+  updateManifest: mock(() => ({ changed: false })),
+  deleteManifest: mock(() => false),
+  reloadEntitySchema: mock(() => false),
 }));
 
 vi.mock('@vertz/ui-server/bun-plugin', () => ({
   createVertzBunPlugin: mockCreateVertzBunPlugin,
 }));
 
-const mockRun = vi.fn().mockResolvedValue(undefined);
-const mockClose = vi.fn().mockResolvedValue(undefined);
+const mockRun = mock().mockResolvedValue(undefined);
+const mockClose = mock().mockResolvedValue(undefined);
 
 describe('PipelineOrchestrator', () => {
   let orchestrator: PipelineOrchestrator;

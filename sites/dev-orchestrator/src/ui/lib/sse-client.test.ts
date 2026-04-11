@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from 'bun:test';
+import { afterEach, describe, expect, it } from '@vertz/test';
 import type { StepProgressEvent, WorkflowStream } from './sse-client';
 
 // Mock EventSource for testing

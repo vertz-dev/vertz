@@ -155,9 +155,9 @@ Based on the ticket/design, the reviewer should expect:
 
 Verify these gates passed in CI:
 
-- [ ] `bun run typecheck` passed
-- [ ] `bun run lint` passed
-- [ ] `bun run test` passed
+- [ ] `vtz run typecheck` passed
+- [ ] `vtz run lint` passed
+- [ ] `vtz test` passed
 - [ ] No unrelated files changed (check git diff)
 
 ---

@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from '@vertz/test';
+import { afterEach, beforeEach, describe, expect, it, vi, mock } from '@vertz/test';
 import { createPipelineWatcher, createWatcher } from '../watcher';
 
 describe('createWatcher (pipeline)', () => {
@@ -11,7 +11,7 @@ describe('createWatcher (pipeline)', () => {
   });
 
   it('emits batched changes to registered handler after debounce', () => {
-    const handler = vi.fn();
+    const handler = mock();
     const watcher = createWatcher({ dir: '/tmp' });
     watcher.on('change', handler);
 
@@ -26,7 +26,7 @@ describe('createWatcher (pipeline)', () => {
   });
 
   it('adds category to each change in the batch', () => {
-    const handler = vi.fn();
+    const handler = mock();
     const watcher = createWatcher({ dir: '/tmp' });
     watcher.on('change', handler);
 
@@ -39,7 +39,7 @@ describe('createWatcher (pipeline)', () => {
   });
 
   it('batches rapid changes within debounce window', () => {
-    const handler = vi.fn();
+    const handler = mock();
     const watcher = createWatcher({ dir: '/tmp' });
     watcher.on('change', handler);
 
@@ -60,7 +60,7 @@ describe('createWatcher (pipeline)', () => {
   });
 
   it('ignores node_modules paths', () => {
-    const handler = vi.fn();
+    const handler = mock();
     const watcher = createWatcher({ dir: '/tmp' });
     watcher.on('change', handler);
 
@@ -72,7 +72,7 @@ describe('createWatcher (pipeline)', () => {
   });
 
   it('ignores .git paths', () => {
-    const handler = vi.fn();
+    const handler = mock();
     const watcher = createWatcher({ dir: '/tmp' });
     watcher.on('change', handler);
 
@@ -84,7 +84,7 @@ describe('createWatcher (pipeline)', () => {
   });
 
   it('ignores .vertz/generated paths', () => {
-    const handler = vi.fn();
+    const handler = mock();
     const watcher = createWatcher({ dir: '/tmp' });
     watcher.on('change', handler);
 
@@ -96,7 +96,7 @@ describe('createWatcher (pipeline)', () => {
   });
 
   it('ignores dist paths', () => {
-    const handler = vi.fn();
+    const handler = mock();
     const watcher = createWatcher({ dir: '/tmp' });
     watcher.on('change', handler);
 
@@ -108,7 +108,7 @@ describe('createWatcher (pipeline)', () => {
   });
 
   it('accepts custom ignore patterns', () => {
-    const handler = vi.fn();
+    const handler = mock();
     const watcher = createWatcher({ dir: '/tmp', ignorePatterns: ['/custom-ignore/'] });
     watcher.on('change', handler);
 
@@ -126,8 +126,8 @@ describe('createWatcher (pipeline)', () => {
   });
 
   it('calls onChange callback in addition to registered handlers', () => {
-    const handler = vi.fn();
-    const onChange = vi.fn();
+    const handler = mock();
+    const onChange = mock();
     const watcher = createWatcher({ dir: '/tmp', onChange });
     watcher.on('change', handler);
 
@@ -140,7 +140,7 @@ describe('createWatcher (pipeline)', () => {
   });
 
   it('close cancels pending changes', () => {
-    const handler = vi.fn();
+    const handler = mock();
     const watcher = createWatcher({ dir: '/tmp' });
     watcher.on('change', handler);
 
@@ -153,7 +153,7 @@ describe('createWatcher (pipeline)', () => {
   });
 
   it('accepts custom debounce delay', () => {
-    const handler = vi.fn();
+    const handler = mock();
     const watcher = createWatcher({ dir: '/tmp', debounceMs: 500 });
     watcher.on('change', handler);
 
@@ -169,7 +169,7 @@ describe('createWatcher (pipeline)', () => {
   });
 
   it('does not fire handler when no changes are pending', () => {
-    const handler = vi.fn();
+    const handler = mock();
     const watcher = createWatcher({ dir: '/tmp' });
     watcher.on('change', handler);
 
@@ -191,9 +191,9 @@ describe('PipelineWatcherImpl', () => {
   });
 
   it('dispatches schema changes to db-sync and codegen handlers', () => {
-    const dbSyncHandler = vi.fn();
-    const codegenHandler = vi.fn();
-    const buildUiHandler = vi.fn();
+    const dbSyncHandler = mock();
+    const codegenHandler = mock();
+    const buildUiHandler = mock();
     const pw = createPipelineWatcher({ dir: '/tmp' });
     pw.on('db-sync', dbSyncHandler);
     pw.on('codegen', codegenHandler);
@@ -221,8 +221,8 @@ describe('PipelineWatcherImpl', () => {
   });
 
   it('dispatches component changes to build-ui handler only', () => {
-    const analyzeHandler = vi.fn();
-    const buildUiHandler = vi.fn();
+    const analyzeHandler = mock();
+    const buildUiHandler = mock();
     const pw = createPipelineWatcher({ dir: '/tmp' });
     pw.on('analyze', analyzeHandler);
     pw.on('build-ui', buildUiHandler);
@@ -238,8 +238,8 @@ describe('PipelineWatcherImpl', () => {
   });
 
   it('dispatches module changes to analyze and codegen handlers', () => {
-    const analyzeHandler = vi.fn();
-    const codegenHandler = vi.fn();
+    const analyzeHandler = mock();
+    const codegenHandler = mock();
     const pw = createPipelineWatcher({ dir: '/tmp' });
     pw.on('analyze', analyzeHandler);
     pw.on('codegen', codegenHandler);
@@ -255,7 +255,7 @@ describe('PipelineWatcherImpl', () => {
   });
 
   it('does not register handlers after close', () => {
-    const handler = vi.fn();
+    const handler = mock();
     const pw = createPipelineWatcher({ dir: '/tmp' });
     pw.close();
 
@@ -270,8 +270,8 @@ describe('PipelineWatcherImpl', () => {
   });
 
   it('dispatches to multiple handlers on the same event', () => {
-    const handler1 = vi.fn();
-    const handler2 = vi.fn();
+    const handler1 = mock();
+    const handler2 = mock();
     const pw = createPipelineWatcher({ dir: '/tmp' });
     pw.on('build-ui', handler1);
     pw.on('build-ui', handler2);

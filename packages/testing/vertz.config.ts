@@ -1,0 +1,11 @@
+export default {
+  test: {
+    coveragePathIgnorePatterns: [
+      '**/core/dist/**',
+      '**/errors/dist/**',
+      '**/schema/dist/**',
+      '**/server/dist/**',
+      '**/__tests__/**',
+    ],
+  },
+};

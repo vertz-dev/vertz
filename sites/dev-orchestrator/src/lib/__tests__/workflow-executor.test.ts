@@ -1,4 +1,4 @@
-import { describe, expect, it, mock, beforeEach } from 'bun:test';
+import { describe, expect, it, mock, beforeEach } from '@vertz/test';
 import { createWorkflowExecutor } from '../workflow-executor';
 import type { WorkflowStore, WorkflowRun } from '../../api/services/workflows';
 import type { LLMAdapter, WorkflowDefinition } from '@vertz/agents';

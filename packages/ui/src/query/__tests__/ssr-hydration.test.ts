@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from '@vertz/test';
+import { afterEach, beforeEach, describe, expect, it, mock } from '@vertz/test';
 import { cleanupSSRData, hydrateQueryFromSSR } from '../ssr-hydration';
 
 // Minimal browser-like environment for event dispatching
@@ -43,7 +43,7 @@ describe('hydrateQueryFromSSR', () => {
       { key: 'my-query', data: { items: [1, 2, 3] } },
     ];
 
-    const resolve = vi.fn();
+    const resolve = mock();
     hydrateQueryFromSSR('my-query', resolve);
 
     expect(resolve).toHaveBeenCalledWith({ items: [1, 2, 3] });
@@ -52,7 +52,7 @@ describe('hydrateQueryFromSSR', () => {
   it('resolves on event when data arrives later', () => {
     (globalThis as Record<string, unknown>).__VERTZ_SSR_DATA__ = [];
 
-    const resolve = vi.fn();
+    const resolve = mock();
     hydrateQueryFromSSR('late-query', resolve);
 
     // Data not yet available
@@ -73,7 +73,7 @@ describe('hydrateQueryFromSSR', () => {
   it('ignores data for non-matching key', () => {
     (globalThis as Record<string, unknown>).__VERTZ_SSR_DATA__ = [];
 
-    const resolve = vi.fn();
+    const resolve = mock();
     hydrateQueryFromSSR('target-key', resolve);
 
     // Dispatch event for a different key
@@ -91,7 +91,7 @@ describe('hydrateQueryFromSSR', () => {
   it('cleanup removes event listener', () => {
     (globalThis as Record<string, unknown>).__VERTZ_SSR_DATA__ = [];
 
-    const resolve = vi.fn();
+    const resolve = mock();
     const cleanup = hydrateQueryFromSSR('cleanup-key', resolve);
 
     cleanup();
@@ -111,7 +111,7 @@ describe('hydrateQueryFromSSR', () => {
   it('removes listener after first match by default (non-persistent)', () => {
     (globalThis as Record<string, unknown>).__VERTZ_SSR_DATA__ = [];
 
-    const resolve = vi.fn();
+    const resolve = mock();
     hydrateQueryFromSSR('key', resolve);
 
     const doc = (globalThis as Record<string, unknown>).document as {
@@ -136,7 +136,7 @@ describe('hydrateQueryFromSSR', () => {
   it('keeps listener active when persistent is true (SWR)', () => {
     (globalThis as Record<string, unknown>).__VERTZ_SSR_DATA__ = [];
 
-    const resolve = vi.fn();
+    const resolve = mock();
     const cleanup = hydrateQueryFromSSR('key', resolve, { persistent: true });
 
     const doc = (globalThis as Record<string, unknown>).document as {
@@ -171,7 +171,7 @@ describe('hydrateQueryFromSSR', () => {
 
   it('returns null cleanup when no SSR data exists', () => {
     // No __VERTZ_SSR_DATA__ — not an SSR page
-    const resolve = vi.fn();
+    const resolve = mock();
     const cleanup = hydrateQueryFromSSR('no-ssr', resolve);
 
     expect(cleanup).toBeNull();

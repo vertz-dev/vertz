@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from '@vertz/test';
+import { describe, expect, it, mock } from '@vertz/test';
 import type { AppIR, CompileResult, Compiler, Diagnostic } from '@vertz/compiler';
 import { checkAction } from '../check';
 
@@ -17,15 +17,15 @@ function makeDiagnostic(overrides: Partial<Diagnostic> = {}): Diagnostic {
 function createMockCompiler(diagnostics: Diagnostic[] = []): Compiler {
   const ir = { diagnostics: [] } as unknown as AppIR;
   return {
-    analyze: vi.fn().mockResolvedValue(ir),
-    validate: vi.fn().mockResolvedValue(diagnostics),
-    generate: vi.fn().mockResolvedValue(undefined),
-    compile: vi.fn().mockResolvedValue({
+    analyze: mock().mockResolvedValue(ir),
+    validate: mock().mockResolvedValue(diagnostics),
+    generate: mock().mockResolvedValue(undefined),
+    compile: mock().mockResolvedValue({
       success: diagnostics.every((d) => d.severity !== 'error'),
       ir,
       diagnostics,
     } satisfies CompileResult),
-    getConfig: vi.fn().mockReturnValue({
+    getConfig: mock().mockReturnValue({
       strict: false,
       forceGenerate: false,
       compiler: {

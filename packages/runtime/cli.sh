@@ -56,6 +56,20 @@ case "$1" in
     exec "$@"
     ;;
   *)
+    # Try system-installed vtz before giving up:
+    # 1. Check ~/.vtz/bin/vtz (standard install location)
+    # 2. Fall back to PATH lookup (avoiding self-reference)
+    if [ -x "$HOME/.vtz/bin/vtz" ]; then
+      exec "$HOME/.vtz/bin/vtz" "$@"
+    fi
+    SELF="$(cd "$(dirname "$0")" && pwd)/$(basename "$0")"
+    SYSTEM_VTZ="$(command -v vtz 2>/dev/null || true)"
+    if [ -n "$SYSTEM_VTZ" ]; then
+      RESOLVED_SYSTEM="$(cd "$(dirname "$SYSTEM_VTZ")" && pwd)/$(basename "$SYSTEM_VTZ")"
+      if [ "$RESOLVED_SYSTEM" != "$SELF" ] && [ -x "$SYSTEM_VTZ" ]; then
+        exec "$SYSTEM_VTZ" "$@"
+      fi
+    fi
     SUB="${1:-}"
     if [ -n "$SUB" ]; then
       echo "vtz: native binary not available and '$SUB' has no fallback." >&2

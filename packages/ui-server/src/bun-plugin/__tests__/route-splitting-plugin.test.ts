@@ -6,7 +6,7 @@
  * correctly and the native compiler produces expected output.
  */
 
-import { describe, expect, it, vi } from '@vertz/test';
+import { describe, expect, it, mock } from '@vertz/test';
 import { originalPositionFor, TraceMap } from '@jridgewell/trace-mapping';
 import { createVertzBunPlugin } from '../plugin';
 
@@ -42,7 +42,7 @@ export function App() {
         cssOutDir: '/tmp/vertz-test-css',
       });
 
-      const mockBuild = { onLoad: vi.fn() };
+      const mockBuild = { onLoad: mock() };
       plugin.setup(mockBuild as any);
 
       // First onLoad call is the .tsx handler
@@ -75,7 +75,7 @@ export function App() {
         cssOutDir: '/tmp/vertz-test-css',
       });
 
-      const mockBuild = { onLoad: vi.fn() };
+      const mockBuild = { onLoad: mock() };
       plugin.setup(mockBuild as any);
 
       const tsxCallback = mockBuild.onLoad.mock.calls[0][1];
@@ -125,7 +125,7 @@ export function App() {
         cssOutDir: '/tmp/vertz-test-css',
       });
 
-      const mockBuild = { onLoad: vi.fn() };
+      const mockBuild = { onLoad: mock() };
       plugin.setup(mockBuild as any);
 
       // Only 1 onLoad call: the .tsx handler
@@ -154,7 +154,7 @@ export function App() {
         cssOutDir: '/tmp/vertz-test-css',
       });
 
-      const mockBuild = { onLoad: vi.fn() };
+      const mockBuild = { onLoad: mock() };
       plugin.setup(mockBuild as any);
 
       const tsxCallback = mockBuild.onLoad.mock.calls[0][1];

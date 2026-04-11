@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'bun:test';
+import { describe, expect, it } from '@vertz/test';
 import type { StepRunDetail, WorkflowArtifact } from '../api/services/workflows';
 import { errorReasonLabel, filterArtifactsByStep, stepStatusFromDetail } from './step-inspector-utils';
 

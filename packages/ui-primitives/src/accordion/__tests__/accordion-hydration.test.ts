@@ -6,7 +6,7 @@
  * trigger buttons.
  */
 
-import { afterEach, beforeEach, describe, expect, it, vi } from '@vertz/test';
+import { afterEach, beforeEach, describe, expect, it } from '@vertz/test';
 import { mount, resetInjectedStyles } from '@vertz/ui';
 import { ComposedAccordion } from '../accordion-composed';
 
@@ -66,8 +66,8 @@ describe('ComposedAccordion — hydration (#1406)', () => {
       it('Then trigger buttons are visible (root not corrupted with display:none)', () => {
         const ssrHtml = csrHTML(() => createAccordion());
         root.innerHTML = ssrHtml;
-        const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
-        const debugSpy = vi.spyOn(console, 'debug').mockImplementation(() => {});
+        const warnSpy = spyOn(console, 'warn').mockImplementation(() => {});
+        const debugSpy = spyOn(console, 'debug').mockImplementation(() => {});
 
         mount(() => createAccordion());
 
@@ -92,8 +92,8 @@ describe('ComposedAccordion — hydration (#1406)', () => {
       it('Then clicking a trigger expands content after hydration', () => {
         const ssrHtml = csrHTML(() => createAccordion());
         root.innerHTML = ssrHtml;
-        const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
-        const debugSpy = vi.spyOn(console, 'debug').mockImplementation(() => {});
+        const warnSpy = spyOn(console, 'warn').mockImplementation(() => {});
+        const debugSpy = spyOn(console, 'debug').mockImplementation(() => {});
 
         let lastValue: string[] | undefined;
         mount(() =>
@@ -142,8 +142,8 @@ describe('ComposedAccordion — hydration (#1406)', () => {
           }),
         );
         root.innerHTML = ssrHtml;
-        const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
-        const debugSpy = vi.spyOn(console, 'debug').mockImplementation(() => {});
+        const warnSpy = spyOn(console, 'warn').mockImplementation(() => {});
+        const debugSpy = spyOn(console, 'debug').mockImplementation(() => {});
 
         mount(() =>
           ComposedAccordion({

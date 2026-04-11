@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from '@vertz/test';
+import { afterEach, beforeEach, describe, expect, it, vi, mock } from '@vertz/test';
 import { autoStrategy } from '../strategies';
 
 describe('autoStrategy', () => {
@@ -10,7 +10,7 @@ describe('autoStrategy', () => {
 
   beforeEach(() => {
     observedElements = [];
-    disconnectSpy = vi.fn();
+    disconnectSpy = mock();
     constructorOptions = undefined;
     origIntersectionObserver = globalThis.IntersectionObserver;
 
@@ -23,11 +23,11 @@ describe('autoStrategy', () => {
         observedElements.push(el);
       }
       disconnect = disconnectSpy;
-      unobserve = vi.fn();
+      unobserve = mock();
       root = null;
       rootMargin = '';
       thresholds = [] as number[];
-      takeRecords = vi.fn(() => [] as IntersectionObserverEntry[]);
+      takeRecords = mock(() => [] as IntersectionObserverEntry[]);
     } as unknown as typeof IntersectionObserver;
   });
 
@@ -37,7 +37,7 @@ describe('autoStrategy', () => {
 
   it('does not call hydrateFn immediately (observes element)', () => {
     const el = document.createElement('div');
-    const hydrateFn = vi.fn();
+    const hydrateFn = mock();
     autoStrategy(el, hydrateFn);
     expect(hydrateFn).not.toHaveBeenCalled();
     expect(observedElements).toContain(el);
@@ -45,7 +45,7 @@ describe('autoStrategy', () => {
 
   it('calls hydrateFn when isIntersecting is true', () => {
     const el = document.createElement('div');
-    const hydrateFn = vi.fn();
+    const hydrateFn = mock();
     autoStrategy(el, hydrateFn);
 
     observeCallback(
@@ -58,7 +58,7 @@ describe('autoStrategy', () => {
 
   it('does not call hydrateFn when isIntersecting is false', () => {
     const el = document.createElement('div');
-    const hydrateFn = vi.fn();
+    const hydrateFn = mock();
     autoStrategy(el, hydrateFn);
 
     observeCallback(
@@ -71,7 +71,7 @@ describe('autoStrategy', () => {
 
   it('disconnects observer after hydration', () => {
     const el = document.createElement('div');
-    const hydrateFn = vi.fn();
+    const hydrateFn = mock();
     autoStrategy(el, hydrateFn);
 
     observeCallback(
@@ -85,14 +85,14 @@ describe('autoStrategy', () => {
   it('falls back to eager when IntersectionObserver is unavailable', () => {
     (globalThis as Record<string, unknown>).IntersectionObserver = undefined;
     const el = document.createElement('div');
-    const hydrateFn = vi.fn();
+    const hydrateFn = mock();
     autoStrategy(el, hydrateFn);
     expect(hydrateFn).toHaveBeenCalledOnce();
   });
 
   it('uses 200px rootMargin', () => {
     const el = document.createElement('div');
-    const hydrateFn = vi.fn();
+    const hydrateFn = mock();
     autoStrategy(el, hydrateFn);
     expect(constructorOptions?.rootMargin).toBe('200px');
   });

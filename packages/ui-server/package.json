@@ -58,8 +58,8 @@
   },
   "scripts": {
     "build": "vtzx bunup",
-    "test": "bun test --timeout 60000 src/",
-    "test:e2e": "bunx playwright test",
+    "test": "vtz test --timeout 60000 src/",
+    "test:e2e": "vtzx playwright test",
     "typecheck": "tsgo --noEmit"
   },
   "dependencies": {
@@ -74,6 +74,7 @@
   "devDependencies": {
     "@happy-dom/global-registrator": "^20.8.3",
     "@playwright/test": "^1.58.2",
+    "@types/node": "^25.3.1",
     "@vertz/codegen": "workspace:^",
     "@vertz/test": "workspace:*",
     "bun-types": "^1.3.10",

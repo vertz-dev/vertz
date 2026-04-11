@@ -1,4 +1,4 @@
-import { describe, expect, test, vi } from '@vertz/test';
+import { describe, expect, test, mock } from '@vertz/test';
 import { ok } from '@vertz/fetch';
 import { s } from '@vertz/schema';
 import { form } from '../form/form';
@@ -9,12 +9,12 @@ import type { FormSchema } from '../form/validation';
 function createMockFormElement() {
   const listeners: Record<string, ((e: Event) => void)[]> = {};
   const el = {
-    addEventListener: vi.fn((type: string, handler: (e: Event) => void) => {
+    addEventListener: mock((type: string, handler: (e: Event) => void) => {
       if (!listeners[type]) listeners[type] = [];
       listeners[type].push(handler);
     }),
-    removeEventListener: vi.fn(),
-    reset: vi.fn(),
+    removeEventListener: mock(),
+    reset: mock(),
     dispatchEvent(e: Event) {
       const handlers = listeners[e.type] || [];
       for (const h of handlers) h(e);
@@ -54,7 +54,7 @@ function mockSdkMethod<TBody, TResult>(config: {
 describe('Integration Tests — Forms', () => {
   // IT-3-1: form() submits valid data through SDK method
   test('form() submits valid data through SDK method', async () => {
-    const handler = vi.fn().mockResolvedValue({ id: 1, name: 'Alice', role: 'admin' });
+    const handler = mock().mockResolvedValue({ id: 1, name: 'Alice', role: 'admin' });
     const sdk = mockSdkMethod({
       url: '/api/users',
       method: 'POST',
@@ -66,8 +66,8 @@ describe('Integration Tests — Forms', () => {
       },
     };
 
-    const onSuccess = vi.fn();
-    const onError = vi.fn();
+    const onSuccess = mock();
+    const onError = mock();
 
     const userForm = form(sdk, { schema, onSuccess, onError });
 
@@ -89,7 +89,7 @@ describe('Integration Tests — Forms', () => {
 
   // IT-3-2: form() validates client-side before submission (shows errors)
   test('form() validates client-side before submission and shows errors', async () => {
-    const handler = vi.fn().mockResolvedValue({});
+    const handler = mock().mockResolvedValue({});
     const sdk = mockSdkMethod({
       url: '/api/users',
       method: 'POST',
@@ -114,8 +114,8 @@ describe('Integration Tests — Forms', () => {
       },
     };
 
-    const onSuccess = vi.fn();
-    const onError = vi.fn();
+    const onSuccess = mock();
+    const onError = mock();
 
     const userForm = form(sdk, { schema, onSuccess, onError });
 
@@ -199,7 +199,7 @@ describe('Integration Tests — Forms', () => {
 describe('Integration Tests — Form Revalidation', () => {
   test('revalidateOn blur (default) with @vertz/schema clears error on valid blur', async () => {
     const schema = s.object({ title: s.string().min(1), priority: s.string() });
-    const handler = vi.fn().mockResolvedValue({ id: 1 });
+    const handler = mock().mockResolvedValue({ id: 1 });
     const sdk = mockSdkMethod({ url: '/api/tasks', method: 'POST', handler });
     const f = form(sdk, { schema });
     const el = createMockFormElement();
@@ -222,7 +222,7 @@ describe('Integration Tests — Form Revalidation', () => {
 
   test('revalidateOn change with @vertz/schema clears error on input', async () => {
     const schema = s.object({ title: s.string().min(1) });
-    const handler = vi.fn().mockResolvedValue({ id: 1 });
+    const handler = mock().mockResolvedValue({ id: 1 });
     const sdk = mockSdkMethod({ url: '/api/tasks', method: 'POST', handler });
     const f = form(sdk, { schema, revalidateOn: 'change' });
     const el = createMockFormElement();
@@ -240,7 +240,7 @@ describe('Integration Tests — Form Revalidation', () => {
 
   test('revalidateOn submit with @vertz/schema does NOT clear on blur', async () => {
     const schema = s.object({ title: s.string().min(1) });
-    const handler = vi.fn().mockResolvedValue({ id: 1 });
+    const handler = mock().mockResolvedValue({ id: 1 });
     const sdk = mockSdkMethod({ url: '/api/tasks', method: 'POST', handler });
     const f = form(sdk, { schema, revalidateOn: 'submit' });
     const el = createMockFormElement();
@@ -271,7 +271,7 @@ describe('Integration Tests — Form Revalidation', () => {
         return { ok: true, data: obj };
       },
     };
-    const handler = vi.fn().mockResolvedValue({ id: 1 });
+    const handler = mock().mockResolvedValue({ id: 1 });
     const sdk = mockSdkMethod({ url: '/api/tasks', method: 'POST', handler });
     const f = form(sdk, { schema });
     const el = createMockFormElement();
@@ -302,7 +302,7 @@ describe('Integration Tests — Form Revalidation', () => {
         return { ok: true, data: data as { address: { street: string } } };
       },
     };
-    const handler = vi.fn().mockResolvedValue({ id: 1 });
+    const handler = mock().mockResolvedValue({ id: 1 });
     const sdk = mockSdkMethod({ url: '/api/users', method: 'POST', handler });
     const f = form(sdk, { schema });
     const el = createMockFormElement();
@@ -323,7 +323,7 @@ describe('Integration Tests — Form Revalidation', () => {
     const schema = s.object({
       address: s.object({ street: s.string().min(1) }).optional(),
     });
-    const handler = vi.fn().mockResolvedValue({ id: 1 });
+    const handler = mock().mockResolvedValue({ id: 1 });
     const sdk = mockSdkMethod({ url: '/api/users', method: 'POST', handler });
     const f = form(sdk, { schema });
     const el = createMockFormElement();

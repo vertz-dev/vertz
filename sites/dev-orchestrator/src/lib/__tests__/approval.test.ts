@@ -1,8 +1,8 @@
-import { describe, expect, it, beforeEach, afterEach, vi } from 'bun:test';
+import { describe, expect, it, beforeEach, afterEach, mock } from '@vertz/test';
 import { checkApproval } from '../approval';
 
 describe('Feature: Approval checker', () => {
-  const mockFetch = vi.fn();
+  const mockFetch = mock();
   const originalFetch = globalThis.fetch;
 
   beforeEach(() => {

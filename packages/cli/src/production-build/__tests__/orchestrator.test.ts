@@ -8,7 +8,16 @@
  * - Manifest generation
  */
 
-import { afterEach, beforeEach, describe, expect, it, type MockFunction, vi } from '@vertz/test';
+import {
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  type MockFunction,
+  vi,
+  mock,
+} from '@vertz/test';
 import { existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { BuildOrchestrator, createBuildOrchestrator } from '../orchestrator';
@@ -16,20 +25,20 @@ import type { BuildConfig, BuildManifest } from '../types';
 
 // Mock dependencies
 vi.mock('@vertz/compiler', () => {
-  const mockGenerate = vi.fn().mockResolvedValue(undefined);
+  const mockGenerate = mock().mockResolvedValue(undefined);
 
   return {
-    createCompiler: vi.fn(() => ({
-      analyze: vi.fn().mockResolvedValue({
+    createCompiler: mock(() => ({
+      analyze: mock().mockResolvedValue({
         modules: [{ name: 'test', services: [], routes: [], schemas: [] }],
         routes: [],
         schemas: [],
         env: { variables: [] },
         middlewares: [],
       }),
-      validate: vi.fn().mockResolvedValue([]),
-      compile: vi.fn().mockResolvedValue({ success: true, diagnostics: [] }),
-      getConfig: vi.fn().mockReturnValue({
+      validate: mock().mockResolvedValue([]),
+      compile: mock().mockResolvedValue({ success: true, diagnostics: [] }),
+      getConfig: mock().mockReturnValue({
         strict: false,
         forceGenerate: false,
         compiler: {
@@ -50,7 +59,7 @@ vi.mock('@vertz/compiler', () => {
         },
       }),
     })),
-    Compiler: vi.fn(),
+    Compiler: mock(),
     OpenAPIGenerator: class {
       generate = mockGenerate;
     },
@@ -58,18 +67,18 @@ vi.mock('@vertz/compiler', () => {
 });
 
 vi.mock('@vertz/codegen', () => ({
-  createCodegenPipeline: vi.fn(() => ({
-    validate: vi.fn().mockReturnValue([]),
-    generate: vi.fn().mockResolvedValue({
+  createCodegenPipeline: mock(() => ({
+    validate: mock().mockReturnValue([]),
+    generate: mock().mockResolvedValue({
       files: [{ path: 'test.ts', content: 'export type Test = string;' }],
       fileCount: 1,
       generators: ['typescript'],
       incremental: { written: ['test.ts'], skipped: [], removed: [] },
     }),
-    resolveOutputDir: vi.fn().mockReturnValue('.vertz/generated'),
-    resolveConfig: vi.fn((config) => config),
+    resolveOutputDir: mock().mockReturnValue('.vertz/generated'),
+    resolveConfig: mock((config) => config),
   })),
-  generate: vi.fn().mockResolvedValue({
+  generate: mock().mockResolvedValue({
     files: [{ path: 'test.ts', content: 'export type Test = string;' }],
     fileCount: 1,
     generators: ['typescript'],
@@ -78,7 +87,7 @@ vi.mock('@vertz/codegen', () => ({
 
 // Mock esbuild - create a default mock implementation
 vi.mock('esbuild', () => ({
-  build: vi.fn().mockResolvedValue({
+  build: mock().mockResolvedValue({
     errors: [],
     warnings: [],
     metafile: {
@@ -449,8 +458,8 @@ describe('BuildOrchestrator', () => {
           return originalImpl ? originalImpl(...args) : mockCreate.mock.results[0]?.value;
         }
         return {
-          analyze: vi.fn().mockResolvedValue({ modules: [] }),
-          validate: vi.fn().mockResolvedValue([
+          analyze: mock().mockResolvedValue({ modules: [] }),
+          validate: mock().mockResolvedValue([
             {
               severity: 'error',
               message: 'Type mismatch',

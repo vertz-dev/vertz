@@ -45,8 +45,8 @@ From the design doc, state the **how** (not just the what):
 
 ## Success Criteria
 
-- [ ] All tests pass (`bun run test`)
-- [ ] Typecheck passes (`bun run typecheck`)
+- [ ] All tests pass (`vtz test`)
+- [ ] Typecheck passes (`vtz run typecheck`)
 - [ ] [Phase-specific criterion 1]
 - [ ] [Phase-specific criterion 2]
 - [ ] Matches design doc approach (not just behavior)

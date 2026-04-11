@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from '@vertz/test';
+import { afterEach, beforeEach, describe, expect, it, mock } from '@vertz/test';
 
 describe('ComposedHoverCard', () => {
   let container: HTMLDivElement;
@@ -72,7 +72,7 @@ describe('ComposedHoverCard', () => {
   });
 
   it('calls onOpenChange when focus triggers immediate show', async () => {
-    const onOpenChange = vi.fn();
+    const onOpenChange = mock();
     const { ComposedHoverCard } = await import('../hover-card-composed');
     const btn = document.createElement('button');
     const root = ComposedHoverCard({

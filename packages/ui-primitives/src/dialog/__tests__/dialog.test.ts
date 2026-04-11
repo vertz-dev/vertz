@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from '@vertz/test';
+import { afterEach, beforeEach, describe, expect, it, mock } from '@vertz/test';
 import { Dialog } from '../dialog';
 
 describe('Dialog', () => {
@@ -71,7 +71,7 @@ describe('Dialog', () => {
   });
 
   it('calls onOpenChange callback', () => {
-    const onOpenChange = vi.fn();
+    const onOpenChange = mock();
     const { trigger, content } = Dialog.Root({ onOpenChange });
     container.appendChild(trigger);
     container.appendChild(content);

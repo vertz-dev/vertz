@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from '@vertz/test';
+import { afterEach, describe, expect, it, vi, mock, spyOn } from '@vertz/test';
 import { signal } from '@vertz/ui';
 import { popScope, pushScope, runCleanups } from '@vertz/ui/internals';
 import { Assets, Container, Graphics, Sprite, Text, Texture } from 'pixi.js';
@@ -164,7 +164,7 @@ describe('Feature: jsxCanvas ref callback', () => {
   describe('Given a ref function', () => {
     describe('When jsxCanvas creates the display object', () => {
       it('then the ref is called with the display object', () => {
-        const refFn = vi.fn();
+        const refFn = mock();
         const obj = jsxCanvas('Container', { ref: refFn });
         expect(refFn).toHaveBeenCalledOnce();
         expect(refFn).toHaveBeenCalledWith(obj);
@@ -177,7 +177,7 @@ describe('Feature: jsxCanvas event binding', () => {
   describe('Given an onClick handler', () => {
     describe('When jsxCanvas creates the display object', () => {
       it('then the event is registered on the display object', () => {
-        const handler = vi.fn();
+        const handler = mock();
         const obj = jsxCanvas('Container', { onClick: handler });
 
         // PixiJS uses .emit() to trigger events
@@ -190,7 +190,7 @@ describe('Feature: jsxCanvas event binding', () => {
   describe('Given an onPointerDown handler', () => {
     describe('When jsxCanvas creates the display object', () => {
       it('then pointerdown event is registered', () => {
-        const handler = vi.fn();
+        const handler = mock();
         const obj = jsxCanvas('Container', { onPointerDown: handler });
 
         obj.emit('pointerdown');
@@ -202,7 +202,7 @@ describe('Feature: jsxCanvas event binding', () => {
   describe('Given event handlers but no explicit eventMode', () => {
     describe('When jsxCanvas creates the display object', () => {
       it('then eventMode is auto-set to static', () => {
-        const obj = jsxCanvas('Container', { onClick: vi.fn() });
+        const obj = jsxCanvas('Container', { onClick: mock() });
         expect(obj.eventMode).toBe('static');
       });
     });
@@ -211,7 +211,7 @@ describe('Feature: jsxCanvas event binding', () => {
   describe('Given event handlers and interactive explicitly false', () => {
     describe('When jsxCanvas creates the display object', () => {
       it('then eventMode is NOT auto-set', () => {
-        const obj = jsxCanvas('Container', { onClick: vi.fn(), interactive: false });
+        const obj = jsxCanvas('Container', { onClick: mock(), interactive: false });
         // When interactive is false, we don't override eventMode
         expect(obj.eventMode).not.toBe('static');
       });
@@ -222,7 +222,7 @@ describe('Feature: jsxCanvas event binding', () => {
     describe('When jsxCanvas creates the display object', () => {
       it('then that eventMode is used instead of auto-static', () => {
         const obj = jsxCanvas('Container', {
-          onClick: vi.fn(),
+          onClick: mock(),
           eventMode: 'dynamic',
         });
         expect(obj.eventMode).toBe('dynamic');
@@ -235,7 +235,7 @@ describe('Feature: jsxCanvas Graphics draw', () => {
   describe('Given a Graphics tag with a draw function', () => {
     describe('When jsxCanvas creates the display object', () => {
       it('then the draw function is called', () => {
-        const drawFn = vi.fn();
+        const drawFn = mock();
         jsxCanvas('Graphics', { draw: drawFn });
         expect(drawFn).toHaveBeenCalledOnce();
       });
@@ -246,7 +246,7 @@ describe('Feature: jsxCanvas Graphics draw', () => {
     describe('When the dependency changes', () => {
       it('then the draw function re-runs', () => {
         const radius = signal(10);
-        const drawFn = vi.fn((g: Graphics) => {
+        const drawFn = mock((g: Graphics) => {
           // Read signal inside draw to track dependency
           const r = radius.value;
           g.circle(0, 0, r);
@@ -273,7 +273,7 @@ describe('Feature: jsxCanvas Graphics draw', () => {
           },
         }) as Graphics;
 
-        const clearSpy = vi.spyOn(graphics, 'clear');
+        const clearSpy = spyOn(graphics, 'clear');
 
         radius.value = 20;
         expect(clearSpy).toHaveBeenCalled();
@@ -296,7 +296,7 @@ describe('Feature: jsxCanvas Sprite texture loading', () => {
     describe('When jsxCanvas creates the Sprite', () => {
       it('then Assets.load is called with the texture URL', () => {
         const mockTexture = Texture.WHITE;
-        const loadSpy = vi.spyOn(Assets, 'load').mockResolvedValue(mockTexture);
+        const loadSpy = spyOn(Assets, 'load').mockResolvedValue(mockTexture);
 
         jsxCanvas('Sprite', { texture: 'hero.png' });
 
@@ -305,7 +305,7 @@ describe('Feature: jsxCanvas Sprite texture loading', () => {
 
       it('then the sprite texture is set once loading completes', async () => {
         const mockTexture = Texture.WHITE;
-        vi.spyOn(Assets, 'load').mockResolvedValue(mockTexture);
+        spyOn(Assets, 'load').mockResolvedValue(mockTexture);
 
         const sprite = jsxCanvas('Sprite', { texture: 'hero.png' }) as Sprite;
 
@@ -397,7 +397,7 @@ describe('Feature: jsxCanvas disposal and cleanup', () => {
   describe('Given a display object with event handlers in a disposal scope', () => {
     describe('When the scope is disposed', () => {
       it('then event listeners are removed', () => {
-        const handler = vi.fn();
+        const handler = mock();
         const scope = pushScope();
 
         const obj = jsxCanvas('Container', { onClick: handler });

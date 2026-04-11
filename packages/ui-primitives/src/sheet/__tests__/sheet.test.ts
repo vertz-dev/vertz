@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from '@vertz/test';
+import { afterEach, beforeEach, describe, expect, it, mock } from '@vertz/test';
 import { Sheet } from '../sheet';
 
 describe('Sheet', () => {
@@ -210,7 +210,7 @@ describe('Sheet', () => {
   });
 
   it('calls onOpenChange callback', () => {
-    const onOpenChange = vi.fn();
+    const onOpenChange = mock();
     const { trigger, content } = Sheet.Root({ onOpenChange });
     container.appendChild(trigger);
     container.appendChild(content);

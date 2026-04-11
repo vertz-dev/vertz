@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, test, vi } from '@vertz/test';
+import { afterEach, beforeEach, describe, expect, test, vi, mock, spyOn } from '@vertz/test';
 import { createTestSSRContext, disableTestSSR, enableTestSSR } from '../../ssr/test-ssr-helpers';
 import { defineRoutes } from '../define-routes';
 import type { RouterOptions } from '../navigate';
@@ -58,7 +58,7 @@ describe('createRouter', () => {
   });
 
   test('navigate runs loader and stores data', async () => {
-    const loader = vi.fn().mockResolvedValue({ items: [1, 2, 3] });
+    const loader = mock().mockResolvedValue({ items: [1, 2, 3] });
     const routes = defineRoutes({
       '/': { component: () => document.createElement('div') },
       '/data': { component: () => document.createElement('div'), loader },
@@ -72,7 +72,7 @@ describe('createRouter', () => {
   });
 
   test('navigate stores loader error when loader throws', async () => {
-    const loader = vi.fn().mockRejectedValue(new TypeError('Network error'));
+    const loader = mock().mockRejectedValue(new TypeError('Network error'));
     const routes = defineRoutes({
       '/': { component: () => document.createElement('div') },
       '/fail': { component: () => document.createElement('div'), loader },
@@ -98,7 +98,7 @@ describe('createRouter', () => {
 
   test('revalidate re-runs current route loaders', async () => {
     let callCount = 0;
-    const loader = vi.fn(async () => {
+    const loader = mock(async () => {
       callCount++;
       return { count: callCount };
     });
@@ -124,7 +124,7 @@ describe('createRouter', () => {
       '/about': { component: () => document.createElement('div') },
     });
     const router = createRouter(routes, '/');
-    const pushSpy = vi.spyOn(window.history, 'pushState');
+    const pushSpy = spyOn(window.history, 'pushState');
 
     await router.navigate({ to: '/about' });
 
@@ -138,7 +138,7 @@ describe('createRouter', () => {
       '/about': { component: () => document.createElement('div') },
     });
     const router = createRouter(routes, '/');
-    const replaceSpy = vi.spyOn(window.history, 'replaceState');
+    const replaceSpy = spyOn(window.history, 'replaceState');
 
     await router.navigate({ to: '/about', replace: true });
 
@@ -168,7 +168,7 @@ describe('createRouter', () => {
   });
 
   test('popstate runs loaders for the new route', async () => {
-    const loader = vi.fn().mockResolvedValue({ data: 'fresh' });
+    const loader = mock().mockResolvedValue({ data: 'fresh' });
     const routes = defineRoutes({
       '/': { component: () => document.createElement('div') },
       '/data': { component: () => document.createElement('div'), loader },
@@ -216,13 +216,13 @@ describe('createRouter', () => {
 
   test('stale loader results are discarded on rapid navigation', async () => {
     let resolveFirst!: (v: unknown) => void;
-    const slowLoader = vi.fn(
+    const slowLoader = mock(
       () =>
         new Promise((resolve) => {
           resolveFirst = resolve;
         }),
     );
-    const fastLoader = vi.fn().mockResolvedValue({ fast: true });
+    const fastLoader = mock().mockResolvedValue({ fast: true });
 
     const routes = defineRoutes({
       '/slow': { component: () => document.createElement('div'), loader: slowLoader },
@@ -251,7 +251,7 @@ describe('createRouter', () => {
 
   test('loader receives AbortSignal that aborts on new navigation', async () => {
     let capturedSignal: AbortSignal | undefined;
-    const loader = vi.fn(async (ctx: { params: Record<string, string>; signal: AbortSignal }) => {
+    const loader = mock(async (ctx: { params: Record<string, string>; signal: AbortSignal }) => {
       capturedSignal = ctx.signal;
       return { data: true };
     });
@@ -287,7 +287,7 @@ describe('createRouter overloaded signature', () => {
     const routes = defineRoutes({
       '/': { component: () => document.createElement('div') },
     });
-    const mockPrefetch = vi.fn(() => ({ abort: () => {} }));
+    const mockPrefetch = mock(() => ({ abort: () => {} }));
     const router = createRouter(routes, {
       serverNav: true,
       _prefetchNavData: mockPrefetch,
@@ -332,7 +332,7 @@ describe('createRouter overloaded signature', () => {
       '/': { component: () => document.createElement('div') },
       '/tasks': { component: () => document.createElement('div') },
     });
-    const mockPrefetch = vi.fn(() => ({ abort: () => {} }));
+    const mockPrefetch = mock(() => ({ abort: () => {} }));
     const router = createRouter(routes, '/tasks', {
       serverNav: true,
       _prefetchNavData: mockPrefetch,
@@ -346,7 +346,7 @@ describe('createRouter overloaded signature', () => {
       '/': { component: () => document.createElement('div') },
       '/about': { component: () => document.createElement('div') },
     });
-    const mockPrefetch = vi.fn(() => ({ abort: () => {} }));
+    const mockPrefetch = mock(() => ({ abort: () => {} }));
     const router = createRouter(routes, {
       serverNav: true,
       _prefetchNavData: mockPrefetch,
@@ -370,7 +370,7 @@ describe('createRouter serverNav', () => {
     const routes = defineRoutes({
       '/': { component: () => document.createElement('div') },
     });
-    const mockPrefetch = vi.fn(() => ({ abort: () => {} }));
+    const mockPrefetch = mock(() => ({ abort: () => {} }));
     const options: RouterOptions = {
       serverNav: true,
       _prefetchNavData: mockPrefetch,
@@ -385,7 +385,7 @@ describe('createRouter serverNav', () => {
       '/': { component: () => document.createElement('div') },
       '/about': { component: () => document.createElement('div') },
     });
-    const mockPrefetch = vi.fn(() => ({ abort: () => {} }));
+    const mockPrefetch = mock(() => ({ abort: () => {} }));
     const router = createRouter(routes, '/', {
       serverNav: true,
       _prefetchNavData: mockPrefetch,
@@ -402,7 +402,7 @@ describe('createRouter serverNav', () => {
       '/': { component: () => document.createElement('div') },
       '/about': { component: () => document.createElement('div') },
     });
-    const mockPrefetch = vi.fn(() => ({ abort: () => {} }));
+    const mockPrefetch = mock(() => ({ abort: () => {} }));
     const router = createRouter(routes, '/', {
       serverNav: false,
       _prefetchNavData: mockPrefetch,
@@ -418,7 +418,7 @@ describe('createRouter serverNav', () => {
     const routes = defineRoutes({
       '/': { component: () => document.createElement('div') },
     });
-    const mockPrefetch = vi.fn(() => ({ abort: () => {} }));
+    const mockPrefetch = mock(() => ({ abort: () => {} }));
     const router = createRouter(routes, '/', {
       serverNav: true,
       _prefetchNavData: mockPrefetch,
@@ -432,7 +432,7 @@ describe('createRouter serverNav', () => {
   });
 
   test('search-param-only navigation skips loaders', async () => {
-    const loader = vi.fn().mockResolvedValue({ items: [] });
+    const loader = mock().mockResolvedValue({ items: [] });
     const routes = defineRoutes({
       '/': { component: () => document.createElement('div'), loader },
     });
@@ -450,12 +450,12 @@ describe('createRouter serverNav', () => {
   });
 
   test('different-route navigation still runs prefetch and loader', async () => {
-    const loader = vi.fn().mockResolvedValue({ items: [] });
+    const loader = mock().mockResolvedValue({ items: [] });
     const routes = defineRoutes({
       '/': { component: () => document.createElement('div') },
       '/about': { component: () => document.createElement('div'), loader },
     });
-    const mockPrefetch = vi.fn(() => ({ abort: () => {} }));
+    const mockPrefetch = mock(() => ({ abort: () => {} }));
     const router = createRouter(routes, '/', {
       serverNav: true,
       _prefetchNavData: mockPrefetch,
@@ -473,7 +473,7 @@ describe('createRouter serverNav', () => {
     const routes = defineRoutes({
       '/': { component: () => document.createElement('div') },
     });
-    const mockPrefetch = vi.fn(() => ({ abort: () => {} }));
+    const mockPrefetch = mock(() => ({ abort: () => {} }));
     const router = createRouter(routes, '/', {
       serverNav: true,
       _prefetchNavData: mockPrefetch,
@@ -491,7 +491,7 @@ describe('createRouter serverNav', () => {
     const routes = defineRoutes({
       '/tasks/:id': { component: () => document.createElement('div') },
     });
-    const mockPrefetch = vi.fn(() => ({ abort: () => {} }));
+    const mockPrefetch = mock(() => ({ abort: () => {} }));
     const router = createRouter(routes, '/tasks/1', {
       serverNav: true,
       _prefetchNavData: mockPrefetch,
@@ -510,8 +510,8 @@ describe('createRouter serverNav', () => {
       '/a': { component: () => document.createElement('div') },
       '/b': { component: () => document.createElement('div') },
     });
-    const abortFn = vi.fn();
-    const mockPrefetch = vi.fn(() => ({ abort: abortFn }));
+    const abortFn = mock();
+    const mockPrefetch = mock(() => ({ abort: abortFn }));
     const router = createRouter(routes, '/', {
       serverNav: true,
       _prefetchNavData: mockPrefetch,
@@ -531,8 +531,8 @@ describe('createRouter serverNav', () => {
       '/': { component: () => document.createElement('div') },
       '/about': { component: () => document.createElement('div') },
     });
-    const abortFn = vi.fn();
-    const mockPrefetch = vi.fn(() => ({ abort: abortFn }));
+    const abortFn = mock();
+    const mockPrefetch = mock(() => ({ abort: abortFn }));
     const router = createRouter(routes, '/', {
       serverNav: true,
       _prefetchNavData: mockPrefetch,
@@ -549,7 +549,7 @@ describe('createRouter serverNav', () => {
       '/': { component: () => document.createElement('div') },
       '/about': { component: () => document.createElement('div') },
     });
-    const mockPrefetch = vi.fn(() => ({ abort: () => {} }));
+    const mockPrefetch = mock(() => ({ abort: () => {} }));
     const router = createRouter(routes, '/', {
       serverNav: { timeout: 3000 },
       _prefetchNavData: mockPrefetch,
@@ -571,7 +571,7 @@ describe('createRouter serverNav', () => {
     const done = new Promise<void>((r) => {
       resolveDone = r;
     });
-    const mockPrefetch = vi.fn(() => ({ abort: () => {}, done }));
+    const mockPrefetch = mock(() => ({ abort: () => {}, done }));
     const router = createRouter(routes, '/', {
       serverNav: true,
       _prefetchNavData: mockPrefetch,
@@ -606,7 +606,7 @@ describe('createRouter serverNav', () => {
     });
 
     // Prefetch that never resolves
-    const mockPrefetch = vi.fn(() => ({
+    const mockPrefetch = mock(() => ({
       abort: () => {},
       done: new Promise<void>(() => {}),
     }));
@@ -632,7 +632,7 @@ describe('createRouter serverNav', () => {
     const firstEvent = new Promise<void>((r) => {
       resolveFirstEvent = r;
     });
-    const mockPrefetch = vi.fn(() => ({
+    const mockPrefetch = mock(() => ({
       abort: () => {},
       done: new Promise<void>(() => {}), // never resolves
       firstEvent,
@@ -672,7 +672,7 @@ describe('createRouter serverNav', () => {
       resolveDone1 = r;
     });
     let callCount = 0;
-    const mockPrefetch = vi.fn(() => {
+    const mockPrefetch = mock(() => {
       callCount++;
       if (callCount === 1) {
         // First nav: slow prefetch
@@ -718,7 +718,7 @@ describe('createRouter serverNav', () => {
       resolveDone2 = r;
     });
     let callCount = 0;
-    const mockPrefetch = vi.fn(() => {
+    const mockPrefetch = mock(() => {
       callCount++;
       if (callCount === 1) {
         return { abort: () => {}, done: done1, firstEvent: done1 };
@@ -759,7 +759,7 @@ describe('createRouter serverNav', () => {
       resolveFirstEvent = r;
     });
     let callCount = 0;
-    const mockPrefetch = vi.fn(() => {
+    const mockPrefetch = mock(() => {
       callCount++;
       if (callCount === 1) {
         // First nav to /tasks: slow prefetch
@@ -816,7 +816,7 @@ describe('createRouter serverNav', () => {
     const firstEvent = new Promise<void>((r) => {
       resolveFirstEvent = r;
     });
-    const mockPrefetch = vi.fn(() => ({
+    const mockPrefetch = mock(() => ({
       abort: () => {},
       done: new Promise<void>(() => {}),
       firstEvent,
@@ -848,7 +848,7 @@ describe('createRouter serverNav', () => {
       '/tasks': { component: () => document.createElement('div') },
     });
 
-    const mockPrefetch = vi.fn(() => ({
+    const mockPrefetch = mock(() => ({
       abort: () => {},
       done: Promise.resolve(),
       firstEvent: Promise.resolve(),
@@ -877,8 +877,8 @@ describe('createRouter serverNav', () => {
     const firstEvent = new Promise<void>((r) => {
       resolveFirstEvent = r;
     });
-    const abortFn = vi.fn();
-    const mockPrefetch = vi.fn(() => {
+    const abortFn = mock();
+    const mockPrefetch = mock(() => {
       return {
         abort: abortFn,
         done: new Promise<void>(() => {}),
@@ -929,7 +929,7 @@ describe('createRouter serverNav', () => {
     // After 300ms, resolve firstEvent
     setTimeout(() => resolveFirstEvent(), 300);
 
-    const mockPrefetch = vi.fn(() => ({
+    const mockPrefetch = mock(() => ({
       abort: () => {},
       done: new Promise<void>(() => {}),
       firstEvent,
@@ -962,7 +962,7 @@ describe('createRouter serverNav', () => {
       '/tasks/2': { component: () => document.createElement('div') },
     });
 
-    const mockPrefetch = vi.fn(() => ({
+    const mockPrefetch = mock(() => ({
       abort: () => {},
       done: Promise.resolve(),
       firstEvent: Promise.resolve(),
@@ -992,7 +992,7 @@ describe('createRouter serverNav', () => {
       '/': { component: () => document.createElement('div') },
       '/about': { component: () => document.createElement('div') },
     });
-    const mockPrefetch = vi.fn(() => ({ abort: () => {} }));
+    const mockPrefetch = mock(() => ({ abort: () => {} }));
     const router = createRouter(routes, '/', {
       serverNav: true,
       _prefetchNavData: mockPrefetch,
@@ -1266,7 +1266,7 @@ describe('createRouter viewTransition', () => {
 
   beforeEach(() => {
     window.history.replaceState(null, '', '/');
-    mockStartVT = vi.fn((cb: () => void) => {
+    mockStartVT = mock((cb: () => void) => {
       cb();
       return {
         finished: Promise.resolve(),
@@ -1275,7 +1275,7 @@ describe('createRouter viewTransition', () => {
       };
     });
     (document as Record<string, unknown>).startViewTransition = mockStartVT;
-    vi.spyOn(window, 'matchMedia').mockReturnValue({ matches: false } as MediaQueryList);
+    spyOn(window, 'matchMedia').mockReturnValue({ matches: false } as MediaQueryList);
   });
 
   afterEach(() => {
@@ -1437,7 +1437,7 @@ describe('popstate search-param-only optimization', () => {
     const routes = defineRoutes({
       '/': { component: () => document.createElement('div') },
     });
-    const mockPrefetch = vi.fn(() => ({ abort: () => {} }));
+    const mockPrefetch = mock(() => ({ abort: () => {} }));
     const router = createRouter(routes, '/', {
       serverNav: true,
       _prefetchNavData: mockPrefetch,
@@ -1460,7 +1460,7 @@ describe('popstate search-param-only optimization', () => {
     const routes = defineRoutes({
       '/tasks': { component: () => document.createElement('div') },
     });
-    const mockPrefetch = vi.fn(() => ({ abort: () => {} }));
+    const mockPrefetch = mock(() => ({ abort: () => {} }));
     const router = createRouter(routes, '/tasks', {
       serverNav: true,
       _prefetchNavData: mockPrefetch,
@@ -1480,12 +1480,12 @@ describe('popstate search-param-only optimization', () => {
   });
 
   test('popstate with different pathname runs full pipeline', async () => {
-    const loader = vi.fn().mockResolvedValue({ items: [] });
+    const loader = mock().mockResolvedValue({ items: [] });
     const routes = defineRoutes({
       '/tasks': { component: () => document.createElement('div') },
       '/settings': { component: () => document.createElement('div'), loader },
     });
-    const mockPrefetch = vi.fn(() => ({ abort: () => {} }));
+    const mockPrefetch = mock(() => ({ abort: () => {} }));
     const router = createRouter(routes, '/tasks', {
       serverNav: true,
       _prefetchNavData: mockPrefetch,
@@ -1506,11 +1506,11 @@ describe('popstate search-param-only optimization', () => {
   });
 
   test('popstate with different path param runs full pipeline', async () => {
-    const loader = vi.fn().mockResolvedValue({ data: 'task' });
+    const loader = mock().mockResolvedValue({ data: 'task' });
     const routes = defineRoutes({
       '/tasks/:id': { component: () => document.createElement('div'), loader },
     });
-    const mockPrefetch = vi.fn(() => ({ abort: () => {} }));
+    const mockPrefetch = mock(() => ({ abort: () => {} }));
     window.history.replaceState(null, '', '/tasks/1');
     const router = createRouter(routes, '/tasks/1', {
       serverNav: true,
@@ -1533,7 +1533,7 @@ describe('popstate search-param-only optimization', () => {
   });
 
   test('popstate search-param-only skips loaders', async () => {
-    const loader = vi.fn().mockResolvedValue({ items: [] });
+    const loader = mock().mockResolvedValue({ items: [] });
     const routes = defineRoutes({
       '/': { component: () => document.createElement('div'), loader },
     });
@@ -1557,7 +1557,7 @@ describe('popstate search-param-only optimization', () => {
   });
 
   test('popstate search-param-only skips view transitions', async () => {
-    const mockStartVT = vi.fn((cb: () => void) => {
+    const mockStartVT = mock((cb: () => void) => {
       cb();
       return { finished: Promise.resolve(), ready: Promise.resolve() };
     });
@@ -1588,7 +1588,7 @@ describe('popstate search-param-only optimization', () => {
       '/': { component: () => document.createElement('div') },
       '/about': { component: () => document.createElement('div') },
     });
-    const mockPrefetch = vi.fn(() => ({ abort: () => {} }));
+    const mockPrefetch = mock(() => ({ abort: () => {} }));
     const router = createRouter(routes, '/', {
       serverNav: true,
       _prefetchNavData: mockPrefetch,

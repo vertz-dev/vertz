@@ -1,15 +1,15 @@
-import { describe, expect, it, vi, beforeEach } from 'bun:test';
+import { describe, expect, it, vi, beforeEach, mock } from '@vertz/test';
 import { createGitProvider, gitStatus, gitCommit, gitPush, gitLog, gitCheckoutBranch } from '../git';
 import type { SandboxClient } from '../../lib/sandbox-client';
 
 function createMockClient(): SandboxClient {
   return {
-    exec: vi.fn().mockResolvedValue({ stdout: '', stderr: '', exitCode: 0 }),
-    readFile: vi.fn().mockResolvedValue(''),
-    writeFile: vi.fn().mockResolvedValue(undefined),
-    searchFiles: vi.fn().mockResolvedValue([]),
-    listFiles: vi.fn().mockResolvedValue([]),
-    destroy: vi.fn().mockResolvedValue(undefined),
+    exec: mock().mockResolvedValue({ stdout: '', stderr: '', exitCode: 0 }),
+    readFile: mock().mockResolvedValue(''),
+    writeFile: mock().mockResolvedValue(undefined),
+    searchFiles: mock().mockResolvedValue([]),
+    listFiles: mock().mockResolvedValue([]),
+    destroy: mock().mockResolvedValue(undefined),
   };
 }
 

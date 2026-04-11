@@ -22,14 +22,14 @@ describe('Feature: Island hydration', () => {
 
   beforeEach(() => {
     document.body.innerHTML = '';
-    observeSpy = vi.fn();
+    observeSpy = mock();
     origIntersectionObserver = globalThis.IntersectionObserver;
 
     globalThis.IntersectionObserver = class MockIntersectionObserver {
       constructor(callback: IntersectionObserverCallback) {
         observeCallback = callback;
       }
-      observe = vi.fn((el: Element) => {
+      observe = mock((el: Element) => {
         observeSpy(el);
         // Simulate immediate intersection for above-fold elements
         observeCallback(
@@ -37,12 +37,12 @@ describe('Feature: Island hydration', () => {
           this as unknown as IntersectionObserver,
         );
       });
-      disconnect = vi.fn();
-      unobserve = vi.fn();
+      disconnect = mock();
+      unobserve = mock();
       root = null;
       rootMargin = '';
       thresholds = [] as number[];
-      takeRecords = vi.fn(() => [] as IntersectionObserverEntry[]);
+      takeRecords = mock(() => [] as IntersectionObserverEntry[]);
     } as unknown as typeof IntersectionObserver;
   });
 

@@ -1,4 +1,4 @@
-import { describe, expect, test, vi } from '@vertz/test';
+import { describe, expect, test, mock } from '@vertz/test';
 import type { MatchedRoute } from '../define-routes';
 import { executeLoaders } from '../loader';
 
@@ -18,7 +18,7 @@ function makeMatchedRoute(
 
 describe('executeLoaders', () => {
   test('executes a single loader and returns data', async () => {
-    const loader = vi.fn().mockResolvedValue({ name: 'Alice' });
+    const loader = mock().mockResolvedValue({ name: 'Alice' });
     const matched = [makeMatchedRoute(loader, { id: '1' })];
 
     const results = await executeLoaders(matched, { id: '1' });
@@ -34,14 +34,14 @@ describe('executeLoaders', () => {
   test('executes parent and child loaders in parallel', async () => {
     const order: string[] = [];
 
-    const parentLoader = vi.fn(async () => {
+    const parentLoader = mock(async () => {
       order.push('parent-start');
       await new Promise((r) => setTimeout(r, 10));
       order.push('parent-end');
       return { users: [] };
     });
 
-    const childLoader = vi.fn(async () => {
+    const childLoader = mock(async () => {
       order.push('child-start');
       await new Promise((r) => setTimeout(r, 10));
       order.push('child-end');
@@ -63,7 +63,7 @@ describe('executeLoaders', () => {
   test('returns undefined for routes without loaders', async () => {
     const matched = [
       makeMatchedRoute(undefined),
-      makeMatchedRoute(vi.fn().mockResolvedValue({ data: true }), { id: '1' }),
+      makeMatchedRoute(mock().mockResolvedValue({ data: true }), { id: '1' }),
     ];
 
     const results = await executeLoaders(matched, { id: '1' });
@@ -75,14 +75,14 @@ describe('executeLoaders', () => {
 
   test('propagates loader errors', async () => {
     const loaderError = new TypeError('fetch failed');
-    const loader = vi.fn().mockRejectedValue(loaderError);
+    const loader = mock().mockRejectedValue(loaderError);
     const matched = [makeMatchedRoute(loader)];
 
     await expect(executeLoaders(matched, {})).rejects.toThrow('fetch failed');
   });
 
   test('handles synchronous loaders', async () => {
-    const loader = vi.fn().mockReturnValue({ sync: true });
+    const loader = mock().mockReturnValue({ sync: true });
     const matched = [makeMatchedRoute(loader)];
 
     const results = await executeLoaders(matched, {});
@@ -91,7 +91,7 @@ describe('executeLoaders', () => {
 
   test('passes AbortSignal to loader context', async () => {
     const controller = new AbortController();
-    const loader = vi.fn().mockResolvedValue({ ok: true });
+    const loader = mock().mockResolvedValue({ ok: true });
     const matched = [makeMatchedRoute(loader, { id: '1' })];
 
     await executeLoaders(matched, { id: '1' }, controller.signal);
@@ -103,7 +103,7 @@ describe('executeLoaders', () => {
   });
 
   test('provides a fallback AbortSignal when none given', async () => {
-    const loader = vi.fn().mockResolvedValue({ ok: true });
+    const loader = mock().mockResolvedValue({ ok: true });
     const matched = [makeMatchedRoute(loader)];
 
     await executeLoaders(matched, {});

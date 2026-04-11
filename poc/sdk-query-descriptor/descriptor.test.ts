@@ -9,7 +9,7 @@
  * - Unknown #5: query() overload resolution
  */
 
-import { describe, expect, test } from 'bun:test';
+import { describe, expect, test } from '@vertz/test';
 import { createDescriptor, isQueryDescriptor, query, type QueryDescriptor } from './descriptor';
 import { createClient, type Task } from './simulated-sdk';
 

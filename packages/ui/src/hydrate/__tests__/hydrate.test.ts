@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from '@vertz/test';
+import { afterEach, beforeEach, describe, expect, it, vi, mock, spyOn } from '@vertz/test';
 import type { ComponentFunction, ComponentRegistry } from '../component-registry';
 import { hydrate } from '../hydrate';
 
@@ -21,20 +21,20 @@ describe('hydrate()', () => {
   let origIntersectionObserver: typeof globalThis.IntersectionObserver;
 
   beforeEach(() => {
-    disconnectSpy = vi.fn();
+    disconnectSpy = mock();
     origIntersectionObserver = globalThis.IntersectionObserver;
 
     globalThis.IntersectionObserver = class MockIntersectionObserver {
       constructor(callback: IntersectionObserverCallback) {
         observeCallback = callback;
       }
-      observe = vi.fn();
+      observe = mock();
       disconnect = disconnectSpy;
-      unobserve = vi.fn();
+      unobserve = mock();
       root = null;
       rootMargin = '';
       thresholds = [] as number[];
-      takeRecords = vi.fn(() => [] as IntersectionObserverEntry[]);
+      takeRecords = mock(() => [] as IntersectionObserverEntry[]);
     } as unknown as typeof IntersectionObserver;
   });
 
@@ -99,7 +99,7 @@ describe('hydrate()', () => {
       </div>
     `;
 
-    const hydrateSpy = vi.fn();
+    const hydrateSpy = mock();
     const registry: ComponentRegistry = {
       LazyComponent: () => {
         hydrateSpy();
@@ -132,7 +132,7 @@ describe('hydrate()', () => {
     `;
 
     const chunkError = new Error('Failed to fetch chunk');
-    const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const consoleSpy = spyOn(console, 'error').mockImplementation(() => {});
 
     const registry: ComponentRegistry = {
       BrokenComponent: () => Promise.reject(chunkError),
@@ -165,7 +165,7 @@ describe('hydrate()', () => {
       </div>
     `;
 
-    const hydrateSpy = vi.fn();
+    const hydrateSpy = mock();
     const registry: ComponentRegistry = {
       DefaultComponent: () => {
         hydrateSpy();
@@ -188,7 +188,7 @@ describe('hydrate()', () => {
       </div>
     `;
 
-    const componentFn = vi.fn();
+    const componentFn = mock();
     const registry: ComponentRegistry = {
       MarkedComponent: () =>
         Promise.resolve({
@@ -220,7 +220,7 @@ describe('hydrate()', () => {
       </div>
     `;
 
-    const componentFn = vi.fn();
+    const componentFn = mock();
     const registry: ComponentRegistry = {
       DoubleComponent: () =>
         Promise.resolve({
@@ -257,7 +257,7 @@ describe('hydrate()', () => {
       </div>
     `;
 
-    const componentFn = vi.fn();
+    const componentFn = mock();
     const registry: ComponentRegistry = {
       AlreadyHydrated: () =>
         Promise.resolve({

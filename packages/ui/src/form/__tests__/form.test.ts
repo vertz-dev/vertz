@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from '@vertz/test';
+import { describe, expect, it, mock } from '@vertz/test';
 import { err, ok } from '@vertz/fetch';
 import { s } from '@vertz/schema';
 import type { SdkMethodWithMeta } from '../form';
@@ -8,13 +8,13 @@ import type { FormSchema } from '../validation';
 /** Helper: creates a mock HTMLFormElement with event listener support. */
 function createMockFormElement() {
   const listeners: Record<string, ((e: Event) => void)[]> = {};
-  const mockReset = vi.fn();
+  const mockReset = mock();
   const el = {
-    addEventListener: vi.fn((type: string, handler: (e: Event) => void) => {
+    addEventListener: mock((type: string, handler: (e: Event) => void) => {
       if (!listeners[type]) listeners[type] = [];
       listeners[type].push(handler);
     }),
-    removeEventListener: vi.fn(),
+    removeEventListener: mock(),
     reset: mockReset,
     dispatchEvent(e: Event) {
       const handlers = listeners[e.type] || [];
@@ -84,7 +84,7 @@ function failingSchema<T>(fieldErrors: Record<string, string>): FormSchema<T> {
  * the provided entries. Returns a cleanup function.
  */
 function createSubmitEvent(entries: Record<string, string>) {
-  const mockReset = vi.fn();
+  const mockReset = mock();
   const event = new Event('submit', { cancelable: true });
   Object.defineProperty(event, 'target', {
     value: { reset: mockReset },
@@ -165,7 +165,7 @@ describe('form', () => {
 
   describe('onSubmit', () => {
     it('validates and calls SDK on success', async () => {
-      const handler = vi.fn().mockResolvedValue({ id: 1 });
+      const handler = mock().mockResolvedValue({ id: 1 });
       const sdk = mockSdkMethod({ url: '/api/users', method: 'POST', handler });
       const { event, cleanup } = createSubmitEvent({ name: 'Alice' });
 
@@ -179,9 +179,9 @@ describe('form', () => {
     });
 
     it('calls onSuccess callback from options', async () => {
-      const handler = vi.fn().mockResolvedValue({ id: 1 });
+      const handler = mock().mockResolvedValue({ id: 1 });
       const sdk = mockSdkMethod({ url: '/api/users', method: 'POST', handler });
-      const onSuccess = vi.fn();
+      const onSuccess = mock();
       const { event, cleanup } = createSubmitEvent({ name: 'Alice' });
 
       try {
@@ -194,10 +194,10 @@ describe('form', () => {
     });
 
     it('calls onError callback on validation failure', async () => {
-      const handler = vi.fn();
+      const handler = mock();
       const sdk = mockSdkMethod({ url: '/api/users', method: 'POST', handler });
       const schema = failingSchema<{ name: string }>({ name: 'Required' });
-      const onError = vi.fn();
+      const onError = mock();
       const { event, cleanup } = createSubmitEvent({ name: '' });
 
       try {
@@ -215,7 +215,7 @@ describe('form', () => {
         url: '/api/users',
         method: 'POST',
       });
-      const onError = vi.fn();
+      const onError = mock();
       const { event, cleanup } = createSubmitEvent({ name: 'Alice' });
 
       try {
@@ -299,9 +299,9 @@ describe('form', () => {
 
   describe('submit', () => {
     it('submit(formData) triggers submission pipeline', async () => {
-      const handler = vi.fn().mockResolvedValue({ id: 1 });
+      const handler = mock().mockResolvedValue({ id: 1 });
       const sdk = mockSdkMethod({ url: '/api/users', method: 'POST', handler });
-      const onSuccess = vi.fn();
+      const onSuccess = mock();
 
       const f = form(sdk, { schema: passingSchema(), onSuccess });
 
@@ -338,7 +338,7 @@ describe('form', () => {
 
   describe('resetOnSuccess', () => {
     it('resets after successful submission', async () => {
-      const handler = vi.fn().mockResolvedValue({ id: 1 });
+      const handler = mock().mockResolvedValue({ id: 1 });
       const sdk = mockSdkMethod({ url: '/api/users', method: 'POST', handler });
 
       const f = form(sdk, {
@@ -361,7 +361,7 @@ describe('form', () => {
 
   describe('meta.bodySchema auto-extraction', () => {
     it('auto-validates using meta.bodySchema when no explicit schema provided', async () => {
-      const handler = vi.fn().mockResolvedValue({ id: '1', title: 'Buy milk' });
+      const handler = mock().mockResolvedValue({ id: '1', title: 'Buy milk' });
       const bodySchema = s.object({ title: s.string().min(1) });
       const sdk = mockSdkWithMeta({
         url: '/api/todos',
@@ -370,7 +370,7 @@ describe('form', () => {
         bodySchema,
       });
 
-      const onError = vi.fn();
+      const onError = mock();
       const f = form(sdk, { onError });
 
       // Empty title should fail validation
@@ -384,7 +384,7 @@ describe('form', () => {
       // Valid title should pass
       const fd2 = new FormData();
       fd2.append('title', 'Buy milk');
-      const onSuccess = vi.fn();
+      const onSuccess = mock();
       const f2 = form(sdk, { onSuccess });
       await f2.submit(fd2);
 
@@ -393,7 +393,7 @@ describe('form', () => {
     });
 
     it('explicit schema overrides meta.bodySchema', async () => {
-      const handler = vi.fn().mockResolvedValue({ id: '1' });
+      const handler = mock().mockResolvedValue({ id: '1' });
       const metaSchema: FormSchema<{ title: string }> = {
         parse(data: unknown) {
           return { ok: true as const, data: data as { title: string } };
@@ -408,7 +408,7 @@ describe('form', () => {
         bodySchema: metaSchema,
       });
 
-      const onError = vi.fn();
+      const onError = mock();
       const f = form(sdk, { schema: explicitSchema, onError });
 
       const fd = new FormData();
@@ -489,9 +489,9 @@ describe('form', () => {
     });
 
     it('submit() without args uses bound element FormData', async () => {
-      const handler = vi.fn().mockResolvedValue({ id: 1 });
+      const handler = mock().mockResolvedValue({ id: 1 });
       const sdk = mockSdkMethod({ url: '/api/users', method: 'POST', handler });
-      const onSuccess = vi.fn();
+      const onSuccess = mock();
       const f = form(sdk, { schema: passingSchema(), onSuccess });
 
       // Create a mock element that produces FormData when constructed
@@ -520,7 +520,7 @@ describe('form', () => {
     });
 
     it('resetOnSuccess calls formElement.reset() on success', async () => {
-      const handler = vi.fn().mockResolvedValue({ id: 1 });
+      const handler = mock().mockResolvedValue({ id: 1 });
       const sdk = mockSdkMethod({ url: '/api/users', method: 'POST', handler });
 
       const f = form(sdk, { schema: passingSchema(), resetOnSuccess: true });
@@ -729,7 +729,7 @@ describe('form', () => {
     });
 
     it('validation errors populate nested field states via dot-path keys', async () => {
-      const handler = vi.fn().mockResolvedValue({ id: 1 });
+      const handler = mock().mockResolvedValue({ id: 1 });
       const sdk = mockSdkMethod({ url: '/api/users', method: 'POST', handler });
       const schema: FormSchema<{ name: string; address: { street: string } }> = {
         parse(_data: unknown) {

@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'bun:test';
+import { describe, expect, it } from '@vertz/test';
 import { createInMemoryWorkflowStore } from '../workflow-store';
 
 describe('Feature: In-memory workflow store', () => {

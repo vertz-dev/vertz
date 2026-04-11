@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from '@vertz/test';
+import { afterEach, beforeEach, describe, expect, it, mock } from '@vertz/test';
 import { ComposedDatePicker } from '../date-picker-composed';
 
 describe('Composed DatePicker', () => {
@@ -109,7 +109,7 @@ describe('Composed DatePicker', () => {
   describe('Given a ComposedDatePicker in single mode', () => {
     describe('When a date is selected', () => {
       it('Then calls onValueChange with the selected date', () => {
-        const onValueChange = vi.fn();
+        const onValueChange = mock();
         const root = ComposedDatePicker({
           defaultMonth: new Date(2025, 5, 1),
           onValueChange,
@@ -153,7 +153,7 @@ describe('Composed DatePicker', () => {
   describe('Given a ComposedDatePicker with onOpenChange', () => {
     describe('When the trigger is clicked', () => {
       it('Then calls onOpenChange with true', () => {
-        const onOpenChange = vi.fn();
+        const onOpenChange = mock();
         const root = ComposedDatePicker({ onOpenChange });
         container.appendChild(root);
 

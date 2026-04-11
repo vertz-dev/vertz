@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from '@vertz/test';
+import { afterEach, beforeEach, describe, expect, it, vi, mock } from '@vertz/test';
 import { HoverCard } from '../hover-card';
 
 describe('HoverCard', () => {
@@ -107,7 +107,7 @@ describe('HoverCard', () => {
   });
 
   it('calls onOpenChange on open and close', () => {
-    const onOpenChange = vi.fn();
+    const onOpenChange = mock();
     const { trigger, content } = HoverCard.Root({
       openDelay: 0,
       closeDelay: 0,

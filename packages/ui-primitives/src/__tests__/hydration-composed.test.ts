@@ -19,7 +19,7 @@
  * hydration behavior.
  */
 
-import { afterEach, beforeEach, describe, expect, it, vi } from '@vertz/test';
+import { afterEach, beforeEach, describe, expect, it } from '@vertz/test';
 import { mount, resetInjectedStyles } from '@vertz/ui';
 import { ComposedAccordion } from '../accordion/accordion-composed';
 import { ComposedPagination } from '../pagination/pagination-composed';
@@ -88,7 +88,7 @@ describe('Composed primitives — hydration', () => {
           const ssrHtml = csrHTML(() => createRadioGroup());
           root.innerHTML = ssrHtml;
 
-          const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+          const warnSpy = spyOn(console, 'warn').mockImplementation(() => {});
           mount(() => createRadioGroup());
 
           const fallbackWarns = warnSpy.mock.calls.filter(
@@ -184,8 +184,8 @@ describe('Composed primitives — hydration', () => {
           const ssrHtml = csrHTML(() => createTabs());
           root.innerHTML = ssrHtml;
 
-          const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
-          const debugSpy = vi.spyOn(console, 'debug').mockImplementation(() => {});
+          const warnSpy = spyOn(console, 'warn').mockImplementation(() => {});
+          const debugSpy = spyOn(console, 'debug').mockImplementation(() => {});
 
           expect(() => mount(() => createTabs())).not.toThrow();
 
@@ -197,7 +197,7 @@ describe('Composed primitives — hydration', () => {
           const ssrHtml = csrHTML(() => createTabs());
           root.innerHTML = ssrHtml;
 
-          const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+          const warnSpy = spyOn(console, 'warn').mockImplementation(() => {});
 
           mount(() => createTabs());
 
@@ -211,7 +211,7 @@ describe('Composed primitives — hydration', () => {
         it('Then the SSR root element is preserved in the DOM', () => {
           const ssrHtml = csrHTML(() => createTabs());
           root.innerHTML = ssrHtml;
-          const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+          const warnSpy = spyOn(console, 'warn').mockImplementation(() => {});
 
           mount(() => createTabs());
 
@@ -265,8 +265,8 @@ describe('Composed primitives — hydration', () => {
           const ssrHtml = csrHTML(() => createAccordion());
           root.innerHTML = ssrHtml;
 
-          const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
-          const debugSpy = vi.spyOn(console, 'debug').mockImplementation(() => {});
+          const warnSpy = spyOn(console, 'warn').mockImplementation(() => {});
+          const debugSpy = spyOn(console, 'debug').mockImplementation(() => {});
 
           expect(() => mount(() => createAccordion())).not.toThrow();
 
@@ -278,7 +278,7 @@ describe('Composed primitives — hydration', () => {
           const ssrHtml = csrHTML(() => createAccordion());
           root.innerHTML = ssrHtml;
 
-          const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+          const warnSpy = spyOn(console, 'warn').mockImplementation(() => {});
 
           mount(() => createAccordion());
 
@@ -292,7 +292,7 @@ describe('Composed primitives — hydration', () => {
         it('Then the SSR root element is preserved in the DOM', () => {
           const ssrHtml = csrHTML(() => createAccordion());
           root.innerHTML = ssrHtml;
-          const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+          const warnSpy = spyOn(console, 'warn').mockImplementation(() => {});
 
           mount(() => createAccordion());
 
@@ -337,8 +337,8 @@ describe('Composed primitives — hydration', () => {
           const ssrHtml = csrHTML(() => createSelect());
           root.innerHTML = ssrHtml;
 
-          const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
-          const debugSpy = vi.spyOn(console, 'debug').mockImplementation(() => {});
+          const warnSpy = spyOn(console, 'warn').mockImplementation(() => {});
+          const debugSpy = spyOn(console, 'debug').mockImplementation(() => {});
 
           expect(() => mount(() => createSelect())).not.toThrow();
 
@@ -350,7 +350,7 @@ describe('Composed primitives — hydration', () => {
           const ssrHtml = csrHTML(() => createSelect());
           root.innerHTML = ssrHtml;
 
-          const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+          const warnSpy = spyOn(console, 'warn').mockImplementation(() => {});
 
           mount(() => createSelect());
 
@@ -364,7 +364,7 @@ describe('Composed primitives — hydration', () => {
         it('Then the SSR root element structure is present after mount', () => {
           const ssrHtml = csrHTML(() => createSelect());
           root.innerHTML = ssrHtml;
-          const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+          const warnSpy = spyOn(console, 'warn').mockImplementation(() => {});
 
           mount(() => createSelect());
 
@@ -402,8 +402,8 @@ describe('Composed primitives — hydration', () => {
           const ssrHtml = csrHTML(() => createPagination());
           root.innerHTML = ssrHtml;
 
-          const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
-          const debugSpy = vi.spyOn(console, 'debug').mockImplementation(() => {});
+          const warnSpy = spyOn(console, 'warn').mockImplementation(() => {});
+          const debugSpy = spyOn(console, 'debug').mockImplementation(() => {});
 
           expect(() => mount(() => createPagination())).not.toThrow();
 
@@ -415,7 +415,7 @@ describe('Composed primitives — hydration', () => {
           const ssrHtml = csrHTML(() => createPagination());
           root.innerHTML = ssrHtml;
 
-          const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+          const warnSpy = spyOn(console, 'warn').mockImplementation(() => {});
 
           mount(() => createPagination());
 
@@ -430,8 +430,8 @@ describe('Composed primitives — hydration', () => {
           const ssrHtml = csrHTML(() => createPagination());
           root.innerHTML = ssrHtml;
 
-          const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
-          const debugSpy = vi.spyOn(console, 'debug').mockImplementation(() => {});
+          const warnSpy = spyOn(console, 'warn').mockImplementation(() => {});
+          const debugSpy = spyOn(console, 'debug').mockImplementation(() => {});
 
           mount(() => createPagination());
 
@@ -461,8 +461,8 @@ describe('Composed primitives — hydration', () => {
           root.innerHTML = ssrHtml;
 
           let lastPage: number | undefined;
-          const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
-          const debugSpy = vi.spyOn(console, 'debug').mockImplementation(() => {});
+          const warnSpy = spyOn(console, 'warn').mockImplementation(() => {});
+          const debugSpy = spyOn(console, 'debug').mockImplementation(() => {});
 
           mount(() =>
             createPagination((page) => {

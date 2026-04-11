@@ -4,13 +4,13 @@
  * Uses injectable deps to test orchestration logic without real servers.
  */
 
-import { afterEach, describe, expect, it, vi } from '@vertz/test';
+import { afterEach, describe, expect, it, mock } from '@vertz/test';
 import { err, ok } from '@vertz/errors';
 import type { PreviewDeps } from '../preview';
 import { previewAction } from '../preview';
 
 function createMockDeps(overrides?: Partial<PreviewDeps>): PreviewDeps {
-  const mockServer = { port: 4000, stop: vi.fn() };
+  const mockServer = { port: 4000, stop: mock() };
   return {
     cwd: '/fake/cwd',
     findProjectRoot: () => '/fake/project',
@@ -19,9 +19,9 @@ function createMockDeps(overrides?: Partial<PreviewDeps>): PreviewDeps {
     buildAction: async () => ok(undefined),
     validateBuildOutputs: () => ok(undefined),
     serve: async () => ok({ server: mockServer, url: 'http://localhost:4000', aotRouteCount: 0 }),
-    setupGracefulShutdown: vi.fn(),
-    openBrowser: vi.fn(),
-    log: vi.fn(),
+    setupGracefulShutdown: mock(),
+    openBrowser: mock(),
+    log: mock(),
     ...overrides,
   };
 }
@@ -65,10 +65,10 @@ describe('previewAction', () => {
 
   describe('Given build is fresh and build flag is undefined (auto)', () => {
     it('Then skips build and serves directly', async () => {
-      const buildAction = vi.fn(async () => ok(undefined));
-      const serve = vi.fn(async () =>
+      const buildAction = mock(async () => ok(undefined));
+      const serve = mock(async () =>
         ok({
-          server: { port: 4000, stop: vi.fn() },
+          server: { port: 4000, stop: mock() },
           url: 'http://localhost:4000',
           aotRouteCount: 0,
         }),
@@ -89,10 +89,10 @@ describe('previewAction', () => {
 
   describe('Given build is stale and build flag is undefined (auto)', () => {
     it('Then auto-builds before serving', async () => {
-      const buildAction = vi.fn(async () => ok(undefined));
-      const serve = vi.fn(async () =>
+      const buildAction = mock(async () => ok(undefined));
+      const serve = mock(async () =>
         ok({
-          server: { port: 4000, stop: vi.fn() },
+          server: { port: 4000, stop: mock() },
           url: 'http://localhost:4000',
           aotRouteCount: 0,
         }),
@@ -113,7 +113,7 @@ describe('previewAction', () => {
 
   describe('Given --build flag is true', () => {
     it('Then forces rebuild even when fresh', async () => {
-      const buildAction = vi.fn(async () => ok(undefined));
+      const buildAction = mock(async () => ok(undefined));
       const deps = createMockDeps({
         isBuildFresh: () => ({ fresh: true, reason: 'dist/ is up to date' }),
         buildAction,
@@ -128,10 +128,10 @@ describe('previewAction', () => {
 
   describe('Given --no-build flag (build === false)', () => {
     it('Then skips build and serves when outputs exist', async () => {
-      const buildAction = vi.fn(async () => ok(undefined));
-      const serve = vi.fn(async () =>
+      const buildAction = mock(async () => ok(undefined));
+      const serve = mock(async () =>
         ok({
-          server: { port: 4000, stop: vi.fn() },
+          server: { port: 4000, stop: mock() },
           url: 'http://localhost:4000',
           aotRouteCount: 0,
         }),
@@ -165,7 +165,7 @@ describe('previewAction', () => {
 
   describe('Given build fails', () => {
     it('Then returns error and logs failure message', async () => {
-      const log = vi.fn();
+      const log = mock();
       const deps = createMockDeps({
         isBuildFresh: () => ({ fresh: false, reason: 'dist/ is missing' }),
         buildAction: async () => err(new Error('Compilation failed')),
@@ -199,9 +199,9 @@ describe('previewAction', () => {
 
   describe('Given default port and host', () => {
     it('Then uses port 4000 and host localhost', async () => {
-      const serve = vi.fn(async () =>
+      const serve = mock(async () =>
         ok({
-          server: { port: 4000, stop: vi.fn() },
+          server: { port: 4000, stop: mock() },
           url: 'http://localhost:4000',
           aotRouteCount: 0,
         }),
@@ -218,9 +218,9 @@ describe('previewAction', () => {
 
   describe('Given PORT env is set', () => {
     it('Then uses PORT env as default port', async () => {
-      const serve = vi.fn(async () =>
+      const serve = mock(async () =>
         ok({
-          server: { port: 5000, stop: vi.fn() },
+          server: { port: 5000, stop: mock() },
           url: 'http://localhost:5000',
           aotRouteCount: 0,
         }),
@@ -237,9 +237,9 @@ describe('previewAction', () => {
 
   describe('Given custom port and host', () => {
     it('Then uses provided values', async () => {
-      const serve = vi.fn(async () =>
+      const serve = mock(async () =>
         ok({
-          server: { port: 8080, stop: vi.fn() },
+          server: { port: 8080, stop: mock() },
           url: 'http://0.0.0.0:8080',
           aotRouteCount: 0,
         }),
@@ -256,11 +256,11 @@ describe('previewAction', () => {
 
   describe('Given successful serve with AOT routes', () => {
     it('Then logs preview banner with AOT count', async () => {
-      const log = vi.fn();
+      const log = mock();
       const deps = createMockDeps({
         serve: async () =>
           ok({
-            server: { port: 4000, stop: vi.fn() },
+            server: { port: 4000, stop: mock() },
             url: 'http://localhost:4000',
             aotRouteCount: 5,
           }),
@@ -279,11 +279,11 @@ describe('previewAction', () => {
 
   describe('Given successful serve without AOT routes', () => {
     it('Then logs banner without AOT line', async () => {
-      const log = vi.fn();
+      const log = mock();
       const deps = createMockDeps({
         serve: async () =>
           ok({
-            server: { port: 4000, stop: vi.fn() },
+            server: { port: 4000, stop: mock() },
             url: 'http://localhost:4000',
             aotRouteCount: 0,
           }),
@@ -299,8 +299,8 @@ describe('previewAction', () => {
 
   describe('Given successful serve', () => {
     it('Then sets up graceful shutdown', async () => {
-      const mockServer = { port: 4000, stop: vi.fn() };
-      const setupGracefulShutdown = vi.fn();
+      const mockServer = { port: 4000, stop: mock() };
+      const setupGracefulShutdown = mock();
       const deps = createMockDeps({
         serve: async () =>
           ok({ server: mockServer, url: 'http://localhost:4000', aotRouteCount: 0 }),
@@ -315,7 +315,7 @@ describe('previewAction', () => {
 
   describe('Given verbose mode', () => {
     it('Then logs app type and freshness info', async () => {
-      const log = vi.fn();
+      const log = mock();
       const deps = createMockDeps({
         isBuildFresh: () => ({ fresh: true, reason: 'dist/ is up to date' }),
         log,
@@ -354,11 +354,11 @@ describe('previewAction', () => {
 
   describe('Given --open flag is true', () => {
     it('Then opens the browser with the server URL', async () => {
-      const openBrowser = vi.fn();
+      const openBrowser = mock();
       const deps = createMockDeps({
         serve: async () =>
           ok({
-            server: { port: 4000, stop: vi.fn() },
+            server: { port: 4000, stop: mock() },
             url: 'http://localhost:4000',
             aotRouteCount: 0,
           }),
@@ -373,7 +373,7 @@ describe('previewAction', () => {
 
   describe('Given --open flag is not set', () => {
     it('Then does not open the browser', async () => {
-      const openBrowser = vi.fn();
+      const openBrowser = mock();
       const deps = createMockDeps({ openBrowser });
 
       await previewAction({}, deps);
@@ -384,9 +384,9 @@ describe('previewAction', () => {
 
   describe('Given app type dispatches correctly', () => {
     it('Then passes the detected app type to serve', async () => {
-      const serve = vi.fn(async () =>
+      const serve = mock(async () =>
         ok({
-          server: { port: 4000, stop: vi.fn() },
+          server: { port: 4000, stop: mock() },
           url: 'http://localhost:4000',
           aotRouteCount: 0,
         }),

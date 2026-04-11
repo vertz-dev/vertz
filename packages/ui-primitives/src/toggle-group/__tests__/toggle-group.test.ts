@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from '@vertz/test';
+import { afterEach, beforeEach, describe, expect, it, mock } from '@vertz/test';
 import { ToggleGroup } from '../toggle-group';
 
 describe('ToggleGroup', () => {
@@ -129,7 +129,7 @@ describe('ToggleGroup', () => {
   });
 
   it('calls onValueChange when value changes', () => {
-    const onValueChange = vi.fn();
+    const onValueChange = mock();
     const { root, Item } = ToggleGroup.Root({ onValueChange });
     const item = Item('a');
     root.appendChild(item);

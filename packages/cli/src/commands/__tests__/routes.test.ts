@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from '@vertz/test';
+import { describe, expect, it, mock } from '@vertz/test';
 import type { AppIR, Compiler, ModuleIR, RouteIR, RouterIR } from '@vertz/compiler';
 import { routesAction } from '../routes';
 
@@ -52,11 +52,11 @@ function createMockCompiler(routers: RouterIR[] = []): Compiler {
   } as unknown as AppIR;
 
   return {
-    analyze: vi.fn().mockResolvedValue(ir),
-    validate: vi.fn().mockResolvedValue([]),
-    generate: vi.fn().mockResolvedValue(undefined),
-    compile: vi.fn(),
-    getConfig: vi.fn(),
+    analyze: mock().mockResolvedValue(ir),
+    validate: mock().mockResolvedValue([]),
+    generate: mock().mockResolvedValue(undefined),
+    compile: mock(),
+    getConfig: mock(),
   } as unknown as Compiler;
 }
 

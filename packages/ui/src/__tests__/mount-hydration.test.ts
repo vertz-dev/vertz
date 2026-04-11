@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from '@vertz/test';
+import { afterEach, beforeEach, describe, expect, it, vi, mock, spyOn } from '@vertz/test';
 import { __flushMountFrame, __pushMountFrame, onMount } from '../component/lifecycle';
 import { resetInjectedStyles } from '../css/css';
 import {
@@ -144,7 +144,7 @@ describe('mount() — tolerant hydration', () => {
 
   it('bails out to CSR render on hydration error', () => {
     root.innerHTML = '<div>SSR content</div>';
-    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const warnSpy = spyOn(console, 'warn').mockImplementation(() => {});
 
     let callCount = 0;
     const App = () => {
@@ -172,7 +172,7 @@ describe('mount() — tolerant hydration', () => {
 
   it('error recovery cleans up effects from failed hydration attempt', () => {
     root.innerHTML = '<div><span>SSR</span></div>';
-    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    spyOn(console, 'warn').mockImplementation(() => {});
 
     let effectRunCount = 0;
     let callCount = 0;
@@ -208,7 +208,7 @@ describe('mount() — tolerant hydration', () => {
 
   it('calls onMount after hydration', () => {
     root.innerHTML = '<div>content</div>';
-    const onMount = vi.fn();
+    const onMount = mock();
 
     const App = () => {
       const el = __element('div');
@@ -458,7 +458,7 @@ describe('mount() — tolerant hydration', () => {
       return el;
     };
 
-    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const warnSpy = spyOn(console, 'warn').mockImplementation(() => {});
     mount(App);
 
     // No claim verification warnings (no false positives)
@@ -555,7 +555,7 @@ describe('mount() — tolerant hydration', () => {
 
     const App = () => Layout({ children: () => PageContent() });
 
-    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const warnSpy = spyOn(console, 'warn').mockImplementation(() => {});
     mount(App);
 
     const claimWarns = warnSpy.mock.calls.filter(
@@ -654,7 +654,7 @@ describe('mount() — tolerant hydration', () => {
       return el;
     };
 
-    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const warnSpy = spyOn(console, 'warn').mockImplementation(() => {});
     mount(App);
 
     // (a) correct DOM structure — static content preserved
@@ -904,7 +904,7 @@ describe('mount() — post-hydration onMount timing', () => {
 
   it('deferred mount callbacks are discarded on hydration failure', () => {
     root.innerHTML = '<div>SSR content</div>';
-    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    spyOn(console, 'warn').mockImplementation(() => {});
 
     let onMountCalled = false;
     let callCount = 0;

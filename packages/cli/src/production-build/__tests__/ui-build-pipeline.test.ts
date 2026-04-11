@@ -5,14 +5,14 @@
  * production build pipeline for UI apps.
  */
 
-import { afterEach, beforeEach, describe, expect, it, vi } from '@vertz/test';
+import { afterEach, beforeEach, describe, expect, it, vi, mock } from '@vertz/test';
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { buildUI, type UIBuildConfig } from '../ui-build-pipeline';
 
 // ── Module mocks ────────────────────────────────────────────────────
 
-const mockGenerateRouteChunkManifest = vi.fn(
+const mockGenerateRouteChunkManifest = mock(
   () => ({ routes: {} }) as { routes: Record<string, string[]> },
 );
 
@@ -20,7 +20,7 @@ vi.mock('../route-chunk-manifest', () => ({
   generateRouteChunkManifest: (...args: unknown[]) => mockGenerateRouteChunkManifest(...args),
 }));
 
-const mockCreateVertzBunPlugin = vi.fn(() => {
+const mockCreateVertzBunPlugin = mock(() => {
   const fileExtractions = new Map();
   fileExtractions.set('test.tsx', { css: '.test { color: red; }' });
   const plugin = { name: 'vertz-bun-plugin-mock', setup() {} };
@@ -31,31 +31,31 @@ vi.mock('@vertz/ui-server/bun-plugin', () => ({
   createVertzBunPlugin: (...args: unknown[]) => mockCreateVertzBunPlugin(...args),
 }));
 
-const mockGenerateAotBuildManifest = vi.fn(() => ({
+const mockGenerateAotBuildManifest = mock(() => ({
   components: {},
   classificationLog: [],
 }));
 
-const mockExtractFontMetrics = vi.fn(async () => ({}));
+const mockExtractFontMetrics = mock(async () => ({}));
 
 vi.mock('@vertz/ui-server', () => ({
   generateAotBuildManifest: (...args: unknown[]) => mockGenerateAotBuildManifest(...args),
   extractFontMetrics: (...args: unknown[]) => mockExtractFontMetrics(...args),
 }));
 
-const mockDiscoverRoutes = vi.fn(async () => [] as string[]);
-const mockFilterPrerenderableRoutes = vi.fn((patterns: string[]) =>
+const mockDiscoverRoutes = mock(async () => [] as string[]);
+const mockFilterPrerenderableRoutes = mock((patterns: string[]) =>
   patterns.filter((p) => !p.includes(':')),
 );
-const mockCollectPrerenderPaths = vi.fn(async () => [] as string[]);
-const mockPrerenderRoutes = vi.fn(async () => [] as Array<{ path: string; html: string }>);
-const mockStripScriptsFromStaticHTML = vi.fn((html: string) =>
+const mockCollectPrerenderPaths = mock(async () => [] as string[]);
+const mockPrerenderRoutes = mock(async () => [] as Array<{ path: string; html: string }>);
+const mockStripScriptsFromStaticHTML = mock((html: string) =>
   html.replace(/<script[^>]*>.*?<\/script>/g, ''),
 );
 
 vi.mock('@vertz/ui-server/ssr', () => ({
-  createSSRHandler: vi.fn(() => async () => new Response('ssr-mock')),
-  loadAotManifest: vi.fn(async () => null),
+  createSSRHandler: mock(() => async () => new Response('ssr-mock')),
+  loadAotManifest: mock(async () => null),
   collectPrerenderPaths: (...args: unknown[]) => mockCollectPrerenderPaths(...args),
   discoverRoutes: (...args: unknown[]) => mockDiscoverRoutes(...args),
   filterPrerenderableRoutes: (...args: unknown[]) =>
@@ -67,7 +67,7 @@ vi.mock('@vertz/ui-server/ssr', () => ({
 
 // ── Bun.build mock ─────────────────────────────────────────────────
 
-const mockBunBuild = vi.fn();
+const mockBunBuild = mock();
 const originalBunBuild = Bun.build;
 
 /** Default Bun.build mock that creates fake output files. */

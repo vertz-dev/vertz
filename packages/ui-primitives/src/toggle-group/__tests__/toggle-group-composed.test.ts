@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from '@vertz/test';
+import { afterEach, beforeEach, describe, expect, it, mock } from '@vertz/test';
 
 describe('ComposedToggleGroup', () => {
   let container: HTMLDivElement;
@@ -108,7 +108,7 @@ describe('ComposedToggleGroup', () => {
   });
 
   it('multiple mode: click multiple items selects all', async () => {
-    const onValueChange = vi.fn();
+    const onValueChange = mock();
     const { ComposedToggleGroup } = await import('../toggle-group-composed');
     const root = ComposedToggleGroup({
       type: 'multiple',
@@ -133,7 +133,7 @@ describe('ComposedToggleGroup', () => {
   });
 
   it('multiple mode: click selected item deselects it', async () => {
-    const onValueChange = vi.fn();
+    const onValueChange = mock();
     const { ComposedToggleGroup } = await import('../toggle-group-composed');
     const root = ComposedToggleGroup({
       type: 'multiple',
@@ -198,7 +198,7 @@ describe('ComposedToggleGroup', () => {
   });
 
   it('calls onValueChange when value changes', async () => {
-    const onValueChange = vi.fn();
+    const onValueChange = mock();
     const { ComposedToggleGroup } = await import('../toggle-group-composed');
     const root = ComposedToggleGroup({
       onValueChange,

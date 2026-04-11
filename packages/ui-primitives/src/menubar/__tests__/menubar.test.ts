@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from '@vertz/test';
+import { afterEach, beforeEach, describe, expect, it, mock } from '@vertz/test';
 import { Menubar } from '../menubar';
 
 describe('Menubar', () => {
@@ -75,7 +75,7 @@ describe('Menubar', () => {
   });
 
   it('Enter selects item and closes', () => {
-    const onSelect = vi.fn();
+    const onSelect = mock();
     const { root, state, Menu } = Menubar.Root({ onSelect });
     container.appendChild(root);
     const file = Menu('file', 'File');

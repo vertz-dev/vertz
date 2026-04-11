@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, test, vi } from '@vertz/test';
+import { afterEach, beforeEach, describe, expect, test, mock } from '@vertz/test';
 import { resetInjectedStyles } from '../css/css';
 import type { Theme } from '../css/theme';
 import { mount } from '../mount';
@@ -107,7 +107,7 @@ describe('mount()', () => {
 
   // Test 7: second mount() on same root returns existing handle (HMR guard)
   test('second mount on same root returns existing handle without re-running app', () => {
-    const app = vi.fn(() => document.createElement('div'));
+    const app = mock(() => document.createElement('div'));
 
     const handle1 = mount(app);
     expect(app).toHaveBeenCalledTimes(1);
@@ -122,7 +122,7 @@ describe('mount()', () => {
 
   // Test 8: unmount clears HMR guard so re-mount is possible
   test('unmount clears HMR guard allowing re-mount', () => {
-    const app = vi.fn(() => document.createElement('div'));
+    const app = mock(() => document.createElement('div'));
 
     const handle1 = mount(app);
     handle1.unmount();
@@ -138,7 +138,7 @@ describe('mount()', () => {
   // Test 9: mount calls onMount callback after mounting
   test('mount calls onMount callback after mounting', () => {
     const app = () => document.createElement('div');
-    const onMount = vi.fn();
+    const onMount = mock();
 
     mount(app, { onMount });
 

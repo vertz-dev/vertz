@@ -33,7 +33,7 @@ describe('DbSessionStore.findActiveSessionById', () => {
             previousRefreshHash: null,
             currentTokens: null,
             ipAddress: '127.0.0.1',
-            userAgent: 'bun:test',
+            userAgent: '@vertz/test',
             createdAt: '2026-03-10T00:00:00.000Z',
             lastActiveAt: '2026-03-10T00:00:01.000Z',
             expiresAt: '2026-03-10T00:01:00.000Z',
@@ -50,7 +50,7 @@ describe('DbSessionStore.findActiveSessionById', () => {
     expect(session?.id).toBe('session-active');
     expect(session?.userId).toBe('user-1');
     expect(session?.ipAddress).toBe('127.0.0.1');
-    expect(session?.userAgent).toBe('bun:test');
+    expect(session?.userAgent).toBe('@vertz/test');
     expect(session?.createdAt).toBeInstanceOf(Date);
     expect(session?.lastActiveAt).toBeInstanceOf(Date);
     expect(session?.expiresAt).toBeInstanceOf(Date);
@@ -93,7 +93,7 @@ describe('DbSessionStore.findActiveSessionById', () => {
         userId: 'user-1',
         refreshTokenHash: 'refresh-revoked',
         ipAddress: '127.0.0.1',
-        userAgent: 'bun:test',
+        userAgent: '@vertz/test',
         expiresAt: new Date(Date.now() + 60_000),
       });
       await store.revokeSession('session-revoked');
@@ -102,7 +102,7 @@ describe('DbSessionStore.findActiveSessionById', () => {
         userId: 'user-1',
         refreshTokenHash: 'refresh-expired',
         ipAddress: '127.0.0.1',
-        userAgent: 'bun:test',
+        userAgent: '@vertz/test',
         expiresAt: new Date(Date.now() - 60_000),
       });
 

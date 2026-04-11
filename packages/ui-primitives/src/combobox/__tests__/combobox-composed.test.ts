@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from '@vertz/test';
+import { afterEach, beforeEach, describe, expect, it, mock } from '@vertz/test';
 
 describe('Composed Combobox', () => {
   let container: HTMLDivElement;
@@ -162,7 +162,7 @@ describe('Composed Combobox', () => {
 
     it('Then calls onInputChange', async () => {
       const { ComposedCombobox } = await import('../combobox-composed');
-      const onInputChange = vi.fn();
+      const onInputChange = mock();
 
       const root = ComposedCombobox({
         onInputChange,
@@ -274,7 +274,7 @@ describe('Composed Combobox', () => {
 
     it('Then Enter selects the active option', async () => {
       const { ComposedCombobox } = await import('../combobox-composed');
-      const onValueChange = vi.fn();
+      const onValueChange = mock();
 
       const root = ComposedCombobox({
         onValueChange,
@@ -338,7 +338,7 @@ describe('Composed Combobox', () => {
   describe('Given a Combobox option is clicked', () => {
     it('Then calls onValueChange and closes', async () => {
       const { ComposedCombobox } = await import('../combobox-composed');
-      const onValueChange = vi.fn();
+      const onValueChange = mock();
 
       const root = ComposedCombobox({
         onValueChange,

@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from '@vertz/test';
+import { afterEach, beforeEach, describe, expect, it, mock } from '@vertz/test';
 
 describe('ComposedCollapsible', () => {
   let container: HTMLDivElement;
@@ -163,7 +163,7 @@ describe('ComposedCollapsible', () => {
   });
 
   it('calls onOpenChange on toggle', async () => {
-    const onOpenChange = vi.fn();
+    const onOpenChange = mock();
     const { ComposedCollapsible } = await import('../collapsible-composed');
     const root = ComposedCollapsible({
       onOpenChange,

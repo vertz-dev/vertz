@@ -12,7 +12,7 @@ Format: `'@vertz/ui::<ConstName>'`
 
 ## Why
 
-Bun's HMR re-evaluates modules on file change. When a module is re-evaluated, `createContext()` creates a new object — breaking identity-based Map lookups in `ContextScope`. The `__stableId` parameter lets the context registry return the existing object instead, preserving Provider/useContext identity across HMR cycles.
+The vtz HMR system re-evaluates modules on file change. When a module is re-evaluated, `createContext()` creates a new object — breaking identity-based Map lookups in `ContextScope`. The `__stableId` parameter lets the context registry return the existing object instead, preserving Provider/useContext identity across HMR cycles.
 
 ## Who needs this
 

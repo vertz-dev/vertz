@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from '@vertz/test';
+import { afterEach, beforeEach, describe, expect, it, mock, spyOn } from '@vertz/test';
 import { ComposedDialog } from '../dialog-composed';
 
 function flush() {
@@ -88,7 +88,7 @@ describe('Composed Dialog', () => {
 
     describe('When Escape is pressed while dialog is open', () => {
       it('Then closes the dialog', async () => {
-        const onOpenChange = vi.fn();
+        const onOpenChange = mock();
         const { root, triggerBtn } = createDialogTree(undefined, { onOpenChange });
         container.appendChild(root);
 
@@ -105,7 +105,7 @@ describe('Composed Dialog', () => {
 
     describe('When the backdrop is clicked', () => {
       it('Then closes the dialog', async () => {
-        const onOpenChange = vi.fn();
+        const onOpenChange = mock();
         const { root, triggerBtn } = createDialogTree(undefined, { onOpenChange });
         container.appendChild(root);
 
@@ -122,7 +122,7 @@ describe('Composed Dialog', () => {
 
     describe('When Dialog.Close is clicked', () => {
       it('Then closes the dialog', async () => {
-        const onOpenChange = vi.fn();
+        const onOpenChange = mock();
         const { root, triggerBtn, closeEl } = createDialogTree(undefined, { onOpenChange });
         container.appendChild(root);
 
@@ -201,7 +201,7 @@ describe('Composed Dialog', () => {
 
   describe('Given onOpenChange callback', () => {
     it('Then calls the callback when dialog opens and closes', async () => {
-      const onOpenChange = vi.fn();
+      const onOpenChange = mock();
       const triggerBtn = document.createElement('button');
       let closeEl!: HTMLElement;
 
@@ -237,7 +237,7 @@ describe('Composed Dialog', () => {
         expect(panel.getAttribute('data-state')).toBe('open');
 
         // Spy on dialog.close() to track when it's called
-        const closeSpy = vi.spyOn(panel, 'close');
+        const closeSpy = spyOn(panel, 'close');
 
         closeEl.click();
 
@@ -264,7 +264,7 @@ describe('Composed Dialog', () => {
         const panel = getConnectedPanel(root);
         expect(panel.open).toBe(true);
 
-        const closeSpy = vi.spyOn(panel, 'close');
+        const closeSpy = spyOn(panel, 'close');
         const cancelEvent = new Event('cancel', { bubbles: true, cancelable: true });
         panel.dispatchEvent(cancelEvent);
 

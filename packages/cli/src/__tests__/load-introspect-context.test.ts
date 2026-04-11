@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from '@vertz/test';
+import { afterEach, beforeEach, describe, expect, it, vi, mock, spyOn } from '@vertz/test';
 
 // ---------------------------------------------------------------------------
 // Mock external dependencies before importing the module under test.
@@ -9,8 +9,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from '@vertz/test';
 // Instead, we spy on the exported _importConfig helper.
 // ---------------------------------------------------------------------------
 
-const mockQueryFn = vi.fn();
-const mockClose = vi.fn().mockResolvedValue(undefined);
+const mockQueryFn = mock();
+const mockClose = mock().mockResolvedValue(undefined);
 
 // Mock the postgres driver so createConnection doesn't need a real DB
 vi.mock('postgres', () => ({
@@ -34,7 +34,7 @@ describe('loadIntrospectContext', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    importConfigSpy = vi.spyOn(loadDbContextModule, '_importConfig').mockResolvedValue({
+    importConfigSpy = spyOn(loadDbContextModule, '_importConfig').mockResolvedValue({
       db: {
         dialect: 'postgres',
         url: 'postgres://localhost:5432/testdb',
@@ -102,7 +102,7 @@ describe('loadIntrospectContext', () => {
     // Simulate config import failure + file not found
     importConfigSpy.mockRejectedValue(new Error('Module not found'));
     // Also need to mock fs.access to throw (file not found)
-    vi.spyOn(await import('node:fs/promises'), 'access').mockRejectedValue(
+    spyOn(await import('node:fs/promises'), 'access').mockRejectedValue(
       Object.assign(new Error('ENOENT'), { code: 'ENOENT' }),
     );
 

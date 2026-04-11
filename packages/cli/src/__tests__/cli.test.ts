@@ -1,4 +1,13 @@
-import { afterEach, beforeEach, describe, expect, it, type MockFunction, vi } from '@vertz/test';
+import {
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  type MockFunction,
+  mock,
+  spyOn,
+} from '@vertz/test';
 import { join } from 'node:path';
 import { createCLI } from '../cli';
 
@@ -151,7 +160,7 @@ describe('createCLI', () => {
         .mockImplementation(() => undefined as never) as MockFunction<
         (...args: unknown[]) => unknown
       >;
-      errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {}) as MockFunction<
+      errorSpy = spyOn(console, 'error').mockImplementation(() => {}) as MockFunction<
         (...args: unknown[]) => unknown
       >;
     });
@@ -167,7 +176,7 @@ describe('createCLI', () => {
 
     it('calls process.exit(1) when create action returns err', async () => {
       const createMod = await import('../commands/create');
-      createSpy = vi.spyOn(createMod, 'createAction').mockResolvedValue({
+      createSpy = spyOn(createMod, 'createAction').mockResolvedValue({
         ok: false,
         error: new Error('create failed'),
       }) as MockFunction<(...args: unknown[]) => unknown>;
@@ -186,7 +195,7 @@ describe('createCLI', () => {
 
     it('does not call process.exit when create action returns ok', async () => {
       const createMod = await import('../commands/create');
-      createSpy = vi.spyOn(createMod, 'createAction').mockResolvedValue({
+      createSpy = spyOn(createMod, 'createAction').mockResolvedValue({
         ok: true,
         data: undefined,
       }) as MockFunction<(...args: unknown[]) => unknown>;
@@ -204,7 +213,7 @@ describe('createCLI', () => {
 
     it('calls process.exit(1) when build action returns err', async () => {
       const buildMod = await import('../commands/build');
-      buildSpy = vi.spyOn(buildMod, 'buildAction').mockResolvedValue({
+      buildSpy = spyOn(buildMod, 'buildAction').mockResolvedValue({
         ok: false,
         error: new Error('build failed'),
       }) as MockFunction<(...args: unknown[]) => unknown>;
@@ -223,7 +232,7 @@ describe('createCLI', () => {
 
     it('does not call process.exit when build action returns ok', async () => {
       const buildMod = await import('../commands/build');
-      buildSpy = vi.spyOn(buildMod, 'buildAction').mockResolvedValue({
+      buildSpy = spyOn(buildMod, 'buildAction').mockResolvedValue({
         ok: true,
         data: undefined,
       }) as MockFunction<(...args: unknown[]) => unknown>;
@@ -241,7 +250,7 @@ describe('createCLI', () => {
 
     it('calls process.exit(1) when dev action returns err', async () => {
       const devMod = await import('../commands/dev');
-      devSpy = vi.spyOn(devMod, 'devAction').mockResolvedValue({
+      devSpy = spyOn(devMod, 'devAction').mockResolvedValue({
         ok: false,
         error: new Error('dev failed'),
       }) as MockFunction<(...args: unknown[]) => unknown>;
@@ -260,7 +269,7 @@ describe('createCLI', () => {
 
     it('does not call process.exit when dev action returns ok', async () => {
       const devMod = await import('../commands/dev');
-      devSpy = vi.spyOn(devMod, 'devAction').mockResolvedValue({
+      devSpy = spyOn(devMod, 'devAction').mockResolvedValue({
         ok: true,
         data: undefined,
       }) as MockFunction<(...args: unknown[]) => unknown>;
@@ -278,7 +287,7 @@ describe('createCLI', () => {
 
     it('calls process.exit(1) when generate action returns err', async () => {
       const genMod = await import('../commands/generate');
-      generateSpy = vi.spyOn(genMod, 'generateAction').mockReturnValue({
+      generateSpy = spyOn(genMod, 'generateAction').mockReturnValue({
         ok: false,
         error: new Error('generate failed'),
       }) as MockFunction<(...args: unknown[]) => unknown>;
@@ -297,7 +306,7 @@ describe('createCLI', () => {
 
     it('does not call process.exit when generate action returns ok', async () => {
       const genMod = await import('../commands/generate');
-      generateSpy = vi.spyOn(genMod, 'generateAction').mockReturnValue({
+      generateSpy = spyOn(genMod, 'generateAction').mockReturnValue({
         ok: true,
         data: { files: [] },
       }) as MockFunction<(...args: unknown[]) => unknown>;
@@ -315,7 +324,7 @@ describe('createCLI', () => {
 
     it('calls process.exit(1) when start action returns err', async () => {
       const startMod = await import('../commands/start');
-      const startSpy = vi.spyOn(startMod, 'startAction').mockResolvedValue({
+      const startSpy = spyOn(startMod, 'startAction').mockResolvedValue({
         ok: false,
         error: new Error('start failed'),
       }) as MockFunction<(...args: unknown[]) => unknown>;
@@ -336,7 +345,7 @@ describe('createCLI', () => {
 
     it('does not call process.exit when start action returns ok', async () => {
       const startMod = await import('../commands/start');
-      const startSpy = vi.spyOn(startMod, 'startAction').mockResolvedValue({
+      const startSpy = spyOn(startMod, 'startAction').mockResolvedValue({
         ok: true,
         data: undefined,
       }) as MockFunction<(...args: unknown[]) => unknown>;
@@ -396,10 +405,10 @@ describe('createCLI', () => {
         .mockImplementation(() => undefined as never) as MockFunction<
         (...args: unknown[]) => unknown
       >;
-      errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {}) as MockFunction<
+      errorSpy = spyOn(console, 'error').mockImplementation(() => {}) as MockFunction<
         (...args: unknown[]) => unknown
       >;
-      logSpy = vi.spyOn(console, 'log').mockImplementation(() => {}) as MockFunction<
+      logSpy = spyOn(console, 'log').mockImplementation(() => {}) as MockFunction<
         (...args: unknown[]) => unknown
       >;
     });
@@ -412,8 +421,8 @@ describe('createCLI', () => {
 
     it('calls process.exit(1) when compilation fails', async () => {
       const compilerMod = await import('@vertz/compiler');
-      const compilerSpy = vi.spyOn(compilerMod, 'createCompiler').mockReturnValue({
-        compile: vi.fn().mockResolvedValue({ success: false, errors: ['some error'] }),
+      const compilerSpy = spyOn(compilerMod, 'createCompiler').mockReturnValue({
+        compile: mock().mockResolvedValue({ success: false, errors: ['some error'] }),
       } as never);
 
       const program = createCLI();
@@ -432,8 +441,8 @@ describe('createCLI', () => {
 
     it('calls process.exit(1) when compiler throws', async () => {
       const compilerMod = await import('@vertz/compiler');
-      const compilerSpy = vi.spyOn(compilerMod, 'createCompiler').mockReturnValue({
-        compile: vi.fn().mockRejectedValue(new Error('compiler error')),
+      const compilerSpy = spyOn(compilerMod, 'createCompiler').mockReturnValue({
+        compile: mock().mockRejectedValue(new Error('compiler error')),
       } as never);
 
       const program = createCLI();
@@ -453,25 +462,25 @@ describe('createCLI', () => {
     it('runs codegen pipeline on successful compilation', async () => {
       const mockIR = { modules: [], routes: [] };
       const compilerMod = await import('@vertz/compiler');
-      const compilerSpy = vi.spyOn(compilerMod, 'createCompiler').mockReturnValue({
-        compile: vi.fn().mockResolvedValue({ success: true, ir: mockIR }),
+      const compilerSpy = spyOn(compilerMod, 'createCompiler').mockReturnValue({
+        compile: mock().mockResolvedValue({ success: true, ir: mockIR }),
       } as never);
 
       const mockCodegenIR = { modules: [] };
       const codegenMod = await import('@vertz/codegen');
-      const adaptIRSpy = vi.spyOn(codegenMod, 'adaptIR').mockReturnValue(mockCodegenIR as never);
+      const adaptIRSpy = spyOn(codegenMod, 'adaptIR').mockReturnValue(mockCodegenIR as never);
 
       const mockPipeline = {
-        validate: vi.fn().mockReturnValue([]),
-        generate: vi.fn().mockReturnValue({ files: [], fileCount: 0, generators: ['test'] }),
-        resolveOutputDir: vi.fn().mockReturnValue('/out'),
+        validate: mock().mockReturnValue([]),
+        generate: mock().mockReturnValue({ files: [], fileCount: 0, generators: ['test'] }),
+        resolveOutputDir: mock().mockReturnValue('/out'),
       };
       const pipelineSpy = vi
         .spyOn(codegenMod, 'createCodegenPipeline')
         .mockReturnValue(mockPipeline as never);
 
       const codegenActionMod = await import('../commands/codegen');
-      const codegenSpy = vi.spyOn(codegenActionMod, 'codegenAction').mockResolvedValue({
+      const codegenSpy = spyOn(codegenActionMod, 'codegenAction').mockResolvedValue({
         ok: true,
         data: { output: 'Generated 0 files (test)', fileCount: 0 },
       } as never);
@@ -495,18 +504,18 @@ describe('createCLI', () => {
 
     it('calls process.exit(1) when codegenAction returns err', async () => {
       const compilerMod = await import('@vertz/compiler');
-      const compilerSpy = vi.spyOn(compilerMod, 'createCompiler').mockReturnValue({
-        compile: vi.fn().mockResolvedValue({ success: true, ir: {} }),
+      const compilerSpy = spyOn(compilerMod, 'createCompiler').mockReturnValue({
+        compile: mock().mockResolvedValue({ success: true, ir: {} }),
       } as never);
 
       const codegenMod = await import('@vertz/codegen');
-      const adaptIRSpy = vi.spyOn(codegenMod, 'adaptIR').mockReturnValue({} as never);
+      const adaptIRSpy = spyOn(codegenMod, 'adaptIR').mockReturnValue({} as never);
       const pipelineSpy = vi
         .spyOn(codegenMod, 'createCodegenPipeline')
         .mockReturnValue({} as never);
 
       const codegenActionMod = await import('../commands/codegen');
-      const codegenSpy = vi.spyOn(codegenActionMod, 'codegenAction').mockResolvedValue({
+      const codegenSpy = spyOn(codegenActionMod, 'codegenAction').mockResolvedValue({
         ok: false,
         error: new Error('codegen failed'),
       } as never);
@@ -542,16 +551,16 @@ describe('createCLI', () => {
     let baselineSpy: MockFunction<(...args: unknown[]) => unknown>;
 
     const mockCtx = {
-      queryFn: vi.fn(),
+      queryFn: mock(),
       currentSnapshot: { version: 1, tables: {}, enums: {} },
       previousSnapshot: { version: 1, tables: {}, enums: {} },
       migrationFiles: [],
       migrationsDir: '/tmp/migrations',
       existingFiles: [],
       dialect: { name: 'sqlite' },
-      writeFile: vi.fn(),
-      readFile: vi.fn(),
-      close: vi.fn().mockResolvedValue(undefined),
+      writeFile: mock(),
+      readFile: mock(),
+      close: mock().mockResolvedValue(undefined),
     };
 
     beforeEach(async () => {
@@ -560,10 +569,10 @@ describe('createCLI', () => {
         .mockImplementation(() => undefined as never) as MockFunction<
         (...args: unknown[]) => unknown
       >;
-      errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {}) as MockFunction<
+      errorSpy = spyOn(console, 'error').mockImplementation(() => {}) as MockFunction<
         (...args: unknown[]) => unknown
       >;
-      logSpy = vi.spyOn(console, 'log').mockImplementation(() => {}) as MockFunction<
+      logSpy = spyOn(console, 'log').mockImplementation(() => {}) as MockFunction<
         (...args: unknown[]) => unknown
       >;
 
@@ -607,7 +616,7 @@ describe('createCLI', () => {
 
     it('db migrate — success path with applied migration', async () => {
       const dbMod = await import('../commands/db');
-      migrateSpy = vi.spyOn(dbMod, 'dbMigrateAction').mockResolvedValue({
+      migrateSpy = spyOn(dbMod, 'dbMigrateAction').mockResolvedValue({
         ok: true,
         data: { migrationFile: '001_init.sql', sql: 'CREATE TABLE ...', dryRun: false },
       } as never) as MockFunction<(...args: unknown[]) => unknown>;
@@ -628,7 +637,7 @@ describe('createCLI', () => {
 
     it('db migrate — dry-run path', async () => {
       const dbMod = await import('../commands/db');
-      migrateSpy = vi.spyOn(dbMod, 'dbMigrateAction').mockResolvedValue({
+      migrateSpy = spyOn(dbMod, 'dbMigrateAction').mockResolvedValue({
         ok: true,
         data: { migrationFile: '001_init.sql', sql: 'CREATE TABLE foo;', dryRun: true },
       } as never) as MockFunction<(...args: unknown[]) => unknown>;
@@ -647,7 +656,7 @@ describe('createCLI', () => {
 
     it('db migrate — error from action calls process.exit(1)', async () => {
       const dbMod = await import('../commands/db');
-      migrateSpy = vi.spyOn(dbMod, 'dbMigrateAction').mockResolvedValue({
+      migrateSpy = spyOn(dbMod, 'dbMigrateAction').mockResolvedValue({
         ok: false,
         error: new Error('migrate failed'),
       } as never) as MockFunction<(...args: unknown[]) => unknown>;
@@ -667,7 +676,7 @@ describe('createCLI', () => {
 
     it('db push — success with changes', async () => {
       const dbMod = await import('../commands/db');
-      pushSpy = vi.spyOn(dbMod, 'dbPushAction').mockResolvedValue({
+      pushSpy = spyOn(dbMod, 'dbPushAction').mockResolvedValue({
         ok: true,
         data: { tablesAffected: ['users', 'tasks'] },
       } as never) as MockFunction<(...args: unknown[]) => unknown>;
@@ -686,7 +695,7 @@ describe('createCLI', () => {
 
     it('db push — success with no changes', async () => {
       const dbMod = await import('../commands/db');
-      pushSpy = vi.spyOn(dbMod, 'dbPushAction').mockResolvedValue({
+      pushSpy = spyOn(dbMod, 'dbPushAction').mockResolvedValue({
         ok: true,
         data: { tablesAffected: [] },
       } as never) as MockFunction<(...args: unknown[]) => unknown>;
@@ -704,7 +713,7 @@ describe('createCLI', () => {
 
     it('db deploy — success with applied migrations', async () => {
       const dbMod = await import('../commands/db');
-      deploySpy = vi.spyOn(dbMod, 'dbDeployAction').mockResolvedValue({
+      deploySpy = spyOn(dbMod, 'dbDeployAction').mockResolvedValue({
         ok: true,
         data: { applied: ['001_init', '002_users'], dryRun: false },
       } as never) as MockFunction<(...args: unknown[]) => unknown>;
@@ -723,7 +732,7 @@ describe('createCLI', () => {
 
     it('db deploy — no pending migrations', async () => {
       const dbMod = await import('../commands/db');
-      deploySpy = vi.spyOn(dbMod, 'dbDeployAction').mockResolvedValue({
+      deploySpy = spyOn(dbMod, 'dbDeployAction').mockResolvedValue({
         ok: true,
         data: { applied: [], dryRun: false },
       } as never) as MockFunction<(...args: unknown[]) => unknown>;
@@ -741,7 +750,7 @@ describe('createCLI', () => {
 
     it('db status — shows applied, pending, code changes, and drift', async () => {
       const dbMod = await import('../commands/db');
-      statusSpy = vi.spyOn(dbMod, 'dbStatusAction').mockResolvedValue({
+      statusSpy = spyOn(dbMod, 'dbStatusAction').mockResolvedValue({
         ok: true,
         data: {
           applied: ['001_init'],
@@ -771,7 +780,7 @@ describe('createCLI', () => {
 
     it('db status — schema in sync', async () => {
       const dbMod = await import('../commands/db');
-      statusSpy = vi.spyOn(dbMod, 'dbStatusAction').mockResolvedValue({
+      statusSpy = spyOn(dbMod, 'dbStatusAction').mockResolvedValue({
         ok: true,
         data: {
           applied: ['001_init'],
@@ -796,7 +805,7 @@ describe('createCLI', () => {
 
     it('db reset — with --force flag', async () => {
       const dbMod = await import('../commands/db');
-      resetSpy = vi.spyOn(dbMod, 'dbResetAction').mockResolvedValue({
+      resetSpy = spyOn(dbMod, 'dbResetAction').mockResolvedValue({
         ok: true,
         data: { tablesDropped: ['users', 'tasks'], migrationsApplied: ['001_init'] },
       } as never) as MockFunction<(...args: unknown[]) => unknown>;
@@ -817,7 +826,7 @@ describe('createCLI', () => {
 
     it('db baseline — success with recorded migrations', async () => {
       const dbMod = await import('../commands/db');
-      baselineSpy = vi.spyOn(dbMod, 'dbBaselineAction').mockResolvedValue({
+      baselineSpy = spyOn(dbMod, 'dbBaselineAction').mockResolvedValue({
         ok: true,
         data: { recorded: ['001_init', '002_users'] },
       } as never) as MockFunction<(...args: unknown[]) => unknown>;
@@ -836,7 +845,7 @@ describe('createCLI', () => {
 
     it('db baseline — all migrations already recorded', async () => {
       const dbMod = await import('../commands/db');
-      baselineSpy = vi.spyOn(dbMod, 'dbBaselineAction').mockResolvedValue({
+      baselineSpy = spyOn(dbMod, 'dbBaselineAction').mockResolvedValue({
         ok: true,
         data: { recorded: [] },
       } as never) as MockFunction<(...args: unknown[]) => unknown>;
@@ -854,7 +863,7 @@ describe('createCLI', () => {
 
     it('db deploy — dry-run path', async () => {
       const dbMod = await import('../commands/db');
-      deploySpy = vi.spyOn(dbMod, 'dbDeployAction').mockResolvedValue({
+      deploySpy = spyOn(dbMod, 'dbDeployAction').mockResolvedValue({
         ok: true,
         data: { applied: ['001_init'], dryRun: true },
       } as never) as MockFunction<(...args: unknown[]) => unknown>;
@@ -872,7 +881,7 @@ describe('createCLI', () => {
 
     it('db migrate — dry-run with no SQL', async () => {
       const dbMod = await import('../commands/db');
-      migrateSpy = vi.spyOn(dbMod, 'dbMigrateAction').mockResolvedValue({
+      migrateSpy = spyOn(dbMod, 'dbMigrateAction').mockResolvedValue({
         ok: true,
         data: { migrationFile: '001_noop.sql', sql: '', dryRun: true },
       } as never) as MockFunction<(...args: unknown[]) => unknown>;
@@ -890,7 +899,7 @@ describe('createCLI', () => {
 
     it('db status — shows only code changes without drift', async () => {
       const dbMod = await import('../commands/db');
-      statusSpy = vi.spyOn(dbMod, 'dbStatusAction').mockResolvedValue({
+      statusSpy = spyOn(dbMod, 'dbStatusAction').mockResolvedValue({
         ok: true,
         data: {
           applied: ['001_init'],
@@ -916,7 +925,7 @@ describe('createCLI', () => {
 
     it('db status — shows only drift without code changes', async () => {
       const dbMod = await import('../commands/db');
-      statusSpy = vi.spyOn(dbMod, 'dbStatusAction').mockResolvedValue({
+      statusSpy = spyOn(dbMod, 'dbStatusAction').mockResolvedValue({
         ok: true,
         data: {
           applied: ['001_init'],
@@ -943,7 +952,7 @@ describe('createCLI', () => {
       mockCtx.close.mockRejectedValue(new Error('close failed'));
 
       const dbMod = await import('../commands/db');
-      pushSpy = vi.spyOn(dbMod, 'dbPushAction').mockResolvedValue({
+      pushSpy = spyOn(dbMod, 'dbPushAction').mockResolvedValue({
         ok: true,
         data: { tablesAffected: [] },
       } as never) as MockFunction<(...args: unknown[]) => unknown>;
@@ -969,10 +978,10 @@ describe('createCLI', () => {
     let pullSpy: MockFunction<(...args: unknown[]) => unknown>;
 
     const mockIntrospectCtx = {
-      queryFn: vi.fn(),
+      queryFn: mock(),
       dialect: { name: 'sqlite' },
       dialectName: 'sqlite' as const,
-      close: vi.fn().mockResolvedValue(undefined),
+      close: mock().mockResolvedValue(undefined),
     };
 
     beforeEach(async () => {
@@ -981,10 +990,10 @@ describe('createCLI', () => {
         .mockImplementation(() => undefined as never) as MockFunction<
         (...args: unknown[]) => unknown
       >;
-      errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {}) as MockFunction<
+      errorSpy = spyOn(console, 'error').mockImplementation(() => {}) as MockFunction<
         (...args: unknown[]) => unknown
       >;
-      logSpy = vi.spyOn(console, 'log').mockImplementation(() => {}) as MockFunction<
+      logSpy = spyOn(console, 'log').mockImplementation(() => {}) as MockFunction<
         (...args: unknown[]) => unknown
       >;
 
@@ -1022,7 +1031,7 @@ describe('createCLI', () => {
 
     it('db pull — dry-run prints file contents', async () => {
       const dbMod = await import('../commands/db');
-      pullSpy = vi.spyOn(dbMod, 'dbPullAction').mockResolvedValue({
+      pullSpy = spyOn(dbMod, 'dbPullAction').mockResolvedValue({
         ok: true,
         data: { files: [{ path: 'schema.ts', content: 'export const users = {}' }] },
       } as never) as MockFunction<(...args: unknown[]) => unknown>;
@@ -1042,7 +1051,7 @@ describe('createCLI', () => {
 
     it('db pull — prints to stdout when no output specified', async () => {
       const dbMod = await import('../commands/db');
-      pullSpy = vi.spyOn(dbMod, 'dbPullAction').mockResolvedValue({
+      pullSpy = spyOn(dbMod, 'dbPullAction').mockResolvedValue({
         ok: true,
         data: { files: [{ path: 'schema.ts', content: 'export const users = {}' }] },
       } as never) as MockFunction<(...args: unknown[]) => unknown>;
@@ -1061,7 +1070,7 @@ describe('createCLI', () => {
 
     it('db pull — error from action calls process.exit(1)', async () => {
       const dbMod = await import('../commands/db');
-      pullSpy = vi.spyOn(dbMod, 'dbPullAction').mockResolvedValue({
+      pullSpy = spyOn(dbMod, 'dbPullAction').mockResolvedValue({
         ok: false,
         error: new Error('pull failed'),
       } as never) as MockFunction<(...args: unknown[]) => unknown>;
@@ -1084,7 +1093,7 @@ describe('createCLI', () => {
       const outputFile = join(tmpDir, 'generated-schema.ts');
 
       const dbMod = await import('../commands/db');
-      pullSpy = vi.spyOn(dbMod, 'dbPullAction').mockResolvedValue({
+      pullSpy = spyOn(dbMod, 'dbPullAction').mockResolvedValue({
         ok: true,
         data: { files: [{ path: 'schema.ts', content: 'export const users = {}' }] },
       } as never) as MockFunction<(...args: unknown[]) => unknown>;
@@ -1109,7 +1118,7 @@ describe('createCLI', () => {
       const tmpDir = join(import.meta.dir, `.tmp-cli-pull-dir-${Date.now()}`);
 
       const dbMod = await import('../commands/db');
-      pullSpy = vi.spyOn(dbMod, 'dbPullAction').mockResolvedValue({
+      pullSpy = spyOn(dbMod, 'dbPullAction').mockResolvedValue({
         ok: true,
         data: {
           files: [
@@ -1142,7 +1151,7 @@ describe('createCLI', () => {
       writeFileSync(outputFile, 'existing content');
 
       const dbMod = await import('../commands/db');
-      pullSpy = vi.spyOn(dbMod, 'dbPullAction').mockResolvedValue({
+      pullSpy = spyOn(dbMod, 'dbPullAction').mockResolvedValue({
         ok: true,
         data: { files: [{ path: 'schema.ts', content: 'new content' }] },
       } as never) as MockFunction<(...args: unknown[]) => unknown>;
@@ -1165,7 +1174,7 @@ describe('createCLI', () => {
       mockIntrospectCtx.close.mockRejectedValue(new Error('close failed'));
 
       const dbMod = await import('../commands/db');
-      pullSpy = vi.spyOn(dbMod, 'dbPullAction').mockResolvedValue({
+      pullSpy = spyOn(dbMod, 'dbPullAction').mockResolvedValue({
         ok: true,
         data: { files: [{ path: 'schema.ts', content: 'export const users = {}' }] },
       } as never) as MockFunction<(...args: unknown[]) => unknown>;

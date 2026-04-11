@@ -11,7 +11,7 @@
     "skipLibCheck": true,
     "strict": true,
     "target": "ES2022",
-    "types": ["bun-types", "@cloudflare/workers-types"]
+    "types": ["@cloudflare/workers-types", "node"]
   },
   "exclude": ["src/worker.ts", ".vertz/generated/routes.ts"],
   "include": ["src", ".vertz/generated"]

@@ -26,8 +26,8 @@
   },
   "scripts": {
     "build": "vtzx bunup",
-    "test": "bun test",
-    "test:watch": "bun test --watch",
+    "test": "vtz test",
+    "test:watch": "vtz test --watch",
     "typecheck": "tsgo --noEmit -p tsconfig.typecheck.json"
   },
   "dependencies": {

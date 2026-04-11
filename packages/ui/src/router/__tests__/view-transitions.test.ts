@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from '@vertz/test';
+import { afterEach, beforeEach, describe, expect, it, vi, mock, spyOn } from '@vertz/test';
 import { _resetTransitionGen, withViewTransition } from '../view-transitions';
 
 function createMockTransition() {
@@ -31,7 +31,7 @@ describe('withViewTransition', () => {
     originalMatchMedia = window.matchMedia;
     _resetTransitionGen();
     // Default: no reduced motion
-    vi.spyOn(window, 'matchMedia').mockReturnValue({ matches: false } as MediaQueryList);
+    spyOn(window, 'matchMedia').mockReturnValue({ matches: false } as MediaQueryList);
   });
 
   afterEach(() => {
@@ -48,8 +48,8 @@ describe('withViewTransition', () => {
   describe('Given config is undefined', () => {
     describe('When called with an update function', () => {
       it('Then runs the update directly without startViewTransition', async () => {
-        const update = vi.fn();
-        const startVT = vi.fn();
+        const update = mock();
+        const startVT = mock();
         (document as Record<string, unknown>).startViewTransition = startVT;
 
         await withViewTransition(update, undefined);
@@ -63,8 +63,8 @@ describe('withViewTransition', () => {
   describe('Given config is false', () => {
     describe('When called with an update function', () => {
       it('Then runs the update directly', async () => {
-        const update = vi.fn();
-        const startVT = vi.fn();
+        const update = mock();
+        const startVT = mock();
         (document as Record<string, unknown>).startViewTransition = startVT;
 
         await withViewTransition(update, false);
@@ -78,8 +78,8 @@ describe('withViewTransition', () => {
   describe('Given config is true and startViewTransition is supported', () => {
     describe('When called with a sync update function', () => {
       it('Then calls document.startViewTransition with the update', async () => {
-        const update = vi.fn();
-        const startVT = vi.fn((cb: () => void) => {
+        const update = mock();
+        const startVT = mock((cb: () => void) => {
           cb();
           return { finished: Promise.resolve(), ready: Promise.resolve() };
         });
@@ -95,7 +95,7 @@ describe('withViewTransition', () => {
         const order: string[] = [];
         const { transition, resolve } = createMockTransition();
 
-        const startVT = vi.fn((cb: () => void) => {
+        const startVT = mock((cb: () => void) => {
           cb();
           return transition;
         });
@@ -118,7 +118,7 @@ describe('withViewTransition', () => {
   describe('Given config is true and startViewTransition is NOT supported', () => {
     describe('When called with an update function', () => {
       it('Then runs the update directly (graceful degradation)', async () => {
-        const update = vi.fn();
+        const update = mock();
         delete (document as Record<string, unknown>).startViewTransition;
 
         await withViewTransition(update, true);
@@ -131,11 +131,11 @@ describe('withViewTransition', () => {
   describe('Given prefers-reduced-motion is enabled', () => {
     describe('When config is true', () => {
       it('Then runs the update directly without transition', async () => {
-        const update = vi.fn();
-        const startVT = vi.fn();
+        const update = mock();
+        const startVT = mock();
         (document as Record<string, unknown>).startViewTransition = startVT;
 
-        vi.spyOn(window, 'matchMedia').mockReturnValue({
+        spyOn(window, 'matchMedia').mockReturnValue({
           matches: true,
         } as MediaQueryList);
 
@@ -151,7 +151,7 @@ describe('withViewTransition', () => {
     describe('When called with an update', () => {
       it('Then adds "slide" class to documentElement before transition', async () => {
         let classListDuringUpdate: string[] = [];
-        const startVT = vi.fn((cb: () => void) => {
+        const startVT = mock((cb: () => void) => {
           cb();
           return { finished: Promise.resolve(), ready: Promise.resolve() };
         });
@@ -169,7 +169,7 @@ describe('withViewTransition', () => {
 
       it('Then removes "slide" class after transition.finished', async () => {
         const { transition, resolve } = createMockTransition();
-        const startVT = vi.fn((cb: () => void) => {
+        const startVT = mock((cb: () => void) => {
           cb();
           return transition;
         });
@@ -191,7 +191,7 @@ describe('withViewTransition', () => {
     describe('When transition.finished rejects with AbortError (transition abandoned)', () => {
       it('Then silently swallows the AbortError and cleans up the class', async () => {
         const { transition, reject } = createMockTransition();
-        const startVT = vi.fn((cb: () => void) => {
+        const startVT = mock((cb: () => void) => {
           cb();
           return transition;
         });
@@ -213,7 +213,7 @@ describe('withViewTransition', () => {
     describe('When transition.finished rejects with a non-AbortError', () => {
       it('Then propagates the error', async () => {
         const { transition, reject } = createMockTransition();
-        const startVT = vi.fn((cb: () => void) => {
+        const startVT = mock((cb: () => void) => {
           cb();
           return transition;
         });
@@ -242,7 +242,7 @@ describe('withViewTransition', () => {
         const updateCallbackDone = Promise.reject(updateError);
         updateCallbackDone.catch(() => {});
 
-        const startVT = vi.fn((cb: () => Promise<void>) => {
+        const startVT = mock((cb: () => Promise<void>) => {
           const cbResult = cb();
           cbResult.catch(() => {}); // suppress unhandled rejection
           return {
@@ -269,7 +269,7 @@ describe('withViewTransition', () => {
         const mock2 = createMockTransition();
         let callCount = 0;
 
-        const startVT = vi.fn((cb: () => void) => {
+        const startVT = mock((cb: () => void) => {
           cb();
           callCount++;
           return callCount === 1 ? mock1.transition : mock2.transition;

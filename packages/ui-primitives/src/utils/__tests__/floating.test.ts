@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from '@vertz/test';
+import { afterEach, beforeEach, describe, expect, it, vi, mock } from '@vertz/test';
 import type { ComputePositionReturn } from '@floating-ui/dom';
 
 // Mock functions for @floating-ui/dom (used in vi.mock factory below)

@@ -1,11 +1,11 @@
-import { afterEach, describe, expect, it, spyOn, vi } from '@vertz/test';
+import { afterEach, describe, expect, it, spyOn, vi, mock } from '@vertz/test';
 import { d } from '../../d';
 import type { QueryFn } from '../../query/executor';
 import { createDb, isReadQuery } from '../database';
 import type { PostgresDriver } from '../postgres-driver';
 
 // Mock function for postgres-driver (used in per-test mock configuration)
-const mockCreatePostgresDriver = vi.fn();
+const mockCreatePostgresDriver = mock();
 
 // Mock the postgres-driver module at top level (compiler hoists this)
 vi.mock('../postgres-driver', () => ({
@@ -101,7 +101,7 @@ describe('createDb', () => {
   });
 
   it('logs a notice for tables without tenant path and not shared', () => {
-    const logFn = vi.fn();
+    const logFn = mock();
 
     createDb({
       url: 'postgres://localhost:5432/test',
@@ -119,7 +119,7 @@ describe('createDb', () => {
   });
 
   it('does not log unscoped warning for non-root tenant levels in multi-level hierarchy', () => {
-    const logFn = vi.fn();
+    const logFn = mock();
     const accounts = d.table('ml_accounts', { id: d.uuid().primary(), name: d.text() }).tenant();
     const mlProjects = d
       .table('ml_projects', { id: d.uuid().primary(), accountId: d.uuid(), name: d.text() })
@@ -141,7 +141,7 @@ describe('createDb', () => {
   });
 
   it('does not log for tables that are scoped or shared', () => {
-    const logFn = vi.fn();
+    const logFn = mock();
 
     createDb({
       url: 'postgres://localhost:5432/test',
@@ -520,12 +520,12 @@ describe('resolveModel for unregistered tables', () => {
 
 describe('createDb with SQLite dialect', () => {
   const mockPrepared = {
-    bind: vi.fn().mockReturnThis(),
-    all: vi.fn().mockResolvedValue({ results: [] }),
-    run: vi.fn().mockResolvedValue({ meta: { changes: 0 } }),
+    bind: mock().mockReturnThis(),
+    all: mock().mockResolvedValue({ results: [] }),
+    run: mock().mockResolvedValue({ meta: { changes: 0 } }),
   };
   const mockD1 = {
-    prepare: vi.fn().mockReturnValue(mockPrepared),
+    prepare: mock().mockReturnValue(mockPrepared),
   };
 
   it('close() resolves when using SQLite driver', async () => {
@@ -768,10 +768,10 @@ describe('createDb SQLite dialect validation', () => {
 
   it('throws when SQLite dialect is used with a connection URL', () => {
     const mockD1 = {
-      prepare: vi.fn().mockReturnValue({
-        bind: vi.fn().mockReturnThis(),
-        all: vi.fn().mockResolvedValue({ results: [] }),
-        run: vi.fn().mockResolvedValue({ meta: { changes: 0 } }),
+      prepare: mock().mockReturnValue({
+        bind: mock().mockReturnThis(),
+        all: mock().mockResolvedValue({ results: [] }),
+        run: mock().mockResolvedValue({ meta: { changes: 0 } }),
       }),
     };
 

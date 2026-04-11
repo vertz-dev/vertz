@@ -4,11 +4,11 @@
   "type": "module",
   "scripts": {
     "dev": "vtz dev",
-    "dev:presence": "bun run src/presence-dev-server.ts",
-    "dev:all": "bun run scripts/dev-all.ts",
-    "build": "bun run scripts/generate-og.ts && vertz build",
-    "build:og": "bun run scripts/og-images.ts",
-    "deploy": "bun run build && bunx wrangler deploy --define DEPLOY_VERSION:\"'$(date +%s)'\" --define PRESENCE_WS_URL:\"'wss://vertz.dev/__presence'\" && bun run scripts/pre-warm.ts",
+    "dev:presence": "vtz run src/presence-dev-server.ts",
+    "dev:all": "vtz run scripts/dev-all.ts",
+    "build": "vtz run scripts/generate-og.ts && vertz build",
+    "build:og": "vtz run scripts/og-images.ts",
+    "deploy": "vtz run build && vtzx wrangler deploy --define DEPLOY_VERSION:\"'$(date +%s)'\" --define PRESENCE_WS_URL:\"'wss://vertz.dev/__presence'\" && vtz run scripts/pre-warm.ts",
     "typecheck": "tsgo --noEmit"
   },
   "dependencies": {
@@ -20,6 +20,7 @@
   },
   "devDependencies": {
     "@resvg/resvg-js": "^2.6.2",
+    "@types/node": "^25.3.1",
     "@vertz/cli": "workspace:*",
     "@vertz/test": "workspace:*",
     "bun-types": "^1.3.9",

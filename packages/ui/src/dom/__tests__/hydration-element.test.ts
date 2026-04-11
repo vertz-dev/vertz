@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from '@vertz/test';
+import { afterEach, describe, expect, it } from '@vertz/test';
 import { endHydration, startHydration } from '../../hydrate/hydration-context';
 import { signal } from '../../runtime/signal';
 import {
@@ -36,7 +36,7 @@ describe('DOM helpers — hydration branches', () => {
       root.appendChild(div);
       startHydration(root);
 
-      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      const warnSpy = spyOn(console, 'warn').mockImplementation(() => {});
       __element('div', { 'aria-hidden': 'false' });
       expect(warnSpy).toHaveBeenCalledWith(
         '[hydrate] ARIA mismatch on <div>: aria-hidden="true" (expected "false")',
@@ -51,7 +51,7 @@ describe('DOM helpers — hydration branches', () => {
       root.appendChild(div);
       startHydration(root);
 
-      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      const warnSpy = spyOn(console, 'warn').mockImplementation(() => {});
       __element('div', { role: 'link' });
       expect(warnSpy).toHaveBeenCalledWith(
         '[hydrate] ARIA mismatch on <div>: role="button" (expected "link")',
@@ -66,7 +66,7 @@ describe('DOM helpers — hydration branches', () => {
       root.appendChild(div);
       startHydration(root);
 
-      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      const warnSpy = spyOn(console, 'warn').mockImplementation(() => {});
       __element('div', { class: 'new' });
       expect(warnSpy).not.toHaveBeenCalled();
       warnSpy.mockRestore();
@@ -80,7 +80,7 @@ describe('DOM helpers — hydration branches', () => {
       root.appendChild(div);
       startHydration(root);
 
-      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      const warnSpy = spyOn(console, 'warn').mockImplementation(() => {});
       __element('div', { 'aria-hidden': 'true', role: 'button' });
       expect(warnSpy).not.toHaveBeenCalled();
       warnSpy.mockRestore();
@@ -432,7 +432,7 @@ describe('DOM helpers — hydration branches', () => {
       root.appendChild(document.createComment('conditional'));
       startHydration(root);
 
-      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      const warnSpy = spyOn(console, 'warn').mockImplementation(() => {});
       __child(() => 'text');
       expect(warnSpy).toHaveBeenCalledWith(
         expect.stringContaining('__child expected <!--child--> but claimed <!--conditional-->'),

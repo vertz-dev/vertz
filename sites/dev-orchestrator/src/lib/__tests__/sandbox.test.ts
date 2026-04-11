@@ -1,18 +1,18 @@
-import { describe, expect, it, vi, beforeEach } from 'bun:test';
+import { describe, expect, it, vi, beforeEach, mock } from '@vertz/test';
 import { wrapSandbox, type DaytonaSandbox } from '../sandbox-client';
 
 function createMockSandbox(): DaytonaSandbox {
   return {
     process: {
-      executeCommand: vi.fn().mockResolvedValue({ result: '', exitCode: 0 }),
+      executeCommand: mock().mockResolvedValue({ result: '', exitCode: 0 }),
     },
     fs: {
-      downloadFile: vi.fn().mockResolvedValue(Buffer.from('')),
-      uploadFile: vi.fn().mockResolvedValue(undefined),
-      findFiles: vi.fn().mockResolvedValue([]),
-      listFiles: vi.fn().mockResolvedValue([]),
+      downloadFile: mock().mockResolvedValue(Buffer.from('')),
+      uploadFile: mock().mockResolvedValue(undefined),
+      findFiles: mock().mockResolvedValue([]),
+      listFiles: mock().mockResolvedValue([]),
     },
-    delete: vi.fn().mockResolvedValue(undefined),
+    delete: mock().mockResolvedValue(undefined),
   };
 }
 

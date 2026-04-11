@@ -7,7 +7,7 @@
     "skipLibCheck": true,
     "strict": true,
     "target": "ESNext",
-    "types": ["bun-types"]
+    "types": ["node"]
   },
   "exclude": ["src/generated"],
   "include": ["src"]

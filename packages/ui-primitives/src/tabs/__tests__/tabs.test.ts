@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from '@vertz/test';
+import { afterEach, beforeEach, describe, expect, it, mock, spyOn } from '@vertz/test';
 import { Tabs } from '../tabs';
 
 describe('Tabs', () => {
@@ -32,7 +32,7 @@ describe('Tabs', () => {
   });
 
   it('sets active tab on click', () => {
-    const onValueChange = vi.fn();
+    const onValueChange = mock();
     const { root, list, state, Tab } = Tabs.Root({ defaultValue: 'tab1', onValueChange });
     container.appendChild(root);
     const { trigger: t1, panel: p1 } = Tab('tab1', 'Tab 1');
@@ -168,8 +168,8 @@ describe('Tabs', () => {
         list.appendChild(t2);
         root.appendChild(p2);
 
-        const spy1 = vi.spyOn(t1, 'removeEventListener');
-        const spy2 = vi.spyOn(t2, 'removeEventListener');
+        const spy1 = spyOn(t1, 'removeEventListener');
+        const spy2 = spyOn(t2, 'removeEventListener');
 
         destroy();
 

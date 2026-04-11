@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from '@vertz/test';
+import { describe, expect, it, mock } from '@vertz/test';
 import type { CodegenConfig, CodegenIR, CodegenPipeline, IncrementalResult } from '@vertz/codegen';
 import { codegenAction } from '../codegen';
 
@@ -29,8 +29,8 @@ function makeIR(): CodegenIR {
 
 function makePipeline(overrides: Partial<CodegenPipeline> = {}): CodegenPipeline {
   return {
-    validate: vi.fn().mockReturnValue([]),
-    generate: vi.fn().mockReturnValue({
+    validate: mock().mockReturnValue([]),
+    generate: mock().mockReturnValue({
       files: [
         { path: 'client.ts', content: '// client' },
         { path: 'index.ts', content: '// index' },
@@ -39,8 +39,8 @@ function makePipeline(overrides: Partial<CodegenPipeline> = {}): CodegenPipeline
       fileCount: 3,
       generators: ['typescript'],
     }),
-    resolveOutputDir: vi.fn().mockReturnValue('.vertz/generated'),
-    resolveConfig: vi.fn().mockReturnValue({}),
+    resolveOutputDir: mock().mockReturnValue('.vertz/generated'),
+    resolveConfig: mock().mockReturnValue({}),
     ...overrides,
   };
 }
@@ -59,7 +59,7 @@ describe('codegenAction', () => {
     const result = await codegenAction({
       config: makeConfig(),
       ir: makeIR(),
-      writeFile: vi.fn(),
+      writeFile: mock(),
       pipeline: makePipeline(),
     });
 
@@ -70,7 +70,7 @@ describe('codegenAction', () => {
     const result = await codegenAction({
       config: undefined,
       ir: makeIR(),
-      writeFile: vi.fn(),
+      writeFile: mock(),
       pipeline: makePipeline(),
     });
 
@@ -82,13 +82,13 @@ describe('codegenAction', () => {
 
   it('returns err when config validation fails', async () => {
     const pipeline = makePipeline({
-      validate: vi.fn().mockReturnValue(['codegen.generators must contain at least one generator']),
+      validate: mock().mockReturnValue(['codegen.generators must contain at least one generator']),
     });
 
     const result = await codegenAction({
       config: makeConfig({ generators: [] }),
       ir: makeIR(),
-      writeFile: vi.fn(),
+      writeFile: mock(),
       pipeline,
     });
 
@@ -99,7 +99,7 @@ describe('codegenAction', () => {
   });
 
   it('calls writeFile for each generated file', async () => {
-    const writeFile = vi.fn();
+    const writeFile = mock();
     await codegenAction({
       config: makeConfig(),
       ir: makeIR(),
@@ -111,9 +111,9 @@ describe('codegenAction', () => {
   });
 
   it('writes files under the configured outputDir', async () => {
-    const writeFile = vi.fn();
+    const writeFile = mock();
     const pipeline = makePipeline({
-      resolveOutputDir: vi.fn().mockReturnValue('custom/output'),
+      resolveOutputDir: mock().mockReturnValue('custom/output'),
     });
 
     await codegenAction({
@@ -133,7 +133,7 @@ describe('codegenAction', () => {
     const result = await codegenAction({
       config: makeConfig(),
       ir: makeIR(),
-      writeFile: vi.fn(),
+      writeFile: mock(),
       pipeline: makePipeline(),
     });
 
@@ -147,7 +147,7 @@ describe('codegenAction', () => {
     const result = await codegenAction({
       config: makeConfig(),
       ir: makeIR(),
-      writeFile: vi.fn(),
+      writeFile: mock(),
       pipeline: makePipeline(),
     });
 
@@ -161,7 +161,7 @@ describe('codegenAction', () => {
     const result = await codegenAction({
       config: makeConfig(),
       ir: makeIR(),
-      writeFile: vi.fn(),
+      writeFile: mock(),
       pipeline: makePipeline(),
     });
 
@@ -172,7 +172,7 @@ describe('codegenAction', () => {
   });
 
   it('supports dry-run mode without writing files', async () => {
-    const writeFile = vi.fn();
+    const writeFile = mock();
     const result = await codegenAction({
       config: makeConfig(),
       ir: makeIR(),
@@ -186,7 +186,7 @@ describe('codegenAction', () => {
   });
 
   it('returns err when writeFile throws an error', async () => {
-    const writeFile = vi.fn().mockRejectedValue(new Error('disk full'));
+    const writeFile = mock().mockRejectedValue(new Error('disk full'));
     const result = await codegenAction({
       config: makeConfig(),
       ir: makeIR(),
@@ -208,7 +208,7 @@ describe('codegenAction', () => {
     await codegenAction({
       config,
       ir,
-      writeFile: vi.fn(),
+      writeFile: mock(),
       pipeline,
     });
 
@@ -222,7 +222,7 @@ describe('codegenAction', () => {
     await codegenAction({
       config,
       ir: makeIR(),
-      writeFile: vi.fn(),
+      writeFile: mock(),
       pipeline,
     });
 
@@ -230,9 +230,9 @@ describe('codegenAction', () => {
   });
 
   it('generates CLI files when cli generator is configured', async () => {
-    const writeFile = vi.fn();
+    const writeFile = mock();
     const pipeline = makePipeline({
-      generate: vi.fn().mockReturnValue({
+      generate: mock().mockReturnValue({
         files: [{ path: 'cli/manifest.ts', content: '// manifest' }],
         fileCount: 1,
         generators: ['cli'],
@@ -253,7 +253,7 @@ describe('codegenAction', () => {
 
   it('returns singular file text for single file', async () => {
     const pipeline = makePipeline({
-      generate: vi.fn().mockReturnValue({
+      generate: mock().mockReturnValue({
         files: [{ path: 'manifest.ts', content: '// manifest' }],
         fileCount: 1,
         generators: ['cli'],
@@ -263,7 +263,7 @@ describe('codegenAction', () => {
     const result = await codegenAction({
       config: makeConfig(),
       ir: makeIR(),
-      writeFile: vi.fn(),
+      writeFile: mock(),
       pipeline,
     });
 
@@ -279,7 +279,7 @@ describe('codegenAction', () => {
   describe('incremental mode', () => {
     function makeIncrementalPipeline(incremental: IncrementalResult) {
       return makePipeline({
-        generate: vi.fn().mockReturnValue({
+        generate: mock().mockReturnValue({
           files: [
             { path: 'client.ts', content: '// client' },
             { path: 'index.ts', content: '// index' },
@@ -302,7 +302,7 @@ describe('codegenAction', () => {
       const result = await codegenAction({
         config: makeConfig(),
         ir: makeIR(),
-        writeFile: vi.fn(),
+        writeFile: mock(),
         pipeline,
         incremental: true,
       });
@@ -324,7 +324,7 @@ describe('codegenAction', () => {
       const result = await codegenAction({
         config: makeConfig(),
         ir: makeIR(),
-        writeFile: vi.fn(),
+        writeFile: mock(),
         pipeline,
         incremental: true,
       });
@@ -345,7 +345,7 @@ describe('codegenAction', () => {
       const result = await codegenAction({
         config: makeConfig(),
         ir: makeIR(),
-        writeFile: vi.fn(),
+        writeFile: mock(),
         pipeline,
         incremental: false,
       });
@@ -368,7 +368,7 @@ describe('codegenAction', () => {
       const result = await codegenAction({
         config: makeConfig(),
         ir: makeIR(),
-        writeFile: vi.fn(),
+        writeFile: mock(),
         pipeline,
         incremental: true,
       });
@@ -391,7 +391,7 @@ describe('codegenAction', () => {
       const result = await codegenAction({
         config: makeConfig(),
         ir: makeIR(),
-        writeFile: vi.fn(),
+        writeFile: mock(),
         pipeline,
       });
 

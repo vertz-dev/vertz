@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from '@vertz/test';
+import { describe, expect, it, mock } from '@vertz/test';
 import { EventEmitter } from 'node:events';
 import type { SpawnFn } from '../process-manager';
 import { createProcessManager } from '../process-manager';
@@ -16,7 +16,7 @@ function createMockChild() {
       stderr,
       pid: 123,
       killed: false,
-      kill: vi.fn((signal?: string) => {
+      kill: mock((signal?: string) => {
         emitter.emit('exit', signal === 'SIGKILL' ? 137 : 0, signal);
         return true;
       }),
@@ -42,8 +42,8 @@ describe('createProcessManager', () => {
   it('isRunning returns true after start', () => {
     const mock = createMockChild();
     // Prevent the exit event from setting child to undefined immediately
-    mock.child.kill = vi.fn(() => true);
-    const spawnFn: SpawnFn = vi.fn(() => mock.child as never);
+    mock.child.kill = mock(() => true);
+    const spawnFn: SpawnFn = mock(() => mock.child as never);
     const pm = createProcessManager(spawnFn);
 
     pm.start('app.ts');
@@ -53,8 +53,8 @@ describe('createProcessManager', () => {
 
   it('isRunning returns false after process exits', () => {
     const mock = createMockChild();
-    mock.child.kill = vi.fn(() => true);
-    const spawnFn: SpawnFn = vi.fn(() => mock.child as never);
+    mock.child.kill = mock(() => true);
+    const spawnFn: SpawnFn = mock(() => mock.child as never);
     const pm = createProcessManager(spawnFn);
 
     pm.start('app.ts');
@@ -66,7 +66,7 @@ describe('createProcessManager', () => {
 
   it('stop terminates the child process with SIGTERM', async () => {
     const mock = createMockChild();
-    const spawnFn: SpawnFn = vi.fn(() => mock.child as never);
+    const spawnFn: SpawnFn = mock(() => mock.child as never);
     const pm = createProcessManager(spawnFn);
 
     pm.start('app.ts');
@@ -79,9 +79,9 @@ describe('createProcessManager', () => {
   it('restart stops then starts the process', async () => {
     const mock1 = createMockChild();
     const mock2 = createMockChild();
-    mock2.child.kill = vi.fn(() => true);
+    mock2.child.kill = mock(() => true);
     let callCount = 0;
-    const spawnFn: SpawnFn = vi.fn(() => {
+    const spawnFn: SpawnFn = mock(() => {
       callCount++;
       return (callCount === 1 ? mock1.child : mock2.child) as never;
     });
@@ -96,10 +96,10 @@ describe('createProcessManager', () => {
 
   it('onOutput receives stdout data from child', () => {
     const mock = createMockChild();
-    mock.child.kill = vi.fn(() => true);
-    const spawnFn: SpawnFn = vi.fn(() => mock.child as never);
+    mock.child.kill = mock(() => true);
+    const spawnFn: SpawnFn = mock(() => mock.child as never);
     const pm = createProcessManager(spawnFn);
-    const outputHandler = vi.fn();
+    const outputHandler = mock();
 
     pm.onOutput(outputHandler);
     pm.start('app.ts');
@@ -110,10 +110,10 @@ describe('createProcessManager', () => {
 
   it('onError receives stderr data from child', () => {
     const mock = createMockChild();
-    mock.child.kill = vi.fn(() => true);
-    const spawnFn: SpawnFn = vi.fn(() => mock.child as never);
+    mock.child.kill = mock(() => true);
+    const spawnFn: SpawnFn = mock(() => mock.child as never);
     const pm = createProcessManager(spawnFn);
-    const errorHandler = vi.fn();
+    const errorHandler = mock();
 
     pm.onError(errorHandler);
     pm.start('app.ts');
@@ -124,8 +124,8 @@ describe('createProcessManager', () => {
 
   it('start passes env to spawn function', () => {
     const mock = createMockChild();
-    mock.child.kill = vi.fn(() => true);
-    const spawnFn: SpawnFn = vi.fn(() => mock.child as never);
+    mock.child.kill = mock(() => true);
+    const spawnFn: SpawnFn = mock(() => mock.child as never);
     const pm = createProcessManager(spawnFn);
 
     pm.start('app.ts', { NODE_ENV: 'development' });
@@ -135,9 +135,9 @@ describe('createProcessManager', () => {
   it('starting when already running stops existing process first', () => {
     const mock1 = createMockChild();
     const mock2 = createMockChild();
-    mock2.child.kill = vi.fn(() => true);
+    mock2.child.kill = mock(() => true);
     let callCount = 0;
-    const spawnFn: SpawnFn = vi.fn(() => {
+    const spawnFn: SpawnFn = mock(() => {
       callCount++;
       return (callCount === 1 ? mock1.child : mock2.child) as never;
     });

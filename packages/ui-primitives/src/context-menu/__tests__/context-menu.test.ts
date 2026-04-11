@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from '@vertz/test';
+import { afterEach, beforeEach, describe, expect, it, mock } from '@vertz/test';
 import { ContextMenu } from '../context-menu';
 
 describe('ContextMenu', () => {
@@ -86,7 +86,7 @@ describe('ContextMenu', () => {
   });
 
   it('Enter on active item triggers onSelect and closes', () => {
-    const onSelect = vi.fn();
+    const onSelect = mock();
     const { trigger, content, state, Item } = ContextMenu.Root({ onSelect });
     container.appendChild(trigger);
     container.appendChild(content);
@@ -103,7 +103,7 @@ describe('ContextMenu', () => {
   });
 
   it('Space on active item triggers onSelect and closes', () => {
-    const onSelect = vi.fn();
+    const onSelect = mock();
     const { trigger, content, state, Item } = ContextMenu.Root({ onSelect });
     container.appendChild(trigger);
     container.appendChild(content);
@@ -168,7 +168,7 @@ describe('ContextMenu', () => {
   });
 
   it('calls onSelect when item is clicked', () => {
-    const onSelect = vi.fn();
+    const onSelect = mock();
     const { trigger, content, Item } = ContextMenu.Root({ onSelect });
     container.appendChild(trigger);
     container.appendChild(content);

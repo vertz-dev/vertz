@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from '@vertz/test';
+import { afterEach, beforeEach, describe, expect, it, mock, spyOn } from '@vertz/test';
 import { ComposedAlertDialog } from '../alert-dialog-composed';
 
 function flush() {
@@ -96,7 +96,7 @@ describe('Composed AlertDialog', () => {
   describe('Given an AlertDialog with action and cancel buttons', () => {
     describe('When Escape is pressed', () => {
       it('Then does NOT close the dialog', async () => {
-        const onOpenChange = vi.fn();
+        const onOpenChange = mock();
         const { root, triggerBtn } = createAlertDialogTree(undefined, { onOpenChange });
         container.appendChild(root);
 
@@ -113,7 +113,7 @@ describe('Composed AlertDialog', () => {
 
     describe('When Cancel is clicked', () => {
       it('Then closes the dialog', async () => {
-        const onOpenChange = vi.fn();
+        const onOpenChange = mock();
         const { root, triggerBtn, cancelEl } = createAlertDialogTree(undefined, { onOpenChange });
         container.appendChild(root);
 
@@ -130,7 +130,7 @@ describe('Composed AlertDialog', () => {
 
     describe('When Action is clicked', () => {
       it('Then closes the dialog', async () => {
-        const onOpenChange = vi.fn();
+        const onOpenChange = mock();
         const { root, triggerBtn, actionEl } = createAlertDialogTree(undefined, { onOpenChange });
         container.appendChild(root);
 
@@ -145,7 +145,7 @@ describe('Composed AlertDialog', () => {
       });
 
       it('Then calls onAction exactly once', async () => {
-        const onAction = vi.fn();
+        const onAction = mock();
         const { root, triggerBtn, actionEl } = createAlertDialogTree(undefined, { onAction });
         container.appendChild(root);
 
@@ -157,8 +157,8 @@ describe('Composed AlertDialog', () => {
       });
 
       it('Then preserves the child onClick handler', async () => {
-        const onAction = vi.fn();
-        const onClick = vi.fn();
+        const onAction = mock();
+        const onClick = mock();
         const triggerBtn = document.createElement('button');
         let actionEl!: HTMLElement;
 
@@ -211,7 +211,7 @@ describe('Composed AlertDialog', () => {
 
   describe('Given onOpenChange callback', () => {
     it('Then calls the callback when dialog opens and closes', async () => {
-      const onOpenChange = vi.fn();
+      const onOpenChange = mock();
       const triggerBtn = document.createElement('button');
       let cancelEl!: HTMLElement;
 
@@ -245,7 +245,7 @@ describe('Composed AlertDialog', () => {
         const panel = getConnectedPanel(root);
         expect(panel.open).toBe(true);
 
-        const closeSpy = vi.spyOn(panel, 'close');
+        const closeSpy = spyOn(panel, 'close');
 
         cancelEl.click();
 
