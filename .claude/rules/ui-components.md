@@ -438,11 +438,11 @@ function ComposedCheckboxRoot({ children, classes, ...opts }: ComposedCheckboxPr
 
 ### Build configuration
 
-In `bunup.config.ts`, use `createVertzLibraryPlugin()` to compile `.tsx` files:
+In `build.config.ts`, use `createVertzLibraryPlugin()` to compile `.tsx` files:
 
 ```ts
 import { createVertzLibraryPlugin } from '@vertz/ui-server';
-import { defineConfig } from 'bunup';
+import { defineConfig } from '@vertz/build';
 
 export default defineConfig({
   entry: ['src/index.ts'],

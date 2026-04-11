@@ -47,7 +47,7 @@ export default pipe({
       command: 'bun run build',
       deps: ['^build'],
       cache: {
-        inputs: ['src/**', 'package.json', 'tsconfig.json', 'bunup.config.ts'],
+        inputs: ['src/**', 'package.json', 'tsconfig.json', 'build.config.ts'],
         outputs: ['dist/**'],
       },
     },
