@@ -303,6 +303,9 @@ jobs:
           # Remove fallback vtz shell script so the native binary from setup-vtz is used
           rm -f node_modules/.bin/vtz node_modules/.bin/vertz
 
+      - name: Build @vertz/build
+        run: cd packages/build && tsc --outDir dist --declaration
+
       - name: Build @vertz/ci
         run: cd packages/ci && vtz run build
 
