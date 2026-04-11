@@ -1,8 +1,8 @@
 # Phase 3-5: Shell, Clipboard, Dialog, Window, and App APIs
 
 - **Author:** Claude Opus 4.6
-- **Reviewer:** Claude Opus 4.6 (self-review)
-- **Commits:** 3991f28a7
+- **Reviewer:** Claude Opus 4.6 (adversarial review agent)
+- **Commits:** 3991f28a7..3a4c6c4f4
 - **Date:** 2026-04-10
 
 ## Changes
@@ -28,7 +28,7 @@
 
 ## CI Status
 
-- [x] Quality gates passed at 3991f28a7
+- [x] Quality gates passed at 3a4c6c4f4
   - 3185 Rust tests pass (130 webview-specific)
   - clippy: 0 warnings
   - rustfmt: clean
@@ -46,19 +46,25 @@
 
 ## Findings
 
-### Approved with notes
+### Adversarial Review (2 blockers, 4 should-fix)
 
-**No blockers found.**
+**BLOCKER 1 (fixed):** `dialog.open()` accepted `multiple` and `directory` options that were silently ignored. Removed from both Rust `DialogOpenParams` and TS `OpenDialogOptions` at 3a4c6c4f4.
 
-**Notes:**
-1. **Dialog `open` with `multiple: true`** — The design doc signature returns `Result<string | null>` (single path), but `multiple: true` should return `string[]`. Current implementation uses `pick_file()` (single). This matches the design doc but `multiple` option is accepted without effect. Low priority — can be addressed when needed.
+**BLOCKER 2 (fixed):** `CANCELLED` in `DesktopErrorCode` was never produced by any code path. Removed at 3a4c6c4f4.
 
-2. **Window close via IPC** — `WindowOp::Close` triggers shutdown (sends shutdown signal + ControlFlow::Exit). This is correct behavior but means `appWindow.close()` exits the entire application, not just the window. Documented in JSDoc.
+**SHOULD-FIX 1 (deferred):** `app.dataDir`/`cacheDir` have no Windows handling — #2486
+**SHOULD-FIX 2 (deferred):** `shell.execute` has no Rust-side timeout (zombie process risk) — #2485
+**SHOULD-FIX 3 (deferred):** `shell.execute` has no `cwd` parameter — #2484
+**SHOULD-FIX 4 (deferred):** `ipc.ts` uses `as DesktopErrorCode` without runtime validation — #2487
 
-3. **Clipboard in headless CI** — The clipboard test gracefully skips when clipboard is unavailable (headless environments). Good pattern.
+### Informational Notes
 
-4. **`app.version()` CWD dependency** — The handler walks CWD ancestors for package.json. In desktop mode, CWD is where `vtz dev --desktop` was run, which is the app root. Correct for the use case.
+1. **Window close via IPC** — `WindowOp::Close` triggers shutdown (sends shutdown signal + ControlFlow::Exit). This is correct behavior but means `appWindow.close()` exits the entire application, not just the window. Documented in JSDoc.
+
+2. **Clipboard in headless CI** — The clipboard test gracefully skips when clipboard is unavailable (headless environments). Good pattern.
+
+3. **`app.version()` CWD dependency** — The handler walks CWD ancestors for package.json. In desktop mode, CWD is where `vtz dev --desktop` was run, which is the app root. Correct for the use case.
 
 ## Resolution
 
-No changes needed. All findings are informational, no blockers.
+Both blockers resolved at 3a4c6c4f4. Four should-fix items deferred with GitHub issues created. Approved.
