@@ -19,7 +19,8 @@ export function createFixBarrelReExportsHook(): PostBuildHook {
       );
       if (!barrelFile) return;
 
-      // Read the source barrel to know exactly what re-exports exist
+      // Read the source barrel to know exactly what re-exports exist.
+      // Assumes outDir is a direct child of the package root (e.g. 'dist').
       const sourceBarrel = readFileSync(join(ctx.outDir, '..', 'src', 'index.ts'), 'utf8');
 
       // Parse `export { ... } from './path'` and `export type { ... } from './path'`
@@ -66,7 +67,7 @@ export function createStripBareChunkImportsHook(): PostBuildHook {
       for (const file of ctx.outputFiles) {
         if (file.kind !== 'entry-point' || !file.path.endsWith('.js')) continue;
         // Skip the barrel — fixBarrelReExports handles it
-        if (file.path.endsWith('index.js')) continue;
+        if (file.path.endsWith('src/index.js')) continue;
 
         const content = readFileSync(file.path, 'utf8');
         const cleaned = content.replace(/^import\s*"[^"]*chunk-[^"]*\.js";\n?/gm, '');
