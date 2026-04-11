@@ -182,7 +182,7 @@ export function createSqliteDriver(
 }
 
 // ---------------------------------------------------------------------------
-// Local SQLite database interface (bun:sqlite / better-sqlite3)
+// Local SQLite database interface (@vertz/sqlite / better-sqlite3)
 // ---------------------------------------------------------------------------
 
 interface LocalSqliteDatabase {
@@ -195,13 +195,13 @@ interface LocalSqliteDatabase {
 }
 
 // ---------------------------------------------------------------------------
-// resolveLocalSqliteDatabase — resolve bun:sqlite or better-sqlite3
+// resolveLocalSqliteDatabase — resolve @vertz/sqlite or better-sqlite3
 // ---------------------------------------------------------------------------
 
 /**
- * Resolve a local SQLite database using bun:sqlite or better-sqlite3.
+ * Resolve a local SQLite database using @vertz/sqlite or better-sqlite3.
  *
- * Tries bun:sqlite first (Bun/Vertz runtime), then falls back to better-sqlite3 (Node.js).
+ * Tries @vertz/sqlite first (vtz/Bun runtime), then falls back to better-sqlite3 (Node.js).
  * If both fail, throws a descriptive error with both failure reasons.
  *
  * @param dbPath - Path to SQLite file, or ':memory:' for in-memory
@@ -218,14 +218,14 @@ export async function resolveLocalSqliteDatabase(
   const loadModule = importFn ?? ((mod: string) => import(mod));
 
   try {
-    // Try bun:sqlite first (Bun/Vertz runtime)
-    const mod = (await loadModule('bun:sqlite')) as {
+    // Try @vertz/sqlite first (vtz/Bun runtime)
+    const mod = (await loadModule('@vertz/sqlite')) as {
       Database: new (path: string) => LocalSqliteDatabase;
       default?: { Database: new (path: string) => LocalSqliteDatabase };
     };
     // Handle ESM interop: import() may return { default: { Database } } or { Database }
     const Database = mod.Database ?? mod.default?.Database;
-    if (!Database) throw new Error('bun:sqlite module has no Database export');
+    if (!Database) throw new Error('@vertz/sqlite module has no Database export');
     return new Database(dbPath);
   } catch (e) {
     bunSqliteError = e;
@@ -247,7 +247,7 @@ export async function resolveLocalSqliteDatabase(
 
     throw new Error(
       `Failed to initialize SQLite database at "${dbPath}".\n` +
-        `  bun:sqlite error: ${bunMsg}\n` +
+        `  @vertz/sqlite error: ${bunMsg}\n` +
         `  better-sqlite3 error: ${betterMsg}\n\n` +
         'To fix this, either:\n' +
         '  1. Run your script with vtz (e.g. vtz run <script> or vtz dev) — the Vertz\n' +
@@ -258,11 +258,11 @@ export async function resolveLocalSqliteDatabase(
 }
 
 // ---------------------------------------------------------------------------
-// createLocalSqliteDriver — factory for bun:sqlite / better-sqlite3
+// createLocalSqliteDriver — factory for @vertz/sqlite / better-sqlite3
 // ---------------------------------------------------------------------------
 
 /**
- * Create a SQLite driver from a local file path using bun:sqlite or better-sqlite3.
+ * Create a SQLite driver from a local file path using @vertz/sqlite or better-sqlite3.
  *
  * @param dbPath - Path to SQLite file, or ':memory:' for in-memory
  * @param tableSchema - Optional table schema registry for value conversion

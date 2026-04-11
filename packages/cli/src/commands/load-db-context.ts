@@ -40,7 +40,7 @@ export interface DbConfig {
 
 const DEFAULT_SQLITE_PATH = './app.db';
 
-/** Adapter contract for bun:sqlite Database (runtime-only module). */
+/** Adapter contract for @vertz/sqlite Database (runtime-only module). */
 interface SqliteDatabase {
   prepare: (sql: string) => { all: (...params: unknown[]) => unknown[] };
   close: () => void;
@@ -239,12 +239,12 @@ export async function createConnection(config: DbConfig): Promise<DbConnection> 
     const dbPath = parseSqliteUrl(config.url);
     let db: SqliteDatabase;
     try {
-      const { Database } = await import('bun:sqlite');
+      const { Database } = await import('@vertz/sqlite');
       db = new Database(dbPath) as SqliteDatabase;
     } catch (err) {
       throw new Error(
-        'Failed to load bun:sqlite. The vertz CLI requires the Bun runtime for SQLite support.\n' +
-          'Run your command with: bun vertz db <command>',
+        'Failed to load @vertz/sqlite. The vertz CLI requires the vtz runtime for SQLite support.\n' +
+          'Run your command with: vtz vertz db <command>',
         { cause: err },
       );
     }

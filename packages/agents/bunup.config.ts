@@ -5,4 +5,5 @@ export default defineConfig({
   format: ['esm'],
   dts: { inferTypes: true },
   clean: true,
+  external: ['@vertz/sqlite'],
 });

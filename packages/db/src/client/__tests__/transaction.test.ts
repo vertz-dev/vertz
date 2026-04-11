@@ -1,4 +1,4 @@
-import { Database } from 'bun:sqlite';
+import { Database } from '@vertz/sqlite';
 import { describe, expect, it } from '@vertz/test';
 import { d } from '../../d';
 import { sql } from '../../sql/tagged';

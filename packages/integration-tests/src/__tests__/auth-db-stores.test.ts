@@ -13,7 +13,7 @@
  *
  * Uses public package imports only (@vertz/server, @vertz/db).
  */
-import { Database } from 'bun:sqlite';
+import { Database } from '@vertz/sqlite';
 import { afterEach, beforeEach, describe, expect, it } from '@vertz/test';
 import { createDb, type DatabaseClient, type ModelEntry } from '@vertz/db';
 import {
