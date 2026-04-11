@@ -54,6 +54,7 @@ export async function bundle(config: BuildConfig, cwd: string): Promise<BundleRe
     external,
     plugins: config.plugins,
     banner: resolveBanner(config.banner),
+    sourcemap: true,
     metafile: true,
     write: true,
     mainFields: ['module', 'main'],

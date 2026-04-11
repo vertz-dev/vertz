@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it } from '@vertz/test';
 import { generateDts } from '../dts';
 
 const fixtureDir = resolve(import.meta.dirname, 'fixtures/simple-pkg');
+const typeErrorFixtureDir = resolve(import.meta.dirname, 'fixtures/type-error-pkg');
 const outDir = join(fixtureDir, 'dist');
 
 afterEach(() => {
@@ -35,14 +36,24 @@ describe('generateDts', () => {
   it('uses custom outDir', async () => {
     const customOutDir = join(fixtureDir, 'types-out');
     try {
-      await generateDts(
-        { entry: ['src/index.ts'], dts: true, outDir: 'types-out' },
-        fixtureDir,
-      );
+      await generateDts({ entry: ['src/index.ts'], dts: true, outDir: 'types-out' }, fixtureDir);
       expect(existsSync(join(customOutDir, 'index.d.ts'))).toBe(true);
     } finally {
       if (existsSync(customOutDir)) {
         rmSync(customOutDir, { recursive: true });
+      }
+    }
+  });
+
+  it('rejects with tsc stderr when source has type errors', async () => {
+    const typeErrorOutDir = join(typeErrorFixtureDir, 'dist');
+    try {
+      await expect(
+        generateDts({ entry: ['src/index.ts'], dts: true }, typeErrorFixtureDir),
+      ).rejects.toThrow('tsc failed');
+    } finally {
+      if (existsSync(typeErrorOutDir)) {
+        rmSync(typeErrorOutDir, { recursive: true });
       }
     }
   });

@@ -13,12 +13,16 @@ describe('normalizeHooks', () => {
     expect(normalizeHooks(undefined)).toEqual([]);
   });
 
-  it('wraps plain function as hook', () => {
-    const fn = () => {};
+  it('wraps plain function as hook', async () => {
+    let called = false;
+    const fn = () => {
+      called = true;
+    };
     const hooks = normalizeHooks(fn);
     expect(hooks).toHaveLength(1);
     expect(hooks[0].name).toBe('custom');
-    expect(hooks[0].handler).toBe(fn);
+    await hooks[0].handler(emptyCtx);
+    expect(called).toBe(true);
   });
 
   it('wraps single hook object in array', () => {
@@ -43,8 +47,18 @@ describe('runHooks', () => {
     const order: string[] = [];
 
     const hooks: PostBuildHook[] = [
-      { name: 'first', handler: async () => { order.push('first'); } },
-      { name: 'second', handler: async () => { order.push('second'); } },
+      {
+        name: 'first',
+        handler: async () => {
+          order.push('first');
+        },
+      },
+      {
+        name: 'second',
+        handler: async () => {
+          order.push('second');
+        },
+      },
     ];
 
     await runHooks(hooks, emptyCtx);
@@ -55,7 +69,12 @@ describe('runHooks', () => {
     let receivedCtx: PostBuildContext | undefined;
 
     const hooks: PostBuildHook[] = [
-      { name: 'check-ctx', handler: async (ctx) => { receivedCtx = ctx; } },
+      {
+        name: 'check-ctx',
+        handler: async (ctx) => {
+          receivedCtx = ctx;
+        },
+      },
     ];
 
     await runHooks(hooks, emptyCtx);
@@ -64,7 +83,12 @@ describe('runHooks', () => {
 
   it('propagates hook errors', async () => {
     const hooks: PostBuildHook[] = [
-      { name: 'fail', handler: async () => { throw new Error('hook failed'); } },
+      {
+        name: 'fail',
+        handler: async () => {
+          throw new Error('hook failed');
+        },
+      },
     ];
 
     await expect(runHooks(hooks, emptyCtx)).rejects.toThrow('hook failed');

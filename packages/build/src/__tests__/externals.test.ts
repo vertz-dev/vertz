@@ -61,4 +61,20 @@ describe('resolveExternals', () => {
     expect(result).toContain('@vertz/core');
     expect(result).toContain('@vertz/ui');
   });
+
+  it('adds subpath wildcard patterns for dependencies', () => {
+    const result = resolveExternals({
+      dependencies: { '@vertz/ui': 'workspace:*' },
+    });
+    expect(result).toContain('@vertz/ui');
+    expect(result).toContain('@vertz/ui/*');
+  });
+
+  it('adds subpath wildcard patterns for peerDependencies', () => {
+    const result = resolveExternals({
+      peerDependencies: { '@vertz/core': 'workspace:*' },
+    });
+    expect(result).toContain('@vertz/core');
+    expect(result).toContain('@vertz/core/*');
+  });
 });

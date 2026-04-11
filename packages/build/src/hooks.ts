@@ -6,7 +6,8 @@ export function normalizeHooks(onSuccess: BuildConfig['onSuccess']): PostBuildHo
   if (Array.isArray(onSuccess)) return onSuccess;
 
   if (typeof onSuccess === 'function') {
-    return [{ name: 'custom', handler: onSuccess as PostBuildHook['handler'] }];
+    const fn = onSuccess;
+    return [{ name: 'custom', handler: () => fn() }];
   }
 
   // Single hook object

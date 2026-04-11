@@ -8,6 +8,8 @@ export function resolveExternals(
   if (dependencies) {
     for (const key of Object.keys(dependencies)) {
       deps.add(key);
+      // Add wildcard pattern for subpath imports (e.g. @vertz/ui → @vertz/ui/*)
+      deps.add(`${key}/*`);
     }
   }
 
@@ -15,6 +17,7 @@ export function resolveExternals(
   if (peerDependencies) {
     for (const key of Object.keys(peerDependencies)) {
       deps.add(key);
+      deps.add(`${key}/*`);
     }
   }
 

@@ -7,8 +7,6 @@ export interface BuildConfig {
   dts?: boolean;
   /** Output directory (default: 'dist') */
   outDir?: string;
-  /** Output format (default: ['esm']) */
-  format?: ('esm' | 'cjs')[];
   /** External dependencies (auto-detected from package.json) */
   external?: string[];
   /** esbuild plugins for transform-time hooks (onLoad, onResolve) */
