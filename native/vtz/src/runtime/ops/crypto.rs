@@ -219,6 +219,12 @@ pub const CRYPTO_BOOTSTRAP_JS: &str = r#"
 
     async exportKey(format, key) {
       if (!(key instanceof CryptoKey)) throw new TypeError('key must be a CryptoKey');
+      if (format === 'jwk') {
+        return Deno.core.ops.op_crypto_subtle_export_key_jwk({
+          format,
+          keyId: key.__keyId,
+        });
+      }
       const result = Deno.core.ops.op_crypto_subtle_export_key({
         format,
         keyId: key.__keyId,
