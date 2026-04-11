@@ -304,7 +304,11 @@ jobs:
           rm -f node_modules/.bin/vtz node_modules/.bin/vertz
 
       - name: Build @vertz/build
-        run: cd packages/build && tsc --outDir dist --declaration
+        run: |
+          cd packages/build && tsc --outDir dist --declaration
+          cd $GITHUB_WORKSPACE
+          ln -sf ../../packages/build/dist/cli.js node_modules/.bin/vertz-build
+          chmod +x node_modules/.bin/vertz-build
 
       - name: Build @vertz/ci
         run: cd packages/ci && vtz run build
