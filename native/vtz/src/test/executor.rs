@@ -219,43 +219,24 @@ fn execute_test_file_inner(
     // NOTE: async context + test harness are pre-baked in the V8 snapshot,
     // so we skip load_async_context() and TEST_HARNESS_JS injection.
 
-    // 1. Set filter if provided
+    // 2. Set filter if provided
     if let Some(ref filter) = options.filter {
         let escaped = filter.replace('\\', "\\\\").replace('\'', "\\'");
         let set_filter = format!("globalThis.__vertz_test_filter = '{}'", escaped);
         runtime.execute_script_void("[vertz:set-filter]", &set_filter)?;
     }
 
-    // 4. Execute preload scripts (run as classic scripts, not modules — no import support)
+    // 3. Create tokio runtime (needed for async module loading of preloads and test file)
+    let tokio_rt = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()?;
+
+    // 4. Load preload scripts as ES modules (supports import statements)
     for preload_path in &options.preload {
-        let preload_source = std::fs::read_to_string(preload_path).map_err(|e| {
-            deno_core::anyhow::anyhow!(
-                "Cannot read preload script '{}': {}",
-                preload_path.display(),
-                e
-            )
+        let specifier = ModuleSpecifier::from_file_path(preload_path).map_err(|_| {
+            deno_core::anyhow::anyhow!("Invalid preload path: {}", preload_path.display())
         })?;
-        let ext = preload_path
-            .extension()
-            .and_then(|e| e.to_str())
-            .unwrap_or("");
-
-        let code = if ext == "ts" || ext == "tsx" {
-            let root_path = std::path::Path::new(root_dir);
-            let src_dir = root_path.join("src");
-            let ctx = crate::plugin::CompileContext {
-                file_path: preload_path,
-                root_dir: root_path,
-                src_dir: &src_dir,
-                target: "ssr",
-            };
-            let output = plugin.compile(&preload_source, &ctx);
-            output.code
-        } else {
-            preload_source
-        };
-
-        runtime.execute_script_void("[vertz:preload]", &code)?;
+        tokio_rt.block_on(async { runtime.load_side_module(&specifier).await })?;
     }
 
     // 5. Pre-compile test file for mock extraction (transitive mocking support)
@@ -287,11 +268,7 @@ fn execute_test_file_inner(
     let specifier = ModuleSpecifier::from_file_path(file_path)
         .map_err(|_| deno_core::anyhow::anyhow!("Invalid file path: {}", file_path.display()))?;
 
-    let tokio_rt = tokio::runtime::Builder::new_current_thread()
-        .enable_all()
-        .build()?;
-
-    // 4. Create inspector session for coverage if enabled
+    // 7. Create inspector session for coverage if enabled
     let mut session = if options.coverage {
         let inspector = runtime.inner_mut().inspector();
         let session = inspector.borrow().create_local_session();
@@ -300,7 +277,7 @@ fn execute_test_file_inner(
         None
     };
 
-    // 5. Start coverage collection (before module load)
+    // 8. Start coverage collection (before module load)
     if let Some(ref mut session) = session {
         inspector_post_message_sync(session, &mut runtime, "Profiler.enable", None::<()>)?;
         inspector_post_message_sync(
@@ -314,10 +291,10 @@ fn execute_test_file_inner(
         )?;
     }
 
-    // 6. Load module
+    // 9. Load module
     tokio_rt.block_on(async { runtime.load_main_module(&specifier).await })?;
 
-    // 7. Run all registered tests with timeout
+    // 10. Run all registered tests with timeout
     let timeout_duration = if options.timeout_ms > 0 {
         Some(std::time::Duration::from_millis(options.timeout_ms))
     } else {
@@ -783,11 +760,11 @@ mod tests {
         );
 
         assert!(result.file_error.is_some());
-        assert!(result
-            .file_error
-            .as_ref()
-            .unwrap()
-            .contains("Cannot read preload script"));
+        let err = result.file_error.as_ref().unwrap();
+        assert!(
+            err.contains("Cannot read module") || err.contains("nonexistent-setup.ts"),
+            "Expected error about missing preload file, got: {err}"
+        );
     }
 
     #[test]
