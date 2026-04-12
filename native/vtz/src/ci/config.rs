@@ -87,6 +87,10 @@ impl ConfigBridge {
         let msg = serde_json::to_string(&ShutdownRequest { shutdown: true })
             .map_err(|e| format!("serialize shutdown: {e}"))?;
         let _ = self.stdin.write_all(format!("{msg}\n").as_bytes()).await;
+        // Close stdin so the child process receives EOF and can exit cleanly.
+        // Without this, the readline interface in the JS loader keeps the
+        // process alive indefinitely, causing `child.wait()` to hang.
+        drop(self.stdin);
         let _ = self.child.wait().await;
         Ok(())
     }

@@ -113,7 +113,7 @@ async fn test_inspect_brk_unblocks_after_debugger_connects() {
     // Create channels for the InspectorSessionProxy.
     // outbound: V8 → debugger (V8 sends events like Debugger.paused)
     // inbound: debugger → V8 (we send CDP commands)
-    let (outbound_tx, _outbound_rx) =
+    let (outbound_tx, mut outbound_rx) =
         futures::channel::mpsc::unbounded::<deno_core::InspectorMsg>();
     let (inbound_tx, inbound_rx) = futures::channel::mpsc::unbounded::<String>();
 
@@ -126,19 +126,6 @@ async fn test_inspect_brk_unblocks_after_debugger_connects() {
         .unbounded_send(r#"{"id":1,"method":"Runtime.runIfWaitingForDebugger"}"#.to_string())
         .unwrap();
 
-    // Schedule Debugger.resume for after V8 hits the break_on_next_statement pause.
-    // After wait_for_session returns, V8 continues and hits the scheduled pause.
-    // V8 enters run_message_loop_on_pause, which parks the thread. The delayed
-    // Debugger.resume wakes it and clears the pause.
-    let resume_tx = inbound_tx.clone();
-    tokio::spawn(async move {
-        tokio::time::sleep(Duration::from_millis(500)).await;
-        let _ = resume_tx.unbounded_send(r#"{"id":2,"method":"Debugger.enable"}"#.to_string());
-        tokio::time::sleep(Duration::from_millis(100)).await;
-        let _ = resume_tx
-            .unbounded_send(r#"{"id":3,"method":"Debugger.resume","params":{}}"#.to_string());
-    });
-
     // Send the proxy (connects the debugger session).
     let proxy = deno_core::InspectorSessionProxy {
         tx: outbound_tx,
@@ -146,8 +133,40 @@ async fn test_inspect_brk_unblocks_after_debugger_connects() {
     };
     sender.unbounded_send(proxy).unwrap();
 
-    // Keep inbound_tx alive so the session doesn't close prematurely
-    let _keep_alive = inbound_tx;
+    // Send Debugger.enable and then wait for the Debugger.paused event from V8
+    // before sending Debugger.resume. This is event-driven instead of relying on
+    // fixed sleep delays, which are flaky on CI runners under load.
+    inbound_tx
+        .unbounded_send(r#"{"id":2,"method":"Debugger.enable"}"#.to_string())
+        .unwrap();
+
+    // Wait for V8 to hit the break_on_next_statement pause.
+    // V8 sends a Debugger.paused notification on the outbound channel when it
+    // enters run_message_loop_on_pause. We watch for it instead of sleeping.
+    use futures::StreamExt;
+    let paused = tokio::time::timeout(Duration::from_secs(5), async {
+        while let Some(msg) = outbound_rx.next().await {
+            if msg.content.contains("Debugger.paused") {
+                return true;
+            }
+        }
+        false
+    })
+    .await
+    .unwrap_or(false);
+
+    assert!(
+        paused,
+        "V8 should emit Debugger.paused after break_on_next_statement"
+    );
+
+    // Now that V8 is paused, send Debugger.resume to unblock it.
+    inbound_tx
+        .unbounded_send(r#"{"id":3,"method":"Debugger.resume","params":{}}"#.to_string())
+        .unwrap();
+
+    // Keep inbound_tx and outbound_rx alive so the session doesn't close prematurely
+    let _keep_alive = (inbound_tx, outbound_rx);
 
     // The isolate should now become initialized (modules load after debugger resumes)
     let initialized = tokio::time::timeout(Duration::from_secs(5), async {
