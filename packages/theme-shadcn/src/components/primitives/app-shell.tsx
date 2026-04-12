@@ -22,8 +22,8 @@ interface SlotProps {
   className?: string;
 }
 
-/** Icon component type — matches @vertz/icons signature. */
-type IconComponent = (props: { size?: number }) => HTMLElement;
+/** Icon component type — matches @vertz/icons IconProps signature. */
+type IconComponent = (props: { size?: number; className?: string; class?: string }) => HTMLElement;
 
 /**
  * Themed nav link with automatic active state and optional icon.
@@ -56,6 +56,22 @@ export interface ThemedAppShellComponent {
   User: (props: SlotProps) => HTMLElement;
 }
 
+// ── Active state matching ────────────────────────────────
+
+/**
+ * Check if a pathname matches a nav href.
+ * - exact: pathname === href
+ * - prefix: pathname starts with href, handling "/" specially and ensuring
+ *   "/projects" doesn't match "/projects-archive" (requires segment boundary).
+ */
+export function isPathActive(pathname: string, href: string, match: 'exact' | 'prefix'): boolean {
+  if (match === 'exact') return pathname === href;
+  // Root path only matches exactly to prevent matching all routes
+  if (href === '/') return pathname === '/';
+  // Prefix match: exact match or href followed by a '/' segment boundary
+  return pathname === href || pathname.startsWith(href + '/');
+}
+
 // ── NavItem factory ───────────────────────────────────────
 
 function createThemedNavItem(
@@ -78,28 +94,33 @@ function createThemedNavItem(
     };
 
     // Reactive active state — reads router.current to trigger reactive tracking.
-    // The compiler wraps JSX attribute expressions in getters, so this re-evaluates
-    // when the route changes.
-    const checkActive = (): boolean => {
+    // The compiler turns this `const` into a `computed()` so all JSX attributes
+    // share a single cached computation.
+    const isActive = (() => {
       void router.current;
       if (!isBrowser()) return false;
-      const pathname = window.location.pathname;
-      return match === 'prefix' ? pathname.startsWith(href) : pathname === href;
-    };
+      return isPathActive(window.location.pathname, href, match);
+    })();
+
+    const Icon = icon;
 
     return (
       <a
         href={href}
         data-part="nav-item"
-        data-active={checkActive() ? 'true' : undefined}
+        data-active={isActive ? 'true' : undefined}
         data-match={match}
-        aria-current={checkActive() ? 'page' : undefined}
-        class={[navItemClass, checkActive() ? navItemActiveClass : '', className]
+        aria-current={isActive ? 'page' : undefined}
+        class={[navItemClass, isActive ? navItemActiveClass : '', className]
           .filter(Boolean)
           .join(' ')}
         onClick={handleClick}
       >
-        {icon && <span data-part="icon">{icon({ size: 16 })}</span>}
+        {Icon && (
+          <span data-part="icon">
+            <Icon size={16} />
+          </span>
+        )}
         {children}
       </a>
     ) as HTMLElement;

@@ -20,7 +20,9 @@ export interface AppShellClasses {
   sidebar?: string;
   brand?: string;
   nav?: string;
+  /** Used by the themed NavItem component, not consumed by any primitive sub-component. */
   navItem?: string;
+  /** Used by the themed NavItem component, not consumed by any primitive sub-component. */
   navItemActive?: string;
   content?: string;
   user?: string;
@@ -44,52 +46,54 @@ const AppShellContext = createContext<{ classes?: AppShellClasses } | undefined>
 interface SlotProps {
   children?: ChildValue;
   className?: string;
+  /** @deprecated Use `className` instead. */
+  class?: string;
 }
 
 // ---------------------------------------------------------------------------
 // Sub-components
 // ---------------------------------------------------------------------------
 
-function AppShellSidebar({ children, className }: SlotProps) {
+function AppShellSidebar({ children, className, class: classProp }: SlotProps) {
   const ctx = useContext(AppShellContext);
   return (
-    <aside data-part="sidebar" class={cn(ctx?.classes?.sidebar, className)}>
+    <aside data-part="sidebar" class={cn(ctx?.classes?.sidebar, className ?? classProp)}>
       {children}
     </aside>
   );
 }
 
-function AppShellBrand({ children, className }: SlotProps) {
+function AppShellBrand({ children, className, class: classProp }: SlotProps) {
   const ctx = useContext(AppShellContext);
   return (
-    <div data-part="brand" class={cn(ctx?.classes?.brand, className)}>
+    <div data-part="brand" class={cn(ctx?.classes?.brand, className ?? classProp)}>
       {children}
     </div>
   );
 }
 
-function AppShellNav({ children, className }: SlotProps) {
+function AppShellNav({ children, className, class: classProp }: SlotProps) {
   const ctx = useContext(AppShellContext);
   return (
-    <nav data-part="nav" class={cn(ctx?.classes?.nav, className)}>
+    <nav data-part="nav" class={cn(ctx?.classes?.nav, className ?? classProp)}>
       {children}
     </nav>
   );
 }
 
-function AppShellContent({ children, className }: SlotProps) {
+function AppShellContent({ children, className, class: classProp }: SlotProps) {
   const ctx = useContext(AppShellContext);
   return (
-    <main data-part="content" class={cn(ctx?.classes?.content, className)}>
+    <main data-part="content" class={cn(ctx?.classes?.content, className ?? classProp)}>
       {children}
     </main>
   );
 }
 
-function AppShellUser({ children, className }: SlotProps) {
+function AppShellUser({ children, className, class: classProp }: SlotProps) {
   const ctx = useContext(AppShellContext);
   return (
-    <div data-part="user" class={cn(ctx?.classes?.user, className)}>
+    <div data-part="user" class={cn(ctx?.classes?.user, className ?? classProp)}>
       {children}
     </div>
   );
@@ -103,12 +107,19 @@ export interface ComposedAppShellProps {
   children?: ChildValue;
   classes?: AppShellClasses;
   className?: string;
+  /** @deprecated Use `className` instead. */
+  class?: string;
 }
 
-function ComposedAppShellRoot({ children, classes, className }: ComposedAppShellProps) {
+function ComposedAppShellRoot({
+  children,
+  classes,
+  className,
+  class: classProp,
+}: ComposedAppShellProps) {
   return (
     <AppShellContext.Provider value={{ classes }}>
-      <div data-part="app-shell" class={cn(classes?.root, className)}>
+      <div data-part="app-shell" class={cn(classes?.root, className ?? classProp)}>
         {children}
       </div>
     </AppShellContext.Provider>
