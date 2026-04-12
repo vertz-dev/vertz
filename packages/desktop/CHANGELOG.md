@@ -1,5 +1,14 @@
 # @vertz/desktop
 
+## 0.2.58
+
+### Patch Changes
+
+- [#2505](https://github.com/vertz-dev/vertz/pull/2505) [`44fe439`](https://github.com/vertz-dev/vertz/commit/44fe43908fa9b72e7ce7b8155f962fb626155378) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - Add Windows platform handling for `app.dataDir()` and `app.cacheDir()` using `APPDATA` and `LOCALAPPDATA` environment variables. Error messages now include the specific missing environment variable name.
+
+- Updated dependencies []:
+  - @vertz/errors@0.2.59
+
 ## 0.2.57
 
 ### Patch Changes

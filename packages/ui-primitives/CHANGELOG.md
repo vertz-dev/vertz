@@ -1,5 +1,14 @@
 # @vertz/ui-primitives
 
+## 0.2.59
+
+### Patch Changes
+
+- [#2517](https://github.com/vertz-dev/vertz/pull/2517) [`6a6282b`](https://github.com/vertz-dev/vertz/commit/6a6282b3525f850fe0db6d11308dcd4801f89bb3) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - feat(ui): add AppShell layout component for SaaS apps (#1661)
+
+- Updated dependencies [[`6a6282b`](https://github.com/vertz-dev/vertz/commit/6a6282b3525f850fe0db6d11308dcd4801f89bb3)]:
+  - @vertz/ui@0.2.59
+
 ## 0.2.58
 
 ### Patch Changes
