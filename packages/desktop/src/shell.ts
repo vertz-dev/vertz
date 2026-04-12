@@ -65,7 +65,8 @@ export function execute(
   options?: ExecuteOptions & IpcCallOptions,
 ): Promise<Result<ShellOutput, DesktopError>> {
   const { cwd, env, timeout } = options ?? {};
-  return invoke<ShellOutput>('shell.execute', { command, args, cwd, env }, { timeout });
+  // Pass timeout in both params (for Rust-side timeout sync) and IPC options (for JS-side timeout).
+  return invoke<ShellOutput>('shell.execute', { command, args, cwd, env, timeout }, { timeout });
 }
 
 /** Global subscription ID counter (mirrors Rust-side next_subscription_id). */

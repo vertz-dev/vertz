@@ -19,15 +19,24 @@ use crate::webview::process_map::ProcessMap;
 /// the JS-side timeout (120s) fires but the Rust child process keeps running.
 const EXECUTE_TIMEOUT: Duration = Duration::from_secs(300);
 
+/// Safety margin added to the JS-side timeout before using it as the Rust-side timeout.
+/// This ensures the JS timeout fires first (giving a clean error to the user), while
+/// the Rust timeout acts as a safety net to kill the actual child process.
+const TIMEOUT_SAFETY_MARGIN: Duration = Duration::from_secs(5);
+
 /// Execute a command and wait for it to finish, returning stdout, stderr, and exit code.
 ///
 /// The command is executed directly (not through a shell) to avoid injection risks.
 /// Use `args` for all arguments — do NOT concatenate them into the command string.
 ///
-/// A Rust-side timeout (300s) kills the child process if the JS-side timeout fires
-/// first, preventing leaked zombie processes.
+/// When `params.timeout` is set (JS-side timeout in ms), the Rust-side timeout is
+/// `timeout + SAFETY_MARGIN`. Otherwise falls back to the default 300s timeout.
 pub async fn execute(params: ShellExecuteParams) -> Result<serde_json::Value, IpcError> {
-    execute_with_timeout(params, EXECUTE_TIMEOUT).await
+    let timeout_duration = match params.timeout {
+        Some(ms) => Duration::from_millis(ms) + TIMEOUT_SAFETY_MARGIN,
+        None => EXECUTE_TIMEOUT,
+    };
+    execute_with_timeout(params, timeout_duration).await
 }
 
 /// Inner implementation with a configurable timeout — exposed for testing.
@@ -56,6 +65,10 @@ async fn execute_with_timeout(
     // Ensure the child process is killed when the future is dropped (e.g., on timeout).
     cmd.kill_on_drop(true);
 
+    // Put the child in its own process group so we can kill the entire tree on timeout.
+    #[cfg(unix)]
+    cmd.process_group(0);
+
     let child = cmd.spawn().map_err(|e| match e.kind() {
         std::io::ErrorKind::NotFound => IpcError {
             code: IpcErrorCode::ExecutionFailed,
@@ -71,29 +84,47 @@ async fn execute_with_timeout(
         },
     })?;
 
-    let output = tokio::time::timeout(timeout_duration, child.wait_with_output())
-        .await
-        .map_err(|_| IpcError {
-            code: IpcErrorCode::Timeout,
-            message: format!(
-                "Command '{}' timed out after {}s",
-                params.command,
-                timeout_duration.as_secs()
-            ),
-        })?
-        .map_err(|e| IpcError {
+    // Save the child PID before moving it into wait_with_output().
+    // With process_group(0), the PID is also the PGID.
+    let child_pid = child.id().unwrap_or(0);
+
+    let result = tokio::time::timeout(timeout_duration, child.wait_with_output()).await;
+
+    match result {
+        Ok(Ok(output)) => {
+            let response = ShellOutputResponse {
+                code: output.status.code().unwrap_or(-1),
+                stdout: String::from_utf8_lossy(&output.stdout).into_owned(),
+                stderr: String::from_utf8_lossy(&output.stderr).into_owned(),
+            };
+            serde_json::to_value(response)
+                .map_err(|e| IpcError::io_error(format!("Serialization error: {}", e)))
+        }
+        Ok(Err(e)) => Err(IpcError {
             code: IpcErrorCode::ExecutionFailed,
             message: format!("Failed to execute '{}': {}", params.command, e),
-        })?;
-
-    let response = ShellOutputResponse {
-        code: output.status.code().unwrap_or(-1),
-        stdout: String::from_utf8_lossy(&output.stdout).into_owned(),
-        stderr: String::from_utf8_lossy(&output.stderr).into_owned(),
-    };
-
-    serde_json::to_value(response)
-        .map_err(|e| IpcError::io_error(format!("Serialization error: {}", e)))
+        }),
+        Err(_) => {
+            // Timeout — kill the entire process group, not just the direct child.
+            // kill_on_drop handles the direct child; this handles subprocesses.
+            #[cfg(unix)]
+            if child_pid > 0 {
+                // SAFETY: child_pid is a valid PID obtained from the spawned child.
+                // Negating it targets the process group (PGID == PID with process_group(0)).
+                unsafe {
+                    libc::kill(-(child_pid as libc::pid_t), libc::SIGKILL);
+                }
+            }
+            Err(IpcError {
+                code: IpcErrorCode::Timeout,
+                message: format!(
+                    "Command '{}' timed out after {}s",
+                    params.command,
+                    timeout_duration.as_secs()
+                ),
+            })
+        }
+    }
 }
 
 /// Spawn a long-running process with streaming stdout/stderr via the event channel.
@@ -221,6 +252,7 @@ mod tests {
             args: Some(vec!["hello".to_string()]),
             cwd: None,
             env: None,
+            timeout: None,
         };
         let result = execute(params).await.unwrap();
         assert_eq!(result["code"], 0);
@@ -235,6 +267,7 @@ mod tests {
             args: None,
             cwd: None,
             env: None,
+            timeout: None,
         };
         let result = execute(params).await;
         assert!(result.is_err());
@@ -250,6 +283,7 @@ mod tests {
             args: None,
             cwd: Some("/tmp".to_string()),
             env: None,
+            timeout: None,
         };
         let result = execute(params).await.unwrap();
         assert_eq!(result["code"], 0);
@@ -273,6 +307,7 @@ mod tests {
                     .into_iter()
                     .collect(),
             ),
+            timeout: None,
         };
         let result = execute(params).await.unwrap();
         assert_eq!(result["code"], 0);
@@ -286,6 +321,7 @@ mod tests {
             args: Some(vec!["-c".to_string(), "exit 42".to_string()]),
             cwd: None,
             env: None,
+            timeout: None,
         };
         let result = execute(params).await.unwrap();
         assert_eq!(result["code"], 42);
@@ -298,6 +334,7 @@ mod tests {
             args: Some(vec!["-c".to_string(), "echo error_output >&2".to_string()]),
             cwd: None,
             env: None,
+            timeout: None,
         };
         let result = execute(params).await.unwrap();
         assert_eq!(result["code"], 0);
@@ -311,6 +348,7 @@ mod tests {
             args: None,
             cwd: Some("~".to_string()),
             env: None,
+            timeout: None,
         };
         let result = execute(params).await.unwrap();
         assert_eq!(result["code"], 0);
@@ -326,6 +364,7 @@ mod tests {
             args: None,
             cwd: None,
             env: None,
+            timeout: None,
         };
         let result = execute(params).await.unwrap();
         // Verify the response keys are present (camelCase from serde)
@@ -345,6 +384,7 @@ mod tests {
             ]),
             cwd: None,
             env: None,
+            timeout: None,
         };
         let result = execute(params).await.unwrap();
         let stdout = result["stdout"].as_str().unwrap();
@@ -440,6 +480,7 @@ mod tests {
             args: Some(vec!["30".to_string()]),
             cwd: None,
             env: None,
+            timeout: None,
         };
         let start = std::time::Instant::now();
         let result = execute_with_timeout(params, Duration::from_secs(1)).await;
@@ -465,11 +506,117 @@ mod tests {
             args: Some(vec!["fast".to_string()]),
             cwd: None,
             env: None,
+            timeout: None,
         };
         let result = execute_with_timeout(params, Duration::from_secs(10)).await;
         assert!(result.is_ok(), "expected success: {:?}", result);
         let value = result.unwrap();
         assert_eq!(value["code"], 0);
         assert_eq!(value["stdout"].as_str().unwrap().trim(), "fast");
+    }
+
+    // ── #2509: Process group kill ──
+
+    #[tokio::test]
+    async fn execute_timeout_kills_entire_process_group() {
+        let marker = std::env::temp_dir().join(format!("vtz_test_pgkill_{}", std::process::id()));
+        // Clean up from any previous failed run
+        let _ = std::fs::remove_file(&marker);
+
+        let marker_path = marker.display().to_string();
+
+        let params = ShellExecuteParams {
+            command: "sh".to_string(),
+            args: Some(vec![
+                "-c".to_string(),
+                // Start a background subprocess that writes a marker file after 2s.
+                // If process group kill works, the subprocess dies and never writes the file.
+                format!("(sleep 2 && echo alive > {}) & wait", marker_path),
+            ]),
+            cwd: None,
+            env: None,
+            timeout: None,
+        };
+
+        let result = execute_with_timeout(params, Duration::from_secs(1)).await;
+        assert!(result.is_err(), "expected timeout error");
+
+        // Wait long enough for the subprocess to write the marker (if it survived)
+        tokio::time::sleep(Duration::from_secs(4)).await;
+
+        assert!(
+            !marker.exists(),
+            "marker file exists — subprocess was NOT killed (process group kill failed)"
+        );
+
+        // Cleanup
+        let _ = std::fs::remove_file(&marker);
+    }
+
+    // ── #2508: Custom timeout sync ──
+
+    #[tokio::test]
+    async fn execute_respects_custom_timeout_from_params() {
+        let params = ShellExecuteParams {
+            command: "sleep".to_string(),
+            args: Some(vec!["60".to_string()]),
+            cwd: None,
+            env: None,
+            timeout: Some(1000), // 1 second JS timeout
+        };
+
+        let start = std::time::Instant::now();
+        let result = execute(params).await;
+        let elapsed = start.elapsed();
+
+        assert!(result.is_err(), "expected timeout error");
+        assert!(
+            matches!(result.unwrap_err().code, IpcErrorCode::Timeout),
+            "expected Timeout error code"
+        );
+        // Should complete in ~6s (1s + 5s margin), NOT 300s default
+        assert!(
+            elapsed.as_secs() < 15,
+            "Rust used default 300s timeout instead of custom: {:?}",
+            elapsed
+        );
+    }
+
+    #[tokio::test]
+    async fn execute_timeout_zero_uses_safety_margin() {
+        // timeout=0 means "immediate" from JS, but Rust adds the safety margin (5s)
+        let params = ShellExecuteParams {
+            command: "sleep".to_string(),
+            args: Some(vec!["60".to_string()]),
+            cwd: None,
+            env: None,
+            timeout: Some(0),
+        };
+
+        let start = std::time::Instant::now();
+        let result = execute(params).await;
+        let elapsed = start.elapsed();
+
+        assert!(result.is_err(), "expected timeout error");
+        // Should complete in ~5s (0ms + 5s margin), not 300s
+        assert!(
+            elapsed.as_secs() < 15,
+            "timeout=0 should use safety margin, not default 300s: {:?}",
+            elapsed
+        );
+    }
+
+    #[tokio::test]
+    async fn execute_default_timeout_when_no_custom() {
+        // When no timeout is provided, should still work (backward compat)
+        let params = ShellExecuteParams {
+            command: "echo".to_string(),
+            args: Some(vec!["hello".to_string()]),
+            cwd: None,
+            env: None,
+            timeout: None,
+        };
+        let result = execute(params).await;
+        assert!(result.is_ok(), "expected success: {:?}", result);
     }
 }
