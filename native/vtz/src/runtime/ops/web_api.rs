@@ -286,12 +286,15 @@ pub const WEB_API_BOOTSTRAP_JS: &str = r#"
     let bodyUsed = false;
     let bodyBytes = null;
     let bodyText = null;
+    let bodyStream = null;
 
     if (bodyInit === undefined || bodyInit === null) {
       bodyText = '';
       bodyBytes = new Uint8Array(0);
     } else if (typeof bodyInit === 'string') {
       bodyText = bodyInit;
+    } else if (bodyInit instanceof ReadableStream) {
+      bodyStream = bodyInit;
     } else if (bodyInit instanceof ArrayBuffer) {
       bodyBytes = new Uint8Array(bodyInit);
     } else if (ArrayBuffer.isView(bodyInit)) {
@@ -309,9 +312,30 @@ pub const WEB_API_BOOTSTRAP_JS: &str = r#"
       return new Uint8Array(0);
     }
 
+    async function drainStream() {
+      if (!bodyStream) return new Uint8Array(0);
+      const reader = bodyStream.getReader();
+      const chunks = [];
+      let totalLength = 0;
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        chunks.push(value);
+        totalLength += value.byteLength;
+      }
+      const result = new Uint8Array(totalLength);
+      let offset = 0;
+      for (const chunk of chunks) {
+        result.set(chunk, offset);
+        offset += chunk.byteLength;
+      }
+      return result;
+    }
+
     return {
       get bodyUsed() { return bodyUsed; },
       get body() {
+        if (bodyStream) return bodyStream;
         // Return a ReadableStream that enqueues the body bytes
         const bytes = getBytes();
         return new ReadableStream({
@@ -326,20 +350,41 @@ pub const WEB_API_BOOTSTRAP_JS: &str = r#"
       async text() {
         consumeBody();
         if (bodyText !== null) return bodyText;
+        if (bodyStream) {
+          const bytes = await drainStream();
+          return new TextDecoder().decode(bytes);
+        }
         return new TextDecoder().decode(bodyBytes);
       },
       async json() {
         consumeBody();
-        const text = bodyText !== null ? bodyText : new TextDecoder().decode(bodyBytes);
+        let text;
+        if (bodyText !== null) {
+          text = bodyText;
+        } else if (bodyStream) {
+          const bytes = await drainStream();
+          text = new TextDecoder().decode(bytes);
+        } else {
+          text = new TextDecoder().decode(bodyBytes);
+        }
         return JSON.parse(text);
       },
       async arrayBuffer() {
         consumeBody();
         if (bodyBytes !== null) return bodyBytes.buffer.slice(bodyBytes.byteOffset, bodyBytes.byteOffset + bodyBytes.byteLength);
+        if (bodyStream) {
+          const bytes = await drainStream();
+          return bytes.buffer;
+        }
         return new TextEncoder().encode(bodyText).buffer;
       },
       clone() {
         if (bodyUsed) throw new TypeError('Cannot clone a consumed body');
+        if (bodyStream) {
+          const [s1, s2] = bodyStream.tee();
+          bodyStream = s1;
+          return createBodyMixin(s2);
+        }
         return createBodyMixin(bodyText !== null ? bodyText : bodyBytes ? new Uint8Array(bodyBytes) : null);
       },
     };
