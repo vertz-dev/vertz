@@ -53,22 +53,31 @@ impl ProcessMap {
             None => return Ok(false),
         };
 
-        // SAFETY: We are sending SIGKILL to a process group we spawned.
-        // The pid is a valid u32 from Child::id(). With process_group(0),
-        // PID == PGID. Negating targets the entire group. If the process
-        // group already exited, kill returns ESRCH which we treat as success.
-        let ret = unsafe { libc::kill(-(pid as libc::pid_t), libc::SIGKILL) };
+        #[cfg(unix)]
+        {
+            // SAFETY: We are sending SIGKILL to a process group we spawned.
+            // The pid is a valid u32 from Child::id(). With process_group(0),
+            // PID == PGID. Negating targets the entire group. If the process
+            // group already exited, kill returns ESRCH which we treat as success.
+            let ret = unsafe { libc::kill(-(pid as libc::pid_t), libc::SIGKILL) };
 
-        if ret == 0 {
-            Ok(true)
-        } else {
-            let err = std::io::Error::last_os_error();
-            if err.raw_os_error() == Some(libc::ESRCH) {
-                // Process already exited — treat as success
-                Ok(false)
+            if ret == 0 {
+                Ok(true)
             } else {
-                Err(err)
+                let err = std::io::Error::last_os_error();
+                if err.raw_os_error() == Some(libc::ESRCH) {
+                    // Process already exited — treat as success
+                    Ok(false)
+                } else {
+                    Err(err)
+                }
             }
+        }
+
+        #[cfg(not(unix))]
+        {
+            let _ = pid;
+            Ok(false)
         }
     }
 
@@ -84,11 +93,16 @@ impl ProcessMap {
 
         let mut killed = 0;
         for (_sub_id, pid) in entries {
-            // SAFETY: Same as kill() above — sending SIGKILL to process groups we spawned.
-            let ret = unsafe { libc::kill(-(pid as libc::pid_t), libc::SIGKILL) };
-            if ret == 0 {
-                killed += 1;
+            #[cfg(unix)]
+            {
+                // SAFETY: Same as kill() above — sending SIGKILL to process groups we spawned.
+                let ret = unsafe { libc::kill(-(pid as libc::pid_t), libc::SIGKILL) };
+                if ret == 0 {
+                    killed += 1;
+                }
             }
+            #[cfg(not(unix))]
+            let _ = pid;
         }
         killed
     }
