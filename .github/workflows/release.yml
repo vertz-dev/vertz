@@ -268,6 +268,13 @@ jobs:
           cp native/target/release/libvertz_compiler.so native/vertz-compiler/vertz-compiler.linux-x64.node
           echo "Native compiler binary ready: $(ls -la native/vertz-compiler/vertz-compiler.linux-x64.node)"
 
+      - name: Build @vertz/build
+        run: |
+          cd packages/build && tsc --outDir dist --declaration
+          cd $GITHUB_WORKSPACE
+          ln -sf ../../packages/build/dist/cli.js node_modules/.bin/vertz-build
+          chmod +x node_modules/.bin/vertz-build
+
       - name: Build TS packages
         run: turbo run build --filter='!@vertz-examples/*' --filter='!entity-todo-example' --filter='!@vertz/landing-nextjs' --filter='!@vertz/landing-nextjs-vercel' --filter='!@vertz/landing' --filter='!@vertz/component-docs' --filter='!@vertz/site' --filter='!@vertz/og' --filter='!@vertz/mint-docs' --filter='!@vertz-benchmarks/*' --filter='!contacts-api-example' --filter='!create-vertz'
 
