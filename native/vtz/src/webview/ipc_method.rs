@@ -40,6 +40,9 @@ pub struct ShellExecuteParams {
     pub args: Option<Vec<String>>,
     pub cwd: Option<String>,
     pub env: Option<std::collections::HashMap<String, String>>,
+    /// JS-side timeout in milliseconds. When provided, the Rust-side timeout
+    /// is set to `timeout + SAFETY_MARGIN` instead of the default 300s.
+    pub timeout: Option<u64>,
 }
 
 #[derive(Debug, Deserialize)]
