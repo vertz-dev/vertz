@@ -46,11 +46,16 @@ impl Default for BinField {
 
 impl BinField {
     /// Normalize to a map. For single-string bin, uses the package name as key.
+    /// Scoped names like `@scope/pkg` are reduced to `pkg` (matches npm behavior).
     pub fn to_map(&self, package_name: &str) -> BTreeMap<String, String> {
         match self {
             BinField::Single(path) => {
+                let bin_name = package_name
+                    .strip_prefix('@')
+                    .and_then(|s| s.split('/').nth(1))
+                    .unwrap_or(package_name);
                 let mut map = BTreeMap::new();
-                map.insert(package_name.to_string(), path.clone());
+                map.insert(bin_name.to_string(), path.clone());
                 map
             }
             BinField::Map(map) => map.clone(),
