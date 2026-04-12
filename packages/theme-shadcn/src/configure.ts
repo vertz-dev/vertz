@@ -35,6 +35,8 @@ import {
 } from '@vertz/ui-primitives';
 import type { ThemedAccordionComponent } from './components/primitives/accordion';
 import { createThemedAccordion } from './components/primitives/accordion';
+import type { ThemedAppShellComponent } from './components/primitives/app-shell';
+import { createThemedAppShell } from './components/primitives/app-shell';
 import type { ThemedCalendarComponent } from './components/primitives/calendar';
 import { createThemedCalendar } from './components/primitives/calendar';
 import type { ThemedCarouselComponent } from './components/primitives/carousel';
@@ -93,6 +95,7 @@ import { createThemedTooltip } from './components/primitives/tooltip';
 import {
   createAccordionStyles,
   createAlertStyles,
+  createAppShell,
   createAvatarStyles,
   createBadge,
   createBreadcrumbStyles,
@@ -162,6 +165,18 @@ export interface ThemeStyles {
   badge: VariantFunction<{
     color: Record<string, string[]>;
   }>;
+  /** AppShell css() result with root, sidebar, brand, nav, navItem, navItemActive, content, user. */
+  appShell: {
+    readonly root: string;
+    readonly sidebar: string;
+    readonly brand: string;
+    readonly nav: string;
+    readonly navItem: string;
+    readonly navItemActive: string;
+    readonly content: string;
+    readonly user: string;
+    readonly css: string;
+  };
   /** Card css() result with root, header, title, description, content, footer. */
   card: {
     readonly root: string;
@@ -455,6 +470,8 @@ export interface ThemedAlertProps extends Omit<ComposedAlertProps, 'classes'> {
 
 /** Component functions returned by configureTheme(). */
 export interface ThemeComponents {
+  /** AppShell layout with sidebar + content sub-components and NavItem for themed navigation. */
+  AppShell: ThemedAppShellComponent;
   /** Alert component with variant support and sub-components (Alert.Title, Alert.Description). */
   Alert: ((props: ThemedAlertProps) => HTMLElement) & {
     Title: typeof ComposedAlert.Title;
@@ -554,6 +571,7 @@ export function configureTheme(config?: ThemeConfig): ResolvedTheme {
   const styles = {} as ThemeStyles;
 
   defineLazyStyle('alert', createAlertStyles);
+  defineLazyStyle('appShell', createAppShell);
   defineLazyStyle('button', createButton);
   defineLazyStyle('badge', createBadge);
   defineLazyStyle('card', createCard);
@@ -671,6 +689,11 @@ export function configureTheme(config?: ThemeConfig): ResolvedTheme {
       page: s.page,
       separator: s.separator,
     });
+  });
+
+  lazyComp('AppShell', () => {
+    const s = styles.appShell;
+    return createThemedAppShell(s);
   });
 
   lazyComp('Card', () => {

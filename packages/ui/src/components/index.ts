@@ -120,6 +120,15 @@ function createPrimitiveProxy(name: string): unknown {
 }
 
 // ---------------------------------------------------------------------------
+// Layout components
+// ---------------------------------------------------------------------------
+
+export const AppShell: ThemeComponentMap['AppShell'] = /* #__PURE__ */ createCallableSuiteProxy(
+  'AppShell',
+  ['Sidebar', 'Brand', 'Nav', 'NavItem', 'Content', 'User'],
+) as ThemeComponentMap['AppShell'];
+
+// ---------------------------------------------------------------------------
 // Direct components
 // ---------------------------------------------------------------------------
 
