@@ -57,7 +57,7 @@
     "provenance": true
   },
   "scripts": {
-    "build": "vtzx bunup",
+    "build": "vtzx vertz-build",
     "test": "vtz test --timeout 60000 src/",
     "test:e2e": "vtzx playwright test",
     "typecheck": "tsgo --noEmit"
@@ -68,6 +68,7 @@
     "@jridgewell/trace-mapping": "^0.3.31",
     "@vertz/core": "workspace:^",
     "@vertz/ui": "workspace:^",
+    "esbuild": "^0.27.3",
     "magic-string": "^0.30.0",
     "sharp": "^0.34.5"
   },
@@ -75,10 +76,10 @@
     "@happy-dom/global-registrator": "^20.8.3",
     "@playwright/test": "^1.58.2",
     "@types/node": "^25.3.1",
+    "@vertz/build": "workspace:^",
     "@vertz/codegen": "workspace:^",
     "@vertz/test": "workspace:*",
     "bun-types": "^1.3.10",
-    "bunup": "^0.16.31",
     "happy-dom": "^20.8.3",
     "typescript": "^5.7.0"
   },

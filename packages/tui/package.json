@@ -41,7 +41,7 @@
     "provenance": true
   },
   "scripts": {
-    "build": "vtzx bunup",
+    "build": "vtzx vertz-build",
     "typecheck": "tsgo --noEmit",
     "test": "vtz test",
     "lint": "oxlint src/"
@@ -51,6 +51,7 @@
   },
   "devDependencies": {
     "@types/node": "^25.3.1",
+    "@vertz/build": "workspace:^",
     "@vertz/test": "workspace:*",
     "bunup": "^0.16.23",
     "typescript": "^5.9.3"

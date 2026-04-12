@@ -26,7 +26,7 @@
     "provenance": true
   },
   "scripts": {
-    "build": "vtzx bunup",
+    "build": "vtzx vertz-build",
     "test": "vtz test",
     "test:benchmark": "vtz test src/graphics-benchmark.local.ts",
     "test:watch": "vtz test --watch",
@@ -37,9 +37,9 @@
   },
   "devDependencies": {
     "@happy-dom/global-registrator": "^20.7.0",
+    "@vertz/build": "workspace:^",
     "@vertz/test": "workspace:*",
     "@vertz/ui": "workspace:^",
-    "bunup": "^0.16.31",
     "happy-dom": "^20.7.0",
     "typescript": "^5.7.0"
   },

@@ -1,0 +1,17 @@
+import { defineConfig } from '@vertz/build';
+
+export default defineConfig({
+  entry: [
+    'src/index.ts',
+    'src/internals.ts',
+    'src/test/index.ts',
+    'src/router/public.ts',
+    'src/form/public.ts',
+    'src/query/public.ts',
+    'src/css/public.ts',
+    'src/auth/public.ts',
+    'src/jsx-runtime/index.ts',
+    'src/components/index.ts',
+  ],
+  dts: true,
+});

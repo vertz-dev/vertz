@@ -13,16 +13,16 @@
   ],
   "type": "module",
   "sideEffects": false,
-  "main": "dist/src/index.js",
-  "types": "dist/src/index.d.ts",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
   "exports": {
     ".": {
-      "import": "./dist/src/index.js",
-      "types": "./dist/src/index.d.ts"
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
     },
     "./utils": {
-      "import": "./dist/src/utils.js",
-      "types": "./dist/src/utils.d.ts"
+      "import": "./dist/utils.js",
+      "types": "./dist/utils.d.ts"
     }
   },
   "publishConfig": {
@@ -30,7 +30,7 @@
     "provenance": true
   },
   "scripts": {
-    "build": "vtzx bunup",
+    "build": "vtzx vertz-build",
     "test": "vtz test",
     "test:watch": "vtz test --watch",
     "typecheck": "tsgo --noEmit"
@@ -41,9 +41,10 @@
   },
   "devDependencies": {
     "@happy-dom/global-registrator": "^20.7.0",
+    "@types/node": "^25.3.1",
+    "@vertz/build": "workspace:^",
     "@vertz/test": "workspace:*",
     "@vertz/ui-server": "workspace:^",
-    "bunup": "^0.16.31",
     "happy-dom": "^20.7.0",
     "typescript": "^5.7.0"
   },

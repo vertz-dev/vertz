@@ -1,0 +1,14 @@
+{
+  "compilerOptions": {
+    "exactOptionalPropertyTypes": false,
+    "noEmit": true,
+    "noUncheckedIndexedAccess": false,
+    "noUnusedLocals": false,
+    "noUnusedParameters": false,
+    "skipLibCheck": true,
+    "types": ["node"]
+  },
+  "exclude": ["**/*.test.ts", "**/*.test-d.ts", "**/fixtures/**"],
+  "extends": "../../tsconfig.json",
+  "include": ["src"]
+}
