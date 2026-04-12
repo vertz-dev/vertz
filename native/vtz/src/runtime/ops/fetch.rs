@@ -439,6 +439,50 @@ mod tests {
         assert!(arr[3].as_str().unwrap().starts_with("file://"));
     }
 
+    #[tokio::test]
+    async fn test_fetch_file_url_sets_content_type_for_wasm() {
+        let dir = tempfile::tempdir().unwrap();
+        let file_path = dir.path().join("module.wasm");
+        std::fs::write(&file_path, [0x00, 0x61, 0x73, 0x6D]).unwrap();
+        let file_url = url::Url::from_file_path(&file_path).unwrap();
+
+        let mut rt = create_runtime();
+        let result = run_async(
+            &mut rt,
+            &format!(
+                r#"
+                const resp = await fetch('{}');
+                return resp.headers.get('content-type');
+            "#,
+                file_url
+            ),
+        )
+        .await;
+        assert_eq!(result.as_str().unwrap(), "application/wasm");
+    }
+
+    #[tokio::test]
+    async fn test_fetch_file_url_sets_content_type_for_json() {
+        let dir = tempfile::tempdir().unwrap();
+        let file_path = dir.path().join("data.json");
+        std::fs::write(&file_path, r#"{"key":"value"}"#).unwrap();
+        let file_url = url::Url::from_file_path(&file_path).unwrap();
+
+        let mut rt = create_runtime();
+        let result = run_async(
+            &mut rt,
+            &format!(
+                r#"
+                const resp = await fetch('{}');
+                return resp.headers.get('content-type');
+            "#,
+                file_url
+            ),
+        )
+        .await;
+        assert_eq!(result.as_str().unwrap(), "application/json");
+    }
+
     // --- file:// URL: nonexistent file throws ---
 
     #[tokio::test]
