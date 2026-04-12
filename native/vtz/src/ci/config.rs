@@ -88,10 +88,17 @@ impl ConfigBridge {
             .map_err(|e| format!("serialize shutdown: {e}"))?;
         let _ = self.stdin.write_all(format!("{msg}\n").as_bytes()).await;
         // Close stdin so the child process receives EOF and can exit cleanly.
-        // Without this, the readline interface in the JS loader keeps the
-        // process alive indefinitely, causing `child.wait()` to hang.
         drop(self.stdin);
-        let _ = self.child.wait().await;
+        // Give the process a few seconds to exit gracefully, then force kill.
+        // Bun's readline may not terminate the event loop on break/EOF alone.
+        let wait_timeout = std::time::Duration::from_secs(5);
+        if tokio::time::timeout(wait_timeout, self.child.wait())
+            .await
+            .is_err()
+        {
+            let _ = self.child.kill().await;
+            let _ = self.child.wait().await;
+        }
         Ok(())
     }
 
@@ -169,6 +176,8 @@ for await (const line of rl) {
     }
   }
 }
+rl.close();
+process.exit(0);
 "#;
 
 /// Find the config file in the project root.
