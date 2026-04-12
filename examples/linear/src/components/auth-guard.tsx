@@ -61,16 +61,9 @@ export function WorkspaceShell() {
           <span className={styles.userName} data-testid="user-name">
             {auth.user?.name ?? auth.user?.email}
           </span>
-          <span data-testid="sign-out">
-            <Button
-              intent="ghost"
-              size="xs"
-              className={styles.signOutButton}
-              onClick={handleSignOut}
-            >
-              Sign out
-            </Button>
-          </span>
+          <Button intent="ghost" size="xs" className={styles.signOutButton} onClick={handleSignOut}>
+            Sign out
+          </Button>
         </AppShell.User>
       </AppShell.Sidebar>
       <AppShell.Content>

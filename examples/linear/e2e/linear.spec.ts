@@ -142,22 +142,22 @@ test.describe('Linear Clone', () => {
 
   test('navigation preserves sidebar state', async ({ page }) => {
     await page.goto('/projects');
-    await expect(page.getByTestId('sidebar')).toBeVisible({ timeout: 15_000 });
+    await expect(page.locator('[data-part="sidebar"]')).toBeVisible({ timeout: 15_000 });
 
     // Sidebar shows project links
-    await expect(page.getByTestId('sidebar').getByText('Projects')).toBeVisible();
+    await expect(page.locator('[data-part="sidebar"]').getByText('Projects')).toBeVisible();
 
     // Navigate to a project
     await page.getByText('Engineering').first().click();
-    await expect(page.getByTestId('sidebar')).toBeVisible();
+    await expect(page.locator('[data-part="sidebar"]')).toBeVisible();
 
     // Navigate to an issue (if any visible)
     const firstIssueLink = page.locator('[data-testid^="issue-card-"]').first().locator('..');
     if (await firstIssueLink.isVisible()) {
       await firstIssueLink.click();
       // Sidebar should still be visible
-      await expect(page.getByTestId('sidebar')).toBeVisible();
-      await expect(page.getByTestId('sidebar').getByText('Projects')).toBeVisible();
+      await expect(page.locator('[data-part="sidebar"]')).toBeVisible();
+      await expect(page.locator('[data-part="sidebar"]').getByText('Projects')).toBeVisible();
     }
   });
 
