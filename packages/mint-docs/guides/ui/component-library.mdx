@@ -152,6 +152,47 @@ import { Select } from '@vertz/ui/components';
 
 ## Layout
 
+### AppShell
+
+Sidebar + content layout for SaaS apps. Includes themed navigation links with automatic active state.
+
+```tsx
+import { AppShell } from '@vertz/ui/components';
+import { Outlet } from '@vertz/ui';
+import { Home, Settings, Users } from '@vertz/icons';
+
+<AppShell>
+  <AppShell.Sidebar>
+    <AppShell.Brand>My App</AppShell.Brand>
+    <AppShell.Nav>
+      <AppShell.NavItem href="/dashboard" icon={Home}>
+        Dashboard
+      </AppShell.NavItem>
+      <AppShell.NavItem href="/team" icon={Users}>
+        Team
+      </AppShell.NavItem>
+      <AppShell.NavItem href="/settings" icon={Settings}>
+        Settings
+      </AppShell.NavItem>
+    </AppShell.Nav>
+    <AppShell.User>
+      <span>Jane Doe</span>
+    </AppShell.User>
+  </AppShell.Sidebar>
+  <AppShell.Content>
+    <Outlet />
+  </AppShell.Content>
+</AppShell>;
+```
+
+**Sub-components:** `Sidebar`, `Brand`, `Nav`, `NavItem`, `Content`, `User`.
+
+**NavItem** provides SPA navigation with active state detection:
+
+- `match="prefix"` (default) — active when pathname starts with `href` (e.g., `/projects` matches `/projects/123`)
+- `match="exact"` — active only on exact pathname match
+- `icon` — accepts any `@vertz/icons` component, rendered at 16px
+
 ### Card
 
 Container with header, content, and footer.
