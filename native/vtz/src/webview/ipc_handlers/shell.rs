@@ -576,8 +576,32 @@ mod tests {
         );
         // Should complete in ~6s (1s + 5s margin), NOT 300s default
         assert!(
-            elapsed.as_secs() < 30,
+            elapsed.as_secs() < 15,
             "Rust used default 300s timeout instead of custom: {:?}",
+            elapsed
+        );
+    }
+
+    #[tokio::test]
+    async fn execute_timeout_zero_uses_safety_margin() {
+        // timeout=0 means "immediate" from JS, but Rust adds the safety margin (5s)
+        let params = ShellExecuteParams {
+            command: "sleep".to_string(),
+            args: Some(vec!["60".to_string()]),
+            cwd: None,
+            env: None,
+            timeout: Some(0),
+        };
+
+        let start = std::time::Instant::now();
+        let result = execute(params).await;
+        let elapsed = start.elapsed();
+
+        assert!(result.is_err(), "expected timeout error");
+        // Should complete in ~5s (0ms + 5s margin), not 300s
+        assert!(
+            elapsed.as_secs() < 15,
+            "timeout=0 should use safety margin, not default 300s: {:?}",
             elapsed
         );
     }
