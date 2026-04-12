@@ -28,7 +28,7 @@ describe('validateProjectId', () => {
 
 // --- Cloud Auth Context ---
 
-describe('resolveCloudAuthContext', () => {
+describe.skipIf(!process.env.VERTZ_CLOUD_TOKEN)('resolveCloudAuthContext', () => {
   let tempDir: string;
   const originalEnv = process.env.VERTZ_CLOUD_TOKEN;
 

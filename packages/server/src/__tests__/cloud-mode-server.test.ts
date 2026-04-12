@@ -12,7 +12,7 @@ const usersModel = d.model(usersTable);
 // Cloud mode tests — covers the cloud auth branch in createServer
 // ---------------------------------------------------------------------------
 
-describe('createServer (cloud mode)', () => {
+describe.skipIf(!process.env.VERTZ_CLOUD_TOKEN)('createServer (cloud mode)', () => {
   let savedToken: string | undefined;
 
   beforeEach(() => {

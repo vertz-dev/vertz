@@ -802,10 +802,10 @@ if (typeof globalThis.HTMLElement === 'undefined') {
     return false;
   }
 
-  async function runSuite(suite, parentPath, parentOnly, ancestorBeforeEach, ancestorAfterEach) {
+  async function runSuite(suite, parentPath, parentOnly, ancestorBeforeEach, ancestorAfterEach, ancestorSkipped) {
     const results = [];
     const suitePath = suite.name ? (parentPath ? `${parentPath} > ${suite.name}` : suite.name) : parentPath;
-    const suiteRunnable = shouldRun(suite, parentOnly);
+    const suiteRunnable = !ancestorSkipped && shouldRun(suite, parentOnly);
 
     // Compose hooks: ancestor hooks + this suite's hooks
     const allBeforeEach = ancestorBeforeEach ? [...ancestorBeforeEach, ...suite.beforeEach] : [...suite.beforeEach];
@@ -872,7 +872,7 @@ if (typeof globalThis.HTMLElement === 'undefined') {
 
     // Recurse into nested suites, passing accumulated hooks
     for (const child of suite.suites) {
-      const childResults = await runSuite(child, suitePath, suiteRunnable && (parentOnly || suite.only), allBeforeEach, allAfterEach);
+      const childResults = await runSuite(child, suitePath, suiteRunnable && (parentOnly || suite.only), allBeforeEach, allAfterEach, !suiteRunnable);
       results.push(...childResults);
     }
 
@@ -893,7 +893,7 @@ if (typeof globalThis.HTMLElement === 'undefined') {
     const allResults = [];
     for (const suite of suites) {
       // Pass root-level hooks as ancestor hooks so they compose with suite hooks
-      const results = await runSuite(suite, '', false, rootHooks.beforeEach, rootHooks.afterEach);
+      const results = await runSuite(suite, '', false, rootHooks.beforeEach, rootHooks.afterEach, false);
       allResults.push(...results);
     }
 
@@ -1364,6 +1364,29 @@ mod tests {
         let arr = results.as_array().unwrap();
         assert_eq!(arr.len(), 1);
         assert_eq!(arr[0]["status"], "skip");
+    }
+
+    #[test]
+    fn test_describe_skip_propagates_to_nested_suites() {
+        let mut rt = create_test_runtime();
+        let results = run_test_code(
+            &mut rt,
+            r#"
+            describe.skip('skipped parent', () => {
+                describe('nested child', () => {
+                    describe('deeply nested', () => {
+                        it('should be skipped', () => { throw new Error('should not run'); });
+                    });
+                });
+                it('direct child also skipped', () => { throw new Error('should not run'); });
+            });
+            "#,
+        );
+
+        let arr = results.as_array().unwrap();
+        assert_eq!(arr.len(), 2);
+        assert_eq!(arr[0]["status"], "skip");
+        assert_eq!(arr[1]["status"], "skip");
     }
 
     #[test]

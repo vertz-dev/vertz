@@ -11,7 +11,7 @@ afterEach(() => {
   }
 });
 
-describe('Feature: Cloud health check', () => {
+describe.skipIf(!process.env.VERTZ_CLOUD_TOKEN)('Feature: Cloud health check', () => {
   describe('Given the cloud API is healthy', () => {
     describe('When calling checkCloudHealth()', () => {
       it('Then returns healthy status with latency', async () => {
