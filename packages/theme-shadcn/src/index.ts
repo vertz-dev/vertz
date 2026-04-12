@@ -43,6 +43,7 @@ import type {
   ComposedTextareaProps,
   StyledPrimitive,
 } from '@vertz/ui-primitives';
+import type { ThemedAppShellComponent } from './components/primitives/app-shell';
 import type { ThemedAccordionComponent } from './components/primitives/accordion';
 import type { ThemedCalendarComponent } from './components/primitives/calendar';
 import type { ThemedCarouselComponent } from './components/primitives/carousel';
@@ -79,6 +80,9 @@ import type {
 
 declare module '@vertz/ui/components' {
   interface ThemeComponentMap {
+    // Layout components
+    AppShell: ThemedAppShellComponent;
+
     // Direct components
     Button: (props: ThemedButtonProps) => HTMLElement;
     Badge: (props: ThemedBadgeProps) => HTMLElement;

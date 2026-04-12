@@ -1,6 +1,12 @@
 // Shared types
 
 // Components
+export type {
+  AppShellClasses,
+  AppShellClassKey,
+  ComposedAppShellProps,
+} from './app-shell/app-shell-composed';
+export { ComposedAppShell } from './app-shell/app-shell-composed';
 export type { AccordionElements, AccordionOptions, AccordionState } from './accordion/accordion';
 export { Accordion } from './accordion/accordion';
 export type { AccordionClasses, ComposedAccordionProps } from './accordion/accordion-composed';

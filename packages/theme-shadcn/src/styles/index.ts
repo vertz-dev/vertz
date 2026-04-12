@@ -1,4 +1,5 @@
 export { createAccordionStyles } from './accordion';
+export { createAppShell } from './app-shell';
 export { createAlertStyles } from './alert';
 export { createAvatarStyles } from './avatar';
 export { badgeConfig, createBadge } from './badge';
