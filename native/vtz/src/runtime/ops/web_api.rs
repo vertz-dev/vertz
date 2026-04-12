@@ -484,6 +484,17 @@ pub const WEB_API_BOOTSTRAP_JS: &str = r#"
       throw signal.reason || new DOMException_('The operation was aborted.', 'AbortError');
     }
 
+    // Handle file:// URLs by reading from the filesystem
+    if (req.url.startsWith('file://')) {
+      const filePath = Deno.core.ops.op_file_url_to_path(req.url);
+      const bytes = await Deno.core.ops.op_fs_read_file_bytes(filePath);
+      return new Response(new Uint8Array(bytes), {
+        status: 200,
+        statusText: 'OK',
+        url: req.url,
+      });
+    }
+
     // Build options for Rust op
     const options = {
       method: req.method,
