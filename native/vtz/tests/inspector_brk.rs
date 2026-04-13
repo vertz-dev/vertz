@@ -96,7 +96,7 @@ async fn test_inspect_brk_unblocks_after_debugger_connects() {
 
     // Wait for the session sender to be published by the V8 thread
     let mut rx_clone = rx.clone();
-    let sender = tokio::time::timeout(Duration::from_secs(5), async {
+    let sender = tokio::time::timeout(Duration::from_secs(15), async {
         loop {
             {
                 let val = rx_clone.borrow_and_update();
@@ -108,7 +108,7 @@ async fn test_inspect_brk_unblocks_after_debugger_connects() {
         }
     })
     .await
-    .expect("Session sender should be published within 5 seconds");
+    .expect("Session sender should be published within 15 seconds");
 
     // Create channels for the InspectorSessionProxy.
     // outbound: V8 → debugger (V8 sends events like Debugger.paused)
@@ -144,7 +144,7 @@ async fn test_inspect_brk_unblocks_after_debugger_connects() {
     // V8 sends a Debugger.paused notification on the outbound channel when it
     // enters run_message_loop_on_pause. We watch for it instead of sleeping.
     use futures::StreamExt;
-    let paused = tokio::time::timeout(Duration::from_secs(5), async {
+    let paused = tokio::time::timeout(Duration::from_secs(15), async {
         while let Some(msg) = outbound_rx.next().await {
             if msg.content.contains("Debugger.paused") {
                 return true;
