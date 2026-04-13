@@ -187,10 +187,15 @@ pub fn op_fs_readdir_with_types_sync(
 ) -> Result<Vec<DirentResult>, AnyError> {
     let root = PathBuf::from(&path);
     let mut results = Vec::new();
-    let mut visited = HashSet::new();
-    if let Ok(canonical) = root.canonicalize() {
-        visited.insert(canonical);
-    }
+    let mut visited = if recursive {
+        let mut set = HashSet::new();
+        if let Ok(canonical) = root.canonicalize() {
+            set.insert(canonical);
+        }
+        set
+    } else {
+        HashSet::new()
+    };
     readdir_with_types_impl(&root, recursive, &mut results, &mut visited)?;
     Ok(results)
 }
@@ -224,21 +229,24 @@ fn readdir_with_types_impl(
 
         if recursive {
             let child_dir = dir.join(&name);
-            let should_recurse = if file_type.is_dir() {
-                true
+            if file_type.is_dir() {
+                // Real directory: canonicalize to track visited paths, but recurse
+                // even if canonicalize fails (let read_dir propagate the real error).
+                let dominated = if let Ok(canonical) = child_dir.canonicalize() {
+                    !visited.insert(canonical)
+                } else {
+                    false
+                };
+                if !dominated {
+                    readdir_with_types_impl(&child_dir, true, results, visited)?;
+                }
             } else if file_type.is_symlink() {
-                // Follow symlinks that resolve to directories (matching Node.js)
-                child_dir.metadata().map(|m| m.is_dir()).unwrap_or(false)
-            } else {
-                false
-            };
-
-            if should_recurse {
+                // Follow symlinks that resolve to directories (matching Node.js),
+                // but only if the resolved target hasn't been visited yet.
                 if let Ok(canonical) = child_dir.canonicalize() {
-                    if visited.insert(canonical) {
+                    if canonical.is_dir() && visited.insert(canonical) {
                         readdir_with_types_impl(&child_dir, true, results, visited)?;
                     }
-                    // Already visited → symlink loop, skip silently
                 }
                 // canonicalize failed (broken symlink) → skip silently
             }
@@ -286,21 +294,24 @@ fn readdir_recursive_impl(
 
         results.push(rel_path);
 
-        let should_recurse = if file_type.is_dir() {
-            true
+        if file_type.is_dir() {
+            // Real directory: canonicalize to track visited paths, but recurse
+            // even if canonicalize fails (let read_dir propagate the real error).
+            let dominated = if let Ok(canonical) = entry_path.canonicalize() {
+                !visited.insert(canonical)
+            } else {
+                false
+            };
+            if !dominated {
+                readdir_recursive_impl(root, &entry_path, results, visited)?;
+            }
         } else if file_type.is_symlink() {
-            // Follow symlinks that resolve to directories (matching Node.js)
-            entry_path.metadata().map(|m| m.is_dir()).unwrap_or(false)
-        } else {
-            false
-        };
-
-        if should_recurse {
+            // Follow symlinks that resolve to directories (matching Node.js),
+            // but only if the resolved target hasn't been visited yet.
             if let Ok(canonical) = entry_path.canonicalize() {
-                if visited.insert(canonical) {
+                if canonical.is_dir() && visited.insert(canonical) {
                     readdir_recursive_impl(root, &entry_path, results, visited)?;
                 }
-                // Already visited → symlink loop, skip silently
             }
             // canonicalize failed (broken symlink) → skip silently
         }
@@ -1594,6 +1605,135 @@ mod tests {
             1,
             "file.txt should appear exactly once (no loop recursion), got: {:?}",
             file_entries
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn test_readdir_recursive_symlink_to_file_not_recursed() {
+        use std::collections::HashSet;
+        use std::os::unix::fs::symlink;
+
+        let tmp = tempfile::tempdir().unwrap();
+        std::fs::write(tmp.path().join("real.txt"), "content").unwrap();
+        // Symlink to a file — should appear in results but NOT be recursed into
+        symlink(tmp.path().join("real.txt"), tmp.path().join("link.txt")).unwrap();
+
+        let mut results = Vec::new();
+        let mut visited = HashSet::new();
+        if let Ok(canonical) = tmp.path().canonicalize() {
+            visited.insert(canonical);
+        }
+        super::readdir_recursive_impl(tmp.path(), tmp.path(), &mut results, &mut visited).unwrap();
+
+        results.sort();
+        assert!(
+            results.contains(&"link.txt".to_string()),
+            "got: {:?}",
+            results
+        );
+        assert!(
+            results.contains(&"real.txt".to_string()),
+            "got: {:?}",
+            results
+        );
+        assert_eq!(
+            results.len(),
+            2,
+            "only two entries expected, got: {:?}",
+            results
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn test_readdir_recursive_broken_symlink_skipped() {
+        use std::collections::HashSet;
+        use std::os::unix::fs::symlink;
+
+        let tmp = tempfile::tempdir().unwrap();
+        std::fs::write(tmp.path().join("real.txt"), "content").unwrap();
+        // Broken symlink — target does not exist
+        symlink(tmp.path().join("nonexistent"), tmp.path().join("broken")).unwrap();
+
+        let mut results = Vec::new();
+        let mut visited = HashSet::new();
+        if let Ok(canonical) = tmp.path().canonicalize() {
+            visited.insert(canonical);
+        }
+        super::readdir_recursive_impl(tmp.path(), tmp.path(), &mut results, &mut visited).unwrap();
+
+        results.sort();
+        // Broken symlink is listed as an entry but doesn't cause an error
+        assert!(
+            results.contains(&"broken".to_string()),
+            "got: {:?}",
+            results
+        );
+        assert!(
+            results.contains(&"real.txt".to_string()),
+            "got: {:?}",
+            results
+        );
+        assert_eq!(results.len(), 2, "got: {:?}", results);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn test_readdir_recursive_multi_hop_symlink_cycle() {
+        use std::collections::HashSet;
+        use std::os::unix::fs::symlink;
+
+        // Structure:
+        //   tmpdir/a/file.txt
+        //   tmpdir/a/to_b -> ../b
+        //   tmpdir/b/to_a -> ../a    (creates a cycle: a -> b -> a)
+        let tmp = tempfile::tempdir().unwrap();
+        let a = tmp.path().join("a");
+        let b = tmp.path().join("b");
+        std::fs::create_dir(&a).unwrap();
+        std::fs::create_dir(&b).unwrap();
+        std::fs::write(a.join("file.txt"), "content").unwrap();
+        symlink(&b, a.join("to_b")).unwrap();
+        symlink(&a, b.join("to_a")).unwrap();
+
+        let mut results = Vec::new();
+        let mut visited = HashSet::new();
+        if let Ok(canonical) = tmp.path().canonicalize() {
+            visited.insert(canonical);
+        }
+        super::readdir_recursive_impl(tmp.path(), tmp.path(), &mut results, &mut visited).unwrap();
+
+        results.sort();
+        // Both directories and symlinks should be listed
+        assert!(results.contains(&"a".to_string()), "got: {:?}", results);
+        assert!(
+            results.contains(&"a/file.txt".to_string()),
+            "got: {:?}",
+            results
+        );
+        assert!(results.contains(&"b".to_string()), "got: {:?}", results);
+        // The cycle is detected: b's contents are reached via a/to_b (or vice versa
+        // depending on fs order), but the second visit is skipped.
+        // Must NOT have deeply nested chains that indicate infinite recursion.
+        let max_depth = results
+            .iter()
+            .map(|r| r.matches('/').count())
+            .max()
+            .unwrap_or(0);
+        assert!(
+            max_depth <= 2,
+            "recursion should be bounded, max depth was {}, got: {:?}",
+            max_depth,
+            results
+        );
+        // Verify no infinite chains
+        assert!(
+            !results
+                .iter()
+                .any(|r| r.contains("to_a/to_b/") || r.contains("to_b/to_a/to_b")),
+            "should not have infinite chain, got: {:?}",
+            results
         );
     }
 }
