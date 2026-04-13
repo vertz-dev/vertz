@@ -1,5 +1,16 @@
 # @vertz/agents
 
+## 0.2.44
+
+### Patch Changes
+
+- [#2528](https://github.com/vertz-dev/vertz/pull/2528) [`8cc3a59`](https://github.com/vertz-dev/vertz/commit/8cc3a5994b11bbcbd2544238787516e8f293efc9) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - Guard cloud auth and provider tests behind env var checks so they skip gracefully when credentials are missing. Also fix `describe.skip` propagation to nested suites in the vtz test runner.
+
+- Updated dependencies [[`8cc3a59`](https://github.com/vertz-dev/vertz/commit/8cc3a5994b11bbcbd2544238787516e8f293efc9)]:
+  - @vertz/server@0.2.60
+  - @vertz/errors@0.2.60
+  - @vertz/schema@0.2.60
+
 ## 0.2.43
 
 ### Patch Changes
