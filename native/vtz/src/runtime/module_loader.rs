@@ -912,18 +912,20 @@ fn is_esm_line(trimmed: &str) -> bool {
 fn extract_cjs_named_exports(source: &str) -> Vec<String> {
     let mut names: Vec<String> = Vec::new();
 
-    // Count how many times `module.exports =` appears at the top level.
-    // If more than one, it's dynamic — bail out.
+    // Count how many times `module.exports = <value>` appears.
+    // Excludes `module.exports.prop = ...` (property assignment)
+    // and `module.exports === ...` / `module.exports == ...` (comparisons).
+    // If more than one reassignment, it's dynamic — bail out.
     let me_assignments: Vec<&str> = source
         .lines()
         .map(|l| l.trim())
-        .filter(|l| l.starts_with("module.exports") && l.contains('='))
+        .filter(|l| is_module_exports_assignment(l))
         .collect();
 
     if me_assignments.len() == 1 {
         let line = me_assignments[0];
         // Find the `= { ... }` part — may span multiple lines.
-        if let Some(eq_idx) = line.find('=') {
+        if let Some(eq_idx) = find_assignment_eq(line) {
             let rhs = line[eq_idx + 1..].trim();
             if rhs.starts_with('{') {
                 // Single-line: module.exports = { foo, bar: val };
@@ -936,10 +938,14 @@ fn extract_cjs_named_exports(source: &str) -> Vec<String> {
             // Non-object RHS (e.g., `module.exports = 42;`) → empty
         }
     } else if me_assignments.is_empty() {
-        // Check for `exports.name = ...` pattern
+        // Check for `exports.name = ...` or `module.exports.name = ...` patterns
         for line in source.lines() {
             let trimmed = line.trim();
-            if let Some(rest) = trimmed.strip_prefix("exports.") {
+            // `exports.name = ...`
+            let rest = trimmed
+                .strip_prefix("exports.")
+                .or_else(|| trimmed.strip_prefix("module.exports."));
+            if let Some(rest) = rest {
                 if let Some(name) = rest.split(&['=', ' ', '('][..]).next() {
                     let name = name.trim();
                     if !name.is_empty() && name != "default" && is_valid_js_ident(name) {
@@ -956,10 +962,54 @@ fn extract_cjs_named_exports(source: &str) -> Vec<String> {
     names
 }
 
+/// Check if a line is a `module.exports = <value>` assignment (not a comparison
+/// or property assignment like `module.exports.foo = ...`).
+fn is_module_exports_assignment(line: &str) -> bool {
+    // Must start with exactly `module.exports` followed by optional whitespace then `=`
+    let rest = match line.strip_prefix("module.exports") {
+        Some(r) => r,
+        None => return false,
+    };
+    // Exclude `module.exports.prop = ...`
+    if rest.starts_with('.') {
+        return false;
+    }
+    // Find the `=` sign
+    let rest = rest.trim_start();
+    if !rest.starts_with('=') {
+        return false;
+    }
+    // Exclude `==` and `===`
+    let after_eq = &rest[1..];
+    !after_eq.starts_with('=')
+}
+
+/// Find the position of the assignment `=` in a `module.exports = ...` line,
+/// skipping `==` and `===`.
+fn find_assignment_eq(line: &str) -> Option<usize> {
+    let mut i = 0;
+    let bytes = line.as_bytes();
+    while i < bytes.len() {
+        if bytes[i] == b'=' {
+            // Skip `===` and `==`
+            if i + 1 < bytes.len() && bytes[i + 1] == b'=' {
+                i += if i + 2 < bytes.len() && bytes[i + 2] == b'=' {
+                    3
+                } else {
+                    2
+                };
+                continue;
+            }
+            return Some(i);
+        }
+        i += 1;
+    }
+    None
+}
+
 /// Extract the body of the object literal from `module.exports = { ... }`,
 /// handling multi-line cases.
 fn extract_object_body(source: &str) -> Option<String> {
-    let me_prefix = "module.exports";
     let mut collecting = false;
     let mut depth = 0i32;
     let mut body = String::new();
@@ -967,8 +1017,8 @@ fn extract_object_body(source: &str) -> Option<String> {
     for line in source.lines() {
         let trimmed = line.trim();
         if !collecting {
-            if trimmed.starts_with(me_prefix) && trimmed.contains('=') {
-                if let Some(eq_idx) = trimmed.find('=') {
+            if is_module_exports_assignment(trimmed) {
+                if let Some(eq_idx) = find_assignment_eq(trimmed) {
                     let rhs = &trimmed[eq_idx + 1..];
                     collecting = true;
                     // Process this line's content
@@ -1012,23 +1062,77 @@ fn extract_object_body(source: &str) -> Option<String> {
 }
 
 /// Parse object keys from the body between `{ }`.
+///
+/// Only splits on commas at brace depth 0 so nested objects
+/// (e.g., `foo: { a: 1, b: 2 }, bar`) don't produce spurious keys.
 fn parse_object_keys(body: &str, names: &mut Vec<String>) {
-    for part in body.split(',') {
+    // Split on commas respecting brace depth
+    let parts = split_top_level_commas(body);
+    for part in &parts {
         let part = part.trim();
         if part.is_empty() {
             continue;
         }
         // `key: value` or just `key` (shorthand)
-        let key = if let Some((k, _)) = part.split_once(':') {
-            k.trim()
+        // Find the first `:` at depth 0
+        let key = if let Some(colon_idx) = find_top_level_colon(part) {
+            part[..colon_idx].trim()
         } else {
             part.trim_end_matches(';')
         };
-        let key = key.trim();
-        if !key.is_empty() && key != "default" && is_valid_js_ident(key) {
-            names.push(key.to_string());
+        let key = unquote(key.trim());
+        if !key.is_empty() && key != "default" && is_valid_js_ident(&key) {
+            names.push(key.into_owned());
         }
     }
+}
+
+/// Split a string on commas, but only at brace/bracket depth 0.
+fn split_top_level_commas(s: &str) -> Vec<&str> {
+    let mut parts = Vec::new();
+    let mut depth = 0i32;
+    let mut start = 0;
+    for (i, ch) in s.char_indices() {
+        match ch {
+            '{' | '[' | '(' => depth += 1,
+            '}' | ']' | ')' => depth -= 1,
+            ',' if depth == 0 => {
+                parts.push(&s[start..i]);
+                start = i + 1;
+            }
+            _ => {}
+        }
+    }
+    if start < s.len() {
+        parts.push(&s[start..]);
+    }
+    parts
+}
+
+/// Find the first `:` that is not inside nested braces/brackets.
+fn find_top_level_colon(s: &str) -> Option<usize> {
+    let mut depth = 0i32;
+    for (i, ch) in s.char_indices() {
+        match ch {
+            '{' | '[' | '(' => depth += 1,
+            '}' | ']' | ')' => depth -= 1,
+            ':' if depth == 0 => return Some(i),
+            _ => {}
+        }
+    }
+    None
+}
+
+/// Strip surrounding quotes (`"` or `'`) from a string key.
+fn unquote(s: &str) -> std::borrow::Cow<'_, str> {
+    if s.len() >= 2 {
+        let first = s.as_bytes()[0];
+        let last = s.as_bytes()[s.len() - 1];
+        if (first == b'"' && last == b'"') || (first == b'\'' && last == b'\'') {
+            return std::borrow::Cow::Borrowed(&s[1..s.len() - 1]);
+        }
+    }
+    std::borrow::Cow::Borrowed(s)
 }
 
 /// Check if a string is a valid JS identifier (simplified).
@@ -3801,5 +3905,48 @@ exports.bar = fn;";
             !result.contains("export const {"),
             "Should not have named re-exports for non-object export"
         );
+    }
+
+    // --- Review-driven edge case tests ---
+
+    #[test]
+    fn test_extract_cjs_named_exports_module_exports_property_assignment() {
+        // module.exports.foo = ... should be treated like exports.foo = ...
+        let src = "\
+module.exports.foo = 1;
+module.exports.bar = fn;";
+        let names = extract_cjs_named_exports(src);
+        assert_eq!(names, vec!["bar", "foo"]);
+    }
+
+    #[test]
+    fn test_extract_cjs_named_exports_nested_object_no_spurious_keys() {
+        // Nested object properties should NOT leak as top-level export names
+        let names = extract_cjs_named_exports("module.exports = { foo: { a: 1, b: 2 }, bar };");
+        assert_eq!(names, vec!["bar", "foo"]);
+    }
+
+    #[test]
+    fn test_extract_cjs_named_exports_string_keys() {
+        // Quoted keys that are valid identifiers should be extracted
+        let names = extract_cjs_named_exports("module.exports = { \"foo\": 1, 'bar': 2 };");
+        assert_eq!(names, vec!["bar", "foo"]);
+    }
+
+    #[test]
+    fn test_extract_cjs_named_exports_comparison_not_counted() {
+        // `module.exports === ...` should not be counted as an assignment
+        let src = "\
+if (module.exports === null) {}
+module.exports = { foo: 1 };";
+        let names = extract_cjs_named_exports(src);
+        assert_eq!(names, vec!["foo"]);
+    }
+
+    #[test]
+    fn test_extract_cjs_named_exports_spread_ignored() {
+        // Spread syntax should be silently skipped (can't statically analyze)
+        let names = extract_cjs_named_exports("module.exports = { ...base, foo, bar };");
+        assert_eq!(names, vec!["bar", "foo"]);
     }
 }

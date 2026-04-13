@@ -431,7 +431,10 @@ pub fn op_fs_cp_sync(
 /// Internal helper for recursive directory copy.
 ///
 /// `visited` tracks canonical paths of directories already entered to detect
-/// symlink loops.
+/// symlink loops. Note: this is stricter than Node's `fs.cpSync` — diamond-shaped
+/// symlink structures (two subtrees both linking to the same directory) will error
+/// on the second traversal. This prevents duplicate content and is consistent with
+/// `cp -r` behavior on most Unix systems.
 fn cp_dir_recursive(
     src: &Path,
     dest: &Path,
@@ -1411,6 +1414,36 @@ mod tests {
             err_msg.contains("symlink loop") || err_msg.contains("ELOOP"),
             "Error should mention symlink loop, got: {}",
             err_msg
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn test_cp_sync_follows_legitimate_symlink() {
+        let tmp = tempfile::tempdir().unwrap();
+        // Create an external directory that the symlink points to (no loop)
+        let external = tmp.path().join("external");
+        std::fs::create_dir_all(&external).unwrap();
+        std::fs::write(external.join("data.txt"), "external data").unwrap();
+
+        let src = tmp.path().join("src");
+        std::fs::create_dir_all(&src).unwrap();
+        std::fs::write(src.join("local.txt"), "local").unwrap();
+        // Symlink to external dir (not a loop)
+        std::os::unix::fs::symlink(&external, src.join("link")).unwrap();
+
+        let dest = tmp.path().join("dest");
+        let mut visited = std::collections::HashSet::new();
+        visited.insert(src.canonicalize().unwrap());
+        super::cp_dir_recursive(&src, &dest, &mut visited).unwrap();
+
+        assert_eq!(
+            std::fs::read_to_string(dest.join("local.txt")).unwrap(),
+            "local"
+        );
+        assert_eq!(
+            std::fs::read_to_string(dest.join("link/data.txt")).unwrap(),
+            "external data"
         );
     }
 }
