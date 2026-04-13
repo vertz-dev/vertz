@@ -15,7 +15,7 @@ export default defineConfig({
   },
 
   webServer: {
-    command: 'bun node_modules/@vertz/cli/dist/vertz.js dev --port 4201',
+    command: 'vtz dev --port 4201',
     url: 'http://localhost:4201',
     reuseExistingServer: !process.env.CI,
     timeout: 30_000,
