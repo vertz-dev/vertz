@@ -66,7 +66,7 @@ const PACKAGES: { name: string; singleImport: string; distEntry: string }[] = [
   {
     name: '@vertz/ui-primitives',
     singleImport: `import { Button } from '@vertz/ui-primitives'; console.log(Button);`,
-    distEntry: 'packages/ui-primitives/dist/src/index.js',
+    distEntry: 'packages/ui-primitives/dist/index.js',
   },
   {
     name: '@vertz/fetch',
@@ -76,7 +76,7 @@ const PACKAGES: { name: string; singleImport: string; distEntry: string }[] = [
   {
     name: '@vertz/ui',
     singleImport: `import { ref } from '@vertz/ui'; console.log(ref);`,
-    distEntry: 'packages/ui/dist/src/index.js',
+    distEntry: 'packages/ui/dist/index.js',
   },
   {
     name: '@vertz/icons',
@@ -91,7 +91,7 @@ const PACKAGES: { name: string; singleImport: string; distEntry: string }[] = [
   {
     name: '@vertz/ui/components',
     singleImport: `import { Button } from '@vertz/ui/components'; console.log(Button);`,
-    distEntry: 'packages/ui/dist/src/components/index.js',
+    distEntry: 'packages/ui/dist/components/index.js',
   },
 ];
 
@@ -103,11 +103,11 @@ const MAX_RATIO = 0.5;
 
 /** Subpath aliases for packages that use conditional exports (e.g. @vertz/ui/internals). */
 const SUBPATH_ALIASES: Record<string, string> = {
-  '@vertz/ui/internals': 'packages/ui/dist/src/internals.js',
+  '@vertz/ui/internals': 'packages/ui/dist/internals.js',
   '@vertz/core/internals': 'packages/core/dist/internals.js',
   '@vertz/db/sql': 'packages/db/dist/sql/index.js',
   '@vertz/theme-shadcn/base': 'packages/theme-shadcn/dist/base.js',
-  '@vertz/ui/components': 'packages/ui/dist/src/components/index.js',
+  '@vertz/ui/components': 'packages/ui/dist/components/index.js',
 };
 
 const aliases: Record<string, string> = {
