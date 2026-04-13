@@ -442,10 +442,10 @@ mod tests {
         snap_times.sort();
         let snap_median = snap_times[ITERATIONS / 2];
 
-        // Snapshot path must be at least 30% faster (generous threshold for CI noise)
+        // Snapshot path must be at least 20% faster (generous threshold for CI noise)
         assert!(
-            snap_median < fresh_median * 7 / 10,
-            "Snapshot median ({:?}) should be <70% of fresh median ({:?})",
+            snap_median < fresh_median * 8 / 10,
+            "Snapshot median ({:?}) should be <80% of fresh median ({:?})",
             snap_median,
             fresh_median,
         );

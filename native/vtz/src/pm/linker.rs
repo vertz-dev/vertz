@@ -352,6 +352,8 @@ mod tests {
                 dependencies: BTreeMap::new(),
                 bin: BTreeMap::new(),
                 nest_path: vec![],
+                os: None,
+                cpu: None,
             },
         );
 
@@ -398,6 +400,8 @@ mod tests {
                 dependencies: BTreeMap::new(),
                 bin: BTreeMap::new(),
                 nest_path: vec![],
+                os: None,
+                cpu: None,
             },
         );
 
@@ -427,6 +431,8 @@ mod tests {
                 dependencies: BTreeMap::new(),
                 bin: BTreeMap::new(),
                 nest_path: vec![],
+                os: None,
+                cpu: None,
             },
         );
         graph.packages.insert(
@@ -439,6 +445,8 @@ mod tests {
                 dependencies: BTreeMap::new(),
                 bin: BTreeMap::new(),
                 nest_path: vec!["dep-a".to_string()],
+                os: None,
+                cpu: None,
             },
         );
 
@@ -475,6 +483,8 @@ mod tests {
                 dependencies: BTreeMap::new(),
                 bin: BTreeMap::new(),
                 nest_path: vec![],
+                os: None,
+                cpu: None,
             },
         );
 
@@ -515,6 +525,8 @@ mod tests {
                 dependencies: BTreeMap::new(),
                 bin: BTreeMap::new(),
                 nest_path: vec![],
+                os: None,
+                cpu: None,
             },
         );
 
@@ -542,6 +554,8 @@ mod tests {
                 dependencies: BTreeMap::new(),
                 bin: BTreeMap::new(),
                 nest_path: vec![],
+                os: None,
+                cpu: None,
             },
         );
 
@@ -580,6 +594,8 @@ mod tests {
                 dependencies: BTreeMap::new(),
                 bin: BTreeMap::new(),
                 nest_path: vec![],
+                os: None,
+                cpu: None,
             },
         );
 
@@ -619,6 +635,8 @@ mod tests {
                 dependencies: BTreeMap::new(),
                 bin: BTreeMap::new(),
                 nest_path: vec![],
+                os: None,
+                cpu: None,
             },
         );
         link_packages(&root, &graph1, &store, &HashSet::new()).unwrap();
@@ -635,6 +653,8 @@ mod tests {
                 dependencies: BTreeMap::new(),
                 bin: BTreeMap::new(),
                 nest_path: vec![],
+                os: None,
+                cpu: None,
             },
         );
         graph2.packages.insert(
@@ -647,6 +667,8 @@ mod tests {
                 dependencies: BTreeMap::new(),
                 bin: BTreeMap::new(),
                 nest_path: vec![],
+                os: None,
+                cpu: None,
             },
         );
         let result = link_packages(&root, &graph2, &store, &HashSet::new()).unwrap();
@@ -679,6 +701,8 @@ mod tests {
                 dependencies: BTreeMap::new(),
                 bin: BTreeMap::new(),
                 nest_path: vec![],
+                os: None,
+                cpu: None,
             },
         );
         graph1.packages.insert(
@@ -691,6 +715,8 @@ mod tests {
                 dependencies: BTreeMap::new(),
                 bin: BTreeMap::new(),
                 nest_path: vec![],
+                os: None,
+                cpu: None,
             },
         );
         link_packages(&root, &graph1, &store, &HashSet::new()).unwrap();
@@ -708,6 +734,8 @@ mod tests {
                 dependencies: BTreeMap::new(),
                 bin: BTreeMap::new(),
                 nest_path: vec![],
+                os: None,
+                cpu: None,
             },
         );
         let result = link_packages(&root, &graph2, &store, &HashSet::new()).unwrap();
@@ -744,6 +772,8 @@ mod tests {
                 dependencies: BTreeMap::new(),
                 bin: BTreeMap::new(),
                 nest_path: vec![],
+                os: None,
+                cpu: None,
             },
         );
 
@@ -774,6 +804,8 @@ mod tests {
                 dependencies: BTreeMap::new(),
                 bin: BTreeMap::new(),
                 nest_path: vec![],
+                os: None,
+                cpu: None,
             },
         );
 
@@ -846,6 +878,8 @@ mod tests {
                 dependencies: BTreeMap::new(),
                 bin: BTreeMap::new(),
                 nest_path: vec![],
+                os: None,
+                cpu: None,
             },
         );
 
@@ -882,6 +916,8 @@ mod tests {
                 dependencies: BTreeMap::new(),
                 bin: BTreeMap::new(),
                 nest_path: vec![],
+                os: None,
+                cpu: None,
             },
         );
         graph.packages.insert(
@@ -894,6 +930,8 @@ mod tests {
                 dependencies: BTreeMap::new(),
                 bin: BTreeMap::new(),
                 nest_path: vec![],
+                os: None,
+                cpu: None,
             },
         );
         // Mark esbuild as having postinstall
@@ -949,6 +987,8 @@ mod tests {
                 dependencies: BTreeMap::new(),
                 bin: BTreeMap::new(),
                 nest_path: vec![],
+                os: None,
+                cpu: None,
             },
         );
         link_packages(&root, &graph1, &store, &HashSet::new()).unwrap();
@@ -965,6 +1005,8 @@ mod tests {
                 dependencies: BTreeMap::new(),
                 bin: BTreeMap::new(),
                 nest_path: vec![],
+                os: None,
+                cpu: None,
             },
         );
         graph2.packages.insert(
@@ -977,6 +1019,8 @@ mod tests {
                 dependencies: BTreeMap::new(),
                 bin: BTreeMap::new(),
                 nest_path: vec![],
+                os: None,
+                cpu: None,
             },
         );
         let mut pkg_scripts = BTreeMap::new();
@@ -1010,6 +1054,8 @@ mod tests {
                 dependencies: BTreeMap::new(),
                 bin: BTreeMap::new(),
                 nest_path: vec![],
+                os: None,
+                cpu: None,
             },
         );
         let mut pkg_scripts = BTreeMap::new();

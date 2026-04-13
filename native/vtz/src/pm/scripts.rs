@@ -316,6 +316,8 @@ mod tests {
                 dependencies: BTreeMap::new(),
                 bin: BTreeMap::new(),
                 nest_path: vec![],
+                os: None,
+                cpu: None,
             },
         );
         let scripts = BTreeMap::new();
@@ -336,6 +338,8 @@ mod tests {
                 dependencies: BTreeMap::new(),
                 bin: BTreeMap::new(),
                 nest_path: vec![],
+                os: None,
+                cpu: None,
             },
         );
 
@@ -364,6 +368,8 @@ mod tests {
                 dependencies: BTreeMap::new(),
                 bin: BTreeMap::new(),
                 nest_path: vec![],
+                os: None,
+                cpu: None,
             },
         );
         graph.packages.insert(
@@ -376,6 +382,8 @@ mod tests {
                 dependencies: BTreeMap::new(),
                 bin: BTreeMap::new(),
                 nest_path: vec![],
+                os: None,
+                cpu: None,
             },
         );
 

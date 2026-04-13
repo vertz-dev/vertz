@@ -348,8 +348,9 @@ pub fn extract_tarball(
             return Err("Archive exceeds maximum total size (1 GB)".into());
         }
 
-        // Strip the leading "package/" prefix (npm tarball convention)
-        let stripped = strip_package_prefix(&path);
+        // Strip the first path component (npm tarball root directory).
+        // Usually "package/" but some packages use the package name.
+        let stripped = strip_first_component(&path);
 
         // Compute the final target path
         let target = dest.join(&stripped);
@@ -493,19 +494,6 @@ fn strip_first_component(path: &Path) -> PathBuf {
     }
 }
 
-/// Strip the "package/" prefix from npm tarball entry paths
-fn strip_package_prefix(path: &Path) -> PathBuf {
-    let components: Vec<_> = path.components().collect();
-    if components.len() > 1 {
-        if let std::path::Component::Normal(first) = &components[0] {
-            if first.to_string_lossy() == "package" {
-                return components[1..].iter().collect();
-            }
-        }
-    }
-    path.to_path_buf()
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -526,6 +514,20 @@ mod tests {
         assert_eq!(
             strip_first_component(Path::new("my-lib-develop/package.json")),
             PathBuf::from("package.json")
+        );
+        // npm standard "package/" prefix
+        assert_eq!(
+            strip_first_component(Path::new("package/index.js")),
+            PathBuf::from("index.js")
+        );
+        assert_eq!(
+            strip_first_component(Path::new("package/lib/utils.js")),
+            PathBuf::from("lib/utils.js")
+        );
+        // npm non-"package" prefix (e.g., @types/node tarballs use "node/")
+        assert_eq!(
+            strip_first_component(Path::new("node/index.d.ts")),
+            PathBuf::from("index.d.ts")
         );
         // Single component left alone
         assert_eq!(
@@ -612,24 +614,54 @@ mod tests {
     }
 
     #[test]
-    fn test_strip_package_prefix() {
-        assert_eq!(
-            strip_package_prefix(Path::new("package/index.js")),
-            PathBuf::from("index.js")
+    fn test_extract_tarball_non_package_prefix() {
+        // Simulates @types/node tarball where first dir is "node/" not "package/"
+        let dir = tempfile::tempdir().unwrap();
+        let dest = dir.path().join("extract");
+        std::fs::create_dir_all(&dest).unwrap();
+
+        let mut builder = tar::Builder::new(Vec::new());
+
+        let pkg_json = b"{\"name\": \"@types/node\", \"version\": \"22.0.0\"}";
+        let mut h1 = tar::Header::new_gnu();
+        h1.set_size(pkg_json.len() as u64);
+        h1.set_mode(0o644);
+        h1.set_cksum();
+        builder
+            .append_data(&mut h1, "node/package.json", &pkg_json[..])
+            .unwrap();
+
+        let dts = b"declare module 'node:fs' {}";
+        let mut h2 = tar::Header::new_gnu();
+        h2.set_size(dts.len() as u64);
+        h2.set_mode(0o644);
+        h2.set_cksum();
+        builder
+            .append_data(&mut h2, "node/index.d.ts", &dts[..])
+            .unwrap();
+
+        let tar_bytes = builder.into_inner().unwrap();
+
+        use flate2::write::GzEncoder;
+        use std::io::Write;
+        let mut encoder = GzEncoder::new(Vec::new(), flate2::Compression::default());
+        encoder.write_all(&tar_bytes).unwrap();
+        let gz_bytes = encoder.finish().unwrap();
+
+        extract_tarball(&gz_bytes, &dest).unwrap();
+
+        // Files should be at root level, not nested under node/
+        assert!(
+            dest.join("package.json").exists(),
+            "package.json should be at dest root, not nested"
         );
-        assert_eq!(
-            strip_package_prefix(Path::new("package/lib/utils.js")),
-            PathBuf::from("lib/utils.js")
+        assert!(
+            dest.join("index.d.ts").exists(),
+            "index.d.ts should be at dest root, not nested"
         );
-        // Non-package prefix left alone
-        assert_eq!(
-            strip_package_prefix(Path::new("other/index.js")),
-            PathBuf::from("other/index.js")
-        );
-        // Single component left alone
-        assert_eq!(
-            strip_package_prefix(Path::new("index.js")),
-            PathBuf::from("index.js")
+        assert!(
+            !dest.join("node/package.json").exists(),
+            "should NOT have double-nested node/ directory"
         );
     }
 
