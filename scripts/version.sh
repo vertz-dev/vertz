@@ -21,7 +21,7 @@ for cargo_toml in "$REPO_ROOT"/native/vtz/Cargo.toml \
                   "$REPO_ROOT"/native/vertz-compiler/Cargo.toml \
                   "$REPO_ROOT"/native/vertz-compiler-core/Cargo.toml; do
   if [ -f "$cargo_toml" ]; then
-    sed -i "s/^version = \".*\"/version = \"$VERSION\"/" "$cargo_toml"
+    sed "s/^version = \".*\"/version = \"$VERSION\"/" "$cargo_toml" > "${cargo_toml}.tmp" && mv "${cargo_toml}.tmp" "$cargo_toml"
   fi
 done
 

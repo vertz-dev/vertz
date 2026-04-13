@@ -4,9 +4,9 @@
   "private": true,
   "description": "Vertz documentation site — built with @vertz/docs",
   "scripts": {
-    "dev": "vtz run node_modules/@vertz/cli/dist/vertz.js docs dev",
-    "build": "vtz run node_modules/@vertz/cli/dist/vertz.js docs build",
-    "check": "vtz run node_modules/@vertz/cli/dist/vertz.js docs check"
+    "dev": "vertz docs dev",
+    "build": "vertz docs build",
+    "check": "vertz docs check"
   },
   "dependencies": {
     "@vertz/cli": "workspace:^",
