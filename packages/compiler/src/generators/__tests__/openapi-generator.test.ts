@@ -919,7 +919,45 @@ describe('OpenAPIGenerator', () => {
         }),
       ]);
       const doc = gen.buildDocument(ir);
-      expect(doc).toMatchSnapshot();
+      expect(doc).toEqual({
+        openapi: '3.1.0',
+        info: { title: 'Test API', version: '1.0.0' },
+        servers: [{ url: '/api' }],
+        paths: {
+          '/users/{id}': {
+            get: {
+              operationId: 'user_getById',
+              tags: ['users'],
+              parameters: [
+                {
+                  name: 'id',
+                  in: 'path',
+                  required: true,
+                  schema: { type: 'string', format: 'uuid' },
+                },
+              ],
+              responses: {
+                '200': {
+                  description: 'OK',
+                  content: {
+                    'application/json': {
+                      schema: {
+                        type: 'object',
+                        properties: {
+                          id: { type: 'string' },
+                          name: { type: 'string' },
+                        },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+        components: { schemas: {} },
+        tags: [{ name: 'users' }],
+      });
     });
 
     it('snapshot: multi-module CRUD API', () => {
@@ -1060,7 +1098,115 @@ describe('OpenAPIGenerator', () => {
         ],
       });
       const doc = gen.buildDocument(ir);
-      expect(doc).toMatchSnapshot();
+      expect(doc).toEqual({
+        openapi: '3.1.0',
+        info: { title: 'CRUD API', version: '2.0.0' },
+        servers: [{ url: '/api' }],
+        paths: {
+          '/users': {
+            get: {
+              operationId: 'user_list',
+              tags: ['users'],
+              parameters: [],
+              responses: {
+                '200': {
+                  description: 'OK',
+                  content: {
+                    'application/json': {
+                      schema: { $ref: '#/components/schemas/ReadUserResponse' },
+                    },
+                  },
+                },
+              },
+            },
+            post: {
+              operationId: 'user_create',
+              tags: ['users'],
+              parameters: [],
+              responses: {
+                '201': {
+                  description: 'OK',
+                  content: {
+                    'application/json': {
+                      schema: { $ref: '#/components/schemas/ReadUserResponse' },
+                    },
+                  },
+                },
+              },
+              requestBody: {
+                required: true,
+                content: {
+                  'application/json': {
+                    schema: { $ref: '#/components/schemas/CreateUserBody' },
+                  },
+                },
+              },
+            },
+          },
+          '/users/{id}': {
+            get: {
+              operationId: 'user_getById',
+              tags: ['users'],
+              parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
+              responses: {
+                '200': {
+                  description: 'OK',
+                  content: {
+                    'application/json': {
+                      schema: { $ref: '#/components/schemas/ReadUserResponse' },
+                    },
+                  },
+                },
+              },
+            },
+            put: {
+              operationId: 'user_update',
+              tags: ['users'],
+              parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
+              responses: {
+                '200': {
+                  description: 'OK',
+                  content: {
+                    'application/json': {
+                      schema: { $ref: '#/components/schemas/ReadUserResponse' },
+                    },
+                  },
+                },
+              },
+              requestBody: {
+                required: true,
+                content: {
+                  'application/json': {
+                    schema: { $ref: '#/components/schemas/CreateUserBody' },
+                  },
+                },
+              },
+            },
+            delete: {
+              operationId: 'user_delete',
+              tags: ['users'],
+              parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
+              responses: {
+                '204': { description: 'No Content' },
+              },
+            },
+          },
+        },
+        components: {
+          schemas: {
+            CreateUserBody: {
+              type: 'object',
+              properties: { name: { type: 'string' }, email: { type: 'string' } },
+              required: ['name', 'email'],
+            },
+            ReadUserResponse: {
+              type: 'object',
+              properties: { id: { type: 'string' }, name: { type: 'string' } },
+            },
+          },
+        },
+        tags: [{ name: 'users' }],
+      });
     });
 
     it('snapshot: middleware headers in spec', () => {
@@ -1109,7 +1255,38 @@ describe('OpenAPIGenerator', () => {
         { middleware: [authMw, corsMw] },
       );
       const doc = gen.buildDocument(ir);
-      expect(doc).toMatchSnapshot();
+      expect(doc).toEqual({
+        openapi: '3.1.0',
+        info: { title: 'Auth API', version: '1.0.0' },
+        servers: [{ url: '/api' }],
+        paths: {
+          '/users': {
+            get: {
+              operationId: 'user_list',
+              tags: ['users'],
+              parameters: [
+                {
+                  name: 'authorization',
+                  in: 'header',
+                  required: true,
+                  schema: { type: 'string' },
+                },
+                {
+                  name: 'x-request-id',
+                  in: 'header',
+                  required: true,
+                  schema: { type: 'string' },
+                },
+              ],
+              responses: {
+                '200': { description: 'OK' },
+              },
+            },
+          },
+        },
+        components: { schemas: {} },
+        tags: [{ name: 'users' }],
+      });
     });
 
     it('snapshot: discriminated union response', () => {
@@ -1160,7 +1337,51 @@ describe('OpenAPIGenerator', () => {
         { schemas: [successSchema, errorSchema] },
       );
       const doc = gen.buildDocument(ir);
-      expect(doc).toMatchSnapshot();
+      expect(doc).toEqual({
+        openapi: '3.1.0',
+        info: { title: 'Union API', version: '1.0.0' },
+        servers: [{ url: '/api' }],
+        paths: {
+          '/result': {
+            get: {
+              operationId: 'getResult',
+              tags: ['results'],
+              parameters: [],
+              responses: {
+                '200': {
+                  description: 'OK',
+                  content: {
+                    'application/json': {
+                      schema: {
+                        oneOf: [
+                          { $ref: '#/components/schemas/SuccessResponse' },
+                          { $ref: '#/components/schemas/ErrorResponse' },
+                        ],
+                        discriminator: { propertyName: 'status' },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+        components: {
+          schemas: {
+            SuccessResponse: {
+              type: 'object',
+              properties: { status: { const: 'success' }, data: { type: 'object' } },
+              required: ['status'],
+            },
+            ErrorResponse: {
+              type: 'object',
+              properties: { status: { const: 'error' }, message: { type: 'string' } },
+              required: ['status'],
+            },
+          },
+        },
+        tags: [{ name: 'results' }],
+      });
     });
   });
 
