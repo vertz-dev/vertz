@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use deno_core::error::AnyError;
 use deno_core::op2;
@@ -19,6 +19,17 @@ fn io_error_code(e: &std::io::Error) -> &'static str {
         std::io::ErrorKind::IsADirectory => "EISDIR",
         _ => "EIO",
     }
+}
+
+/// Directory entry result returned to JavaScript for readdir with withFileTypes.
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DirentResult {
+    pub name: String,
+    pub parent_path: String,
+    pub is_file: bool,
+    pub is_directory: bool,
+    pub is_symlink: bool,
 }
 
 /// Stat result returned to JavaScript.
@@ -166,6 +177,126 @@ pub fn op_fs_readdir_sync(#[string] path: String) -> Result<Vec<String>, AnyErro
     Ok(names)
 }
 
+/// Read directory entries with file type info (sync), optionally recursive.
+#[op2]
+#[serde]
+pub fn op_fs_readdir_with_types_sync(
+    #[string] path: String,
+    recursive: bool,
+) -> Result<Vec<DirentResult>, AnyError> {
+    let root = PathBuf::from(&path);
+    let mut results = Vec::new();
+    readdir_with_types_impl(&root, recursive, &mut results)?;
+    Ok(results)
+}
+
+/// Internal recursive helper for readdir with types.
+fn readdir_with_types_impl(
+    dir: &Path,
+    recursive: bool,
+    results: &mut Vec<DirentResult>,
+) -> Result<(), AnyError> {
+    let entries = std::fs::read_dir(dir).map_err(|e| {
+        deno_core::anyhow::anyhow!("{}: {}: '{}'", io_error_code(&e), e, dir.display())
+    })?;
+    for entry in entries {
+        let entry = entry.map_err(|e| deno_core::anyhow::anyhow!("{}", e))?;
+        let file_type = entry
+            .file_type()
+            .map_err(|e| deno_core::anyhow::anyhow!("{}", e))?;
+        let name = entry.file_name().to_string_lossy().to_string();
+        let parent_path = dir.to_string_lossy().to_string();
+
+        results.push(DirentResult {
+            name: name.clone(),
+            parent_path,
+            is_file: file_type.is_file(),
+            is_directory: file_type.is_dir(),
+            is_symlink: file_type.is_symlink(),
+        });
+
+        if recursive && file_type.is_dir() {
+            let child_dir = dir.join(&name);
+            readdir_with_types_impl(&child_dir, true, results)?;
+        }
+    }
+    Ok(())
+}
+
+/// Read directory entries (sync), optionally recursive (names only).
+#[op2]
+#[serde]
+pub fn op_fs_readdir_recursive_sync(#[string] path: String) -> Result<Vec<String>, AnyError> {
+    let root = PathBuf::from(&path);
+    let mut results = Vec::new();
+    readdir_recursive_impl(&root, &root, &mut results)?;
+    Ok(results)
+}
+
+/// Internal recursive helper for readdir (names only).
+fn readdir_recursive_impl(
+    root: &Path,
+    dir: &Path,
+    results: &mut Vec<String>,
+) -> Result<(), AnyError> {
+    let entries = std::fs::read_dir(dir).map_err(|e| {
+        deno_core::anyhow::anyhow!("{}: {}: '{}'", io_error_code(&e), e, dir.display())
+    })?;
+    for entry in entries {
+        let entry = entry.map_err(|e| deno_core::anyhow::anyhow!("{}", e))?;
+        let file_type = entry
+            .file_type()
+            .map_err(|e| deno_core::anyhow::anyhow!("{}", e))?;
+        let rel_path = entry
+            .path()
+            .strip_prefix(root)
+            .unwrap_or(&entry.path())
+            .to_string_lossy()
+            .to_string();
+
+        results.push(rel_path.clone());
+
+        if file_type.is_dir() {
+            readdir_recursive_impl(root, &entry.path(), results)?;
+        }
+    }
+    Ok(())
+}
+
+/// Read directory entries with file type info (async), optionally recursive.
+#[op2(async)]
+#[serde]
+pub async fn op_fs_readdir_with_types(
+    #[string] path: String,
+    recursive: bool,
+) -> Result<Vec<DirentResult>, AnyError> {
+    // Run the blocking I/O on a thread pool
+    let path_clone = path.clone();
+    tokio::task::spawn_blocking(move || {
+        let root = PathBuf::from(&path_clone);
+        let mut results = Vec::new();
+        readdir_with_types_impl(&root, recursive, &mut results)?;
+        Ok(results)
+    })
+    .await
+    .map_err(|e| deno_core::anyhow::anyhow!("readdir join error: {}", e))?
+}
+
+/// Read directory entries (async), optionally recursive (names only).
+#[op2(async)]
+#[serde]
+pub async fn op_fs_readdir_recursive(#[string] path: String) -> Result<Vec<String>, AnyError> {
+    let path_clone = path.clone();
+    tokio::task::spawn_blocking(move || {
+        let root = PathBuf::from(&path_clone);
+        let mut results = Vec::new();
+        readdir_recursive_impl(&root, &root, &mut results)?;
+        Ok(results)
+    })
+    .await
+    .map_err(|e| deno_core::anyhow::anyhow!("readdir join error: {}", e))?
+}
+
 /// Get file/directory metadata.
 #[op2]
 #[serde]
@@ -253,6 +384,70 @@ pub fn op_fs_copy_file_sync(#[string] src: String, #[string] dest: String) -> Re
     std::fs::copy(&src, &dest)
         .map(|_| ())
         .map_err(|e| deno_core::anyhow::anyhow!("{}: '{}' -> '{}'", e, src, dest))
+}
+
+/// Copy a file or directory recursively (like `cp -r`).
+#[op2(fast)]
+pub fn op_fs_cp_sync(
+    #[string] src: String,
+    #[string] dest: String,
+    recursive: bool,
+) -> Result<(), AnyError> {
+    let src_path = PathBuf::from(&src);
+    if !src_path.exists() {
+        return Err(deno_core::anyhow::anyhow!(
+            "ENOENT: no such file or directory: '{}'",
+            src
+        ));
+    }
+    if src_path.is_dir() {
+        if !recursive {
+            return Err(deno_core::anyhow::anyhow!(
+                "ERR_FS_EISDIR: path is a directory, set recursive to true: '{}'",
+                src
+            ));
+        }
+        cp_dir_recursive(&src_path, &PathBuf::from(&dest))
+    } else {
+        // Single file copy
+        if let Some(parent) = PathBuf::from(&dest).parent() {
+            if !parent.exists() {
+                std::fs::create_dir_all(parent)
+                    .map_err(|e| deno_core::anyhow::anyhow!("{}: '{}'", e, parent.display()))?;
+            }
+        }
+        std::fs::copy(&src, &dest)
+            .map(|_| ())
+            .map_err(|e| deno_core::anyhow::anyhow!("{}: '{}' -> '{}'", e, src, dest))
+    }
+}
+
+/// Internal helper for recursive directory copy.
+fn cp_dir_recursive(src: &Path, dest: &Path) -> Result<(), AnyError> {
+    if !dest.exists() {
+        std::fs::create_dir_all(dest)
+            .map_err(|e| deno_core::anyhow::anyhow!("{}: '{}'", e, dest.display()))?;
+    }
+    for entry in std::fs::read_dir(src)
+        .map_err(|e| deno_core::anyhow::anyhow!("{}: '{}'", e, src.display()))?
+    {
+        let entry = entry.map_err(|e| deno_core::anyhow::anyhow!("{}", e))?;
+        let src_path = entry.path();
+        let dest_path = dest.join(entry.file_name());
+        if src_path.is_dir() {
+            cp_dir_recursive(&src_path, &dest_path)?;
+        } else {
+            std::fs::copy(&src_path, &dest_path).map_err(|e| {
+                deno_core::anyhow::anyhow!(
+                    "{}: '{}' -> '{}'",
+                    e,
+                    src_path.display(),
+                    dest_path.display()
+                )
+            })?;
+        }
+    }
+    Ok(())
 }
 
 /// Change file permissions (chmod).
@@ -424,6 +619,8 @@ pub fn op_decls() -> Vec<OpDecl> {
         op_fs_exists_sync(),
         op_fs_mkdir_sync(),
         op_fs_readdir_sync(),
+        op_fs_readdir_with_types_sync(),
+        op_fs_readdir_recursive_sync(),
         op_fs_stat_sync(),
         op_fs_lstat_sync(),
         op_fs_rm_sync(),
@@ -432,6 +629,7 @@ pub fn op_decls() -> Vec<OpDecl> {
         op_fs_realpath_sync(),
         op_fs_mkdtemp_sync(),
         op_fs_copy_file_sync(),
+        op_fs_cp_sync(),
         op_fs_chmod_sync(),
         // Async
         op_fs_read_file(),
@@ -440,6 +638,8 @@ pub fn op_decls() -> Vec<OpDecl> {
         op_fs_write_file_bytes(),
         op_fs_mkdir(),
         op_fs_readdir(),
+        op_fs_readdir_with_types(),
+        op_fs_readdir_recursive(),
         op_fs_stat(),
         op_fs_rm(),
         op_fs_unlink(),
@@ -584,7 +784,26 @@ pub const FS_BOOTSTRAP_JS: &str = r#"
     Deno.core.ops.op_fs_mkdir_sync(String(path), recursive);
   }
 
-  function readdirSync(path) {
+  function createDirentObject(raw) {
+    return {
+      name: raw.name,
+      parentPath: raw.parentPath,
+      isFile: () => raw.isFile,
+      isDirectory: () => raw.isDirectory,
+      isSymbolicLink: () => raw.isSymlink,
+    };
+  }
+
+  function readdirSync(path, options) {
+    const withFileTypes = options && options.withFileTypes;
+    const recursive = options && options.recursive;
+    if (withFileTypes) {
+      const raw = Deno.core.ops.op_fs_readdir_with_types_sync(String(path), !!recursive);
+      return raw.map(createDirentObject);
+    }
+    if (recursive) {
+      return Deno.core.ops.op_fs_readdir_recursive_sync(String(path));
+    }
     return Deno.core.ops.op_fs_readdir_sync(String(path));
   }
 
@@ -622,6 +841,11 @@ pub const FS_BOOTSTRAP_JS: &str = r#"
     Deno.core.ops.op_fs_copy_file_sync(String(src), String(dest));
   }
 
+  function cpSync(src, dest, options) {
+    const recursive = options && options.recursive ? true : false;
+    Deno.core.ops.op_fs_cp_sync(String(src), String(dest), recursive);
+  }
+
   function chmodSync(path, mode) {
     Deno.core.ops.op_fs_chmod_sync(String(path), mode);
   }
@@ -653,7 +877,16 @@ pub const FS_BOOTSTRAP_JS: &str = r#"
     await Deno.core.ops.op_fs_mkdir(String(path), recursive);
   }
 
-  async function readdir(path) {
+  async function readdir(path, options) {
+    const withFileTypes = options && options.withFileTypes;
+    const recursive = options && options.recursive;
+    if (withFileTypes) {
+      const raw = await Deno.core.ops.op_fs_readdir_with_types(String(path), !!recursive);
+      return raw.map(createDirentObject);
+    }
+    if (recursive) {
+      return Deno.core.ops.op_fs_readdir_recursive(String(path));
+    }
     return Deno.core.ops.op_fs_readdir(String(path));
   }
 
@@ -685,7 +918,7 @@ pub const FS_BOOTSTRAP_JS: &str = r#"
     readFileSync, writeFileSync, appendFileSync, existsSync,
     mkdirSync, readdirSync, statSync, lstatSync,
     rmSync, unlinkSync, renameSync, realpathSync,
-    mkdtempSync, copyFileSync, chmodSync,
+    mkdtempSync, copyFileSync, cpSync, chmodSync,
     // Async wrappers (node:fs also has callback-style but we provide promise-based)
     readFile, writeFile, mkdir, readdir, stat, rm, unlink, rename, realpath,
     // Promises sub-object
