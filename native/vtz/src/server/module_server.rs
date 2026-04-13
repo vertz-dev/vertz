@@ -457,8 +457,8 @@ pub async fn handle_deps_request(
 
     // 2. Fallback: serve directly from node_modules/ using the full path.
     //
-    // URLs like `/@deps/@vertz/ui/dist/src/internals.js` map directly to
-    // `node_modules/@vertz/ui/dist/src/internals.js`. This preserves the
+    // URLs like `/@deps/@vertz/ui/dist/internals.js` map directly to
+    // `node_modules/@vertz/ui/dist/internals.js`. This preserves the
     // file tree structure so relative imports within packages just work.
     //
     // Also handles bare specifier lookups like `/@deps/@vertz/ui/internals`

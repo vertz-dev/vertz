@@ -15,7 +15,7 @@ import {
   stopSignalCollection,
   _tryOnCleanup,
   runCleanups,
-} from '/@deps/@vertz/ui/dist/src/internals.js';
+} from '/@deps/@vertz/ui/dist/internals.js';
 
 var fr = globalThis[Symbol.for('vertz:fast-refresh')];
 if (fr && typeof fr.registerHelpers === 'function') {

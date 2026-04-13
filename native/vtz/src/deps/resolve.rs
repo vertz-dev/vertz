@@ -5,8 +5,8 @@ use std::path::{Path, PathBuf};
 /// Returns the fully-resolved file path within node_modules.
 ///
 /// Handles:
-/// - `@vertz/ui` → node_modules/@vertz/ui/dist/src/index.js (via "." export)
-/// - `@vertz/ui/internals` → node_modules/@vertz/ui/dist/src/internals.js (via "./internals" export)
+/// - `@vertz/ui` → node_modules/@vertz/ui/dist/index.js (via "." export)
+/// - `@vertz/ui/internals` → node_modules/@vertz/ui/dist/internals.js (via "./internals" export)
 /// - `zod` → node_modules/zod/lib/index.mjs (via "." export)
 pub fn resolve_from_node_modules(specifier: &str, root_dir: &Path) -> Option<PathBuf> {
     let (pkg_name, subpath) = split_package_specifier(specifier);
@@ -69,7 +69,7 @@ fn resolve_package_entry(pkg_dir: &Path, subpath: &str) -> Option<PathBuf> {
 /// Convert a resolved file path back to a `/@deps/` URL that preserves
 /// the file tree structure within node_modules.
 ///
-/// This is critical: by using the full file path (e.g., `/@deps/@vertz/ui/dist/src/internals.js`)
+/// This is critical: by using the full file path (e.g., `/@deps/@vertz/ui/dist/internals.js`)
 /// instead of just the specifier (e.g., `/@deps/@vertz/ui/internals`), relative imports
 /// within the package (like `../shared/chunk-xyz.js`) resolve correctly in the browser.
 pub fn resolve_to_deps_url(specifier: &str, root_dir: &Path) -> String {
@@ -291,28 +291,28 @@ mod tests {
         let tmp = tempfile::tempdir().unwrap();
         let root = tmp.path();
 
-        // Create @vertz/ui package with exports
+        // Create @vertz/ui package with exports (matching real package structure)
         let pkg_dir = root.join("node_modules/@vertz/ui");
-        std::fs::create_dir_all(pkg_dir.join("dist/src")).unwrap();
-        std::fs::write(pkg_dir.join("dist/src/index.js"), "export {}").unwrap();
-        std::fs::write(pkg_dir.join("dist/src/internals.js"), "export {}").unwrap();
+        std::fs::create_dir_all(pkg_dir.join("dist")).unwrap();
+        std::fs::write(pkg_dir.join("dist/index.js"), "export {}").unwrap();
+        std::fs::write(pkg_dir.join("dist/internals.js"), "export {}").unwrap();
         std::fs::write(
             pkg_dir.join("package.json"),
             r#"{
                 "name": "@vertz/ui",
                 "exports": {
-                    ".": "./dist/src/index.js",
-                    "./internals": "./dist/src/internals.js"
+                    ".": "./dist/index.js",
+                    "./internals": "./dist/internals.js"
                 }
             }"#,
         )
         .unwrap();
 
         let resolved = resolve_from_node_modules("@vertz/ui", root);
-        assert_eq!(resolved, Some(pkg_dir.join("dist/src/index.js")));
+        assert_eq!(resolved, Some(pkg_dir.join("dist/index.js")));
 
         let resolved = resolve_from_node_modules("@vertz/ui/internals", root);
-        assert_eq!(resolved, Some(pkg_dir.join("dist/src/internals.js")));
+        assert_eq!(resolved, Some(pkg_dir.join("dist/internals.js")));
     }
 
     #[test]
@@ -321,21 +321,21 @@ mod tests {
         let root = tmp.path();
 
         let pkg_dir = root.join("node_modules/@vertz/ui");
-        std::fs::create_dir_all(pkg_dir.join("dist/src")).unwrap();
-        std::fs::write(pkg_dir.join("dist/src/internals.js"), "export {}").unwrap();
+        std::fs::create_dir_all(pkg_dir.join("dist")).unwrap();
+        std::fs::write(pkg_dir.join("dist/internals.js"), "export {}").unwrap();
         std::fs::write(
             pkg_dir.join("package.json"),
             r#"{
                 "name": "@vertz/ui",
                 "exports": {
-                    "./internals": "./dist/src/internals.js"
+                    "./internals": "./dist/internals.js"
                 }
             }"#,
         )
         .unwrap();
 
         let url = resolve_to_deps_url("@vertz/ui/internals", root);
-        assert_eq!(url, "/@deps/@vertz/ui/dist/src/internals.js");
+        assert_eq!(url, "/@deps/@vertz/ui/dist/internals.js");
     }
 
     #[test]
