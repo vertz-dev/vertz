@@ -3304,9 +3304,12 @@ impl ModuleLoader for VertzModuleLoader {
             let filename = path.to_string_lossy().to_string();
             let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("");
 
-            // Determine if we need to compile or wrap
+            // Determine if we need to compile or wrap.
+            // Even if package.json says CJS, files with explicit ESM syntax
+            // (export/import statements) must not be IIFE-wrapped.
             let is_cjs = matches!(ext, "js" | "cjs" | "")
-                && is_cjs_module_cached(&path, &source, Some(&self.pkg_type_cache));
+                && is_cjs_module_cached(&path, &source, Some(&self.pkg_type_cache))
+                && !has_esm_syntax(&source);
             let (code, module_type) = match ext {
                 "ts" | "tsx" | "jsx" => {
                     let compiled = self.compile_source(&source, &filename)?;

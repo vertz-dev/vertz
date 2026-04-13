@@ -790,7 +790,7 @@ mod tests {
         fs::create_dir_all(&bun_cache_lib).unwrap();
         fs::write(
             bun_cache_lib.join("package.json"),
-            r#"{"name": "my-lib", "main": "index.js"}"#,
+            r#"{"name": "my-lib", "main": "index.js", "type": "module"}"#,
         )
         .unwrap();
         fs::write(bun_cache_lib.join("index.js"), "export const value = 42;").unwrap();
