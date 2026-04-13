@@ -390,7 +390,7 @@ fn rewrite_specifier_inner(
 
     // Bare specifiers: resolve via package.json exports to get full file path,
     // so that relative imports within packages resolve correctly in the browser.
-    // e.g., `@vertz/ui/internals` → `/@deps/@vertz/ui/dist/src/internals.js`
+    // e.g., `@vertz/ui/internals` → `/@deps/@vertz/ui/dist/internals.js`
     //
     // Use the file's parent directory as the resolution starting point — this matches
     // Node.js resolution behavior and is critical for monorepos where transitive deps

@@ -461,6 +461,40 @@ mod tests {
     }
 
     #[test]
+    fn test_fast_refresh_helpers_import_path() {
+        // The fast-refresh-helpers.js asset imports from @vertz/ui/internals.
+        // The @vertz/ui package exports "./internals" → "./dist/internals.js" (no /src/).
+        // The inline script must use the correct resolved path.
+        assert!(
+            FAST_REFRESH_HELPERS_JS.contains("/@deps/@vertz/ui/dist/internals.js"),
+            "Fast Refresh helpers should import from /@deps/@vertz/ui/dist/internals.js (without /src/)"
+        );
+        assert!(
+            !FAST_REFRESH_HELPERS_JS.contains("dist/src/internals.js"),
+            "Fast Refresh helpers must NOT contain the wrong path dist/src/internals.js"
+        );
+    }
+
+    #[test]
+    fn test_hmr_output_uses_correct_internals_path() {
+        // When HMR is enabled, the SSR document embeds the fast-refresh helpers
+        // inline. Verify the rendered HTML has the correct import path.
+        let opts = SsrHtmlOptions {
+            enable_hmr: true,
+            ..default_options()
+        };
+        let html = assemble_ssr_document(&opts);
+        assert!(
+            html.contains("/@deps/@vertz/ui/dist/internals.js"),
+            "SSR HTML should contain the correct internals import path"
+        );
+        assert!(
+            !html.contains("dist/src/internals.js"),
+            "SSR HTML must NOT contain the wrong path dist/src/internals.js"
+        );
+    }
+
+    #[test]
     fn test_html_document_omits_ssr_data_when_none() {
         let opts = SsrHtmlOptions {
             ssr_data: None,
