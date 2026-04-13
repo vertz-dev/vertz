@@ -1458,7 +1458,7 @@ pub const CJS_BOOTSTRAP_JS: &str = r#"
           }
           if (code !== 0) {
             const err = new Error('Command failed: ' + file);
-            err.status = code;
+            err.code = code;
             err.stderr = stderr;
             if (cb) cb(err, stdout, stderr); else throw err;
             return;
@@ -1709,7 +1709,10 @@ pub const CJS_BOOTSTRAP_JS: &str = r#"
   }
 
   function _resolveCjsCondition(value) {
-    if (typeof value === 'string') return value;
+    if (typeof value === 'string') {
+      // Exports targets must start with './' to prevent path traversal
+      return value.startsWith('./') ? value : undefined;
+    }
     if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
       // CJS priority: require > node > default
       const keys = ['require', 'node', 'default'];
@@ -1723,7 +1726,8 @@ pub const CJS_BOOTSTRAP_JS: &str = r#"
   function _resolveCjsExports(exports, key) {
     // String shorthand: exports = "./dist/main.js" (applies to ".")
     if (typeof exports === 'string') {
-      return key === '.' ? exports : undefined;
+      if (key !== '.') return undefined;
+      return exports.startsWith('./') ? exports : undefined;
     }
     if (typeof exports === 'object' && exports !== null && !Array.isArray(exports)) {
       // Check if key exists directly in the map

@@ -1100,3 +1100,237 @@ async fn test_cjs_require_exports_string_shorthand() {
         output.stdout
     );
 }
+
+#[tokio::test]
+async fn test_cjs_exec_sync_shell_pipes() {
+    // Shell operators like pipes must work (proves shell execution, not just space handling)
+    let tmp = tempfile::tempdir().unwrap();
+    let entry = tmp.path().join("entry.js");
+    std::fs::write(
+        &entry,
+        r#"
+        import { createRequire } from 'node:module';
+        const require = createRequire(import.meta.url);
+        const { execSync } = require('child_process');
+        const result = execSync('echo "abc def" | tr " " "_"', { encoding: 'utf8' });
+        console.log("piped: " + result.trim());
+    "#,
+    )
+    .unwrap();
+
+    let mut rt = VertzJsRuntime::new(VertzRuntimeOptions {
+        root_dir: Some(tmp.path().to_string_lossy().to_string()),
+        capture_output: true,
+        ..Default::default()
+    })
+    .unwrap();
+
+    let specifier = deno_core::ModuleSpecifier::from_file_path(&entry).unwrap();
+    rt.load_main_module(&specifier).await.unwrap();
+
+    let output = rt.captured_output();
+    assert_eq!(
+        output.stdout[0], "piped: abc_def",
+        "execSync should support shell pipes. Got: {:?}",
+        output.stdout
+    );
+}
+
+#[tokio::test]
+async fn test_cjs_exec_file_sync() {
+    // execFileSync must work through the native op
+    let tmp = tempfile::tempdir().unwrap();
+    let entry = tmp.path().join("entry.js");
+    std::fs::write(
+        &entry,
+        r#"
+        import { createRequire } from 'node:module';
+        const require = createRequire(import.meta.url);
+        const { execFileSync } = require('child_process');
+        const result = execFileSync('/bin/echo', ['hello', 'from', 'execFileSync'], { encoding: 'utf8' });
+        console.log("result: " + result.trim());
+    "#,
+    )
+    .unwrap();
+
+    let mut rt = VertzJsRuntime::new(VertzRuntimeOptions {
+        root_dir: Some(tmp.path().to_string_lossy().to_string()),
+        capture_output: true,
+        ..Default::default()
+    })
+    .unwrap();
+
+    let specifier = deno_core::ModuleSpecifier::from_file_path(&entry).unwrap();
+    rt.load_main_module(&specifier).await.unwrap();
+
+    let output = rt.captured_output();
+    assert_eq!(
+        output.stdout[0], "result: hello from execFileSync",
+        "execFileSync should work. Got: {:?}",
+        output.stdout
+    );
+}
+
+#[tokio::test]
+async fn test_cjs_require_scoped_package_exports() {
+    // require('@scope/pkg') with exports field
+    let tmp = tempfile::tempdir().unwrap();
+
+    let pkg_dir = tmp
+        .path()
+        .join("node_modules")
+        .join("@test-scope")
+        .join("my-lib");
+    std::fs::create_dir_all(pkg_dir.join("dist")).unwrap();
+    std::fs::write(
+        pkg_dir.join("package.json"),
+        r#"{ "name": "@test-scope/my-lib", "exports": { ".": { "require": "./dist/index.cjs" } } }"#,
+    )
+    .unwrap();
+    std::fs::write(
+        pkg_dir.join("dist").join("index.cjs"),
+        "module.exports = { scoped: true };",
+    )
+    .unwrap();
+
+    let entry = tmp.path().join("entry.js");
+    std::fs::write(
+        &entry,
+        r#"
+        import { createRequire } from 'node:module';
+        const require = createRequire(import.meta.url);
+        const pkg = require('@test-scope/my-lib');
+        console.log("scoped: " + pkg.scoped);
+    "#,
+    )
+    .unwrap();
+
+    let mut rt = VertzJsRuntime::new(VertzRuntimeOptions {
+        root_dir: Some(tmp.path().to_string_lossy().to_string()),
+        capture_output: true,
+        ..Default::default()
+    })
+    .unwrap();
+
+    let specifier = deno_core::ModuleSpecifier::from_file_path(&entry).unwrap();
+    rt.load_main_module(&specifier).await.unwrap();
+
+    let output = rt.captured_output();
+    assert_eq!(
+        output.stdout[0], "scoped: true",
+        "require() should resolve scoped package exports. Got: {:?}",
+        output.stdout
+    );
+}
+
+#[tokio::test]
+async fn test_cjs_require_exports_path_traversal_blocked() {
+    // exports with path traversal (../../) must NOT resolve
+    let tmp = tempfile::tempdir().unwrap();
+
+    // Create a secret file outside the package
+    std::fs::write(
+        tmp.path().join("secret.js"),
+        "module.exports = { leaked: true };",
+    )
+    .unwrap();
+
+    let pkg_dir = tmp.path().join("node_modules").join("evil-pkg");
+    std::fs::create_dir_all(&pkg_dir).unwrap();
+    std::fs::write(
+        pkg_dir.join("package.json"),
+        r#"{ "name": "evil-pkg", "exports": { ".": "../../secret.js" } }"#,
+    )
+    .unwrap();
+    // Also provide a fallback index.js so we can distinguish "blocked" from "not found"
+    std::fs::write(pkg_dir.join("index.js"), "module.exports = { safe: true };").unwrap();
+
+    let entry = tmp.path().join("entry.js");
+    std::fs::write(
+        &entry,
+        r#"
+        import { createRequire } from 'node:module';
+        const require = createRequire(import.meta.url);
+        const pkg = require('evil-pkg');
+        // Should get index.js fallback, not the traversal target
+        console.log("safe: " + (pkg.safe === true));
+        console.log("leaked: " + (pkg.leaked === true));
+    "#,
+    )
+    .unwrap();
+
+    let mut rt = VertzJsRuntime::new(VertzRuntimeOptions {
+        root_dir: Some(tmp.path().to_string_lossy().to_string()),
+        capture_output: true,
+        ..Default::default()
+    })
+    .unwrap();
+
+    let specifier = deno_core::ModuleSpecifier::from_file_path(&entry).unwrap();
+    rt.load_main_module(&specifier).await.unwrap();
+
+    let output = rt.captured_output();
+    assert_eq!(
+        output.stdout[0], "safe: true",
+        "Path traversal exports should be blocked, falling back to index.js. Got: {:?}",
+        output.stdout
+    );
+    assert_eq!(
+        output.stdout[1], "leaked: false",
+        "Path traversal must not leak files outside package. Got: {:?}",
+        output.stdout
+    );
+}
+
+#[tokio::test]
+async fn test_cjs_require_nested_conditions() {
+    // Nested conditions: { ".": { "node": { "require": "./cjs.js" } } }
+    let tmp = tempfile::tempdir().unwrap();
+
+    let pkg_dir = tmp.path().join("node_modules").join("nested-cond-pkg");
+    std::fs::create_dir_all(pkg_dir.join("dist")).unwrap();
+    std::fs::write(
+        pkg_dir.join("package.json"),
+        r#"{ "name": "nested-cond-pkg", "exports": { ".": { "node": { "require": "./dist/cjs.js", "import": "./dist/esm.js" } } } }"#,
+    )
+    .unwrap();
+    std::fs::write(
+        pkg_dir.join("dist").join("cjs.js"),
+        "module.exports = { nested: 'cjs' };",
+    )
+    .unwrap();
+    std::fs::write(
+        pkg_dir.join("dist").join("esm.js"),
+        "module.exports = { nested: 'esm' };",
+    )
+    .unwrap();
+
+    let entry = tmp.path().join("entry.js");
+    std::fs::write(
+        &entry,
+        r#"
+        import { createRequire } from 'node:module';
+        const require = createRequire(import.meta.url);
+        const pkg = require('nested-cond-pkg');
+        console.log("nested: " + pkg.nested);
+    "#,
+    )
+    .unwrap();
+
+    let mut rt = VertzJsRuntime::new(VertzRuntimeOptions {
+        root_dir: Some(tmp.path().to_string_lossy().to_string()),
+        capture_output: true,
+        ..Default::default()
+    })
+    .unwrap();
+
+    let specifier = deno_core::ModuleSpecifier::from_file_path(&entry).unwrap();
+    rt.load_main_module(&specifier).await.unwrap();
+
+    let output = rt.captured_output();
+    assert_eq!(
+        output.stdout[0], "nested: cjs",
+        "Nested node.require condition should resolve to CJS. Got: {:?}",
+        output.stdout
+    );
+}
