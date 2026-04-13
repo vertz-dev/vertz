@@ -953,6 +953,12 @@ fn extract_cjs_named_exports(source: &str) -> Vec<String> {
                     }
                 }
             }
+            // `Object.defineProperty(exports, "name", ...)`
+            if let Some(name) = extract_define_property_export(trimmed) {
+                if name != "default" && is_valid_js_ident(&name) {
+                    names.push(name);
+                }
+            }
         }
     }
     // Multiple `module.exports =` assignments → dynamic, return empty
@@ -965,6 +971,11 @@ fn extract_cjs_named_exports(source: &str) -> Vec<String> {
             parse_object_keys(&body, &mut names);
         }
     }
+
+    // Filter out names that would shadow JS built-in globals.
+    // `export const { Symbol } = __cjs_exports;` creates a TDZ that shadows
+    // the global `Symbol`, breaking code inside the IIFE that references it.
+    names.retain(|n| !is_js_global_name(n));
 
     names.sort();
     names.dedup();
@@ -1221,6 +1232,99 @@ fn unquote(s: &str) -> std::borrow::Cow<'_, str> {
     std::borrow::Cow::Borrowed(s)
 }
 
+/// JS global names that must not be re-declared with `export const`.
+///
+/// An `export const { Symbol } = __cjs_exports;` at module level creates a TDZ
+/// binding that shadows the global `Symbol` for the entire module — including the
+/// IIFE-wrapped CJS source. This causes "Cannot access 'X' before initialization"
+/// errors when the CJS code references the global before the `export const` line.
+fn is_js_global_name(name: &str) -> bool {
+    matches!(
+        name,
+        "Symbol"
+            | "Object"
+            | "Array"
+            | "Function"
+            | "String"
+            | "Number"
+            | "Boolean"
+            | "RegExp"
+            | "Error"
+            | "TypeError"
+            | "RangeError"
+            | "SyntaxError"
+            | "ReferenceError"
+            | "EvalError"
+            | "URIError"
+            | "Map"
+            | "Set"
+            | "WeakMap"
+            | "WeakSet"
+            | "Promise"
+            | "Proxy"
+            | "Reflect"
+            | "Date"
+            | "Math"
+            | "JSON"
+            | "Intl"
+            | "NaN"
+            | "Infinity"
+            | "undefined"
+            | "globalThis"
+            | "console"
+            | "Buffer"
+            | "process"
+            | "URL"
+            | "URLSearchParams"
+            | "TextEncoder"
+            | "TextDecoder"
+            | "AbortController"
+            | "AbortSignal"
+            | "Event"
+            | "EventTarget"
+            | "FormData"
+            | "Headers"
+            | "Request"
+            | "Response"
+            | "ReadableStream"
+            | "WritableStream"
+            | "TransformStream"
+            | "Blob"
+            | "File"
+            | "crypto"
+            | "performance"
+            | "queueMicrotask"
+            | "setTimeout"
+            | "setInterval"
+            | "clearTimeout"
+            | "clearInterval"
+            | "atob"
+            | "btoa"
+            | "fetch"
+            | "Iterator"
+    )
+}
+
+/// Extract the export name from `Object.defineProperty(exports, "name", ...)`.
+fn extract_define_property_export(line: &str) -> Option<String> {
+    let rest = line.strip_prefix("Object.defineProperty(exports,")?;
+    let rest = rest.trim();
+    // rest starts with a quoted string: "name" or 'name'
+    let (quote, rest) = if let Some(stripped) = rest.strip_prefix('"') {
+        ('"', stripped)
+    } else if let Some(stripped) = rest.strip_prefix('\'') {
+        ('\'', stripped)
+    } else {
+        return None;
+    };
+    let end = rest.find(quote)?;
+    let name = &rest[..end];
+    if name.is_empty() {
+        return None;
+    }
+    Some(name.to_string())
+}
+
 /// Check if a string is a valid JS identifier (simplified).
 fn is_valid_js_ident(s: &str) -> bool {
     let mut chars = s.chars();
@@ -1274,7 +1378,9 @@ fn wrap_cjs_module(source: &str, path: &Path) -> String {
          var module = {{ exports: {{}} }};\n\
          var exports = module.exports;\n\
          var require = globalThis.__vtz_cjs_require({d});\n\n\
-         {src}\n\n\
+         (function() {{\n\
+         {src}\n\
+         }})();\n\n\
          var __cjs_exports = module.exports;\n\
          export default __cjs_exports;\n\
          {named}",
@@ -4771,5 +4877,54 @@ module.exports = require_main();
             "Should have export statement with aliases, got:\n{}",
             result
         );
+    }
+
+    // ---------------------------------------------------------------
+    // CJS interop: defineProperty, IIFE wrapping, global TDZ (#2521)
+    // ---------------------------------------------------------------
+
+    #[test]
+    fn test_extract_cjs_named_exports_define_property() {
+        // Object.defineProperty(exports, "name", { get: ... }) pattern
+        let source = r#"
+exports.Project = Project;
+exports.Node = Node;
+Object.defineProperty(exports, "SyntaxKind", {
+    get: function () { return common.SyntaxKind; }
+});
+Object.defineProperty(exports, "ModuleKind", {
+    get: function () { return common.ModuleKind; }
+});
+"#;
+        let names = extract_cjs_named_exports(source);
+        assert!(names.contains(&"Project".to_string()));
+        assert!(names.contains(&"Node".to_string()));
+        assert!(names.contains(&"SyntaxKind".to_string()));
+        assert!(names.contains(&"ModuleKind".to_string()));
+        assert_eq!(names.len(), 4);
+    }
+
+    #[test]
+    fn test_extract_define_property_export_basic() {
+        assert_eq!(
+            extract_define_property_export(r#"Object.defineProperty(exports, "Foo", {"#),
+            Some("Foo".to_string())
+        );
+        assert_eq!(
+            extract_define_property_export(r#"Object.defineProperty(exports, 'Bar', {"#),
+            Some("Bar".to_string())
+        );
+        assert_eq!(extract_define_property_export("var x = 1;"), None);
+    }
+
+    #[test]
+    fn test_wrap_cjs_module_iife_wraps_source() {
+        let wrapped = wrap_cjs_module("var x = 1;", Path::new("/tmp/foo.js"));
+        // Source should be inside an IIFE
+        assert!(
+            wrapped.contains("(function() {"),
+            "Source should be wrapped in IIFE"
+        );
+        assert!(wrapped.contains("})();"), "IIFE should be closed");
     }
 }
