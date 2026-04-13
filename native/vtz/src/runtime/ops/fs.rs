@@ -23,7 +23,7 @@ fn io_error_code(e: &std::io::Error) -> &'static str {
 }
 
 /// Directory entry result returned to JavaScript for readdir with withFileTypes.
-#[derive(Serialize)]
+#[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct DirentResult {
     pub name: String,
@@ -187,15 +187,21 @@ pub fn op_fs_readdir_with_types_sync(
 ) -> Result<Vec<DirentResult>, AnyError> {
     let root = PathBuf::from(&path);
     let mut results = Vec::new();
-    readdir_with_types_impl(&root, recursive, &mut results)?;
+    let mut visited = HashSet::new();
+    if let Ok(canonical) = root.canonicalize() {
+        visited.insert(canonical);
+    }
+    readdir_with_types_impl(&root, recursive, &mut results, &mut visited)?;
     Ok(results)
 }
 
 /// Internal recursive helper for readdir with types.
+/// `visited` tracks canonicalized directory paths to detect symlink loops.
 fn readdir_with_types_impl(
     dir: &Path,
     recursive: bool,
     results: &mut Vec<DirentResult>,
+    visited: &mut HashSet<PathBuf>,
 ) -> Result<(), AnyError> {
     let entries = std::fs::read_dir(dir).map_err(|e| {
         deno_core::anyhow::anyhow!("{}: {}: '{}'", io_error_code(&e), e, dir.display())
@@ -216,9 +222,26 @@ fn readdir_with_types_impl(
             is_symlink: file_type.is_symlink(),
         });
 
-        if recursive && file_type.is_dir() {
+        if recursive {
             let child_dir = dir.join(&name);
-            readdir_with_types_impl(&child_dir, true, results)?;
+            let should_recurse = if file_type.is_dir() {
+                true
+            } else if file_type.is_symlink() {
+                // Follow symlinks that resolve to directories (matching Node.js)
+                child_dir.metadata().map(|m| m.is_dir()).unwrap_or(false)
+            } else {
+                false
+            };
+
+            if should_recurse {
+                if let Ok(canonical) = child_dir.canonicalize() {
+                    if visited.insert(canonical) {
+                        readdir_with_types_impl(&child_dir, true, results, visited)?;
+                    }
+                    // Already visited → symlink loop, skip silently
+                }
+                // canonicalize failed (broken symlink) → skip silently
+            }
         }
     }
     Ok(())
@@ -230,15 +253,21 @@ fn readdir_with_types_impl(
 pub fn op_fs_readdir_recursive_sync(#[string] path: String) -> Result<Vec<String>, AnyError> {
     let root = PathBuf::from(&path);
     let mut results = Vec::new();
-    readdir_recursive_impl(&root, &root, &mut results)?;
+    let mut visited = HashSet::new();
+    if let Ok(canonical) = root.canonicalize() {
+        visited.insert(canonical);
+    }
+    readdir_recursive_impl(&root, &root, &mut results, &mut visited)?;
     Ok(results)
 }
 
 /// Internal recursive helper for readdir (names only).
+/// `visited` tracks canonicalized directory paths to detect symlink loops.
 fn readdir_recursive_impl(
     root: &Path,
     dir: &Path,
     results: &mut Vec<String>,
+    visited: &mut HashSet<PathBuf>,
 ) -> Result<(), AnyError> {
     let entries = std::fs::read_dir(dir).map_err(|e| {
         deno_core::anyhow::anyhow!("{}: {}: '{}'", io_error_code(&e), e, dir.display())
@@ -248,17 +277,32 @@ fn readdir_recursive_impl(
         let file_type = entry
             .file_type()
             .map_err(|e| deno_core::anyhow::anyhow!("{}", e))?;
-        let rel_path = entry
-            .path()
+        let entry_path = entry.path();
+        let rel_path = entry_path
             .strip_prefix(root)
-            .unwrap_or(&entry.path())
+            .unwrap_or(&entry_path)
             .to_string_lossy()
             .to_string();
 
-        results.push(rel_path.clone());
+        results.push(rel_path);
 
-        if file_type.is_dir() {
-            readdir_recursive_impl(root, &entry.path(), results)?;
+        let should_recurse = if file_type.is_dir() {
+            true
+        } else if file_type.is_symlink() {
+            // Follow symlinks that resolve to directories (matching Node.js)
+            entry_path.metadata().map(|m| m.is_dir()).unwrap_or(false)
+        } else {
+            false
+        };
+
+        if should_recurse {
+            if let Ok(canonical) = entry_path.canonicalize() {
+                if visited.insert(canonical) {
+                    readdir_recursive_impl(root, &entry_path, results, visited)?;
+                }
+                // Already visited → symlink loop, skip silently
+            }
+            // canonicalize failed (broken symlink) → skip silently
         }
     }
     Ok(())
@@ -276,7 +320,11 @@ pub async fn op_fs_readdir_with_types(
     tokio::task::spawn_blocking(move || {
         let root = PathBuf::from(&path_clone);
         let mut results = Vec::new();
-        readdir_with_types_impl(&root, recursive, &mut results)?;
+        let mut visited = HashSet::new();
+        if let Ok(canonical) = root.canonicalize() {
+            visited.insert(canonical);
+        }
+        readdir_with_types_impl(&root, recursive, &mut results, &mut visited)?;
         Ok(results)
     })
     .await
@@ -291,7 +339,11 @@ pub async fn op_fs_readdir_recursive(#[string] path: String) -> Result<Vec<Strin
     tokio::task::spawn_blocking(move || {
         let root = PathBuf::from(&path_clone);
         let mut results = Vec::new();
-        readdir_recursive_impl(&root, &root, &mut results)?;
+        let mut visited = HashSet::new();
+        if let Ok(canonical) = root.canonicalize() {
+            visited.insert(canonical);
+        }
+        readdir_recursive_impl(&root, &root, &mut results, &mut visited)?;
         Ok(results)
     })
     .await
@@ -1444,6 +1496,104 @@ mod tests {
         assert_eq!(
             std::fs::read_to_string(dest.join("link/data.txt")).unwrap(),
             "external data"
+        );
+    }
+
+    // --- Symlink loop tests (Rust-level, no JS runtime needed) ---
+
+    #[cfg(unix)]
+    #[test]
+    fn test_readdir_recursive_skips_symlink_loop() {
+        use std::collections::HashSet;
+        use std::os::unix::fs::symlink;
+
+        let tmp = tempfile::tempdir().unwrap();
+        let a = tmp.path().join("a");
+        std::fs::create_dir(&a).unwrap();
+        std::fs::write(a.join("file.txt"), "content").unwrap();
+        // Create symlink loop: a/loop -> a (points back to parent)
+        symlink(&a, a.join("loop")).unwrap();
+
+        let mut results = Vec::new();
+        let mut visited = HashSet::new();
+        if let Ok(canonical) = tmp.path().canonicalize() {
+            visited.insert(canonical);
+        }
+        super::readdir_recursive_impl(tmp.path(), tmp.path(), &mut results, &mut visited).unwrap();
+
+        results.sort();
+        // Should list: a, a/file.txt, a/loop — but NOT recurse into the loop
+        assert!(
+            results.contains(&"a".to_string()),
+            "should contain 'a', got: {:?}",
+            results
+        );
+        assert!(
+            results.contains(&"a/file.txt".to_string()),
+            "should contain 'a/file.txt', got: {:?}",
+            results
+        );
+        assert!(
+            results.contains(&"a/loop".to_string()),
+            "should contain 'a/loop', got: {:?}",
+            results
+        );
+        // Must NOT have entries under a/loop/ (that would mean infinite recursion)
+        assert!(
+            !results.iter().any(|r| r.starts_with("a/loop/")),
+            "should not recurse into symlink loop, got: {:?}",
+            results
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn test_readdir_with_types_skips_symlink_loop() {
+        use std::collections::HashSet;
+        use std::os::unix::fs::symlink;
+
+        let tmp = tempfile::tempdir().unwrap();
+        let a = tmp.path().join("a");
+        std::fs::create_dir(&a).unwrap();
+        std::fs::write(a.join("file.txt"), "content").unwrap();
+        // Create symlink loop: a/loop -> a
+        symlink(&a, a.join("loop")).unwrap();
+
+        let mut results = Vec::new();
+        let mut visited = HashSet::new();
+        if let Ok(canonical) = tmp.path().canonicalize() {
+            visited.insert(canonical);
+        }
+        super::readdir_with_types_impl(tmp.path(), true, &mut results, &mut visited).unwrap();
+
+        let names: Vec<&str> = results.iter().map(|r| r.name.as_str()).collect();
+        // Should list 'a' dir, then inside a: 'file.txt' and 'loop'
+        assert!(names.contains(&"a"), "should contain 'a', got: {:?}", names);
+        assert!(
+            names.contains(&"file.txt"),
+            "should contain 'file.txt', got: {:?}",
+            names
+        );
+        assert!(
+            names.contains(&"loop"),
+            "should contain 'loop', got: {:?}",
+            names
+        );
+
+        // The symlink entry should be marked as symlink
+        let loop_entry = results.iter().find(|r| r.name == "loop").unwrap();
+        assert!(
+            loop_entry.is_symlink,
+            "symlink entry should have is_symlink=true"
+        );
+
+        // Must NOT have duplicate entries from recursing into the loop
+        let file_entries: Vec<_> = results.iter().filter(|r| r.name == "file.txt").collect();
+        assert_eq!(
+            file_entries.len(),
+            1,
+            "file.txt should appear exactly once (no loop recursion), got: {:?}",
+            file_entries
         );
     }
 }
