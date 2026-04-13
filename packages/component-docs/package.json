@@ -4,7 +4,7 @@
   "type": "module",
   "scripts": {
     "dev": "vtz dev",
-    "build": "vtz run node_modules/@vertz/cli/dist/vertz.js build",
+    "build": "vertz build",
     "typecheck": "tsgo --noEmit",
     "deploy": "vtz run build && vtzx wrangler deploy",
     "deploy:preview": "vtz run build && vtzx wrangler deploy --env preview"
