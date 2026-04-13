@@ -22,7 +22,7 @@ describe.skipIf(!hasNativeCompiler)('generateAotBuildManifest', () => {
   let srcDir: string;
 
   beforeEach(() => {
-    tmpDir = join(import.meta.dir, `.tmp-aot-build-${Date.now()}`);
+    tmpDir = join(import.meta.dirname, `.tmp-aot-build-${Date.now()}`);
     srcDir = join(tmpDir, 'src');
     mkdirSync(srcDir, { recursive: true });
   });

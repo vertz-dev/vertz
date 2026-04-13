@@ -18,12 +18,14 @@ function stringStream(...parts: string[]): ReadableStream<Uint8Array> {
 /** Helper: create a ReadableStream that errors after emitting some chunks. */
 function errorStream(parts: string[], errorMessage: string): ReadableStream<Uint8Array> {
   const encoder = new TextEncoder();
+  let index = 0;
   return new ReadableStream({
-    start(controller) {
-      for (const part of parts) {
-        controller.enqueue(encoder.encode(part));
+    pull(controller) {
+      if (index < parts.length) {
+        controller.enqueue(encoder.encode(parts[index++]));
+      } else {
+        throw new Error(errorMessage);
       }
-      controller.error(new Error(errorMessage));
     },
   });
 }

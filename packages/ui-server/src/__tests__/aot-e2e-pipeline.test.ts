@@ -23,7 +23,7 @@ let srcDir: string;
 let serverDir: string;
 
 beforeEach(() => {
-  tmpDir = join(import.meta.dir, `.tmp-aot-e2e-${Date.now()}`);
+  tmpDir = join(import.meta.dirname, `.tmp-aot-e2e-${Date.now()}`);
   srcDir = join(tmpDir, 'src');
   serverDir = join(tmpDir, 'server');
   mkdirSync(srcDir, { recursive: true });

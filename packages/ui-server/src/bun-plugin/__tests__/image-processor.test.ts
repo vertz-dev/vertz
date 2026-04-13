@@ -4,7 +4,7 @@ import { resolve } from 'node:path';
 import sharp from 'sharp';
 import { processImage } from '../image-processor';
 
-const TMP_DIR = resolve(import.meta.dir, '.tmp-image-test');
+const TMP_DIR = resolve(import.meta.dirname, '.tmp-image-test');
 const OUTPUT_DIR = resolve(TMP_DIR, 'output');
 const FIXTURES_DIR = resolve(TMP_DIR, 'fixtures');
 

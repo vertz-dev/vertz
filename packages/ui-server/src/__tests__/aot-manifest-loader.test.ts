@@ -11,7 +11,7 @@ describe('loadAotManifest', () => {
   let tmpDir: string;
 
   beforeEach(() => {
-    tmpDir = join(import.meta.dir, `.tmp-aot-loader-${Date.now()}`);
+    tmpDir = join(import.meta.dirname, `.tmp-aot-loader-${Date.now()}`);
     mkdirSync(tmpDir, { recursive: true });
   });
 

@@ -5,7 +5,7 @@ import { font } from '@vertz/ui';
 import { detectFallbackFont, extractFontMetrics } from '../font-metrics';
 
 // Use real font files from the landing site as test fixtures
-const FIXTURES_ROOT = join(import.meta.dir, '../../../../packages/landing');
+const FIXTURES_ROOT = join(import.meta.dirname, '../../../../packages/landing');
 const DM_SANS_PATH = '/public/fonts/dm-sans-latin.woff2';
 const DM_SERIF_PATH = '/public/fonts/dm-serif-display-latin.woff2';
 const JB_MONO_PATH = '/public/fonts/jetbrains-mono-latin.woff2';
@@ -185,7 +185,7 @@ describe('extractFontMetrics()', () => {
     const warnSpy = spyOn(console, 'warn').mockImplementation(() => {});
 
     // Create a temporary corrupt font file
-    const tmpDir = join(import.meta.dir, '__tmp_corrupt__');
+    const tmpDir = join(import.meta.dirname, '__tmp_corrupt__');
     mkdirSync(tmpDir, { recursive: true });
     writeFileSync(join(tmpDir, 'corrupt.woff2'), Buffer.from([0, 1, 2, 3, 4, 5]));
     afterAll(() => rmSync(tmpDir, { recursive: true, force: true }));
