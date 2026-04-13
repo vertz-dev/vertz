@@ -117,6 +117,7 @@ impl VertzJsRuntime {
         ops.extend(signals::op_decls());
         ops.extend(http_serve::op_decls());
         ops.extend(process::op_decls());
+        ops.extend(super::ops::esbuild::op_decls());
         ops
     }
 

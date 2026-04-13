@@ -6,6 +6,7 @@ pub mod crypto_subtle;
 pub mod e2e;
 pub mod encoding;
 pub mod env;
+pub mod esbuild;
 pub mod fetch;
 pub mod fs;
 pub mod http_serve;

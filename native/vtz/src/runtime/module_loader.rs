@@ -2907,6 +2907,35 @@ export const TransformStream = globalThis.TransformStream || class TransformStre
 export default { ReadableStream, WritableStream, TransformStream };
 "#;
 
+/// Synthetic module for `esbuild`.
+/// Delegates transformSync/build to Rust ops that shell out to the esbuild CLI.
+const ESBUILD_SPECIFIER: &str = "vertz:esbuild";
+const ESBUILD_MODULE: &str = r#"
+export function transformSync(source, options = {}) {
+  return Deno.core.ops.op_esbuild_transform_sync({
+    source,
+    loader: options.loader,
+    jsx: options.jsx,
+    jsxImportSource: options.jsxImportSource,
+    target: options.target,
+    sourcemap: options.sourcemap === true || options.sourcemap === 'inline',
+  });
+}
+
+export function transform(source, options = {}) {
+  return Promise.resolve(transformSync(source, options));
+}
+
+export async function build(options = {}) {
+  throw new Error('esbuild.build() is not yet supported in the vtz runtime. Use the native compiler or esbuild CLI directly.');
+}
+
+export function initialize() { return Promise.resolve(); }
+export function stop() {}
+
+export default { transformSync, transform, build, initialize, stop };
+"#;
+
 /// Map a `node:*` specifier to a synthetic module specifier.
 fn node_specifier_to_synthetic(specifier: &str) -> Option<&'static str> {
     match specifier {
@@ -2956,6 +2985,7 @@ fn synthetic_module_source(specifier: &str) -> Option<&'static str> {
         NODE_ZLIB_SPECIFIER => Some(NODE_ZLIB_MODULE),
         NODE_STREAM_WEB_SPECIFIER => Some(NODE_STREAM_WEB_MODULE),
         VERTZ_SQLITE_SPECIFIER => Some(VERTZ_SQLITE_MODULE),
+        ESBUILD_SPECIFIER => Some(ESBUILD_MODULE),
         _ => None,
     }
 }
@@ -2977,6 +3007,11 @@ impl ModuleLoader for VertzModuleLoader {
         if specifier == "vertz:sqlite" || specifier == "@vertz/sqlite" || specifier == "bun:sqlite"
         {
             return Ok(ModuleSpecifier::parse(VERTZ_SQLITE_SPECIFIER)?);
+        }
+
+        // Intercept esbuild → synthetic esbuild module
+        if specifier == "esbuild" {
+            return Ok(ModuleSpecifier::parse(ESBUILD_SPECIFIER)?);
         }
 
         // Intercept node:* specifiers → synthetic modules
