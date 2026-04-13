@@ -29,7 +29,8 @@
     "directory": "packages/vertz"
   },
   "files": [
-    "dist"
+    "dist",
+    "env.d.ts"
   ],
   "type": "module",
   "sideEffects": false,
@@ -93,6 +94,9 @@
     "./ui-auth": {
       "import": "./dist/ui-auth.js",
       "types": "./dist/ui-auth.d.ts"
+    },
+    "./env": {
+      "types": "./env.d.ts"
     }
   },
   "publishConfig": {

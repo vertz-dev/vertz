@@ -8,6 +8,7 @@ export interface VertzQLIncludeEntry {
 }
 
 export interface VertzQLParams {
+  [key: string]: unknown;
   select?: Record<string, true>;
   include?: Record<string, true | VertzQLIncludeEntry>;
   where?: Record<string, unknown>;

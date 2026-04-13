@@ -320,7 +320,7 @@ export class EntityTypesGenerator implements Generator {
     hasOrderBy: boolean,
     hasInclude: boolean,
   ): string {
-    const props: string[] = [`  select?: ${selectType}`];
+    const props: string[] = ['  [key: string]: unknown', `  select?: ${selectType}`];
     if (hasWhere) props.push(`  where?: ${entityPascal}WhereInput`);
     if (hasOrderBy) props.push(`  orderBy?: ${entityPascal}OrderByInput`);
     if (hasInclude) props.push(`  include?: ${entityPascal}IncludeInput`);
@@ -330,7 +330,7 @@ export class EntityTypesGenerator implements Generator {
   }
 
   private emitGetQuery(entityPascal: string, selectType: string, hasInclude: boolean): string {
-    const props: string[] = [`  select?: ${selectType}`];
+    const props: string[] = ['  [key: string]: unknown', `  select?: ${selectType}`];
     if (hasInclude) props.push(`  include?: ${entityPascal}IncludeInput`);
     return `export interface ${entityPascal}GetQuery {\n${props.join(';\n')};\n}`;
   }

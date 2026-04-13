@@ -479,5 +479,40 @@ describe('Entity Types Generator - Query Types', () => {
         'select?: { id?: true; title?: true; status?: true; priority?: true; createdAt?: true }',
       );
     });
+
+    it('generates ListQuery with index signature for Record<string, unknown> compatibility (#2561)', () => {
+      const entity = createEntityWithExpose();
+      const ir = createCodegenIR([entity]);
+      const files = generator.generate(ir, { outputDir: '', options: {} });
+      const typesFile = files.find((f) => f.path === 'types/task.ts');
+
+      const listQueryMatch = typesFile?.content.match(
+        /export interface TaskListQuery \{[\s\S]*?\n\}/,
+      );
+      const listQueryBlock = listQueryMatch?.[0] ?? '';
+      expect(listQueryBlock).toContain('[key: string]: unknown');
+    });
+
+    it('generates GetQuery with index signature for Record<string, unknown> compatibility (#2561)', () => {
+      const entity = createEntityWithExpose({
+        exposeInclude: [
+          {
+            name: 'assignee',
+            entity: 'user',
+            type: 'one',
+            resolvedFields: [{ name: 'id', tsType: 'string', optional: false }],
+          },
+        ],
+      });
+      const ir = createCodegenIR([entity]);
+      const files = generator.generate(ir, { outputDir: '', options: {} });
+      const typesFile = files.find((f) => f.path === 'types/task.ts');
+
+      const getQueryMatch = typesFile?.content.match(
+        /export interface TaskGetQuery \{[\s\S]*?\n\}/,
+      );
+      const getQueryBlock = getQueryMatch?.[0] ?? '';
+      expect(getQueryBlock).toContain('[key: string]: unknown');
+    });
   });
 });
