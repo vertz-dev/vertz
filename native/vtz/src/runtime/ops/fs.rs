@@ -1,3 +1,4 @@
+use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 
 use deno_core::error::AnyError;
@@ -407,7 +408,12 @@ pub fn op_fs_cp_sync(
                 src
             ));
         }
-        cp_dir_recursive(&src_path, &PathBuf::from(&dest))
+        let mut visited = HashSet::new();
+        let canonical = src_path
+            .canonicalize()
+            .map_err(|e| deno_core::anyhow::anyhow!("{}: '{}'", e, src))?;
+        visited.insert(canonical);
+        cp_dir_recursive(&src_path, &PathBuf::from(&dest), &mut visited)
     } else {
         // Single file copy
         if let Some(parent) = PathBuf::from(&dest).parent() {
@@ -423,7 +429,17 @@ pub fn op_fs_cp_sync(
 }
 
 /// Internal helper for recursive directory copy.
-fn cp_dir_recursive(src: &Path, dest: &Path) -> Result<(), AnyError> {
+///
+/// `visited` tracks canonical paths of directories already entered to detect
+/// symlink loops. Note: this is stricter than Node's `fs.cpSync` — diamond-shaped
+/// symlink structures (two subtrees both linking to the same directory) will error
+/// on the second traversal. This prevents duplicate content and is consistent with
+/// `cp -r` behavior on most Unix systems.
+fn cp_dir_recursive(
+    src: &Path,
+    dest: &Path,
+    visited: &mut HashSet<PathBuf>,
+) -> Result<(), AnyError> {
     if !dest.exists() {
         std::fs::create_dir_all(dest)
             .map_err(|e| deno_core::anyhow::anyhow!("{}: '{}'", e, dest.display()))?;
@@ -435,7 +451,16 @@ fn cp_dir_recursive(src: &Path, dest: &Path) -> Result<(), AnyError> {
         let src_path = entry.path();
         let dest_path = dest.join(entry.file_name());
         if src_path.is_dir() {
-            cp_dir_recursive(&src_path, &dest_path)?;
+            let canonical = src_path
+                .canonicalize()
+                .map_err(|e| deno_core::anyhow::anyhow!("{}: '{}'", e, src_path.display()))?;
+            if !visited.insert(canonical) {
+                return Err(deno_core::anyhow::anyhow!(
+                    "ELOOP: symlink loop detected copying '{}'",
+                    src_path.display()
+                ));
+            }
+            cp_dir_recursive(&src_path, &dest_path, visited)?;
         } else {
             std::fs::copy(&src_path, &dest_path).map_err(|e| {
                 deno_core::anyhow::anyhow!(
@@ -1344,5 +1369,81 @@ mod tests {
             )
             .unwrap();
         assert_eq!(result, serde_json::json!([true, false]));
+    }
+
+    // --- cpSync tests ---
+
+    #[test]
+    fn test_cp_sync_recursive_copies_directory() {
+        let tmp = tempfile::tempdir().unwrap();
+        let src = tmp.path().join("src");
+        let dest = tmp.path().join("dest");
+        std::fs::create_dir_all(src.join("sub")).unwrap();
+        std::fs::write(src.join("a.txt"), "a").unwrap();
+        std::fs::write(src.join("sub/b.txt"), "b").unwrap();
+
+        let mut visited = std::collections::HashSet::new();
+        visited.insert(src.canonicalize().unwrap());
+        super::cp_dir_recursive(&src, &dest, &mut visited).unwrap();
+
+        assert_eq!(std::fs::read_to_string(dest.join("a.txt")).unwrap(), "a");
+        assert_eq!(
+            std::fs::read_to_string(dest.join("sub/b.txt")).unwrap(),
+            "b"
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn test_cp_sync_detects_symlink_loop() {
+        let tmp = tempfile::tempdir().unwrap();
+        let src = tmp.path().join("src");
+        std::fs::create_dir_all(src.join("child")).unwrap();
+        std::fs::write(src.join("file.txt"), "hello").unwrap();
+
+        // Create a symlink loop: src/child/loop -> src
+        std::os::unix::fs::symlink(&src, src.join("child/loop")).unwrap();
+
+        let dest = tmp.path().join("dest");
+        let mut visited = std::collections::HashSet::new();
+        visited.insert(src.canonicalize().unwrap());
+        let result = super::cp_dir_recursive(&src, &dest, &mut visited);
+        assert!(result.is_err(), "Expected error for symlink loop");
+        let err_msg = result.unwrap_err().to_string();
+        assert!(
+            err_msg.contains("symlink loop") || err_msg.contains("ELOOP"),
+            "Error should mention symlink loop, got: {}",
+            err_msg
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn test_cp_sync_follows_legitimate_symlink() {
+        let tmp = tempfile::tempdir().unwrap();
+        // Create an external directory that the symlink points to (no loop)
+        let external = tmp.path().join("external");
+        std::fs::create_dir_all(&external).unwrap();
+        std::fs::write(external.join("data.txt"), "external data").unwrap();
+
+        let src = tmp.path().join("src");
+        std::fs::create_dir_all(&src).unwrap();
+        std::fs::write(src.join("local.txt"), "local").unwrap();
+        // Symlink to external dir (not a loop)
+        std::os::unix::fs::symlink(&external, src.join("link")).unwrap();
+
+        let dest = tmp.path().join("dest");
+        let mut visited = std::collections::HashSet::new();
+        visited.insert(src.canonicalize().unwrap());
+        super::cp_dir_recursive(&src, &dest, &mut visited).unwrap();
+
+        assert_eq!(
+            std::fs::read_to_string(dest.join("local.txt")).unwrap(),
+            "local"
+        );
+        assert_eq!(
+            std::fs::read_to_string(dest.join("link/data.txt")).unwrap(),
+            "external data"
+        );
     }
 }
