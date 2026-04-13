@@ -1737,7 +1737,12 @@ pub const CJS_BOOTSTRAP_JS: &str = r#"
       if (key !== '.') return undefined;
       return exports.startsWith('./') ? exports : undefined;
     }
-    if (typeof exports === 'object' && exports !== null && !Array.isArray(exports)) {
+    // Top-level array: exports = [{ "require": "./cjs.js" }, "./fallback.js"]
+    if (Array.isArray(exports)) {
+      if (key !== '.') return undefined;
+      return _resolveCjsCondition(exports);
+    }
+    if (typeof exports === 'object' && exports !== null) {
       // Check if key exists directly in the map
       if (key in exports) {
         return _resolveCjsCondition(exports[key]);
@@ -1772,9 +1777,9 @@ pub const CJS_BOOTSTRAP_JS: &str = r#"
                 const pkg = JSON.parse(Deno.core.ops.op_fs_read_file_sync(pkgPath));
                 // Try exports field first (consistent with bare specifier resolution)
                 if (pkg.exports !== undefined) {
-                  const resolved = _resolveCjsExports(pkg.exports, '.');
-                  if (resolved) {
-                    const full = path + '/' + resolved;
+                  const resolvedExport = _resolveCjsExports(pkg.exports, '.');
+                  if (resolvedExport) {
+                    const full = path + '/' + resolvedExport;
                     if (Deno.core.ops.op_fs_exists_sync(full)) return full;
                   }
                 }
@@ -2069,6 +2074,9 @@ fn resolve_exports_entry(exports: &serde_json::Value, key: &str) -> Option<Strin
     match exports {
         // Direct string value (applies to "." entry)
         serde_json::Value::String(s) if key == "." => Some(s.clone()),
+
+        // Top-level array fallback (applies to "." entry)
+        serde_json::Value::Array(_) if key == "." => resolve_condition_value(exports),
 
         // Object with conditions or subpath patterns
         serde_json::Value::Object(map) => {
@@ -3512,6 +3520,18 @@ export function Hello() {
             resolve_condition_value(&value),
             Some("./dist/esm.js".to_string())
         );
+    }
+
+    #[test]
+    fn test_resolve_exports_entry_top_level_array() {
+        // Top-level array: "exports": [{ "import": "./esm.js" }, "./fallback.js"]
+        let exports = serde_json::json!([{ "import": "./dist/esm.js" }, "./dist/fallback.js"]);
+        assert_eq!(
+            resolve_exports_entry(&exports, "."),
+            Some("./dist/esm.js".to_string())
+        );
+        // Subpath on top-level array should return None
+        assert_eq!(resolve_exports_entry(&exports, "./utils"), None);
     }
 
     // --- Phase 5a: node:* synthetic module resolution ---

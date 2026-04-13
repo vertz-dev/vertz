@@ -137,6 +137,14 @@ fn resolve_export_entry(exports: &serde_json::Value, key: &str) -> Option<String
                 None
             }
         }
+        // Top-level array fallback: "exports": [{ "import": "./esm.js" }, "./fallback.js"]
+        serde_json::Value::Array(_) => {
+            if key == "." {
+                resolve_condition_value_from_entry(exports)
+            } else {
+                None
+            }
+        }
         serde_json::Value::Object(map) => {
             if let Some(entry) = map.get(key) {
                 resolve_condition_value_from_entry(entry)
@@ -387,5 +395,17 @@ mod tests {
             resolve_export_entry(&exports, "."),
             Some("./dist/esm.js".to_string())
         );
+    }
+
+    #[test]
+    fn test_resolve_export_entry_top_level_array() {
+        // Top-level array: "exports": [{ "import": "./esm.js" }, "./fallback.js"]
+        let exports = serde_json::json!([{ "import": "./dist/esm.js" }, "./dist/fallback.js"]);
+        assert_eq!(
+            resolve_export_entry(&exports, "."),
+            Some("./dist/esm.js".to_string())
+        );
+        // Subpath on top-level array should return None
+        assert_eq!(resolve_export_entry(&exports, "./utils"), None);
     }
 }
