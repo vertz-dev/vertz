@@ -137,20 +137,39 @@ fn resolve_export_entry(exports: &serde_json::Value, key: &str) -> Option<String
                 None
             }
         }
-        serde_json::Value::Object(map) => {
-            if let Some(entry) = map.get(key) {
-                // Entry can be a string or a conditions object
-                match entry {
-                    serde_json::Value::String(s) => Some(s.clone()),
-                    serde_json::Value::Object(conditions) => {
-                        // Try: import > module > default
-                        resolve_condition_value(conditions)
-                    }
-                    _ => None,
-                }
+        // Top-level array fallback: "exports": [{ "import": "./esm.js" }, "./fallback.js"]
+        serde_json::Value::Array(_) => {
+            if key == "." {
+                resolve_condition_value_from_entry(exports)
             } else {
                 None
             }
+        }
+        serde_json::Value::Object(map) => {
+            if let Some(entry) = map.get(key) {
+                resolve_condition_value_from_entry(entry)
+            } else {
+                None
+            }
+        }
+        _ => None,
+    }
+}
+
+/// Resolve a condition value from an exports entry.
+/// Handles strings, condition objects, and array fallbacks.
+fn resolve_condition_value_from_entry(value: &serde_json::Value) -> Option<String> {
+    match value {
+        serde_json::Value::String(s) => Some(s.clone()),
+        serde_json::Value::Object(conditions) => resolve_condition_value(conditions),
+        serde_json::Value::Array(arr) => {
+            // Array fallback: first matching entry wins
+            for entry in arr {
+                if let Some(resolved) = resolve_condition_value_from_entry(entry) {
+                    return Some(resolved);
+                }
+            }
+            None
         }
         _ => None,
     }
@@ -183,6 +202,14 @@ fn resolve_condition_value(
                             if !s.ends_with(".d.ts") && !s.ends_with(".d.mts") {
                                 return Some(s.to_string());
                             }
+                        }
+                    }
+                }
+                serde_json::Value::Array(arr) => {
+                    // Array fallback within a condition
+                    for entry in arr {
+                        if let Some(resolved) = resolve_condition_value_from_entry(entry) {
+                            return Some(resolved);
                         }
                     }
                 }
@@ -344,5 +371,41 @@ mod tests {
         // No node_modules — should fall back
         let url = resolve_to_deps_url("unknown-pkg", tmp.path());
         assert_eq!(url, "/@deps/unknown-pkg");
+    }
+
+    #[test]
+    fn test_resolve_export_entry_array_fallback() {
+        // Array fallback: first matching string wins
+        let exports = serde_json::json!({
+            ".": ["./dist/main.js", "./dist/alt.js"]
+        });
+        assert_eq!(
+            resolve_export_entry(&exports, "."),
+            Some("./dist/main.js".to_string())
+        );
+    }
+
+    #[test]
+    fn test_resolve_export_entry_array_with_conditions() {
+        // Array fallback with condition objects
+        let exports = serde_json::json!({
+            ".": [{ "import": "./dist/esm.js" }, "./dist/fallback.js"]
+        });
+        assert_eq!(
+            resolve_export_entry(&exports, "."),
+            Some("./dist/esm.js".to_string())
+        );
+    }
+
+    #[test]
+    fn test_resolve_export_entry_top_level_array() {
+        // Top-level array: "exports": [{ "import": "./esm.js" }, "./fallback.js"]
+        let exports = serde_json::json!([{ "import": "./dist/esm.js" }, "./dist/fallback.js"]);
+        assert_eq!(
+            resolve_export_entry(&exports, "."),
+            Some("./dist/esm.js".to_string())
+        );
+        // Subpath on top-level array should return None
+        assert_eq!(resolve_export_entry(&exports, "./utils"), None);
     }
 }
