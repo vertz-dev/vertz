@@ -1060,20 +1060,20 @@ describe('reactLoop()', () => {
           { text: 'Done' },
         ]);
 
-        await expect(
-          reactLoop({
-            llm,
-            tools: { noop },
-            systemPrompt: 'You are helpful.',
-            userMessage: 'Do stuff',
-            maxIterations: 10,
-            toolContext: TEST_TOOL_CONTEXT,
-            contextCompression: {
-              maxMessages: 5,
-              compress: () => [],
-            },
-          }),
-        ).rejects.toThrow('Context compression returned empty message array');
+        const promise = reactLoop({
+          llm,
+          tools: { noop },
+          systemPrompt: 'You are helpful.',
+          userMessage: 'Do stuff',
+          maxIterations: 10,
+          toolContext: TEST_TOOL_CONTEXT,
+          contextCompression: {
+            maxMessages: 5,
+            compress: () => [],
+          },
+        });
+
+        await expect(promise).rejects.toThrow('Context compression returned empty message array');
       });
     });
   });
