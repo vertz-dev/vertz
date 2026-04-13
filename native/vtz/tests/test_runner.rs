@@ -1231,3 +1231,66 @@ fn e2e_mock_transitive() {
     );
     assert_eq!(result.total_passed, 1);
 }
+
+// --- E2E: spyOn on dynamically imported module ---
+
+#[test]
+fn e2e_spy_on_dynamic_import() {
+    let tmp = tempfile::tempdir().unwrap();
+    setup_project(tmp.path());
+
+    // A simple module with exported functions
+    write_file(
+        tmp.path(),
+        "src/utils/paths.ts",
+        r#"
+        export function findProjectRoot(): string {
+            return '/real/root';
+        }
+
+        export function resolvePath(p: string): string {
+            return '/resolved/' + p;
+        }
+        "#,
+    );
+
+    // Test file that uses spyOn on a dynamically imported module
+    write_file(
+        tmp.path(),
+        "src/__tests__/spy-dynamic.test.ts",
+        r#"
+        describe('spyOn dynamic import', () => {
+            it('can spy on dynamically imported module functions', async () => {
+                const pathsMod = await import('../utils/paths');
+                const spy = spyOn(pathsMod, 'findProjectRoot').mockReturnValue('/mocked/root');
+
+                expect(pathsMod.findProjectRoot()).toBe('/mocked/root');
+
+                spy.mockRestore();
+                expect(pathsMod.findProjectRoot()).toBe('/real/root');
+            });
+
+            it('can spy on multiple functions from same module', async () => {
+                const pathsMod = await import('../utils/paths');
+                const spy1 = spyOn(pathsMod, 'findProjectRoot').mockReturnValue('/mock1');
+                const spy2 = spyOn(pathsMod, 'resolvePath').mockReturnValue('/mock2');
+
+                expect(pathsMod.findProjectRoot()).toBe('/mock1');
+                expect(pathsMod.resolvePath('test')).toBe('/mock2');
+
+                spy1.mockRestore();
+                spy2.mockRestore();
+            });
+        });
+        "#,
+    );
+
+    let (result, output) = run_tests(make_config(tmp.path()));
+
+    assert!(
+        result.success(),
+        "spyOn on dynamic import should work: output={output}, results={:?}",
+        result.results
+    );
+    assert_eq!(result.total_passed, 2);
+}
