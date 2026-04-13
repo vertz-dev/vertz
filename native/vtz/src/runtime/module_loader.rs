@@ -957,9 +957,95 @@ fn extract_cjs_named_exports(source: &str) -> Vec<String> {
     }
     // Multiple `module.exports =` assignments → dynamic, return empty
 
+    // Also check for dead-code annotation pattern used by webpack/esbuild:
+    // `0 && (module.exports = { name1, name2, ... });`
+    // This is statically unreachable code added by bundlers to annotate named exports.
+    if names.is_empty() {
+        if let Some(body) = extract_dead_code_exports(source) {
+            parse_object_keys(&body, &mut names);
+        }
+    }
+
     names.sort();
     names.dedup();
     names
+}
+
+/// Extract named export annotations from dead-code patterns.
+///
+/// Bundlers (webpack, esbuild, rollup) annotate CJS named exports with:
+/// ```js
+/// 0 && (module.exports = { name1, name2, ... });
+/// ```
+/// This is unreachable code that tools like Node.js's cjs-module-lexer use
+/// to detect named exports for ESM interop.
+fn extract_dead_code_exports(source: &str) -> Option<String> {
+    let mut collecting = false;
+    let mut depth = 0i32;
+    let mut body = String::new();
+
+    for line in source.lines() {
+        let trimmed = line.trim();
+        if !collecting {
+            // Match `0 && (module.exports = {` pattern
+            // The pattern can appear as:
+            //   0 && (module.exports = { ... })
+            //   0&&(module.exports={...})
+            if let Some(me_pos) = trimmed.find("module.exports") {
+                let prefix = trimmed[..me_pos].trim();
+                // Check that prefix is structurally `0 && (` — the canonical
+                // dead-code annotation starts with literal `0` as the entire
+                // LHS of `&&`. Reject patterns like `foo(0) && bar(`.
+                let is_dead_code_guard = (prefix.starts_with("0")
+                    && !prefix.as_bytes().get(1).is_some_and(|b| b.is_ascii_digit()))
+                    && prefix.contains("&&")
+                    && prefix.ends_with('(');
+                if is_dead_code_guard {
+                    let after_me = &trimmed[me_pos + "module.exports".len()..];
+                    let after_me = after_me.trim();
+                    if let Some(rest) = after_me.strip_prefix('=') {
+                        let rest = rest.trim();
+                        if !rest.starts_with('=') {
+                            // Skip to the opening brace
+                            collecting = true;
+                            for ch in rest.chars() {
+                                if ch == '{' {
+                                    depth += 1;
+                                    if depth == 1 {
+                                        continue;
+                                    }
+                                } else if ch == '}' {
+                                    depth -= 1;
+                                    if depth == 0 {
+                                        return Some(body);
+                                    }
+                                }
+                                if depth >= 1 {
+                                    body.push(ch);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        } else {
+            for ch in trimmed.chars() {
+                if ch == '{' {
+                    depth += 1;
+                } else if ch == '}' {
+                    depth -= 1;
+                    if depth == 0 {
+                        return Some(body);
+                    }
+                }
+                if depth >= 1 {
+                    body.push(ch);
+                }
+            }
+            body.push(',');
+        }
+    }
+    None
 }
 
 /// Check if a line is a `module.exports = <value>` assignment (not a comparison
@@ -1164,9 +1250,21 @@ fn wrap_cjs_module(source: &str, path: &Path) -> String {
     let named_line = if named_exports.is_empty() {
         String::new()
     } else {
+        // Use aliased variables to avoid conflicts with names declared in the CJS source.
+        // `var` is used instead of `const`/`let` because CJS sources may already declare
+        // these identifiers at module scope (e.g., esbuild bundles).
+        let var_decls: Vec<String> = named_exports
+            .iter()
+            .map(|n| format!("var __cjs_e_{name} = __cjs_exports.{name};", name = n))
+            .collect();
+        let export_aliases: Vec<String> = named_exports
+            .iter()
+            .map(|n| format!("__cjs_e_{name} as {name}", name = n))
+            .collect();
         format!(
-            "export const {{ {} }} = __cjs_exports;\n",
-            named_exports.join(", ")
+            "{}\nexport {{ {} }};\n",
+            var_decls.join("\n"),
+            export_aliases.join(", ")
         )
     };
 
@@ -1196,6 +1294,422 @@ fn wrap_cjs_module(source: &str, path: &Path) -> String {
 pub const CJS_BOOTSTRAP_JS: &str = r#"
 ((globalThis) => {
   const _cjsCache = Object.create(null);
+
+  // --- Node.js built-in module support for CJS require() ---
+  const _builtinCache = Object.create(null);
+
+  // Known built-in module names (with and without node: prefix)
+  const _BUILTIN_NAMES = new Set([
+    'fs', 'fs/promises', 'path', 'os', 'process', 'buffer', 'url', 'events',
+    'module', 'child_process', 'crypto', 'async_hooks', 'http', 'util',
+    'readline', 'zlib', 'stream', 'stream/web', 'assert', 'string_decoder',
+    'querystring', 'constants', 'net', 'tls', 'dns', 'tty', 'worker_threads',
+    'perf_hooks', 'v8', 'vm',
+  ]);
+
+  function _isBuiltin(specifier) {
+    if (specifier.startsWith('node:')) return true;
+    return _BUILTIN_NAMES.has(specifier);
+  }
+
+  function _getBuiltin(specifier) {
+    const name = specifier.startsWith('node:') ? specifier.slice(5) : specifier;
+    if (name in _builtinCache) return _builtinCache[name];
+
+    const mod = _createBuiltin(name);
+    if (mod !== undefined) _builtinCache[name] = mod;
+    return mod;
+  }
+
+  function _createBuiltin(name) {
+    switch (name) {
+      case 'fs': return globalThis.__vertz_fs || {};
+      case 'fs/promises': return (globalThis.__vertz_fs && globalThis.__vertz_fs.promises) || {};
+      case 'path': return globalThis.__vertz_path || {};
+      case 'os': return globalThis.__vertz_os || {};
+      case 'process': {
+        const p = globalThis.process || {};
+        if (!p.env) p.env = {};
+        if (!p.cwd) p.cwd = () => '/';
+        if (!p.argv) p.argv = [];
+        if (!p.platform) p.platform = typeof Deno !== 'undefined' ? Deno.core.ops.op_os_platform() : 'linux';
+        if (!p.version) p.version = 'v20.0.0';
+        if (!p.versions) p.versions = {};
+        if (!p.versions.node) p.versions.node = '20.0.0';
+        if (!p.nextTick) p.nextTick = (fn, ...args) => queueMicrotask(() => fn(...args));
+        if (!p.stdout) p.stdout = { write: (s) => { console.log(s); } };
+        if (!p.stderr) p.stderr = { write: (s) => { console.error(s); } };
+        globalThis.process = p;
+        return p;
+      }
+      case 'buffer': return { Buffer: globalThis.Buffer };
+      case 'url': {
+        function fileURLToPath(url) {
+          if (typeof url === 'string') return Deno.core.ops.op_file_url_to_path(url);
+          if (url && typeof url === 'object' && typeof url.href === 'string')
+            return Deno.core.ops.op_file_url_to_path(url.href);
+          throw new TypeError('The "url" argument must be of type string or URL');
+        }
+        function pathToFileURL(path) {
+          return new URL(Deno.core.ops.op_path_to_file_url(String(path)));
+        }
+        return { fileURLToPath, pathToFileURL, URL: globalThis.URL, URLSearchParams: globalThis.URLSearchParams };
+      }
+      case 'module': {
+        return {
+          createRequire: function(urlOrPath) {
+            let dir;
+            if (typeof urlOrPath === 'string') {
+              if (urlOrPath.startsWith('file://')) {
+                const filePath = Deno.core.ops.op_file_url_to_path(urlOrPath);
+                const lastSlash = filePath.lastIndexOf('/');
+                dir = lastSlash >= 0 ? filePath.substring(0, lastSlash) : '.';
+              } else {
+                const lastSlash = urlOrPath.lastIndexOf('/');
+                dir = lastSlash >= 0 ? urlOrPath.substring(0, lastSlash) : '.';
+              }
+            } else if (urlOrPath && typeof urlOrPath === 'object' && typeof urlOrPath.href === 'string') {
+              const filePath = Deno.core.ops.op_file_url_to_path(urlOrPath.href);
+              const lastSlash = filePath.lastIndexOf('/');
+              dir = lastSlash >= 0 ? filePath.substring(0, lastSlash) : '.';
+            } else {
+              dir = '.';
+            }
+            return _createRequire(dir);
+          },
+        };
+      }
+      case 'events': {
+        class EventEmitter {
+          constructor() { this._listeners = new Map(); this._maxListeners = 10; }
+          on(event, listener) {
+            if (!this._listeners.has(event)) this._listeners.set(event, []);
+            this._listeners.get(event).push(listener);
+            return this;
+          }
+          addListener(event, listener) { return this.on(event, listener); }
+          once(event, listener) {
+            const wrapped = (...args) => { this.removeListener(event, wrapped); listener.apply(this, args); };
+            wrapped._original = listener;
+            return this.on(event, wrapped);
+          }
+          off(event, listener) { return this.removeListener(event, listener); }
+          removeListener(event, listener) {
+            const arr = this._listeners.get(event);
+            if (!arr) return this;
+            const idx = arr.findIndex(fn => fn === listener || fn._original === listener);
+            if (idx !== -1) arr.splice(idx, 1);
+            if (arr.length === 0) this._listeners.delete(event);
+            return this;
+          }
+          removeAllListeners(event) {
+            if (event !== undefined) this._listeners.delete(event);
+            else this._listeners.clear();
+            return this;
+          }
+          emit(event, ...args) {
+            const arr = this._listeners.get(event);
+            if (!arr || arr.length === 0) return false;
+            for (const fn of [...arr]) fn.apply(this, args);
+            return true;
+          }
+          listenerCount(event) { const a = this._listeners.get(event); return a ? a.length : 0; }
+          listeners(event) {
+            const a = this._listeners.get(event);
+            return a ? a.map(fn => fn._original || fn) : [];
+          }
+          rawListeners(event) { const a = this._listeners.get(event); return a ? [...a] : []; }
+          eventNames() { return [...this._listeners.keys()]; }
+          prependListener(event, listener) {
+            if (!this._listeners.has(event)) this._listeners.set(event, []);
+            this._listeners.get(event).unshift(listener);
+            return this;
+          }
+          setMaxListeners(n) { this._maxListeners = n; return this; }
+          getMaxListeners() { return this._maxListeners; }
+        }
+        const mod = EventEmitter;
+        mod.EventEmitter = EventEmitter;
+        return mod;
+      }
+      case 'child_process': {
+        function execSync(cmd, opts) {
+          const parts = cmd.split(' ');
+          const command = new Deno.Command(parts[0], {
+            args: parts.slice(1), cwd: opts?.cwd, env: opts?.env, stdout: 'piped', stderr: 'piped',
+          });
+          const result = command.outputSync();
+          if (result.code !== 0) {
+            const err = new Error('Command failed: ' + cmd);
+            err.status = result.code;
+            err.stderr = new TextDecoder().decode(result.stderr);
+            throw err;
+          }
+          const out = new TextDecoder().decode(result.stdout);
+          return opts?.encoding ? out : new TextEncoder().encode(out);
+        }
+        function execFile(file, args, opts, cb) {
+          if (typeof opts === 'function') { cb = opts; opts = {}; }
+          try {
+            const command = new Deno.Command(file, {
+              args: args || [], cwd: opts?.cwd, env: opts?.env, stdout: 'piped', stderr: 'piped',
+            });
+            const result = command.outputSync();
+            const stdout = new TextDecoder().decode(result.stdout);
+            const stderr = new TextDecoder().decode(result.stderr);
+            if (result.code !== 0) {
+              const err = new Error('Command failed: ' + file);
+              err.code = result.code; err.stderr = stderr;
+              if (cb) cb(err, stdout, stderr); else throw err;
+              return;
+            }
+            if (cb) cb(null, stdout, stderr);
+          } catch (e) { if (cb) cb(e, '', ''); else throw e; }
+        }
+        function execFileSync(file, args, opts) {
+          const command = new Deno.Command(file, {
+            args: args || [], cwd: opts?.cwd, env: opts?.env, stdout: 'piped', stderr: 'piped',
+          });
+          const result = command.outputSync();
+          if (result.code !== 0) {
+            const err = new Error('Command failed: ' + file);
+            err.status = result.code;
+            err.stderr = new TextDecoder().decode(result.stderr);
+            throw err;
+          }
+          const out = new TextDecoder().decode(result.stdout);
+          return opts?.encoding ? out : new TextEncoder().encode(out);
+        }
+        function spawn(_cmd, _args, _opts) {
+          throw new Error('node:child_process spawn() is not yet supported in the Vertz runtime.');
+        }
+        return { execSync, execFile, execFileSync, spawn };
+      }
+      case 'crypto': {
+        class Hash {
+          constructor(algorithm) { this._algorithm = algorithm; this._data = new Uint8Array(0); }
+          update(data) {
+            const bytes = typeof data === 'string' ? new TextEncoder().encode(data)
+              : data instanceof Uint8Array ? data
+              : new Uint8Array(data);
+            const merged = new Uint8Array(this._data.length + bytes.length);
+            merged.set(this._data);
+            merged.set(bytes, this._data.length);
+            this._data = merged;
+            return this;
+          }
+          digest(encoding) {
+            const result = Deno.core.ops.op_crypto_hash_digest(this._algorithm, this._data);
+            const buf = Buffer.from(result);
+            if (encoding === 'hex') return buf.toString('hex');
+            if (encoding === 'base64') return buf.toString('base64');
+            return buf;
+          }
+        }
+        function createHash(algorithm) { return new Hash(algorithm); }
+        function randomBytes(size) { return Buffer.from(Deno.core.ops.op_crypto_random_bytes(size)); }
+        function randomUUID() { return Deno.core.ops.op_crypto_random_uuid(); }
+        function timingSafeEqual(a, b) {
+          const aBuf = a instanceof Uint8Array ? a : new Uint8Array(a);
+          const bBuf = b instanceof Uint8Array ? b : new Uint8Array(b);
+          return Deno.core.ops.op_crypto_timing_safe_equal(aBuf, bBuf);
+        }
+        function randomFillSync(buf, offset, size) {
+          const target = buf instanceof Uint8Array ? buf : new Uint8Array(buf.buffer || buf);
+          const off = offset || 0;
+          const len = size || (target.length - off);
+          const bytes = Deno.core.ops.op_crypto_random_bytes(len);
+          target.set(new Uint8Array(bytes), off);
+          return buf;
+        }
+        function randomInt(min, max) {
+          if (max === undefined) { max = min; min = 0; }
+          const arr = new Uint32Array(1);
+          globalThis.crypto.getRandomValues(arr);
+          return min + (arr[0] % (max - min));
+        }
+        function getHashes() { return ['sha1', 'sha256', 'sha384', 'sha512', 'md5']; }
+        return {
+          Hash, createHash, randomBytes, randomUUID, timingSafeEqual,
+          randomFillSync, randomInt, getHashes,
+          webcrypto: globalThis.crypto, constants: {},
+          getCiphers: () => [], getCurves: () => ['prime256v1', 'secp384r1', 'secp521r1'],
+          createHmac: () => { throw new Error('createHmac requires ESM import'); },
+          createPrivateKey: (input) => ({ type: 'private', _data: typeof input === 'string' ? input : (input.key || input), export: function(o) { return this._data; } }),
+          createPublicKey: (input) => ({ type: 'public', _data: typeof input === 'string' ? input : (input.key || input), export: function(o) { return this._data; } }),
+        };
+      }
+      case 'async_hooks': return globalThis.__vertz_async_hooks || { AsyncLocalStorage: undefined, AsyncResource: undefined };
+      case 'util': {
+        function promisify(fn) {
+          return function (...args) {
+            return new Promise((resolve, reject) => {
+              fn(...args, (err, ...results) => {
+                if (err) reject(err);
+                else resolve(results.length <= 1 ? results[0] : results);
+              });
+            });
+          };
+        }
+        function format(fmt, ...args) {
+          if (typeof fmt !== 'string') return [fmt, ...args].map(String).join(' ');
+          let i = 0;
+          return fmt.replace(/%[sdjifoO%]/g, (m) => { if (m === '%%') return '%'; if (i >= args.length) return m; return String(args[i++]); });
+        }
+        function inspect(obj) { return JSON.stringify(obj, null, 2) ?? String(obj); }
+        function deprecate(fn, _msg) { return fn; }
+        function callbackify(fn) { return function (...args) { const cb = args.pop(); fn(...args).then((r) => cb(null, r), (e) => cb(e)); }; }
+        return { promisify, format, inspect, deprecate, types: {}, callbackify };
+      }
+      case 'http': {
+        // Minimal http stub — createServer delegates to Deno.serve
+        function createServer(handler) {
+          let server = null;
+          return {
+            listen(port, host, cb) {
+              if (typeof host === 'function') { cb = host; host = '0.0.0.0'; }
+              server = Deno.serve({ port, hostname: host || '0.0.0.0' }, async (req) => {
+                const url = new URL(req.url);
+                const msg = { url: url.pathname + url.search, method: req.method, headers: Object.fromEntries(req.headers.entries()), _body: req,
+                  on(event, cb2) { if (event === 'data') req.text().then(cb2); else if (event === 'end') req.text().then(() => cb2()); return this; } };
+                const res = { statusCode: 200, _headers: {}, _body: '', _resolve: null,
+                  promise: null,
+                  setHeader(n, v) { this._headers[n.toLowerCase()] = v; return this; },
+                  getHeader(n) { return this._headers[n.toLowerCase()]; },
+                  writeHead(s, h) { this.statusCode = s; if (h) Object.entries(h).forEach(([k,v]) => this.setHeader(k,v)); return this; },
+                  write(chunk) { this._body += chunk; return true; },
+                  end(data) { if (data) this._body += data; this._resolve(new Response(this._body, { status: this.statusCode, headers: this._headers })); },
+                };
+                res.promise = new Promise((resolve) => { res._resolve = resolve; });
+                handler(msg, res);
+                return res.promise;
+              });
+              if (cb) cb();
+              return this;
+            },
+            close(cb) { if (server) server.shutdown(); if (cb) cb(); },
+            address() { return { port: 0, address: '0.0.0.0' }; },
+          };
+        }
+        return { createServer };
+      }
+      case 'readline': {
+        function createInterface(_opts) {
+          return { question(_q, cb) { if (cb) cb(''); }, close() {}, on(_e, _cb) { return this; },
+            [Symbol.asyncIterator]() { return { next() { return Promise.resolve({ done: true, value: undefined }); } }; } };
+        }
+        return { createInterface };
+      }
+      case 'zlib': {
+        function brotliCompressSync(buf) { return typeof buf === 'string' ? new TextEncoder().encode(buf) : buf; }
+        return { brotliCompressSync, constants: { BROTLI_PARAM_QUALITY: 11, BROTLI_MAX_QUALITY: 11, BROTLI_MIN_QUALITY: 0, Z_BEST_COMPRESSION: 9 } };
+      }
+      case 'stream':
+      case 'stream/web': {
+        return {
+          Readable: globalThis.ReadableStream || class {},
+          Writable: globalThis.WritableStream || class {},
+          Transform: globalThis.TransformStream || class {},
+          ReadableStream: globalThis.ReadableStream,
+          WritableStream: globalThis.WritableStream,
+          TransformStream: globalThis.TransformStream,
+        };
+      }
+      case 'assert': {
+        function assert(value, message) { if (!value) throw new Error(message || 'Assertion failed'); }
+        assert.ok = assert;
+        assert.strictEqual = (a, b, msg) => { if (a !== b) throw new Error(msg || a + ' !== ' + b); };
+        assert.deepStrictEqual = (a, b, msg) => { if (JSON.stringify(a) !== JSON.stringify(b)) throw new Error(msg || 'Not deep equal'); };
+        assert.throws = (fn, msg) => { try { fn(); throw new Error(msg || 'Expected to throw'); } catch (e) { if (e.message === (msg || 'Expected to throw')) throw e; } };
+        assert.notStrictEqual = (a, b, msg) => { if (a === b) throw new Error(msg || a + ' === ' + b); };
+        return assert;
+      }
+      case 'string_decoder': {
+        class StringDecoder {
+          constructor(encoding) { this.encoding = encoding || 'utf-8'; this._decoder = new TextDecoder(this.encoding); }
+          write(buf) { return this._decoder.decode(buf, { stream: true }); }
+          end(buf) { return buf ? this._decoder.decode(buf) : this._decoder.decode(); }
+        }
+        return { StringDecoder };
+      }
+      case 'querystring': {
+        return {
+          parse: (str) => Object.fromEntries(new URLSearchParams(str)),
+          stringify: (obj) => new URLSearchParams(obj).toString(),
+          encode: (obj) => new URLSearchParams(obj).toString(),
+          decode: (str) => Object.fromEntries(new URLSearchParams(str)),
+        };
+      }
+      case 'tty': {
+        function isatty(_fd) { return false; }
+        class ReadStream { constructor() { this.isTTY = false; } }
+        class WriteStream {
+          constructor() { this.isTTY = false; this.columns = 80; this.rows = 24; }
+          write(data) { return true; }
+          on(_event, _cb) { return this; }
+          once(_event, _cb) { return this; }
+          end() {}
+        }
+        return { isatty, ReadStream, WriteStream };
+      }
+      case 'net': {
+        class Socket {
+          constructor() { this.destroyed = false; }
+          connect() { return this; }
+          on(_e, _cb) { return this; }
+          write(_d) { return true; }
+          end() { this.destroyed = true; }
+          destroy() { this.destroyed = true; }
+        }
+        class Server {
+          constructor() {}
+          listen(_port, _host, cb) { if (typeof cb === 'function') cb(); return this; }
+          close(cb) { if (typeof cb === 'function') cb(); }
+          on(_e, _cb) { return this; }
+          address() { return { port: 0, address: '0.0.0.0' }; }
+        }
+        function createServer(cb) { return new Server(); }
+        function createConnection() { return new Socket(); }
+        return { Socket, Server, createServer, createConnection, connect: createConnection };
+      }
+      case 'dns': {
+        return {
+          lookup: (hostname, opts, cb) => { if (typeof opts === 'function') { cb = opts; } cb(null, '127.0.0.1', 4); },
+          resolve: (hostname, cb) => { cb(null, ['127.0.0.1']); },
+          promises: { lookup: async () => ({ address: '127.0.0.1', family: 4 }), resolve: async () => ['127.0.0.1'] },
+        };
+      }
+      case 'worker_threads': {
+        return { isMainThread: true, parentPort: null, workerData: null, Worker: class {} };
+      }
+      case 'perf_hooks': {
+        return { performance: globalThis.performance || { now: () => Date.now(), mark: () => {}, measure: () => {} } };
+      }
+      case 'v8': {
+        return { serialize: () => new Uint8Array(0), deserialize: () => undefined };
+      }
+      case 'vm': {
+        return {
+          createContext: (sandbox) => sandbox || {},
+          runInContext: (code, context) => { return new Function('with(this){return eval(arguments[0])}').call(context, code); },
+          runInNewContext: (code, sandbox) => { return new Function('with(this){return eval(arguments[0])}').call(sandbox || {}, code); },
+          Script: class { constructor(code) { this._code = code; } runInContext(ctx) { return new Function('with(this){return eval(arguments[0])}').call(ctx, this._code); } },
+        };
+      }
+      case 'constants': {
+        return {};
+      }
+      default:
+        // For unimplemented builtins, return a stub that throws on property access
+        if (_BUILTIN_NAMES.has(name)) {
+          return new Proxy({}, { get(_, prop) {
+            if (prop === Symbol.toPrimitive || prop === 'toString' || prop === 'valueOf') return undefined;
+            throw new Error('node:' + name + '.' + String(prop) + ' is not supported in the Vertz runtime.');
+          }});
+        }
+        return undefined;
+    }
+  }
 
   function _resolveCjsPath(specifier, fromDir) {
     if (specifier.startsWith('./') || specifier.startsWith('../')) {
@@ -1289,6 +1803,7 @@ pub const CJS_BOOTSTRAP_JS: &str = r#"
 
     const requireFn = _createRequire(dirname);
     requireFn.resolve = function(specifier) {
+      if (_isBuiltin(specifier)) return specifier;
       return _resolveCjsPath(specifier, dirname);
     };
 
@@ -1299,12 +1814,21 @@ pub const CJS_BOOTSTRAP_JS: &str = r#"
   }
 
   function _createRequire(fromDir) {
-    return function require(specifier) {
+    const requireFn = function require(specifier) {
+      // Check Node.js built-in modules first
+      const builtin = _isBuiltin(specifier) ? _getBuiltin(specifier) : undefined;
+      if (builtin !== undefined) return builtin;
+
       const resolved = _resolveCjsPath(specifier, fromDir);
       const lastSlash = resolved.lastIndexOf('/');
       const dirname = lastSlash >= 0 ? resolved.substring(0, lastSlash) : '.';
       return _loadCjsModule(resolved, dirname);
     };
+    requireFn.resolve = function(specifier) {
+      if (_isBuiltin(specifier)) return specifier;
+      return _resolveCjsPath(specifier, fromDir);
+    };
+    return requireFn;
   }
 
   globalThis.__vtz_cjs_require = _createRequire;
@@ -1794,6 +2318,7 @@ if (!proc.argv) proc.argv = [];
 if (!proc.platform) proc.platform = Deno.core.ops.op_os_platform();
 if (!proc.version) proc.version = 'v20.0.0';
 if (!proc.versions) proc.versions = {};
+if (!proc.versions.node) proc.versions.node = '20.0.0';
 if (!proc.exit) proc.exit = (code) => { throw new Error('process.exit(' + (code !== undefined ? code : '') + ') is not supported in the Vertz runtime'); };
 if (!proc.nextTick) proc.nextTick = (fn, ...args) => queueMicrotask(() => fn(...args));
 if (!proc.stdout) proc.stdout = { write: (s) => { console.log(s); } };
@@ -2071,15 +2596,27 @@ export default { Buffer: globalThis.Buffer };
 /// Provides createRequire for CJS interop (used by bunup-generated shims).
 const NODE_MODULE_SPECIFIER: &str = "vertz:node_module";
 const NODE_MODULE_MODULE: &str = r#"
-// createRequire shim: resolves bare specifiers via dynamic import
-// This is used by bunup's CJS interop: `var __require = createRequire(import.meta.url)`
-export function createRequire(_url) {
-  return function require(specifier) {
-    throw new Error(
-      `createRequire().require("${specifier}") is not supported in the Vertz runtime. ` +
-      `Use ESM imports instead.`
-    );
-  };
+// createRequire: delegates to the CJS bootstrap's require infrastructure.
+// Converts a file:// URL or file path to a directory, then uses __vtz_cjs_require.
+export function createRequire(urlOrPath) {
+  let dir;
+  if (typeof urlOrPath === 'string') {
+    if (urlOrPath.startsWith('file://')) {
+      const filePath = Deno.core.ops.op_file_url_to_path(urlOrPath);
+      const lastSlash = filePath.lastIndexOf('/');
+      dir = lastSlash >= 0 ? filePath.substring(0, lastSlash) : '.';
+    } else {
+      const lastSlash = urlOrPath.lastIndexOf('/');
+      dir = lastSlash >= 0 ? urlOrPath.substring(0, lastSlash) : '.';
+    }
+  } else if (urlOrPath && typeof urlOrPath === 'object' && typeof urlOrPath.href === 'string') {
+    const filePath = Deno.core.ops.op_file_url_to_path(urlOrPath.href);
+    const lastSlash = filePath.lastIndexOf('/');
+    dir = lastSlash >= 0 ? filePath.substring(0, lastSlash) : '.';
+  } else {
+    dir = '.';
+  }
+  return globalThis.__vtz_cjs_require(dir);
 }
 export default { createRequire };
 "#;
@@ -3873,10 +4410,20 @@ exports.bar = fn;";
         let src = "module.exports = { foo, bar };";
         let result = wrap_cjs_module(src, path);
         assert!(result.contains("export default __cjs_exports;"));
-        // Named re-exports destructure from __cjs_exports
+        // Named re-exports use aliased variables to avoid conflicts
         assert!(
-            result.contains("export const { bar, foo } = __cjs_exports;"),
-            "Expected named re-exports, got:\n{}",
+            result.contains("var __cjs_e_bar = __cjs_exports.bar;"),
+            "Expected aliased var for bar, got:\n{}",
+            result
+        );
+        assert!(
+            result.contains("var __cjs_e_foo = __cjs_exports.foo;"),
+            "Expected aliased var for foo, got:\n{}",
+            result
+        );
+        assert!(
+            result.contains("export { __cjs_e_bar as bar, __cjs_e_foo as foo }"),
+            "Expected aliased export statement, got:\n{}",
             result
         );
     }
@@ -3888,7 +4435,7 @@ exports.bar = fn;";
         let result = wrap_cjs_module(src, path);
         assert!(result.contains("export default __cjs_exports;"));
         assert!(
-            !result.contains("export const {"),
+            !result.contains("__cjs_e_"),
             "Should not have named re-exports for non-object export"
         );
     }
@@ -3934,5 +4481,145 @@ module.exports = { foo: 1 };";
         // Spread syntax should be silently skipped (can't statically analyze)
         let names = extract_cjs_named_exports("module.exports = { ...base, foo, bar };");
         assert_eq!(names, vec!["bar", "foo"]);
+    }
+
+    // ---------------------------------------------------------------
+    // Dead-code export annotation detection (#2539)
+    // ---------------------------------------------------------------
+
+    #[test]
+    fn test_extract_dead_code_exports_single_line() {
+        let src = r#"0 && (module.exports = { build, analyzeMetafile, formatMessages });"#;
+        let body = extract_dead_code_exports(src);
+        assert!(body.is_some(), "Should detect dead-code export annotation");
+        let body = body.unwrap();
+        assert!(body.contains("build"));
+        assert!(body.contains("analyzeMetafile"));
+        assert!(body.contains("formatMessages"));
+    }
+
+    #[test]
+    fn test_extract_dead_code_exports_no_spaces() {
+        let src = r#"0&&(module.exports={build,transform});"#;
+        let body = extract_dead_code_exports(src);
+        assert!(body.is_some(), "Should detect compact dead-code annotation");
+        let body = body.unwrap();
+        assert!(body.contains("build"));
+        assert!(body.contains("transform"));
+    }
+
+    #[test]
+    fn test_extract_dead_code_exports_multiline() {
+        let src = "0 && (module.exports = {\n  build,\n  transform,\n  stop\n});";
+        let body = extract_dead_code_exports(src);
+        assert!(
+            body.is_some(),
+            "Should detect multi-line dead-code annotation"
+        );
+        let body = body.unwrap();
+        assert!(body.contains("build"));
+        assert!(body.contains("transform"));
+        assert!(body.contains("stop"));
+    }
+
+    #[test]
+    fn test_extract_dead_code_exports_returns_none_for_normal_assignment() {
+        let src = "module.exports = { foo, bar };";
+        let body = extract_dead_code_exports(src);
+        assert!(
+            body.is_none(),
+            "Normal assignment should NOT match dead-code pattern"
+        );
+    }
+
+    #[test]
+    fn test_extract_dead_code_exports_returns_none_for_no_annotation() {
+        let src = "const x = 1;\nexports.foo = x;";
+        let body = extract_dead_code_exports(src);
+        assert!(body.is_none());
+    }
+
+    #[test]
+    fn test_extract_dead_code_exports_rejects_false_positive() {
+        // `foo(0) && bar(` contains 0, &&, and ( but in wrong structural order
+        let src = r#"foo(0) && bar(module.exports = { fake, exports });"#;
+        let body = extract_dead_code_exports(src);
+        assert!(
+            body.is_none(),
+            "Should NOT match when 0/&&/( are not in dead-code guard structure"
+        );
+    }
+
+    #[test]
+    fn test_extract_cjs_named_exports_falls_back_to_dead_code_pattern() {
+        // When there are no standard named exports but a dead-code annotation exists,
+        // extract_cjs_named_exports should fall back to the dead-code pattern
+        let src = r#"
+var __defProp = Object.defineProperty;
+// ... bundled code ...
+var build = function() {};
+var transform = function() {};
+0 && (module.exports = { build, transform });
+"#;
+        let names = extract_cjs_named_exports(src);
+        assert_eq!(names, vec!["build", "transform"]);
+    }
+
+    // ---------------------------------------------------------------
+    // Aliased named export wrapping (#2539)
+    // ---------------------------------------------------------------
+
+    #[test]
+    fn test_wrap_cjs_module_aliased_exports_avoid_conflicts() {
+        // CJS sources (like esbuild bundles) may declare the same identifiers
+        // that appear in named exports. The aliased pattern avoids conflicts.
+        let path = Path::new("/tmp/test/esbuild.js");
+        let src = "var build = function() {};\nmodule.exports = { build };";
+        let result = wrap_cjs_module(src, path);
+        // Should use aliased variables, not `export const { build } = ...`
+        assert!(
+            result.contains("var __cjs_e_build = __cjs_exports.build;"),
+            "Should use aliased variable, got:\n{}",
+            result
+        );
+        assert!(
+            result.contains("__cjs_e_build as build"),
+            "Should use aliased export, got:\n{}",
+            result
+        );
+        // Must NOT contain the old destructuring pattern
+        assert!(
+            !result.contains("export const { build }"),
+            "Should NOT use destructuring pattern"
+        );
+    }
+
+    #[test]
+    fn test_wrap_cjs_module_dead_code_exports_become_named_exports() {
+        // esbuild-style bundles use dead-code annotation instead of
+        // `module.exports = { ... }` for named exports
+        let path = Path::new("/tmp/test/esbuild-bundle.js");
+        let src = r#"
+var build = function() {};
+var transform = function() {};
+module.exports = require_main();
+0 && (module.exports = { build, transform });
+"#;
+        let result = wrap_cjs_module(src, path);
+        assert!(
+            result.contains("var __cjs_e_build = __cjs_exports.build;"),
+            "Dead-code exports should become aliased named exports, got:\n{}",
+            result
+        );
+        assert!(
+            result.contains("var __cjs_e_transform = __cjs_exports.transform;"),
+            "Dead-code exports should become aliased named exports, got:\n{}",
+            result
+        );
+        assert!(
+            result.contains("export { __cjs_e_build as build, __cjs_e_transform as transform }"),
+            "Should have export statement with aliases, got:\n{}",
+            result
+        );
     }
 }

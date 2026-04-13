@@ -66,6 +66,18 @@ pub const ENV_BOOTSTRAP_JS: &str = r#"
   if (!globalThis.process.cwd) {
     globalThis.process.cwd = () => Deno.core.ops.op_cwd();
   }
+  if (!globalThis.process.versions) {
+    globalThis.process.versions = {};
+  }
+  if (!globalThis.process.versions.node) {
+    globalThis.process.versions.node = '20.0.0';
+  }
+  if (!globalThis.process.version) {
+    globalThis.process.version = 'v20.0.0';
+  }
+  if (!globalThis.process.platform) {
+    globalThis.process.platform = Deno.core.ops.op_os_platform();
+  }
 })(globalThis);
 "#;
 
