@@ -68,6 +68,10 @@ pub struct VertzModuleLoader {
     shared_source_cache: Option<std::sync::Arc<SharedSourceCache>>,
     v8_code_cache: Option<std::sync::Arc<V8CodeCache>>,
     resolution_cache: Option<std::sync::Arc<SharedResolutionCache>>,
+    /// Cache for package.json "type" field lookups.
+    /// Key: directory path, Value: `true` if the directory has a package.json with `"type": "module"`.
+    /// Missing key means "not yet checked".
+    pkg_type_cache: RefCell<HashMap<PathBuf, Option<bool>>>,
 }
 
 impl VertzModuleLoader {
@@ -83,6 +87,7 @@ impl VertzModuleLoader {
             shared_source_cache: None,
             v8_code_cache: None,
             resolution_cache: None,
+            pkg_type_cache: RefCell::new(HashMap::new()),
         }
     }
 
@@ -103,6 +108,7 @@ impl VertzModuleLoader {
             shared_source_cache: None,
             v8_code_cache: None,
             resolution_cache: None,
+            pkg_type_cache: RefCell::new(HashMap::new()),
         }
     }
 
@@ -127,6 +133,7 @@ impl VertzModuleLoader {
             shared_source_cache,
             v8_code_cache,
             resolution_cache,
+            pkg_type_cache: RefCell::new(HashMap::new()),
         }
     }
 
@@ -773,7 +780,16 @@ impl VertzModuleLoader {
 ///
 /// Additionally, if no `package.json` is found (e.g. temp directories), falls
 /// back to source-level heuristic: files with ESM syntax are treated as ESM.
-fn is_cjs_module(path: &Path, source: &str) -> bool {
+/// Determine whether the given file is a CommonJS module.
+///
+/// When `cache` is provided, the result of package.json "type" field lookups is
+/// memoized per directory so repeated loads from the same package avoid redundant
+/// filesystem reads.
+fn is_cjs_module_cached(
+    path: &Path,
+    source: &str,
+    cache: Option<&RefCell<HashMap<PathBuf, Option<bool>>>>,
+) -> bool {
     let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("");
     match ext {
         "cjs" => true,
@@ -781,15 +797,42 @@ fn is_cjs_module(path: &Path, source: &str) -> bool {
         "js" => {
             let mut dir = path.parent();
             while let Some(d) = dir {
-                let pkg_json = d.join("package.json");
-                if pkg_json.is_file() {
-                    if let Ok(content) = std::fs::read_to_string(&pkg_json) {
-                        if let Ok(json) = serde_json::from_str::<serde_json::Value>(&content) {
-                            return json.get("type").and_then(|v| v.as_str()) != Some("module");
+                // Check cache first
+                if let Some(c) = cache {
+                    if let Some(cached) = c.borrow().get(d).copied() {
+                        // cached == Some(true) means "type":"module", Some(false) means CJS,
+                        // None means "no package.json here, keep walking up"
+                        match cached {
+                            Some(is_esm) => return !is_esm,
+                            None => {
+                                dir = d.parent();
+                                continue;
+                            }
                         }
                     }
-                    // Unreadable/unparseable package.json → default to CJS
-                    return true;
+                }
+
+                let pkg_json = d.join("package.json");
+                if pkg_json.is_file() {
+                    let is_esm = if let Ok(content) = std::fs::read_to_string(&pkg_json) {
+                        if let Ok(json) = serde_json::from_str::<serde_json::Value>(&content) {
+                            json.get("type").and_then(|v| v.as_str()) == Some("module")
+                        } else {
+                            false // Unparseable → default CJS
+                        }
+                    } else {
+                        false // Unreadable → default CJS
+                    };
+
+                    if let Some(c) = cache {
+                        c.borrow_mut().insert(d.to_path_buf(), Some(is_esm));
+                    }
+                    return !is_esm;
+                }
+
+                // No package.json in this directory
+                if let Some(c) = cache {
+                    c.borrow_mut().insert(d.to_path_buf(), None);
                 }
                 dir = d.parent();
             }
@@ -803,21 +846,59 @@ fn is_cjs_module(path: &Path, source: &str) -> bool {
 /// Quick heuristic: check if source contains ESM export/import syntax.
 ///
 /// Looks for `export ` or `import ` at the start of a line (after optional
-/// whitespace). This is intentionally simple — it doesn't parse comments or
-/// strings, but it's enough to avoid wrapping obvious ESM files.
+/// whitespace), skipping block comments. This is intentionally simple — it
+/// doesn't parse strings, but it's enough to avoid wrapping obvious ESM files.
 fn has_esm_syntax(source: &str) -> bool {
+    let mut in_block_comment = false;
     for line in source.lines() {
         let trimmed = line.trim();
-        if trimmed.starts_with("export ")
-            || trimmed.starts_with("export{")
-            || trimmed.starts_with("import ")
-            || trimmed.starts_with("import{")
-            || trimmed.starts_with("import(")
-        {
+
+        // Track block comment state
+        if in_block_comment {
+            if let Some(pos) = trimmed.find("*/") {
+                // Block comment ends — check the rest of this line
+                let rest = trimmed[pos + 2..].trim();
+                in_block_comment = false;
+                if is_esm_line(rest) {
+                    return true;
+                }
+            }
+            continue;
+        }
+
+        // Skip single-line comments
+        if trimmed.starts_with("//") {
+            continue;
+        }
+
+        // Check for block comment start
+        if trimmed.starts_with("/*") {
+            if let Some(end_pos) = trimmed.find("*/") {
+                // Inline block comment — check the rest of the line
+                let rest = trimmed[end_pos + 2..].trim();
+                if is_esm_line(rest) {
+                    return true;
+                }
+            } else {
+                in_block_comment = true;
+            }
+            continue;
+        }
+
+        if is_esm_line(trimmed) {
             return true;
         }
     }
     false
+}
+
+/// Check if a trimmed line starts with ESM syntax.
+fn is_esm_line(trimmed: &str) -> bool {
+    trimmed.starts_with("export ")
+        || trimmed.starts_with("export{")
+        || trimmed.starts_with("import ")
+        || trimmed.starts_with("import{")
+        || trimmed.starts_with("import(")
 }
 
 /// Wrap CommonJS source code into an ESM module.
@@ -2187,7 +2268,8 @@ impl ModuleLoader for VertzModuleLoader {
             let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("");
 
             // Determine if we need to compile or wrap
-            let is_cjs = matches!(ext, "js" | "cjs" | "") && is_cjs_module(&path, &source);
+            let is_cjs = matches!(ext, "js" | "cjs" | "")
+                && is_cjs_module_cached(&path, &source, Some(&self.pkg_type_cache));
             let (code, module_type) = match ext {
                 "ts" | "tsx" | "jsx" => {
                     let compiled = self.compile_source(&source, &filename)?;
@@ -3296,5 +3378,178 @@ export function Hello() {
             result
         );
         assert_eq!(result.unwrap().to_file_path().unwrap(), canon(&src_entry));
+    }
+
+    // ---------------------------------------------------------------
+    // has_esm_syntax tests
+    // ---------------------------------------------------------------
+
+    #[test]
+    fn test_has_esm_syntax_export_default() {
+        assert!(has_esm_syntax("export default function foo() {}"));
+    }
+
+    #[test]
+    fn test_has_esm_syntax_named_export() {
+        assert!(has_esm_syntax("export { foo };"));
+    }
+
+    #[test]
+    fn test_has_esm_syntax_import_statement() {
+        assert!(has_esm_syntax("import { bar } from 'baz';"));
+    }
+
+    #[test]
+    fn test_has_esm_syntax_import_brace() {
+        assert!(has_esm_syntax("import{bar} from 'baz';"));
+    }
+
+    #[test]
+    fn test_has_esm_syntax_no_esm() {
+        assert!(!has_esm_syntax("const x = 1;\nmodule.exports = x;\n"));
+    }
+
+    #[test]
+    fn test_has_esm_syntax_skips_single_line_comment() {
+        assert!(!has_esm_syntax("// export default 42\nconst x = 1;"));
+    }
+
+    #[test]
+    fn test_has_esm_syntax_skips_block_comment() {
+        assert!(!has_esm_syntax(
+            "/* export default 42\nexport { foo } */\nconst x = 1;"
+        ));
+    }
+
+    #[test]
+    fn test_has_esm_syntax_after_block_comment() {
+        assert!(has_esm_syntax("/* comment */\nexport default 42;"));
+    }
+
+    #[test]
+    fn test_has_esm_syntax_inline_block_comment_then_esm() {
+        // Block comment ends on same line, ESM follows
+        assert!(has_esm_syntax("/* comment */ export default 42;"));
+    }
+
+    // ---------------------------------------------------------------
+    // is_cjs_module_cached tests
+    // ---------------------------------------------------------------
+
+    #[test]
+    fn test_cjs_detection_cjs_extension() {
+        let path = Path::new("/tmp/foo.cjs");
+        assert!(is_cjs_module_cached(path, "", None));
+    }
+
+    #[test]
+    fn test_cjs_detection_mjs_extension() {
+        let path = Path::new("/tmp/foo.mjs");
+        assert!(!is_cjs_module_cached(path, "", None));
+    }
+
+    #[test]
+    fn test_cjs_detection_js_with_type_module() {
+        let tmp = create_temp_dir();
+        std::fs::write(tmp.path().join("package.json"), r#"{ "type": "module" }"#).unwrap();
+        let js_path = tmp.path().join("index.js");
+        std::fs::write(&js_path, "module.exports = 1;").unwrap();
+        assert!(!is_cjs_module_cached(&js_path, "module.exports = 1;", None));
+    }
+
+    #[test]
+    fn test_cjs_detection_js_with_type_commonjs() {
+        let tmp = create_temp_dir();
+        std::fs::write(tmp.path().join("package.json"), r#"{ "type": "commonjs" }"#).unwrap();
+        let js_path = tmp.path().join("index.js");
+        std::fs::write(&js_path, "export default 1;").unwrap();
+        assert!(is_cjs_module_cached(&js_path, "export default 1;", None));
+    }
+
+    #[test]
+    fn test_cjs_detection_js_no_package_json_cjs_source() {
+        let tmp = create_temp_dir();
+        let js_path = tmp.path().join("index.js");
+        std::fs::write(&js_path, "module.exports = { foo: 1 };").unwrap();
+        // No package.json → falls back to source heuristic
+        assert!(is_cjs_module_cached(
+            &js_path,
+            "module.exports = { foo: 1 };",
+            None
+        ));
+    }
+
+    #[test]
+    fn test_cjs_detection_js_no_package_json_esm_source() {
+        let tmp = create_temp_dir();
+        let js_path = tmp.path().join("index.js");
+        std::fs::write(&js_path, "export default 1;").unwrap();
+        // No package.json → source has ESM syntax → not CJS
+        assert!(!is_cjs_module_cached(&js_path, "export default 1;", None));
+    }
+
+    #[test]
+    fn test_cjs_detection_uses_cache() {
+        let tmp = create_temp_dir();
+        std::fs::write(tmp.path().join("package.json"), r#"{ "type": "module" }"#).unwrap();
+        let js_path = tmp.path().join("index.js");
+        std::fs::write(&js_path, "").unwrap();
+
+        let cache: RefCell<HashMap<PathBuf, Option<bool>>> = RefCell::new(HashMap::new());
+        // First call populates cache
+        assert!(!is_cjs_module_cached(&js_path, "", Some(&cache)));
+        assert!(!cache.borrow().is_empty());
+
+        // Cache should contain the directory with Some(true) = ESM
+        let has_entry = cache.borrow().values().any(|v| *v == Some(true));
+        assert!(has_entry, "Cache should contain ESM entry");
+
+        // Second call uses cache (even if we delete the package.json)
+        std::fs::remove_file(tmp.path().join("package.json")).unwrap();
+        // Reset the file for a clean re-read (source has no ESM syntax, so without
+        // cache it would think CJS because package.json is gone)
+        assert!(!is_cjs_module_cached(&js_path, "", Some(&cache)));
+    }
+
+    // ---------------------------------------------------------------
+    // wrap_cjs_module tests
+    // ---------------------------------------------------------------
+
+    #[test]
+    fn test_wrap_cjs_module_has_default_export() {
+        let path = Path::new("/tmp/test/foo.js");
+        let result = wrap_cjs_module("module.exports = 42;", path);
+        assert!(result.contains("export default __cjs_exports;"));
+    }
+
+    #[test]
+    fn test_wrap_cjs_module_provides_filename() {
+        let path = Path::new("/tmp/test/foo.js");
+        let result = wrap_cjs_module("", path);
+        assert!(result.contains("__filename"));
+        assert!(result.contains("/tmp/test/foo.js"));
+    }
+
+    #[test]
+    fn test_wrap_cjs_module_provides_dirname() {
+        let path = Path::new("/tmp/test/foo.js");
+        let result = wrap_cjs_module("", path);
+        assert!(result.contains("__dirname"));
+        assert!(result.contains("/tmp/test"));
+    }
+
+    #[test]
+    fn test_wrap_cjs_module_provides_require() {
+        let path = Path::new("/tmp/test/foo.js");
+        let result = wrap_cjs_module("", path);
+        assert!(result.contains("var require = globalThis.__vtz_cjs_require("));
+    }
+
+    #[test]
+    fn test_wrap_cjs_module_preserves_source() {
+        let path = Path::new("/tmp/test/foo.js");
+        let src = "const x = 1;\nmodule.exports = x;";
+        let result = wrap_cjs_module(src, path);
+        assert!(result.contains(src));
     }
 }
