@@ -285,8 +285,8 @@ if (typeof globalThis.HTMLElement === 'undefined') {
       return a.every((v, i) => deepEqual(v, b[i], seen));
     }
 
-    const keysA = Object.keys(a);
-    const keysB = Object.keys(b);
+    const keysA = Object.keys(a).filter(k => a[k] !== undefined);
+    const keysB = Object.keys(b).filter(k => b[k] !== undefined);
     if (keysA.length !== keysB.length) return false;
     return keysA.every(k => deepEqual(a[k], b[k], seen));
   }
@@ -1641,6 +1641,37 @@ mod tests {
                 });
                 it('NaN equals NaN', () => {
                     expect(NaN).toEqual(NaN);
+                });
+            });
+            "#,
+        );
+
+        let arr = results.as_array().unwrap();
+        assert_eq!(arr.len(), 3);
+        for (i, item) in arr.iter().enumerate() {
+            assert_eq!(
+                item["status"], "pass",
+                "Test {} ({}) failed: {:?}",
+                i, item["name"], item["error"]
+            );
+        }
+    }
+
+    #[test]
+    fn test_deep_equal_undefined_properties() {
+        let mut rt = create_test_runtime();
+        let results = run_test_code(
+            &mut rt,
+            r#"
+            describe('deepEqual undefined properties', () => {
+                it('treats explicit undefined same as missing key', () => {
+                    expect({ a: 1, b: undefined }).toEqual({ a: 1 });
+                });
+                it('treats missing key same as explicit undefined', () => {
+                    expect({ a: 1 }).toEqual({ a: 1, b: undefined });
+                });
+                it('both sides with undefined properties', () => {
+                    expect({ a: 1, b: undefined }).toEqual({ a: 1, b: undefined });
                 });
             });
             "#,

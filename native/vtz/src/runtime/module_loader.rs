@@ -359,8 +359,18 @@ impl VertzModuleLoader {
             let nm_dir = search_dir.join("node_modules").join(&package_name);
             if nm_dir.is_symlink() {
                 // Follow symlinks (Bun creates symlinks in workspace packages)
-                let canonical = nm_dir.canonicalize().unwrap_or(nm_dir);
-                return self.resolve_package_entry(&canonical, subpath.as_deref());
+                match nm_dir.canonicalize() {
+                    Ok(canonical) => {
+                        return self.resolve_package_entry(&canonical, subpath.as_deref());
+                    }
+                    Err(_) => {
+                        // Broken symlink — continue searching up the tree
+                        if !search_dir.pop() {
+                            break;
+                        }
+                        continue;
+                    }
+                }
             }
             if nm_dir.is_dir() {
                 return self.resolve_package_entry(&nm_dir, subpath.as_deref());
