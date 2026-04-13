@@ -71,6 +71,17 @@ pub(crate) fn resolve_esbuild_binary() -> Result<PathBuf, deno_core::error::AnyE
     ))
 }
 
+/// Reject option values containing null bytes or newlines (defense-in-depth).
+fn validate_option(name: &str, value: &str) -> Result<(), deno_core::error::AnyError> {
+    if value.contains('\0') || value.contains('\n') || value.contains('\r') {
+        return Err(deno_core::anyhow::anyhow!(
+            "esbuild option '{}' contains invalid characters",
+            name
+        ));
+    }
+    Ok(())
+}
+
 /// Core transform logic — testable without the op2 macro.
 pub(crate) fn esbuild_transform(
     options: &EsbuildTransformOptions,
@@ -80,15 +91,19 @@ pub(crate) fn esbuild_transform(
     let mut args = vec!["--bundle=false".to_string()];
 
     if let Some(ref loader) = options.loader {
+        validate_option("loader", loader)?;
         args.push(format!("--loader={loader}"));
     }
     if let Some(ref jsx) = options.jsx {
+        validate_option("jsx", jsx)?;
         args.push(format!("--jsx={jsx}"));
     }
     if let Some(ref source) = options.jsx_import_source {
+        validate_option("jsx_import_source", source)?;
         args.push(format!("--jsx-import-source={source}"));
     }
     if let Some(ref target) = options.target {
+        validate_option("target", target)?;
         args.push(format!("--target={target}"));
     }
     if options.sourcemap == Some(true) {
@@ -152,9 +167,6 @@ pub fn op_esbuild_transform_sync(
 pub fn op_decls() -> Vec<OpDecl> {
     vec![op_esbuild_transform_sync()]
 }
-
-/// Bootstrap JS for esbuild (empty — no globals needed, module provides the API).
-pub const ESBUILD_BOOTSTRAP_JS: &str = "";
 
 #[cfg(test)]
 mod tests {

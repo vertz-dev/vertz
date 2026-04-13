@@ -49,6 +49,8 @@ pub fn op_is_tty(#[smi] fd: u32) -> bool {
 }
 
 /// Write raw string to stdout (fd 1). No newline appended.
+/// Always returns `true` — Node.js returns `false` for backpressure, but
+/// this shim writes synchronously and does not implement drain events.
 #[op2(fast)]
 pub fn op_write_stdout(#[string] data: &str) -> Result<bool, deno_core::error::AnyError> {
     use std::io::Write;

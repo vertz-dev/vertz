@@ -559,65 +559,30 @@ pub fn op_fs_chmod_sync(#[string] path: String, #[smi] mode: u32) -> Result<(), 
 /// mode: F_OK=0, R_OK=4, W_OK=2, X_OK=1
 #[op2(fast)]
 pub fn op_fs_access_sync(#[string] path: String, #[smi] mode: u32) -> Result<(), AnyError> {
-    let metadata = std::fs::metadata(&path)
-        .map_err(|e| deno_core::anyhow::anyhow!("{}: {}: '{}'", io_error_code(&e), e, path))?;
-
-    // mode == 0 is F_OK — just check existence (already done above).
-    if mode == 0 {
-        return Ok(());
-    }
-
     #[cfg(unix)]
     {
-        use std::os::unix::fs::MetadataExt;
-        let file_mode = metadata.mode();
-        // SAFETY: getuid/getgid are always safe to call.
-        let uid = unsafe { libc::getuid() };
-        let gid = unsafe { libc::getgid() };
-        let is_owner = metadata.uid() == uid;
-        let is_group = metadata.gid() == gid;
-
-        if mode & 4 != 0 {
-            // R_OK
-            let readable = (is_owner && file_mode & 0o400 != 0)
-                || (is_group && file_mode & 0o040 != 0)
-                || (file_mode & 0o004 != 0);
-            if !readable {
-                return Err(deno_core::anyhow::anyhow!(
-                    "EACCES: permission denied, access '{}'",
-                    path
-                ));
-            }
-        }
-        if mode & 2 != 0 {
-            // W_OK
-            let writable = (is_owner && file_mode & 0o200 != 0)
-                || (is_group && file_mode & 0o020 != 0)
-                || (file_mode & 0o002 != 0);
-            if !writable {
-                return Err(deno_core::anyhow::anyhow!(
-                    "EACCES: permission denied, access '{}'",
-                    path
-                ));
-            }
-        }
-        if mode & 1 != 0 {
-            // X_OK
-            let executable = (is_owner && file_mode & 0o100 != 0)
-                || (is_group && file_mode & 0o010 != 0)
-                || (file_mode & 0o001 != 0);
-            if !executable {
-                return Err(deno_core::anyhow::anyhow!(
-                    "EACCES: permission denied, access '{}'",
-                    path
-                ));
-            }
+        use std::ffi::CString;
+        let c_path = CString::new(path.as_str())
+            .map_err(|_| deno_core::anyhow::anyhow!("ENOENT: invalid path: '{}'", path))?;
+        // SAFETY: c_path is a valid null-terminated C string, mode is a valid access mode.
+        let result = unsafe { libc::access(c_path.as_ptr(), mode as libc::c_int) };
+        if result != 0 {
+            let err = std::io::Error::last_os_error();
+            return Err(deno_core::anyhow::anyhow!(
+                "{}: {}: '{}'",
+                io_error_code(&err),
+                err,
+                path
+            ));
         }
     }
 
     #[cfg(not(unix))]
     {
-        let _ = metadata;
+        // On non-Unix, fall back to existence check via metadata.
+        std::fs::metadata(&path)
+            .map_err(|e| deno_core::anyhow::anyhow!("{}: {}: '{}'", io_error_code(&e), e, path))?;
+        let _ = mode;
     }
 
     Ok(())
@@ -1035,7 +1000,11 @@ pub const FS_BOOTSTRAP_JS: &str = r#"
           lastMtime = raw.mtimeMs;
           if (listener) listener('change', filename);
         }
-      } catch {}
+      } catch (e) {
+        // File was deleted or became inaccessible — emit 'rename' like Node.js
+        if (listener) listener('rename', filename);
+        clearInterval(timerId);
+      }
     }, interval);
 
     return {

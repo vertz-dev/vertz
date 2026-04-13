@@ -848,6 +848,10 @@ fn is_cjs_module_cached(
 /// Looks for `export ` or `import ` at the start of a line (after optional
 /// whitespace), skipping block comments. This is intentionally simple — it
 /// doesn't parse strings, but it's enough to avoid wrapping obvious ESM files.
+///
+/// Known limitation: does not detect `await import(...)` (dynamic import inside
+/// a non-import statement) or ESM keywords inside string literals. In practice,
+/// no sane bundler produces mixed CJS+ESM, so false positives are very rare.
 fn has_esm_syntax(source: &str) -> bool {
     let mut in_block_comment = false;
     for line in source.lines() {
@@ -1307,7 +1311,11 @@ fn is_js_global_name(name: &str) -> bool {
 
 /// Extract the export name from `Object.defineProperty(exports, "name", ...)`.
 fn extract_define_property_export(line: &str) -> Option<String> {
-    let rest = line.strip_prefix("Object.defineProperty(exports,")?;
+    // Handle both `Object.defineProperty(exports, ...)` and
+    // `Object.defineProperty(module.exports, ...)` (Webpack pattern).
+    let rest = line
+        .strip_prefix("Object.defineProperty(exports,")
+        .or_else(|| line.strip_prefix("Object.defineProperty(module.exports,"))?;
     let rest = rest.trim();
     // rest starts with a quoted string: "name" or 'name'
     let (quote, rest) = if let Some(stripped) = rest.strip_prefix('"') {
@@ -2802,8 +2810,11 @@ function getCurves() { return ['prime256v1', 'secp384r1', 'secp521r1']; }
 
 const constants = {};
 
+const __cryptoModule = { createHash, createHmac, timingSafeEqual, randomBytes, randomUUID, randomFillSync, randomInt, webcrypto, KeyObject, createPrivateKey, createPublicKey, generateKeyPairSync, getHashes, getCiphers, getCurves, constants };
+globalThis.__vertz_crypto = __cryptoModule;
+
 export { createHash, createHmac, timingSafeEqual, randomBytes, randomUUID, randomFillSync, randomInt, Hash, webcrypto, KeyObject, createPrivateKey, createPublicKey, generateKeyPairSync, getHashes, getCiphers, getCurves, constants };
-export default { createHash, createHmac, timingSafeEqual, randomBytes, randomUUID, randomFillSync, randomInt, webcrypto, KeyObject, createPrivateKey, createPublicKey, generateKeyPairSync, getHashes, getCiphers, getCurves, constants };
+export default __cryptoModule;
 "#;
 
 /// Synthetic module for `node:buffer` / `buffer`.
