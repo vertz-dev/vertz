@@ -638,7 +638,7 @@ export function tsconfigTemplate(): string {
       skipLibCheck: true,
       strict: true,
       target: 'ES2022',
-      types: [],
+      types: ['vertz/env'],
     },
     include: ['src', '.vertz/generated'],
   };

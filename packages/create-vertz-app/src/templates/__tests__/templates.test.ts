@@ -138,10 +138,10 @@ describe('templates', () => {
       expect(tsconfig.compilerOptions.jsxImportSource).toBe('@vertz/ui');
     });
 
-    it('has empty types array (no bun-types)', () => {
+    it('includes vertz/env in types for ImportMeta augmentations (#2561)', () => {
       const result = tsconfigTemplate();
       const tsconfig = JSON.parse(result);
-      expect(tsconfig.compilerOptions.types).toEqual([]);
+      expect(tsconfig.compilerOptions.types).toEqual(['vertz/env']);
     });
   });
 

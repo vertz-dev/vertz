@@ -92,8 +92,10 @@ describe('exports point to built artifacts', () => {
     const pkgPath = path.resolve(import.meta.dirname, '..', 'package.json');
     const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf-8'));
 
-    for (const [, entry] of Object.entries(pkg.exports)) {
-      const { import: importPath } = entry as { import: string };
+    for (const [subpath, entry] of Object.entries(pkg.exports)) {
+      const { import: importPath } = entry as { import?: string };
+      // Types-only exports (e.g., ./env) have no import field
+      if (!importPath) continue;
       expect(importPath.startsWith('./dist/')).toBe(true);
       expect(importPath.endsWith('.js')).toBe(true);
       // The built file must actually exist
@@ -102,7 +104,7 @@ describe('exports point to built artifacts', () => {
     }
   });
 
-  it('all subpath types resolve to dist/*.d.ts', async () => {
+  it('all subpath types resolve to .d.ts files', async () => {
     const fs = await import('node:fs');
     const path = await import('node:path');
     const pkgPath = path.resolve(import.meta.dirname, '..', 'package.json');
@@ -110,11 +112,25 @@ describe('exports point to built artifacts', () => {
 
     for (const [, entry] of Object.entries(pkg.exports)) {
       const { types: typesPath } = entry as { types: string };
-      expect(typesPath.startsWith('./dist/')).toBe(true);
       expect(typesPath.endsWith('.d.ts')).toBe(true);
       const fullPath = path.resolve(import.meta.dirname, '..', typesPath);
       expect(fs.existsSync(fullPath)).toBe(true);
     }
+  });
+
+  it('vertz/env is a types-only export pointing to env.d.ts', async () => {
+    const fs = await import('node:fs');
+    const path = await import('node:path');
+    const pkgPath = path.resolve(import.meta.dirname, '..', 'package.json');
+    const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf-8'));
+
+    const envExport = pkg.exports['./env'];
+    expect(envExport).toBeDefined();
+    expect(envExport.types).toBe('./env.d.ts');
+    expect(envExport.import).toBeUndefined();
+
+    const fullPath = path.resolve(import.meta.dirname, '..', envExport.types);
+    expect(fs.existsSync(fullPath)).toBe(true);
   });
 });
 
@@ -125,8 +141,9 @@ describe('tree-shaking: subpaths are independent modules', () => {
     const pkgPath = path.resolve(import.meta.dirname, '..', 'package.json');
     const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf-8'));
 
-    const exportPaths = Object.values(pkg.exports) as Array<{ import: string }>;
-    const importPaths = exportPaths.map((e) => e.import);
+    const exportPaths = Object.values(pkg.exports) as Array<{ import?: string }>;
+    // Filter to runtime exports (types-only exports have no import path)
+    const importPaths = exportPaths.map((e) => e.import).filter(Boolean);
 
     // All import paths should be unique (no shared entry point)
     const unique = new Set(importPaths);

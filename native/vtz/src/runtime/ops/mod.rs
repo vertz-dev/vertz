@@ -13,6 +13,7 @@ pub mod microtask;
 pub mod os;
 pub mod path;
 pub mod performance;
+pub mod process;
 pub mod signals;
 pub mod sqlite;
 pub mod streams;

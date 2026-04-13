@@ -2090,73 +2090,55 @@ export default { AsyncLocalStorage, AsyncResource };
 "#;
 
 /// Synthetic module for `node:child_process`.
-/// Provides spawn, execFile, execSync stubs that delegate to Deno.Command.
+/// Provides execSync, execFile, execFileSync, spawn via native op.
 const NODE_CHILD_PROCESS_SPECIFIER: &str = "vertz:node_child_process";
 const NODE_CHILD_PROCESS_MODULE: &str = r#"
 function execSync(cmd, opts) {
-  const parts = cmd.split(' ');
-  const command = new Deno.Command(parts[0], {
-    args: parts.slice(1),
-    cwd: opts?.cwd,
-    env: opts?.env,
-    stdout: opts?.encoding ? 'piped' : 'piped',
-    stderr: 'piped',
-  });
-  const result = command.outputSync();
-  if (result.code !== 0) {
+  // Node.js runs execSync through a shell (/bin/sh -c "...")
+  const [code, stdout, stderr] = Deno.core.ops.op_command_output_sync(
+    '/bin/sh', ['-c', cmd], opts?.cwd ?? null, opts?.env ?? null,
+  );
+  if (code !== 0) {
     const err = new Error(`Command failed: ${cmd}`);
-    err.status = result.code;
-    err.stderr = new TextDecoder().decode(result.stderr);
+    err.status = code;
+    err.stderr = stderr;
     throw err;
   }
-  const out = new TextDecoder().decode(result.stdout);
-  return opts?.encoding ? out : new TextEncoder().encode(out);
+  return opts?.encoding ? stdout : new TextEncoder().encode(stdout);
 }
 
 function execFile(file, args, opts, cb) {
   if (typeof opts === 'function') { cb = opts; opts = {}; }
+  let code, stdout, stderr;
   try {
-    const command = new Deno.Command(file, {
-      args: args || [],
-      cwd: opts?.cwd,
-      env: opts?.env,
-      stdout: 'piped',
-      stderr: 'piped',
-    });
-    const result = command.outputSync();
-    const stdout = new TextDecoder().decode(result.stdout);
-    const stderr = new TextDecoder().decode(result.stderr);
-    if (result.code !== 0) {
-      const err = new Error(`Command failed: ${file}`);
-      err.code = result.code;
-      err.stderr = stderr;
-      if (cb) cb(err, stdout, stderr); else throw err;
-      return;
-    }
-    if (cb) cb(null, stdout, stderr);
+    [code, stdout, stderr] = Deno.core.ops.op_command_output_sync(
+      file, args || [], opts?.cwd ?? null, opts?.env ?? null,
+    );
   } catch (e) {
-    if (cb) cb(e, '', '');
-    else throw e;
+    if (cb) { cb(e, '', ''); return; }
+    throw e;
   }
+  if (code !== 0) {
+    const err = new Error(`Command failed: ${file}`);
+    err.status = code;
+    err.stderr = stderr;
+    if (cb) cb(err, stdout, stderr); else throw err;
+    return;
+  }
+  if (cb) cb(null, stdout, stderr);
 }
 
 function execFileSync(file, args, opts) {
-  const command = new Deno.Command(file, {
-    args: args || [],
-    cwd: opts?.cwd,
-    env: opts?.env,
-    stdout: 'piped',
-    stderr: 'piped',
-  });
-  const result = command.outputSync();
-  if (result.code !== 0) {
+  const [code, stdout, stderr] = Deno.core.ops.op_command_output_sync(
+    file, args || [], opts?.cwd ?? null, opts?.env ?? null,
+  );
+  if (code !== 0) {
     const err = new Error(`Command failed: ${file}`);
-    err.status = result.code;
-    err.stderr = new TextDecoder().decode(result.stderr);
+    err.status = code;
+    err.stderr = stderr;
     throw err;
   }
-  const out = new TextDecoder().decode(result.stdout);
-  return opts?.encoding ? out : new TextEncoder().encode(out);
+  return opts?.encoding ? stdout : new TextEncoder().encode(stdout);
 }
 
 function spawn(_cmd, _args, _opts) {

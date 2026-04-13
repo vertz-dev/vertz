@@ -27,6 +27,7 @@ use super::ops::microtask;
 use super::ops::os;
 use super::ops::path;
 use super::ops::performance;
+use super::ops::process;
 use super::ops::signals;
 use super::ops::sqlite;
 use super::ops::streams;
@@ -115,6 +116,7 @@ impl VertzJsRuntime {
         ops.extend(e2e::op_decls());
         ops.extend(signals::op_decls());
         ops.extend(http_serve::op_decls());
+        ops.extend(process::op_decls());
         ops
     }
 
