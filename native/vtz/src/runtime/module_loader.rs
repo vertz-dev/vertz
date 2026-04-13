@@ -2387,8 +2387,42 @@ if (!proc.versions) proc.versions = {};
 if (!proc.versions.node) proc.versions.node = '20.0.0';
 if (!proc.exit) proc.exit = (code) => { throw new Error('process.exit(' + (code !== undefined ? code : '') + ') is not supported in the Vertz runtime'); };
 if (!proc.nextTick) proc.nextTick = (fn, ...args) => queueMicrotask(() => fn(...args));
-if (!proc.stdout) proc.stdout = { write: (s) => Deno.core.ops.op_stdout_write(String(s)) };
-if (!proc.stderr) proc.stderr = { write: (s) => Deno.core.ops.op_stderr_write(String(s)) };
+if (!proc.stdout) {
+  proc.stdout = {
+    isTTY: Deno.core.ops.op_is_tty(1),
+    columns: 80,
+    rows: 24,
+    write: function(data) { return Deno.core.ops.op_write_stdout(String(data)); },
+    on: function(_event, _cb) { return this; },
+    once: function(_event, _cb) { return this; },
+    removeListener: function(_event, _cb) { return this; },
+    end: function() {},
+  };
+}
+if (!proc.stderr) {
+  proc.stderr = {
+    isTTY: Deno.core.ops.op_is_tty(2),
+    columns: 80,
+    rows: 24,
+    write: function(data) { return Deno.core.ops.op_write_stderr(String(data)); },
+    on: function(_event, _cb) { return this; },
+    once: function(_event, _cb) { return this; },
+    removeListener: function(_event, _cb) { return this; },
+    end: function() {},
+  };
+}
+if (!proc.stdin) {
+  proc.stdin = {
+    isTTY: Deno.core.ops.op_is_tty(0),
+    isRaw: false,
+    setRawMode: function(_mode) { return this; },
+    on: function(_event, _cb) { return this; },
+    once: function(_event, _cb) { return this; },
+    removeListener: function(_event, _cb) { return this; },
+    resume: function() { return this; },
+    pause: function() { return this; },
+  };
+}
 globalThis.process = proc;
 
 export default proc;
@@ -2401,6 +2435,7 @@ export const versions = proc.versions;
 export const nextTick = proc.nextTick;
 export const stdout = proc.stdout;
 export const stderr = proc.stderr;
+export const stdin = proc.stdin;
 "#;
 
 /// Synthetic module for `node:fs`.
