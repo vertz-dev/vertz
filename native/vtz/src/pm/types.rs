@@ -131,6 +131,7 @@ pub struct ResolvedPackage {
     pub tarball_url: String,
     pub integrity: String,
     pub dependencies: BTreeMap<String, String>,
+    pub optional_dependencies: BTreeMap<String, String>,
     pub bin: BTreeMap<String, String>,
     /// Where this package lives in node_modules. Empty = root level.
     /// Non-empty = nested under these parent packages.
@@ -150,6 +151,7 @@ pub struct LockfileEntry {
     pub resolved: String,
     pub integrity: String,
     pub dependencies: BTreeMap<String, String>,
+    pub optional_dependencies: BTreeMap<String, String>,
     /// Binary executables exposed by this package (name → relative path)
     pub bin: BTreeMap<String, String>,
     /// Package scripts (e.g., postinstall). Stored so lockfile-only resolution
@@ -654,6 +656,7 @@ mod tests {
             tarball_url: "https://example.com/zod.tgz".to_string(),
             integrity: "sha512-abc".to_string(),
             dependencies: BTreeMap::new(),
+            optional_dependencies: BTreeMap::new(),
             bin: BTreeMap::new(),
             nest_path: vec![],
             os: None,

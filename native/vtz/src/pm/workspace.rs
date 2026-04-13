@@ -76,16 +76,21 @@ pub fn discover_workspaces(
 }
 
 /// Collect all external dependencies from all workspaces + root,
-/// merging into a single deps map and dev_deps map.
+/// merging into a single deps map, dev_deps map, and optional_deps map.
 /// Workspace-internal dependencies (one workspace depending on another) are excluded.
 pub fn merge_workspace_deps(
     root_pkg: &types::PackageJson,
     workspaces: &[WorkspacePackage],
-) -> (BTreeMap<String, String>, BTreeMap<String, String>) {
+) -> (
+    BTreeMap<String, String>,
+    BTreeMap<String, String>,
+    BTreeMap<String, String>,
+) {
     let ws_names: HashSet<&str> = workspaces.iter().map(|ws| ws.name.as_str()).collect();
 
     let mut deps = BTreeMap::new();
     let mut dev_deps = BTreeMap::new();
+    let mut optional_deps = BTreeMap::new();
 
     // Root deps
     for (name, range) in &root_pkg.dependencies {
@@ -96,6 +101,11 @@ pub fn merge_workspace_deps(
     for (name, range) in &root_pkg.dev_dependencies {
         if !ws_names.contains(name.as_str()) {
             dev_deps.insert(name.clone(), range.clone());
+        }
+    }
+    for (name, range) in &root_pkg.optional_dependencies {
+        if !ws_names.contains(name.as_str()) {
+            optional_deps.insert(name.clone(), range.clone());
         }
     }
 
@@ -113,9 +123,16 @@ pub fn merge_workspace_deps(
                     .or_insert_with(|| range.clone());
             }
         }
+        for (name, range) in &ws.pkg.optional_dependencies {
+            if !ws_names.contains(name.as_str()) {
+                optional_deps
+                    .entry(name.clone())
+                    .or_insert_with(|| range.clone());
+            }
+        }
     }
 
-    (deps, dev_deps)
+    (deps, dev_deps, optional_deps)
 }
 
 /// Symlink workspace packages into root node_modules/.
@@ -469,7 +486,7 @@ mod tests {
             make_workspace("@myorg/b", "packages/b", &[("typescript", "^5.0.0")], &[]),
         ];
 
-        let (deps, dev_deps) = merge_workspace_deps(&root_pkg, &workspaces);
+        let (deps, dev_deps, _optional_deps) = merge_workspace_deps(&root_pkg, &workspaces);
 
         // Internal dep "@myorg/b" should be excluded
         assert!(!deps.contains_key("@myorg/b"));
@@ -492,7 +509,7 @@ mod tests {
             &[],
         )];
 
-        let (deps, _) = merge_workspace_deps(&root_pkg, &workspaces);
+        let (deps, _, _) = merge_workspace_deps(&root_pkg, &workspaces);
         // Root dep takes precedence (first wins)
         assert_eq!(deps["zod"], "^3.24.0");
     }
@@ -759,5 +776,41 @@ mod tests {
         let versions = build_workspace_version_map(root).unwrap();
         assert_eq!(versions.get("@vertz/errors").unwrap(), "0.2.53");
         assert_eq!(versions.get("@vertz/fetch").unwrap(), "0.2.53");
+    }
+
+    #[test]
+    fn test_merge_workspace_deps_includes_optional() {
+        // Root has one optional dep, workspace has another
+        let mut root_pkg = make_ws_pkg("root", &[], &[]);
+        root_pkg
+            .optional_dependencies
+            .insert("fsevents".to_string(), "^2.3.0".to_string());
+
+        let mut ws_pkg = make_ws_pkg("app", &[("react", "^18.0.0")], &[]);
+        ws_pkg
+            .optional_dependencies
+            .insert("lightningcss".to_string(), "^1.30.0".to_string());
+
+        let workspaces = vec![WorkspacePackage {
+            name: "app".to_string(),
+            version: "1.0.0".to_string(),
+            path: PathBuf::from("packages/app"),
+            pkg: ws_pkg,
+        }];
+
+        let (deps, _dev_deps, optional_deps) = merge_workspace_deps(&root_pkg, &workspaces);
+
+        // Regular deps from workspace should be in deps
+        assert_eq!(deps["react"], "^18.0.0");
+
+        // Both root and workspace optional deps should be merged
+        assert_eq!(
+            optional_deps["fsevents"], "^2.3.0",
+            "root optional dep should be included"
+        );
+        assert_eq!(
+            optional_deps["lightningcss"], "^1.30.0",
+            "workspace optional dep should be included"
+        );
     }
 }

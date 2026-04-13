@@ -78,21 +78,25 @@ pub async fn install(
     };
 
     // Combine all deps for resolution (with workspace deps merged if applicable)
-    let (resolved_deps, resolved_dev_deps) = if !workspaces.is_empty() {
+    let (resolved_deps, resolved_dev_deps, resolved_optional_deps) = if !workspaces.is_empty() {
         workspace::merge_workspace_deps(&pkg, &workspaces)
     } else {
-        (pkg.dependencies.clone(), pkg.dev_dependencies.clone())
+        (
+            pkg.dependencies.clone(),
+            pkg.dev_dependencies.clone(),
+            pkg.optional_dependencies.clone(),
+        )
     };
 
     // Collect optional dependency names for lockfile marking
-    let optional_names: HashSet<String> = pkg.optional_dependencies.keys().cloned().collect();
+    let optional_names: HashSet<String> = resolved_optional_deps.keys().cloned().collect();
 
     let mut all_deps = resolved_deps.clone();
     for (k, v) in &resolved_dev_deps {
         all_deps.insert(k.clone(), v.clone());
     }
     // Include optional deps in all_deps for resolution
-    for (k, v) in &pkg.optional_dependencies {
+    for (k, v) in &resolved_optional_deps {
         all_deps.insert(k.clone(), v.clone());
     }
 
@@ -149,6 +153,7 @@ pub async fn install(
                 tarball_url: entry.resolved.clone(),
                 integrity: entry.integrity.clone(),
                 dependencies: entry.dependencies.clone(),
+                optional_dependencies: entry.optional_dependencies.clone(),
                 bin,
                 nest_path: vec![],
                 os: None,
@@ -194,6 +199,7 @@ pub async fn install(
                 tarball_url,
                 integrity,
                 dependencies: gh_pkg.dependencies.clone(),
+                optional_dependencies: gh_pkg.optional_dependencies.clone(),
                 bin: gh_pkg.bin.to_map(name),
                 nest_path: vec![],
                 os: None,
@@ -225,7 +231,7 @@ pub async fn install(
 
     // Resolve optional deps — failures are warnings, not errors
     let empty_overrides = overrides::OverrideMap::default();
-    for (name, range) in &pkg.optional_dependencies {
+    for (name, range) in &resolved_optional_deps {
         let mut optional_deps = BTreeMap::new();
         optional_deps.insert(name.clone(), range.clone());
         match resolver::resolve_all(
@@ -992,7 +998,11 @@ pub fn build_why(
                 break;
             }
 
-            for (dep_name, dep_range) in &current_entry.dependencies {
+            let all_deps = current_entry
+                .dependencies
+                .iter()
+                .chain(current_entry.optional_dependencies.iter());
+            for (dep_name, dep_range) in all_deps {
                 let dep_key = types::Lockfile::spec_key(dep_name, dep_range);
 
                 if visited.contains(&dep_key) {
@@ -1133,7 +1143,11 @@ fn add_transitive_deps(
         return;
     }
 
-    for (dep_name, dep_range) in &parent_entry.dependencies {
+    let all_deps = parent_entry
+        .dependencies
+        .iter()
+        .chain(parent_entry.optional_dependencies.iter());
+    for (dep_name, dep_range) in all_deps {
         let key = types::Lockfile::spec_key(dep_name, dep_range);
         let version = lockfile.entries.get(&key).map(|e| e.version.clone());
 
@@ -3034,6 +3048,7 @@ mod tests {
             ),
             integrity: format!("sha512-fake-{}", name),
             dependencies,
+            optional_dependencies: BTreeMap::new(),
             bin: BTreeMap::new(),
             scripts: BTreeMap::new(),
             optional: false,
@@ -4772,6 +4787,7 @@ mod tests {
                 resolved: "https://codeload.github.com/user/my-lib/tar.gz/a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2".to_string(),
                 integrity: "sha512-fakehash".to_string(),
                 dependencies: BTreeMap::new(),
+                optional_dependencies: BTreeMap::new(),
                 bin: BTreeMap::new(),
                 scripts: BTreeMap::new(),
                 optional: false,
@@ -4817,6 +4833,7 @@ mod tests {
                 resolved: "https://codeload.github.com/user/my-lib/tar.gz/a1b2c3d".to_string(),
                 integrity: "sha512-fakehash".to_string(),
                 dependencies: BTreeMap::new(),
+                optional_dependencies: BTreeMap::new(),
                 bin: BTreeMap::new(),
                 scripts: BTreeMap::new(),
                 optional: false,
