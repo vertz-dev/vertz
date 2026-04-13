@@ -1,9 +1,5 @@
 import { describe, expect, it } from '@vertz/test';
-import { execSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
-import { dirname, join, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import * as ts from 'typescript';
 import type { AppIR, ModuleIR, RouteIR, RouterIR, SchemaIR } from '../../ir/types';
 import {
   adaptIR,
@@ -744,86 +740,101 @@ describe('Unknown 3: File Generation', () => {
   });
 
   describe('end-to-end: generated files compile with tsc', () => {
-    it('writes generated files to temp dir and verifies they compile', () => {
-      const tmpDir = mkdtempSync(join(tmpdir(), 'codegen-poc-'));
-      const typesDir = join(tmpDir, 'types');
-      const modulesDir = join(tmpDir, 'modules');
-      mkdirSync(typesDir, { recursive: true });
-      mkdirSync(modulesDir, { recursive: true });
-
-      // Generate types files
-      const usersTypes = emitTypesFile('users', userSchemas);
-      writeFileSync(join(typesDir, 'users.ts'), usersTypes);
-
-      const ordersTypes = emitTypesFile('orders', orderSchemas);
-      writeFileSync(join(typesDir, 'orders.ts'), ordersTypes);
-
-      // Shared types (ReadUserResponse used by both)
-      const sharedTypes = emitSharedTypesFile({
-        ReadUserResponse: userSchemas.ReadUserResponse,
-      });
-      writeFileSync(join(typesDir, 'shared.ts'), sharedTypes);
-
-      // Module files
-      const usersModule = emitModuleFile(
-        'users',
-        [
-          { operationId: 'listUsers', method: 'GET', fullPath: '/users' },
-          { operationId: 'getUser', method: 'GET', fullPath: '/users/:id' },
-          { operationId: 'createUser', method: 'POST', fullPath: '/users' },
-        ],
-        ['../types/users'],
-      );
-      writeFileSync(join(modulesDir, 'users.ts'), usersModule);
-
-      const ordersModule = emitModuleFile(
-        'orders',
-        [
-          { operationId: 'listOrders', method: 'GET', fullPath: '/orders' },
-          { operationId: 'createOrder', method: 'POST', fullPath: '/orders' },
-        ],
-        ['../types/orders', '../types/shared'],
-      );
-      writeFileSync(join(modulesDir, 'orders.ts'), ordersModule);
-
-      // Client file
-      const clientContent = emitClientFile(['users', 'orders']);
-      writeFileSync(join(tmpDir, 'client.ts'), clientContent);
-
-      // Write tsconfig for the temp dir
-      const tsconfig = {
-        compilerOptions: {
-          target: 'ES2022',
-          module: 'ESNext',
-          moduleResolution: 'bundler',
-          strict: true,
-          noEmit: true,
-          skipLibCheck: true,
-        },
-        include: ['**/*.ts'],
+    it('type-checks generated files in-memory via TS Compiler API', () => {
+      // Build an in-memory file map of all generated sources
+      const files: Record<string, string> = {
+        '/gen/types/users.ts': emitTypesFile('users', userSchemas),
+        '/gen/types/orders.ts': emitTypesFile('orders', orderSchemas),
+        '/gen/types/shared.ts': emitSharedTypesFile({
+          ReadUserResponse: userSchemas.ReadUserResponse,
+        }),
+        '/gen/modules/users.ts': emitModuleFile(
+          'users',
+          [
+            { operationId: 'listUsers', method: 'GET', fullPath: '/users' },
+            { operationId: 'getUser', method: 'GET', fullPath: '/users/:id' },
+            { operationId: 'createUser', method: 'POST', fullPath: '/users' },
+          ],
+          ['../types/users'],
+        ),
+        '/gen/modules/orders.ts': emitModuleFile(
+          'orders',
+          [
+            { operationId: 'listOrders', method: 'GET', fullPath: '/orders' },
+            { operationId: 'createOrder', method: 'POST', fullPath: '/orders' },
+          ],
+          ['../types/orders', '../types/shared'],
+        ),
+        '/gen/client.ts': emitClientFile(['users', 'orders']),
       };
-      writeFileSync(join(tmpDir, 'tsconfig.json'), JSON.stringify(tsconfig, null, 2));
 
-      // Run tsc --noEmit using the compiler package's local tsc
-      const __dirname2 = dirname(fileURLToPath(import.meta.url));
-      const tscBin = resolve(__dirname2, '../../../node_modules/.bin/tsc');
-      let tscResult: { success: boolean; output: string };
-      try {
-        const output = execSync(`${tscBin} --noEmit`, {
-          cwd: tmpDir,
-          encoding: 'utf-8',
-          timeout: 25_000,
+      const compilerOptions: ts.CompilerOptions = {
+        target: ts.ScriptTarget.ES2022,
+        module: ts.ModuleKind.ESNext,
+        moduleResolution: ts.ModuleResolutionKind.Bundler,
+        strict: true,
+        noEmit: true,
+        skipLibCheck: true,
+      };
+
+      // Minimal lib declarations for built-in types used by generated code
+      const libStub = [
+        'interface Array<T> { length: number; map<U>(fn: (v: T) => U): U[]; }',
+        'interface ReadonlyArray<T> { length: number; }',
+        'interface String { length: number; }',
+        'interface Number {}',
+        'interface Boolean {}',
+        'interface Function { prototype: unknown; }',
+        'interface CallableFunction extends Function {}',
+        'interface NewableFunction extends Function {}',
+        'interface Object {}',
+        'interface IArguments {}',
+        'interface RegExp {}',
+        'interface Promise<T> { then<R>(fn: (v: T) => R): Promise<R>; }',
+        'type Record<K extends string | number | symbol, V> = { [P in K]: V };',
+        'type Partial<T> = { [P in keyof T]?: T[P] };',
+        'type Required<T> = { [P in keyof T]-?: T[P] };',
+      ].join('\n');
+      files['/lib.d.ts'] = libStub;
+
+      // In-memory CompilerHost — avoids ts.sys (unavailable in vtz runtime)
+      const host: ts.CompilerHost = {
+        getSourceFile(fileName, languageVersion) {
+          const content = files[fileName];
+          if (content !== undefined) {
+            return ts.createSourceFile(fileName, content, languageVersion);
+          }
+          return undefined;
+        },
+        getDefaultLibFileName: () => '/lib.d.ts',
+        writeFile: () => {},
+        getCurrentDirectory: () => '/gen',
+        getCanonicalFileName: (f) => f,
+        useCaseSensitiveFileNames: () => true,
+        getNewLine: () => '\n',
+        fileExists: (f) => f in files,
+        readFile: (f) => files[f] ?? '',
+      };
+
+      const fileNames = Object.keys(files);
+      const program = ts.createProgram(fileNames, compilerOptions, host);
+      const diagnostics = ts.getPreEmitDiagnostics(program);
+      const errors = diagnostics.filter((d) => d.category === ts.DiagnosticCategory.Error);
+
+      if (errors.length > 0) {
+        const messages = errors.map((d) => {
+          const msg = ts.flattenDiagnosticMessageText(d.messageText, '\n');
+          if (d.file && d.start !== undefined) {
+            const { line, character } = d.file.getLineAndCharacterOfPosition(d.start);
+            return `${d.file.fileName}:${line + 1}:${character + 1} - ${msg}`;
+          }
+          return msg;
         });
-        tscResult = { success: true, output };
-      } catch (err) {
-        const error = err as { stdout?: string; stderr?: string };
-        tscResult = {
-          success: false,
-          output: `${error.stdout ?? ''}\n${error.stderr ?? ''}`,
-        };
+        const detail = messages.join('\n');
+        expect(errors.length).toBe(0);
+        throw new Error(`tsc errors:\n${detail}`);
       }
-
-      expect(tscResult.success, `tsc failed:\n${tscResult.output}`).toBe(true);
-    }, 30_000);
+      expect(errors.length).toBe(0);
+    });
   });
 });
