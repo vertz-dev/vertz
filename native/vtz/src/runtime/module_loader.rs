@@ -1713,7 +1713,15 @@ pub const CJS_BOOTSTRAP_JS: &str = r#"
       // Exports targets must start with './' to prevent path traversal
       return value.startsWith('./') ? value : undefined;
     }
-    if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
+    if (Array.isArray(value)) {
+      // Array fallback: first matching entry wins
+      for (const entry of value) {
+        const resolved = _resolveCjsCondition(entry);
+        if (resolved) return resolved;
+      }
+      return undefined;
+    }
+    if (typeof value === 'object' && value !== null) {
       // CJS priority: require > node > default
       const keys = ['require', 'node', 'default'];
       for (const k of keys) {
@@ -1758,11 +1766,19 @@ pub const CJS_BOOTSTRAP_JS: &str = r#"
         try {
           const stat = Deno.core.ops.op_fs_stat_sync(path);
           if (stat.isDirectory) {
-            // Check package.json main
             const pkgPath = path + '/package.json';
             if (Deno.core.ops.op_fs_exists_sync(pkgPath)) {
               try {
                 const pkg = JSON.parse(Deno.core.ops.op_fs_read_file_sync(pkgPath));
+                // Try exports field first (consistent with bare specifier resolution)
+                if (pkg.exports !== undefined) {
+                  const resolved = _resolveCjsExports(pkg.exports, '.');
+                  if (resolved) {
+                    const full = path + '/' + resolved;
+                    if (Deno.core.ops.op_fs_exists_sync(full)) return full;
+                  }
+                }
+                // Fall back to main
                 if (pkg.main) {
                   const mainPath = path + '/' + pkg.main;
                   if (Deno.core.ops.op_fs_exists_sync(mainPath)) return mainPath;
@@ -2083,6 +2099,15 @@ fn resolve_condition_value(value: &serde_json::Value) -> Option<String> {
             for key in &["import", "node", "module", "default", "require"] {
                 if let Some(entry) = map.get(*key) {
                     return resolve_condition_value(entry);
+                }
+            }
+            None
+        }
+        serde_json::Value::Array(arr) => {
+            // Array fallback: first matching entry wins
+            for entry in arr {
+                if let Some(resolved) = resolve_condition_value(entry) {
+                    return Some(resolved);
                 }
             }
             None
@@ -3464,6 +3489,28 @@ export function Hello() {
         assert_eq!(
             resolve_exports_entry(&exports, "./utils"),
             Some("./dist/utils.js".to_string())
+        );
+    }
+
+    #[test]
+    fn test_resolve_exports_entry_array_fallback() {
+        // Array fallback: first matching entry wins
+        let exports = serde_json::json!({
+            ".": ["./dist/main.js", "./dist/alt.js"]
+        });
+        assert_eq!(
+            resolve_exports_entry(&exports, "."),
+            Some("./dist/main.js".to_string())
+        );
+    }
+
+    #[test]
+    fn test_resolve_condition_value_array_with_conditions() {
+        // Array with condition objects — first matching wins
+        let value = serde_json::json!([{ "import": "./dist/esm.js" }, "./dist/fallback.js"]);
+        assert_eq!(
+            resolve_condition_value(&value),
+            Some("./dist/esm.js".to_string())
         );
     }
 

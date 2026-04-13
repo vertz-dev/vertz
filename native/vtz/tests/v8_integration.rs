@@ -1334,3 +1334,167 @@ async fn test_cjs_require_nested_conditions() {
         output.stdout
     );
 }
+
+// --- Bug #2586: CJS relative path resolution must check exports field ---
+
+#[tokio::test]
+async fn test_cjs_require_relative_path_resolves_exports() {
+    // require('./node_modules/exports-only-pkg') should resolve via exports field,
+    // not just pkg.main. Currently the relative path branch only checks main.
+    let tmp = tempfile::tempdir().unwrap();
+
+    let pkg_dir = tmp.path().join("node_modules").join("rel-exports-pkg");
+    std::fs::create_dir_all(pkg_dir.join("lib")).unwrap();
+    std::fs::write(
+        pkg_dir.join("package.json"),
+        r#"{ "name": "rel-exports-pkg", "exports": { ".": { "require": "./lib/entry.cjs" } } }"#,
+    )
+    .unwrap();
+    std::fs::write(
+        pkg_dir.join("lib").join("entry.cjs"),
+        "module.exports = { source: 'exports-field' };",
+    )
+    .unwrap();
+
+    let entry = tmp.path().join("entry.js");
+    std::fs::write(
+        &entry,
+        r#"
+        import { createRequire } from 'node:module';
+        const require = createRequire(import.meta.url);
+        const pkg = require('./node_modules/rel-exports-pkg');
+        console.log("source: " + pkg.source);
+    "#,
+    )
+    .unwrap();
+
+    let mut rt = VertzJsRuntime::new(VertzRuntimeOptions {
+        root_dir: Some(tmp.path().to_string_lossy().to_string()),
+        capture_output: true,
+        ..Default::default()
+    })
+    .unwrap();
+
+    let specifier = deno_core::ModuleSpecifier::from_file_path(&entry).unwrap();
+    rt.load_main_module(&specifier).await.unwrap();
+
+    let output = rt.captured_output();
+    assert_eq!(
+        output.stdout[0], "source: exports-field",
+        "Relative path require() should resolve exports field. Got: {:?}",
+        output.stdout
+    );
+}
+
+// --- Bug #2587: CJS exports resolver must support array fallbacks ---
+
+#[tokio::test]
+async fn test_cjs_require_exports_array_fallback() {
+    // Array fallbacks in exports: first matching entry wins
+    // { ".": [{ "require": "./dist/cjs.js" }, "./dist/fallback.js"] }
+    let tmp = tempfile::tempdir().unwrap();
+
+    let pkg_dir = tmp.path().join("node_modules").join("array-fallback-pkg");
+    std::fs::create_dir_all(pkg_dir.join("dist")).unwrap();
+    std::fs::write(
+        pkg_dir.join("package.json"),
+        r#"{ "name": "array-fallback-pkg", "exports": { ".": [{ "require": "./dist/cjs.js" }, "./dist/fallback.js"] } }"#,
+    )
+    .unwrap();
+    std::fs::write(
+        pkg_dir.join("dist").join("cjs.js"),
+        "module.exports = { source: 'cjs-from-array' };",
+    )
+    .unwrap();
+    std::fs::write(
+        pkg_dir.join("dist").join("fallback.js"),
+        "module.exports = { source: 'fallback' };",
+    )
+    .unwrap();
+
+    let entry = tmp.path().join("entry.js");
+    std::fs::write(
+        &entry,
+        r#"
+        import { createRequire } from 'node:module';
+        const require = createRequire(import.meta.url);
+        const pkg = require('array-fallback-pkg');
+        console.log("source: " + pkg.source);
+    "#,
+    )
+    .unwrap();
+
+    let mut rt = VertzJsRuntime::new(VertzRuntimeOptions {
+        root_dir: Some(tmp.path().to_string_lossy().to_string()),
+        capture_output: true,
+        ..Default::default()
+    })
+    .unwrap();
+
+    let specifier = deno_core::ModuleSpecifier::from_file_path(&entry).unwrap();
+    rt.load_main_module(&specifier).await.unwrap();
+
+    let output = rt.captured_output();
+    assert_eq!(
+        output.stdout[0], "source: cjs-from-array",
+        "require() should resolve array fallback in exports. Got: {:?}",
+        output.stdout
+    );
+}
+
+#[tokio::test]
+async fn test_cjs_require_exports_array_string_fallback() {
+    // Array with only string entries: ["./dist/main.js", "./dist/alt.js"]
+    // First existing entry should win
+    let tmp = tempfile::tempdir().unwrap();
+
+    let pkg_dir = tmp
+        .path()
+        .join("node_modules")
+        .join("array-string-fallback");
+    std::fs::create_dir_all(pkg_dir.join("dist")).unwrap();
+    std::fs::write(
+        pkg_dir.join("package.json"),
+        r#"{ "name": "array-string-fallback", "exports": { ".": ["./dist/main.js", "./dist/alt.js"] } }"#,
+    )
+    .unwrap();
+    std::fs::write(
+        pkg_dir.join("dist").join("main.js"),
+        "module.exports = { source: 'first-string' };",
+    )
+    .unwrap();
+    std::fs::write(
+        pkg_dir.join("dist").join("alt.js"),
+        "module.exports = { source: 'alt-string' };",
+    )
+    .unwrap();
+
+    let entry = tmp.path().join("entry.js");
+    std::fs::write(
+        &entry,
+        r#"
+        import { createRequire } from 'node:module';
+        const require = createRequire(import.meta.url);
+        const pkg = require('array-string-fallback');
+        console.log("source: " + pkg.source);
+    "#,
+    )
+    .unwrap();
+
+    let mut rt = VertzJsRuntime::new(VertzRuntimeOptions {
+        root_dir: Some(tmp.path().to_string_lossy().to_string()),
+        capture_output: true,
+        ..Default::default()
+    })
+    .unwrap();
+
+    let specifier = deno_core::ModuleSpecifier::from_file_path(&entry).unwrap();
+    rt.load_main_module(&specifier).await.unwrap();
+
+    let output = rt.captured_output();
+    assert_eq!(
+        output.stdout[0], "source: first-string",
+        "require() should resolve first string in array fallback. Got: {:?}",
+        output.stdout
+    );
+}
