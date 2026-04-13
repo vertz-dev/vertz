@@ -1696,6 +1696,7 @@ pub const CJS_BOOTSTRAP_JS: &str = r#"
       case 'constants': {
         return {};
       }
+      case 'crypto': return globalThis.__vertz_crypto || {};
       default:
         // For unimplemented builtins, return a stub that throws on property access
         if (_BUILTIN_NAMES.has(name)) {
@@ -1898,6 +1899,16 @@ pub const CJS_BOOTSTRAP_JS: &str = r#"
   }
 
   globalThis.__vtz_cjs_require = _createRequire;
+
+  // Expose a global require scoped to CWD for ESM modules that need it.
+  // Node.js doesn't provide require() in ESM, but many npm packages and
+  // test helpers use it via createRequire or as a global fallback.
+  if (!globalThis.require) {
+    const cwd = (typeof Deno !== 'undefined' && Deno.core.ops.op_cwd)
+      ? Deno.core.ops.op_cwd()
+      : '/';
+    globalThis.require = _createRequire(cwd);
+  }
 })(globalThis);
 "#;
 
