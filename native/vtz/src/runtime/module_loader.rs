@@ -1427,6 +1427,10 @@ fn extract_export_names(source: &str) -> Vec<String> {
 /// The proxy reads from `globalThis.__vertz_mocked_modules[specifier]` and
 /// re-exports each named export as `const` bindings. Mock behavior changes
 /// via object mutation (e.g. `.mockImplementation()`), not reference replacement.
+///
+/// For test files that need mutable module namespaces (e.g. `spyOn` on
+/// dynamic imports), the mock_hoisting compiler transform wraps `import()`
+/// with `.then(globalThis.__vertz_unwrap_module)` to create mutable wrappers.
 fn generate_mock_proxy_module(specifier: &str, export_names: &[String]) -> String {
     let mut code = format!(
         "const __m = globalThis.__vertz_mocked_modules?.['{}'] ?? {{}};\n",
@@ -1437,7 +1441,7 @@ fn generate_mock_proxy_module(specifier: &str, export_names: &[String]) -> Strin
         if name == "default" {
             code.push_str("export default ('default' in __m ? __m.default : __m);\n");
         } else {
-            // Use getter-based re-export for late binding
+            // Capture mock reference at load time — object mutations (.mockImplementation) propagate
             code.push_str(&format!("export const {} = __m['{}'];\n", name, name));
         }
     }

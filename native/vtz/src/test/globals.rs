@@ -1181,6 +1181,32 @@ if (typeof globalThis.HTMLElement === 'undefined') {
   };
   function expectTypeOf() { return new Proxy({}, expectTypeOfHandler); }
 
+  // __vertz_unwrap_module — creates a mutable wrapper around ES module namespaces.
+  // Dynamic `import()` returns frozen Module namespace objects. spyOn() needs to
+  // replace properties on them, which fails. This wrapper delegates reads to the
+  // original module (preserving live bindings) while allowing property writes.
+  globalThis.__vertz_unwrap_module = (mod) => {
+    if (!mod || typeof mod !== 'object') return mod;
+    // Fast path: if already mutable, return as-is
+    const keys = Object.getOwnPropertyNames(mod);
+    if (keys.length > 0) {
+      const desc = Object.getOwnPropertyDescriptor(mod, keys[0]);
+      if (desc && desc.writable && desc.configurable) return mod;
+    }
+    // Create mutable wrapper — reads delegate to original, writes stored locally
+    const overrides = Object.create(null);
+    const wrapper = Object.create(null);
+    for (const key of keys) {
+      Object.defineProperty(wrapper, key, {
+        get() { return key in overrides ? overrides[key] : mod[key]; },
+        set(v) { overrides[key] = v; },
+        configurable: true,
+        enumerable: true,
+      });
+    }
+    return wrapper;
+  };
+
   // Exports object — module loader will intercept
   // `import { describe, it, expect } from '@vertz/test'` and return these.
   globalThis.__vertz_test_exports = {
@@ -3458,6 +3484,75 @@ mod tests {
                 item["status"], "pass",
                 "DOM prototype chain test {} failed: {:?}",
                 i, item["error"]
+            );
+        }
+    }
+
+    #[test]
+    fn test_unwrap_module_makes_frozen_object_mutable() {
+        let mut rt = create_test_runtime();
+        let results = run_test_code(
+            &mut rt,
+            r#"
+            describe('__vertz_unwrap_module', () => {
+                it('makes frozen object properties writable', () => {
+                    const frozen = Object.freeze({ greet: () => 'original' });
+                    const mutable = globalThis.__vertz_unwrap_module(frozen);
+                    // Should be able to assign without throwing
+                    mutable.greet = () => 'replaced';
+                    expect(mutable.greet()).toBe('replaced');
+                });
+
+                it('delegates reads to original when not overridden', () => {
+                    const original = Object.freeze({ value: 42, name: 'test' });
+                    const mutable = globalThis.__vertz_unwrap_module(original);
+                    expect(mutable.value).toBe(42);
+                    expect(mutable.name).toBe('test');
+                });
+
+                it('returns already-mutable objects as-is', () => {
+                    const obj = { greet: () => 'hello' };
+                    const result = globalThis.__vertz_unwrap_module(obj);
+                    expect(result).toBe(obj);
+                });
+
+                it('supports spyOn pattern on frozen objects', () => {
+                    const mod = Object.freeze({
+                        findProjectRoot: () => '/real/path',
+                        otherFn: () => 'other',
+                    });
+                    const mutable = globalThis.__vertz_unwrap_module(mod);
+
+                    // Simulate spyOn: read original, replace with spy
+                    const original = mutable.findProjectRoot;
+                    const spy = mock(() => '/mocked/path');
+                    mutable.findProjectRoot = spy;
+                    expect(mutable.findProjectRoot()).toBe('/mocked/path');
+
+                    // Restore
+                    mutable.findProjectRoot = original;
+                    expect(mutable.findProjectRoot()).toBe('/real/path');
+
+                    // Other properties still delegate to original
+                    expect(mutable.otherFn()).toBe('other');
+                });
+
+                it('returns null/undefined/primitives as-is', () => {
+                    expect(globalThis.__vertz_unwrap_module(null)).toBe(null);
+                    expect(globalThis.__vertz_unwrap_module(undefined)).toBe(undefined);
+                    expect(globalThis.__vertz_unwrap_module(42)).toBe(42);
+                });
+            });
+            "#,
+        );
+
+        let arr = results.as_array().unwrap();
+        assert_eq!(arr.len(), 5);
+        for (i, item) in arr.iter().enumerate() {
+            assert_eq!(
+                item["status"], "pass",
+                "__vertz_unwrap_module test {} ({}) failed: {:?}",
+                i, item["name"], item["error"]
             );
         }
     }

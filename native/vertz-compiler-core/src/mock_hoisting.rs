@@ -126,6 +126,9 @@ pub fn transform_mock_hoisting(
         // Scan for vi.importActual() replacements
         replace_import_actual(ms, program, source);
 
+        // Wrap dynamic import() for mutable module namespaces
+        wrap_dynamic_imports(ms, program);
+
         return MockHoistingResult {
             mocked_specifiers,
             mock_preamble: None,
@@ -302,6 +305,9 @@ pub fn transform_mock_hoisting(
     // Replace vi.importActual() calls everywhere
     replace_import_actual(ms, program, source);
 
+    // Wrap dynamic import() for mutable module namespaces
+    wrap_dynamic_imports(ms, program);
+
     MockHoistingResult {
         mocked_specifiers,
         mock_preamble,
@@ -309,7 +315,7 @@ pub fn transform_mock_hoisting(
     }
 }
 
-// ── Helper functions ─────────────────────────────────────────────────────
+// ── Helper functions ───────────────���─────────────────────────��───────────
 
 /// Extract the specifier string from a top-level `vi.mock('spec', ...)` or
 /// `mock.module('spec', ...)` call, if the statement matches.
@@ -627,6 +633,32 @@ impl<'a, 'b> Visit<'_> for ImportActualVisitor<'a, 'b> {
 /// Thin wrapper to avoid borrow issues.
 fn ms_overwrite(ms: &mut MagicString, start: u32, end: u32, text: &str) {
     ms.overwrite(start, end, text);
+}
+
+/// Wrap dynamic `import()` expressions with `.then(globalThis.__vertz_unwrap_module)`
+/// so the returned module namespace is mutable (enabling `spyOn` on ES modules).
+fn wrap_dynamic_imports(ms: &mut MagicString, program: &Program) {
+    let mut visitor = DynamicImportVisitor {
+        insert_positions: Vec::new(),
+    };
+    visitor.visit_program(program);
+
+    // Insert in reverse order to preserve positions
+    visitor.insert_positions.sort_unstable();
+    for pos in visitor.insert_positions.into_iter().rev() {
+        ms.append_right(pos, ".then(globalThis.__vertz_unwrap_module)");
+    }
+}
+
+struct DynamicImportVisitor {
+    insert_positions: Vec<u32>,
+}
+
+impl Visit<'_> for DynamicImportVisitor {
+    fn visit_import_expression(&mut self, import: &ImportExpression<'_>) {
+        self.insert_positions.push(import.span.end);
+        walk::walk_import_expression(self, import);
+    }
 }
 
 /// Find `vi.mock()` / `mock.module()` calls inside function bodies (nested).
@@ -1037,5 +1069,81 @@ function App() {
         // (query is a signal API, so tasks.data would get .value in JSX)
         // The mocked import (add from ./math) should NOT get signal transforms
         assert!(!code.contains("add.value"));
+    }
+
+    // ── Dynamic import() wrapping for mutable modules ───────────────────
+
+    #[test]
+    fn wraps_dynamic_import_with_mutable_helper() {
+        let source = r#"const mod = await import('./utils');
+"#;
+        let (output, _) = parse_and_transform(source);
+        assert!(
+            output.contains("import('./utils').then(globalThis.__vertz_unwrap_module)"),
+            "Dynamic import() should be wrapped with .then(globalThis.__vertz_unwrap_module), got: {}",
+            output
+        );
+    }
+
+    #[test]
+    fn wraps_dynamic_import_inside_function_body() {
+        let source = r#"async function setup() {
+  const mod = await import('../../production-build');
+  spyOn(mod, 'BuildOrchestrator');
+}
+"#;
+        let (output, _) = parse_and_transform(source);
+        assert!(
+            output.contains(
+                "import('../../production-build').then(globalThis.__vertz_unwrap_module)"
+            ),
+            "Dynamic import inside function should be wrapped, got: {}",
+            output
+        );
+    }
+
+    #[test]
+    fn wraps_multiple_dynamic_imports() {
+        let source = r#"const a = await import('./a');
+const b = await import('./b');
+"#;
+        let (output, _) = parse_and_transform(source);
+        assert!(
+            output.contains("import('./a').then(globalThis.__vertz_unwrap_module)"),
+            "First import should be wrapped, got: {}",
+            output
+        );
+        assert!(
+            output.contains("import('./b').then(globalThis.__vertz_unwrap_module)"),
+            "Second import should be wrapped, got: {}",
+            output
+        );
+    }
+
+    #[test]
+    fn wraps_dynamic_import_with_existing_then_chain() {
+        let source = r#"const { buildAction } = await import('./build').then(m => m);
+"#;
+        let (output, _) = parse_and_transform(source);
+        // Should insert .then() between import() and the existing .then()
+        assert!(
+            output.contains("import('./build').then(globalThis.__vertz_unwrap_module)"),
+            "Import with existing .then should still get wrapped, got: {}",
+            output
+        );
+    }
+
+    #[test]
+    fn does_not_wrap_import_declaration() {
+        let source = r#"import { add } from './math';
+const x = add(1, 2);
+"#;
+        let (output, _) = parse_and_transform(source);
+        // Static import declarations should NOT be wrapped
+        assert!(
+            !output.contains("__vertz_unwrap_module"),
+            "Static import declarations should not be wrapped, got: {}",
+            output
+        );
     }
 }
