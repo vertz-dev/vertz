@@ -238,6 +238,7 @@ async fn resolve_one_task<'a>(
             let deps: Vec<ResolveTask> = pkg
                 .dependencies
                 .iter()
+                .chain(pkg.optional_dependencies.iter())
                 .map(|(n, r)| ResolveTask {
                     name: n.clone(),
                     range: r.clone(),
@@ -269,6 +270,7 @@ async fn resolve_one_task<'a>(
                 tarball_url: entry.resolved.clone(),
                 integrity: entry.integrity.clone(),
                 dependencies: entry.dependencies.clone(),
+                optional_dependencies: entry.optional_dependencies.clone(),
                 bin: entry.bin.clone(),
                 nest_path: vec![],
                 os: None,
@@ -289,7 +291,7 @@ async fn resolve_one_task<'a>(
 
             let mut child_chain = parent_chain.clone();
             child_chain.push(name.to_string());
-            let deps: Vec<ResolveTask> = entry
+            let mut deps: Vec<ResolveTask> = entry
                 .dependencies
                 .iter()
                 .map(|(n, r)| ResolveTask {
@@ -298,6 +300,15 @@ async fn resolve_one_task<'a>(
                     parent_chain: child_chain.clone(),
                 })
                 .collect();
+
+            // Also queue optional deps from lockfile (platform-specific binaries)
+            for (n, r) in &entry.optional_dependencies {
+                deps.push(ResolveTask {
+                    name: n.clone(),
+                    range: r.clone(),
+                    parent_chain: child_chain.clone(),
+                });
+            }
 
             return Ok((true, deps));
         }
@@ -346,6 +357,7 @@ async fn resolve_one_task<'a>(
         tarball_url: version_meta.dist.tarball.clone(),
         integrity: version_meta.dist.integrity.clone(),
         dependencies: version_meta.dependencies.clone(),
+        optional_dependencies: version_meta.optional_dependencies.clone(),
         bin: version_meta.bin.to_map(name),
         nest_path: vec![],
         os: version_meta.os.clone(),
@@ -422,10 +434,13 @@ pub fn hoist(graph: &mut ResolvedGraph) {
                 .packages
                 .values()
                 .filter(|p| {
-                    p.dependencies.iter().any(|(dep_name, _dep_range)| {
-                        let dep_key = ResolvedGraph::key(dep_name, version);
-                        keys.contains(&dep_key) && dep_name == &graph.packages[key].name
-                    })
+                    p.dependencies
+                        .iter()
+                        .chain(p.optional_dependencies.iter())
+                        .any(|(dep_name, _dep_range)| {
+                            let dep_key = ResolvedGraph::key(dep_name, version);
+                            keys.contains(&dep_key) && dep_name == &graph.packages[key].name
+                        })
                 })
                 .count();
             dep_count.insert(key.clone(), count);
@@ -457,19 +472,22 @@ pub fn hoist(graph: &mut ResolvedGraph) {
                         .packages
                         .iter()
                         .filter(|(_k, p)| {
-                            p.dependencies.iter().any(|(dep_name, dep_range)| {
-                                dep_name == &pkg_name && {
-                                    if let Ok(range) = Range::parse(dep_range) {
-                                        if let Ok(ver) = Version::parse(&version) {
-                                            range.satisfies(&ver)
+                            p.dependencies
+                                .iter()
+                                .chain(p.optional_dependencies.iter())
+                                .any(|(dep_name, dep_range)| {
+                                    dep_name == &pkg_name && {
+                                        if let Ok(range) = Range::parse(dep_range) {
+                                            if let Ok(ver) = Version::parse(&version) {
+                                                range.satisfies(&ver)
+                                            } else {
+                                                false
+                                            }
                                         } else {
                                             false
                                         }
-                                    } else {
-                                        false
                                     }
-                                }
-                            })
+                                })
                         })
                         .map(|(_, p)| p.name.clone())
                         .collect();
@@ -521,6 +539,7 @@ pub fn graph_to_lockfile(
                     resolved: pkg.tarball_url.clone(),
                     integrity: pkg.integrity.clone(),
                     dependencies: pkg.dependencies.clone(),
+                    optional_dependencies: pkg.optional_dependencies.clone(),
                     bin: pkg.bin.clone(),
                     scripts,
                     optional: optional_names.contains(name),
@@ -532,8 +551,14 @@ pub fn graph_to_lockfile(
 
     // Also add transitive deps — match by semver range, not just name.
     // For github: ranges, match by exact string equality (not semver).
+    // Iterate both dependencies and optional_dependencies to capture
+    // platform-specific binaries (e.g., lightningcss-darwin-arm64).
     for pkg in graph.packages.values() {
-        for (dep_name, dep_range) in &pkg.dependencies {
+        let all_transitive = pkg
+            .dependencies
+            .iter()
+            .chain(pkg.optional_dependencies.iter());
+        for (dep_name, dep_range) in all_transitive {
             let key = Lockfile::spec_key(dep_name, dep_range);
             if let std::collections::btree_map::Entry::Vacant(entry) = lockfile.entries.entry(key) {
                 let dep_pkg = if dep_range.starts_with("github:") {
@@ -567,6 +592,7 @@ pub fn graph_to_lockfile(
                         resolved: dep_pkg.tarball_url.clone(),
                         integrity: dep_pkg.integrity.clone(),
                         dependencies: dep_pkg.dependencies.clone(),
+                        optional_dependencies: dep_pkg.optional_dependencies.clone(),
                         bin: dep_pkg.bin.clone(),
                         scripts: dep_scripts,
                         optional: false,
@@ -589,6 +615,7 @@ pub fn graph_to_lockfile(
                 resolved: format!("link:{}", ws.path),
                 integrity: String::new(),
                 dependencies: BTreeMap::new(),
+                optional_dependencies: BTreeMap::new(),
                 bin: BTreeMap::new(),
                 scripts: BTreeMap::new(),
                 optional: false,
@@ -736,6 +763,7 @@ mod tests {
                 tarball_url: String::new(),
                 integrity: String::new(),
                 dependencies: BTreeMap::new(),
+                optional_dependencies: BTreeMap::new(),
                 bin: BTreeMap::new(),
                 nest_path: vec![],
                 os: None,
@@ -760,6 +788,7 @@ mod tests {
                 tarball_url: "https://registry.npmjs.org/zod/-/zod-3.24.4.tgz".to_string(),
                 integrity: "sha512-abc".to_string(),
                 dependencies: BTreeMap::new(),
+                optional_dependencies: BTreeMap::new(),
                 bin: BTreeMap::new(),
                 nest_path: vec![],
                 os: None,
@@ -801,6 +830,7 @@ mod tests {
                 tarball_url: "url-parent".to_string(),
                 integrity: "hash-parent".to_string(),
                 dependencies: parent_deps,
+                optional_dependencies: BTreeMap::new(),
                 bin: BTreeMap::new(),
                 nest_path: vec![],
                 os: None,
@@ -818,6 +848,7 @@ mod tests {
                 tarball_url: "url-lodash-3".to_string(),
                 integrity: "hash-lodash-3".to_string(),
                 dependencies: BTreeMap::new(),
+                optional_dependencies: BTreeMap::new(),
                 bin: BTreeMap::new(),
                 nest_path: vec!["other".to_string()],
                 os: None,
@@ -834,6 +865,7 @@ mod tests {
                 tarball_url: "url-lodash-4".to_string(),
                 integrity: "hash-lodash-4".to_string(),
                 dependencies: BTreeMap::new(),
+                optional_dependencies: BTreeMap::new(),
                 bin: BTreeMap::new(),
                 nest_path: vec![],
                 os: None,
@@ -867,6 +899,7 @@ mod tests {
                 tarball_url: "https://registry.npmjs.org/react/-/react-18.3.1.tgz".to_string(),
                 integrity: "sha512-react".to_string(),
                 dependencies: react_deps,
+                optional_dependencies: BTreeMap::new(),
                 bin: BTreeMap::new(),
                 nest_path: vec![],
                 os: None,
@@ -886,6 +919,7 @@ mod tests {
                     .to_string(),
                 integrity: "sha512-loose".to_string(),
                 dependencies: loose_deps,
+                optional_dependencies: BTreeMap::new(),
                 bin: BTreeMap::new(),
                 nest_path: vec![],
                 os: None,
@@ -902,6 +936,7 @@ mod tests {
                     .to_string(),
                 integrity: "sha512-tokens".to_string(),
                 dependencies: BTreeMap::new(),
+                optional_dependencies: BTreeMap::new(),
                 bin: BTreeMap::new(),
                 nest_path: vec![],
                 os: None,
@@ -961,6 +996,7 @@ mod tests {
                 tarball_url: "https://registry.npmjs.org/zod/-/zod-3.24.4.tgz".to_string(),
                 integrity: "sha512-abc".to_string(),
                 dependencies: BTreeMap::new(),
+                optional_dependencies: BTreeMap::new(),
                 bin: BTreeMap::new(),
                 nest_path: vec![],
                 os: None,
@@ -998,6 +1034,7 @@ mod tests {
                 tarball_url: "https://registry.npmjs.org/fsevents/-/fsevents-2.3.3.tgz".to_string(),
                 integrity: "sha512-abc".to_string(),
                 dependencies: BTreeMap::new(),
+                optional_dependencies: BTreeMap::new(),
                 bin: BTreeMap::new(),
                 nest_path: vec![],
                 os: None,
@@ -1012,6 +1049,7 @@ mod tests {
                 tarball_url: "https://registry.npmjs.org/zod/-/zod-3.24.4.tgz".to_string(),
                 integrity: "sha512-def".to_string(),
                 dependencies: BTreeMap::new(),
+                optional_dependencies: BTreeMap::new(),
                 bin: BTreeMap::new(),
                 nest_path: vec![],
                 os: None,
@@ -1049,6 +1087,7 @@ mod tests {
                 tarball_url: "https://codeload.github.com/user/my-lib/tar.gz/a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2".to_string(),
                 integrity: "sha512-fakehash".to_string(),
                 dependencies: BTreeMap::new(),
+                optional_dependencies: BTreeMap::new(),
                 bin: BTreeMap::new(),
                 nest_path: vec![],
                 os: None,
@@ -1086,6 +1125,7 @@ mod tests {
                 tarball_url: "https://codeload.github.com/user/gh-lib/tar.gz/abc123def456abc123def456abc123def456abc1".to_string(),
                 integrity: "sha512-ghash".to_string(),
                 dependencies: BTreeMap::new(),
+                optional_dependencies: BTreeMap::new(),
                 bin: BTreeMap::new(),
                 nest_path: vec![],
                 os: None,
@@ -1105,6 +1145,7 @@ mod tests {
                 tarball_url: "url-parent".to_string(),
                 integrity: "hash-parent".to_string(),
                 dependencies: parent_deps,
+                optional_dependencies: BTreeMap::new(),
                 bin: BTreeMap::new(),
                 nest_path: vec![],
                 os: None,
@@ -1139,6 +1180,7 @@ mod tests {
                 tarball_url: "https://codeload.github.com/user/my-lib/tar.gz/a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2".to_string(),
                 integrity: "sha512-fakehash".to_string(),
                 dependencies: BTreeMap::from([("zod".to_string(), "^3.24.0".to_string())]),
+                optional_dependencies: BTreeMap::new(),
                 bin: BTreeMap::new(),
                 nest_path: vec![],
                 os: None,
@@ -1153,6 +1195,7 @@ mod tests {
                 tarball_url: "https://registry.npmjs.org/zod/-/zod-3.24.4.tgz".to_string(),
                 integrity: "sha512-zodhash".to_string(),
                 dependencies: BTreeMap::new(),
+                optional_dependencies: BTreeMap::new(),
                 bin: BTreeMap::new(),
                 nest_path: vec![],
                 os: None,
@@ -1198,6 +1241,7 @@ mod tests {
             tarball_url: String::new(),
             integrity: String::new(),
             dependencies: BTreeMap::new(),
+            optional_dependencies: BTreeMap::new(),
             bin: BTreeMap::new(),
             nest_path: vec![],
             os: v.os.clone(),
@@ -1230,6 +1274,7 @@ mod tests {
             tarball_url: String::new(),
             integrity: String::new(),
             dependencies: BTreeMap::new(),
+            optional_dependencies: BTreeMap::new(),
             bin: BTreeMap::new(),
             nest_path: vec![],
             os: None,
@@ -1239,6 +1284,151 @@ mod tests {
         assert!(
             platform::matches_platform(&resolved.os, &resolved.cpu),
             "unconstrained packages should always match"
+        );
+    }
+
+    #[test]
+    fn test_graph_to_lockfile_includes_transitive_optional_deps() {
+        // Simulates lightningcss having optional platform-specific binaries.
+        // The lockfile must include the platform-matching optional dep.
+        let mut graph = ResolvedGraph::default();
+
+        // lightningcss — parent with optional platform-specific deps
+        let mut opt_deps = BTreeMap::new();
+        opt_deps.insert(
+            "lightningcss-darwin-arm64".to_string(),
+            "1.32.0".to_string(),
+        );
+        opt_deps.insert("lightningcss-linux-x64".to_string(), "1.32.0".to_string());
+
+        graph.packages.insert(
+            "lightningcss@1.32.0".to_string(),
+            ResolvedPackage {
+                name: "lightningcss".to_string(),
+                version: "1.32.0".to_string(),
+                tarball_url: "https://registry.npmjs.org/lightningcss/-/lightningcss-1.32.0.tgz"
+                    .to_string(),
+                integrity: "sha512-lcss".to_string(),
+                dependencies: BTreeMap::from([("detect-libc".to_string(), "^2.0.3".to_string())]),
+                optional_dependencies: opt_deps,
+                bin: BTreeMap::new(),
+                nest_path: vec![],
+                os: None,
+                cpu: None,
+            },
+        );
+
+        // The platform-matching optional dep (resolved by the resolver)
+        graph.packages.insert(
+            "lightningcss-darwin-arm64@1.32.0".to_string(),
+            ResolvedPackage {
+                name: "lightningcss-darwin-arm64".to_string(),
+                version: "1.32.0".to_string(),
+                tarball_url: "https://registry.npmjs.org/lightningcss-darwin-arm64/-/lightningcss-darwin-arm64-1.32.0.tgz".to_string(),
+                integrity: "sha512-darwinarm64".to_string(),
+                dependencies: BTreeMap::new(),
+                optional_dependencies: BTreeMap::new(),
+                bin: BTreeMap::new(),
+                nest_path: vec![],
+                os: Some(vec!["darwin".to_string()]),
+                cpu: Some(vec!["arm64".to_string()]),
+            },
+        );
+
+        // detect-libc (regular transitive dep)
+        graph.packages.insert(
+            "detect-libc@2.0.3".to_string(),
+            ResolvedPackage {
+                name: "detect-libc".to_string(),
+                version: "2.0.3".to_string(),
+                tarball_url: "https://registry.npmjs.org/detect-libc/-/detect-libc-2.0.3.tgz"
+                    .to_string(),
+                integrity: "sha512-libc".to_string(),
+                dependencies: BTreeMap::new(),
+                optional_dependencies: BTreeMap::new(),
+                bin: BTreeMap::new(),
+                nest_path: vec![],
+                os: None,
+                cpu: None,
+            },
+        );
+
+        let mut root_deps = BTreeMap::new();
+        root_deps.insert("lightningcss".to_string(), "^1.30.0".to_string());
+
+        let lockfile = graph_to_lockfile(&graph, &root_deps, &[], &HashSet::new());
+
+        // lightningcss itself should be in lockfile
+        assert!(
+            lockfile.entries.contains_key("lightningcss@^1.30.0"),
+            "lightningcss should be in lockfile"
+        );
+
+        // lightningcss entry should have optional_dependencies
+        let lcss = &lockfile.entries["lightningcss@^1.30.0"];
+        assert!(
+            lcss.optional_dependencies
+                .contains_key("lightningcss-darwin-arm64"),
+            "lockfile entry should record optional_dependencies"
+        );
+
+        // The platform-specific optional dep should be in lockfile as a transitive entry
+        assert!(
+            lockfile
+                .entries
+                .contains_key("lightningcss-darwin-arm64@1.32.0"),
+            "platform-specific optional dep should be in lockfile as transitive entry"
+        );
+
+        // The non-matching platform optional dep should NOT be in lockfile
+        // (it wasn't in the graph because platform filtering skipped it)
+        assert!(
+            !lockfile
+                .entries
+                .contains_key("lightningcss-linux-x64@1.32.0"),
+            "non-matching platform dep should not be in lockfile"
+        );
+
+        // Regular transitive dep should also be present
+        assert!(
+            lockfile.entries.contains_key("detect-libc@^2.0.3"),
+            "regular transitive dep should be in lockfile"
+        );
+    }
+
+    #[test]
+    fn test_graph_to_lockfile_optional_deps_stored_on_entry() {
+        // Verify that optional_dependencies are stored on the lockfile entry itself
+        let mut graph = ResolvedGraph::default();
+
+        let mut opt_deps = BTreeMap::new();
+        opt_deps.insert("pkg-darwin-arm64".to_string(), "1.0.0".to_string());
+
+        graph.packages.insert(
+            "pkg@1.0.0".to_string(),
+            ResolvedPackage {
+                name: "pkg".to_string(),
+                version: "1.0.0".to_string(),
+                tarball_url: "url".to_string(),
+                integrity: "hash".to_string(),
+                dependencies: BTreeMap::new(),
+                optional_dependencies: opt_deps.clone(),
+                bin: BTreeMap::new(),
+                nest_path: vec![],
+                os: None,
+                cpu: None,
+            },
+        );
+
+        let mut root_deps = BTreeMap::new();
+        root_deps.insert("pkg".to_string(), "^1.0.0".to_string());
+
+        let lockfile = graph_to_lockfile(&graph, &root_deps, &[], &HashSet::new());
+        let entry = &lockfile.entries["pkg@^1.0.0"];
+
+        assert_eq!(
+            entry.optional_dependencies, opt_deps,
+            "lockfile entry should preserve optional_dependencies"
         );
     }
 }

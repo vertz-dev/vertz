@@ -33,6 +33,13 @@ pub fn write_lockfile(path: &Path, lockfile: &Lockfile) -> Result<(), std::io::E
             }
         }
 
+        if !entry.optional_dependencies.is_empty() {
+            output.push_str("  optionalDependencies:\n");
+            for (dep_name, dep_range) in &entry.optional_dependencies {
+                output.push_str(&format!("    \"{}\" \"{}\"\n", dep_name, dep_range));
+            }
+        }
+
         if !entry.bin.is_empty() {
             output.push_str("  bin:\n");
             for (bin_name, bin_path) in &entry.bin {
@@ -70,6 +77,7 @@ pub fn parse_lockfile(content: &str) -> Result<Lockfile, Box<dyn std::error::Err
         resolved: String::new(),
         integrity: String::new(),
         dependencies: BTreeMap::new(),
+        optional_dependencies: BTreeMap::new(),
         bin: BTreeMap::new(),
         scripts: BTreeMap::new(),
         optional: false,
@@ -91,6 +99,7 @@ pub fn parse_lockfile(content: &str) -> Result<Lockfile, Box<dyn std::error::Err
                     resolved: String::new(),
                     integrity: String::new(),
                     dependencies: BTreeMap::new(),
+                    optional_dependencies: BTreeMap::new(),
                     bin: BTreeMap::new(),
                     scripts: BTreeMap::new(),
                     optional: false,
@@ -104,7 +113,8 @@ pub fn parse_lockfile(content: &str) -> Result<Lockfile, Box<dyn std::error::Err
         let trimmed = line.trim();
 
         // Subsection headers that are NOT top-level entry keys
-        const SECTION_HEADERS: &[&str] = &["dependencies:", "bin:", "scripts:"];
+        const SECTION_HEADERS: &[&str] =
+            &["dependencies:", "optionalDependencies:", "bin:", "scripts:"];
 
         // New entry: "name@range:" at column 0
         if !line.starts_with(' ') && trimmed.ends_with(':') && !SECTION_HEADERS.contains(&trimmed) {
@@ -118,6 +128,7 @@ pub fn parse_lockfile(content: &str) -> Result<Lockfile, Box<dyn std::error::Err
                     resolved: String::new(),
                     integrity: String::new(),
                     dependencies: BTreeMap::new(),
+                    optional_dependencies: BTreeMap::new(),
                     bin: BTreeMap::new(),
                     scripts: BTreeMap::new(),
                     optional: false,
@@ -141,6 +152,10 @@ pub fn parse_lockfile(content: &str) -> Result<Lockfile, Box<dyn std::error::Err
                 in_section = Some("dependencies");
                 continue;
             }
+            if trimmed == "optionalDependencies:" {
+                in_section = Some("optionalDependencies");
+                continue;
+            }
             if trimmed == "bin:" {
                 in_section = Some("bin");
                 continue;
@@ -155,6 +170,13 @@ pub fn parse_lockfile(content: &str) -> Result<Lockfile, Box<dyn std::error::Err
                     if let Some((name, range)) = parse_quoted_pair(trimmed) {
                         current_entry
                             .dependencies
+                            .insert(name.to_string(), range.to_string());
+                    }
+                }
+                Some("optionalDependencies") => {
+                    if let Some((name, range)) = parse_quoted_pair(trimmed) {
+                        current_entry
+                            .optional_dependencies
                             .insert(name.to_string(), range.to_string());
                     }
                 }
@@ -243,6 +265,7 @@ mod tests {
                 resolved: "https://registry.npmjs.org/react/-/react-18.3.1.tgz".to_string(),
                 integrity: "sha512-abc123".to_string(),
                 dependencies: deps,
+                optional_dependencies: BTreeMap::new(),
                 bin: BTreeMap::new(),
                 scripts: BTreeMap::new(),
                 optional: false,
@@ -259,6 +282,7 @@ mod tests {
                 resolved: "https://registry.npmjs.org/zod/-/zod-3.24.4.tgz".to_string(),
                 integrity: "sha512-def456".to_string(),
                 dependencies: BTreeMap::new(),
+                optional_dependencies: BTreeMap::new(),
                 bin: BTreeMap::new(),
                 scripts: BTreeMap::new(),
                 optional: false,
@@ -308,6 +332,7 @@ mod tests {
                 resolved: "url1".to_string(),
                 integrity: "hash1".to_string(),
                 dependencies: BTreeMap::new(),
+                optional_dependencies: BTreeMap::new(),
                 bin: BTreeMap::new(),
                 scripts: BTreeMap::new(),
                 optional: false,
@@ -323,6 +348,7 @@ mod tests {
                 resolved: "url2".to_string(),
                 integrity: "hash2".to_string(),
                 dependencies: BTreeMap::new(),
+                optional_dependencies: BTreeMap::new(),
                 bin: BTreeMap::new(),
                 scripts: BTreeMap::new(),
                 optional: false,
@@ -353,6 +379,7 @@ mod tests {
                 resolved: "url".to_string(),
                 integrity: "hash".to_string(),
                 dependencies: BTreeMap::new(),
+                optional_dependencies: BTreeMap::new(),
                 bin: BTreeMap::new(),
                 scripts: BTreeMap::new(),
                 optional: false,
@@ -368,6 +395,7 @@ mod tests {
                 resolved: "url".to_string(),
                 integrity: "hash".to_string(),
                 dependencies: BTreeMap::new(),
+                optional_dependencies: BTreeMap::new(),
                 bin: BTreeMap::new(),
                 scripts: BTreeMap::new(),
                 optional: false,
@@ -440,6 +468,7 @@ mod tests {
                 resolved: "https://registry.npmjs.org/zod/-/zod-3.24.4.tgz".to_string(),
                 integrity: "sha512-abc".to_string(),
                 dependencies: BTreeMap::new(),
+                optional_dependencies: BTreeMap::new(),
                 bin: BTreeMap::new(),
                 scripts: BTreeMap::new(),
                 optional: false,
@@ -457,6 +486,7 @@ mod tests {
                 resolved: "link:packages/shared".to_string(),
                 integrity: String::new(),
                 dependencies: BTreeMap::new(),
+                optional_dependencies: BTreeMap::new(),
                 bin: BTreeMap::new(),
                 scripts: BTreeMap::new(),
                 optional: false,
@@ -510,6 +540,7 @@ mod tests {
                 resolved: "https://registry.npmjs.org/fsevents/-/fsevents-2.3.3.tgz".to_string(),
                 integrity: "sha512-abc".to_string(),
                 dependencies: BTreeMap::new(),
+                optional_dependencies: BTreeMap::new(),
                 bin: BTreeMap::new(),
                 scripts: BTreeMap::new(),
                 optional: true,
@@ -525,6 +556,7 @@ mod tests {
                 resolved: "https://registry.npmjs.org/zod/-/zod-3.24.4.tgz".to_string(),
                 integrity: "sha512-def".to_string(),
                 dependencies: BTreeMap::new(),
+                optional_dependencies: BTreeMap::new(),
                 bin: BTreeMap::new(),
                 scripts: BTreeMap::new(),
                 optional: false,
@@ -579,6 +611,7 @@ fsevents@^2.3.0:
                 resolved: "https://registry.npmjs.org/qs/-/qs-6.11.0.tgz".to_string(),
                 integrity: "sha512-abc".to_string(),
                 dependencies: BTreeMap::new(),
+                optional_dependencies: BTreeMap::new(),
                 bin: BTreeMap::new(),
                 scripts: BTreeMap::new(),
                 optional: false,
@@ -594,6 +627,7 @@ fsevents@^2.3.0:
                 resolved: "https://registry.npmjs.org/zod/-/zod-3.24.4.tgz".to_string(),
                 integrity: "sha512-def".to_string(),
                 dependencies: BTreeMap::new(),
+                optional_dependencies: BTreeMap::new(),
                 bin: BTreeMap::new(),
                 scripts: BTreeMap::new(),
                 optional: false,
@@ -645,6 +679,7 @@ zod@^3.24.0:
                 resolved: "https://registry.npmjs.org/esbuild/-/esbuild-0.20.2.tgz".to_string(),
                 integrity: "sha512-abc".to_string(),
                 dependencies: BTreeMap::new(),
+                optional_dependencies: BTreeMap::new(),
                 bin,
                 scripts: BTreeMap::new(),
                 optional: false,
@@ -685,6 +720,7 @@ zod@^3.24.0:
                 resolved: "https://registry.npmjs.org/esbuild/-/esbuild-0.20.2.tgz".to_string(),
                 integrity: "sha512-abc".to_string(),
                 dependencies: BTreeMap::new(),
+                optional_dependencies: BTreeMap::new(),
                 bin: BTreeMap::new(),
                 scripts,
                 optional: false,
@@ -741,5 +777,87 @@ zod@^3.24.0:
         let entry = &lockfile.entries["zod@^3.24.0"];
         assert!(entry.bin.is_empty());
         assert!(entry.scripts.is_empty());
+    }
+
+    #[test]
+    fn test_write_and_read_optional_dependencies() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("vertz.lock");
+
+        let mut lockfile = Lockfile::default();
+        let mut opt_deps = BTreeMap::new();
+        opt_deps.insert(
+            "lightningcss-darwin-arm64".to_string(),
+            "1.32.0".to_string(),
+        );
+        opt_deps.insert("lightningcss-linux-x64".to_string(), "1.32.0".to_string());
+
+        lockfile.entries.insert(
+            "lightningcss@^1.30.0".to_string(),
+            LockfileEntry {
+                name: "lightningcss".to_string(),
+                range: "^1.30.0".to_string(),
+                version: "1.32.0".to_string(),
+                resolved: "https://registry.npmjs.org/lightningcss/-/lightningcss-1.32.0.tgz"
+                    .to_string(),
+                integrity: "sha512-lcss".to_string(),
+                dependencies: BTreeMap::from([("detect-libc".to_string(), "^2.0.3".to_string())]),
+                optional_dependencies: opt_deps.clone(),
+                bin: BTreeMap::new(),
+                scripts: BTreeMap::new(),
+                optional: false,
+                overridden: false,
+            },
+        );
+
+        write_lockfile(&path, &lockfile).unwrap();
+
+        // Verify the file contains the optionalDependencies section
+        let content = std::fs::read_to_string(&path).unwrap();
+        assert!(
+            content.contains("optionalDependencies:"),
+            "lockfile should contain optionalDependencies section"
+        );
+        assert!(content.contains("\"lightningcss-darwin-arm64\" \"1.32.0\""));
+
+        // Verify round-trip
+        let parsed = read_lockfile(&path).unwrap();
+        let entry = &parsed.entries["lightningcss@^1.30.0"];
+        assert_eq!(
+            entry.optional_dependencies, opt_deps,
+            "optionalDependencies should survive roundtrip"
+        );
+        assert_eq!(entry.dependencies["detect-libc"], "^2.0.3");
+    }
+
+    #[test]
+    fn test_parse_optional_dependencies_section() {
+        let content = r#"# vertz.lock v1 — DO NOT EDIT
+# Run "vertz install" to regenerate
+
+lightningcss@^1.30.0:
+  version "1.32.0"
+  resolved "https://registry.npmjs.org/lightningcss/-/lightningcss-1.32.0.tgz"
+  integrity "sha512-lcss"
+  dependencies:
+    "detect-libc" "^2.0.3"
+  optionalDependencies:
+    "lightningcss-darwin-arm64" "1.32.0"
+    "lightningcss-linux-x64" "1.32.0"
+
+"#;
+        let lockfile = parse_lockfile(content).unwrap();
+        let entry = &lockfile.entries["lightningcss@^1.30.0"];
+        assert_eq!(entry.version, "1.32.0");
+        assert_eq!(entry.dependencies["detect-libc"], "^2.0.3");
+        assert_eq!(entry.optional_dependencies.len(), 2);
+        assert_eq!(
+            entry.optional_dependencies["lightningcss-darwin-arm64"],
+            "1.32.0"
+        );
+        assert_eq!(
+            entry.optional_dependencies["lightningcss-linux-x64"],
+            "1.32.0"
+        );
     }
 }
