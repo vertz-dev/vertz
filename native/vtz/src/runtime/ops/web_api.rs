@@ -484,6 +484,37 @@ pub const WEB_API_BOOTSTRAP_JS: &str = r#"
       throw signal.reason || new DOMException_('The operation was aborted.', 'AbortError');
     }
 
+    // Handle file:// URLs by reading from the filesystem
+    if (req.url.startsWith('file://')) {
+      const filePath = Deno.core.ops.op_file_url_to_path(req.url);
+      const bytes = await Deno.core.ops.op_fs_read_file_bytes(filePath);
+      const ext = filePath.substring(filePath.lastIndexOf('.')).toLowerCase();
+      const mimeTypes = {
+        '.wasm': 'application/wasm',
+        '.json': 'application/json',
+        '.js': 'application/javascript',
+        '.mjs': 'application/javascript',
+        '.html': 'text/html',
+        '.htm': 'text/html',
+        '.css': 'text/css',
+        '.txt': 'text/plain',
+        '.xml': 'application/xml',
+        '.svg': 'image/svg+xml',
+        '.png': 'image/png',
+        '.jpg': 'image/jpeg',
+        '.jpeg': 'image/jpeg',
+        '.gif': 'image/gif',
+        '.webp': 'image/webp',
+      };
+      const contentType = mimeTypes[ext] || 'application/octet-stream';
+      return new Response(new Uint8Array(bytes), {
+        status: 200,
+        statusText: 'OK',
+        headers: { 'content-type': contentType },
+        url: req.url,
+      });
+    }
+
     // Build options for Rust op
     const options = {
       method: req.method,

@@ -360,6 +360,149 @@ mod tests {
         assert_eq!(result, serde_json::json!("correct-error"));
     }
 
+    // --- file:// URL support ---
+
+    #[tokio::test]
+    async fn test_fetch_file_url_returns_text_content() {
+        let dir = tempfile::tempdir().unwrap();
+        let file_path = dir.path().join("hello.txt");
+        std::fs::write(&file_path, "file content here").unwrap();
+        let file_url = url::Url::from_file_path(&file_path).unwrap();
+
+        let mut rt = create_runtime();
+        let result = run_async(
+            &mut rt,
+            &format!(
+                r#"
+                const resp = await fetch('{}');
+                return [resp.status, await resp.text()];
+            "#,
+                file_url
+            ),
+        )
+        .await;
+        let arr = result.as_array().unwrap();
+        assert_eq!(arr[0].as_u64().unwrap(), 200);
+        assert_eq!(arr[1].as_str().unwrap(), "file content here");
+    }
+
+    #[tokio::test]
+    async fn test_fetch_file_url_returns_binary_via_array_buffer() {
+        let dir = tempfile::tempdir().unwrap();
+        let file_path = dir.path().join("data.bin");
+        // Write known binary bytes (including non-UTF-8)
+        std::fs::write(&file_path, [0x00, 0x61, 0x73, 0x6D, 0x01, 0xFF]).unwrap();
+        let file_url = url::Url::from_file_path(&file_path).unwrap();
+
+        let mut rt = create_runtime();
+        let result = run_async(
+            &mut rt,
+            &format!(
+                r#"
+                const resp = await fetch('{}');
+                const buf = await resp.arrayBuffer();
+                const bytes = new Uint8Array(buf);
+                return Array.from(bytes);
+            "#,
+                file_url
+            ),
+        )
+        .await;
+        let arr = result.as_array().unwrap();
+        let bytes: Vec<u8> = arr.iter().map(|v| v.as_u64().unwrap() as u8).collect();
+        assert_eq!(bytes, vec![0x00, 0x61, 0x73, 0x6D, 0x01, 0xFF]);
+    }
+
+    #[tokio::test]
+    async fn test_fetch_file_url_response_ok_and_url() {
+        let dir = tempfile::tempdir().unwrap();
+        let file_path = dir.path().join("test.txt");
+        std::fs::write(&file_path, "ok").unwrap();
+        let file_url = url::Url::from_file_path(&file_path).unwrap();
+
+        let mut rt = create_runtime();
+        let result = run_async(
+            &mut rt,
+            &format!(
+                r#"
+                const resp = await fetch('{}');
+                return [resp.ok, resp.status, resp.statusText, resp.url];
+            "#,
+                file_url
+            ),
+        )
+        .await;
+        let arr = result.as_array().unwrap();
+        assert_eq!(arr[0], serde_json::json!(true));
+        assert_eq!(arr[1].as_u64().unwrap(), 200);
+        assert_eq!(arr[2].as_str().unwrap(), "OK");
+        assert!(arr[3].as_str().unwrap().starts_with("file://"));
+    }
+
+    #[tokio::test]
+    async fn test_fetch_file_url_sets_content_type_for_wasm() {
+        let dir = tempfile::tempdir().unwrap();
+        let file_path = dir.path().join("module.wasm");
+        std::fs::write(&file_path, [0x00, 0x61, 0x73, 0x6D]).unwrap();
+        let file_url = url::Url::from_file_path(&file_path).unwrap();
+
+        let mut rt = create_runtime();
+        let result = run_async(
+            &mut rt,
+            &format!(
+                r#"
+                const resp = await fetch('{}');
+                return resp.headers.get('content-type');
+            "#,
+                file_url
+            ),
+        )
+        .await;
+        assert_eq!(result.as_str().unwrap(), "application/wasm");
+    }
+
+    #[tokio::test]
+    async fn test_fetch_file_url_sets_content_type_for_json() {
+        let dir = tempfile::tempdir().unwrap();
+        let file_path = dir.path().join("data.json");
+        std::fs::write(&file_path, r#"{"key":"value"}"#).unwrap();
+        let file_url = url::Url::from_file_path(&file_path).unwrap();
+
+        let mut rt = create_runtime();
+        let result = run_async(
+            &mut rt,
+            &format!(
+                r#"
+                const resp = await fetch('{}');
+                return resp.headers.get('content-type');
+            "#,
+                file_url
+            ),
+        )
+        .await;
+        assert_eq!(result.as_str().unwrap(), "application/json");
+    }
+
+    // --- file:// URL: nonexistent file throws ---
+
+    #[tokio::test]
+    async fn test_fetch_file_url_nonexistent_throws() {
+        let mut rt = create_runtime();
+        let result = run_async(
+            &mut rt,
+            r#"
+            try {
+                await fetch('file:///nonexistent/path/does-not-exist.txt');
+                return 'no-throw';
+            } catch (e) {
+                return 'threw';
+            }
+        "#,
+        )
+        .await;
+        assert_eq!(result, serde_json::json!("threw"));
+    }
+
     // --- Error: invalid HTTP method ---
 
     #[tokio::test]
