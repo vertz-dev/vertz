@@ -135,11 +135,21 @@ describe('Type-level: defineAccess', () => {
 describe('Type-level: SubscriptionStore', () => {
   it('SubscriptionStore has required methods', () => {
     const store: SubscriptionStore = {} as SubscriptionStore;
-    const _assign: (tenantId: string, planId: string) => void = store.assign;
-    const _get: (tenantId: string) => Subscription | null = store.get;
-    const _update: (tenantId: string, overrides: Record<string, LimitOverride>) => void =
-      store.updateOverrides;
-    const _remove: (tenantId: string) => void = store.remove;
+    const _assign: (
+      resourceType: string,
+      resourceId: string,
+      planId: string,
+      startedAt?: Date,
+      expiresAt?: Date | null,
+    ) => Promise<void> = store.assign;
+    const _get: (resourceType: string, resourceId: string) => Promise<Subscription | null> =
+      store.get;
+    const _update: (
+      resourceType: string,
+      resourceId: string,
+      overrides: Record<string, LimitOverride>,
+    ) => Promise<void> = store.updateOverrides;
+    const _remove: (resourceType: string, resourceId: string) => Promise<void> = store.remove;
     const _dispose: () => void = store.dispose;
     void _assign;
     void _get;
@@ -356,8 +366,8 @@ describe('Type-level: Phase 2 plan types', () => {
         free: { group: 'main', features: ['workspace:create'] },
       },
     });
-    const _planGated: Set<string> = def._planGatedEntitlements;
-    const _limitKeys: Record<string, string[]> = def._entitlementToLimitKeys;
+    const _planGated: ReadonlySet<string> = def._planGatedEntitlements;
+    const _limitKeys: Readonly<Record<string, readonly string[]>> = def._entitlementToLimitKeys;
     void _planGated;
     void _limitKeys;
   });

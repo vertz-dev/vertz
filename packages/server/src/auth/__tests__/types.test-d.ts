@@ -53,9 +53,9 @@ describe('Type-level tests', () => {
   });
 
   it('AuthConfig rejects wrong store type', () => {
-    // @ts-expect-error — sessionStore must implement SessionStore interface
     const _config: AuthConfig = {
       session: { strategy: 'jwt', ttl: '60s' },
+      // @ts-expect-error — sessionStore must implement SessionStore interface
       sessionStore: { invalid: true },
     };
   });
@@ -122,9 +122,9 @@ describe('Type-level tests', () => {
   });
 
   it('AuthConfig rejects wrong provider type', () => {
-    // @ts-expect-error — providers must be OAuthProvider[], not random objects
     const _config: AuthConfig = {
       session: { strategy: 'jwt', ttl: '60s' },
+      // @ts-expect-error — providers must be OAuthProvider[], not random objects
       providers: [{ notAProvider: true }],
     };
   });
@@ -145,10 +145,10 @@ describe('Type-level tests', () => {
   });
 
   it('SignUpInput rejects framework-owned role field', () => {
-    // @ts-expect-error — public sign-up cannot self-assign framework roles
     const _input: SignUpInput = {
       email: 'user@example.com',
       password: 'Password123!',
+      // @ts-expect-error — public sign-up cannot self-assign framework roles
       role: 'admin',
     };
   });
@@ -186,11 +186,12 @@ describe('Type-level tests', () => {
     };
   });
 
-  it('OAuthUserInfo accepts optional name and avatarUrl', () => {
+  it('OAuthUserInfo rejects unknown properties (name, avatarUrl)', () => {
     const _info: OAuthUserInfo = {
       providerId: '123',
       email: 'user@example.com',
       emailVerified: true,
+      // @ts-expect-error — name and avatarUrl are not on OAuthUserInfo (use raw for extra data)
       name: 'User',
       avatarUrl: 'https://example.com/avatar.png',
       raw: { id: 123, login: 'octocat' },

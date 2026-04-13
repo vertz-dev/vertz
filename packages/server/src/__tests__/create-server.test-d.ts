@@ -43,9 +43,9 @@ describe('createServer db parameter type', () => {
   });
 
   it('rejects non-DatabaseClient objects for the db parameter', () => {
-    // @ts-expect-error — plain object is not a DatabaseClient or EntityDbAdapter
     createServer({
       entities: [],
+      // @ts-expect-error — plain object is not a DatabaseClient or EntityDbAdapter
       db: { notADatabase: true },
       auth: {
         session: { strategy: 'jwt', ttl: '15m', refreshTtl: '7d' },

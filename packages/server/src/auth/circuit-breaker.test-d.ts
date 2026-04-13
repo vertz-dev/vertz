@@ -1,4 +1,4 @@
-import { expectTypeOf } from 'expect-type';
+import { expectTypeOf } from '@vertz/test';
 import type { CircuitBreaker } from './circuit-breaker';
 import { createCircuitBreaker } from './circuit-breaker';
 
