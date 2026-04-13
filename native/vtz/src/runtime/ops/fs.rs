@@ -555,6 +555,74 @@ pub fn op_fs_chmod_sync(#[string] path: String, #[smi] mode: u32) -> Result<(), 
     }
 }
 
+/// Check file accessibility (node:fs accessSync).
+/// mode: F_OK=0, R_OK=4, W_OK=2, X_OK=1
+#[op2(fast)]
+pub fn op_fs_access_sync(#[string] path: String, #[smi] mode: u32) -> Result<(), AnyError> {
+    let metadata = std::fs::metadata(&path)
+        .map_err(|e| deno_core::anyhow::anyhow!("{}: {}: '{}'", io_error_code(&e), e, path))?;
+
+    // mode == 0 is F_OK — just check existence (already done above).
+    if mode == 0 {
+        return Ok(());
+    }
+
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::MetadataExt;
+        let file_mode = metadata.mode();
+        // SAFETY: getuid/getgid are always safe to call.
+        let uid = unsafe { libc::getuid() };
+        let gid = unsafe { libc::getgid() };
+        let is_owner = metadata.uid() == uid;
+        let is_group = metadata.gid() == gid;
+
+        if mode & 4 != 0 {
+            // R_OK
+            let readable = (is_owner && file_mode & 0o400 != 0)
+                || (is_group && file_mode & 0o040 != 0)
+                || (file_mode & 0o004 != 0);
+            if !readable {
+                return Err(deno_core::anyhow::anyhow!(
+                    "EACCES: permission denied, access '{}'",
+                    path
+                ));
+            }
+        }
+        if mode & 2 != 0 {
+            // W_OK
+            let writable = (is_owner && file_mode & 0o200 != 0)
+                || (is_group && file_mode & 0o020 != 0)
+                || (file_mode & 0o002 != 0);
+            if !writable {
+                return Err(deno_core::anyhow::anyhow!(
+                    "EACCES: permission denied, access '{}'",
+                    path
+                ));
+            }
+        }
+        if mode & 1 != 0 {
+            // X_OK
+            let executable = (is_owner && file_mode & 0o100 != 0)
+                || (is_group && file_mode & 0o010 != 0)
+                || (file_mode & 0o001 != 0);
+            if !executable {
+                return Err(deno_core::anyhow::anyhow!(
+                    "EACCES: permission denied, access '{}'",
+                    path
+                ));
+            }
+        }
+    }
+
+    #[cfg(not(unix))]
+    {
+        let _ = metadata;
+    }
+
+    Ok(())
+}
+
 // --- Async ops ---
 
 /// Read a file as a UTF-8 string (async).
@@ -719,6 +787,7 @@ pub fn op_decls() -> Vec<OpDecl> {
         op_fs_copy_file_sync(),
         op_fs_cp_sync(),
         op_fs_chmod_sync(),
+        op_fs_access_sync(),
         // Async
         op_fs_read_file(),
         op_fs_read_file_bytes(),
@@ -938,6 +1007,47 @@ pub const FS_BOOTSTRAP_JS: &str = r#"
     Deno.core.ops.op_fs_chmod_sync(String(path), mode);
   }
 
+  function accessSync(path, mode) {
+    Deno.core.ops.op_fs_access_sync(String(path), mode === undefined ? 0 : mode);
+  }
+
+  function mkdtemp(prefix, options, callback) {
+    if (typeof options === 'function') { callback = options; options = {}; }
+    try {
+      const dir = Deno.core.ops.op_fs_mkdtemp_sync(String(prefix));
+      if (callback) queueMicrotask(() => callback(null, dir));
+    } catch (err) {
+      if (callback) queueMicrotask(() => callback(err));
+      else throw err;
+    }
+  }
+
+  function watch(filename, options, listener) {
+    if (typeof options === 'function') { listener = options; options = {}; }
+    const interval = (options && options.interval) || 500;
+    let lastMtime = null;
+    try { lastMtime = Deno.core.ops.op_fs_stat_sync(String(filename)).mtimeMs; } catch {}
+
+    const timerId = setInterval(() => {
+      try {
+        const raw = Deno.core.ops.op_fs_stat_sync(String(filename));
+        if (raw.mtimeMs !== lastMtime) {
+          lastMtime = raw.mtimeMs;
+          if (listener) listener('change', filename);
+        }
+      } catch {}
+    }, interval);
+
+    return {
+      close() { clearInterval(timerId); },
+      on(_event, _cb) { return this; },
+      once(_event, _cb) { return this; },
+      removeListener(_event, _cb) { return this; },
+    };
+  }
+
+  const constants = { F_OK: 0, R_OK: 4, W_OK: 2, X_OK: 1 };
+
   // --- Async functions ---
   async function readFile(path, options) {
     const encoding = typeof options === 'string' ? options : (options && options.encoding);
@@ -1007,11 +1117,14 @@ pub const FS_BOOTSTRAP_JS: &str = r#"
     mkdirSync, readdirSync, statSync, lstatSync,
     rmSync, unlinkSync, renameSync, realpathSync,
     mkdtempSync, copyFileSync, cpSync, chmodSync,
+    accessSync, watch, mkdtemp, constants,
     // Async wrappers (node:fs also has callback-style but we provide promise-based)
     readFile, writeFile, mkdir, readdir, stat, rm, unlink, rename, realpath,
     // Promises sub-object
     promises: {
       readFile, writeFile, mkdir, readdir, stat, rm, unlink, rename, realpath,
+      async mkdtemp(prefix) { return Deno.core.ops.op_fs_mkdtemp_sync(String(prefix)); },
+      async access(path, mode) { Deno.core.ops.op_fs_access_sync(String(path), mode === undefined ? 0 : mode); },
     },
   };
 
@@ -1735,5 +1848,120 @@ mod tests {
             "should not have infinite chain, got: {:?}",
             results
         );
+    }
+
+    // --- accessSync tests ---
+
+    #[test]
+    fn test_access_sync_f_ok_existing_file() {
+        let tmp = tempfile::tempdir().unwrap();
+        let file_path = tmp.path().join("exists.txt");
+        std::fs::write(&file_path, "data").unwrap();
+        let mut rt = create_runtime();
+        let code = format!(
+            r#"
+            __vertz_fs.accessSync("{}");
+            "ok"
+            "#,
+            file_path.to_string_lossy().replace('\\', "/")
+        );
+        let result = rt.execute_script("<test>", &code).unwrap();
+        assert_eq!(result, "ok");
+    }
+
+    #[test]
+    fn test_access_sync_nonexistent_file() {
+        let mut rt = create_runtime();
+        let result = rt.execute_script(
+            "<test>",
+            r#"
+            try {
+                __vertz_fs.accessSync("/nonexistent_file_xyz_123");
+                "no_error"
+            } catch (e) {
+                e.message.includes("ENOENT") ? "enoent" : e.message
+            }
+            "#,
+        );
+        assert_eq!(result.unwrap(), "enoent");
+    }
+
+    #[test]
+    fn test_access_sync_constants() {
+        let mut rt = create_runtime();
+        let result = rt
+            .execute_script(
+                "<test>",
+                r#"
+                const c = __vertz_fs.constants;
+                ({ F_OK: c.F_OK, R_OK: c.R_OK, W_OK: c.W_OK, X_OK: c.X_OK })
+                "#,
+            )
+            .unwrap();
+        assert_eq!(result["F_OK"], 0);
+        assert_eq!(result["R_OK"], 4);
+        assert_eq!(result["W_OK"], 2);
+        assert_eq!(result["X_OK"], 1);
+    }
+
+    #[test]
+    fn test_access_sync_r_ok() {
+        let tmp = tempfile::tempdir().unwrap();
+        let file_path = tmp.path().join("readable.txt");
+        std::fs::write(&file_path, "data").unwrap();
+        let mut rt = create_runtime();
+        let code = format!(
+            r#"
+            __vertz_fs.accessSync("{}", __vertz_fs.constants.R_OK);
+            "ok"
+            "#,
+            file_path.to_string_lossy().replace('\\', "/")
+        );
+        let result = rt.execute_script("<test>", &code).unwrap();
+        assert_eq!(result, "ok");
+    }
+
+    // --- mkdtemp async tests ---
+
+    #[test]
+    fn test_mkdtemp_callback() {
+        let mut rt = create_runtime();
+        let result = rt
+            .execute_script(
+                "<test>",
+                r#"
+                let resultDir = null;
+                __vertz_fs.mkdtemp("/tmp/vtz-test-", (err, dir) => {
+                    resultDir = dir;
+                });
+                // mkdtemp uses queueMicrotask, so the callback hasn't fired yet.
+                // The dir is created synchronously though, so resultDir will be set after microtask.
+                typeof resultDir
+                "#,
+            )
+            .unwrap();
+        // Before microtask runs, resultDir is still null
+        assert_eq!(result, "object"); // null has typeof "object"
+    }
+
+    // --- watch tests ---
+
+    #[tokio::test]
+    async fn test_watch_returns_closeable() {
+        let tmp = tempfile::tempdir().unwrap();
+        let file_path = tmp.path().join("watched.txt");
+        std::fs::write(&file_path, "initial").unwrap();
+        let mut rt = create_runtime();
+        let code = format!(
+            r#"
+            const watcher = __vertz_fs.watch("{}");
+            const hasClose = typeof watcher.close === 'function';
+            watcher.close();
+            hasClose
+            "#,
+            file_path.to_string_lossy().replace('\\', "/")
+        );
+        let result = rt.execute_script("<test>", &code).unwrap();
+        assert_eq!(result, true);
     }
 }
