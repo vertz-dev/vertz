@@ -41,9 +41,41 @@ pub fn op_command_output_sync(
     Ok((code, stdout, stderr))
 }
 
+/// Check if a file descriptor refers to a TTY.
+#[op2(fast)]
+pub fn op_is_tty(#[smi] fd: u32) -> bool {
+    // SAFETY: isatty is safe to call with any fd value — returns 0 for invalid fds.
+    unsafe { libc::isatty(fd as libc::c_int) != 0 }
+}
+
+/// Write raw string to stdout (fd 1). No newline appended.
+/// Always returns `true` — Node.js returns `false` for backpressure, but
+/// this shim writes synchronously and does not implement drain events.
+#[op2(fast)]
+pub fn op_write_stdout(#[string] data: &str) -> Result<bool, deno_core::error::AnyError> {
+    use std::io::Write;
+    std::io::stdout().write_all(data.as_bytes())?;
+    std::io::stdout().flush()?;
+    Ok(true)
+}
+
+/// Write raw string to stderr (fd 2). No newline appended.
+#[op2(fast)]
+pub fn op_write_stderr(#[string] data: &str) -> Result<bool, deno_core::error::AnyError> {
+    use std::io::Write;
+    std::io::stderr().write_all(data.as_bytes())?;
+    std::io::stderr().flush()?;
+    Ok(true)
+}
+
 /// Get the op declarations for process ops.
 pub fn op_decls() -> Vec<OpDecl> {
-    vec![op_command_output_sync()]
+    vec![
+        op_command_output_sync(),
+        op_is_tty(),
+        op_write_stdout(),
+        op_write_stderr(),
+    ]
 }
 
 #[cfg(test)]
@@ -145,5 +177,51 @@ mod tests {
             "#,
         );
         assert_eq!(result.unwrap(), "error");
+    }
+
+    #[test]
+    fn test_op_is_tty_via_js() {
+        let mut rt = VertzJsRuntime::new(VertzRuntimeOptions::default()).unwrap();
+        let result = rt
+            .execute_script(
+                "<test>",
+                r#"
+                // fd 1 (stdout) — may or may not be TTY in test runner
+                const isTty = Deno.core.ops.op_is_tty(1);
+                typeof isTty === 'boolean'
+                "#,
+            )
+            .unwrap();
+        assert_eq!(result, true);
+    }
+
+    #[test]
+    fn test_op_write_stdout_via_js() {
+        let mut rt = VertzJsRuntime::new(VertzRuntimeOptions::default()).unwrap();
+        let result = rt
+            .execute_script(
+                "<test>",
+                r#"
+                const ok = Deno.core.ops.op_write_stdout("test_output");
+                ok
+                "#,
+            )
+            .unwrap();
+        assert_eq!(result, true);
+    }
+
+    #[test]
+    fn test_op_write_stderr_via_js() {
+        let mut rt = VertzJsRuntime::new(VertzRuntimeOptions::default()).unwrap();
+        let result = rt
+            .execute_script(
+                "<test>",
+                r#"
+                const ok = Deno.core.ops.op_write_stderr("test_error");
+                ok
+                "#,
+            )
+            .unwrap();
+        assert_eq!(result, true);
     }
 }

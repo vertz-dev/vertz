@@ -848,6 +848,10 @@ fn is_cjs_module_cached(
 /// Looks for `export ` or `import ` at the start of a line (after optional
 /// whitespace), skipping block comments. This is intentionally simple — it
 /// doesn't parse strings, but it's enough to avoid wrapping obvious ESM files.
+///
+/// Known limitation: does not detect `await import(...)` (dynamic import inside
+/// a non-import statement) or ESM keywords inside string literals. In practice,
+/// no sane bundler produces mixed CJS+ESM, so false positives are very rare.
 fn has_esm_syntax(source: &str) -> bool {
     let mut in_block_comment = false;
     for line in source.lines() {
@@ -953,6 +957,12 @@ fn extract_cjs_named_exports(source: &str) -> Vec<String> {
                     }
                 }
             }
+            // `Object.defineProperty(exports, "name", ...)`
+            if let Some(name) = extract_define_property_export(trimmed) {
+                if name != "default" && is_valid_js_ident(&name) {
+                    names.push(name);
+                }
+            }
         }
     }
     // Multiple `module.exports =` assignments → dynamic, return empty
@@ -965,6 +975,11 @@ fn extract_cjs_named_exports(source: &str) -> Vec<String> {
             parse_object_keys(&body, &mut names);
         }
     }
+
+    // Filter out names that would shadow JS built-in globals.
+    // `export const { Symbol } = __cjs_exports;` creates a TDZ that shadows
+    // the global `Symbol`, breaking code inside the IIFE that references it.
+    names.retain(|n| !is_js_global_name(n));
 
     names.sort();
     names.dedup();
@@ -1221,6 +1236,103 @@ fn unquote(s: &str) -> std::borrow::Cow<'_, str> {
     std::borrow::Cow::Borrowed(s)
 }
 
+/// JS global names that must not be re-declared with `export const`.
+///
+/// An `export const { Symbol } = __cjs_exports;` at module level creates a TDZ
+/// binding that shadows the global `Symbol` for the entire module — including the
+/// IIFE-wrapped CJS source. This causes "Cannot access 'X' before initialization"
+/// errors when the CJS code references the global before the `export const` line.
+fn is_js_global_name(name: &str) -> bool {
+    matches!(
+        name,
+        "Symbol"
+            | "Object"
+            | "Array"
+            | "Function"
+            | "String"
+            | "Number"
+            | "Boolean"
+            | "RegExp"
+            | "Error"
+            | "TypeError"
+            | "RangeError"
+            | "SyntaxError"
+            | "ReferenceError"
+            | "EvalError"
+            | "URIError"
+            | "Map"
+            | "Set"
+            | "WeakMap"
+            | "WeakSet"
+            | "Promise"
+            | "Proxy"
+            | "Reflect"
+            | "Date"
+            | "Math"
+            | "JSON"
+            | "Intl"
+            | "NaN"
+            | "Infinity"
+            | "undefined"
+            | "globalThis"
+            | "console"
+            | "Buffer"
+            | "process"
+            | "URL"
+            | "URLSearchParams"
+            | "TextEncoder"
+            | "TextDecoder"
+            | "AbortController"
+            | "AbortSignal"
+            | "Event"
+            | "EventTarget"
+            | "FormData"
+            | "Headers"
+            | "Request"
+            | "Response"
+            | "ReadableStream"
+            | "WritableStream"
+            | "TransformStream"
+            | "Blob"
+            | "File"
+            | "crypto"
+            | "performance"
+            | "queueMicrotask"
+            | "setTimeout"
+            | "setInterval"
+            | "clearTimeout"
+            | "clearInterval"
+            | "atob"
+            | "btoa"
+            | "fetch"
+            | "Iterator"
+    )
+}
+
+/// Extract the export name from `Object.defineProperty(exports, "name", ...)`.
+fn extract_define_property_export(line: &str) -> Option<String> {
+    // Handle both `Object.defineProperty(exports, ...)` and
+    // `Object.defineProperty(module.exports, ...)` (Webpack pattern).
+    let rest = line
+        .strip_prefix("Object.defineProperty(exports,")
+        .or_else(|| line.strip_prefix("Object.defineProperty(module.exports,"))?;
+    let rest = rest.trim();
+    // rest starts with a quoted string: "name" or 'name'
+    let (quote, rest) = if let Some(stripped) = rest.strip_prefix('"') {
+        ('"', stripped)
+    } else if let Some(stripped) = rest.strip_prefix('\'') {
+        ('\'', stripped)
+    } else {
+        return None;
+    };
+    let end = rest.find(quote)?;
+    let name = &rest[..end];
+    if name.is_empty() {
+        return None;
+    }
+    Some(name.to_string())
+}
+
 /// Check if a string is a valid JS identifier (simplified).
 fn is_valid_js_ident(s: &str) -> bool {
     let mut chars = s.chars();
@@ -1274,7 +1386,9 @@ fn wrap_cjs_module(source: &str, path: &Path) -> String {
          var module = {{ exports: {{}} }};\n\
          var exports = module.exports;\n\
          var require = globalThis.__vtz_cjs_require({d});\n\n\
-         {src}\n\n\
+         (function() {{\n\
+         {src}\n\
+         }})();\n\n\
          var __cjs_exports = module.exports;\n\
          export default __cjs_exports;\n\
          {named}",
@@ -1696,6 +1810,7 @@ pub const CJS_BOOTSTRAP_JS: &str = r#"
       case 'constants': {
         return {};
       }
+      case 'crypto': return globalThis.__vertz_crypto || {};
       default:
         // For unimplemented builtins, return a stub that throws on property access
         if (_BUILTIN_NAMES.has(name)) {
@@ -1898,6 +2013,16 @@ pub const CJS_BOOTSTRAP_JS: &str = r#"
   }
 
   globalThis.__vtz_cjs_require = _createRequire;
+
+  // Expose a global require scoped to CWD for ESM modules that need it.
+  // Node.js doesn't provide require() in ESM, but many npm packages and
+  // test helpers use it via createRequire or as a global fallback.
+  if (!globalThis.require) {
+    const cwd = (typeof Deno !== 'undefined' && Deno.core.ops.op_cwd)
+      ? Deno.core.ops.op_cwd()
+      : '/';
+    globalThis.require = _createRequire(cwd);
+  }
 })(globalThis);
 "#;
 
@@ -2387,8 +2512,42 @@ if (!proc.versions) proc.versions = {};
 if (!proc.versions.node) proc.versions.node = '20.0.0';
 if (!proc.exit) proc.exit = (code) => { throw new Error('process.exit(' + (code !== undefined ? code : '') + ') is not supported in the Vertz runtime'); };
 if (!proc.nextTick) proc.nextTick = (fn, ...args) => queueMicrotask(() => fn(...args));
-if (!proc.stdout) proc.stdout = { write: (s) => Deno.core.ops.op_stdout_write(String(s)) };
-if (!proc.stderr) proc.stderr = { write: (s) => Deno.core.ops.op_stderr_write(String(s)) };
+if (!proc.stdout) {
+  proc.stdout = {
+    isTTY: Deno.core.ops.op_is_tty(1),
+    columns: 80,
+    rows: 24,
+    write: function(data) { return Deno.core.ops.op_write_stdout(String(data)); },
+    on: function(_event, _cb) { return this; },
+    once: function(_event, _cb) { return this; },
+    removeListener: function(_event, _cb) { return this; },
+    end: function() {},
+  };
+}
+if (!proc.stderr) {
+  proc.stderr = {
+    isTTY: Deno.core.ops.op_is_tty(2),
+    columns: 80,
+    rows: 24,
+    write: function(data) { return Deno.core.ops.op_write_stderr(String(data)); },
+    on: function(_event, _cb) { return this; },
+    once: function(_event, _cb) { return this; },
+    removeListener: function(_event, _cb) { return this; },
+    end: function() {},
+  };
+}
+if (!proc.stdin) {
+  proc.stdin = {
+    isTTY: Deno.core.ops.op_is_tty(0),
+    isRaw: false,
+    setRawMode: function(_mode) { return this; },
+    on: function(_event, _cb) { return this; },
+    once: function(_event, _cb) { return this; },
+    removeListener: function(_event, _cb) { return this; },
+    resume: function() { return this; },
+    pause: function() { return this; },
+  };
+}
 globalThis.process = proc;
 
 export default proc;
@@ -2401,6 +2560,7 @@ export const versions = proc.versions;
 export const nextTick = proc.nextTick;
 export const stdout = proc.stdout;
 export const stderr = proc.stderr;
+export const stdin = proc.stdin;
 "#;
 
 /// Synthetic module for `node:fs`.
@@ -2423,6 +2583,7 @@ export const mkdtempSync = fs.mkdtempSync;
 export const copyFileSync = fs.copyFileSync;
 export const cpSync = fs.cpSync;
 export const chmodSync = fs.chmodSync;
+export const accessSync = fs.accessSync;
 export const readFile = fs.readFile;
 export const writeFile = fs.writeFile;
 export const mkdir = fs.mkdir;
@@ -2432,6 +2593,9 @@ export const rm = fs.rm;
 export const unlink = fs.unlink;
 export const rename = fs.rename;
 export const realpath = fs.realpath;
+export const mkdtemp = fs.mkdtemp;
+export const watch = fs.watch;
+export const constants = fs.constants;
 export const promises = fs.promises;
 export default fs;
 "#;
@@ -2449,6 +2613,8 @@ export const rm = p.rm;
 export const unlink = p.unlink;
 export const rename = p.rename;
 export const realpath = p.realpath;
+export const mkdtemp = p.mkdtemp;
+export const access = p.access;
 export default p;
 "#;
 
@@ -2607,18 +2773,15 @@ function createPublicKey(input) {
 }
 
 function generateKeyPairSync(type, options) {
-  // Delegate to Rust op if available
-  if (typeof Deno !== 'undefined' && Deno.core && Deno.core.ops.op_crypto_generate_keypair) {
-    const result = Deno.core.ops.op_crypto_generate_keypair(
-      type,
-      options.modulusLength || 2048
-    );
-    return {
-      publicKey: createPublicKey(result.publicKey),
-      privateKey: createPrivateKey(result.privateKey),
-    };
-  }
-  throw new Error('generateKeyPairSync is not supported in the Vertz runtime without the crypto op');
+  const result = Deno.core.ops.op_crypto_generate_keypair({
+    type,
+    modulusLength: options.modulusLength,
+    namedCurve: options.namedCurve,
+  });
+  return {
+    publicKey: createPublicKey(result.publicKey),
+    privateKey: createPrivateKey(result.privateKey),
+  };
 }
 
 function randomFillSync(buf, offset, size) {
@@ -2647,8 +2810,11 @@ function getCurves() { return ['prime256v1', 'secp384r1', 'secp521r1']; }
 
 const constants = {};
 
+const __cryptoModule = { createHash, createHmac, timingSafeEqual, randomBytes, randomUUID, randomFillSync, randomInt, webcrypto, KeyObject, createPrivateKey, createPublicKey, generateKeyPairSync, getHashes, getCiphers, getCurves, constants };
+globalThis.__vertz_crypto = __cryptoModule;
+
 export { createHash, createHmac, timingSafeEqual, randomBytes, randomUUID, randomFillSync, randomInt, Hash, webcrypto, KeyObject, createPrivateKey, createPublicKey, generateKeyPairSync, getHashes, getCiphers, getCurves, constants };
-export default { createHash, createHmac, timingSafeEqual, randomBytes, randomUUID, randomFillSync, randomInt, webcrypto, KeyObject, createPrivateKey, createPublicKey, generateKeyPairSync, getHashes, getCiphers, getCurves, constants };
+export default __cryptoModule;
 "#;
 
 /// Synthetic module for `node:buffer` / `buffer`.
@@ -2907,6 +3073,35 @@ export const TransformStream = globalThis.TransformStream || class TransformStre
 export default { ReadableStream, WritableStream, TransformStream };
 "#;
 
+/// Synthetic module for `esbuild`.
+/// Delegates transformSync/build to Rust ops that shell out to the esbuild CLI.
+const ESBUILD_SPECIFIER: &str = "vertz:esbuild";
+const ESBUILD_MODULE: &str = r#"
+export function transformSync(source, options = {}) {
+  return Deno.core.ops.op_esbuild_transform_sync({
+    source,
+    loader: options.loader,
+    jsx: options.jsx,
+    jsxImportSource: options.jsxImportSource,
+    target: options.target,
+    sourcemap: options.sourcemap === true || options.sourcemap === 'inline',
+  });
+}
+
+export function transform(source, options = {}) {
+  return Promise.resolve(transformSync(source, options));
+}
+
+export async function build(options = {}) {
+  throw new Error('esbuild.build() is not yet supported in the vtz runtime. Use the native compiler or esbuild CLI directly.');
+}
+
+export function initialize() { return Promise.resolve(); }
+export function stop() {}
+
+export default { transformSync, transform, build, initialize, stop };
+"#;
+
 /// Map a `node:*` specifier to a synthetic module specifier.
 fn node_specifier_to_synthetic(specifier: &str) -> Option<&'static str> {
     match specifier {
@@ -2956,6 +3151,7 @@ fn synthetic_module_source(specifier: &str) -> Option<&'static str> {
         NODE_ZLIB_SPECIFIER => Some(NODE_ZLIB_MODULE),
         NODE_STREAM_WEB_SPECIFIER => Some(NODE_STREAM_WEB_MODULE),
         VERTZ_SQLITE_SPECIFIER => Some(VERTZ_SQLITE_MODULE),
+        ESBUILD_SPECIFIER => Some(ESBUILD_MODULE),
         _ => None,
     }
 }
@@ -2977,6 +3173,11 @@ impl ModuleLoader for VertzModuleLoader {
         if specifier == "vertz:sqlite" || specifier == "@vertz/sqlite" || specifier == "bun:sqlite"
         {
             return Ok(ModuleSpecifier::parse(VERTZ_SQLITE_SPECIFIER)?);
+        }
+
+        // Intercept esbuild → synthetic esbuild module
+        if specifier == "esbuild" {
+            return Ok(ModuleSpecifier::parse(ESBUILD_SPECIFIER)?);
         }
 
         // Intercept node:* specifiers → synthetic modules
@@ -3114,9 +3315,12 @@ impl ModuleLoader for VertzModuleLoader {
             let filename = path.to_string_lossy().to_string();
             let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("");
 
-            // Determine if we need to compile or wrap
+            // Determine if we need to compile or wrap.
+            // Even if package.json says CJS, files with explicit ESM syntax
+            // (export/import statements) must not be IIFE-wrapped.
             let is_cjs = matches!(ext, "js" | "cjs" | "")
-                && is_cjs_module_cached(&path, &source, Some(&self.pkg_type_cache));
+                && is_cjs_module_cached(&path, &source, Some(&self.pkg_type_cache))
+                && !has_esm_syntax(&source);
             let (code, module_type) = match ext {
                 "ts" | "tsx" | "jsx" => {
                     let compiled = self.compile_source(&source, &filename)?;
@@ -4687,5 +4891,54 @@ module.exports = require_main();
             "Should have export statement with aliases, got:\n{}",
             result
         );
+    }
+
+    // ---------------------------------------------------------------
+    // CJS interop: defineProperty, IIFE wrapping, global TDZ (#2521)
+    // ---------------------------------------------------------------
+
+    #[test]
+    fn test_extract_cjs_named_exports_define_property() {
+        // Object.defineProperty(exports, "name", { get: ... }) pattern
+        let source = r#"
+exports.Project = Project;
+exports.Node = Node;
+Object.defineProperty(exports, "SyntaxKind", {
+    get: function () { return common.SyntaxKind; }
+});
+Object.defineProperty(exports, "ModuleKind", {
+    get: function () { return common.ModuleKind; }
+});
+"#;
+        let names = extract_cjs_named_exports(source);
+        assert!(names.contains(&"Project".to_string()));
+        assert!(names.contains(&"Node".to_string()));
+        assert!(names.contains(&"SyntaxKind".to_string()));
+        assert!(names.contains(&"ModuleKind".to_string()));
+        assert_eq!(names.len(), 4);
+    }
+
+    #[test]
+    fn test_extract_define_property_export_basic() {
+        assert_eq!(
+            extract_define_property_export(r#"Object.defineProperty(exports, "Foo", {"#),
+            Some("Foo".to_string())
+        );
+        assert_eq!(
+            extract_define_property_export(r#"Object.defineProperty(exports, 'Bar', {"#),
+            Some("Bar".to_string())
+        );
+        assert_eq!(extract_define_property_export("var x = 1;"), None);
+    }
+
+    #[test]
+    fn test_wrap_cjs_module_iife_wraps_source() {
+        let wrapped = wrap_cjs_module("var x = 1;", Path::new("/tmp/foo.js"));
+        // Source should be inside an IIFE
+        assert!(
+            wrapped.contains("(function() {"),
+            "Source should be wrapped in IIFE"
+        );
+        assert!(wrapped.contains("})();"), "IIFE should be closed");
     }
 }
