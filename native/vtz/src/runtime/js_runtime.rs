@@ -11,7 +11,7 @@ use deno_core::ModuleSpecifier;
 use deno_core::PollEventLoopOptions;
 use deno_core::RuntimeOptions;
 
-use super::module_loader::VertzModuleLoader;
+use super::module_loader::{VertzModuleLoader, CJS_BOOTSTRAP_JS};
 use super::ops::async_context;
 use super::ops::clone;
 use super::ops::console;
@@ -143,6 +143,7 @@ impl VertzJsRuntime {
             streams::STREAMS_BOOTSTRAP_JS,
             os::OS_BOOTSTRAP_JS,
             fs::FS_BOOTSTRAP_JS,
+            CJS_BOOTSTRAP_JS,
             http_serve::HTTP_SERVE_BOOTSTRAP_JS,
         ]
         .join("\n")

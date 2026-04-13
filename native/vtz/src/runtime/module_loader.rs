@@ -361,7 +361,35 @@ impl VertzModuleLoader {
                 // Follow symlinks (Bun creates symlinks in workspace packages)
                 match nm_dir.canonicalize() {
                     Ok(canonical) => {
-                        return self.resolve_package_entry(&canonical, subpath.as_deref());
+                        match self.resolve_package_entry(&canonical, subpath.as_deref()) {
+                            Ok(resolved) => return Ok(resolved),
+                            Err(_) => {
+                                // Dist not built — try source fallback for workspace packages
+                                let pkg_json_path = canonical.join("package.json");
+                                if pkg_json_path.is_file() {
+                                    if let Ok(content) = std::fs::read_to_string(&pkg_json_path) {
+                                        if let Ok(pkg) =
+                                            serde_json::from_str::<serde_json::Value>(&content)
+                                        {
+                                            if let Ok(resolved) = self
+                                                .resolve_self_reference_source(
+                                                    &canonical,
+                                                    &pkg,
+                                                    subpath.as_deref(),
+                                                )
+                                            {
+                                                return Ok(resolved);
+                                            }
+                                        }
+                                    }
+                                }
+                                // Continue searching up the tree
+                                if !search_dir.pop() {
+                                    break;
+                                }
+                                continue;
+                            }
+                        }
                     }
                     Err(_) => {
                         // Broken symlink — continue searching up the tree
@@ -735,6 +763,214 @@ impl VertzModuleLoader {
         Ok(final_code)
     }
 }
+
+/// Check whether a `.js` file should be loaded as CommonJS.
+///
+/// Follows Node.js semantics:
+/// - `.cjs` → always CJS
+/// - `.mjs` → always ESM
+/// - `.js` → CJS unless the nearest `package.json` has `"type": "module"`
+///
+/// Additionally, if no `package.json` is found (e.g. temp directories), falls
+/// back to source-level heuristic: files with ESM syntax are treated as ESM.
+fn is_cjs_module(path: &Path, source: &str) -> bool {
+    let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("");
+    match ext {
+        "cjs" => true,
+        "mjs" => false,
+        "js" => {
+            let mut dir = path.parent();
+            while let Some(d) = dir {
+                let pkg_json = d.join("package.json");
+                if pkg_json.is_file() {
+                    if let Ok(content) = std::fs::read_to_string(&pkg_json) {
+                        if let Ok(json) = serde_json::from_str::<serde_json::Value>(&content) {
+                            return json.get("type").and_then(|v| v.as_str()) != Some("module");
+                        }
+                    }
+                    // Unreadable/unparseable package.json → default to CJS
+                    return true;
+                }
+                dir = d.parent();
+            }
+            // No package.json found — use source-level heuristic
+            !has_esm_syntax(source)
+        }
+        _ => false,
+    }
+}
+
+/// Quick heuristic: check if source contains ESM export/import syntax.
+///
+/// Looks for `export ` or `import ` at the start of a line (after optional
+/// whitespace). This is intentionally simple — it doesn't parse comments or
+/// strings, but it's enough to avoid wrapping obvious ESM files.
+fn has_esm_syntax(source: &str) -> bool {
+    for line in source.lines() {
+        let trimmed = line.trim();
+        if trimmed.starts_with("export ")
+            || trimmed.starts_with("export{")
+            || trimmed.starts_with("import ")
+            || trimmed.starts_with("import{")
+            || trimmed.starts_with("import(")
+        {
+            return true;
+        }
+    }
+    false
+}
+
+/// Wrap CommonJS source code into an ESM module.
+///
+/// The wrapper provides `module`, `exports`, `require`, `__filename`, `__dirname`
+/// bindings and exports `module.exports` as the default export.
+fn wrap_cjs_module(source: &str, path: &Path) -> String {
+    let filename = path.to_string_lossy();
+    let dirname = path
+        .parent()
+        .map(|p| p.to_string_lossy().into_owned())
+        .unwrap_or_default();
+    let filename_json = serde_json::to_string(&*filename).unwrap_or_else(|_| "\"\"".to_string());
+    let dirname_json = serde_json::to_string(&*dirname).unwrap_or_else(|_| "\"\"".to_string());
+
+    format!(
+        "var __filename = {f};\n\
+         var __dirname = {d};\n\
+         var module = {{ exports: {{}} }};\n\
+         var exports = module.exports;\n\
+         var require = globalThis.__vtz_cjs_require({d});\n\n\
+         {src}\n\n\
+         var __cjs_exports = module.exports;\n\
+         export default __cjs_exports;\n",
+        f = filename_json,
+        d = dirname_json,
+        src = source,
+    )
+}
+
+/// JavaScript bootstrap for CJS `require()` support.
+///
+/// Installs `globalThis.__vtz_cjs_require(fromDir)` which returns a `require`
+/// function that resolves relative paths, reads files synchronously, and evaluates
+/// them as CommonJS modules with `module`, `exports`, `require`, `__filename`,
+/// `__dirname` bindings.
+pub const CJS_BOOTSTRAP_JS: &str = r#"
+((globalThis) => {
+  const _cjsCache = Object.create(null);
+
+  function _resolveCjsPath(specifier, fromDir) {
+    if (specifier.startsWith('./') || specifier.startsWith('../')) {
+      const parts = (fromDir + '/' + specifier).split('/');
+      const resolved = [];
+      for (const part of parts) {
+        if (part === '' && resolved.length > 0) continue;
+        if (part === '.') continue;
+        if (part === '..') { resolved.pop(); continue; }
+        resolved.push(part);
+      }
+      let path = '/' + resolved.join('/');
+
+      if (Deno.core.ops.op_fs_exists_sync(path)) {
+        try {
+          const stat = Deno.core.ops.op_fs_stat_sync(path);
+          if (stat.isDirectory) {
+            // Check package.json main
+            const pkgPath = path + '/package.json';
+            if (Deno.core.ops.op_fs_exists_sync(pkgPath)) {
+              try {
+                const pkg = JSON.parse(Deno.core.ops.op_fs_read_file_sync(pkgPath));
+                if (pkg.main) {
+                  const mainPath = path + '/' + pkg.main;
+                  if (Deno.core.ops.op_fs_exists_sync(mainPath)) return mainPath;
+                }
+              } catch (_) { /* ignore parse errors */ }
+            }
+            if (Deno.core.ops.op_fs_exists_sync(path + '/index.js')) return path + '/index.js';
+            if (Deno.core.ops.op_fs_exists_sync(path + '/index.json')) return path + '/index.json';
+            throw new Error("Cannot find module '" + specifier + "' from '" + fromDir + "'");
+          }
+        } catch (_) { /* stat error — treat as file */ }
+        return path;
+      }
+      if (Deno.core.ops.op_fs_exists_sync(path + '.js')) return path + '.js';
+      if (Deno.core.ops.op_fs_exists_sync(path + '.json')) return path + '.json';
+      if (Deno.core.ops.op_fs_exists_sync(path + '/index.js')) return path + '/index.js';
+
+      throw new Error("Cannot find module '" + specifier + "' from '" + fromDir + "'");
+    }
+
+    // Bare specifiers — walk up node_modules
+    let dir = fromDir;
+    while (dir && dir !== '/') {
+      const candidate = dir + '/node_modules/' + specifier;
+      if (Deno.core.ops.op_fs_exists_sync(candidate)) {
+        try {
+          const stat = Deno.core.ops.op_fs_stat_sync(candidate);
+          if (stat.isDirectory) {
+            const pkgPath = candidate + '/package.json';
+            if (Deno.core.ops.op_fs_exists_sync(pkgPath)) {
+              try {
+                const pkg = JSON.parse(Deno.core.ops.op_fs_read_file_sync(pkgPath));
+                if (pkg.main) {
+                  const mainPath = candidate + '/' + pkg.main;
+                  if (Deno.core.ops.op_fs_exists_sync(mainPath)) return mainPath;
+                }
+              } catch (_) { /* ignore parse errors */ }
+            }
+            if (Deno.core.ops.op_fs_exists_sync(candidate + '/index.js')) return candidate + '/index.js';
+          } else {
+            return candidate;
+          }
+        } catch (_) { return candidate; }
+      }
+      if (Deno.core.ops.op_fs_exists_sync(candidate + '.js')) return candidate + '.js';
+      const lastSlash = dir.lastIndexOf('/');
+      dir = lastSlash > 0 ? dir.substring(0, lastSlash) : '';
+    }
+
+    throw new Error(
+      "require('" + specifier + "') could not be resolved from '" + fromDir + "'. " +
+      "Use ESM imports for complex module resolution."
+    );
+  }
+
+  function _loadCjsModule(filename, dirname) {
+    if (filename in _cjsCache) return _cjsCache[filename].exports;
+
+    if (filename.endsWith('.json')) {
+      const source = Deno.core.ops.op_fs_read_file_sync(filename);
+      const parsed = JSON.parse(source);
+      _cjsCache[filename] = { exports: parsed };
+      return parsed;
+    }
+
+    const source = Deno.core.ops.op_fs_read_file_sync(filename);
+    const mod = { exports: {} };
+    _cjsCache[filename] = mod;
+
+    const requireFn = _createRequire(dirname);
+    requireFn.resolve = function(specifier) {
+      return _resolveCjsPath(specifier, dirname);
+    };
+
+    const fn = new Function('module', 'exports', 'require', '__filename', '__dirname', source);
+    fn(mod, mod.exports, requireFn, filename, dirname);
+
+    return mod.exports;
+  }
+
+  function _createRequire(fromDir) {
+    return function require(specifier) {
+      const resolved = _resolveCjsPath(specifier, fromDir);
+      const lastSlash = resolved.lastIndexOf('/');
+      const dirname = lastSlash >= 0 ? resolved.substring(0, lastSlash) : '.';
+      return _loadCjsModule(resolved, dirname);
+    };
+  }
+
+  globalThis.__vtz_cjs_require = _createRequire;
+})(globalThis);
+"#;
 
 /// Prefix for mocked module synthetic specifiers.
 const VERTZ_MOCK_PREFIX: &str = "vertz:mock:";
@@ -1251,6 +1487,7 @@ export const renameSync = fs.renameSync;
 export const realpathSync = fs.realpathSync;
 export const mkdtempSync = fs.mkdtempSync;
 export const copyFileSync = fs.copyFileSync;
+export const cpSync = fs.cpSync;
 export const chmodSync = fs.chmodSync;
 export const readFile = fs.readFile;
 export const writeFile = fs.writeFile;
@@ -1949,14 +2186,21 @@ impl ModuleLoader for VertzModuleLoader {
             let filename = path.to_string_lossy().to_string();
             let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("");
 
-            // Determine if we need to compile
+            // Determine if we need to compile or wrap
+            let is_cjs = matches!(ext, "js" | "cjs" | "") && is_cjs_module(&path, &source);
             let (code, module_type) = match ext {
                 "ts" | "tsx" | "jsx" => {
                     let compiled = self.compile_source(&source, &filename)?;
                     (compiled, ModuleType::JavaScript)
                 }
                 "json" => (source, ModuleType::Json),
-                _ => (source, ModuleType::JavaScript),
+                _ => {
+                    if is_cjs {
+                        (wrap_cjs_module(&source, &path), ModuleType::JavaScript)
+                    } else {
+                        (source, ModuleType::JavaScript)
+                    }
+                }
             };
 
             let code_cache = self
