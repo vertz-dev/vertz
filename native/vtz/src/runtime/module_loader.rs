@@ -1337,8 +1337,8 @@ pub const CJS_BOOTSTRAP_JS: &str = r#"
         if (!p.versions) p.versions = {};
         if (!p.versions.node) p.versions.node = '20.0.0';
         if (!p.nextTick) p.nextTick = (fn, ...args) => queueMicrotask(() => fn(...args));
-        if (!p.stdout) p.stdout = { write: (s) => { console.log(s); } };
-        if (!p.stderr) p.stderr = { write: (s) => { console.error(s); } };
+        if (!p.stdout) p.stdout = { write: (s) => Deno.core.ops.op_stdout_write(String(s)) };
+        if (!p.stderr) p.stderr = { write: (s) => Deno.core.ops.op_stderr_write(String(s)) };
         globalThis.process = p;
         return p;
       }
@@ -2321,8 +2321,8 @@ if (!proc.versions) proc.versions = {};
 if (!proc.versions.node) proc.versions.node = '20.0.0';
 if (!proc.exit) proc.exit = (code) => { throw new Error('process.exit(' + (code !== undefined ? code : '') + ') is not supported in the Vertz runtime'); };
 if (!proc.nextTick) proc.nextTick = (fn, ...args) => queueMicrotask(() => fn(...args));
-if (!proc.stdout) proc.stdout = { write: (s) => { console.log(s); } };
-if (!proc.stderr) proc.stderr = { write: (s) => { console.error(s); } };
+if (!proc.stdout) proc.stdout = { write: (s) => Deno.core.ops.op_stdout_write(String(s)) };
+if (!proc.stderr) proc.stderr = { write: (s) => Deno.core.ops.op_stderr_write(String(s)) };
 globalThis.process = proc;
 
 export default proc;
