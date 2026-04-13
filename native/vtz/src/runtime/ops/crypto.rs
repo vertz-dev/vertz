@@ -1,5 +1,6 @@
 use deno_core::op2;
 use deno_core::OpDecl;
+use serde::{Deserialize, Serialize};
 
 #[op2]
 #[string]
@@ -84,6 +85,85 @@ pub fn op_crypto_random_bytes(#[smi] size: u32) -> Result<Vec<u8>, deno_core::er
     Ok(buf)
 }
 
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct KeyPairOptions {
+    #[serde(rename = "type")]
+    pub key_type: String,
+    pub modulus_length: Option<u32>,
+    pub named_curve: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct KeyPairResult {
+    pub public_key: String,
+    pub private_key: String,
+}
+
+/// Generate an RSA key pair in PEM format.
+fn generate_rsa_keypair(modulus_length: u32) -> Result<KeyPairResult, deno_core::error::AnyError> {
+    use rsa::pkcs8::EncodePrivateKey;
+    use rsa::pkcs8::EncodePublicKey;
+    use rsa::RsaPrivateKey;
+
+    let mut rng = rand::thread_rng();
+    let private_key = RsaPrivateKey::new(&mut rng, modulus_length as usize)?;
+    let private_pem = private_key.to_pkcs8_pem(rsa::pkcs8::LineEnding::LF)?;
+    let public_pem =
+        RsaPrivateKey::to_public_key(&private_key).to_public_key_pem(rsa::pkcs8::LineEnding::LF)?;
+
+    Ok(KeyPairResult {
+        public_key: public_pem,
+        private_key: private_pem.to_string(),
+    })
+}
+
+/// Generate an EC P-256 key pair in PEM format.
+fn generate_ec_keypair(curve: &str) -> Result<KeyPairResult, deno_core::error::AnyError> {
+    match curve {
+        "P-256" | "prime256v1" => {
+            use p256::pkcs8::EncodePrivateKey;
+            use p256::pkcs8::EncodePublicKey;
+            use p256::SecretKey;
+
+            let secret_key = SecretKey::random(&mut rand::thread_rng());
+            let private_pem = secret_key.to_pkcs8_pem(p256::pkcs8::LineEnding::LF)?;
+            let public_key = secret_key.public_key();
+            let public_pem = public_key.to_public_key_pem(p256::pkcs8::LineEnding::LF)?;
+
+            Ok(KeyPairResult {
+                public_key: public_pem,
+                private_key: private_pem.to_string(),
+            })
+        }
+        other => Err(deno_core::anyhow::anyhow!(
+            "Unsupported EC curve: {}",
+            other
+        )),
+    }
+}
+
+/// Generate a key pair (RSA or EC) and return PEM-encoded public/private keys.
+///
+/// Supports:
+/// - RSA: `{ type: "rsa", modulusLength: 2048 }`
+/// - EC P-256: `{ type: "ec", namedCurve: "P-256" }`
+#[op2]
+#[serde]
+pub fn op_crypto_generate_keypair(
+    #[serde] options: KeyPairOptions,
+) -> Result<KeyPairResult, deno_core::error::AnyError> {
+    match options.key_type.as_str() {
+        "rsa" => generate_rsa_keypair(options.modulus_length.unwrap_or(2048)),
+        "ec" => generate_ec_keypair(options.named_curve.as_deref().unwrap_or("P-256")),
+        other => Err(deno_core::anyhow::anyhow!(
+            "Unsupported key type: {}",
+            other
+        )),
+    }
+}
+
 /// Get the op declarations for crypto ops.
 pub fn op_decls() -> Vec<OpDecl> {
     vec![
@@ -92,6 +172,7 @@ pub fn op_decls() -> Vec<OpDecl> {
         op_crypto_hash_digest(),
         op_crypto_timing_safe_equal(),
         op_crypto_random_bytes(),
+        op_crypto_generate_keypair(),
     ]
 }
 
@@ -392,5 +473,104 @@ mod tests {
             .unwrap();
         let arr = result.as_array().unwrap();
         assert!(arr[2].as_bool().unwrap(), "UUIDs should be unique");
+    }
+
+    #[test]
+    fn test_generate_rsa_keypair() {
+        let result = super::generate_rsa_keypair(2048).unwrap();
+        assert!(
+            result.private_key.contains("-----BEGIN PRIVATE KEY-----"),
+            "Private key should be PKCS#8 PEM"
+        );
+        assert!(
+            result.public_key.contains("-----BEGIN PUBLIC KEY-----"),
+            "Public key should be SPKI PEM"
+        );
+    }
+
+    #[test]
+    fn test_generate_ec_p256_keypair() {
+        let result = super::generate_ec_keypair("P-256").unwrap();
+        assert!(
+            result.private_key.contains("-----BEGIN PRIVATE KEY-----"),
+            "Private key should be PKCS#8 PEM"
+        );
+        assert!(
+            result.public_key.contains("-----BEGIN PUBLIC KEY-----"),
+            "Public key should be SPKI PEM"
+        );
+    }
+
+    #[test]
+    fn test_generate_ec_unsupported_curve() {
+        let result = super::generate_ec_keypair("P-521");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("Unsupported EC curve: P-521"));
+    }
+
+    #[test]
+    fn test_generate_keypair_via_js_rsa() {
+        let mut rt = VertzJsRuntime::new(VertzRuntimeOptions::default()).unwrap();
+        let result = rt
+            .execute_script(
+                "<test>",
+                r#"
+                const result = Deno.core.ops.op_crypto_generate_keypair({
+                    type: "rsa",
+                    modulusLength: 2048,
+                });
+                [
+                    result.publicKey.includes("BEGIN PUBLIC KEY"),
+                    result.privateKey.includes("BEGIN PRIVATE KEY"),
+                ]
+                "#,
+            )
+            .unwrap();
+        let arr = result.as_array().unwrap();
+        assert!(arr[0].as_bool().unwrap(), "Public key should be PEM");
+        assert!(arr[1].as_bool().unwrap(), "Private key should be PEM");
+    }
+
+    #[test]
+    fn test_generate_keypair_via_js_ec() {
+        let mut rt = VertzJsRuntime::new(VertzRuntimeOptions::default()).unwrap();
+        let result = rt
+            .execute_script(
+                "<test>",
+                r#"
+                const result = Deno.core.ops.op_crypto_generate_keypair({
+                    type: "ec",
+                    namedCurve: "P-256",
+                });
+                [
+                    result.publicKey.includes("BEGIN PUBLIC KEY"),
+                    result.privateKey.includes("BEGIN PRIVATE KEY"),
+                ]
+                "#,
+            )
+            .unwrap();
+        let arr = result.as_array().unwrap();
+        assert!(arr[0].as_bool().unwrap(), "Public key should be PEM");
+        assert!(arr[1].as_bool().unwrap(), "Private key should be PEM");
+    }
+
+    #[test]
+    fn test_generate_keypair_via_js_unsupported_type() {
+        let mut rt = VertzJsRuntime::new(VertzRuntimeOptions::default()).unwrap();
+        let result = rt.execute_script(
+            "<test>",
+            r#"
+            try {
+                Deno.core.ops.op_crypto_generate_keypair({ type: "ed25519" });
+                "no_error"
+            } catch (e) {
+                e.message.includes("Unsupported key type") ? "correct_error" : e.message
+            }
+            "#,
+        );
+        assert_eq!(result.unwrap(), "correct_error");
     }
 }

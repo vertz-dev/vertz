@@ -2642,18 +2642,15 @@ function createPublicKey(input) {
 }
 
 function generateKeyPairSync(type, options) {
-  // Delegate to Rust op if available
-  if (typeof Deno !== 'undefined' && Deno.core && Deno.core.ops.op_crypto_generate_keypair) {
-    const result = Deno.core.ops.op_crypto_generate_keypair(
-      type,
-      options.modulusLength || 2048
-    );
-    return {
-      publicKey: createPublicKey(result.publicKey),
-      privateKey: createPrivateKey(result.privateKey),
-    };
-  }
-  throw new Error('generateKeyPairSync is not supported in the Vertz runtime without the crypto op');
+  const result = Deno.core.ops.op_crypto_generate_keypair({
+    type,
+    modulusLength: options.modulusLength,
+    namedCurve: options.namedCurve,
+  });
+  return {
+    publicKey: createPublicKey(result.publicKey),
+    privateKey: createPrivateKey(result.privateKey),
+  };
 }
 
 function randomFillSync(buf, offset, size) {
