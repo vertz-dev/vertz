@@ -1434,51 +1434,48 @@ pub const CJS_BOOTSTRAP_JS: &str = r#"
       }
       case 'child_process': {
         function execSync(cmd, opts) {
-          const parts = cmd.split(' ');
-          const command = new Deno.Command(parts[0], {
-            args: parts.slice(1), cwd: opts?.cwd, env: opts?.env, stdout: 'piped', stderr: 'piped',
-          });
-          const result = command.outputSync();
-          if (result.code !== 0) {
+          const [code, stdout, stderr] = Deno.core.ops.op_command_output_sync(
+            '/bin/sh', ['-c', cmd], opts?.cwd ?? null, opts?.env ?? null,
+          );
+          if (code !== 0) {
             const err = new Error('Command failed: ' + cmd);
-            err.status = result.code;
-            err.stderr = new TextDecoder().decode(result.stderr);
+            err.status = code;
+            err.stderr = stderr;
             throw err;
           }
-          const out = new TextDecoder().decode(result.stdout);
-          return opts?.encoding ? out : new TextEncoder().encode(out);
+          return opts?.encoding ? stdout : new TextEncoder().encode(stdout);
         }
         function execFile(file, args, opts, cb) {
           if (typeof opts === 'function') { cb = opts; opts = {}; }
+          let code, stdout, stderr;
           try {
-            const command = new Deno.Command(file, {
-              args: args || [], cwd: opts?.cwd, env: opts?.env, stdout: 'piped', stderr: 'piped',
-            });
-            const result = command.outputSync();
-            const stdout = new TextDecoder().decode(result.stdout);
-            const stderr = new TextDecoder().decode(result.stderr);
-            if (result.code !== 0) {
-              const err = new Error('Command failed: ' + file);
-              err.code = result.code; err.stderr = stderr;
-              if (cb) cb(err, stdout, stderr); else throw err;
-              return;
-            }
-            if (cb) cb(null, stdout, stderr);
-          } catch (e) { if (cb) cb(e, '', ''); else throw e; }
+            [code, stdout, stderr] = Deno.core.ops.op_command_output_sync(
+              file, args || [], opts?.cwd ?? null, opts?.env ?? null,
+            );
+          } catch (e) {
+            if (cb) { cb(e, '', ''); return; }
+            throw e;
+          }
+          if (code !== 0) {
+            const err = new Error('Command failed: ' + file);
+            err.status = code;
+            err.stderr = stderr;
+            if (cb) cb(err, stdout, stderr); else throw err;
+            return;
+          }
+          if (cb) cb(null, stdout, stderr);
         }
         function execFileSync(file, args, opts) {
-          const command = new Deno.Command(file, {
-            args: args || [], cwd: opts?.cwd, env: opts?.env, stdout: 'piped', stderr: 'piped',
-          });
-          const result = command.outputSync();
-          if (result.code !== 0) {
+          const [code, stdout, stderr] = Deno.core.ops.op_command_output_sync(
+            file, args || [], opts?.cwd ?? null, opts?.env ?? null,
+          );
+          if (code !== 0) {
             const err = new Error('Command failed: ' + file);
-            err.status = result.code;
-            err.stderr = new TextDecoder().decode(result.stderr);
+            err.status = code;
+            err.stderr = stderr;
             throw err;
           }
-          const out = new TextDecoder().decode(result.stdout);
-          return opts?.encoding ? out : new TextEncoder().encode(out);
+          return opts?.encoding ? stdout : new TextEncoder().encode(stdout);
         }
         function spawn(_cmd, _args, _opts) {
           throw new Error('node:child_process spawn() is not yet supported in the Vertz runtime.');
@@ -1711,6 +1708,36 @@ pub const CJS_BOOTSTRAP_JS: &str = r#"
     }
   }
 
+  function _resolveCjsCondition(value) {
+    if (typeof value === 'string') return value;
+    if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
+      // CJS priority: require > node > default
+      const keys = ['require', 'node', 'default'];
+      for (const k of keys) {
+        if (k in value) return _resolveCjsCondition(value[k]);
+      }
+    }
+    return undefined;
+  }
+
+  function _resolveCjsExports(exports, key) {
+    // String shorthand: exports = "./dist/main.js" (applies to ".")
+    if (typeof exports === 'string') {
+      return key === '.' ? exports : undefined;
+    }
+    if (typeof exports === 'object' && exports !== null && !Array.isArray(exports)) {
+      // Check if key exists directly in the map
+      if (key in exports) {
+        return _resolveCjsCondition(exports[key]);
+      }
+      // If key is "." and this looks like a conditions map (no subpath keys)
+      if (key === '.') {
+        return _resolveCjsCondition(exports);
+      }
+    }
+    return undefined;
+  }
+
   function _resolveCjsPath(specifier, fromDir) {
     if (specifier.startsWith('./') || specifier.startsWith('../')) {
       const parts = (fromDir + '/' + specifier).split('/');
@@ -1753,30 +1780,65 @@ pub const CJS_BOOTSTRAP_JS: &str = r#"
     }
 
     // Bare specifiers — walk up node_modules
+    // Split specifier into package name and subpath
+    let packageName, subpath;
+    if (specifier.startsWith('@')) {
+      const parts = specifier.split('/');
+      packageName = parts[0] + '/' + parts[1];
+      subpath = parts.length > 2 ? parts.slice(2).join('/') : null;
+    } else {
+      const slashIdx = specifier.indexOf('/');
+      if (slashIdx === -1) {
+        packageName = specifier;
+        subpath = null;
+      } else {
+        packageName = specifier.substring(0, slashIdx);
+        subpath = specifier.substring(slashIdx + 1);
+      }
+    }
+
     let dir = fromDir;
     while (dir && dir !== '/') {
-      const candidate = dir + '/node_modules/' + specifier;
-      if (Deno.core.ops.op_fs_exists_sync(candidate)) {
+      const pkgDir = dir + '/node_modules/' + packageName;
+      if (Deno.core.ops.op_fs_exists_sync(pkgDir)) {
         try {
-          const stat = Deno.core.ops.op_fs_stat_sync(candidate);
+          const stat = Deno.core.ops.op_fs_stat_sync(pkgDir);
           if (stat.isDirectory) {
-            const pkgPath = candidate + '/package.json';
+            const pkgPath = pkgDir + '/package.json';
             if (Deno.core.ops.op_fs_exists_sync(pkgPath)) {
               try {
                 const pkg = JSON.parse(Deno.core.ops.op_fs_read_file_sync(pkgPath));
-                if (pkg.main) {
-                  const mainPath = candidate + '/' + pkg.main;
+                // Try exports field first
+                if (pkg.exports !== undefined) {
+                  const exportKey = subpath ? './' + subpath : '.';
+                  const resolved = _resolveCjsExports(pkg.exports, exportKey);
+                  if (resolved) {
+                    const full = pkgDir + '/' + resolved;
+                    if (Deno.core.ops.op_fs_exists_sync(full)) return full;
+                  }
+                }
+                // Fall back to main (only for root entry)
+                if (!subpath && pkg.main) {
+                  const mainPath = pkgDir + '/' + pkg.main;
                   if (Deno.core.ops.op_fs_exists_sync(mainPath)) return mainPath;
                 }
               } catch (_) { /* ignore parse errors */ }
             }
-            if (Deno.core.ops.op_fs_exists_sync(candidate + '/index.js')) return candidate + '/index.js';
+            // Subpath without exports: try direct file
+            if (subpath) {
+              const direct = pkgDir + '/' + subpath;
+              if (Deno.core.ops.op_fs_exists_sync(direct)) return direct;
+              if (Deno.core.ops.op_fs_exists_sync(direct + '.js')) return direct + '.js';
+              if (Deno.core.ops.op_fs_exists_sync(direct + '/index.js')) return direct + '/index.js';
+            } else {
+              if (Deno.core.ops.op_fs_exists_sync(pkgDir + '/index.js')) return pkgDir + '/index.js';
+            }
           } else {
-            return candidate;
+            return pkgDir;
           }
-        } catch (_) { return candidate; }
+        } catch (_) { return pkgDir; }
       }
-      if (Deno.core.ops.op_fs_exists_sync(candidate + '.js')) return candidate + '.js';
+      if (!subpath && Deno.core.ops.op_fs_exists_sync(pkgDir + '.js')) return pkgDir + '.js';
       const lastSlash = dir.lastIndexOf('/');
       dir = lastSlash > 0 ? dir.substring(0, lastSlash) : '';
     }

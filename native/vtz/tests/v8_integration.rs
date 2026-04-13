@@ -857,3 +857,246 @@ fn test_vtz_runtime_identity_marker() {
     let output = rt.captured_output();
     assert_eq!(output.stdout[0], "marker: true");
 }
+
+// --- Bug #2580: CJS execSync must use shell execution, not cmd.split(' ') ---
+
+#[tokio::test]
+async fn test_cjs_exec_sync_shell_execution() {
+    // CJS require('child_process').execSync should run through /bin/sh,
+    // not split on spaces. Quoted args with spaces must work.
+    let tmp = tempfile::tempdir().unwrap();
+    let entry = tmp.path().join("entry.js");
+    std::fs::write(
+        &entry,
+        r#"
+        import { createRequire } from 'node:module';
+        const require = createRequire(import.meta.url);
+        const { execSync } = require('child_process');
+        const result = execSync('echo "hello world"', { encoding: 'utf8' });
+        console.log("result: " + result.trim());
+    "#,
+    )
+    .unwrap();
+
+    let mut rt = VertzJsRuntime::new(VertzRuntimeOptions {
+        root_dir: Some(tmp.path().to_string_lossy().to_string()),
+        capture_output: true,
+        ..Default::default()
+    })
+    .unwrap();
+
+    let specifier = deno_core::ModuleSpecifier::from_file_path(&entry).unwrap();
+    rt.load_main_module(&specifier).await.unwrap();
+
+    let output = rt.captured_output();
+    assert_eq!(
+        output.stdout[0], "result: hello world",
+        "execSync should handle quoted args via shell. Got: {:?}",
+        output.stdout
+    );
+}
+
+// --- Bug #2581: CJS require() must resolve package.json exports field ---
+
+#[tokio::test]
+async fn test_cjs_require_exports_only_package() {
+    // Package with only "exports" field (no "main") must resolve via require()
+    let tmp = tempfile::tempdir().unwrap();
+
+    // Create package with exports-only
+    let pkg_dir = tmp.path().join("node_modules").join("exports-pkg");
+    std::fs::create_dir_all(pkg_dir.join("lib")).unwrap();
+    std::fs::write(
+        pkg_dir.join("package.json"),
+        r#"{ "name": "exports-pkg", "exports": { ".": { "require": "./lib/main.cjs" } } }"#,
+    )
+    .unwrap();
+    std::fs::write(
+        pkg_dir.join("lib").join("main.cjs"),
+        "module.exports = { greeting: 'from exports' };",
+    )
+    .unwrap();
+
+    let entry = tmp.path().join("entry.js");
+    std::fs::write(
+        &entry,
+        r#"
+        import { createRequire } from 'node:module';
+        const require = createRequire(import.meta.url);
+        const pkg = require('exports-pkg');
+        console.log("greeting: " + pkg.greeting);
+    "#,
+    )
+    .unwrap();
+
+    let mut rt = VertzJsRuntime::new(VertzRuntimeOptions {
+        root_dir: Some(tmp.path().to_string_lossy().to_string()),
+        capture_output: true,
+        ..Default::default()
+    })
+    .unwrap();
+
+    let specifier = deno_core::ModuleSpecifier::from_file_path(&entry).unwrap();
+    rt.load_main_module(&specifier).await.unwrap();
+
+    let output = rt.captured_output();
+    assert_eq!(
+        output.stdout[0], "greeting: from exports",
+        "require() should resolve exports field. Got: {:?}",
+        output.stdout
+    );
+}
+
+#[tokio::test]
+async fn test_cjs_require_subpath_exports() {
+    // require('pkg/utils') should resolve via exports["./utils"]
+    let tmp = tempfile::tempdir().unwrap();
+
+    let pkg_dir = tmp.path().join("node_modules").join("subpath-pkg");
+    std::fs::create_dir_all(pkg_dir.join("dist")).unwrap();
+    std::fs::write(
+        pkg_dir.join("package.json"),
+        r#"{ "name": "subpath-pkg", "exports": { ".": "./dist/index.js", "./utils": "./dist/utils.js" } }"#,
+    )
+    .unwrap();
+    std::fs::write(
+        pkg_dir.join("dist").join("index.js"),
+        "module.exports = { name: 'main' };",
+    )
+    .unwrap();
+    std::fs::write(
+        pkg_dir.join("dist").join("utils.js"),
+        "module.exports = { name: 'utils' };",
+    )
+    .unwrap();
+
+    let entry = tmp.path().join("entry.js");
+    std::fs::write(
+        &entry,
+        r#"
+        import { createRequire } from 'node:module';
+        const require = createRequire(import.meta.url);
+        const utils = require('subpath-pkg/utils');
+        console.log("name: " + utils.name);
+    "#,
+    )
+    .unwrap();
+
+    let mut rt = VertzJsRuntime::new(VertzRuntimeOptions {
+        root_dir: Some(tmp.path().to_string_lossy().to_string()),
+        capture_output: true,
+        ..Default::default()
+    })
+    .unwrap();
+
+    let specifier = deno_core::ModuleSpecifier::from_file_path(&entry).unwrap();
+    rt.load_main_module(&specifier).await.unwrap();
+
+    let output = rt.captured_output();
+    assert_eq!(
+        output.stdout[0], "name: utils",
+        "require() should resolve subpath exports. Got: {:?}",
+        output.stdout
+    );
+}
+
+#[tokio::test]
+async fn test_cjs_require_prefers_require_condition() {
+    // When both "require" and "import" conditions exist, CJS should use "require"
+    let tmp = tempfile::tempdir().unwrap();
+
+    let pkg_dir = tmp.path().join("node_modules").join("dual-pkg");
+    std::fs::create_dir_all(pkg_dir.join("dist")).unwrap();
+    std::fs::write(
+        pkg_dir.join("package.json"),
+        r#"{ "name": "dual-pkg", "exports": { ".": { "import": "./dist/esm.js", "require": "./dist/cjs.js" } } }"#,
+    )
+    .unwrap();
+    std::fs::write(
+        pkg_dir.join("dist").join("esm.js"),
+        "module.exports = { format: 'esm' };",
+    )
+    .unwrap();
+    std::fs::write(
+        pkg_dir.join("dist").join("cjs.js"),
+        "module.exports = { format: 'cjs' };",
+    )
+    .unwrap();
+
+    let entry = tmp.path().join("entry.js");
+    std::fs::write(
+        &entry,
+        r#"
+        import { createRequire } from 'node:module';
+        const require = createRequire(import.meta.url);
+        const pkg = require('dual-pkg');
+        console.log("format: " + pkg.format);
+    "#,
+    )
+    .unwrap();
+
+    let mut rt = VertzJsRuntime::new(VertzRuntimeOptions {
+        root_dir: Some(tmp.path().to_string_lossy().to_string()),
+        capture_output: true,
+        ..Default::default()
+    })
+    .unwrap();
+
+    let specifier = deno_core::ModuleSpecifier::from_file_path(&entry).unwrap();
+    rt.load_main_module(&specifier).await.unwrap();
+
+    let output = rt.captured_output();
+    assert_eq!(
+        output.stdout[0], "format: cjs",
+        "require() should prefer 'require' condition over 'import'. Got: {:?}",
+        output.stdout
+    );
+}
+
+#[tokio::test]
+async fn test_cjs_require_exports_string_shorthand() {
+    // exports: "./dist/main.js" (string shorthand for ".")
+    let tmp = tempfile::tempdir().unwrap();
+
+    let pkg_dir = tmp.path().join("node_modules").join("string-exports-pkg");
+    std::fs::create_dir_all(pkg_dir.join("dist")).unwrap();
+    std::fs::write(
+        pkg_dir.join("package.json"),
+        r#"{ "name": "string-exports-pkg", "exports": "./dist/main.js" }"#,
+    )
+    .unwrap();
+    std::fs::write(
+        pkg_dir.join("dist").join("main.js"),
+        "module.exports = { source: 'string-exports' };",
+    )
+    .unwrap();
+
+    let entry = tmp.path().join("entry.js");
+    std::fs::write(
+        &entry,
+        r#"
+        import { createRequire } from 'node:module';
+        const require = createRequire(import.meta.url);
+        const pkg = require('string-exports-pkg');
+        console.log("source: " + pkg.source);
+    "#,
+    )
+    .unwrap();
+
+    let mut rt = VertzJsRuntime::new(VertzRuntimeOptions {
+        root_dir: Some(tmp.path().to_string_lossy().to_string()),
+        capture_output: true,
+        ..Default::default()
+    })
+    .unwrap();
+
+    let specifier = deno_core::ModuleSpecifier::from_file_path(&entry).unwrap();
+    rt.load_main_module(&specifier).await.unwrap();
+
+    let output = rt.captured_output();
+    assert_eq!(
+        output.stdout[0], "source: string-exports",
+        "require() should resolve string exports shorthand. Got: {:?}",
+        output.stdout
+    );
+}
