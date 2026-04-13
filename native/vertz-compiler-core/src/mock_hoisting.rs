@@ -315,7 +315,7 @@ pub fn transform_mock_hoisting(
     }
 }
 
-// ── Helper functions ───────────────���─────────────────────────��───────────
+// ── Helper functions ─────────────────────────────────────────────────────
 
 /// Extract the specifier string from a top-level `vi.mock('spec', ...)` or
 /// `mock.module('spec', ...)` call, if the statement matches.
@@ -637,6 +637,11 @@ fn ms_overwrite(ms: &mut MagicString, start: u32, end: u32, text: &str) {
 
 /// Wrap dynamic `import()` expressions with `.then(globalThis.__vertz_unwrap_module)`
 /// so the returned module namespace is mutable (enabling `spyOn` on ES modules).
+///
+/// Note: `vi.importActual('spec')` calls converted to `import('spec')` by
+/// `replace_import_actual` are NOT wrapped, because they appear as `CallExpression`
+/// in the original AST (not `ImportExpression`). This is intentional — `vi.importActual`
+/// is used inside mock factories where the result is spread into a new mutable object.
 fn wrap_dynamic_imports(ms: &mut MagicString, program: &Program) {
     let mut visitor = DynamicImportVisitor {
         insert_positions: Vec::new(),
@@ -1125,10 +1130,11 @@ const b = await import('./b');
         let source = r#"const { buildAction } = await import('./build').then(m => m);
 "#;
         let (output, _) = parse_and_transform(source);
-        // Should insert .then() between import() and the existing .then()
+        // Should insert .then() right after import(), before the existing .then()
         assert!(
-            output.contains("import('./build').then(globalThis.__vertz_unwrap_module)"),
-            "Import with existing .then should still get wrapped, got: {}",
+            output
+                .contains("import('./build').then(globalThis.__vertz_unwrap_module).then(m => m)"),
+            "Unwrap should be chained before the existing .then(), got: {}",
             output
         );
     }
@@ -1143,6 +1149,35 @@ const x = add(1, 2);
         assert!(
             !output.contains("__vertz_unwrap_module"),
             "Static import declarations should not be wrapped, got: {}",
+            output
+        );
+    }
+
+    #[test]
+    fn wraps_dynamic_import_in_then_callback() {
+        let source = r#"import('./utils').then(mod => { spyOn(mod, 'fn'); });
+"#;
+        let (output, _) = parse_and_transform(source);
+        assert!(
+            output.contains("import('./utils').then(globalThis.__vertz_unwrap_module)"),
+            "Import consumed via .then callback should be wrapped, got: {}",
+            output
+        );
+    }
+
+    #[test]
+    fn wraps_dynamic_import_in_conditional() {
+        let source = r#"const mod = await (flag ? import('./a') : import('./b'));
+"#;
+        let (output, _) = parse_and_transform(source);
+        assert!(
+            output.contains("import('./a').then(globalThis.__vertz_unwrap_module)"),
+            "Conditional import A should be wrapped, got: {}",
+            output
+        );
+        assert!(
+            output.contains("import('./b').then(globalThis.__vertz_unwrap_module)"),
+            "Conditional import B should be wrapped, got: {}",
             output
         );
     }

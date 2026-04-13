@@ -1184,7 +1184,8 @@ if (typeof globalThis.HTMLElement === 'undefined') {
   // __vertz_unwrap_module — creates a mutable wrapper around ES module namespaces.
   // Dynamic `import()` returns frozen Module namespace objects. spyOn() needs to
   // replace properties on them, which fails. This wrapper delegates reads to the
-  // original module (preserving live bindings) while allowing property writes.
+  // original module until the first write per property; after a write (e.g. spyOn
+  // replacing a method), the override takes precedence.
   globalThis.__vertz_unwrap_module = (mod) => {
     if (!mod || typeof mod !== 'object') return mod;
     // Fast path: if already mutable, return as-is
@@ -1203,6 +1204,10 @@ if (typeof globalThis.HTMLElement === 'undefined') {
         configurable: true,
         enumerable: true,
       });
+    }
+    // Preserve Symbol properties (e.g. Symbol.toStringTag === 'Module')
+    for (const sym of Object.getOwnPropertySymbols(mod)) {
+      Object.defineProperty(wrapper, sym, { value: mod[sym], configurable: true, enumerable: false });
     }
     return wrapper;
   };
