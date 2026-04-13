@@ -1,5 +1,13 @@
 # @vertz/runtime
 
+## 0.2.60
+
+### Patch Changes
+
+- [#2526](https://github.com/vertz-dev/vertz/pull/2526) [`92de65b`](https://github.com/vertz-dev/vertz/commit/92de65bb43fd34ffd9f4e8b979052b5475bcf73e) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - fix(vtz): support file:// URLs in fetch for PGlite WASM loading
+
+- [#2527](https://github.com/vertz-dev/vertz/pull/2527) [`985d282`](https://github.com/vertz-dev/vertz/commit/985d2823c2f7f9e6a24497661d75e39f8a0f7764) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - fix(desktop): shell.spawn now kills entire process group on kill(), preventing orphaned subprocesses
+
 ## 0.2.59
 
 ## 0.2.58

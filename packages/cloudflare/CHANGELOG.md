@@ -1,5 +1,13 @@
 # @vertz/cloudflare
 
+## 0.2.60
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @vertz/core@0.2.60
+  - @vertz/ui-server@0.2.60
+
 ## 0.2.59
 
 ### Patch Changes
