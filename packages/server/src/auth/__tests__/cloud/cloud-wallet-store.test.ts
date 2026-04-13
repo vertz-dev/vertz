@@ -42,7 +42,7 @@ afterEach(() => {
 // Tests
 // ============================================================================
 
-describe('Feature: CloudWalletStore', () => {
+describe.skipIf(!process.env.VERTZ_CLOUD_TOKEN)('Feature: CloudWalletStore', () => {
   describe('Given a CloudWalletStore connected to the cloud API', () => {
     describe('When calling getConsumption()', () => {
       it('Then calls POST /api/v1/wallet/check with correct payload', async () => {

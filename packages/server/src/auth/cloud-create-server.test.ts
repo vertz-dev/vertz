@@ -76,7 +76,7 @@ afterEach(() => {
   }
 });
 
-describe('createServer — cloud mode branching', () => {
+describe.skipIf(!process.env.VERTZ_CLOUD_TOKEN)('createServer — cloud mode branching', () => {
   describe('Given cloud.projectId is set and VERTZ_CLOUD_TOKEN is available', () => {
     it('then returns a ServerInstance without requiring key pair or auth config', () => {
       process.env.VERTZ_CLOUD_TOKEN = 'vtk_ci_token';

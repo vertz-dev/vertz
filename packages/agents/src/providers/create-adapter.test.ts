@@ -20,7 +20,7 @@ afterEach(() => {
 // ---------------------------------------------------------------------------
 
 describe('createAdapter()', () => {
-  describe('Given provider is "cloudflare"', () => {
+  describe.skipIf(!process.env.CLOUDFLARE_ACCOUNT_ID)('Given provider is "cloudflare"', () => {
     describe('When createAdapter is called', () => {
       it('Then returns a Cloudflare Workers AI adapter', () => {
         process.env.CLOUDFLARE_ACCOUNT_ID = 'acc';
@@ -37,7 +37,7 @@ describe('createAdapter()', () => {
     });
   });
 
-  describe('Given provider is "minimax"', () => {
+  describe.skipIf(!process.env.MINIMAX_API_KEY)('Given provider is "minimax"', () => {
     describe('When createAdapter is called', () => {
       it('Then returns a MiniMax adapter', () => {
         process.env.MINIMAX_API_KEY = 'key';

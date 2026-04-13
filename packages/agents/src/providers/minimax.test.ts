@@ -32,7 +32,7 @@ const testTool = tool({
 // Tests
 // ---------------------------------------------------------------------------
 
-describe('createMinimaxAdapter()', () => {
+describe.skipIf(!process.env.MINIMAX_API_KEY)('createMinimaxAdapter()', () => {
   describe('Given a valid MINIMAX_API_KEY and a text-only response', () => {
     describe('When chat() is called', () => {
       it('Then sends a request to the MiniMax OpenAI-compatible endpoint', async () => {

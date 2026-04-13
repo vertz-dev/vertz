@@ -33,7 +33,7 @@ const testTool = tool({
 // Tests
 // ---------------------------------------------------------------------------
 
-describe('createCloudflareAdapter()', () => {
+describe.skipIf(!process.env.CLOUDFLARE_ACCOUNT_ID)('createCloudflareAdapter()', () => {
   describe('Given valid env vars and a text-only LLM response', () => {
     describe('When chat() is called', () => {
       it('Then sends a request to the Workers AI OpenAI-compatible endpoint', async () => {
