@@ -135,6 +135,10 @@ pub struct ResolvedPackage {
     /// Where this package lives in node_modules. Empty = root level.
     /// Non-empty = nested under these parent packages.
     pub nest_path: Vec<String>,
+    /// Platform constraint: which OS this package is for (e.g., ["darwin", "linux"])
+    pub os: Option<Vec<String>>,
+    /// Platform constraint: which CPU arch this package is for (e.g., ["arm64", "x64"])
+    pub cpu: Option<Vec<String>>,
 }
 
 /// Entry in vertz.lock
@@ -652,6 +656,8 @@ mod tests {
             dependencies: BTreeMap::new(),
             bin: BTreeMap::new(),
             nest_path: vec![],
+            os: None,
+            cpu: None,
         };
         let p2 = p1.clone();
         assert_eq!(p1, p2);

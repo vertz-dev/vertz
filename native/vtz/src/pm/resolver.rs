@@ -1,4 +1,5 @@
 use crate::pm::overrides::OverrideMap;
+use crate::pm::platform;
 use crate::pm::registry::RegistryClient;
 use crate::pm::types::{
     Lockfile, LockfileEntry, PackageMetadata, ResolvedPackage, VersionMetadata,
@@ -270,6 +271,8 @@ async fn resolve_one_task<'a>(
                 dependencies: entry.dependencies.clone(),
                 bin: entry.bin.clone(),
                 nest_path: vec![],
+                os: None,
+                cpu: None,
             };
 
             // Atomic check-and-insert into graph
@@ -329,6 +332,12 @@ async fn resolve_one_task<'a>(
         )
     })?;
 
+    // Skip packages that don't match the current platform (e.g., lightningcss-linux-x64
+    // on a darwin-arm64 machine). These are typically platform-specific optional deps.
+    if !platform::matches_platform(&version_meta.os, &version_meta.cpu) {
+        return Ok((false, vec![]));
+    }
+
     let graph_key = ResolvedGraph::key(name, &version_meta.version);
 
     let resolved = ResolvedPackage {
@@ -339,6 +348,8 @@ async fn resolve_one_task<'a>(
         dependencies: version_meta.dependencies.clone(),
         bin: version_meta.bin.to_map(name),
         nest_path: vec![],
+        os: version_meta.os.clone(),
+        cpu: version_meta.cpu.clone(),
     };
 
     // Atomic check-and-insert into graph
@@ -357,7 +368,7 @@ async fn resolve_one_task<'a>(
     // Queue transitive deps (skip transitive devDeps — only root devDeps are resolved)
     let mut child_chain = parent_chain.clone();
     child_chain.push(name.to_string());
-    let deps: Vec<ResolveTask> = version_meta
+    let mut deps: Vec<ResolveTask> = version_meta
         .dependencies
         .iter()
         .map(|(n, r)| ResolveTask {
@@ -366,6 +377,17 @@ async fn resolve_one_task<'a>(
             parent_chain: child_chain.clone(),
         })
         .collect();
+
+    // Also queue transitive optional deps — these are platform-specific binaries
+    // (e.g., lightningcss-darwin-arm64). Platform filtering happens when the
+    // optional dep is itself resolved: its os/cpu fields will be checked.
+    for (n, r) in &version_meta.optional_dependencies {
+        deps.push(ResolveTask {
+            name: n.clone(),
+            range: r.clone(),
+            parent_chain: child_chain.clone(),
+        });
+    }
 
     Ok((true, deps))
 }
@@ -716,6 +738,8 @@ mod tests {
                 dependencies: BTreeMap::new(),
                 bin: BTreeMap::new(),
                 nest_path: vec![],
+                os: None,
+                cpu: None,
             },
         );
 
@@ -738,6 +762,8 @@ mod tests {
                 dependencies: BTreeMap::new(),
                 bin: BTreeMap::new(),
                 nest_path: vec![],
+                os: None,
+                cpu: None,
             },
         );
 
@@ -777,6 +803,8 @@ mod tests {
                 dependencies: parent_deps,
                 bin: BTreeMap::new(),
                 nest_path: vec![],
+                os: None,
+                cpu: None,
             },
         );
 
@@ -792,6 +820,8 @@ mod tests {
                 dependencies: BTreeMap::new(),
                 bin: BTreeMap::new(),
                 nest_path: vec!["other".to_string()],
+                os: None,
+                cpu: None,
             },
         );
 
@@ -806,6 +836,8 @@ mod tests {
                 dependencies: BTreeMap::new(),
                 bin: BTreeMap::new(),
                 nest_path: vec![],
+                os: None,
+                cpu: None,
             },
         );
 
@@ -837,6 +869,8 @@ mod tests {
                 dependencies: react_deps,
                 bin: BTreeMap::new(),
                 nest_path: vec![],
+                os: None,
+                cpu: None,
             },
         );
 
@@ -854,6 +888,8 @@ mod tests {
                 dependencies: loose_deps,
                 bin: BTreeMap::new(),
                 nest_path: vec![],
+                os: None,
+                cpu: None,
             },
         );
 
@@ -868,6 +904,8 @@ mod tests {
                 dependencies: BTreeMap::new(),
                 bin: BTreeMap::new(),
                 nest_path: vec![],
+                os: None,
+                cpu: None,
             },
         );
 
@@ -925,6 +963,8 @@ mod tests {
                 dependencies: BTreeMap::new(),
                 bin: BTreeMap::new(),
                 nest_path: vec![],
+                os: None,
+                cpu: None,
             },
         );
 
@@ -960,6 +1000,8 @@ mod tests {
                 dependencies: BTreeMap::new(),
                 bin: BTreeMap::new(),
                 nest_path: vec![],
+                os: None,
+                cpu: None,
             },
         );
         graph.packages.insert(
@@ -972,6 +1014,8 @@ mod tests {
                 dependencies: BTreeMap::new(),
                 bin: BTreeMap::new(),
                 nest_path: vec![],
+                os: None,
+                cpu: None,
             },
         );
 
@@ -1007,6 +1051,8 @@ mod tests {
                 dependencies: BTreeMap::new(),
                 bin: BTreeMap::new(),
                 nest_path: vec![],
+                os: None,
+                cpu: None,
             },
         );
 
@@ -1042,6 +1088,8 @@ mod tests {
                 dependencies: BTreeMap::new(),
                 bin: BTreeMap::new(),
                 nest_path: vec![],
+                os: None,
+                cpu: None,
             },
         );
 
@@ -1059,6 +1107,8 @@ mod tests {
                 dependencies: parent_deps,
                 bin: BTreeMap::new(),
                 nest_path: vec![],
+                os: None,
+                cpu: None,
             },
         );
 
@@ -1091,6 +1141,8 @@ mod tests {
                 dependencies: BTreeMap::from([("zod".to_string(), "^3.24.0".to_string())]),
                 bin: BTreeMap::new(),
                 nest_path: vec![],
+                os: None,
+                cpu: None,
             },
         );
         graph.packages.insert(
@@ -1103,6 +1155,8 @@ mod tests {
                 dependencies: BTreeMap::new(),
                 bin: BTreeMap::new(),
                 nest_path: vec![],
+                os: None,
+                cpu: None,
             },
         );
 
@@ -1128,5 +1182,63 @@ mod tests {
 
         // Transitive zod should also be there
         assert!(parsed.entries.contains_key("zod@^3.24.0"));
+    }
+
+    #[test]
+    fn test_platform_filtering_skips_incompatible() {
+        // Verify that a package with os/cpu constraints that don't match
+        // the current platform is correctly stored with those constraints
+        let mut v = make_version("lightningcss-linux-x64", "1.31.1", &[]);
+        v.os = Some(vec!["linux".to_string()]);
+        v.cpu = Some(vec!["x64".to_string()]);
+
+        let resolved = ResolvedPackage {
+            name: "lightningcss-linux-x64".to_string(),
+            version: "1.31.1".to_string(),
+            tarball_url: String::new(),
+            integrity: String::new(),
+            dependencies: BTreeMap::new(),
+            bin: BTreeMap::new(),
+            nest_path: vec![],
+            os: v.os.clone(),
+            cpu: v.cpu.clone(),
+        };
+
+        // Platform filtering is applied via matches_platform
+        let matches = platform::matches_platform(&resolved.os, &resolved.cpu);
+
+        // On macOS ARM, this should NOT match (linux/x64)
+        // On Linux x64, this WOULD match
+        // The test just verifies the filtering logic is wired correctly
+        if platform::current_os() == "linux" && platform::current_cpu() == "x64" {
+            assert!(matches, "linux-x64 package should match on linux-x64");
+        } else {
+            assert!(
+                !matches,
+                "linux-x64 package should not match on {}-{}",
+                platform::current_os(),
+                platform::current_cpu()
+            );
+        }
+    }
+
+    #[test]
+    fn test_platform_filtering_allows_unconstrained() {
+        let resolved = ResolvedPackage {
+            name: "zod".to_string(),
+            version: "3.24.4".to_string(),
+            tarball_url: String::new(),
+            integrity: String::new(),
+            dependencies: BTreeMap::new(),
+            bin: BTreeMap::new(),
+            nest_path: vec![],
+            os: None,
+            cpu: None,
+        };
+
+        assert!(
+            platform::matches_platform(&resolved.os, &resolved.cpu),
+            "unconstrained packages should always match"
+        );
     }
 }

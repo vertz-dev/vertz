@@ -9,6 +9,7 @@ pub mod output;
 pub mod overrides;
 pub mod pack;
 pub mod patch;
+pub mod platform;
 pub mod registry;
 pub mod resolver;
 pub mod scripts;
@@ -150,6 +151,8 @@ pub async fn install(
                 dependencies: entry.dependencies.clone(),
                 bin,
                 nest_path: vec![],
+                os: None,
+                cpu: None,
             });
         } else if !frozen {
             // No lockfile entry — resolve from GitHub API using parse_package_specifier
@@ -193,6 +196,8 @@ pub async fn install(
                 dependencies: gh_pkg.dependencies.clone(),
                 bin: gh_pkg.bin.to_map(name),
                 nest_path: vec![],
+                os: None,
+                cpu: None,
             });
         }
         // frozen + no lockfile entry → verify_frozen_deps already caught this

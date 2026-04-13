@@ -126,6 +126,8 @@ mod tests {
                 dependencies: BTreeMap::new(),
                 bin,
                 nest_path: vec![],
+                os: None,
+                cpu: None,
             },
         );
 
@@ -161,6 +163,8 @@ mod tests {
                 dependencies: BTreeMap::new(),
                 bin,
                 nest_path: vec![],
+                os: None,
+                cpu: None,
             },
         );
 
@@ -190,6 +194,8 @@ mod tests {
                 dependencies: BTreeMap::new(),
                 bin,
                 nest_path: vec!["parent-pkg".to_string()],
+                os: None,
+                cpu: None,
             },
         );
 
@@ -215,6 +221,8 @@ mod tests {
                 dependencies: BTreeMap::new(),
                 bin: BTreeMap::new(),
                 nest_path: vec![],
+                os: None,
+                cpu: None,
             },
         );
 
@@ -245,6 +253,8 @@ mod tests {
                 dependencies: BTreeMap::new(),
                 bin,
                 nest_path: vec![],
+                os: None,
+                cpu: None,
             },
         );
 
@@ -358,6 +368,8 @@ mod tests {
                 dependencies: BTreeMap::new(),
                 bin: npm_bin,
                 nest_path: vec![],
+                os: None,
+                cpu: None,
             },
         );
 
@@ -535,6 +547,8 @@ mod tests {
                 dependencies: BTreeMap::new(),
                 bin,
                 nest_path: vec![],
+                os: None,
+                cpu: None,
             },
         );
 
@@ -568,6 +582,8 @@ mod tests {
                 dependencies: BTreeMap::new(),
                 bin: npm_bin,
                 nest_path: vec![],
+                os: None,
+                cpu: None,
             },
         );
 
