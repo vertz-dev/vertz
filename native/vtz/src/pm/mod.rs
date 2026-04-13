@@ -371,8 +371,8 @@ pub async fn install(
         }
     }
 
-    // Generate .bin/ stubs
-    let bin_count = bin::generate_bin_stubs(root_dir, &graph)?;
+    // Generate .bin/ stubs (npm + workspace packages)
+    let bin_count = bin::generate_bin_stubs(root_dir, &graph, &workspaces)?;
     output.bin_stubs_created(bin_count);
 
     // Run postinstall scripts based on policy
