@@ -38,7 +38,11 @@ impl ProcessMap {
         self.inner.lock().unwrap().remove(&sub_id)
     }
 
-    /// Kill a process by subscription ID using SIGKILL.
+    /// Kill a process group by subscription ID using SIGKILL.
+    ///
+    /// Processes are spawned with `process_group(0)`, so their PID is also
+    /// their PGID. Negating the PID targets the entire process group,
+    /// ensuring subprocesses are killed too.
     ///
     /// Idempotent: returns `Ok(true)` if signal was sent,
     /// `Ok(false)` if the process was already removed.
@@ -49,27 +53,37 @@ impl ProcessMap {
             None => return Ok(false),
         };
 
-        // SAFETY: We are sending SIGKILL to a PID we spawned.
-        // The pid is a valid u32 from Child::id(). If the process
-        // already exited, kill returns ESRCH which we treat as success.
-        let ret = unsafe { libc::kill(pid as libc::pid_t, libc::SIGKILL) };
+        #[cfg(unix)]
+        {
+            // SAFETY: We are sending SIGKILL to a process group we spawned.
+            // The pid is a valid u32 from Child::id(). With process_group(0),
+            // PID == PGID. Negating targets the entire group. If the process
+            // group already exited, kill returns ESRCH which we treat as success.
+            let ret = unsafe { libc::kill(-(pid as libc::pid_t), libc::SIGKILL) };
 
-        if ret == 0 {
-            Ok(true)
-        } else {
-            let err = std::io::Error::last_os_error();
-            if err.raw_os_error() == Some(libc::ESRCH) {
-                // Process already exited — treat as success
-                Ok(false)
+            if ret == 0 {
+                Ok(true)
             } else {
-                Err(err)
+                let err = std::io::Error::last_os_error();
+                if err.raw_os_error() == Some(libc::ESRCH) {
+                    // Process already exited — treat as success
+                    Ok(false)
+                } else {
+                    Err(err)
+                }
             }
+        }
+
+        #[cfg(not(unix))]
+        {
+            let _ = pid;
+            Ok(false)
         }
     }
 
-    /// Kill all tracked processes. Used on webview close for cleanup.
+    /// Kill all tracked process groups. Used on webview close for cleanup.
     ///
-    /// Returns the number of processes that were signaled.
+    /// Returns the number of process groups that were signaled.
     pub fn kill_all(&self) -> usize {
         let entries: Vec<(u64, u32)> = {
             let mut map = self.inner.lock().unwrap();
@@ -79,11 +93,16 @@ impl ProcessMap {
 
         let mut killed = 0;
         for (_sub_id, pid) in entries {
-            // SAFETY: Same as kill() above — sending SIGKILL to PIDs we spawned.
-            let ret = unsafe { libc::kill(pid as libc::pid_t, libc::SIGKILL) };
-            if ret == 0 {
-                killed += 1;
+            #[cfg(unix)]
+            {
+                // SAFETY: Same as kill() above — sending SIGKILL to process groups we spawned.
+                let ret = unsafe { libc::kill(-(pid as libc::pid_t), libc::SIGKILL) };
+                if ret == 0 {
+                    killed += 1;
+                }
             }
+            #[cfg(not(unix))]
+            let _ = pid;
         }
         killed
     }
@@ -169,5 +188,57 @@ mod tests {
         map.insert(2, 200);
         map.insert(3, 300);
         assert_eq!(map.len(), 3);
+    }
+
+    // ── #2515: Process group kill for spawned processes ──
+
+    #[tokio::test]
+    async fn kill_terminates_entire_process_group() {
+        use std::time::Duration;
+        use tokio::process::Command;
+
+        let marker =
+            std::env::temp_dir().join(format!("vtz_test_spawn_pgkill_{}", std::process::id()));
+        // Clean up from any previous failed run
+        let _ = std::fs::remove_file(&marker);
+
+        let marker_path = marker.display().to_string();
+
+        // Spawn a process in its own process group (simulates what spawn() does).
+        // The process starts a background subprocess that writes a marker file after 2s.
+        let mut cmd = Command::new("sh");
+        cmd.args([
+            "-c",
+            &format!("(sleep 2 && echo alive > {}) & wait", marker_path),
+        ]);
+        cmd.stdout(std::process::Stdio::piped());
+        cmd.stderr(std::process::Stdio::piped());
+
+        #[cfg(unix)]
+        cmd.process_group(0);
+
+        let child = cmd.spawn().expect("failed to spawn test process");
+        let pid = child.id().expect("failed to get PID");
+
+        let map = ProcessMap::new();
+        map.insert(1, pid);
+
+        // Give the subprocess time to start
+        tokio::time::sleep(Duration::from_millis(200)).await;
+
+        // Kill via ProcessMap — should kill the entire process group
+        let result = map.kill(1).unwrap();
+        assert!(result, "expected kill to signal the process");
+
+        // Wait long enough for the subprocess to write the marker (if it survived)
+        tokio::time::sleep(Duration::from_secs(4)).await;
+
+        assert!(
+            !marker.exists(),
+            "marker file exists — subprocess was NOT killed (process group kill failed)"
+        );
+
+        // Cleanup
+        let _ = std::fs::remove_file(&marker);
     }
 }

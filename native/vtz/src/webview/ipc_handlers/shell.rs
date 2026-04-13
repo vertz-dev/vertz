@@ -153,6 +153,10 @@ pub async fn spawn(
     cmd.stdout(std::process::Stdio::piped());
     cmd.stderr(std::process::Stdio::piped());
 
+    // Put the child in its own process group so kill() can terminate the entire tree.
+    #[cfg(unix)]
+    cmd.process_group(0);
+
     let mut child = cmd.spawn().map_err(|e| IpcError {
         code: IpcErrorCode::ExecutionFailed,
         message: format!("Failed to spawn '{}': {}", params.command, e),
