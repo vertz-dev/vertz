@@ -31,24 +31,27 @@ import type {
 // --- Bun runtime bridge ---
 // When running under `bun test`, @vertz/test re-exports from bun:test.
 // These tests verify the bridge works correctly.
+// Tests that use require() are skipped under vtz (no CJS require in ESM modules).
+
+const isBun = typeof Bun !== 'undefined';
 
 describe('@vertz/test Bun bridge', () => {
-  it('describe is a function from bun:test', () => {
+  it.skipIf(!isBun)('describe is a function from bun:test', () => {
     const mod = require('../index');
     expect(typeof mod.describe).toBe('function');
   });
 
-  it('it is a function from bun:test', () => {
+  it.skipIf(!isBun)('it is a function from bun:test', () => {
     const mod = require('../index');
     expect(typeof mod.it).toBe('function');
   });
 
-  it('test is a function from bun:test', () => {
+  it.skipIf(!isBun)('test is a function from bun:test', () => {
     const mod = require('../index');
     expect(typeof mod.test).toBe('function');
   });
 
-  it('expect is a function from bun:test', () => {
+  it.skipIf(!isBun)('expect is a function from bun:test', () => {
     const mod = require('../index');
     expect(typeof mod.expect).toBe('function');
   });
@@ -88,7 +91,7 @@ describe('@vertz/test Bun bridge', () => {
     expect(typeof vi.restoreAllMocks).toBe('function');
   });
 
-  it('describe has skip, each modifiers', () => {
+  it.skipIf(!isBun)('describe has skip, each modifiers', () => {
     const mod = require('../index');
     expect(typeof mod.describe.skip).toBe('function');
     expect(typeof mod.describe.each).toBe('function');
@@ -96,7 +99,7 @@ describe('@vertz/test Bun bridge', () => {
     expect('only' in mod.describe).toBe(true);
   });
 
-  it('it has skip, todo, each modifiers', () => {
+  it.skipIf(!isBun)('it has skip, todo, each modifiers', () => {
     const mod = require('../index');
     expect(typeof mod.it.skip).toBe('function');
     expect(typeof mod.it.todo).toBe('function');
@@ -105,7 +108,7 @@ describe('@vertz/test Bun bridge', () => {
     expect('only' in mod.it).toBe(true);
   });
 
-  it('expect has asymmetric matcher factories', () => {
+  it.skipIf(!isBun)('expect has asymmetric matcher factories', () => {
     const mod = require('../index');
     expect(typeof mod.expect.any).toBe('function');
     expect(typeof mod.expect.anything).toBe('function');
