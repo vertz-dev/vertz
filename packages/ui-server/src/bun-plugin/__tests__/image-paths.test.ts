@@ -8,7 +8,7 @@ import {
   resolveImageSrc,
 } from '../image-paths';
 
-const TMP_DIR = resolve(import.meta.dir, '.tmp-image-paths-test');
+const TMP_DIR = resolve(import.meta.dirname, '.tmp-image-paths-test');
 
 beforeAll(() => {
   mkdirSync(TMP_DIR, { recursive: true });
