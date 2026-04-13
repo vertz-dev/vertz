@@ -1,8 +1,14 @@
 import { describe, it } from '@vertz/test';
 import { d } from '@vertz/db';
-import { createServer, entity, rules, service } from '@vertz/server';
+import { createServer, entity, rules, service, type EntityDbAdapter } from '@vertz/server';
 import { createTestClient } from '../index';
 import type { EntityTestProxy, ServiceTestProxy, TestClient } from '../test-client-types';
+
+// ---------------------------------------------------------------------------
+// Mock EntityDbAdapter factory — stub that satisfies the interface
+// ---------------------------------------------------------------------------
+const mockAdapter = {} as EntityDbAdapter;
+const mockEntityDb = () => mockAdapter;
 
 // ---------------------------------------------------------------------------
 // Fixtures
@@ -65,13 +71,7 @@ describe('Type flow: entity proxy', () => {
   it('entity proxy get() returns typed response body', () => {
     const server = createServer({
       entities: [todosEntity],
-      _entityDbFactory: () => ({
-        get: async () => null,
-        list: async () => ({ data: [], total: 0 }),
-        create: async (data: unknown) => data,
-        update: async (_id: string, data: unknown) => data,
-        delete: async () => null,
-      }),
+      _entityDbFactory: mockEntityDb,
     });
     const client = createTestClient(server);
     const todos = client.entity(todosEntity);
@@ -84,13 +84,7 @@ describe('Type flow: entity proxy', () => {
   it('create() input is typed to $create_input', async () => {
     const server = createServer({
       entities: [todosEntity],
-      _entityDbFactory: () => ({
-        get: async () => null,
-        list: async () => ({ data: [], total: 0 }),
-        create: async (data: unknown) => data,
-        update: async (_id: string, data: unknown) => data,
-        delete: async () => null,
-      }),
+      _entityDbFactory: mockEntityDb,
     });
     const client = createTestClient(server);
     const todos = client.entity(todosEntity);
@@ -102,13 +96,7 @@ describe('Type flow: entity proxy', () => {
   it('entity() rejects non-EntityDefinition argument', () => {
     const server = createServer({
       entities: [todosEntity],
-      _entityDbFactory: () => ({
-        get: async () => null,
-        list: async () => ({ data: [], total: 0 }),
-        create: async (data: unknown) => data,
-        update: async (_id: string, data: unknown) => data,
-        delete: async () => null,
-      }),
+      _entityDbFactory: mockEntityDb,
     });
     const client = createTestClient(server);
 
@@ -123,7 +111,7 @@ describe('Type flow: entity proxy', () => {
 
 describe('Type flow: service proxy', () => {
   it('service proxy has typed action methods', () => {
-    const server = createServer({ services: [echoService] });
+    const server = createServer({});
     const client = createTestClient(server);
     const echo = client.service(echoService);
 
@@ -133,7 +121,7 @@ describe('Type flow: service proxy', () => {
   });
 
   it('action with body requires body argument', () => {
-    const server = createServer({ services: [echoService] });
+    const server = createServer({});
     const client = createTestClient(server);
     const echo = client.service(echoService);
 
@@ -142,7 +130,7 @@ describe('Type flow: service proxy', () => {
   });
 
   it('action without body accepts optional options only', () => {
-    const server = createServer({ services: [healthService] });
+    const server = createServer({});
     const client = createTestClient(server);
     const health = client.service(healthService);
 
@@ -159,13 +147,7 @@ describe('Type flow: TestResponse', () => {
   it('ok: true narrows body to typed response', async () => {
     const server = createServer({
       entities: [todosEntity],
-      _entityDbFactory: () => ({
-        get: async () => null,
-        list: async () => ({ data: [], total: 0 }),
-        create: async (data: unknown) => data,
-        update: async (_id: string, data: unknown) => data,
-        delete: async () => null,
-      }),
+      _entityDbFactory: mockEntityDb,
     });
     const client = createTestClient(server);
     const todos = client.entity(todosEntity);
@@ -183,13 +165,7 @@ describe('Type flow: TestResponse', () => {
   it('ok: false narrows body to ErrorBody', async () => {
     const server = createServer({
       entities: [todosEntity],
-      _entityDbFactory: () => ({
-        get: async () => null,
-        list: async () => ({ data: [], total: 0 }),
-        create: async (data: unknown) => data,
-        update: async (_id: string, data: unknown) => data,
-        delete: async () => null,
-      }),
+      _entityDbFactory: mockEntityDb,
     });
     const client = createTestClient(server);
     const todos = client.entity(todosEntity);
@@ -215,13 +191,7 @@ describe('Type flow: TestClient', () => {
   it('withHeaders returns TestClient', () => {
     const server = createServer({
       entities: [todosEntity],
-      _entityDbFactory: () => ({
-        get: async () => null,
-        list: async () => ({ data: [], total: 0 }),
-        create: async (data: unknown) => data,
-        update: async (_id: string, data: unknown) => data,
-        delete: async () => null,
-      }),
+      _entityDbFactory: mockEntityDb,
     });
     const client = createTestClient(server);
     const _authed: TestClient = client.withHeaders({ authorization: 'Bearer tok' });

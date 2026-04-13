@@ -102,7 +102,8 @@ type ExtractInput<T> =
 type ExtractOutput<T> =
   T extends ServiceActionDef<infer _I, infer TOutput, infer _C> ? TOutput : unknown;
 
-export type ServiceTestProxy<TDef extends ServiceDefinition> = {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- any widens the constraint to accept all ServiceDefinition type parameter combinations
+export type ServiceTestProxy<TDef extends ServiceDefinition<any>> = {
   [K in Extract<keyof InferActions<TDef>, string>]: [unknown] extends [
     ExtractInput<InferActions<TDef>[K]>,
   ]
@@ -120,7 +121,8 @@ export type ServiceTestProxy<TDef extends ServiceDefinition> = {
 export interface TestClient {
   entity<TModel extends ModelDef>(def: EntityDefinition<TModel>): EntityTestProxy<TModel>;
 
-  service<TDef extends ServiceDefinition>(def: TDef): ServiceTestProxy<TDef>;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- any widens the constraint to accept all ServiceDefinition type parameter combinations
+  service<TDef extends ServiceDefinition<any>>(def: TDef): ServiceTestProxy<TDef>;
 
   /** Returns a new immutable client with merged default headers. */
   withHeaders(headers: Record<string, string>): TestClient;

@@ -1,5 +1,5 @@
 import { describe, it } from '@vertz/test';
-import { d } from '@vertz/db';
+import { d, type DbExpr } from '@vertz/db';
 import { createEntityContext } from '../context';
 import type { EntityOperations } from '../entity-operations';
 import type { EntityContext } from '../types';
@@ -71,8 +71,8 @@ describe('EntityContext type flow', () => {
   it('ctx.entity.update() accepts $update_input typed data', () => {
     type UpdateParam = Parameters<EntityContext<UsersModel>['entity']['update']>[1];
 
-    // All fields should be optional (partial update)
-    const _check: { email?: string } = {} as UpdateParam;
+    // All fields should be optional (partial update), and accept DbExpr for atomic ops
+    const _check: { email?: string | DbExpr } = {} as UpdateParam;
     void _check;
   });
 

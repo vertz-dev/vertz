@@ -34,6 +34,7 @@ const tagsTable = d.table('tags', {
   id: d.uuid().primary(),
   label: d.text(),
   color: d.text(),
+  postId: d.uuid(),
 });
 
 const commentsTable = d.table('comments', {

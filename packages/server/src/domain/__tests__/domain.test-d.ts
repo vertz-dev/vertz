@@ -18,7 +18,7 @@ const usersEntity = entity('users', { model: usersModel });
 const paymentsService = service('payments', {
   actions: {
     charge: {
-      response: { parse: (v: unknown) => v as { ok: boolean } },
+      response: { parse: (v: unknown) => ({ ok: true as const, data: v as { ok: boolean } }) },
       handler: async () => ({ ok: true }),
     },
   },

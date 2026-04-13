@@ -43,6 +43,7 @@
     "esbuild": "^0.27.3",
     "jiti": "^2.4.2",
     "lefthook": "^2.1.1",
+    "lightningcss-darwin-arm64": "^1.32.0",
     "magic-string": "^0.30.21",
     "oxfmt": "^0.42.0",
     "oxlint": "^1.57.0",
