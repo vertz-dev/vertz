@@ -901,10 +901,152 @@ fn is_esm_line(trimmed: &str) -> bool {
         || trimmed.starts_with("import(")
 }
 
+/// Extract named export identifiers from CJS source code.
+///
+/// Handles two patterns:
+/// 1. `module.exports = { foo, bar: val }` — single top-level object literal assignment
+/// 2. `exports.foo = ...` — individual property assignments
+///
+/// Returns an empty `Vec` when the export shape is dynamic (conditional assignments,
+/// non-object `module.exports`, etc.).
+fn extract_cjs_named_exports(source: &str) -> Vec<String> {
+    let mut names: Vec<String> = Vec::new();
+
+    // Count how many times `module.exports =` appears at the top level.
+    // If more than one, it's dynamic — bail out.
+    let me_assignments: Vec<&str> = source
+        .lines()
+        .map(|l| l.trim())
+        .filter(|l| l.starts_with("module.exports") && l.contains('='))
+        .collect();
+
+    if me_assignments.len() == 1 {
+        let line = me_assignments[0];
+        // Find the `= { ... }` part — may span multiple lines.
+        if let Some(eq_idx) = line.find('=') {
+            let rhs = line[eq_idx + 1..].trim();
+            if rhs.starts_with('{') {
+                // Single-line: module.exports = { foo, bar: val };
+                // Extract keys from the object literal.
+                let obj_src = extract_object_body(source);
+                if let Some(body) = obj_src {
+                    parse_object_keys(&body, &mut names);
+                }
+            }
+            // Non-object RHS (e.g., `module.exports = 42;`) → empty
+        }
+    } else if me_assignments.is_empty() {
+        // Check for `exports.name = ...` pattern
+        for line in source.lines() {
+            let trimmed = line.trim();
+            if let Some(rest) = trimmed.strip_prefix("exports.") {
+                if let Some(name) = rest.split(&['=', ' ', '('][..]).next() {
+                    let name = name.trim();
+                    if !name.is_empty() && name != "default" && is_valid_js_ident(name) {
+                        names.push(name.to_string());
+                    }
+                }
+            }
+        }
+    }
+    // Multiple `module.exports =` assignments → dynamic, return empty
+
+    names.sort();
+    names.dedup();
+    names
+}
+
+/// Extract the body of the object literal from `module.exports = { ... }`,
+/// handling multi-line cases.
+fn extract_object_body(source: &str) -> Option<String> {
+    let me_prefix = "module.exports";
+    let mut collecting = false;
+    let mut depth = 0i32;
+    let mut body = String::new();
+
+    for line in source.lines() {
+        let trimmed = line.trim();
+        if !collecting {
+            if trimmed.starts_with(me_prefix) && trimmed.contains('=') {
+                if let Some(eq_idx) = trimmed.find('=') {
+                    let rhs = &trimmed[eq_idx + 1..];
+                    collecting = true;
+                    // Process this line's content
+                    for ch in rhs.chars() {
+                        if ch == '{' {
+                            depth += 1;
+                            if depth == 1 {
+                                continue; // skip opening brace
+                            }
+                        } else if ch == '}' {
+                            depth -= 1;
+                            if depth == 0 {
+                                return Some(body);
+                            }
+                        }
+                        if depth >= 1 {
+                            body.push(ch);
+                        }
+                    }
+                }
+            }
+        } else {
+            for ch in trimmed.chars() {
+                if ch == '{' {
+                    depth += 1;
+                } else if ch == '}' {
+                    depth -= 1;
+                    if depth == 0 {
+                        return Some(body);
+                    }
+                }
+                if depth >= 1 {
+                    body.push(ch);
+                }
+            }
+            // Add a comma between lines for easier parsing
+            body.push(',');
+        }
+    }
+    None
+}
+
+/// Parse object keys from the body between `{ }`.
+fn parse_object_keys(body: &str, names: &mut Vec<String>) {
+    for part in body.split(',') {
+        let part = part.trim();
+        if part.is_empty() {
+            continue;
+        }
+        // `key: value` or just `key` (shorthand)
+        let key = if let Some((k, _)) = part.split_once(':') {
+            k.trim()
+        } else {
+            part.trim_end_matches(';')
+        };
+        let key = key.trim();
+        if !key.is_empty() && key != "default" && is_valid_js_ident(key) {
+            names.push(key.to_string());
+        }
+    }
+}
+
+/// Check if a string is a valid JS identifier (simplified).
+fn is_valid_js_ident(s: &str) -> bool {
+    let mut chars = s.chars();
+    match chars.next() {
+        Some(c) if c.is_ascii_alphabetic() || c == '_' || c == '$' => {}
+        _ => return false,
+    }
+    chars.all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '$')
+}
+
 /// Wrap CommonJS source code into an ESM module.
 ///
 /// The wrapper provides `module`, `exports`, `require`, `__filename`, `__dirname`
 /// bindings and exports `module.exports` as the default export.
+/// When the source has statically-analyzable named exports, they are re-exported
+/// as `export const { name1, name2 } = __cjs_exports;`.
 fn wrap_cjs_module(source: &str, path: &Path) -> String {
     let filename = path.to_string_lossy();
     let dirname = path
@@ -914,6 +1056,16 @@ fn wrap_cjs_module(source: &str, path: &Path) -> String {
     let filename_json = serde_json::to_string(&*filename).unwrap_or_else(|_| "\"\"".to_string());
     let dirname_json = serde_json::to_string(&*dirname).unwrap_or_else(|_| "\"\"".to_string());
 
+    let named_exports = extract_cjs_named_exports(source);
+    let named_line = if named_exports.is_empty() {
+        String::new()
+    } else {
+        format!(
+            "export const {{ {} }} = __cjs_exports;\n",
+            named_exports.join(", ")
+        )
+    };
+
     format!(
         "var __filename = {f};\n\
          var __dirname = {d};\n\
@@ -922,10 +1074,12 @@ fn wrap_cjs_module(source: &str, path: &Path) -> String {
          var require = globalThis.__vtz_cjs_require({d});\n\n\
          {src}\n\n\
          var __cjs_exports = module.exports;\n\
-         export default __cjs_exports;\n",
+         export default __cjs_exports;\n\
+         {named}",
         f = filename_json,
         d = dirname_json,
         src = source,
+        named = named_line,
     )
 }
 
@@ -3551,5 +3705,101 @@ export function Hello() {
         let src = "const x = 1;\nmodule.exports = x;";
         let result = wrap_cjs_module(src, path);
         assert!(result.contains(src));
+    }
+
+    // ---------------------------------------------------------------
+    // Named CJS export extraction
+    // ---------------------------------------------------------------
+
+    #[test]
+    fn test_extract_cjs_named_exports_object_literal() {
+        let names = extract_cjs_named_exports("module.exports = { foo, bar };");
+        assert_eq!(names, vec!["bar", "foo"]);
+    }
+
+    #[test]
+    fn test_extract_cjs_named_exports_key_value_pairs() {
+        let names = extract_cjs_named_exports("module.exports = { foo: 1, bar: fn };");
+        assert_eq!(names, vec!["bar", "foo"]);
+    }
+
+    #[test]
+    fn test_extract_cjs_named_exports_mixed_shorthand_and_kv() {
+        let names = extract_cjs_named_exports("module.exports = { foo, bar: 2, baz };");
+        assert_eq!(names, vec!["bar", "baz", "foo"]);
+    }
+
+    #[test]
+    fn test_extract_cjs_named_exports_multiline() {
+        let src = "\
+const foo = 1;
+const bar = 2;
+module.exports = {
+  foo,
+  bar,
+};";
+        let names = extract_cjs_named_exports(src);
+        assert_eq!(names, vec!["bar", "foo"]);
+    }
+
+    #[test]
+    fn test_extract_cjs_named_exports_non_object_returns_empty() {
+        // module.exports = someValue (not an object literal)
+        let names = extract_cjs_named_exports("module.exports = 42;");
+        assert!(names.is_empty());
+    }
+
+    #[test]
+    fn test_extract_cjs_named_exports_dynamic_assignment_returns_empty() {
+        let src = "\
+if (condition) {
+  module.exports = { a: 1 };
+} else {
+  module.exports = { b: 2 };
+}";
+        let names = extract_cjs_named_exports(src);
+        assert!(names.is_empty());
+    }
+
+    #[test]
+    fn test_extract_cjs_named_exports_exports_dot_pattern() {
+        let src = "\
+exports.foo = 1;
+exports.bar = fn;";
+        let names = extract_cjs_named_exports(src);
+        assert_eq!(names, vec!["bar", "foo"]);
+    }
+
+    #[test]
+    fn test_extract_cjs_named_exports_skips_default_keyword() {
+        // "default" is a reserved word, should not be emitted as named export
+        let names = extract_cjs_named_exports("module.exports = { default: main, foo };");
+        assert_eq!(names, vec!["foo"]);
+    }
+
+    #[test]
+    fn test_wrap_cjs_module_emits_named_reexports() {
+        let path = Path::new("/tmp/test/pkg.js");
+        let src = "module.exports = { foo, bar };";
+        let result = wrap_cjs_module(src, path);
+        assert!(result.contains("export default __cjs_exports;"));
+        // Named re-exports destructure from __cjs_exports
+        assert!(
+            result.contains("export const { bar, foo } = __cjs_exports;"),
+            "Expected named re-exports, got:\n{}",
+            result
+        );
+    }
+
+    #[test]
+    fn test_wrap_cjs_module_no_named_exports_for_non_object() {
+        let path = Path::new("/tmp/test/pkg.js");
+        let src = "module.exports = 42;";
+        let result = wrap_cjs_module(src, path);
+        assert!(result.contains("export default __cjs_exports;"));
+        assert!(
+            !result.contains("export const {"),
+            "Should not have named re-exports for non-object export"
+        );
     }
 }
