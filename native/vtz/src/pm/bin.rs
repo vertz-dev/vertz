@@ -18,10 +18,14 @@ fn write_bin_stub(
         }
     }
 
-    let stub_content = format!(
-        "#!/bin/sh\nexec node \"$(dirname \"$0\")/{}\" \"$@\"\n",
-        target
-    );
+    let stub_content = if target.ends_with(".sh") {
+        format!("#!/bin/sh\nexec \"$(dirname \"$0\")/{}\" \"$@\"\n", target)
+    } else {
+        format!(
+            "#!/bin/sh\nexec node \"$(dirname \"$0\")/{}\" \"$@\"\n",
+            target
+        )
+    };
 
     std::fs::write(&stub_path, stub_content)?;
 
@@ -437,6 +441,109 @@ mod tests {
         assert!(
             content.contains("@vertz/build/dist/cli.js"),
             "target should use full scoped name: {}",
+            content
+        );
+    }
+
+    #[test]
+    fn test_sh_bin_targets_not_wrapped_with_node() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path();
+        std::fs::create_dir_all(root.join("node_modules")).unwrap();
+
+        let graph = ResolvedGraph::default();
+
+        let mut bin_map = BTreeMap::new();
+        bin_map.insert("vtz".to_string(), "./cli.sh".to_string());
+        bin_map.insert("vtzx".to_string(), "./cli-exec.sh".to_string());
+
+        let workspaces = vec![WorkspacePackage {
+            name: "@vertz/runtime".to_string(),
+            version: "0.1.0".to_string(),
+            path: PathBuf::from("packages/runtime"),
+            pkg: make_pkg_json("@vertz/runtime", BinField::Map(bin_map)),
+        }];
+
+        let count = generate_bin_stubs(root, &graph, &workspaces).unwrap();
+        assert_eq!(count, 2);
+
+        let vtz_content = std::fs::read_to_string(root.join("node_modules/.bin/vtz")).unwrap();
+        assert!(
+            !vtz_content.contains("exec node"),
+            ".sh bin target must not be wrapped with node: {}",
+            vtz_content
+        );
+        assert!(
+            vtz_content.contains("exec \"$(dirname"),
+            ".sh bin target should exec directly: {}",
+            vtz_content
+        );
+
+        let vtzx_content = std::fs::read_to_string(root.join("node_modules/.bin/vtzx")).unwrap();
+        assert!(
+            !vtzx_content.contains("exec node"),
+            ".sh bin target must not be wrapped with node: {}",
+            vtzx_content
+        );
+    }
+
+    #[test]
+    fn test_js_bin_targets_still_wrapped_with_node() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path();
+        std::fs::create_dir_all(root.join("node_modules")).unwrap();
+
+        let graph = ResolvedGraph::default();
+
+        let mut bin_map = BTreeMap::new();
+        bin_map.insert("vertz-build".to_string(), "./dist/cli.js".to_string());
+
+        let workspaces = vec![WorkspacePackage {
+            name: "@vertz/build".to_string(),
+            version: "0.2.58".to_string(),
+            path: PathBuf::from("packages/build"),
+            pkg: make_pkg_json("@vertz/build", BinField::Map(bin_map)),
+        }];
+
+        generate_bin_stubs(root, &graph, &workspaces).unwrap();
+
+        let content = std::fs::read_to_string(root.join("node_modules/.bin/vertz-build")).unwrap();
+        assert!(
+            content.contains("exec node"),
+            ".js bin target should still use node: {}",
+            content
+        );
+    }
+
+    #[test]
+    fn test_npm_sh_bin_targets_not_wrapped_with_node() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path();
+        std::fs::create_dir_all(root.join("node_modules")).unwrap();
+
+        let mut graph = ResolvedGraph::default();
+        let mut bin = BTreeMap::new();
+        bin.insert("some-tool".to_string(), "./bin/run.sh".to_string());
+
+        graph.packages.insert(
+            "some-tool@1.0.0".to_string(),
+            ResolvedPackage {
+                name: "some-tool".to_string(),
+                version: "1.0.0".to_string(),
+                tarball_url: String::new(),
+                integrity: String::new(),
+                dependencies: BTreeMap::new(),
+                bin,
+                nest_path: vec![],
+            },
+        );
+
+        generate_bin_stubs(root, &graph, &[]).unwrap();
+
+        let content = std::fs::read_to_string(root.join("node_modules/.bin/some-tool")).unwrap();
+        assert!(
+            !content.contains("exec node"),
+            "npm .sh bin target must not be wrapped with node: {}",
             content
         );
     }
