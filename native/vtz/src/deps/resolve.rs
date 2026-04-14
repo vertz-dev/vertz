@@ -184,7 +184,10 @@ fn resolve_condition_value(
     conditions: &serde_json::Map<String, serde_json::Value>,
 ) -> Option<String> {
     // Priority: import > node > module > default > require
-    // Matches the ESM resolver in module_loader.rs
+    // Matches the ESM resolver in module_loader.rs and import_rewriter.rs.
+    // Note: this serves /@deps/ URLs to the browser. The "node" condition may
+    // resolve to Node-specific code for some packages; a future "browser"
+    // condition could be added if needed.
     for key in &["import", "node", "module", "default", "require"] {
         if let Some(val) = conditions.get(*key) {
             match val {
