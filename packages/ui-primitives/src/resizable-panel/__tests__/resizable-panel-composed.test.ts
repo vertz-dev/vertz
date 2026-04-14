@@ -505,9 +505,11 @@ describe('ComposedResizablePanel', () => {
   });
 
   it('no imperative DOM manipulation in source', async () => {
-    const source = await Bun.file(
+    const { readFileSync } = await import('fs');
+    const source = readFileSync(
       new URL('../resizable-panel-composed.tsx', import.meta.url).pathname,
-    ).text();
+      'utf-8',
+    );
     expect(source).not.toContain('resolveChildren');
     expect(source).not.toContain("from './resizable-panel'");
     expect(source).not.toContain('appendChild');

@@ -283,8 +283,8 @@ describe('ComposedBreadcrumb', () => {
     const ol = nav.querySelector('ol');
     expect(ol).not.toBeNull();
     expect(ol?.style.listStyle).toBe('none');
-    expect(ol?.style.margin).toBe('0px');
-    expect(ol?.style.padding).toBe('0px');
+    expect(ol?.style.margin).toBe('0');
+    expect(ol?.style.padding).toBe('0');
   });
 
   it('renders empty breadcrumb without crashing', () => {

@@ -26,7 +26,7 @@ export function __attr(
     } else if (value === true) {
       el.setAttribute(name, '');
     } else if (name === 'style' && typeof value === 'object') {
-      el.setAttribute(name, styleObjectToString(value as Record<string, string | number>));
+      el.style.cssText = styleObjectToString(value as Record<string, string | number>);
     } else {
       el.setAttribute(name, value as string);
     }

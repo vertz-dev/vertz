@@ -1534,7 +1534,7 @@ fn process_attr(
             // Guards against null/false/undefined and handles boolean true → ""
             if attr_name == "style" {
                 Some(format!(
-                    "{{ const __v = {}; if (__v != null && __v !== false) {}.setAttribute(\"style\", typeof __v === \"object\" ? __styleStr(__v) : __v === true ? \"\" : String(__v)); }}",
+                    "{{ const __v = {}; if (__v != null && __v !== false) {}.style.cssText = typeof __v === \"object\" ? __styleStr(__v) : __v === true ? \"\" : String(__v); }}",
                     expr_text, el_var
                 ))
             } else if use_property {
@@ -3809,7 +3809,7 @@ export function App() {
     return <div style={s}>text</div>;
 }"#,
         );
-        // Static style expression → guarded style setAttribute with __styleStr logic
+        // Static style expression → guarded style.cssText assignment with __styleStr logic
         assert!(
             result.contains("__styleStr") || result.contains("style"),
             "result: {result}"
