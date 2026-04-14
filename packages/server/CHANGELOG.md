@@ -1,5 +1,15 @@
 # @vertz/server
 
+## 0.2.64
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @vertz/core@0.2.64
+  - @vertz/db@0.2.64
+  - @vertz/errors@0.2.64
+  - @vertz/schema@0.2.64
+
 ## 0.2.63
 
 ### Patch Changes

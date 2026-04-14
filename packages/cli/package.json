@@ -1,6 +1,6 @@
 {
   "name": "@vertz/cli",
-  "version": "0.2.63",
+  "version": "0.2.64",
   "description": "Vertz CLI — dev, build, create, and deploy commands",
   "license": "MIT",
   "repository": {

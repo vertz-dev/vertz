@@ -1,5 +1,14 @@
 # @vertz/ui
 
+## 0.2.64
+
+### Patch Changes
+
+- [#2651](https://github.com/vertz-dev/vertz/pull/2651) [`840ace1`](https://github.com/vertz-dev/vertz/commit/840ace1f1c4a203e572394f322ee9b5c428537fa) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - Add missing CSS utility tokens (`font:mono/sans/serif`, `whitespace:pre`, `text-overflow:ellipsis`, `overflow-wrap:break-word`, `truncate` keyword) and support raw Tailwind palette colors (`bg:green.100`, `text:red.700`) resolving directly to oklch values.
+
+- Updated dependencies []:
+  - @vertz/fetch@0.2.64
+
 ## 0.2.63
 
 ### Patch Changes
