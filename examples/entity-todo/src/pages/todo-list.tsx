@@ -29,7 +29,7 @@ const pageStyles = css({
 });
 
 export function TodoListPage() {
-  const todosQuery = query<{ items: TodosResponse[] }>(api.todos.list());
+  const todosQuery = query(api.todos.list());
 
   return (
     <div className={pageStyles.container} data-testid="todo-list-page">

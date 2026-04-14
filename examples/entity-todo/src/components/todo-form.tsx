@@ -22,7 +22,7 @@ export interface TodoFormProps {
 }
 
 export function TodoForm({ onSuccess }: TodoFormProps = {}) {
-  const todoForm = form<{ title: string }, TodosResponse>(api.todos.create, {
+  const todoForm = form(api.todos.create, {
     onSuccess,
     resetOnSuccess: true,
   });
