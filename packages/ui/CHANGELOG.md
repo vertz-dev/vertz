@@ -1,5 +1,12 @@
 # @vertz/ui
 
+## 0.2.62
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @vertz/fetch@0.2.62
+
 ## 0.2.61
 
 ### Patch Changes
