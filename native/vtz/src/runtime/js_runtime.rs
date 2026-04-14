@@ -13,6 +13,7 @@ use deno_core::RuntimeOptions;
 
 use super::module_loader::{VertzModuleLoader, CJS_BOOTSTRAP_JS};
 use super::ops::async_context;
+use super::ops::bun_compat;
 use super::ops::clone;
 use super::ops::console;
 use super::ops::crypto;
@@ -148,6 +149,7 @@ impl VertzJsRuntime {
             fs::FS_BOOTSTRAP_JS,
             CJS_BOOTSTRAP_JS,
             http_serve::HTTP_SERVE_BOOTSTRAP_JS,
+            bun_compat::BUN_COMPAT_BOOTSTRAP_JS,
         ]
         .join("\n")
     }
