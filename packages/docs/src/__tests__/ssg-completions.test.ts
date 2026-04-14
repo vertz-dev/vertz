@@ -127,14 +127,18 @@ describe('SSG completions', () => {
     it('ga4 analytics script is injected with measurement ID', () => {
       const script = renderAnalyticsScript({ ga4: { measurementId: 'G-TEST123' } });
       expect(script).toContain('googletagmanager.com/gtag/js?id=G-TEST123');
+      expect(script).toContain('window.dataLayer');
+      expect(script).toContain("gtag('js'");
+      expect(script).toContain("gtag('config'");
       expect(script).toContain('G-TEST123');
     });
 
     it('posthog analytics script is injected with API key and default host', () => {
       const script = renderAnalyticsScript({ posthog: { apiKey: 'phc_test123' } });
-      expect(script).toContain('posthog');
+      expect(script).toContain('posthog.init');
       expect(script).toContain('phc_test123');
       expect(script).toContain('https://us.i.posthog.com');
+      expect(script).toContain('array.full.js');
     });
 
     it('posthog uses custom apiHost when provided', () => {
@@ -174,6 +178,16 @@ describe('SSG completions', () => {
           posthog: { apiKey: 'phc_valid', apiHost: 'javascript:alert(1)' },
         }),
       ).toThrow(/invalid.*apiHost/i);
+    });
+
+    it('ga4 with empty measurementId produces no script', () => {
+      const script = renderAnalyticsScript({ ga4: { measurementId: '' } });
+      expect(script).toBe('');
+    });
+
+    it('posthog with empty apiKey produces no script', () => {
+      const script = renderAnalyticsScript({ posthog: { apiKey: '' } });
+      expect(script).toBe('');
     });
   });
 
