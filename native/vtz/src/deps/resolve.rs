@@ -183,8 +183,9 @@ fn resolve_condition_value_from_entry(value: &serde_json::Value) -> Option<Strin
 fn resolve_condition_value(
     conditions: &serde_json::Map<String, serde_json::Value>,
 ) -> Option<String> {
-    // Priority: import > module > default
-    for key in &["import", "module", "default"] {
+    // Priority: import > node > module > default > require
+    // Matches the ESM resolver in module_loader.rs
+    for key in &["import", "node", "module", "default", "require"] {
         if let Some(val) = conditions.get(*key) {
             match val {
                 serde_json::Value::String(s) => return Some(s.clone()),
@@ -407,5 +408,66 @@ mod tests {
         );
         // Subpath on top-level array should return None
         assert_eq!(resolve_export_entry(&exports, "./utils"), None);
+    }
+
+    #[test]
+    fn test_resolve_export_entry_node_condition() {
+        // Packages that only export under the "node" condition
+        let exports = serde_json::json!({
+            ".": {
+                "node": "./dist/node.js",
+                "default": "./dist/index.js"
+            }
+        });
+        assert_eq!(
+            resolve_export_entry(&exports, "."),
+            Some("./dist/node.js".to_string())
+        );
+    }
+
+    #[test]
+    fn test_resolve_export_entry_node_condition_priority() {
+        // "node" should be preferred over "module" and "default" but not "import"
+        let exports = serde_json::json!({
+            ".": {
+                "module": "./dist/module.mjs",
+                "node": "./dist/node.js",
+                "default": "./dist/index.js"
+            }
+        });
+        assert_eq!(
+            resolve_export_entry(&exports, "."),
+            Some("./dist/node.js".to_string())
+        );
+    }
+
+    #[test]
+    fn test_resolve_export_entry_import_over_node() {
+        // "import" should be preferred over "node"
+        let exports = serde_json::json!({
+            ".": {
+                "node": "./dist/node.js",
+                "import": "./dist/esm.mjs",
+                "default": "./dist/index.js"
+            }
+        });
+        assert_eq!(
+            resolve_export_entry(&exports, "."),
+            Some("./dist/esm.mjs".to_string())
+        );
+    }
+
+    #[test]
+    fn test_resolve_export_entry_require_fallback() {
+        // "require" should resolve as a last-resort fallback
+        let exports = serde_json::json!({
+            ".": {
+                "require": "./dist/index.cjs"
+            }
+        });
+        assert_eq!(
+            resolve_export_entry(&exports, "."),
+            Some("./dist/index.cjs".to_string())
+        );
     }
 }
