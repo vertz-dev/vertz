@@ -37,7 +37,6 @@
     "@types/node": "^25.3.1",
     "@vertz/build": "workspace:^",
     "@vertz/test": "workspace:*",
-    "bunup": "^0.16.31",
     "typescript": "^5.7.0"
   },
   "engines": {
