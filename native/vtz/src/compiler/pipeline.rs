@@ -555,7 +555,6 @@ fn strip_leftover_typescript(code: &str) -> String {
         // assignment) would be incorrectly stripped. See #2599.
         if (trimmed.starts_with("export type ") || trimmed.starts_with("type "))
             && !trimmed.starts_with("export type {")
-            && !trimmed.starts_with("typeof ")
             && trimmed.contains('=')
             && starts_with_type_name(trimmed)
         {
@@ -2624,6 +2623,55 @@ export function App() {
             "Type alias should still be stripped"
         );
         assert!(result.contains("const x = 1;"));
+    }
+
+    #[test]
+    fn test_strip_removes_underscore_and_dollar_type_aliases() {
+        let code = "type _Internal = number;\ntype $Computed = boolean;\nconst x = 1;";
+        let result = strip_leftover_typescript(code);
+        assert!(
+            !result.contains("type _Internal"),
+            "Type alias with underscore should be stripped"
+        );
+        assert!(
+            !result.contains("type $Computed"),
+            "Type alias with dollar should be stripped"
+        );
+        assert!(result.contains("const x = 1;"));
+    }
+
+    #[test]
+    fn test_strip_preserves_type_comparison() {
+        let code = "if (type == 'string') {}";
+        let result = strip_leftover_typescript(code);
+        assert!(
+            result.contains("type == 'string'"),
+            "Comparison should be preserved. Got: {}",
+            result
+        );
+    }
+
+    #[test]
+    fn test_strip_preserves_export_type_variable_assignment() {
+        // `export type =` is not a valid TS type alias; preserve it
+        let code = "export type = 'value';";
+        let result = strip_leftover_typescript(code);
+        assert!(
+            result.contains("export type = 'value'"),
+            "Export variable assignment should be preserved. Got: {}",
+            result
+        );
+    }
+
+    #[test]
+    fn test_strip_preserves_standalone_type_variable() {
+        // `type;` as a standalone expression statement
+        let code = "type;\nconst x = 1;";
+        let result = strip_leftover_typescript(code);
+        assert!(
+            result.contains("const x = 1;"),
+            "Non-type code should be preserved"
+        );
     }
 
     #[test]
