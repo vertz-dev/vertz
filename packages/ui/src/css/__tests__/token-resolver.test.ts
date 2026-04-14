@@ -978,22 +978,40 @@ describe('resolveToken', () => {
     });
 
     it('throws on invalid palette shade', () => {
-      expect(() =>
-        resolveToken({ property: 'bg', value: 'green.42', pseudo: null }),
-      ).toThrow(TokenResolveError);
+      expect(() => resolveToken({ property: 'bg', value: 'green.42', pseudo: null })).toThrow(
+        TokenResolveError,
+      );
     });
 
     it('throws on unknown palette name', () => {
-      expect(() =>
-        resolveToken({ property: 'bg', value: 'chartreuse.100', pseudo: null }),
-      ).toThrow(TokenResolveError);
+      expect(() => resolveToken({ property: 'bg', value: 'chartreuse.100', pseudo: null })).toThrow(
+        TokenResolveError,
+      );
     });
 
     it('supports all 21 non-gray palette names', () => {
       const names = [
-        'slate', 'zinc', 'neutral', 'stone', 'red', 'orange', 'amber',
-        'yellow', 'lime', 'green', 'emerald', 'teal', 'cyan', 'sky',
-        'blue', 'indigo', 'violet', 'purple', 'fuchsia', 'pink', 'rose',
+        'slate',
+        'zinc',
+        'neutral',
+        'stone',
+        'red',
+        'orange',
+        'amber',
+        'yellow',
+        'lime',
+        'green',
+        'emerald',
+        'teal',
+        'cyan',
+        'sky',
+        'blue',
+        'indigo',
+        'violet',
+        'purple',
+        'fuchsia',
+        'pink',
+        'rose',
       ];
       for (const name of names) {
         const result = resolveToken({ property: 'bg', value: `${name}.500`, pseudo: null });
