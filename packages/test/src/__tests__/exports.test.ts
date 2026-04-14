@@ -31,8 +31,10 @@ import type {
 // --- Bun runtime bridge ---
 // When running under `bun test`, @vertz/test re-exports from bun:test.
 // These tests verify the bridge works correctly.
+// Skip under vtz test — require() + bun:test bridge is Bun-specific.
+const hasBun = typeof globalThis.Bun !== 'undefined';
 
-describe('@vertz/test Bun bridge', () => {
+describe.skipIf(!hasBun)('@vertz/test Bun bridge', () => {
   it('describe is a function from bun:test', () => {
     const mod = require('../index');
     expect(typeof mod.describe).toBe('function');
