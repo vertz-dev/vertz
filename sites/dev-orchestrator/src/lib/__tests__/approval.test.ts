@@ -118,7 +118,7 @@ describe('Feature: Approval checker', () => {
       it('Then passes the correct URL and authorization header', async () => {
         await checkApproval('vertz-dev/vertz', 42, 99, 'my-token');
         expect(mockFetch).toHaveBeenCalledTimes(1);
-        const [url, opts] = mockFetch.mock.calls[0];
+        const [url, opts] = mockFetch.mock.calls[0] as [string, { headers: Record<string, string> }];
         expect(url).toBe(
           'https://api.github.com/repos/vertz-dev/vertz/issues/42/comments?since_id=99',
         );

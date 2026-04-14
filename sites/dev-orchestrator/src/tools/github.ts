@@ -62,16 +62,16 @@ const githubTools = { readIssue, ghPrChecks, createPr, commentOnIssue };
 
 export function createGitHubProvider(client: GitHubClient): InferToolProvider<typeof githubTools> {
   return {
-    readIssue: async ({ repo, number }) => {
+    readIssue: async ({ repo, number }, _ctx) => {
       return client.getIssue(repo, number);
     },
-    ghPrChecks: async ({ repo, prNumber }) => {
+    ghPrChecks: async ({ repo, prNumber }, _ctx) => {
       return client.getPrChecks(repo, prNumber);
     },
-    createPr: async ({ repo, title, body, head, base }) => {
+    createPr: async ({ repo, title, body, head, base }, _ctx) => {
       return client.createPr(repo, { title, body, head, base });
     },
-    commentOnIssue: async ({ repo, issueNumber, body }) => {
+    commentOnIssue: async ({ repo, issueNumber, body }, _ctx) => {
       return client.commentOnIssue(repo, issueNumber, body);
     },
   };

@@ -13,7 +13,7 @@ function createMockSandbox(): DaytonaSandbox {
       listFiles: mock().mockResolvedValue([]),
     },
     delete: mock().mockResolvedValue(undefined),
-  };
+  } as unknown as DaytonaSandbox;
 }
 
 describe('Feature: Sandbox client', () => {
@@ -113,12 +113,12 @@ describe('Feature: Sandbox client', () => {
         const stored = new Map<string, string>();
 
         (mockSandbox.fs.uploadFile as ReturnType<typeof vi.fn>)
-          .mockImplementation(async (content: Buffer, path: string) => {
-            stored.set(path, content.toString());
+          .mockImplementation(async (content: unknown, path: unknown) => {
+            stored.set(path as string, (content as Buffer).toString());
           });
         (mockSandbox.fs.downloadFile as ReturnType<typeof vi.fn>)
-          .mockImplementation(async (path: string) => {
-            return Buffer.from(stored.get(path) ?? '');
+          .mockImplementation(async (path: unknown) => {
+            return Buffer.from(stored.get(path as string) ?? '');
           });
 
         const client = wrapSandbox(mockSandbox);

@@ -1,6 +1,9 @@
 import { describe, expect, it, vi, beforeEach, mock } from '@vertz/test';
+import type { ToolContext } from '@vertz/agents';
 import { createSandboxProvider, readFile, writeFile, searchCode, listFiles } from '../sandbox-tools';
 import type { SandboxClient } from '../../lib/sandbox-client';
+
+const dummyCtx = { agentId: 'test', agentName: 'test' } as unknown as ToolContext;
 
 function createMockClient(): SandboxClient {
   return {
@@ -10,7 +13,7 @@ function createMockClient(): SandboxClient {
     searchFiles: mock().mockResolvedValue([]),
     listFiles: mock().mockResolvedValue([]),
     destroy: mock().mockResolvedValue(undefined),
-  };
+  } as unknown as SandboxClient;
 }
 
 describe('Feature: Sandbox tools', () => {
@@ -48,7 +51,7 @@ describe('Feature: Sandbox tools', () => {
           .mockResolvedValueOnce('export const x = 1;');
 
         const provider = createSandboxProvider(client);
-        const result = await provider.readFile({ path: 'src/index.ts' });
+        const result = await provider.readFile({ path: 'src/index.ts' }, dummyCtx);
 
         expect(result.content).toBe('export const x = 1;');
       });
@@ -58,7 +61,7 @@ describe('Feature: Sandbox tools', () => {
       it('Then writes the content and returns success', async () => {
         const provider = createSandboxProvider(client);
         const result = await provider.writeFile(
-          { path: 'src/new.ts', content: 'const y = 2;' },
+          { path: 'src/new.ts', content: 'const y = 2;' }, dummyCtx,
         );
 
         expect(result.success).toBe(true);
@@ -75,7 +78,7 @@ describe('Feature: Sandbox tools', () => {
 
         const provider = createSandboxProvider(client);
         const result = await provider.searchCode(
-          { pattern: 'TODO', path: undefined },
+          { pattern: 'TODO', path: undefined }, dummyCtx,
         );
 
         expect(result.matches).toHaveLength(1);
@@ -89,7 +92,7 @@ describe('Feature: Sandbox tools', () => {
           .mockResolvedValueOnce(['index.ts', 'utils.ts']);
 
         const provider = createSandboxProvider(client);
-        const result = await provider.listFiles({ path: 'src/' });
+        const result = await provider.listFiles({ path: 'src/' }, dummyCtx);
 
         expect(result.files).toEqual(['index.ts', 'utils.ts']);
       });

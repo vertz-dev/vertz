@@ -1,6 +1,9 @@
 import { describe, expect, it, beforeEach, afterEach, mock } from '@vertz/test';
+import type { ToolContext } from '@vertz/agents';
 import { createGitHubProvider, readIssue, ghPrChecks, createPr, commentOnIssue } from '../github';
 import { createGitHubClient } from '../../lib/github-client';
+
+const dummyCtx = { agentId: 'test', agentName: 'test' } as unknown as ToolContext;
 
 describe('Feature: GitHub tools', () => {
   const originalFetch = globalThis.fetch;
@@ -50,7 +53,7 @@ describe('Feature: GitHub tools', () => {
         );
 
         const result = await provider.readIssue(
-          { repo: 'vertz-dev/vertz', number: 1 },
+          { repo: 'vertz-dev/vertz', number: 1 }, dummyCtx,
         );
 
         expect(result.title).toBe('Add auth');
@@ -77,7 +80,7 @@ describe('Feature: GitHub tools', () => {
         );
 
         const result = await provider.ghPrChecks(
-          { repo: 'vertz-dev/vertz', prNumber: 5 },
+          { repo: 'vertz-dev/vertz', prNumber: 5 }, dummyCtx,
         );
 
         expect(result.status).toBe('success');
@@ -100,7 +103,7 @@ describe('Feature: GitHub tools', () => {
           body: 'Auth PR',
           head: 'feat/auth',
           base: 'main',
-        });
+        }, dummyCtx);
 
         expect(result.number).toBe(42);
         expect(result.url).toBe('https://github.com/vertz-dev/vertz/pull/42');
@@ -114,7 +117,7 @@ describe('Feature: GitHub tools', () => {
         );
 
         const result = await provider.commentOnIssue(
-          { repo: 'vertz-dev/vertz', issueNumber: 1, body: 'Done!' },
+          { repo: 'vertz-dev/vertz', issueNumber: 1, body: 'Done!' }, dummyCtx,
         );
 
         expect(result.commentId).toBe(999);

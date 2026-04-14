@@ -95,6 +95,7 @@ export function App() {
   const dialogStack = createDialogStack(dialogContainer);
 
   return (
+    // @ts-expect-error auth SDK prop comes from #generated codegen — not available until codegen runs
     <AuthProvider basePath="/api/auth">
       <RouterContext.Provider value={appRouter}>
         <ThemeProvider theme="dark">

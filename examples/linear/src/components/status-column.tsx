@@ -1,4 +1,4 @@
-import { css, Link, ListTransition } from '@vertz/ui';
+import { css, Link } from '@vertz/ui';
 import type { Issue } from '../lib/types';
 import { IssueCard } from './issue-card';
 
@@ -30,15 +30,11 @@ export function StatusColumn({ label, issues, projectKey, projectId }: StatusCol
       </div>
       <div className={styles.columnBody}>
         {issues.length === 0 && <div className={styles.empty}>No issues</div>}
-        <ListTransition
-          each={issues}
-          keyFn={(issue: Issue) => issue.id}
-          children={(issue: Issue) => (
-            <Link href={`/projects/${projectId}/issues/${issue.id}`}>
-              <IssueCard issue={issue} projectKey={projectKey} />
-            </Link>
-          )}
-        />
+        {issues.map((issue: Issue) => (
+          <Link key={issue.id} href={`/projects/${projectId}/issues/${issue.id}`}>
+            <IssueCard issue={issue} projectKey={projectKey} />
+          </Link>
+        ))}
       </div>
     </div>
   );
