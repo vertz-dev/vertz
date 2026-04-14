@@ -89,9 +89,22 @@ export interface PlausibleConfig {
   domain: string;
 }
 
+/** Google Analytics 4 configuration. */
+export interface GA4Config {
+  measurementId: string;
+}
+
+/** PostHog analytics configuration. */
+export interface PostHogConfig {
+  apiKey: string;
+  apiHost?: string;
+}
+
 /** Analytics configuration. */
 export interface AnalyticsConfig {
   plausible?: PlausibleConfig;
+  ga4?: GA4Config;
+  posthog?: PostHogConfig;
 }
 
 /** Code theme configuration — supports separate light/dark themes. */
