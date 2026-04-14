@@ -1,120 +1,36 @@
-import type { BunPlugin } from 'bun';
-import type { PluggableList } from 'unified';
+import { readFile } from 'node:fs/promises';
+import type { MdxPluginOptions } from './compile-mdx';
+import { compileMdx } from './compile-mdx';
 
-export interface MdxPluginOptions {
-  /** JSX import source for the compiled output. Defaults to '@vertz/ui'. */
-  jsxImportSource?: string;
-  /** Remark plugins to apply during MDX compilation. */
-  remarkPlugins?: PluggableList;
-  /** Rehype plugins to apply during MDX compilation. */
-  rehypePlugins?: PluggableList;
-  /** Whether to extract YAML frontmatter. Defaults to true. */
-  remarkFrontmatter?: boolean;
-  /**
-   * Shiki theme for code fence highlighting.
-   * - `string` — single theme name (e.g., 'github-dark')
-   * - `{ light: string; dark: string }` — dual theme using CSS variables
-   * - `false` — disable syntax highlighting
-   * Defaults to 'github-dark'.
-   */
-  shikiTheme?: string | { light: string; dark: string } | false;
-  /** Languages to load for Shiki highlighting. Defaults to ['tsx', 'ts', 'bash', 'json']. */
-  shikiLangs?: string[];
+/** Minimal plugin interface compatible with Bun's build plugin system. */
+export interface MdxPlugin {
+  name: string;
+  setup(build: {
+    onLoad(
+      options: { filter: RegExp },
+      callback: (args: { path: string }) => Promise<{ contents: string; loader: string }>,
+    ): void;
+  }): void;
 }
 
 /**
- * Create a Bun plugin that compiles `.mdx` files to Vertz-compatible JS modules.
+ * Create a build plugin that compiles `.mdx` files to Vertz-compatible JS modules.
  *
  * Uses `@mdx-js/mdx` for compilation with:
  * - `jsxImportSource` targeting Vertz's JSX runtime (client or server)
  * - Frontmatter extraction via remark-frontmatter + remark-mdx-frontmatter
  * - Code fence highlighting via @shikijs/rehype + Shiki
  */
-export function createMdxPlugin(options?: MdxPluginOptions): BunPlugin {
-  const jsxImportSource = options?.jsxImportSource ?? '@vertz/ui';
-  const enableFrontmatter = options?.remarkFrontmatter !== false;
-  const shikiLangs = options?.shikiLangs ?? ['tsx', 'ts', 'bash', 'json'];
-
-  // Resolve theme configuration
-  const rawTheme = options?.shikiTheme;
-  const isDualTheme = typeof rawTheme === 'object' && rawTheme !== null && 'light' in rawTheme;
-  const shikiEnabled = rawTheme !== false;
-  const themeNames: string[] = isDualTheme
-    ? [rawTheme.light, rawTheme.dark]
-    : shikiEnabled
-      ? [typeof rawTheme === 'string' ? rawTheme : 'github-dark']
-      : [];
-
-  // Shared highlighter instance — created lazily on first .mdx load
-  let highlighterPromise: Promise<unknown> | null = null;
-
+export function createMdxPlugin(options?: MdxPluginOptions): MdxPlugin {
   return {
     name: 'vertz-mdx',
     setup(build) {
       build.onLoad({ filter: /\.mdx$/ }, async (args) => {
-        const source = await Bun.file(args.path).text();
-        const { compile } = await import('@mdx-js/mdx');
-
-        // Build remark plugins
-        const remarkPlugins: PluggableList = [...(options?.remarkPlugins ?? [])];
-        if (enableFrontmatter) {
-          const { default: remarkFrontmatter } = await import('remark-frontmatter');
-          const { default: remarkMdxFrontmatter } = await import('remark-mdx-frontmatter');
-          remarkPlugins.push(remarkFrontmatter, remarkMdxFrontmatter);
-        }
-
-        // Build rehype plugins
-        const rehypePlugins: PluggableList = [...(options?.rehypePlugins ?? [])];
-        if (shikiEnabled && themeNames.length > 0) {
-          // Create shared highlighter on first use
-          if (!highlighterPromise) {
-            highlighterPromise = (async () => {
-              const { createHighlighter } = await import('shiki');
-              return createHighlighter({
-                themes: themeNames,
-                langs: shikiLangs,
-              });
-            })().catch((err) => {
-              highlighterPromise = null;
-              throw err;
-            });
-          }
-          const highlighter = await highlighterPromise;
-          const { default: rehypeShiki } = await import('@shikijs/rehype');
-
-          if (isDualTheme) {
-            // Dual theme: CSS variables for light/dark switching
-            rehypePlugins.push([
-              rehypeShiki,
-              {
-                highlighter,
-                themes: { light: rawTheme.light, dark: rawTheme.dark },
-                defaultColor: false,
-              },
-            ]);
-          } else {
-            // Single theme: direct color output
-            rehypePlugins.push([
-              rehypeShiki,
-              {
-                highlighter,
-                themes: { dark: themeNames[0] },
-                defaultColor: 'dark',
-              },
-            ]);
-          }
-        }
-
-        const compiled = await compile(source, {
-          jsxImportSource,
-          outputFormat: 'program',
-          development: false,
-          remarkPlugins,
-          rehypePlugins,
-        });
+        const source = await readFile(args.path, 'utf-8');
+        const contents = await compileMdx(source, options);
 
         return {
-          contents: String(compiled),
+          contents,
           loader: 'js',
         };
       });
