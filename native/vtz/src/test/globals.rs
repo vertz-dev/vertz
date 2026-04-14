@@ -95,9 +95,23 @@ if (typeof globalThis.HTMLElement === 'undefined') {
   describe.only = function(name, fn) { addSuite(name, fn, { only: true }); };
 
   // --- Public API: it / test ---
-  function it(name, fn) { addTest(name, fn, {}); }
-  it.skip = function(name, fn) { addTest(name, fn, { skip: true }); };
-  it.only = function(name, fn) { addTest(name, fn, { only: true }); };
+  // Supports both it(name, fn) and it(name, options, fn) overloads
+  function it(name, optionsOrFn, maybeFn) {
+    if (typeof optionsOrFn === 'function') {
+      addTest(name, optionsOrFn, {});
+    } else {
+      const opts = optionsOrFn || {};
+      addTest(name, maybeFn, { timeout: opts.timeout });
+    }
+  }
+  it.skip = function(name, optionsOrFn, maybeFn) {
+    const fn = typeof optionsOrFn === 'function' ? optionsOrFn : maybeFn;
+    addTest(name, fn, { skip: true });
+  };
+  it.only = function(name, optionsOrFn, maybeFn) {
+    const fn = typeof optionsOrFn === 'function' ? optionsOrFn : maybeFn;
+    addTest(name, fn, { only: true });
+  };
   it.todo = function(name) { addTest(name, undefined, { todo: true }); };
   const test = it;
 
@@ -149,7 +163,7 @@ if (typeof globalThis.HTMLElement === 'undefined') {
       if (onceQueue.length > 0) {
         const onceFn = onceQueue.shift();
         try {
-          const value = onceFn(...args);
+          const value = onceFn.apply(this, args);
           mockState.results.push({ type: 'return', value });
           return value;
         } catch (e) {
@@ -160,7 +174,7 @@ if (typeof globalThis.HTMLElement === 'undefined') {
       // Then current implementation
       if (currentImpl) {
         try {
-          const value = currentImpl(...args);
+          const value = currentImpl.apply(this, args);
           mockState.results.push({ type: 'return', value });
           return value;
         } catch (e) {
@@ -183,6 +197,7 @@ if (typeof globalThis.HTMLElement === 'undefined') {
     mockFn.mockRejectedValue = (val) => { currentImpl = () => Promise.reject(val); return mockFn; };
     mockFn.mockRejectedValueOnce = (val) => { onceQueue.push(() => Promise.reject(val)); return mockFn; };
     mockFn.mockImplementationOnce = (fn) => { onceQueue.push(fn); return mockFn; };
+    mockFn.mockReturnThis = () => { currentImpl = function() { return this; }; return mockFn; };
 
     mockFn.mockReset = () => {
       mockState.calls.length = 0;
@@ -1133,6 +1148,9 @@ if (typeof globalThis.HTMLElement === 'undefined') {
   mock.module = (modulePath, factory) => {
     vi.mock(modulePath, factory);
   };
+
+  // mock.restore() — Bun-compatible: restore all mocks
+  mock.restore = () => { for (const m of allMocks) m.mockRestore(); };
 
   // --- skipIf / each modifiers ---
   it.skipIf = (condition) => condition ? it.skip : it;

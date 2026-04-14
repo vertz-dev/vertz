@@ -815,6 +815,9 @@ pub const FS_BOOTSTRAP_JS: &str = r#"
       if (fill !== undefined) buf.fill(typeof fill === 'string' ? fill.charCodeAt(0) : fill);
       return buf;
     }
+    static allocUnsafe(size) {
+      return new Buffer(size);
+    }
     static isBuffer(obj) {
       return obj instanceof Buffer;
     }
@@ -875,14 +878,25 @@ pub const FS_BOOTSTRAP_JS: &str = r#"
     };
   }
 
+  // Enrich fs errors with a .code property for Node.js compatibility
+  function enrichFsError(err) {
+    if (err && typeof err.message === 'string' && !err.code) {
+      const m = err.message.match(/^(E[A-Z]+):/);
+      if (m) err.code = m[1];
+    }
+    return err;
+  }
+
   // --- Sync functions ---
   function readFileSync(path, options) {
-    const encoding = typeof options === 'string' ? options : (options && options.encoding);
-    if (encoding === 'utf-8' || encoding === 'utf8') {
-      return Deno.core.ops.op_fs_read_file_sync(String(path));
-    }
-    const bytes = Deno.core.ops.op_fs_read_file_bytes_sync(String(path));
-    return Buffer.from(bytes);
+    try {
+      const encoding = typeof options === 'string' ? options : (options && options.encoding);
+      if (encoding === 'utf-8' || encoding === 'utf8') {
+        return Deno.core.ops.op_fs_read_file_sync(String(path));
+      }
+      const bytes = Deno.core.ops.op_fs_read_file_bytes_sync(String(path));
+      return Buffer.from(bytes);
+    } catch (e) { throw enrichFsError(e); }
   }
 
   function writeFileSync(path, data, options) {
@@ -930,11 +944,15 @@ pub const FS_BOOTSTRAP_JS: &str = r#"
   }
 
   function statSync(path) {
-    return createStatObject(Deno.core.ops.op_fs_stat_sync(String(path)));
+    try {
+      return createStatObject(Deno.core.ops.op_fs_stat_sync(String(path)));
+    } catch (e) { throw enrichFsError(e); }
   }
 
   function lstatSync(path) {
-    return createStatObject(Deno.core.ops.op_fs_lstat_sync(String(path)));
+    try {
+      return createStatObject(Deno.core.ops.op_fs_lstat_sync(String(path)));
+    } catch (e) { throw enrichFsError(e); }
   }
 
   function rmSync(path, options) {
@@ -1019,24 +1037,28 @@ pub const FS_BOOTSTRAP_JS: &str = r#"
 
   // --- Async functions ---
   async function readFile(path, options) {
-    const encoding = typeof options === 'string' ? options : (options && options.encoding);
-    if (encoding === 'utf-8' || encoding === 'utf8') {
-      return await Deno.core.ops.op_fs_read_file(String(path));
-    }
-    const bytes = await Deno.core.ops.op_fs_read_file_bytes(String(path));
-    return Buffer.from(bytes);
+    try {
+      const encoding = typeof options === 'string' ? options : (options && options.encoding);
+      if (encoding === 'utf-8' || encoding === 'utf8') {
+        return await Deno.core.ops.op_fs_read_file(String(path));
+      }
+      const bytes = await Deno.core.ops.op_fs_read_file_bytes(String(path));
+      return Buffer.from(bytes);
+    } catch (e) { throw enrichFsError(e); }
   }
 
   async function writeFile(path, data, options) {
-    if (typeof data === 'string') {
-      await Deno.core.ops.op_fs_write_file(String(path), data);
-    } else {
-      // Binary data — use bytes op to avoid UTF-8 corruption
-      const bytes = data instanceof Uint8Array
-        ? data
-        : new Uint8Array(data.buffer, data.byteOffset, data.byteLength);
-      await Deno.core.ops.op_fs_write_file_bytes(String(path), Array.from(bytes));
-    }
+    try {
+      if (typeof data === 'string') {
+        await Deno.core.ops.op_fs_write_file(String(path), data);
+      } else {
+        // Binary data — use bytes op to avoid UTF-8 corruption
+        const bytes = data instanceof Uint8Array
+          ? data
+          : new Uint8Array(data.buffer, data.byteOffset, data.byteLength);
+        await Deno.core.ops.op_fs_write_file_bytes(String(path), Array.from(bytes));
+      }
+    } catch (e) { throw enrichFsError(e); }
   }
 
   async function mkdir(path, options) {
@@ -1058,8 +1080,10 @@ pub const FS_BOOTSTRAP_JS: &str = r#"
   }
 
   async function stat(path) {
-    const raw = await Deno.core.ops.op_fs_stat(String(path));
-    return createStatObject(raw);
+    try {
+      const raw = await Deno.core.ops.op_fs_stat(String(path));
+      return createStatObject(raw);
+    } catch (e) { throw enrichFsError(e); }
   }
 
   async function rm(path, options) {
