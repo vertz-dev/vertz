@@ -1823,10 +1823,14 @@ pub const CJS_BOOTSTRAP_JS: &str = r#"
     }
   }
 
+  function _isSafeExportTarget(s) {
+    return s.startsWith('./') && s.indexOf('..') === -1;
+  }
+
   function _resolveCjsCondition(value) {
     if (typeof value === 'string') {
-      // Exports targets must start with './' to prevent path traversal
-      return value.startsWith('./') ? value : undefined;
+      // Exports targets must start with './' and contain no '..' to prevent path traversal
+      return _isSafeExportTarget(value) ? value : undefined;
     }
     if (Array.isArray(value)) {
       // Array fallback: first matching entry wins
@@ -1850,7 +1854,7 @@ pub const CJS_BOOTSTRAP_JS: &str = r#"
     // String shorthand: exports = "./dist/main.js" (applies to ".")
     if (typeof exports === 'string') {
       if (key !== '.') return undefined;
-      return exports.startsWith('./') ? exports : undefined;
+      return _isSafeExportTarget(exports) ? exports : undefined;
     }
     // Top-level array: exports = [{ "require": "./cjs.js" }, "./fallback.js"]
     if (Array.isArray(exports)) {
@@ -1898,8 +1902,8 @@ pub const CJS_BOOTSTRAP_JS: &str = r#"
                     if (Deno.core.ops.op_fs_exists_sync(full)) return full;
                   }
                 }
-                // Fall back to main
-                if (pkg.main) {
+                // Fall back to main (validate no path traversal)
+                if (pkg.main && _isSafeExportTarget(pkg.main)) {
                   const mainPath = path + '/' + pkg.main;
                   if (Deno.core.ops.op_fs_exists_sync(mainPath)) return mainPath;
                 }
@@ -1957,8 +1961,8 @@ pub const CJS_BOOTSTRAP_JS: &str = r#"
                     if (Deno.core.ops.op_fs_exists_sync(full)) return full;
                   }
                 }
-                // Fall back to main (only for root entry)
-                if (!subpath && pkg.main) {
+                // Fall back to main (only for root entry, validate no path traversal)
+                if (!subpath && pkg.main && _isSafeExportTarget(pkg.main)) {
                   const mainPath = pkgDir + '/' + pkg.main;
                   if (Deno.core.ops.op_fs_exists_sync(mainPath)) return mainPath;
                 }

@@ -41,7 +41,8 @@ fn resolve_package_entry(pkg_dir: &Path, subpath: &str) -> Option<PathBuf> {
 
         if let Some(resolved) = resolve_export_entry(exports, &export_key) {
             let full_path = pkg_dir.join(resolved.trim_start_matches("./"));
-            if full_path.is_file() {
+            // is_file() must precede path_stays_within() so canonicalize() succeeds
+            if full_path.is_file() && path_stays_within(pkg_dir, &full_path) {
                 return Some(full_path);
             }
         }
@@ -51,12 +52,14 @@ fn resolve_package_entry(pkg_dir: &Path, subpath: &str) -> Option<PathBuf> {
     if subpath.is_empty() {
         if let Some(module) = pkg.get("module").and_then(|v| v.as_str()) {
             let full_path = pkg_dir.join(module);
+            // is_file() must precede path_stays_within() so canonicalize() succeeds
             if full_path.is_file() && path_stays_within(pkg_dir, &full_path) {
                 return Some(full_path);
             }
         }
         if let Some(main) = pkg.get("main").and_then(|v| v.as_str()) {
             let full_path = pkg_dir.join(main);
+            // is_file() must precede path_stays_within() so canonicalize() succeeds
             if full_path.is_file() && path_stays_within(pkg_dir, &full_path) {
                 return Some(full_path);
             }
@@ -443,6 +446,18 @@ mod tests {
 
         // Bare filename (no ./ prefix)
         let exports = serde_json::json!("dist/index.js");
+        assert_eq!(resolve_export_entry(&exports, "."), None);
+    }
+
+    #[test]
+    fn test_resolve_export_entry_rejects_buried_traversal() {
+        // Traversal hidden deep in a valid-looking path
+        let exports = serde_json::json!("./dist/../../../etc/passwd");
+        assert_eq!(resolve_export_entry(&exports, "."), None);
+
+        let exports = serde_json::json!({
+            ".": "./lib/utils/../../secret.js"
+        });
         assert_eq!(resolve_export_entry(&exports, "."), None);
     }
 
