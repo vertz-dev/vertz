@@ -263,6 +263,70 @@ pub async fn install(
         }
     }
 
+    // Discover optional deps missing from stale v1 lockfiles.
+    // v1 lockfiles may not have recorded optional_dependencies for packages,
+    // causing platform-specific binaries (e.g., lefthook-darwin-arm64) to be missing.
+    // Only check direct dependencies to avoid fetching metadata for all transitive packages.
+    if existing_lockfile.version < 2 && !existing_lockfile.entries.is_empty() {
+        let direct_dep_names: HashSet<String> = all_deps.keys().cloned().collect();
+        let discovered =
+            discover_stale_optional_deps(&graph, &registry_client, &direct_dep_names).await;
+
+        if !discovered.is_empty() {
+            let mut all_optional_deps_to_resolve = BTreeMap::new();
+            for (parent_name, parent_version, opt_deps) in &discovered {
+                // Update the parent package via direct key lookup (O(1))
+                let key = format!("{}@{}", parent_name, parent_version);
+                if let Some(pkg) = graph.packages.get_mut(&key) {
+                    if pkg.optional_dependencies.is_empty() {
+                        pkg.optional_dependencies = opt_deps.clone();
+                    }
+                }
+                for (name, range) in opt_deps {
+                    // Keep first range if multiple parents declare the same optional dep
+                    all_optional_deps_to_resolve
+                        .entry(name.clone())
+                        .or_insert_with(|| range.clone());
+                }
+            }
+
+            // Resolve the discovered optional deps (failures are warnings)
+            if !all_optional_deps_to_resolve.is_empty() {
+                output.info(&format!(
+                    "Discovered {} optional dependencies from stale lockfile, resolving...",
+                    all_optional_deps_to_resolve.len()
+                ));
+                match resolver::resolve_all(
+                    &all_optional_deps_to_resolve,
+                    &BTreeMap::new(),
+                    &registry_client,
+                    &existing_lockfile,
+                    &empty_overrides,
+                    Vec::new(),
+                    None,
+                )
+                .await
+                {
+                    Ok((optional_graph, _)) => {
+                        let count = optional_graph.packages.len();
+                        for (key, pkg) in optional_graph.packages {
+                            graph.packages.entry(key).or_insert(pkg);
+                        }
+                        for (key, scripts) in optional_graph.scripts {
+                            graph.scripts.entry(key).or_insert(scripts);
+                        }
+                        if count > 0 {
+                            output.info(&format!("Resolved {} platform-specific packages", count));
+                        }
+                    }
+                    Err(e) => {
+                        output.warning(&format!("Failed to resolve stale optional deps: {}", e));
+                    }
+                }
+            }
+        }
+    }
+
     // Report override applications
     for app in &override_applications {
         output.info(&format!(
@@ -2996,6 +3060,61 @@ pub fn format_audit_json(
     output.push('\n');
 
     output
+}
+
+/// Discover optional dependencies missing from a stale v1 lockfile.
+///
+/// v1 lockfiles may not have recorded `optionalDependencies` for packages.
+/// This function fetches registry metadata (ETag-cached) for **direct** dependencies
+/// that have empty `optional_dependencies` in the graph and returns any discovered optional deps.
+///
+/// Only direct deps are checked to avoid fetching metadata for hundreds of transitive
+/// packages that legitimately have no optional deps.
+///
+/// Returns: Vec of (package_name, package_version, optional_dependencies)
+async fn discover_stale_optional_deps(
+    graph: &resolver::ResolvedGraph,
+    registry: &registry::RegistryClient,
+    direct_dep_names: &HashSet<String>,
+) -> Vec<(String, String, BTreeMap<String, String>)> {
+    // Only check direct deps with empty optional deps in the graph
+    let mut candidates: BTreeMap<String, String> = BTreeMap::new();
+    for pkg in graph.packages.values() {
+        if direct_dep_names.contains(&pkg.name)
+            && pkg.optional_dependencies.is_empty()
+            && !candidates.contains_key(&pkg.name)
+        {
+            candidates.insert(pkg.name.clone(), pkg.version.clone());
+        }
+    }
+
+    if candidates.is_empty() {
+        return Vec::new();
+    }
+
+    // Batch-fetch metadata concurrently (ETag-cached, no network cost for cached entries)
+    let results: Vec<_> = stream::iter(candidates.into_iter())
+        .map(|(name, version)| {
+            let reg = registry;
+            async move {
+                match reg.fetch_metadata_for_install(&name).await {
+                    Ok(meta) => {
+                        if let Some(vm) = meta.versions.get(&version) {
+                            if !vm.optional_dependencies.is_empty() {
+                                return Some((name, version, vm.optional_dependencies.clone()));
+                            }
+                        }
+                        None
+                    }
+                    Err(_) => None,
+                }
+            }
+        })
+        .buffer_unordered(50)
+        .collect()
+        .await;
+
+    results.into_iter().flatten().collect()
 }
 
 #[cfg(test)]
