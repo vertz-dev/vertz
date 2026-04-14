@@ -30,7 +30,18 @@ describe('createEnv', () => {
   const originalEnv = { ...process.env };
 
   afterEach(() => {
-    process.env = { ...originalEnv };
+    // Remove keys added during the test
+    for (const key of Object.keys(process.env)) {
+      if (!(key in originalEnv)) {
+        delete process.env[key];
+      }
+    }
+    // Restore original values for modified keys
+    for (const [key, value] of Object.entries(originalEnv)) {
+      if (process.env[key] !== value) {
+        process.env[key] = value as string;
+      }
+    }
   });
 
   it('validates env against schema and returns typed result', () => {

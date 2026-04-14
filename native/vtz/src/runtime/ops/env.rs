@@ -20,6 +20,13 @@ pub fn op_env_remove(#[string] key: String) {
     std::env::remove_var(&key);
 }
 
+/// List all environment variable names.
+#[op2]
+#[serde]
+pub fn op_env_keys() -> Vec<String> {
+    std::env::vars().map(|(k, _)| k).collect()
+}
+
 /// Get the current working directory.
 #[op2]
 #[string]
@@ -31,7 +38,13 @@ pub fn op_cwd() -> Result<String, deno_core::error::AnyError> {
 
 /// Get the op declarations for env ops.
 pub fn op_decls() -> Vec<OpDecl> {
-    vec![op_env_get(), op_env_set(), op_env_remove(), op_cwd()]
+    vec![
+        op_env_get(),
+        op_env_set(),
+        op_env_remove(),
+        op_env_keys(),
+        op_cwd(),
+    ]
 }
 
 /// JavaScript bootstrap code for process.env.
@@ -57,12 +70,26 @@ pub const ENV_BOOTSTRAP_JS: &str = r#"
       if (typeof prop !== 'string') return false;
       return Deno.core.ops.op_env_get(prop) !== null;
     },
+    ownKeys() {
+      return Deno.core.ops.op_env_keys();
+    },
+    getOwnPropertyDescriptor(_target, prop) {
+      if (typeof prop !== 'string') return undefined;
+      const val = Deno.core.ops.op_env_get(prop);
+      if (val === null) return undefined;
+      return { value: val, writable: true, enumerable: true, configurable: true };
+    },
   });
 
   if (!globalThis.process) {
     globalThis.process = {};
   }
-  globalThis.process.env = envProxy;
+  Object.defineProperty(globalThis.process, 'env', {
+    value: envProxy,
+    writable: false,
+    configurable: false,
+    enumerable: true,
+  });
   if (!globalThis.process.cwd) {
     globalThis.process.cwd = () => Deno.core.ops.op_cwd();
   }
@@ -166,5 +193,46 @@ mod tests {
             )
             .unwrap();
         assert_eq!(result, serde_json::json!(true));
+    }
+
+    #[test]
+    fn test_process_env_spread_includes_set_vars() {
+        let mut rt = VertzJsRuntime::new(VertzRuntimeOptions::default()).unwrap();
+        let result = rt
+            .execute_script(
+                "<test>",
+                "process.env.VERTZ_SPREAD_TEST = 'spread_val'; const copy = {...process.env}; copy.VERTZ_SPREAD_TEST",
+            )
+            .unwrap();
+        assert_eq!(result, serde_json::json!("spread_val"));
+        std::env::remove_var("VERTZ_SPREAD_TEST");
+    }
+
+    #[test]
+    fn test_process_env_object_keys_includes_set_vars() {
+        let mut rt = VertzJsRuntime::new(VertzRuntimeOptions::default()).unwrap();
+        let result = rt
+            .execute_script(
+                "<test>",
+                "process.env.VERTZ_KEYS_TEST = 'keys_val'; Object.keys(process.env).includes('VERTZ_KEYS_TEST')",
+            )
+            .unwrap();
+        assert_eq!(result, serde_json::json!(true));
+        std::env::remove_var("VERTZ_KEYS_TEST");
+    }
+
+    #[test]
+    fn test_process_env_not_reassignable() {
+        let mut rt = VertzJsRuntime::new(VertzRuntimeOptions::default()).unwrap();
+        // Assigning to process.env should silently fail (non-writable),
+        // and the proxy should remain functional.
+        let result = rt
+            .execute_script(
+                "<test>",
+                "process.env.VERTZ_REASSIGN_TEST = 'before'; process.env = {}; process.env.VERTZ_REASSIGN_TEST",
+            )
+            .unwrap();
+        assert_eq!(result, serde_json::json!("before"));
+        std::env::remove_var("VERTZ_REASSIGN_TEST");
     }
 }
