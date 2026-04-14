@@ -40,10 +40,10 @@ describe('createProcessManager', () => {
   });
 
   it('isRunning returns true after start', () => {
-    const mc = createMockChild();
+    const mockChild = createMockChild();
     // Prevent the exit event from setting child to undefined immediately
-    mc.child.kill = mock(() => true);
-    const spawnFn: SpawnFn = mock(() => mc.child as never);
+    mockChild.child.kill = mock(() => true);
+    const spawnFn: SpawnFn = mock(() => mockChild.child as never);
     const pm = createProcessManager(spawnFn);
 
     pm.start('app.ts');
@@ -52,27 +52,27 @@ describe('createProcessManager', () => {
   });
 
   it('isRunning returns false after process exits', () => {
-    const mc = createMockChild();
-    mc.child.kill = mock(() => true);
-    const spawnFn: SpawnFn = mock(() => mc.child as never);
+    const mockChild = createMockChild();
+    mockChild.child.kill = mock(() => true);
+    const spawnFn: SpawnFn = mock(() => mockChild.child as never);
     const pm = createProcessManager(spawnFn);
 
     pm.start('app.ts');
     expect(pm.isRunning()).toBe(true);
 
-    mc.emitter.emit('exit', 0, null);
+    mockChild.emitter.emit('exit', 0, null);
     expect(pm.isRunning()).toBe(false);
   });
 
   it('stop terminates the child process with SIGTERM', async () => {
-    const mc = createMockChild();
-    const spawnFn: SpawnFn = mock(() => mc.child as never);
+    const mockChild = createMockChild();
+    const spawnFn: SpawnFn = mock(() => mockChild.child as never);
     const pm = createProcessManager(spawnFn);
 
     pm.start('app.ts');
     await pm.stop();
 
-    expect(mc.child.kill).toHaveBeenCalledWith('SIGTERM');
+    expect(mockChild.child.kill).toHaveBeenCalledWith('SIGTERM');
     expect(pm.isRunning()).toBe(false);
   });
 
@@ -95,37 +95,37 @@ describe('createProcessManager', () => {
   });
 
   it('onOutput receives stdout data from child', () => {
-    const mc = createMockChild();
-    mc.child.kill = mock(() => true);
-    const spawnFn: SpawnFn = mock(() => mc.child as never);
+    const mockChild = createMockChild();
+    mockChild.child.kill = mock(() => true);
+    const spawnFn: SpawnFn = mock(() => mockChild.child as never);
     const pm = createProcessManager(spawnFn);
     const outputHandler = mock();
 
     pm.onOutput(outputHandler);
     pm.start('app.ts');
 
-    mc.stdout.emit('data', Buffer.from('hello'));
+    mockChild.stdout.emit('data', Buffer.from('hello'));
     expect(outputHandler).toHaveBeenCalledWith('hello');
   });
 
   it('onError receives stderr data from child', () => {
-    const mc = createMockChild();
-    mc.child.kill = mock(() => true);
-    const spawnFn: SpawnFn = mock(() => mc.child as never);
+    const mockChild = createMockChild();
+    mockChild.child.kill = mock(() => true);
+    const spawnFn: SpawnFn = mock(() => mockChild.child as never);
     const pm = createProcessManager(spawnFn);
     const errorHandler = mock();
 
     pm.onError(errorHandler);
     pm.start('app.ts');
 
-    mc.stderr.emit('data', Buffer.from('error!'));
+    mockChild.stderr.emit('data', Buffer.from('error!'));
     expect(errorHandler).toHaveBeenCalledWith('error!');
   });
 
   it('start passes env to spawn function', () => {
-    const mc = createMockChild();
-    mc.child.kill = mock(() => true);
-    const spawnFn: SpawnFn = mock(() => mc.child as never);
+    const mockChild = createMockChild();
+    mockChild.child.kill = mock(() => true);
+    const spawnFn: SpawnFn = mock(() => mockChild.child as never);
     const pm = createProcessManager(spawnFn);
 
     pm.start('app.ts', { NODE_ENV: 'development' });

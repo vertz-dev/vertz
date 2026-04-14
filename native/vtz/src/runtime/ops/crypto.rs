@@ -119,7 +119,7 @@ fn generate_rsa_keypair(modulus_length: u32) -> Result<KeyPairResult, deno_core:
     })
 }
 
-/// Generate an EC P-256 key pair in PEM format.
+/// Generate an EC key pair in PEM format. Supports P-256 and P-384 curves.
 fn generate_ec_keypair(curve: &str) -> Result<KeyPairResult, deno_core::error::AnyError> {
     match curve {
         "P-256" | "prime256v1" => {
@@ -131,6 +131,21 @@ fn generate_ec_keypair(curve: &str) -> Result<KeyPairResult, deno_core::error::A
             let private_pem = secret_key.to_pkcs8_pem(p256::pkcs8::LineEnding::LF)?;
             let public_key = secret_key.public_key();
             let public_pem = public_key.to_public_key_pem(p256::pkcs8::LineEnding::LF)?;
+
+            Ok(KeyPairResult {
+                public_key: public_pem,
+                private_key: private_pem.to_string(),
+            })
+        }
+        "P-384" | "secp384r1" => {
+            use p384::pkcs8::EncodePrivateKey;
+            use p384::pkcs8::EncodePublicKey;
+            use p384::SecretKey;
+
+            let secret_key = SecretKey::random(&mut rand::thread_rng());
+            let private_pem = secret_key.to_pkcs8_pem(p384::pkcs8::LineEnding::LF)?;
+            let public_key = secret_key.public_key();
+            let public_pem = public_key.to_public_key_pem(p384::pkcs8::LineEnding::LF)?;
 
             Ok(KeyPairResult {
                 public_key: public_pem,
@@ -149,6 +164,7 @@ fn generate_ec_keypair(curve: &str) -> Result<KeyPairResult, deno_core::error::A
 /// Supports:
 /// - RSA: `{ type: "rsa", modulusLength: 2048 }`
 /// - EC P-256: `{ type: "ec", namedCurve: "P-256" }`
+/// - EC P-384: `{ type: "ec", namedCurve: "P-384" }`
 #[op2]
 #[serde]
 pub fn op_crypto_generate_keypair(
@@ -499,6 +515,26 @@ mod tests {
             result.public_key.contains("-----BEGIN PUBLIC KEY-----"),
             "Public key should be SPKI PEM"
         );
+    }
+
+    #[test]
+    fn test_generate_ec_p384_keypair() {
+        let result = super::generate_ec_keypair("P-384").unwrap();
+        assert!(
+            result.private_key.contains("-----BEGIN PRIVATE KEY-----"),
+            "Private key should be PKCS#8 PEM"
+        );
+        assert!(
+            result.public_key.contains("-----BEGIN PUBLIC KEY-----"),
+            "Public key should be SPKI PEM"
+        );
+    }
+
+    #[test]
+    fn test_generate_ec_p384_via_prime_name() {
+        let result = super::generate_ec_keypair("secp384r1").unwrap();
+        assert!(result.private_key.contains("-----BEGIN PRIVATE KEY-----"));
+        assert!(result.public_key.contains("-----BEGIN PUBLIC KEY-----"));
     }
 
     #[test]
