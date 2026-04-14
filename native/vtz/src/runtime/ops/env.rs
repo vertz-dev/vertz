@@ -20,6 +20,13 @@ pub fn op_env_remove(#[string] key: String) {
     std::env::remove_var(&key);
 }
 
+/// List all environment variable names.
+#[op2]
+#[serde]
+pub fn op_env_keys() -> Vec<String> {
+    std::env::vars().map(|(k, _)| k).collect()
+}
+
 /// Get the current working directory.
 #[op2]
 #[string]
@@ -31,7 +38,13 @@ pub fn op_cwd() -> Result<String, deno_core::error::AnyError> {
 
 /// Get the op declarations for env ops.
 pub fn op_decls() -> Vec<OpDecl> {
-    vec![op_env_get(), op_env_set(), op_env_remove(), op_cwd()]
+    vec![
+        op_env_get(),
+        op_env_set(),
+        op_env_remove(),
+        op_env_keys(),
+        op_cwd(),
+    ]
 }
 
 /// JavaScript bootstrap code for process.env.
@@ -56,6 +69,15 @@ pub const ENV_BOOTSTRAP_JS: &str = r#"
     has(_target, prop) {
       if (typeof prop !== 'string') return false;
       return Deno.core.ops.op_env_get(prop) !== null;
+    },
+    ownKeys() {
+      return Deno.core.ops.op_env_keys();
+    },
+    getOwnPropertyDescriptor(_target, prop) {
+      if (typeof prop !== 'string') return undefined;
+      const val = Deno.core.ops.op_env_get(prop);
+      if (val === null) return undefined;
+      return { value: val, writable: true, enumerable: true, configurable: true };
     },
   });
 

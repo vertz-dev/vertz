@@ -1193,11 +1193,15 @@ if (typeof globalThis.HTMLElement === 'undefined') {
 
   // expectTypeOf — no-op at runtime (type-level assertions only matter at compile time).
   // Returns a chainable proxy so `expectTypeOf<T>().toEqualTypeOf<U>()` etc. don't crash.
+  // The proxy target must be a function so the proxy is callable (apply trap works),
+  // and get always returns another such proxy so `.not.toMatchTypeOf()` and
+  // `.returns.toEqualTypeOf()` chains work.
+  const _noop = () => {};
   const expectTypeOfHandler = {
-    get() { return function() { return new Proxy({}, expectTypeOfHandler); }; },
-    apply() { return new Proxy({}, expectTypeOfHandler); },
+    get() { return new Proxy(_noop, expectTypeOfHandler); },
+    apply() { return new Proxy(_noop, expectTypeOfHandler); },
   };
-  function expectTypeOf() { return new Proxy({}, expectTypeOfHandler); }
+  function expectTypeOf() { return new Proxy(_noop, expectTypeOfHandler); }
 
   // __vertz_unwrap_module — creates a mutable wrapper around ES module namespaces.
   // Dynamic `import()` returns frozen Module namespace objects. spyOn() needs to
