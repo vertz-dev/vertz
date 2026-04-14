@@ -411,14 +411,14 @@ pub const WEB_API_BOOTSTRAP_JS: &str = r#"
           ? createBodyMixin(init.body)
           : (input.bodyUsed ? createBodyMixin(null) : input.#body.clone());
         this.#signal = init.signal || input.signal || null;
-        this.#credentials = init.credentials || input.credentials || 'same-origin';
+        this.#credentials = init.credentials ?? input.credentials ?? 'same-origin';
       } else {
         this.#url = String(input);
         this.#method = (init.method || 'GET').toUpperCase();
         this.#headers = new Headers(init.headers);
         this.#body = createBodyMixin(init.body !== undefined ? init.body : null);
         this.#signal = init.signal || null;
-        this.#credentials = init.credentials || 'same-origin';
+        this.#credentials = init.credentials ?? 'same-origin';
       }
     }
 
