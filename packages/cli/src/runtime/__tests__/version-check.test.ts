@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from '@vertz/test';
-import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { checkVersionCompatibility, isNewerSemver } from '../launcher';
@@ -20,7 +20,8 @@ describe('Feature: version compatibility check', () => {
     describe('When version check runs', () => {
       it('Then warns to update @vertz/runtime', () => {
         const binaryPath = join(tmpDir, 'vertz-runtime');
-        writeFileSync(binaryPath, '#!/bin/sh\necho "vertz-runtime 0.2.40"', { mode: 0o755 });
+        writeFileSync(binaryPath, '#!/bin/sh\necho "vertz-runtime 0.2.40"');
+        chmodSync(binaryPath, 0o755);
 
         const warning = checkVersionCompatibility(binaryPath, '0.2.42');
 
@@ -35,7 +36,8 @@ describe('Feature: version compatibility check', () => {
     describe('When version check runs', () => {
       it('Then warns to update @vertz/cli', () => {
         const binaryPath = join(tmpDir, 'vertz-runtime');
-        writeFileSync(binaryPath, '#!/bin/sh\necho "vertz-runtime 0.2.42"', { mode: 0o755 });
+        writeFileSync(binaryPath, '#!/bin/sh\necho "vertz-runtime 0.2.42"');
+        chmodSync(binaryPath, 0o755);
 
         const warning = checkVersionCompatibility(binaryPath, '0.2.40');
 
@@ -50,7 +52,8 @@ describe('Feature: version compatibility check', () => {
     describe('When version check runs', () => {
       it('Then prints no warning', () => {
         const binaryPath = join(tmpDir, 'vertz-runtime');
-        writeFileSync(binaryPath, '#!/bin/sh\necho "vertz-runtime 0.2.42"', { mode: 0o755 });
+        writeFileSync(binaryPath, '#!/bin/sh\necho "vertz-runtime 0.2.42"');
+        chmodSync(binaryPath, 0o755);
 
         const warning = checkVersionCompatibility(binaryPath, '0.2.42');
 
