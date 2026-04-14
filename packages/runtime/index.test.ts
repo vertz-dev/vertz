@@ -1,6 +1,16 @@
-import { describe, it, expect } from '@vertz/test';
+import { describe, it, expect, beforeAll, afterAll } from '@vertz/test';
 import { dirname, join, resolve } from 'node:path';
-import { existsSync, readFileSync } from 'node:fs';
+import {
+  existsSync,
+  readFileSync,
+  mkdtempSync,
+  mkdirSync,
+  writeFileSync,
+  rmSync,
+  chmodSync,
+} from 'node:fs';
+import { tmpdir } from 'node:os';
+import { execSync, execFileSync } from 'node:child_process';
 
 describe('Feature: getBinaryPath() resolves platform binary', () => {
   describe('Given a platform package is installed at the expected path', () => {
@@ -193,6 +203,74 @@ describe('Feature: bin scripts are pure bash with no Node/Bun dependency (#2419)
       expect(content).toContain('node_modules/.bin');
       expect(content).toContain('PATH');
       expect(content).toContain('exec "$@"');
+    });
+  });
+});
+
+describe('Feature: cli.sh finds native binary in nested invocations (#2609)', () => {
+  const cliShSrc = join(pkgDir, 'cli.sh');
+  let tmpDir: string;
+  let nativeBinDir: string;
+  let selfBinDir: string;
+  let cliShCopy: string;
+
+  beforeAll(() => {
+    tmpDir = mkdtempSync(join(tmpdir(), 'vtz-path-test-'));
+
+    // Copy cli.sh to a temp location where no sibling platform package exists
+    cliShCopy = join(tmpDir, 'cli.sh');
+    writeFileSync(cliShCopy, readFileSync(cliShSrc, 'utf8'));
+    chmodSync(cliShCopy, 0o755);
+
+    // Create a fake "native" vtz binary that echoes a marker
+    nativeBinDir = join(tmpDir, 'native-bin');
+    mkdirSync(nativeBinDir);
+    writeFileSync(join(nativeBinDir, 'vtz'), '#!/bin/bash\necho "NATIVE_VTZ_FOUND"');
+    chmodSync(join(nativeBinDir, 'vtz'), 0o755);
+
+    // Create a self-referencing symlink (simulates node_modules/.bin/vtz → cli.sh)
+    selfBinDir = join(tmpDir, 'self-bin');
+    mkdirSync(selfBinDir);
+    execSync(`ln -s "${cliShCopy}" "${join(selfBinDir, 'vtz')}"`, { encoding: 'utf-8' });
+  });
+
+  afterAll(() => {
+    rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  describe('Given a self-referencing vtz symlink appears before native binary on PATH', () => {
+    describe('When cli.sh is invoked via the symlink', () => {
+      it('Then finds the native binary by walking remaining PATH entries', () => {
+        // PATH: self-referencing dir first, then native binary, then system essentials
+        const testPath = `${selfBinDir}:${nativeBinDir}:/usr/bin:/bin:/usr/local/bin`;
+
+        const stdout = execFileSync(join(selfBinDir, 'vtz'), ['test'], {
+          env: { PATH: testPath, HOME: tmpDir },
+          encoding: 'utf-8',
+        });
+
+        expect(stdout.trim()).toBe('NATIVE_VTZ_FOUND');
+      });
+    });
+  });
+
+  describe('Given no native binary exists anywhere on PATH', () => {
+    describe('When cli.sh is invoked', () => {
+      it('Then exits with error and descriptive message', () => {
+        // PATH: only self-referencing dir + system essentials (no native binary)
+        const testPath = `${selfBinDir}:/usr/bin:/bin`;
+
+        try {
+          execFileSync(join(selfBinDir, 'vtz'), ['test'], {
+            env: { PATH: testPath, HOME: tmpDir },
+            encoding: 'utf-8',
+          });
+          // Should not reach here
+          expect(true).toBe(false);
+        } catch (err: unknown) {
+          expect((err as { stderr: string }).stderr).toContain('no fallback');
+        }
+      });
     });
   });
 });
