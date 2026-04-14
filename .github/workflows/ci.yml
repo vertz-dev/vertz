@@ -98,6 +98,7 @@ jobs:
 
           # Config files that ALWAYS trigger full CI
           CONFIG_PATTERNS=(
+            ".github/"
             ".oxlintrc.json"
             ".oxfmtrc.json"
             "tsconfig.json"
