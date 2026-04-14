@@ -1644,7 +1644,7 @@ pub const CJS_BOOTSTRAP_JS: &str = r#"
           Hash, createHash, randomBytes, randomUUID, timingSafeEqual,
           randomFillSync, randomInt, getHashes,
           webcrypto: globalThis.crypto, constants: {},
-          getCiphers: () => [], getCurves: () => ['prime256v1', 'secp384r1', 'secp521r1'],
+          getCiphers: () => [], getCurves: () => ['prime256v1', 'secp384r1'],
           createHmac: () => { throw new Error('createHmac requires ESM import'); },
           createPrivateKey: (input) => {
             const key = typeof input === 'string' ? input : (input.key || input);
@@ -2923,7 +2923,7 @@ function getHashes() {
 }
 
 function getCiphers() { return []; }
-function getCurves() { return ['prime256v1', 'secp384r1', 'secp521r1']; }
+function getCurves() { return ['prime256v1', 'secp384r1']; }
 
 const constants = {};
 

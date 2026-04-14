@@ -38,6 +38,7 @@ notify = "6"
 owo-colors = "4"
 base64 = "0.22"
 p256 = { version = "0.13", features = ["pem"] }
+p384 = { version = "0.13", features = ["pem"] }
 rand = "0.8"
 rcgen = { version = "0.14", features = ["pem", "x509-parser"] }
 regex = "1"
