@@ -608,12 +608,14 @@ fn strip_leftover_typescript(code: &str) -> String {
     let chars: Vec<char> = code.chars().collect();
     let len = chars.len();
     let mut i = 0;
-    // Track nesting depth to distinguish function params `(...)` from object literals `{...}`.
-    // NOTE: This depth tracking does not skip string literals, template literals, or comments.
-    // An unbalanced `{` or `(` inside a string could throw off counts. In practice this runs
-    // on compiled output where most type annotations are already gone, so the risk is minimal.
-    let mut paren_depth: i32 = 0;
-    let mut brace_depth: i32 = 0;
+    // Track nesting context with a stack to distinguish function params `(...)`
+    // from object literals `{...}`. Each entry is '(' or '{'.
+    // The old approach used flat depth counters (paren_depth > brace_depth) which
+    // broke when an object literal was nested inside multiple parens, e.g.:
+    //   expect(fn({ key: Value }))  →  paren=2, brace=1  →  incorrectly stripped `: Value`
+    // The stack approach checks the INNERMOST context: if the top of the stack is '{',
+    // we're inside an object literal and `: Value` is a property, not a type annotation.
+    let mut nesting_stack: Vec<char> = Vec::new();
 
     while i < len {
         // Skip string literals so unbalanced braces/parens inside them don't affect depth.
@@ -639,14 +641,25 @@ fn strip_leftover_typescript(code: &str) -> String {
             continue;
         }
 
-        // Track paren/brace depth for context-awareness
+        // Track nesting context with a stack
         match chars[i] {
-            '(' => paren_depth += 1,
-            ')' => paren_depth -= 1,
-            '{' => brace_depth += 1,
-            '}' => brace_depth -= 1,
+            '(' | '{' => nesting_stack.push(chars[i]),
+            ')' => {
+                if nesting_stack.last() == Some(&'(') {
+                    nesting_stack.pop();
+                }
+            }
+            '}' => {
+                if nesting_stack.last() == Some(&'{') {
+                    nesting_stack.pop();
+                }
+            }
             _ => {}
         }
+
+        // The innermost nesting context determines whether `:` is a type annotation
+        // (inside parens) or a property separator (inside braces).
+        let innermost_is_paren = nesting_stack.last() == Some(&'(');
 
         // Fix 1: Strip `?` before `)` or `,` in parameter lists.
         // Pattern: <identifier>?<whitespace*>) or <identifier>?<whitespace*>,
@@ -661,10 +674,10 @@ fn strip_leftover_typescript(code: &str) -> String {
 
         // Fix 2: Strip `: TypeName` or `: TypeName<Generic>` in function params.
         // Pattern: <identifier>: <UpperCaseName> immediately followed by ) or ,
-        // Only apply when deeper in parens than braces — inside object literals
-        // `{ key: Value, }` the colon separates a property key from a value.
-        // In `fn(x: Type)` paren_depth > brace_depth; in `fn({ k: V })` it's not.
-        if chars[i] == ':' && i > 0 && is_ident(chars[i - 1]) && paren_depth > brace_depth {
+        // Only apply when the innermost nesting context is a paren `(` — that means
+        // we're inside a function parameter list. If the innermost context is a brace
+        // `{`, we're inside an object literal where `:` separates key from value.
+        if chars[i] == ':' && i > 0 && is_ident(chars[i - 1]) && innermost_is_paren {
             let after_colon = skip_ws(&chars, i + 1, len);
             if after_colon < len && chars[after_colon].is_uppercase() {
                 // Read the type name (including generics)
@@ -2303,6 +2316,46 @@ export function App() {
         assert!(
             result.contains("schema: Schema"),
             "Destructured object param value should be preserved. Got: {}",
+            result
+        );
+    }
+
+    #[test]
+    fn test_strip_leftover_preserves_object_in_nested_parens() {
+        // #2576: Object literal inside nested parens must NOT have property
+        // values stripped. `expect(fn({ key: Value }))` has paren_depth=2
+        // and brace_depth=1 — the old paren_depth > brace_depth check
+        // incorrectly stripped `: Value`.
+        let code =
+            "await expect(asyncFn({ toolCtx: OUTER_VALUE, msg: 'test' })).rejects.toThrow('x');";
+        let result = strip_leftover_typescript(code);
+        assert!(
+            result.contains("toolCtx: OUTER_VALUE"),
+            "Object property in nested parens should be preserved. Got: {}",
+            result
+        );
+    }
+
+    #[test]
+    fn test_strip_leftover_preserves_object_in_deeply_nested_parens() {
+        // Even deeper nesting: 3 parens, 1 brace
+        let code = "outer(middle(inner({ key: Value, other: Another })))";
+        let result = strip_leftover_typescript(code);
+        assert!(
+            result.contains("key: Value") && result.contains("other: Another"),
+            "Object properties in deeply nested parens should be preserved. Got: {}",
+            result
+        );
+    }
+
+    #[test]
+    fn test_strip_leftover_strips_type_in_arrow_inside_parens() {
+        // Arrow function param inside parens: `((x: Type) => x)` — still strip `: Type`
+        let code = "const fn = ((x: Foo) => x);";
+        let result = strip_leftover_typescript(code);
+        assert!(
+            !result.contains(": Foo"),
+            "Type annotation in arrow param inside parens should be stripped. Got: {}",
             result
         );
     }

@@ -900,4 +900,104 @@ mod tests {
         assert_eq!(result.passed(), 3, "Tests: {:?}", result.tests);
         assert_eq!(result.failed(), 0);
     }
+
+    /// Reproduces #2576: `expect(asyncFn({...})).rejects.toThrow()` fails with
+    /// a scoping error when the async call is inlined, but works when extracted
+    /// to a `const` first. The bug is in the compilation pipeline, not the test
+    /// harness (pure JS inline works fine — see globals.rs test).
+    #[test]
+    fn test_rejects_to_throw_inline_async_call_compiled() {
+        let tmp = tempfile::tempdir().unwrap();
+
+        // Source module: async function that destructures and uses its arg
+        let source_file = tmp.path().join("async-fn.ts");
+        fs::write(
+            &source_file,
+            r#"
+export interface Options {
+  toolCtx: { id: string; name: string };
+  msg: string;
+  compress?: () => string[];
+}
+
+export async function asyncFnThatThrows(options: Options): Promise<void> {
+  const { toolCtx, msg, compress } = options;
+  // Use the destructured variable
+  if (!toolCtx || !toolCtx.id) {
+    throw new Error('toolCtx is not defined or missing id');
+  }
+  // Simulate async work
+  await new Promise<void>((r) => setTimeout(r, 1));
+  // Compression check (mirrors reactLoop's pattern)
+  if (compress) {
+    const result = compress();
+    if (result.length === 0) {
+      throw new Error('Compression returned empty: ' + msg);
+    }
+  }
+  throw new Error('Expected rejection: ' + msg);
+}
+"#,
+        )
+        .unwrap();
+
+        // Test file: both inline and extracted patterns
+        let file = write_test_file(
+            tmp.path(),
+            "async-fn.test.ts",
+            r#"
+import { asyncFnThatThrows } from './async-fn';
+
+const OUTER_VALUE = { id: 'test-id', name: 'test' };
+
+describe('rejects.toThrow with inline async call (#2576)', () => {
+    it('works with extracted const', async () => {
+        const promise = asyncFnThatThrows({
+            toolCtx: OUTER_VALUE,
+            msg: 'extracted test',
+        });
+        await expect(promise).rejects.toThrow('Expected rejection: extracted test');
+    });
+
+    it('works with inline call', async () => {
+        await expect(
+            asyncFnThatThrows({
+                toolCtx: OUTER_VALUE,
+                msg: 'inline test',
+            }),
+        ).rejects.toThrow('Expected rejection: inline test');
+    });
+
+    it('works with complex nested object inline', async () => {
+        await expect(
+            asyncFnThatThrows({
+                toolCtx: OUTER_VALUE,
+                msg: 'complex test',
+                compress: () => [],
+            }),
+        ).rejects.toThrow('Compression returned empty: complex test');
+    });
+});
+"#,
+        );
+
+        let result = execute_test_file(&file);
+
+        assert!(
+            result.file_error.is_none(),
+            "File error: {:?}",
+            result.file_error
+        );
+        for test in &result.tests {
+            assert_eq!(
+                test.status,
+                TestStatus::Pass,
+                "Test '{}' failed: {:?}",
+                test.name,
+                test.error
+            );
+        }
+        assert_eq!(result.passed(), 3, "Tests: {:?}", result.tests);
+        assert_eq!(result.failed(), 0);
+    }
 }
