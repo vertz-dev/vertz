@@ -1836,6 +1836,15 @@ pub const CJS_BOOTSTRAP_JS: &str = r#"
     return s.startsWith('./') && s.indexOf('..') === -1;
   }
 
+  // Less strict check for package.json "main" field.
+  // Unlike "exports" (which requires ./ prefix per Node.js spec),
+  // "main" values are relative to the package root and commonly
+  // omit the ./ prefix (e.g., "dist/index.js" instead of "./dist/index.js").
+  function _isSafeMainField(s) {
+    return typeof s === 'string' && s.length > 0
+      && !s.startsWith('/') && s.indexOf('..') === -1;
+  }
+
   function _resolveCjsCondition(value) {
     if (typeof value === 'string') {
       // Exports targets must start with './' and contain no '..' to prevent path traversal
@@ -1912,7 +1921,7 @@ pub const CJS_BOOTSTRAP_JS: &str = r#"
                   }
                 }
                 // Fall back to main (validate no path traversal)
-                if (pkg.main && _isSafeExportTarget(pkg.main)) {
+                if (pkg.main && _isSafeMainField(pkg.main)) {
                   const mainPath = path + '/' + pkg.main;
                   if (Deno.core.ops.op_fs_exists_sync(mainPath)) return mainPath;
                 }
@@ -1971,7 +1980,7 @@ pub const CJS_BOOTSTRAP_JS: &str = r#"
                   }
                 }
                 // Fall back to main (only for root entry, validate no path traversal)
-                if (!subpath && pkg.main && _isSafeExportTarget(pkg.main)) {
+                if (!subpath && pkg.main && _isSafeMainField(pkg.main)) {
                   const mainPath = pkgDir + '/' + pkg.main;
                   if (Deno.core.ops.op_fs_exists_sync(mainPath)) return mainPath;
                 }
@@ -5157,5 +5166,49 @@ Object.defineProperty(exports, "ModuleKind", {
             ModuleLoadResponse::Sync(Err(e)) => panic!("Module load failed: {}", e),
             _ => panic!("Expected synchronous module load"),
         }
+    }
+
+    // --- CJS require: main field without ./ prefix (#2606) ---
+
+    #[test]
+    fn test_cjs_bootstrap_uses_safe_main_field_for_pkg_main() {
+        // The CJS bootstrap must use _isSafeMainField (not _isSafeExportTarget)
+        // for package.json "main" fields. Unlike "exports" entries which require
+        // a ./ prefix per Node.js spec, "main" values commonly omit it
+        // (e.g., "dist/index.js" instead of "./dist/index.js").
+        assert!(
+            CJS_BOOTSTRAP_JS.contains("_isSafeMainField"),
+            "CJS bootstrap should define _isSafeMainField"
+        );
+        // Verify main field checks use _isSafeMainField, not _isSafeExportTarget
+        assert!(
+            CJS_BOOTSTRAP_JS.contains("_isSafeMainField(pkg.main)"),
+            "pkg.main checks should use _isSafeMainField"
+        );
+        // Verify _isSafeExportTarget is NOT used for pkg.main
+        assert!(
+            !CJS_BOOTSTRAP_JS.contains("_isSafeExportTarget(pkg.main)"),
+            "pkg.main should NOT use _isSafeExportTarget (too strict — rejects paths without ./ prefix)"
+        );
+    }
+
+    #[test]
+    fn test_cjs_bootstrap_safe_main_field_accepts_no_dot_slash() {
+        // Verify _isSafeMainField accepts paths without ./ prefix
+        // by checking the function definition does NOT require startsWith('./')
+        let main_fn_start = CJS_BOOTSTRAP_JS
+            .find("function _isSafeMainField(s)")
+            .expect("_isSafeMainField should be defined");
+        let main_fn_body = &CJS_BOOTSTRAP_JS[main_fn_start..main_fn_start + 200];
+        assert!(
+            !main_fn_body.contains("startsWith('./')"),
+            "_isSafeMainField must NOT require ./ prefix. Body: {}",
+            main_fn_body
+        );
+        assert!(
+            main_fn_body.contains("startsWith('/')"),
+            "_isSafeMainField should reject absolute paths. Body: {}",
+            main_fn_body
+        );
     }
 }
