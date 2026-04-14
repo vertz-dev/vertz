@@ -23,7 +23,8 @@ export const app = createServer({
   auth: {
     session: { strategy: 'jwt', ttl: '15m', refreshTtl: '7d', cookie: { secure: false } },
     emailPassword: {},
-    jwtSecret: process.env.JWT_SECRET ?? 'linear-clone-dev-secret-at-least-32-chars!!',
+    // Dev mode auto-generates RSA key pair — no keys needed for local development
+    isProduction: false,
     providers: [
       github({
         clientId: process.env.GITHUB_CLIENT_ID ?? '',

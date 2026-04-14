@@ -51,19 +51,19 @@ const sandboxTools = { readFile, writeFile, searchCode, listFiles };
 
 export function createSandboxProvider(sandbox: SandboxClient): InferToolProvider<typeof sandboxTools> {
   return {
-    readFile: async ({ path }) => {
+    readFile: async ({ path }, _ctx) => {
       const content = await sandbox.readFile(path);
       return { content };
     },
-    writeFile: async ({ path, content }) => {
+    writeFile: async ({ path, content }, _ctx) => {
       await sandbox.writeFile(path, content);
       return { success: true };
     },
-    searchCode: async ({ pattern, path }) => {
+    searchCode: async ({ pattern, path }, _ctx) => {
       const matches = await sandbox.searchFiles(pattern, path);
       return { matches };
     },
-    listFiles: async ({ path }) => {
+    listFiles: async ({ path }, _ctx) => {
       const files = await sandbox.listFiles(path);
       return { files };
     },

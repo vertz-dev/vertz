@@ -39,18 +39,18 @@ const buildTools = { runTests, runTypecheck, runLint };
 
 export function createBuildProvider(sandbox: SandboxClient): InferToolProvider<typeof buildTools> {
   return {
-    runTests: async ({ packages }) => {
+    runTests: async ({ packages }, _ctx) => {
       const cmd = packages?.length
         ? `vtz test ${packages.join(' ')}`
         : 'vtz test';
       const result = await sandbox.exec(cmd);
       return { passed: result.exitCode === 0, output: result.stdout };
     },
-    runTypecheck: async ({ packages: _packages }) => {
+    runTypecheck: async ({ packages: _packages }, _ctx) => {
       const result = await sandbox.exec('vtz run typecheck');
       return { passed: result.exitCode === 0, output: result.stdout };
     },
-    runLint: async ({ files }) => {
+    runLint: async ({ files }, _ctx) => {
       const target = files?.length ? files.join(' ') : 'src/';
       const result = await sandbox.exec(`vtz exec oxlint --fix ${target}`);
       return { passed: result.exitCode === 0, output: result.stdout };

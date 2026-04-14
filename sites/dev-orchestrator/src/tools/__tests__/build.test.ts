@@ -1,6 +1,9 @@
 import { describe, expect, it, vi, beforeEach, mock } from '@vertz/test';
+import type { ToolContext } from '@vertz/agents';
 import { createBuildProvider, runTests, runTypecheck, runLint } from '../build';
 import type { SandboxClient } from '../../lib/sandbox-client';
+
+const dummyCtx = { agentId: 'test', agentName: 'test' } as unknown as ToolContext;
 
 function createMockClient(): SandboxClient {
   return {
@@ -10,7 +13,7 @@ function createMockClient(): SandboxClient {
     searchFiles: mock().mockResolvedValue([]),
     listFiles: mock().mockResolvedValue([]),
     destroy: mock().mockResolvedValue(undefined),
-  };
+  } as unknown as SandboxClient;
 }
 
 describe('Feature: Build tools', () => {
@@ -45,7 +48,7 @@ describe('Feature: Build tools', () => {
           });
 
         const provider = createBuildProvider(client);
-        const result = await provider.runTests({ packages: undefined });
+        const result = await provider.runTests({ packages: undefined }, dummyCtx);
 
         expect(result.passed).toBe(true);
         expect(result.output).toContain('5 passed');
@@ -60,7 +63,7 @@ describe('Feature: Build tools', () => {
           });
 
         const provider = createBuildProvider(client);
-        const result = await provider.runTests({ packages: undefined });
+        const result = await provider.runTests({ packages: undefined }, dummyCtx);
 
         expect(result.passed).toBe(false);
       });
@@ -72,7 +75,7 @@ describe('Feature: Build tools', () => {
           .mockResolvedValueOnce({ stdout: '', stderr: '', exitCode: 0 });
 
         const provider = createBuildProvider(client);
-        const result = await provider.runTypecheck({ packages: undefined });
+        const result = await provider.runTypecheck({ packages: undefined }, dummyCtx);
 
         expect(result.passed).toBe(true);
       });
@@ -84,7 +87,7 @@ describe('Feature: Build tools', () => {
           .mockResolvedValueOnce({ stdout: 'All clean', stderr: '', exitCode: 0 });
 
         const provider = createBuildProvider(client);
-        const result = await provider.runLint({ files: undefined });
+        const result = await provider.runLint({ files: undefined }, dummyCtx);
 
         expect(result.passed).toBe(true);
         expect(result.output).toBe('All clean');

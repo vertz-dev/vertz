@@ -50,14 +50,14 @@ export function WorkspaceShell() {
           ))}
         </AppShell.Nav>
         <AppShell.User>
-          {auth.user?.avatarUrl && (
+          {typeof auth.user?.avatarUrl === 'string' ? (
             <img
               className={styles.avatar}
-              src={auth.user.avatarUrl}
+              src={auth.user.avatarUrl as string}
               alt=""
               data-testid="user-avatar"
             />
-          )}
+          ) : null}
           <span className={styles.userName} data-testid="user-name">
             {auth.user?.name ?? auth.user?.email}
           </span>

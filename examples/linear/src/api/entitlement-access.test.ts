@@ -158,9 +158,11 @@ describe('Entitlement-based access control', () => {
     await db.workspaces.create({ data: { id: 'ws-1', name: 'Test Workspace' } });
 
     // Seed users
-    await db.users.create({ data: { id: 'user-owner', name: 'Owner', email: 'owner@test.com' } });
     await db.users.create({
-      data: { id: 'user-member', name: 'Member', email: 'member@test.com' },
+      data: { id: 'user-owner', name: 'Owner', email: 'owner@test.com', avatarUrl: null },
+    });
+    await db.users.create({
+      data: { id: 'user-member', name: 'Member', email: 'member@test.com', avatarUrl: null },
     });
 
     // Seed a project
@@ -169,6 +171,7 @@ describe('Entitlement-based access control', () => {
         id: 'proj-1',
         workspaceId: 'ws-1',
         name: 'Existing Project',
+        description: null,
         key: 'EP',
         createdBy: 'user-owner',
       },

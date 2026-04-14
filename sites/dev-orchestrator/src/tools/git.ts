@@ -60,7 +60,7 @@ const gitTools = { gitStatus, gitCommit, gitPush, gitLog, gitCheckoutBranch };
 
 export function createGitProvider(sandbox: SandboxClient): InferToolProvider<typeof gitTools> {
   return {
-    gitStatus: async () => {
+    gitStatus: async (_input, _ctx) => {
       const result = await sandbox.exec('git status --porcelain');
       const modified: string[] = [];
       const untracked: string[] = [];
@@ -78,7 +78,7 @@ export function createGitProvider(sandbox: SandboxClient): InferToolProvider<typ
 
       return { modified, untracked };
     },
-    gitCommit: async ({ files, message }: { files: string[]; message: string }) => {
+    gitCommit: async ({ files, message }: { files: string[]; message: string }, _ctx) => {
       const escapedFiles = files.map((f) => `'${f.replace(/'/g, "'\\''")}'`).join(' ');
       await sandbox.exec(`git add ${escapedFiles}`);
       const escapedMsg = message.replace(/'/g, "'\\''");
@@ -86,12 +86,12 @@ export function createGitProvider(sandbox: SandboxClient): InferToolProvider<typ
       const match = result.stdout.match(/\[[\w/]+ ([a-f0-9]+)\]/);
       return { sha: match?.[1] ?? 'unknown' };
     },
-    gitPush: async ({ branch }: { branch: string }) => {
+    gitPush: async ({ branch }: { branch: string }, _ctx) => {
       const escapedBranch = branch.replace(/'/g, "'\\''");
       const result = await sandbox.exec(`git push -u origin '${escapedBranch}'`);
       return { success: result.exitCode === 0 };
     },
-    gitLog: async ({ count }: { count?: number }) => {
+    gitLog: async ({ count }: { count?: number }, _ctx) => {
       const result = await sandbox.exec(
         `git log --oneline -n ${count ?? 10}`,
       );
@@ -107,7 +107,7 @@ export function createGitProvider(sandbox: SandboxClient): InferToolProvider<typ
         });
       return { commits };
     },
-    gitCheckoutBranch: async ({ branch }: { branch: string }) => {
+    gitCheckoutBranch: async ({ branch }: { branch: string }, _ctx) => {
       const escapedBranch = branch.replace(/'/g, "'\\''");
       const result = await sandbox.exec(`git checkout -b '${escapedBranch}'`);
       return { success: result.exitCode === 0 };

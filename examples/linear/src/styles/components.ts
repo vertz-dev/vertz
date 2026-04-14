@@ -45,8 +45,8 @@ export const emptyStateStyles = css({
 // ── Loading skeleton ────────────────────────────────────────
 
 const shimmer = keyframes('linear-shimmer', {
-  '0%': { backgroundPosition: '-200% 0' },
-  '100%': { backgroundPosition: '200% 0' },
+  '0%': { 'background-position': '-200% 0' },
+  '100%': { 'background-position': '200% 0' },
 });
 
 export const skeletonStyles = css({
@@ -56,7 +56,12 @@ export const skeletonStyles = css({
   lineShort: ['rounded:sm', 'bg:muted', 'h:4', 'w:2/3', 'mb:2'],
 });
 
-export const skeletonAnimation = `background: linear-gradient(90deg, transparent 25%, hsl(var(--muted-foreground) / 0.08) 50%, transparent 75%); background-size: 200% 100%; animation: ${shimmer} 1.5s ease-in-out infinite;`;
+export const skeletonAnimation = {
+  background:
+    'linear-gradient(90deg, transparent 25%, hsl(var(--muted-foreground) / 0.08) 50%, transparent 75%)',
+  backgroundSize: '200% 100%',
+  animation: `${shimmer} 1.5s ease-in-out infinite`,
+};
 
 // ── Error fallback ──────────────────────────────────────────
 

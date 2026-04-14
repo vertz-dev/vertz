@@ -1,6 +1,9 @@
 import { describe, expect, it, vi, beforeEach, mock } from '@vertz/test';
+import type { ToolContext } from '@vertz/agents';
 import { createGitProvider, gitStatus, gitCommit, gitPush, gitLog, gitCheckoutBranch } from '../git';
 import type { SandboxClient } from '../../lib/sandbox-client';
+
+const dummyCtx = { agentId: 'test', agentName: 'test' } as unknown as ToolContext;
 
 function createMockClient(): SandboxClient {
   return {
@@ -10,7 +13,7 @@ function createMockClient(): SandboxClient {
     searchFiles: mock().mockResolvedValue([]),
     listFiles: mock().mockResolvedValue([]),
     destroy: mock().mockResolvedValue(undefined),
-  };
+  } as unknown as SandboxClient;
 }
 
 describe('Feature: Git tools', () => {
@@ -55,7 +58,7 @@ describe('Feature: Git tools', () => {
           });
 
         const provider = createGitProvider(client);
-        const result = await provider.gitStatus({});
+        const result = await provider.gitStatus({}, dummyCtx);
 
         expect(result.modified).toEqual(['src/index.ts']);
         expect(result.untracked).toEqual(['src/new.ts']);
@@ -74,7 +77,7 @@ describe('Feature: Git tools', () => {
 
         const provider = createGitProvider(client);
         const result = await provider.gitCommit(
-          { files: ['src/index.ts'], message: 'feat: add thing' },
+          { files: ['src/index.ts'], message: 'feat: add thing' }, dummyCtx,
         );
 
         expect(result.sha).toBe('abc1234');
@@ -89,7 +92,7 @@ describe('Feature: Git tools', () => {
           .mockResolvedValueOnce({ stdout: '', stderr: '', exitCode: 0 });
 
         const provider = createGitProvider(client);
-        const result = await provider.gitPush({ branch: 'feat/auth' });
+        const result = await provider.gitPush({ branch: 'feat/auth' }, dummyCtx);
 
         expect(result.success).toBe(true);
         const calls = (client.exec as ReturnType<typeof vi.fn>).mock.calls;
@@ -107,7 +110,7 @@ describe('Feature: Git tools', () => {
           });
 
         const provider = createGitProvider(client);
-        const result = await provider.gitLog({ count: undefined });
+        const result = await provider.gitLog({ count: undefined }, dummyCtx);
 
         expect(result.commits).toHaveLength(2);
         expect(result.commits[0]).toEqual({
@@ -123,7 +126,7 @@ describe('Feature: Git tools', () => {
           .mockResolvedValueOnce({ stdout: '', stderr: '', exitCode: 0 });
 
         const provider = createGitProvider(client);
-        const result = await provider.gitCheckoutBranch({ branch: 'docs/issue-1748-design' });
+        const result = await provider.gitCheckoutBranch({ branch: 'docs/issue-1748-design' }, dummyCtx);
 
         expect(result.success).toBe(true);
         const calls = (client.exec as ReturnType<typeof vi.fn>).mock.calls;
@@ -135,7 +138,7 @@ describe('Feature: Git tools', () => {
           .mockResolvedValueOnce({ stdout: '', stderr: 'fatal: branch already exists', exitCode: 1 });
 
         const provider = createGitProvider(client);
-        const result = await provider.gitCheckoutBranch({ branch: 'docs/issue-1748-design' });
+        const result = await provider.gitCheckoutBranch({ branch: 'docs/issue-1748-design' }, dummyCtx);
 
         expect(result.success).toBe(false);
       });
