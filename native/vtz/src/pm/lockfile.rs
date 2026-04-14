@@ -2,13 +2,14 @@ use crate::pm::types::{Lockfile, LockfileEntry};
 use std::collections::BTreeMap;
 use std::path::Path;
 
-const LOCKFILE_HEADER: &str =
-    "# vertz.lock v1 (custom format) — DO NOT EDIT\n# Run \"vertz install\" to regenerate\n";
+const LOCKFILE_HEADER_V2: &str =
+    "# vertz.lock v2 (custom format) — DO NOT EDIT\n# Run \"vertz install\" to regenerate\n";
 
-/// Write a lockfile to disk in the custom text format
+/// Write a lockfile to disk in the custom text format.
+/// Always writes as v2 (current format with complete optional deps tracking).
 pub fn write_lockfile(path: &Path, lockfile: &Lockfile) -> Result<(), std::io::Error> {
     let mut output = String::new();
-    output.push_str(LOCKFILE_HEADER);
+    output.push_str(LOCKFILE_HEADER_V2);
     output.push('\n');
 
     // Entries sorted alphabetically by spec key (BTreeMap guarantees this)
@@ -66,9 +67,32 @@ pub fn read_lockfile(path: &Path) -> Result<Lockfile, Box<dyn std::error::Error>
     parse_lockfile(&content)
 }
 
+/// Parse lockfile version from header comment.
+/// Returns 1 for legacy lockfiles (or missing header), 2+ for current format.
+fn parse_lockfile_version(content: &str) -> u32 {
+    for line in content.lines() {
+        if let Some(rest) = line.strip_prefix("# vertz.lock v") {
+            if let Some(ver_str) = rest.split(|c: char| !c.is_ascii_digit()).next() {
+                if let Ok(v) = ver_str.parse::<u32>() {
+                    return v;
+                }
+            }
+        }
+        // Only check the first few lines (header is at the top)
+        if !line.starts_with('#') && !line.trim().is_empty() {
+            break;
+        }
+    }
+    1 // Default to v1 for old lockfiles without a version header
+}
+
 /// Parse lockfile content into a Lockfile struct
 pub fn parse_lockfile(content: &str) -> Result<Lockfile, Box<dyn std::error::Error>> {
-    let mut lockfile = Lockfile::default();
+    let version = parse_lockfile_version(content);
+    let mut lockfile = Lockfile {
+        version,
+        ..Default::default()
+    };
     let mut current_key: Option<String> = None;
     let mut current_entry = LockfileEntry {
         name: String::new(),
@@ -311,7 +335,7 @@ mod tests {
         write_lockfile(&path, &lockfile).unwrap();
 
         let content = std::fs::read_to_string(&path).unwrap();
-        assert!(content.starts_with("# vertz.lock v1"));
+        assert!(content.starts_with("# vertz.lock v2"));
         assert!(content.contains("DO NOT EDIT"));
     }
 
@@ -859,5 +883,62 @@ lightningcss@^1.30.0:
             entry.optional_dependencies["lightningcss-linux-x64"],
             "1.32.0"
         );
+    }
+
+    #[test]
+    fn test_parse_lockfile_version_v1() {
+        let content = "# vertz.lock v1 (custom format) — DO NOT EDIT\n# Run \"vertz install\" to regenerate\n";
+        let lockfile = parse_lockfile(content).unwrap();
+        assert_eq!(lockfile.version, 1);
+    }
+
+    #[test]
+    fn test_parse_lockfile_version_v2() {
+        let content = "# vertz.lock v2 (custom format) — DO NOT EDIT\n# Run \"vertz install\" to regenerate\n";
+        let lockfile = parse_lockfile(content).unwrap();
+        assert_eq!(lockfile.version, 2);
+    }
+
+    #[test]
+    fn test_parse_lockfile_version_missing_defaults_v1() {
+        let content = "# some other lockfile format\n\nzod@^3.24.0:\n  version \"3.24.4\"\n  resolved \"url\"\n  integrity \"hash\"\n\n";
+        let lockfile = parse_lockfile(content).unwrap();
+        assert_eq!(lockfile.version, 1);
+    }
+
+    #[test]
+    fn test_write_lockfile_produces_v2() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("vertz.lock");
+        let lockfile = Lockfile::default();
+        write_lockfile(&path, &lockfile).unwrap();
+
+        let parsed = read_lockfile(&path).unwrap();
+        assert_eq!(parsed.version, 2);
+    }
+
+    #[test]
+    fn test_v1_lockfile_is_detected_for_migration() {
+        // Simulates a stale v1 lockfile (lefthook without optional deps)
+        let content = r#"# vertz.lock v1 (custom format) — DO NOT EDIT
+# Run "vertz install" to regenerate
+
+lefthook@^2.1.1:
+  version "2.1.5"
+  resolved "https://registry.npmjs.org/lefthook/-/lefthook-2.1.5.tgz"
+  integrity "sha512-fake"
+  bin:
+    "lefthook" "bin/index.js"
+
+"#;
+        let lockfile = parse_lockfile(content).unwrap();
+
+        // Should be detected as v1
+        assert_eq!(lockfile.version, 1);
+
+        // lefthook entry should have no optional deps (stale)
+        let entry = &lockfile.entries["lefthook@^2.1.1"];
+        assert!(entry.optional_dependencies.is_empty());
+        assert!(!entry.bin.is_empty());
     }
 }

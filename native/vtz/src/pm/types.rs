@@ -163,9 +163,20 @@ pub struct LockfileEntry {
 }
 
 /// Full lockfile representation
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone)]
 pub struct Lockfile {
+    /// Format version: 1 = legacy (may be missing optional deps), 2 = current
+    pub version: u32,
     pub entries: BTreeMap<String, LockfileEntry>,
+}
+
+impl Default for Lockfile {
+    fn default() -> Self {
+        Self {
+            version: 2,
+            entries: BTreeMap::new(),
+        }
+    }
 }
 
 impl Lockfile {
