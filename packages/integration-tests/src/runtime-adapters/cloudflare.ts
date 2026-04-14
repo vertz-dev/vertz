@@ -2,11 +2,12 @@ import { createHandler } from '@vertz/cloudflare';
 import type { AppBuilder } from '@vertz/core';
 import type { RuntimeAdapter } from './types';
 
-declare const Bun: {
-  serve(options: { port: number; fetch: (request: Request) => Promise<Response> }): {
-    port: number;
-    stop(closeActiveConnections?: boolean): void;
-  };
+declare const __vtz_http: {
+  serve(
+    port: number,
+    hostname: string,
+    handler: (req: Request) => Promise<Response>,
+  ): Promise<{ id: number; port: number; hostname: string; close(): void }>;
 };
 
 interface WorkerExecutionContext {
@@ -27,15 +28,14 @@ export const cloudflareAdapter: RuntimeAdapter = {
       passThroughOnException: () => {},
     };
 
-    const server = Bun.serve({
-      port: 0,
-      fetch: (req: Request) => worker.fetch(req, {}, ctx),
-    });
+    const server = await __vtz_http.serve(0, '0.0.0.0', (req: Request) =>
+      worker.fetch(req, {}, ctx),
+    );
 
     return {
       port: server.port,
       url: `http://localhost:${server.port}`,
-      close: async () => server.stop(),
+      close: async () => server.close(),
     };
   },
 };

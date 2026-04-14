@@ -1679,33 +1679,34 @@ pub const CJS_BOOTSTRAP_JS: &str = r#"
         return { promisify, format, inspect, deprecate, types: {}, callbackify };
       }
       case 'http': {
-        // Minimal http stub — createServer delegates to Deno.serve
+        // Minimal http stub — createServer delegates to globalThis.__vtz_http.serve
         function createServer(handler) {
-          let server = null;
+          let _server = null;
+          let _port = 0;
+          let _hostname = '0.0.0.0';
           return {
             listen(port, host, cb) {
               if (typeof host === 'function') { cb = host; host = '0.0.0.0'; }
-              server = Deno.serve({ port, hostname: host || '0.0.0.0' }, async (req) => {
+              globalThis.__vtz_http.serve(port, host || '0.0.0.0', async (req) => {
                 const url = new URL(req.url);
                 const msg = { url: url.pathname + url.search, method: req.method, headers: Object.fromEntries(req.headers.entries()), _body: req,
                   on(event, cb2) { if (event === 'data') req.text().then(cb2); else if (event === 'end') req.text().then(() => cb2()); return this; } };
-                const res = { statusCode: 200, _headers: {}, _body: '', _resolve: null,
+                const res = { statusCode: 200, _headers: {}, _chunks: [], _resolve: null,
                   promise: null,
                   setHeader(n, v) { this._headers[n.toLowerCase()] = v; return this; },
                   getHeader(n) { return this._headers[n.toLowerCase()]; },
                   writeHead(s, h) { this.statusCode = s; if (h) Object.entries(h).forEach(([k,v]) => this.setHeader(k,v)); return this; },
-                  write(chunk) { this._body += chunk; return true; },
-                  end(data) { if (data) this._body += data; this._resolve(new Response(this._body, { status: this.statusCode, headers: this._headers })); },
+                  write(chunk) { this._chunks.push(typeof chunk === 'string' ? new TextEncoder().encode(chunk) : chunk instanceof Uint8Array ? chunk : new TextEncoder().encode(String(chunk))); return true; },
+                  end(data) { if (data != null) this.write(data); let len = 0; for (const c of this._chunks) len += c.length; const body = new Uint8Array(len); let off = 0; for (const c of this._chunks) { body.set(c, off); off += c.length; } this._resolve(new Response(body, { status: this.statusCode, headers: this._headers })); },
                 };
                 res.promise = new Promise((resolve) => { res._resolve = resolve; });
                 handler(msg, res);
                 return res.promise;
-              });
-              if (cb) cb();
+              }).then((s) => { _server = s; _port = s.port; _hostname = s.hostname; if (cb) cb(); });
               return this;
             },
-            close(cb) { if (server) server.shutdown(); if (cb) cb(); },
-            address() { return { port: 0, address: '0.0.0.0' }; },
+            close(cb) { if (_server) _server.close(); if (cb) cb(); },
+            address() { return { port: _port, address: _hostname }; },
           };
         }
         return { createServer };
@@ -3011,7 +3012,7 @@ export default { execSync, execFile, execFileSync, spawn };
 "#;
 
 /// Synthetic module for `node:http`.
-/// Provides createServer stub backed by Deno.serve.
+/// Provides createServer stub backed by globalThis.__vtz_http.serve.
 const NODE_HTTP_SPECIFIER: &str = "vertz:node_http";
 const NODE_HTTP_MODULE: &str = r#"
 class IncomingMessage {
@@ -3035,21 +3036,37 @@ class ServerResponse {
   constructor() {
     this.statusCode = 200;
     this._headers = {};
-    this._body = '';
+    this._chunks = [];
     this._resolve = null;
+    this.headersSent = false;
     this.promise = new Promise((resolve) => { this._resolve = resolve; });
   }
   setHeader(name, value) { this._headers[name.toLowerCase()] = value; return this; }
   getHeader(name) { return this._headers[name.toLowerCase()]; }
   writeHead(status, headers) {
     this.statusCode = status;
+    this.headersSent = true;
     if (headers) Object.entries(headers).forEach(([k, v]) => this.setHeader(k, v));
     return this;
   }
-  write(chunk) { this._body += chunk; return true; }
+  write(chunk) {
+    if (typeof chunk === 'string') {
+      this._chunks.push(new TextEncoder().encode(chunk));
+    } else if (chunk instanceof Uint8Array) {
+      this._chunks.push(chunk);
+    } else {
+      this._chunks.push(new TextEncoder().encode(String(chunk)));
+    }
+    return true;
+  }
   end(data) {
-    if (data) this._body += data;
-    this._resolve(new Response(this._body, {
+    if (data != null) this.write(data);
+    let totalLength = 0;
+    for (const c of this._chunks) totalLength += c.length;
+    const body = new Uint8Array(totalLength);
+    let offset = 0;
+    for (const c of this._chunks) { body.set(c, offset); offset += c.length; }
+    this._resolve(new Response(body, {
       status: this.statusCode,
       headers: this._headers,
     }));
@@ -3057,21 +3074,27 @@ class ServerResponse {
 }
 
 function createServer(handler) {
-  let server = null;
+  let _server = null;
+  let _port = 0;
+  let _hostname = '0.0.0.0';
   return {
     listen(port, host, cb) {
       if (typeof host === 'function') { cb = host; host = '0.0.0.0'; }
-      server = Deno.serve({ port, hostname: host || '0.0.0.0' }, async (req) => {
+      globalThis.__vtz_http.serve(port, host || '0.0.0.0', async (req) => {
         const msg = new IncomingMessage(req);
         const res = new ServerResponse();
         handler(msg, res);
         return res.promise;
+      }).then((s) => {
+        _server = s;
+        _port = s.port;
+        _hostname = s.hostname;
+        if (cb) cb();
       });
-      if (cb) cb();
       return this;
     },
-    close(cb) { if (server) server.shutdown(); if (cb) cb(); },
-    address() { return { port: 0, address: '0.0.0.0' }; },
+    close(cb) { if (_server) _server.close(); if (cb) cb(); },
+    address() { return { port: _port, address: _hostname }; },
   };
 }
 
