@@ -31,13 +31,32 @@ pub fn op_path_resolve(#[serde] parts: Vec<String>) -> String {
 }
 
 /// Get the directory name of a path.
+/// Matches Node.js behavior: dirname("/") → "/", dirname("a") → "."
 #[op2]
 #[string]
 pub fn op_path_dirname(#[string] input: String) -> String {
+    if input.is_empty() {
+        return ".".to_string();
+    }
     let path = PathBuf::from(&input);
-    path.parent()
-        .map(|p| p.to_string_lossy().to_string())
-        .unwrap_or_else(|| ".".to_string())
+    match path.parent() {
+        Some(p) => {
+            let s = p.to_string_lossy().to_string();
+            if s.is_empty() {
+                ".".to_string()
+            } else {
+                s
+            }
+        }
+        // Root paths ("/" or "//") have no parent in Rust — normalize to "/"
+        None => {
+            if input.starts_with('/') {
+                "/".to_string()
+            } else {
+                input
+            }
+        }
+    }
 }
 
 /// Get the base name of a path.
@@ -284,6 +303,29 @@ mod tests {
             .execute_script("<test>", r#"path.dirname("/a/b/c.ts")"#)
             .unwrap();
         assert_eq!(result, serde_json::json!("/a/b"));
+    }
+
+    #[test]
+    fn test_path_dirname_root() {
+        let mut rt = VertzJsRuntime::new(VertzRuntimeOptions::default()).unwrap();
+        let result = rt.execute_script("<test>", r#"path.dirname("/")"#).unwrap();
+        assert_eq!(result, serde_json::json!("/"));
+    }
+
+    #[test]
+    fn test_path_dirname_double_slash() {
+        let mut rt = VertzJsRuntime::new(VertzRuntimeOptions::default()).unwrap();
+        let result = rt
+            .execute_script("<test>", r#"path.dirname("//")"#)
+            .unwrap();
+        assert_eq!(result, serde_json::json!("/"));
+    }
+
+    #[test]
+    fn test_path_dirname_single_segment() {
+        let mut rt = VertzJsRuntime::new(VertzRuntimeOptions::default()).unwrap();
+        let result = rt.execute_script("<test>", r#"path.dirname("a")"#).unwrap();
+        assert_eq!(result, serde_json::json!("."));
     }
 
     #[test]
