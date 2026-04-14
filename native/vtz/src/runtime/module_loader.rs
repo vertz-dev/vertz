@@ -2577,6 +2577,7 @@ if (!proc.stdout) {
     rows: 24,
     write: function(data) { return Deno.core.ops.op_write_stdout(String(data)); },
     on: function(_event, _cb) { return this; },
+    off: function(_event, _cb) { return this; },
     once: function(_event, _cb) { return this; },
     removeListener: function(_event, _cb) { return this; },
     end: function() {},
@@ -2589,6 +2590,7 @@ if (!proc.stderr) {
     rows: 24,
     write: function(data) { return Deno.core.ops.op_write_stderr(String(data)); },
     on: function(_event, _cb) { return this; },
+    off: function(_event, _cb) { return this; },
     once: function(_event, _cb) { return this; },
     removeListener: function(_event, _cb) { return this; },
     end: function() {},
@@ -2600,6 +2602,7 @@ if (!proc.stdin) {
     isRaw: false,
     setRawMode: function(_mode) { return this; },
     on: function(_event, _cb) { return this; },
+    off: function(_event, _cb) { return this; },
     once: function(_event, _cb) { return this; },
     removeListener: function(_event, _cb) { return this; },
     resume: function() { return this; },
@@ -2615,6 +2618,7 @@ export const argv = proc.argv;
 export const platform = proc.platform;
 export const version = proc.version;
 export const versions = proc.versions;
+export const exit = proc.exit;
 export const nextTick = proc.nextTick;
 export const stdout = proc.stdout;
 export const stderr = proc.stderr;

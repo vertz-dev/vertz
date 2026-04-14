@@ -116,6 +116,59 @@ pub const ENV_BOOTSTRAP_JS: &str = r#"
   if (!globalThis.process.platform) {
     globalThis.process.platform = Deno.core.ops.op_os_platform();
   }
+  if (!globalThis.process.argv) {
+    globalThis.process.argv = [];
+  }
+  if (!globalThis.process.exit) {
+    globalThis.process.exit = function(code) {
+      throw new Error('process.exit(' + (code !== undefined ? code : '') + ') is not supported in the Vertz runtime');
+    };
+  }
+  if (!globalThis.process.nextTick) {
+    globalThis.process.nextTick = function(fn) {
+      var args = Array.prototype.slice.call(arguments, 1);
+      queueMicrotask(function() { fn.apply(null, args); });
+    };
+  }
+  if (!globalThis.process.stdout) {
+    globalThis.process.stdout = {
+      isTTY: Deno.core.ops.op_is_tty(1),
+      columns: 80,
+      rows: 24,
+      write: function(data) { return Deno.core.ops.op_write_stdout(String(data)); },
+      on: function(_event, _cb) { return this; },
+      off: function(_event, _cb) { return this; },
+      once: function(_event, _cb) { return this; },
+      removeListener: function(_event, _cb) { return this; },
+      end: function() {},
+    };
+  }
+  if (!globalThis.process.stderr) {
+    globalThis.process.stderr = {
+      isTTY: Deno.core.ops.op_is_tty(2),
+      columns: 80,
+      rows: 24,
+      write: function(data) { return Deno.core.ops.op_write_stderr(String(data)); },
+      on: function(_event, _cb) { return this; },
+      off: function(_event, _cb) { return this; },
+      once: function(_event, _cb) { return this; },
+      removeListener: function(_event, _cb) { return this; },
+      end: function() {},
+    };
+  }
+  if (!globalThis.process.stdin) {
+    globalThis.process.stdin = {
+      isTTY: Deno.core.ops.op_is_tty(0),
+      isRaw: false,
+      setRawMode: function(_mode) { return this; },
+      on: function(_event, _cb) { return this; },
+      off: function(_event, _cb) { return this; },
+      once: function(_event, _cb) { return this; },
+      removeListener: function(_event, _cb) { return this; },
+      resume: function() { return this; },
+      pause: function() { return this; },
+    };
+  }
 })(globalThis);
 "#;
 
@@ -291,5 +344,66 @@ mod tests {
             .unwrap();
         assert_eq!(result, serde_json::json!("before"));
         std::env::remove_var("VERTZ_REASSIGN_TEST");
+    }
+
+    #[test]
+    fn test_process_exit_is_a_function() {
+        let mut rt = VertzJsRuntime::new(VertzRuntimeOptions::default()).unwrap();
+        let result = rt.execute_script("<test>", "typeof process.exit").unwrap();
+        assert_eq!(result, serde_json::json!("function"));
+    }
+
+    #[test]
+    fn test_process_stdout_write_is_a_function() {
+        let mut rt = VertzJsRuntime::new(VertzRuntimeOptions::default()).unwrap();
+        let result = rt
+            .execute_script("<test>", "typeof process.stdout.write")
+            .unwrap();
+        assert_eq!(result, serde_json::json!("function"));
+    }
+
+    #[test]
+    fn test_process_stderr_write_is_a_function() {
+        let mut rt = VertzJsRuntime::new(VertzRuntimeOptions::default()).unwrap();
+        let result = rt
+            .execute_script("<test>", "typeof process.stderr.write")
+            .unwrap();
+        assert_eq!(result, serde_json::json!("function"));
+    }
+
+    #[test]
+    fn test_process_stdin_has_is_tty() {
+        let mut rt = VertzJsRuntime::new(VertzRuntimeOptions::default()).unwrap();
+        let result = rt
+            .execute_script("<test>", "typeof process.stdin.isTTY")
+            .unwrap();
+        assert_eq!(result, serde_json::json!("boolean"));
+    }
+
+    #[test]
+    fn test_process_stdout_has_is_tty() {
+        let mut rt = VertzJsRuntime::new(VertzRuntimeOptions::default()).unwrap();
+        let result = rt
+            .execute_script("<test>", "typeof process.stdout.isTTY")
+            .unwrap();
+        assert_eq!(result, serde_json::json!("boolean"));
+    }
+
+    #[test]
+    fn test_process_next_tick_is_a_function() {
+        let mut rt = VertzJsRuntime::new(VertzRuntimeOptions::default()).unwrap();
+        let result = rt
+            .execute_script("<test>", "typeof process.nextTick")
+            .unwrap();
+        assert_eq!(result, serde_json::json!("function"));
+    }
+
+    #[test]
+    fn test_process_argv_is_an_array() {
+        let mut rt = VertzJsRuntime::new(VertzRuntimeOptions::default()).unwrap();
+        let result = rt
+            .execute_script("<test>", "Array.isArray(process.argv)")
+            .unwrap();
+        assert_eq!(result, serde_json::json!(true));
     }
 }
