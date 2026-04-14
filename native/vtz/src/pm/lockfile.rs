@@ -55,6 +55,24 @@ pub fn write_lockfile(path: &Path, lockfile: &Lockfile) -> Result<(), std::io::E
             }
         }
 
+        if let Some(ref os_list) = entry.os {
+            if !os_list.is_empty() {
+                output.push_str("  os:\n");
+                for os_val in os_list {
+                    output.push_str(&format!("    \"{}\"\n", os_val));
+                }
+            }
+        }
+
+        if let Some(ref cpu_list) = entry.cpu {
+            if !cpu_list.is_empty() {
+                output.push_str("  cpu:\n");
+                for cpu_val in cpu_list {
+                    output.push_str(&format!("    \"{}\"\n", cpu_val));
+                }
+            }
+        }
+
         output.push('\n');
     }
 
@@ -106,6 +124,8 @@ pub fn parse_lockfile(content: &str) -> Result<Lockfile, Box<dyn std::error::Err
         scripts: BTreeMap::new(),
         optional: false,
         overridden: false,
+        os: None,
+        cpu: None,
     };
     let mut in_section: Option<&'static str> = None;
 
@@ -128,6 +148,8 @@ pub fn parse_lockfile(content: &str) -> Result<Lockfile, Box<dyn std::error::Err
                     scripts: BTreeMap::new(),
                     optional: false,
                     overridden: false,
+                    os: None,
+                    cpu: None,
                 };
                 in_section = None;
             }
@@ -137,8 +159,14 @@ pub fn parse_lockfile(content: &str) -> Result<Lockfile, Box<dyn std::error::Err
         let trimmed = line.trim();
 
         // Subsection headers that are NOT top-level entry keys
-        const SECTION_HEADERS: &[&str] =
-            &["dependencies:", "optionalDependencies:", "bin:", "scripts:"];
+        const SECTION_HEADERS: &[&str] = &[
+            "dependencies:",
+            "optionalDependencies:",
+            "bin:",
+            "scripts:",
+            "os:",
+            "cpu:",
+        ];
 
         // New entry: "name@range:" at column 0
         if !line.starts_with(' ') && trimmed.ends_with(':') && !SECTION_HEADERS.contains(&trimmed) {
@@ -157,6 +185,8 @@ pub fn parse_lockfile(content: &str) -> Result<Lockfile, Box<dyn std::error::Err
                     scripts: BTreeMap::new(),
                     optional: false,
                     overridden: false,
+                    os: None,
+                    cpu: None,
                 };
                 in_section = None;
             }
@@ -188,6 +218,14 @@ pub fn parse_lockfile(content: &str) -> Result<Lockfile, Box<dyn std::error::Err
                 in_section = Some("scripts");
                 continue;
             }
+            if trimmed == "os:" {
+                in_section = Some("os");
+                continue;
+            }
+            if trimmed == "cpu:" {
+                in_section = Some("cpu");
+                continue;
+            }
 
             match in_section {
                 Some("dependencies") => {
@@ -215,6 +253,20 @@ pub fn parse_lockfile(content: &str) -> Result<Lockfile, Box<dyn std::error::Err
                             .scripts
                             .insert(name.to_string(), cmd.to_string());
                     }
+                }
+                Some("os") => {
+                    let val = unquote(trimmed);
+                    current_entry
+                        .os
+                        .get_or_insert_with(Vec::new)
+                        .push(val.to_string());
+                }
+                Some("cpu") => {
+                    let val = unquote(trimmed);
+                    current_entry
+                        .cpu
+                        .get_or_insert_with(Vec::new)
+                        .push(val.to_string());
                 }
                 _ => {
                     if let Some(rest) = trimmed.strip_prefix("version ") {
@@ -294,6 +346,8 @@ mod tests {
                 scripts: BTreeMap::new(),
                 optional: false,
                 overridden: false,
+                os: None,
+                cpu: None,
             },
         );
 
@@ -311,6 +365,8 @@ mod tests {
                 scripts: BTreeMap::new(),
                 optional: false,
                 overridden: false,
+                os: None,
+                cpu: None,
             },
         );
 
@@ -361,6 +417,8 @@ mod tests {
                 scripts: BTreeMap::new(),
                 optional: false,
                 overridden: false,
+                os: None,
+                cpu: None,
             },
         );
         lockfile.entries.insert(
@@ -377,6 +435,8 @@ mod tests {
                 scripts: BTreeMap::new(),
                 optional: false,
                 overridden: false,
+                os: None,
+                cpu: None,
             },
         );
 
@@ -408,6 +468,8 @@ mod tests {
                 scripts: BTreeMap::new(),
                 optional: false,
                 overridden: false,
+                os: None,
+                cpu: None,
             },
         );
         lockfile.entries.insert(
@@ -424,6 +486,8 @@ mod tests {
                 scripts: BTreeMap::new(),
                 optional: false,
                 overridden: false,
+                os: None,
+                cpu: None,
             },
         );
 
@@ -497,6 +561,8 @@ mod tests {
                 scripts: BTreeMap::new(),
                 optional: false,
                 overridden: false,
+                os: None,
+                cpu: None,
             },
         );
 
@@ -515,6 +581,8 @@ mod tests {
                 scripts: BTreeMap::new(),
                 optional: false,
                 overridden: false,
+                os: None,
+                cpu: None,
             },
         );
 
@@ -569,6 +637,8 @@ mod tests {
                 scripts: BTreeMap::new(),
                 optional: true,
                 overridden: false,
+                os: None,
+                cpu: None,
             },
         );
         lockfile.entries.insert(
@@ -585,6 +655,8 @@ mod tests {
                 scripts: BTreeMap::new(),
                 optional: false,
                 overridden: false,
+                os: None,
+                cpu: None,
             },
         );
 
@@ -640,6 +712,8 @@ fsevents@^2.3.0:
                 scripts: BTreeMap::new(),
                 optional: false,
                 overridden: true,
+                os: None,
+                cpu: None,
             },
         );
         lockfile.entries.insert(
@@ -656,6 +730,8 @@ fsevents@^2.3.0:
                 scripts: BTreeMap::new(),
                 optional: false,
                 overridden: false,
+                os: None,
+                cpu: None,
             },
         );
 
@@ -708,6 +784,8 @@ zod@^3.24.0:
                 scripts: BTreeMap::new(),
                 optional: false,
                 overridden: false,
+                os: None,
+                cpu: None,
             },
         );
 
@@ -749,6 +827,8 @@ zod@^3.24.0:
                 scripts,
                 optional: false,
                 overridden: false,
+                os: None,
+                cpu: None,
             },
         );
 
@@ -831,6 +911,8 @@ zod@^3.24.0:
                 scripts: BTreeMap::new(),
                 optional: false,
                 overridden: false,
+                os: None,
+                cpu: None,
             },
         );
 
@@ -940,5 +1022,124 @@ lefthook@^2.1.1:
         let entry = &lockfile.entries["lefthook@^2.1.1"];
         assert!(entry.optional_dependencies.is_empty());
         assert!(!entry.bin.is_empty());
+    }
+
+    #[test]
+    fn test_write_and_read_os_cpu_constraints() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("vertz.lock");
+
+        let mut lockfile = Lockfile::default();
+        lockfile.entries.insert(
+            "@esbuild/darwin-arm64@0.25.0".to_string(),
+            LockfileEntry {
+                name: "@esbuild/darwin-arm64".to_string(),
+                range: "0.25.0".to_string(),
+                version: "0.25.0".to_string(),
+                resolved:
+                    "https://registry.npmjs.org/@esbuild/darwin-arm64/-/darwin-arm64-0.25.0.tgz"
+                        .to_string(),
+                integrity: "sha512-abc".to_string(),
+                dependencies: BTreeMap::new(),
+                optional_dependencies: BTreeMap::new(),
+                bin: BTreeMap::new(),
+                scripts: BTreeMap::new(),
+                optional: true,
+                overridden: false,
+                os: Some(vec!["darwin".to_string()]),
+                cpu: Some(vec!["arm64".to_string()]),
+            },
+        );
+
+        write_lockfile(&path, &lockfile).unwrap();
+
+        let content = std::fs::read_to_string(&path).unwrap();
+        assert!(
+            content.contains("os:\n"),
+            "lockfile should contain os section"
+        );
+        assert!(
+            content.contains("cpu:\n"),
+            "lockfile should contain cpu section"
+        );
+
+        let parsed = read_lockfile(&path).unwrap();
+        let entry = &parsed.entries["@esbuild/darwin-arm64@0.25.0"];
+        assert_eq!(entry.os, Some(vec!["darwin".to_string()]));
+        assert_eq!(entry.cpu, Some(vec!["arm64".to_string()]));
+    }
+
+    #[test]
+    fn test_write_and_read_multi_os_cpu() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("vertz.lock");
+
+        let mut lockfile = Lockfile::default();
+        lockfile.entries.insert(
+            "pkg@^1.0.0".to_string(),
+            LockfileEntry {
+                name: "pkg".to_string(),
+                range: "^1.0.0".to_string(),
+                version: "1.0.0".to_string(),
+                resolved: "https://registry.npmjs.org/pkg/-/pkg-1.0.0.tgz".to_string(),
+                integrity: "sha512-xyz".to_string(),
+                dependencies: BTreeMap::new(),
+                optional_dependencies: BTreeMap::new(),
+                bin: BTreeMap::new(),
+                scripts: BTreeMap::new(),
+                optional: false,
+                overridden: false,
+                os: Some(vec!["darwin".to_string(), "linux".to_string()]),
+                cpu: Some(vec!["arm64".to_string(), "x64".to_string()]),
+            },
+        );
+
+        write_lockfile(&path, &lockfile).unwrap();
+        let parsed = read_lockfile(&path).unwrap();
+        let entry = &parsed.entries["pkg@^1.0.0"];
+        assert_eq!(
+            entry.os,
+            Some(vec!["darwin".to_string(), "linux".to_string()])
+        );
+        assert_eq!(
+            entry.cpu,
+            Some(vec!["arm64".to_string(), "x64".to_string()])
+        );
+    }
+
+    #[test]
+    fn test_no_os_cpu_roundtrips_as_none() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("vertz.lock");
+
+        let mut lockfile = Lockfile::default();
+        lockfile.entries.insert(
+            "pkg@^1.0.0".to_string(),
+            LockfileEntry {
+                name: "pkg".to_string(),
+                range: "^1.0.0".to_string(),
+                version: "1.0.0".to_string(),
+                resolved: "https://registry.npmjs.org/pkg/-/pkg-1.0.0.tgz".to_string(),
+                integrity: "sha512-xyz".to_string(),
+                dependencies: BTreeMap::new(),
+                optional_dependencies: BTreeMap::new(),
+                bin: BTreeMap::new(),
+                scripts: BTreeMap::new(),
+                optional: false,
+                overridden: false,
+                os: None,
+                cpu: None,
+            },
+        );
+
+        write_lockfile(&path, &lockfile).unwrap();
+        let content = std::fs::read_to_string(&path).unwrap();
+        assert!(!content.contains("os "), "should not write os when None");
+        assert!(!content.contains("cpu "), "should not write cpu when None");
+
+        let parsed = read_lockfile(&path).unwrap();
+        let entry = &parsed.entries["pkg@^1.0.0"];
+        assert_eq!(entry.os, None);
+        assert_eq!(entry.cpu, None);
     }
 }

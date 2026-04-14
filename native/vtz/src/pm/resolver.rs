@@ -273,8 +273,8 @@ async fn resolve_one_task<'a>(
                 optional_dependencies: entry.optional_dependencies.clone(),
                 bin: entry.bin.clone(),
                 nest_path: vec![],
-                os: None,
-                cpu: None,
+                os: entry.os.clone(),
+                cpu: entry.cpu.clone(),
             };
 
             // Atomic check-and-insert into graph
@@ -544,6 +544,8 @@ pub fn graph_to_lockfile(
                     scripts,
                     optional: optional_names.contains(name),
                     overridden: false,
+                    os: pkg.os.clone(),
+                    cpu: pkg.cpu.clone(),
                 },
             );
         }
@@ -597,6 +599,8 @@ pub fn graph_to_lockfile(
                         scripts: dep_scripts,
                         optional: false,
                         overridden: false,
+                        os: dep_pkg.os.clone(),
+                        cpu: dep_pkg.cpu.clone(),
                     });
                 }
             }
@@ -620,6 +624,8 @@ pub fn graph_to_lockfile(
                 scripts: BTreeMap::new(),
                 optional: false,
                 overridden: false,
+                os: None,
+                cpu: None,
             },
         );
     }
