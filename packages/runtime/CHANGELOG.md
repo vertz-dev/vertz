@@ -1,5 +1,11 @@
 # @vertz/runtime
 
+## 0.2.62
+
+### Patch Changes
+
+- [#2639](https://github.com/vertz-dev/vertz/pull/2639) [`5e9a614`](https://github.com/vertz-dev/vertz/commit/5e9a614833d967e8cdce4a37c47d387842e04ad3) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - Expand `node:perf_hooks` CJS stub with `PerformanceEntry`, `PerformanceObserver`, `PerformanceObserverEntryList`, and `monitorEventLoopDelay` (required by happy-dom v20.8.3). Add `import.meta.dirname` / `import.meta.dir` polyfill that derives the directory path from `import.meta.url` since deno_core only sets the latter.
+
 ## 0.2.61
 
 ### Patch Changes
