@@ -1,7 +1,7 @@
 {
   "name": "@vertz/mdx",
   "version": "0.1.0",
-  "description": "MDX support for Vertz — Bun plugin that compiles .mdx files to Vertz components",
+  "description": "MDX support for Vertz — compiles .mdx files to Vertz components",
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -39,12 +39,10 @@
     "unified": "^11.0.0"
   },
   "devDependencies": {
-    "@types/bun": "latest",
     "@types/node": "^25.3.1",
     "@vertz/build": "workspace:^",
     "@vertz/test": "workspace:*",
     "@vertz/ui-server": "workspace:^",
-    "bun-types": "^1.3.10",
     "typescript": "^5.7.0"
   },
   "engines": {

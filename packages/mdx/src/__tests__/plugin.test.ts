@@ -1,91 +1,61 @@
+import { writeFile } from 'node:fs/promises';
 import { beforeAll, describe, expect, it } from '@vertz/test';
+import { compileMdx } from '../compile-mdx';
 import { createMdxPlugin } from '../index';
 
-// Pre-created plugin instances — reuse Shiki highlighter across tests.
-// Without this, each test creates a new plugin instance that re-initializes
-// Shiki's WASM + grammar loading, causing >30s timeouts on CI runners.
-const defaultPlugin = createMdxPlugin();
-const jsxImportSourcePlugin = createMdxPlugin({ jsxImportSource: '@vertz/ui-server' });
-const noFrontmatterPlugin = createMdxPlugin({ remarkFrontmatter: false });
-const noShikiPlugin = createMdxPlugin({ shikiTheme: false });
-
-// Helper: resolve a pre-created plugin for the given options, or create a new one.
-function resolvePlugin(options?: Parameters<typeof createMdxPlugin>[0]) {
-  if (!options) return defaultPlugin;
-  // Match known option combinations to pre-created instances
-  if (options.jsxImportSource === '@vertz/ui-server' && Object.keys(options).length === 1)
-    return jsxImportSourcePlugin;
-  if (options.remarkFrontmatter === false && Object.keys(options).length === 1)
-    return noFrontmatterPlugin;
-  if (options.shikiTheme === false && Object.keys(options).length === 1) return noShikiPlugin;
-  // Empty remarkPlugins/rehypePlugins arrays are semantically identical to default
-  const isEmptyArrayOnly =
-    Object.keys(options).length === 1 &&
-    (('remarkPlugins' in options &&
-      Array.isArray(options.remarkPlugins) &&
-      options.remarkPlugins.length === 0) ||
-      ('rehypePlugins' in options &&
-        Array.isArray(options.rehypePlugins) &&
-        options.rehypePlugins.length === 0));
-  if (isEmptyArrayOnly) return defaultPlugin;
-  // Unknown combination — create a new plugin (will cold-init Shiki if enabled)
-  return createMdxPlugin(options);
-}
-
-// Helper: build an MDX file through the plugin, marking jsx-runtime as external.
-async function buildMdx(content: string, options?: Parameters<typeof createMdxPlugin>[0]) {
-  const path = `/tmp/vertz-mdx-test-${Date.now()}-${Math.random().toString(36).slice(2)}.mdx`;
-  await Bun.write(path, content);
-
-  const result = await Bun.build({
-    entrypoints: [path],
-    plugins: [resolvePlugin(options)],
-    target: 'bun',
-    external: ['@vertz/ui', '@vertz/ui-server'],
-  });
-
-  if (!result.success) {
-    throw new Error(`Build failed: ${result.logs.map((l) => l.message).join('\n')}`);
-  }
-
-  return result.outputs[0]?.text() ?? '';
-}
-
 describe('createMdxPlugin', () => {
-  it('returns a BunPlugin with name "vertz-mdx"', () => {
+  it('returns a plugin with name "vertz-mdx"', () => {
     const plugin = createMdxPlugin();
     expect(plugin.name).toBe('vertz-mdx');
     expect(plugin.setup).toBeFunction();
   });
+
+  it('onLoad reads a file and compiles MDX', async () => {
+    const plugin = createMdxPlugin({ shikiTheme: false });
+    let onLoadCallback:
+      | ((args: { path: string }) => Promise<{ contents: string; loader: string }>)
+      | undefined;
+
+    plugin.setup({
+      onLoad(_opts, cb) {
+        onLoadCallback = cb;
+      },
+    });
+
+    const tmpPath = `/tmp/vertz-mdx-onload-${Date.now()}.mdx`;
+    await writeFile(tmpPath, '# Plugin Test');
+    const result = await onLoadCallback!({ path: tmpPath });
+    expect(result.loader).toBe('js');
+    expect(result.contents).toContain('MDXContent');
+  });
 });
 
-describe('MDX compilation via Bun plugin', () => {
-  // Pre-warm ALL Shiki-enabled plugins: first Bun.build() + Shiki WASM init is
-  // slow on CI runners (~15-30s per instance). Paying the cost here prevents
-  // individual tests from timing out. noShikiPlugin doesn't need warm-up.
+describe('MDX compilation via compileMdx', () => {
+  // Pre-warm Shiki: first call initializes WASM + grammar loading (~15-30s on CI).
+  // Paying the cost here prevents individual tests from timing out.
   beforeAll(async () => {
     await Promise.all([
-      buildMdx('# warm-default'),
-      buildMdx('# warm-jsx', { jsxImportSource: '@vertz/ui-server' }),
-      buildMdx('# warm-no-frontmatter', { remarkFrontmatter: false }),
+      compileMdx('# warm-default'),
+      compileMdx('# warm-jsx', { jsxImportSource: '@vertz/ui-server' }),
+      compileMdx('# warm-no-frontmatter', { remarkFrontmatter: false }),
     ]);
   }, 120_000);
 
   it('compiles a simple MDX file to a JS module with MDXContent', async () => {
-    const output = await buildMdx('# Hello World\n\nA paragraph.');
+    const output = await compileMdx('# Hello World\n\nA paragraph.');
 
     expect(output).toContain('MDXContent');
     expect(output).toMatch(/jsx|jsxs|Fragment/);
   });
 
   it('defaults jsxImportSource to @vertz/ui', async () => {
-    const output = await buildMdx('# Hello');
+    const output = await compileMdx('# Hello');
 
     expect(output).toContain('@vertz/ui/jsx-runtime');
   });
 
   it('compiles with custom jsxImportSource when specified', async () => {
-    const output = await buildMdx('# Hello', {
+    const output = await compileMdx('# Hello', {
       jsxImportSource: '@vertz/ui-server',
     });
 
@@ -93,7 +63,7 @@ describe('MDX compilation via Bun plugin', () => {
   });
 
   it('extracts frontmatter as a named export', async () => {
-    const output = await buildMdx(`---
+    const output = await compileMdx(`---
 title: Button
 description: A button component.
 ---
@@ -106,7 +76,7 @@ description: A button component.
   });
 
   it('disables frontmatter extraction when remarkFrontmatter is false', async () => {
-    const output = await buildMdx(
+    const output = await compileMdx(
       `---
 title: NoExtract
 ---
@@ -120,7 +90,7 @@ title: NoExtract
   });
 
   it('applies Shiki syntax highlighting to code fences', async () => {
-    const output = await buildMdx(`# Code
+    const output = await compileMdx(`# Code
 
 \`\`\`tsx
 const x: number = 42;
@@ -133,7 +103,7 @@ const x: number = 42;
   });
 
   it('disables Shiki when shikiTheme is false', async () => {
-    const output = await buildMdx(
+    const output = await compileMdx(
       `# Code
 
 \`\`\`tsx
@@ -150,61 +120,38 @@ const x = 1;
   });
 
   it('passes custom remark plugins through', async () => {
-    // Verify it doesn't crash with empty plugins array
-    const output = await buildMdx('# Test', { remarkPlugins: [] });
+    const output = await compileMdx('# Test', { remarkPlugins: [] });
     expect(output).toContain('MDXContent');
   });
 
   it('passes custom rehype plugins through', async () => {
-    // Verify it doesn't crash with empty plugins array
-    const output = await buildMdx('# Test', { rehypePlugins: [] });
+    const output = await compileMdx('# Test', { rehypePlugins: [] });
     expect(output).toContain('MDXContent');
   });
 
-  it('fails build on malformed MDX with unclosed JSX', async () => {
-    await expect(buildMdx('<div>unclosed')).rejects.toThrow();
+  it('fails on malformed MDX with unclosed JSX', async () => {
+    await expect(compileMdx('<div>unclosed')).rejects.toThrow();
   });
 });
 
 describe('dual Shiki theme support', () => {
-  const dualThemePlugin = createMdxPlugin({
-    shikiTheme: { light: 'github-light', dark: 'github-dark' },
-  });
+  const dualThemeOptions = {
+    shikiTheme: { light: 'github-light', dark: 'github-dark' } as const,
+  };
 
   beforeAll(async () => {
-    const path = `/tmp/vertz-mdx-dual-warm-${Date.now()}.mdx`;
-    await Bun.write(path, '# warm');
-    await Bun.build({
-      entrypoints: [path],
-      plugins: [dualThemePlugin],
-      target: 'bun',
-      external: ['@vertz/ui'],
-    });
+    await compileMdx('# warm', dualThemeOptions);
   }, 120_000);
 
   it('produces CSS variable-based dual theme output', async () => {
-    const path = `/tmp/vertz-mdx-dual-${Date.now()}.mdx`;
-    await Bun.write(
-      path,
+    const output = await compileMdx(
       `# Code
 
 \`\`\`ts
 const x: number = 42;
 \`\`\``,
+      dualThemeOptions,
     );
-
-    const result = await Bun.build({
-      entrypoints: [path],
-      plugins: [dualThemePlugin],
-      target: 'bun',
-      external: ['@vertz/ui'],
-    });
-
-    if (!result.success) {
-      throw new Error(`Build failed: ${result.logs.map((l) => l.message).join('\n')}`);
-    }
-
-    const output = await result.outputs[0]!.text();
 
     // Dual theme uses CSS variables like --shiki-light and --shiki-dark
     expect(output).toContain('--shiki-');
