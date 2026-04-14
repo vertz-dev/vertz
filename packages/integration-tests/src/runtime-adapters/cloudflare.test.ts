@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it } from '@vertz/test';
 import { createHandler as directCreateHandler } from '@vertz/cloudflare';
 import { cloudflareAdapter } from './cloudflare';
+import { resolveRuntimeAdapter } from './index';
 import type { ServerHandle } from './types';
 
 describe('vertz/cloudflare meta-package smoke', () => {
@@ -26,22 +27,13 @@ describe('vertz/cloudflare meta-package smoke', () => {
 });
 
 describe('invalid RUNTIME rejection', () => {
-  it('fails with an explicit error listing supported runtimes including cloudflare', async () => {
-    const proc = Bun.spawn(['bun', '-e', 'await import("./index.ts")'], {
-      cwd: import.meta.dirname,
-      env: { ...process.env, RUNTIME: 'invalid-runtime' },
-      stdout: 'pipe',
-      stderr: 'pipe',
-    });
-    const exitCode = await proc.exited;
-    const stderr = await new Response(proc.stderr).text();
-
-    expect(exitCode).not.toBe(0);
-    expect(stderr).toContain('Unknown RUNTIME: invalid-runtime');
-    expect(stderr).toContain('cloudflare');
-    expect(stderr).toContain('node');
-    expect(stderr).toContain('bun');
-    expect(stderr).toContain('deno');
+  it('fails with an explicit error listing supported runtimes including cloudflare', () => {
+    const fn = () => resolveRuntimeAdapter('invalid-runtime');
+    expect(fn).toThrow('Unknown RUNTIME: invalid-runtime');
+    expect(fn).toThrow('cloudflare');
+    expect(fn).toThrow('node');
+    expect(fn).toThrow('bun');
+    expect(fn).toThrow('deno');
   });
 });
 

@@ -1,20 +1,13 @@
 import type { RuntimeAdapter } from './types';
 
-declare const Bun: {
-  serve(options: { port: number; fetch: (request: Request) => Promise<Response> }): {
-    port: number;
-    stop(closeActiveConnections?: boolean): void;
-  };
-};
-
 export const bunAdapter: RuntimeAdapter = {
   name: 'bun',
   async createServer(handler) {
-    const server = Bun.serve({ fetch: handler, port: 0 });
+    const server = await __vtz_http.serve(0, '0.0.0.0', handler);
     return {
       port: server.port,
       url: `http://localhost:${server.port}`,
-      close: async () => server.stop(),
+      close: async () => server.close(),
     };
   },
 };
