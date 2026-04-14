@@ -374,6 +374,31 @@ async fn async_main(cli: Cli) {
                     std::process::exit(1);
                 }
             } else {
+                // Compute a generous watchdog timeout: per-file timeout × discovered files + grace.
+                // This ensures the process terminates even if V8 worker threads hang during
+                // teardown and the per-file tokio timeout can't fire (#2633).
+                let file_count = vertz_runtime::test::collector::discover_test_files(
+                    &config.root_dir,
+                    &config.paths,
+                    &config.include,
+                    &config.exclude,
+                    vertz_runtime::test::collector::DiscoveryMode::Unit,
+                )
+                .len() as u64;
+                let per_file_ms = config.timeout_ms;
+                // Each worker processes files sequentially, so worst case is
+                // all files on one thread. Add 30s grace for type tests + reporting.
+                let watchdog_ms = per_file_ms.saturating_mul(file_count.max(1)) + 30_000;
+
+                std::thread::spawn(move || {
+                    std::thread::sleep(std::time::Duration::from_millis(watchdog_ms));
+                    eprintln!(
+                        "\nvtz test: watchdog timeout after {}s — force exiting",
+                        watchdog_ms / 1000
+                    );
+                    std::process::exit(1);
+                });
+
                 // run_tests creates its own tokio runtimes per-thread, so we must
                 // run it from a plain OS thread to avoid nesting with #[tokio::main].
                 let handle =
