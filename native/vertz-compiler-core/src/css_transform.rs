@@ -528,7 +528,8 @@ fn build_replacement(class_names: &[(String, String)], css_text: &str) -> String
     let escaped_css = css_text
         .replace('\\', "\\\\")
         .replace('\'', "\\'")
-        .replace('\n', "\\n");
+        .replace('\n', "\\n")
+        .replace('\r', "\\r");
     format!("Object.defineProperty({obj}, 'css', {{ value: '{escaped_css}', enumerable: false }})")
 }
 
