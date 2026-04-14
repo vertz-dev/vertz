@@ -84,7 +84,12 @@ pub const ENV_BOOTSTRAP_JS: &str = r#"
   if (!globalThis.process) {
     globalThis.process = {};
   }
-  globalThis.process.env = envProxy;
+  Object.defineProperty(globalThis.process, 'env', {
+    value: envProxy,
+    writable: false,
+    configurable: false,
+    enumerable: true,
+  });
   if (!globalThis.process.cwd) {
     globalThis.process.cwd = () => Deno.core.ops.op_cwd();
   }
@@ -188,5 +193,46 @@ mod tests {
             )
             .unwrap();
         assert_eq!(result, serde_json::json!(true));
+    }
+
+    #[test]
+    fn test_process_env_spread_includes_set_vars() {
+        let mut rt = VertzJsRuntime::new(VertzRuntimeOptions::default()).unwrap();
+        let result = rt
+            .execute_script(
+                "<test>",
+                "process.env.VERTZ_SPREAD_TEST = 'spread_val'; const copy = {...process.env}; copy.VERTZ_SPREAD_TEST",
+            )
+            .unwrap();
+        assert_eq!(result, serde_json::json!("spread_val"));
+        std::env::remove_var("VERTZ_SPREAD_TEST");
+    }
+
+    #[test]
+    fn test_process_env_object_keys_includes_set_vars() {
+        let mut rt = VertzJsRuntime::new(VertzRuntimeOptions::default()).unwrap();
+        let result = rt
+            .execute_script(
+                "<test>",
+                "process.env.VERTZ_KEYS_TEST = 'keys_val'; Object.keys(process.env).includes('VERTZ_KEYS_TEST')",
+            )
+            .unwrap();
+        assert_eq!(result, serde_json::json!(true));
+        std::env::remove_var("VERTZ_KEYS_TEST");
+    }
+
+    #[test]
+    fn test_process_env_not_reassignable() {
+        let mut rt = VertzJsRuntime::new(VertzRuntimeOptions::default()).unwrap();
+        // Assigning to process.env should silently fail (non-writable),
+        // and the proxy should remain functional.
+        let result = rt
+            .execute_script(
+                "<test>",
+                "process.env.VERTZ_REASSIGN_TEST = 'before'; process.env = {}; process.env.VERTZ_REASSIGN_TEST",
+            )
+            .unwrap();
+        assert_eq!(result, serde_json::json!("before"));
+        std::env::remove_var("VERTZ_REASSIGN_TEST");
     }
 }
