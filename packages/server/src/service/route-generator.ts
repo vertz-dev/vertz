@@ -110,7 +110,7 @@ export function generateServiceRoutes(
     routes.push({
       method,
       path: routePath,
-      handler: async (ctx) => {
+      handler: async (ctx: Record<string, unknown>) => {
         try {
           const requestInfo = extractRequestInfo(ctx);
           const raw = ctx.raw as { url?: string; method?: string; headers?: Headers } | undefined;

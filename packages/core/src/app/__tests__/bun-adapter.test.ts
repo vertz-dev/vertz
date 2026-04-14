@@ -1,6 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, mock } from '@vertz/test';
 import { createBunAdapter } from '../bun-adapter';
 
+// This test requires the Bun runtime — skip when running under vtz
+const hasBun = typeof globalThis.Bun !== 'undefined';
+
 // Types for Bun.serve
 type BunServeOptions = {
   port: number;
@@ -23,22 +26,24 @@ const mockServer: BunServer = {
 };
 const mockServe = mock<(options: BunServeOptions) => BunServer>(() => mockServer);
 
-// Save original so we can restore after tests
-const originalServe = Bun.serve;
+// Save original so we can restore after tests (only when Bun is available)
+const originalServe = hasBun ? Bun.serve : undefined;
 
 beforeEach(() => {
+  if (!hasBun) return;
   // Override Bun.serve with our mock (Bun.serve is writable)
   (Bun as Record<string, unknown>).serve = mockServe;
 });
 
 afterEach(() => {
+  if (!hasBun) return;
   mockServe.mockClear();
   mockStop.mockClear();
   // Restore original Bun.serve
   (Bun as Record<string, unknown>).serve = originalServe;
 });
 
-describe('createBunAdapter', () => {
+describe.skipIf(!hasBun)('createBunAdapter', () => {
   describe('listen', () => {
     it('passes the port and handler to Bun.serve', async () => {
       const adapter = createBunAdapter();

@@ -229,7 +229,7 @@ export function generateEntityRoutes(
       routes.push({
         method: 'GET',
         path: basePath,
-        handler: async (ctx) => {
+        handler: async (ctx: Record<string, unknown>) => {
           try {
             const entityCtx = makeEntityCtx(ctx);
             const query = (ctx.query ?? {}) as Record<string, string>;
@@ -295,7 +295,7 @@ export function generateEntityRoutes(
       routes.push({
         method: 'POST',
         path: `${basePath}/query`,
-        handler: async (ctx) => {
+        handler: async (ctx: Record<string, unknown>) => {
           try {
             const entityCtx = makeEntityCtx(ctx);
             const body = (ctx.body ?? {}) as Record<string, unknown>;
@@ -416,7 +416,7 @@ export function generateEntityRoutes(
       routes.push({
         method: 'GET',
         path: `${basePath}${idPath}`,
-        handler: async (ctx) => {
+        handler: async (ctx: Record<string, unknown>) => {
           try {
             const entityCtx = makeEntityCtx(ctx);
             const id = extractEntityId(ctx);
@@ -498,7 +498,7 @@ export function generateEntityRoutes(
       routes.push({
         method: 'POST',
         path: basePath,
-        handler: async (ctx) => {
+        handler: async (ctx: Record<string, unknown>) => {
           try {
             const entityCtx = makeEntityCtx(ctx);
             const data = (ctx.body ?? {}) as Record<string, unknown>;
@@ -553,7 +553,7 @@ export function generateEntityRoutes(
       routes.push({
         method: 'PATCH',
         path: `${basePath}${idPath}`,
-        handler: async (ctx) => {
+        handler: async (ctx: Record<string, unknown>) => {
           try {
             const entityCtx = makeEntityCtx(ctx);
             const id = extractEntityId(ctx);
@@ -609,7 +609,7 @@ export function generateEntityRoutes(
       routes.push({
         method: 'DELETE',
         path: `${basePath}${idPath}`,
-        handler: async (ctx) => {
+        handler: async (ctx: Record<string, unknown>) => {
           try {
             const entityCtx = makeEntityCtx(ctx);
             const id = extractEntityId(ctx);
@@ -669,7 +669,7 @@ export function generateEntityRoutes(
       routes.push({
         method,
         path: actionPath,
-        handler: async (ctx) => {
+        handler: async (ctx: Record<string, unknown>) => {
           try {
             const entityCtx = makeEntityCtx(ctx);
             const id = hasId ? extractEntityId(ctx) : null;

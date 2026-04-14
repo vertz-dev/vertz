@@ -75,28 +75,14 @@ jobs:
         run: cd packages/ci && vtz run build
 
       - name: Build packages
-        run: |
-          set +eo pipefail
-          timeout --kill-after=10 120 vtz ci build-typecheck --concurrency 2 2>&1 | tee /tmp/build-output.log
-          EXIT_CODE=${PIPESTATUS[0]}
-          set -eo pipefail
-
-          if [ $EXIT_CODE -eq 0 ]; then exit 0; fi
-
-          if [ $EXIT_CODE -eq 124 ] || [ $EXIT_CODE -eq 137 ]; then
-            if grep -q '\[pipe\] Done in' /tmp/build-output.log && grep -q '0 failed' /tmp/build-output.log; then
-              echo "::warning::vtz ci completed but process did not exit cleanly"
-              exit 0
-            fi
-          fi
-
-          echo "::error::Build failed with exit code $EXIT_CODE"
-          exit 1
+        run: vtz ci build-typecheck --concurrency 2
 
       - name: Run tests with coverage
         env:
           DATABASE_TEST_URL: postgres://postgres:postgres@localhost:5432/vertz_test
         run: |
+          FAILED_PKGS=()
+
           run_coverage() {
             local pkg=$1
             echo "::group::Coverage — $pkg"
@@ -106,14 +92,18 @@ jobs:
             TEST_SCRIPT=$(node -e "console.log(require('./package.json').scripts?.test ?? '')")
 
             if echo "$TEST_SCRIPT" | grep -q "vtz test"; then
-              timeout --kill-after=10 120 vtz test --coverage || true
+              if ! vtz test --coverage; then
+                FAILED_PKGS+=("$pkg")
+              fi
             else
-              timeout --kill-after=10 120 vitest run \
+              if ! vitest run \
                 --coverage \
                 --coverage.reporter=json-summary \
                 --coverage.reporter=json \
                 --coverage.reporter=text \
-                --coverage.reportOnFailure || true
+                --coverage.reportOnFailure; then
+                FAILED_PKGS+=("$pkg")
+              fi
             fi
 
             cd "$GITHUB_WORKSPACE"
@@ -123,6 +113,11 @@ jobs:
           for pkg in core schema compiler codegen cli cli-runtime fetch testing db cloudflare errors server tui ui ui-canvas ui-primitives ui-server; do
             run_coverage "$pkg"
           done
+
+          if [ ${#FAILED_PKGS[@]} -gt 0 ]; then
+            echo "::error::Tests failed in ${#FAILED_PKGS[@]} package(s): ${FAILED_PKGS[*]}"
+            exit 1
+          fi
 
       - name: Verify coverage output
         run: |

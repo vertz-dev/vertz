@@ -91,7 +91,7 @@ export function generateAgentRoutes(
     routes.push({
       method: 'POST',
       path: routePath,
-      handler: async (ctx) => {
+      handler: async (ctx: Record<string, unknown>) => {
         try {
           // Build context for access evaluation
           const userId = (ctx.userId as string | null | undefined) ?? null;
