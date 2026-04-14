@@ -944,6 +944,9 @@ mod tests {
             "vt-name",
             "view-transition-name",
             "content",
+            "whitespace",
+            "text-overflow",
+            "overflow-wrap",
         ];
         for key in &keys {
             assert!(property_map(key).is_some(), "expected Some for '{}'", key);
@@ -1016,6 +1019,9 @@ mod tests {
             "scale-110",
             "scale-125",
             "scale-150",
+            "truncate",
+            "whitespace-pre",
+            "whitespace-pre-wrap",
         ];
         for key in &keys {
             assert!(keyword_map(key).is_some(), "expected Some for '{}'", key);
@@ -1704,5 +1710,191 @@ mod tests {
     #[test]
     fn multi_mode_unknown_property_returns_none() {
         assert!(resolve_multi_mode("bg", "primary").is_none());
+    }
+
+    // ── font_family_scale ────────────────────────────────────────
+
+    #[test]
+    fn font_family_mono() {
+        let result = font_family_scale("mono");
+        assert!(result.is_some(), "mono should resolve");
+        assert!(result.unwrap().contains("monospace"));
+    }
+
+    #[test]
+    fn font_family_sans() {
+        let result = font_family_scale("sans");
+        assert!(result.is_some(), "sans should resolve");
+        assert!(result.unwrap().contains("sans-serif"));
+    }
+
+    #[test]
+    fn font_family_serif() {
+        let result = font_family_scale("serif");
+        assert!(result.is_some(), "serif should resolve");
+        assert!(result.unwrap().contains("Georgia"));
+    }
+
+    #[test]
+    fn font_family_unknown_returns_none() {
+        assert!(font_family_scale("comic").is_none());
+    }
+
+    #[test]
+    fn multi_mode_font_mono_resolves_to_font_family() {
+        let result = resolve_multi_mode("font", "mono");
+        assert!(result.is_some(), "font:mono should resolve");
+        let (props, val) = result.unwrap();
+        assert_eq!(props, vec!["font-family"]);
+        assert!(val.contains("monospace"));
+    }
+
+    #[test]
+    fn multi_mode_font_sans_resolves_to_font_family() {
+        let result = resolve_multi_mode("font", "sans");
+        assert!(result.is_some(), "font:sans should resolve");
+        let (props, val) = result.unwrap();
+        assert_eq!(props, vec!["font-family"]);
+        assert!(val.contains("sans-serif"));
+    }
+
+    // ── is_raw_palette ───────────────────────────────────────────
+
+    #[test]
+    fn is_raw_palette_all_known() {
+        let palettes = [
+            "slate", "zinc", "neutral", "stone", "red", "orange", "amber", "yellow", "lime",
+            "green", "emerald", "teal", "cyan", "sky", "blue", "indigo", "violet", "purple",
+            "fuchsia", "pink", "rose",
+        ];
+        for p in &palettes {
+            assert!(is_raw_palette(p), "expected true for '{}'", p);
+        }
+    }
+
+    #[test]
+    fn is_raw_palette_false_for_gray() {
+        // gray is a semantic namespace, not a raw palette
+        assert!(!is_raw_palette("gray"));
+    }
+
+    #[test]
+    fn is_raw_palette_false_for_unknown() {
+        assert!(!is_raw_palette("chartreuse"));
+    }
+
+    // ── resolve_palette_shade ────────────────────────────────────
+
+    #[test]
+    fn resolve_palette_shade_green_100() {
+        let result = resolve_palette_shade("green", "100");
+        assert!(result.is_some(), "green.100 should resolve");
+        assert!(result.unwrap().starts_with("oklch("));
+    }
+
+    #[test]
+    fn resolve_palette_shade_red_700() {
+        let result = resolve_palette_shade("red", "700");
+        assert!(result.is_some(), "red.700 should resolve");
+        assert!(result.unwrap().starts_with("oklch("));
+    }
+
+    #[test]
+    fn resolve_palette_shade_invalid_shade() {
+        assert!(resolve_palette_shade("green", "42").is_none());
+    }
+
+    #[test]
+    fn resolve_palette_shade_invalid_palette() {
+        assert!(resolve_palette_shade("chartreuse", "100").is_none());
+    }
+
+    #[test]
+    fn resolve_palette_shade_all_shades() {
+        let shades = [
+            "50", "100", "200", "300", "400", "500", "600", "700", "800", "900", "950",
+        ];
+        for shade in &shades {
+            assert!(
+                resolve_palette_shade("blue", shade).is_some(),
+                "blue.{} should resolve",
+                shade
+            );
+        }
+    }
+
+    // ── resolve_color with palettes ──────────────────────────────
+
+    #[test]
+    fn resolve_color_palette_green_100() {
+        let result = resolve_color("green.100");
+        assert!(result.is_some(), "green.100 should resolve via palette");
+        let val = result.unwrap();
+        assert!(val.starts_with("oklch("), "expected oklch value: {}", val);
+    }
+
+    #[test]
+    fn resolve_color_gray_semantic_precedence() {
+        // gray is in COLOR_NAMESPACES, so it should resolve to var() not oklch
+        let result = resolve_color("gray.500");
+        assert!(result.is_some());
+        let val = result.unwrap();
+        assert_eq!(val, "var(--color-gray-500)");
+    }
+
+    #[test]
+    fn resolve_color_palette_with_opacity() {
+        let result = resolve_color("green.100/50");
+        assert!(result.is_some());
+        let val = result.unwrap();
+        assert!(val.contains("color-mix"), "expected color-mix: {}", val);
+        assert!(val.contains("oklch("), "expected oklch base: {}", val);
+        assert!(val.contains("50%"), "expected 50%: {}", val);
+    }
+
+    // ── keyword_map spot checks for new keywords ─────────────────
+
+    #[test]
+    fn keyword_truncate_maps_to_three_declarations() {
+        let decls = keyword_map("truncate").unwrap();
+        assert_eq!(decls.len(), 3);
+        assert!(decls.contains(&("overflow", "hidden")));
+        assert!(decls.contains(&("white-space", "nowrap")));
+        assert!(decls.contains(&("text-overflow", "ellipsis")));
+    }
+
+    #[test]
+    fn keyword_whitespace_pre() {
+        let decls = keyword_map("whitespace-pre").unwrap();
+        assert_eq!(decls, &[("white-space", "pre")]);
+    }
+
+    #[test]
+    fn keyword_whitespace_pre_wrap() {
+        let decls = keyword_map("whitespace-pre-wrap").unwrap();
+        assert_eq!(decls, &[("white-space", "pre-wrap")]);
+    }
+
+    // ── property_map spot checks for new properties ──────────────
+
+    #[test]
+    fn property_map_whitespace() {
+        let (props, vtype) = property_map("whitespace").unwrap();
+        assert_eq!(props, &["white-space"]);
+        assert_eq!(vtype, "raw");
+    }
+
+    #[test]
+    fn property_map_text_overflow() {
+        let (props, vtype) = property_map("text-overflow").unwrap();
+        assert_eq!(props, &["text-overflow"]);
+        assert_eq!(vtype, "raw");
+    }
+
+    #[test]
+    fn property_map_overflow_wrap() {
+        let (props, vtype) = property_map("overflow-wrap").unwrap();
+        assert_eq!(props, &["overflow-wrap"]);
+        assert_eq!(vtype, "raw");
     }
 }
