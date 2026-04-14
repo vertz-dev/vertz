@@ -7,7 +7,6 @@ import { env } from './env';
 const app = createServer({
   basePath: '/api',
   entities: [todos],
-  // @ts-expect-error service() returns narrowly-typed ServiceDefinition with injected entities; variance prevents direct widening
   services: [webhooks],
   db,
 });

@@ -59,7 +59,6 @@ function createInMemoryDb(): EntityDbAdapter {
 function createTestApp(db: EntityDbAdapter) {
   return createServer({
     entities: [todos],
-    // @ts-expect-error service() returns narrowly-typed ServiceDefinition with injected entities; variance prevents direct widening
     services: [webhooks],
     db,
   });
