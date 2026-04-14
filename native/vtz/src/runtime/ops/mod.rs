@@ -1,4 +1,5 @@
 pub mod async_context;
+pub mod bun_compat;
 pub mod clone;
 pub mod console;
 pub mod crypto;

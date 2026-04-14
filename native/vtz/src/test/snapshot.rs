@@ -341,4 +341,63 @@ mod tests {
             .unwrap();
         assert_eq!(result, serde_json::json!(true));
     }
+
+    #[test]
+    fn test_new_for_test_has_bun_global() {
+        let mut rt = VertzJsRuntime::new_for_test(VertzRuntimeOptions {
+            capture_output: true,
+            ..Default::default()
+        })
+        .unwrap();
+
+        let result = rt
+            .execute_script(
+                "<test>",
+                r#"
+                JSON.stringify({
+                    hasBun: typeof globalThis.Bun !== 'undefined',
+                    hasFile: typeof Bun.file === 'function',
+                    hasWrite: typeof Bun.write === 'function',
+                    hasServe: typeof Bun.serve === 'function',
+                    hasSleep: typeof Bun.sleep === 'function',
+                    hasEnv: typeof Bun.env === 'object',
+                    hasVersion: typeof Bun.version === 'string',
+                })
+                "#,
+            )
+            .unwrap();
+
+        let parsed: serde_json::Value = serde_json::from_str(result.as_str().unwrap()).unwrap();
+        assert_eq!(parsed["hasBun"], true);
+        assert_eq!(parsed["hasFile"], true);
+        assert_eq!(parsed["hasWrite"], true);
+        assert_eq!(parsed["hasServe"], true);
+        assert_eq!(parsed["hasSleep"], true);
+        assert_eq!(parsed["hasEnv"], true);
+        assert_eq!(parsed["hasVersion"], true);
+    }
+
+    #[test]
+    fn test_bun_build_throws_clear_error() {
+        let mut rt = VertzJsRuntime::new_for_test(VertzRuntimeOptions {
+            capture_output: true,
+            ..Default::default()
+        })
+        .unwrap();
+
+        let result = rt
+            .execute_script(
+                "<test>",
+                r#"
+                try {
+                    Bun.build({});
+                    'no-error'
+                } catch (e) {
+                    e.message.includes('not available') ? 'correct-error' : e.message
+                }
+                "#,
+            )
+            .unwrap();
+        assert_eq!(result, serde_json::json!("correct-error"));
+    }
 }
