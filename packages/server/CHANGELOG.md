@@ -1,5 +1,17 @@
 # @vertz/server
 
+## 0.2.61
+
+### Patch Changes
+
+- [#2590](https://github.com/vertz-dev/vertz/pull/2590) [`6889e4d`](https://github.com/vertz-dev/vertz/commit/6889e4df58deca0e2cb44067bc5d070eba9e431b) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - fix(server,testing): align .test-d.ts type tests with current API surface
+
+- Updated dependencies []:
+  - @vertz/db@0.2.61
+  - @vertz/core@0.2.61
+  - @vertz/errors@0.2.61
+  - @vertz/schema@0.2.61
+
 ## 0.2.60
 
 ### Patch Changes

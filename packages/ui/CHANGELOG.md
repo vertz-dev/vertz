@@ -1,5 +1,14 @@
 # @vertz/ui
 
+## 0.2.61
+
+### Patch Changes
+
+- [#2613](https://github.com/vertz-dev/vertz/pull/2613) [`7e2cbb5`](https://github.com/vertz-dev/vertz/commit/7e2cbb5fb742ce8bd0f5fac7c2e46a2e43b0b8ef) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - Fix composed component test failures: use style.cssText instead of setAttribute for style bindings in compiler and runtime, add missing DOM shim classes (HTMLHeadingElement, HTMLParagraphElement, PointerEvent), fix style/StyleMap sync, and fix HTMLSelectElement.selectedIndex
+
+- Updated dependencies []:
+  - @vertz/fetch@0.2.61
+
 ## 0.2.60
 
 ### Patch Changes

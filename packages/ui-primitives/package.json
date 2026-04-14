@@ -1,6 +1,6 @@
 {
   "name": "@vertz/ui-primitives",
-  "version": "0.2.60",
+  "version": "0.2.61",
   "description": "Headless UI primitives for Vertz — Accordion, Dialog, Select, and more",
   "license": "MIT",
   "repository": {
