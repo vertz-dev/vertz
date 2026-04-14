@@ -13,6 +13,7 @@ import {
 import { __on } from '../dom/events';
 import { __list } from '../dom/list';
 import { SVG_NS } from '../dom/svg-tags';
+import { endHydration, startHydration } from '../hydrate/hydration-context';
 import { mount } from '../mount';
 import { signal } from '../runtime/signal';
 
@@ -448,7 +449,6 @@ describe('tolerant hydration e2e', () => {
     container.innerHTML = '<span>existing</span>';
     root.appendChild(container);
 
-    const { startHydration, endHydration } = require('../hydrate/hydration-context');
     startHydration(container);
 
     const show = signal(true);

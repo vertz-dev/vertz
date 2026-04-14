@@ -28,6 +28,7 @@ pub const TEST_DOM_SHIM_JS: &str = r#"
   // --- Constants ---
   const ELEMENT_NODE = 1;
   const TEXT_NODE = 3;
+  const PROCESSING_INSTRUCTION_NODE = 7;
   const COMMENT_NODE = 8;
   const DOCUMENT_NODE = 9;
   const DOCUMENT_FRAGMENT_NODE = 11;
@@ -389,6 +390,19 @@ pub const TEST_DOM_SHIM_JS: &str = r#"
 
       event.eventPhase = 0;
       event.currentTarget = null;
+
+      // Implicit form submission: after a non-prevented click on a submit button,
+      // dispatch a 'submit' event on the containing form (matches browser behavior).
+      if (event.type === 'click' && !event.defaultPrevented && this.tagName === 'BUTTON') {
+        const btnType = (this.getAttribute('type') || 'submit').toLowerCase();
+        if (btnType === 'submit') {
+          const form = this.closest('form');
+          if (form) {
+            form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+          }
+        }
+      }
+
       return !event.defaultPrevented;
     }
   }
@@ -578,6 +592,7 @@ pub const TEST_DOM_SHIM_JS: &str = r#"
   // Static constants on Node
   Node.ELEMENT_NODE = ELEMENT_NODE;
   Node.TEXT_NODE = TEXT_NODE;
+  Node.PROCESSING_INSTRUCTION_NODE = PROCESSING_INSTRUCTION_NODE;
   Node.COMMENT_NODE = COMMENT_NODE;
   Node.DOCUMENT_NODE = DOCUMENT_NODE;
   Node.DOCUMENT_FRAGMENT_NODE = DOCUMENT_FRAGMENT_NODE;
@@ -614,6 +629,20 @@ pub const TEST_DOM_SHIM_JS: &str = r#"
     set textContent(v) { this.data = v != null ? String(v) : ''; }
 
     cloneNode() { return new Comment(this.data); }
+  }
+
+  // --- ProcessingInstruction ---
+  class ProcessingInstruction extends Node {
+    constructor(target, data) {
+      super(PROCESSING_INSTRUCTION_NODE, target);
+      this.target = target;
+      this.data = data != null ? String(data) : '';
+    }
+    get nodeValue() { return this.data; }
+    set nodeValue(v) { this.data = v != null ? String(v) : ''; }
+    get textContent() { return this.data; }
+    set textContent(v) { this.data = v != null ? String(v) : ''; }
+    cloneNode() { return new ProcessingInstruction(this.target, this.data); }
   }
 
   // --- DocumentFragment ---
@@ -678,6 +707,22 @@ pub const TEST_DOM_SHIM_JS: &str = r#"
       // Sync dataset when data-* attributes change
       if (name.startsWith('data-')) {
         this._datasetMap._syncFromAttributes();
+      }
+      // Sync style map when style attribute changes
+      if (name === 'style') {
+        this._styleMap._styles.clear();
+        if (value) {
+          String(value).split(';').forEach(decl => {
+            const colonIdx = decl.indexOf(':');
+            if (colonIdx > 0) {
+              const prop = decl.slice(0, colonIdx).trim();
+              const val = decl.slice(colonIdx + 1).trim();
+              if (prop && val) {
+                this._styleMap._styles.set(kebabToCamel(prop), val);
+              }
+            }
+          });
+        }
       }
     }
 
@@ -823,8 +868,8 @@ pub const TEST_DOM_SHIM_JS: &str = r#"
 
     // --- Interaction stubs ---
     click() {
-      const ev = new MouseEvent('click', { bubbles: true, cancelable: true });
-      this.dispatchEvent(ev);
+      // Implicit form submission is handled in dispatchEvent() after event dispatch.
+      this.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
     }
     focus() {
       if (_document) _document.activeElement = this;
@@ -1592,9 +1637,19 @@ pub const TEST_DOM_SHIM_JS: &str = r#"
   }
 
   // --- innerHTML stack-based parser ---
+  // Determine namespace for an element during innerHTML parsing:
+  // 'svg' tags enter SVG namespace; children of SVG elements inherit it.
+  function _nsForParsedTag(tagName, parentNs) {
+    const lower = tagName.toLowerCase();
+    if (lower === 'svg') return SVG_NS;
+    if (parentNs === SVG_NS) return SVG_NS;
+    return undefined; // default HTML namespace
+  }
+
   function parseHTMLInto(parent, html) {
     const len = html.length;
     let i = 0;
+    const parentNs = parent.namespaceURI;
 
     while (i < len) {
       if (html[i] === '<') {
@@ -1630,7 +1685,8 @@ pub const TEST_DOM_SHIM_JS: &str = r#"
 
         if (!tagName) { i = tagEnd + 1; continue; }
 
-        const el = _createElement(tagName);
+        const ns = _nsForParsedTag(tagName, parentNs);
+        const el = _createElement(tagName, ns);
         parseAttributes(el, attrStr);
         parent.appendChild(el);
 
@@ -1671,6 +1727,7 @@ pub const TEST_DOM_SHIM_JS: &str = r#"
   function parseChildren(parent, html, start) {
     const len = html.length;
     let i = start;
+    const parentNs = parent.namespaceURI;
 
     while (i < len) {
       if (html[i] === '<') {
@@ -1707,7 +1764,8 @@ pub const TEST_DOM_SHIM_JS: &str = r#"
 
         if (!tagName) { i = tagEnd + 1; continue; }
 
-        const el = _createElement(tagName);
+        const ns = _nsForParsedTag(tagName, parentNs);
+        const el = _createElement(tagName, ns);
         parseAttributes(el, attrStr);
         parent.appendChild(el);
 
@@ -1912,6 +1970,7 @@ pub const TEST_DOM_SHIM_JS: &str = r#"
     createElement(tagName) { return _createElement(tagName); }
     createTextNode(text) { return new Text(text); }
     createComment(data) { return new Comment(data || ''); }
+    createProcessingInstruction(target, data) { return new ProcessingInstruction(target, data); }
     createDocumentFragment() { return new DocumentFragment(); }
     createElementNS(ns, tagName) { return _createElement(tagName, ns); }
 
@@ -2154,7 +2213,7 @@ pub const TEST_DOM_SHIM_JS: &str = r#"
     HTMLAnchorElement, HTMLImageElement, HTMLDialogElement,
     HTMLLabelElement, HTMLTemplateElement, HTMLStyleElement,
     HTMLHeadElement, HTMLBodyElement, HTMLHtmlElement,
-    Text, Comment, DocumentFragment,
+    Text, Comment, ProcessingInstruction, DocumentFragment,
     Document, NodeFilter, TreeWalker,
     Blob, File, FormData, CSSStyleSheet,
     MutationObserver, ResizeObserver, IntersectionObserver,

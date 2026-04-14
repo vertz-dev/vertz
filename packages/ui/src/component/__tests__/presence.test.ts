@@ -1,4 +1,5 @@
 import { describe, expect, it } from '@vertz/test';
+import { __conditional } from '../../dom/conditional';
 import { onCleanup } from '../../runtime/disposal';
 import { domEffect, signal } from '../../runtime/signal';
 import { Presence } from '../presence';
@@ -548,8 +549,6 @@ describe('Presence', () => {
   });
 
   it('nested __conditional inside Presence children is disposed on exit', () => {
-    const { __conditional } = require('../../dom/conditional');
-
     const show = signal(true);
     const innerShow = signal(true);
     const counter = signal(0);
