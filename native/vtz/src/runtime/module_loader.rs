@@ -1343,6 +1343,24 @@ fn is_valid_js_ident(s: &str) -> bool {
     chars.all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '$')
 }
 
+/// Replace `import.meta.dirname` and `import.meta.dir` with an expression
+/// that derives the directory path from `import.meta.url`.
+///
+/// Node.js 21.2+ provides `import.meta.dirname` and Bun provides
+/// `import.meta.dir`.  deno_core only sets `import.meta.url`, so we polyfill
+/// the missing properties at compile/load time.
+fn polyfill_import_meta_dirname(code: &str) -> String {
+    if !code.contains("import.meta.dir") {
+        return code.to_string();
+    }
+    let re = regex::Regex::new(r"import\.meta\.dir(name)?\b").unwrap();
+    re.replace_all(
+        code,
+        r#"new URL(".",import.meta.url).pathname.replace(/\/$/,"")"#,
+    )
+    .to_string()
+}
+
 /// Wrap CommonJS source code into an ESM module.
 ///
 /// The wrapper provides `module`, `exports`, `require`, `__filename`, `__dirname`
@@ -1801,7 +1819,12 @@ pub const CJS_BOOTSTRAP_JS: &str = r#"
         return { isMainThread: true, parentPort: null, workerData: null, Worker: class {} };
       }
       case 'perf_hooks': {
-        return { performance: globalThis.performance || { now: () => Date.now(), mark: () => {}, measure: () => {} } };
+        const _perf = globalThis.performance || { now: () => Date.now(), mark: () => {}, measure: () => {}, getEntriesByType: () => [], getEntriesByName: () => [], clearMarks: () => {}, clearMeasures: () => {} };
+        class _PerformanceEntry { constructor(name, entryType, startTime, duration) { this.name = name || ''; this.entryType = entryType || ''; this.startTime = startTime || 0; this.duration = duration || 0; } toJSON() { return { name: this.name, entryType: this.entryType, startTime: this.startTime, duration: this.duration }; } }
+        class _PerformanceObserverEntryList { getEntries() { return []; } getEntriesByType() { return []; } getEntriesByName() { return []; } }
+        class _PerformanceObserver { constructor(cb) { this._cb = cb; } observe() {} disconnect() {} takeRecords() { return []; } }
+        _PerformanceObserver.supportedEntryTypes = ['mark', 'measure'];
+        return { performance: _perf, PerformanceEntry: _PerformanceEntry, PerformanceObserver: _PerformanceObserver, PerformanceObserverEntryList: _PerformanceObserverEntryList, monitorEventLoopDelay: () => ({ enable: () => {}, disable: () => {}, min: 0, max: 0, mean: 0, stddev: 0, percentile: () => 0 }) };
       }
       case 'v8': {
         return { serialize: () => new Uint8Array(0), deserialize: () => undefined };
@@ -3514,14 +3537,20 @@ impl ModuleLoader for VertzModuleLoader {
             let (code, module_type) = match ext {
                 "ts" | "tsx" | "jsx" => {
                     let compiled = self.compile_source(&source, &filename)?;
-                    (compiled, ModuleType::JavaScript)
+                    (
+                        polyfill_import_meta_dirname(&compiled),
+                        ModuleType::JavaScript,
+                    )
                 }
                 "json" => (source, ModuleType::Json),
                 _ => {
                     if is_cjs {
                         (wrap_cjs_module(&source, &path), ModuleType::JavaScript)
                     } else {
-                        (source, ModuleType::JavaScript)
+                        (
+                            polyfill_import_meta_dirname(&source),
+                            ModuleType::JavaScript,
+                        )
                     }
                 }
             };
@@ -5268,6 +5297,48 @@ Object.defineProperty(exports, "ModuleKind", {
             main_fn_body.contains("startsWith('/')"),
             "_isSafeMainField should reject absolute paths. Body: {}",
             main_fn_body
+        );
+    }
+
+    #[test]
+    fn polyfill_import_meta_dirname_replaces() {
+        let code = r#"const dir = import.meta.dirname;"#;
+        let result = polyfill_import_meta_dirname(code);
+        assert!(
+            !result.contains("import.meta.dirname"),
+            "import.meta.dirname should be replaced"
+        );
+        assert!(
+            result.contains("import.meta.url"),
+            "replacement should derive from import.meta.url"
+        );
+    }
+
+    #[test]
+    fn polyfill_import_meta_dir_replaces() {
+        let code = r#"const dir = import.meta.dir;"#;
+        let result = polyfill_import_meta_dirname(code);
+        assert!(
+            !result.contains("import.meta.dir;"),
+            "import.meta.dir should be replaced"
+        );
+        assert!(result.contains("import.meta.url"));
+    }
+
+    #[test]
+    fn polyfill_import_meta_dir_does_not_match_partial() {
+        let code = r#"const x = import.meta.directory;"#;
+        let result = polyfill_import_meta_dirname(code);
+        assert_eq!(result, code, "import.meta.directory should NOT be replaced");
+    }
+
+    #[test]
+    fn polyfill_no_op_when_absent() {
+        let code = r#"const x = import.meta.url;"#;
+        let result = polyfill_import_meta_dirname(code);
+        assert_eq!(
+            result, code,
+            "should not modify code without import.meta.dir"
         );
     }
 }
