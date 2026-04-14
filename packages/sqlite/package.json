@@ -27,6 +27,7 @@
   },
   "scripts": {
     "build": "vtzx vertz-build",
+    "test": "vtz test",
     "typecheck": "tsgo --noEmit -p tsconfig.typecheck.json"
   },
   "devDependencies": {
