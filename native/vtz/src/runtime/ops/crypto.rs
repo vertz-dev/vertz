@@ -594,6 +594,29 @@ mod tests {
     }
 
     #[test]
+    fn test_generate_keypair_via_js_ec_p384() {
+        let mut rt = VertzJsRuntime::new(VertzRuntimeOptions::default()).unwrap();
+        let result = rt
+            .execute_script(
+                "<test>",
+                r#"
+                const result = Deno.core.ops.op_crypto_generate_keypair({
+                    type: "ec",
+                    namedCurve: "P-384",
+                });
+                [
+                    result.publicKey.includes("BEGIN PUBLIC KEY"),
+                    result.privateKey.includes("BEGIN PRIVATE KEY"),
+                ]
+                "#,
+            )
+            .unwrap();
+        let arr = result.as_array().unwrap();
+        assert!(arr[0].as_bool().unwrap(), "Public key should be PEM");
+        assert!(arr[1].as_bool().unwrap(), "Private key should be PEM");
+    }
+
+    #[test]
     fn test_generate_keypair_via_js_unsupported_type() {
         let mut rt = VertzJsRuntime::new(VertzRuntimeOptions::default()).unwrap();
         let result = rt.execute_script(
