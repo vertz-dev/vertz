@@ -2224,11 +2224,14 @@ fn resolve_exports_entry(exports: &serde_json::Value, key: &str) -> Option<Strin
 }
 
 /// Resolve a condition value to a string path.
+/// Used by the ESM module loader. CJS uses `_resolveCjsCondition` (embedded JS)
+/// with priority: require > node > default.
 fn resolve_condition_value(value: &serde_json::Value) -> Option<String> {
     match value {
         serde_json::Value::String(s) => Some(s.clone()),
         serde_json::Value::Object(map) => {
-            // Priority: import > node > module > default > require
+            // ESM priority: import > node > module > default > require
+            // Must stay in sync with deps/resolve.rs::resolve_condition_value
             for key in &["import", "node", "module", "default", "require"] {
                 if let Some(entry) = map.get(*key) {
                     return resolve_condition_value(entry);
