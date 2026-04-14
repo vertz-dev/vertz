@@ -399,6 +399,7 @@ pub const WEB_API_BOOTSTRAP_JS: &str = r#"
     #headers;
     #body;
     #signal;
+    #credentials;
 
     constructor(input, init = {}) {
       if (input instanceof Request) {
@@ -410,12 +411,14 @@ pub const WEB_API_BOOTSTRAP_JS: &str = r#"
           ? createBodyMixin(init.body)
           : (input.bodyUsed ? createBodyMixin(null) : input.#body.clone());
         this.#signal = init.signal || input.signal || null;
+        this.#credentials = init.credentials || input.credentials || 'same-origin';
       } else {
         this.#url = String(input);
         this.#method = (init.method || 'GET').toUpperCase();
         this.#headers = new Headers(init.headers);
         this.#body = createBodyMixin(init.body !== undefined ? init.body : null);
         this.#signal = init.signal || null;
+        this.#credentials = init.credentials || 'same-origin';
       }
     }
 
@@ -425,6 +428,7 @@ pub const WEB_API_BOOTSTRAP_JS: &str = r#"
     get body() { return this.#body.body; }
     get bodyUsed() { return this.#body.bodyUsed; }
     get signal() { return this.#signal; }
+    get credentials() { return this.#credentials; }
 
     async text() { return this.#body.text(); }
     async json() { return this.#body.json(); }
@@ -436,6 +440,7 @@ pub const WEB_API_BOOTSTRAP_JS: &str = r#"
         headers: new Headers(this.#headers),
         body: this.#body.clone(),
         signal: this.#signal,
+        credentials: this.#credentials,
       });
     }
   }
