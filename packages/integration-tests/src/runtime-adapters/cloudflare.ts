@@ -2,14 +2,6 @@ import { createHandler } from '@vertz/cloudflare';
 import type { AppBuilder } from '@vertz/core';
 import type { RuntimeAdapter } from './types';
 
-declare const __vtz_http: {
-  serve(
-    port: number,
-    hostname: string,
-    handler: (req: Request) => Promise<Response>,
-  ): Promise<{ id: number; port: number; hostname: string; close(): void }>;
-};
-
 interface WorkerExecutionContext {
   waitUntil(promise: Promise<unknown>): void;
   passThroughOnException(): void;

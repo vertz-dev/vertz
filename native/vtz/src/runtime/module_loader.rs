@@ -1695,14 +1695,14 @@ pub const CJS_BOOTSTRAP_JS: &str = r#"
                   promise: null,
                   setHeader(n, v) { this._headers[n.toLowerCase()] = v; return this; },
                   getHeader(n) { return this._headers[n.toLowerCase()]; },
-                  writeHead(s, h) { this.statusCode = s; if (h) Object.entries(h).forEach(([k,v]) => this.setHeader(k,v)); return this; },
+                  writeHead(s, h) { this.statusCode = s; this.headersSent = true; if (h) Object.entries(h).forEach(([k,v]) => this.setHeader(k,v)); return this; },
                   write(chunk) { this._chunks.push(typeof chunk === 'string' ? new TextEncoder().encode(chunk) : chunk instanceof Uint8Array ? chunk : new TextEncoder().encode(String(chunk))); return true; },
                   end(data) { if (data != null) this.write(data); let len = 0; for (const c of this._chunks) len += c.length; const body = new Uint8Array(len); let off = 0; for (const c of this._chunks) { body.set(c, off); off += c.length; } this._resolve(new Response(body, { status: this.statusCode, headers: this._headers })); },
                 };
                 res.promise = new Promise((resolve) => { res._resolve = resolve; });
                 handler(msg, res);
                 return res.promise;
-              }).then((s) => { _server = s; _port = s.port; _hostname = s.hostname; if (cb) cb(); });
+              }).then((s) => { _server = s; _port = s.port; _hostname = s.hostname; if (cb) cb(); }).catch((err) => { if (cb) cb(err); else throw err; });
               return this;
             },
             close(cb) { if (_server) _server.close(); if (cb) cb(); },
@@ -3090,6 +3090,9 @@ function createServer(handler) {
         _port = s.port;
         _hostname = s.hostname;
         if (cb) cb();
+      }).catch((err) => {
+        if (cb) cb(err);
+        else throw err;
       });
       return this;
     },
