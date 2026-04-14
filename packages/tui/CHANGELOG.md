@@ -1,5 +1,12 @@
 # @vertz/tui
 
+## 0.2.64
+
+### Patch Changes
+
+- Updated dependencies [[`840ace1`](https://github.com/vertz-dev/vertz/commit/840ace1f1c4a203e572394f322ee9b5c428537fa)]:
+  - @vertz/ui@0.2.64
+
 ## 0.2.63
 
 ### Patch Changes
