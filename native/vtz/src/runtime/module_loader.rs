@@ -1800,11 +1800,14 @@ pub const CJS_BOOTSTRAP_JS: &str = r#"
         return { serialize: () => new Uint8Array(0), deserialize: () => undefined };
       }
       case 'vm': {
+        const _vmContexts = new WeakSet();
+        function _vmCreateContext(sandbox) { const ctx = sandbox || {}; _vmContexts.add(ctx); return ctx; }
         return {
-          createContext: (sandbox) => sandbox || {},
+          createContext: _vmCreateContext,
+          isContext: (obj) => typeof obj === 'object' && obj !== null && _vmContexts.has(obj),
           runInContext: (code, context) => { return new Function('with(this){return eval(arguments[0])}').call(context, code); },
-          runInNewContext: (code, sandbox) => { return new Function('with(this){return eval(arguments[0])}').call(sandbox || {}, code); },
-          Script: class { constructor(code) { this._code = code; } runInContext(ctx) { return new Function('with(this){return eval(arguments[0])}').call(ctx, this._code); } },
+          runInNewContext: (code, sandbox) => { const ctx = _vmCreateContext(sandbox || {}); return new Function('with(this){return eval(arguments[0])}').call(ctx, code); },
+          Script: class { constructor(code, _options) { this._code = code; } runInContext(ctx) { return new Function('with(this){return eval(arguments[0])}').call(ctx, this._code); } runInNewContext(sandbox) { const ctx = _vmCreateContext(sandbox || {}); return this.runInContext(ctx); } },
         };
       }
       case 'constants': {
@@ -3142,6 +3145,47 @@ export function stop() {}
 export default { transformSync, transform, build, initialize, stop };
 "#;
 
+/// Synthetic module for `node:vm`.
+/// Provides createContext, runInContext, runInNewContext, isContext, and Script
+/// for happy-dom and other libraries that depend on `vm` for sandboxed eval.
+const NODE_VM_SPECIFIER: &str = "vertz:node_vm";
+const NODE_VM_MODULE: &str = r#"
+const _contexts = new WeakSet();
+
+export function createContext(sandbox) {
+  const ctx = sandbox || {};
+  _contexts.add(ctx);
+  return ctx;
+}
+
+export function isContext(obj) {
+  if (typeof obj !== 'object' || obj === null) return false;
+  return _contexts.has(obj);
+}
+
+export function runInContext(code, context) {
+  return new Function('with(this){return eval(arguments[0])}').call(context, code);
+}
+
+export function runInNewContext(code, sandbox) {
+  const ctx = createContext(sandbox || {});
+  return runInContext(code, ctx);
+}
+
+export class Script {
+  constructor(code, _options) { this._code = code; }
+  runInContext(ctx) {
+    return new Function('with(this){return eval(arguments[0])}').call(ctx, this._code);
+  }
+  runInNewContext(sandbox) {
+    const ctx = createContext(sandbox || {});
+    return this.runInContext(ctx);
+  }
+}
+
+export default { createContext, isContext, runInContext, runInNewContext, Script };
+"#;
+
 /// Map a `node:*` specifier to a synthetic module specifier.
 fn node_specifier_to_synthetic(specifier: &str) -> Option<&'static str> {
     match specifier {
@@ -3164,6 +3208,7 @@ fn node_specifier_to_synthetic(specifier: &str) -> Option<&'static str> {
         "stream" | "node:stream" | "stream/web" | "node:stream/web" => {
             Some(NODE_STREAM_WEB_SPECIFIER)
         }
+        "node:vm" | "vm" => Some(NODE_VM_SPECIFIER),
         _ => None,
     }
 }
@@ -3190,6 +3235,7 @@ fn synthetic_module_source(specifier: &str) -> Option<&'static str> {
         NODE_READLINE_SPECIFIER => Some(NODE_READLINE_MODULE),
         NODE_ZLIB_SPECIFIER => Some(NODE_ZLIB_MODULE),
         NODE_STREAM_WEB_SPECIFIER => Some(NODE_STREAM_WEB_MODULE),
+        NODE_VM_SPECIFIER => Some(NODE_VM_MODULE),
         VERTZ_SQLITE_SPECIFIER => Some(VERTZ_SQLITE_MODULE),
         ESBUILD_SPECIFIER => Some(ESBUILD_MODULE),
         _ => None,
@@ -5014,5 +5060,66 @@ Object.defineProperty(exports, "ModuleKind", {
             "Source should be wrapped in IIFE"
         );
         assert!(wrapped.contains("})();"), "IIFE should be closed");
+    }
+
+    // --- node:vm synthetic module (#2605) ---
+
+    #[test]
+    fn test_resolve_node_vm() {
+        let tmp = create_temp_dir();
+        let main_file = tmp.path().join("main.js");
+        std::fs::write(&main_file, "").unwrap();
+
+        let loader = VertzModuleLoader::new(&tmp.path().to_string_lossy(), test_plugin());
+        let referrer = ModuleSpecifier::from_file_path(&main_file).unwrap();
+        let result = loader.resolve("node:vm", referrer.as_str(), ResolutionKind::Import);
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap().as_str(), NODE_VM_SPECIFIER);
+    }
+
+    #[test]
+    fn test_resolve_bare_vm() {
+        let tmp = create_temp_dir();
+        let main_file = tmp.path().join("main.js");
+        std::fs::write(&main_file, "").unwrap();
+
+        let loader = VertzModuleLoader::new(&tmp.path().to_string_lossy(), test_plugin());
+        let referrer = ModuleSpecifier::from_file_path(&main_file).unwrap();
+        let result = loader.resolve("vm", referrer.as_str(), ResolutionKind::Import);
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap().as_str(), NODE_VM_SPECIFIER);
+    }
+
+    #[test]
+    fn test_load_node_vm_module() {
+        let tmp = create_temp_dir();
+        let loader = VertzModuleLoader::new(&tmp.path().to_string_lossy(), test_plugin());
+        let specifier = ModuleSpecifier::parse(NODE_VM_SPECIFIER).unwrap();
+        let response = loader.load(&specifier, None, false, RequestedModuleType::None);
+
+        match response {
+            ModuleLoadResponse::Sync(Ok(source)) => match &source.code {
+                deno_core::ModuleSourceCode::String(code) => {
+                    let code_str = code.as_str();
+                    assert!(
+                        code_str.contains("createContext"),
+                        "Should export createContext"
+                    );
+                    assert!(
+                        code_str.contains("runInContext"),
+                        "Should export runInContext"
+                    );
+                    assert!(code_str.contains("isContext"), "Should export isContext");
+                    assert!(code_str.contains("Script"), "Should export Script class");
+                    assert!(
+                        code_str.contains("export default"),
+                        "Should have default export"
+                    );
+                }
+                _ => panic!("Expected string source code"),
+            },
+            ModuleLoadResponse::Sync(Err(e)) => panic!("Module load failed: {}", e),
+            _ => panic!("Expected synchronous module load"),
+        }
     }
 }
