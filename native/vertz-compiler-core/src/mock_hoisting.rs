@@ -5,7 +5,7 @@
 //! to `const` destructuring from the mock factory result. Hoists mock registrations
 //! and `vi.hoisted()` calls above all other code.
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 use oxc_ast::ast::*;
 use oxc_ast_visit::{walk, Visit};
@@ -145,13 +145,27 @@ pub fn transform_mock_hoisting(
 
     // ── Step 3: Deduplicate — last mock for each specifier wins ──────────
     // Build a map: specifier → last mock index
-    let mut specifier_to_index: std::collections::HashMap<String, usize> =
-        std::collections::HashMap::new();
+    let mut specifier_to_index: HashMap<String, usize> = HashMap::new();
     for (i, mock_call) in mock_calls.iter().enumerate() {
         specifier_to_index.insert(mock_call.specifier.clone(), i);
     }
 
-    // ── Step 5: Find imports matching mocked specifiers ───��──────────────
+    // ── Step 4: Auto-hoist variables referenced in mock factories ───────
+    let top_level_vars = collect_top_level_vars(program, source);
+    let mut all_factory_refs: HashSet<String> = HashSet::new();
+    for stmt in &program.body {
+        let call = match top_level_call_expr(stmt) {
+            Some(c) if is_mock_call(c) => c,
+            _ => continue,
+        };
+        if let Some(factory_arg) = call.arguments.get(1) {
+            let refs = collect_ident_references_from_arg(factory_arg);
+            all_factory_refs.extend(refs);
+        }
+    }
+    let auto_hoist_indices = resolve_auto_hoist_set(&all_factory_refs, &top_level_vars);
+
+    // ── Step 5: Find imports matching mocked specifiers ─────────────────
     let mut mocked_imports: Vec<MockedImportInfo> = Vec::new();
     let mut imported_specifiers: HashSet<String> = HashSet::new();
 
@@ -232,6 +246,20 @@ pub fn transform_mock_hoisting(
         }
     }
 
+    // Auto-hoisted variables — declared before mock factories so factories can reference them.
+    // Stored on globalThis to survive script→module boundary, then aliased with `var`.
+    for (seq, &idx) in auto_hoist_indices.iter().enumerate() {
+        let var = &top_level_vars[idx];
+        prepend_block.push_str(&format!(
+            "globalThis.__vertz_mock_var_{seq} = {};\n",
+            var.init_source
+        ));
+        prepend_block.push_str(&format!(
+            "var {} = globalThis.__vertz_mock_var_{seq};\n",
+            var.name
+        ));
+    }
+
     // Mock factory IIFEs
     for (i, mock_call) in mock_calls.iter().enumerate() {
         // Only generate for the winning mock (last one for each specifier)
@@ -283,6 +311,17 @@ pub fn transform_mock_hoisting(
     // Remove original vi.mock() / mock.module() statements
     for mock_call in &mock_calls {
         ms.overwrite(mock_call.stmt_start, mock_call.stmt_end, "");
+    }
+
+    // Replace original auto-hoisted variable declarations with `var` references
+    // to globalThis. Using `var` (not `const`) to match the preamble and avoid TDZ.
+    for (seq, &idx) in auto_hoist_indices.iter().enumerate() {
+        let var = &top_level_vars[idx];
+        ms.overwrite(
+            var.stmt_start,
+            var.stmt_end,
+            &format!("var {} = globalThis.__vertz_mock_var_{seq};", var.name),
+        );
     }
 
     // Replace original vi.hoisted() statements with var destructuring from globalThis.
@@ -702,6 +741,122 @@ impl Visit<'_> for NestedMockVisitor<'_> {
         }
         walk::walk_call_expression(self, call);
     }
+}
+
+// ── Auto-hoisting of variables referenced in mock factories ─────────
+
+/// A top-level variable declaration that may need to be auto-hoisted
+/// because a mock factory references it.
+struct TopLevelVar {
+    /// The binding name (e.g., `mockCreateSSRHandler`).
+    name: String,
+    /// Source text of the initializer expression (after `=`).
+    init_source: String,
+    /// Identifiers referenced in the initializer (for transitive resolution).
+    init_refs: HashSet<String>,
+    /// Span of the entire statement (for replacement).
+    stmt_start: u32,
+    stmt_end: u32,
+}
+
+/// Collect top-level `const`/`let`/`var` declarations with a single declarator.
+fn collect_top_level_vars(program: &Program, source: &str) -> Vec<TopLevelVar> {
+    let mut vars = Vec::new();
+    for stmt in &program.body {
+        let Statement::VariableDeclaration(var_decl) = stmt else {
+            continue;
+        };
+        // Only handle single-declarator declarations
+        if var_decl.declarations.len() != 1 {
+            continue;
+        }
+        let declarator = &var_decl.declarations[0];
+        // Only handle simple identifier bindings (not destructuring)
+        let BindingPattern::BindingIdentifier(ident) = &declarator.id else {
+            continue;
+        };
+        let Some(init) = &declarator.init else {
+            continue;
+        };
+        let name = ident.name.to_string();
+        let init_source = source[init.span().start as usize..init.span().end as usize].to_string();
+        let init_refs = collect_ident_references_from_expr(init);
+        vars.push(TopLevelVar {
+            name,
+            init_source,
+            init_refs,
+            stmt_start: stmt.span().start,
+            stmt_end: stmt.span().end,
+        });
+    }
+    vars
+}
+
+/// Walk an expression AST node and collect all `IdentifierReference` names.
+fn collect_ident_references_from_expr(expr: &Expression) -> HashSet<String> {
+    let mut collector = IdentRefCollector {
+        refs: HashSet::new(),
+    };
+    collector.visit_expression(expr);
+    collector.refs
+}
+
+/// Walk an `Argument` AST node and collect all `IdentifierReference` names.
+fn collect_ident_references_from_arg(arg: &Argument) -> HashSet<String> {
+    let mut collector = IdentRefCollector {
+        refs: HashSet::new(),
+    };
+    collector.visit_argument(arg);
+    collector.refs
+}
+
+struct IdentRefCollector {
+    refs: HashSet<String>,
+}
+
+impl Visit<'_> for IdentRefCollector {
+    fn visit_identifier_reference(&mut self, ident: &IdentifierReference<'_>) {
+        self.refs.insert(ident.name.to_string());
+    }
+}
+
+/// Resolve which top-level variables to auto-hoist.
+///
+/// Starting from identifiers referenced in mock factories, transitively resolves
+/// through variable initializers. Returns indices into `top_level_vars` in
+/// original declaration order.
+fn resolve_auto_hoist_set(
+    factory_refs: &HashSet<String>,
+    top_level_vars: &[TopLevelVar],
+) -> Vec<usize> {
+    let name_to_idx: HashMap<&str, usize> = top_level_vars
+        .iter()
+        .enumerate()
+        .map(|(i, v)| (v.name.as_str(), i))
+        .collect();
+
+    let mut to_hoist: HashSet<usize> = HashSet::new();
+    let mut work: Vec<String> = factory_refs.iter().cloned().collect();
+
+    while let Some(name) = work.pop() {
+        let Some(&idx) = name_to_idx.get(name.as_str()) else {
+            continue;
+        };
+        if to_hoist.contains(&idx) {
+            continue;
+        }
+        to_hoist.insert(idx);
+        // Add transitive dependencies
+        for dep in &top_level_vars[idx].init_refs {
+            if !to_hoist.contains(&name_to_idx.get(dep.as_str()).copied().unwrap_or(usize::MAX)) {
+                work.push(dep.clone());
+            }
+        }
+    }
+
+    let mut indices: Vec<usize> = to_hoist.into_iter().collect();
+    indices.sort_unstable(); // original declaration order
+    indices
 }
 
 #[cfg(test)]
@@ -1143,6 +1298,113 @@ const x = add(1, 2);
         assert!(
             !output.contains("__vertz_unwrap_module"),
             "Static import declarations should not be wrapped, got: {}",
+            output
+        );
+    }
+
+    // ── Auto-hoisting of mock variables referenced in factory ───────────
+
+    #[test]
+    fn auto_hoists_variable_referenced_in_mock_factory() {
+        let source = r#"import { createSSRHandler } from '@vertz/ui-server/ssr';
+const mockCreateSSRHandler = mock().mockReturnValue('handler');
+vi.mock('@vertz/ui-server/ssr', () => ({
+  createSSRHandler: mockCreateSSRHandler,
+}));
+"#;
+        let (output, _) = parse_and_transform(source);
+        // The mock variable should be hoisted into the preamble
+        let mock_var_pos = output
+            .find("globalThis.__vertz_mock_var_")
+            .expect("auto-hoisted variable should be stored on globalThis");
+        let mock_factory_pos = output
+            .find("globalThis.__vertz_mock_0 = ")
+            .expect("mock factory IIFE should be present");
+        assert!(
+            mock_var_pos < mock_factory_pos,
+            "Auto-hoisted variable must appear before mock factory in preamble"
+        );
+        // Original const declaration should be replaced with var from globalThis
+        assert!(
+            !output.contains("const mockCreateSSRHandler"),
+            "Original const declaration should be removed, got: {}",
+            output
+        );
+        assert!(
+            output.contains("var mockCreateSSRHandler"),
+            "Module body should have var referencing globalThis, got: {}",
+            output
+        );
+    }
+
+    #[test]
+    fn auto_hoists_transitive_dependencies() {
+        let source = r#"import { createSSRHandler } from '@vertz/ui-server/ssr';
+const mockSSRRequestHandler = mock().mockImplementation(() => 'response');
+const mockCreateSSRHandler = mock().mockReturnValue(mockSSRRequestHandler);
+vi.mock('@vertz/ui-server/ssr', () => ({
+  createSSRHandler: mockCreateSSRHandler,
+}));
+"#;
+        let (output, _) = parse_and_transform(source);
+        // Both variables should be hoisted — mockCreateSSRHandler references
+        // mockSSRRequestHandler, so it's a transitive dependency.
+        assert!(
+            output.contains("var mockSSRRequestHandler"),
+            "Transitive dependency should be hoisted, got: {}",
+            output
+        );
+        assert!(
+            output.contains("var mockCreateSSRHandler"),
+            "Direct dependency should be hoisted, got: {}",
+            output
+        );
+        // Original const declarations should be gone
+        assert!(!output.contains("const mockSSRRequestHandler"));
+        assert!(!output.contains("const mockCreateSSRHandler"));
+    }
+
+    #[test]
+    fn auto_hoisted_vars_preserve_declaration_order() {
+        let source = r#"import { createSSRHandler } from '@vertz/ui-server/ssr';
+const mockA = mock();
+const mockB = mock().mockReturnValue(mockA);
+vi.mock('@vertz/ui-server/ssr', () => ({
+  createSSRHandler: mockB,
+}));
+"#;
+        let (output, _) = parse_and_transform(source);
+        // mockA should appear before mockB in the preamble (original order)
+        let a_pos = output
+            .find("mock()")
+            .expect("mockA initializer should be in preamble");
+        let b_pos = output
+            .find("mock().mockReturnValue(mockA)")
+            .expect("mockB initializer should be in preamble");
+        assert!(
+            a_pos < b_pos,
+            "Auto-hoisted vars should maintain original declaration order"
+        );
+    }
+
+    #[test]
+    fn does_not_hoist_unreferenced_variables() {
+        let source = r#"import { add } from './math';
+const unrelated = 42;
+const mockAdd = mock();
+vi.mock('./math', () => ({ add: mockAdd }));
+"#;
+        let (output, _) = parse_and_transform(source);
+        // unrelated should NOT be hoisted
+        assert!(
+            output.contains("const unrelated = 42"),
+            "Unreferenced variable should remain unchanged, got: {}",
+            output
+        );
+        // mockAdd should be hoisted
+        assert!(
+            !output.contains("const mockAdd"),
+            "Referenced variable should be hoisted (const removed), got: {}",
             output
         );
     }
