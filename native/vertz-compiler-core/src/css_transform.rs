@@ -66,10 +66,13 @@ pub fn transform_css(ms: &mut MagicString, program: &Program, file_path: &str) -
             css_rules.extend(rules);
         }
 
+        let call_css = css_rules.join("\n");
         all_css_rules.extend(css_rules);
 
-        // Build replacement: { blockName: '_hash', ... }
-        let replacement = build_replacement(&class_names);
+        // Build replacement: Object.defineProperty({ blockName: '_hash', ... }, 'css', ...)
+        // This preserves the `.css` property on the returned object, matching the runtime
+        // css() contract (CSSOutput<T>) that consumers rely on.
+        let replacement = build_replacement(&class_names, &call_css);
         ms.overwrite(call.start, call.end, &replacement);
     }
 
@@ -513,12 +516,20 @@ fn resolve_shorthand(parsed: &ParsedShorthand) -> Option<Vec<String>> {
 
 // ─── Replacement Building ──────────────────────────────────────
 
-fn build_replacement(class_names: &[(String, String)]) -> String {
+fn build_replacement(class_names: &[(String, String)], css_text: &str) -> String {
     let entries: Vec<String> = class_names
         .iter()
         .map(|(name, class)| format!("{name}: '{class}'"))
         .collect();
-    format!("{{ {} }}", entries.join(", "))
+    let obj = format!("{{ {} }}", entries.join(", "));
+
+    // Attach the extracted CSS as a non-enumerable `.css` property, matching the
+    // runtime css() behavior (Object.defineProperty with enumerable: false).
+    let escaped_css = css_text
+        .replace('\\', "\\\\")
+        .replace('\'', "\\'")
+        .replace('\n', "\\n");
+    format!("Object.defineProperty({obj}, 'css', {{ value: '{escaped_css}', enumerable: false }})")
 }
 
 #[cfg(test)]
@@ -996,6 +1007,33 @@ const b = css({ root: ['grid'] });
             css.contains("background-color: blue;"),
             "backgroundColor → background-color: css={}",
             css
+        );
+    }
+
+    // ── Replacement includes .css property ─────────────────────
+
+    #[test]
+    fn replacement_includes_css_property() {
+        let (code, _) = transform("const s = css({ root: ['flex', 'p:4'] });");
+        assert!(
+            code.contains("Object.defineProperty("),
+            "replacement should use Object.defineProperty: {}",
+            code
+        );
+        assert!(
+            code.contains("'css'"),
+            "replacement should define 'css' property: {}",
+            code
+        );
+        assert!(
+            code.contains("enumerable: false"),
+            "css property should be non-enumerable: {}",
+            code
+        );
+        assert!(
+            code.contains("display: flex;"),
+            "css property value should contain the CSS: {}",
+            code
         );
     }
 
