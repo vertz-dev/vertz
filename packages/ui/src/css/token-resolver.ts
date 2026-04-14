@@ -11,6 +11,8 @@
 
 import type { ParsedShorthand } from './shorthand-parser';
 import type { PropertyMapping } from './token-tables';
+import type { ColorPalette } from './palettes';
+import { palettes } from './palettes';
 import {
   ALIGNMENT_MAP,
   COLOR_NAMESPACES,
@@ -21,8 +23,10 @@ import {
   HEIGHT_AXIS_PROPERTIES,
   KEYWORD_MAP,
   LINE_HEIGHT_SCALE,
+  PALETTE_SHADES,
   PROPERTY_MAP,
   RADIUS_SCALE,
+  RAW_PALETTE_NAMES,
   SHADOW_SCALE,
   SIZE_KEYWORDS,
   SPACING_SCALE,
@@ -185,8 +189,20 @@ function resolveColorToken(token: string, property: string, fullValue: string): 
   if (dotIndex !== -1) {
     const namespace = token.substring(0, dotIndex);
     const shade = token.substring(dotIndex + 1);
+    // Semantic namespaces take precedence (CSS custom properties)
     if (COLOR_NAMESPACES.has(namespace)) {
       return `var(--color-${namespace}-${shade})`;
+    }
+    // Raw Tailwind palette fallback (direct oklch values)
+    if (RAW_PALETTE_NAMES.has(namespace)) {
+      if (!PALETTE_SHADES.has(shade)) {
+        throw new TokenResolveError(
+          `Unknown palette shade '${shade}' for '${namespace}'. Use: 50, 100, 200, 300, 400, 500, 600, 700, 800, 900, 950.`,
+          `${property}:${fullValue}`,
+        );
+      }
+      const palette = palettes[namespace as keyof typeof palettes];
+      return palette[Number(shade) as keyof ColorPalette];
     }
     throw new TokenResolveError(
       `Unknown color token '${fullValue}'. Known namespaces: ${[...COLOR_NAMESPACES].join(', ')}`,
@@ -353,12 +369,23 @@ function resolveText(value: string): CSSDeclaration[] {
   return [{ property: 'color', value: resolveColor(value, 'text') }];
 }
 
+/** Font family stacks (Tailwind v4). */
+const FONT_FAMILY_SCALE: Record<string, string> = {
+  mono: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
+  sans: 'ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji"',
+  serif: 'ui-serif, Georgia, Cambria, "Times New Roman", Times, serif',
+};
+
 /**
  * Resolve `font:value` -- multi-mode:
+ * - Font-family keywords (mono, sans, serif) -> font-family  (checked first)
  * - Font-weight keywords (medium, semibold, bold, etc.) -> font-weight
  * - Everything else -> font-size
  */
 function resolveFont(value: string): CSSDeclaration[] {
+  if (FONT_FAMILY_SCALE[value] !== undefined) {
+    return [{ property: 'font-family', value: FONT_FAMILY_SCALE[value] }];
+  }
   if (FONT_WEIGHT_SCALE[value] !== undefined) {
     return [{ property: 'font-weight', value: FONT_WEIGHT_SCALE[value] }];
   }
@@ -524,7 +551,11 @@ export function isValidColorToken(value: string): boolean {
 
   const dotIndex = token.indexOf('.');
   if (dotIndex !== -1) {
-    return COLOR_NAMESPACES.has(token.substring(0, dotIndex));
+    const namespace = token.substring(0, dotIndex);
+    const shade = token.substring(dotIndex + 1);
+    if (COLOR_NAMESPACES.has(namespace)) return true;
+    if (RAW_PALETTE_NAMES.has(namespace)) return PALETTE_SHADES.has(shade);
+    return false;
   }
   return COLOR_NAMESPACES.has(token);
 }
