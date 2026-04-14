@@ -1,6 +1,6 @@
 {
   "name": "@vertz/codegen",
-  "version": "0.2.62",
+  "version": "0.2.63",
   "description": "Vertz code generation — internal, no stability guarantee",
   "license": "MIT",
   "repository": {
