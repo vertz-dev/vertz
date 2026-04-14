@@ -3172,6 +3172,8 @@ mod tests {
             scripts: BTreeMap::new(),
             optional: false,
             overridden: false,
+            os: None,
+            cpu: None,
         }
     }
 
@@ -4911,6 +4913,8 @@ mod tests {
                 scripts: BTreeMap::new(),
                 optional: false,
                 overridden: false,
+                os: None,
+                cpu: None,
             },
         );
 
@@ -4957,6 +4961,8 @@ mod tests {
                 scripts: BTreeMap::new(),
                 optional: false,
                 overridden: false,
+                os: None,
+                cpu: None,
             },
         );
 

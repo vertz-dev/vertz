@@ -549,6 +549,11 @@ fn strip_leftover_typescript(code: &str) -> String {
             i += 1;
             continue;
         }
+        // `export type * from '...'` or `export type * as Ns from '...'`
+        if trimmed.starts_with("export type *") {
+            i += 1;
+            continue;
+        }
         // Type alias: `export type X = ...` or `type X = ...` (single or multi-line)
         // Guard: the token after `type ` must be an identifier (e.g., `type Foo =`),
         // NOT an operator like `=` or `+=`. Otherwise `type = 'value'` (a variable
@@ -2672,6 +2677,30 @@ export function App() {
             result.contains("const x = 1;"),
             "Non-type code should be preserved"
         );
+    }
+
+    #[test]
+    fn test_strip_export_type_star_from() {
+        let code = "export type * from './types';\nconst x = 1;";
+        let result = strip_leftover_typescript(code);
+        assert!(
+            !result.contains("export type"),
+            "export type * from should be stripped. Got: {}",
+            result
+        );
+        assert!(result.contains("const x = 1;"));
+    }
+
+    #[test]
+    fn test_strip_export_type_star_as_namespace_from() {
+        let code = "export type * as Types from './types';\nconst x = 1;";
+        let result = strip_leftover_typescript(code);
+        assert!(
+            !result.contains("export type"),
+            "export type * as namespace from should be stripped. Got: {}",
+            result
+        );
+        assert!(result.contains("const x = 1;"));
     }
 
     #[test]

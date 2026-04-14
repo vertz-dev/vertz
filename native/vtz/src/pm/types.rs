@@ -160,6 +160,10 @@ pub struct LockfileEntry {
     pub optional: bool,
     /// Whether this version was forced by an override
     pub overridden: bool,
+    /// Platform constraint: which OS this package is for (e.g., ["darwin", "linux"])
+    pub os: Option<Vec<String>>,
+    /// Platform constraint: which CPU arch this package is for (e.g., ["arm64", "x64"])
+    pub cpu: Option<Vec<String>>,
 }
 
 /// Full lockfile representation
