@@ -129,9 +129,9 @@ describe('ComposedScrollArea', () => {
       '[data-part="scroll-area-scrollbar"][data-orientation="vertical"]',
     ) as HTMLElement;
     expect(scrollbar.style.position).toBe('absolute');
-    expect(scrollbar.style.top).toBe('0px');
-    expect(scrollbar.style.right).toBe('0px');
-    expect(scrollbar.style.bottom).toBe('0px');
+    expect(scrollbar.style.top).toBe('0');
+    expect(scrollbar.style.right).toBe('0');
+    expect(scrollbar.style.bottom).toBe('0');
   });
 
   it('horizontal scrollbar is absolutely positioned on the bottom edge', async () => {
@@ -143,9 +143,9 @@ describe('ComposedScrollArea', () => {
       '[data-part="scroll-area-scrollbar"][data-orientation="horizontal"]',
     ) as HTMLElement;
     expect(scrollbar.style.position).toBe('absolute');
-    expect(scrollbar.style.bottom).toBe('0px');
-    expect(scrollbar.style.left).toBe('0px');
-    expect(scrollbar.style.right).toBe('0px');
+    expect(scrollbar.style.bottom).toBe('0');
+    expect(scrollbar.style.left).toBe('0');
+    expect(scrollbar.style.right).toBe('0');
   });
 
   it('distributes scrollbar class', async () => {

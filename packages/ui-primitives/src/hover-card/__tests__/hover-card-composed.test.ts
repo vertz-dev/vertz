@@ -87,6 +87,9 @@ describe('ComposedHoverCard', () => {
 
     btn.dispatchEvent(new FocusEvent('focus'));
     expect(onOpenChange).toHaveBeenCalledWith(true);
+
+    // Close to clean up the floating autoUpdate rAF loop
+    btn.dispatchEvent(new FocusEvent('blur'));
   });
 
   it('content is initially hidden', async () => {

@@ -704,6 +704,22 @@ pub const TEST_DOM_SHIM_JS: &str = r#"
 
     setAttribute(name, value) {
       this.attributes[name] = String(value);
+      // Sync StyleMap when style attribute is set directly
+      if (name === 'style') {
+        this._styleMap._styles.clear();
+        if (value) {
+          String(value).split(';').forEach(decl => {
+            const colonIdx = decl.indexOf(':');
+            if (colonIdx > 0) {
+              const prop = decl.slice(0, colonIdx).trim();
+              const val = decl.slice(colonIdx + 1).trim();
+              if (prop && val) {
+                this._styleMap._styles.set(kebabToCamel(prop), val);
+              }
+            }
+          });
+        }
+      }
       // Sync dataset when data-* attributes change
       if (name.startsWith('data-')) {
         this._datasetMap._syncFromAttributes();
@@ -728,6 +744,9 @@ pub const TEST_DOM_SHIM_JS: &str = r#"
 
     removeAttribute(name) {
       delete this.attributes[name];
+      if (name === 'style') {
+        this._styleMap._styles.clear();
+      }
     }
 
     hasAttribute(name) {
@@ -1009,13 +1028,23 @@ pub const TEST_DOM_SHIM_JS: &str = r#"
     set value(v) {
       this._value = String(v);
       this._valueSet = true;
-      // Select the matching option
+      // Select the matching option and update selectedIndex
       const opts = this.querySelectorAll('option');
-      for (const opt of opts) {
-        opt._selected = (opt.value === this._value);
+      this._selectedIndex = -1;
+      for (let i = 0; i < opts.length; i++) {
+        const match = opts[i].value === this._value;
+        opts[i]._selected = match;
+        if (match && this._selectedIndex === -1) this._selectedIndex = i;
       }
     }
-    get selectedIndex() { return this._selectedIndex; }
+    get selectedIndex() {
+      if (this._selectedIndex >= 0) return this._selectedIndex;
+      const opts = this.querySelectorAll('option');
+      for (let i = 0; i < opts.length; i++) {
+        if (opts[i]._selected || opts[i].hasAttribute('selected')) return i;
+      }
+      return opts.length > 0 ? 0 : -1;
+    }
     set selectedIndex(v) { this._selectedIndex = v; }
     get disabled() { return this.hasAttribute('disabled'); }
     set disabled(v) { v ? this.setAttribute('disabled', '') : this.removeAttribute('disabled'); }
@@ -1034,6 +1063,8 @@ pub const TEST_DOM_SHIM_JS: &str = r#"
       if (v) this.setAttribute('selected', '');
       else this.removeAttribute('selected');
     }
+    get disabled() { return this.hasAttribute('disabled'); }
+    set disabled(v) { v ? this.setAttribute('disabled', '') : this.removeAttribute('disabled'); }
     get text() { return this.textContent; }
     set text(v) { this.textContent = v; }
     get label() { return this.getAttribute('label') || this.textContent; }
@@ -1118,6 +1149,8 @@ pub const TEST_DOM_SHIM_JS: &str = r#"
   class HTMLHeadElement extends HTMLElement { constructor(tag, ns) { super(tag || 'head', ns); } }
   class HTMLBodyElement extends HTMLElement { constructor(tag, ns) { super(tag || 'body', ns); } }
   class HTMLHtmlElement extends HTMLElement { constructor(tag, ns) { super(tag || 'html', ns); } }
+  class HTMLHeadingElement extends HTMLElement { constructor(tag, ns) { super(tag || 'h1', ns); } }
+  class HTMLParagraphElement extends HTMLElement { constructor(tag, ns) { super(tag || 'p', ns); } }
 
   // --- TAG_MAP dispatch table ---
   const TAG_MAP = {
@@ -1138,6 +1171,13 @@ pub const TEST_DOM_SHIM_JS: &str = r#"
     head: HTMLHeadElement,
     body: HTMLBodyElement,
     html: HTMLHtmlElement,
+    h1: HTMLHeadingElement,
+    h2: HTMLHeadingElement,
+    h3: HTMLHeadingElement,
+    h4: HTMLHeadingElement,
+    h5: HTMLHeadingElement,
+    h6: HTMLHeadingElement,
+    p: HTMLParagraphElement,
   };
 
   const HTML_NS = 'http://www.w3.org/1999/xhtml';
@@ -1204,6 +1244,18 @@ pub const TEST_DOM_SHIM_JS: &str = r#"
       this.metaKey = options?.metaKey ?? false;
       this.shiftKey = options?.shiftKey ?? false;
       this.relatedTarget = options?.relatedTarget ?? null;
+    }
+  }
+
+  class PointerEvent extends MouseEvent {
+    constructor(type, options) {
+      super(type, options);
+      this.pointerId = options?.pointerId ?? 0;
+      this.width = options?.width ?? 1;
+      this.height = options?.height ?? 1;
+      this.pressure = options?.pressure ?? 0;
+      this.pointerType = options?.pointerType ?? '';
+      this.isPrimary = options?.isPrimary ?? false;
     }
   }
 
@@ -2206,13 +2258,14 @@ pub const TEST_DOM_SHIM_JS: &str = r#"
   // Constructors
   Object.assign(globalThis, {
     Node, Element, EventTarget, Event, CustomEvent, DOMException,
-    MouseEvent, KeyboardEvent, FocusEvent, InputEvent, PopStateEvent, HashChangeEvent,
+    MouseEvent, PointerEvent, KeyboardEvent, FocusEvent, InputEvent, PopStateEvent, HashChangeEvent,
     HTMLElement, HTMLDivElement, HTMLSpanElement,
     HTMLInputElement, HTMLTextAreaElement, HTMLSelectElement,
     HTMLOptionElement, HTMLButtonElement, HTMLFormElement,
     HTMLAnchorElement, HTMLImageElement, HTMLDialogElement,
     HTMLLabelElement, HTMLTemplateElement, HTMLStyleElement,
     HTMLHeadElement, HTMLBodyElement, HTMLHtmlElement,
+    HTMLHeadingElement, HTMLParagraphElement,
     Text, Comment, ProcessingInstruction, DocumentFragment,
     Document, NodeFilter, TreeWalker,
     Blob, File, FormData, CSSStyleSheet,
