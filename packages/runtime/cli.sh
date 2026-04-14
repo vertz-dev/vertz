@@ -77,14 +77,17 @@ case "$1" in
       fi
       [ -z "$_dir" ] && continue
       [ -x "$_dir/vtz" ] || continue
-      # Resolve symlinks on the candidate
+      # Resolve symlinks on the candidate (max 40 hops to guard against loops)
       _cand="$_dir/vtz"
-      while [ -L "$_cand" ]; do
+      _hops=0
+      while [ -L "$_cand" ] && [ $_hops -lt 40 ]; do
+        _hops=$((_hops + 1))
         _cand_dir="$(cd "$(dirname "$_cand")" 2>/dev/null && pwd)" || break
         _cand="$(readlink "$_cand")"
         [[ "$_cand" != /* ]] && _cand="$_cand_dir/$_cand"
       done
-      _cand_real="$(cd "$(dirname "$_cand")" 2>/dev/null && pwd)/$(basename "$_cand")" 2>/dev/null || continue
+      _cand_real_dir="$(cd "$(dirname "$_cand")" 2>/dev/null && pwd)" || continue
+      _cand_real="$_cand_real_dir/$(basename "$_cand")"
       if [ "$_cand_real" != "$SELF_REAL" ]; then
         exec "$_dir/vtz" "$@"
       fi

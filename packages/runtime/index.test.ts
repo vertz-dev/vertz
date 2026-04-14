@@ -208,8 +208,7 @@ describe('Feature: bin scripts are pure bash with no Node/Bun dependency (#2419)
 });
 
 describe('Feature: cli.sh finds native binary in nested invocations (#2609)', () => {
-  const pkgDir2 = dirname(new URL(import.meta.url).pathname);
-  const cliShSrc = join(pkgDir2, 'cli.sh');
+  const cliShSrc = join(pkgDir, 'cli.sh');
   let tmpDir: string;
   let nativeBinDir: string;
   let selfBinDir: string;
