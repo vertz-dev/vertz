@@ -1000,4 +1000,47 @@ describe('rejects.toThrow with inline async call (#2576)', () => {
         assert_eq!(result.passed(), 3, "Tests: {:?}", result.tests);
         assert_eq!(result.failed(), 0);
     }
+
+    /// Reproduces #2607: test files with lingering async resources (e.g. setInterval)
+    /// should be caught by the per-file timeout and reported as a file error,
+    /// not hang indefinitely.
+    #[test]
+    fn test_lingering_interval_triggers_timeout() {
+        let tmp = tempfile::tempdir().unwrap();
+        let file = write_test_file(
+            tmp.path(),
+            "hang.test.ts",
+            r#"
+            describe('lingering interval', () => {
+                it('passes but leaves interval running', () => {
+                    // This interval is never cleared — keeps the event loop alive
+                    setInterval(() => {}, 50);
+                    expect(1 + 1).toBe(2);
+                });
+            });
+            "#,
+        );
+
+        let result = execute_test_file_with_options(
+            &file,
+            &ExecuteOptions {
+                // Short timeout so the test doesn't take long
+                timeout_ms: 500,
+                ..Default::default()
+            },
+        );
+
+        // The test itself passes, but the file should error due to timeout
+        // because the unclosed setInterval keeps the event loop alive.
+        assert!(
+            result.file_error.is_some(),
+            "Expected file error from timeout, but got none. Tests: {:?}",
+            result.tests
+        );
+        let err = result.file_error.as_ref().unwrap();
+        assert!(
+            err.contains("timed out"),
+            "Expected timeout error, got: {err}"
+        );
+    }
 }

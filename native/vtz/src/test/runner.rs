@@ -965,4 +965,50 @@ mod tests {
         // (Note: with a simple test file the coverage may actually be 100%,
         //  so this test verifies the structure rather than a guaranteed failure)
     }
+
+    /// #2607: Test files with lingering async resources (setInterval, open handles)
+    /// must not hang the runner. The per-file timeout catches them and the runner
+    /// returns a file error rather than hanging indefinitely.
+    #[test]
+    fn test_run_lingering_interval_does_not_hang() {
+        let tmp = tempfile::tempdir().unwrap();
+        create_test_project(tmp.path());
+        write_file(
+            tmp.path(),
+            "src/hang.test.ts",
+            r#"
+            describe('lingering', () => {
+                it('passes but leaves interval', () => {
+                    setInterval(() => {}, 50);
+                    expect(true).toBeTruthy();
+                });
+            });
+            "#,
+        );
+
+        let config = TestRunConfig {
+            root_dir: tmp.path().to_path_buf(),
+            paths: vec![],
+            include: vec![],
+            exclude: vec![],
+            concurrency: Some(1),
+            filter: None,
+            bail: false,
+            timeout_ms: 500, // Short timeout to avoid slow tests
+            reporter: ReporterFormat::Terminal,
+            coverage: false,
+            coverage_threshold: 95.0,
+            preload: vec![],
+            no_cache: false,
+        };
+
+        let (result, _output) = run_tests(config);
+
+        // The runner must complete (not hang) and report a file error
+        assert_eq!(result.file_errors, 1, "Expected 1 file error from timeout");
+        assert!(
+            !result.success(),
+            "Run should fail due to file timeout error"
+        );
+    }
 }

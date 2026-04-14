@@ -380,10 +380,13 @@ async fn async_main(cli: Cli) {
                     std::thread::spawn(move || vertz_runtime::test::runner::run_tests(config));
                 let (result, output) = handle.join().expect("test runner thread panicked");
                 print!("{}", output);
+                // Flush stdout before exit — process::exit skips Drop/flush.
+                let _ = std::io::Write::flush(&mut std::io::stdout());
 
-                if !result.success() {
-                    std::process::exit(1);
-                }
+                // Force-exit after tests complete (#2607). V8 platform threads
+                // keep the process alive after main() returns, causing CI hangs.
+                let code = if result.success() { 0 } else { 1 };
+                std::process::exit(code);
             }
         }
         Command::Install(args) => {
