@@ -1,5 +1,13 @@
 # @vertz/ui-server
 
+## 0.2.63
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @vertz/core@0.2.63
+  - @vertz/ui@0.2.63
+
 ## 0.2.62
 
 ### Patch Changes

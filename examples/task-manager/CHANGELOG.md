@@ -1,5 +1,19 @@
 # @vertz-examples/task-manager
 
+## 0.2.63
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @vertz/errors@0.2.63
+  - @vertz/fetch@0.2.63
+  - @vertz/icons@0.2.63
+  - @vertz/schema@0.2.63
+  - @vertz/theme-shadcn@0.2.63
+  - @vertz/ui@0.2.63
+  - @vertz/ui-primitives@0.2.63
+  - @vertz/ui-server@0.2.63
+
 ## 0.2.62
 
 ### Patch Changes

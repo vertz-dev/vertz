@@ -1,5 +1,17 @@
 # @vertz/runtime
 
+## 0.2.63
+
+### Patch Changes
+
+- [#2646](https://github.com/vertz-dev/vertz/pull/2646) [`5e770e0`](https://github.com/vertz-dev/vertz/commit/5e770e0ddef46960ec9cf2c20027d16527a23b39) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - fix(pm): install optional platform-specific dependencies from stale v1 lockfiles
+
+  Packages using the `optionalDependencies` pattern for platform-specific native binaries
+  (e.g., lefthook, @typescript/native-preview, oxfmt) were not getting their binaries installed
+  because v1 lockfiles didn't record optional dependencies. Added lockfile versioning (v1/v2)
+  and a migration path that discovers missing optional deps from the registry for direct
+  dependencies when upgrading from a v1 lockfile.
+
 ## 0.2.62
 
 ### Patch Changes
