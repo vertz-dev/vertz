@@ -58,18 +58,38 @@ case "$1" in
   *)
     # Try system-installed vtz before giving up:
     # 1. Check ~/.vtz/bin/vtz (standard install location)
-    # 2. Fall back to PATH lookup (avoiding self-reference)
     if [ -x "$HOME/.vtz/bin/vtz" ]; then
       exec "$HOME/.vtz/bin/vtz" "$@"
     fi
-    SELF="$(cd "$(dirname "$0")" && pwd)/$(basename "$0")"
-    SYSTEM_VTZ="$(command -v vtz 2>/dev/null || true)"
-    if [ -n "$SYSTEM_VTZ" ]; then
-      RESOLVED_SYSTEM="$(cd "$(dirname "$SYSTEM_VTZ")" && pwd)/$(basename "$SYSTEM_VTZ")"
-      if [ "$RESOLVED_SYSTEM" != "$SELF" ] && [ -x "$SYSTEM_VTZ" ]; then
-        exec "$SYSTEM_VTZ" "$@"
+
+    # 2. Walk PATH to find a non-self vtz binary.
+    #    `command -v` only returns the first match, which may be a symlink back
+    #    to this script (e.g. node_modules/.bin/vtz in a nested invocation).
+    #    We resolve symlinks on each candidate to detect self-references.
+    SELF_REAL="$PKG_DIR/$(basename "$SOURCE")"
+    _path_rest="$PATH"
+    while [ -n "$_path_rest" ]; do
+      _dir="${_path_rest%%:*}"
+      if [ "$_path_rest" = "$_dir" ]; then
+        _path_rest=""
+      else
+        _path_rest="${_path_rest#*:}"
       fi
-    fi
+      [ -z "$_dir" ] && continue
+      [ -x "$_dir/vtz" ] || continue
+      # Resolve symlinks on the candidate
+      _cand="$_dir/vtz"
+      while [ -L "$_cand" ]; do
+        _cand_dir="$(cd "$(dirname "$_cand")" 2>/dev/null && pwd)" || break
+        _cand="$(readlink "$_cand")"
+        [[ "$_cand" != /* ]] && _cand="$_cand_dir/$_cand"
+      done
+      _cand_real="$(cd "$(dirname "$_cand")" 2>/dev/null && pwd)/$(basename "$_cand")" 2>/dev/null || continue
+      if [ "$_cand_real" != "$SELF_REAL" ]; then
+        exec "$_dir/vtz" "$@"
+      fi
+    done
+
     SUB="${1:-}"
     if [ -n "$SUB" ]; then
       echo "vtz: native binary not available and '$SUB' has no fallback." >&2
