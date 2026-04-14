@@ -41,7 +41,8 @@ fn resolve_package_entry(pkg_dir: &Path, subpath: &str) -> Option<PathBuf> {
 
         if let Some(resolved) = resolve_export_entry(exports, &export_key) {
             let full_path = pkg_dir.join(resolved.trim_start_matches("./"));
-            if full_path.is_file() {
+            // is_file() must precede path_stays_within() so canonicalize() succeeds
+            if full_path.is_file() && path_stays_within(pkg_dir, &full_path) {
                 return Some(full_path);
             }
         }
@@ -51,13 +52,15 @@ fn resolve_package_entry(pkg_dir: &Path, subpath: &str) -> Option<PathBuf> {
     if subpath.is_empty() {
         if let Some(module) = pkg.get("module").and_then(|v| v.as_str()) {
             let full_path = pkg_dir.join(module);
-            if full_path.is_file() {
+            // is_file() must precede path_stays_within() so canonicalize() succeeds
+            if full_path.is_file() && path_stays_within(pkg_dir, &full_path) {
                 return Some(full_path);
             }
         }
         if let Some(main) = pkg.get("main").and_then(|v| v.as_str()) {
             let full_path = pkg_dir.join(main);
-            if full_path.is_file() {
+            // is_file() must precede path_stays_within() so canonicalize() succeeds
+            if full_path.is_file() && path_stays_within(pkg_dir, &full_path) {
                 return Some(full_path);
             }
         }
@@ -131,7 +134,7 @@ fn resolve_export_entry(exports: &serde_json::Value, key: &str) -> Option<String
     match exports {
         serde_json::Value::String(s) => {
             // Simple string export: "exports": "./dist/index.js"
-            if key == "." {
+            if key == "." && is_safe_export_target(s) {
                 Some(s.clone())
             } else {
                 None
@@ -156,11 +159,32 @@ fn resolve_export_entry(exports: &serde_json::Value, key: &str) -> Option<String
     }
 }
 
+/// Check that an export target is safe: starts with "./" and contains no ".." traversal.
+fn is_safe_export_target(target: &str) -> bool {
+    target.starts_with("./") && !target.contains("..")
+}
+
+/// Check that a resolved path stays within the package directory.
+/// Uses canonicalization to resolve symlinks and `..` components.
+fn path_stays_within(pkg_dir: &Path, full_path: &Path) -> bool {
+    match (pkg_dir.canonicalize(), full_path.canonicalize()) {
+        (Ok(canon_dir), Ok(canon_path)) => canon_path.starts_with(&canon_dir),
+        _ => false,
+    }
+}
+
 /// Resolve a condition value from an exports entry.
 /// Handles strings, condition objects, and array fallbacks.
+/// Rejects targets that don't start with "./" or contain path traversal.
 fn resolve_condition_value_from_entry(value: &serde_json::Value) -> Option<String> {
     match value {
-        serde_json::Value::String(s) => Some(s.clone()),
+        serde_json::Value::String(s) => {
+            if is_safe_export_target(s) {
+                Some(s.clone())
+            } else {
+                None
+            }
+        }
         serde_json::Value::Object(conditions) => resolve_condition_value(conditions),
         serde_json::Value::Array(arr) => {
             // Array fallback: first matching entry wins
@@ -191,19 +215,28 @@ fn resolve_condition_value(
     for key in &["import", "node", "module", "default", "require"] {
         if let Some(val) = conditions.get(*key) {
             match val {
-                serde_json::Value::String(s) => return Some(s.clone()),
+                serde_json::Value::String(s) => {
+                    if is_safe_export_target(s) {
+                        return Some(s.clone());
+                    }
+                }
                 serde_json::Value::Object(nested) => {
                     // Nested conditions (e.g., import: { types: "...", default: "..." })
                     // Skip "types" entries, look for "default" or any non-types string
                     if let Some(default_val) = nested.get("default") {
                         if let Some(s) = default_val.as_str() {
-                            return Some(s.to_string());
+                            if is_safe_export_target(s) {
+                                return Some(s.to_string());
+                            }
                         }
                     }
                     // Try any string value that isn't a .d.ts
                     for (_, v) in nested {
                         if let Some(s) = v.as_str() {
-                            if !s.ends_with(".d.ts") && !s.ends_with(".d.mts") {
+                            if !s.ends_with(".d.ts")
+                                && !s.ends_with(".d.mts")
+                                && is_safe_export_target(s)
+                            {
                                 return Some(s.to_string());
                             }
                         }
@@ -399,6 +432,142 @@ mod tests {
             resolve_export_entry(&exports, "."),
             Some("./dist/esm.js".to_string())
         );
+    }
+
+    #[test]
+    fn test_resolve_export_entry_rejects_path_traversal() {
+        // Direct parent traversal
+        let exports = serde_json::json!("../../etc/passwd");
+        assert_eq!(resolve_export_entry(&exports, "."), None);
+
+        // Traversal hidden after "./"
+        let exports = serde_json::json!("./../../etc/passwd");
+        assert_eq!(resolve_export_entry(&exports, "."), None);
+
+        // Absolute path
+        let exports = serde_json::json!("/etc/passwd");
+        assert_eq!(resolve_export_entry(&exports, "."), None);
+
+        // Bare filename (no ./ prefix)
+        let exports = serde_json::json!("dist/index.js");
+        assert_eq!(resolve_export_entry(&exports, "."), None);
+    }
+
+    #[test]
+    fn test_resolve_export_entry_rejects_buried_traversal() {
+        // Traversal hidden deep in a valid-looking path
+        let exports = serde_json::json!("./dist/../../../etc/passwd");
+        assert_eq!(resolve_export_entry(&exports, "."), None);
+
+        let exports = serde_json::json!({
+            ".": "./lib/utils/../../secret.js"
+        });
+        assert_eq!(resolve_export_entry(&exports, "."), None);
+    }
+
+    #[test]
+    fn test_resolve_export_entry_rejects_traversal_in_conditions() {
+        let exports = serde_json::json!({
+            ".": {
+                "import": "../../etc/passwd",
+                "default": "../secret.js"
+            }
+        });
+        assert_eq!(resolve_export_entry(&exports, "."), None);
+    }
+
+    #[test]
+    fn test_resolve_export_entry_rejects_traversal_in_object_values() {
+        let exports = serde_json::json!({
+            ".": "../../etc/passwd",
+            "./utils": "../../../secret.js"
+        });
+        assert_eq!(resolve_export_entry(&exports, "."), None);
+        assert_eq!(resolve_export_entry(&exports, "./utils"), None);
+    }
+
+    #[test]
+    fn test_resolve_export_entry_rejects_traversal_in_array_fallback() {
+        let exports = serde_json::json!({
+            ".": ["../../etc/passwd", "../secret.js"]
+        });
+        assert_eq!(resolve_export_entry(&exports, "."), None);
+    }
+
+    #[test]
+    fn test_resolve_export_entry_rejects_traversal_in_nested_conditions() {
+        let exports = serde_json::json!({
+            ".": {
+                "import": {
+                    "types": "./types.d.ts",
+                    "default": "./../../etc/passwd"
+                }
+            }
+        });
+        assert_eq!(resolve_export_entry(&exports, "."), None);
+    }
+
+    #[test]
+    fn test_resolve_package_entry_rejects_traversal_in_module_field() {
+        let tmp = tempfile::tempdir().unwrap();
+        let root = tmp.path();
+
+        let pkg_dir = root.join("node_modules/evil-pkg");
+        std::fs::create_dir_all(&pkg_dir).unwrap();
+
+        // Create a file outside the package that the traversal would resolve to
+        std::fs::write(root.join("secret.js"), "secret").unwrap();
+
+        std::fs::write(
+            pkg_dir.join("package.json"),
+            r#"{ "name": "evil-pkg", "module": "../../secret.js" }"#,
+        )
+        .unwrap();
+
+        let resolved = resolve_from_node_modules("evil-pkg", root);
+        assert_eq!(resolved, None);
+    }
+
+    #[test]
+    fn test_resolve_package_entry_rejects_traversal_in_main_field() {
+        let tmp = tempfile::tempdir().unwrap();
+        let root = tmp.path();
+
+        let pkg_dir = root.join("node_modules/evil-pkg");
+        std::fs::create_dir_all(&pkg_dir).unwrap();
+
+        // Create a file outside the package that the traversal would resolve to
+        std::fs::write(root.join("secret.js"), "secret").unwrap();
+
+        std::fs::write(
+            pkg_dir.join("package.json"),
+            r#"{ "name": "evil-pkg", "main": "../../secret.js" }"#,
+        )
+        .unwrap();
+
+        let resolved = resolve_from_node_modules("evil-pkg", root);
+        assert_eq!(resolved, None);
+    }
+
+    #[test]
+    fn test_resolve_package_entry_rejects_traversal_in_exports() {
+        let tmp = tempfile::tempdir().unwrap();
+        let root = tmp.path();
+
+        let pkg_dir = root.join("node_modules/evil-pkg");
+        std::fs::create_dir_all(pkg_dir.join("dist")).unwrap();
+
+        // Create a file outside the package that the traversal would resolve to
+        std::fs::write(root.join("secret.js"), "secret").unwrap();
+
+        std::fs::write(
+            pkg_dir.join("package.json"),
+            r#"{ "name": "evil-pkg", "exports": { ".": "../../secret.js" } }"#,
+        )
+        .unwrap();
+
+        let resolved = resolve_from_node_modules("evil-pkg", root);
+        assert_eq!(resolved, None);
     }
 
     #[test]
