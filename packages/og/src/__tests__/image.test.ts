@@ -1,24 +1,33 @@
+import { unlinkSync } from 'node:fs';
+import { writeFile } from 'node:fs/promises';
 import { afterEach, describe, expect, it, mock } from '@vertz/test';
 import { loadImage } from '../image';
 
 describe('loadImage', () => {
   const originalFetch = globalThis.fetch;
+  const tmpFiles: string[] = [];
 
   afterEach(() => {
     globalThis.fetch = originalFetch;
+    for (const f of tmpFiles) {
+      try {
+        unlinkSync(f);
+      } catch {}
+    }
+    tmpFiles.length = 0;
   });
 
   it('loads an SVG string and returns a data URI', async () => {
     const svg = '<svg viewBox="0 0 100 100"><rect width="100" height="100" fill="red"/></svg>';
     const result = await loadImage(svg);
-    expect(result).toStartWith('data:image/svg+xml,');
+    expect(result).toMatch(/^data:image\/svg\+xml,/);
     expect(result).toContain(encodeURIComponent('<svg'));
   });
 
   it('handles SVG string with leading whitespace', async () => {
     const svg = '  \n  <svg viewBox="0 0 10 10"><rect fill="blue"/></svg>';
     const result = await loadImage(svg);
-    expect(result).toStartWith('data:image/svg+xml,');
+    expect(result).toMatch(/^data:image\/svg\+xml,/);
   });
 
   it('loads a file path and returns a base64 data URI', async () => {
@@ -27,13 +36,11 @@ describe('loadImage', () => {
       0x52,
     ]);
     const tmpPath = `/tmp/test-og-image-${Date.now()}.png`;
-    await Bun.write(tmpPath, pngBytes);
+    tmpFiles.push(tmpPath);
+    await writeFile(tmpPath, pngBytes);
 
     const result = await loadImage(tmpPath);
-    expect(result).toStartWith('data:image/png;base64,');
-
-    const { unlinkSync } = await import('node:fs');
-    unlinkSync(tmpPath);
+    expect(result).toMatch(/^data:image\/png;base64,/);
   });
 
   it('loads a URL and returns a base64 data URI', async () => {
@@ -45,7 +52,7 @@ describe('loadImage', () => {
     }) as typeof fetch;
 
     const result = await loadImage('https://example.com/image.png');
-    expect(result).toStartWith('data:image/png;base64,');
+    expect(result).toMatch(/^data:image\/png;base64,/);
   });
 
   it('falls back to application/octet-stream when URL has no Content-Type', async () => {
@@ -55,18 +62,16 @@ describe('loadImage', () => {
     }) as typeof fetch;
 
     const result = await loadImage('https://example.com/file.bin');
-    expect(result).toStartWith('data:application/octet-stream;base64,');
+    expect(result).toMatch(/^data:application\/octet-stream;base64,/);
   });
 
   it('detects MIME type from file extension', async () => {
     const tmpPath = `/tmp/test-og-image-${Date.now()}.jpg`;
-    await Bun.write(tmpPath, new Uint8Array([0xff, 0xd8, 0xff]));
+    tmpFiles.push(tmpPath);
+    await writeFile(tmpPath, new Uint8Array([0xff, 0xd8, 0xff]));
 
     const result = await loadImage(tmpPath);
-    expect(result).toStartWith('data:image/jpeg;base64,');
-
-    const { unlinkSync } = await import('node:fs');
-    unlinkSync(tmpPath);
+    expect(result).toMatch(/^data:image\/jpeg;base64,/);
   });
 
   it('throws when file does not exist', async () => {

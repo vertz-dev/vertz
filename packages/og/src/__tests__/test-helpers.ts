@@ -2,6 +2,7 @@
  * Shared test utilities for @vertz/og tests.
  */
 
+import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { SatoriElement } from '../types';
 
@@ -11,8 +12,9 @@ let cachedFont: ArrayBuffer | undefined;
 export async function getTestFont(): Promise<ArrayBuffer> {
   if (cachedFont) return cachedFont;
 
-  const fontPath = join(import.meta.dir, 'fixtures', 'NotoSans-Regular-Latin.ttf');
-  cachedFont = await Bun.file(fontPath).arrayBuffer();
+  const fontPath = join(import.meta.dirname, 'fixtures', 'NotoSans-Regular-Latin.ttf');
+  const data = await readFile(fontPath);
+  cachedFont = data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength) as ArrayBuffer;
   return cachedFont;
 }
 

@@ -1498,3 +1498,47 @@ async fn test_cjs_require_exports_array_string_fallback() {
         output.stdout
     );
 }
+
+// --- #2556: import.meta.dirname and import.meta.filename for ESM ---
+
+#[tokio::test]
+async fn test_import_meta_dirname_and_filename() {
+    let tmp = tempfile::tempdir().unwrap();
+    let entry = tmp.path().join("entry.js");
+    std::fs::write(
+        &entry,
+        r#"
+        console.log("dirname: " + import.meta.dirname);
+        console.log("filename: " + import.meta.filename);
+    "#,
+    )
+    .unwrap();
+
+    let mut rt = VertzJsRuntime::new(VertzRuntimeOptions {
+        root_dir: Some(tmp.path().to_string_lossy().to_string()),
+        capture_output: true,
+        ..Default::default()
+    })
+    .unwrap();
+
+    let specifier = deno_core::ModuleSpecifier::from_file_path(&entry).unwrap();
+    rt.load_main_module(&specifier).await.unwrap();
+
+    let output = rt.captured_output();
+    // Canonicalize to handle macOS /var → /private/var symlink
+    let canonical_dir = tmp.path().canonicalize().unwrap();
+    let expected_dirname = canonical_dir.to_string_lossy().to_string();
+    let expected_filename = canonical_dir.join("entry.js").to_string_lossy().to_string();
+    assert_eq!(
+        output.stdout[0],
+        format!("dirname: {}", expected_dirname),
+        "import.meta.dirname should return the directory path. Got: {:?}",
+        output.stdout
+    );
+    assert_eq!(
+        output.stdout[1],
+        format!("filename: {}", expected_filename),
+        "import.meta.filename should return the file path. Got: {:?}",
+        output.stdout
+    );
+}
