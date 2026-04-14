@@ -516,6 +516,57 @@ fn starts_with_type_name(trimmed: &str) -> bool {
         .is_some_and(|c| c.is_ascii_alphabetic() || c == '_' || c == '$')
 }
 
+/// Build a per-line mask indicating whether each line is inside a template literal.
+///
+/// Returns a `Vec<bool>` where `mask[i] == true` means line `i` is (at least
+/// partially) inside a backtick-delimited template string and should not be
+/// processed by import deduplication, TypeScript stripping, or other
+/// line-level transforms.
+///
+/// The mask uses the state at the *start* of each line so that a line
+/// containing the closing backtick is still treated as template content.
+fn template_literal_mask(lines: &[&str]) -> Vec<bool> {
+    let mut mask = Vec::with_capacity(lines.len());
+    let mut in_template = false;
+
+    for line in lines {
+        // Capture state at the start of this line.
+        let was_in_template = in_template;
+
+        let chars: Vec<char> = line.chars().collect();
+        let mut ci = 0;
+        while ci < chars.len() {
+            if chars[ci] == '\\' {
+                ci += 2; // skip escaped char
+                continue;
+            }
+            // Skip single/double quoted strings (they can't contain unescaped backticks)
+            if chars[ci] == '\'' || chars[ci] == '"' {
+                let q = chars[ci];
+                ci += 1;
+                while ci < chars.len() && chars[ci] != q {
+                    if chars[ci] == '\\' {
+                        ci += 1;
+                    }
+                    ci += 1;
+                }
+                if ci < chars.len() {
+                    ci += 1;
+                }
+                continue;
+            }
+            if chars[ci] == '`' {
+                in_template = !in_template;
+            }
+            ci += 1;
+        }
+
+        mask.push(was_in_template);
+    }
+
+    mask
+}
+
 /// Known issues with vertz-compiler-core:
 /// 1. Optional params `(param?: Type) =>` become `(param?) =>` instead of `(param) =>`
 /// 2. Type annotations in function params `(__props: PropsType)` not stripped in some cases
@@ -532,12 +583,20 @@ fn strip_leftover_typescript(code: &str) -> String {
     // cause them to survive. This is a safety net.
     // Handles both single-line and multi-line type aliases, interfaces, and TS keywords.
     let code_lines: Vec<&str> = code.lines().collect();
+    let mask = template_literal_mask(&code_lines);
     let mut result_lines: Vec<String> = Vec::new();
     let mut i = 0;
 
     while i < code_lines.len() {
         let line = code_lines[i];
         let trimmed = line.trim();
+
+        // Inside a template literal — preserve all lines as-is.
+        if mask[i] {
+            result_lines.push(line.to_string());
+            i += 1;
+            continue;
+        }
 
         // `import type { ... } from '...'` or `import type ... from '...'`
         if trimmed.starts_with("import type ") && trimmed.contains("from ") {
@@ -942,8 +1001,14 @@ fn deduplicate_imports(code: &str) -> String {
     let mut lines_to_remove: HashSet<usize> = HashSet::new();
 
     let lines: Vec<&str> = code.lines().collect();
+    let mask = template_literal_mask(&lines);
 
     for (idx, line) in lines.iter().enumerate() {
+        // Skip lines inside template literals — they're string content, not real imports.
+        if mask[idx] {
+            continue;
+        }
+
         let trimmed = line.trim();
 
         // Match: import { ... } from '...' or import { ... } from "..."
@@ -1088,6 +1153,7 @@ fn remove_cross_specifier_duplicates(code: &str) -> String {
     use std::collections::{HashMap, HashSet};
 
     let lines: Vec<&str> = code.lines().collect();
+    let mask = template_literal_mask(&lines);
 
     // First pass: collect all bindings per import statement using brace-matching
     // that handles multi-line imports.
@@ -1109,14 +1175,20 @@ fn remove_cross_specifier_duplicates(code: &str) -> String {
                 continue;
             }
 
+            // Find which line this import starts on
+            let import_line_idx = code[..abs_start].matches('\n').count();
+
+            // Skip imports inside template literals — they're string content.
+            if import_line_idx < mask.len() && mask[import_line_idx] {
+                pos = abs_start + 7;
+                continue;
+            }
+
             let rest = &code[abs_start + 7..];
             if rest.starts_with("type ") {
                 pos = abs_start + 12;
                 continue;
             }
-
-            // Find which line this import starts on
-            let import_line_idx = code[..abs_start].matches('\n').count();
 
             if let Some(brace_offset) = rest.find('{') {
                 let brace_abs = abs_start + 7 + brace_offset;
@@ -1168,7 +1240,11 @@ fn remove_cross_specifier_duplicates(code: &str) -> String {
     // Also collect locally declared names (function, const, let, var, class)
     // to detect conflicts with injected imports
     let mut local_declarations: HashSet<String> = HashSet::new();
-    for line in &lines {
+    for (idx, line) in lines.iter().enumerate() {
+        // Skip lines inside template literals
+        if mask[idx] {
+            continue;
+        }
         let trimmed = line.trim();
         // Skip imports
         if trimmed.starts_with("import ") {
@@ -1287,8 +1363,13 @@ fn remove_cross_specifier_duplicates(code: &str) -> String {
 /// Our native server uses WebSocket-based HMR — this API doesn't apply.
 /// We strip the lines entirely instead of shimming them.
 fn strip_import_meta_hot(code: &str) -> String {
-    code.lines()
-        .filter(|line| !line.trim().starts_with("import.meta.hot"))
+    let lines: Vec<&str> = code.lines().collect();
+    let mask = template_literal_mask(&lines);
+    lines
+        .iter()
+        .enumerate()
+        .filter(|(idx, line)| mask[*idx] || !line.trim().starts_with("import.meta.hot"))
+        .map(|(_, line)| *line)
         .collect::<Vec<_>>()
         .join("\n")
 }
@@ -2114,6 +2195,25 @@ export function App() {
         );
     }
 
+    #[test]
+    fn test_deduplicate_inside_template_literal() {
+        // Lines inside template literals that look like imports must NOT be
+        // merged or removed — they're string content, not real imports.
+        let code = "export function tpl() {\n  return `import { Button } from '@vertz/ui/components';\nimport { Dialog } from '@vertz/ui/components';\nconst x = 1;`;\n}";
+        let result = deduplicate_imports(code);
+        // Both import lines should survive (they're inside a template string)
+        assert!(
+            result.contains("import { Button } from '@vertz/ui/components'"),
+            "Button import inside template should be preserved. Got:\n{}",
+            result
+        );
+        assert!(
+            result.contains("import { Dialog } from '@vertz/ui/components'"),
+            "Dialog import inside template should be preserved. Got:\n{}",
+            result
+        );
+    }
+
     // ── extract_quoted_string ───────────────────────────────────────
 
     #[test]
@@ -2216,6 +2316,30 @@ export function App() {
         let code = "const x = 1;";
         let result = strip_import_meta_hot(code);
         assert_eq!(result, code);
+    }
+
+    #[test]
+    fn test_strip_import_meta_hot_preserves_template_literal() {
+        let code = "const tpl = `\nimport.meta.hot.accept();\n`;";
+        let result = strip_import_meta_hot(code);
+        assert!(
+            result.contains("import.meta.hot"),
+            "import.meta.hot inside template literal should be preserved. Got:\n{}",
+            result
+        );
+    }
+
+    #[test]
+    fn test_remove_cross_specifier_dupes_preserves_template_literal() {
+        // An import inside a template literal that matches an injected specifier
+        // must NOT be removed.
+        let code = "import { signal } from '@vertz/ui';\nexport function tpl() {\n  return `import { signal } from '../runtime/signal';\n`;\n}";
+        let result = remove_cross_specifier_duplicates(code);
+        assert!(
+            result.contains("from '../runtime/signal'"),
+            "Import inside template literal should be preserved. Got:\n{}",
+            result
+        );
     }
 
     // ── fix_module_id ───────────────────────────────────────────────
@@ -2701,6 +2825,85 @@ export function App() {
             result
         );
         assert!(result.contains("const x = 1;"));
+    }
+
+    /// Lines inside template literals must not be stripped, even if they
+    /// look like TypeScript syntax (e.g., documentation code examples).
+    #[test]
+    fn test_strip_preserves_type_syntax_inside_template_literals() {
+        let code = "export function tpl() {\n  return `export type * from '#generated/types';\nexport type Foo = string;\nimport type { Bar } from './bar';`;\n}";
+        let result = strip_leftover_typescript(code);
+        assert!(
+            result.contains("export type * from '#generated/types'"),
+            "export type * inside template literal should be preserved. Got: {}",
+            result
+        );
+        assert!(
+            result.contains("export type Foo = string"),
+            "export type alias inside template literal should be preserved. Got: {}",
+            result
+        );
+        assert!(
+            result.contains("import type { Bar } from './bar'"),
+            "import type inside template literal should be preserved. Got: {}",
+            result
+        );
+    }
+
+    /// Full compilation pipeline for a file with template strings containing
+    /// TypeScript syntax and `@vertz/ui` imports — nothing should leak.
+    #[test]
+    fn test_compile_templates_no_vertz_ui_leak() {
+        let tmp = tempfile::tempdir().unwrap();
+        let src_dir = tmp.path().join("src");
+        std::fs::create_dir_all(&src_dir).unwrap();
+        std::fs::write(
+            src_dir.join("templates.ts"),
+            r#"export function ruleTemplate(): string {
+  return `import { useDialogStack } from '@vertz/ui';
+export type * from '#generated/types';
+import type { Foo } from './foo';
+const d = useDialogStack();`;
+}
+export function appTemplate(): string {
+  return `import { css } from 'vertz/ui';
+export function App() {
+  const s = signal(0);
+  return '<div>' + s + '</div>';
+}`;
+}
+"#,
+        )
+        .unwrap();
+
+        let pipeline = create_pipeline(tmp.path());
+        let result = pipeline.compile_for_browser(&src_dir.join("templates.ts"));
+
+        // Check that no @vertz/ui import leaked outside template strings
+        let mut in_template = false;
+        for line in result.code.lines() {
+            let was = in_template;
+            for ch in line.chars() {
+                if ch == '`' {
+                    in_template = !in_template;
+                }
+            }
+            if !was && line.trim().starts_with("import ") && line.contains("@vertz/ui") {
+                panic!(
+                    "Found @vertz/ui import outside template string:\n  {}\n\nFull code:\n{}",
+                    line, result.code
+                );
+            }
+        }
+        // Template content should be preserved (not stripped)
+        assert!(
+            result.code.contains("@vertz/ui"),
+            "Template content with @vertz/ui should be preserved"
+        );
+        assert!(
+            result.code.contains("export type *"),
+            "Template content with export type * should be preserved"
+        );
     }
 
     #[test]

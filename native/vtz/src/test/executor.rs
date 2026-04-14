@@ -305,7 +305,7 @@ fn execute_test_file_inner(
         runtime
             .execute_script_void(
                 "[vertz:run-tests]",
-                "globalThis.__vertz_run_tests().then(r => globalThis.__test_results = r)",
+                "globalThis.__vertz_run_tests().then(r => { if(globalThis.__vtz_clear_all_timers) globalThis.__vtz_clear_all_timers(); globalThis.__test_results = r })",
             )
             .map_err(|e| deno_core::anyhow::anyhow!("Failed to start test execution: {}", e))?;
 
@@ -1005,7 +1005,10 @@ describe('rejects.toThrow with inline async call (#2576)', () => {
     /// should be caught by the per-file timeout and reported as a file error,
     /// not hang indefinitely.
     #[test]
-    fn test_lingering_interval_triggers_timeout() {
+    /// After tests complete, `__vtz_clear_all_timers()` cancels all pending
+    /// timers (including lingering intervals). This prevents the event loop
+    /// from hanging — the test file completes cleanly.
+    fn test_lingering_interval_cleaned_up_after_tests() {
         let tmp = tempfile::tempdir().unwrap();
         let file = write_test_file(
             tmp.path(),
@@ -1013,7 +1016,8 @@ describe('rejects.toThrow with inline async call (#2576)', () => {
             r#"
             describe('lingering interval', () => {
                 it('passes but leaves interval running', () => {
-                    // This interval is never cleared — keeps the event loop alive
+                    // This interval is never cleared — but __vtz_clear_all_timers
+                    // cancels it after tests complete, so the event loop exits cleanly.
                     setInterval(() => {}, 50);
                     expect(1 + 1).toBe(2);
                 });
@@ -1024,23 +1028,18 @@ describe('rejects.toThrow with inline async call (#2576)', () => {
         let result = execute_test_file_with_options(
             &file,
             &ExecuteOptions {
-                // Short timeout so the test doesn't take long
-                timeout_ms: 500,
+                timeout_ms: 2000,
                 ..Default::default()
             },
         );
 
-        // The test itself passes, but the file should error due to timeout
-        // because the unclosed setInterval keeps the event loop alive.
+        // Timer cleanup after tests prevents the timeout — file completes cleanly
         assert!(
-            result.file_error.is_some(),
-            "Expected file error from timeout, but got none. Tests: {:?}",
-            result.tests
+            result.file_error.is_none(),
+            "Expected no file error after timer cleanup, but got: {:?}",
+            result.file_error
         );
-        let err = result.file_error.as_ref().unwrap();
-        assert!(
-            err.contains("timed out"),
-            "Expected timeout error, got: {err}"
-        );
+        assert_eq!(result.tests.len(), 1);
+        assert_eq!(result.tests[0].status, TestStatus::Pass);
     }
 }
