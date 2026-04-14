@@ -31,19 +31,20 @@ export function parseSSE(buffer: string): { events: SSEEvent[]; remaining: strin
   for (const block of blocks) {
     if (block.trim() === '') continue;
 
-    let type = '';
+    // Named `eventType` instead of `type` — workaround for vtz runtime bug #2599
+    let eventType = '';
     let data = '';
 
     for (const line of block.split('\n')) {
       if (line.startsWith('event: ')) {
-        type = line.slice(7).trim();
+        eventType = line.slice(7).trim();
       } else if (line.startsWith('data: ')) {
         data = line.slice(6);
       }
     }
 
-    if (type) {
-      events.push({ type, data });
+    if (eventType) {
+      events.push({ type: eventType, data });
     }
   }
 
