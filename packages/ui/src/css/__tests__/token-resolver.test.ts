@@ -810,4 +810,225 @@ describe('resolveToken', () => {
       expect(result.declarations).toEqual([{ property: 'aspect-ratio', value: '21/9' }]);
     });
   });
+
+  describe('whitespace property', () => {
+    it('resolves whitespace:pre to white-space: pre', () => {
+      const result = resolveToken({ property: 'whitespace', value: 'pre', pseudo: null });
+      expect(result.declarations).toEqual([{ property: 'white-space', value: 'pre' }]);
+    });
+
+    it('resolves whitespace:pre-wrap to white-space: pre-wrap', () => {
+      const result = resolveToken({ property: 'whitespace', value: 'pre-wrap', pseudo: null });
+      expect(result.declarations).toEqual([{ property: 'white-space', value: 'pre-wrap' }]);
+    });
+
+    it('resolves whitespace:pre-line to white-space: pre-line', () => {
+      const result = resolveToken({ property: 'whitespace', value: 'pre-line', pseudo: null });
+      expect(result.declarations).toEqual([{ property: 'white-space', value: 'pre-line' }]);
+    });
+
+    it('resolves whitespace:normal to white-space: normal', () => {
+      const result = resolveToken({ property: 'whitespace', value: 'normal', pseudo: null });
+      expect(result.declarations).toEqual([{ property: 'white-space', value: 'normal' }]);
+    });
+  });
+
+  describe('text-overflow property', () => {
+    it('resolves text-overflow:ellipsis to text-overflow: ellipsis', () => {
+      const result = resolveToken({ property: 'text-overflow', value: 'ellipsis', pseudo: null });
+      expect(result.declarations).toEqual([{ property: 'text-overflow', value: 'ellipsis' }]);
+    });
+
+    it('resolves text-overflow:clip to text-overflow: clip', () => {
+      const result = resolveToken({ property: 'text-overflow', value: 'clip', pseudo: null });
+      expect(result.declarations).toEqual([{ property: 'text-overflow', value: 'clip' }]);
+    });
+  });
+
+  describe('overflow-wrap property', () => {
+    it('resolves overflow-wrap:break-word to overflow-wrap: break-word', () => {
+      const result = resolveToken({
+        property: 'overflow-wrap',
+        value: 'break-word',
+        pseudo: null,
+      });
+      expect(result.declarations).toEqual([{ property: 'overflow-wrap', value: 'break-word' }]);
+    });
+
+    it('resolves overflow-wrap:anywhere to overflow-wrap: anywhere', () => {
+      const result = resolveToken({ property: 'overflow-wrap', value: 'anywhere', pseudo: null });
+      expect(result.declarations).toEqual([{ property: 'overflow-wrap', value: 'anywhere' }]);
+    });
+
+    it('resolves overflow-wrap:normal to overflow-wrap: normal', () => {
+      const result = resolveToken({ property: 'overflow-wrap', value: 'normal', pseudo: null });
+      expect(result.declarations).toEqual([{ property: 'overflow-wrap', value: 'normal' }]);
+    });
+  });
+
+  describe('truncate keyword', () => {
+    it('resolves truncate to overflow + white-space + text-overflow', () => {
+      const result = resolveToken({ property: 'truncate', value: null, pseudo: null });
+      expect(result.declarations).toEqual([
+        { property: 'overflow', value: 'hidden' },
+        { property: 'white-space', value: 'nowrap' },
+        { property: 'text-overflow', value: 'ellipsis' },
+      ]);
+    });
+
+    it('resolves truncate with pseudo prefix', () => {
+      const result = resolveToken({ property: 'truncate', value: null, pseudo: ':hover' });
+      expect(result.declarations).toEqual([
+        { property: 'overflow', value: 'hidden' },
+        { property: 'white-space', value: 'nowrap' },
+        { property: 'text-overflow', value: 'ellipsis' },
+      ]);
+      expect(result.pseudo).toBe(':hover');
+    });
+  });
+
+  describe('whitespace keywords', () => {
+    it('resolves whitespace-pre keyword to white-space: pre', () => {
+      const result = resolveToken({ property: 'whitespace-pre', value: null, pseudo: null });
+      expect(result.declarations).toEqual([{ property: 'white-space', value: 'pre' }]);
+    });
+
+    it('resolves whitespace-pre-wrap keyword to white-space: pre-wrap', () => {
+      const result = resolveToken({ property: 'whitespace-pre-wrap', value: null, pseudo: null });
+      expect(result.declarations).toEqual([{ property: 'white-space', value: 'pre-wrap' }]);
+    });
+  });
+
+  describe('font:family (mono, sans, serif)', () => {
+    it('resolves font:mono to font-family with monospace stack', () => {
+      const result = resolveToken({ property: 'font', value: 'mono', pseudo: null });
+      expect(result.declarations).toEqual([
+        {
+          property: 'font-family',
+          value:
+            'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
+        },
+      ]);
+    });
+
+    it('resolves font:sans to font-family with sans-serif stack', () => {
+      const result = resolveToken({ property: 'font', value: 'sans', pseudo: null });
+      expect(result.declarations).toEqual([
+        {
+          property: 'font-family',
+          value:
+            'ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji"',
+        },
+      ]);
+    });
+
+    it('resolves font:serif to font-family with serif stack', () => {
+      const result = resolveToken({ property: 'font', value: 'serif', pseudo: null });
+      expect(result.declarations).toEqual([
+        {
+          property: 'font-family',
+          value: 'ui-serif, Georgia, Cambria, "Times New Roman", Times, serif',
+        },
+      ]);
+    });
+
+    it('font:bold still resolves to font-weight (no regression)', () => {
+      const result = resolveToken({ property: 'font', value: 'bold', pseudo: null });
+      expect(result.declarations).toEqual([{ property: 'font-weight', value: '700' }]);
+    });
+
+    it('font:lg still resolves to font-size (no regression)', () => {
+      const result = resolveToken({ property: 'font', value: 'lg', pseudo: null });
+      expect(result.declarations).toEqual([{ property: 'font-size', value: '1.125rem' }]);
+    });
+  });
+
+  describe('raw palette colors', () => {
+    it('resolves bg:green.100 to direct oklch value', () => {
+      const result = resolveToken({ property: 'bg', value: 'green.100', pseudo: null });
+      expect(result.declarations).toEqual([
+        { property: 'background-color', value: 'oklch(0.962 0.044 156.743)' },
+      ]);
+    });
+
+    it('resolves text:red.700 to direct oklch value', () => {
+      const result = resolveToken({ property: 'text', value: 'red.700', pseudo: null });
+      expect(result.declarations[0].property).toBe('color');
+      expect(result.declarations[0].value).toMatch(/^oklch\(/);
+    });
+
+    it('resolves border:blue.300 to direct oklch value', () => {
+      const result = resolveToken({ property: 'border', value: 'blue.300', pseudo: null });
+      expect(result.declarations[0].property).toBe('border-color');
+      expect(result.declarations[0].value).toMatch(/^oklch\(/);
+    });
+
+    it('resolves palette color with opacity modifier', () => {
+      const result = resolveToken({ property: 'bg', value: 'green.100/50', pseudo: null });
+      expect(result.declarations[0].value).toMatch(/^color-mix\(in oklch,/);
+      expect(result.declarations[0].value).toContain('oklch(0.962 0.044 156.743)');
+      expect(result.declarations[0].value).toContain('50%');
+    });
+
+    it('gray resolves to CSS var (semantic precedence)', () => {
+      const result = resolveToken({ property: 'bg', value: 'gray.500', pseudo: null });
+      expect(result.declarations).toEqual([
+        { property: 'background-color', value: 'var(--color-gray-500)' },
+      ]);
+    });
+
+    it('throws on invalid palette shade', () => {
+      expect(() => resolveToken({ property: 'bg', value: 'green.42', pseudo: null })).toThrow(
+        TokenResolveError,
+      );
+    });
+
+    it('throws on unknown palette name', () => {
+      expect(() => resolveToken({ property: 'bg', value: 'chartreuse.100', pseudo: null })).toThrow(
+        TokenResolveError,
+      );
+    });
+
+    it('supports all 21 non-gray palette names', () => {
+      const names = [
+        'slate',
+        'zinc',
+        'neutral',
+        'stone',
+        'red',
+        'orange',
+        'amber',
+        'yellow',
+        'lime',
+        'green',
+        'emerald',
+        'teal',
+        'cyan',
+        'sky',
+        'blue',
+        'indigo',
+        'violet',
+        'purple',
+        'fuchsia',
+        'pink',
+        'rose',
+      ];
+      for (const name of names) {
+        const result = resolveToken({ property: 'bg', value: `${name}.500`, pseudo: null });
+        expect(result.declarations[0].value).toMatch(/^oklch\(/);
+      }
+    });
+
+    it('isValidColorToken returns true for palette colors', () => {
+      expect(isValidColorToken('green.500')).toBe(true);
+    });
+
+    it('isValidColorToken returns false for invalid palette shade', () => {
+      expect(isValidColorToken('green.42')).toBe(false);
+    });
+
+    it('isValidColorToken returns false for unknown palette name', () => {
+      expect(isValidColorToken('chartreuse.100')).toBe(false);
+    });
+  });
 });

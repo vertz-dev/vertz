@@ -96,7 +96,10 @@ export type PropertyName =
   | 'aspect'
   | 'vt-name'
   | 'view-transition-name'
-  | 'content';
+  | 'content'
+  | 'whitespace'
+  | 'text-overflow'
+  | 'overflow-wrap';
 
 export const PROPERTY_MAP: Record<string, PropertyMapping> = {
   // Padding
@@ -192,6 +195,15 @@ export const PROPERTY_MAP: Record<string, PropertyMapping> = {
 
   // Content
   content: { properties: ['content'], valueType: 'content' },
+
+  // White-space
+  whitespace: { properties: ['white-space'], valueType: 'raw' },
+
+  // Text overflow
+  'text-overflow': { properties: ['text-overflow'], valueType: 'raw' },
+
+  // Overflow wrap
+  'overflow-wrap': { properties: ['overflow-wrap'], valueType: 'raw' },
 };
 
 // ─── Keyword Map ───────────────────────────────────────────────
@@ -238,7 +250,10 @@ export type Keyword =
   | 'scale-105'
   | 'scale-110'
   | 'scale-125'
-  | 'scale-150';
+  | 'scale-150'
+  | 'truncate'
+  | 'whitespace-pre'
+  | 'whitespace-pre-wrap';
 
 /** Keyword map -- single keywords that resolve to one or more declarations. */
 export const KEYWORD_MAP: Record<string, CSSDeclarationEntry[]> = {
@@ -298,6 +313,17 @@ export const KEYWORD_MAP: Record<string, CSSDeclarationEntry[]> = {
   'scale-110': [{ property: 'transform', value: 'scale(1.1)' }],
   'scale-125': [{ property: 'transform', value: 'scale(1.25)' }],
   'scale-150': [{ property: 'transform', value: 'scale(1.5)' }],
+
+  // Truncate (multi-declaration)
+  truncate: [
+    { property: 'overflow', value: 'hidden' },
+    { property: 'white-space', value: 'nowrap' },
+    { property: 'text-overflow', value: 'ellipsis' },
+  ],
+
+  // Whitespace keywords
+  'whitespace-pre': [{ property: 'white-space', value: 'pre' }],
+  'whitespace-pre-wrap': [{ property: 'white-space', value: 'pre-wrap' }],
 };
 
 /**
@@ -606,6 +632,50 @@ export const COLOR_NAMESPACES: ReadonlySet<string> = new Set<string>([
   'muted-foreground',
   'card-foreground',
   'popover-foreground',
+]);
+
+/**
+ * Raw Tailwind palette names that resolve to direct oklch values.
+ * `gray` is excluded — it's already a semantic namespace in COLOR_NAMESPACES
+ * and takes precedence (resolves to CSS custom properties, not oklch).
+ */
+export const RAW_PALETTE_NAMES: ReadonlySet<string> = new Set([
+  'slate',
+  'zinc',
+  'neutral',
+  'stone',
+  'red',
+  'orange',
+  'amber',
+  'yellow',
+  'lime',
+  'green',
+  'emerald',
+  'teal',
+  'cyan',
+  'sky',
+  'blue',
+  'indigo',
+  'violet',
+  'purple',
+  'fuchsia',
+  'pink',
+  'rose',
+]);
+
+/** Valid palette shade values. */
+export const PALETTE_SHADES: ReadonlySet<string> = new Set([
+  '50',
+  '100',
+  '200',
+  '300',
+  '400',
+  '500',
+  '600',
+  '700',
+  '800',
+  '900',
+  '950',
 ]);
 
 /** CSS color keyword names. */
