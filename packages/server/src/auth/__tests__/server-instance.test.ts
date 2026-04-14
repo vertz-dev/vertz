@@ -1,10 +1,21 @@
 import { Database } from '@vertz/sqlite';
 import { afterEach, describe, expect, it } from '@vertz/test';
 import { createDb } from '@vertz/db';
-import { createServer } from '../../create-server';
+import { createServer, type ServerInstance } from '../../create-server';
 import { authModels } from '../auth-models';
+import { TEST_PRIVATE_KEY, TEST_PUBLIC_KEY } from './test-keys';
 
 describe('createServer with db + auth', () => {
+  let serverApp: ServerInstance | null = null;
+
+  afterEach(() => {
+    // Dispose auth stores to clear setInterval timers that keep the event loop alive
+    if (serverApp?.auth) {
+      serverApp.auth.dispose();
+      serverApp = null;
+    }
+  });
+
   function createSqliteDb() {
     const rawDb = new Database(':memory:');
     const queryFn = async <T>(sqlStr: string, params: readonly unknown[]) => {
@@ -64,8 +75,14 @@ describe('createServer with db + auth', () => {
     const { db, rawDb } = createSqliteDb();
     const app = createServer({
       db,
-      auth: { session: { strategy: 'jwt', ttl: '60s' } },
+      auth: {
+        session: { strategy: 'jwt', ttl: '60s' },
+        privateKey: TEST_PRIVATE_KEY as string,
+        publicKey: TEST_PUBLIC_KEY as string,
+        isProduction: false,
+      },
     });
+    serverApp = app;
 
     expect(app.auth).toBeDefined();
     expect(typeof app.auth.api.signUp).toBe('function');
@@ -78,8 +95,14 @@ describe('createServer with db + auth', () => {
     const { db, rawDb } = createSqliteDb();
     const app = createServer({
       db,
-      auth: { session: { strategy: 'jwt', ttl: '60s' } },
+      auth: {
+        session: { strategy: 'jwt', ttl: '60s' },
+        privateKey: TEST_PRIVATE_KEY as string,
+        publicKey: TEST_PUBLIC_KEY as string,
+        isProduction: false,
+      },
     });
+    serverApp = app;
 
     await app.initialize();
 

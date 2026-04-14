@@ -1646,8 +1646,14 @@ pub const CJS_BOOTSTRAP_JS: &str = r#"
           webcrypto: globalThis.crypto, constants: {},
           getCiphers: () => [], getCurves: () => ['prime256v1', 'secp384r1', 'secp521r1'],
           createHmac: () => { throw new Error('createHmac requires ESM import'); },
-          createPrivateKey: (input) => ({ type: 'private', _data: typeof input === 'string' ? input : (input.key || input), export: function(o) { return this._data; } }),
-          createPublicKey: (input) => ({ type: 'public', _data: typeof input === 'string' ? input : (input.key || input), export: function(o) { return this._data; } }),
+          createPrivateKey: (input) => {
+            const key = typeof input === 'string' ? input : (input.key || input);
+            return { type: 'private', _data: key, get asymmetricKeyType() { return globalThis.__vertz_crypto ? globalThis.__vertz_crypto._detectKeyType(key) : undefined; }, export: function(o) { return this._data; } };
+          },
+          createPublicKey: (input) => {
+            const key = typeof input === 'string' ? input : (input.key || input);
+            return { type: 'public', _data: key, get asymmetricKeyType() { return globalThis.__vertz_crypto ? globalThis.__vertz_crypto._detectKeyType(key) : undefined; }, export: function(o) { return this._data; } };
+          },
         };
       }
       case 'async_hooks': return globalThis.__vertz_async_hooks || { AsyncLocalStorage: undefined, AsyncResource: undefined };
@@ -2787,13 +2793,38 @@ function randomUUID() {
 // webcrypto: expose the Web Crypto API (available in V8 via globalThis.crypto)
 const webcrypto = globalThis.crypto;
 
-// KeyObject stub for RSA key operations (the runtime uses Rust-native JWT ops)
+// Detect asymmetric key type from PEM data by checking for known OID byte sequences.
+// RSA OID 1.2.840.113549.1.1.1: 2a 86 48 86 f7 0d 01 01 01
+// EC OID 1.2.840.10045.2.1:     2a 86 48 ce 3d 02 01
+function _detectKeyType(pem) {
+  if (typeof pem !== 'string') return undefined;
+  const b64 = pem.replace(/-----[A-Z0-9 ]+-----/g, '').replace(/\s/g, '');
+  const raw = atob(b64);
+  if (raw.includes('\x2a\x86\x48\x86\xf7\x0d\x01\x01\x01')) return 'rsa';
+  if (raw.includes('\x2a\x86\x48\xce\x3d\x02\x01')) return 'ec';
+  return undefined;
+}
+
+// Detect EC named curve from PEM. P-256 OID (prime256v1): 2a 86 48 ce 3d 03 01 07
+function _detectECDetails(pem) {
+  if (typeof pem !== 'string') return undefined;
+  const b64 = pem.replace(/-----[A-Z0-9 ]+-----/g, '').replace(/\s/g, '');
+  const raw = atob(b64);
+  if (raw.includes('\x2a\x86\x48\xce\x3d\x03\x01\x07')) return { namedCurve: 'prime256v1' };
+  return undefined;
+}
+
+// KeyObject stub for RSA/EC key operations (the runtime uses Rust-native JWT ops)
 class KeyObject {
   constructor(type, data) {
     this._type = type;
     this._data = data;
+    this._asymmetricKeyType = _detectKeyType(data);
+    this._asymmetricKeyDetails = this._asymmetricKeyType === 'ec' ? _detectECDetails(data) : undefined;
   }
   get type() { return this._type; }
+  get asymmetricKeyType() { return this._asymmetricKeyType; }
+  get asymmetricKeyDetails() { return this._asymmetricKeyDetails; }
   export(options) {
     if (options && options.type === 'pkcs1' && options.format === 'pem') {
       return this._data;
@@ -2806,11 +2837,13 @@ class KeyObject {
 }
 
 function createPrivateKey(input) {
+  if (input instanceof KeyObject) return input;
   const key = typeof input === 'string' ? input : (input.key || input);
   return new KeyObject('private', key);
 }
 
 function createPublicKey(input) {
+  if (input instanceof KeyObject) return new KeyObject('public', input._data);
   const key = typeof input === 'string' ? input : (input.key || input);
   return new KeyObject('public', key);
 }
@@ -2821,10 +2854,13 @@ function generateKeyPairSync(type, options) {
     modulusLength: options.modulusLength,
     namedCurve: options.namedCurve,
   });
-  return {
-    publicKey: createPublicKey(result.publicKey),
-    privateKey: createPrivateKey(result.privateKey),
-  };
+  // When encoding options specify format: 'pem', return raw PEM strings (Node.js behavior).
+  // When no encoding options, return KeyObject instances.
+  const pubEnc = options.publicKeyEncoding;
+  const privEnc = options.privateKeyEncoding;
+  const pubVal = (pubEnc && pubEnc.format === 'pem') ? result.publicKey : createPublicKey(result.publicKey);
+  const privVal = (privEnc && privEnc.format === 'pem') ? result.privateKey : createPrivateKey(result.privateKey);
+  return { publicKey: pubVal, privateKey: privVal };
 }
 
 function randomFillSync(buf, offset, size) {
@@ -2853,7 +2889,7 @@ function getCurves() { return ['prime256v1', 'secp384r1', 'secp521r1']; }
 
 const constants = {};
 
-const __cryptoModule = { createHash, createHmac, timingSafeEqual, randomBytes, randomUUID, randomFillSync, randomInt, webcrypto, KeyObject, createPrivateKey, createPublicKey, generateKeyPairSync, getHashes, getCiphers, getCurves, constants };
+const __cryptoModule = { createHash, createHmac, timingSafeEqual, randomBytes, randomUUID, randomFillSync, randomInt, webcrypto, KeyObject, createPrivateKey, createPublicKey, generateKeyPairSync, getHashes, getCiphers, getCurves, constants, _detectKeyType };
 globalThis.__vertz_crypto = __cryptoModule;
 
 export { createHash, createHmac, timingSafeEqual, randomBytes, randomUUID, randomFillSync, randomInt, Hash, webcrypto, KeyObject, createPrivateKey, createPublicKey, generateKeyPairSync, getHashes, getCiphers, getCurves, constants };
