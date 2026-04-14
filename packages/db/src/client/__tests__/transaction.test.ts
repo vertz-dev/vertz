@@ -172,7 +172,8 @@ describe('DatabaseClient.transaction()', () => {
       expect(true).toBe(false); // Should have thrown
     } catch (e) {
       // SQLite natively rejects BEGIN inside BEGIN
-      expect((e as Error).message).toBe('cannot start a transaction within a transaction');
+      // Error message may include extra context depending on the runtime
+      expect((e as Error).message).toContain('cannot start a transaction within a transaction');
     }
 
     rawDb.close();
