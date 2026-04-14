@@ -77,6 +77,22 @@ export type DesktopErrorCode =
   | 'WINDOW_CLOSED'
   | 'EXECUTION_FAILED';
 
+const DESKTOP_ERROR_CODES: ReadonlySet<string> = new Set<DesktopErrorCode>([
+  'NOT_FOUND',
+  'PERMISSION_DENIED',
+  'IO_ERROR',
+  'INVALID_PATH',
+  'TIMEOUT',
+  'METHOD_NOT_FOUND',
+  'WINDOW_CLOSED',
+  'EXECUTION_FAILED',
+]);
+
+/** Validates a runtime error code string, falling back to `'IO_ERROR'` for unknown values. */
+export function validateErrorCode(code: string): DesktopErrorCode {
+  return DESKTOP_ERROR_CODES.has(code) ? (code as DesktopErrorCode) : 'IO_ERROR';
+}
+
 export interface DesktopError {
   code: DesktopErrorCode;
   message: string;
