@@ -214,6 +214,30 @@ fn strip_comments(code: &str) -> String {
     result
 }
 
+/// Check if `name(` appears as a standalone call (not a method call like `obj.name(`).
+///
+/// Returns true only when the character before `name(` is NOT an identifier character
+/// or a `.`, preventing false positives like `db.batch(` from matching `batch(`.
+fn contains_standalone_call(code: &str, name: &str) -> bool {
+    let pattern = format!("{name}(");
+    let mut search_from = 0;
+    while let Some(pos) = code[search_from..].find(&pattern) {
+        let abs_pos = search_from + pos;
+        if abs_pos == 0 {
+            return true;
+        }
+        let prev = code.as_bytes()[abs_pos - 1];
+        // If the preceding character is an identifier char or `.`, this is a
+        // method call or part of a larger identifier — not a standalone call.
+        if prev.is_ascii_alphanumeric() || prev == b'_' || prev == b'$' || prev == b'.' {
+            search_from = abs_pos + pattern.len();
+            continue;
+        }
+        return true;
+    }
+    false
+}
+
 /// Scan compiled output for runtime function usage and prepend import statements.
 ///
 /// Uses a simple string-scanning approach: checks if `helperName(` exists in the
@@ -237,13 +261,13 @@ pub fn inject_imports(ms: &mut MagicString, target: &str) {
     let mut runtime_imports: Vec<&str> = Vec::new();
     let mut dom_imports: Vec<&str> = Vec::new();
 
-    // Scan for runtime features (in code only, not comments)
+    // Scan for runtime features (in code only, not comments).
+    // Use word-boundary check to avoid false positives like `db.batch(` matching `batch(`.
     for &feature in RUNTIME_FEATURES {
         if existing.contains(feature) {
             continue;
         }
-        let pattern = format!("{feature}(");
-        if code_only.contains(&pattern) {
+        if contains_standalone_call(&code_only, feature) {
             runtime_imports.push(feature);
         }
     }
@@ -253,8 +277,7 @@ pub fn inject_imports(ms: &mut MagicString, target: &str) {
         if existing.contains(helper) {
             continue;
         }
-        let pattern = format!("{helper}(");
-        if code_only.contains(&pattern) {
+        if contains_standalone_call(&code_only, helper) {
             dom_imports.push(helper);
         }
     }
@@ -579,5 +602,112 @@ mod tests {
         let code = "x import { signal } from './x';\nsignal(0);";
         let result = inject(code);
         assert!(result.contains("import { signal } from '@vertz/ui';"));
+    }
+
+    // ── Word boundary: method calls are NOT standalone calls ──────
+
+    #[test]
+    fn does_not_inject_batch_for_method_call() {
+        // db.batch(...) is a method call, not a standalone batch() call
+        let code = "db.batch(statements);";
+        let result = inject(code);
+        assert!(
+            !result.contains("import { batch }"),
+            "should not inject batch for method call: {}",
+            result
+        );
+    }
+
+    #[test]
+    fn does_not_inject_signal_for_method_call() {
+        let code = "obj.signal(value);";
+        let result = inject(code);
+        assert!(
+            !result.contains("from '@vertz/ui'"),
+            "should not inject signal for method call"
+        );
+    }
+
+    #[test]
+    fn injects_batch_for_standalone_call() {
+        let code = "batch(() => { a.set(1); b.set(2); });";
+        let result = inject(code);
+        assert!(result.contains("import { batch } from '@vertz/ui';"));
+    }
+
+    #[test]
+    fn does_not_inject_for_longer_identifier() {
+        // signalAll( should not match signal(
+        let code = "batchUpdate(items);";
+        let result = inject(code);
+        assert!(
+            !result.contains("import { batch }"),
+            "should not inject batch for batchUpdate call"
+        );
+    }
+
+    #[test]
+    fn injects_for_call_after_semicolon() {
+        let code = "x = 1;batch(() => {});";
+        let result = inject(code);
+        assert!(result.contains("import { batch } from '@vertz/ui';"));
+    }
+
+    #[test]
+    fn injects_for_call_after_newline() {
+        let code = "x = 1;\nbatch(() => {});";
+        let result = inject(code);
+        assert!(result.contains("import { batch } from '@vertz/ui';"));
+    }
+
+    #[test]
+    fn injects_for_call_after_open_paren() {
+        let code = "foo(batch(() => {}));";
+        let result = inject(code);
+        assert!(result.contains("import { batch } from '@vertz/ui';"));
+    }
+
+    #[test]
+    fn injects_for_call_after_space() {
+        let code = "const x = batch(() => {});";
+        let result = inject(code);
+        assert!(result.contains("import { batch } from '@vertz/ui';"));
+    }
+
+    // ── contains_standalone_call unit tests ────────────────────────
+
+    #[test]
+    fn standalone_call_at_start_of_string() {
+        assert!(contains_standalone_call("batch()", "batch"));
+    }
+
+    #[test]
+    fn standalone_call_preceded_by_dot_is_rejected() {
+        assert!(!contains_standalone_call("db.batch()", "batch"));
+    }
+
+    #[test]
+    fn standalone_call_preceded_by_identifier_is_rejected() {
+        assert!(!contains_standalone_call("mybatch()", "batch"));
+    }
+
+    #[test]
+    fn standalone_call_preceded_by_operator_is_accepted() {
+        assert!(contains_standalone_call("x=batch()", "batch"));
+        assert!(contains_standalone_call("x+batch()", "batch"));
+        assert!(contains_standalone_call("x,batch()", "batch"));
+    }
+
+    #[test]
+    fn multiple_occurrences_first_is_method_second_is_standalone() {
+        assert!(contains_standalone_call("db.batch(x); batch(y);", "batch"));
+    }
+
+    #[test]
+    fn all_occurrences_are_method_calls() {
+        assert!(!contains_standalone_call(
+            "db.batch(x); other.batch(y);",
+            "batch"
+        ));
     }
 }

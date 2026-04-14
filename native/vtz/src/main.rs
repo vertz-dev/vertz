@@ -352,7 +352,7 @@ async fn async_main(cli: Cli) {
                 concurrency: args.concurrency.or(file_config.concurrency),
                 filter: args.filter,
                 bail: args.bail,
-                timeout_ms: args.timeout.or(file_config.timeout_ms).unwrap_or(5000),
+                timeout_ms: args.timeout.or(file_config.timeout_ms).unwrap_or(15000),
                 reporter,
                 coverage: args.coverage || file_config.coverage.unwrap_or(false),
                 coverage_threshold: args
