@@ -55,6 +55,8 @@ pub fn write_lockfile(path: &Path, lockfile: &Lockfile) -> Result<(), std::io::E
             }
         }
 
+        // Some(vec![]) intentionally collapses to None on round-trip (no section written).
+        // matches_platform treats both identically, so this is semantically correct.
         if let Some(ref os_list) = entry.os {
             if !os_list.is_empty() {
                 output.push_str("  os:\n");
@@ -1141,5 +1143,40 @@ lefthook@^2.1.1:
         let entry = &parsed.entries["pkg@^1.0.0"];
         assert_eq!(entry.os, None);
         assert_eq!(entry.cpu, None);
+    }
+
+    #[test]
+    fn test_negated_os_cpu_roundtrips() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("vertz.lock");
+
+        let mut lockfile = Lockfile::default();
+        lockfile.entries.insert(
+            "pkg@^1.0.0".to_string(),
+            LockfileEntry {
+                name: "pkg".to_string(),
+                range: "^1.0.0".to_string(),
+                version: "1.0.0".to_string(),
+                resolved: "https://registry.npmjs.org/pkg/-/pkg-1.0.0.tgz".to_string(),
+                integrity: "sha512-xyz".to_string(),
+                dependencies: BTreeMap::new(),
+                optional_dependencies: BTreeMap::new(),
+                bin: BTreeMap::new(),
+                scripts: BTreeMap::new(),
+                optional: false,
+                overridden: false,
+                os: Some(vec!["!win32".to_string()]),
+                cpu: Some(vec!["!ia32".to_string(), "!mips".to_string()]),
+            },
+        );
+
+        write_lockfile(&path, &lockfile).unwrap();
+        let parsed = read_lockfile(&path).unwrap();
+        let entry = &parsed.entries["pkg@^1.0.0"];
+        assert_eq!(entry.os, Some(vec!["!win32".to_string()]));
+        assert_eq!(
+            entry.cpu,
+            Some(vec!["!ia32".to_string(), "!mips".to_string()])
+        );
     }
 }
