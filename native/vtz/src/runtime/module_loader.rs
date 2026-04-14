@@ -2802,74 +2802,103 @@ function randomUUID() {
 // webcrypto: expose the Web Crypto API (available in V8 via globalThis.crypto)
 const webcrypto = globalThis.crypto;
 
-// Detect asymmetric key type from PEM data by checking for known OID byte sequences.
-// RSA OID 1.2.840.113549.1.1.1: 2a 86 48 86 f7 0d 01 01 01
-// EC OID 1.2.840.10045.2.1:     2a 86 48 ce 3d 02 01
-function _detectKeyType(pem) {
-  if (typeof pem !== 'string') return undefined;
-  const b64 = pem.replace(/-----[A-Z0-9 ]+-----/g, '').replace(/\s/g, '');
-  const raw = atob(b64);
-  if (raw.includes('\x2a\x86\x48\x86\xf7\x0d\x01\x01\x01')) return 'rsa';
-  if (raw.includes('\x2a\x86\x48\xce\x3d\x02\x01')) return 'ec';
-  return undefined;
+// --- KeyObject: Node.js-compatible wrapper for asymmetric keys ---
+
+function _pemToBase64(pem) {
+  return pem.replace(/-----[A-Z ]+-----/g, '').replace(/\s/g, '');
 }
 
-// Detect EC named curve from PEM. P-256 OID (prime256v1): 2a 86 48 ce 3d 03 01 07
-function _detectECDetails(pem) {
-  if (typeof pem !== 'string') return undefined;
-  const b64 = pem.replace(/-----[A-Z0-9 ]+-----/g, '').replace(/\s/g, '');
+function _base64ToUint8Array(b64) {
   const raw = atob(b64);
-  if (raw.includes('\x2a\x86\x48\xce\x3d\x03\x01\x07')) return { namedCurve: 'prime256v1' };
-  return undefined;
+  const buf = new Uint8Array(raw.length);
+  for (let i = 0; i < raw.length; i++) buf[i] = raw.charCodeAt(i);
+  return buf;
 }
 
-// KeyObject stub for RSA/EC key operations (the runtime uses Rust-native JWT ops)
+function _pemToDer(pem) {
+  return _base64ToUint8Array(_pemToBase64(pem));
+}
+
 class KeyObject {
-  constructor(type, data) {
-    this._type = type;
-    this._data = data;
-    this._asymmetricKeyType = _detectKeyType(data);
-    this._asymmetricKeyDetails = this._asymmetricKeyType === 'ec' ? _detectECDetails(data) : undefined;
+  constructor(type, pem, keyType, keyDetails) {
+    this._type = type;        // 'private' | 'public'
+    this._data = pem;         // PEM string
+    this._keyType = keyType;  // 'rsa' | 'ec'
+    this._keyDetails = keyDetails || {};
   }
   get type() { return this._type; }
-  get asymmetricKeyType() { return this._asymmetricKeyType; }
-  get asymmetricKeyDetails() { return this._asymmetricKeyDetails; }
+  get asymmetricKeyType() { return this._keyType; }
+  get asymmetricKeyDetails() { return this._keyDetails; }
   export(options) {
-    if (options && options.type === 'pkcs1' && options.format === 'pem') {
-      return this._data;
-    }
-    if (options && options.type === 'spki' && options.format === 'pem') {
-      return this._data;
+    if (!options) return this._data;
+    if (options.format === 'der') {
+      return Buffer.from(_pemToDer(this._data));
     }
     return this._data;
   }
 }
 
+function _detectKeyType(pem) {
+  // Check PEM header for explicit key type
+  if (pem.includes('BEGIN RSA')) return 'rsa';
+  if (pem.includes('BEGIN EC')) return 'ec';
+  // For PKCS#8/SPKI (generic headers), inspect DER for OIDs
+  const der = _pemToDer(pem);
+  // EC OID 1.2.840.10045.2.1 = 06 07 2a 86 48 ce 3d 02 01
+  const ecOid = [0x06, 0x07, 0x2a, 0x86, 0x48, 0xce, 0x3d, 0x02, 0x01];
+  for (let i = 0; i < der.length - ecOid.length; i++) {
+    let match = true;
+    for (let j = 0; j < ecOid.length; j++) {
+      if (der[i + j] !== ecOid[j]) { match = false; break; }
+    }
+    if (match) return 'ec';
+  }
+  return 'rsa';
+}
+
 function createPrivateKey(input) {
   if (input instanceof KeyObject) return input;
-  const key = typeof input === 'string' ? input : (input.key || input);
-  return new KeyObject('private', key);
+  const pem = typeof input === 'string' ? input : (input.key || String(input));
+  const keyType = _detectKeyType(pem);
+  const details = keyType === 'ec' ? { namedCurve: 'prime256v1' } : {};
+  return new KeyObject('private', pem, keyType, details);
 }
 
 function createPublicKey(input) {
-  if (input instanceof KeyObject) return new KeyObject('public', input._data);
-  const key = typeof input === 'string' ? input : (input.key || input);
-  return new KeyObject('public', key);
+  if (input instanceof KeyObject) {
+    if (input._type === 'private') {
+      throw new Error('createPublicKey(privateKeyObject) is not yet supported in the Vertz runtime. Pass the public PEM string directly.');
+    }
+    return input;
+  }
+  const pem = typeof input === 'string' ? input : (input.key || String(input));
+  const keyType = _detectKeyType(pem);
+  const details = keyType === 'ec' ? { namedCurve: 'prime256v1' } : {};
+  return new KeyObject('public', pem, keyType, details);
 }
 
 function generateKeyPairSync(type, options) {
+  const opts = options || {};
   const result = Deno.core.ops.op_crypto_generate_keypair({
     type,
-    modulusLength: options.modulusLength,
-    namedCurve: options.namedCurve,
+    modulusLength: opts.modulusLength,
+    namedCurve: opts.namedCurve,
   });
-  // When encoding options specify format: 'pem', return raw PEM strings (Node.js behavior).
-  // When no encoding options, return KeyObject instances.
-  const pubEnc = options.publicKeyEncoding;
-  const privEnc = options.privateKeyEncoding;
-  const pubVal = (pubEnc && pubEnc.format === 'pem') ? result.publicKey : createPublicKey(result.publicKey);
-  const privVal = (privEnc && privEnc.format === 'pem') ? result.privateKey : createPrivateKey(result.privateKey);
-  return { publicKey: pubVal, privateKey: privVal };
+  // Node.js returns PEM strings when encoding options are provided
+  const hasEncoding = opts.publicKeyEncoding || opts.privateKeyEncoding;
+  if (hasEncoding) {
+    return {
+      publicKey: result.publicKey,
+      privateKey: result.privateKey,
+    };
+  }
+  const keyDetails = type === 'ec'
+    ? { namedCurve: opts.namedCurve === 'P-256' ? 'prime256v1' : (opts.namedCurve || 'prime256v1') }
+    : {};
+  return {
+    publicKey: new KeyObject('public', result.publicKey, type, keyDetails),
+    privateKey: new KeyObject('private', result.privateKey, type, keyDetails),
+  };
 }
 
 function randomFillSync(buf, offset, size) {

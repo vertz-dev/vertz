@@ -36,6 +36,13 @@ pub fn op_cwd() -> Result<String, deno_core::error::AnyError> {
         .map_err(|e| deno_core::error::type_error(format!("Failed to get current directory: {e}")))
 }
 
+/// Change the current working directory.
+#[op2(fast)]
+pub fn op_chdir(#[string] dir: String) -> Result<(), deno_core::error::AnyError> {
+    std::env::set_current_dir(&dir)
+        .map_err(|e| deno_core::error::type_error(format!("Failed to change directory: {e}")))
+}
+
 /// Get the op declarations for env ops.
 pub fn op_decls() -> Vec<OpDecl> {
     vec![
@@ -44,6 +51,7 @@ pub fn op_decls() -> Vec<OpDecl> {
         op_env_remove(),
         op_env_keys(),
         op_cwd(),
+        op_chdir(),
     ]
 }
 
@@ -92,6 +100,9 @@ pub const ENV_BOOTSTRAP_JS: &str = r#"
   });
   if (!globalThis.process.cwd) {
     globalThis.process.cwd = () => Deno.core.ops.op_cwd();
+  }
+  if (!globalThis.process.chdir) {
+    globalThis.process.chdir = (dir) => Deno.core.ops.op_chdir(dir);
   }
   if (!globalThis.process.versions) {
     globalThis.process.versions = {};
@@ -180,6 +191,52 @@ mod tests {
             .unwrap();
         assert_eq!(result, serde_json::json!("set_value"));
         std::env::remove_var("VERTZ_SET_TEST");
+    }
+
+    #[test]
+    fn test_process_chdir_is_a_function() {
+        let mut rt = VertzJsRuntime::new(VertzRuntimeOptions::default()).unwrap();
+        let result = rt.execute_script("<test>", "typeof process.chdir").unwrap();
+        assert_eq!(result, serde_json::json!("function"));
+    }
+
+    #[test]
+    fn test_process_chdir_changes_directory() {
+        let original = std::env::current_dir().unwrap();
+        let mut rt = VertzJsRuntime::new(VertzRuntimeOptions::default()).unwrap();
+        let result = rt
+            .execute_script(
+                "<test>",
+                r#"
+                const before = process.cwd();
+                process.chdir('/tmp');
+                const after = process.cwd();
+                [before !== '/tmp' && before !== '/private/tmp', after === '/tmp' || after === '/private/tmp']
+                "#,
+            )
+            .unwrap();
+        let arr = result.as_array().unwrap();
+        assert!(arr[0].as_bool().unwrap(), "Before should not be /tmp");
+        assert!(arr[1].as_bool().unwrap(), "After should be /tmp");
+        // Restore
+        std::env::set_current_dir(&original).unwrap();
+    }
+
+    #[test]
+    fn test_process_chdir_invalid_directory_throws() {
+        let mut rt = VertzJsRuntime::new(VertzRuntimeOptions::default()).unwrap();
+        let result = rt.execute_script(
+            "<test>",
+            r#"
+            try {
+                process.chdir('/nonexistent_vertz_test_dir_12345');
+                'no_error'
+            } catch (e) {
+                e.message.includes('Failed to change directory') ? 'correct_error' : e.message
+            }
+            "#,
+        );
+        assert_eq!(result.unwrap(), "correct_error");
     }
 
     #[test]
