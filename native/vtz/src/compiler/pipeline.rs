@@ -502,6 +502,20 @@ fn fix_internals_imports(code: &str) -> String {
 
 /// Strip leftover TypeScript syntax that the compiler didn't fully remove.
 ///
+/// Returns true if a line starting with `type ` or `export type ` has a valid
+/// identifier name after the keyword — distinguishing `type Foo = string` (type alias)
+/// from `type = 'value'` (variable assignment). See #2599.
+fn starts_with_type_name(trimmed: &str) -> bool {
+    let after_keyword = trimmed
+        .strip_prefix("export type ")
+        .or_else(|| trimmed.strip_prefix("type "))
+        .unwrap_or("");
+    after_keyword
+        .chars()
+        .next()
+        .is_some_and(|c| c.is_ascii_alphabetic() || c == '_' || c == '$')
+}
+
 /// Known issues with vertz-compiler-core:
 /// 1. Optional params `(param?: Type) =>` become `(param?) =>` instead of `(param) =>`
 /// 2. Type annotations in function params `(__props: PropsType)` not stripped in some cases
@@ -536,10 +550,13 @@ fn strip_leftover_typescript(code: &str) -> String {
             continue;
         }
         // Type alias: `export type X = ...` or `type X = ...` (single or multi-line)
+        // Guard: the token after `type ` must be an identifier (e.g., `type Foo =`),
+        // NOT an operator like `=` or `+=`. Otherwise `type = 'value'` (a variable
+        // assignment) would be incorrectly stripped. See #2599.
         if (trimmed.starts_with("export type ") || trimmed.starts_with("type "))
             && !trimmed.starts_with("export type {")
-            && !trimmed.starts_with("typeof ")
             && trimmed.contains('=')
+            && starts_with_type_name(trimmed)
         {
             if trimmed.ends_with(';') {
                 // Single-line type alias — skip
@@ -562,6 +579,7 @@ fn strip_leftover_typescript(code: &str) -> String {
         if (trimmed.starts_with("export type ") || trimmed.starts_with("type "))
             && trimmed.ends_with(';')
             && !trimmed.contains('{')
+            && starts_with_type_name(trimmed)
         {
             i += 1;
             continue;
@@ -2559,6 +2577,100 @@ export function App() {
             result.code.contains("\"https://api.example.com\""),
             "import.meta.env.VITE_API_URL should be replaced. Code: {}",
             result.code
+        );
+    }
+
+    #[test]
+    fn test_strip_preserves_type_variable_assignment() {
+        // Variable named `type` must NOT be stripped — it's a valid JS identifier, not a type alias.
+        // See: https://github.com/vertz-dev/vertz/issues/2599
+        let code = "let type = '';\ntype = 'event: data'.slice(7).trim();";
+        let result = strip_leftover_typescript(code);
+        assert!(
+            result.contains("type = 'event: data'"),
+            "Variable assignment `type = ...` should be preserved. Got: {}",
+            result
+        );
+        assert!(
+            result.contains("let type = ''"),
+            "Variable declaration `let type = ''` should be preserved. Got: {}",
+            result
+        );
+    }
+
+    #[test]
+    fn test_strip_preserves_type_compound_assignment() {
+        let code = "let type = '';\ntype += 'suffix';";
+        let result = strip_leftover_typescript(code);
+        assert!(
+            result.contains("type += 'suffix'"),
+            "Compound assignment `type += ...` should be preserved. Got: {}",
+            result
+        );
+    }
+
+    #[test]
+    fn test_strip_still_removes_real_type_aliases() {
+        // Ensure the fix doesn't break actual type alias stripping
+        let code = "type Foo = string;\ntype Bar = { x: number };\nconst x = 1;";
+        let result = strip_leftover_typescript(code);
+        assert!(
+            !result.contains("type Foo"),
+            "Type alias should still be stripped"
+        );
+        assert!(
+            !result.contains("type Bar"),
+            "Type alias should still be stripped"
+        );
+        assert!(result.contains("const x = 1;"));
+    }
+
+    #[test]
+    fn test_strip_removes_underscore_and_dollar_type_aliases() {
+        let code = "type _Internal = number;\ntype $Computed = boolean;\nconst x = 1;";
+        let result = strip_leftover_typescript(code);
+        assert!(
+            !result.contains("type _Internal"),
+            "Type alias with underscore should be stripped"
+        );
+        assert!(
+            !result.contains("type $Computed"),
+            "Type alias with dollar should be stripped"
+        );
+        assert!(result.contains("const x = 1;"));
+    }
+
+    #[test]
+    fn test_strip_preserves_type_comparison() {
+        let code = "if (type == 'string') {}";
+        let result = strip_leftover_typescript(code);
+        assert!(
+            result.contains("type == 'string'"),
+            "Comparison should be preserved. Got: {}",
+            result
+        );
+    }
+
+    #[test]
+    fn test_strip_preserves_export_type_variable_assignment() {
+        // `export type =` is not a valid TS type alias; preserve it
+        let code = "export type = 'value';";
+        let result = strip_leftover_typescript(code);
+        assert!(
+            result.contains("export type = 'value'"),
+            "Export variable assignment should be preserved. Got: {}",
+            result
+        );
+    }
+
+    #[test]
+    fn test_strip_preserves_standalone_type_variable() {
+        // `type;` as a standalone expression statement
+        let code = "type;\nconst x = 1;";
+        let result = strip_leftover_typescript(code);
+        assert!(
+            result.contains("const x = 1;"),
+            "Non-type code should be preserved"
         );
     }
 
