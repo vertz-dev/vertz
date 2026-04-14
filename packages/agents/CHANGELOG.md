@@ -1,5 +1,15 @@
 # @vertz/agents
 
+## 0.2.45
+
+### Patch Changes
+
+- Updated dependencies [[`5634207`](https://github.com/vertz-dev/vertz/commit/5634207b611babea33a47d2feeb78bc11617ebc3), [`6889e4d`](https://github.com/vertz-dev/vertz/commit/6889e4df58deca0e2cb44067bc5d070eba9e431b)]:
+  - @vertz/sqlite@0.2.59
+  - @vertz/server@0.2.61
+  - @vertz/errors@0.2.61
+  - @vertz/schema@0.2.61
+
 ## 0.2.44
 
 ### Patch Changes

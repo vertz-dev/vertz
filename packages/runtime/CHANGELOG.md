@@ -1,5 +1,25 @@
 # @vertz/runtime
 
+## 0.2.61
+
+### Patch Changes
+
+- [#2594](https://github.com/vertz-dev/vertz/pull/2594) [`b002f4f`](https://github.com/vertz-dev/vertz/commit/b002f4f15ea29f8cd79b23d112e04eb1edb64807) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - Fix CJS relative path resolution to check exports field before main, and add array fallback support to both CJS and ESM exports resolvers
+
+- [#2588](https://github.com/vertz-dev/vertz/pull/2588) [`129c7d2`](https://github.com/vertz-dev/vertz/commit/129c7d2705dfb71fb04ed293dc0823511a1a81cd) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - Fix CJS require() to resolve package.json exports field and fix execSync to use shell execution instead of splitting on spaces
+
+- [#2637](https://github.com/vertz-dev/vertz/pull/2637) [`d6c978e`](https://github.com/vertz-dev/vertz/commit/d6c978ea1f6f9879357d9f5d480f270a37bbcef4) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - Fix cli.sh to walk full PATH when resolving native binary, so nested vtz invocations in CI find the binary even when self-referencing symlinks shadow it
+
+- [#2568](https://github.com/vertz-dev/vertz/pull/2568) [`69d82ed`](https://github.com/vertz-dev/vertz/commit/69d82ed1c525cba840c45d42a0e01230ccb00599) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - Fix docs test failures: add CJS-to-ESM interop, readdir withFileTypes/recursive, cpSync, workspace source fallback, and pkg_type_cache for module loader
+
+- [#2597](https://github.com/vertz-dev/vertz/pull/2597) [`6aff68e`](https://github.com/vertz-dev/vertz/commit/6aff68efb4b06aeceaccd9adec441b95b868a858) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - Add path traversal validation to both Rust deps resolver and JS CJS resolver to prevent malicious package.json exports from resolving files outside the package directory
+
+- [#2628](https://github.com/vertz-dev/vertz/pull/2628) [`5d06b58`](https://github.com/vertz-dev/vertz/commit/5d06b58201a3f51bac591c78532727cd694e0483) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - Fix runtime detection tests to support vtz as a valid runtime, fix path.dirname("/") returning "." instead of "/" in the vtz runtime, and fix version-check tests to explicitly chmod shell scripts
+
+- [#2603](https://github.com/vertz-dev/vertz/pull/2603) [`ec5627f`](https://github.com/vertz-dev/vertz/commit/ec5627f557a4696a9b6e6dd939c06be7a8adf603) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - Fix scoping bug where object properties inside nested parentheses were incorrectly stripped as TypeScript type annotations, causing `await expect(fn({key: Value})).rejects.toThrow()` to fail with "key is not defined"
+
+- [#2614](https://github.com/vertz-dev/vertz/pull/2614) [`0b15e3a`](https://github.com/vertz-dev/vertz/commit/0b15e3a95c4ebb4d2a3e7182c0c1cdaa192095c8) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - Add `vm` module to ESM resolution layer and add `isContext` to both CJS and ESM implementations, fixing happy-dom test failures under `vtz test`
+
 ## 0.2.60
 
 ### Patch Changes

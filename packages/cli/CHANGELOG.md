@@ -1,5 +1,22 @@
 # @vertz/cli
 
+## 0.2.61
+
+### Patch Changes
+
+- [#2628](https://github.com/vertz-dev/vertz/pull/2628) [`5d06b58`](https://github.com/vertz-dev/vertz/commit/5d06b58201a3f51bac591c78532727cd694e0483) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - Fix runtime detection tests to support vtz as a valid runtime, fix path.dirname("/") returning "." instead of "/" in the vtz runtime, and fix version-check tests to explicitly chmod shell scripts
+
+- Updated dependencies [[`5634207`](https://github.com/vertz-dev/vertz/commit/5634207b611babea33a47d2feeb78bc11617ebc3)]:
+  - @vertz/sqlite@0.2.59
+  - @vertz/db@0.2.61
+  - @vertz/codegen@0.2.61
+  - @vertz/compiler@0.2.61
+  - @vertz/create-vertz-app@0.2.61
+  - @vertz/errors@0.2.61
+  - @vertz/tui@0.2.61
+  - @vertz/ui-server@0.2.61
+  - @vertz/docs@0.1.2
+
 ## 0.2.60
 
 ### Patch Changes

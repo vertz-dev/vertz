@@ -1,5 +1,13 @@
 # @vertz/theme-shadcn
 
+## 0.2.61
+
+### Patch Changes
+
+- Updated dependencies [[`7e2cbb5`](https://github.com/vertz-dev/vertz/commit/7e2cbb5fb742ce8bd0f5fac7c2e46a2e43b0b8ef)]:
+  - @vertz/ui@0.2.61
+  - @vertz/ui-primitives@0.2.61
+
 ## 0.2.60
 
 ### Patch Changes
