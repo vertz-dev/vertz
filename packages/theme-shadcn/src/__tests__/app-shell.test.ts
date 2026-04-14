@@ -1,6 +1,6 @@
 import { describe, expect, it } from '@vertz/test';
+import { isPathActive } from '../components/primitives/path-active';
 import { createAppShell } from '../styles/app-shell';
-import { isPathActive } from '../components/primitives/app-shell';
 
 // ── Style factory ─────────────────────────────────────────
 

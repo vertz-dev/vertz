@@ -2,6 +2,7 @@ import { describe, expect, it } from '@vertz/test';
 import { createAccordionStyles } from '../styles/accordion';
 import { createCheckboxStyles } from '../styles/checkbox';
 import { createDialogStyles } from '../styles/dialog';
+import { createDropdownMenuStyles } from '../styles/dropdown-menu';
 import { createPopoverStyles } from '../styles/popover';
 import { createProgressStyles } from '../styles/progress';
 import { createSelectStyles } from '../styles/select';
@@ -296,9 +297,9 @@ describe('toast', () => {
 });
 
 describe('dropdown-menu', () => {
+  const dm = createDropdownMenuStyles();
+
   it('has content, item, group, label, and separator blocks', () => {
-    const { createDropdownMenuStyles } = require('../styles/dropdown-menu');
-    const dm = createDropdownMenuStyles();
     expect(typeof dm.content).toBe('string');
     expect(typeof dm.item).toBe('string');
     expect(typeof dm.group).toBe('string');
@@ -307,8 +308,6 @@ describe('dropdown-menu', () => {
   });
 
   it('all class names are non-empty', () => {
-    const { createDropdownMenuStyles } = require('../styles/dropdown-menu');
-    const dm = createDropdownMenuStyles();
     expect(dm.content.length).toBeGreaterThan(0);
     expect(dm.item.length).toBeGreaterThan(0);
     expect(dm.group.length).toBeGreaterThan(0);
@@ -317,15 +316,11 @@ describe('dropdown-menu', () => {
   });
 
   it('CSS contains enter/exit animations for content', () => {
-    const { createDropdownMenuStyles } = require('../styles/dropdown-menu');
-    const dm = createDropdownMenuStyles();
     expect(dm.css).toContain('vz-zoom-in');
     expect(dm.css).toContain('vz-zoom-out');
   });
 
   it('CSS constrains content width to fit-content', () => {
-    const { createDropdownMenuStyles } = require('../styles/dropdown-menu');
-    const dm = createDropdownMenuStyles();
     expect(dm.css).toContain('fit-content');
   });
 });
