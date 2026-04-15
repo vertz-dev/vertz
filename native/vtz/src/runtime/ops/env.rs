@@ -116,6 +116,9 @@ pub const ENV_BOOTSTRAP_JS: &str = r#"
   if (!globalThis.process.platform) {
     globalThis.process.platform = Deno.core.ops.op_os_platform();
   }
+  if (!globalThis.process.arch) {
+    globalThis.process.arch = Deno.core.ops.op_os_arch();
+  }
   if (!globalThis.process.argv) {
     globalThis.process.argv = [];
   }
@@ -426,5 +429,24 @@ mod tests {
             .execute_script("<test>", "Array.isArray(process.argv)")
             .unwrap();
         assert_eq!(result, serde_json::json!(true));
+    }
+
+    #[test]
+    fn test_process_arch_is_a_string() {
+        let mut rt = VertzJsRuntime::new(VertzRuntimeOptions::default()).unwrap();
+        let result = rt.execute_script("<test>", "typeof process.arch").unwrap();
+        assert_eq!(result, serde_json::json!("string"));
+    }
+
+    #[test]
+    fn test_process_arch_returns_known_value() {
+        let mut rt = VertzJsRuntime::new(VertzRuntimeOptions::default()).unwrap();
+        let result = rt.execute_script("<test>", "process.arch").unwrap();
+        let arch = result.as_str().unwrap();
+        assert!(
+            ["x64", "arm64", "ia32", "arm"].contains(&arch),
+            "Unexpected arch: {}",
+            arch
+        );
     }
 }
