@@ -6,7 +6,7 @@
  * Skipped under vtz runtime — the native compiler handles .tsx transforms.
  */
 
-if (!(globalThis as any).__vtz_runtime) {
+if (!('__vtz_runtime' in globalThis)) {
   const { compile } = await import('@vertz/ui-server');
   const { plugin } = await import('bun');
 

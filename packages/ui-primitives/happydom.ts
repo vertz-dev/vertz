@@ -4,7 +4,7 @@
  * Happy-dom normalises dimensional CSS values (e.g. "0" → "0px") which
  * breaks tests that assert exact string values against the DOM shim.
  */
-if (!(globalThis as any).__vtz_runtime) {
+if (!('__vtz_runtime' in globalThis)) {
   const { GlobalRegistrator } = await import('@happy-dom/global-registrator');
   GlobalRegistrator.register();
 }
