@@ -33,14 +33,17 @@ describe('prompts', () => {
   });
 
   describe('interactive mode', () => {
-    it.skipIf(!canMockNodeBuiltins)('when project name is not provided: prompts for it', async () => {
-      delete process.env.CI;
+    it.skipIf(!canMockNodeBuiltins)(
+      'when project name is not provided: prompts for it',
+      async () => {
+        delete process.env.CI;
 
-      const options: Partial<CliOptions> = {};
+        const options: Partial<CliOptions> = {};
 
-      const result = await resolveOptions(options);
-      expect(result.projectName).toBe('test-project');
-    });
+        const result = await resolveOptions(options);
+        expect(result.projectName).toBe('test-project');
+      },
+    );
   });
 
   describe('CI mode', () => {

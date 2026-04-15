@@ -4,10 +4,7 @@ import { createContext, useContext } from '../../component/context';
 import type { Router } from '../../router/navigate';
 import { RouterContext } from '../../router/router-context';
 import { AccessContext } from '../access-context';
-import type {
-  AccessEventClient,
-  AccessEventClientOptions,
-} from '../access-event-client';
+import type { AccessEventClient, AccessEventClientOptions } from '../access-event-client';
 import type { AccessSet } from '../access-set-types';
 import type { AuthContextValue, AuthSdk } from '../auth-context';
 import { AuthContext, AuthProvider, useAuth } from '../auth-context';
@@ -102,7 +99,11 @@ function createMockAccessEventClientFactory(overrides?: Partial<AccessEventClien
   const factory = mock((opts: AccessEventClientOptions): AccessEventClient => {
     calls.push(opts);
     return {
-      connect: overrides?.connect ?? (() => { connectCalled = true; }),
+      connect:
+        overrides?.connect ??
+        (() => {
+          connectCalled = true;
+        }),
       disconnect: overrides?.disconnect ?? (() => {}),
       dispose: overrides?.dispose ?? (() => {}),
     };
