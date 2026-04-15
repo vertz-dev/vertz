@@ -1,5 +1,11 @@
 # @vertz/desktop
 
+## 0.2.64
+
+### Patch Changes
+
+- [#2652](https://github.com/vertz-dev/vertz/pull/2652) [`37966d1`](https://github.com/vertz-dev/vertz/commit/37966d1768893789cac1fd9c23e036b042756744) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - Validate DesktopErrorCode at runtime in IPC response handling, falling back to IO_ERROR for unknown codes
+
 ## 0.2.63
 
 ### Patch Changes
