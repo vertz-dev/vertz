@@ -2150,13 +2150,16 @@ const VERTZ_MOCK_PREFIX: &str = "vertz:mock:";
 /// - `export { name1 as name2 }`
 fn extract_export_names(source: &str) -> Vec<String> {
     let mut names = HashSet::new();
+    let lines: Vec<&str> = source.lines().collect();
+    let mut i = 0;
 
-    for line in source.lines() {
-        let trimmed = line.trim();
+    while i < lines.len() {
+        let trimmed = lines[i].trim();
 
         // export default → "default"
         if trimmed.starts_with("export default ") {
             names.insert("default".to_string());
+            i += 1;
             continue;
         }
 
@@ -2168,6 +2171,7 @@ fn extract_export_names(source: &str) -> Vec<String> {
                     names.insert(name.to_string());
                 }
             }
+            i += 1;
             continue;
         }
         if let Some(rest) = trimmed.strip_prefix("export class ") {
@@ -2177,15 +2181,18 @@ fn extract_export_names(source: &str) -> Vec<String> {
                     names.insert(name.to_string());
                 }
             }
+            i += 1;
             continue;
         }
 
         // export const/let/var name (possibly destructured)
+        let mut matched_keyword = false;
         for keyword in &["export const ", "export let ", "export var "] {
             if let Some(rest) = trimmed.strip_prefix(keyword) {
+                matched_keyword = true;
                 // Skip destructuring patterns for simplicity
                 if rest.starts_with('{') || rest.starts_with('[') {
-                    continue;
+                    break;
                 }
                 if let Some(name) = rest.split(&['=', ':', ' ', ';'][..]).next() {
                     let name = name.trim();
@@ -2193,54 +2200,66 @@ fn extract_export_names(source: &str) -> Vec<String> {
                         names.insert(name.to_string());
                     }
                 }
+                break;
             }
+        }
+        if matched_keyword {
+            i += 1;
+            continue;
         }
 
         // export { name1, name2 } or export { name1 as alias1 }
+        // Handle multi-line: collect lines until we find the closing '}'
         if let Some(rest) = trimmed.strip_prefix("export {") {
-            let rest = rest.trim_end_matches(';');
-            let rest = if let Some(idx) = rest.rfind('}') {
-                &rest[..idx]
-            } else {
-                rest
-            };
-            // Handle `export { x } from '...'` — skip re-exports, include local exports
-            let is_reexport = rest.contains(" from ");
-            if !is_reexport {
-                for part in rest.split(',') {
-                    let part = part.trim();
-                    if part.is_empty() {
-                        continue;
-                    }
-                    // `name as alias` → use "alias" as the export name
-                    let name = if let Some((_original, alias)) = part.split_once(" as ") {
-                        alias.trim()
-                    } else {
-                        part
-                    };
-                    if !name.is_empty() {
-                        names.insert(name.to_string());
+            let mut block = rest.to_string();
+            // If the closing '}' is not on this line, collect subsequent lines
+            if !block.contains('}') {
+                i += 1;
+                while i < lines.len() {
+                    let next = lines[i].trim();
+                    block.push(' ');
+                    block.push_str(next);
+                    i += 1;
+                    if next.contains('}') {
+                        break;
                     }
                 }
             } else {
-                // Re-export: `export { x, y } from './other'` — use original names
-                let before_from = rest.split(" from ").next().unwrap_or("");
-                for part in before_from.split(',') {
-                    let part = part.trim();
-                    if part.is_empty() {
-                        continue;
-                    }
-                    let name = if let Some((_original, alias)) = part.split_once(" as ") {
-                        alias.trim()
-                    } else {
-                        part
-                    };
-                    if !name.is_empty() {
-                        names.insert(name.to_string());
-                    }
+                i += 1;
+            }
+
+            let block = block.trim_end_matches(';');
+            let block = if let Some(idx) = block.rfind('}') {
+                &block[..idx]
+            } else {
+                block
+            };
+            // Handle `export { x } from '...'` — re-exports
+            let is_reexport = block.contains(" from ");
+            let names_section = if is_reexport {
+                block.split(" from ").next().unwrap_or("")
+            } else {
+                block
+            };
+            for part in names_section.split(',') {
+                let part = part.trim();
+                if part.is_empty() {
+                    continue;
+                }
+                // `name as alias` → use "alias" as the export name
+                let name = if let Some((_original, alias)) = part.split_once(" as ") {
+                    alias.trim()
+                } else {
+                    part
+                };
+                if !name.is_empty() {
+                    names.insert(name.to_string());
                 }
             }
+            continue;
         }
+
+        i += 1;
     }
 
     names.into_iter().collect()
@@ -3721,6 +3740,13 @@ impl ModuleLoader for VertzModuleLoader {
         let referrer_dir = referrer_path.parent().unwrap_or(&self.root_dir);
         if let Some(ref cache) = self.resolution_cache {
             if let Some(cached_path) = cache.get(specifier, referrer_dir) {
+                // Check if the cached path is a mocked module — mock interception
+                // must take priority over the resolution cache to support transitive
+                // mocking of modules that were previously resolved without mocks.
+                if self.mocked_paths.borrow().contains_key(&cached_path) {
+                    let mock_url = format!("{}{}", VERTZ_MOCK_PREFIX, cached_path.display());
+                    return Ok(ModuleSpecifier::parse(&mock_url)?);
+                }
                 return ModuleSpecifier::from_file_path(&cached_path).map_err(|_| {
                     deno_core::anyhow::anyhow!(
                         "Cannot convert path to URL: {}",
@@ -5623,5 +5649,100 @@ Object.defineProperty(exports, "ModuleKind", {
             result, code,
             "should not modify code without import.meta.dir"
         );
+    }
+
+    // ── extract_export_names tests ──────────────────────────────────────
+
+    #[test]
+    fn extract_exports_single_line_block() {
+        let source = r#"export { foo, bar, baz };"#;
+        let mut names = super::extract_export_names(source);
+        names.sort();
+        assert_eq!(names, vec!["bar", "baz", "foo"]);
+    }
+
+    #[test]
+    fn extract_exports_multi_line_block() {
+        let source = r#"export {
+  collectPrerenderPaths,
+  createSSRHandler,
+  discoverRoutes,
+  filterPrerenderableRoutes
+};"#;
+        let mut names = super::extract_export_names(source);
+        names.sort();
+        assert_eq!(
+            names,
+            vec![
+                "collectPrerenderPaths",
+                "createSSRHandler",
+                "discoverRoutes",
+                "filterPrerenderableRoutes"
+            ]
+        );
+    }
+
+    #[test]
+    fn extract_exports_multi_line_with_re_export() {
+        let source = r#"export {
+  foo,
+  bar
+} from './other.js';"#;
+        let mut names = super::extract_export_names(source);
+        names.sort();
+        assert_eq!(names, vec!["bar", "foo"]);
+    }
+
+    #[test]
+    fn extract_exports_multi_line_with_aliases() {
+        let source = r#"export {
+  original as renamed,
+  other
+};"#;
+        let mut names = super::extract_export_names(source);
+        names.sort();
+        assert_eq!(names, vec!["other", "renamed"]);
+    }
+
+    #[test]
+    fn extract_exports_named_function_and_class() {
+        let source = r#"export function myFunc() {}
+export class MyClass {}"#;
+        let mut names = super::extract_export_names(source);
+        names.sort();
+        assert_eq!(names, vec!["MyClass", "myFunc"]);
+    }
+
+    #[test]
+    fn extract_exports_const_let_var() {
+        let source = r#"export const FOO = 1;
+export let bar = 2;
+export var baz = 3;"#;
+        let mut names = super::extract_export_names(source);
+        names.sort();
+        assert_eq!(names, vec!["FOO", "bar", "baz"]);
+    }
+
+    #[test]
+    fn extract_exports_default() {
+        let source = r#"export default function main() {}"#;
+        let names = super::extract_export_names(source);
+        assert_eq!(names, vec!["default"]);
+    }
+
+    #[test]
+    fn extract_exports_mixed_single_and_multi_line() {
+        let source = r#"import { x } from './x.js';
+
+export function helper() {}
+
+export {
+  createSSRHandler,
+  loadAotManifest
+};
+"#;
+        let mut names = super::extract_export_names(source);
+        names.sort();
+        assert_eq!(names, vec!["createSSRHandler", "helper", "loadAotManifest"]);
     }
 }
