@@ -67,31 +67,27 @@ pub const BUN_COMPAT_BOOTSTRAP_JS: &str = r#"
       throw new Error('Bun.serve() is not available: vtz HTTP server not initialized');
     }
 
-    const port = options.port || 3000;
-    const hostname = options.hostname || '0.0.0.0';
+    const port = options.port ?? 3000;
+    const hostname = options.hostname ?? '0.0.0.0';
     const handler = options.fetch;
 
     if (typeof handler !== 'function') {
       throw new Error('Bun.serve() requires a fetch handler');
     }
 
-    let serverRef = null;
-    const serverPromise = globalThis.__vtz_http.serve(port, hostname, handler).then(s => {
-      serverRef = s;
-      return s;
-    });
+    // __vtz_http.serve is synchronous — socket is bound and port is
+    // available immediately, matching Bun.serve() semantics.
+    const serverRef = globalThis.__vtz_http.serve(port, hostname, handler);
 
     // Return a Bun-compatible server object
     return {
-      port,
-      hostname,
-      get ref() { return serverRef; },
+      port: serverRef.port,
+      hostname: serverRef.hostname,
       stop() {
-        if (serverRef && typeof serverRef.stop === 'function') {
-          return serverRef.stop();
+        if (serverRef && typeof serverRef.close === 'function') {
+          return serverRef.close();
         }
       },
-      _promise: serverPromise,
     };
   }
 

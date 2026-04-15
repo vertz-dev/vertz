@@ -77,17 +77,24 @@ mod serde_bytes_option {
 ///
 /// Returns `{ id, port, hostname }` where `port` is the actual bound port
 /// (important when the requested port is 0 for OS-assigned).
-#[op2(async)]
+///
+/// The socket is bound synchronously so that `Bun.serve()` can return the
+/// actual port immediately (Bun's API is synchronous).  The async accept
+/// loop is spawned in the background.
+#[op2]
 #[serde]
-pub async fn op_http_serve(
-    state: Rc<RefCell<OpState>>,
+pub fn op_http_serve(
+    state: &mut OpState,
     #[smi] port: u16,
     #[string] hostname: String,
 ) -> Result<serde_json::Value, AnyError> {
     let addr = format!("{}:{}", hostname, port);
-    let listener = TcpListener::bind(&addr)
-        .await
+
+    // Bind synchronously so the port is known before returning to JS.
+    let std_listener = std::net::TcpListener::bind(&addr)
         .map_err(|e| deno_core::anyhow::anyhow!("Failed to bind {}: {}", addr, e))?;
+    std_listener.set_nonblocking(true)?;
+    let listener = TcpListener::from_std(std_listener)?;
 
     let actual_port = listener.local_addr()?.port();
     let actual_hostname = hostname.clone();
@@ -165,8 +172,7 @@ pub async fn op_http_serve(
 
     // Store server state
     {
-        let mut op_state = state.borrow_mut();
-        let http_state = op_state.borrow_mut::<HttpServeState>();
+        let http_state = state.borrow_mut::<HttpServeState>();
         http_state.servers.insert(
             server_id,
             ServerInstance {
@@ -271,8 +277,10 @@ pub const HTTP_SERVE_BOOTSTRAP_JS: &str = r#"
   const ops = Deno.core.ops;
 
   globalThis.__vtz_http = {
-    async serve(port, hostname, handler) {
-      const server = await ops.op_http_serve(port, hostname);
+    serve(port, hostname, handler) {
+      // op_http_serve is synchronous — the socket is already bound when it
+      // returns, so the port is immediately available (matching Bun.serve).
+      const server = ops.op_http_serve(port, hostname);
       let stopped = false;
 
       // Accept loop: runs in the background, dispatching requests to the handler
