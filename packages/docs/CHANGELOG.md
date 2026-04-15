@@ -1,5 +1,11 @@
 # @vertz/docs
 
+## 0.1.3
+
+### Patch Changes
+
+- [#2653](https://github.com/vertz-dev/vertz/pull/2653) [`46758c1`](https://github.com/vertz-dev/vertz/commit/46758c137d313d0acba9718e70d045a7aa38d230) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - Add GA4 and PostHog analytics support to `renderAnalyticsScript()`. All three providers (Plausible, GA4, PostHog) can be configured simultaneously. Includes input validation and XSS protection for all interpolated values.
+
 ## 0.1.2
 
 ### Patch Changes
