@@ -5,7 +5,7 @@ use std::path::{Path, PathBuf};
 use tar::Archive;
 use tokio::sync::Semaphore;
 
-const MAX_FILE_SIZE: u64 = 100 * 1024 * 1024; // 100 MB per file
+const MAX_FILE_SIZE: u64 = 200 * 1024 * 1024; // 200 MB per file (native addons like @next/swc can exceed 100 MB)
 const MAX_ARCHIVE_SIZE: u64 = 1024 * 1024 * 1024; // 1 GB total
 const MAX_CONCURRENT_DOWNLOADS: usize = 16;
 
