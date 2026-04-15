@@ -123,6 +123,72 @@ describe('SSG completions', () => {
       });
       expect(html).toContain('plausible.io');
     });
+
+    it('ga4 analytics script is injected with measurement ID', () => {
+      const script = renderAnalyticsScript({ ga4: { measurementId: 'G-TEST123' } });
+      expect(script).toContain('googletagmanager.com/gtag/js?id=G-TEST123');
+      expect(script).toContain('window.dataLayer');
+      expect(script).toContain("gtag('js'");
+      expect(script).toContain("gtag('config'");
+      expect(script).toContain('G-TEST123');
+    });
+
+    it('posthog analytics script is injected with API key and default host', () => {
+      const script = renderAnalyticsScript({ posthog: { apiKey: 'phc_test123' } });
+      expect(script).toContain('posthog.init');
+      expect(script).toContain('phc_test123');
+      expect(script).toContain('https://us.i.posthog.com');
+      expect(script).toContain('array.full.js');
+    });
+
+    it('posthog uses custom apiHost when provided', () => {
+      const script = renderAnalyticsScript({
+        posthog: { apiKey: 'phc_test', apiHost: 'https://eu.i.posthog.com' },
+      });
+      expect(script).toContain('https://eu.i.posthog.com');
+      expect(script).not.toContain('https://us.i.posthog.com');
+    });
+
+    it('all three providers generate scripts simultaneously', () => {
+      const script = renderAnalyticsScript({
+        plausible: { domain: 'docs.example.com' },
+        ga4: { measurementId: 'G-MULTI' },
+        posthog: { apiKey: 'phc_multi' },
+      });
+      expect(script).toContain('plausible.io');
+      expect(script).toContain('G-MULTI');
+      expect(script).toContain('phc_multi');
+    });
+
+    it('ga4 throws on invalid measurementId format', () => {
+      expect(() =>
+        renderAnalyticsScript({ ga4: { measurementId: "G-TEST'><script>alert(1)</script>" } }),
+      ).toThrow(/invalid.*measurementId/i);
+    });
+
+    it('posthog throws on invalid apiKey format', () => {
+      expect(() => renderAnalyticsScript({ posthog: { apiKey: "bad');alert(1);//" } })).toThrow(
+        /invalid.*apiKey/i,
+      );
+    });
+
+    it('posthog throws on invalid apiHost', () => {
+      expect(() =>
+        renderAnalyticsScript({
+          posthog: { apiKey: 'phc_valid', apiHost: 'javascript:alert(1)' },
+        }),
+      ).toThrow(/invalid.*apiHost/i);
+    });
+
+    it('ga4 with empty measurementId produces no script', () => {
+      const script = renderAnalyticsScript({ ga4: { measurementId: '' } });
+      expect(script).toBe('');
+    });
+
+    it('posthog with empty apiKey produces no script', () => {
+      const script = renderAnalyticsScript({ posthog: { apiKey: '' } });
+      expect(script).toBe('');
+    });
   });
 
   describe('Tooltip hover styles', () => {
