@@ -7,7 +7,13 @@ const CLI_PATH = path.resolve(import.meta.dir, '../../bin/create-vertz-app.ts');
 const PKG_PATH = path.resolve(import.meta.dir, '../../package.json');
 const DIST_PATH = path.resolve(import.meta.dir, '../../dist/index.js');
 
-describe('create-vertz-app CLI', () => {
+// Bun.spawn is not available in the vtz runtime — skip the entire suite.
+// Note: vtz shims Bun.spawn as a function that throws, so typeof check is insufficient.
+// Use the __vtz_runtime marker set by the vtz JS runtime instead.
+const isVtzRuntime = !!(globalThis as Record<string, unknown>).__vtz_runtime;
+const hasBunSpawn = !isVtzRuntime && typeof globalThis.Bun !== 'undefined' && typeof globalThis.Bun.spawn === 'function';
+
+describe.skipIf(!hasBunSpawn)('create-vertz-app CLI', () => {
   describe('--version', () => {
     it('outputs the version from package.json (not hardcoded)', async () => {
       const pkg = JSON.parse(await fs.readFile(PKG_PATH, 'utf-8'));

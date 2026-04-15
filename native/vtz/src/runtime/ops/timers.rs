@@ -101,6 +101,16 @@ pub const TIMERS_BOOTSTRAP_JS: &str = r#"
       activeTimers.delete(id);
     }
   };
+
+  // Cancel ALL active timers — used by the test runner after tests complete
+  // so that stale timers (e.g., from AbortSignal.timeout()) don't keep the
+  // event loop alive and cause file-level timeouts.
+  globalThis.__vtz_clear_all_timers = function() {
+    for (const [id, state] of activeTimers) {
+      state.cancelled = true;
+    }
+    activeTimers.clear();
+  };
 })(globalThis);
 "#;
 

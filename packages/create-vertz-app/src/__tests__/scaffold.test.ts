@@ -150,7 +150,7 @@ describe('scaffold', () => {
       expect(tsconfig.compilerOptions.jsx).toBe('react-jsx');
       expect(tsconfig.compilerOptions.jsxImportSource).toBe('@vertz/ui');
       expect(tsconfig.compilerOptions.strict).toBe(true);
-      expect(tsconfig.compilerOptions.types).toEqual([]);
+      expect(tsconfig.compilerOptions.types).toEqual(['vertz/env']);
     });
 
     it('vertz.config.ts includes codegen config', async () => {

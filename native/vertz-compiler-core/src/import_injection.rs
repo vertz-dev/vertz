@@ -152,14 +152,17 @@ fn collect_existing_bindings(code: &str) -> std::collections::HashSet<String> {
     existing
 }
 
-/// Strip comments from code for scanning purposes.
+/// Strip comments and string literal contents from code for scanning purposes.
 ///
 /// Removes:
 /// - Single-line comments: `// ...`
 /// - Block comments: `/* ... */` (including multi-line)
 /// - JSDoc comments: `/** ... */`
+/// - String literal contents (replaced with spaces to preserve structure)
 ///
-/// This prevents false-positive helper detection in comment text.
+/// This prevents false-positive helper detection in comment text and in
+/// string literals (e.g., template strings containing code examples like
+/// `signal()` in documentation templates).
 fn strip_comments(code: &str) -> String {
     let chars: Vec<char> = code.chars().collect();
     let len = chars.len();
@@ -187,17 +190,21 @@ fn strip_comments(code: &str) -> String {
             }
         }
 
-        // Skip string literals to avoid false matches inside strings
+        // Replace string literal contents with spaces to avoid false matches.
+        // Template literals containing code examples (e.g., `signal()` in
+        // documentation) must not trigger import injection.
         if chars[i] == '\'' || chars[i] == '"' || chars[i] == '`' {
             let quote = chars[i];
             result.push(chars[i]);
             i += 1;
             while i < len && chars[i] != quote {
                 if chars[i] == '\\' && i + 1 < len {
-                    result.push(chars[i]);
+                    // Skip escaped character (push spaces to preserve length)
+                    result.push(' ');
                     i += 1;
                 }
-                result.push(chars[i]);
+                // Replace content with space (preserve newlines for line tracking)
+                result.push(if chars[i] == '\n' { '\n' } else { ' ' });
                 i += 1;
             }
             if i < len {
@@ -486,17 +493,31 @@ mod tests {
     }
 
     // ── String literal handling ───────────────────────────────────
-    // Note: strip_comments preserves string content (only strips comments),
-    // so helpers inside strings ARE detected as used. This is a known
-    // trade-off: false positives from strings are harmless (extra import),
-    // while false negatives from comments could cause runtime errors.
+    // String contents are stripped to avoid false-positive import injection.
+    // Template strings containing code examples (e.g., `signal()` in
+    // documentation) must NOT trigger import injection — the injected
+    // `import { signal } from '@vertz/ui'` can cause "Cannot find module"
+    // errors when @vertz/ui is not a dependency of the package.
 
     #[test]
-    fn detects_helper_in_string_literal() {
-        // Strings are NOT stripped — helper pattern in string IS detected
+    fn does_not_detect_helper_in_string_literal() {
         let code = "const x = 'signal(0)';";
         let result = inject(code);
-        assert!(result.contains("import { signal } from '@vertz/ui';"));
+        assert_eq!(result, code);
+    }
+
+    #[test]
+    fn does_not_detect_helper_in_template_literal() {
+        let code = "const x = `const s = signal(0);`;";
+        let result = inject(code);
+        assert_eq!(result, code);
+    }
+
+    #[test]
+    fn does_not_detect_helper_in_double_quoted_string() {
+        let code = r#"const x = "computed(() => v)";"#;
+        let result = inject(code);
+        assert_eq!(result, code);
     }
 
     // ── All DOM helpers detected ───────────────────────────────────

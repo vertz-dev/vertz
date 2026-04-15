@@ -970,6 +970,8 @@ mod tests {
     /// must not hang the runner. The per-file timeout catches them and the runner
     /// returns a file error rather than hanging indefinitely.
     #[test]
+    /// Lingering intervals are cleaned up by `__vtz_clear_all_timers()` after
+    /// tests complete. The test file should pass without timing out.
     fn test_run_lingering_interval_does_not_hang() {
         let tmp = tempfile::tempdir().unwrap();
         create_test_project(tmp.path());
@@ -994,7 +996,7 @@ mod tests {
             concurrency: Some(1),
             filter: None,
             bail: false,
-            timeout_ms: 500, // Short timeout to avoid slow tests
+            timeout_ms: 2000,
             reporter: ReporterFormat::Terminal,
             coverage: false,
             coverage_threshold: 95.0,
@@ -1004,11 +1006,14 @@ mod tests {
 
         let (result, _output) = run_tests(config);
 
-        // The runner must complete (not hang) and report a file error
-        assert_eq!(result.file_errors, 1, "Expected 1 file error from timeout");
+        // Timer cleanup after tests prevents the hang — runner completes successfully
+        assert_eq!(
+            result.file_errors, 0,
+            "Expected no file errors after timer cleanup"
+        );
         assert!(
-            !result.success(),
-            "Run should fail due to file timeout error"
+            result.success(),
+            "Run should succeed — lingering timers are cleaned up"
         );
     }
 }

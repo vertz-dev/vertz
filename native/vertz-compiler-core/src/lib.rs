@@ -1241,4 +1241,82 @@ function App(props: Props) { return <div>{props.title}</div>; }"#,
         assert!(!result.code.contains("interface Props"));
         assert!(result.diagnostics.is_none());
     }
+
+    /// Multi-function file with template strings containing `@vertz/ui` imports
+    /// and `export type *` — must not inject any `@vertz/ui` import at top level.
+    #[test]
+    fn no_import_injection_from_multi_template_file() {
+        let opts = CompileOptions {
+            filename: Some("templates/index.ts".to_string()),
+            ..Default::default()
+        };
+        let source = r#"export function ruleTemplate(): string {
+  return `import { Button } from '@vertz/ui/components';
+<Button>Click</Button>
+import { useDialogStack } from '@vertz/ui';
+const d = useDialogStack();`;
+}
+
+export function clientTemplate(): string {
+  return `import { createClient } from '#generated';
+export type * from '#generated/types';
+export const api = createClient();`;
+}
+
+export function appTemplate(): string {
+  return `import { css } from 'vertz/ui';
+export function App() {
+  const s = signal(0);
+  return <div>{s}</div>;
+}`;
+}"#;
+        let result = compile(source, opts);
+        let code = result.code;
+        // Count lines that look like real top-level imports of @vertz/ui
+        // (not inside template strings)
+        let mut in_template = false;
+        let mut outside_imports: Vec<String> = Vec::new();
+        for line in code.lines() {
+            let was_in_template = in_template;
+            for ch in line.chars() {
+                if ch == '`' {
+                    in_template = !in_template;
+                }
+            }
+            if !was_in_template && line.trim().starts_with("import ") && line.contains("@vertz/ui")
+            {
+                outside_imports.push(line.to_string());
+            }
+        }
+        assert!(
+            outside_imports.is_empty(),
+            "Found @vertz/ui imports outside template strings:\n{}\n\nFull output:\n{}",
+            outside_imports.join("\n"),
+            code
+        );
+    }
+
+    /// Template strings containing `signal()` text (e.g., documentation templates)
+    /// must NOT cause import injection of `signal` from `@vertz/ui`.
+    #[test]
+    fn no_import_injection_from_template_string_contents() {
+        let opts = CompileOptions {
+            filename: Some("templates/index.ts".to_string()),
+            ..Default::default()
+        };
+        let source = r#"export function uiTemplate(): string {
+  return `import { signal } from '@vertz/ui';
+const s = signal(0);`;
+}"#;
+        let result = compile(source, opts);
+        let code = result.code;
+        eprintln!("COMPILED:\n{}", code);
+        // The code before the `return` backtick should NOT have an injected import
+        let before_return = code.split("return `").next().unwrap_or("");
+        assert!(
+            !before_return.contains("import { signal }"),
+            "Import injection leaked from template string:\n{}",
+            before_return
+        );
+    }
 }
