@@ -5,7 +5,6 @@ import { invoke } from './ipc.js';
 import type {
   CreateDirOptions,
   DesktopError,
-  DesktopErrorCode,
   DirEntry,
   FileStat,
   IpcCallOptions,
@@ -137,7 +136,7 @@ export async function readBinaryStream(
   if (!result.ok) return result;
   if (!result.data.body) {
     return err({
-      code: 'IO_ERROR' as DesktopErrorCode,
+      code: 'IO_ERROR',
       message: 'Response has no body stream',
     });
   }

@@ -27,7 +27,7 @@
   },
   "scripts": {
     "build": "vtzx vertz-build",
-    "test": "echo 'type-level tests only — validated via typecheck'",
+    "test": "vtz test",
     "typecheck": "tsgo --noEmit -p tsconfig.typecheck.json"
   },
   "dependencies": {

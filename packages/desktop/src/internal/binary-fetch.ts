@@ -1,6 +1,7 @@
 import { err, ok } from '@vertz/errors';
 import type { Result } from '@vertz/errors';
-import type { DesktopError, DesktopErrorCode, IpcCallOptions } from '../types.js';
+import type { DesktopError, IpcCallOptions } from '../types.js';
+import { validateErrorCode } from '../types.js';
 
 type BinaryOperation = 'read' | 'write' | 'stream/read' | 'stream/write';
 
@@ -44,7 +45,7 @@ async function internalFetch(
 ): Promise<Result<Response, DesktopError>> {
   if (typeof window === 'undefined' || !window.__vtz_ipc_token) {
     return err({
-      code: 'EXECUTION_FAILED' as DesktopErrorCode,
+      code: 'EXECUTION_FAILED',
       message:
         '@vertz/desktop: IPC session token not available. Are you running in the native webview?',
     });
@@ -78,14 +79,14 @@ async function internalFetch(
           message?: string;
         } | null;
         return err({
-          code: (json?.code ?? 'IO_ERROR') as DesktopErrorCode,
+          code: validateErrorCode(json?.code ?? 'IO_ERROR'),
           message:
             json?.message ?? `Binary file ${operation} failed with status ${response.status}`,
         });
       }
       const text = await response.text().catch(() => '');
       return err({
-        code: 'IO_ERROR' as DesktopErrorCode,
+        code: 'IO_ERROR',
         message: text || `Binary file ${operation} failed with status ${response.status}`,
       });
     }
@@ -94,12 +95,12 @@ async function internalFetch(
   } catch (e) {
     if (e instanceof DOMException && e.name === 'AbortError') {
       return err({
-        code: 'TIMEOUT' as DesktopErrorCode,
+        code: 'TIMEOUT',
         message: `Binary file ${operation} timed out after ${options?.timeout}ms`,
       });
     }
     return err({
-      code: 'IO_ERROR' as DesktopErrorCode,
+      code: 'IO_ERROR',
       message: `Binary file ${operation} failed: ${e instanceof Error ? e.message : String(e)}`,
     });
   } finally {
