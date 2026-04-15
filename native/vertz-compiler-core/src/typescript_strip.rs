@@ -48,8 +48,8 @@ fn get_removable_statement_span(stmt: &Statement) -> Option<(u32, u32)> {
         }
         // declare class
         Statement::ClassDeclaration(cls) if cls.declare => Some((cls.span.start, cls.span.end)),
-        // declare module / declare namespace
-        Statement::TSModuleDeclaration(decl) if decl.declare => {
+        // declare module / declare namespace / type-only namespace
+        Statement::TSModuleDeclaration(decl) if decl.declare || is_type_only_namespace(decl) => {
             Some((decl.span.start, decl.span.end))
         }
         // declare global { ... } (global augmentation — type-only, always strip)
@@ -81,8 +81,10 @@ fn get_removable_statement_span(stmt: &Statement) -> Option<(u32, u32)> {
                     Declaration::ClassDeclaration(cls) if cls.declare => {
                         Some((export_decl.span.start, export_decl.span.end))
                     }
-                    // export declare module / namespace
-                    Declaration::TSModuleDeclaration(decl) if decl.declare => {
+                    // export declare module / namespace / type-only namespace
+                    Declaration::TSModuleDeclaration(decl)
+                        if decl.declare || is_type_only_namespace(decl) =>
+                    {
                         Some((export_decl.span.start, export_decl.span.end))
                     }
                     // export declare enum
@@ -104,6 +106,39 @@ fn get_removable_statement_span(stmt: &Statement) -> Option<(u32, u32)> {
         }
         _ => None,
     }
+}
+
+/// Check if a `namespace` declaration contains only type-level members
+/// (interfaces, type aliases, nested type-only namespaces). Such namespaces
+/// produce no runtime code and must be stripped even without `declare`.
+/// Example: `export namespace JSX { interface Element {} }` → strip entirely.
+fn is_type_only_namespace(decl: &TSModuleDeclaration) -> bool {
+    let body = match &decl.body {
+        Some(TSModuleDeclarationBody::TSModuleBlock(block)) => &block.body,
+        Some(TSModuleDeclarationBody::TSModuleDeclaration(nested)) => {
+            return nested.declare || is_type_only_namespace(nested);
+        }
+        None => return true,
+    };
+    body.iter().all(|stmt| match stmt {
+        Statement::TSInterfaceDeclaration(_) | Statement::TSTypeAliasDeclaration(_) => true,
+        Statement::TSModuleDeclaration(nested) => nested.declare || is_type_only_namespace(nested),
+        Statement::ExportNamedDeclaration(export_decl) => {
+            if matches!(export_decl.export_kind, ImportOrExportKind::Type) {
+                return true;
+            }
+            match &export_decl.declaration {
+                Some(
+                    Declaration::TSInterfaceDeclaration(_) | Declaration::TSTypeAliasDeclaration(_),
+                ) => true,
+                Some(Declaration::TSModuleDeclaration(nested)) => {
+                    nested.declare || is_type_only_namespace(nested)
+                }
+                _ => false,
+            }
+        }
+        _ => false,
+    })
 }
 
 /// Remove type-only specifiers from mixed imports.
@@ -1687,6 +1722,43 @@ export const x = 1;"#,
         assert!(
             result.contains("function foo(a, b, c)"),
             "params not cleaned: {}",
+            result
+        );
+    }
+
+    #[test]
+    fn test_strip_export_namespace_type_only() {
+        let result = strip(
+            r#"export namespace JSX {
+  interface Element {}
+  interface IntrinsicElements {
+    div: any;
+  }
+}
+const x = 1;"#,
+        );
+        assert!(
+            !result.contains("namespace"),
+            "type-only namespace not stripped: {}",
+            result
+        );
+        assert!(
+            result.contains("const x = 1;"),
+            "value code lost: {}",
+            result
+        );
+    }
+
+    #[test]
+    fn test_preserve_namespace_with_value_members() {
+        let result = strip(
+            r#"export namespace Utils {
+  export function helper() { return 1; }
+}"#,
+        );
+        assert!(
+            result.contains("namespace Utils"),
+            "value namespace should be preserved: {}",
             result
         );
     }

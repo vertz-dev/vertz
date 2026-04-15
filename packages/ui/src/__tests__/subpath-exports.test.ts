@@ -180,7 +180,7 @@ describe('Subpath Exports — @vertz/ui/css', () => {
 });
 
 describe('Subpath Exports — package.json exports map', () => {
-  const pkgPath = resolve(__dirname, '../../package.json');
+  const pkgPath = resolve(import.meta.dirname, '../../package.json');
   const pkg = JSON.parse(readFileSync(pkgPath, 'utf-8'));
   const subpaths = ['./router', './form', './query', './css'] as const;
 
@@ -197,7 +197,7 @@ describe('Subpath Exports — package.json exports map', () => {
   }
 
   test('dist files exist for all subpath exports (post-build)', () => {
-    const uiRoot = resolve(__dirname, '../..');
+    const uiRoot = resolve(import.meta.dirname, '../..');
     for (const subpath of subpaths) {
       const entry = pkg.exports[subpath];
       const jsPath = resolve(uiRoot, entry.import);

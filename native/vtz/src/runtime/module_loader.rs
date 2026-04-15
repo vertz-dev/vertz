@@ -1469,11 +1469,13 @@ pub const CJS_BOOTSTRAP_JS: &str = r#"
 
   function _isBuiltin(specifier) {
     if (specifier.startsWith('node:')) return true;
+    if (specifier.startsWith('bun:')) return true;
     return _BUILTIN_NAMES.has(specifier);
   }
 
   function _getBuiltin(specifier) {
-    const name = specifier.startsWith('node:') ? specifier.slice(5) : specifier;
+    const name = specifier.startsWith('node:') ? specifier.slice(5) :
+                 specifier.startsWith('bun:') ? specifier : specifier;
     if (name in _builtinCache) return _builtinCache[name];
 
     const mod = _createBuiltin(name);
@@ -1483,6 +1485,9 @@ pub const CJS_BOOTSTRAP_JS: &str = r#"
 
   function _createBuiltin(name) {
     switch (name) {
+      // bun: specifier compat — redirect to vtz globals
+      case 'bun:test': return globalThis.__vertz_test_exports || {};
+      case 'bun:sqlite': return {};
       case 'fs': return globalThis.__vertz_fs || {};
       case 'fs/promises': return (globalThis.__vertz_fs && globalThis.__vertz_fs.promises) || {};
       case 'path': return globalThis.__vertz_path || {};
@@ -2156,6 +2161,15 @@ fn extract_export_names(source: &str) -> Vec<String> {
     while i < lines.len() {
         let trimmed = lines[i].trim();
 
+        // Skip TypeScript-only exports (no runtime value)
+        if trimmed.starts_with("export type ")
+            || trimmed.starts_with("export interface ")
+            || trimmed.starts_with("export declare ")
+        {
+            i += 1;
+            continue;
+        }
+
         // export default → "default"
         if trimmed.starts_with("export default ") {
             names.insert("default".to_string());
@@ -2163,11 +2177,14 @@ fn extract_export_names(source: &str) -> Vec<String> {
             continue;
         }
 
-        // export function name, export class Name
-        if let Some(rest) = trimmed.strip_prefix("export function ") {
+        // export function name, export async function name, export class Name
+        if let Some(rest) = trimmed
+            .strip_prefix("export function ")
+            .or_else(|| trimmed.strip_prefix("export async function "))
+        {
             if let Some(name) = rest.split(&['(', ' ', '<'][..]).next() {
                 let name = name.trim();
-                if !name.is_empty() {
+                if !name.is_empty() && name != "*" {
                     names.insert(name.to_string());
                 }
             }
@@ -5744,5 +5761,34 @@ export {
         let mut names = super::extract_export_names(source);
         names.sort();
         assert_eq!(names, vec!["createSSRHandler", "helper", "loadAotManifest"]);
+    }
+
+    #[test]
+    fn test_extract_export_names_async_function() {
+        let source = r#"
+export interface PostgresDriver extends DbDriver {}
+
+export async function createPostgresDriver(
+  options: PostgresDriverOptions,
+): Promise<PostgresDriver> {
+  return {} as PostgresDriver;
+}
+"#;
+        let names = super::extract_export_names(source);
+        assert_eq!(names, vec!["createPostgresDriver"]);
+    }
+
+    #[test]
+    fn test_extract_export_names_skips_ts_types() {
+        let source = r#"
+export type MyType = string;
+export interface MyInterface {}
+export declare function declaredFn(): void;
+export function realFn() {}
+export async function asyncFn() {}
+"#;
+        let mut names = super::extract_export_names(source);
+        names.sort();
+        assert_eq!(names, vec!["asyncFn", "realFn"]);
     }
 }
