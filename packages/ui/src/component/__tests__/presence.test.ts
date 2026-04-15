@@ -370,7 +370,8 @@ describe('Presence', () => {
 
     // Toggle true immediately → should cancel exit and mount new child
     show.value = true;
-    const secondChild = container.querySelector('span:last-of-type');
+    const spans = container.querySelectorAll('span');
+    const secondChild = spans[spans.length - 1];
     expect(secondChild?.textContent).toBe('child-2');
 
     // Now resolve the old exit animation — should NOT remove the new child

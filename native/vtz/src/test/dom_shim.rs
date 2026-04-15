@@ -1097,7 +1097,36 @@ pub const TEST_DOM_SHIM_JS: &str = r#"
     constructor(tag, ns) { super(tag || 'form', ns); }
     get elements() { return this.querySelectorAll('input,select,textarea,button'); }
     submit() {}
-    reset() {}
+    reset() {
+      // Reset all form controls to their default values
+      const controls = this.querySelectorAll('input,select,textarea');
+      for (let i = 0; i < controls.length; i++) {
+        const el = controls[i];
+        const tag = el.tagName;
+        if (tag === 'INPUT') {
+          const type = (el.getAttribute('type') || 'text').toLowerCase();
+          if (type === 'checkbox' || type === 'radio') {
+            el.checked = el.hasAttribute('checked');
+          } else {
+            el.value = el.getAttribute('value') || '';
+          }
+        } else if (tag === 'TEXTAREA') {
+          el.value = el.textContent || '';
+        } else if (tag === 'SELECT') {
+          const options = el.querySelectorAll('option');
+          let found = false;
+          for (let j = 0; j < options.length; j++) {
+            if (options[j].hasAttribute('selected')) {
+              el.value = options[j].value;
+              found = true;
+              break;
+            }
+          }
+          if (!found && options.length) el.value = options[0].value || '';
+        }
+      }
+      this.dispatchEvent(new Event('reset', { bubbles: true }));
+    }
     get action() { return this.getAttribute('action') || ''; }
     set action(v) { this.setAttribute('action', v); }
     get method() { return this.getAttribute('method') || 'get'; }
