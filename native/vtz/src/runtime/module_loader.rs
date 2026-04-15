@@ -2732,6 +2732,7 @@ export const nextTick = proc.nextTick;
 export const stdout = proc.stdout;
 export const stderr = proc.stderr;
 export const stdin = proc.stdin;
+export const binding = proc.binding;
 "#;
 
 /// Synthetic module for `node:fs`.
