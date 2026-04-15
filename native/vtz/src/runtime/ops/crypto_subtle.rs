@@ -1495,11 +1495,13 @@ pub fn op_crypto_subtle_generate_key(
                     .collect(),
                 key_type: "public".to_string(),
             })?;
+            let result_algo = format!("RSASSA-PKCS1-v1_5::{}", hash.to_uppercase());
+            let mod_bits = Some(modulus_length);
             Ok(serde_json::to_value(CryptoKeyPairResult {
                 public_key: CryptoKeyResult {
                     key_id: pub_id,
                     key_type: "public".to_string(),
-                    algorithm: "RSASSA-PKCS1-v1_5".to_string(),
+                    algorithm: result_algo.clone(),
                     extractable: true,
                     usages: args
                         .usages
@@ -1507,12 +1509,12 @@ pub fn op_crypto_subtle_generate_key(
                         .filter(|u| *u == "verify")
                         .cloned()
                         .collect(),
-                    modulus_length: None,
+                    modulus_length: mod_bits,
                 },
                 private_key: CryptoKeyResult {
                     key_id: priv_id,
                     key_type: "private".to_string(),
-                    algorithm: "RSASSA-PKCS1-v1_5".to_string(),
+                    algorithm: result_algo,
                     extractable: args.extractable,
                     usages: args
                         .usages
@@ -1520,7 +1522,7 @@ pub fn op_crypto_subtle_generate_key(
                         .filter(|u| *u == "sign")
                         .cloned()
                         .collect(),
-                    modulus_length: None,
+                    modulus_length: mod_bits,
                 },
             })?)
         }
@@ -1829,6 +1831,235 @@ pub fn op_crypto_subtle_derive_key(
 }
 
 // ---------------------------------------------------------------------------
+// JWK Import
+// ---------------------------------------------------------------------------
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ImportKeyJwkArgs {
+    pub jwk: serde_json::Value,
+    pub algorithm: AlgorithmIdentifier,
+    pub extractable: bool,
+    pub usages: Vec<String>,
+}
+
+/// crypto.subtle.importKey('jwk', jwkObj, algorithm, extractable, usages)
+///
+/// Converts JWK JSON to DER and stores the key material.
+#[op2]
+#[serde]
+pub fn op_crypto_subtle_import_key_jwk(
+    state: &mut OpState,
+    #[serde] args: ImportKeyJwkArgs,
+) -> Result<CryptoKeyResult, AnyError> {
+    let algo_name = args.algorithm.name.to_uppercase();
+    let jwk = &args.jwk;
+    let kty = jwk["kty"]
+        .as_str()
+        .ok_or_else(|| deno_core::anyhow::anyhow!("DataError: JWK missing 'kty' field"))?;
+
+    match (algo_name.as_str(), kty) {
+        ("RSASSA-PKCS1-V1_5" | "RSASSA-PKCS1-V1.5", "RSA") => {
+            let hash = args.algorithm.hash.as_deref().ok_or_else(|| {
+                deno_core::anyhow::anyhow!("TypeError: hash is required for RSASSA-PKCS1-v1_5")
+            })?;
+            import_rsa_jwk(state, jwk, hash, args.extractable, args.usages)
+        }
+        ("ECDSA", "EC") => {
+            let curve = args.algorithm.named_curve.as_deref().ok_or_else(|| {
+                deno_core::anyhow::anyhow!("TypeError: namedCurve is required for ECDSA")
+            })?;
+            import_ec_jwk(state, jwk, curve, args.extractable, args.usages)
+        }
+        _ => Err(deno_core::anyhow::anyhow!(
+            "NotSupportedError: JWK import not supported for algorithm '{}' with kty '{}'",
+            algo_name,
+            kty
+        )),
+    }
+}
+
+fn b64url_decode(s: &str) -> Result<Vec<u8>, AnyError> {
+    URL_SAFE_NO_PAD
+        .decode(s)
+        .map_err(|e| deno_core::anyhow::anyhow!("DataError: invalid base64url: {}", e))
+}
+
+fn import_rsa_jwk(
+    state: &mut OpState,
+    jwk: &serde_json::Value,
+    hash: &str,
+    extractable: bool,
+    usages: Vec<String>,
+) -> Result<CryptoKeyResult, AnyError> {
+    use rsa::pkcs8::{EncodePrivateKey, EncodePublicKey};
+    use rsa::traits::PublicKeyParts;
+    use rsa::BigUint;
+
+    let n_b64 = jwk["n"]
+        .as_str()
+        .ok_or_else(|| deno_core::anyhow::anyhow!("DataError: RSA JWK missing 'n'"))?;
+    let e_b64 = jwk["e"]
+        .as_str()
+        .ok_or_else(|| deno_core::anyhow::anyhow!("DataError: RSA JWK missing 'e'"))?;
+
+    let n = BigUint::from_bytes_be(&b64url_decode(n_b64)?);
+    let e = BigUint::from_bytes_be(&b64url_decode(e_b64)?);
+
+    let has_private = jwk["d"].is_string();
+
+    if has_private {
+        let d =
+            BigUint::from_bytes_be(&b64url_decode(jwk["d"].as_str().ok_or_else(|| {
+                deno_core::anyhow::anyhow!("DataError: RSA JWK missing 'd'")
+            })?)?);
+        let primes: Vec<BigUint> = ["p", "q"]
+            .iter()
+            .filter_map(|k| jwk[*k].as_str())
+            .map(|s| b64url_decode(s).map(|b| BigUint::from_bytes_be(&b)))
+            .collect::<Result<Vec<_>, _>>()?;
+        let key = rsa::RsaPrivateKey::from_components(n, e, d, primes)
+            .map_err(|e| deno_core::anyhow::anyhow!("DataError: invalid RSA JWK: {}", e))?;
+        let der = key
+            .to_pkcs8_der()
+            .map_err(|e| deno_core::anyhow::anyhow!("DataError: RSA JWK to PKCS8: {}", e))?;
+        let mod_len = Some(key.size() as u32 * 8);
+
+        let store = state.borrow_mut::<CryptoKeyStore>();
+        let id = store.insert(StoredKey {
+            material: KeyMaterial::RsaPrivate(der.as_bytes().to_vec()),
+            algorithm: format!("RSASSA-PKCS1-v1_5::{}", hash.to_uppercase()),
+            extractable,
+            usages: usages.clone(),
+            key_type: "private".to_string(),
+        })?;
+        Ok(CryptoKeyResult {
+            key_id: id,
+            key_type: "private".to_string(),
+            algorithm: format!("RSASSA-PKCS1-v1_5::{}", hash.to_uppercase()),
+            extractable,
+            usages,
+            modulus_length: mod_len,
+        })
+    } else {
+        let key = rsa::RsaPublicKey::new(n, e)
+            .map_err(|e| deno_core::anyhow::anyhow!("DataError: invalid RSA public JWK: {}", e))?;
+        let der = key
+            .to_public_key_der()
+            .map_err(|e| deno_core::anyhow::anyhow!("DataError: RSA JWK to SPKI: {}", e))?;
+        let mod_len = Some(key.size() as u32 * 8);
+
+        let store = state.borrow_mut::<CryptoKeyStore>();
+        let id = store.insert(StoredKey {
+            material: KeyMaterial::RsaPublic(der.as_ref().to_vec()),
+            algorithm: format!("RSASSA-PKCS1-v1_5::{}", hash.to_uppercase()),
+            extractable,
+            usages: usages.clone(),
+            key_type: "public".to_string(),
+        })?;
+        Ok(CryptoKeyResult {
+            key_id: id,
+            key_type: "public".to_string(),
+            algorithm: format!("RSASSA-PKCS1-v1_5::{}", hash.to_uppercase()),
+            extractable,
+            usages,
+            modulus_length: mod_len,
+        })
+    }
+}
+
+fn import_ec_jwk(
+    state: &mut OpState,
+    jwk: &serde_json::Value,
+    curve: &str,
+    extractable: bool,
+    usages: Vec<String>,
+) -> Result<CryptoKeyResult, AnyError> {
+    let crv = jwk["crv"]
+        .as_str()
+        .ok_or_else(|| deno_core::anyhow::anyhow!("DataError: EC JWK missing 'crv'"))?;
+    if crv != curve {
+        return Err(deno_core::anyhow::anyhow!(
+            "DataError: JWK curve '{}' does not match algorithm curve '{}'",
+            crv,
+            curve
+        ));
+    }
+
+    let x = b64url_decode(
+        jwk["x"]
+            .as_str()
+            .ok_or_else(|| deno_core::anyhow::anyhow!("DataError: EC JWK missing 'x'"))?,
+    )?;
+    let y = b64url_decode(
+        jwk["y"]
+            .as_str()
+            .ok_or_else(|| deno_core::anyhow::anyhow!("DataError: EC JWK missing 'y'"))?,
+    )?;
+
+    let has_private = jwk["d"].is_string();
+
+    if has_private {
+        // EC private key: reconstruct PKCS#8 DER
+        let d_bytes = b64url_decode(jwk["d"].as_str().unwrap())?;
+        match curve {
+            "P-256" => {
+                use p256::SecretKey;
+
+                let sk = SecretKey::from_slice(&d_bytes).map_err(|e| {
+                    deno_core::anyhow::anyhow!("DataError: invalid P-256 private key: {}", e)
+                })?;
+                let der = p256::pkcs8::EncodePrivateKey::to_pkcs8_der(&sk)
+                    .map_err(|e| deno_core::anyhow::anyhow!("DataError: EC JWK to PKCS8: {}", e))?;
+                let store = state.borrow_mut::<CryptoKeyStore>();
+                let id = store.insert(StoredKey {
+                    material: KeyMaterial::EcPrivate(der.as_bytes().to_vec()),
+                    algorithm: format!("ECDSA::{}", curve),
+                    extractable,
+                    usages: usages.clone(),
+                    key_type: "private".to_string(),
+                })?;
+                Ok(CryptoKeyResult {
+                    key_id: id,
+                    key_type: "private".to_string(),
+                    algorithm: format!("ECDSA::{}", curve),
+                    extractable,
+                    usages,
+                    modulus_length: None,
+                })
+            }
+            _ => Err(deno_core::anyhow::anyhow!(
+                "NotSupportedError: EC JWK import for curve '{}' not implemented",
+                curve
+            )),
+        }
+    } else {
+        // EC public key: construct uncompressed point (0x04 || x || y)
+        let mut point = Vec::with_capacity(1 + x.len() + y.len());
+        point.push(0x04);
+        point.extend_from_slice(&x);
+        point.extend_from_slice(&y);
+
+        let store = state.borrow_mut::<CryptoKeyStore>();
+        let id = store.insert(StoredKey {
+            material: KeyMaterial::EcPublic(point),
+            algorithm: format!("ECDSA::{}", curve),
+            extractable,
+            usages: usages.clone(),
+            key_type: "public".to_string(),
+        })?;
+        Ok(CryptoKeyResult {
+            key_id: id,
+            key_type: "public".to_string(),
+            algorithm: format!("ECDSA::{}", curve),
+            extractable,
+            usages,
+            modulus_length: None,
+        })
+    }
+}
+
+// ---------------------------------------------------------------------------
 // Op registration
 // ---------------------------------------------------------------------------
 
@@ -1836,6 +2067,7 @@ pub fn op_decls() -> Vec<OpDecl> {
     vec![
         op_crypto_subtle_digest(),
         op_crypto_subtle_import_key(),
+        op_crypto_subtle_import_key_jwk(),
         op_crypto_subtle_export_key(),
         op_crypto_subtle_sign(),
         op_crypto_subtle_verify(),

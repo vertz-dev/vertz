@@ -251,11 +251,18 @@ pub const CRYPTO_BOOTSTRAP_JS: &str = r#"
 
   function normalizeAlgorithm(algo) {
     if (typeof algo === 'string') return { name: algo };
+    const out = { ...algo };
     // Flatten hash: { name: 'SHA-256' } → hash: 'SHA-256' for Rust serde compat
-    if (algo && typeof algo.hash === 'object' && algo.hash !== null && algo.hash.name) {
-      return { ...algo, hash: algo.hash.name };
+    if (out.hash && typeof out.hash === 'object' && out.hash.name) {
+      out.hash = out.hash.name;
     }
-    return algo;
+    // Convert publicExponent Uint8Array to plain array for serde_v8 Vec<u8> compat.
+    // salt/info are NOT converted here — they're consumed by toBytes() first
+    // in deriveBits/deriveKey and converted to Array.from() there.
+    if (out.publicExponent && ArrayBuffer.isView(out.publicExponent)) {
+      out.publicExponent = Array.from(new Uint8Array(out.publicExponent.buffer, out.publicExponent.byteOffset, out.publicExponent.byteLength));
+    }
+    return out;
   }
 
   function toBytes(data) {
@@ -308,6 +315,16 @@ pub const CRYPTO_BOOTSTRAP_JS: &str = r#"
 
     async importKey(format, keyData, algorithm, extractable, usages) {
       const algo = normalizeAlgorithm(algorithm);
+      if (format === 'jwk') {
+        // JWK import — keyData is a plain JSON object, not a BufferSource
+        const result = Deno.core.ops.op_crypto_subtle_import_key_jwk({
+          jwk: keyData,
+          algorithm: algo,
+          extractable,
+          usages,
+        });
+        return makeCryptoKey(result);
+      }
       const bytes = toBytes(keyData);
       const result = Deno.core.ops.op_crypto_subtle_import_key({
         format,

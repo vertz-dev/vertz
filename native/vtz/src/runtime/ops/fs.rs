@@ -900,6 +900,24 @@ pub const FS_BOOTSTRAP_JS: &str = r#"
     };
   }
 
+  // Normalize file path: strip file:// URLs to plain paths (Node.js compat).
+  function normalizePath(p) {
+    if (typeof p === 'object' && p !== null && p.href && p.protocol === 'file:') {
+      // URL object with file: protocol
+      p = p.pathname;
+    } else {
+      p = String(p);
+    }
+    if (p.startsWith('file:///')) {
+      p = p.slice(7); // file:///Users/... -> /Users/...
+    } else if (p.startsWith('file://')) {
+      p = p.slice(7);
+    }
+    // Decode percent-encoded characters (e.g. %20 -> space)
+    try { p = decodeURIComponent(p); } catch {}
+    return p;
+  }
+
   // Enrich fs errors with a .code property for Node.js compatibility
   function enrichFsError(err) {
     if (err && typeof err.message === 'string' && !err.code) {
@@ -914,32 +932,32 @@ pub const FS_BOOTSTRAP_JS: &str = r#"
     try {
       const encoding = typeof options === 'string' ? options : (options && options.encoding);
       if (encoding === 'utf-8' || encoding === 'utf8') {
-        return Deno.core.ops.op_fs_read_file_sync(String(path));
+        return Deno.core.ops.op_fs_read_file_sync(normalizePath(path));
       }
-      const bytes = Deno.core.ops.op_fs_read_file_bytes_sync(String(path));
+      const bytes = Deno.core.ops.op_fs_read_file_bytes_sync(normalizePath(path));
       return Buffer.from(bytes);
     } catch (e) { throw enrichFsError(e); }
   }
 
   function writeFileSync(path, data, options) {
     if (typeof data === 'string') {
-      Deno.core.ops.op_fs_write_file_sync(String(path), data);
+      Deno.core.ops.op_fs_write_file_sync(normalizePath(path), data);
     } else {
-      Deno.core.ops.op_fs_write_file_bytes_sync(String(path), data);
+      Deno.core.ops.op_fs_write_file_bytes_sync(normalizePath(path), data);
     }
   }
 
   function appendFileSync(path, data) {
-    Deno.core.ops.op_fs_append_file_sync(String(path), String(data));
+    Deno.core.ops.op_fs_append_file_sync(normalizePath(path), String(data));
   }
 
   function existsSync(path) {
-    return Deno.core.ops.op_fs_exists_sync(String(path));
+    return Deno.core.ops.op_fs_exists_sync(normalizePath(path));
   }
 
   function mkdirSync(path, options) {
     const recursive = options && options.recursive ? true : false;
-    Deno.core.ops.op_fs_mkdir_sync(String(path), recursive);
+    Deno.core.ops.op_fs_mkdir_sync(normalizePath(path), recursive);
   }
 
   function createDirentObject(raw) {
@@ -956,43 +974,43 @@ pub const FS_BOOTSTRAP_JS: &str = r#"
     const withFileTypes = options && options.withFileTypes;
     const recursive = options && options.recursive;
     if (withFileTypes) {
-      const raw = Deno.core.ops.op_fs_readdir_with_types_sync(String(path), !!recursive);
+      const raw = Deno.core.ops.op_fs_readdir_with_types_sync(normalizePath(path), !!recursive);
       return raw.map(createDirentObject);
     }
     if (recursive) {
-      return Deno.core.ops.op_fs_readdir_recursive_sync(String(path));
+      return Deno.core.ops.op_fs_readdir_recursive_sync(normalizePath(path));
     }
-    return Deno.core.ops.op_fs_readdir_sync(String(path));
+    return Deno.core.ops.op_fs_readdir_sync(normalizePath(path));
   }
 
   function statSync(path) {
     try {
-      return createStatObject(Deno.core.ops.op_fs_stat_sync(String(path)));
+      return createStatObject(Deno.core.ops.op_fs_stat_sync(normalizePath(path)));
     } catch (e) { throw enrichFsError(e); }
   }
 
   function lstatSync(path) {
     try {
-      return createStatObject(Deno.core.ops.op_fs_lstat_sync(String(path)));
+      return createStatObject(Deno.core.ops.op_fs_lstat_sync(normalizePath(path)));
     } catch (e) { throw enrichFsError(e); }
   }
 
   function rmSync(path, options) {
     const recursive = options && options.recursive ? true : false;
     const force = options && options.force ? true : false;
-    Deno.core.ops.op_fs_rm_sync(String(path), recursive, force);
+    Deno.core.ops.op_fs_rm_sync(normalizePath(path), recursive, force);
   }
 
   function unlinkSync(path) {
-    Deno.core.ops.op_fs_unlink_sync(String(path));
+    Deno.core.ops.op_fs_unlink_sync(normalizePath(path));
   }
 
   function renameSync(oldPath, newPath) {
-    Deno.core.ops.op_fs_rename_sync(String(oldPath), String(newPath));
+    Deno.core.ops.op_fs_rename_sync(normalizePath(oldPath), normalizePath(newPath));
   }
 
   function realpathSync(path) {
-    return Deno.core.ops.op_fs_realpath_sync(String(path));
+    return Deno.core.ops.op_fs_realpath_sync(normalizePath(path));
   }
 
   function mkdtempSync(prefix) {
@@ -1000,24 +1018,24 @@ pub const FS_BOOTSTRAP_JS: &str = r#"
   }
 
   function copyFileSync(src, dest) {
-    Deno.core.ops.op_fs_copy_file_sync(String(src), String(dest));
+    Deno.core.ops.op_fs_copy_file_sync(normalizePath(src), normalizePath(dest));
   }
 
   function cpSync(src, dest, options) {
     const recursive = options && options.recursive ? true : false;
-    Deno.core.ops.op_fs_cp_sync(String(src), String(dest), recursive);
+    Deno.core.ops.op_fs_cp_sync(normalizePath(src), normalizePath(dest), recursive);
   }
 
   function chmodSync(path, mode) {
-    Deno.core.ops.op_fs_chmod_sync(String(path), mode);
+    Deno.core.ops.op_fs_chmod_sync(normalizePath(path), mode);
   }
 
   function symlinkSync(target, path) {
-    Deno.core.ops.op_fs_symlink_sync(String(target), String(path));
+    Deno.core.ops.op_fs_symlink_sync(normalizePath(target), normalizePath(path));
   }
 
   function accessSync(path, mode) {
-    Deno.core.ops.op_fs_access_sync(String(path), mode === undefined ? 0 : mode);
+    Deno.core.ops.op_fs_access_sync(normalizePath(path), mode === undefined ? 0 : mode);
   }
 
   function mkdtemp(prefix, options, callback) {
@@ -1035,11 +1053,11 @@ pub const FS_BOOTSTRAP_JS: &str = r#"
     if (typeof options === 'function') { listener = options; options = {}; }
     const interval = (options && options.interval) || 500;
     let lastMtime = null;
-    try { lastMtime = Deno.core.ops.op_fs_stat_sync(String(filename)).mtimeMs; } catch {}
+    try { lastMtime = Deno.core.ops.op_fs_stat_sync(normalizePath(filename)).mtimeMs; } catch {}
 
     const timerId = setInterval(() => {
       try {
-        const raw = Deno.core.ops.op_fs_stat_sync(String(filename));
+        const raw = Deno.core.ops.op_fs_stat_sync(normalizePath(filename));
         if (raw.mtimeMs !== lastMtime) {
           lastMtime = raw.mtimeMs;
           if (listener) listener('change', filename);
@@ -1066,9 +1084,9 @@ pub const FS_BOOTSTRAP_JS: &str = r#"
     try {
       const encoding = typeof options === 'string' ? options : (options && options.encoding);
       if (encoding === 'utf-8' || encoding === 'utf8') {
-        return await Deno.core.ops.op_fs_read_file(String(path));
+        return await Deno.core.ops.op_fs_read_file(normalizePath(path));
       }
-      const bytes = await Deno.core.ops.op_fs_read_file_bytes(String(path));
+      const bytes = await Deno.core.ops.op_fs_read_file_bytes(normalizePath(path));
       return Buffer.from(bytes);
     } catch (e) { throw enrichFsError(e); }
   }
@@ -1076,38 +1094,38 @@ pub const FS_BOOTSTRAP_JS: &str = r#"
   async function writeFile(path, data, options) {
     try {
       if (typeof data === 'string') {
-        await Deno.core.ops.op_fs_write_file(String(path), data);
+        await Deno.core.ops.op_fs_write_file(normalizePath(path), data);
       } else {
         // Binary data — use bytes op to avoid UTF-8 corruption
         const bytes = data instanceof Uint8Array
           ? data
           : new Uint8Array(data.buffer, data.byteOffset, data.byteLength);
-        await Deno.core.ops.op_fs_write_file_bytes(String(path), Array.from(bytes));
+        await Deno.core.ops.op_fs_write_file_bytes(normalizePath(path), Array.from(bytes));
       }
     } catch (e) { throw enrichFsError(e); }
   }
 
   async function mkdir(path, options) {
     const recursive = options && options.recursive ? true : false;
-    await Deno.core.ops.op_fs_mkdir(String(path), recursive);
+    await Deno.core.ops.op_fs_mkdir(normalizePath(path), recursive);
   }
 
   async function readdir(path, options) {
     const withFileTypes = options && options.withFileTypes;
     const recursive = options && options.recursive;
     if (withFileTypes) {
-      const raw = await Deno.core.ops.op_fs_readdir_with_types(String(path), !!recursive);
+      const raw = await Deno.core.ops.op_fs_readdir_with_types(normalizePath(path), !!recursive);
       return raw.map(createDirentObject);
     }
     if (recursive) {
-      return Deno.core.ops.op_fs_readdir_recursive(String(path));
+      return Deno.core.ops.op_fs_readdir_recursive(normalizePath(path));
     }
-    return Deno.core.ops.op_fs_readdir(String(path));
+    return Deno.core.ops.op_fs_readdir(normalizePath(path));
   }
 
   async function stat(path) {
     try {
-      const raw = await Deno.core.ops.op_fs_stat(String(path));
+      const raw = await Deno.core.ops.op_fs_stat(normalizePath(path));
       return createStatObject(raw);
     } catch (e) { throw enrichFsError(e); }
   }
@@ -1115,19 +1133,19 @@ pub const FS_BOOTSTRAP_JS: &str = r#"
   async function rm(path, options) {
     const recursive = options && options.recursive ? true : false;
     const force = options && options.force ? true : false;
-    await Deno.core.ops.op_fs_rm(String(path), recursive, force);
+    await Deno.core.ops.op_fs_rm(normalizePath(path), recursive, force);
   }
 
   async function unlink(path) {
-    await Deno.core.ops.op_fs_unlink(String(path));
+    await Deno.core.ops.op_fs_unlink(normalizePath(path));
   }
 
   async function rename(oldPath, newPath) {
-    await Deno.core.ops.op_fs_rename(String(oldPath), String(newPath));
+    await Deno.core.ops.op_fs_rename(normalizePath(oldPath), normalizePath(newPath));
   }
 
   async function realpath(path) {
-    return Deno.core.ops.op_fs_realpath(String(path));
+    return Deno.core.ops.op_fs_realpath(normalizePath(path));
   }
 
   // --- Module object ---
@@ -1143,7 +1161,7 @@ pub const FS_BOOTSTRAP_JS: &str = r#"
     promises: {
       readFile, writeFile, mkdir, readdir, stat, rm, unlink, rename, realpath,
       async mkdtemp(prefix) { return Deno.core.ops.op_fs_mkdtemp_sync(String(prefix)); },
-      async access(path, mode) { Deno.core.ops.op_fs_access_sync(String(path), mode === undefined ? 0 : mode); },
+      async access(path, mode) { Deno.core.ops.op_fs_access_sync(normalizePath(path), mode === undefined ? 0 : mode); },
     },
   };
 
@@ -1179,6 +1197,37 @@ mod tests {
         );
         let result = rt.execute_script("<test>", &read_code).unwrap();
         assert_eq!(result, serde_json::json!("hello world"));
+    }
+
+    #[test]
+    fn test_fs_read_file_sync_with_file_url() {
+        let tmp = tempfile::tempdir().unwrap();
+        let file_path = tmp.path().join("url-test.txt");
+        std::fs::write(&file_path, "file url content").unwrap();
+        let mut rt = create_runtime();
+
+        // file:// URL should be normalized to a plain path
+        let code = format!(
+            r#"__vertz_fs.readFileSync("file://{}", "utf-8")"#,
+            file_path.to_string_lossy().replace('\\', "/")
+        );
+        let result = rt.execute_script("<test>", &code).unwrap();
+        assert_eq!(result, serde_json::json!("file url content"));
+    }
+
+    #[test]
+    fn test_fs_exists_sync_with_file_url() {
+        let tmp = tempfile::tempdir().unwrap();
+        let file_path = tmp.path().join("exists-url.txt");
+        std::fs::write(&file_path, "x").unwrap();
+        let mut rt = create_runtime();
+
+        let code = format!(
+            r#"__vertz_fs.existsSync("file://{}")"#,
+            file_path.to_string_lossy().replace('\\', "/")
+        );
+        let result = rt.execute_script("<test>", &code).unwrap();
+        assert_eq!(result, serde_json::json!(true));
     }
 
     #[test]
