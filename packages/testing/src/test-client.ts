@@ -25,7 +25,8 @@ function resolveEntityBasePath(server: AppBuilder, entityName: string): string {
   const routes = server.router.routes;
   const suffix = `/${entityName}`;
   const listRoute = routes.find(
-    (r) => r.method === 'GET' && (r.path === suffix || r.path.endsWith(suffix)),
+    (r: { method: string; path: string }) =>
+      r.method === 'GET' && (r.path === suffix || r.path.endsWith(suffix)),
   );
   if (listRoute) return listRoute.path;
   return `/api/${entityName}`;
@@ -42,7 +43,7 @@ function resolveServiceBasePath(server: AppBuilder, serviceName: string): string
   // Match routes containing /{serviceName}/ or ending with /{serviceName}
   const escaped = serviceName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   const segmentPattern = new RegExp(`/${escaped}(/|$)`);
-  const serviceRoute = routes.find((r) => segmentPattern.test(r.path));
+  const serviceRoute = routes.find((r: { path: string }) => segmentPattern.test(r.path));
   if (serviceRoute) {
     const idx = serviceRoute.path.indexOf(`/${serviceName}`);
     return serviceRoute.path.slice(0, idx + 1 + serviceName.length);
@@ -70,7 +71,9 @@ function resolveActionPath(
   const prefix = basePath.slice(0, basePath.lastIndexOf('/'));
   const expectedPath = `${prefix}/${customSuffix}`;
   const routes = server.router.routes;
-  const matchedRoute = routes.find((r) => r.method === method && r.path === expectedPath);
+  const matchedRoute = routes.find(
+    (r: { method: string; path: string }) => r.method === method && r.path === expectedPath,
+  );
   if (matchedRoute) {
     return matchedRoute.path;
   }
