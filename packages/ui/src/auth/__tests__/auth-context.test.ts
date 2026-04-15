@@ -4,7 +4,10 @@ import { createContext, useContext } from '../../component/context';
 import type { Router } from '../../router/navigate';
 import { RouterContext } from '../../router/router-context';
 import { AccessContext } from '../access-context';
-import * as accessEventClientModule from '../access-event-client';
+import type {
+  AccessEventClient,
+  AccessEventClientOptions,
+} from '../access-event-client';
 import type { AccessSet } from '../access-set-types';
 import type { AuthContextValue, AuthSdk } from '../auth-context';
 import { AuthContext, AuthProvider, useAuth } from '../auth-context';
@@ -86,6 +89,44 @@ function createMockRouter(): Router & { navigateCalls: Array<{ to: string; repla
     dispose: () => {},
     navigateCalls,
   } as Router & { navigateCalls: Array<{ to: string; replace?: boolean }> };
+}
+
+/**
+ * Create a mock _createAccessEventClient factory.
+ * Returns the mock factory fn and captured options/callbacks for assertions.
+ */
+function createMockAccessEventClientFactory(overrides?: Partial<AccessEventClient>) {
+  const calls: AccessEventClientOptions[] = [];
+  let connectCalled = false;
+
+  const factory = mock((opts: AccessEventClientOptions): AccessEventClient => {
+    calls.push(opts);
+    return {
+      connect: overrides?.connect ?? (() => { connectCalled = true; }),
+      disconnect: overrides?.disconnect ?? (() => {}),
+      dispose: overrides?.dispose ?? (() => {}),
+    };
+  });
+
+  return {
+    factory,
+    calls,
+    get connectCalled() {
+      return connectCalled;
+    },
+    /** Get the onEvent callback from the most recent call */
+    get capturedOnEvent() {
+      return calls[calls.length - 1]?.onEvent;
+    },
+    /** Get the onReconnect callback from the most recent call */
+    get capturedOnReconnect() {
+      return calls[calls.length - 1]?.onReconnect;
+    },
+    /** Get the url from the most recent call */
+    get capturedUrl() {
+      return calls[calls.length - 1]?.url;
+    },
+  };
 }
 
 /** Capture useAuth() result inside AuthProvider. */
@@ -1110,87 +1151,58 @@ describe('AuthProvider', () => {
     });
 
     it('creates access event client when accessEvents is enabled', () => {
-      let connectCalled = false;
-      const createSpy = spyOn(accessEventClientModule, 'createAccessEventClient').mockReturnValue({
-        connect: () => {
-          connectCalled = true;
-        },
-        disconnect: () => {},
-        dispose: () => {},
-      });
+      const mockClient = createMockAccessEventClientFactory();
 
       const sdk = createMockAuthSdk();
       AuthProvider({
         auth: sdk,
         accessControl: true,
         accessEvents: true,
+        _createAccessEventClient: mockClient.factory,
         children: () => {
           useAuth();
         },
       });
 
-      expect(createSpy).toHaveBeenCalledTimes(1);
-      expect(connectCalled).toBe(true);
-
-      createSpy.mockRestore();
+      expect(mockClient.factory).toHaveBeenCalledTimes(1);
+      expect(mockClient.connectCalled).toBe(true);
     });
 
     it('does not create access event client when accessEvents is false', () => {
-      const createSpy = spyOn(accessEventClientModule, 'createAccessEventClient').mockReturnValue({
-        connect: () => {},
-        disconnect: () => {},
-        dispose: () => {},
-      });
+      const mockClient = createMockAccessEventClientFactory();
 
       const sdk = createMockAuthSdk();
       AuthProvider({
         auth: sdk,
         accessControl: true,
         accessEvents: false,
+        _createAccessEventClient: mockClient.factory,
         children: () => {
           useAuth();
         },
       });
 
-      expect(createSpy).toHaveBeenCalledTimes(0);
-
-      createSpy.mockRestore();
+      expect(mockClient.factory).toHaveBeenCalledTimes(0);
     });
 
     it('does not create access event client when accessControl is false', () => {
-      const createSpy = spyOn(accessEventClientModule, 'createAccessEventClient').mockReturnValue({
-        connect: () => {},
-        disconnect: () => {},
-        dispose: () => {},
-      });
+      const mockClient = createMockAccessEventClientFactory();
 
       const sdk = createMockAuthSdk();
       AuthProvider({
         auth: sdk,
         accessEvents: true,
+        _createAccessEventClient: mockClient.factory,
         children: () => {
           useAuth();
         },
       });
 
-      expect(createSpy).toHaveBeenCalledTimes(0);
-
-      createSpy.mockRestore();
+      expect(mockClient.factory).toHaveBeenCalledTimes(0);
     });
 
     it('access event client onEvent handles flag_toggled inline', async () => {
-      let capturedOnEvent: ((event: accessEventClientModule.ClientAccessEvent) => void) | undefined;
-      const createSpy = spyOn(
-        accessEventClientModule,
-        'createAccessEventClient',
-      ).mockImplementation((opts) => {
-        capturedOnEvent = opts.onEvent;
-        return {
-          connect: () => {},
-          disconnect: () => {},
-          dispose: () => {},
-        };
-      });
+      const mockClient = createMockAccessEventClientFactory();
 
       const accessSetData: AccessSet = {
         entitlements: {
@@ -1211,14 +1223,15 @@ describe('AuthProvider', () => {
         accessControl: true,
         accessEvents: true,
         flagEntitlementMap: { 'project:export': ['export-v2'] },
+        _createAccessEventClient: mockClient.factory,
         children: () => {
           useAuth();
         },
       });
 
-      expect(capturedOnEvent).toBeDefined();
+      expect(mockClient.capturedOnEvent).toBeDefined();
 
-      capturedOnEvent?.({
+      mockClient.capturedOnEvent?.({
         type: 'access:flag_toggled',
         resourceType: 'tenant',
         resourceId: 'org-1',
@@ -1226,35 +1239,24 @@ describe('AuthProvider', () => {
         enabled: false,
       });
 
-      createSpy.mockRestore();
       fetchSpy.mockRestore();
     });
 
     it('access event client onEvent handles limit_updated inline', () => {
-      let capturedOnEvent: ((event: accessEventClientModule.ClientAccessEvent) => void) | undefined;
-      const createSpy = spyOn(
-        accessEventClientModule,
-        'createAccessEventClient',
-      ).mockImplementation((opts) => {
-        capturedOnEvent = opts.onEvent;
-        return {
-          connect: () => {},
-          disconnect: () => {},
-          dispose: () => {},
-        };
-      });
+      const mockClient = createMockAccessEventClientFactory();
 
       const sdk = createMockAuthSdk();
       AuthProvider({
         auth: sdk,
         accessControl: true,
         accessEvents: true,
+        _createAccessEventClient: mockClient.factory,
         children: () => {
           useAuth();
         },
       });
 
-      capturedOnEvent?.({
+      mockClient.capturedOnEvent?.({
         type: 'access:limit_updated',
         resourceType: 'tenant',
         resourceId: 'org-1',
@@ -1263,23 +1265,10 @@ describe('AuthProvider', () => {
         remaining: 1,
         max: 100,
       });
-
-      createSpy.mockRestore();
     });
 
     it('access event client onEvent handles role_changed with jittered refetch', () => {
-      let capturedOnEvent: ((event: accessEventClientModule.ClientAccessEvent) => void) | undefined;
-      const createSpy = spyOn(
-        accessEventClientModule,
-        'createAccessEventClient',
-      ).mockImplementation((opts) => {
-        capturedOnEvent = opts.onEvent;
-        return {
-          connect: () => {},
-          disconnect: () => {},
-          dispose: () => {},
-        };
-      });
+      const mockClient = createMockAccessEventClientFactory();
 
       const fetchSpy = spyOn(globalThis, 'fetch').mockResolvedValue(
         new Response(JSON.stringify({}), { status: 200 }),
@@ -1290,35 +1279,24 @@ describe('AuthProvider', () => {
         auth: sdk,
         accessControl: true,
         accessEvents: true,
+        _createAccessEventClient: mockClient.factory,
         children: () => {
           useAuth();
         },
       });
 
-      capturedOnEvent?.({ type: 'access:role_changed' });
-      capturedOnEvent?.({
+      mockClient.capturedOnEvent?.({ type: 'access:role_changed' });
+      mockClient.capturedOnEvent?.({
         type: 'access:plan_changed',
         resourceType: 'tenant',
         resourceId: 'org-1',
       });
 
-      createSpy.mockRestore();
       fetchSpy.mockRestore();
     });
 
     it('access event client onReconnect triggers refetch', () => {
-      let capturedOnReconnect: (() => void) | undefined;
-      const createSpy = spyOn(
-        accessEventClientModule,
-        'createAccessEventClient',
-      ).mockImplementation((opts) => {
-        capturedOnReconnect = opts.onReconnect;
-        return {
-          connect: () => {},
-          disconnect: () => {},
-          dispose: () => {},
-        };
-      });
+      const mockClient = createMockAccessEventClientFactory();
 
       const fetchSpy = spyOn(globalThis, 'fetch').mockResolvedValue(
         new Response(JSON.stringify({}), { status: 200 }),
@@ -1329,31 +1307,20 @@ describe('AuthProvider', () => {
         auth: sdk,
         accessControl: true,
         accessEvents: true,
+        _createAccessEventClient: mockClient.factory,
         children: () => {
           useAuth();
         },
       });
 
-      expect(capturedOnReconnect).toBeDefined();
-      capturedOnReconnect?.();
+      expect(mockClient.capturedOnReconnect).toBeDefined();
+      mockClient.capturedOnReconnect?.();
 
-      createSpy.mockRestore();
       fetchSpy.mockRestore();
     });
 
     it('passes accessEventsUrl to event client', () => {
-      let capturedUrl: string | undefined;
-      const createSpy = spyOn(
-        accessEventClientModule,
-        'createAccessEventClient',
-      ).mockImplementation((opts) => {
-        capturedUrl = opts.url;
-        return {
-          connect: () => {},
-          disconnect: () => {},
-          dispose: () => {},
-        };
-      });
+      const mockClient = createMockAccessEventClientFactory();
 
       const sdk = createMockAuthSdk();
       AuthProvider({
@@ -1361,14 +1328,13 @@ describe('AuthProvider', () => {
         accessControl: true,
         accessEvents: true,
         accessEventsUrl: 'wss://custom.example.com/ws',
+        _createAccessEventClient: mockClient.factory,
         children: () => {
           useAuth();
         },
       });
 
-      expect(capturedUrl).toBe('wss://custom.example.com/ws');
-
-      createSpy.mockRestore();
+      expect(mockClient.capturedUrl).toBe('wss://custom.example.com/ws');
     });
 
     it('clears access set on signOut', async () => {
