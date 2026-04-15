@@ -7,11 +7,27 @@ use deno_core::OpDecl;
 #[op2]
 #[string]
 pub fn op_path_join(#[serde] parts: Vec<String>) -> String {
-    let mut path = PathBuf::new();
-    for part in parts {
-        path.push(part);
+    // Node.js path.join concatenates segments with '/' and normalizes.
+    // Unlike path.resolve, it does NOT treat absolute segments as path resets.
+    // path.join('/a', '/b') → '/a/b'  (NOT '/b')
+    if parts.is_empty() {
+        return ".".to_string();
     }
-    path.to_string_lossy().to_string()
+    // Concatenate parts with '/', stripping leading '/' from all but the first
+    let mut result = String::new();
+    for (i, part) in parts.iter().enumerate() {
+        if i == 0 {
+            result.push_str(part);
+        } else {
+            let trimmed = part.trim_start_matches('/');
+            if !result.ends_with('/') {
+                result.push('/');
+            }
+            result.push_str(trimmed);
+        }
+    }
+    let path = PathBuf::from(&result);
+    normalize_path(&path)
 }
 
 /// Resolve a path to an absolute path (relative to cwd).

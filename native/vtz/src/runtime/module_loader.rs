@@ -1361,6 +1361,34 @@ fn polyfill_import_meta_dirname(code: &str) -> String {
     .to_string()
 }
 
+/// Inject a module-scoped `require` for ESM modules.
+///
+/// Node.js doesn't provide `require` in ESM, but many packages use it
+/// (e.g., `require.resolve()` for finding JSON files). The global `require`
+/// is scoped to CWD, which breaks in monorepo setups where the file's
+/// `node_modules` differ from the root. This injects a `require` scoped
+/// to the module's own directory so resolution works correctly.
+fn inject_esm_require(code: &str, path: &Path) -> String {
+    // Only inject if the source uses `require` (avoid unnecessary overhead)
+    if !code.contains("require") {
+        return code.to_string();
+    }
+    // Skip injection when the module already defines its own `require` binding
+    // (e.g. `const require = createRequire(import.meta.url)`)
+    if code.contains("createRequire") {
+        return code.to_string();
+    }
+    let dirname = path
+        .parent()
+        .map(|p| p.to_string_lossy().into_owned())
+        .unwrap_or_default();
+    let dirname_json = serde_json::to_string(&dirname).unwrap_or_else(|_| "\"\"".to_string());
+    format!(
+        "var require = globalThis.__vtz_cjs_require({});\n{}",
+        dirname_json, code
+    )
+}
+
 /// Wrap CommonJS source code into an ESM module.
 ///
 /// The wrapper provides `module`, `exports`, `require`, `__filename`, `__dirname`
@@ -1436,7 +1464,7 @@ pub const CJS_BOOTSTRAP_JS: &str = r#"
     'module', 'child_process', 'crypto', 'async_hooks', 'http', 'util',
     'readline', 'zlib', 'stream', 'stream/web', 'assert', 'string_decoder',
     'querystring', 'constants', 'net', 'tls', 'dns', 'tty', 'worker_threads',
-    'perf_hooks', 'v8', 'vm',
+    'perf_hooks', 'v8', 'vm', 'https',
   ]);
 
   function _isBuiltin(specifier) {
@@ -1469,6 +1497,11 @@ pub const CJS_BOOTSTRAP_JS: &str = r#"
         if (!p.versions) p.versions = {};
         if (!p.versions.node) p.versions.node = '20.0.0';
         if (!p.nextTick) p.nextTick = (fn, ...args) => queueMicrotask(() => fn(...args));
+        if (!p.on) p.on = function(_ev, _cb) { return this; };
+        if (!p.off) p.off = function(_ev, _cb) { return this; };
+        if (!p.once) p.once = function(_ev, _cb) { return this; };
+        if (!p.removeListener) p.removeListener = function(_ev, _cb) { return this; };
+        if (!p.emit) p.emit = function() { return false; };
         if (!p.stdout) p.stdout = { write: (s) => Deno.core.ops.op_stdout_write(String(s)) };
         if (!p.stderr) p.stderr = { write: (s) => Deno.core.ops.op_stderr_write(String(s)) };
         globalThis.process = p;
@@ -1917,6 +1950,13 @@ pub const CJS_BOOTSTRAP_JS: &str = r#"
   }
 
   function _resolveCjsPath(specifier, fromDir) {
+    // Handle absolute paths (e.g., from require.resolve results)
+    if (specifier.startsWith('/')) {
+      if (Deno.core.ops.op_fs_exists_sync(specifier)) return specifier;
+      if (Deno.core.ops.op_fs_exists_sync(specifier + '.js')) return specifier + '.js';
+      if (Deno.core.ops.op_fs_exists_sync(specifier + '.json')) return specifier + '.json';
+      throw new Error("Cannot find module '" + specifier + "'");
+    }
     if (specifier.startsWith('./') || specifier.startsWith('../')) {
       const parts = (fromDir + '/' + specifier).split('/');
       const resolved = [];
@@ -1940,7 +1980,8 @@ pub const CJS_BOOTSTRAP_JS: &str = r#"
                 if (pkg.exports !== undefined) {
                   const resolvedExport = _resolveCjsExports(pkg.exports, '.');
                   if (resolvedExport) {
-                    const full = path + '/' + resolvedExport;
+                    const rel = resolvedExport.startsWith('./') ? resolvedExport.slice(2) : resolvedExport;
+                    const full = path + '/' + rel;
                     if (Deno.core.ops.op_fs_exists_sync(full)) return full;
                   }
                 }
@@ -1999,7 +2040,8 @@ pub const CJS_BOOTSTRAP_JS: &str = r#"
                   const exportKey = subpath ? './' + subpath : '.';
                   const resolved = _resolveCjsExports(pkg.exports, exportKey);
                   if (resolved) {
-                    const full = pkgDir + '/' + resolved;
+                    const rel = resolved.startsWith('./') ? resolved.slice(2) : resolved;
+                    const full = pkgDir + '/' + rel;
                     if (Deno.core.ops.op_fs_exists_sync(full)) return full;
                   }
                 }
@@ -2594,6 +2636,13 @@ if (!proc.versions) proc.versions = {};
 if (!proc.versions.node) proc.versions.node = '20.0.0';
 if (!proc.exit) proc.exit = (code) => { throw new Error('process.exit(' + (code !== undefined ? code : '') + ') is not supported in the Vertz runtime'); };
 if (!proc.nextTick) proc.nextTick = (fn, ...args) => queueMicrotask(() => fn(...args));
+if (!proc.on) proc.on = function(_event, _cb) { return this; };
+if (!proc.off) proc.off = function(_event, _cb) { return this; };
+if (!proc.once) proc.once = function(_event, _cb) { return this; };
+if (!proc.removeListener) proc.removeListener = function(_event, _cb) { return this; };
+if (!proc.emit) proc.emit = function() { return false; };
+if (!proc.listeners) proc.listeners = function() { return []; };
+if (!proc.removeAllListeners) proc.removeAllListeners = function() { return this; };
 if (!proc.stdout) {
   proc.stdout = {
     isTTY: Deno.core.ops.op_is_tty(1),
@@ -2669,6 +2718,7 @@ export const mkdtempSync = fs.mkdtempSync;
 export const copyFileSync = fs.copyFileSync;
 export const cpSync = fs.cpSync;
 export const chmodSync = fs.chmodSync;
+export const symlinkSync = fs.symlinkSync;
 export const accessSync = fs.accessSync;
 export const readFile = fs.readFile;
 export const writeFile = fs.writeFile;
@@ -2857,10 +2907,72 @@ class KeyObject {
   get type() { return this._type; }
   get asymmetricKeyType() { return this._keyType; }
   get asymmetricKeyDetails() { return this._keyDetails; }
+  get [Symbol.toStringTag]() { return 'KeyObject'; }
+
+  toCryptoKey(algorithm, extractable, usages) {
+    const der = _pemToDer(this._data);
+    const format = this._type === 'private' ? 'pkcs8' : 'spki';
+    const algo = typeof algorithm === 'string' ? { name: algorithm } : algorithm;
+    // Normalize: jose passes hash as string, op expects string in camelCase
+    const normalizedAlgo = { name: algo.name };
+    if (algo.hash) normalizedAlgo.hash = typeof algo.hash === 'object' ? algo.hash.name : algo.hash;
+    if (algo.namedCurve) normalizedAlgo.namedCurve = algo.namedCurve;
+    const result = Deno.core.ops.op_crypto_subtle_import_key({
+      format,
+      keyData: Array.from(der),
+      algorithm: normalizedAlgo,
+      extractable,
+      usages,
+    });
+    // Build spec-compliant algorithm object from internal "NAME::PARAM" string
+    let algoObj;
+    const algoStr = typeof result.algorithm === 'string' ? result.algorithm : '';
+    const parts = algoStr.split('::');
+    const name = parts[0] || algoStr;
+    const param = parts[1];
+    const ml = result.modulusLength;
+    if (name.includes('RSASSA')) algoObj = { name: 'RSASSA-PKCS1-v1_5', hash: { name: param || normalizedAlgo.hash || 'SHA-256' }, ...(ml ? { modulusLength: ml } : {}) };
+    else if (name === 'RSA-PSS') algoObj = { name: 'RSA-PSS', hash: { name: param || normalizedAlgo.hash || 'SHA-256' }, ...(ml ? { modulusLength: ml } : {}) };
+    else if (name === 'RSA-OAEP') algoObj = { name: 'RSA-OAEP', hash: { name: param || normalizedAlgo.hash || 'SHA-256' }, ...(ml ? { modulusLength: ml } : {}) };
+    else if (name === 'ECDSA' && param) algoObj = { name: 'ECDSA', namedCurve: param };
+    else if (typeof result.algorithm === 'object') algoObj = result.algorithm;
+    else algoObj = { name };
+    return new globalThis.CryptoKey(result.keyId, result.keyType, algoObj, result.extractable, result.usages);
+  }
+
   export(options) {
     if (!options) return this._data;
     if (options.format === 'der') {
       return Buffer.from(_pemToDer(this._data));
+    }
+    if (options.format === 'jwk') {
+      // Import key into CryptoKeyStore then export as JWK
+      const der = _pemToDer(this._data);
+      const format = this._type === 'private' ? 'pkcs8' : 'spki';
+      const keyType = this._keyType || 'rsa';
+      let algorithm;
+      if (keyType === 'ec') {
+        let curve = (this._keyDetails && this._keyDetails.namedCurve) || 'P-256';
+        // Normalize OpenSSL curve names to WebCrypto names
+        if (curve === 'prime256v1') curve = 'P-256';
+        else if (curve === 'secp384r1') curve = 'P-384';
+        else if (curve === 'secp521r1') curve = 'P-521';
+        algorithm = { name: 'ECDSA', namedCurve: curve };
+      } else {
+        algorithm = { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' };
+      }
+      const usages = this._type === 'private' ? ['sign'] : ['verify'];
+      const result = Deno.core.ops.op_crypto_subtle_import_key({
+        format,
+        keyData: Array.from(der),
+        algorithm,
+        extractable: true,
+        usages,
+      });
+      return Deno.core.ops.op_crypto_subtle_export_key_jwk({
+        format: 'jwk',
+        keyId: result.keyId,
+      });
     }
     return this._data;
   }
@@ -2884,11 +2996,35 @@ function _detectKeyType(pem) {
   return 'rsa';
 }
 
+function _detectEcCurve(pem) {
+  const der = _pemToDer(pem);
+  // P-256 OID 1.2.840.10045.3.1.7 = 06 08 2a 86 48 ce 3d 03 01 07
+  const p256Oid = [0x06, 0x08, 0x2a, 0x86, 0x48, 0xce, 0x3d, 0x03, 0x01, 0x07];
+  // P-384 OID 1.3.132.0.34 = 06 05 2b 81 04 00 22
+  const p384Oid = [0x06, 0x05, 0x2b, 0x81, 0x04, 0x00, 0x22];
+  // P-521 OID 1.3.132.0.35 = 06 05 2b 81 04 00 23
+  const p521Oid = [0x06, 0x05, 0x2b, 0x81, 0x04, 0x00, 0x23];
+  function findOid(oid) {
+    for (let i = 0; i <= der.length - oid.length; i++) {
+      let match = true;
+      for (let j = 0; j < oid.length; j++) {
+        if (der[i + j] !== oid[j]) { match = false; break; }
+      }
+      if (match) return true;
+    }
+    return false;
+  }
+  if (findOid(p384Oid)) return 'secp384r1';
+  if (findOid(p521Oid)) return 'secp521r1';
+  if (findOid(p256Oid)) return 'prime256v1';
+  return 'prime256v1'; // default
+}
+
 function createPrivateKey(input) {
   if (input instanceof KeyObject) return input;
   const pem = typeof input === 'string' ? input : (input.key || String(input));
   const keyType = _detectKeyType(pem);
-  const details = keyType === 'ec' ? { namedCurve: 'prime256v1' } : {};
+  const details = keyType === 'ec' ? { namedCurve: _detectEcCurve(pem) } : {};
   return new KeyObject('private', pem, keyType, details);
 }
 
@@ -2901,7 +3037,7 @@ function createPublicKey(input) {
   }
   const pem = typeof input === 'string' ? input : (input.key || String(input));
   const keyType = _detectKeyType(pem);
-  const details = keyType === 'ec' ? { namedCurve: 'prime256v1' } : {};
+  const details = keyType === 'ec' ? { namedCurve: _detectEcCurve(pem) } : {};
   return new KeyObject('public', pem, keyType, details);
 }
 
@@ -2921,7 +3057,7 @@ function generateKeyPairSync(type, options) {
     };
   }
   const keyDetails = type === 'ec'
-    ? { namedCurve: opts.namedCurve === 'P-256' ? 'prime256v1' : (opts.namedCurve || 'prime256v1') }
+    ? { namedCurve: ({ 'P-256': 'prime256v1', 'P-384': 'secp384r1', 'P-521': 'secp521r1' })[opts.namedCurve] || opts.namedCurve || 'prime256v1' }
     : {};
   return {
     publicKey: new KeyObject('public', result.publicKey, type, keyDetails),
@@ -2966,7 +3102,20 @@ export default __cryptoModule;
 const NODE_BUFFER_SPECIFIER: &str = "vertz:node_buffer";
 const NODE_BUFFER_MODULE: &str = r#"
 export const Buffer = globalThis.Buffer;
-export default { Buffer: globalThis.Buffer };
+export const Blob = globalThis.Blob;
+export const File = globalThis.File;
+export const atob = globalThis.atob;
+export const btoa = globalThis.btoa;
+export const kMaxLength = 2147483647;
+export const kStringMaxLength = 536870888;
+export const constants = { MAX_LENGTH: 2147483647, MAX_STRING_LENGTH: 536870888 };
+export const INSPECT_MAX_BYTES = 50;
+export const SlowBuffer = Buffer;
+export function isAscii(input) { return /^[\x00-\x7F]*$/.test(typeof input === 'string' ? input : String.fromCharCode(...new Uint8Array(input))); }
+export function isUtf8(input) { try { new TextDecoder('utf-8', { fatal: true }).decode(typeof input === 'string' ? new TextEncoder().encode(input) : input); return true; } catch { return false; } }
+export function transcode() { throw new Error('buffer.transcode is not supported'); }
+export function resolveObjectURL() { return undefined; }
+export default { Buffer: globalThis.Buffer, Blob: globalThis.Blob, File: globalThis.File, atob: globalThis.atob, btoa: globalThis.btoa, kMaxLength, kStringMaxLength, constants, INSPECT_MAX_BYTES, SlowBuffer: Buffer, isAscii, isUtf8, transcode, resolveObjectURL };
 "#;
 
 /// Synthetic module for `node:module`.
@@ -3196,8 +3345,28 @@ function callbackify(fn) {
   };
 }
 
-export { promisify, format, inspect, deprecate, types, callbackify };
-export default { promisify, format, inspect, deprecate, types, callbackify };
+const TextDecoder = globalThis.TextDecoder;
+const TextEncoder = globalThis.TextEncoder;
+
+function inherits(ctor, superCtor) {
+  Object.setPrototypeOf(ctor.prototype, superCtor.prototype);
+  Object.setPrototypeOf(ctor, superCtor);
+}
+
+const _types = {
+  isDate: (v) => v instanceof Date,
+  isRegExp: (v) => v instanceof RegExp,
+  isPromise: (v) => v instanceof Promise,
+  isArrayBuffer: (v) => v instanceof ArrayBuffer,
+  isTypedArray: (v) => ArrayBuffer.isView(v) && !(v instanceof DataView),
+  isUint8Array: (v) => v instanceof Uint8Array,
+  isSet: (v) => v instanceof Set,
+  isMap: (v) => v instanceof Map,
+};
+
+export { promisify, format, inspect, deprecate, callbackify, inherits, TextDecoder, TextEncoder };
+export { _types as types };
+export default { promisify, format, inspect, deprecate, types: _types, callbackify, inherits, TextDecoder, TextEncoder };
 "#;
 
 /// Synthetic module for `node:readline`.
@@ -3275,6 +3444,112 @@ export default { transformSync, transform, build, initialize, stop };
 /// Synthetic module for `node:vm`.
 /// Provides createContext, runInContext, runInNewContext, isContext, and Script
 /// for happy-dom and other libraries that depend on `vm` for sandboxed eval.
+const NODE_PERF_HOOKS_SPECIFIER: &str = "vertz:node_perf_hooks";
+const NODE_PERF_HOOKS_MODULE: &str = r#"
+const _perf = globalThis.performance || {
+  now: () => Date.now(),
+  mark: () => {},
+  measure: () => {},
+  getEntriesByType: () => [],
+  getEntriesByName: () => [],
+  clearMarks: () => {},
+  clearMeasures: () => {},
+};
+
+export class PerformanceEntry {
+  constructor(name, entryType, startTime, duration) {
+    this.name = name || '';
+    this.entryType = entryType || '';
+    this.startTime = startTime || 0;
+    this.duration = duration || 0;
+  }
+  toJSON() {
+    return { name: this.name, entryType: this.entryType, startTime: this.startTime, duration: this.duration };
+  }
+}
+
+export class PerformanceObserverEntryList {
+  getEntries() { return []; }
+  getEntriesByType() { return []; }
+  getEntriesByName() { return []; }
+}
+
+export class PerformanceObserver {
+  constructor(cb) { this._cb = cb; }
+  observe() {}
+  disconnect() {}
+  takeRecords() { return []; }
+}
+PerformanceObserver.supportedEntryTypes = ['mark', 'measure'];
+
+export const performance = _perf;
+
+export function monitorEventLoopDelay() {
+  return { enable: () => {}, disable: () => {}, min: 0, max: 0, mean: 0, stddev: 0, percentile: () => 0 };
+}
+
+export default { performance: _perf, PerformanceEntry, PerformanceObserver, PerformanceObserverEntryList, monitorEventLoopDelay };
+"#;
+
+const NODE_NET_SPECIFIER: &str = "vertz:node_net";
+const NODE_NET_MODULE: &str = r#"
+export class Socket {
+  constructor() { this.destroyed = false; }
+  connect() { return this; }
+  on(_e, _cb) { return this; }
+  once(_e, _cb) { return this; }
+  write(_d) { return true; }
+  end() { this.destroyed = true; }
+  destroy() { this.destroyed = true; }
+  setTimeout() { return this; }
+  setNoDelay() { return this; }
+  setKeepAlive() { return this; }
+  ref() { return this; }
+  unref() { return this; }
+}
+
+export class Server {
+  constructor() {}
+  listen(_port, _host, cb) { if (typeof cb === 'function') cb(); return this; }
+  close(cb) { if (typeof cb === 'function') cb(); }
+  on(_e, _cb) { return this; }
+  address() { return { port: 0, address: '0.0.0.0' }; }
+}
+
+export function createServer(cb) { return new Server(); }
+export function createConnection() { return new Socket(); }
+export const connect = createConnection;
+export function isIP(input) { return 0; }
+export function isIPv4(input) { return false; }
+export function isIPv6(input) { return false; }
+
+export default { Socket, Server, createServer, createConnection, connect: createConnection, isIP, isIPv4, isIPv6 };
+"#;
+
+const NODE_HTTPS_SPECIFIER: &str = "vertz:node_https";
+const NODE_HTTPS_MODULE: &str = r#"
+export class Agent {
+  constructor() {}
+  destroy() {}
+}
+
+export function request(_url, _options, _cb) {
+  throw new Error('node:https.request is not supported in the Vertz runtime. Use fetch() instead.');
+}
+
+export function get(_url, _options, _cb) {
+  throw new Error('node:https.get is not supported in the Vertz runtime. Use fetch() instead.');
+}
+
+export function createServer() {
+  throw new Error('node:https.createServer is not supported in the Vertz runtime.');
+}
+
+export const globalAgent = new Agent();
+
+export default { Agent, request, get, createServer, globalAgent };
+"#;
+
 const NODE_VM_SPECIFIER: &str = "vertz:node_vm";
 const NODE_VM_MODULE: &str = r#"
 const _contexts = new WeakSet();
@@ -3322,7 +3597,7 @@ fn node_specifier_to_synthetic(specifier: &str) -> Option<&'static str> {
         "node:events" | "events" => Some(NODE_EVENTS_SPECIFIER),
         "node:process" | "process" => Some(NODE_PROCESS_SPECIFIER),
         "node:fs" | "fs" => Some(NODE_FS_SPECIFIER),
-        "node:fs/promises" => Some(NODE_FS_PROMISES_SPECIFIER),
+        "node:fs/promises" | "fs/promises" => Some(NODE_FS_PROMISES_SPECIFIER),
         "node:crypto" | "crypto" => Some(NODE_CRYPTO_SPECIFIER),
         "node:buffer" | "buffer" => Some(NODE_BUFFER_SPECIFIER),
         "node:module" | "module" => Some(NODE_MODULE_SPECIFIER),
@@ -3336,6 +3611,9 @@ fn node_specifier_to_synthetic(specifier: &str) -> Option<&'static str> {
             Some(NODE_STREAM_WEB_SPECIFIER)
         }
         "node:vm" | "vm" => Some(NODE_VM_SPECIFIER),
+        "node:perf_hooks" | "perf_hooks" => Some(NODE_PERF_HOOKS_SPECIFIER),
+        "node:net" | "net" => Some(NODE_NET_SPECIFIER),
+        "node:https" | "https" => Some(NODE_HTTPS_SPECIFIER),
         _ => None,
     }
 }
@@ -3363,6 +3641,9 @@ fn synthetic_module_source(specifier: &str) -> Option<&'static str> {
         NODE_ZLIB_SPECIFIER => Some(NODE_ZLIB_MODULE),
         NODE_STREAM_WEB_SPECIFIER => Some(NODE_STREAM_WEB_MODULE),
         NODE_VM_SPECIFIER => Some(NODE_VM_MODULE),
+        NODE_PERF_HOOKS_SPECIFIER => Some(NODE_PERF_HOOKS_MODULE),
+        NODE_NET_SPECIFIER => Some(NODE_NET_MODULE),
+        NODE_HTTPS_SPECIFIER => Some(NODE_HTTPS_MODULE),
         VERTZ_SQLITE_SPECIFIER => Some(VERTZ_SQLITE_MODULE),
         ESBUILD_SPECIFIER => Some(ESBUILD_MODULE),
         _ => None,
@@ -3537,8 +3818,9 @@ impl ModuleLoader for VertzModuleLoader {
             let (code, module_type) = match ext {
                 "ts" | "tsx" | "jsx" => {
                     let compiled = self.compile_source(&source, &filename)?;
+                    let polyfilled = polyfill_import_meta_dirname(&compiled);
                     (
-                        polyfill_import_meta_dirname(&compiled),
+                        inject_esm_require(&polyfilled, &path),
                         ModuleType::JavaScript,
                     )
                 }
@@ -3547,8 +3829,9 @@ impl ModuleLoader for VertzModuleLoader {
                     if is_cjs {
                         (wrap_cjs_module(&source, &path), ModuleType::JavaScript)
                     } else {
+                        let polyfilled = polyfill_import_meta_dirname(&source);
                         (
-                            polyfill_import_meta_dirname(&source),
+                            inject_esm_require(&polyfilled, &path),
                             ModuleType::JavaScript,
                         )
                     }

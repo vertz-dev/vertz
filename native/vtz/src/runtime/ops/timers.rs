@@ -102,6 +102,17 @@ pub const TIMERS_BOOTSTRAP_JS: &str = r#"
     }
   };
 
+  // setImmediate/clearImmediate — Node.js compatibility.
+  // Implemented as setTimeout(fn, 0) which schedules the callback
+  // at the end of the current event loop turn.
+  globalThis.setImmediate = function(callback, ...args) {
+    return globalThis.setTimeout(() => callback(...args), 0);
+  };
+
+  globalThis.clearImmediate = function(id) {
+    globalThis.clearTimeout(id);
+  };
+
   // Cancel ALL active timers — used by the test runner after tests complete
   // so that stale timers (e.g., from AbortSignal.timeout()) don't keep the
   // event loop alive and cause file-level timeouts.

@@ -509,6 +509,31 @@ if (typeof globalThis.HTMLElement === 'undefined') {
         `Expected ${formatValue(actual)} ${negated ? 'not ' : ''}to be a function`
       );
     };
+    matchers.toBeNumber = () => {
+      assert(typeof actual === 'number' && !Number.isNaN(actual), () =>
+        `Expected ${formatValue(actual)} ${negated ? 'not ' : ''}to be a number`
+      );
+    };
+    matchers.toBeString = () => {
+      assert(typeof actual === 'string', () =>
+        `Expected ${formatValue(actual)} ${negated ? 'not ' : ''}to be a string`
+      );
+    };
+    matchers.toBeBoolean = () => {
+      assert(typeof actual === 'boolean', () =>
+        `Expected ${formatValue(actual)} ${negated ? 'not ' : ''}to be a boolean`
+      );
+    };
+    matchers.toStartWith = (prefix) => {
+      assert(typeof actual === 'string' && actual.startsWith(prefix), () =>
+        `Expected ${formatValue(actual)} ${negated ? 'not ' : ''}to start with ${formatValue(prefix)}`
+      );
+    };
+    matchers.toEndWith = (suffix) => {
+      assert(typeof actual === 'string' && actual.endsWith(suffix), () =>
+        `Expected ${formatValue(actual)} ${negated ? 'not ' : ''}to end with ${formatValue(suffix)}`
+      );
+    };
 
     // Objects
     matchers.toHaveProperty = function(keyPath, value) {
@@ -712,7 +737,8 @@ if (typeof globalThis.HTMLElement === 'undefined') {
       'toBe', 'toEqual', 'toStrictEqual', 'toBeTruthy', 'toBeFalsy', 'toBeNull', 'toBeUndefined',
       'toBeDefined', 'toBeGreaterThan', 'toBeGreaterThanOrEqual', 'toBeLessThan',
       'toBeLessThanOrEqual', 'toBeNaN', 'toBeArray', 'toContain', 'toContainEqual', 'toHaveLength', 'toMatch',
-      'toBeCloseTo', 'toBeTypeOf', 'toBeFunction', 'toHaveProperty', 'toBeInstanceOf',
+      'toBeCloseTo', 'toBeTypeOf', 'toBeFunction', 'toBeNumber', 'toBeString', 'toBeBoolean',
+      'toStartWith', 'toEndWith', 'toHaveProperty', 'toBeInstanceOf',
       'toMatchObject', 'toThrow', 'toThrowError', 'toHaveBeenCalled', 'toHaveBeenCalledOnce',
       'toHaveBeenCalledTimes', 'toHaveBeenCalledWith', 'toHaveBeenLastCalledWith',
       'toHaveBeenNthCalledWith', 'toSatisfy',

@@ -555,6 +555,27 @@ pub fn op_fs_chmod_sync(#[string] path: String, #[smi] mode: u32) -> Result<(), 
     }
 }
 
+/// Create a symbolic link (node:fs symlinkSync).
+#[op2(fast)]
+pub fn op_fs_symlink_sync(
+    #[string] target: String,
+    #[string] path: String,
+) -> Result<(), AnyError> {
+    #[cfg(unix)]
+    {
+        std::os::unix::fs::symlink(&target, &path).map_err(|e| {
+            deno_core::anyhow::anyhow!("{}: {}: '{}' -> '{}'", io_error_code(&e), e, path, target)
+        })
+    }
+    #[cfg(not(unix))]
+    {
+        let _ = (target, path);
+        Err(deno_core::anyhow::anyhow!(
+            "symlinkSync is not supported on this platform"
+        ))
+    }
+}
+
 /// Check file accessibility (node:fs accessSync).
 /// mode: F_OK=0, R_OK=4, W_OK=2, X_OK=1
 #[op2(fast)]
@@ -752,6 +773,7 @@ pub fn op_decls() -> Vec<OpDecl> {
         op_fs_copy_file_sync(),
         op_fs_cp_sync(),
         op_fs_chmod_sync(),
+        op_fs_symlink_sync(),
         op_fs_access_sync(),
         // Async
         op_fs_read_file(),
@@ -990,6 +1012,10 @@ pub const FS_BOOTSTRAP_JS: &str = r#"
     Deno.core.ops.op_fs_chmod_sync(String(path), mode);
   }
 
+  function symlinkSync(target, path) {
+    Deno.core.ops.op_fs_symlink_sync(String(target), String(path));
+  }
+
   function accessSync(path, mode) {
     Deno.core.ops.op_fs_access_sync(String(path), mode === undefined ? 0 : mode);
   }
@@ -1110,7 +1136,7 @@ pub const FS_BOOTSTRAP_JS: &str = r#"
     mkdirSync, readdirSync, statSync, lstatSync,
     rmSync, unlinkSync, renameSync, realpathSync,
     mkdtempSync, copyFileSync, cpSync, chmodSync,
-    accessSync, watch, mkdtemp, constants,
+    symlinkSync, accessSync, watch, mkdtemp, constants,
     // Async wrappers (node:fs also has callback-style but we provide promise-based)
     readFile, writeFile, mkdir, readdir, stat, rm, unlink, rename, realpath,
     // Promises sub-object

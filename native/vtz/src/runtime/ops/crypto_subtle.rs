@@ -107,6 +107,8 @@ pub struct CryptoKeyResult {
     pub algorithm: String,
     pub extractable: bool,
     pub usages: Vec<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub modulus_length: Option<u32>,
 }
 
 #[derive(Serialize)]
@@ -260,6 +262,7 @@ pub fn op_crypto_subtle_import_key(
                 algorithm: "HMAC".to_string(),
                 extractable: args.extractable,
                 usages: args.usages,
+                modulus_length: None,
             })
         }
         "AES-GCM" => {
@@ -289,6 +292,7 @@ pub fn op_crypto_subtle_import_key(
                 algorithm: "AES-GCM".to_string(),
                 extractable: args.extractable,
                 usages: args.usages,
+                modulus_length: None,
             })
         }
         "HKDF" => {
@@ -311,6 +315,7 @@ pub fn op_crypto_subtle_import_key(
                 algorithm: "HKDF".to_string(),
                 extractable: false,
                 usages: args.usages,
+                modulus_length: None,
             })
         }
         "ECDSA" => {
@@ -343,6 +348,7 @@ pub fn op_crypto_subtle_import_key(
                         algorithm: format!("ECDSA::{}", curve),
                         extractable: args.extractable,
                         usages: args.usages,
+                        modulus_length: None,
                     })
                 }
                 "raw" => {
@@ -360,10 +366,31 @@ pub fn op_crypto_subtle_import_key(
                         algorithm: format!("ECDSA::{}", curve),
                         extractable: args.extractable,
                         usages: args.usages,
+                        modulus_length: None,
+                    })
+                }
+                "spki" => {
+                    // SPKI DER → extract uncompressed EC point
+                    let point = decode_ec_spki_point(&args.key_data, curve)?;
+                    let store = state.borrow_mut::<CryptoKeyStore>();
+                    let id = store.insert(StoredKey {
+                        material: KeyMaterial::EcPublic(point),
+                        algorithm: format!("ECDSA::{}", curve),
+                        extractable: args.extractable,
+                        usages: args.usages.clone(),
+                        key_type: "public".to_string(),
+                    })?;
+                    Ok(CryptoKeyResult {
+                        key_id: id,
+                        key_type: "public".to_string(),
+                        algorithm: format!("ECDSA::{}", curve),
+                        extractable: args.extractable,
+                        usages: args.usages,
+                        modulus_length: None,
                     })
                 }
                 _ => Err(deno_core::anyhow::anyhow!(
-                    "NotSupportedError: ECDSA importKey supports 'pkcs8' and 'raw' formats"
+                    "NotSupportedError: ECDSA importKey supports 'pkcs8', 'spki', and 'raw' formats"
                 )),
             }
         }
@@ -389,6 +416,7 @@ pub fn op_crypto_subtle_import_key(
 
             match args.format.as_str() {
                 "pkcs8" => {
+                    let mod_len = rsa_modulus_length_from_pkcs8(&args.key_data);
                     let store = state.borrow_mut::<CryptoKeyStore>();
                     let id = store.insert(StoredKey {
                         material: KeyMaterial::RsaPrivate(args.key_data),
@@ -400,12 +428,14 @@ pub fn op_crypto_subtle_import_key(
                     Ok(CryptoKeyResult {
                         key_id: id,
                         key_type: "private".to_string(),
-                        algorithm: "RSASSA-PKCS1-v1_5".to_string(),
+                        algorithm: format!("RSASSA-PKCS1-v1_5::{}", hash.to_uppercase()),
                         extractable: args.extractable,
                         usages: args.usages,
+                        modulus_length: mod_len,
                     })
                 }
                 "spki" => {
+                    let mod_len = rsa_modulus_length_from_spki(&args.key_data);
                     let store = state.borrow_mut::<CryptoKeyStore>();
                     let id = store.insert(StoredKey {
                         material: KeyMaterial::RsaPublic(args.key_data),
@@ -417,9 +447,10 @@ pub fn op_crypto_subtle_import_key(
                     Ok(CryptoKeyResult {
                         key_id: id,
                         key_type: "public".to_string(),
-                        algorithm: "RSASSA-PKCS1-v1_5".to_string(),
+                        algorithm: format!("RSASSA-PKCS1-v1_5::{}", hash.to_uppercase()),
                         extractable: args.extractable,
                         usages: args.usages,
+                        modulus_length: mod_len,
                     })
                 }
                 _ => Err(deno_core::anyhow::anyhow!(
@@ -469,6 +500,93 @@ pub fn op_crypto_subtle_export_key(
             key.key_type,
             args.format
         )),
+    }
+}
+
+/// Extract RSA modulus bit length from a PKCS#8 private key DER.
+fn rsa_modulus_length_from_pkcs8(der: &[u8]) -> Option<u32> {
+    use rsa::pkcs8::DecodePrivateKey;
+    use rsa::traits::PublicKeyParts;
+    use rsa::RsaPrivateKey;
+    let key = RsaPrivateKey::from_pkcs8_der(der).ok()?;
+    Some(key.size() as u32 * 8)
+}
+
+/// Extract RSA modulus bit length from an SPKI public key DER.
+fn rsa_modulus_length_from_spki(der: &[u8]) -> Option<u32> {
+    use rsa::pkcs8::DecodePublicKey;
+    use rsa::traits::PublicKeyParts;
+    use rsa::RsaPublicKey;
+    let key = RsaPublicKey::from_public_key_der(der).ok()?;
+    Some(key.size() as u32 * 8)
+}
+
+/// Decode an EC public key (uncompressed point) from SubjectPublicKeyInfo DER.
+/// SPKI structure: SEQUENCE { SEQUENCE { OID, OID }, BIT STRING { 0x00, point } }
+fn decode_ec_spki_point(spki_der: &[u8], _curve: &str) -> Result<Vec<u8>, AnyError> {
+    // Find the BIT STRING (tag 0x03) — it's the second element in the outer SEQUENCE
+    // Walk past the outer SEQUENCE header
+    if spki_der.is_empty() || spki_der[0] != 0x30 {
+        return Err(deno_core::anyhow::anyhow!(
+            "DataError: Invalid SPKI: expected SEQUENCE"
+        ));
+    }
+    let (_, outer_content) = parse_der_length(&spki_der[1..])?;
+
+    // Skip the inner SEQUENCE (algorithm identifier)
+    if outer_content.is_empty() || outer_content[0] != 0x30 {
+        return Err(deno_core::anyhow::anyhow!(
+            "DataError: Invalid SPKI: expected inner SEQUENCE"
+        ));
+    }
+    let (algo_len, _) = parse_der_length(&outer_content[1..])?;
+    let algo_total = 1 + der_length_size(algo_len) + algo_len;
+
+    // Parse the BIT STRING
+    let bit_string_start = &outer_content[algo_total..];
+    if bit_string_start.is_empty() || bit_string_start[0] != 0x03 {
+        return Err(deno_core::anyhow::anyhow!(
+            "DataError: Invalid SPKI: expected BIT STRING"
+        ));
+    }
+    let (bs_len, bs_content) = parse_der_length(&bit_string_start[1..])?;
+    if bs_len == 0 || bs_content[0] != 0x00 {
+        return Err(deno_core::anyhow::anyhow!(
+            "DataError: Invalid SPKI: BIT STRING padding byte expected"
+        ));
+    }
+    // Skip the 0x00 padding byte — remainder is the uncompressed point
+    Ok(bs_content[1..bs_len].to_vec())
+}
+
+/// Parse a DER length field. Returns (length_value, remaining_bytes_after_length).
+fn parse_der_length(data: &[u8]) -> Result<(usize, &[u8]), AnyError> {
+    if data.is_empty() {
+        return Err(deno_core::anyhow::anyhow!(
+            "DataError: unexpected end of DER data"
+        ));
+    }
+    if data[0] < 0x80 {
+        Ok((data[0] as usize, &data[1..]))
+    } else if data[0] == 0x81 {
+        if data.len() < 2 {
+            return Err(deno_core::anyhow::anyhow!(
+                "DataError: truncated DER length"
+            ));
+        }
+        Ok((data[1] as usize, &data[2..]))
+    } else if data[0] == 0x82 {
+        if data.len() < 3 {
+            return Err(deno_core::anyhow::anyhow!(
+                "DataError: truncated DER length"
+            ));
+        }
+        let len = ((data[1] as usize) << 8) | (data[2] as usize);
+        Ok((len, &data[3..]))
+    } else {
+        Err(deno_core::anyhow::anyhow!(
+            "DataError: unsupported DER length encoding"
+        ))
     }
 }
 
@@ -620,6 +738,72 @@ fn build_ec_jwk(key: &StoredKey) -> Result<serde_json::Value, AnyError> {
     }
 }
 
+/// Build an RSA JWK object from key material.
+fn build_rsa_jwk(key: &StoredKey) -> Result<serde_json::Value, AnyError> {
+    let key_ops: Vec<&str> = key.usages.iter().map(|s| s.as_str()).collect();
+
+    match &key.material {
+        KeyMaterial::RsaPublic(spki_der) => {
+            use rsa::pkcs8::DecodePublicKey;
+            use rsa::traits::PublicKeyParts;
+            let pub_key = rsa::RsaPublicKey::from_public_key_der(spki_der)
+                .map_err(|e| deno_core::anyhow::anyhow!("DataError: {}", e))?;
+            let n = URL_SAFE_NO_PAD.encode(pub_key.n().to_bytes_be());
+            let e = URL_SAFE_NO_PAD.encode(pub_key.e().to_bytes_be());
+            Ok(serde_json::json!({
+                "kty": "RSA",
+                "n": n,
+                "e": e,
+                "ext": key.extractable,
+                "key_ops": key_ops,
+            }))
+        }
+        KeyMaterial::RsaPrivate(pkcs8_der) => {
+            use rsa::pkcs8::DecodePrivateKey;
+            use rsa::traits::{PrivateKeyParts, PublicKeyParts};
+            let priv_key = rsa::RsaPrivateKey::from_pkcs8_der(pkcs8_der)
+                .map_err(|e| deno_core::anyhow::anyhow!("DataError: {}", e))?;
+            let n = URL_SAFE_NO_PAD.encode(priv_key.n().to_bytes_be());
+            let e = URL_SAFE_NO_PAD.encode(priv_key.e().to_bytes_be());
+            let d = URL_SAFE_NO_PAD.encode(priv_key.d().to_bytes_be());
+
+            let mut jwk = serde_json::json!({
+                "kty": "RSA",
+                "n": n,
+                "e": e,
+                "d": d,
+                "ext": key.extractable,
+                "key_ops": key_ops,
+            });
+
+            // Add CRT parameters if available
+            let primes = priv_key.primes();
+            if primes.len() >= 2 {
+                let p = URL_SAFE_NO_PAD.encode(primes[0].to_bytes_be());
+                let q = URL_SAFE_NO_PAD.encode(primes[1].to_bytes_be());
+                jwk["p"] = serde_json::json!(p);
+                jwk["q"] = serde_json::json!(q);
+
+                if let Some(dp) = priv_key.dp() {
+                    jwk["dp"] = serde_json::json!(URL_SAFE_NO_PAD.encode(dp.to_bytes_be()));
+                }
+                if let Some(dq) = priv_key.dq() {
+                    jwk["dq"] = serde_json::json!(URL_SAFE_NO_PAD.encode(dq.to_bytes_be()));
+                }
+                if let Some(qi) = priv_key.qinv() {
+                    let (_, qi_bytes) = qi.to_bytes_be();
+                    jwk["qi"] = serde_json::json!(URL_SAFE_NO_PAD.encode(&qi_bytes));
+                }
+            }
+
+            Ok(jwk)
+        }
+        _ => Err(deno_core::anyhow::anyhow!(
+            "NotSupportedError: Cannot export non-RSA key as RSA JWK"
+        )),
+    }
+}
+
 /// Extract the private scalar `d` from a PKCS#8-encoded EC private key
 /// by walking the ASN.1 DER structure.
 ///
@@ -753,6 +937,7 @@ pub fn op_crypto_subtle_export_key_jwk(
     let algo_name = key.algorithm.split("::").next().unwrap_or("");
     match algo_name {
         "ECDSA" => build_ec_jwk(key),
+        name if name.contains("RSASSA") || name.contains("RSA") => build_rsa_jwk(key),
         _ => Err(deno_core::anyhow::anyhow!(
             "NotSupportedError: JWK export not supported for algorithm '{}'",
             algo_name
@@ -1059,6 +1244,7 @@ pub fn op_crypto_subtle_generate_key(
                 algorithm: "HMAC".to_string(),
                 extractable: args.extractable,
                 usages: args.usages,
+                modulus_length: None,
             })?)
         }
         "AES-GCM" => {
@@ -1090,6 +1276,7 @@ pub fn op_crypto_subtle_generate_key(
                 algorithm: "AES-GCM".to_string(),
                 extractable: args.extractable,
                 usages: args.usages,
+                modulus_length: None,
             })?)
         }
         "ECDSA" => {
@@ -1152,6 +1339,7 @@ pub fn op_crypto_subtle_generate_key(
                                 .filter(|u| *u == "verify")
                                 .cloned()
                                 .collect(),
+                            modulus_length: None,
                         },
                         private_key: CryptoKeyResult {
                             key_id: priv_id,
@@ -1164,6 +1352,7 @@ pub fn op_crypto_subtle_generate_key(
                                 .filter(|u| *u == "sign")
                                 .cloned()
                                 .collect(),
+                            modulus_length: None,
                         },
                     })?)
                 }
@@ -1221,6 +1410,7 @@ pub fn op_crypto_subtle_generate_key(
                                 .filter(|u| *u == "verify")
                                 .cloned()
                                 .collect(),
+                            modulus_length: None,
                         },
                         private_key: CryptoKeyResult {
                             key_id: priv_id,
@@ -1233,6 +1423,7 @@ pub fn op_crypto_subtle_generate_key(
                                 .filter(|u| *u == "sign")
                                 .cloned()
                                 .collect(),
+                            modulus_length: None,
                         },
                     })?)
                 }
@@ -1316,6 +1507,7 @@ pub fn op_crypto_subtle_generate_key(
                         .filter(|u| *u == "verify")
                         .cloned()
                         .collect(),
+                    modulus_length: None,
                 },
                 private_key: CryptoKeyResult {
                     key_id: priv_id,
@@ -1328,6 +1520,7 @@ pub fn op_crypto_subtle_generate_key(
                         .filter(|u| *u == "sign")
                         .cloned()
                         .collect(),
+                    modulus_length: None,
                 },
             })?)
         }
@@ -1606,6 +1799,7 @@ pub fn op_crypto_subtle_derive_key(
                 algorithm: "AES-GCM".to_string(),
                 extractable: args.extractable,
                 usages: args.usages,
+                modulus_length: None,
             })
         }
         "HMAC" => {
@@ -1624,6 +1818,7 @@ pub fn op_crypto_subtle_derive_key(
                 algorithm: "HMAC".to_string(),
                 extractable: args.extractable,
                 usages: args.usages,
+                modulus_length: None,
             })
         }
         _ => Err(deno_core::anyhow::anyhow!(
@@ -2749,7 +2944,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_ecdsa_import_unsupported_format_fails() {
+    async fn test_ecdsa_import_invalid_spki_fails() {
         let mut rt = create_runtime();
         let result = run_async(
             &mut rt,
@@ -2761,7 +2956,7 @@ mod tests {
                 );
                 return 'no-throw';
             } catch (e) {
-                return e.message.includes('pkcs8') && e.message.includes('raw') ? 'correct-error' : e.message;
+                return e.message.includes('DataError') || e.message.includes('Invalid SPKI') ? 'correct-error' : e.message;
             }
         "#,
         )

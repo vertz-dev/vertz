@@ -21,14 +21,26 @@ pub fn op_text_decode(
     ignore_bom: bool,
 ) -> Result<String, deno_core::error::AnyError> {
     let enc = encoding.to_ascii_lowercase();
-    if enc != "utf-8" && enc != "utf8" && enc != "unicode-1-1-utf-8" {
+    let is_latin1 = enc == "latin1"
+        || enc == "iso-8859-1"
+        || enc == "iso8859-1"
+        || enc == "iso88591"
+        || enc == "windows-1252"
+        || enc == "ascii"
+        || enc == "us-ascii";
+    let is_utf8 = enc == "utf-8" || enc == "utf8" || enc == "unicode-1-1-utf-8";
+
+    if !is_utf8 && !is_latin1 {
         return Err(deno_core::anyhow::anyhow!(
             "RangeError: The encoding label provided ('{}') is not supported.",
             encoding
         ));
     }
 
-    let result = if fatal {
+    let result = if is_latin1 {
+        // Latin-1: each byte maps directly to a Unicode code point
+        input.iter().map(|&b| b as char).collect::<String>()
+    } else if fatal {
         String::from_utf8(input.to_vec())
             .map_err(|e| deno_core::anyhow::anyhow!("TypeError: {}", e))?
     } else {
@@ -62,12 +74,21 @@ pub fn op_btoa(#[string] input: String) -> Result<String, deno_core::error::AnyE
 }
 
 /// Base64 decode a string (atob).
+/// Browsers' atob is lenient with padding — we must match that behavior.
 #[op2]
 #[string]
 pub fn op_atob(#[string] input: String) -> Result<String, deno_core::error::AnyError> {
     use base64::Engine;
+    // Strip whitespace (browsers ignore it)
+    let cleaned: String = input.chars().filter(|c| !c.is_ascii_whitespace()).collect();
+    // Add padding if missing (browsers are lenient)
+    let padded = match cleaned.len() % 4 {
+        2 => format!("{}==", cleaned),
+        3 => format!("{}=", cleaned),
+        _ => cleaned,
+    };
     let bytes = base64::engine::general_purpose::STANDARD
-        .decode(&input)
+        .decode(&padded)
         .map_err(|e| {
             deno_core::anyhow::anyhow!(
                 "InvalidCharacterError: The string to be decoded is not correctly encoded. {}",
@@ -124,10 +145,13 @@ pub const ENCODING_BOOTSTRAP_JS: &str = r#"
 
     constructor(encoding = 'utf-8', options = {}) {
       const label = String(encoding).toLowerCase().trim();
-      if (label !== 'utf-8' && label !== 'utf8' && label !== 'unicode-1-1-utf-8') {
+      const isUtf8 = label === 'utf-8' || label === 'utf8' || label === 'unicode-1-1-utf-8';
+      const isLatin1 = label === 'latin1' || label === 'iso-8859-1' || label === 'iso8859-1'
+        || label === 'iso88591' || label === 'windows-1252' || label === 'ascii' || label === 'us-ascii';
+      if (!isUtf8 && !isLatin1) {
         throw new RangeError(`The encoding label provided ('${encoding}') is not supported.`);
       }
-      this.#encoding = 'utf-8';
+      this.#encoding = isLatin1 ? label : 'utf-8';
       this.#fatal = !!options.fatal;
       this.#ignoreBOM = !!options.ignoreBOM;
     }
@@ -287,7 +311,7 @@ mod tests {
             "<test>",
             r#"
             try {
-                new TextDecoder('iso-8859-1');
+                new TextDecoder('shift-jis');
                 'no error';
             } catch (e) {
                 e instanceof RangeError ? 'RangeError' : e.constructor.name;
@@ -295,6 +319,22 @@ mod tests {
         "#,
         );
         assert_eq!(result.unwrap(), serde_json::json!("RangeError"));
+    }
+
+    #[test]
+    fn test_text_decoder_latin1_encoding_supported() {
+        let mut rt = create_runtime();
+        let result = rt
+            .execute_script(
+                "<test>",
+                r#"
+                const decoder = new TextDecoder('iso-8859-1');
+                decoder.decode(new Uint8Array([0xE9, 0xE8, 0xEA]))
+            "#,
+            )
+            .unwrap();
+        // 0xE9=é, 0xE8=è, 0xEA=ê in Latin-1
+        assert_eq!(result, serde_json::json!("éèê"));
     }
 
     #[test]

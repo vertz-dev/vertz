@@ -130,6 +130,27 @@ pub const ENV_BOOTSTRAP_JS: &str = r#"
       queueMicrotask(function() { fn.apply(null, args); });
     };
   }
+  if (!globalThis.process.on) {
+    globalThis.process.on = function(_event, _cb) { return this; };
+  }
+  if (!globalThis.process.off) {
+    globalThis.process.off = function(_event, _cb) { return this; };
+  }
+  if (!globalThis.process.once) {
+    globalThis.process.once = function(_event, _cb) { return this; };
+  }
+  if (!globalThis.process.removeListener) {
+    globalThis.process.removeListener = function(_event, _cb) { return this; };
+  }
+  if (!globalThis.process.emit) {
+    globalThis.process.emit = function() { return false; };
+  }
+  if (!globalThis.process.listeners) {
+    globalThis.process.listeners = function() { return []; };
+  }
+  if (!globalThis.process.removeAllListeners) {
+    globalThis.process.removeAllListeners = function() { return this; };
+  }
   if (!globalThis.process.stdout) {
     globalThis.process.stdout = {
       isTTY: Deno.core.ops.op_is_tty(1),
