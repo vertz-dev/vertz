@@ -9,8 +9,9 @@ import type { CodegenIR } from '../../types';
 import { RouterAugmentationGenerator } from '../router-augmentation-generator';
 
 const execFileAsync = promisify(execFile);
+const isVtzRuntime = '__vtz_runtime' in globalThis;
 const require = createRequire(import.meta.url);
-const tscBin = require.resolve('typescript/bin/tsc');
+const tscBin = isVtzRuntime ? '' : require.resolve('typescript/bin/tsc');
 
 function createEmptyIR(): CodegenIR {
   return {
@@ -172,111 +173,116 @@ describe('RouterAugmentationGenerator', () => {
     expect(files).toEqual([]);
   });
 
-  it('type-checks generated augmentation so useRouter() rejects invalid routes', async () => {
-    await mkdir(join(projectRoot, 'src'), { recursive: true });
-    await writeFile(
-      join(projectRoot, 'ui.d.ts'),
-      [
-        "declare module '@vertz/ui' {",
-        '  export type RouteConfigLike = { component: () => Node };',
-        '  export type TypedRoutes<T extends Record<string, RouteConfigLike>> = { readonly __routes: T };',
-        '  export type InferRouteMap<T> = T extends TypedRoutes<infer R> ? R : T;',
-        '  export type PathWithParams<T extends string> = T extends `${infer Before}*`',
-        '    ? `${PathWithParams<Before>}${string}`',
-        '    : T extends `${infer Before}:${string}/${infer After}`',
-        '      ? `${Before}${string}/${PathWithParams<`${After}`>}`',
-        '      : T extends `${infer Before}:${string}`',
-        '        ? `${Before}${string}`',
-        '        : T;',
-        '  export type RoutePaths<TRouteMap extends Record<string, unknown>> = {',
-        '    [K in keyof TRouteMap & string]: PathWithParams<K>;',
-        '  }[keyof TRouteMap & string];',
-        '  export type RoutePattern<TRouteMap extends Record<string, unknown>> = keyof TRouteMap & string;',
-        '  export type ExtractSearchParams<TPath extends string, TMap extends Record<string, RouteConfigLike> = Record<string, RouteConfigLike>> = Record<string, string>;',
-        '  export interface ReactiveSearchParams<T = Record<string, unknown>> {',
-        '    navigate(partial: Partial<T>, options?: { push?: boolean }): void;',
-        '    [key: string]: unknown;',
-        '  }',
-        '  export interface TypedRouter<T extends Record<string, RouteConfigLike>> {',
-        '    navigate(url: RoutePaths<T>): void;',
-        '  }',
-        '  export type UnwrapSignals<T> = T;',
-        '  export function defineRoutes<const T extends Record<string, RouteConfigLike>>(map: T): TypedRoutes<T>;',
-        '  export function useRouter<T extends Record<string, RouteConfigLike> = Record<string, RouteConfigLike>>(): UnwrapSignals<TypedRouter<T>>;',
-        '  export function useSearchParams<TPath extends string>(): ReactiveSearchParams<ExtractSearchParams<TPath>>;',
-        '}',
-        "declare module '@vertz/ui/router' {",
-        "  export { useRouter, useSearchParams } from '@vertz/ui';",
-        '}',
-        '',
-      ].join('\n'),
-      'utf-8',
-    );
-    await writeFile(
-      join(projectRoot, 'src', 'router.ts'),
-      [
-        "import { defineRoutes } from '@vertz/ui';",
-        '',
-        'export const routes = defineRoutes({',
-        "  '/': { component: () => document.createElement('div') },",
-        "  '/tasks/:id': { component: () => document.createElement('div') },",
-        '});',
-        '',
-      ].join('\n'),
-      'utf-8',
-    );
-    await writeFile(
-      join(projectRoot, 'src', 'page.ts'),
-      [
-        "import { useRouter } from '@vertz/ui';",
-        '',
-        'const router = useRouter();',
-        "router.navigate('/');",
-        "router.navigate('/tasks/new');",
-        '',
-        '// @ts-expect-error invalid route should be rejected by generated augmentation',
-        "router.navigate('/bad');",
-        '',
-      ].join('\n'),
-      'utf-8',
-    );
+  // vtz runtime lacks process.execPath and createRequire deep subpath resolution needed to spawn tsc
+  it.skipIf(isVtzRuntime)(
+    'type-checks generated augmentation so useRouter() rejects invalid routes',
+    async () => {
+      await mkdir(join(projectRoot, 'src'), { recursive: true });
+      await writeFile(
+        join(projectRoot, 'ui.d.ts'),
+        [
+          "declare module '@vertz/ui' {",
+          '  export type RouteConfigLike = { component: () => Node };',
+          '  export type TypedRoutes<T extends Record<string, RouteConfigLike>> = { readonly __routes: T };',
+          '  export type InferRouteMap<T> = T extends TypedRoutes<infer R> ? R : T;',
+          '  export type PathWithParams<T extends string> = T extends `${infer Before}*`',
+          '    ? `${PathWithParams<Before>}${string}`',
+          '    : T extends `${infer Before}:${string}/${infer After}`',
+          '      ? `${Before}${string}/${PathWithParams<`${After}`>}`',
+          '      : T extends `${infer Before}:${string}`',
+          '        ? `${Before}${string}`',
+          '        : T;',
+          '  export type RoutePaths<TRouteMap extends Record<string, unknown>> = {',
+          '    [K in keyof TRouteMap & string]: PathWithParams<K>;',
+          '  }[keyof TRouteMap & string];',
+          '  export type RoutePattern<TRouteMap extends Record<string, unknown>> = keyof TRouteMap & string;',
+          '  export type ExtractSearchParams<TPath extends string, TMap extends Record<string, RouteConfigLike> = Record<string, RouteConfigLike>> = Record<string, string>;',
+          '  export interface ReactiveSearchParams<T = Record<string, unknown>> {',
+          '    navigate(partial: Partial<T>, options?: { push?: boolean }): void;',
+          '    [key: string]: unknown;',
+          '  }',
+          '  export interface TypedRouter<T extends Record<string, RouteConfigLike>> {',
+          '    navigate(url: RoutePaths<T>): void;',
+          '  }',
+          '  export type UnwrapSignals<T> = T;',
+          '  export function defineRoutes<const T extends Record<string, RouteConfigLike>>(map: T): TypedRoutes<T>;',
+          '  export function useRouter<T extends Record<string, RouteConfigLike> = Record<string, RouteConfigLike>>(): UnwrapSignals<TypedRouter<T>>;',
+          '  export function useSearchParams<TPath extends string>(): ReactiveSearchParams<ExtractSearchParams<TPath>>;',
+          '}',
+          "declare module '@vertz/ui/router' {",
+          "  export { useRouter, useSearchParams } from '@vertz/ui';",
+          '}',
+          '',
+        ].join('\n'),
+        'utf-8',
+      );
+      await writeFile(
+        join(projectRoot, 'src', 'router.ts'),
+        [
+          "import { defineRoutes } from '@vertz/ui';",
+          '',
+          'export const routes = defineRoutes({',
+          "  '/': { component: () => document.createElement('div') },",
+          "  '/tasks/:id': { component: () => document.createElement('div') },",
+          '});',
+          '',
+        ].join('\n'),
+        'utf-8',
+      );
+      await writeFile(
+        join(projectRoot, 'src', 'page.ts'),
+        [
+          "import { useRouter } from '@vertz/ui';",
+          '',
+          'const router = useRouter();',
+          "router.navigate('/');",
+          "router.navigate('/tasks/new');",
+          '',
+          '// @ts-expect-error invalid route should be rejected by generated augmentation',
+          "router.navigate('/bad');",
+          '',
+        ].join('\n'),
+        'utf-8',
+      );
 
-    const files = await generator.generate(createEmptyIR(), {
-      options: {},
-      outputDir: join(projectRoot, '.vertz', 'generated'),
-    });
+      const files = await generator.generate(createEmptyIR(), {
+        options: {},
+        outputDir: join(projectRoot, '.vertz', 'generated'),
+      });
 
-    expect(files).toHaveLength(1);
-    const generatedRouter = files[0];
-    expect(generatedRouter).toBeDefined();
-    if (!generatedRouter) {
-      throw new Error('Expected router augmentation file to be generated');
-    }
-    await mkdir(join(projectRoot, '.vertz', 'generated'), { recursive: true });
-    await writeFile(
-      join(projectRoot, '.vertz', 'generated', 'router.d.ts'),
-      generatedRouter.content,
-    );
-    await writeFile(
-      join(projectRoot, 'tsconfig.json'),
-      JSON.stringify(
-        {
-          compilerOptions: {
-            module: 'ESNext',
-            moduleResolution: 'bundler',
-            noEmit: true,
-            strict: true,
+      expect(files).toHaveLength(1);
+      const generatedRouter = files[0];
+      expect(generatedRouter).toBeDefined();
+      if (!generatedRouter) {
+        throw new Error('Expected router augmentation file to be generated');
+      }
+      await mkdir(join(projectRoot, '.vertz', 'generated'), { recursive: true });
+      await writeFile(
+        join(projectRoot, '.vertz', 'generated', 'router.d.ts'),
+        generatedRouter.content,
+      );
+      await writeFile(
+        join(projectRoot, 'tsconfig.json'),
+        JSON.stringify(
+          {
+            compilerOptions: {
+              module: 'ESNext',
+              moduleResolution: 'bundler',
+              noEmit: true,
+              strict: true,
+            },
+            files: ['ui.d.ts', 'src/router.ts', 'src/page.ts', '.vertz/generated/router.d.ts'],
           },
-          files: ['ui.d.ts', 'src/router.ts', 'src/page.ts', '.vertz/generated/router.d.ts'],
-        },
-        null,
-        2,
-      ),
-    );
-    await expect(
-      execFileAsync(process.execPath, [tscBin, '-p', 'tsconfig.json'], { cwd: projectRoot }),
-    ).resolves.toMatchObject({
-      stderr: '',
-    });
-  }, 15_000);
+          null,
+          2,
+        ),
+      );
+      await expect(
+        execFileAsync(process.execPath, [tscBin, '-p', 'tsconfig.json'], { cwd: projectRoot }),
+      ).resolves.toMatchObject({
+        stderr: '',
+      });
+    },
+    15_000,
+  );
 });

@@ -11,7 +11,10 @@ const DIST_PATH = path.resolve(import.meta.dir, '../../dist/index.js');
 // Note: vtz shims Bun.spawn as a function that throws, so typeof check is insufficient.
 // Use the __vtz_runtime marker set by the vtz JS runtime instead.
 const isVtzRuntime = !!(globalThis as Record<string, unknown>).__vtz_runtime;
-const hasBunSpawn = !isVtzRuntime && typeof globalThis.Bun !== 'undefined' && typeof globalThis.Bun.spawn === 'function';
+const hasBunSpawn =
+  !isVtzRuntime &&
+  typeof globalThis.Bun !== 'undefined' &&
+  typeof globalThis.Bun.spawn === 'function';
 
 describe.skipIf(!hasBunSpawn)('create-vertz-app CLI', () => {
   describe('--version', () => {

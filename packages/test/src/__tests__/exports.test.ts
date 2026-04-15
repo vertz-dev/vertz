@@ -32,9 +32,11 @@ import type {
 // When running under `bun test`, @vertz/test re-exports from bun:test.
 // These tests verify the bridge works correctly.
 // Skip under vtz test — require() + bun:test bridge is Bun-specific.
-const hasBun = typeof globalThis.Bun !== 'undefined';
+// Note: vtz sets globalThis.Bun as a compat shim, so we check process.versions.bun
+// which is only set by the real Bun runtime.
+const isRealBun = typeof process !== 'undefined' && !!process.versions?.bun;
 
-describe.skipIf(!hasBun)('@vertz/test Bun bridge', () => {
+describe.skipIf(!isRealBun)('@vertz/test Bun bridge', () => {
   it('describe is a function from bun:test', () => {
     const mod = require('../index');
     expect(typeof mod.describe).toBe('function');

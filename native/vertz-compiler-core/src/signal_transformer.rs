@@ -233,14 +233,32 @@ impl<'a, 'b, 'c> Visit<'c> for RefTransformer<'a, 'b> {
     }
 
     fn visit_arrow_function_expression(&mut self, func: &ArrowFunctionExpression<'c>) {
-        let shadows = collect_param_names(&func.params);
+        let mut shadows = collect_param_names(&func.params);
+        // For arrows nested INSIDE the component body, also shadow `const`/`let`
+        // declarations in the arrow body. This prevents inner variables that
+        // shadow an outer signal from getting `.value` appended.
+        //
+        // e.g.: `(event) => { const el = event.target; el.querySelectorAll(...) }`
+        // must not become `el.value.querySelectorAll(...)` if `el` is an outer signal.
+        if func.span.start >= self.component.body_start && func.span.end <= self.component.body_end
+        {
+            shadows.extend(collect_body_var_names(&func.body.statements));
+        }
         self.shadowed_stack.push(shadows);
         oxc_ast_visit::walk::walk_arrow_function_expression(self, func);
         self.shadowed_stack.pop();
     }
 
     fn visit_function(&mut self, func: &Function<'c>, flags: ScopeFlags) {
-        let shadows = collect_param_names(&func.params);
+        let mut shadows = collect_param_names(&func.params);
+        // For functions nested INSIDE the component body, also shadow `const`/`let`
+        // declarations from the function body.
+        if func.span.start >= self.component.body_start && func.span.end <= self.component.body_end
+        {
+            if let Some(ref body) = func.body {
+                shadows.extend(collect_body_var_names(&body.statements));
+            }
+        }
         self.shadowed_stack.push(shadows);
         oxc_ast_visit::walk::walk_function(self, func, flags);
         self.shadowed_stack.pop();
@@ -255,6 +273,23 @@ pub fn collect_param_names(params: &FormalParameters) -> HashSet<String> {
     }
     if let Some(ref rest) = params.rest {
         collect_binding_pattern_names(&rest.rest.argument, &mut names);
+    }
+    names
+}
+
+/// Collect top-level `const`/`let` variable declaration names from a list of statements.
+///
+/// Used to build the shadow set when entering a nested function or arrow body.
+/// Variables declared in the body shadow outer reactive variables of the same
+/// name, so the transformer must not insert `.value` for those references.
+pub fn collect_body_var_names(stmts: &[Statement]) -> HashSet<String> {
+    let mut names = HashSet::new();
+    for stmt in stmts {
+        if let Statement::VariableDeclaration(var_decl) = stmt {
+            for declarator in &var_decl.declarations {
+                collect_binding_pattern_names(&declarator.id, &mut names);
+            }
+        }
     }
     names
 }

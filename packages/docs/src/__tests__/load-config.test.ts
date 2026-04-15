@@ -4,7 +4,10 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { loadDocsConfig } from '../config/load';
 
-describe('loadDocsConfig', () => {
+// vtz runtime does not support query-string cache busting in dynamic import() paths
+const isVtzRuntime = '__vtz_runtime' in globalThis;
+
+describe.skipIf(isVtzRuntime)('loadDocsConfig', () => {
   let tempDir: string;
 
   beforeEach(() => {

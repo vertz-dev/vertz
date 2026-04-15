@@ -163,7 +163,7 @@ pub const TEST_DOM_SHIM_JS: &str = r#"
     'textAlign','textDecoration','textTransform','lineHeight','letterSpacing',
     'cursor','pointerEvents','userSelect',
     'transform','transition','animation',
-    'flexDirection','flexWrap','flexGrow','flexShrink','flexBasis',
+    'flex','flexDirection','flexWrap','flexGrow','flexShrink','flexBasis','flexFlow',
     'justifyContent','alignItems','alignContent','alignSelf',
     'gap','rowGap','columnGap',
     'gridTemplateColumns','gridTemplateRows','gridColumn','gridRow',
@@ -891,11 +891,21 @@ pub const TEST_DOM_SHIM_JS: &str = r#"
       this.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
     }
     focus() {
-      if (_document) _document.activeElement = this;
+      if (_document) {
+        const prev = _document.activeElement;
+        _document.activeElement = this;
+        if (prev !== this) {
+          this.dispatchEvent(new FocusEvent('focus', { bubbles: false, relatedTarget: prev }));
+          this.dispatchEvent(new FocusEvent('focusin', { bubbles: true, relatedTarget: prev }));
+        }
+      }
     }
     blur() {
       if (_document && _document.activeElement === this) {
+        const prev = this;
         _document.activeElement = _document.body;
+        prev.dispatchEvent(new FocusEvent('blur', { bubbles: false, relatedTarget: _document.activeElement }));
+        prev.dispatchEvent(new FocusEvent('focusout', { bubbles: true, relatedTarget: _document.activeElement }));
       }
     }
     scrollIntoView() {}
@@ -1087,7 +1097,36 @@ pub const TEST_DOM_SHIM_JS: &str = r#"
     constructor(tag, ns) { super(tag || 'form', ns); }
     get elements() { return this.querySelectorAll('input,select,textarea,button'); }
     submit() {}
-    reset() {}
+    reset() {
+      // Reset all form controls to their default values
+      const controls = this.querySelectorAll('input,select,textarea');
+      for (let i = 0; i < controls.length; i++) {
+        const el = controls[i];
+        const tag = el.tagName;
+        if (tag === 'INPUT') {
+          const type = (el.getAttribute('type') || 'text').toLowerCase();
+          if (type === 'checkbox' || type === 'radio') {
+            el.checked = el.hasAttribute('checked');
+          } else {
+            el.value = el.getAttribute('value') || '';
+          }
+        } else if (tag === 'TEXTAREA') {
+          el.value = el.textContent || '';
+        } else if (tag === 'SELECT') {
+          const options = el.querySelectorAll('option');
+          let found = false;
+          for (let j = 0; j < options.length; j++) {
+            if (options[j].hasAttribute('selected')) {
+              el.value = options[j].value;
+              found = true;
+              break;
+            }
+          }
+          if (!found && options.length) el.value = options[0].value || '';
+        }
+      }
+      this.dispatchEvent(new Event('reset', { bubbles: true }));
+    }
     get action() { return this.getAttribute('action') || ''; }
     set action(v) { this.setAttribute('action', v); }
     get method() { return this.getAttribute('method') || 'get'; }

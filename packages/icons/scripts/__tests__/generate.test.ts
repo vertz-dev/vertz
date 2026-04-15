@@ -23,9 +23,9 @@ describe('generateIconSource', () => {
     expect(source).not.toContain('from "lucide-static"');
   });
 
-  it('generated icon function is callable and returns HTMLSpanElement with SVG', () => {
+  it('generated icon function is callable and returns HTMLSpanElement with SVG', async () => {
     // Import a generated icon to verify it works at runtime
-    const { MoonIcon } = require('../../src/generated-icons');
+    const { MoonIcon } = await import('../../src/generated-icons');
     const el = MoonIcon();
     expect(el).toBeInstanceOf(HTMLSpanElement);
     expect(el.querySelector('svg')).toBeTruthy();

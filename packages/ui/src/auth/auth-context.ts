@@ -8,7 +8,11 @@ import { computed, signal } from '../runtime/signal';
 import type { ReadonlySignal, Signal } from '../runtime/signal-types';
 import { getSSRContext } from '../ssr/ssr-render-context';
 import { AccessContext } from './access-context';
-import { createAccessEventClient } from './access-event-client';
+import {
+  createAccessEventClient as createAccessEventClientDefault,
+  type AccessEventClientOptions,
+  type AccessEventClient,
+} from './access-event-client';
 import { handleAccessEvent } from './access-event-handler';
 import type { AccessSet } from './access-set-types';
 import { parseAuthError } from './auth-client';
@@ -112,6 +116,8 @@ export interface AuthProviderProps {
   accessEventsUrl?: string;
   /** Map of entitlement names to their required flags. Used for inline flag toggle updates. */
   flagEntitlementMap?: Record<string, string[]>;
+  /** @internal — override for testing. Defaults to the real createAccessEventClient. */
+  _createAccessEventClient?: (options: AccessEventClientOptions) => AccessEventClient;
   children: (() => unknown) | unknown;
 }
 
@@ -124,6 +130,7 @@ export function AuthProvider({
   accessEvents,
   accessEventsUrl,
   flagEntitlementMap,
+  _createAccessEventClient: createAccessEventClient = createAccessEventClientDefault,
   children,
 }: AuthProviderProps): HTMLElement {
   // Capture router at render time (synchronous — context stack is active).

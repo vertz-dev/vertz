@@ -102,9 +102,9 @@ describe('ComposedList animation hooks behavior', () => {
         hooks?.onItemExit(el, 'key-1', () => {});
         expect(el.style.overflow).toBe('hidden');
         expect(el.style.pointerEvents).toBe('none');
-        expect(el.style.borderBottomWidth).toBe('0px');
-        // Height transitions to 0 for collapse effect (browser normalizes to "0px")
-        expect(el.style.height).toBe('0px');
+        expect(el.style.borderBottomWidth).toBe('0');
+        // Height transitions to 0 for collapse effect
+        expect(el.style.height).toBe('0');
         expect(el.style.opacity).toBe('0');
       });
 
