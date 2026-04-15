@@ -19,19 +19,19 @@ pub const BUN_COMPAT_BOOTSTRAP_JS: &str = r#"
     return {
       get name() { return path; },
       async text() {
-        return ops.op_read_file(path);
+        return ops.op_fs_read_file(path);
       },
       async arrayBuffer() {
-        const text = ops.op_read_file(path);
+        const text = ops.op_fs_read_file(path);
         return new TextEncoder().encode(text).buffer;
       },
       async json() {
-        const text = ops.op_read_file(path);
+        const text = ops.op_fs_read_file(path);
         return JSON.parse(text);
       },
       get size() {
         try {
-          const stat = ops.op_stat_sync(path);
+          const stat = ops.op_fs_stat_sync(path);
           return stat.size;
         } catch {
           return 0;
@@ -39,7 +39,7 @@ pub const BUN_COMPAT_BOOTSTRAP_JS: &str = r#"
       },
       async exists() {
         try {
-          ops.op_stat_sync(path);
+          ops.op_fs_stat_sync(path);
           return true;
         } catch {
           return false;
@@ -55,7 +55,7 @@ pub const BUN_COMPAT_BOOTSTRAP_JS: &str = r#"
     // If path is a BunFile-like, extract its name
     const filePath = typeof path === 'string' ? path : path.name;
     const content = typeof data === 'string' ? data : new TextDecoder().decode(data);
-    ops.op_write_file(filePath, content);
+    ops.op_fs_write_file_sync(filePath, content);
     return content.length;
   }
 

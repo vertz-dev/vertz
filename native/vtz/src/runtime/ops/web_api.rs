@@ -205,8 +205,11 @@ pub const WEB_API_BOOTSTRAP_JS: &str = r#"
 
     constructor(init) {
       if (init instanceof Headers) {
-        for (const [k, v] of init.entries()) {
-          this.append(k, v);
+        // Copy raw multi-value arrays (preserves Set-Cookie as individual entries)
+        for (const [k, vals] of init.#map) {
+          for (const v of vals) {
+            this.append(k, v);
+          }
         }
       } else if (Array.isArray(init)) {
         for (const [k, v] of init) {

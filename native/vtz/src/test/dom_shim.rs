@@ -1982,7 +1982,7 @@ pub const TEST_DOM_SHIM_JS: &str = r#"
   // --- Observer stubs ---
   class MutationObserver { constructor() {} observe() {} disconnect() {} takeRecords() { return []; } }
   class ResizeObserver { constructor() {} observe() {} unobserve() {} disconnect() {} }
-  class IntersectionObserver { constructor() {} observe() {} unobserve() {} disconnect() {} }
+  class IntersectionObserver { constructor() {} observe() {} unobserve() {} disconnect() {} takeRecords() { return []; } }
 
   // --- CSSStyleSheet stub ---
   class CSSStyleSheet {

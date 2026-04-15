@@ -55,7 +55,11 @@ export function createApp(config: AppConfig): AppBuilder {
       const serverHandle = await adapter.listen(port ?? DEFAULT_PORT, builder.handler, options);
 
       if (options?.logRoutes !== false) {
-        const url = `http://${serverHandle.hostname}:${serverHandle.port}`;
+        const displayHost =
+          serverHandle.hostname === '0.0.0.0' || serverHandle.hostname === '::'
+            ? 'localhost'
+            : serverHandle.hostname;
+        const url = `http://${displayHost}:${serverHandle.port}`;
         console.log(formatRouteLog(url, entityRoutes));
       }
 

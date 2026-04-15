@@ -251,6 +251,10 @@ pub const CRYPTO_BOOTSTRAP_JS: &str = r#"
 
   function normalizeAlgorithm(algo) {
     if (typeof algo === 'string') return { name: algo };
+    // Flatten hash: { name: 'SHA-256' } → hash: 'SHA-256' for Rust serde compat
+    if (algo && typeof algo.hash === 'object' && algo.hash !== null && algo.hash.name) {
+      return { ...algo, hash: algo.hash.name };
+    }
     return algo;
   }
 
@@ -277,6 +281,7 @@ pub const CRYPTO_BOOTSTRAP_JS: &str = r#"
       algoObj = { name: 'ECDSA', namedCurve: param };
     } else if (name.includes('RSASSA') && param) {
       algoObj = { name: 'RSASSA-PKCS1-v1_5', hash: { name: param } };
+      if (result.modulusLength) algoObj.modulusLength = result.modulusLength;
     } else if (name === 'HKDF') {
       algoObj = { name: 'HKDF' };
     } else if (typeof result.algorithm === 'object') {

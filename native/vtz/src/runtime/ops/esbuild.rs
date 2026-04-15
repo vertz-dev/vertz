@@ -88,7 +88,7 @@ pub(crate) fn esbuild_transform(
 ) -> Result<EsbuildTransformResult, deno_core::error::AnyError> {
     let esbuild = resolve_esbuild_binary()?;
 
-    let mut args = vec!["--bundle=false".to_string()];
+    let mut args = Vec::new();
 
     if let Some(ref loader) = options.loader {
         validate_option("loader", loader)?;
