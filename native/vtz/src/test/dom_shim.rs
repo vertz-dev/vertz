@@ -163,7 +163,7 @@ pub const TEST_DOM_SHIM_JS: &str = r#"
     'textAlign','textDecoration','textTransform','lineHeight','letterSpacing',
     'cursor','pointerEvents','userSelect',
     'transform','transition','animation',
-    'flexDirection','flexWrap','flexGrow','flexShrink','flexBasis',
+    'flex','flexDirection','flexWrap','flexGrow','flexShrink','flexBasis','flexFlow',
     'justifyContent','alignItems','alignContent','alignSelf',
     'gap','rowGap','columnGap',
     'gridTemplateColumns','gridTemplateRows','gridColumn','gridRow',
@@ -891,11 +891,21 @@ pub const TEST_DOM_SHIM_JS: &str = r#"
       this.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
     }
     focus() {
-      if (_document) _document.activeElement = this;
+      if (_document) {
+        const prev = _document.activeElement;
+        _document.activeElement = this;
+        if (prev !== this) {
+          this.dispatchEvent(new FocusEvent('focus', { bubbles: false, relatedTarget: prev }));
+          this.dispatchEvent(new FocusEvent('focusin', { bubbles: true, relatedTarget: prev }));
+        }
+      }
     }
     blur() {
       if (_document && _document.activeElement === this) {
+        const prev = this;
         _document.activeElement = _document.body;
+        prev.dispatchEvent(new FocusEvent('blur', { bubbles: false, relatedTarget: _document.activeElement }));
+        prev.dispatchEvent(new FocusEvent('focusout', { bubbles: true, relatedTarget: _document.activeElement }));
       }
     }
     scrollIntoView() {}
