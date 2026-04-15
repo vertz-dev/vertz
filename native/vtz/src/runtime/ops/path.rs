@@ -13,18 +13,24 @@ pub fn op_path_join(#[serde] parts: Vec<String>) -> String {
     if parts.is_empty() {
         return ".".to_string();
     }
-    // Concatenate parts with '/', stripping leading '/' from all but the first
+    // Concatenate parts with '/', stripping leading '/' from all but the first.
+    // Empty segments are skipped (matching Node.js behavior).
     let mut result = String::new();
     for (i, part) in parts.iter().enumerate() {
         if i == 0 {
             result.push_str(part);
-        } else {
+        } else if !part.is_empty() {
             let trimmed = part.trim_start_matches('/');
-            if !result.ends_with('/') {
-                result.push('/');
+            if !trimmed.is_empty() {
+                if !result.is_empty() && !result.ends_with('/') {
+                    result.push('/');
+                }
+                result.push_str(trimmed);
             }
-            result.push_str(trimmed);
         }
+    }
+    if result.is_empty() {
+        return ".".to_string();
     }
     let path = PathBuf::from(&result);
     normalize_path(&path)
@@ -295,6 +301,29 @@ mod tests {
             .execute_script("<test>", r#"path.join("a", "b", "c")"#)
             .unwrap();
         assert_eq!(result, serde_json::json!("a/b/c"));
+    }
+
+    #[test]
+    fn test_path_join_absolute_segment_no_reset() {
+        let mut rt = VertzJsRuntime::new(VertzRuntimeOptions::default()).unwrap();
+        let result = rt
+            .execute_script("<test>", r#"path.join("/a", "/b")"#)
+            .unwrap();
+        assert_eq!(result, serde_json::json!("/a/b"));
+    }
+
+    #[test]
+    fn test_path_join_empty_segments() {
+        let mut rt = VertzJsRuntime::new(VertzRuntimeOptions::default()).unwrap();
+        // path.join('', 'b') should return 'b', not '/b'
+        let result = rt
+            .execute_script("<test>", r#"path.join("", "b")"#)
+            .unwrap();
+        assert_eq!(result, serde_json::json!("b"));
+
+        // path.join('', '') should return '.'
+        let result2 = rt.execute_script("<test>", r#"path.join("", "")"#).unwrap();
+        assert_eq!(result2, serde_json::json!("."));
     }
 
     #[test]

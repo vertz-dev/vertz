@@ -3017,7 +3017,7 @@ function _detectEcCurve(pem) {
   if (findOid(p384Oid)) return 'secp384r1';
   if (findOid(p521Oid)) return 'secp521r1';
   if (findOid(p256Oid)) return 'prime256v1';
-  return 'prime256v1'; // default
+  throw new Error('Unsupported EC curve: could not detect OID in key DER');
 }
 
 function createPrivateKey(input) {
