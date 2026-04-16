@@ -49,7 +49,7 @@ pub fn transform_css(ms: &mut MagicString, program: &Program, file_path: &str) -
 
     // Process in reverse order so positions remain valid
     let mut sorted_calls = calls;
-    sorted_calls.sort_by(|a, b| b.start.cmp(&a.start));
+    sorted_calls.sort_by_key(|b| std::cmp::Reverse(b.start));
 
     for call in &sorted_calls {
         if call.kind != CssCallKind::Static {

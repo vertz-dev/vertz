@@ -131,20 +131,20 @@ fn check_expression_for_component<'a>(
 ) {
     match expr {
         // const Foo = () => <div/>;
-        Expression::ArrowFunctionExpression(arrow) => {
-            if arrow_contains_jsx(arrow) {
-                let (start, end) = arrow_body_range(arrow);
-                components.push(ComponentInfo {
-                    name: name.to_string(),
-                    body_start: start,
-                    body_end: end,
-                    is_arrow_expression: arrow.expression,
-                    props_param: extract_props_param_from_items(&arrow.params.items),
-                    destructured_prop_names: extract_destructured_props_from_items(
-                        &arrow.params.items,
-                    ),
-                });
-            }
+        Expression::ArrowFunctionExpression(arrow)
+            if arrow_contains_jsx(arrow) =>
+        {
+            let (start, end) = arrow_body_range(arrow);
+            components.push(ComponentInfo {
+                name: name.to_string(),
+                body_start: start,
+                body_end: end,
+                is_arrow_expression: arrow.expression,
+                props_param: extract_props_param_from_items(&arrow.params.items),
+                destructured_prop_names: extract_destructured_props_from_items(
+                    &arrow.params.items,
+                ),
+            });
         }
 
         // const Foo = function() { return <div/>; };
