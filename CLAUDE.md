@@ -53,11 +53,13 @@ vtz run format:fix   # Auto-fix formatting
 ```bash
 cd native
 cargo test --all           # Run all tests
-cargo clippy --all-targets --release -- -D warnings  # Lint
+cargo clippy --all-targets -- -D warnings  # Lint
 cargo fmt --all -- --check # Format check
 cargo fmt --all            # Auto-format
-cargo build --release      # Release build
+cargo build --release      # Release build (CI/deploy only, NOT for dev quality gates)
 ```
+
+> **Never use `--release` for clippy or quality gates during development.** Release builds are significantly slower and only needed for CI pipelines and final deployment. Debug mode catches the same lint issues.
 
 ## Crate Structure
 
@@ -91,5 +93,5 @@ vtz test && vtz run typecheck && vtz run lint
 
 ### Rust
 ```bash
-cd native && cargo test --all && cargo clippy --all-targets --release -- -D warnings && cargo fmt --all -- --check
+cd native && cargo test --all && cargo clippy --all-targets -- -D warnings && cargo fmt --all -- --check
 ```

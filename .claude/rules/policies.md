@@ -31,7 +31,7 @@
 
 ## Linting & Formatting (Rust)
 
-- **Linter:** `cargo clippy --all-targets --release -- -D warnings`
+- **Linter:** `cargo clippy --all-targets -- -D warnings`
 - **Formatter:** `cargo fmt --all`
 - All clippy warnings are errors in CI (`-D warnings`)
 - No `#[allow(clippy::*)]` without a comment explaining why
