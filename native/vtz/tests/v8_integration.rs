@@ -1990,3 +1990,127 @@ async fn test_node_util_types_is_map() {
         );
     }
 }
+
+// --- Bug #2697: child_process.spawn() must return a ChildProcess-compatible object ---
+
+#[tokio::test]
+async fn test_child_process_spawn_returns_childprocess() {
+    let tmp = tempfile::tempdir().unwrap();
+    let entry = tmp.path().join("entry.js");
+    std::fs::write(
+        &entry,
+        r#"
+        import { spawn } from 'node:child_process';
+        const child = spawn('echo', ['hello'], { stdio: 'ignore' });
+        console.log('pid: ' + (typeof child.pid === 'number' && child.pid > 0));
+        console.log('on: ' + typeof child.on);
+        console.log('kill: ' + typeof child.kill);
+        child.on('exit', (code) => {
+            console.log('exit: ' + code);
+        });
+    "#,
+    )
+    .unwrap();
+
+    let mut rt = VertzJsRuntime::new(VertzRuntimeOptions {
+        root_dir: Some(tmp.path().to_string_lossy().to_string()),
+        capture_output: true,
+        ..Default::default()
+    })
+    .unwrap();
+
+    let specifier = deno_core::ModuleSpecifier::from_file_path(&entry).unwrap();
+    rt.load_main_module(&specifier).await.unwrap();
+    rt.run_event_loop().await.unwrap();
+
+    let output = rt.captured_output();
+    assert_eq!(output.stdout[0], "pid: true");
+    assert_eq!(output.stdout[1], "on: function");
+    assert_eq!(output.stdout[2], "kill: function");
+    assert_eq!(output.stdout[3], "exit: 0");
+}
+
+#[tokio::test]
+async fn test_child_process_spawn_inherit_stdio() {
+    let tmp = tempfile::tempdir().unwrap();
+    let entry = tmp.path().join("entry.js");
+    std::fs::write(
+        &entry,
+        r#"
+        import { spawn } from 'node:child_process';
+        const child = spawn('echo', ['spawn_works'], { stdio: 'inherit' });
+        child.on('exit', (code) => {
+            console.log('exited: ' + code);
+        });
+    "#,
+    )
+    .unwrap();
+
+    let mut rt = VertzJsRuntime::new(VertzRuntimeOptions {
+        root_dir: Some(tmp.path().to_string_lossy().to_string()),
+        capture_output: true,
+        ..Default::default()
+    })
+    .unwrap();
+
+    let specifier = deno_core::ModuleSpecifier::from_file_path(&entry).unwrap();
+    rt.load_main_module(&specifier).await.unwrap();
+    rt.run_event_loop().await.unwrap();
+
+    let output = rt.captured_output();
+    // With inherit stdio, "spawn_works" goes to parent stdout (not captured).
+    // But the "exited" log is captured because it's from our JS code.
+    assert!(
+        output.stdout.iter().any(|l| l == "exited: 0"),
+        "Expected exit event. Got: {:?}",
+        output.stdout
+    );
+}
+
+#[tokio::test]
+async fn test_child_process_spawn_kill() {
+    let tmp = tempfile::tempdir().unwrap();
+    let entry = tmp.path().join("entry.js");
+    std::fs::write(
+        &entry,
+        r#"
+        import { spawn } from 'node:child_process';
+        const child = spawn('sleep', ['60'], { stdio: 'ignore' });
+        // Kill immediately
+        const killed = child.kill('SIGTERM');
+        console.log('killed: ' + killed);
+        child.on('exit', (code, signal) => {
+            console.log('signal: ' + signal);
+            console.log('child.killed: ' + child.killed);
+        });
+    "#,
+    )
+    .unwrap();
+
+    let mut rt = VertzJsRuntime::new(VertzRuntimeOptions {
+        root_dir: Some(tmp.path().to_string_lossy().to_string()),
+        capture_output: true,
+        ..Default::default()
+    })
+    .unwrap();
+
+    let specifier = deno_core::ModuleSpecifier::from_file_path(&entry).unwrap();
+    rt.load_main_module(&specifier).await.unwrap();
+
+    let start = Instant::now();
+    rt.run_event_loop().await.unwrap();
+    let elapsed = start.elapsed();
+
+    let output = rt.captured_output();
+    assert_eq!(output.stdout[0], "killed: true");
+    assert!(
+        output.stdout.iter().any(|l| l.starts_with("signal: ")),
+        "Expected signal event. Got: {:?}",
+        output.stdout
+    );
+    assert!(
+        elapsed.as_secs() < 5,
+        "Should complete quickly after kill, took {}s",
+        elapsed.as_secs()
+    );
+}

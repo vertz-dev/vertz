@@ -3245,8 +3245,79 @@ function execFileSync(file, args, opts) {
   return opts?.encoding ? stdout : new TextEncoder().encode(stdout);
 }
 
-function spawn(_cmd, _args, _opts) {
-  throw new Error('node:child_process spawn() is not yet supported in the Vertz runtime.');
+function spawn(cmd, args, opts) {
+  if (typeof args === 'object' && !Array.isArray(args)) { opts = args; args = []; }
+  args = args || [];
+  opts = opts || {};
+
+  const stdioMode = typeof opts.stdio === 'string' ? opts.stdio : null;
+  // Resolve env to a plain object before calling the op — process.env is a
+  // Proxy whose traps call op_env_keys, which would re-enter the op system.
+  const envObj = opts.env ? Object.fromEntries(Object.entries(opts.env)) : null;
+
+  const { pid } = Deno.core.ops.op_process_spawn(
+    cmd, args, opts.cwd ?? null, envObj, stdioMode,
+  );
+
+  const listeners = {};
+  let exited = false;
+
+  const child = {
+    pid,
+    stdin: null,
+    stdout: null,
+    stderr: null,
+    killed: false,
+    exitCode: null,
+    signalCode: null,
+    on(event, cb) {
+      (listeners[event] ??= []).push(cb);
+      return child;
+    },
+    once(event, cb) {
+      const wrapped = (...a) => { child.removeListener(event, wrapped); cb(...a); };
+      return child.on(event, wrapped);
+    },
+    removeListener(event, cb) {
+      const arr = listeners[event];
+      if (arr) {
+        const idx = arr.indexOf(cb);
+        if (idx !== -1) arr.splice(idx, 1);
+      }
+      return child;
+    },
+    off(event, cb) { return child.removeListener(event, cb); },
+    kill(signal) {
+      if (exited) return false;
+      try {
+        Deno.core.ops.op_process_kill(pid, signal ?? 'SIGTERM');
+        child.killed = true;
+        return true;
+      } catch { return false; }
+    },
+    ref() { return child; },
+    unref() { return child; },
+  };
+
+  function emit(event, ...args) {
+    for (const cb of listeners[event] ?? []) cb(...args);
+  }
+
+  (async () => {
+    try {
+      const result = await Deno.core.ops.op_process_wait(pid);
+      exited = true;
+      child.exitCode = result.code;
+      child.signalCode = result.signal ?? null;
+      emit('exit', result.code, result.signal ?? null);
+      emit('close', result.code, result.signal ?? null);
+    } catch (e) {
+      exited = true;
+      emit('error', e);
+    }
+  })();
+
+  return child;
 }
 
 export { execSync, execFile, execFileSync, spawn };
