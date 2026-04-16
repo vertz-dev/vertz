@@ -3093,7 +3093,7 @@ async fn discover_stale_optional_deps(
     }
 
     // Batch-fetch metadata concurrently (ETag-cached, no network cost for cached entries)
-    let results: Vec<_> = stream::iter(candidates.into_iter())
+    let results: Vec<_> = stream::iter(candidates)
         .map(|(name, version)| {
             let reg = registry;
             async move {

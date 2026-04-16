@@ -1555,10 +1555,8 @@ impl ReactiveDetector<'_> {
             return;
         }
         match expr {
-            Expression::Identifier(id) => {
-                if self.reactive_names.contains(id.name.as_str()) {
-                    self.found = true;
-                }
+            Expression::Identifier(id) if self.reactive_names.contains(id.name.as_str()) => {
+                self.found = true;
             }
             Expression::StaticMemberExpression(member) => {
                 self.check_expr(&member.object);

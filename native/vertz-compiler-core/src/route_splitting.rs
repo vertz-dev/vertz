@@ -538,10 +538,8 @@ fn visit_identifiers_in_expr(
     }
 
     match expr {
-        Expression::Identifier(ident) => {
-            if ident.name == symbol_name {
-                *found = true;
-            }
+        Expression::Identifier(ident) if ident.name == symbol_name => {
+            *found = true;
         }
         Expression::CallExpression(call) => {
             visit_identifiers_in_call_expr(call, symbol_name, factory_spans, found);
@@ -589,15 +587,11 @@ fn visit_identifiers_in_expr(
         Expression::JSXElement(jsx) => {
             // Check tag name
             match &jsx.opening_element.name {
-                JSXElementName::Identifier(ident) => {
-                    if ident.name == symbol_name {
-                        *found = true;
-                    }
+                JSXElementName::Identifier(ident) if ident.name == symbol_name => {
+                    *found = true;
                 }
-                JSXElementName::IdentifierReference(ident) => {
-                    if ident.name == symbol_name {
-                        *found = true;
-                    }
+                JSXElementName::IdentifierReference(ident) if ident.name == symbol_name => {
+                    *found = true;
                 }
                 _ => {}
             }

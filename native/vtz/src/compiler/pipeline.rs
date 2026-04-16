@@ -755,15 +755,11 @@ fn strip_leftover_typescript(code: &str) -> String {
         // Track nesting context with a stack
         match chars[i] {
             '(' | '{' => nesting_stack.push(chars[i]),
-            ')' => {
-                if nesting_stack.last() == Some(&'(') {
-                    nesting_stack.pop();
-                }
+            ')' if nesting_stack.last() == Some(&'(') => {
+                nesting_stack.pop();
             }
-            '}' => {
-                if nesting_stack.last() == Some(&'{') {
-                    nesting_stack.pop();
-                }
+            '}' if nesting_stack.last() == Some(&'{') => {
+                nesting_stack.pop();
             }
             _ => {}
         }

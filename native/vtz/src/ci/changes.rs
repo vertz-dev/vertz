@@ -1,3 +1,4 @@
+use std::cmp::Reverse;
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 use std::path::{Path, PathBuf};
 
@@ -218,7 +219,7 @@ pub fn map_files_to_packages(files: &[PathBuf], workspace: &ResolvedWorkspace) -
         pkg_paths.push((cr.path.as_path(), name.as_str()));
     }
     // Sort by path length descending so longest prefix matches first.
-    pkg_paths.sort_by(|a, b| b.0.components().count().cmp(&a.0.components().count()));
+    pkg_paths.sort_by_key(|a| Reverse(a.0.components().count()));
 
     let mut directly_changed = BTreeSet::new();
     let mut root_changed = false;
