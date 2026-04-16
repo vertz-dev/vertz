@@ -3,15 +3,28 @@ use crate::plugin::{
     PluginMcpTool,
 };
 
-/// Detect a classic JSX factory pragma (`@jsx <name>`) in leading comments.
+/// Classic JSX pragma info extracted from leading comments.
+struct ClassicJsxPragma {
+    /// The factory function name (e.g., `"h"` or `"React.createElement"`).
+    factory: String,
+    /// Optional fragment factory (from `@jsxFrag`), e.g., `"Fragment"`.
+    frag: Option<String>,
+}
+
+/// Detect classic JSX pragmas (`@jsx`, `@jsxFrag`) in leading comments.
 ///
-/// Returns `Some(factory_name)` if found (e.g., `Some("h")`), `None` otherwise.
-/// Only scans comment lines at the top of the file before any code.
-fn detect_classic_jsx_pragma(source: &str) -> Option<String> {
+/// Returns `Some(ClassicJsxPragma)` if `@jsx <factory>` is found, `None` otherwise.
+/// Only scans comment lines at the top of the file before any code — pragmas
+/// after the first non-comment line are ignored (intentionally stricter than
+/// the TypeScript compiler, which scans all comments).
+fn detect_classic_jsx_pragma(source: &str) -> Option<ClassicJsxPragma> {
     // Quick check: bail early if no @jsx anywhere
     if !source.contains("@jsx ") {
         return None;
     }
+
+    let mut factory: Option<String> = None;
+    let mut frag: Option<String> = None;
 
     for line in source.lines() {
         let trimmed = line.trim();
@@ -23,32 +36,59 @@ fn detect_classic_jsx_pragma(source: &str) -> Option<String> {
             // Hit a non-comment line — stop scanning
             break;
         }
-        // Look for @jsx <factory>, but skip @jsxRuntime (different pragma)
-        if let Some(pos) = trimmed.find("@jsx ") {
-            let after_at_jsx = &trimmed[pos + 5..];
-            // Skip if this is @jsxRuntime (not @jsx <factory>)
-            if after_at_jsx.starts_with("Runtime") || after_at_jsx.starts_with("runtime") {
-                continue;
-            }
-            // Extract the identifier
-            let factory: String = after_at_jsx
+
+        // Check for @jsxFrag <factory> (must check before @jsx to avoid substring conflict)
+        if let Some(pos) = trimmed.find("@jsxFrag ") {
+            let after = &trimmed[pos + 9..];
+            let name: String = after
                 .chars()
                 .take_while(|c| c.is_alphanumeric() || *c == '.' || *c == '_' || *c == '$')
                 .collect();
-            if !factory.is_empty() {
-                return Some(factory);
+            if !name.is_empty() {
+                frag = Some(name);
+            }
+        }
+
+        // Check for @jsx <factory> — defensive guard against "@jsx Runtime" typo
+        // (the standard "@jsxRuntime" has no space so "@jsx " won't match it)
+        if let Some(pos) = trimmed.find("@jsx ") {
+            let after_at_jsx = &trimmed[pos + 5..];
+            // Guard: skip "@jsx Runtime"/"@jsx runtime" (typo variant of @jsxRuntime)
+            if after_at_jsx.starts_with("Runtime") || after_at_jsx.starts_with("runtime") {
+                continue;
+            }
+            // Also skip if this matched inside @jsxFrag
+            if pos > 0 && trimmed[..pos].ends_with('@') {
+                continue;
+            }
+            // Extract the identifier
+            let name: String = after_at_jsx
+                .chars()
+                .take_while(|c| c.is_alphanumeric() || *c == '.' || *c == '_' || *c == '$')
+                .collect();
+            if !name.is_empty() {
+                factory = Some(name);
             }
         }
     }
 
-    None
+    factory.map(|f| ClassicJsxPragma { factory: f, frag })
 }
 
 /// Compile a file with classic JSX runtime using oxc_transformer.
 ///
 /// Used when a `@jsx` pragma is detected — skips all Vertz-specific transforms
-/// (signals, reactivity, mount frames) and compiles JSX with the specified factory.
-fn compile_classic_jsx(source: &str, ctx: &CompileContext, pragma: &str) -> CompileOutput {
+/// (signals, reactivity, mount frames, mock hoisting) and compiles JSX with
+/// the specified factory.
+///
+/// Note: `post_process()` still runs on this output, but its Vertz-specific
+/// string replacements (effect→domEffect, internals import rewriting) are
+/// harmless for classic JSX files since they don't reference `@vertz/ui`.
+fn compile_classic_jsx(
+    source: &str,
+    ctx: &CompileContext,
+    pragma: &ClassicJsxPragma,
+) -> CompileOutput {
     use oxc_allocator::Allocator;
     use oxc_codegen::Codegen;
     use oxc_parser::Parser;
@@ -90,7 +130,8 @@ fn compile_classic_jsx(source: &str, ctx: &CompileContext, pragma: &str) -> Comp
     let transform_options = TransformOptions {
         jsx: JsxOptions {
             runtime: JsxRuntime::Classic,
-            pragma: Some(pragma.to_string()),
+            pragma: Some(pragma.factory.clone()),
+            pragma_frag: pragma.frag.clone(),
             ..JsxOptions::default()
         },
         ..TransformOptions::default()
@@ -139,8 +180,8 @@ impl FrameworkPlugin for VertzPlugin {
 
     fn compile(&self, source: &str, ctx: &CompileContext) -> CompileOutput {
         // Check for classic JSX pragma — skip Vertz transforms entirely
-        if let Some(pragma) = detect_classic_jsx_pragma(source) {
-            return compile_classic_jsx(source, ctx, &pragma);
+        if let Some(ref pragma) = detect_classic_jsx_pragma(source) {
+            return compile_classic_jsx(source, ctx, pragma);
         }
 
         let filename = ctx.file_path.to_string_lossy().to_string();
@@ -793,6 +834,132 @@ export function Card({ title }: Props) {
             "Should use h() factory: {}",
             output.code
         );
+    }
+
+    #[test]
+    fn classic_jsx_pragma_line_comment() {
+        let plugin = make_plugin();
+        let ctx = CompileContext {
+            file_path: Path::new("/project/src/template.tsx"),
+            root_dir: Path::new("/project"),
+            src_dir: Path::new("/project/src"),
+            target: "dom",
+        };
+        let source = r#"// @jsx h
+import { h } from './h';
+export function X() { return <div />; }
+"#;
+        let output = plugin.compile(source, &ctx);
+        assert!(
+            output.code.contains("h("),
+            "Line comment pragma should work: {}",
+            output.code
+        );
+    }
+
+    #[test]
+    fn classic_jsx_pragma_jsdoc_comment() {
+        let plugin = make_plugin();
+        let ctx = CompileContext {
+            file_path: Path::new("/project/src/template.tsx"),
+            root_dir: Path::new("/project"),
+            src_dir: Path::new("/project/src"),
+            target: "dom",
+        };
+        let source = r#"/** @jsx h */
+import { h } from './h';
+export function X() { return <div />; }
+"#;
+        let output = plugin.compile(source, &ctx);
+        assert!(
+            output.code.contains("h("),
+            "JSDoc-style pragma should work: {}",
+            output.code
+        );
+    }
+
+    #[test]
+    fn classic_jsx_pragma_multiline_block_comment() {
+        let plugin = make_plugin();
+        let ctx = CompileContext {
+            file_path: Path::new("/project/src/template.tsx"),
+            root_dir: Path::new("/project"),
+            src_dir: Path::new("/project/src"),
+            target: "dom",
+        };
+        let source = r#"/*
+ * @jsxRuntime classic
+ * @jsx h
+ */
+import { h } from './h';
+export function X() { return <div />; }
+"#;
+        let output = plugin.compile(source, &ctx);
+        assert!(
+            output.code.contains("h("),
+            "Multi-line block comment pragma should work: {}",
+            output.code
+        );
+    }
+
+    // ── detect_classic_jsx_pragma unit tests ─────────────────────
+
+    #[test]
+    fn detect_pragma_none_for_empty_source() {
+        assert!(detect_classic_jsx_pragma("").is_none());
+    }
+
+    #[test]
+    fn detect_pragma_none_for_no_jsx() {
+        assert!(detect_classic_jsx_pragma("const x = 1;").is_none());
+    }
+
+    #[test]
+    fn detect_pragma_none_when_after_code() {
+        let source = "import { h } from './h';\n/* @jsx h */\n";
+        assert!(
+            detect_classic_jsx_pragma(source).is_none(),
+            "Pragma after code should be ignored"
+        );
+    }
+
+    #[test]
+    fn detect_pragma_extracts_factory() {
+        let source = "/* @jsx h */\n";
+        let pragma = detect_classic_jsx_pragma(source).unwrap();
+        assert_eq!(pragma.factory, "h");
+        assert!(pragma.frag.is_none());
+    }
+
+    #[test]
+    fn detect_pragma_extracts_dotted_factory() {
+        let source = "/* @jsx React.createElement */\n";
+        let pragma = detect_classic_jsx_pragma(source).unwrap();
+        assert_eq!(pragma.factory, "React.createElement");
+    }
+
+    #[test]
+    fn detect_pragma_ignores_jsx_runtime() {
+        let source = "/* @jsxRuntime classic */\n";
+        assert!(
+            detect_classic_jsx_pragma(source).is_none(),
+            "@jsxRuntime alone should not trigger classic mode"
+        );
+    }
+
+    #[test]
+    fn detect_pragma_with_frag() {
+        let source = "/* @jsx h */\n/* @jsxFrag Fragment */\n";
+        let pragma = detect_classic_jsx_pragma(source).unwrap();
+        assert_eq!(pragma.factory, "h");
+        assert_eq!(pragma.frag.as_deref(), Some("Fragment"));
+    }
+
+    #[test]
+    fn detect_pragma_skips_blank_lines() {
+        let source = "\n\n/* @jsx h */\n";
+        let pragma = detect_classic_jsx_pragma(source).unwrap();
+        assert_eq!(pragma.factory, "h");
     }
 
     #[test]
