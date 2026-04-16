@@ -293,6 +293,39 @@ fn execute_test_file_inner(
             if let Some(ref preamble) = output.mock_preamble {
                 runtime.execute_script_void("[vertz:mock-preamble]", preamble)?;
             }
+
+            // Collect mock export names from factory return values.
+            // This is needed for proxy generation when the original module has no
+            // ESM exports (e.g., CJS modules like esbuild).
+            let export_names_result = runtime.execute_script(
+                "[vertz:mock-export-names]",
+                r#"(function() {
+                    var result = {};
+                    var mocks = globalThis.__vertz_mocked_modules || {};
+                    for (var spec in mocks) {
+                        if (mocks.hasOwnProperty(spec) && mocks[spec] && typeof mocks[spec] === 'object') {
+                            result[spec] = Object.keys(mocks[spec]);
+                        }
+                    }
+                    return result;
+                })()"#,
+            )?;
+
+            if let serde_json::Value::Object(map) = export_names_result {
+                for (specifier, keys) in map {
+                    if let serde_json::Value::Array(arr) = keys {
+                        let names: Vec<String> = arr
+                            .into_iter()
+                            .filter_map(|v| v.as_str().map(String::from))
+                            .collect();
+                        if !names.is_empty() {
+                            runtime
+                                .loader()
+                                .register_mock_export_names(&specifier, names);
+                        }
+                    }
+                }
+            }
         }
     }
 

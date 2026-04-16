@@ -28,6 +28,7 @@ pub mod reactivity_analyzer;
 pub mod route_splitting;
 pub mod signal_api_registry;
 pub mod signal_transformer;
+pub mod spy_exports;
 pub mod ssr_safety_diagnostics;
 pub mod typescript_strip;
 pub mod utils;
@@ -156,6 +157,10 @@ pub struct CompileOptions {
     /// and rewrites imports of mocked modules to `const` destructuring.
     /// Used for test files compiled by the vtz test runner.
     pub mock_hoisting: Option<bool>,
+    /// When true, export declarations are transformed to use `let` bindings with
+    /// setter registration, enabling `spyOn()` on ESM module exports via live
+    /// binding updates. Used for ALL modules when the test runner is active.
+    pub spy_exports: Option<bool>,
 }
 
 /// Per-component AOT compilation result in the output.
@@ -197,6 +202,7 @@ pub fn compile(source: &str, options: CompileOptions) -> CompileResult {
     let enable_prefetch_manifest = options.prefetch_manifest.unwrap_or(false);
     let skip_css = options.skip_css_transform.unwrap_or(false);
     let enable_mock_hoisting = options.mock_hoisting.unwrap_or(false);
+    let enable_spy_exports = options.spy_exports.unwrap_or(false);
 
     let source_type = SourceType::from_path(filename).unwrap_or_default();
     let allocator = Allocator::default();
@@ -282,6 +288,13 @@ pub fn compile(source: &str, options: CompileOptions) -> CompileResult {
     // Strip TypeScript syntax first (interfaces, type aliases, as casts, type annotations, etc.)
     // Must run before JSX transform so that get_transformed_slice() returns clean JavaScript.
     typescript_strip::strip_typescript_syntax(&mut ms, &parser_ret.program, source);
+
+    // Export interposition for spy support — converts `export function/const/class` to `let`
+    // bindings with setter registration, enabling `spyOn()` on ESM module exports.
+    // Must run after TypeScript stripping (needs clean JS) and before component transforms.
+    if enable_spy_exports {
+        spy_exports::transform_spy_exports(&mut ms, &parser_ret.program, source);
+    }
 
     // Route code splitting -- convert static imports in defineRoutes to dynamic imports.
     // Must run before component transforms (it rewrites module-level import/export statements).

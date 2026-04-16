@@ -253,14 +253,18 @@ impl VertzJsRuntime {
                 .to_string_lossy()
                 .to_string()
         });
-        let module_loader = Rc::new(VertzModuleLoader::new_with_shared_cache(
+        let mut loader = VertzModuleLoader::new_with_shared_cache(
             &root_dir,
             cache_enabled,
             options.plugin.clone(),
             options.shared_source_cache.clone(),
             options.v8_code_cache.clone(),
             options.resolution_cache.clone(),
-        ));
+        );
+        // Enable test mode so all compiled modules get export interposition
+        // for spyOn() support on ESM exports.
+        loader.set_test_mode(true);
+        let module_loader = Rc::new(loader);
         let snapshot = crate::test::snapshot::get_test_snapshot();
 
         let mut runtime = JsRuntime::new(RuntimeOptions {

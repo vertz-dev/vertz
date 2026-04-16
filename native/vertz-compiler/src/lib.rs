@@ -244,6 +244,7 @@ fn to_core_options(options: Option<CompileOptions>) -> core::CompileOptions {
             prefetch_manifest: opts.prefetch_manifest,
             skip_css_transform: opts.skip_css_transform,
             mock_hoisting: opts.mock_hoisting,
+            spy_exports: None,
         },
     }
 }

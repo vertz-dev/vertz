@@ -257,12 +257,31 @@ if (typeof globalThis.HTMLElement === 'undefined') {
     }
     const original = obj[method];
     const spy = createMockFunction((...args) => original.apply(obj, args));
-    spy.mockRestore = () => {
-      obj[method] = original;
-      spy.mockReset();
-      return spy;
-    };
-    obj[method] = spy;
+
+    // Check if the target has an ESM module ID (set by spy_exports transform).
+    // If so, use the registered setter for live binding replacement — direct
+    // property assignment on module namespace objects is blocked by V8.
+    const moduleId = obj.__vertz_module_id__;
+    const setter = moduleId
+      && globalThis.__vertz_module_setters
+      && globalThis.__vertz_module_setters[moduleId]
+      && globalThis.__vertz_module_setters[moduleId][method];
+
+    if (setter) {
+      setter(spy);
+      spy.mockRestore = () => {
+        setter(original);
+        spy.mockReset();
+        return spy;
+      };
+    } else {
+      spy.mockRestore = () => {
+        obj[method] = original;
+        spy.mockReset();
+        return spy;
+      };
+      obj[method] = spy;
+    }
     return spy;
   }
 
@@ -1258,6 +1277,7 @@ if (typeof globalThis.HTMLElement === 'undefined') {
   // Dynamic `import()` returns frozen Module namespace objects. spyOn() needs to
   // replace properties on them, which fails. This wrapper delegates reads to the
   // original module (preserving live bindings) while allowing property writes.
+  const __unwrapCache = new WeakMap();
   globalThis.__vertz_unwrap_module = (mod) => {
     if (!mod || typeof mod !== 'object') return mod;
     // Fast path: if already mutable, return as-is
@@ -1266,6 +1286,9 @@ if (typeof globalThis.HTMLElement === 'undefined') {
       const desc = Object.getOwnPropertyDescriptor(mod, keys[0]);
       if (desc && desc.writable && desc.configurable) return mod;
     }
+    // Return cached wrapper if we've seen this module before
+    const cached = __unwrapCache.get(mod);
+    if (cached) return cached;
     // Create mutable wrapper — reads delegate to original, writes stored locally
     const overrides = Object.create(null);
     const wrapper = Object.create(null);
@@ -1277,6 +1300,7 @@ if (typeof globalThis.HTMLElement === 'undefined') {
         enumerable: true,
       });
     }
+    __unwrapCache.set(mod, wrapper);
     return wrapper;
   };
 

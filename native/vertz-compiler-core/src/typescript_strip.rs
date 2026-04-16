@@ -77,8 +77,8 @@ fn get_removable_statement_span(stmt: &Statement) -> Option<(u32, u32)> {
         Statement::VariableDeclaration(decl) if decl.declare => {
             Some((decl.span.start, decl.span.end))
         }
-        // declare function
-        Statement::FunctionDeclaration(func) if func.declare => {
+        // declare function / function overload signature (no body)
+        Statement::FunctionDeclaration(func) if func.declare || func.body.is_none() => {
             Some((func.span.start, func.span.end))
         }
         // declare class
@@ -108,8 +108,10 @@ fn get_removable_statement_span(stmt: &Statement) -> Option<(u32, u32)> {
                     Declaration::VariableDeclaration(vd) if vd.declare => {
                         Some((export_decl.span.start, export_decl.span.end))
                     }
-                    // export declare function
-                    Declaration::FunctionDeclaration(func) if func.declare => {
+                    // export declare function / export function overload signature
+                    Declaration::FunctionDeclaration(func)
+                        if func.declare || func.body.is_none() =>
+                    {
                         Some((export_decl.span.start, export_decl.span.end))
                     }
                     // export declare class
