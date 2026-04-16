@@ -60,6 +60,8 @@ pub enum Command {
     SelfUpdate(SelfUpdateArgs),
     /// Monorepo CI task orchestration
     Ci(CiArgs),
+    /// Run code generation (delegates to @vertz/cli)
+    Codegen(CodegenArgs),
 }
 
 #[derive(Parser, Debug)]
@@ -440,6 +442,17 @@ pub struct RunArgs {
     /// Target a specific workspace package (by name or path)
     #[arg(short = 'w', long = "workspace")]
     pub workspace: Option<String>,
+}
+
+#[derive(Parser, Debug)]
+pub struct CodegenArgs {
+    /// Preview generated files without writing
+    #[arg(long)]
+    pub dry_run: bool,
+
+    /// Output directory for generated files
+    #[arg(long)]
+    pub output: Option<String>,
 }
 
 #[derive(Parser, Debug)]
