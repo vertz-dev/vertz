@@ -1,5 +1,5 @@
 ---
-'vtz': patch
+'@vertz/runtime': patch
 ---
 
 fix(compiler): shorthand method definitions no longer trigger false import injection

@@ -954,11 +954,31 @@ async fn execute_command(
     let stdout_handle = child.stdout.take();
     let stderr_handle = child.stderr.take();
 
+    // Drain stdout and stderr concurrently with wait(). Otherwise the child
+    // deadlocks once either pipe buffer fills (64KB on Linux, 16KB on macOS)
+    // because the parent isn't reading. This killed `vtz ci test` on any
+    // package emitting more than ~16KB of test output.
+    async fn drain<R: tokio::io::AsyncRead + Unpin>(reader: Option<R>) -> Vec<u8> {
+        use tokio::io::AsyncReadExt;
+        let mut buf = Vec::new();
+        if let Some(mut r) = reader {
+            let _ = r.read_to_end(&mut buf).await;
+        }
+        buf
+    }
+
+    let stdout_fut = drain(stdout_handle);
+    let stderr_fut = drain(stderr_handle);
+
     let result = if let Some(timeout_ms) = timeout {
         let duration = std::time::Duration::from_millis(timeout_ms);
-        match tokio::time::timeout(duration, child.wait()).await {
-            Ok(Ok(status)) => Ok(status),
-            Ok(Err(e)) => Err(e.to_string()),
+        let joined = async {
+            let (status, out, err) = tokio::join!(child.wait(), stdout_fut, stderr_fut);
+            (status, out, err)
+        };
+        match tokio::time::timeout(duration, joined).await {
+            Ok((Ok(status), out, err)) => Ok((status, out, err)),
+            Ok((Err(e), _, _)) => Err(e.to_string()),
             Err(_) => {
                 let _ = child.kill().await;
                 let _ = child.wait().await;
@@ -966,7 +986,8 @@ async fn execute_command(
             }
         }
     } else {
-        child.wait().await.map_err(|e| e.to_string())
+        let (status, out, err) = tokio::join!(child.wait(), stdout_fut, stderr_fut);
+        status.map(|s| (s, out, err)).map_err(|e| e.to_string())
     };
 
     // Unregister PID using the value captured before wait()
@@ -975,25 +996,12 @@ async fn execute_command(
     }
 
     match result {
-        Ok(exit_status) => {
+        Ok((exit_status, stdout_bytes, stderr_bytes)) => {
             let code = exit_status.code();
             let success = exit_status.success();
 
-            let mut stdout_str = String::new();
-            let mut stderr_str = String::new();
-
-            if let Some(mut handle) = stdout_handle {
-                use tokio::io::AsyncReadExt;
-                let mut buf = Vec::new();
-                let _ = handle.read_to_end(&mut buf).await;
-                stdout_str = String::from_utf8_lossy(&buf).to_string();
-            }
-            if let Some(mut handle) = stderr_handle {
-                use tokio::io::AsyncReadExt;
-                let mut buf = Vec::new();
-                let _ = handle.read_to_end(&mut buf).await;
-                stderr_str = String::from_utf8_lossy(&buf).to_string();
-            }
+            let stdout_str = String::from_utf8_lossy(&stdout_bytes).to_string();
+            let stderr_str = String::from_utf8_lossy(&stderr_bytes).to_string();
 
             if success {
                 (TaskStatus::Success, code, stdout_str, stderr_str)
@@ -1148,6 +1156,48 @@ mod tests {
         .await;
         assert_eq!(status, TaskStatus::Success);
         assert!(stderr.contains("error_msg"));
+    }
+
+    #[tokio::test]
+    async fn execute_command_does_not_deadlock_on_large_stdout() {
+        // Regression: child was blocking on stdout write once the pipe buffer
+        // filled (~64KB on Linux, ~16KB on macOS) because the parent only read
+        // the pipes *after* wait(). Any task that emits more than the buffer
+        // size would hang until the task timeout killed it (e.g. `vtz test`
+        // emitting thousands of passing test lines).
+        //
+        // Fix: drain stdout and stderr concurrently with child.wait().
+        //
+        // Produce ~512KB on stdout to exceed the pipe buffer on all platforms.
+        // With a 5s timeout, a deadlocked impl fails with "timeout"; a correct
+        // impl completes in milliseconds.
+        let (status, code, stdout, _) = execute_command_no_signal(
+            "yes 'x' | head -c 524288",
+            Path::new("."),
+            &BTreeMap::new(),
+            Some(5_000),
+            &[],
+        )
+        .await;
+        assert_eq!(status, TaskStatus::Success, "should not hit timeout");
+        assert_eq!(code, Some(0));
+        assert_eq!(stdout.len(), 524_288);
+    }
+
+    #[tokio::test]
+    async fn execute_command_does_not_deadlock_on_large_stderr() {
+        // Same as above but on stderr — both pipes can independently deadlock.
+        let (status, code, _, stderr) = execute_command_no_signal(
+            "yes 'e' | head -c 524288 >&2",
+            Path::new("."),
+            &BTreeMap::new(),
+            Some(5_000),
+            &[],
+        )
+        .await;
+        assert_eq!(status, TaskStatus::Success, "should not hit timeout");
+        assert_eq!(code, Some(0));
+        assert_eq!(stderr.len(), 524_288);
     }
 
     #[tokio::test]

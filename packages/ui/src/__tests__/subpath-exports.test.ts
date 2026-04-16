@@ -10,6 +10,16 @@ import { resolve } from 'node:path';
  * missing exports and accidental internal symbol leaks.
  */
 
+// The test-mode compiler's spy_exports transform appends this infrastructure
+// export to every compiled module to support spyOn() on ESM live bindings.
+// It's not part of the public API and is absent from production dist builds.
+const COMPILER_INFRA_EXPORTS = ['__vertz_module_id__'];
+function publicExports(mod: object): string[] {
+  return Object.keys(mod)
+    .filter((k) => !COMPILER_INFRA_EXPORTS.includes(k))
+    .sort();
+}
+
 describe('Subpath Exports — @vertz/ui/router', () => {
   const expectedExports = [
     'Link',
@@ -28,7 +38,7 @@ describe('Subpath Exports — @vertz/ui/router', () => {
 
   test('exports exactly the public API (no internal leaks)', async () => {
     const mod = await import('../router/public');
-    const actualExports = Object.keys(mod).sort();
+    const actualExports = publicExports(mod);
     expect(actualExports).toEqual(expectedExports);
   });
 
@@ -74,7 +84,7 @@ describe('Subpath Exports — @vertz/ui/form', () => {
 
   test('exports exactly the public API (no internal leaks)', async () => {
     const mod = await import('../form/public');
-    const actualExports = Object.keys(mod).sort();
+    const actualExports = publicExports(mod);
     expect(actualExports).toEqual(expectedExports);
   });
 
@@ -100,7 +110,7 @@ describe('Subpath Exports — @vertz/ui/query', () => {
 
   test('exports exactly the public API (no internal leaks)', async () => {
     const mod = await import('../query/public');
-    const actualExports = Object.keys(mod).sort();
+    const actualExports = publicExports(mod);
     expect(actualExports).toEqual(expectedExports);
   });
 
@@ -141,7 +151,7 @@ describe('Subpath Exports — @vertz/ui/css', () => {
 
   test('exports exactly the public API (no internal leaks)', async () => {
     const mod = await import('../css/public');
-    const actualExports = Object.keys(mod).sort();
+    const actualExports = publicExports(mod);
     expect(actualExports).toEqual(expectedExports);
   });
 
