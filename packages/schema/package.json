@@ -1,6 +1,6 @@
 {
   "name": "@vertz/schema",
-  "version": "0.2.67",
+  "version": "0.2.68",
   "description": "Type-safe schema definitions for Vertz",
   "license": "MIT",
   "repository": {
