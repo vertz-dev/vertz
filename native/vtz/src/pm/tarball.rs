@@ -372,13 +372,40 @@ pub fn extract_tarball(
             if let Some(parent) = target.parent() {
                 std::fs::create_dir_all(parent)?;
             }
+            let mode = entry.header().mode().ok();
             let mut output = std::fs::File::create(&target)?;
             // Read with size limit enforcement
             let mut limited = entry.take(MAX_FILE_SIZE);
             std::io::copy(&mut limited, &mut output)?;
+            // Drop the handle before touching permissions on Windows (noop on Unix).
+            drop(output);
+            apply_entry_mode(&target, mode)?;
         }
     }
 
+    Ok(())
+}
+
+/// Preserve the file mode recorded in the tar header.
+///
+/// npm package tarballs include binaries at mode 0o755; without applying the
+/// header mode they land as 0o644 and spawn fails with EACCES (seen with
+/// `@esbuild/linux-x64/bin/esbuild` after `vtz install` in CI).
+fn apply_entry_mode(target: &Path, mode: Option<u32>) -> std::io::Result<()> {
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        if let Some(mode) = mode {
+            // Mask to file-permission bits; ignore setuid/sticky to avoid
+            // introducing elevated bits from an untrusted archive.
+            let safe = mode & 0o777;
+            std::fs::set_permissions(target, std::fs::Permissions::from_mode(safe))?;
+        }
+    }
+    #[cfg(not(unix))]
+    {
+        let _ = (target, mode);
+    }
     Ok(())
 }
 
@@ -474,9 +501,12 @@ pub fn extract_github_tarball(
             if let Some(parent) = target.parent() {
                 std::fs::create_dir_all(parent)?;
             }
+            let mode = entry.header().mode().ok();
             let mut output = std::fs::File::create(&target)?;
             let mut limited = entry.take(MAX_FILE_SIZE);
             std::io::copy(&mut limited, &mut output)?;
+            drop(output);
+            apply_entry_mode(&target, mode)?;
         }
     }
 
@@ -754,6 +784,71 @@ mod tests {
         // Verify
         let extracted = std::fs::read_to_string(dest.join("index.js")).unwrap();
         assert_eq!(extracted, "console.log('hello');");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn test_extract_tarball_preserves_executable_mode() {
+        // Regression: `vtz install` was extracting npm tarballs without
+        // preserving the executable bit, so binaries like
+        // @esbuild/linux-x64/bin/esbuild came out non-executable and spawn
+        // failed with EACCES. npm package tarballs include binaries at mode
+        // 0o755, and we must preserve that.
+        use std::os::unix::fs::PermissionsExt;
+
+        let dir = tempfile::tempdir().unwrap();
+        let dest = dir.path().join("extract");
+        std::fs::create_dir_all(&dest).unwrap();
+
+        let mut builder = tar::Builder::new(Vec::new());
+        let exec_content = b"#!/bin/sh\necho hi\n";
+        let mut exec_header = tar::Header::new_gnu();
+        exec_header.set_size(exec_content.len() as u64);
+        exec_header.set_mode(0o755);
+        exec_header.set_cksum();
+        builder
+            .append_data(&mut exec_header, "package/bin/cli", &exec_content[..])
+            .unwrap();
+
+        let data_content = b"plain data\n";
+        let mut data_header = tar::Header::new_gnu();
+        data_header.set_size(data_content.len() as u64);
+        data_header.set_mode(0o644);
+        data_header.set_cksum();
+        builder
+            .append_data(&mut data_header, "package/README.md", &data_content[..])
+            .unwrap();
+
+        let tar_bytes = builder.into_inner().unwrap();
+        use flate2::write::GzEncoder;
+        use std::io::Write;
+        let mut encoder = GzEncoder::new(Vec::new(), flate2::Compression::default());
+        encoder.write_all(&tar_bytes).unwrap();
+        let gz_bytes = encoder.finish().unwrap();
+
+        extract_tarball(&gz_bytes, &dest).unwrap();
+
+        let exec_perms = std::fs::metadata(dest.join("bin/cli"))
+            .unwrap()
+            .permissions()
+            .mode();
+        assert_eq!(
+            exec_perms & 0o777,
+            0o755,
+            "executable file should retain 0o755, got {:o}",
+            exec_perms & 0o777
+        );
+
+        let data_perms = std::fs::metadata(dest.join("README.md"))
+            .unwrap()
+            .permissions()
+            .mode();
+        assert_eq!(
+            data_perms & 0o777,
+            0o644,
+            "regular file should retain 0o644, got {:o}",
+            data_perms & 0o777
+        );
     }
 
     #[test]
