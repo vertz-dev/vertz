@@ -31,7 +31,9 @@ pub const TIMERS_BOOTSTRAP_JS: &str = r#"
   const CANCEL_CHECK_MS = 100;
 
   async function sleepCancellable(state, delay) {
-    let remaining = Math.max(0, delay);
+    // Non-finite or negative delays fire immediately (matches browser ToInt32 semantics).
+    // Without this guard, Infinity causes an infinite loop (Infinity - 100 === Infinity).
+    let remaining = Number.isFinite(delay) ? Math.max(0, delay) : 0;
     if (remaining <= CANCEL_CHECK_MS) {
       // Short delay — sleep in one go (common fast path)
       await Deno.core.ops.op_timer_sleep(BigInt(Math.floor(remaining)));
@@ -360,6 +362,67 @@ mod tests {
         rt.run_event_loop().await.unwrap();
         let output = rt.captured_output();
         assert_eq!(output.stdout, vec!["chunked float ok"]);
+    }
+
+    /// setTimeout(fn, Infinity) must fire immediately, not hang the event loop.
+    /// Infinity delay causes remaining to never decrease (Infinity - 100 === Infinity).
+    #[tokio::test]
+    async fn test_set_timeout_infinity_delay() {
+        let mut rt = create_capturing_runtime();
+        rt.execute_script_void(
+            "<test>",
+            r#"
+            setTimeout(() => console.log('infinity ok'), Infinity);
+        "#,
+        )
+        .unwrap();
+
+        let result =
+            tokio::time::timeout(std::time::Duration::from_secs(2), rt.run_event_loop()).await;
+
+        assert!(result.is_ok(), "Event loop hung on Infinity delay");
+        let output = rt.captured_output();
+        assert_eq!(output.stdout, vec!["infinity ok"]);
+    }
+
+    /// setTimeout(fn, NaN) must fire immediately (NaN coerces to 0 per spec).
+    #[tokio::test]
+    async fn test_set_timeout_nan_delay() {
+        let mut rt = create_capturing_runtime();
+        rt.execute_script_void(
+            "<test>",
+            r#"
+            setTimeout(() => console.log('nan ok'), NaN);
+        "#,
+        )
+        .unwrap();
+
+        let result =
+            tokio::time::timeout(std::time::Duration::from_secs(2), rt.run_event_loop()).await;
+
+        assert!(result.is_ok(), "Event loop hung on NaN delay");
+        let output = rt.captured_output();
+        assert_eq!(output.stdout, vec!["nan ok"]);
+    }
+
+    /// setTimeout(fn, -1) must fire immediately (negative coerces to 0 per spec).
+    #[tokio::test]
+    async fn test_set_timeout_negative_delay() {
+        let mut rt = create_capturing_runtime();
+        rt.execute_script_void(
+            "<test>",
+            r#"
+            setTimeout(() => console.log('negative ok'), -1);
+        "#,
+        )
+        .unwrap();
+
+        let result =
+            tokio::time::timeout(std::time::Duration::from_secs(2), rt.run_event_loop()).await;
+
+        assert!(result.is_ok(), "Event loop hung on negative delay");
+        let output = rt.captured_output();
+        assert_eq!(output.stdout, vec!["negative ok"]);
     }
 
     /// Self-rescheduling setTimeout chain (like RelativeTime component) must
